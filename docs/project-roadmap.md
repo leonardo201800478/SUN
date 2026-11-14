@@ -33,6 +33,15 @@ Não avançar para plataforma posterior com bloqueadores estruturais anteriores.
 
 ## 3. Replataforma — R1 a R5
 
+| Trilha | Situação | Avaliação |
+|---|---|---|
+| R1 — Slint + WGPU 30 + Vulkan | POC integrada; workflow Windows x64 passou | Integração de software aprovada. O relatório local 118b96bf registra inicialização física, Vulkan efetivo, resize/lifecycle e apresentação sustentada como NOT RUN; repetir no HEAD atual. |
+| R2 — Frames reais do SMS | FrameMailbox e SmsTemporalWorker integrados; frame pacing resolvido (#755); smoke test físico relatado | Caminho de frames integrado. O relato manual ainda não está vinculado a log/HEAD reproduzível; completar campanha de ROM/gameplay no HEAD atual. |
+| R3 — Áudio CPAL 0.18.2 | CPAL e pipeline PCM integrados; CI Windows e testes automatizados aprovados; reprodução física relatada | Integração aprovada. Reprodução prolongada, hotplug, recuperação de endpoint e underruns ainda não estão documentados no HEAD atual. |
+| R4 — SDL3 input | Backend existente em native/input_runtime; integração com Slint em PR #867 | Em andamento. CI Windows SDL3 e testes físicos com controles ainda pendentes; perfis/remapeamento também. |
+| R5 — Frontend completo | Slint desktop parcial, menus e controles em evolução | Pendente: biblioteca, configurações consolidadas, HUD, telemetria e retirada dos hosts antigos. |
+
+
 ### R1 — POC gráfica mínima
 
 Comprovar no Windows x64: janela Slint; WGPU 30; Vulkan explicitamente selecionado/identificado; mesmo wgpu::Device e wgpu::Queue compartilhados com Slint; textura externa WGPU atualizada continuamente; composição na mesma janela; resize, lifecycle da surface e shutdown limpo; build Release reproduzível.
