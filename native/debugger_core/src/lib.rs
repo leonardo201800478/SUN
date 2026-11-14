@@ -156,7 +156,6 @@ impl<T> BoundedHistory<T> {
     }
 }
 
-
 /// Result of publishing one owned diagnostic event to the collector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PublishResult {
@@ -238,12 +237,17 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
     /// Start a collector with separately bounded ingress and retained history.
     ///
     /// Both capacities are normalized to at least one element.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operating system cannot create the collector thread.
     #[must_use]
     pub fn start(queue_capacity: usize, history_capacity: usize) -> Self {
         let (sender, receiver) = std::sync::mpsc::sync_channel(queue_capacity.max(1));
         let active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let dropped = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-        let history = std::sync::Arc::new(std::sync::Mutex::new(BoundedHistory::new(history_capacity)));
+        let history =
+            std::sync::Arc::new(std::sync::Mutex::new(BoundedHistory::new(history_capacity)));
         let collector_history = std::sync::Arc::clone(&history);
         let thread = std::thread::Builder::new()
             .name("sega-debugger-collector".to_owned())
@@ -255,14 +259,20 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
                                 retained.push(event);
                             }
                         }
-                        CollectorMessage::Barrier(reply) => { let _ = reply.send(()); }
+                        CollectorMessage::Barrier(reply) => {
+                            let _ = reply.send(());
+                        }
                         CollectorMessage::Shutdown => break,
                     }
                 }
             })
             .expect("failed to start debugger collector thread");
         Self {
-            publisher: DiagnosticPublisher { sender, active, dropped },
+            publisher: DiagnosticPublisher {
+                sender,
+                active,
+                dropped,
+            },
             history,
             thread: Some(thread),
         }
@@ -281,7 +291,12 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
         T: Clone,
     {
         let (reply, acknowledged) = std::sync::mpsc::sync_channel(1);
-        if self.publisher.sender.send(CollectorMessage::Barrier(reply)).is_ok() {
+        if self
+            .publisher
+            .sender
+            .send(CollectorMessage::Barrier(reply))
+            .is_ok()
+        {
             let _ = acknowledged.recv();
         }
         self.history
@@ -325,7 +340,6 @@ impl<T: Send + 'static> Drop for DiagnosticCollector<T> {
 #[cfg(test)]
 mod tests {
     use super::{BoundedHistory, BreakpointSet};
-
 
     #[test]
     fn diagnostic_collector_runs_on_a_dedicated_thread_and_retains_events() {
