@@ -3,7 +3,7 @@
 **Sistema-alvo:** Sega Master System 1
 **ASIC prioritário:** Sega 315-5124
 **Backend:** Rust / `sega-video`
-**Baseline integrada:** `main` após PR #843 (`23c77a21ae427feecfb70fa6e78692e588f72416`)
+**Baseline integrada:** `main` após PR #845 (`b62671572b04bd550bc9ef7cbdfc00e9d330bcbe`)
 **Baseline de comparação:** `202cdfc695d0c2346c86da4144b6e8a3316e0c4d`
 **HEAD de validação da PR #843:** `0f2415f9382887c94d9214abe06cb6c295ed2154`
 **Estado:** EM DESENVOLVIMENTO — compatibilidade funcional SMS1 ainda em fechamento
@@ -38,8 +38,8 @@ Escopo funcional atualizado: [SMS1 software compatibility scope](audits/sms1-vdp
 | HBlank | IMPLEMENTED_TSTATE_QUANTIZED | T213/HPos319 fecha os 256 pixels ativos; T212/HPos318 não fecha o último pixel. Teste de colisão no pixel 255 valida o boundary lógico, não a fase elétrica física |
 | VBlank / IRQ | IMPLEMENTED_TSTATE_QUANTIZED | VINT pendente em HPos 20/T13; VBlank flag em HPos 24/T16. Chunking e snapshot/restore validados; MAME usa VINT_HPOS24, diferença física não resolvida |
 | Scheduler / determinismo | IMPLEMENTED_INTEGRATED | VDP e entradas TH externas avançam pelo Scheduler; eventos TH têm timestamp absoluto, ordem de empate explícita, snapshot/restore e trace |
-| Save State | RUNTIME_IN_MEMORY_SNAPSHOT_RESTORE | `SmsTemporalWorker::save_state/load_state` captura e restaura CPU, Scheduler, bus, mapper, VDP, PSG e eventos pendentes com validação de versões. Persistência binária em arquivo/slots ainda pendente; não confundir com SRAM `.srm` |
-| Overscan / borda esquerda | RUNTIME_PRESENTATION_CROP | `SmsOverscanMode::CropLeft8` publica imagem 248×192 removendo apenas os oito pixels da esquerda; framebuffer canônico 256×192 e temporização permanecem intactos. Não é uma simulação de overscan elétrico |
+| Save State | RUNTIME_IN_MEMORY_SNAPSHOT_RESTORE | PR #845: captura/restaura CPU, Scheduler, bus, mapper, VDP, PSG e eventos pendentes; envelope valida versão, ROM, região e revisão/padrão de vídeo. Restore exige pausa. Persistência binária em arquivo/slots ainda pendente; não confundir com SRAM `.srm` |
+| Overscan / borda esquerda | RUNTIME_PRESENTATION_CROP | PR #845: `SmsOverscanMode::CropLeft8` publica imagem 248×192 removendo apenas os oito pixels da esquerda; framebuffer canônico 256×192 e temporização permanecem intactos. Não é uma simulação de overscan elétrico. O mask de R0 bit 5 continua sendo o comportamento VDP original |
 | Limite de sprites | IMPLEMENTED_UI_AND_RUNTIME | `HardwareLimit` e `UnlockedCompatibility` já estão ligados ao worker e à preferência persistida da UI; o modo desbloqueado altera composição, não o clock nem o estado de overflow do hardware |
 | SMS2 / outros perfis | REGRESSION_GATED | Renderer e perfis não SMS1 preservados pelos testes direcionados; não generalizar spans SMS1 |
 
@@ -84,6 +84,8 @@ Escopo funcional atualizado: [SMS1 software compatibility scope](audits/sms1-vdp
 - PR #839 — corrige a classificação de impacto temporal; adiciona invariância de captura TH para avanço contínuo versus blocos e boundary HBlank T212/T213 com colisão no último pixel. No HEAD `c7afd54c22d68dc3a7e9d94e26bbd780bd1564f0`: 98 testes `sega-video`, 131 testes `sega-sms-core`, 14 testes de integração SMS; Rustfmt, Clippy, Z80 focused, input focused, Scheduler stress, workspace regression, runtime Release (45 + 1 testes) e build Windows x64 Release aprovados.
 - PR #841 — integra transições externas TH1/TH2 no Scheduler, níveis active-low em $DD, snapshot/restore, desempate phase 0/phase 1 e registro no trace. No HEAD `82742d3c1b5fef3a45d0185529d5b9330f0d4180`: 98 testes `sega-video`, 131 testes `sega-sms-core`, 14 testes de integração SMS; input/console, Z80, Scheduler stress, workspace regression, Clippy, Rustfmt, runtime Release (45 + 1 testes) e build Windows x64 Release aprovados.
 - PR #843 — valida HINT/R10 e VINT nos boundaries do Scheduler: VINT pendente T13, VBlank flag T16, HINT T14, snapshot/restore e equivalência contínuo/blocos; confirma propagação HINT à linha INT do Z80. No HEAD `0f2415f9382887c94d9214abe06cb6c295ed2154`: 98 testes `sega-video`, 131 testes `sega-sms-core`, 14 testes de integração SMS; Z80 focused, input focused, Scheduler stress, workspace regression, Clippy, Rustfmt, runtime Release (45 + 1 testes) e build Windows x64 Release aprovados.
+- PR #845 — crop de apresentação SMS1 `CropLeft8` (248×192) sem mutação do framebuffer/timing; APIs runtime de snapshot/restore em memória com validação de versão/ROM/região/perfil; teste confirma nove sprites renderizados em modo desbloqueado mantendo overflow de hardware.
+  No HEAD `bfbef337a7f894911d9bc976cdcad88b3902858f`: 99 testes `sega-video`, 131 testes `sega-sms-core`, 15 testes de integração SMS, 45 testes runtime e 6 testes de API pública; Rustfmt, Clippy, workspace regression, documentação, build runtime Windows x64 Release e POC Slint/WGPU/Vulkan Windows x64 aprovados.
 
 Referência de timing independente: [SmsVdpTest](https://github.com/FluBBaOfWard/SmsVdpTest). A ROM ainda não foi executada pelo runtime deste projeto.
 
