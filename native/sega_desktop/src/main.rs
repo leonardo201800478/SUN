@@ -3149,14 +3149,8 @@ mod windows_host {
             use DesktopDisplayMode::{FullscreenImmersive, FullscreenWithUi, Windowed};
             use DisplayModeShortcut::{AltEnter, F11};
 
-            assert_eq!(
-                transition_display_mode(Windowed, F11),
-                FullscreenWithUi
-            );
-            assert_eq!(
-                transition_display_mode(FullscreenWithUi, F11),
-                Windowed
-            );
+            assert_eq!(transition_display_mode(Windowed, F11), FullscreenWithUi);
+            assert_eq!(transition_display_mode(FullscreenWithUi, F11), Windowed);
             assert_eq!(
                 transition_display_mode(Windowed, AltEnter),
                 FullscreenImmersive
