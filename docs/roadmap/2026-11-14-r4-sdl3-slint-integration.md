@@ -1,7 +1,7 @@
 # R4 — Integração SDL3 com o desktop Slint
 
-**Data:** 2026-11-14  
-**Baseline main:** `19e3155a0efcaadc9d5fff9b3e8bf1b12b30784c`  
+**Data:** 2026-11-14
+**Baseline main:** `19e3155a0efcaadc9d5fff9b3e8bf1b12b30784c`
 **Branch de trabalho:** `feat/r4-slint-sdl3-gamepad-input-20261114`
 
 ## 1. Auditoria do estado anterior
