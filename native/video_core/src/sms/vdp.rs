@@ -2192,7 +2192,7 @@ mod tests {
     fn unlocked_mode_renders_extra_sms1_sprites_without_losing_hardware_overflow() {
         let mut vram = vec![0; 0x4000];
         let mut regs = [0; 16];
-        regs[5] = 0x7E;
+        regs[5] = 0x7F;
         let sat = 0x3F00;
 
         for index in 0..9 {
