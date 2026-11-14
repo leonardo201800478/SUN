@@ -40,6 +40,32 @@
 
 **Próxima ação:** obter o arquivo exato, calcular CRC32/SHA-1 e registrar região/configuração, cena reproduzível e screenshot sem redimensionamento. Não alterar o VDP com base apenas neste caso.
 
+### SMS-GFX-004 — SMS Chip-8 Interpreter (World) (v0.21) (Proto) (Aftermarket) (Unl)
+
+| Campo | Registro |
+|---|---|
+| Sistema | Sega Master System |
+| ROM | `SMS Chip-8 Interpreter (World) (v0.21) (Proto) (Aftermarket) (Unl).sms` |
+| CRC32 / SHA-1 | PENDENTE — arquivo ROM não fornecido para identificação |
+| Perfil do emulador | Não confirmado nesta captura; registrar antes de repetir |
+| Referência | Ares, tela de menu do interpretador |
+| Resultado no Ares | Menu, logotipo CHIP-8 e texto descritivo legíveis e alinhados |
+| Resultado no Sega Emulator | Fundo verde aparece, mas logotipo/textos estão fragmentados, com caracteres deformados/deslocados e linhas ilegíveis |
+| Classificação | REPRODUZIDO PELO USUÁRIO; IDENTIDADE PENDENTE |
+| Domínio aparente | Renderização de caracteres/tile patterns e/ou composição de plano; não classificar ainda como defeito exclusivo de sprites |
+| Causa | NÃO DETERMINADA |
+
+**Evidência visual:** comparação lado a lado enviada pelo usuário em 14/11/2026. Sega Emulator à esquerda e Ares à direita, ambos exibindo a tela de menu do interpretador. A diferença é visível já em texto estático, sem necessidade de iniciar um jogo CHIP-8.
+
+**Perguntas a responder:**
+1. A ROM escreve os caracteres como tiles de background, sprites ou combinação dos dois?
+2. Os dados de pattern e os índices de tile são idênticos entre os emuladores?
+3. Há divergência na interpretação de name table, pattern generator, palette/CRAM ou atributos?
+4. A deformação depende do perfil SMS1/315-5124 ou também ocorre em SMS2?
+5. O defeito é estático desde o menu ou muda após navegação/entrada?
+
+**Próxima ação:** obter a ROM exata e seus hashes; repetir a mesma tela com perfil e região registrados. Usar este caso como controle para distinguir defeitos de tiles/fontes de defeitos de SAT/sprites. Não alterar o renderer antes de identificar como a ROM desenha o menu.
+
 ### SMS-SPR-002 — Cosmic Spacehead (Europe) (En,Fr,De,Es)
 
 | Campo | Registro |
