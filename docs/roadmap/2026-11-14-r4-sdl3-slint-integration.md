@@ -20,7 +20,7 @@
 - Adiciona `sega-input-runtime` como dependência do desktop Slint.
 - Introduz `native/sega_desktop/src/input_host.rs`, adaptador seguro entre SDL3 e `ControllerButtons` do SMS.
 - Mantém teclado no Slint e combina os níveis de teclado e gamepad por OR, evitando que o release de uma fonte libere a outra.
-- Polling ocorre em timer do host Slint a cada 8 ms (125 Hz); o backend existente verifica hotplug a cada 250 ms.
+- Polling ocorre em timer do host Slint a cada 8 ms (125 Hz nominal); o backend existente verifica hotplug a cada 250 ms.
 - Primeiro e segundo dispositivos elegíveis na ordem de sessão são atribuídos a SMS P1 e P2.
 - Gamepad padronizado: D-pad/analógico esquerdo e SDL_GAMEPAD_BUTTON_SOUTH/EAST para Botão 1/2.
 - Joystick genérico: hat 0, eixos raw 0/1 e botões raw 0/1.
