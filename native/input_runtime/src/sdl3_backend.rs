@@ -1,7 +1,7 @@
 //! Windows SDL3 joystick/gamepad backend loaded through its stable C ABI.
 //!
 //! The frontend never calls SDL or Python controller APIs. This backend is
-//! caller-polled on the Qt thread and preserves raw HID-derived axes, buttons,
+//! caller-polled on the desktop host event thread and preserves raw HID-derived axes, buttons,
 //! hats, plus SDL's standardized gamepad mapping where available.
 
 /// Reserved indices that separate raw joystick controls from SDL Gamepad API values.
