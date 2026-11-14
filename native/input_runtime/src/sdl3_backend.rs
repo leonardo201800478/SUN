@@ -33,7 +33,8 @@ mod windows {
     const SDL_INIT_JOYSTICK: u32 = 0x0000_0200;
     const SDL_INIT_GAMEPAD: u32 = 0x0000_2000;
     const SDL_INIT_EVENTS: u32 = 0x0000_4000;
-    const GAMEPAD_BUTTON_COUNT: usize = 21;
+    // SDL_GamepadButton includes the standardized MISC2..MISC6 controls (0..25).
+    const GAMEPAD_BUTTON_COUNT: usize = 26;
     const GAMEPAD_AXIS_COUNT: usize = 6;
 
     #[link(name = "kernel32")]
