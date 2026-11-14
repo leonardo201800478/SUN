@@ -178,7 +178,7 @@ mod windows_host {
     }
 
     /// Polling SDL3 ocorre no limite do host Slint, nunca no Scheduler ou em callbacks
-    /// de instrução. A frequência de 125 Hz não altera o tempo virtual da máquina.
+    /// de instrução. O intervalo nominal de 8 ms não altera o tempo virtual da máquina.
     fn start_sdl3_input_polling(
         app: &MainWindow,
         worker_slot: Rc<RefCell<Option<SmsTemporalWorker>>>,
