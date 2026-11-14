@@ -1,8 +1,12 @@
 //! Windows SDL3 joystick/gamepad backend loaded through its stable C ABI.
 //!
 //! The frontend never calls SDL or Python controller APIs. This backend is
-//! caller-polled on the Qt thread and preserves raw HID-derived axes, buttons,
+//! caller-polled on the desktop host event thread and preserves raw HID-derived axes, buttons,
 //! hats, plus SDL's standardized gamepad mapping where available.
+
+/// Reserved indices that separate raw joystick controls from SDL Gamepad API values.
+pub const SDL3_RAW_BUTTON_OFFSET: usize = 32;
+pub const SDL3_RAW_AXIS_OFFSET: usize = 16;
 
 use crate::{BackendError, BackendKind, DeviceDescriptor, InputBackend, InputBuffers};
 
@@ -29,8 +33,6 @@ mod windows {
     const SDL_INIT_EVENTS: u32 = 0x0000_4000;
     const GAMEPAD_BUTTON_COUNT: usize = 21;
     const GAMEPAD_AXIS_COUNT: usize = 6;
-    const RAW_BUTTON_OFFSET: usize = 32;
-    const RAW_AXIS_OFFSET: usize = 16;
 
     #[link(name = "kernel32")]
     #[allow(non_snake_case)]
@@ -443,13 +445,13 @@ mod windows {
                 }
             }
 
-            for button in 0..device.raw_buttons.min(MAX_BUTTONS - RAW_BUTTON_OFFSET) {
+            for button in 0..device.raw_buttons.min(MAX_BUTTONS - SDL3_RAW_BUTTON_OFFSET) {
                 let pressed = unsafe { (self.api.get_button)(device.joystick, button as c_int) };
-                let _ = state.buttons.set(RAW_BUTTON_OFFSET + button, pressed);
+                let _ = state.buttons.set(SDL3_RAW_BUTTON_OFFSET + button, pressed);
             }
-            for axis in 0..device.raw_axes.min(MAX_AXES - RAW_AXIS_OFFSET) {
+            for axis in 0..device.raw_axes.min(MAX_AXES - SDL3_RAW_AXIS_OFFSET) {
                 let value = unsafe { (self.api.get_axis)(device.joystick, axis as c_int) };
-                let _ = state.set_axis(RAW_AXIS_OFFSET + axis, value, AxisSemantic::Unknown);
+                let _ = state.set_axis(SDL3_RAW_AXIS_OFFSET + axis, value, AxisSemantic::Unknown);
                 if device.gamepad.is_null() && axis < 2 {
                     let semantic = if axis == 0 {
                         AxisSemantic::LeftStickX
@@ -573,4 +575,32 @@ impl InputBackend for Sdl3Backend {
     }
 
     fn shutdown(&mut self) {}
+}
+
+#[cfg(all(test, windows))]
+mod windows_smoke_tests {
+    use super::Sdl3Backend;
+    use crate::{InputBackend, InputBuffers};
+
+    #[test]
+    fn windows_sdl3_runtime_initializes_enumerates_and_polls_without_hardware() {
+        let mut backend =
+            Sdl3Backend::new().expect("the pinned SDL3 runtime must load and initialize");
+        let mut devices = Vec::new();
+        backend
+            .enumerate(&mut devices)
+            .expect("SDL3 device enumeration must succeed");
+
+        let mut buffers = InputBuffers::default();
+        backend
+            .poll_into(&mut buffers)
+            .expect("SDL3 polling must succeed without a physical controller");
+
+        assert!(
+            devices
+                .iter()
+                .all(|device| device.backend == crate::BackendKind::Sdl3)
+        );
+        backend.shutdown();
+    }
 }

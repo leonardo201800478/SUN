@@ -1,6 +1,9 @@
 #![deny(unsafe_code)]
 
 #[cfg(windows)]
+mod input_host;
+
+#[cfg(windows)]
 mod windows_host {
     use std::{
         cell::{Cell, RefCell},
@@ -19,6 +22,7 @@ mod windows_host {
         time::{Duration, Instant},
     };
 
+    use crate::input_host::Sdl3InputHost;
     use sega_media::{CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity};
     use sega_save_runtime::SaveRamStore;
     use sega_sms_core::ControllerButtons;
@@ -158,6 +162,115 @@ mod windows_host {
         }
     }
 
+    /// Combina fontes independentes de entrada sem permitir que uma libere a outra.
+    fn merge_controller_buttons(
+        keyboard: ControllerButtons,
+        gamepad: ControllerButtons,
+    ) -> ControllerButtons {
+        ControllerButtons {
+            up: keyboard.up || gamepad.up,
+            down: keyboard.down || gamepad.down,
+            left: keyboard.left || gamepad.left,
+            right: keyboard.right || gamepad.right,
+            button_1: keyboard.button_1 || gamepad.button_1,
+            button_2: keyboard.button_2 || gamepad.button_2,
+        }
+    }
+
+    /// Polling SDL3 ocorre no limite do host Slint, nunca no Scheduler ou em callbacks
+    /// de instrução. O intervalo nominal de 8 ms não altera o tempo virtual da máquina.
+    fn start_sdl3_input_polling(
+        app: &MainWindow,
+        worker_slot: Rc<RefCell<Option<SmsTemporalWorker>>>,
+        keyboard_state: Rc<RefCell<KeyboardInputState>>,
+        gamepad_state: Rc<RefCell<[ControllerButtons; 2]>>,
+    ) -> Timer {
+        let mut last_pause_pressed = false;
+        let mut input_host = match Sdl3InputHost::new() {
+            Ok(host) => {
+                let status = host.status().to_owned();
+                app.set_input_status(status.clone().into());
+                Some(host)
+            }
+            Err(error) => {
+                let status = format!("SDL3 indisponível — teclado ativo: {error}");
+                app.set_input_status(status.into());
+                eprintln!("R4_SDL3 event=initialization_failed error={error}");
+                None
+            }
+        };
+        let app_weak = app.as_weak();
+        let timer = Timer::default();
+
+        timer.start(TimerMode::Repeated, Duration::from_millis(8), move || {
+            let Some(app) = app_weak.upgrade() else {
+                return;
+            };
+
+            let poll_result = input_host.as_mut().map(Sdl3InputHost::poll);
+            let (mut next_players, pause_pressed, status_update) = match poll_result {
+                Some(Ok((players, pause_pressed, status_update))) => {
+                    (players, pause_pressed, status_update)
+                }
+                Some(Err(error)) => {
+                    eprintln!("R4_SDL3 event=poll_failed error={error}");
+                    input_host = None;
+                    (
+                        [ControllerButtons::default(); 2],
+                        false,
+                        Some(format!("SDL3 interrompido — teclado ativo: {error}")),
+                    )
+                }
+                None => ([ControllerButtons::default(); 2], false, None),
+            };
+
+            let gameplay_enabled = app.get_has_rom() && app.get_active_menu().as_str() == "none";
+            if !gameplay_enabled {
+                next_players = [ControllerButtons::default(); 2];
+            }
+
+            if gameplay_enabled
+                && pause_pressed
+                && !last_pause_pressed
+                && let Some(worker) = worker_slot.borrow().as_ref()
+                && let Err(error) = worker.request_nmi()
+            {
+                eprintln!("R4_SDL3 action=pause_nmi error={error}");
+            }
+            last_pause_pressed = pause_pressed;
+
+            let previous_players = *gamepad_state.borrow();
+            if next_players != previous_players {
+                *gamepad_state.borrow_mut() = next_players;
+
+                if let Some(worker) = worker_slot.borrow().as_ref() {
+                    if next_players[0] != previous_players[0] {
+                        let combined = merge_controller_buttons(
+                            keyboard_state.borrow().controller_buttons(),
+                            next_players[0],
+                        );
+                        if let Err(error) = worker.set_controller_at(1, combined, Instant::now()) {
+                            eprintln!("R4_SDL3 player=1 action=controller_update error={error}");
+                        }
+                    }
+
+                    if next_players[1] != previous_players[1]
+                        && let Err(error) =
+                            worker.set_controller_at(2, next_players[1], Instant::now())
+                    {
+                        eprintln!("R4_SDL3 player=2 action=controller_update error={error}");
+                    }
+                }
+            }
+
+            if let Some(status) = status_update {
+                app.set_input_status(status.into());
+            }
+        });
+
+        timer
+    }
+
     slint::slint! {
         import { Button, CheckBox, LineEdit, ScrollView, Slider } from "std-widgets.slint";
         component CompactButton inherits Button {
@@ -218,6 +331,7 @@ mod windows_host {
             in-out property <float> audio-volume: 70;
             in-out property <bool> audio-muted: false;
             in-out property <string> audio-status: "Aguardando configuração da saída de áudio.";
+            in-out property <string> input-status: "Inicializando SDL3...";
             in-out property <string> audio-renderer-mode: "psg";
             in-out property <bool> audio-dsp-preset: false;
             in-out property <bool> audio-hpf-enabled: false;
@@ -511,8 +625,9 @@ mod windows_host {
                             Text { font-size: 12px; text: "F5: iniciar | F6: pausar | F7: desligar"; color: #b9c5ce; }
                             Text { font-size: 12px; text: "F8: resetar | F9: avançar quadro | F11: tela cheia com menus"; color: #b9c5ce; }
                             Text { font-size: 12px; text: "Alt+Enter: tela cheia imersiva (somente FPS)"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Gamepad SDL3 e remapeamento: etapa R4."; color: #9baab6; }
-                            CompactButton { text: "Gamepad SDL3 — integração R4"; enabled: false; }
+                            Text { font-size: 12px; text: root.input-status; color: #8bd5ca; wrap: word-wrap; }
+                            Text { font-size: 11px; text: "Padrão inicial: D-pad/analógico esquerdo; South/East = Botão 1/2; Start = Pause/NMI. Os dois primeiros gamepads/joysticks compatíveis ocupam P1/P2."; color: #b9c5ce; wrap: word-wrap; }
+                            Text { font-size: 11px; text: "Perfis persistentes por dispositivo e remapeamento visual serão tratados na próxima fatia R4."; color: #9baab6; wrap: word-wrap; }
                             CompactButton { text: "Remapear teclado"; enabled: false; }
                             CompactButton { text: "Remapear controle"; enabled: false; }
                         }
@@ -2523,9 +2638,11 @@ mod windows_host {
         });
 
         let keyboard_state = Rc::new(RefCell::new(KeyboardInputState::default()));
+        let gamepad_state = Rc::new(RefCell::new([ControllerButtons::default(); 2]));
 
         let keyboard_press_state = Rc::clone(&keyboard_state);
         let keyboard_press_worker = Rc::clone(&worker);
+        let keyboard_press_gamepad = Rc::clone(&gamepad_state);
         let keyboard_press_app = app.as_weak();
         app.on_keyboard_key_pressed(move |key: slint::SharedString| {
             let Some(app) = keyboard_press_app.upgrade() else {
@@ -2541,7 +2658,10 @@ mod windows_host {
             };
 
             if action.is_controller_button() {
-                let buttons = keyboard_press_state.borrow().controller_buttons();
+                let buttons = merge_controller_buttons(
+                    keyboard_press_state.borrow().controller_buttons(),
+                    keyboard_press_gamepad.borrow()[0],
+                );
                 if let Some(worker) = keyboard_press_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
@@ -2572,12 +2692,16 @@ mod windows_host {
 
         let keyboard_release_state = Rc::clone(&keyboard_state);
         let keyboard_release_worker = Rc::clone(&worker);
+        let keyboard_release_gamepad = Rc::clone(&gamepad_state);
         app.on_keyboard_key_released(move |key: slint::SharedString| {
             let action = keyboard_release_state
                 .borrow_mut()
                 .update(key.as_str(), false);
             if action.is_some_and(KeyboardAction::is_controller_button) {
-                let buttons = keyboard_release_state.borrow().controller_buttons();
+                let buttons = merge_controller_buttons(
+                    keyboard_release_state.borrow().controller_buttons(),
+                    keyboard_release_gamepad.borrow()[0],
+                );
                 if let Some(worker) = keyboard_release_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
@@ -2588,6 +2712,7 @@ mod windows_host {
 
         let keyboard_focus_state = Rc::clone(&keyboard_state);
         let keyboard_focus_worker = Rc::clone(&worker);
+        let keyboard_focus_gamepad = Rc::clone(&gamepad_state);
         app.on_keyboard_focus_lost(move || {
             let previous_buttons = {
                 let mut state = keyboard_focus_state.borrow_mut();
@@ -2595,10 +2720,10 @@ mod windows_host {
                 state.clear();
                 previous
             };
-            if previous_buttons != ControllerButtons::default()
-                && let Some(worker) = keyboard_focus_worker.borrow().as_ref()
-                && let Err(error) =
-                    worker.set_controller_at(1, ControllerButtons::default(), Instant::now())
+            let combined =
+                merge_controller_buttons(previous_buttons, keyboard_focus_gamepad.borrow()[0]);
+            if let Some(worker) = keyboard_focus_worker.borrow().as_ref()
+                && let Err(error) = worker.set_controller_at(1, combined, Instant::now())
             {
                 eprintln!("SLINT_KEYBOARD action=keyboard_focus_release error={error}");
             }
@@ -2611,6 +2736,7 @@ mod windows_host {
         let open_recent = Rc::clone(&recent_rom);
         let open_recent_list = Rc::clone(&recent_roms);
         let open_mailbox = mailbox.clone();
+        let open_gamepad_state = Rc::clone(&gamepad_state);
         app.on_load_rom_requested(move |path: slint::SharedString| {
             let path = PathBuf::from(path.as_str());
             if path.as_os_str().is_empty() {
@@ -2667,6 +2793,7 @@ mod windows_host {
                 &open_settings,
             ) {
                 Ok(()) => {
+                    *open_gamepad_state.borrow_mut() = [ControllerButtons::default(); 2];
                     let sprite_mode = if sprite_limit_enabled {
                         SpriteLimitMode::HardwareLimit
                     } else {
@@ -3174,6 +3301,12 @@ mod windows_host {
         let host_pacing = Arc::new(Mutex::new(HostFramePacingWindow::new()));
         let _frame_diagnostics_timer =
             start_frame_diagnostics(&app, Arc::clone(&host_pacing), Rc::clone(&worker));
+        let _sdl3_input_timer = start_sdl3_input_polling(
+            &app,
+            Rc::clone(&worker),
+            Rc::clone(&keyboard_state),
+            Rc::clone(&gamepad_state),
+        );
         start_frame_presentation(&app, Arc::clone(&queue_slot), mailbox.clone(), host_pacing)?;
 
         let run_result = app.run();
