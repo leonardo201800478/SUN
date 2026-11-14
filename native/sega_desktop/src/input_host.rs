@@ -419,7 +419,8 @@ mod tests {
         )
         .unwrap();
         let mut profiles = defaults;
-        profiles.set_profiles(custom_gamepad, profiles.joystick.clone());
+        let default_joystick = profiles.joystick.clone();
+        profiles.set_profiles(custom_gamepad, default_joystick);
 
         let mut state = DeviceState::default();
         state.buttons.set(8, true).unwrap();
