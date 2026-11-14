@@ -1,7 +1,7 @@
 # SMS1 VDP — escopo de compatibilidade por software
 
-**Data:** 14/11/2026  
-**Baseline de trabalho:** branch `feat/sms1-left-edge-crop-overscan-20261114`  
+**Data:** 14/11/2026
+**Baseline de trabalho:** branch `feat/sms1-left-edge-crop-overscan-20261114`
 **Objetivo:** priorizar compatibilidade funcional de jogos SMS1 sem depender de medições físicas ou de uma pistola óptica real.
 
 ## Decisões de escopo
