@@ -20,8 +20,10 @@ use crate::{
 mod windows {
     use super::*;
     use std::collections::{HashMap, HashSet};
-    use std::ffi::{CStr, CString, c_char, c_int, c_void};
+    use std::ffi::{CStr, CString, OsStr, c_char, c_int, c_void};
     use std::mem::transmute_copy;
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::{Path, PathBuf};
     use std::ptr;
     use std::time::{Duration, Instant};
 
@@ -37,7 +39,7 @@ mod windows {
     #[link(name = "kernel32")]
     #[allow(non_snake_case)]
     unsafe extern "system" {
-        fn LoadLibraryW(name: *const u16) -> *mut c_void;
+        fn LoadLibraryExW(name: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
         fn GetProcAddress(module: *mut c_void, name: *const c_char) -> *mut c_void;
         fn FreeLibrary(module: *mut c_void) -> i32;
     }
@@ -105,6 +107,55 @@ mod windows {
         get_version: GetVersion,
     }
 
+    const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
+    const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x0000_1000;
+
+    /// Resolve SDL3 from the executable directory, the workspace tree or an explicit override.
+    /// Relative overrides are checked against the executable and current-directory ancestry.
+    fn resolve_sdl3_dll_path(
+        configured: Option<&OsStr>,
+        executable: &Path,
+        current_dir: &Path,
+    ) -> Result<PathBuf, String> {
+        let requested = configured.unwrap_or_else(|| OsStr::new("SDL3.dll"));
+        let mut candidates = Vec::new();
+
+        if requested.is_absolute() {
+            candidates.push(requested.to_path_buf());
+        } else {
+            let mut bases = Vec::new();
+            if let Some(parent) = executable.parent() {
+                bases.extend(parent.ancestors().map(Path::to_path_buf));
+            }
+            bases.extend(current_dir.ancestors().map(Path::to_path_buf));
+            bases.dedup();
+
+            for base in bases {
+                let candidate = base.join(requested);
+                if !candidates.contains(&candidate) {
+                    candidates.push(candidate);
+                }
+            }
+        }
+
+        for candidate in &candidates {
+            if candidate.is_file() {
+                if let Ok(absolute) = candidate.canonicalize() {
+                    return Ok(absolute);
+                }
+            }
+        }
+
+        let searched = candidates
+            .iter()
+            .map(|path| format!("  - {}", path.display()))
+            .collect::<Vec<_>>()
+            .join("\\n");
+        Err(format!(
+            "SDL3.dll não foi encontrado. Caminhos pesquisados:\\n{searched}\\n             Coloque SDL3.dll junto ao executável ou na raiz do workspace;              SEGA_EMULATOR_SDL3_DLL pode apontar para um caminho absoluto."
+        ))
+    }
+
     impl SdlApi {
         unsafe fn load_symbol<T: Copy>(
             handle: *mut c_void,
@@ -120,17 +171,23 @@ mod windows {
 
         fn load() -> Result<Self, String> {
             let configured = std::env::var_os("SEGA_EMULATOR_SDL3_DLL");
-            let path = configured.unwrap_or_else(|| "SDL3.dll".into());
-            let wide: Vec<u16> = path
-                .to_string_lossy()
-                .encode_utf16()
-                .chain(Some(0))
-                .collect();
-            let handle = unsafe { LoadLibraryW(wide.as_ptr()) };
+            let executable = std::env::current_exe()
+                .map_err(|error| format!("não foi possível localizar o executável: {error}"))?;
+            let current_dir = std::env::current_dir()
+                .map_err(|error| format!("não foi possível localizar o diretório atual: {error}"))?;
+            let path = resolve_sdl3_dll_path(
+                configured.as_deref(),
+                &executable,
+                &current_dir,
+            )?;
+            let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+            let flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS;
+            let handle = unsafe { LoadLibraryExW(wide.as_ptr(), ptr::null_mut(), flags) };
             if handle.is_null() {
                 return Err(format!(
-                    "SDL3.dll não foi encontrado (SEGA_EMULATOR_SDL3_DLL={})",
-                    path.to_string_lossy()
+                    "falha ao carregar SDL3 em '{}': {}",
+                    path.display(),
+                    std::io::Error::last_os_error()
                 ));
             }
 
@@ -581,6 +638,93 @@ impl InputBackend for Sdl3Backend {
 mod windows_smoke_tests {
     use super::Sdl3Backend;
     use crate::{InputBackend, InputBuffers};
+
+    #[test]
+    fn dll_resolver_finds_workspace_root_from_cargo_test_executable() {
+        use std::fs;
+
+        let root = std::env::temp_dir().join(format!(
+            "sega-sdl3-resolver-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let workspace = root.join("workspace");
+        let executable = workspace.join("target/release/deps/input_runtime_test.exe");
+        let current_dir = workspace.join("native/input_runtime");
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        fs::create_dir_all(&current_dir).unwrap();
+        fs::write(workspace.join("SDL3.dll"), b"test").unwrap();
+
+        let resolved = super::windows::resolve_sdl3_dll_path(
+            None,
+            &executable,
+            &current_dir,
+        )
+        .unwrap();
+
+        assert_eq!(resolved, workspace.join("SDL3.dll").canonicalize().unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dll_resolver_honors_absolute_override_and_relative_executable_path() {
+        use std::fs;
+
+        let root = std::env::temp_dir().join(format!(
+            "sega-sdl3-override-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let executable_dir = root.join("bin");
+        let current_dir = root.join("working");
+        fs::create_dir_all(&executable_dir).unwrap();
+        fs::create_dir_all(&current_dir).unwrap();
+        fs::write(executable_dir.join("SDL3.dll"), b"exe").unwrap();
+        fs::write(current_dir.join("custom.dll"), b"override").unwrap();
+        let executable = executable_dir.join("sega-desktop.exe");
+
+        let beside_exe = super::windows::resolve_sdl3_dll_path(
+            None,
+            &executable,
+            &current_dir,
+        )
+        .unwrap();
+        assert_eq!(beside_exe, executable_dir.join("SDL3.dll").canonicalize().unwrap());
+
+        let absolute = current_dir.join("custom.dll").canonicalize().unwrap();
+        let explicit = super::windows::resolve_sdl3_dll_path(
+            Some(absolute.as_os_str()),
+            &executable,
+            &current_dir,
+        )
+        .unwrap();
+        assert_eq!(explicit, absolute);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dll_resolver_reports_all_candidates_when_runtime_is_missing() {
+        let root = std::env::temp_dir().join(format!(
+            "sega-sdl3-missing-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let executable = root.join("target/release/sega-desktop.exe");
+        let current_dir = root.join("native/input_runtime");
+        let error = super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir)
+            .unwrap_err();
+        assert!(error.contains("Caminhos pesquisados"));
+        assert!(error.contains("SDL3.dll"));
+    }
 
     #[test]
     fn windows_sdl3_runtime_initializes_enumerates_and_polls_without_hardware() {
