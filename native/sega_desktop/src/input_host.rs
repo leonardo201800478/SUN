@@ -289,7 +289,9 @@ fn is_supported_controller(class: DeviceClass) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{binding, AxisDirection, DEFAULT_STICK_THRESHOLD, SmsInputAction, SmsInputProfiles};
+    use super::{
+        AxisDirection, DEFAULT_STICK_THRESHOLD, SmsInputAction, SmsInputProfiles, binding,
+    };
     use sega_input_runtime::{
         ActionBinding, ActionId, AxisSemantic, DeviceClass, DeviceId, DeviceReading, DeviceState,
         InputProfile, PhysicalControl,
@@ -414,7 +416,10 @@ mod tests {
         state.buttons.set(8, true).unwrap();
         state.buttons.set(0, true).unwrap();
         let (both_controls, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
-        assert!(both_controls.button_1, "bindings for one action must combine with OR");
+        assert!(
+            both_controls.button_1,
+            "bindings for one action must combine with OR"
+        );
     }
 
     #[test]
