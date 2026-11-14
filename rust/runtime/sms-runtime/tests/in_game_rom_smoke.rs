@@ -34,9 +34,13 @@ fn frame_digest(bytes: &[u8]) -> u64 {
 
 fn collect_roms(directory: &Path) -> Vec<PathBuf> {
     let mut paths = fs::read_dir(directory)
-        .unwrap_or_else(|error| panic!("cannot read ROM directory {}: {error}", directory.display()))
+        .unwrap_or_else(|error| {
+            panic!("cannot read ROM directory {}: {error}", directory.display())
+        })
         .map(|entry| {
-            entry.unwrap_or_else(|error| panic!("cannot read ROM directory entry: {error}")).path()
+            entry
+                .unwrap_or_else(|error| panic!("cannot read ROM directory entry: {error}"))
+                .path()
         })
         .filter(|path| path.is_file() && is_sms_rom(path))
         .collect::<Vec<_>>();
@@ -69,7 +73,9 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         let mailbox = FrameMailbox::new();
         worker
             .attach_video_mailbox(mailbox.clone())
-            .unwrap_or_else(|error| panic!("{}: cannot attach video mailbox: {error}", path.display()));
+            .unwrap_or_else(|error| {
+                panic!("{}: cannot attach video mailbox: {error}", path.display())
+            });
 
         let mut first_digest = None;
         let mut last_digest = 0;
@@ -77,7 +83,9 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         let mut completed_frames = 0_u64;
 
         for frame_index in 0..FRAMES_PER_ROM {
-            let instructions = worker.step_frame(MAX_INSTRUCTIONS_PER_FRAME).unwrap_or_else(|error| {
+            let instructions = worker
+                .step_frame(MAX_INSTRUCTIONS_PER_FRAME)
+                .unwrap_or_else(|error| {
                 panic!(
                     "{}: frame {} failed after {} completed frames: {error}",
                     path.display(),
@@ -103,8 +111,18 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
                     )
                 });
 
-            assert_eq!(frame.width(), 256, "{}: unexpected frame width", path.display());
-            assert_eq!(frame.height(), 192, "{}: unexpected frame height", path.display());
+            assert_eq!(
+                frame.width(),
+                256,
+                "{}: unexpected frame width",
+                path.display()
+            );
+            assert_eq!(
+                frame.height(),
+                192,
+                "{}: unexpected frame height",
+                path.display()
+            );
             assert_eq!(
                 frame.pixels().len(),
                 256 * 192 * 3,
@@ -121,7 +139,11 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             completed_frames = completed_frames.saturating_add(1);
 
             if let Some(error) = worker.runtime_error() {
-                panic!("{}: runtime error at frame {}: {error}", path.display(), frame_index + 1);
+                panic!(
+                    "{}: runtime error at frame {}: {error}",
+                    path.display(),
+                    frame_index + 1
+                );
             }
         }
 
@@ -144,22 +166,28 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         );
 
         worker.detach_video_mailbox().unwrap_or_else(|error| {
-            panic!("{}: cannot detach video mailbox cleanly: {error}", path.display())
+            panic!(
+                "{}: cannot detach video mailbox cleanly: {error}",
+                path.display()
+            )
         });
         mailbox.close().unwrap_or_else(|error| {
-            panic!("{}: cannot close video mailbox cleanly: {error}", path.display())
+            panic!(
+                "{}: cannot close video mailbox cleanly: {error}",
+                path.display()
+            )
         });
     }
 }
 
 #[test]
 fn every_supported_sms_region_selects_the_sms1_asic_profile() {
-    use sega_sms_runtime::sms_temporal_region_profile;
     use sega_sms_core::SmsVdpRevision;
+    use sega_sms_runtime::sms_temporal_region_profile;
 
     for region in ["usa", "brazil", "europe", "japan"] {
-        let (_, profile, clock_hz) = sms_temporal_region_profile(region)
-            .unwrap_or_else(|error| panic!("{region}: {error}"));
+        let (_, profile, clock_hz) =
+            sms_temporal_region_profile(region).unwrap_or_else(|error| panic!("{region}: {error}"));
         assert_eq!(
             profile.revision,
             SmsVdpRevision::Sega3155124,
