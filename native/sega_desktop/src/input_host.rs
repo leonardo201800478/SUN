@@ -14,8 +14,8 @@ const GAMEPAD_BUTTON_DPAD_RIGHT: usize = 14;
 const GAMEPAD_AXIS_LEFT_X: usize = 0;
 const GAMEPAD_AXIS_LEFT_Y: usize = 1;
 
-// SDL documents a center tolerance of roughly 8,000 units for thumbsticks.
-// 16,000 avoids treating ordinary center noise as an intentional direction.
+// SDL documents thumbstick centers within roughly 8,000 units of zero.
+// 10,000 adds a modest margin; per-device deadzone calibration remains pending.
 const DEFAULT_STICK_THRESHOLD: i32 = 10_000;
 
 // The current backend keeps standardized gamepad buttons in 0..21 and raw
