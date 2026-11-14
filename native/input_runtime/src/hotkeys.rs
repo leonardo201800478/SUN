@@ -4,9 +4,7 @@
 //! controls. Evaluation is allocation-free and does not consume gameplay input;
 //! the desktop host decides command priority and edge-triggering.
 
-use crate::{
-    ActionId, ActionState, AxisDirection, DeviceState, PhysicalControl,
-};
+use crate::{ActionId, ActionState, AxisDirection, DeviceState, PhysicalControl};
 
 const MAX_CHORD_CONTROLS: usize = 4;
 
@@ -19,10 +17,7 @@ pub struct HotkeyBinding {
 
 impl HotkeyBinding {
     /// Creates a single-button or multi-control binding.
-    pub fn new(
-        action: ActionId,
-        controls: Vec<PhysicalControl>,
-    ) -> Result<Self, HotkeyError> {
+    pub fn new(action: ActionId, controls: Vec<PhysicalControl>) -> Result<Self, HotkeyError> {
         if controls.is_empty() {
             return Err(HotkeyError::EmptyChord);
         }
@@ -87,9 +82,7 @@ fn validate_control(control: PhysicalControl) -> Result<(), HotkeyError> {
             Err(HotkeyError::InvalidButton(index))
         }
         PhysicalControl::Axis {
-            index,
-            threshold,
-            ..
+            index, threshold, ..
         } if index as usize >= crate::MAX_AXES || threshold == 0 || threshold > i16::MAX as u16 => {
             Err(HotkeyError::InvalidAxis { index, threshold })
         }
@@ -145,14 +138,20 @@ impl std::fmt::Display for HotkeyError {
         match self {
             Self::EmptyChord => write!(f, "hotkey chord cannot be empty"),
             Self::ChordTooLarge(size) => {
-                write!(f, "hotkey chord has {size} controls; maximum is {MAX_CHORD_CONTROLS}")
+                write!(
+                    f,
+                    "hotkey chord has {size} controls; maximum is {MAX_CHORD_CONTROLS}"
+                )
             }
             Self::DuplicateControl => write!(f, "hotkey chord contains a duplicate control"),
             Self::InvalidButton(index) => write!(f, "hotkey button index {index} is out of range"),
             Self::InvalidAxis { index, threshold } => {
                 write!(f, "invalid hotkey axis {index} threshold {threshold}")
             }
-            Self::InvalidHat { index, direction_mask } => {
+            Self::InvalidHat {
+                index,
+                direction_mask,
+            } => {
                 write!(f, "invalid hotkey hat {index} mask {direction_mask:#04x}")
             }
         }
@@ -164,9 +163,7 @@ impl std::error::Error for HotkeyError {}
 #[cfg(test)]
 mod tests {
     use super::{HotkeyBinding, HotkeyError, HotkeyProfile};
-    use crate::{
-        ActionId, ActionState, AxisDirection, AxisSemantic, DeviceState, PhysicalControl,
-    };
+    use crate::{ActionId, ActionState, AxisDirection, AxisSemantic, DeviceState, PhysicalControl};
 
     fn action(value: u8) -> ActionId {
         ActionId::new(value).expect("test action is valid")
@@ -247,20 +244,14 @@ mod tests {
         assert_eq!(
             HotkeyBinding::new(
                 action(0),
-                vec![
-                    PhysicalControl::Button(0),
-                    PhysicalControl::Button(0),
-                ],
+                vec![PhysicalControl::Button(0), PhysicalControl::Button(0),],
             )
             .unwrap_err(),
             HotkeyError::DuplicateControl
         );
         assert_eq!(
-            HotkeyBinding::new(
-                action(0),
-                (0..5).map(PhysicalControl::Button).collect(),
-            )
-            .unwrap_err(),
+            HotkeyBinding::new(action(0), (0..5).map(PhysicalControl::Button).collect(),)
+                .unwrap_err(),
             HotkeyError::ChordTooLarge(5)
         );
     }
