@@ -942,7 +942,7 @@ fn capture_debug_snapshot(
 ) -> Result<SmsDebugSnapshot, String> {
     let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
     enqueue_worker_command(commands, WorkerCommand::DebugSnapshot(reply_sender))?;
-    let mut snapshot = receive_worker_reply(reply_receiver, "returning a debugger snapshot")?;
+    let mut snapshot = receive_worker_reply(reply_receiver, "returning a debugger snapshot")??;
     let slot = collector_slot
         .lock()
         .map_err(|_| "debugger collector state is unavailable".to_owned())?;
