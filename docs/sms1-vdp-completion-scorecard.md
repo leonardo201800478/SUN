@@ -36,8 +36,8 @@ Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/s
 | HBlank | IMPLEMENTED_TSTATE_QUANTIZED | T213/HPos319 fecha os 256 pixels ativos; T212/HPos318 não fecha o último pixel. Teste de colisão no pixel 255 valida o boundary lógico, não a fase elétrica física |
 | VBlank / IRQ | IMPLEMENTED_TSTATE_QUANTIZED | VINT pendente em HPos 20/T13; VBlank flag em HPos 24/T16. Chunking e snapshot/restore validados; MAME usa VINT_HPOS24, diferença física não resolvida |
 | Scheduler / determinismo | IMPLEMENTED_INTEGRATED | VDP e entradas TH externas avançam pelo Scheduler; eventos TH têm timestamp absoluto, ordem de empate explícita, snapshot/restore e trace |
-| Save State | IMPLEMENTED_WITH_VERSIONING | PR #841: coordinator v5, bus v20 e machine v33 preservam linhas TH externas e eventos pendentes; rejeição de versões anteriores |
-| SMS2 / outros perfis | REGRESSION_GATED | Renderer e perfis não SMS1 preservados pelos testes direcionados; não generalizar spans SMS1 |
+| Save State | RUNTIME_IN_MEMORY_SNAPSHOT_RESTORE | `SmsTemporalWorker::save_state/load_state` captura e restaura CPU, Scheduler, bus, mapper, VDP, PSG e eventos pendentes com validação de versões. Persistência binária em arquivo/slots ainda pendente; não confundir com SRAM `.srm` |
+| Overscan / borda esquerda | RUNTIME_PRESENTATION_CROP | `SmsOverscanMode::CropLeft8` publica imagem 248×192 removendo apenas os oito pixels da esquerda; framebuffer canônico 256×192 e temporização permanecem intactos. Não é uma simulação de overscan elétrico |\n| Limite de sprites | IMPLEMENTED_UI_AND_RUNTIME | `HardwareLimit` e `UnlockedCompatibility` já estão ligados ao worker e à preferência persistida da UI; o modo desbloqueado altera composição, não o clock nem o estado de overflow do hardware |\n| SMS2 / outros perfis | REGRESSION_GATED | Renderer e perfis não SMS1 preservados pelos testes direcionados; não generalizar spans SMS1 |
 
 ## 2. Política de granularidade
 
@@ -86,6 +86,6 @@ Os resultados acima pertencem aos respectivos commits e workflows; não são aut
 
 ## 5. Critério de liberação
 
-**SMS1 VDP permanece NÃO LIBERADO PARA TESTE IN-GAME.**
+**SMS1 VDP permanece EM DESENVOLVIMENTO e ainda não está liberado como candidato geral de compatibilidade.** A ausência de medição física e a pistola Light Phaser não bloqueiam este escopo; os bloqueios restantes são de cobertura funcional, validação automatizada e integração de apresentação.
 
 A aprovação dos spans CRAM/R7/VRAM e Mode 4/legacy comprova apenas esses incrementos. A liberação exige fechar os bloqueios da seção 3, executar os testes de integração ampliados e validar o candidato final na `main`.
