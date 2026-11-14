@@ -143,9 +143,18 @@ impl SmsInputProfiles {
                         threshold: DEFAULT_STICK_THRESHOLD,
                     },
                 ),
-                binding(ACTION_BUTTON_1, PhysicalControl::Button(SDL3_RAW_BUTTON_OFFSET as u8)),
-                binding(ACTION_BUTTON_2, PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 1) as u8)),
-                binding(ACTION_PAUSE_NMI, PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 2) as u8)),
+                binding(
+                    ACTION_BUTTON_1,
+                    PhysicalControl::Button(SDL3_RAW_BUTTON_OFFSET as u8),
+                ),
+                binding(
+                    ACTION_BUTTON_2,
+                    PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 1) as u8),
+                ),
+                binding(
+                    ACTION_PAUSE_NMI,
+                    PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 2) as u8),
+                ),
             ],
             0,
         )
