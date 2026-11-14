@@ -3055,11 +3055,11 @@ mod windows_host {
                     Ok(())
                 },
             );
-            if let Err(error) = result {
-                if let Some(app) = trace_app.upgrade() {
-                    app.set_trace_enabled(!enabled);
-                    app.set_debug_status(format!("Falha ao alterar modo Debugger: {error}").into());
-                }
+            if let Err(error) = result
+                && let Some(app) = trace_app.upgrade()
+            {
+                app.set_trace_enabled(!enabled);
+                app.set_debug_status(format!("Falha ao alterar modo Debugger: {error}").into());
             }
         });
 
