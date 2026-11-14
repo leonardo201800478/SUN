@@ -81,22 +81,22 @@ impl Sdl3InputHost {
     }
 
     pub fn status(&self) -> String {
-        if self.devices.is_empty() {
-            return "SDL3 ativo — nenhum controle conectado".to_owned();
+        let controllers: Vec<_> = self
+            .devices
+            .iter()
+            .filter(|device| is_supported_controller(device.class))
+            .collect();
+        if controllers.is_empty() {
+            return "SDL3 ativo — nenhum gamepad/joystick compatível conectado".to_owned();
         }
 
-        let names = self
-            .devices
+        let names = controllers
             .iter()
             .take(2)
             .map(|device| device.name.as_str())
             .collect::<Vec<_>>()
             .join(", ");
-        format!(
-            "SDL3 ativo — {} dispositivo(s): {}",
-            self.devices.len(),
-            names
-        )
+        format!("SDL3 ativo — {} controle(s): {}", controllers.len(), names)
     }
 }
 
