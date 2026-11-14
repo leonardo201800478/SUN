@@ -903,8 +903,6 @@ impl WorkerCommand {
     }
 }
 
-/// Owned, immutable SMS/Z80 state captured on the machine worker thread.
-#[derive(Debug, Clone, PartialEq, Eq)]
 /// Versioned in-memory save state bound to its originating ROM region.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SmsWorkerSaveState {
@@ -915,6 +913,8 @@ pub struct SmsWorkerSaveState {
 
 pub const SMS_WORKER_SAVE_STATE_VERSION: u16 = 1;
 
+/// Owned, immutable SMS/Z80 state captured on the machine worker thread.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmsDebugSnapshot {
     pub pc: u16,
     pub sp: u16,
