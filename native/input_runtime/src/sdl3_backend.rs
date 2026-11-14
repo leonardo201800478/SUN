@@ -575,7 +575,6 @@ impl InputBackend for Sdl3Backend {
     fn shutdown(&mut self) {}
 }
 
-
 #[cfg(all(test, windows))]
 mod windows_smoke_tests {
     use super::Sdl3Backend;
@@ -583,8 +582,8 @@ mod windows_smoke_tests {
 
     #[test]
     fn windows_sdl3_runtime_initializes_enumerates_and_polls_without_hardware() {
-        let mut backend = Sdl3Backend::new()
-            .expect("the pinned SDL3 runtime must load and initialize");
+        let mut backend =
+            Sdl3Backend::new().expect("the pinned SDL3 runtime must load and initialize");
         let mut devices = Vec::new();
         backend
             .enumerate(&mut devices)
@@ -595,7 +594,11 @@ mod windows_smoke_tests {
             .poll_into(&mut buffers)
             .expect("SDL3 polling must succeed without a physical controller");
 
-        assert!(devices.iter().all(|device| device.backend == crate::BackendKind::Sdl3));
+        assert!(
+            devices
+                .iter()
+                .all(|device| device.backend == crate::BackendKind::Sdl3)
+        );
         backend.shutdown();
     }
 }
