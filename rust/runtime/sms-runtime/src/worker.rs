@@ -2248,7 +2248,9 @@ fn handle_command(
             } else if state.format_version != SMS_WORKER_SAVE_STATE_VERSION
                 || state.region != region
                 || state.machine_state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
-                || state.machine_state.bus.vdp.profile() != machine.vdp().profile()
+                || state.machine_state.bus.vdp.profile().revision != machine.vdp().profile().revision
+                || state.machine_state.bus.vdp.profile().video_standard
+                    != machine.vdp().profile().video_standard
             {
                 let _ = reply.send(Err(
                     "save state version, ROM identity or hardware profile does not match the active machine"
