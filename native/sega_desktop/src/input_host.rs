@@ -103,12 +103,7 @@ impl Sdl3InputHost {
 fn is_supported_controller(class: DeviceClass) -> bool {
     matches!(
         class,
-        DeviceClass::Gamepad
-            | DeviceClass::Joystick
-            | DeviceClass::Wheel
-            | DeviceClass::Pedals
-            | DeviceClass::FlightStick
-            | DeviceClass::ArcadeStick
+        DeviceClass::Gamepad | DeviceClass::Joystick | DeviceClass::ArcadeStick
     )
 }
 
