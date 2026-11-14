@@ -1,7 +1,7 @@
 # Plano de correção da emulação SMS — 2026-11-14
 
-**Baseline registrada:** `main` = `118b96bf411248173b6215b7bf16aebdf3a66bff`  
-**Perfil desktop ativo:** Master System I / Sega 315-5124 (SMS1)  
+**Baseline registrada:** `main` = `118b96bf411248173b6215b7bf16aebdf3a66bff`
+**Perfil desktop ativo:** Master System I / Sega 315-5124 (SMS1)
 **Estado:** planejamento e gates de engenharia; correções de runtime ainda não implementadas por este documento.
 
 Este plano consolida os relatos do usuário, o scorecard SMS1, a matriz temporal e as PRs de auditoria. Sintomas visuais são evidências de comportamento, não prova isolada da causa. Nenhuma medição física do ASIC foi realizada.
