@@ -65,17 +65,16 @@ impl Sdl3InputHost {
             if !is_supported_controller(descriptor.class) {
                 continue;
             }
-            let Some(reading) = self
+            let current_slot = slot;
+            slot += 1;
+            if let Some(reading) = self
                 .buffers
                 .readings
                 .iter()
                 .find(|reading| reading.device_id == descriptor.id)
-            else {
-                continue;
-            };
-
-            players[slot] = map_sms_controller(descriptor.class, reading);
-            slot += 1;
+            {
+                players[current_slot] = map_sms_controller(descriptor.class, reading);
+            }
             if slot == players.len() {
                 break;
             }
