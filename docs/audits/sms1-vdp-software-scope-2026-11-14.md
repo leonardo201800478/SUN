@@ -39,7 +39,7 @@ O runtime agora oferece `SmsTemporalWorker::save_state()` e `load_state(state)`:
 
 - Captura em boundary seguro do worker.
 - Snapshot contém CPU, estado de continuação Z80, Scheduler, bus, mapper/memória, VDP, PSG, controladores e eventos pendentes.
-- Restore exige worker pausado e usa `SmsTemporalMachine::restore_state`, que valida versões e invariantes antes de substituir a máquina.
+- Restore exige worker pausado, valida versão do envelope, região, bytes da ROM e perfil de hardware, e usa `SmsTemporalMachine::restore_state` para validar invariantes antes de substituir a máquina.
 - Após restore, telemetria de frame/tempo e epoch do renderer de áudio são sincronizados.
 
 **Limite atual:** esta API captura/restaura snapshots em memória. A codificação persistente em arquivo, slots de save, identidade da ROM/checksum e escrita atômica ainda precisam ser implementadas. O armazenamento SRAM `.srm` existente não é Save State.
