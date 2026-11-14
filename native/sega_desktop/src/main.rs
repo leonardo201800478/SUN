@@ -2851,7 +2851,7 @@ mod windows_host {
                     .as_secs();
                 let path = directory.join(format!("sms-bus-trace-{timestamp}.txt"));
                 let mut report = format!(
-                    "SEGA EMULATOR — SMS BUS TRACE\\nformat_version=1\\nframe={}\\nmachine_time_ticks={}\\ntrace_enabled={}\\ntrace_events={}\\ntrace_dropped={}\\nPC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} IX={:04X} IY={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={}\\nVDP_STATUS={:02X} VDP_SCANLINE={} VDP_CYCLES_INTO_LINE={}\\nMAPPER_BANKS={:02X},{:02X},{:02X} MAPPER_CONTROL={:02X} MEMORY_CONTROL={:02X}\\n\\nEVENTS (oldest first)\\n",
+                    "SEGA EMULATOR — SMS BUS TRACE\nformat_version=1\nframe={}\nmachine_time_ticks={}\ntrace_enabled={}\ntrace_events={}\ntrace_dropped={}\nPC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} IX={:04X} IY={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={}\nVDP_STATUS={:02X} VDP_SCANLINE={} VDP_CYCLES_INTO_LINE={}\nMAPPER_BANKS={:02X},{:02X},{:02X} MAPPER_CONTROL={:02X} MEMORY_CONTROL={:02X}\n\nEVENTS (oldest first)\n",
                     snapshot.frame_number, snapshot.machine_time_ticks, snapshot.trace_enabled,
                     snapshot.trace_events.len(), snapshot.trace_dropped,
                     snapshot.pc, snapshot.sp, snapshot.af, snapshot.bc, snapshot.de, snapshot.hl,
@@ -2862,7 +2862,7 @@ mod windows_host {
                     snapshot.mapper_control, snapshot.memory_control
                 );
                 for (index, event) in snapshot.trace_events.iter().enumerate() {
-                    report.push_str(&format!("{index:04} {event:?}\\n"));
+                    report.push_str(&format!("{index:04} {event:?}\n"));
                 }
                 fs::write(&path, report).map_err(|error| error.to_string())?;
                 Ok(path)
