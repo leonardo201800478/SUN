@@ -33,7 +33,6 @@ fn public_worker_api_loads_steps_resets_and_accepts_controller_levels() {
     assert_eq!(worker.frame_number(), 0);
 }
 
-
 #[test]
 fn public_worker_api_saves_and_restores_a_complete_paused_machine_state() {
     let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
@@ -51,7 +50,10 @@ fn public_worker_api_saves_and_restores_a_complete_paused_machine_state() {
 
     let restored_debug = worker.debug_snapshot().unwrap();
     assert_eq!(restored_debug.pc, saved_debug.pc);
-    assert_eq!(restored_debug.machine_time_ticks, saved_debug.machine_time_ticks);
+    assert_eq!(
+        restored_debug.machine_time_ticks,
+        saved_debug.machine_time_ticks
+    );
     assert_eq!(restored_debug.vdp_scanline, saved_debug.vdp_scanline);
     assert_eq!(
         restored_debug.vdp_cycles_into_line,
@@ -74,16 +76,16 @@ fn invalid_save_state_is_rejected_without_mutating_the_running_machine() {
     assert_eq!(after.machine_time_ticks, before.machine_time_ticks);
 }
 
-
 #[test]
 fn public_worker_api_accepts_sms1_presentation_crop_setting() {
     use sega_sms_runtime::SmsOverscanMode;
 
     let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
-    worker.set_overscan_mode(SmsOverscanMode::CropLeft8).unwrap();
+    worker
+        .set_overscan_mode(SmsOverscanMode::CropLeft8)
+        .unwrap();
     worker.set_overscan_mode(SmsOverscanMode::Off).unwrap();
 }
-
 
 #[test]
 fn save_state_rejects_a_different_rom_without_mutating_the_target_machine() {
@@ -100,7 +102,6 @@ fn save_state_rejects_a_different_rom_without_mutating_the_target_machine() {
     assert_eq!(after.pc, before.pc);
     assert_eq!(after.machine_time_ticks, before.machine_time_ticks);
 }
-
 
 #[test]
 fn save_state_rejects_a_different_region_profile() {
