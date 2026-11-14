@@ -100,3 +100,15 @@ fn save_state_rejects_a_different_rom_without_mutating_the_target_machine() {
     assert_eq!(after.pc, before.pc);
     assert_eq!(after.machine_time_ticks, before.machine_time_ticks);
 }
+
+
+#[test]
+fn save_state_rejects_a_different_region_profile() {
+    let source = SmsTemporalWorker::new(vec![0x00; 0x4000], "usa").unwrap();
+    source.step_frame(100_000).unwrap();
+    let saved = source.save_state().unwrap();
+
+    let target = SmsTemporalWorker::new(vec![0x00; 0x4000], "europe").unwrap();
+    target.step_frame(100_000).unwrap();
+    assert!(target.load_state(saved).is_err());
+}
