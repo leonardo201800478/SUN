@@ -12,6 +12,7 @@
 
 use std::fmt;
 
+pub mod hotkeys;
 pub mod sdl3_backend;
 
 pub const MAX_BUTTONS: usize = 128;
