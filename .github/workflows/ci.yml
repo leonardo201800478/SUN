@@ -160,8 +160,6 @@ jobs:
               - 'native/audio_runtime/**'
               - 'native/sega_app/src/app.rs'
               - 'native/sega_app/Cargo.toml'
-              - 'native/sega_desktop/src/main.rs'
-              - 'native/sega_desktop/Cargo.toml'
               - 'native/machine_scheduler/**'
               - 'native/temporal_core/**'
               - 'native/observability/**'
