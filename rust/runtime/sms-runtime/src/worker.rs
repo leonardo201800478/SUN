@@ -853,8 +853,8 @@ enum WorkerCommand {
     StepFrame(usize, SyncSender<Result<usize, String>>),
     StepInstruction(SyncSender<Result<(), String>>),
     DebugSnapshot(SyncSender<Result<SmsDebugSnapshot, String>>),
-    SaveState(SyncSender<Result<SmsTemporalMachineState, String>>),
-    LoadState(SmsTemporalMachineState, SyncSender<Result<(), String>>),
+    SaveState(SyncSender<Result<SmsWorkerSaveState, String>>),
+    LoadState(SmsWorkerSaveState, SyncSender<Result<(), String>>),
     ReadMemory(u16, usize, SyncSender<Result<Vec<u8>, String>>),
     SetTraceEnabled(bool, SyncSender<Result<(), String>>),
     SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
@@ -905,6 +905,16 @@ impl WorkerCommand {
 
 /// Owned, immutable SMS/Z80 state captured on the machine worker thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Versioned in-memory save state bound to its originating ROM region.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SmsWorkerSaveState {
+    pub format_version: u16,
+    pub region: String,
+    pub machine_state: SmsTemporalMachineState,
+}
+
+pub const SMS_WORKER_SAVE_STATE_VERSION: u16 = 1;
+
 pub struct SmsDebugSnapshot {
     pub pc: u16,
     pub sp: u16,
@@ -1201,7 +1211,7 @@ impl SmsTemporalWorker {
     /// The returned state is an owned in-memory snapshot. It includes CPU,
     /// Scheduler, bus, mapper, VDP, PSG, controller and pending-event state.
     /// File encoding and persistent slot management are host-layer concerns.
-    pub fn save_state(&self) -> Result<SmsTemporalMachineState, String> {
+    pub fn save_state(&self) -> Result<SmsWorkerSaveState, String> {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
         enqueue_worker_command(&self.commands, WorkerCommand::SaveState(reply_sender))?;
         receive_worker_reply(reply_receiver, "capturing a save state")
@@ -1211,7 +1221,7 @@ impl SmsTemporalWorker {
     ///
     /// Restoration validates all nested state versions and CPU/bus invariants
     /// before replacing the active machine.
-    pub fn load_state(&self, state: SmsTemporalMachineState) -> Result<(), String> {
+    pub fn load_state(&self, state: SmsWorkerSaveState) -> Result<(), String> {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
         enqueue_worker_command(
             &self.commands,
@@ -2224,23 +2234,29 @@ fn handle_command(
             }
         }
         WorkerCommand::SaveState(reply) => {
-            let _ = reply.send(Ok(machine.export_state()));
+            let _ = reply.send(Ok(SmsWorkerSaveState {
+                format_version: SMS_WORKER_SAVE_STATE_VERSION,
+                region: region.to_owned(),
+                machine_state: machine.export_state(),
+            }));
         }
         WorkerCommand::LoadState(state, reply) => {
             if *running {
                 let _ = reply.send(Err(
                     "load_state is available only while the native worker is paused".to_owned(),
                 ));
-            } else if state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
-                || state.bus.vdp.profile() != machine.vdp().profile()
-                || state.bus.psg.clock_hz() != machine.psg().clock_hz()
+            } else if state.format_version != SMS_WORKER_SAVE_STATE_VERSION
+                || state.region != region
+                || state.machine_state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
+                || state.machine_state.bus.vdp.profile() != machine.vdp().profile()
+                || state.machine_state.bus.psg.clock_hz() != machine.psg().clock_hz()
             {
                 let _ = reply.send(Err(
-                    "save state ROM identity or hardware profile does not match the active machine"
+                    "save state version, ROM identity or hardware profile does not match the active machine"
                         .to_owned(),
                 ));
             } else {
-                match SmsTemporalMachine::restore_state(state) {
+                match SmsTemporalMachine::restore_state(state.machine_state) {
                     Ok(restored) => {
                         *machine = restored;
                         audio_renderer.reset_epoch_if_selected(machine, telemetry);
