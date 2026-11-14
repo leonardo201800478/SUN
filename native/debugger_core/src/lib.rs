@@ -239,10 +239,7 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
     /// Both capacities are normalized to at least one element.
     ///
     /// Returns an error if the operating system cannot create the collector thread.
-    pub fn start(
-        queue_capacity: usize,
-        history_capacity: usize,
-    ) -> std::io::Result<Self> {
+    pub fn start(queue_capacity: usize, history_capacity: usize) -> std::io::Result<Self> {
         let (sender, receiver) = std::sync::mpsc::sync_channel(queue_capacity.max(1));
         let active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let dropped = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
