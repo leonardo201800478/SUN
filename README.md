@@ -7,7 +7,7 @@ Emulador Sega multissistema com runtime de hardware integralmente em Rust. A arq
 ## Migração
 
 - **R1:** POC Slint/WGPU/Vulkan integrada. A validação automatizada e a execução física inicial não dispensam os gates restantes de lifecycle/teardown.
-- **R2:** frames reais SMS integrados via SmsTemporalWorker e FrameMailbox, preservando MachineScheduler; o aceite manual Windows/Vulkan e frame pacing continuam em acompanhamento.
+- **R2:** frames reais SMS integrados via SmsTemporalWorker e FrameMailbox, preservando MachineScheduler; o aceite manual Windows/Vulkan permanece pendente; o problema de frame pacing da issue #755 foi encerrado como resolvido em 2026-11-14 e não é um gate aberto.
 - **R3:** CPAL 0.18.2 e pipeline PCM moderno integrados em software. Os testes automatizados do crate de saída passaram; reprodução física prolongada, formatos reais do endpoint, underruns e hotplug ainda precisam de aceite.
 - **R4:** auditoria e integração SDL3 para teclado/gamepads; teclado SMS básico já é tratado pelos eventos nativos do Slint.
 - **R5:** consolidar launcher, biblioteca, configurações, HUD e telemetria; retirar hosts anteriores somente após paridade e gates.
