@@ -16,8 +16,9 @@ use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
 use sega_debugger_core::{BoundedHistory, BreakpointSet};
 use sega_sms_core::{
-    ControllerButtons, PsgAmplitudeEvent, SmsTemporalMachine, SmsTemporalMachineState,
-    SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory,
+    ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
+    SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision,
+    SpriteLimitMode, Territory,
     VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
@@ -554,6 +555,7 @@ struct WorkerTelemetry {
     video_output_error: Mutex<Option<String>>,
     video_last_published_sequence: AtomicU64,
     video_replaced_frames: AtomicU64,
+    overscan_mode: AtomicU8,
     runtime_error: Mutex<Option<String>>,
     #[cfg(test)]
     frame_signal: (Mutex<u64>, Condvar),
@@ -857,6 +859,7 @@ enum WorkerCommand {
     ReadMemory(u16, usize, SyncSender<Result<Vec<u8>, String>>),
     SetTraceEnabled(bool, SyncSender<Result<(), String>>),
     SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
+    SetOverscanMode(SmsOverscanMode, SyncSender<Result<(), String>>),
     SetBreakpoint(u16, bool, SyncSender<Result<(), String>>),
     SetController(u8, ControllerButtons, Instant),
     RequestNmi,
@@ -886,6 +889,7 @@ impl WorkerCommand {
             Self::ReadMemory(_, _, _) => "read_memory",
             Self::SetTraceEnabled(_, _) => "set_trace_enabled",
             Self::SetSpriteLimitMode(_, _) => "set_sprite_limit_mode",
+            Self::SetOverscanMode(_, _) => "set_overscan_mode",
             Self::SetBreakpoint(_, _, _) => "set_breakpoint",
             Self::SetController(_, _, _) => "set_controller",
             Self::RequestNmi => "request_nmi",
@@ -1228,6 +1232,13 @@ impl SmsTemporalWorker {
     /// reporting and Scheduler progression remain owned by the emulated machine.
     pub fn set_sprite_limit_mode(&self, mode: SpriteLimitMode) -> Result<(), String> {
         self.request_unit(|reply| WorkerCommand::SetSpriteLimitMode(mode, reply))
+    }
+
+    /// Select a presentation-only crop for the SMS1 left edge.
+    ///
+    /// The canonical VDP image and emulated machine state remain unchanged.
+    pub fn set_overscan_mode(&self, mode: SmsOverscanMode) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetOverscanMode(mode, reply))
     }
 
     /// Read at most 256 bytes through the active mapper without advancing time.
@@ -1651,13 +1662,18 @@ fn execute_frame_with_renderer(
             .ok_or_else(|| "SMS video frame sequence exhausted".to_owned())?;
         let mut video_error = None;
         if let Some(mailbox) = video_mailbox.as_ref() {
+            let overscan_mode = match telemetry.overscan_mode.load(Ordering::Acquire) {
+                value if value == SmsOverscanMode::CropLeft8 as u8 => SmsOverscanMode::CropLeft8,
+                _ => SmsOverscanMode::Off,
+            };
+            let (width, height, pixels) = machine.vdp().framebuffer_with_overscan(overscan_mode);
             let frame = VideoFrame::new(
                 *video_sequence,
-                256,
-                192,
+                width as u32,
+                height as u32,
                 PixelFormat::Rgb888,
-                256 * 3,
-                machine.framebuffer().to_vec(),
+                width * 3,
+                pixels,
             )
             .map_err(|error| error.to_string())
             .and_then(|frame| mailbox.publish(frame).map_err(|error| error.to_string()));
@@ -2288,6 +2304,10 @@ fn handle_command(
         }
         WorkerCommand::SetSpriteLimitMode(mode, reply) => {
             machine.set_sprite_limit_mode(mode);
+            let _ = reply.send(Ok(()));
+        }
+        WorkerCommand::SetOverscanMode(mode, reply) => {
+            telemetry.overscan_mode.store(mode as u8, Ordering::Release);
             let _ = reply.send(Ok(()));
         }
         WorkerCommand::ReadMemory(start, length, reply) => {
