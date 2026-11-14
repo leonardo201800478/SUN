@@ -66,7 +66,7 @@ A branch feat/r4-slint-sdl3-gamepad-input-20261114 inicia a integração: depend
 
 O CI Windows passa a instalar SDL3 3.4.20 com SHA-256 fixado e executar smoke test da ABI dinâmica sem exigir controle físico. A integração de software desta primeira fatia ainda precisa passar CI.
 
-**Pendências R4:** aceite físico com controles reais, hotplug/reconexão, identidade persistente por dispositivo (o descritor atual ainda retorna physical_key=None), perfis individuais, remapeamento, atribuição configurável P1/P2, threshold separado para captura analógica e investigação dos caminhos Pause/NMI. XInput direto não é declarado implementado; dispositivos XInput podem ser reconhecidos por SDL3 conforme driver/mapeamento. Não medir nem alegar input latency sem instrumentação específica.
+**Pendências R4:** aceite físico com controles reais, hotplug/reconexão, identidade persistente por dispositivo (o descritor atual ainda retorna physical_key=None), perfis individuais, remapeamento, atribuição configurável P1/P2, threshold inicial de gameplay de 10.000 e captura analógica separada e investigação dos caminhos Pause/NMI. XInput direto não é declarado implementado; dispositivos XInput podem ser reconhecidos por SDL3 conforme driver/mapeamento. Não medir nem alegar input latency sem instrumentação específica.
 
 ### R5 — frontend
 
