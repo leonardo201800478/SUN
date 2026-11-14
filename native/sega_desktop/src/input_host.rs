@@ -16,7 +16,7 @@ const GAMEPAD_AXIS_LEFT_Y: usize = 1;
 
 // SDL documents a center tolerance of roughly 8,000 units for thumbsticks.
 // 16,000 avoids treating ordinary center noise as an intentional direction.
-const DEFAULT_STICK_THRESHOLD: i32 = 16_000;
+const DEFAULT_STICK_THRESHOLD: i32 = 10_000;
 
 // The current backend keeps standardized gamepad buttons in 0..21 and raw
 // joystick buttons/axes in separate ranges to avoid collisions.
