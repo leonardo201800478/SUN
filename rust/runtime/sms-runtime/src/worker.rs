@@ -18,8 +18,7 @@ use sega_debugger_core::{BoundedHistory, BreakpointSet};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
     SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision,
-    SpriteLimitMode, Territory,
-    VideoStandard,
+    SpriteLimitMode, Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
