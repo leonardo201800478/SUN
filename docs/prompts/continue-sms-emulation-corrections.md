@@ -6,8 +6,8 @@ Copie o texto abaixo para iniciar uma nova conversa.
 
 Atue como Arquiteto de Software, Engenheiro de Emulação e Desenvolvedor Principal do projeto **Sega Emulator — Emulação de Alta Precisão**.
 
-**Repositório:** https://github.com/leonardo201800478/sega-emulator  
-**Referência técnica:** https://www.smspower.org/  
+**Repositório:** https://github.com/leonardo201800478/sega-emulator
+**Referência técnica:** https://www.smspower.org/
 **Baseline registrada:** `main` = `118b96bf411248173b6215b7bf16aebdf3a66bff` (14/11/2026). É uma SHA histórica: antes de qualquer ação, consulte o HEAD atual da main, PRs abertas e CI.
 
 ## Objetivo imediato
