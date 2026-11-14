@@ -2,14 +2,14 @@
 
 Emulador Sega multissistema com runtime de hardware integralmente em Rust. A arquitetura desktop de destino é **Slint 1.18.x + WGPU 30.x + CPAL 0.18.2**, com Vulkan como backend gráfico inicial preferencial no Windows x64.
 
-**Baseline de arquitetura:** backend Rust determinístico; desktop Slint 1.18.x; apresentação WGPU 30.x com Vulkan inicial no Windows x64; saída de áudio CPAL 0.18.2; SDL3 após auditoria. R2 (frames SMS no caminho Slint/WGPU) e a integração de software CPAL estão presentes na `main`; aceite físico sustentado de vídeo/áudio continua sendo um gate separado. Teclado SMS básico usa eventos nativos do Slint; gamepads SDL3 e consolidação R5 permanecem pendentes.
+**Baseline de arquitetura:** backend Rust determinístico; desktop Slint 1.18.x; apresentação WGPU 30.x com Vulkan inicial no Windows x64; saída de áudio CPAL 0.18.2; input SDL3 via sega-input-runtime. R1 está integrada e o workflow Windows da POC passa; os gates físicos ainda precisam ser vinculados ao HEAD atual. R2 (frames SMS) e R3 (CPAL) estão integradas em software; frame pacing foi resolvido, mas os aceites físicos sustentados não estão comprovados no relatório histórico. R4 integra o backend SDL3 existente ao desktop Slint; esta primeira fatia está em validação.
 
 ## Migração
 
-- **R1:** POC Slint/WGPU/Vulkan integrada; aceite físico de backend/lifecycle deve permanecer vinculado a evidência de execução no Windows.
-- **R2:** frames SMS integrados via `SmsTemporalWorker` e `FrameMailbox`, preservando o `MachineScheduler`; aceite manual de gameplay/apresentação continua separado.
-- **R3:** CPAL 0.18.2 e pipeline PCM integrados em software; reprodução física prolongada, endpoint, hotplug e underruns ainda exigem aceite.
-- **R4:** teclado SMS básico via eventos nativos do Slint; gamepads SDL3, hotplug e mapeamentos permanecem pendentes.
+- **R1:** POC Slint/WGPU/Vulkan integrada e validada no CI Windows; inicialização física, seleção efetiva do Vulkan, resize/lifecycle e apresentação sustentada precisam de evidência no HEAD atual.
+- **R2:** frames SMS integrados via `SmsTemporalWorker` e `FrameMailbox`, preservando o `MachineScheduler`; frame pacing resolvido. Repetir e registrar gameplay/apresentação no HEAD atual.
+- **R3:** CPAL 0.18.2 e pipeline PCM integrados; testes automatizados Windows aprovados em SHAs anteriores. Reprodução física sustentada, hotplug, recuperação de endpoint e underruns ainda exigem aceite no HEAD atual.
+- **R4:** teclado SMS via Slint; backend SDL3 existente conectado ao desktop Slint na branch de integração. Mapeamento inicial P1/P2; perfis persistentes, remapeamento e aceite físico ainda pendentes.
 - **R5:** consolidar launcher, biblioteca, configurações, HUD e telemetria; retirar hosts anteriores somente após paridade e regressão.
 
 Consulte o [roadmap](docs/project-roadmap.md), o [plano de corte dos hosts](docs/architecture/migrations/legacy-host-retirement.md), a [validação local Windows x64 Release (snapshot 118b96b)](docs/testing/windows-x64-release-validation-2026-11-14.md), a [auditoria histórica do caminho VDP SMS1 (mesmo snapshot)](docs/audits/sms1-vdp-runtime-path-audit-2026-11-14.md) e a [ADR 0011](docs/adr/0011-slint-wgpu-cpal-desktop-platform.md). Os dois relatórios são evidências documentais vinculadas explicitamente ao commit auditado; não devem ser interpretados como revalidação de cada commit posterior da `main`.
