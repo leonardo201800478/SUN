@@ -1,6 +1,6 @@
 # Roadmap mestre — Sega Emulator
 
-**Revisão documental:** 2026-11-12. A fotografia operacional deve ser vinculada ao HEAD consultado no GitHub.
+**Revisão documental:** 2026-11-14. A fotografia operacional deve ser vinculada ao HEAD consultado no GitHub.
 **Decisões:** ADR 0010 (runtime/hardware), ADR 0011 (desktop/hosts) e ADR-0016 (fidelidade temporal).
 
 Duas trilhas coordenadas: evolução dos sistemas Sega (P0–P9) e replataforma desktop/host (R1–R5). A segunda não autoriza reescrever hardware nem antecipar sistemas.
@@ -33,7 +33,7 @@ Não avançar para plataforma posterior com bloqueadores estruturais anteriores.
 
 ## 3. Replataforma — R1 a R5
 
-### R1 — POC gráfica mínima (prioridade imediata)
+### R1 — POC gráfica mínima
 
 Comprovar no Windows x64: janela Slint; WGPU 30; Vulkan explicitamente selecionado/identificado; mesmo wgpu::Device e wgpu::Queue compartilhados com Slint; textura externa WGPU atualizada continuamente; composição na mesma janela; resize, lifecycle da surface e shutdown limpo; build Release reproduzível.
 
@@ -43,15 +43,15 @@ R1 é isolada. Não integrar SMS real, SmsTemporalWorker, menu de jogo, pausa do
 
 ### R2 — vídeo real
 
-Integrar frames SMS por contrato portátil, preservando SmsTemporalWorker, FrameMailbox e Scheduler. Validar formato, ownership, sincronização, lifecycle e apresentação sem alterar timing.
+Frames SMS integrados por contrato portátil, preservando SmsTemporalWorker, FrameMailbox e Scheduler. O host desktop Release passou em 26 testes automatizados e compilou para Windows x64 no SHA `118b96bf411248173b6215b7bf16aebdf3a66bff`. O aceite físico continua pendente: janela, backend Vulkan efetivo, ROM real, apresentação sustentada, resize, lifecycle e gameplay. Frame pacing P0 continua sendo um gate independente.
 
 ### R3 — áudio CPAL 0.18.2
 
-Enumerar dispositivos/formatos; criar, executar e encerrar streams; reproduzir PCM real; tratar erros, remoção/reconexão e underruns. Callback eficiente. Thread de áudio não controla Scheduler.
+CPAL 0.18.2, pipeline PCM moderno e integração de software estão na main. Em 2026-11-14, o crate independente `native/audio_output` passou por fmt, Clippy Release sem warnings e 21 testes no Windows x64/MSVC. Isso não comprova stream físico aberto, reprodução audível, estabilidade prolongada, hotplug, recuperação de endpoint ou ausência de underruns. Esses itens continuam no aceite físico R3.
 
 ### R4 — input SDL3
 
-Auditar APIs; integrar teclado, gamepads, hotplug e mapeamentos; encaminhar eventos sem lógica de hardware no host.
+Auditar APIs; integrar teclado, gamepads, hotplug e mapeamentos; encaminhar eventos sem lógica de hardware no host. O teclado SMS básico já é tratado pelo host Slint. Gamepads SDL3 permanecem pendentes.
 
 ### R5 — frontend
 
@@ -59,18 +59,15 @@ Consolidar native/sega_desktop, native/video_output_wgpu e native/audio_output; 
 
 ## 4. Estado operacional
 
-A fotografia completa de PRs, issues, workflows, riscos e próximos passos está em [Auditoria geral — 2026-11-12](project-status-2026-11-12.md).
+A fotografia operacional de 2026-11-14, incluindo SHA, comandos locais, resultados, limites e protocolo de aceite físico, está em [Validação Windows x64 Release — 2026-11-14](project-status-2026-11-14.md).
 
-- Main auditada: `f5a0b691824322ce56c1a921329d3aa0957c4963`.
-- R1 POC Slint/WGPU/Vulkan: PR #747 MERGED; execução física inicial reportada, com evidências complementares de teardown/recriação ainda pendentes.
-- R2 frames SMS: PR #752 MERGED; preferências persistentes #754 MERGED; aceite manual permanece incompleto (#756).
-- R3 CPAL 0.18.2: PR #770 MERGED; H3 PCM 48 kHz PR #774 MERGED; validação física prolongada, hotplug e formatos adaptativos ainda pendentes.
-- H2 concluído como investigação experimental; nenhum DSP alternativo aprovado para produção.
-- A1 PSG SMS permanece parcial, com oráculos e validação física pendentes.
+- Main validada localmente: `118b96bf411248173b6215b7bf16aebdf3a66bff`.
+- Desktop Slint: fmt PASS; Clippy Release `-D warnings` PASS; testes 26/26 PASS; build Release Windows x64 PASS.
+- CPAL `native/audio_output`: fmt PASS; Clippy Release `-D warnings` PASS; testes 21/21 PASS.
+- Executável `sega-desktop.exe` encontrado, 22.192.640 bytes.
+- Aceite físico R2/R3: NOT RUN nesta validação. Não declarar Vulkan ativo, gameplay ou áudio audível com base somente na compilação/testes.
 - R4 SDL3 e R5 consolidação permanecem pendentes.
-- P0 #755 (frame pacing/Scheduler) deve ser diagnosticado antes de novas mudanças temporais ou hardening de áudio.
-
-Branches antigas devem ser reconciliadas por portabilidade seletiva para branches novas sobre a main atual. Não fazer merge cego de histórico divergente.
+- P0 frame pacing permanece independente e não pode ser considerado resolvido por esta build.
 
 ## 5. Z80
 
@@ -80,10 +77,11 @@ E4C → E5 → E6 → E7 → E8 → E9. Consultar docs/z80-completion-scorecard.
 
 Auditar SHA/PRs/workflows; pesquisar fontes primárias; definir critérios; modelar estados/ownership/timing; implementar incrementos pequenos; conferir formatação, Clippy e testes antes do workflow; regredir; auditar diff; atualizar documentação/evidências; publicar por PR.
 
-Gates:
-- cargo fmt --all -- --check
-- cargo clippy --release --workspace --all-targets --locked -- -D warnings
-- cargo test --release --workspace --locked
+Gates gerais:
+
+- `cargo fmt --all -- --check`
+- `cargo clippy --release --workspace --all-targets --locked -- -D warnings`
+- `cargo test --release --workspace --locked`
 
 Validar workspaces/targets standalone. Aplicativos e testes de desempenho devem usar Release. Classificar PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED nunca é PASS. Vincular evidências ao SHA exato.
 
