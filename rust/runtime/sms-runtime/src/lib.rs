@@ -9,7 +9,7 @@ pub use audio::AudioSession;
 pub use sega_audio_runtime::AnalogOutputConfig;
 pub use sega_sms_core::{SmsOverscanMode, SmsTemporalMachineState, SpriteLimitMode};
 pub use worker::{
-    AudioRendererMode, SmsDebugSnapshot, SmsFramePacingMetrics, SmsTemporalWorker,
-    SmsWorkerSaveState, SMS_WORKER_SAVE_STATE_VERSION,
-    SmsTemporalWorkerDebugHandle, sms_temporal_region_profile,
+    AudioRendererMode, SMS_WORKER_SAVE_STATE_VERSION, SmsDebugSnapshot, SmsFramePacingMetrics,
+    SmsTemporalWorker, SmsTemporalWorkerDebugHandle, SmsWorkerSaveState,
+    sms_temporal_region_profile,
 };
