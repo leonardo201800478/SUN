@@ -66,7 +66,7 @@ fn invalid_save_state_is_rejected_without_mutating_the_running_machine() {
 
     let before = worker.debug_snapshot().unwrap();
     let mut invalid = worker.save_state().unwrap();
-    invalid.format_version = 0;
+    invalid.machine_state.format_version = 0;
 
     assert!(worker.load_state(invalid).is_err());
     let after = worker.debug_snapshot().unwrap();
