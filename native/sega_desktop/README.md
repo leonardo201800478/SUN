@@ -7,7 +7,7 @@ The Slint host presents real SMS VDP frames from the Rust runtime. R2.2 migrates
 - Sistema: SMS region selection (USA, Brasil, Europa, Japão); other Sega systems remain visible but disabled until their runtimes are integrated.
 - Arquivo: load raw `.sms` / `.bin` ROMs or a `.zip` containing exactly one supported ROM entry; reopen recent ROMs and exit. O desligamento POWER OFF mantém a ROM carregada; o comando de descarregar ROM não fica exposto neste menu.
 - Vídeo: 4:3, 1:1 and 16:9 presentation modes preserve the selected ratio while the window is resized; unused viewport space is letterboxed. The source frame remains 256×192. The optional sprite-limit compatibility mode is persisted separately from hardware state.
-- Áudio: menu retained; physical output, backend selection and volume remain disabled until R3 (CPAL 0.18.2).
+- Áudio: a saída CPAL 0.18.2 e os controles de status/volume fazem parte da integração de software do host. Enumeração/seleção de endpoint e aceite físico prolongado continuam pendentes.
 - Controles: teclado SMS ativo via eventos nativos do Slint (setas, Z/X, P e F5–F9); F11 alterna fullscreen. Gamepad SDL3 e remapeamento permanecem em R4.
 - Opções: status-footer visibility. FPS size/position remain pending. Fullscreen is available from the UI and F11.
 - DEBUG: request an immutable Z80/runtime snapshot and enable/disable bounded scheduler/bus trace capture. Full debugger viewport remains a follow-up.
@@ -28,7 +28,7 @@ The Slint host presents real SMS VDP frames from the Rust runtime. R2.2 migrates
 - The UI timer consumes only the newest pending frame; it never advances emulation.
 - RGB888 is converted to tightly packed RGBA8 only at the presentation boundary.
 - Slint/WGPU uses the renderer's own Vulkan device and queue.
-- No CPAL or SDL3 integration is included in R2.
+- A saída física é fornecida pelo crate `sega-audio-output` baseado em CPAL 0.18.2. A geração digital do PSG continua pertencendo ao runtime SMS; o host não pode controlar o tempo do Scheduler. SDL3 gamepads permanecem em R4.
 
 ## Run
 
@@ -47,6 +47,10 @@ cargo fmt --manifest-path native/sega_desktop/Cargo.toml -- --check
 cargo clippy --release --locked --all-targets --manifest-path native/sega_desktop/Cargo.toml --target x86_64-pc-windows-msvc -- -D warnings
 cargo test --release --locked --all-targets --manifest-path native/sega_desktop/Cargo.toml --target x86_64-pc-windows-msvc
 cargo build --release --locked --manifest-path native/sega_desktop/Cargo.toml --target x86_64-pc-windows-msvc
+
+cargo fmt --manifest-path native/audio_output/Cargo.toml -- --check
+cargo clippy --release --locked --all-targets --manifest-path native/audio_output/Cargo.toml --target x86_64-pc-windows-msvc -- -D warnings
+cargo test --release --locked --all-targets --manifest-path native/audio_output/Cargo.toml --target x86_64-pc-windows-msvc
 ```
 
 A successful build does not prove physical Vulkan presentation. Run on Windows x64 and verify real VDP output, menu panels opening without changing main-window geometry or fullscreen state, ROM replacement, pause/resume/POWER OFF/restart/reset-auto-resume/step-frame, aspect-ratio modes during continuous resize, video-click resume from pause, F11 fullscreen toggle, ZIP ROM selection and rejection cases, sprite-limit toggling, trace capture, and clean shutdown.
@@ -64,3 +68,8 @@ A successful build does not prove physical Vulkan presentation. Run on Windows x
 - `SmsTemporalWorker::set_overscan_mode` controls the published frame crop. Persisting and exposing this option in Slint remains pending.
 - The sprite-line compatibility switch is already wired to the worker and persisted in desktop preferences. HardwareLimit is the default; UnlockedCompatibility is an opt-in compatibility mode.
 - `SmsTemporalWorker::save_state` and `load_state` provide version-validated in-memory snapshots/restores. The envelope binds the state to its format version, region, ROM bytes and VDP/PSG hardware profile. Restore is permitted only while paused. Persistent state files/slots and a portable ROM SHA-256/checksum container are not implemented yet; SRAM `.srm` files are separate.
+
+
+## Windows x64 Release evidence (historical snapshot)
+
+The local validation report for commit `118b96bf411248173b6215b7bf16aebdf3a66bff` records 26/26 desktop tests, 21/21 independent CPAL output tests, formatting, Clippy without warnings and a Windows x64 Release build as PASS. It explicitly does **not** claim physical Vulkan presentation, ROM gameplay, audible CPAL playback, endpoint lifecycle, hotplug or long-duration stability. These results are bound to that exact snapshot and are not a fresh validation of later `main` commits. See [the complete Windows x64 Release report](../../docs/testing/windows-x64-release-validation-2026-11-14.md).
