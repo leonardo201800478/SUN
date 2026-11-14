@@ -1,6 +1,6 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Baseline remota consultada:** main `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` após squash da PR #729 de reconciliação documental F-015; as PRs #726/#728 alteraram somente testes e documentação, sem alteração do runtime DD/FD. A reconciliação F-025 foi documental e não alterou runtime DD/FD; a divergência Q/previous-Q DD/FD→SCF/CCF permanece corrigida; demais lacunas F-028 permanecem.
+**Reconciliação atual:** `main` = `2fe93dd4c1ed0af7725b92805e5d1b29c126217e` (2026-11-14). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
@@ -482,3 +482,16 @@ Main `f0cfc7b9df1834ae8ad418c6241702e9003f072e`. A PR #718 fechou F-025 (RETN/RE
 - A PR #731 foi test-only: nenhum handler, decoder, sequenciador ou runtime SMS foi alterado.
 
 **Classificação:** F-005 CLOSED para semântica de software no perfil Zilog NMOS delimitado; sem validação física SMS ou compatibilidade universal CMOS/clones. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+---
+
+## 28. Reconciliação DD/FD após PRs #736 e #843 — main 2026-11-14
+
+**Main consultada:** `2fe93dd4c1ed0af7725b92805e5d1b29c126217e`.
+
+- PR #736 (`55585bf2425f1c4eaf61c4a3a3ad42f9499c4797`) alterou somente testes em `native/z80_cpu/src/cpu.rs` e `native/z80_cpu/src/sequencer.rs`, cobrindo LDI/LDD/CPI/CPD e WZ. Não alterou decoder, handlers ou semântica DD/FD.
+- PR #843 (`23c77a21ae427feecfb70fa6e78692e588f72416`) alterou testes de integração em `native/sms_core/src/temporal_bus.rs` e `native/sms_core/src/temporal_machine.rs`; não alterou o núcleo Z80 nem as famílias DD/FD.
+- Portanto, as classificações DD/FD desta matriz permanecem aplicáveis ao código atual, sem reabrir E4C/E5/E6 ou promover evidências antigas.
+- Os 34.000 vetores externos SingleStepTests continuam comprovados somente no HEAD validado da PR #692 (`1606556814a8746a445d3ad32fc948ab97f0fde5`). A main atual não recebeu uma nova execução desses vetores nesta reconciliação.
+- E7 permanece IN_PROGRESS; E8 permanece BLOCKED. Esta reconciliação documental não altera status de implementação ou validação funcional.

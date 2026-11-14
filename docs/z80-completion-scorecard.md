@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Baseline remota consultada:** `main` = `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09, após squash da PR #729 de reconciliação documental F-015). A PR #719 reconciliou F-025 e suas matrizes sem alterar o runtime Z80; CI documental #6076 e pós-merge #6077 PASS. A validação externa DD/FD permanece em 34.000/34.000 vetores PASS no HEAD validado da PR #702; os resultados não são reatribuídos ao HEAD atual. F-033 e F-034 foram reconciliadas como CLOSED dentro do perfil NMOS clássico SMS/SG-1000, com os limites documentados nas seções 26–29.
+**Reconciliação atual:** `main` = `2fe93dd4c1ed0af7725b92805e5d1b29c126217e` (2026-11-14, após integração documental da PR #861). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -585,3 +585,35 @@ A observação X/Y = bits 5/3 do novo A é testada como comportamento de referê
 **Gates no HEAD validado:** Z80 focused (fmt, Clippy, Z80/SMS/SG-1000, SingleStepTests DD/FD) PASS; Rust workspace (fmt, Clippy, testes e observability) PASS; Linux audio-output PASS; Windows WASAPI/XAudio2 PASS; Windows egui PASS; agregador PASS. D3D12/DXGI runtime e suítes não relacionadas ficaram NOT RUN/SKIPPED por classificação de impacto. Gates locais Cargo NOT RUN neste ambiente.
 
 **Limites:** CLOSED para semântica de software do perfil Zilog NMOS delimitado. Sem validação física SMS e sem afirmação universal para CMOS/clones. E7 permanece IN_PROGRESS; E8 permanece BLOCKED.
+
+
+## 42. Reconciliação da main após PRs #736 e #843 — 2026-11-14
+
+**Main auditada:** `2fe93dd4c1ed0af7725b92805e5d1b29c126217e`.
+
+### F-022 — caminhos simples LDI/LDD/CPI/CPD
+
+- **PR #736:** integrada por squash no commit `55585bf2425f1c4eaf61c4a3a3ad42f9499c4797`; HEAD validado `1520cc77e2801d985401a5518eec9da712b89e3c`.
+- **CI no HEAD exato:** run #6166 / `42698792012` SUCCESS. Z80 focused validation e agregador de qualidade passaram. Rust workspace regression e Scheduler deterministic stress ficaram SKIPPED; não são PASS.
+- A PR não alterou handlers/runtime: acrescentou matriz exaustiva no executor atômico para LDI (ED A0), LDD (ED A8), CPI (ED A1) e CPD (ED A9): 4 × 256 valores de A × 256 bytes de memória × BC inicial 1 ou 2 = **524.288 casos**.
+- Transferências: preservação de S/Z/C, H/N limpas, P/V a partir de BC após decremento, X/Y derivados de A + byte transferido, cópia, direção de HL/DE e PC.
+- Comparações: preservação de C, N, S/Z/H, P/V após decremento de BC, X/Y a partir do resultado com half-borrow ajustado, A preservado, direção de HL e PC.
+- WZ: LDI/LDD preservam o valor semeado; CPI/CPD incrementam/decrementam WZ, incluindo wraparound.
+- Os cenários microsequenciados existentes passaram a verificar WZ esperado nos caminhos atômico e sequenciado, mantendo WAIT e snapshot encode/decode + restore nas fronteiras de barramento/ciclo interno. Isso não equivale a executar a matriz de 524.288 casos no microsequenciador.
+- **Proveniência e limites:** UM008011-0816 pp. 130–143 fundamenta operação, direção, tempo nominal e flags documentadas. X/Y utiliza Sean Young, *The Undocumented Z80 Documented* v0.4; WZ/MEMPTR usa referência comparativa redcode/Z80. Não é prova física de hardware SMS nem compatibilidade universal CMOS/clones.
+- **Classificação:** a lacuna anteriormente identificada para flags/WZ dos caminhos simples foi substancialmente coberta. F-022 permanece AUDIT_PARTIAL: não declarar fechamento global da família nem E7; execução integral do ROM Z80 Block Flags Test v5.0 no core e validação física SMS continuam NOT RUN, e CMOS/clones permanecem NOT_VERIFIED.
+
+### Integração temporal HINT/VINT — PR #843
+
+- **PR #843:** merge SHA `23c77a21ae427feecfb70fa6e78692e588f72416`; HEAD validado `0f2415f9382887c94d9214abe06cb6c295ed2154`.
+- **CI no HEAD exato:** run #7389 / `43568659312` SUCCESS; workflow SMS Debugger Runtime #857 / `43568659270` SUCCESS.
+- Passaram os jobs SMS1 VDP core/machine integration, Z80 focused validation, Rust workspace regression, input integration e Scheduler deterministic stress.
+- A cobertura VINT verifica a fronteira T13/T16, snapshot/restore imediatamente antes do evento e equivalência entre avanço contínuo e em blocos. A cobertura HINT verifica R10=0 no limite T14, restauração de snapshot e a chegada da linha INT ao Z80 após cruzar T14.
+- Esta PR acrescenta evidência de integração VDP/Scheduler/linha INT; não altera a semântica de instruções do Z80 e não constitui TEMPORAL_PASS global ou fechamento de E7.6/E7.7.
+
+### Estado global após reconciliação
+
+- E4C/E5/E6 e as evidências DD/FD anteriores não foram reabertas.
+- Os 34.000 vetores SingleStepTests DD/FD permanecem vinculados ao HEAD validado da PR #692 (`1606556814a8746a445d3ad32fc948ab97f0fde5`); não foram reexecutados nem reatribuídos ao HEAD atual da main.
+- E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED até fechamento demonstrável de E7.
+- Nenhuma alteração de implementação Z80 foi integrada pelas PRs #736 ou #843; #736 é test-only e #843 adiciona testes de integração temporal SMS.
