@@ -854,7 +854,7 @@ enum WorkerCommand {
     StepInstruction(SyncSender<Result<(), String>>),
     DebugSnapshot(SyncSender<Result<SmsDebugSnapshot, String>>),
     SaveState(SyncSender<Result<SmsWorkerSaveState, String>>),
-    LoadState(SmsWorkerSaveState, SyncSender<Result<(), String>>),
+    LoadState(Box<SmsWorkerSaveState>, SyncSender<Result<(), String>>),
     ReadMemory(u16, usize, SyncSender<Result<Vec<u8>, String>>),
     SetTraceEnabled(bool, SyncSender<Result<(), String>>),
     SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
@@ -1225,7 +1225,7 @@ impl SmsTemporalWorker {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
         enqueue_worker_command(
             &self.commands,
-            WorkerCommand::LoadState(state, reply_sender),
+            WorkerCommand::LoadState(Box::new(state), reply_sender),
         )?;
         receive_worker_reply(reply_receiver, "restoring a save state")?
     }
