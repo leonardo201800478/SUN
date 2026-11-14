@@ -73,3 +73,13 @@ fn invalid_save_state_is_rejected_without_mutating_the_running_machine() {
     assert_eq!(after.pc, before.pc);
     assert_eq!(after.machine_time_ticks, before.machine_time_ticks);
 }
+
+
+#[test]
+fn public_worker_api_accepts_sms1_presentation_crop_setting() {
+    use sega_sms_runtime::SmsOverscanMode;
+
+    let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+    worker.set_overscan_mode(SmsOverscanMode::CropLeft8).unwrap();
+    worker.set_overscan_mode(SmsOverscanMode::Off).unwrap();
+}
