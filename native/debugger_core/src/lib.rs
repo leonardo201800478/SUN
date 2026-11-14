@@ -238,11 +238,10 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
     ///
     /// Both capacities are normalized to at least one element.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the operating system cannot create the collector thread.
-    #[must_use]
-    pub fn start(queue_capacity: usize, history_capacity: usize) -> Self {
+    /// Returns an I/O error if the operating system cannot create the collector thread.
+    pub fn start(queue_capacity: usize, history_capacity: usize) -> std::io::Result<Self> {
         let (sender, receiver) = std::sync::mpsc::sync_channel(queue_capacity.max(1));
         let active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let dropped = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
@@ -265,9 +264,8 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
                         CollectorMessage::Shutdown => break,
                     }
                 }
-            })
-            .expect("failed to start debugger collector thread");
-        Self {
+            })?;
+        Ok(Self {
             publisher: DiagnosticPublisher {
                 sender,
                 active,
@@ -275,7 +273,7 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
             },
             history,
             thread: Some(thread),
-        }
+        })
     }
 
     /// Return a cloneable, non-blocking publisher for the emulation worker.
@@ -344,7 +342,7 @@ mod tests {
     #[test]
     fn diagnostic_collector_runs_on_a_dedicated_thread_and_retains_events() {
         use super::{DiagnosticCollector, PublishResult};
-        let collector = DiagnosticCollector::start(8, 3);
+        let collector = DiagnosticCollector::start(8, 3).unwrap();
         let publisher = collector.publisher();
         assert_eq!(publisher.try_publish(10), PublishResult::Accepted);
         assert_eq!(publisher.try_publish(11), PublishResult::Accepted);
@@ -356,7 +354,7 @@ mod tests {
     #[test]
     fn stopped_collector_rejects_new_events_and_clears_retained_data() {
         use super::{DiagnosticCollector, PublishResult};
-        let collector = DiagnosticCollector::start(4, 4);
+        let collector = DiagnosticCollector::start(4, 4).unwrap();
         let publisher = collector.publisher();
         assert_eq!(publisher.try_publish(7), PublishResult::Accepted);
         collector.stop();

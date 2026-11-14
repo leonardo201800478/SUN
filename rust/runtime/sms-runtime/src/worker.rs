@@ -919,7 +919,14 @@ fn set_trace_capture(
     if enabled == slot.is_some() {
         return Ok(());
     }
-    let collector = enabled.then(|| DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY));
+    let collector = if enabled {
+        Some(
+            DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY)
+                .map_err(|error| format!("failed to start SMS debugger collector: {error}"))?,
+        )
+    } else {
+        None
+    };
     let publisher = collector.as_ref().map(|collector| collector.publisher());
     let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
     enqueue_worker_command(
