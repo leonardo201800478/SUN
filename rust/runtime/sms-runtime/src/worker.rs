@@ -913,7 +913,7 @@ fn set_trace_capture(
     let mut slot = collector_slot.lock().map_err(|_| "debugger collector state is unavailable".to_owned())?;
     if enabled == slot.is_some() { return Ok(()); }
     let collector = enabled.then(|| DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY));
-    let publisher = collector.as_ref().map(DiagnosticCollector::publisher);
+    let publisher = collector.as_ref().map(|collector| collector.publisher());
     let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
     enqueue_worker_command(commands, WorkerCommand::SetTraceEnabled(enabled, publisher, reply_sender))?;
     receive_worker_reply(reply_receiver, "changing debugger trace capture")?;
@@ -2163,6 +2163,7 @@ fn handle_command(
                         telemetry.record_audio_session_metrics(session.as_ref());
                     }
                     *machine = powered_off;
+                    machine.set_trace_enabled(*trace_enabled);
                     audio_renderer.reset_epoch_if_selected(machine, telemetry);
                     telemetry.reset_machine_counters();
                     Ok(())
@@ -2189,6 +2190,7 @@ fn handle_command(
                     match result {
                         Ok(()) => {
                             *machine = reset_machine;
+                            machine.set_trace_enabled(*trace_enabled);
                             audio_renderer.reset_epoch_if_selected(machine, telemetry);
                             telemetry.reset_machine_counters();
                             let _ = reply.send(Ok(()));
@@ -2226,6 +2228,7 @@ fn handle_command(
                         match result {
                             Ok(()) => {
                                 *machine = new_machine;
+                                machine.set_trace_enabled(*trace_enabled);
                                 audio_renderer.reset_epoch_if_selected(machine, telemetry);
                                 *rom = new_rom;
                                 telemetry.reset_machine_counters();
@@ -2298,6 +2301,7 @@ fn handle_command(
                 match SmsTemporalMachine::restore_state(state.machine_state) {
                     Ok(restored) => {
                         *machine = restored;
+                        machine.set_trace_enabled(*trace_enabled);
                         audio_renderer.reset_epoch_if_selected(machine, telemetry);
                         telemetry.set_frame_number(machine.frame_number());
                         telemetry.machine_time_ticks.store(
