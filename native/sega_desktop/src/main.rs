@@ -1873,7 +1873,9 @@ mod windows_host {
             ])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
-            .map_err(|error| format!("não foi possível iniciar o seletor de destino do Windows: {error}"))?;
+            .map_err(|error| {
+                format!("não foi possível iniciar o seletor de destino do Windows: {error}")
+            })?;
 
         if !output.status.success() {
             return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
