@@ -173,13 +173,10 @@ mod windows {
             let configured = std::env::var_os("SEGA_EMULATOR_SDL3_DLL");
             let executable = std::env::current_exe()
                 .map_err(|error| format!("não foi possível localizar o executável: {error}"))?;
-            let current_dir = std::env::current_dir()
-                .map_err(|error| format!("não foi possível localizar o diretório atual: {error}"))?;
-            let path = resolve_sdl3_dll_path(
-                configured.as_deref(),
-                &executable,
-                &current_dir,
-            )?;
+            let current_dir = std::env::current_dir().map_err(|error| {
+                format!("não foi possível localizar o diretório atual: {error}")
+            })?;
+            let path = resolve_sdl3_dll_path(configured.as_deref(), &executable, &current_dir)?;
             let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS;
             let handle = unsafe { LoadLibraryExW(wide.as_ptr(), ptr::null_mut(), flags) };
@@ -658,12 +655,8 @@ mod windows_smoke_tests {
         fs::create_dir_all(&current_dir).unwrap();
         fs::write(workspace.join("SDL3.dll"), b"test").unwrap();
 
-        let resolved = super::windows::resolve_sdl3_dll_path(
-            None,
-            &executable,
-            &current_dir,
-        )
-        .unwrap();
+        let resolved =
+            super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir).unwrap();
 
         assert_eq!(resolved, workspace.join("SDL3.dll").canonicalize().unwrap());
         fs::remove_dir_all(root).unwrap();
@@ -689,13 +682,12 @@ mod windows_smoke_tests {
         fs::write(current_dir.join("custom.dll"), b"override").unwrap();
         let executable = executable_dir.join("sega-desktop.exe");
 
-        let beside_exe = super::windows::resolve_sdl3_dll_path(
-            None,
-            &executable,
-            &current_dir,
-        )
-        .unwrap();
-        assert_eq!(beside_exe, executable_dir.join("SDL3.dll").canonicalize().unwrap());
+        let beside_exe =
+            super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir).unwrap();
+        assert_eq!(
+            beside_exe,
+            executable_dir.join("SDL3.dll").canonicalize().unwrap()
+        );
 
         let absolute = current_dir.join("custom.dll").canonicalize().unwrap();
         let explicit = super::windows::resolve_sdl3_dll_path(
@@ -720,8 +712,8 @@ mod windows_smoke_tests {
         ));
         let executable = root.join("target/release/sega-desktop.exe");
         let current_dir = root.join("native/input_runtime");
-        let error = super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir)
-            .unwrap_err();
+        let error =
+            super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir).unwrap_err();
         assert!(error.contains("Caminhos pesquisados"));
         assert!(error.contains("SDL3.dll"));
     }
