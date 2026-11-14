@@ -856,7 +856,11 @@ enum WorkerCommand {
     SaveState(SyncSender<Result<SmsWorkerSaveState, String>>),
     LoadState(Box<SmsWorkerSaveState>, SyncSender<Result<(), String>>),
     ReadMemory(u16, usize, SyncSender<Result<Vec<u8>, String>>),
-    SetTraceEnabled(bool, Option<DiagnosticPublisher<SmsTemporalTraceEvent>>, SyncSender<Result<(), String>>),
+    SetTraceEnabled(
+        bool,
+        Option<DiagnosticPublisher<SmsTemporalTraceEvent>>,
+        SyncSender<Result<(), String>>,
+    ),
     SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
     SetOverscanMode(SmsOverscanMode, SyncSender<Result<(), String>>),
     SetBreakpoint(u16, bool, SyncSender<Result<(), String>>),
@@ -903,21 +907,31 @@ impl WorkerCommand {
     }
 }
 
-
 /// Host-side lifecycle for the isolated SMS diagnostic collector.
 fn set_trace_capture(
     commands: &SyncSender<WorkerCommand>,
     collector_slot: &Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut slot = collector_slot.lock().map_err(|_| "debugger collector state is unavailable".to_owned())?;
-    if enabled == slot.is_some() { return Ok(()); }
+    let mut slot = collector_slot
+        .lock()
+        .map_err(|_| "debugger collector state is unavailable".to_owned())?;
+    if enabled == slot.is_some() {
+        return Ok(());
+    }
     let collector = enabled.then(|| DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY));
     let publisher = collector.as_ref().map(|collector| collector.publisher());
     let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
-    enqueue_worker_command(commands, WorkerCommand::SetTraceEnabled(enabled, publisher, reply_sender))?;
+    enqueue_worker_command(
+        commands,
+        WorkerCommand::SetTraceEnabled(enabled, publisher, reply_sender),
+    )?;
     receive_worker_reply(reply_receiver, "changing debugger trace capture")?;
-    if enabled { *slot = collector; } else { slot.take(); }
+    if enabled {
+        *slot = collector;
+    } else {
+        slot.take();
+    }
     Ok(())
 }
 
@@ -929,7 +943,9 @@ fn capture_debug_snapshot(
     let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
     enqueue_worker_command(commands, WorkerCommand::DebugSnapshot(reply_sender))?;
     let mut snapshot = receive_worker_reply(reply_receiver, "returning a debugger snapshot")?;
-    let slot = collector_slot.lock().map_err(|_| "debugger collector state is unavailable".to_owned())?;
+    let slot = collector_slot
+        .lock()
+        .map_err(|_| "debugger collector state is unavailable".to_owned())?;
     if let Some(collector) = slot.as_ref() {
         snapshot.trace_events = collector.snapshot();
         snapshot.trace_dropped = collector.ingress_dropped();
@@ -2084,8 +2100,12 @@ fn drain_machine_trace(
     machine: &mut SmsTemporalMachine,
     publisher: Option<&DiagnosticPublisher<SmsTemporalTraceEvent>>,
 ) {
-    let Some(publisher) = publisher.filter(|publisher| publisher.is_active()) else { return; };
-    for event in machine.take_trace() { let _ = publisher.try_publish(event); }
+    let Some(publisher) = publisher.filter(|publisher| publisher.is_active()) else {
+        return;
+    };
+    for event in machine.take_trace() {
+        let _ = publisher.try_publish(event);
+    }
 }
 
 /// Dispatch one coarse worker command over the worker-owned machine and outputs.
