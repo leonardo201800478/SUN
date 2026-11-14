@@ -563,7 +563,7 @@ jobs:
     name: Windows PowerShell tooling syntax
     needs: [changes]
     if: |
-      (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.tooling == 'true')
+      (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.tooling == 'true' || needs.changes.outputs.slint_desktop == 'true'))
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -610,6 +610,29 @@ jobs:
             }
             Write-Host "PASS $file"
           }
+
+      - name: Parse embedded Windows PowerShell dialogs in Slint host
+        shell: pwsh
+        run: |
+          $source = Get-Content -Raw -LiteralPath "native/sega_desktop/src/main.rs"
+          $matches = [regex]::Matches($source, '(?s)const SCRIPT: &str = r#"(.*?)"#;')
+          if ($matches.Count -lt 2) {
+            throw "Expected embedded ROM and trace PowerShell scripts; found $($matches.Count)."
+          }
+          foreach ($match in $matches) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseInput(
+              $match.Groups[1].Value,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              throw "Embedded Windows PowerShell script failed parsing."
+            }
+          }
+          Write-Host "PASS: parsed $($matches.Count) embedded Windows PowerShell dialog scripts."
 
       - name: Audit Cargo workspace and lockfile inventory
         shell: pwsh
@@ -903,7 +926,7 @@ jobs:
           WINDOWS_SLINT_WGPU: ${{ needs.windows-slint-wgpu.result }}
           EXPECT_WINDOWS_INPUT_RETIRED: false
           WINDOWS_INPUT_RETIRED: ${{ needs.windows-input-retired.result }}
-          EXPECT_WINDOWS_TOOLING: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.tooling == 'true') }}
+          EXPECT_WINDOWS_TOOLING: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.tooling == 'true' || needs.changes.outputs.slint_desktop == 'true')) }}
           WINDOWS_TOOLING: ${{ needs.windows-tooling.result }}
           EXPECT_SCHEDULER: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.scheduler == 'true' || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') || (github.event.action == 'labeled' && (github.event.label.name == 'scheduler-stress-short' || github.event.label.name == 'scheduler-stress-long')))) }}
           SCHEDULER: ${{ needs.scheduler-stress.result }}
