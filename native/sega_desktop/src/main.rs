@@ -185,6 +185,7 @@ mod windows_host {
         keyboard_state: Rc<RefCell<KeyboardInputState>>,
         gamepad_state: Rc<RefCell<[ControllerButtons; 2]>>,
     ) -> Timer {
+        let mut last_pause_pressed = false;
         let mut input_host = match Sdl3InputHost::new() {
             Ok(host) => {
                 let status = host.status().to_owned();
@@ -207,22 +208,34 @@ mod windows_host {
             };
 
             let poll_result = input_host.as_mut().map(Sdl3InputHost::poll);
-            let (mut next_players, status_update) = match poll_result {
-                Some(Ok((players, status_update))) => (players, status_update),
+            let (mut next_players, mut pause_pressed, status_update) = match poll_result {
+                Some(Ok((players, pause_pressed, status_update))) => {
+                    (players, pause_pressed, status_update)
+                },
                 Some(Err(error)) => {
                     eprintln!("R4_SDL3 event=poll_failed error={error}");
                     input_host = None;
                     (
                         [ControllerButtons::default(); 2],
+                        false,
                         Some(format!("SDL3 interrompido — teclado ativo: {error}")),
                     )
                 }
-                None => ([ControllerButtons::default(); 2], None),
+                None => ([ControllerButtons::default(); 2], false, None),
             };
 
             if !app.get_has_rom() || app.get_active_menu().as_str() != "none" {
                 next_players = [ControllerButtons::default(); 2];
+                pause_pressed = false;
             }
+
+            if pause_pressed && !last_pause_pressed
+                && let Some(worker) = worker_slot.borrow().as_ref()
+                && let Err(error) = worker.request_nmi()
+            {
+                eprintln!("R4_SDL3 action=pause_nmi error={error}");
+            }
+            last_pause_pressed = pause_pressed;
 
             let previous_players = *gamepad_state.borrow();
             if next_players != previous_players {
