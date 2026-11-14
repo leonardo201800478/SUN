@@ -48,7 +48,7 @@ impl Sdl3InputHost {
     /// Polls SDL3 at the host boundary and assigns the first two supported
     /// physical devices, in session order, to SMS Player 1 and Player 2.
     /// This is deliberately independent of MachineScheduler progression.
-    pub fn poll(&mut self) -> Result<([ControllerButtons; 2], Option<String>), String> {
+    pub fn poll(&mut self) -> Result<([ControllerButtons; 2], bool, Option<String>), String> {
         self.buffers.clear();
         self.backend
             .poll_into(&mut self.buffers)
@@ -124,7 +124,6 @@ fn is_supported_controller(class: DeviceClass) -> bool {
         DeviceClass::Gamepad | DeviceClass::Joystick | DeviceClass::ArcadeStick
     )
 }
-
 
 fn map_sms_pause(class: DeviceClass, reading: &DeviceReading) -> bool {
     if class == DeviceClass::Gamepad {
