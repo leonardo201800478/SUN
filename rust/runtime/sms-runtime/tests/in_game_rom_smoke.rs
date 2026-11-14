@@ -86,13 +86,13 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             let instructions = worker
                 .step_frame(MAX_INSTRUCTIONS_PER_FRAME)
                 .unwrap_or_else(|error| {
-                panic!(
-                    "{}: frame {} failed after {} completed frames: {error}",
-                    path.display(),
-                    frame_index + 1,
-                    completed_frames
-                )
-            });
+                    panic!(
+                        "{}: frame {} failed after {} completed frames: {error}",
+                        path.display(),
+                        frame_index + 1,
+                        completed_frames
+                    )
+                });
             assert!(
                 instructions > 0,
                 "{}: frame {} completed without executing instructions",
