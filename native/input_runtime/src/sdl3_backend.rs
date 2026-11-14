@@ -139,10 +139,10 @@ mod windows {
         }
 
         for candidate in &candidates {
-            if candidate.is_file() {
-                if let Ok(absolute) = candidate.canonicalize() {
-                    return Ok(absolute);
-                }
+            if candidate.is_file()
+                && let Ok(absolute) = candidate.canonicalize()
+            {
+                return Ok(absolute);
             }
         }
 
