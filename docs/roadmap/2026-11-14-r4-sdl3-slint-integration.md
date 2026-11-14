@@ -49,7 +49,7 @@
 
 ## 4. Critérios para fechar R4
 
-1. <badge>CI de integração concluído</badge> Windows x64 CI verde no HEAD da PR #867: smoke test SDL3, testes do input runtime, build/test Release do desktop e regressão do workspace. Revalidar apenas quando houver alteração posterior com impacto nesses caminhos.
+1. CI de integração concluído: Windows x64 CI verde no HEAD da PR #867: smoke test SDL3, testes do input runtime, build/test Release do desktop e regressão do workspace. Revalidar apenas quando houver alteração posterior com impacto nesses caminhos.
 2. Teste físico com pelo menos um gamepad SDL mapeado e um joystick genérico, se disponível.
 3. Press/release, diagonais, analógico centrado, dois botões, troca de foco, abertura de menus e troca de ROM sem estado preso.
 4. Hotplug e reconexão, incluindo remoção do dispositivo que ocupa P1.
