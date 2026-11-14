@@ -282,6 +282,34 @@ impl SmsVdp {
     pub fn framebuffer(&self) -> &[u8] {
         &self.framebuffer[..STRIDE * usize::from(self.visible_height())]
     }
+
+    /// Return a presentation copy with an optional left-edge crop.
+    ///
+    /// The canonical VDP framebuffer remains 256 pixels wide and is never
+    /// modified. Cropping is a host presentation preference, not a hardware
+    /// overscan timing model; it cannot affect CPU, VDP, or Scheduler state.
+    pub fn framebuffer_with_overscan(
+        &self,
+        mode: super::profile::SmsOverscanMode,
+    ) -> (usize, usize, Vec<u8>) {
+        let height = usize::from(self.visible_height());
+        let source = self.framebuffer();
+        match mode {
+            super::profile::SmsOverscanMode::Off => {
+                (SMS_VDP_WIDTH, height, source.to_vec())
+            }
+            super::profile::SmsOverscanMode::CropLeft8 => {
+                const CROP_PIXELS: usize = 8;
+                const CROP_BYTES: usize = CROP_PIXELS * 3;
+                const OUTPUT_WIDTH: usize = SMS_VDP_WIDTH - CROP_PIXELS;
+                let mut output = Vec::with_capacity(OUTPUT_WIDTH * height * 3);
+                for line in source.chunks_exact(STRIDE) {
+                    output.extend_from_slice(&line[CROP_BYTES..STRIDE]);
+                }
+                (OUTPUT_WIDTH, height, output)
+            }
+        }
+    }
     pub fn consume_frame_ready(&mut self) -> bool {
         let ready = self.frame_ready;
         self.frame_ready = false;
