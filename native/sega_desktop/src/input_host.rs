@@ -342,7 +342,10 @@ mod tests {
         state.set_hat(0, 0b0101).unwrap();
 
         let (buttons, pause) = profiles.evaluate(DeviceClass::Joystick, &reading(state));
-        assert!(!buttons.left, "unconfigured generic axes must not be guessed");
+        assert!(
+            !buttons.left,
+            "unconfigured generic axes must not be guessed"
+        );
         assert!(buttons.up);
         assert!(buttons.down);
         assert!(buttons.button_1);
