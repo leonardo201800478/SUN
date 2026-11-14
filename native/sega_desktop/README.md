@@ -58,3 +58,11 @@ A successful build does not prove physical Vulkan presentation. Run on Windows x
 - Persists up to ten recent ROM paths in `%APPDATA%\\Sega Emulator\\recent_roms.txt`, newest first. Selecting a recent entry uses the same safe worker handoff as manual ROM loading.
 - Recent ROM history and preferences are saved after UI changes and on application shutdown. They do not contain or serialize machine state.
 - FPS text size offers small, medium and large values. HUD corner placement remains pending because the current Slint composition does not yet have a separately positioned overlay surface.
+
+
+## Runtime video and save-state APIs (SMS1)
+
+- The runtime exposes `SmsOverscanMode::Off` and `CropLeft8`. The latter crops the first eight pixels from each active line at the frame-publication boundary (248×192); it does not mutate the VDP's canonical 256×192 framebuffer or emulated timing. Default is Off.
+- `SmsTemporalWorker::set_overscan_mode` controls the published frame crop. Persisting and exposing this option in Slint remains pending.
+- The sprite-line compatibility switch is already wired to the worker and persisted in desktop preferences. HardwareLimit is the default; UnlockedCompatibility is an opt-in compatibility mode.
+- `SmsTemporalWorker::save_state` and `load_state` provide version-validated in-memory snapshots/restores. Restore is permitted only while paused. Persistent state files/slots and ROM identity/checksum validation are not implemented yet; SRAM `.srm` files are separate.
