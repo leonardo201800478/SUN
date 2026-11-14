@@ -39,6 +39,7 @@ pub enum VideoStandard {
 /// This never changes VDP registers, raster timing, or the canonical 256-pixel
 /// framebuffer. The host applies the crop only when constructing a presented frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
 pub enum SmsOverscanMode {
     /// Present the complete canonical 256-pixel active image.
     #[default]
