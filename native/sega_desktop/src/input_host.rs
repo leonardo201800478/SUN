@@ -303,7 +303,7 @@ fn is_supported_controller(class: DeviceClass) -> bool {
 mod tests {
     use super::{DEFAULT_STICK_THRESHOLD, SmsInputProfiles};
     use sega_input_runtime::{
-        ActionBinding, ActionId, AxisDirection, AxisSemantic, DeviceClass, DeviceId, DeviceReading,
+        ActionBinding, ActionId, AxisSemantic, DeviceClass, DeviceId, DeviceReading,
         DeviceState, InputProfile, PhysicalControl,
     };
 
