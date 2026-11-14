@@ -2220,7 +2220,7 @@ fn handle_command(
                 match SmsTemporalMachine::restore_state(state) {
                     Ok(restored) => {
                         *machine = restored;
-                        audio_renderer.on_machine_epoch_reset(machine, telemetry);
+                        audio_renderer.reset_epoch_if_selected(machine, telemetry);
                         telemetry.set_frame_number(machine.frame_number());
                         telemetry.machine_time_ticks.store(
                             u64::try_from(machine.now().ticks()).unwrap_or(u64::MAX),
