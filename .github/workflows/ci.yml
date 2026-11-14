@@ -569,7 +569,6 @@ jobs:
       - name: Test SDL3 dynamic ABI and input runtime (Windows x64)
         shell: pwsh
         run: |
-          $env:SEGA_EMULATOR_SDL3_DLL = Join-Path $env:GITHUB_WORKSPACE "SDL3.dll"
           cargo test --release --locked --all-targets --target x86_64-pc-windows-msvc -p sega-input-runtime
 
   windows-tooling:
