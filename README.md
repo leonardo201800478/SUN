@@ -12,7 +12,7 @@ Emulador Sega multissistema com runtime de hardware integralmente em Rust. A arq
 - **R4:** auditoria e integração SDL3 para teclado/gamepads; teclado SMS básico já é tratado pelos eventos nativos do Slint.
 - **R5:** consolidar launcher, biblioteca, configurações, HUD e telemetria; retirar hosts anteriores somente após paridade e gates.
 
-Consulte [status operacional](docs/project-status-2026-11-14.md), [status histórico e auditoria anterior](docs/project-status-2026-11-12.md), [roadmap](docs/project-roadmap.md), [plano de corte](docs/architecture/migrations/legacy-host-retirement.md) e [ADR 0011](docs/adr/0011-slint-wgpu-cpal-desktop-platform.md).
+Consulte o [relatório de validação Windows x64 Release](docs/testing/windows-x64-release-validation-2026-11-14.md), o [status histórico e auditoria anterior](docs/project-status-2026-11-12.md), o [roadmap](docs/project-roadmap.md), o [plano de corte](docs/architecture/migrations/legacy-host-retirement.md) e a [ADR 0011](docs/adr/0011-slint-wgpu-cpal-desktop-platform.md).
 
 ## Arquitetura
 
