@@ -307,7 +307,6 @@ fn status_read_returns_vblank_once_and_clears_it() {
     assert_eq!(vdp.read_port(0x01BF) & 0x80, 0);
 }
 
-
 #[test]
 fn sms1_left_edge_crop_is_presentation_only_and_preserves_canonical_frame() {
     use sega_video::sms::SmsOverscanMode;
