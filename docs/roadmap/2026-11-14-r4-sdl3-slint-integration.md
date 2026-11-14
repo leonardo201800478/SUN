@@ -38,7 +38,7 @@
 - Não há backend XInput direto. O SDL3 pode reconhecer dispositivos XInput conforme drivers/mapeamentos do SDL.
 - Não há suporte declarado a rumble, force feedback, sensores, touchpad ou GameInput.
 - Hotplug é detectado pelo scan periódico existente; ainda precisa de validação física com desconexão/reconexão.
-- O threshold de 16.000 para o analógico é um mapeamento inicial de gameplay, não um algoritmo de captura/calibração.
+- O threshold de 10.000 para o analógico é um mapeamento inicial de gameplay, não um algoritmo de captura/calibração.
 - Não há medição de input-to-frame ou button-to-photon neste incremento.
 - O teste Windows de CI valida ABI/runtime sem hardware; não substitui teste físico com controles.
 
