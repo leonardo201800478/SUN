@@ -532,7 +532,7 @@ mod windows_host {
                         if root.active-menu == "debug": VerticalLayout {
                             Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
                             CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
-                            CompactButton { text: root.trace-enabled ? "Desativar trace" : "Ativar trace"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                            CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
                             Text { font-size: 12px; text: root.debug-status; color: #b9c5ce; }
                             Text { font-size: 12px; text: "Debugger com registradores, breakpoints e memória será migrado em etapa própria; a GUI não executa instruções."; color: #9baab6; }
                         }
@@ -2121,7 +2121,8 @@ mod windows_host {
             settings.dsp_config,
             &settings.renderer_mode,
         );
-        worker.set_diagnostics_enabled(true);
+        // Detailed diagnostics are session opt-in. The worker and machine start
+        // with tracing/telemetry disabled; the user enables them from DEBUG.
         Ok((worker, prepared.save_context))
     }
 
@@ -3044,11 +3045,21 @@ mod windows_host {
         });
 
         let trace_worker = Rc::clone(&worker);
+        let trace_app = app.as_weak();
         app.on_trace_toggle_requested(move |enabled| {
-            if let Some(worker) = trace_worker.borrow().as_ref()
-                && let Err(error) = worker.set_trace_enabled(enabled)
-            {
-                eprintln!("R2_CONTROL action=trace_toggle error={error}");
+            let result = trace_worker.borrow().as_ref().map_or_else(
+                || Err("SMS worker indisponível".to_owned()),
+                |worker| {
+                    worker.set_trace_enabled(enabled)?;
+                    worker.set_diagnostics_enabled(enabled);
+                    Ok(())
+                },
+            );
+            if let Err(error) = result {
+                if let Some(app) = trace_app.upgrade() {
+                    app.set_trace_enabled(!enabled);
+                    app.set_debug_status(format!("Falha ao alterar modo Debugger: {error}").into());
+                }
             }
         });
 
