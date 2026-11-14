@@ -129,10 +129,7 @@ fn map_sms_pause(class: DeviceClass, reading: &DeviceReading) -> bool {
     if class == DeviceClass::Gamepad {
         reading.state.buttons.is_pressed(GAMEPAD_BUTTON_START)
     } else {
-        reading
-            .state
-            .buttons
-            .is_pressed(SDL3_RAW_BUTTON_OFFSET + 2)
+        reading.state.buttons.is_pressed(SDL3_RAW_BUTTON_OFFSET + 2)
     }
 }
 
@@ -173,8 +170,8 @@ fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> Controller
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET,
-        map_sms_controller, map_sms_pause,
+        DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, map_sms_controller,
+        map_sms_pause,
     };
     use sega_input_runtime::{
         AxisSemantic, ButtonSet, DeviceClass, DeviceId, DeviceReading, DeviceState,
