@@ -41,10 +41,38 @@ impl SmsInputProfiles {
                 binding(ACTION_DOWN, PhysicalControl::Button(12)),
                 binding(ACTION_LEFT, PhysicalControl::Button(13)),
                 binding(ACTION_RIGHT, PhysicalControl::Button(14)),
-                binding(ACTION_UP, PhysicalControl::Axis { index: 1, direction: AxisDirection::Negative, threshold: DEFAULT_STICK_THRESHOLD }),
-                binding(ACTION_DOWN, PhysicalControl::Axis { index: 1, direction: AxisDirection::Positive, threshold: DEFAULT_STICK_THRESHOLD }),
-                binding(ACTION_LEFT, PhysicalControl::Axis { index: 0, direction: AxisDirection::Negative, threshold: DEFAULT_STICK_THRESHOLD }),
-                binding(ACTION_RIGHT, PhysicalControl::Axis { index: 0, direction: AxisDirection::Positive, threshold: DEFAULT_STICK_THRESHOLD }),
+                binding(
+                    ACTION_UP,
+                    PhysicalControl::Axis {
+                        index: 1,
+                        direction: AxisDirection::Negative,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    ACTION_DOWN,
+                    PhysicalControl::Axis {
+                        index: 1,
+                        direction: AxisDirection::Positive,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    ACTION_LEFT,
+                    PhysicalControl::Axis {
+                        index: 0,
+                        direction: AxisDirection::Negative,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    ACTION_RIGHT,
+                    PhysicalControl::Axis {
+                        index: 0,
+                        direction: AxisDirection::Positive,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
                 binding(ACTION_BUTTON_1, PhysicalControl::Button(0)),
                 binding(ACTION_BUTTON_2, PhysicalControl::Button(1)),
                 binding(ACTION_PAUSE_NMI, PhysicalControl::Button(6)),
@@ -55,14 +83,66 @@ impl SmsInputProfiles {
 
         let joystick = InputProfile::new(
             vec![
-                binding(ACTION_UP, PhysicalControl::Hat { index: 0, direction_mask: 0b0001 }),
-                binding(ACTION_RIGHT, PhysicalControl::Hat { index: 0, direction_mask: 0b0010 }),
-                binding(ACTION_DOWN, PhysicalControl::Hat { index: 0, direction_mask: 0b0100 }),
-                binding(ACTION_LEFT, PhysicalControl::Hat { index: 0, direction_mask: 0b1000 }),
-                binding(ACTION_UP, PhysicalControl::Axis { index: (SDL3_RAW_AXIS_OFFSET + 1) as u8, direction: AxisDirection::Negative, threshold: DEFAULT_STICK_THRESHOLD }),
-                binding(ACTION_DOWN, PhysicalControl::Axis { index: (SDL3_RAW_AXIS_OFFSET + 1) as u8, direction: AxisDirection::Positive, threshold: DEFAULT_STICK_THRESHOLD }),
-                binding(ACTION_LEFT, PhysicalControl::Axis { index: SDL3_RAW_AXIS_OFFSET as u8, direction: AxisDirection::Negative, threshold: DEFAULT_STICK_THRESHOLD }),
-                binding(ACTION_RIGHT, PhysicalControl::Axis { index: SDL3_RAW_AXIS_OFFSET as u8, direction: AxisDirection::Positive, threshold: DEFAULT_STICK_THRESHOLD }),
+                binding(
+                    ACTION_UP,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b0001,
+                    },
+                ),
+                binding(
+                    ACTION_RIGHT,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b0010,
+                    },
+                ),
+                binding(
+                    ACTION_DOWN,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b0100,
+                    },
+                ),
+                binding(
+                    ACTION_LEFT,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b1000,
+                    },
+                ),
+                binding(
+                    ACTION_UP,
+                    PhysicalControl::Axis {
+                        index: (SDL3_RAW_AXIS_OFFSET + 1) as u8,
+                        direction: AxisDirection::Negative,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    ACTION_DOWN,
+                    PhysicalControl::Axis {
+                        index: (SDL3_RAW_AXIS_OFFSET + 1) as u8,
+                        direction: AxisDirection::Positive,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    ACTION_LEFT,
+                    PhysicalControl::Axis {
+                        index: SDL3_RAW_AXIS_OFFSET as u8,
+                        direction: AxisDirection::Negative,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    ACTION_RIGHT,
+                    PhysicalControl::Axis {
+                        index: SDL3_RAW_AXIS_OFFSET as u8,
+                        direction: AxisDirection::Positive,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
                 binding(ACTION_BUTTON_1, PhysicalControl::Button(SDL3_RAW_BUTTON_OFFSET as u8)),
                 binding(ACTION_BUTTON_2, PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 1) as u8)),
                 binding(ACTION_PAUSE_NMI, PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 2) as u8)),
@@ -125,11 +205,7 @@ impl Sdl3InputHost {
 
     /// Replaces the active standardized-gamepad and generic-joystick profiles.
     /// The UI can later load persisted profiles and pass them through this API.
-    pub fn set_profiles(
-        &mut self,
-        gamepad: InputProfile,
-        joystick: InputProfile,
-    ) {
+    pub fn set_profiles(&mut self, gamepad: InputProfile, joystick: InputProfile) {
         self.profiles = SmsInputProfiles { gamepad, joystick };
     }
 
@@ -218,8 +294,8 @@ fn is_supported_controller(class: DeviceClass) -> bool {
 mod tests {
     use super::{DEFAULT_STICK_THRESHOLD, SmsInputProfiles};
     use sega_input_runtime::{
-        ActionBinding, ActionId, AxisDirection, AxisSemantic, DeviceClass, DeviceId,
-        DeviceReading, DeviceState, InputProfile, PhysicalControl,
+        ActionBinding, ActionId, AxisDirection, AxisSemantic, DeviceClass, DeviceId, DeviceReading,
+        DeviceState, InputProfile, PhysicalControl,
     };
 
     fn reading(state: DeviceState) -> DeviceReading {
