@@ -43,6 +43,41 @@ mod windows_host {
     const MAX_ROM_BYTES: u64 = 16 * 1024 * 1024;
     const MAX_ZIP_ENTRIES: usize = 4_096;
 
+    /// Modos de apresentação da janela; independentes do estado temporal do runtime.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum DesktopDisplayMode {
+        Windowed,
+        FullscreenWithUi,
+        FullscreenImmersive,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum DisplayModeShortcut {
+        F11,
+        AltEnter,
+    }
+
+    /// Resolve os atalhos de apresentação sem tocar no worker ou no MachineScheduler.
+    fn transition_display_mode(
+        current: DesktopDisplayMode,
+        shortcut: DisplayModeShortcut,
+    ) -> DesktopDisplayMode {
+        match shortcut {
+            DisplayModeShortcut::F11 => match current {
+                DesktopDisplayMode::Windowed | DesktopDisplayMode::FullscreenImmersive => {
+                    DesktopDisplayMode::FullscreenWithUi
+                }
+                DesktopDisplayMode::FullscreenWithUi => DesktopDisplayMode::Windowed,
+            },
+            DisplayModeShortcut::AltEnter => match current {
+                DesktopDisplayMode::FullscreenImmersive => DesktopDisplayMode::Windowed,
+                DesktopDisplayMode::Windowed | DesktopDisplayMode::FullscreenWithUi => {
+                    DesktopDisplayMode::FullscreenImmersive
+                }
+            },
+        }
+    }
+
     /// Ações do teclado do host. Não representam ciclos nem instruções da máquina.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     enum KeyboardAction {
@@ -190,6 +225,7 @@ mod windows_host {
             in-out property <bool> audio-lpf-enabled: false;
             in-out property <float> audio-lpf-cutoff: 18000;
             in-out property <bool> fullscreen-enabled: false;
+            in-out property <bool> immersive-fullscreen: false;
             in-out property <string> fps-status: "FPS: --";
             in-out property <length> video-width: 768px;
             in-out property <length> video-height: 576px;
@@ -205,7 +241,7 @@ mod windows_host {
             callback debug-snapshot-requested();
             callback trace-toggle-requested(bool);
             callback sprite-limit-toggle-requested(bool);
-            callback fullscreen-requested(bool);
+            callback display-mode-toggle-requested(string);
             callback video-area-clicked();
             callback preferences-changed();
             callback audio-volume-changed(float);
@@ -254,15 +290,17 @@ mod windows_host {
                 }
                 KeyBinding {
                     keys: @keys(F11);
-                    activated => {
-                        root.fullscreen-enabled = !root.fullscreen-enabled;
-                        root.fullscreen-requested(root.fullscreen-enabled);
-                    }
+                    activated => { root.display-mode-toggle-requested("f11"); }
+                }
+                KeyBinding {
+                    keys: @keys(Alt + Enter);
+                    activated => { root.display-mode-toggle-requested("alt-enter"); }
                 }
                 VerticalLayout {
-                padding: 12px; spacing: 8px;
-                Text { text: "SEGA EMULATOR"; color: #f2f5f7; font-size: 20px; }
-                HorizontalLayout {
+                padding: root.immersive-fullscreen ? 0px : 12px;
+                spacing: root.immersive-fullscreen ? 0px : 8px;
+                if !root.immersive-fullscreen: Text { text: "SEGA EMULATOR"; color: #f2f5f7; font-size: 20px; }
+                if !root.immersive-fullscreen: HorizontalLayout {
                     spacing: 3px;
                     z: 95;
                     CompactButton { text: "Sistema"; width: 66px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "system" ? "none" : "system"; } }
@@ -273,7 +311,7 @@ mod windows_host {
                     CompactButton { text: "Opções"; width: 66px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "options" ? "none" : "options"; } }
                     CompactButton { text: "DEBUG"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "debug" ? "none" : "debug"; } }
                 }
-                HorizontalLayout {
+                if !root.immersive-fullscreen: HorizontalLayout {
                     spacing: 5px;
                     CompactButton { text: ""; icon: root.play-icon; icon-size: 24px; colorize-icon: true; width: 44px; height: 38px; accessible-role: button; accessible-label: "Iniciar emulação"; enabled: root.has-rom; clicked => { root.emulation-paused = false; root.start-requested(); } }
                     CompactButton { text: ""; icon: root.pause-icon; icon-size: 24px; colorize-icon: true; width: 44px; height: 38px; accessible-role: button; accessible-label: "Pausar emulação"; enabled: root.has-rom; clicked => { root.emulation-paused = true; root.pause-requested(); } }
@@ -298,17 +336,25 @@ mod windows_host {
                         width: 100%; height: 100%;
                         clicked => { root.video-area-clicked(); }
                     }
+                    if root.immersive-fullscreen: Text {
+                        x: 12px;
+                        y: 12px;
+                        z: 20;
+                        text: root.fps-status;
+                        color: #8bd5ca;
+                        font-size: root.fps-font-size;
+                    }
                 }
-                if root.show-fps: Text { text: root.fps-status; color: #8bd5ca; font-size: root.fps-font-size; }
-                if root.show-status-footer: Text { text: root.gpu-status; color: #8bd5ca; }
-                if root.show-status-footer: Text { text: root.frame-status; color: #b9c5ce; }
-                if root.show-status-footer: Text { text: root.lifecycle-status; color: #b9c5ce; }
+                if !root.immersive-fullscreen && root.show-fps: Text { text: root.fps-status; color: #8bd5ca; font-size: root.fps-font-size; }
+                if !root.immersive-fullscreen && root.show-status-footer: Text { text: root.gpu-status; color: #8bd5ca; }
+                if !root.immersive-fullscreen && root.show-status-footer: Text { text: root.frame-status; color: #b9c5ce; }
+                if !root.immersive-fullscreen && root.show-status-footer: Text { text: root.lifecycle-status; color: #b9c5ce; }
                 }
-        if root.active-menu != "none": TouchArea {
+        if !root.immersive-fullscreen && root.active-menu != "none": TouchArea {
             x: 0px; y: 74px; width: 100%; height: parent.height - 74px; z: 90;
             clicked => { root.active-menu = "none"; }
         }
-        if root.active-menu != "none": Rectangle {
+        if !root.immersive-fullscreen && root.active-menu != "none": Rectangle {
             x: min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
             y: 88px;
             width: min(parent.width - 16px, root.active-menu == "file" ? 560px : 480px);
@@ -457,7 +503,8 @@ mod windows_host {
                             Text { font-size: 12px; text: "Setas: mover | Z: Botão 1 | X: Botão 2"; color: #f2f5f7; }
                             Text { font-size: 12px; text: "P: solicitar NMI (borda de pressionamento)"; color: #b9c5ce; }
                             Text { font-size: 12px; text: "F5: iniciar | F6: pausar | F7: desligar"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "F8: resetar | F9: avançar quadro | F11: tela cheia"; color: #b9c5ce; }
+                            Text { font-size: 12px; text: "F8: resetar | F9: avançar quadro | F11: tela cheia com menus"; color: #b9c5ce; }
+                            Text { font-size: 12px; text: "Alt+Enter: tela cheia imersiva (somente FPS)"; color: #b9c5ce; }
                             Text { font-size: 12px; text: "Gamepad SDL3 e remapeamento: etapa R4."; color: #9baab6; }
                             CompactButton { text: "Gamepad SDL3 — integração R4"; enabled: false; }
                             CompactButton { text: "Remapear teclado"; enabled: false; }
@@ -474,7 +521,8 @@ mod windows_host {
                                 CompactButton { text: root.fps-size == "large" ? "✓ Grande" : "Grande"; clicked => { root.fps-size = "large"; root.fps-font-size = 24px; root.preferences-changed(); } }
                             }
                             Text { font-size: 12px; text: "Posição do HUD: inferior (posição em cantos será concluída após validar o overlay."; color: #9baab6; }
-                            CompactButton { text: root.fullscreen-enabled ? "✓ Tela cheia" : "Tela cheia (F11)"; clicked => { root.fullscreen-enabled = !root.fullscreen-enabled; root.fullscreen-requested(root.fullscreen-enabled); } }
+                            CompactButton { text: root.fullscreen-enabled && !root.immersive-fullscreen ? "✓ Tela cheia com menus" : "Tela cheia com menus (F11)"; clicked => { root.display-mode-toggle-requested("f11"); } }
+                            CompactButton { text: root.immersive-fullscreen ? "✓ Tela cheia imersiva" : "Tela cheia imersiva (Alt+Enter)"; clicked => { root.display-mode-toggle-requested("alt-enter"); } }
                         }
                         if root.active-menu == "debug": VerticalLayout {
                             Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
@@ -2924,10 +2972,24 @@ mod windows_host {
             app.invoke_preferences_changed();
         });
 
-        let fullscreen_app = app.as_weak();
-        app.on_fullscreen_requested(move |enabled| {
-            if let Some(app) = fullscreen_app.upgrade() {
-                app.window().set_fullscreen(enabled);
+        let display_mode = Rc::new(Cell::new(DesktopDisplayMode::Windowed));
+        let display_mode_app = app.as_weak();
+        let display_mode_state = Rc::clone(&display_mode);
+        app.on_display_mode_toggle_requested(move |shortcut| {
+            let shortcut = match shortcut.as_str() {
+                "f11" => DisplayModeShortcut::F11,
+                "alt-enter" => DisplayModeShortcut::AltEnter,
+                _ => return,
+            };
+            let next = transition_display_mode(display_mode_state.get(), shortcut);
+            display_mode_state.set(next);
+            let fullscreen = next != DesktopDisplayMode::Windowed;
+            let immersive = next == DesktopDisplayMode::FullscreenImmersive;
+            if let Some(app) = display_mode_app.upgrade() {
+                app.set_fullscreen_enabled(fullscreen);
+                app.set_immersive_fullscreen(immersive);
+                app.set_active_menu("none".into());
+                app.window().set_fullscreen(fullscreen);
             }
         });
 
