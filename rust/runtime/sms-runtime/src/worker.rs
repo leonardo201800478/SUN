@@ -1270,7 +1270,7 @@ impl SmsTemporalWorker {
 
     /// Enable or disable bounded scheduler/bus trace capture.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
-        self.request_unit(|reply| WorkerCommand::SetTraceEnabled(enabled, reply))
+        set_trace_capture(&self.commands, &self.trace_collector, enabled)
     }
 
     /// Change the active SMS VDP sprite rendering limit through the machine worker.
@@ -2038,7 +2038,7 @@ fn worker_loop(
             frame_deadline.deadline,
         ) {
             Ok((_, next_frame_deadline, breakpoint_hit)) => {
-                drain_machine_trace(&mut machine, &mut trace_history);
+                drain_machine_trace(&mut machine, trace_publisher.as_ref());
                 if breakpoint_hit {
                     running = false;
                     telemetry.running.store(false, Ordering::Release);
