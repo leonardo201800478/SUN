@@ -151,8 +151,10 @@ fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> Controller
 
 #[cfg(test)]
 mod tests {
-    use super::{map_sms_controller, DEFAULT_STICK_THRESHOLD, RAW_AXIS_OFFSET, RAW_BUTTON_OFFSET};
-    use sega_input_runtime::{AxisSemantic, ButtonSet, DeviceClass, DeviceId, DeviceReading, DeviceState};
+    use super::{DEFAULT_STICK_THRESHOLD, RAW_AXIS_OFFSET, RAW_BUTTON_OFFSET, map_sms_controller};
+    use sega_input_runtime::{
+        AxisSemantic, ButtonSet, DeviceClass, DeviceId, DeviceReading, DeviceState,
+    };
 
     fn reading(state: DeviceState) -> DeviceReading {
         DeviceReading {
@@ -169,7 +171,9 @@ mod tests {
         state.buttons.set(0, true).unwrap();
         state.buttons.set(1, true).unwrap();
         state.buttons.set(11, true).unwrap();
-        state.set_axis(0, DEFAULT_STICK_THRESHOLD as i16, AxisSemantic::LeftStickX).unwrap();
+        state
+            .set_axis(0, DEFAULT_STICK_THRESHOLD as i16, AxisSemantic::LeftStickX)
+            .unwrap();
 
         let buttons = map_sms_controller(DeviceClass::Gamepad, &reading(state));
         assert!(buttons.up);
@@ -187,7 +191,13 @@ mod tests {
         raw_buttons.set(RAW_BUTTON_OFFSET, true).unwrap();
         raw_buttons.set(RAW_BUTTON_OFFSET + 1, true).unwrap();
         state.buttons = raw_buttons;
-        state.set_axis(RAW_AXIS_OFFSET, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown).unwrap();
+        state
+            .set_axis(
+                RAW_AXIS_OFFSET,
+                -(DEFAULT_STICK_THRESHOLD as i16),
+                AxisSemantic::Unknown,
+            )
+            .unwrap();
         state.set_hat(0, 0b0100).unwrap();
 
         let buttons = map_sms_controller(DeviceClass::Joystick, &reading(state));
