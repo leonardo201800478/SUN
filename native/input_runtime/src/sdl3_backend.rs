@@ -121,7 +121,7 @@ mod windows {
         let mut candidates = Vec::new();
 
         if Path::new(requested).is_absolute() {
-            candidates.push(requested.to_path_buf());
+            candidates.push(PathBuf::from(requested));
         } else {
             let mut bases = Vec::new();
             if let Some(parent) = executable.parent() {
