@@ -3129,6 +3129,31 @@ mod tests {
     }
 
     #[test]
+    fn trace_opt_in_does_not_change_machine_progression() {
+        let traced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let untraced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+
+        traced.set_trace_enabled(true).unwrap();
+        for _ in 0..32 {
+            traced.step_instruction().unwrap();
+            untraced.step_instruction().unwrap();
+        }
+
+        let traced_state = traced.debug_snapshot().unwrap();
+        let untraced_state = untraced.debug_snapshot().unwrap();
+        assert_eq!(traced_state.pc, untraced_state.pc);
+        assert_eq!(traced_state.sp, untraced_state.sp);
+        assert_eq!(traced_state.af, untraced_state.af);
+        assert_eq!(traced_state.bc, untraced_state.bc);
+        assert_eq!(traced_state.de, untraced_state.de);
+        assert_eq!(traced_state.hl, untraced_state.hl);
+        assert_eq!(traced_state.machine_time_ticks, untraced_state.machine_time_ticks);
+        assert_eq!(traced_state.frame_number, untraced_state.frame_number);
+        assert!(traced_state.trace_enabled);
+        assert!(!untraced_state.trace_enabled);
+    }
+
+    #[test]
     fn reset_and_load_rom_restore_power_on_machine_counters() {
         let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
         worker.step_frame(100_000).unwrap();
