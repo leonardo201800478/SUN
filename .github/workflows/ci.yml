@@ -548,16 +548,31 @@ jobs:
       - name: Build Slint desktop POC (Windows x64 Release)
         run: cargo build --release --locked --manifest-path native/sega_desktop/Cargo.toml --target x86_64-pc-windows-msvc
 
-  windows-input-retired:
-    # Preserve the protected legacy check context without claiming SDL3 coverage.
-    # The portable input core remains tested by input-focused; SDL3 is not integrated.
+  windows-sdl3-input:
     name: Windows SDL3 input validation
-    if: github.event_name == 'workflow_dispatch' && github.event_name == 'pull_request'
+    needs: [changes]
+    if: github.event_name != 'workflow_dispatch' && (needs.changes.outputs.input == 'true' || needs.changes.outputs.slint_desktop == 'true') && needs.changes.outputs.full != 'true'
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
-      - name: Legacy SDL3 host intentionally not run
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt && rustup default 1.99.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Install pinned SDL3 runtime
+        shell: pwsh
+        run: ./scripts/install_sdl3_runtime.ps1 -Destination $env:GITHUB_WORKSPACE
+      - name: Format SDL3 input runtime
+        run: cargo fmt --manifest-path Cargo.toml --package sega-input-runtime -- --check
+      - name: Clippy SDL3 input runtime (Windows x64)
+        run: cargo clippy --release --locked --all-targets --target x86_64-pc-windows-msvc -p sega-input-runtime -- -D warnings
+      - name: Test SDL3 dynamic ABI and input runtime (Windows x64)
+        shell: pwsh
         run: |
-          echo "SKIPPED: SDL3 is not integrated; portable input core has its own gate."
+          $env:SEGA_EMULATOR_SDL3_DLL = Join-Path $env:GITHUB_WORKSPACE "SDL3.dll"
+          cargo test --release --locked --all-targets --target x86_64-pc-windows-msvc -p sega-input-runtime
 
   windows-tooling:
     name: Windows PowerShell tooling syntax
@@ -895,7 +910,7 @@ jobs:
       - docs-format
       - workflow-lint
       - windows-slint-wgpu
-      - windows-input-retired
+      - windows-sdl3-input
       - windows-tooling
       - scheduler-stress
       - refresh-lockfiles
@@ -924,8 +939,8 @@ jobs:
           WORKFLOW_LINT: ${{ needs.workflow-lint.result }}
           EXPECT_WINDOWS_SLINT_WGPU: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true') }}
           WINDOWS_SLINT_WGPU: ${{ needs.windows-slint-wgpu.result }}
-          EXPECT_WINDOWS_INPUT_RETIRED: false
-          WINDOWS_INPUT_RETIRED: ${{ needs.windows-input-retired.result }}
+          EXPECT_WINDOWS_SDL3_INPUT: ${{ github.event_name != 'workflow_dispatch' && (needs.changes.outputs.input == 'true' || needs.changes.outputs.slint_desktop == 'true') && needs.changes.outputs.full != 'true' }}
+          WINDOWS_SDL3_INPUT: ${{ needs.windows-sdl3-input.result }}
           EXPECT_WINDOWS_TOOLING: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.tooling == 'true' || needs.changes.outputs.slint_desktop == 'true')) }}
           WINDOWS_TOOLING: ${{ needs.windows-tooling.result }}
           EXPECT_SCHEDULER: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.scheduler == 'true' || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') || (github.event.action == 'labeled' && (github.event.label.name == 'scheduler-stress-short' || github.event.label.name == 'scheduler-stress-long')))) }}
@@ -966,7 +981,7 @@ jobs:
           check_job "Documentation" "$EXPECT_DOCS" "$DOCS"
           check_job "Workflow lint" "$EXPECT_WORKFLOW_LINT" "$WORKFLOW_LINT"
           check_job "Windows Slint WGPU Vulkan POC" "$EXPECT_WINDOWS_SLINT_WGPU" "$WINDOWS_SLINT_WGPU"
-          check_job "Retired SDL3 host context" "$EXPECT_WINDOWS_INPUT_RETIRED" "$WINDOWS_INPUT_RETIRED"
+          check_job "Windows SDL3 input" "$EXPECT_WINDOWS_SDL3_INPUT" "$WINDOWS_SDL3_INPUT"
           check_job "PowerShell tooling" "$EXPECT_WINDOWS_TOOLING" "$WINDOWS_TOOLING"
           check_job "Scheduler stress" "$EXPECT_SCHEDULER" "$SCHEDULER"
           check_job "Windows x64 CPAL audio output" "$EXPECT_WINDOWS_CPAL_OUTPUT" "$WINDOWS_CPAL_OUTPUT"
