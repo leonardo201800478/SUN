@@ -5,20 +5,33 @@ use sega_input_runtime::{
 };
 use sega_sms_core::ControllerButtons;
 
-const ACTION_UP: u8 = 0;
-const ACTION_DOWN: u8 = 1;
-const ACTION_LEFT: u8 = 2;
-const ACTION_RIGHT: u8 = 3;
-const ACTION_BUTTON_1: u8 = 4;
-const ACTION_BUTTON_2: u8 = 5;
-const ACTION_PAUSE_NMI: u8 = 6;
-const DEFAULT_STICK_THRESHOLD: u16 = 10_000;
-
-fn action(value: u8) -> ActionId {
-    ActionId::new(value).expect("SMS input action identifier is in range")
+/// Stable semantic identifiers shared by desktop configuration and SMS input profiles.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SmsInputAction {
+    Up = 0,
+    Down = 1,
+    Left = 2,
+    Right = 3,
+    Button1 = 4,
+    Button2 = 5,
+    PauseNmi = 6,
 }
 
-fn binding(action_id: u8, control: PhysicalControl) -> ActionBinding {
+impl SmsInputAction {
+    /// Numeric identifier consumed by the generic input-profile evaluator.
+    pub const fn id(self) -> u8 {
+        self as u8
+    }
+}
+
+const DEFAULT_STICK_THRESHOLD: u16 = 10_000;
+
+fn action(value: SmsInputAction) -> ActionId {
+    ActionId::new(value.id()).expect("SMS input action identifier is in range")
+}
+
+fn binding(action_id: SmsInputAction, control: PhysicalControl) -> ActionBinding {
     ActionBinding {
         action: action(action_id),
         control,
@@ -37,12 +50,12 @@ impl SmsInputProfiles {
     fn defaults() -> Result<Self, String> {
         let gamepad = InputProfile::new(
             vec![
-                binding(ACTION_UP, PhysicalControl::Button(11)),
-                binding(ACTION_DOWN, PhysicalControl::Button(12)),
-                binding(ACTION_LEFT, PhysicalControl::Button(13)),
-                binding(ACTION_RIGHT, PhysicalControl::Button(14)),
+                binding(SmsInputAction::Up, PhysicalControl::Button(11)),
+                binding(SmsInputAction::Down, PhysicalControl::Button(12)),
+                binding(SmsInputAction::Left, PhysicalControl::Button(13)),
+                binding(SmsInputAction::Right, PhysicalControl::Button(14)),
                 binding(
-                    ACTION_UP,
+                    SmsInputAction::Up,
                     PhysicalControl::Axis {
                         index: 1,
                         direction: AxisDirection::Negative,
@@ -50,7 +63,7 @@ impl SmsInputProfiles {
                     },
                 ),
                 binding(
-                    ACTION_DOWN,
+                    SmsInputAction::Down,
                     PhysicalControl::Axis {
                         index: 1,
                         direction: AxisDirection::Positive,
@@ -58,7 +71,7 @@ impl SmsInputProfiles {
                     },
                 ),
                 binding(
-                    ACTION_LEFT,
+                    SmsInputAction::Left,
                     PhysicalControl::Axis {
                         index: 0,
                         direction: AxisDirection::Negative,
@@ -66,16 +79,16 @@ impl SmsInputProfiles {
                     },
                 ),
                 binding(
-                    ACTION_RIGHT,
+                    SmsInputAction::Right,
                     PhysicalControl::Axis {
                         index: 0,
                         direction: AxisDirection::Positive,
                         threshold: DEFAULT_STICK_THRESHOLD,
                     },
                 ),
-                binding(ACTION_BUTTON_1, PhysicalControl::Button(0)),
-                binding(ACTION_BUTTON_2, PhysicalControl::Button(1)),
-                binding(ACTION_PAUSE_NMI, PhysicalControl::Button(6)),
+                binding(SmsInputAction::Button1, PhysicalControl::Button(0)),
+                binding(SmsInputAction::Button2, PhysicalControl::Button(1)),
+                binding(SmsInputAction::PauseNmi, PhysicalControl::Button(6)),
             ],
             0,
         )
@@ -84,35 +97,35 @@ impl SmsInputProfiles {
         let joystick = InputProfile::new(
             vec![
                 binding(
-                    ACTION_UP,
+                    SmsInputAction::Up,
                     PhysicalControl::Hat {
                         index: 0,
                         direction_mask: 0b0001,
                     },
                 ),
                 binding(
-                    ACTION_RIGHT,
+                    SmsInputAction::Right,
                     PhysicalControl::Hat {
                         index: 0,
                         direction_mask: 0b0010,
                     },
                 ),
                 binding(
-                    ACTION_DOWN,
+                    SmsInputAction::Down,
                     PhysicalControl::Hat {
                         index: 0,
                         direction_mask: 0b0100,
                     },
                 ),
                 binding(
-                    ACTION_LEFT,
+                    SmsInputAction::Left,
                     PhysicalControl::Hat {
                         index: 0,
                         direction_mask: 0b1000,
                     },
                 ),
                 binding(
-                    ACTION_UP,
+                    SmsInputAction::Up,
                     PhysicalControl::Axis {
                         index: (SDL3_RAW_AXIS_OFFSET + 1) as u8,
                         direction: AxisDirection::Negative,
@@ -120,7 +133,7 @@ impl SmsInputProfiles {
                     },
                 ),
                 binding(
-                    ACTION_DOWN,
+                    SmsInputAction::Down,
                     PhysicalControl::Axis {
                         index: (SDL3_RAW_AXIS_OFFSET + 1) as u8,
                         direction: AxisDirection::Positive,
@@ -128,7 +141,7 @@ impl SmsInputProfiles {
                     },
                 ),
                 binding(
-                    ACTION_LEFT,
+                    SmsInputAction::Left,
                     PhysicalControl::Axis {
                         index: SDL3_RAW_AXIS_OFFSET as u8,
                         direction: AxisDirection::Negative,
@@ -136,7 +149,7 @@ impl SmsInputProfiles {
                     },
                 ),
                 binding(
-                    ACTION_RIGHT,
+                    SmsInputAction::Right,
                     PhysicalControl::Axis {
                         index: SDL3_RAW_AXIS_OFFSET as u8,
                         direction: AxisDirection::Positive,
@@ -144,15 +157,15 @@ impl SmsInputProfiles {
                     },
                 ),
                 binding(
-                    ACTION_BUTTON_1,
+                    SmsInputAction::Button1,
                     PhysicalControl::Button(SDL3_RAW_BUTTON_OFFSET as u8),
                 ),
                 binding(
-                    ACTION_BUTTON_2,
+                    SmsInputAction::Button2,
                     PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 1) as u8),
                 ),
                 binding(
-                    ACTION_PAUSE_NMI,
+                    SmsInputAction::PauseNmi,
                     PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 2) as u8),
                 ),
             ],
@@ -173,14 +186,14 @@ impl SmsInputProfiles {
         profile.evaluate(&reading.state, &mut actions);
         (
             ControllerButtons {
-                up: actions.is_active(action(ACTION_UP)),
-                down: actions.is_active(action(ACTION_DOWN)),
-                left: actions.is_active(action(ACTION_LEFT)),
-                right: actions.is_active(action(ACTION_RIGHT)),
-                button_1: actions.is_active(action(ACTION_BUTTON_1)),
-                button_2: actions.is_active(action(ACTION_BUTTON_2)),
+                up: actions.is_active(action(SmsInputAction::Up)),
+                down: actions.is_active(action(SmsInputAction::Down)),
+                left: actions.is_active(action(SmsInputAction::Left)),
+                right: actions.is_active(action(SmsInputAction::Right)),
+                button_1: actions.is_active(action(SmsInputAction::Button1)),
+                button_2: actions.is_active(action(SmsInputAction::Button2)),
             },
-            actions.is_active(action(ACTION_PAUSE_NMI)),
+            actions.is_active(action(SmsInputAction::PauseNmi)),
         )
     }
 }
@@ -301,7 +314,7 @@ fn is_supported_controller(class: DeviceClass) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ACTION_BUTTON_1, DEFAULT_STICK_THRESHOLD, SmsInputProfiles};
+    use super::{DEFAULT_STICK_THRESHOLD, SmsInputAction, SmsInputProfiles};
     use sega_input_runtime::{
         ActionBinding, ActionId, AxisSemantic, DeviceClass, DeviceId, DeviceReading, DeviceState,
         InputProfile, PhysicalControl,
@@ -394,7 +407,7 @@ mod tests {
         let defaults = SmsInputProfiles::defaults().unwrap();
         let custom_gamepad = InputProfile::new(
             vec![ActionBinding {
-                action: ActionId::new(ACTION_BUTTON_1).unwrap(),
+                action: ActionId::new(SmsInputAction::Button1.id()).unwrap(),
                 control: PhysicalControl::Button(8),
             }],
             0,
