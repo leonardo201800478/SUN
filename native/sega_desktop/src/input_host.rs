@@ -1,7 +1,7 @@
 use sega_input_runtime::{
     ActionBinding, ActionId, ActionState, AxisDirection, DeviceClass, DeviceDescriptor,
     DeviceReading, InputBackend, InputBuffers, InputProfile, PhysicalControl,
-    sdl3_backend::{SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, Sdl3Backend},
+    sdl3_backend::{SDL3_RAW_BUTTON_OFFSET, Sdl3Backend},
 };
 use sega_sms_core::ControllerButtons;
 
