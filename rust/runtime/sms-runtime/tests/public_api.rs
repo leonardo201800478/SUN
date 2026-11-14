@@ -83,3 +83,20 @@ fn public_worker_api_accepts_sms1_presentation_crop_setting() {
     worker.set_overscan_mode(SmsOverscanMode::CropLeft8).unwrap();
     worker.set_overscan_mode(SmsOverscanMode::Off).unwrap();
 }
+
+
+#[test]
+fn save_state_rejects_a_different_rom_without_mutating_the_target_machine() {
+    let source = SmsTemporalWorker::new(vec![0x00; 0x4000], "usa").unwrap();
+    source.step_frame(100_000).unwrap();
+    let saved = source.save_state().unwrap();
+
+    let target = SmsTemporalWorker::new(vec![0xFF; 0x4000], "usa").unwrap();
+    target.step_frame(100_000).unwrap();
+    let before = target.debug_snapshot().unwrap();
+
+    assert!(target.load_state(saved).is_err());
+    let after = target.debug_snapshot().unwrap();
+    assert_eq!(after.pc, before.pc);
+    assert_eq!(after.machine_time_ticks, before.machine_time_ticks);
+}
