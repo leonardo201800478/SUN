@@ -53,7 +53,7 @@ CPAL 0.18.2 e o pipeline PCM estão integrados em software; testes automatizados
 
 O crate native/input_runtime e o backend SDL3 dinâmico Windows x64 já existem na linha principal, mas não eram consumidos pelo desktop Slint: o host usava somente eventos de teclado nativos. A PR #313 histórica pertence ao host Qt/PyO3 e não comprova integração no desktop atual.
 
-A branch feat/r4-slint-sdl3-gamepad-input-20261114 inicia a integração: dependência do sega-input-runtime no desktop, polling SDL3 no limite do host Slint a 125 Hz, atualizações hotplug observadas pelo backend a cada 250 ms, mapeamento inicial Gamepad API (D-pad/analógico esquerdo + South/East) e fallback Joystick API. Os dois primeiros dispositivos elegíveis são atribuídos deterministicamente a P1/P2 na sessão. Atualizações usam SmsTemporalWorker::set_controller_at; não há polling no Scheduler nem callbacks por instrução.
+A branch feat/r4-slint-sdl3-gamepad-input-20261114 inicia a integração: dependência do sega-input-runtime no desktop, polling SDL3 no limite do host Slint com intervalo nominal de 8 ms, atualizações hotplug observadas pelo backend a cada 250 ms, mapeamento inicial Gamepad API (D-pad/analógico esquerdo + South/East) e fallback Joystick API. Os dois primeiros dispositivos elegíveis são atribuídos deterministicamente a P1/P2 na sessão. Atualizações usam SmsTemporalWorker::set_controller_at; não há polling no Scheduler nem callbacks por instrução.
 
 O CI Windows passa a instalar SDL3 3.4.20 com SHA-256 fixado e executar smoke test da ABI dinâmica sem exigir controle físico. A integração de software desta primeira fatia ainda precisa passar CI.
 
