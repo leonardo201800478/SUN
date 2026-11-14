@@ -209,18 +209,17 @@ mod windows_host {
                 return;
             };
 
-            let (mut next_players, status) = match input_host.as_mut() {
-                Some(host) => match host.poll() {
-                    Ok((players, status)) => (players, status),
-                    Err(error) => {
-                        eprintln!("R4_SDL3 event=poll_failed error={error}");
-                        input_host = None;
-                        (
-                            [ControllerButtons::default(); 2],
-                            format!("SDL3 interrompido — teclado ativo: {error}"),
-                        )
-                    }
-                },
+            let poll_result = input_host.as_mut().map(Sdl3InputHost::poll);
+            let (mut next_players, status) = match poll_result {
+                Some(Ok((players, status))) => (players, status),
+                Some(Err(error)) => {
+                    eprintln!("R4_SDL3 event=poll_failed error={error}");
+                    input_host = None;
+                    (
+                        [ControllerButtons::default(); 2],
+                        format!("SDL3 interrompido — teclado ativo: {error}"),
+                    )
+                }
                 None => ([ControllerButtons::default(); 2], last_status.clone()),
             };
 
