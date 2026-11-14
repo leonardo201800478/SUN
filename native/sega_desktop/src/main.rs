@@ -187,7 +187,7 @@ mod windows_host {
     ) -> Timer {
         let mut input_host = match Sdl3InputHost::new() {
             Ok(host) => {
-                let status = host.status();
+                let status = host.status().to_owned();
                 app.set_input_status(status.clone().into());
                 Some(host)
             }
@@ -198,7 +198,6 @@ mod windows_host {
                 None
             }
         };
-        let mut last_status = app.get_input_status().to_string();
         let app_weak = app.as_weak();
         let timer = Timer::default();
 
@@ -208,17 +207,17 @@ mod windows_host {
             };
 
             let poll_result = input_host.as_mut().map(Sdl3InputHost::poll);
-            let (mut next_players, status) = match poll_result {
-                Some(Ok((players, status))) => (players, status),
+            let (mut next_players, status_update) = match poll_result {
+                Some(Ok((players, status_update))) => (players, status_update),
                 Some(Err(error)) => {
                     eprintln!("R4_SDL3 event=poll_failed error={error}");
                     input_host = None;
                     (
                         [ControllerButtons::default(); 2],
-                        format!("SDL3 interrompido — teclado ativo: {error}"),
+                        Some(format!("SDL3 interrompido — teclado ativo: {error}")),
                     )
                 }
-                None => ([ControllerButtons::default(); 2], last_status.clone()),
+                None => ([ControllerButtons::default(); 2], None),
             };
 
             if !app.get_has_rom() || app.get_active_menu().as_str() != "none" {
@@ -249,9 +248,8 @@ mod windows_host {
                 }
             }
 
-            if status != last_status {
-                app.set_input_status(status.clone().into());
-                last_status = status;
+            if let Some(status) = status_update {
+                app.set_input_status(status.into());
             }
         });
 
