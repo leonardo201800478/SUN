@@ -22,7 +22,8 @@
 - Mantém teclado no Slint e combina os níveis de teclado e gamepad por OR, evitando que o release de uma fonte libere a outra.
 - Polling ocorre em timer do host Slint a cada 8 ms (125 Hz nominal); o backend existente verifica hotplug a cada 250 ms.
 - Primeiro e segundo dispositivos elegíveis na ordem de sessão são atribuídos a SMS P1 e P2.
-- Gamepad padronizado: D-pad/analógico esquerdo e SDL_GAMEPAD_BUTTON_SOUTH/EAST para Botão 1/2.
+- Gamepad padronizado: D-pad/analógico esquerdo, SDL_GAMEPAD_BUTTON_SOUTH/EAST para Botão 1/2 e START para NMI (Pause) por borda de subida.
+- Joystick genérico: hat 0, eixos raw 0/1, botões raw 0/1 e botão raw 2 para NMI.
 - Joystick genérico: hat 0, eixos raw 0/1 e botões raw 0/1.
 - Em menu aberto ou sem ROM, o estado de gameplay do gamepad é neutralizado.
 - Erro de inicialização SDL3 não impede o uso do teclado; o status é exposto no painel Controles.
@@ -50,7 +51,7 @@
 5. Dois controles conectados, ordem/atribuição P1/P2 documentada.
 6. Perfis por dispositivo com identidade estável, migração de configurações e testes de dois controles idênticos.
 7. Captura analógica separada da deadzone de gameplay.
-8. Pause físico/NMI separado da pausa do frontend; reprodução determinística do caso Road Rash antes de qualquer mudança temporal.
+8. Validar Start físico como NMI por borda de subida, sem confundir com Pause do frontend; reproduzir o caso Road Rash de forma determinística antes de qualquer mudança temporal.
 9. Nenhuma alteração na autoridade temporal do MachineScheduler.
 
 ## 5. Referências externas
