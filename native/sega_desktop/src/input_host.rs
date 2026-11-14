@@ -23,6 +23,7 @@ pub struct Sdl3InputHost {
     backend: Sdl3Backend,
     buffers: InputBuffers,
     devices: Vec<DeviceDescriptor>,
+    status: String,
 }
 
 impl Sdl3InputHost {
@@ -33,27 +34,34 @@ impl Sdl3InputHost {
             .enumerate(&mut devices)
             .map_err(|error| error.to_string())?;
 
-        Ok(Self {
+        let mut host = Self {
             backend,
             buffers: InputBuffers::default(),
             devices,
-        })
+            status: String::new(),
+        };
+        host.refresh_status();
+        Ok(host)
     }
 
     /// Polls SDL3 at the host boundary and assigns the first two supported
     /// physical devices, in session order, to SMS Player 1 and Player 2.
     /// This is deliberately independent of MachineScheduler progression.
-    pub fn poll(&mut self) -> Result<([ControllerButtons; 2], String), String> {
+    pub fn poll(&mut self) -> Result<([ControllerButtons; 2], Option<String>), String> {
         self.buffers.clear();
         self.backend
             .poll_into(&mut self.buffers)
             .map_err(|error| error.to_string())?;
 
-        if !self.buffers.events.is_empty() {
+        let status_update = if !self.buffers.events.is_empty() {
             self.backend
                 .enumerate(&mut self.devices)
                 .map_err(|error| error.to_string())?;
-        }
+            self.refresh_status();
+            Some(self.status.clone())
+        } else {
+            None
+        };
 
         let mut players = [ControllerButtons::default(); 2];
         let mut slot = 0;
@@ -77,26 +85,33 @@ impl Sdl3InputHost {
             }
         }
 
-        Ok((players, self.status()))
+        Ok((players, status_update))
     }
 
-    pub fn status(&self) -> String {
-        let controllers: Vec<_> = self
-            .devices
-            .iter()
-            .filter(|device| is_supported_controller(device.class))
-            .collect();
-        if controllers.is_empty() {
-            return "SDL3 ativo — nenhum gamepad/joystick compatível conectado".to_owned();
-        }
+    pub fn status(&self) -> &str {
+        &self.status
+    }
 
-        let names = controllers
-            .iter()
-            .take(2)
-            .map(|device| device.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("SDL3 ativo — {} controle(s): {}", controllers.len(), names)
+    fn refresh_status(&mut self) {
+        let mut count = 0;
+        let mut names = String::new();
+        for device in &self.devices {
+            if !is_supported_controller(device.class) {
+                continue;
+            }
+            count += 1;
+            if count <= 2 {
+                if !names.is_empty() {
+                    names.push_str(", ");
+                }
+                names.push_str(&device.name);
+            }
+        }
+        self.status = if count == 0 {
+            "SDL3 ativo — nenhum gamepad/joystick compatível conectado".to_owned()
+        } else {
+            format!("SDL3 ativo — {count} controle(s): {names}")
+        };
     }
 }
 
