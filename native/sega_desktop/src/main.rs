@@ -162,8 +162,6 @@ mod windows_host {
         }
     }
 
-
-
     /// Combina fontes independentes de entrada sem permitir que uma libere a outra.
     fn merge_controller_buttons(
         keyboard: ControllerButtons,
