@@ -2202,22 +2202,9 @@ mod tests {
         }
         vram[sat + 9] = 0xD0;
 
-        let hardware = evaluate_mode4_sprites(
-            &vram,
-            &regs,
-            1,
-            SmsVdpRevision::Sega3155124,
-            192,
-            8,
-        );
-        let unlocked = evaluate_mode4_sprites(
-            &vram,
-            &regs,
-            1,
-            SmsVdpRevision::Sega3155124,
-            192,
-            64,
-        );
+        let hardware = evaluate_mode4_sprites(&vram, &regs, 1, SmsVdpRevision::Sega3155124, 192, 8);
+        let unlocked =
+            evaluate_mode4_sprites(&vram, &regs, 1, SmsVdpRevision::Sega3155124, 192, 64);
 
         assert_eq!(hardware.selected.len(), 8);
         assert_eq!(hardware.overflow_index, Some(8));
