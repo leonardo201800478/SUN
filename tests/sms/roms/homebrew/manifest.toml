@@ -153,4 +153,3 @@ purpose = "Z80 instruction/flag conformance diagnostic; VDP-oriented output infe
 header_tmr_sega_at_0x7ff0 = true
 license_status = "UNVERIFIED"
 execution_gate = "DO_NOT_RUN_UNTIL_Z80_E7_IS_DEMONSTRABLY_CLOSED; E8_NOT_STARTED"
-
