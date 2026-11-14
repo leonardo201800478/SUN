@@ -143,7 +143,9 @@ fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> Controller
 
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, map_sms_controller};
+    use super::{
+        DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, map_sms_controller,
+    };
     use sega_input_runtime::{
         AxisSemantic, ButtonSet, DeviceClass, DeviceId, DeviceReading, DeviceState,
     };
