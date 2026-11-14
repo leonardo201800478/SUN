@@ -358,21 +358,24 @@ mod windows_host {
             x: min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
             y: 88px;
             width: min(parent.width - 16px, root.active-menu == "file" ? 560px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 250px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
+            height: min(parent.height - 104px, root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
             border-color: #405365; min-height: 120px; max-height: 480px; max-width: 560px;
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 250px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                content-height: root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 250px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                    height: root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
-                            Text { font-size: 12px; text: "Sistema ativo: Sega Master System"; color: #f2f5f7; }
+                            Text { font-size: 12px; text: "Sistema ativo: Sega Master System I"; color: #f2f5f7; }
+                            Text { font-size: 12px; text: "Perfil VDP ativo: Sega 315-5124 (SMS1)"; color: #8bd5ca; }
+                            Text { font-size: 11px; text: "Revisão do ASIC e padrão regional são perfis independentes."; color: #b9c5ce; wrap: word-wrap; }
+                            Text { font-size: 11px; text: "SMS II (315-5246): perfil distinto, ainda não habilitado no runtime desktop."; color: #d6b879; wrap: word-wrap; }
                             Text { font-size: 12px; text: "Região / padrão de vídeo"; color: #b9c5ce; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
@@ -382,15 +385,17 @@ mod windows_host {
                                 CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
                             }
                             Text { font-size: 12px; text: "A região selecionada será aplicada ao carregar a próxima ROM."; color: #b9c5ce; }
+                            Text { font-size: 12px; text: "Outros perfis de sistema"; color: #b9c5ce; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: "SG-1000"; enabled: false; }
+                                CompactButton { text: "SMS II — 315-5246"; enabled: false; }
+                                CompactButton { text: "SG-1000 — TMS9918"; enabled: false; }
                                 CompactButton { text: "Game Gear"; enabled: false; }
                                 CompactButton { text: "Mega Drive / Genesis"; enabled: false; }
                                 CompactButton { text: "Sega CD"; enabled: false; }
                                 CompactButton { text: "32X"; enabled: false; }
                             }
-                            Text { font-size: 12px; text: "Outros sistemas: integração de runtime ainda não concluída."; color: #9baab6; }
+                            Text { font-size: 11px; text: "Perfis futuros permanecem isolados e indisponíveis até a integração e validação de seus runtimes."; color: #9baab6; wrap: word-wrap; }
                         }
                         if root.active-menu == "file": VerticalLayout {
                             LineEdit { text <=> root.rom-path-input; placeholder-text: "C:\\ROMs\\game.sms"; }
