@@ -926,7 +926,7 @@ fn set_trace_capture(
         commands,
         WorkerCommand::SetTraceEnabled(enabled, publisher, reply_sender),
     )?;
-    receive_worker_reply(reply_receiver, "changing debugger trace capture")?;
+    receive_worker_reply(reply_receiver, "changing debugger trace capture")??;
     if enabled {
         *slot = collector;
     } else {
