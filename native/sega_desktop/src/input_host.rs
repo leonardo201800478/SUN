@@ -1,6 +1,6 @@
 use sega_input_runtime::{
     DeviceClass, DeviceDescriptor, DeviceReading, InputBackend, InputBuffers,
-    sdl3_backend::{Sdl3Backend, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET},
+    sdl3_backend::{Sdl3Backend, SDL3_SDL3_RAW_AXIS_OFFSET, SDL3_SDL3_RAW_BUTTON_OFFSET},
 };
 use sega_sms_core::ControllerButtons;
 
@@ -19,9 +19,6 @@ const DEFAULT_STICK_THRESHOLD: i32 = 16_000;
 
 // The current backend keeps standardized gamepad buttons in 0..21 and raw
 // joystick buttons/axes in separate ranges to avoid collisions.
-const RAW_BUTTON_OFFSET: usize = 32;
-const RAW_AXIS_OFFSET: usize = 16;
-
 pub struct Sdl3InputHost {
     backend: Sdl3Backend,
     buffers: InputBuffers,
@@ -135,8 +132,8 @@ fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> Controller
         };
     }
 
-    let raw_x = i32::from(state.axis(RAW_AXIS_OFFSET));
-    let raw_y = i32::from(state.axis(RAW_AXIS_OFFSET + 1));
+    let raw_x = i32::from(state.axis(SDL3_RAW_AXIS_OFFSET));
+    let raw_y = i32::from(state.axis(SDL3_RAW_AXIS_OFFSET + 1));
     let hat = state.hat(0);
 
     ControllerButtons {
@@ -144,14 +141,14 @@ fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> Controller
         right: hat & 0b0010 != 0 || raw_x >= DEFAULT_STICK_THRESHOLD,
         down: hat & 0b0100 != 0 || raw_y >= DEFAULT_STICK_THRESHOLD,
         left: hat & 0b1000 != 0 || raw_x <= -DEFAULT_STICK_THRESHOLD,
-        button_1: state.buttons.is_pressed(RAW_BUTTON_OFFSET),
-        button_2: state.buttons.is_pressed(RAW_BUTTON_OFFSET + 1),
+        button_1: state.buttons.is_pressed(SDL3_RAW_BUTTON_OFFSET),
+        button_2: state.buttons.is_pressed(SDL3_RAW_BUTTON_OFFSET + 1),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_STICK_THRESHOLD, RAW_AXIS_OFFSET, RAW_BUTTON_OFFSET, map_sms_controller};
+    use super::{DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, map_sms_controller};
     use sega_input_runtime::{
         AxisSemantic, ButtonSet, DeviceClass, DeviceId, DeviceReading, DeviceState,
     };
@@ -188,12 +185,12 @@ mod tests {
     fn generic_joystick_maps_raw_buttons_axes_and_hat() {
         let mut state = DeviceState::default();
         let mut raw_buttons = ButtonSet::default();
-        raw_buttons.set(RAW_BUTTON_OFFSET, true).unwrap();
-        raw_buttons.set(RAW_BUTTON_OFFSET + 1, true).unwrap();
+        raw_buttons.set(SDL3_RAW_BUTTON_OFFSET, true).unwrap();
+        raw_buttons.set(SDL3_RAW_BUTTON_OFFSET + 1, true).unwrap();
         state.buttons = raw_buttons;
         state
             .set_axis(
-                RAW_AXIS_OFFSET,
+                SDL3_RAW_AXIS_OFFSET,
                 -(DEFAULT_STICK_THRESHOLD as i16),
                 AxisSemantic::Unknown,
             )
