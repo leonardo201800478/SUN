@@ -65,7 +65,8 @@ impl DebuggerApp {
             .and_then(|rom| SmsTemporalWorker::new(rom, "usa"));
         match result {
             Ok(worker) => {
-                worker.set_diagnostics_enabled(true);
+                // Detailed diagnostics remain disabled until the user explicitly
+                // enables Debugger mode from the controls.
                 self.worker = Some(worker);
                 self.rom_path = Some(path);
                 self.running = false;
@@ -198,14 +199,15 @@ impl DebuggerApp {
             .is_some_and(|snapshot| snapshot.trace_enabled);
         match worker.set_trace_enabled(enabled) {
             Ok(()) => {
+                worker.set_diagnostics_enabled(enabled);
                 self.refresh_snapshot();
                 self.status = if enabled {
-                    "Captura de trace habilitada (histórico limitado)".into()
+                    "Modo Debugger habilitado (captura limitada em memória)".into()
                 } else {
-                    "Captura de trace desabilitada".into()
+                    "Modo Debugger desabilitado; captura detalhada interrompida".into()
                 };
             }
-            Err(error) => self.status = format!("Falha ao configurar trace: {error}"),
+            Err(error) => self.status = format!("Falha ao configurar modo Debugger: {error}"),
         }
     }
 

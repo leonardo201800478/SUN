@@ -156,9 +156,212 @@ impl<T> BoundedHistory<T> {
     }
 }
 
+/// Result of publishing one owned diagnostic event to the collector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublishResult {
+    /// The collector accepted the event without blocking.
+    Accepted,
+    /// The bounded queue is full; the event was discarded.
+    QueueFull,
+    /// The collector has been stopped.
+    Inactive,
+}
+
+enum CollectorMessage<T> {
+    Event(T),
+    Barrier(std::sync::mpsc::SyncSender<()>),
+    Shutdown,
+}
+
+/// Cloneable non-blocking producer for a dedicated diagnostic collector thread.
+///
+/// Publishing never waits for the collector: a full bounded queue discards the
+/// event and increments the producer-side drop counter.
+pub struct DiagnosticPublisher<T> {
+    sender: std::sync::mpsc::SyncSender<CollectorMessage<T>>,
+    active: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    dropped: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
+
+impl<T> Clone for DiagnosticPublisher<T> {
+    fn clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            active: std::sync::Arc::clone(&self.active),
+            dropped: std::sync::Arc::clone(&self.dropped),
+        }
+    }
+}
+
+impl<T> DiagnosticPublisher<T> {
+    /// Attempt to publish an event without waiting for queue capacity.
+    pub fn try_publish(&self, event: T) -> PublishResult {
+        use std::sync::atomic::Ordering;
+        if !self.active.load(Ordering::Acquire) {
+            return PublishResult::Inactive;
+        }
+        match self.sender.try_send(CollectorMessage::Event(event)) {
+            Ok(()) => PublishResult::Accepted,
+            Err(std::sync::mpsc::TrySendError::Full(_)) => {
+                self.dropped.fetch_add(1, Ordering::Relaxed);
+                PublishResult::QueueFull
+            }
+            Err(std::sync::mpsc::TrySendError::Disconnected(_)) => PublishResult::Inactive,
+        }
+    }
+
+    /// Return the number of events discarded because the input queue was full.
+    #[must_use]
+    pub fn dropped(&self) -> u64 {
+        self.dropped.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Return whether this publisher still targets an active collector.
+    #[must_use]
+    pub fn is_active(&self) -> bool {
+        self.active.load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+
+/// Owns a dedicated thread that drains diagnostic events into bounded memory.
+///
+/// Construct this type only after an explicit user request to enable debugger
+/// mode. Dropping it stops the collector and clears retained diagnostic data.
+pub struct DiagnosticCollector<T: Send + 'static> {
+    publisher: DiagnosticPublisher<T>,
+    history: std::sync::Arc<std::sync::Mutex<BoundedHistory<T>>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl<T: Send + 'static> DiagnosticCollector<T> {
+    /// Start a collector with separately bounded ingress and retained history.
+    ///
+    /// Both capacities are normalized to at least one element.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operating system cannot create the collector thread.
+    #[must_use]
+    pub fn start(queue_capacity: usize, history_capacity: usize) -> Self {
+        let (sender, receiver) = std::sync::mpsc::sync_channel(queue_capacity.max(1));
+        let active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let history =
+            std::sync::Arc::new(std::sync::Mutex::new(BoundedHistory::new(history_capacity)));
+        let collector_history = std::sync::Arc::clone(&history);
+        let thread = std::thread::Builder::new()
+            .name("sega-debugger-collector".to_owned())
+            .spawn(move || {
+                while let Ok(message) = receiver.recv() {
+                    match message {
+                        CollectorMessage::Event(event) => {
+                            if let Ok(mut retained) = collector_history.lock() {
+                                retained.push(event);
+                            }
+                        }
+                        CollectorMessage::Barrier(reply) => {
+                            let _ = reply.send(());
+                        }
+                        CollectorMessage::Shutdown => break,
+                    }
+                }
+            })
+            .expect("failed to start debugger collector thread");
+        Self {
+            publisher: DiagnosticPublisher {
+                sender,
+                active,
+                dropped,
+            },
+            history,
+            thread: Some(thread),
+        }
+    }
+
+    /// Return a cloneable, non-blocking publisher for the emulation worker.
+    #[must_use]
+    pub fn publisher(&self) -> DiagnosticPublisher<T> {
+        self.publisher.clone()
+    }
+
+    /// Return a cloned snapshot of retained events, oldest first.
+    #[must_use]
+    pub fn snapshot(&self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        let (reply, acknowledged) = std::sync::mpsc::sync_channel(1);
+        if self
+            .publisher
+            .sender
+            .send(CollectorMessage::Barrier(reply))
+            .is_ok()
+        {
+            let _ = acknowledged.recv();
+        }
+        self.history
+            .lock()
+            .map(|history| history.entries().iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Return the number of events dropped before reaching the collector.
+    #[must_use]
+    pub fn ingress_dropped(&self) -> u64 {
+        self.publisher.dropped()
+    }
+
+    /// Stop the collector, join its thread, and clear retained diagnostic data.
+    pub fn stop(mut self) {
+        self.shutdown();
+    }
+
+    fn shutdown(&mut self) {
+        use std::sync::atomic::Ordering;
+        self.publisher.active.store(false, Ordering::Release);
+        // This may wait for queue capacity, but it runs on the host/control
+        // thread, never on the emulation worker.
+        let _ = self.publisher.sender.send(CollectorMessage::Shutdown);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+        if let Ok(mut history) = self.history.lock() {
+            history.clear();
+        }
+    }
+}
+
+impl<T: Send + 'static> Drop for DiagnosticCollector<T> {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{BoundedHistory, BreakpointSet};
+
+    #[test]
+    fn diagnostic_collector_runs_on_a_dedicated_thread_and_retains_events() {
+        use super::{DiagnosticCollector, PublishResult};
+        let collector = DiagnosticCollector::start(8, 3);
+        let publisher = collector.publisher();
+        assert_eq!(publisher.try_publish(10), PublishResult::Accepted);
+        assert_eq!(publisher.try_publish(11), PublishResult::Accepted);
+        // A snapshot is an observation of events already drained by the collector.
+        assert_eq!(collector.snapshot(), [10, 11]);
+        assert_eq!(collector.ingress_dropped(), 0);
+    }
+
+    #[test]
+    fn stopped_collector_rejects_new_events_and_clears_retained_data() {
+        use super::{DiagnosticCollector, PublishResult};
+        let collector = DiagnosticCollector::start(4, 4);
+        let publisher = collector.publisher();
+        assert_eq!(publisher.try_publish(7), PublishResult::Accepted);
+        collector.stop();
+        assert_eq!(publisher.try_publish(8), PublishResult::Inactive);
+    }
 
     #[test]
     fn breakpoints_are_unique_sorted_and_removable() {
