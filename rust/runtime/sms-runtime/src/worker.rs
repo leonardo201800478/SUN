@@ -17,8 +17,8 @@ use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOU
 use sega_debugger_core::{BoundedHistory, BreakpointSet};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
-    SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision,
-    SpriteLimitMode, Territory, VideoStandard,
+    SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
+    Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
