@@ -129,38 +129,8 @@ impl SmsInputProfiles {
                         direction_mask: 0b1000,
                     },
                 ),
-                binding(
-                    SmsInputAction::Up,
-                    PhysicalControl::Axis {
-                        index: (SDL3_RAW_AXIS_OFFSET + 1) as u8,
-                        direction: AxisDirection::Negative,
-                        threshold: DEFAULT_STICK_THRESHOLD,
-                    },
-                ),
-                binding(
-                    SmsInputAction::Down,
-                    PhysicalControl::Axis {
-                        index: (SDL3_RAW_AXIS_OFFSET + 1) as u8,
-                        direction: AxisDirection::Positive,
-                        threshold: DEFAULT_STICK_THRESHOLD,
-                    },
-                ),
-                binding(
-                    SmsInputAction::Left,
-                    PhysicalControl::Axis {
-                        index: SDL3_RAW_AXIS_OFFSET as u8,
-                        direction: AxisDirection::Negative,
-                        threshold: DEFAULT_STICK_THRESHOLD,
-                    },
-                ),
-                binding(
-                    SmsInputAction::Right,
-                    PhysicalControl::Axis {
-                        index: SDL3_RAW_AXIS_OFFSET as u8,
-                        direction: AxisDirection::Positive,
-                        threshold: DEFAULT_STICK_THRESHOLD,
-                    },
-                ),
+                // Generic joystick axis ordering is device-specific. Do not assume
+                // axes 0/1 are a directional stick; calibrated profiles may bind them.
                 binding(
                     SmsInputAction::Button1,
                     PhysicalControl::Button(SDL3_RAW_BUTTON_OFFSET as u8),
@@ -372,7 +342,7 @@ mod tests {
         state.set_hat(0, 0b0101).unwrap();
 
         let (buttons, pause) = profiles.evaluate(DeviceClass::Joystick, &reading(state));
-        assert!(buttons.left);
+        assert!(!buttons.left, "unconfigured generic axes must not be guessed");
         assert!(buttons.up);
         assert!(buttons.down);
         assert!(buttons.button_1);
