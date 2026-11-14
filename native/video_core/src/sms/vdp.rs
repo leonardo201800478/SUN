@@ -295,9 +295,7 @@ impl SmsVdp {
         let height = usize::from(self.visible_height());
         let source = self.framebuffer();
         match mode {
-            super::profile::SmsOverscanMode::Off => {
-                (SMS_VDP_WIDTH, height, source.to_vec())
-            }
+            super::profile::SmsOverscanMode::Off => (SMS_VDP_WIDTH, height, source.to_vec()),
             super::profile::SmsOverscanMode::CropLeft8 => {
                 const CROP_PIXELS: usize = 8;
                 const CROP_BYTES: usize = CROP_PIXELS * 3;
