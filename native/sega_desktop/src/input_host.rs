@@ -411,7 +411,10 @@ mod tests {
             .profiles
             .evaluate(DeviceClass::Gamepad, &reading(state));
 
-        assert!(buttons.button_1, "the configured extra button must map to SMS Button 1");
+        assert!(
+            buttons.button_1,
+            "the configured extra button must map to SMS Button 1"
+        );
         assert!(!buttons.button_2);
     }
 }
