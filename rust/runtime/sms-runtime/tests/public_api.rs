@@ -32,3 +32,44 @@ fn public_worker_api_loads_steps_resets_and_accepts_controller_levels() {
     worker.load_rom(rom).unwrap();
     assert_eq!(worker.frame_number(), 0);
 }
+
+
+#[test]
+fn public_worker_api_saves_and_restores_a_complete_paused_machine_state() {
+    let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+
+    worker.step_frame(100_000).unwrap();
+    let saved = worker.save_state().unwrap();
+    let saved_frame = worker.frame_number();
+    let saved_debug = worker.debug_snapshot().unwrap();
+
+    worker.step_frame(100_000).unwrap();
+    assert!(worker.frame_number() > saved_frame);
+
+    worker.load_state(saved).unwrap();
+    assert_eq!(worker.frame_number(), saved_frame);
+
+    let restored_debug = worker.debug_snapshot().unwrap();
+    assert_eq!(restored_debug.pc, saved_debug.pc);
+    assert_eq!(restored_debug.machine_time_ticks, saved_debug.machine_time_ticks);
+    assert_eq!(restored_debug.vdp_scanline, saved_debug.vdp_scanline);
+    assert_eq!(
+        restored_debug.vdp_cycles_into_line,
+        saved_debug.vdp_cycles_into_line
+    );
+}
+
+#[test]
+fn invalid_save_state_is_rejected_without_mutating_the_running_machine() {
+    let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+    worker.step_frame(100_000).unwrap();
+
+    let before = worker.debug_snapshot().unwrap();
+    let mut invalid = worker.save_state().unwrap();
+    invalid.format_version = 0;
+
+    assert!(worker.load_state(invalid).is_err());
+    let after = worker.debug_snapshot().unwrap();
+    assert_eq!(after.pc, before.pc);
+    assert_eq!(after.machine_time_ticks, before.machine_time_ticks);
+}
