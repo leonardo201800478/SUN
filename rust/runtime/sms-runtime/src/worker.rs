@@ -1255,9 +1255,7 @@ impl SmsTemporalWorker {
 
     /// Capture a coherent, owned debugger snapshot at a worker command boundary.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
-        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
-        enqueue_worker_command(&self.commands, WorkerCommand::DebugSnapshot(reply_sender))?;
-        receive_worker_reply(reply_receiver, "returning a debugger snapshot")?
+        capture_debug_snapshot(&self.commands, &self.trace_collector)
     }
 
     /// Capture a complete versioned machine state at a worker command boundary.
