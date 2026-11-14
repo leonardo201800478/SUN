@@ -293,7 +293,7 @@ mod windows_host {
                     activated => { root.display-mode-toggle-requested("f11"); }
                 }
                 KeyBinding {
-                    keys: @keys(Alt + Enter);
+                    keys: @keys(Alt + Return);
                     activated => { root.display-mode-toggle-requested("alt-enter"); }
                 }
                 VerticalLayout {
@@ -3142,6 +3142,48 @@ mod windows_host {
             let preferences = DesktopPreferences::default();
             assert_eq!(preferences.audio_volume, 70);
             assert!(!preferences.audio_muted);
+        }
+
+        #[test]
+        fn fullscreen_shortcuts_transition_between_three_presentation_modes() {
+            use DesktopDisplayMode::{FullscreenImmersive, FullscreenWithUi, Windowed};
+            use DisplayModeShortcut::{AltEnter, F11};
+
+            assert_eq!(
+                transition_display_mode(Windowed, F11),
+                FullscreenWithUi
+            );
+            assert_eq!(
+                transition_display_mode(FullscreenWithUi, F11),
+                Windowed
+            );
+            assert_eq!(
+                transition_display_mode(Windowed, AltEnter),
+                FullscreenImmersive
+            );
+            assert_eq!(
+                transition_display_mode(FullscreenWithUi, AltEnter),
+                FullscreenImmersive
+            );
+            assert_eq!(
+                transition_display_mode(FullscreenImmersive, AltEnter),
+                Windowed
+            );
+            assert_eq!(
+                transition_display_mode(FullscreenImmersive, F11),
+                FullscreenWithUi
+            );
+        }
+
+        #[test]
+        fn fullscreen_mode_transitions_are_independent_of_emulation_state() {
+            // The transition function only receives presentation state and shortcut;
+            // no worker, scheduler, CPU or VDP state is accessible here.
+            let mode = transition_display_mode(
+                DesktopDisplayMode::Windowed,
+                DisplayModeShortcut::AltEnter,
+            );
+            assert_eq!(mode, DesktopDisplayMode::FullscreenImmersive);
         }
 
         #[test]
