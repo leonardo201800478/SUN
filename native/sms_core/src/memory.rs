@@ -117,6 +117,11 @@ pub struct SmsMemory {
 }
 
 impl SmsMemory {
+    /// Return the immutable cartridge ROM bytes for save-state identity checks.
+    pub fn rom_bytes(&self) -> &[u8] {
+        self.rom.bytes()
+    }
+
     pub fn new(rom: CartridgeImage) -> Result<Self, SmsCoreError> {
         Self::with_bios(rom, None)
     }

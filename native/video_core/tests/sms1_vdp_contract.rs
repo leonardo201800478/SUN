@@ -306,3 +306,38 @@ fn status_read_returns_vblank_once_and_clears_it() {
     assert_ne!(vdp.read_port(0x00BF) & 0x80, 0);
     assert_eq!(vdp.read_port(0x01BF) & 0x80, 0);
 }
+
+#[test]
+fn sms1_left_edge_crop_is_presentation_only_and_preserves_canonical_frame() {
+    use sega_video::sms::SmsOverscanMode;
+
+    let mut vdp = new_sms1();
+    configure_sms1_background(&mut vdp, 0x0F, 0xFF, 0x07);
+    vdp.advance(228 * 192 + 16);
+
+    let canonical = vdp.framebuffer().to_vec();
+    let (width, height, unchanged) = vdp.framebuffer_with_overscan(SmsOverscanMode::Off);
+    assert_eq!((width, height), (256, 192));
+    assert_eq!(unchanged, canonical);
+    assert_eq!(vdp.framebuffer(), canonical.as_slice());
+
+    let (cropped_width, cropped_height, cropped) =
+        vdp.framebuffer_with_overscan(SmsOverscanMode::CropLeft8);
+    assert_eq!((cropped_width, cropped_height), (248, 192));
+    assert_eq!(cropped.len(), 248 * 192 * 3);
+
+    for y in 0..192 {
+        let source_start = y * 256 * 3 + 8 * 3;
+        let source_end = (y + 1) * 256 * 3;
+        let target_start = y * 248 * 3;
+        let target_end = (y + 1) * 248 * 3;
+        assert_eq!(
+            &cropped[target_start..target_end],
+            &canonical[source_start..source_end],
+            "crop must remove only the first eight pixels of line {y}"
+        );
+    }
+
+    assert_eq!(vdp.framebuffer(), canonical.as_slice());
+    assert_eq!(vdp.raster_position().line, 192);
+}

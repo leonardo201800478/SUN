@@ -34,6 +34,20 @@ pub enum VideoStandard {
     Unknown,
 }
 
+/// Presentation-only crop for hiding the SMS1 left-edge artifact.
+///
+/// This never changes VDP registers, raster timing, or the canonical 256-pixel
+/// framebuffer. The host applies the crop only when constructing a presented frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum SmsOverscanMode {
+    /// Present the complete canonical 256-pixel active image.
+    #[default]
+    Off,
+    /// Hide the first eight pixels at the left edge of each active scanline.
+    CropLeft8,
+}
+
 /// Sprite overflow policy. Unlocked mode is a compatibility enhancement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SpriteLimitMode {
