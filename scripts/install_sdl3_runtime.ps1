@@ -33,7 +33,7 @@ try {
     $target = Join-Path $Destination "SDL3.dll"
     Copy-Item -Path $dll.FullName -Destination $target -Force
     Write-Host "SDL3 $version instalado em: $target"
-    Write-Host "O backend Rust carrega SDL3.dll pelo diretório da aplicação ou por SEGA_EMULATOR_SDL3_DLL."
+    Write-Host "O backend Rust procura SDL3.dll junto ao executável e nos diretórios ancestrais do workspace. SEGA_EMULATOR_SDL3_DLL é opcional."
 }
 finally {
     if (Test-Path $tempRoot) {
