@@ -6,6 +6,7 @@ use sega_sms_core::ControllerButtons;
 
 const GAMEPAD_BUTTON_SOUTH: usize = 0;
 const GAMEPAD_BUTTON_EAST: usize = 1;
+const GAMEPAD_BUTTON_START: usize = 6;
 const GAMEPAD_BUTTON_DPAD_UP: usize = 11;
 const GAMEPAD_BUTTON_DPAD_DOWN: usize = 12;
 const GAMEPAD_BUTTON_DPAD_LEFT: usize = 13;
@@ -65,6 +66,7 @@ impl Sdl3InputHost {
 
         let mut players = [ControllerButtons::default(); 2];
         let mut slot = 0;
+        let mut pause_pressed = false;
 
         for descriptor in &self.devices {
             if !is_supported_controller(descriptor.class) {
@@ -79,13 +81,14 @@ impl Sdl3InputHost {
                 .find(|reading| reading.device_id == descriptor.id)
             {
                 players[current_slot] = map_sms_controller(descriptor.class, reading);
+                pause_pressed |= map_sms_pause(descriptor.class, reading);
             }
             if slot == players.len() {
                 break;
             }
         }
 
-        Ok((players, status_update))
+        Ok((players, pause_pressed, status_update))
     }
 
     pub fn status(&self) -> &str {
@@ -120,6 +123,18 @@ fn is_supported_controller(class: DeviceClass) -> bool {
         class,
         DeviceClass::Gamepad | DeviceClass::Joystick | DeviceClass::ArcadeStick
     )
+}
+
+
+fn map_sms_pause(class: DeviceClass, reading: &DeviceReading) -> bool {
+    if class == DeviceClass::Gamepad {
+        reading.state.buttons.is_pressed(GAMEPAD_BUTTON_START)
+    } else {
+        reading
+            .state
+            .buttons
+            .is_pressed(SDL3_RAW_BUTTON_OFFSET + 2)
+    }
 }
 
 fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> ControllerButtons {
@@ -159,7 +174,8 @@ fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> Controller
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, map_sms_controller,
+        DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET,
+        map_sms_controller, map_sms_pause,
     };
     use sega_input_runtime::{
         AxisSemantic, ButtonSet, DeviceClass, DeviceId, DeviceReading, DeviceState,
@@ -216,6 +232,24 @@ mod tests {
         assert!(buttons.button_2);
         assert!(!buttons.up);
         assert!(!buttons.right);
+    }
+
+    #[test]
+    fn gamepad_start_maps_to_sms_pause_nmi() {
+        let mut state = DeviceState::default();
+        state.buttons.set(6, true).unwrap();
+
+        assert!(map_sms_pause(DeviceClass::Gamepad, &reading(state)));
+    }
+
+    #[test]
+    fn generic_joystick_third_button_maps_to_sms_pause_nmi() {
+        let mut state = DeviceState::default();
+        let mut raw_buttons = ButtonSet::default();
+        raw_buttons.set(SDL3_RAW_BUTTON_OFFSET + 2, true).unwrap();
+        state.buttons = raw_buttons;
+
+        assert!(map_sms_pause(DeviceClass::Joystick, &reading(state)));
     }
 
     #[test]
