@@ -301,7 +301,7 @@ impl SmsVdp {
                 const CROP_BYTES: usize = CROP_PIXELS * 3;
                 const OUTPUT_WIDTH: usize = SMS_VDP_WIDTH - CROP_PIXELS;
                 let mut output = Vec::with_capacity(OUTPUT_WIDTH * height * 3);
-                for line in source.chunks_exact(STRIDE) {
+                for line in source.as_chunks::<STRIDE>().0 {
                     output.extend_from_slice(&line[CROP_BYTES..STRIDE]);
                 }
                 (OUTPUT_WIDTH, height, output)
