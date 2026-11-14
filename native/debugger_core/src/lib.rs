@@ -228,7 +228,7 @@ impl<T> DiagnosticPublisher<T> {
 ///
 /// Construct this type only after an explicit user request to enable debugger
 /// mode. Dropping it stops the collector and clears retained diagnostic data.
-pub struct DiagnosticCollector<T> {
+pub struct DiagnosticCollector<T: Send + 'static> {
     publisher: DiagnosticPublisher<T>,
     history: std::sync::Arc<std::sync::Mutex<BoundedHistory<T>>>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -316,7 +316,7 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
     }
 }
 
-impl<T> Drop for DiagnosticCollector<T> {
+impl<T: Send + 'static> Drop for DiagnosticCollector<T> {
     fn drop(&mut self) {
         self.shutdown();
     }
