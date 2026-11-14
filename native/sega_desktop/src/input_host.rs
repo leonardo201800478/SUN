@@ -386,29 +386,61 @@ mod tests {
     }
 
     #[test]
-    fn custom_profile_can_move_sms_button_to_an_extra_gamepad_button() {
-        let defaults = SmsInputProfiles::defaults().unwrap();
+    fn custom_profile_maps_extra_button_and_ors_multiple_controls() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
         let custom_gamepad = InputProfile::new(
-            vec![ActionBinding {
-                action: ActionId::new(SmsInputAction::Button1.id()).unwrap(),
-                control: PhysicalControl::Button(8),
-            }],
+            vec![
+                binding(SmsInputAction::Button1, PhysicalControl::Button(8)),
+                binding(SmsInputAction::Button1, PhysicalControl::Button(0)),
+            ],
             0,
         )
         .unwrap();
-        let mut profiles = defaults;
         let default_joystick = profiles.joystick.clone();
         profiles.set_profiles(custom_gamepad, default_joystick);
 
         let mut state = DeviceState::default();
         state.buttons.set(8, true).unwrap();
-        state.buttons.set(0, true).unwrap();
-        let (buttons, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        let (extra_button, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        assert!(extra_button.button_1);
+        assert!(!extra_button.button_2);
 
-        assert!(
-            buttons.button_1,
-            "the configured extra button must map to SMS Button 1"
-        );
-        assert!(!buttons.button_2);
+        let mut state = DeviceState::default();
+        state.buttons.set(0, true).unwrap();
+        let (standard_button, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        assert!(standard_button.button_1);
+
+        let mut state = DeviceState::default();
+        state.buttons.set(8, true).unwrap();
+        state.buttons.set(0, true).unwrap();
+        let (both_controls, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        assert!(both_controls.button_1, "bindings for one action must combine with OR");
+    }
+
+    #[test]
+    fn custom_profile_supports_nonstandard_generic_joystick_axis_order() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
+        let custom_joystick = InputProfile::new(
+            vec![binding(
+                SmsInputAction::Up,
+                PhysicalControl::Axis {
+                    index: 19,
+                    direction: AxisDirection::Negative,
+                    threshold: DEFAULT_STICK_THRESHOLD,
+                },
+            )],
+            0,
+        )
+        .unwrap();
+        let default_gamepad = profiles.gamepad.clone();
+        profiles.set_profiles(default_gamepad, custom_joystick);
+
+        let mut state = DeviceState::default();
+        state
+            .set_axis(19, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown)
+            .unwrap();
+        let (buttons, _) = profiles.evaluate(DeviceClass::Joystick, &reading(state));
+        assert!(buttons.up, "the configured physical axis must drive SMS Up");
+        assert!(!buttons.down);
     }
 }
