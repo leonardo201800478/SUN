@@ -1,8 +1,9 @@
 # Auditoria do caminho VDP SMS1 no runtime desktop
 
-**Data:** 14/11/2026  
-**Commit auditado:** `118b96bf411248173b6215b7bf16aebdf3a66bff`  
-**Escopo:** verificar se o desktop Slint executa o VDP SMS1/315-5124 consolidado, se existe uma rota de renderização legada ativa e quais lacunas podem explicar bugs persistentes de sprites.  
+**Data:** 14/11/2026
+**Commit auditado:** `118b96bf411248173b6215b7bf16aebdf3a66bff`
+**Natureza da evidência:** auditoria estática restrita ao snapshot desse commit; não representa inspeção dos commits posteriores nem validação visual independente.
+**Escopo:** verificar se o desktop Slint executa o VDP SMS1/315-5124 consolidado, se existe uma rota de renderização legada ativa e quais lacunas podem explicar bugs persistentes de sprites.
 **Tipo:** auditoria estática do código + observações preliminares de gameplay reportadas pelo usuário. Não é uma validação visual independente.
 
 ## 1. Observações preliminares de gameplay
@@ -88,7 +89,7 @@ No perfil SMS1/315-5124, `SmsVdp::advance()` prepara o buffer inicial de sprites
 
 A seleção Mode 4 percorre a SAT em ordem, aplica o limite de oito entradas no modo `HardwareLimit`, calcula o índice de overflow e captura metadados Y/linha, X e tile para a linha de destino. O renderer consome essa seleção na composição da linha.
 
-O caminho ativo não é, portanto, o renderer SMS antigo simplesmente reutilizado sem alterações: existe uma seleção Mode 4 persistente entre scanlines, além do perfil 315-5124 e das regras de endereço específicas de R5/R6.
+Na baseline auditada, o caminho ativo não é, portanto, o renderer SMS antigo simplesmente reutilizado sem alterações: existe uma seleção Mode 4 persistente entre scanlines, além do perfil 315-5124 e das regras de endereço específicas de R5/R6.
 
 ## 5. Limitações confirmadas que ainda podem produzir defeitos de sprites
 
@@ -165,4 +166,4 @@ A UI atual não mostra os registradores VDP no snapshot DEBUG do desktop; esse s
 | SRAM em *Phantasy Star* | PASS reportado pelo usuário |
 | Velocidade estável e fullscreen | PASS reportado pelo usuário |
 
-**Conclusão:** o VDP SMS1 novo está efetivamente no caminho de produção do desktop. A hipótese de que o host ainda esteja usando o TMS9918A ou o protótipo SMS1 arquivado está descartada pela cadeia de construção. Os bugs de sprites persistem porque o novo engine ainda não implementa o pipeline completo de fetch/visibilidade temporal, ou porque algum jogo pode estar percorrendo o caminho de modos TMS quando M4 está desligado. A causa específica só poderá ser fechada com os títulos, R0 e uma reprodução visual determinística.
+**Conclusão:** no commit auditado, o VDP SMS1 novo está efetivamente no caminho de produção do desktop. A hipótese de que o host ainda esteja usando o TMS9918A ou o protótipo SMS1 arquivado está descartada pela cadeia de construção. Os bugs de sprites persistem porque o novo engine ainda não implementa o pipeline completo de fetch/visibilidade temporal, ou porque algum jogo pode estar percorrendo o caminho de modos TMS quando M4 está desligado. A causa específica só poderá ser fechada com os títulos, R0 e uma reprodução visual determinística.
