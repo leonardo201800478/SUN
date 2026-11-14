@@ -1,6 +1,6 @@
 # Roadmap mestre — Sega Emulator
 
-**Revisão documental:** 2026-11-14. Estado operacional consultado na main em 19e3155a0efcaadc9d5fff9b3e8bf1b12b30784c; as alterações R4 descritas como em andamento pertencem à branch feat/r4-slint-sdl3-gamepad-input-20261114.
+**Revisão documental:** 2026-11-14. Estado operacional consultado na `main` em `f93cb777e69c54c1b347a71da58673a6d8751f47` (PR #867 integrada).
 **Decisões:** ADR 0010 (runtime/hardware), ADR 0011 (desktop/hosts) e ADR-0016 (fidelidade temporal).
 
 Duas trilhas coordenadas: evolução dos sistemas Sega (P0–P9) e replataforma desktop/host (R1–R5). A segunda não autoriza reescrever hardware nem antecipar sistemas.
@@ -38,7 +38,7 @@ Não avançar para plataforma posterior com bloqueadores estruturais anteriores.
 | R1 — Slint + WGPU 30 + Vulkan | POC integrada; workflow Windows x64 passou | Integração de software aprovada. O relatório local 118b96bf registra inicialização física, Vulkan efetivo, resize/lifecycle e apresentação sustentada como NOT RUN; repetir no HEAD atual. |
 | R2 — Frames reais do SMS | FrameMailbox e SmsTemporalWorker integrados; frame pacing resolvido (#755); smoke test físico relatado | Caminho de frames integrado. O relato manual ainda não está vinculado a log/HEAD reproduzível; completar campanha de ROM/gameplay no HEAD atual. |
 | R3 — Áudio CPAL 0.18.2 | CPAL e pipeline PCM integrados; CI Windows e testes automatizados aprovados; reprodução física relatada | Integração aprovada. Reprodução prolongada, hotplug, recuperação de endpoint e underruns ainda não estão documentados no HEAD atual. |
-| R4 — SDL3 input | Backend existente em native/input_runtime; integração com Slint em PR #867 | Em andamento. CI Windows SDL3 e testes físicos com controles ainda pendentes; perfis/remapeamento também. |
+| R4 — SDL3 input | Primeira integração SDL3/Slint integrada pela PR #867 (`f93cb777`); CI #7512 verde | Integração de software aprovada: smoke test da ABI dinâmica SDL3, Clippy/testes do input runtime, testes/build Release do desktop e regressão do workspace passaram. Aceite com controles físicos, hotplug real e recursos avançados de configuração continuam pendentes. |
 | R5 — Frontend completo | Slint desktop parcial, menus e controles em evolução | Pendente: biblioteca, configurações consolidadas, HUD, telemetria e retirada dos hosts antigos. |
 
 
@@ -62,11 +62,11 @@ CPAL 0.18.2 e o pipeline PCM estão integrados em software; testes automatizados
 
 O crate native/input_runtime e o backend SDL3 dinâmico Windows x64 já existem na linha principal, mas não eram consumidos pelo desktop Slint: o host usava somente eventos de teclado nativos. A PR #313 histórica pertence ao host Qt/PyO3 e não comprova integração no desktop atual.
 
-A branch feat/r4-slint-sdl3-gamepad-input-20261114 inicia a integração: dependência do sega-input-runtime no desktop, polling SDL3 no limite do host Slint com intervalo nominal de 8 ms, atualizações hotplug observadas pelo backend a cada 250 ms, mapeamento inicial Gamepad API (D-pad/analógico esquerdo + South/East + Start como NMI por borda de subida) e fallback Joystick API. Os dois primeiros dispositivos elegíveis são atribuídos deterministicamente a P1/P2 na sessão. Atualizações usam SmsTemporalWorker::set_controller_at; não há polling no Scheduler nem callbacks por instrução.
+A PR #867 integrou a primeira fatia ao desktop Slint e foi merged na `main` pelo commit `f93cb777e69c54c1b347a71da58673a6d8751f47`. A implementação adiciona `sega-input-runtime` ao desktop, polling SDL3 no limite do host Slint com intervalo nominal de 8 ms, hotplug observado pelo backend a cada 250 ms, mapeamento inicial Gamepad API (D-pad/analógico esquerdo + South/East + Start como NMI por borda de subida) e fallback Joystick API. Os dois primeiros dispositivos elegíveis são atribuídos a P1/P2 por ordem da sessão. Atualizações usam `SmsTemporalWorker::set_controller_at`; não há polling no Scheduler nem callbacks por instrução.
 
-O CI Windows passa a instalar SDL3 3.4.20 com SHA-256 fixado e executar smoke test da ABI dinâmica sem exigir controle físico. A integração de software desta primeira fatia ainda precisa passar CI.
+O CI #7512 (`43638680588`) passou no HEAD da PR #867 (`dbad9fae...`): `Windows SDL3 input validation`, `Rust workspace regression`, `Rust quality and unit regression` e `Windows x64 Slint WGPU 30 Vulkan POC` concluíram SUCCESS. O job SDL3 instalou o runtime 3.4.20 fixado por SHA-256, executou fmt, Clippy e teste da ABI dinâmica/input runtime no Windows x64. O job desktop executou fmt, Clippy Release, testes Release e build Release. O job de CPAL, PSG, Z80, VDP, Scheduler stress e input core/console foi SKIPPED por classificação de impacto; SKIPPED não é PASS nem falha, e esses subsistemas não foram alterados pela R4. O CI não exigiu controle físico.
 
-**Pendências R4:** aceite físico com controles reais, hotplug/reconexão, identidade persistente por dispositivo (o descritor atual ainda retorna physical_key=None), perfis individuais, remapeamento, atribuição configurável P1/P2, threshold inicial de gameplay de 10.000 e captura analógica separada e investigação dos caminhos Pause/NMI. XInput direto não é declarado implementado; dispositivos XInput podem ser reconhecidos por SDL3 conforme driver/mapeamento. Não medir nem alegar input latency sem instrumentação específica.
+**Pendências R4:** teste físico com controles reais, hotplug/reconexão e remoção do controle que ocupa P1; identidade persistente por dispositivo (o descritor atual ainda retorna `physical_key=None`); perfis individuais, remapeamento e atribuição configurável P1/P2; captura analógica/calibração separada do threshold inicial de gameplay de 10.000; validação física do Start como NMI por borda de subida e dos caminhos Pause/NMI. XInput direto não está implementado; dispositivos XInput podem ser reconhecidos pelo SDL3 conforme driver/mapeamento. Não alegar input latency sem instrumentação específica.
 
 ### R5 — frontend
 
@@ -81,7 +81,7 @@ Consolidar native/sega_desktop, native/video_output_wgpu e native/audio_output; 
 - Frame pacing: issue #755 encerrada como resolvida em 2026-11-14; não reabrir sem evidência reproduzível de regressão.
 - R1 está integrada e o workflow Windows da POC passa; os critérios físicos listados no relatório histórico ainda não foram executados no SHA atual.
 - R2 (frames SMS) e R3 (CPAL) estão integradas em software; frame pacing foi resolvido, mas a campanha física reproduzível e o aceite sustentado ainda precisam ser vinculados ao HEAD atual.
-- R4 possui backend SDL3 existente; a integração com Slint está em andamento na branch dedicada. Não confundir a antiga PR #313 Qt/PyO3 com integração no desktop Slint.
+- R4: primeira integração SDL3/Slint concluída e integrada pela PR #867; CI #7512 verde no HEAD da PR. O aceite físico e recursos avançados de configuração continuam pendentes. Não confundir a antiga PR #313 Qt/PyO3 com integração no desktop Slint.
 - R5 consolidação final permanece pendente.
 - Para evidência local ou auditoria estática, sempre preservar o SHA exato e não promover um snapshot histórico a validação da `main` atual.
 
