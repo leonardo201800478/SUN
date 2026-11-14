@@ -224,12 +224,15 @@ mod windows_host {
                 None => ([ControllerButtons::default(); 2], false, None),
             };
 
-            if !app.get_has_rom() || app.get_active_menu().as_str() != "none" {
+            let gameplay_enabled =
+                app.get_has_rom() && app.get_active_menu().as_str() == "none";
+            if !gameplay_enabled {
                 next_players = [ControllerButtons::default(); 2];
-                pause_pressed = false;
             }
 
-            if pause_pressed && !last_pause_pressed
+            if gameplay_enabled
+                && pause_pressed
+                && !last_pause_pressed
                 && let Some(worker) = worker_slot.borrow().as_ref()
                 && let Err(error) = worker.request_nmi()
             {
@@ -624,7 +627,7 @@ mod windows_host {
                             Text { font-size: 12px; text: "F8: resetar | F9: avançar quadro | F11: tela cheia com menus"; color: #b9c5ce; }
                             Text { font-size: 12px; text: "Alt+Enter: tela cheia imersiva (somente FPS)"; color: #b9c5ce; }
                             Text { font-size: 12px; text: root.input-status; color: #8bd5ca; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Padrão inicial: D-pad/analógico esquerdo e botões South/East (1/2). Os dois primeiros gamepads/joysticks compatíveis ocupam P1/P2."; color: #b9c5ce; wrap: word-wrap; }
+                            Text { font-size: 11px; text: "Padrão inicial: D-pad/analógico esquerdo; South/East = Botão 1/2; Start = Pause/NMI. Os dois primeiros gamepads/joysticks compatíveis ocupam P1/P2."; color: #b9c5ce; wrap: word-wrap; }
                             Text { font-size: 11px; text: "Perfis persistentes por dispositivo e remapeamento visual serão tratados na próxima fatia R4."; color: #9baab6; wrap: word-wrap; }
                             CompactButton { text: "Remapear teclado"; enabled: false; }
                             CompactButton { text: "Remapear controle"; enabled: false; }
