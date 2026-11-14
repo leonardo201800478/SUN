@@ -43,7 +43,7 @@ R1 é isolada. Não integrar SMS real, SmsTemporalWorker, menu de jogo, pausa do
 
 ### R2 — vídeo real
 
-Frames SMS integrados por contrato portátil, preservando SmsTemporalWorker, FrameMailbox e Scheduler. O host desktop Release passou em 26 testes automatizados e compilou para Windows x64 no SHA `118b96bf411248173b6215b7bf16aebdf3a66bff`. O aceite físico continua pendente: janela, backend Vulkan efetivo, ROM real, apresentação sustentada, resize, lifecycle e gameplay. Frame pacing P0 continua sendo um gate independente.
+Frames SMS integrados por contrato portátil, preservando SmsTemporalWorker, FrameMailbox e Scheduler. O host desktop Release passou em 26 testes automatizados e compilou para Windows x64 no SHA `118b96bf411248173b6215b7bf16aebdf3a66bff`. O aceite físico continua pendente: janela, backend Vulkan efetivo, ROM real, apresentação sustentada, resize, lifecycle e gameplay. O problema de frame pacing registrado na issue #755 foi encerrado como resolvido em 2026-11-14 e não permanece como gate aberto.
 
 ### R3 — áudio CPAL 0.18.2
 
@@ -67,7 +67,7 @@ A fotografia operacional de 2026-11-14, incluindo SHA, comandos locais, resultad
 - Executável `sega-desktop.exe` encontrado, 22.192.640 bytes.
 - Aceite físico R2/R3: NOT RUN nesta validação. Não declarar Vulkan ativo, gameplay ou áudio audível com base somente na compilação/testes.
 - R4 SDL3 e R5 consolidação permanecem pendentes.
-- P0 frame pacing permanece independente e não pode ser considerado resolvido por esta build.
+- Frame pacing: issue #755 encerrada como resolvida em 2026-11-14; não reabrir sem evidência reproduzível de regressão.
 
 ## 5. Z80
 
