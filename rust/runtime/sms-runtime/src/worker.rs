@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
-use sega_debugger_core::{BoundedHistory, BreakpointSet};
+use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
     SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
@@ -856,7 +856,7 @@ enum WorkerCommand {
     SaveState(SyncSender<Result<SmsWorkerSaveState, String>>),
     LoadState(Box<SmsWorkerSaveState>, SyncSender<Result<(), String>>),
     ReadMemory(u16, usize, SyncSender<Result<Vec<u8>, String>>),
-    SetTraceEnabled(bool, SyncSender<Result<(), String>>),
+    SetTraceEnabled(bool, Option<DiagnosticPublisher<SmsTemporalTraceEvent>>, SyncSender<Result<(), String>>),
     SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
     SetOverscanMode(SmsOverscanMode, SyncSender<Result<(), String>>),
     SetBreakpoint(u16, bool, SyncSender<Result<(), String>>),
@@ -886,7 +886,7 @@ impl WorkerCommand {
             Self::SaveState(_) => "save_state",
             Self::LoadState(_, _) => "load_state",
             Self::ReadMemory(_, _, _) => "read_memory",
-            Self::SetTraceEnabled(_, _) => "set_trace_enabled",
+            Self::SetTraceEnabled(_, _, _) => "set_trace_enabled",
             Self::SetSpriteLimitMode(_, _) => "set_sprite_limit_mode",
             Self::SetOverscanMode(_, _) => "set_overscan_mode",
             Self::SetBreakpoint(_, _, _) => "set_breakpoint",
@@ -901,6 +901,41 @@ impl WorkerCommand {
             Self::Shutdown => "shutdown",
         }
     }
+}
+
+
+/// Host-side lifecycle for the isolated SMS diagnostic collector.
+fn set_trace_capture(
+    commands: &SyncSender<WorkerCommand>,
+    collector_slot: &Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut slot = collector_slot.lock().map_err(|_| "debugger collector state is unavailable".to_owned())?;
+    if enabled == slot.is_some() { return Ok(()); }
+    let collector = enabled.then(|| DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY));
+    let publisher = collector.as_ref().map(DiagnosticCollector::publisher);
+    let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+    enqueue_worker_command(commands, WorkerCommand::SetTraceEnabled(enabled, publisher, reply_sender))?;
+    receive_worker_reply(reply_receiver, "changing debugger trace capture")?;
+    if enabled { *slot = collector; } else { slot.take(); }
+    Ok(())
+}
+
+/// Machine state is captured by the worker; retained trace is read on the host.
+fn capture_debug_snapshot(
+    commands: &SyncSender<WorkerCommand>,
+    collector_slot: &Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>,
+) -> Result<SmsDebugSnapshot, String> {
+    let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+    enqueue_worker_command(commands, WorkerCommand::DebugSnapshot(reply_sender))?;
+    let mut snapshot = receive_worker_reply(reply_receiver, "returning a debugger snapshot")?;
+    let slot = collector_slot.lock().map_err(|_| "debugger collector state is unavailable".to_owned())?;
+    if let Some(collector) = slot.as_ref() {
+        snapshot.trace_events = collector.snapshot();
+        snapshot.trace_dropped = collector.ingress_dropped();
+        snapshot.trace_enabled = true;
+    }
+    Ok(snapshot)
 }
 
 /// Versioned in-memory save state bound to its originating ROM region.
@@ -961,6 +996,7 @@ pub struct SmsTemporalWorker {
     commands: SyncSender<WorkerCommand>,
     worker: Option<JoinHandle<()>>,
     telemetry: Arc<WorkerTelemetry>,
+    trace_collector: Arc<Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>>,
     #[cfg(windows)]
     video_session: Mutex<Option<D3d12MailboxSession>>,
 }
@@ -970,6 +1006,7 @@ pub struct SmsTemporalWorker {
 pub struct SmsTemporalWorkerDebugHandle {
     commands: SyncSender<WorkerCommand>,
     telemetry: Arc<WorkerTelemetry>,
+    trace_collector: Arc<Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>>,
 }
 
 impl SmsTemporalWorkerDebugHandle {
@@ -1009,14 +1046,12 @@ impl SmsTemporalWorkerDebugHandle {
 
     /// Enable or disable bounded scheduler and bus trace capture.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
-        self.request_unit(|reply| WorkerCommand::SetTraceEnabled(enabled, reply))
+        set_trace_capture(&self.commands, &self.trace_collector, enabled)
     }
 
     /// Capture an immutable, owned machine snapshot.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
-        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
-        enqueue_worker_command(&self.commands, WorkerCommand::DebugSnapshot(reply_sender))?;
-        receive_worker_reply(reply_receiver, "returning a debugger snapshot")?
+        capture_debug_snapshot(&self.commands, &self.trace_collector)
     }
 
     /// Read at most 256 bytes from the active mapper without advancing emulated time.
@@ -1041,6 +1076,7 @@ impl SmsTemporalWorker {
         SmsTemporalWorkerDebugHandle {
             commands: self.commands.clone(),
             telemetry: Arc::clone(&self.telemetry),
+            trace_collector: Arc::clone(&self.trace_collector),
         }
     }
 
@@ -1078,6 +1114,7 @@ impl SmsTemporalWorker {
 
         let region = region.to_owned();
         let telemetry = Arc::new(WorkerTelemetry::default());
+        let trace_collector = Arc::new(Mutex::new(None));
         if let Ok((_, _, clock_hz)) = sms_temporal_region_profile(&region) {
             telemetry
                 .machine_clock_hz
@@ -1122,6 +1159,7 @@ impl SmsTemporalWorker {
                 commands,
                 worker: Some(worker),
                 telemetry,
+                trace_collector,
                 #[cfg(windows)]
                 video_session: Mutex::new(None),
             }),
@@ -1586,6 +1624,7 @@ impl Drop for SmsTemporalWorker {
         // boundary and performs audio/mailbox cleanup on its owning thread.
         // Detach here so dropping the host handle cannot stall the GUI on join.
         drop(self.worker.take());
+        if let Ok(mut collector) = self.trace_collector.lock() { collector.take(); }
     }
 }
 
@@ -1880,7 +1919,7 @@ fn worker_loop(
 ) {
     let mut running = false;
     let mut breakpoints = BreakpointSet::default();
-    let mut trace_history = BoundedHistory::new(DEBUG_TRACE_CAPACITY);
+    let mut trace_publisher: Option<DiagnosticPublisher<SmsTemporalTraceEvent>> = None;
     let mut trace_enabled = false;
     let mut audio_session: Option<Box<dyn AudioSession>> = None;
     let mut audio_renderer = AudioRendererState::default();
@@ -1959,7 +1998,7 @@ fn worker_loop(
                 &mut video_mailbox,
                 &mut video_sequence,
                 &telemetry,
-                &mut trace_history,
+                &mut trace_publisher,
                 &mut trace_enabled,
             );
             let command_handler_elapsed = command_handler_started.elapsed();
@@ -1982,7 +2021,7 @@ fn worker_loop(
             if was_running != running || !running {
                 frame_deadline.clear();
             }
-            drain_machine_trace(&mut machine, &mut trace_history);
+            drain_machine_trace(&mut machine, trace_publisher.as_ref());
             continue;
         }
 
@@ -2043,11 +2082,10 @@ fn worker_loop(
 
 fn drain_machine_trace(
     machine: &mut SmsTemporalMachine,
-    history: &mut BoundedHistory<SmsTemporalTraceEvent>,
+    publisher: Option<&DiagnosticPublisher<SmsTemporalTraceEvent>>,
 ) {
-    for event in machine.take_trace() {
-        history.push(event);
-    }
+    let Some(publisher) = publisher.filter(|publisher| publisher.is_active()) else { return; };
+    for event in machine.take_trace() { let _ = publisher.try_publish(event); }
 }
 
 /// Dispatch one coarse worker command over the worker-owned machine and outputs.
@@ -2067,7 +2105,7 @@ fn handle_command(
     video_mailbox: &mut Option<FrameMailbox>,
     video_sequence: &mut u64,
     telemetry: &WorkerTelemetry,
-    trace_history: &mut BoundedHistory<SmsTemporalTraceEvent>,
+    trace_publisher: &mut Option<DiagnosticPublisher<SmsTemporalTraceEvent>>,
     trace_enabled: &mut bool,
 ) -> bool {
     match command {
@@ -2127,7 +2165,6 @@ fn handle_command(
                     *machine = powered_off;
                     audio_renderer.reset_epoch_if_selected(machine, telemetry);
                     telemetry.reset_machine_counters();
-                    trace_history.clear();
                     Ok(())
                 });
             if let Err(error) = &result {
@@ -2313,18 +2350,16 @@ fn handle_command(
                 mapper_control: machine.mapper_control(),
                 memory_control: machine.memory_control(),
                 framebuffer_rgb: machine.framebuffer().to_vec(),
-                trace_events: trace_history.entries().iter().copied().collect(),
-                trace_dropped: trace_history.dropped(),
+                trace_events: Vec::new(),
+                trace_dropped: 0,
                 trace_enabled: *trace_enabled,
             };
             let _ = reply.send(Ok(snapshot));
         }
-        WorkerCommand::SetTraceEnabled(enabled, reply) => {
+        WorkerCommand::SetTraceEnabled(enabled, publisher, reply) => {
             machine.set_trace_enabled(enabled);
             *trace_enabled = enabled;
-            if !enabled {
-                trace_history.clear();
-            }
+            *trace_publisher = publisher;
             let _ = reply.send(Ok(()));
         }
         WorkerCommand::SetSpriteLimitMode(mode, reply) => {
