@@ -1,10 +1,10 @@
 # Validação Windows x64 — build Release do desktop
 
-**Data:** 2026-11-14  
-**Repositório:** https://github.com/leonardo201800478/sega-emulator  
-**Branch validada:** `main`  
-**Commit validado:** `118b96bf411248173b6215b7bf16aebdf3a66bff`  
-**Escopo:** validação local de formatação, Clippy, testes automatizados e build Release para Windows x64/MSVC.  
+**Data:** 2026-11-14
+**Repositório:** https://github.com/leonardo201800478/sega-emulator
+**Branch validada:** `main`
+**Commit validado:** `118b96bf411248173b6215b7bf16aebdf3a66bff`
+**Escopo:** validação local de formatação, Clippy, testes automatizados e build Release para Windows x64/MSVC.
 **Ambiente reportado:** Windows 11; Rust `1.99.1 (58cf8f9c3 2026-10-13)`; Cargo `1.99.1 (5f94df478 2026-08-27)`; target `x86_64-pc-windows-msvc`.
 
 > Esta documentação registra os comandos e resultados fornecidos pelo usuário no ambiente Windows local. Não representa execução feita pelo CI nem pelo assistente. A validação física da aplicação continua separada dos testes automatizados.
