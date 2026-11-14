@@ -842,6 +842,10 @@ impl SmsVdp {
     }
     fn write_control(&mut self, value: u8) {
         let Some(first) = self.control_first.take() else {
+            // The first control-port byte immediately replaces A7..A0.
+            // Keep the upper six address bits and the current VRAM/CRAM mode;
+            // the second byte, when received, completes the command decode.
+            self.address = (self.address & 0x3F00) | u16::from(value);
             self.control_first = Some(value);
             return;
         };
