@@ -2189,6 +2189,43 @@ mod tests {
         assert_eq!(v.framebuffer().len(), 256 * 240 * 3);
     }
     #[test]
+    fn unlocked_mode_renders_extra_sms1_sprites_without_losing_hardware_overflow() {
+        let mut vram = vec![0; 0x4000];
+        let mut regs = [0; 16];
+        regs[5] = 0x7E;
+        let sat = 0x3F00;
+
+        for index in 0..9 {
+            vram[sat + index] = 0;
+            vram[sat + 0x80 + index * 2] = 16;
+            vram[sat + 0x81 + index * 2] = 0;
+        }
+        vram[sat + 9] = 0xD0;
+
+        let hardware = evaluate_mode4_sprites(
+            &vram,
+            &regs,
+            1,
+            SmsVdpRevision::Sega3155124,
+            192,
+            8,
+        );
+        let unlocked = evaluate_mode4_sprites(
+            &vram,
+            &regs,
+            1,
+            SmsVdpRevision::Sega3155124,
+            192,
+            64,
+        );
+
+        assert_eq!(hardware.selected.len(), 8);
+        assert_eq!(hardware.overflow_index, Some(8));
+        assert_eq!(unlocked.selected.len(), 9);
+        assert_eq!(unlocked.overflow_index, Some(8));
+    }
+
+    #[test]
     fn unlocked_sprite_policy_is_configurable() {
         let mut v = SmsVdp::default();
         assert_eq!(v.sprite_limit_mode(), SpriteLimitMode::HardwareLimit);
