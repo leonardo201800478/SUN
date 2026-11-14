@@ -47,6 +47,11 @@ struct SmsInputProfiles {
 }
 
 impl SmsInputProfiles {
+    fn set_profiles(&mut self, gamepad: InputProfile, joystick: InputProfile) {
+        self.gamepad = gamepad;
+        self.joystick = joystick;
+    }
+
     fn defaults() -> Result<Self, String> {
         let gamepad = InputProfile::new(
             vec![
@@ -228,7 +233,7 @@ impl Sdl3InputHost {
     /// Replaces the active standardized-gamepad and generic-joystick profiles.
     /// The UI can later load persisted profiles and pass them through this API.
     pub fn set_profiles(&mut self, gamepad: InputProfile, joystick: InputProfile) {
-        self.profiles = SmsInputProfiles { gamepad, joystick };
+        self.profiles.set_profiles(gamepad, joystick);
     }
 
     /// Polls SDL3 at the host boundary and assigns the first two supported
@@ -413,16 +418,13 @@ mod tests {
             0,
         )
         .unwrap();
-        let mut host = super::Sdl3InputHost::new()
-            .expect("SDL3 runtime must initialize for the host profile integration test");
-        host.set_profiles(custom_gamepad, defaults.joystick.clone());
+        let mut profiles = defaults;
+        profiles.set_profiles(custom_gamepad, profiles.joystick.clone());
 
         let mut state = DeviceState::default();
         state.buttons.set(8, true).unwrap();
         state.buttons.set(0, true).unwrap();
-        let (buttons, _) = host
-            .profiles
-            .evaluate(DeviceClass::Gamepad, &reading(state));
+        let (buttons, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
 
         assert!(
             buttons.button_1,
