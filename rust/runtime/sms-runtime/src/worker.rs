@@ -16,8 +16,9 @@ use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
 use sega_debugger_core::{BoundedHistory, BreakpointSet};
 use sega_sms_core::{
-    ControllerButtons, PsgAmplitudeEvent, SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile,
-    SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
+    ControllerButtons, PsgAmplitudeEvent, SmsTemporalMachine, SmsTemporalMachineState,
+    SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory,
+    VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
@@ -851,6 +852,8 @@ enum WorkerCommand {
     StepFrame(usize, SyncSender<Result<usize, String>>),
     StepInstruction(SyncSender<Result<(), String>>),
     DebugSnapshot(SyncSender<Result<SmsDebugSnapshot, String>>),
+    SaveState(SyncSender<Result<SmsTemporalMachineState, String>>),
+    LoadState(SmsTemporalMachineState, SyncSender<Result<(), String>>),
     ReadMemory(u16, usize, SyncSender<Result<Vec<u8>, String>>),
     SetTraceEnabled(bool, SyncSender<Result<(), String>>),
     SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
@@ -878,6 +881,8 @@ impl WorkerCommand {
             Self::StepFrame(_, _) => "step_frame",
             Self::StepInstruction(_) => "step_instruction",
             Self::DebugSnapshot(_) => "debug_snapshot",
+            Self::SaveState(_) => "save_state",
+            Self::LoadState(_, _) => "load_state",
             Self::ReadMemory(_, _, _) => "read_memory",
             Self::SetTraceEnabled(_, _) => "set_trace_enabled",
             Self::SetSpriteLimitMode(_, _) => "set_sprite_limit_mode",
@@ -1186,6 +1191,30 @@ impl SmsTemporalWorker {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
         enqueue_worker_command(&self.commands, WorkerCommand::DebugSnapshot(reply_sender))?;
         receive_worker_reply(reply_receiver, "returning a debugger snapshot")?
+    }
+
+    /// Capture a complete versioned machine state at a worker command boundary.
+    ///
+    /// The returned state is an owned in-memory snapshot. It includes CPU,
+    /// Scheduler, bus, mapper, VDP, PSG, controller and pending-event state.
+    /// File encoding and persistent slot management are host-layer concerns.
+    pub fn save_state(&self) -> Result<SmsTemporalMachineState, String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(&self.commands, WorkerCommand::SaveState(reply_sender))?;
+        receive_worker_reply(reply_receiver, "capturing a save state")
+    }
+
+    /// Restore a previously captured state. The worker must be paused.
+    ///
+    /// Restoration validates all nested state versions and CPU/bus invariants
+    /// before replacing the active machine.
+    pub fn load_state(&self, state: SmsTemporalMachineState) -> Result<(), String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::LoadState(state, reply_sender),
+        )?;
+        receive_worker_reply(reply_receiver, "restoring a save state")
     }
 
     /// Enable or disable bounded scheduler/bus trace capture.
@@ -2169,6 +2198,35 @@ fn handle_command(
                             u64::try_from(machine.now().ticks()).unwrap_or(u64::MAX),
                             Ordering::Release,
                         );
+                        let _ = reply.send(Ok(()));
+                    }
+                    Err(error) => {
+                        let error = error.to_string();
+                        telemetry.set_runtime_error(Some(error.clone()));
+                        let _ = reply.send(Err(error));
+                    }
+                }
+            }
+        }
+        WorkerCommand::SaveState(reply) => {
+            let _ = reply.send(Ok(machine.export_state()));
+        }
+        WorkerCommand::LoadState(state, reply) => {
+            if *running {
+                let _ = reply.send(Err(
+                    "load_state is available only while the native worker is paused".to_owned(),
+                ));
+            } else {
+                match SmsTemporalMachine::restore_state(state) {
+                    Ok(restored) => {
+                        *machine = restored;
+                        audio_renderer.on_machine_epoch_reset(machine, telemetry);
+                        telemetry.set_frame_number(machine.frame_number());
+                        telemetry.machine_time_ticks.store(
+                            u64::try_from(machine.now().ticks()).unwrap_or(u64::MAX),
+                            Ordering::Release,
+                        );
+                        telemetry.set_runtime_error(None);
                         let _ = reply.send(Ok(()));
                     }
                     Err(error) => {
