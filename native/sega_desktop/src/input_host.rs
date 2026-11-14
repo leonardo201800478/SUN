@@ -47,11 +47,6 @@ struct SmsInputProfiles {
 }
 
 impl SmsInputProfiles {
-    fn set_profiles(&mut self, gamepad: InputProfile, joystick: InputProfile) {
-        self.gamepad = gamepad;
-        self.joystick = joystick;
-    }
-
     fn defaults() -> Result<Self, String> {
         let gamepad = InputProfile::new(
             vec![
@@ -200,12 +195,6 @@ impl Sdl3InputHost {
         Ok(host)
     }
 
-    /// Replaces the active standardized-gamepad and generic-joystick profiles.
-    /// The UI can later load persisted profiles and pass them through this API.
-    pub fn set_profiles(&mut self, gamepad: InputProfile, joystick: InputProfile) {
-        self.profiles.set_profiles(gamepad, joystick);
-    }
-
     /// Polls SDL3 at the host boundary and assigns the first two supported
     /// physical devices, in session order, to SMS Player 1 and Player 2.
     /// This is deliberately independent of MachineScheduler progression.
@@ -293,7 +282,7 @@ mod tests {
         AxisDirection, DEFAULT_STICK_THRESHOLD, SmsInputAction, SmsInputProfiles, binding,
     };
     use sega_input_runtime::{
-        ActionBinding, ActionId, AxisSemantic, DeviceClass, DeviceId, DeviceReading, DeviceState,
+        AxisSemantic, DeviceClass, DeviceId, DeviceReading, DeviceState,
         InputProfile, PhysicalControl,
     };
 
