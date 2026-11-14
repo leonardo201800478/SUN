@@ -59,7 +59,7 @@ impl SmsInputProfiles {
                 binding(ACTION_RIGHT, PhysicalControl::Hat { index: 0, direction_mask: 0b0010 }),
                 binding(ACTION_DOWN, PhysicalControl::Hat { index: 0, direction_mask: 0b0100 }),
                 binding(ACTION_LEFT, PhysicalControl::Hat { index: 0, direction_mask: 0b1000 }),
-                binding(ACTION_UP, PhysicalControl::Axis { index: SDL3_RAW_AXIS_OFFSET as u8, direction: AxisDirection::Negative, threshold: DEFAULT_STICK_THRESHOLD }),
+                binding(ACTION_UP, PhysicalControl::Axis { index: (SDL3_RAW_AXIS_OFFSET + 1) as u8, direction: AxisDirection::Negative, threshold: DEFAULT_STICK_THRESHOLD }),
                 binding(ACTION_DOWN, PhysicalControl::Axis { index: (SDL3_RAW_AXIS_OFFSET + 1) as u8, direction: AxisDirection::Positive, threshold: DEFAULT_STICK_THRESHOLD }),
                 binding(ACTION_LEFT, PhysicalControl::Axis { index: SDL3_RAW_AXIS_OFFSET as u8, direction: AxisDirection::Negative, threshold: DEFAULT_STICK_THRESHOLD }),
                 binding(ACTION_RIGHT, PhysicalControl::Axis { index: SDL3_RAW_AXIS_OFFSET as u8, direction: AxisDirection::Positive, threshold: DEFAULT_STICK_THRESHOLD }),
