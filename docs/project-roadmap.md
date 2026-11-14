@@ -59,7 +59,7 @@ Consolidar native/sega_desktop, native/video_output_wgpu e native/audio_output; 
 
 ## 4. Estado operacional
 
-A fotografia operacional de 2026-11-14, incluindo SHA, comandos locais, resultados, limites e protocolo de aceite físico, está em [Validação Windows x64 Release — 2026-11-14](project-status-2026-11-14.md).
+A fotografia operacional de 2026-11-14, incluindo SHA, comandos locais, resultados, limites e protocolo de aceite físico, está em [Validação Windows x64 Release — 2026-11-14](testing/windows-x64-release-validation-2026-11-14.md).
 
 - Main validada localmente: `118b96bf411248173b6215b7bf16aebdf3a66bff`.
 - Desktop Slint: fmt PASS; Clippy Release `-D warnings` PASS; testes 26/26 PASS; build Release Windows x64 PASS.
