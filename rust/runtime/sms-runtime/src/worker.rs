@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 use std::sync::Condvar;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -1214,7 +1214,7 @@ impl SmsTemporalWorker {
     pub fn save_state(&self) -> Result<SmsWorkerSaveState, String> {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
         enqueue_worker_command(&self.commands, WorkerCommand::SaveState(reply_sender))?;
-        receive_worker_reply(reply_receiver, "capturing a save state")
+        receive_worker_reply(reply_receiver, "capturing a save state")?
     }
 
     /// Restore a previously captured state. The worker must be paused.
@@ -1227,7 +1227,7 @@ impl SmsTemporalWorker {
             &self.commands,
             WorkerCommand::LoadState(state, reply_sender),
         )?;
-        receive_worker_reply(reply_receiver, "restoring a save state")
+        receive_worker_reply(reply_receiver, "restoring a save state")?
     }
 
     /// Enable or disable bounded scheduler/bus trace capture.
@@ -2249,7 +2249,6 @@ fn handle_command(
                 || state.region != region
                 || state.machine_state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
                 || state.machine_state.bus.vdp.profile() != machine.vdp().profile()
-                || state.machine_state.bus.psg.clock_hz() != machine.psg().clock_hz()
             {
                 let _ = reply.send(Err(
                     "save state version, ROM identity or hardware profile does not match the active machine"
