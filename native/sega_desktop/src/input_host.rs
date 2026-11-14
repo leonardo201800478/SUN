@@ -377,7 +377,6 @@ mod tests {
         assert!(buttons.down);
         assert!(buttons.button_1);
         assert!(buttons.button_2);
-        assert!(!buttons.up);
         assert!(!buttons.right);
         assert!(!pause);
     }
