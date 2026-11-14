@@ -391,20 +391,27 @@ mod tests {
 
     #[test]
     fn custom_profile_can_move_sms_button_to_an_extra_gamepad_button() {
-        let profiles = SmsInputProfiles::defaults().unwrap();
-        let custom = InputProfile::new(
+        let defaults = SmsInputProfiles::defaults().unwrap();
+        let custom_gamepad = InputProfile::new(
             vec![ActionBinding {
-                action: ActionId::new(4).unwrap(),
+                action: ActionId::new(ACTION_BUTTON_1).unwrap(),
                 control: PhysicalControl::Button(8),
             }],
             0,
         )
         .unwrap();
+        let mut host = super::Sdl3InputHost::new()
+            .expect("SDL3 runtime must initialize for the host profile integration test");
+        host.set_profiles(custom_gamepad, defaults.joystick.clone());
+
         let mut state = DeviceState::default();
         state.buttons.set(8, true).unwrap();
-        let mut actions = sega_input_runtime::ActionState::default();
-        custom.evaluate(&state, &mut actions);
-        assert!(actions.is_active(ActionId::new(4).unwrap()));
-        assert_eq!(profiles.gamepad.deadzone(), 0);
+        state.buttons.set(0, true).unwrap();
+        let (buttons, _) = host
+            .profiles
+            .evaluate(DeviceClass::Gamepad, &reading(state));
+
+        assert!(buttons.button_1, "the configured extra button must map to SMS Button 1");
+        assert!(!buttons.button_2);
     }
 }
