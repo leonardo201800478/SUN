@@ -57,6 +57,21 @@
 
 **Evidência visual:** comparação lado a lado enviada pelo usuário em 14/11/2026. Sega Emulator à esquerda e Ares à direita, ambos exibindo a tela de menu do interpretador. A diferença é visível já em texto estático, sem necessidade de iniciar um jogo CHIP-8.
 
+### Evidência adicional — tela do labirinto (14/11/2026)
+
+O usuário avançou para a tela do labirinto e enviou uma segunda comparação lado a lado da mesma ROM.
+
+| Critério | Ares | Sega Emulator |
+|---|---|---|
+| Fundo verde | Correto | Presente |
+| Paredes/corredores do labirinto | Geometria contínua, paredes brancas e áreas pretas bem definidas | Geometria não é reconstruída; aparecem fragmentos pequenos e caracteres dispersos |
+| Elementos do cenário | Distribuição coerente | Ausentes ou visualmente corrompidos |
+| Classificação desta cena | Referência visual | Falha reproduzida pelo usuário |
+
+**Interpretação limitada:** a falha persiste em uma segunda tela e afeta elementos de cenário além do logotipo/texto do menu. Isso reforça a necessidade de auditar a renderização de background tiles/name table/pattern data. Ainda não determina se a causa está na escrita de VRAM, leitura de padrões, seleção de tabela, paleta ou temporização. Não há base para atribuir este caso somente ao subsistema de sprites.
+
+**Identidade e configuração:** CRC32/SHA-1 da ROM e perfil efetivo do VDP continuam pendentes. A captura é evidência visual da conversa e não foi adicionada como binário ao repositório.
+
 **Perguntas a responder:**
 1. A ROM escreve os caracteres como tiles de background, sprites ou combinação dos dois?
 2. Os dados de pattern e os índices de tile são idênticos entre os emuladores?
