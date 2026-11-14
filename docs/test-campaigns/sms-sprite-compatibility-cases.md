@@ -127,6 +127,25 @@ O usuário avançou para a tela do labirinto e enviou uma segunda comparação l
 
 Este caso é registrado como falha de boot/vídeo, não como caso isolado de sprites. O movimento do PC entre snapshots não demonstra, por si só, progresso correto do boot.
 
+### SMS-PAL-001 — SMS Palette (World) (Aftermarket) (Unl)
+
+| Campo | Registro |
+|---|---|
+| Sistema | Sega Master System |
+| ROM | `SMS Palette (World) (Aftermarket) (Unl).sms` |
+| CRC32 / SHA-1 | PENDENTE — arquivo ROM não fornecido para identificação |
+| Referência | Ares, tela de demonstração da paleta |
+| Resultado no Ares | Título, índices 0–63 e quatro linhas de amostras de cores visíveis |
+| Resultado no Sega Emulator | Título, índices e quatro linhas de amostras de cores visualmente correspondentes à referência |
+| Classificação | RESULTADO VISUAL APARENTEMENTE CORRETO; IDENTIDADE PENDENTE |
+| Causa | Não aplicável enquanto não houver divergência observada |
+
+**Evidência visual:** comparação lado a lado enviada pelo usuário em 14/11/2026. As barras de cores e a numeração aparentam alinhamento e correspondência entre Sega Emulator e Ares.
+
+**Limite da conclusão:** a captura sugere que a paleta/CRAM e sua apresentação básica estão funcionando para esta ROM e cena. Não comprova exatidão RGB de cada entrada, comportamento de escrita CRAM durante raster, nem valida globalmente o caminho de paleta em todos os modos/perfis. A escala e captura das janelas também impedem uma comparação colorimétrica pixel a pixel.
+
+**Próxima ação:** manter como caso de controle visual positivo. Se necessário, obter a ROM e capturas nativas para comparação de pixels e identificação por CRC32/SHA-1. Não priorizar correção de paleta com base nesta evidência.
+
 ## Protocolo para novos casos
 
 Para cada ROM nova, registrar:
