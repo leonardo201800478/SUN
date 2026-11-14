@@ -127,6 +127,26 @@ O usuário avançou para a tela do labirinto e enviou uma segunda comparação l
 
 Este caso é registrado como falha de boot/vídeo, não como caso isolado de sprites. O movimento do PC entre snapshots não demonstra, por si só, progresso correto do boot.
 
+### SMS-GFX-005 — SMS Power 7th Anniversary (World) (Auto Demo) (Aftermarket) (Unl)
+
+| Campo | Registro |
+|---|---|
+| Sistema | Sega Master System |
+| ROM | `SMS Power 7th Anniversary (World) (Auto Demo) (Aftermarket) (Unl).sms` |
+| CRC32 / SHA-1 | PENDENTE — arquivo ROM não fornecido para identificação |
+| Referência | Ares, auto demo |
+| Resultado no Ares | Logotipo "SMS POWER", subtítulo e faixas coloridas apresentados corretamente; letras da frase comemorativa distribuídas em arco |
+| Resultado no Sega Emulator | Logotipo, subtítulo e faixas coloridas visualmente correspondentes; letras da frase em arco aparecem em posições diferentes da referência, com distribuição/posicionamento divergente |
+| Classificação | PARCIALMENTE CORRETO; DIVERGÊNCIA DE POSICIONAMENTO |
+| Domínio aparente | Movimento/posicionamento de elementos gráficos durante a demo; pode envolver sprites, atributos SAT, coordenadas ou temporização de atualização |
+| Causa | NÃO DETERMINADA |
+
+**Evidência visual:** comparação lado a lado enviada pelo usuário em 14/11/2026. Os elementos estáticos principais (logotipo, subtítulo e faixas) parecem corretos nos dois emuladores. A diferença mais evidente está nas letras individuais que formam a frase em arco: sua distribuição espacial difere do Ares.
+
+**Interpretação limitada:** este caso não é uma falha total de renderização. É um controle parcialmente positivo para elementos estáticos, acompanhado de uma divergência em elementos móveis/posicionados individualmente. A captura não permite concluir se as letras são sprites ou tiles de background atualizados dinamicamente.
+
+**Próxima ação:** registrar a cena e comparar a posição das letras ao longo do tempo; obter CRC32/SHA-1 e confirmar perfil/região. Não classificar como defeito SAT até confirmar como a ROM implementa o efeito.
+
 ### SMS-PAL-001 — SMS Palette (World) (Aftermarket) (Unl)
 
 | Campo | Registro |
