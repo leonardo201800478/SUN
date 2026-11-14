@@ -1,0 +1,200 @@
+//! Opt-in smoke campaign for real, user-supplied SMS ROMs.
+//!
+//! Run on a machine with legally obtained test ROMs:
+//!   $env:SEGA_SMS_TEST_ROM_DIR = "D:\\ROMs\\SMS"
+//!   $env:SEGA_SMS_TEST_REGION = "usa" # usa|brazil|europe|japan
+//!   cargo test --release -p sega-sms-runtime --test in_game_rom_smoke -- --ignored --nocapture
+//!
+//! ROM files are read in place and are never copied into the repository.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use sega_sms_runtime::SmsTemporalWorker;
+use sega_video_runtime::FrameMailbox;
+
+const FRAMES_PER_ROM: usize = 120;
+const MAX_INSTRUCTIONS_PER_FRAME: usize = 100_000;
+
+fn is_sms_rom(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("sms") || extension.eq_ignore_ascii_case("bin")
+        })
+}
+
+fn frame_digest(bytes: &[u8]) -> u64 {
+    // FNV-1a is used only as a compact regression fingerprint, not as a
+    // cryptographic identity or integrity check.
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01B3)
+    })
+}
+
+fn collect_roms(directory: &Path) -> Vec<PathBuf> {
+    let mut paths = fs::read_dir(directory)
+        .unwrap_or_else(|error| {
+            panic!("cannot read ROM directory {}: {error}", directory.display())
+        })
+        .map(|entry| {
+            entry
+                .unwrap_or_else(|error| panic!("cannot read ROM directory entry: {error}"))
+                .path()
+        })
+        .filter(|path| path.is_file() && is_sms_rom(path))
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths
+}
+
+#[test]
+#[ignore = "requires user-supplied SMS ROMs; see test module documentation"]
+fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
+    let directory = std::env::var_os("SEGA_SMS_TEST_ROM_DIR")
+        .map(PathBuf::from)
+        .expect("set SEGA_SMS_TEST_ROM_DIR to a directory containing .sms/.bin ROMs");
+    let region = std::env::var("SEGA_SMS_TEST_REGION").unwrap_or_else(|_| "usa".to_owned());
+    let rom_paths = collect_roms(&directory);
+
+    assert!(
+        !rom_paths.is_empty(),
+        "no .sms/.bin ROMs found in {}",
+        directory.display()
+    );
+
+    for path in rom_paths {
+        let rom = fs::read(&path)
+            .unwrap_or_else(|error| panic!("cannot read ROM {}: {error}", path.display()));
+        assert!(!rom.is_empty(), "ROM {} is empty", path.display());
+
+        let worker = SmsTemporalWorker::new(rom, &region)
+            .unwrap_or_else(|error| panic!("{}: worker rejected ROM: {error}", path.display()));
+        let mailbox = FrameMailbox::new();
+        worker
+            .attach_video_mailbox(mailbox.clone())
+            .unwrap_or_else(|error| {
+                panic!("{}: cannot attach video mailbox: {error}", path.display())
+            });
+
+        let mut first_digest = None;
+        let mut last_digest = 0;
+        let mut non_black_frames = 0_u32;
+        let mut completed_frames = 0_u64;
+
+        for frame_index in 0..FRAMES_PER_ROM {
+            let instructions = worker
+                .step_frame(MAX_INSTRUCTIONS_PER_FRAME)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{}: frame {} failed after {} completed frames: {error}",
+                        path.display(),
+                        frame_index + 1,
+                        completed_frames
+                    )
+                });
+            assert!(
+                instructions > 0,
+                "{}: frame {} completed without executing instructions",
+                path.display(),
+                frame_index + 1
+            );
+
+            let frame = mailbox
+                .take_latest()
+                .unwrap_or_else(|error| panic!("{}: mailbox failed: {error}", path.display()))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{}: runtime completed frame {} without publishing a video frame",
+                        path.display(),
+                        frame_index + 1
+                    )
+                });
+
+            assert_eq!(
+                frame.width(),
+                256,
+                "{}: unexpected frame width",
+                path.display()
+            );
+            assert_eq!(
+                frame.height(),
+                192,
+                "{}: unexpected frame height",
+                path.display()
+            );
+            assert_eq!(
+                frame.pixels().len(),
+                256 * 192 * 3,
+                "{}: unexpected RGB888 frame payload length",
+                path.display()
+            );
+
+            let digest = frame_digest(frame.pixels());
+            first_digest.get_or_insert(digest);
+            last_digest = digest;
+            if frame.pixels().iter().any(|channel| *channel != 0) {
+                non_black_frames += 1;
+            }
+            completed_frames = completed_frames.saturating_add(1);
+
+            if let Some(error) = worker.runtime_error() {
+                panic!(
+                    "{}: runtime error at frame {}: {error}",
+                    path.display(),
+                    frame_index + 1
+                );
+            }
+        }
+
+        assert!(
+            non_black_frames > 0,
+            "{}: all {} published frames were black; investigate ROM startup, mapper, CPU and VDP path",
+            path.display(),
+            FRAMES_PER_ROM
+        );
+
+        println!(
+            "SMS_IN_GAME_SMOKE rom={} region={} frames={} instructions={} non_black_frames={} first_frame_fnv1a={:016x} last_frame_fnv1a={:016x}",
+            path.display(),
+            region,
+            completed_frames,
+            worker.total_instructions(),
+            non_black_frames,
+            first_digest.expect("at least one frame was processed"),
+            last_digest
+        );
+
+        worker.detach_video_mailbox().unwrap_or_else(|error| {
+            panic!(
+                "{}: cannot detach video mailbox cleanly: {error}",
+                path.display()
+            )
+        });
+        mailbox.close().unwrap_or_else(|error| {
+            panic!(
+                "{}: cannot close video mailbox cleanly: {error}",
+                path.display()
+            )
+        });
+    }
+}
+
+#[test]
+fn every_supported_sms_region_selects_the_sms1_asic_profile() {
+    use sega_sms_core::SmsVdpRevision;
+    use sega_sms_runtime::sms_temporal_region_profile;
+
+    for region in ["usa", "brazil", "europe", "japan"] {
+        let (_, profile, clock_hz) =
+            sms_temporal_region_profile(region).unwrap_or_else(|error| panic!("{region}: {error}"));
+        assert_eq!(
+            profile.revision,
+            SmsVdpRevision::Sega3155124,
+            "{region} must instantiate the SMS1 VDP ASIC"
+        );
+        assert!(clock_hz > 0, "{region} must define a valid machine clock");
+    }
+
+    assert!(sms_temporal_region_profile("unknown").is_err());
+}
