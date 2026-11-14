@@ -16,7 +16,7 @@ mod windows_host {
             atomic::{AtomicBool, Ordering},
         },
         thread,
-        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+        time::{Duration, Instant},
     };
 
     use sega_media::{CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity};
@@ -1841,6 +1841,53 @@ mod windows_host {
         }
     }
 
+    /// Abre o diálogo nativo do Windows para escolher explicitamente o destino do trace.
+    ///
+    /// O cancelamento retorna None e não cria nem altera qualquer arquivo.
+    fn pick_trace_save_file() -> Result<Option<PathBuf>, String> {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        const SCRIPT: &str = r#"
+            Add-Type -AssemblyName System.Windows.Forms
+            [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+            $dialog = New-Object System.Windows.Forms.SaveFileDialog
+            $dialog.Title = 'Exportar diagnóstico do Sega Master System'
+            $dialog.Filter = 'Trace SMS (*.txt)|*.txt|Todos os arquivos (*.*)|*.*'
+            $dialog.DefaultExt = 'txt'
+            $dialog.AddExtension = $true
+            $dialog.OverwritePrompt = $true
+            $dialog.FileName = 'sms-bus-trace.txt'
+            if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                [Console]::Out.Write($dialog.FileName)
+            }
+        "#;
+
+        let output = Command::new("powershell.exe")
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-STA",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                SCRIPT,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|error| format!("não foi possível iniciar o seletor de destino do Windows: {error}"))?;
+
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+
+        let selected = String::from_utf8_lossy(&output.stdout);
+        let selected = selected.trim_end_matches(['\\r', '\\n']);
+        if selected.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(PathBuf::from(selected)))
+        }
+    }
+
     /// Read a raw SMS ROM or a ZIP containing exactly one supported ROM entry.
     ///
     /// ZIP data is decompressed in memory only. No archive path is ever written to disk,
@@ -2832,27 +2879,20 @@ mod windows_host {
         let trace_export_app = app.as_weak();
         let trace_export_worker = Rc::clone(&worker);
         app.on_trace_export_requested(move || {
-            let result = (|| -> Result<PathBuf, String> {
-                let worker_guard = trace_export_worker.borrow();
-                let worker = worker_guard
-                    .as_ref()
-                    .ok_or_else(|| "SMS worker indisponível".to_owned())?;
-                let snapshot = worker.debug_snapshot()?;
+            let result = (|| -> Result<Option<PathBuf>, String> {
+                let snapshot = {
+                    let worker_guard = trace_export_worker.borrow();
+                    let worker = worker_guard
+                        .as_ref()
+                        .ok_or_else(|| "SMS worker indisponível".to_owned())?;
+                    worker.debug_snapshot()?
+                };
                 if !snapshot.trace_enabled {
                     return Err("Ative o trace antes de exportar".to_owned());
                 }
-                let root = std::env::var_os("LOCALAPPDATA")
-                    .map(PathBuf::from)
-                    .ok_or_else(|| "LOCALAPPDATA não está definido".to_owned())?;
-                let directory = root.join(APP_DATA_DIRECTORY).join("diagnostics");
-                fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-                let timestamp = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map_err(|error| error.to_string())?
-                    .as_secs();
-                let path = directory.join(format!("sms-bus-trace-{timestamp}.txt"));
+
                 let mut report = format!(
-                    "SEGA EMULATOR — SMS BUS TRACE\nformat_version=1\nframe={}\nmachine_time_ticks={}\ntrace_enabled={}\ntrace_events={}\ntrace_dropped={}\nPC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} IX={:04X} IY={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={}\nVDP_STATUS={:02X} VDP_SCANLINE={} VDP_CYCLES_INTO_LINE={}\nMAPPER_BANKS={:02X},{:02X},{:02X} MAPPER_CONTROL={:02X} MEMORY_CONTROL={:02X}\n\nEVENTS (oldest first)\n",
+                    "SEGA EMULATOR — SMS BUS TRACE\\nformat_version=1\\nframe={}\\nmachine_time_ticks={}\\ntrace_enabled={}\\ntrace_events={}\\ntrace_dropped={}\\nPC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} IX={:04X} IY={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={}\\nVDP_STATUS={:02X} VDP_SCANLINE={} VDP_CYCLES_INTO_LINE={}\\nMAPPER_BANKS={:02X},{:02X},{:02X} MAPPER_CONTROL={:02X} MEMORY_CONTROL={:02X}\\n\\nEVENTS (oldest first)\\n",
                     snapshot.frame_number, snapshot.machine_time_ticks, snapshot.trace_enabled,
                     snapshot.trace_events.len(), snapshot.trace_dropped,
                     snapshot.pc, snapshot.sp, snapshot.af, snapshot.bc, snapshot.de, snapshot.hl,
@@ -2863,16 +2903,22 @@ mod windows_host {
                     snapshot.mapper_control, snapshot.memory_control
                 );
                 for (index, event) in snapshot.trace_events.iter().enumerate() {
-                    report.push_str(&format!("{index:04} {event:?}\n"));
+                    report.push_str(&format!("{index:04} {event:?}\\n"));
                 }
-                fs::write(&path, report).map_err(|error| error.to_string())?;
-                Ok(path)
+
+                let Some(path) = pick_trace_save_file()? else {
+                    return Ok(None);
+                };
+                fs::write(&path, report)
+                    .map_err(|error| format!("não foi possível gravar o trace: {error}"))?;
+                Ok(Some(path))
             })();
             if let Some(app) = trace_export_app.upgrade() {
-                let status = result.map_or_else(
-                    |error| format!("Falha ao exportar trace: {error}"),
-                    |path| format!("Trace exportado: {}", path.display()),
-                );
+                let status = match result {
+                    Ok(Some(path)) => format!("Trace exportado: {}", path.display()),
+                    Ok(None) => "Exportação do trace cancelada; nenhum arquivo foi gravado.".to_owned(),
+                    Err(error) => format!("Falha ao exportar trace: {error}"),
+                };
                 app.set_debug_status(status.into());
             }
         });
