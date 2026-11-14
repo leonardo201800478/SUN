@@ -3147,7 +3147,10 @@ mod tests {
         assert_eq!(traced_state.bc, untraced_state.bc);
         assert_eq!(traced_state.de, untraced_state.de);
         assert_eq!(traced_state.hl, untraced_state.hl);
-        assert_eq!(traced_state.machine_time_ticks, untraced_state.machine_time_ticks);
+        assert_eq!(
+            traced_state.machine_time_ticks,
+            untraced_state.machine_time_ticks
+        );
         assert_eq!(traced_state.frame_number, untraced_state.frame_number);
         assert!(traced_state.trace_enabled);
         assert!(!untraced_state.trace_enabled);
