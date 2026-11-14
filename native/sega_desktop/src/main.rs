@@ -1,7 +1,7 @@
 #![deny(unsafe_code)]
 
 #[cfg(windows)]
-pub mod input_host;
+mod input_host;
 
 #[cfg(windows)]
 mod windows_host {
