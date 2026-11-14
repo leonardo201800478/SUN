@@ -1,8 +1,8 @@
 # SMS VDP — campanha de compatibilidade de sprites
 
-**Status:** campanha exploratória em andamento  
-**Objetivo:** registrar ROMs, cenas, resultados observados e evidências comparativas antes de alterar a implementação do VDP.  
-**Hardware de referência do desktop:** perfil SMS1 / ASIC 315-5124, salvo indicação explícita em cada caso.  
+**Status:** campanha exploratória em andamento
+**Objetivo:** registrar ROMs, cenas, resultados observados e evidências comparativas antes de alterar a implementação do VDP.
+**Hardware de referência do desktop:** perfil SMS1 / ASIC 315-5124, salvo indicação explícita em cada caso.
 **Regra:** resultados relatados pelo usuário são registrados como observações; não constituem, isoladamente, prova da causa técnica.
 
 ## Convenções
@@ -251,3 +251,68 @@ Esses três resultados são as reprovações funcionais diretamente demonstradas
 5. Repetir os casos com mesma região, perfil, build e fase temporal, registrando snapshot/trace do VDP e do Scheduler antes de alterar código.
 
 **Limite da evidência:** são resultados observados em comparação visual com Ares, não medições de hardware físico. Ares é a referência operacional desta campanha, mas um erro compartilhado não prova que ambos estejam errados nem que o comportamento físico corresponda a um dos dois.
+
+### SMS-VDP-SCROLL-001 — Scroll Test Program by Charles MacDonald
+
+**Origem:** capturas comparativas enviadas pelo usuário em 14/11/2026. **Campanha física/manual pausada após este registro**, por decisão do usuário; não solicitar novos testes até haver correção e progresso automatizado demonstrável.
+
+| Região | Referência Ares | Sega Emulator | Observação |
+|---|---|---|---|
+| Faixa 1 | Scroll vertical descendente; faixa fina de dois blocos | Visualmente correspondente | Controle positivo parcial |
+| Faixa 2 | Fundo diagonal do canto inferior direito para o superior esquerdo; bloco de 8×6 sobreposto move-se da direita para a esquerda | Fundo desloca-se, mas o bloco não aparece como sobreposição nem avança horizontalmente | Divergência de composição/movimento |
+| Faixa 3 | Procedimento semelhante à faixa 2, com movimento horizontal inverso e bloco de 8 unidades de altura | Fundo desloca-se; bloco sobreposto não aparece e permanece fixo à direita | Divergência de composição/movimento |
+| Faixa 4 | Fundo desloca-se de cima para baixo em direção à esquerda; bloco sólido 8×8 move-se da direita para a esquerda | Fundo desloca-se de baixo para cima em direção à esquerda; bloco não aparece/move | Divergência de sentido vertical e composição |
+
+**Classificação:** REPRODUZIDO PELO USUÁRIO; divergência visual clara contra Ares. ROM não foi anexada para hash/inspeção. O relato de “bloco sobreposto” não determina se o elemento é sprite, tile prioritário ou atualização dinâmica do tilemap.
+
+**Hipóteses discriminantes (não conclusões):**
+1. Escritas intralinha em R8/R9 e instante de latch/aplicação por scanline.
+2. Fine scroll, wrap e cálculo das coordenadas de origem do tilemap.
+3. Prioridade de tiles Mode 4 versus sprites e composição em spans.
+4. Escritas de VRAM/SAT durante a linha e ausência de fetch-ahead temporizado.
+5. Ordem de atualização do estado de raster em relação aos commits de span.
+
+**Próxima ação interna:** construir fixtures sintéticas para cada faixa (scroll horizontal/vertical, wrap, prioridade e alteração de R8/R9 em boundaries controlados) e validar equivalência entre avanço contínuo e em blocos. Não ajustar o renderer WGPU nem inverter sinais globalmente para imitar uma única cena.
+
+### SMS-VDP-ZOOM-001 — Zoom Effect #1_3 by Charles MacDonald
+
+**Origem:** captura comparativa enviada pelo usuário em 14/11/2026.
+
+| Critério | Ares | Sega Emulator |
+|---|---|---|
+| Padrão de xadrez e barras coloridas | Faixas e transições uniformes | Padrão geral correspondente, com leve distorção de linha próximo à extremidade direita e parte final da imagem |
+
+**Classificação:** DIVERGÊNCIA LOCAL DE GEOMETRIA/RASTER; causa não determinada. A captura não discrimina se a origem é coordenada de composição, limite de span, escala de saída ou amostragem do framebuffer. A investigação deve primeiro comparar o framebuffer lógico RGB888 antes do WGPU, para separar VDP de apresentação.
+
+### SMS-VDP-ZEXALL-001 — ZEXALL V0.12VDP
+
+**Origem:** captura comparativa enviada pelo usuário em 14/11/2026.
+
+| Emulador | Observação |
+|---|---|
+| Ares | Exibe tela de resultados do ZEXALL com vários testes de instruções marcados OK |
+| Sega Emulator | Tela preta |
+
+**Classificação:** INCONCLUSIVO PARA Z80. A variante VDP depende da inicialização e apresentação pelo VDP; a tela preta não prova falha de instrução nem localiza a falha entre boot, CPU, VDP e apresentação. Não promover esta execução a evidência E8 nem a resultado de ZEXALL.
+
+### SMS-VDP-ZEXALL-002 — ZEXALL V0.12SDSC
+
+**Origem:** captura comparativa enviada pelo usuário em 14/11/2026.
+
+| Emulador | Observação |
+|---|---|
+| Ares | Permanece na tela de inicialização do Master System; não chega à tela de resultados |
+| Sega Emulator | Tela preta |
+
+**Classificação:** INCONCLUSIVO. A variante SDSC usa um canal de saída de depuração, não a tela normal do VDP. A captura não demonstra execução correta ou incorreta do Z80. Não iniciar E8 com base nesta ROM/versão.
+
+## Política de campanha após 14/11/2026
+
+A campanha manual/ física está **PAUSADA** por decisão do usuário. A retomada dependerá de progresso interno verificável: testes sintéticos direcionados, regressões automatizadas, traces reproduzíveis e correção integrada. Não solicitar novas capturas ou execução de ROMs ao usuário antes de demonstrar esse progresso.
+
+A ordem de trabalho passa a ser:
+1. Corrigir e ampliar testes do caminho de data/control port e Line IRQ/VCount já reprovados no SMS VDP Test v1.31.
+2. Criar fixtures sintéticas para scroll raster, prioridade e composição de tiles/sprites.
+3. Isolar a distorção de zoom comparando framebuffer lógico com saída WGPU.
+4. Completar a evidência de fetch/pipeline de sprites e VRAM antes de alterações de timing.
+5. Manter os casos de ZEXALL fora do gate E8 até fechamento formal de E7 do Z80.
