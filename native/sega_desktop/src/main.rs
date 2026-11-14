@@ -208,7 +208,7 @@ mod windows_host {
             };
 
             let poll_result = input_host.as_mut().map(Sdl3InputHost::poll);
-            let (mut next_players, mut pause_pressed, status_update) = match poll_result {
+            let (mut next_players, pause_pressed, status_update) = match poll_result {
                 Some(Ok((players, pause_pressed, status_update))) => {
                     (players, pause_pressed, status_update)
                 }
