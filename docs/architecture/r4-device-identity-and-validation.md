@@ -1,9 +1,9 @@
 # R4 — Contrato de identidade física, roteamento e validação de entrada
 
-**Status:** DESIGN BASELINE / IMPLEMENTATION PENDING  
-**Data:** 2026-11-14  
-**Base:** `main` em `2ec587629107191f477d6c0d0f5da1a7c2610492`  
-**Integração SDL3/Slint:** PR #867  
+**Status:** DESIGN BASELINE / IMPLEMENTATION PENDING
+**Data:** 2026-11-14
+**Base:** `main` em `2ec587629107191f477d6c0d0f5da1a7c2610492`
+**Integração SDL3/Slint:** PR #867
 **Documentação de estado R4:** PR #868
 
 Este documento define a próxima fatia arquitetural da R4. Não declara aceite de hardware físico nem implementação de identidade persistente.
