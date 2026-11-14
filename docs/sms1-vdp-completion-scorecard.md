@@ -6,11 +6,11 @@
 **Baseline integrada:** `main` após PR #843 (`23c77a21ae427feecfb70fa6e78692e588f72416`)
 **Baseline de comparação:** `202cdfc695d0c2346c86da4144b6e8a3316e0c4d`
 **HEAD de validação da PR #843:** `0f2415f9382887c94d9214abe06cb6c295ed2154`
-**Estado:** EM DESENVOLVIMENTO — NÃO LIBERADO PARA TESTE IN-GAME
+**Estado:** EM DESENVOLVIMENTO — compatibilidade funcional SMS1 ainda em fechamento
 
 Este scorecard registra somente capacidades presentes na `main` e evidências executadas no SHA correspondente. PR aberta, branch de trabalho ou teste ainda em execução não contam como implementação integrada.
 
-Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/sms1-vdp-temporal-evidence-matrix-2026-11-14.md).
+Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/sms1-vdp-temporal-evidence-matrix-2026-11-14.md).\n\nEscopo funcional atualizado: [SMS1 software compatibility scope](audits/sms1-vdp-software-scope-2026-11-14.md).
 
 ## 1. Critérios funcionais
 
@@ -31,13 +31,13 @@ Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/s
 | SAT / avaliação de sprites | IMPLEMENTED_SCANLINE | PR #832/#833: Mode 4 e legacy/TMS capturam metadados X/tile/pattern/color e controles R0/R6 durante avaliação por scanline; bytes de padrão continuam lidos na composição; timestamp físico não medido |
 | Sprite overflow | IMPLEMENTED_TSTATE_QUANTIZED | Mode 4 e legacy/TMS: índice associado latched em HPos 24 / T16, usando o buffer do modo ativo |
 | Sprite collision | IMPLEMENTED_PIXEL_COMMIT_APPROXIMATE | Sobreposição de pixels opacos publicada quando um commit de span cruza o pixel; leitura de status comita o prefixo até o feixe; não há pipeline de colisão por dot |
-| HCounter / porta $7F | IMPLEMENTED_APPROXIMATE | Conversão 342 HPos / 228 T-states; latch por transição TH via software; leituras espelhadas preservam o valor capturado. Eventos TH externos atualizam $DD, mas ainda não capturam HCounter; sem validação física |
-| Entradas externas TH1/TH2 | IMPLEMENTED_SCHEDULED_INPUT | Transições timestamped no Scheduler; níveis active-low independentes em $DD, precedência de saída $3F, snapshot/restore e trace. Phase 1 é desempate determinístico, não fase elétrica medida |
+| HCounter / porta $7F | COMPATIBILITY_ONLY | Leitura e latch sintético por software permanecem disponíveis. Captura elétrica por TH/Light Phaser não faz parte do escopo atual; a entrada será ponteiro/mira de software, sem pistola física |
+| Entradas externas TH1/TH2 | OUT_OF_SCOPE_FOR_POINTER_INPUT | A integração genérica de TH permanece no core, mas captura física de Light Phaser não é requisito para a mira controlada por mouse/analógico/giroscópio |
 | HBlank | IMPLEMENTED_TSTATE_QUANTIZED | T213/HPos319 fecha os 256 pixels ativos; T212/HPos318 não fecha o último pixel. Teste de colisão no pixel 255 valida o boundary lógico, não a fase elétrica física |
 | VBlank / IRQ | IMPLEMENTED_TSTATE_QUANTIZED | VINT pendente em HPos 20/T13; VBlank flag em HPos 24/T16. Chunking e snapshot/restore validados; MAME usa VINT_HPOS24, diferença física não resolvida |
 | Scheduler / determinismo | IMPLEMENTED_INTEGRATED | VDP e entradas TH externas avançam pelo Scheduler; eventos TH têm timestamp absoluto, ordem de empate explícita, snapshot/restore e trace |
 | Save State | RUNTIME_IN_MEMORY_SNAPSHOT_RESTORE | `SmsTemporalWorker::save_state/load_state` captura e restaura CPU, Scheduler, bus, mapper, VDP, PSG e eventos pendentes com validação de versões. Persistência binária em arquivo/slots ainda pendente; não confundir com SRAM `.srm` |
-| Overscan / borda esquerda | RUNTIME_PRESENTATION_CROP | `SmsOverscanMode::CropLeft8` publica imagem 248×192 removendo apenas os oito pixels da esquerda; framebuffer canônico 256×192 e temporização permanecem intactos. Não é uma simulação de overscan elétrico |\n| Limite de sprites | IMPLEMENTED_UI_AND_RUNTIME | `HardwareLimit` e `UnlockedCompatibility` já estão ligados ao worker e à preferência persistida da UI; o modo desbloqueado altera composição, não o clock nem o estado de overflow do hardware |\n| SMS2 / outros perfis | REGRESSION_GATED | Renderer e perfis não SMS1 preservados pelos testes direcionados; não generalizar spans SMS1 |
+| Overscan / borda esquerda | RUNTIME_PRESENTATION_CROP | `SmsOverscanMode::CropLeft8` publica imagem 248×192 removendo apenas os oito pixels da esquerda; framebuffer canônico 256×192 e temporização permanecem intactos. Não é uma simulação de overscan elétrico |
 
 ## 2. Política de granularidade
 
@@ -58,8 +58,8 @@ Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/s
 6. Confirmar o instante de colisão pixel a pixel: o modelo publica a colisão no commit do pixel, mas não possui pipeline dot-level do ASIC.
 7. Expandir a demonstração de equivalência contínua/em blocos/save-load para todos os eventos subline. VINT já possui equivalência contínuo/blocos com snapshot em T12; TH software possui invariância 3+5 T-states.
 8. Executar regressões SMS1/SMS2 e build Windows x64 Release no candidato final.
-9. Fechar a captura H-counter provocada por TH externo/Light Phaser. A linha externa já é agendada e lida em $DD, mas o latch físico e o atraso permanecem pendentes: SMS Power descreve latch quando TH está ativo-low; MAME arma em TH low e agenda captura no retorno a high com offset configurável. Não assumir o offset MAME de 19 HPos como universal. A integração host/SDL3 também permanece pendente.
-10. Registrar os comportamentos ainda aproximados antes da primeira campanha in-game.
+9. Integrar a mira de software ao host: coordenadas do mouse, analógico e giroscópio devem ser transformadas para coordenadas lógicas do frame após aspect ratio/crop; desenhar mira branca somente na composição de apresentação, sem gravá-la no framebuffer do VDP.
+10. Registrar os comportamentos ainda aproximados antes da primeira campanha in-game. Medições físicas e pistola Light Phaser não são gates deste escopo.
 
 ## 4. Evidências integradas
 
