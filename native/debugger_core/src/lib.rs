@@ -170,6 +170,7 @@ pub enum PublishResult {
 
 enum CollectorMessage<T> {
     Event(T),
+    Barrier(std::sync::mpsc::SyncSender<()>),
     Shutdown,
 }
 
@@ -254,6 +255,7 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
                                 retained.push(event);
                             }
                         }
+                        CollectorMessage::Barrier(reply) => { let _ = reply.send(()); }
                         CollectorMessage::Shutdown => break,
                     }
                 }
@@ -278,6 +280,10 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
     where
         T: Clone,
     {
+        let (reply, acknowledged) = std::sync::mpsc::sync_channel(1);
+        if self.publisher.sender.send(CollectorMessage::Barrier(reply)).is_ok() {
+            let _ = acknowledged.recv();
+        }
         self.history
             .lock()
             .map(|history| history.entries().iter().cloned().collect())
@@ -329,13 +335,6 @@ mod tests {
         assert_eq!(publisher.try_publish(10), PublishResult::Accepted);
         assert_eq!(publisher.try_publish(11), PublishResult::Accepted);
         // A snapshot is an observation of events already drained by the collector.
-        for _ in 0..100 {
-            let snapshot = collector.snapshot();
-            if snapshot == [10, 11] {
-                break;
-            }
-            std::thread::yield_now();
-        }
         assert_eq!(collector.snapshot(), [10, 11]);
         assert_eq!(collector.ingress_dropped(), 0);
     }
