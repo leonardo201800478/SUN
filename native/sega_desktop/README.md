@@ -8,7 +8,7 @@ The Slint host presents real SMS VDP frames from the Rust runtime. R2.2 migrates
 - Arquivo: load raw `.sms` / `.bin` ROMs or a `.zip` containing exactly one supported ROM entry; reopen recent ROMs and exit. O desligamento POWER OFF mantém a ROM carregada; o comando de descarregar ROM não fica exposto neste menu.
 - Vídeo: 4:3, 1:1 and 16:9 presentation modes preserve the selected ratio while the window is resized; unused viewport space is letterboxed. The source frame remains 256×192. The optional sprite-limit compatibility mode is persisted separately from hardware state.
 - Áudio: a saída CPAL 0.18.2 e os controles de status/volume fazem parte da integração de software do host. Enumeração/seleção de endpoint e aceite físico prolongado continuam pendentes.
-- Controles: teclado SMS ativo via eventos nativos do Slint (setas, Z/X, P e F5–F9); F11 alterna fullscreen. A branch R4 conecta sega-input-runtime/SDL3 ao host Slint: os dois primeiros dispositivos elegíveis ocupam P1/P2; D-pad ou analógico esquerdo controla direções; botões South/East controlam Botão 1/2; Start gera NMI por borda de subida; joystick genérico usa hat 0, eixos 0/1, botões 0/1 e botão 2 para NMI. Polling no host com intervalo nominal de 8 ms; o backend verifica hotplug a cada 250 ms. Perfis persistentes e remapeamento visual ainda não estão implementados.
+- Controles: teclado SMS ativo via eventos nativos do Slint (setas, Z/X, P e F5–F9); F11 alterna fullscreen. A primeira integração R4 de `sega-input-runtime`/SDL3 ao host Slint foi integrada pela PR #867. Os dois primeiros dispositivos elegíveis ocupam P1/P2 por ordem da sessão; D-pad ou analógico esquerdo controla direções; botões South/East controlam Botão 1/2; Start gera NMI por borda de subida; joystick genérico usa hat 0, eixos 0/1, botões 0/1 e botão 2 para NMI. Polling no host com intervalo nominal de 8 ms; o backend verifica hotplug a cada 250 ms. CI Windows SDL3, testes do runtime e build/test Release do desktop passaram no CI #7512. Perfis persistentes, remapeamento visual e aceite físico com controles ainda não foram concluídos.
 - Opções: status-footer visibility. FPS size/position remain pending. Fullscreen is available from the UI and F11.
 - DEBUG: request an immutable Z80/runtime snapshot and enable/disable bounded scheduler/bus trace capture. Full debugger viewport remains a follow-up.
 
@@ -28,7 +28,7 @@ The Slint host presents real SMS VDP frames from the Rust runtime. R2.2 migrates
 - The UI timer consumes only the newest pending frame; it never advances emulation. The SDL3 input timer polls only at the host boundary and submits complete controller snapshots through set_controller_at; it never reads or advances machine clocks.
 - RGB888 is converted to tightly packed RGBA8 only at the presentation boundary.
 - Slint/WGPU uses the renderer's own Vulkan device and queue.
-- A saída física é fornecida pelo crate `sega-audio-output` baseado em CPAL 0.18.2. A geração digital do PSG continua pertencendo ao runtime SMS; o host não pode controlar o tempo do Scheduler. SDL3 gamepads permanecem em R4.
+- A saída física é fornecida pelo crate `sega-audio-output` baseado em CPAL 0.18.2. A geração digital do PSG continua pertencendo ao runtime SMS; o host não pode controlar o tempo do Scheduler. SDL3 gamepads são integrados ao host Slint na primeira fatia R4; aceite físico e recursos avançados de configuração permanecem pendentes.
 
 ## Run
 
