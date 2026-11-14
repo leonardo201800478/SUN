@@ -1640,7 +1640,9 @@ impl Drop for SmsTemporalWorker {
         // boundary and performs audio/mailbox cleanup on its owning thread.
         // Detach here so dropping the host handle cannot stall the GUI on join.
         drop(self.worker.take());
-        if let Ok(mut collector) = self.trace_collector.lock() { collector.take(); }
+        if let Ok(mut collector) = self.trace_collector.lock() {
+            collector.take();
+        }
     }
 }
 
