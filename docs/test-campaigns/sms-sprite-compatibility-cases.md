@@ -200,3 +200,54 @@ Para cada ROM nova, registrar:
 - Criar testes sintéticos mínimos para cada comportamento isolado e manter os casos reais como regressão.
 - Preservar Scheduler, determinismo e equivalência entre execução contínua e em blocos.
 - Atualizar este documento incrementalmente à medida que novos testes forem recebidos.
+
+
+### SMS-VDPTEST-001 — SMS VDP Test (World) v1.31 (14/11/2026)
+
+**Comparação:** Sega Emulator à esquerda; Ares à direita. Capturas sequenciais da mesma ROM e das telas de resultado. Perfil do desktop: SMS1 / ASIC 315-5124. A ROM não foi anexada ao repositório; identidade por hash ainda pendente.
+
+#### Falhas exclusivas do Sega Emulator em relação ao Ares
+
+| Grupo | Caso do teste | Sega Emulator | Ares | Classificação |
+|---|---|---:|---:|---|
+| VDP data test | `1byte wr sets rd adr` | Error | OK | REPROVADO — divergência exclusiva |
+| VDP data test | `1byte wr sets wr adr` | Error | OK | REPROVADO — divergência exclusiva |
+| VDP misc test | `Line IRQ VCount` | Error | OK | REPROVADO — divergência exclusiva |
+
+Esses três resultados são as reprovações funcionais diretamente demonstradas nas telas comparativas.
+
+#### Erros compartilhados — não atribuir como regressão exclusiva
+
+| Grupo | Caso do teste | Sega Emulator | Ares | Interpretação |
+|---|---|---:|---:|---|
+| VDP misc test | `VCounter chg time` | Error | Error | Falha compartilhada |
+| VDP misc test | `Frame IRQ VCount` | Error | Error | Falha compartilhada |
+| VDP misc test | `Frame IRQ HCount` | Error | Error | Falha compartilhada |
+| VDP misc test | `Line IRQ HCount` | Error | Error | Falha compartilhada |
+| VDP misc test | `VINT flag HCount` | Error | Error | Falha compartilhada |
+| Sprite test | `Offscreen Y, col` | Error | Error | Falha compartilhada |
+| Sprite test | `Spr col correct HC` | Error | Error | Falha compartilhada |
+| Sprite test | `Spr ovf correct HC` | OK | Error | Sega Emulator passa onde Ares reprova; não é falha do Sega Emulator |
+
+#### Resultados positivos ou equivalentes observados
+
+- **VDP data test:** os demais casos visíveis — leitura/escrita normal, leituras após code 1/2/3, escritas após code 0/2/3, mixed read/write, VRAM/CRAM write-set VDPbuffer, byte write keeps write mode, address wrap, VRAM/CRAM shared address, reset latch de controle/dados e unused registers — aparecem como OK nos dois emuladores.
+- **VDP misc test:** VCounter NTSC values, HCounter keeps value, HC change on TH 0→1, VDP register/data/control mirrors, VCounter/HCounter mirrors e VINT flag kept aparecem OK nos dois. O caso `HCounter correct` aparece OK no Sega Emulator e Error no Ares.
+- **Sprite test:** No sprite collision, no display/no sprite collision, 9th sprite no collision, transparent pixel no collision, offscreen X no collision, sprite collision, collision flag kept in VBlank, collision behind tile, collision correct line, collision many lines, no sprite overflow, no display/sprite overflow, offscreen Y/no overflow, sprite overflow, overflow kept in VBlank, overflow correct line e overflow many lines aparecem OK nos dois.
+- O Sega Emulator também apresenta OK em `Spr ovf correct HC`, enquanto Ares apresenta Error.
+
+#### Observações de tela sem veredito funcional conclusivo
+
+- **X-scroll latch:** a coluna vertical exibida como “Column should be straight” parece reta nos dois. A captura do Ares contém um pequeno traço horizontal isolado no campo; a captura do Sega Emulator não mostra esse traço. Sem sincronização temporal e sem o veredito textual do teste, registrar como diferença visual inconclusiva, não como reprovação.
+- **HCounter values:** as sequências numéricas visíveis não começam no mesmo valor (a captura do Sega Emulator inicia em torno de `2A`, enquanto a do Ares começa em torno de `32`). Como as capturas não foram sincronizadas no mesmo ponto de fase e a tela não mostra um veredito PASS/FAIL, registrar como discrepância de amostragem/temporização a investigar, não como reprovação confirmada.
+- A comparação de escala, enquadramento e área útil das janelas é diferente; isso não deve ser confundido com falha funcional do VDP.
+
+#### Prioridade de investigação derivada do teste
+
+1. Auditar a semântica de escrita de um byte no data port e os efeitos colaterais esperados sobre read address e write address, preservando o comportamento do buffer/latch.
+2. Auditar a geração de Line IRQ em função de VCount: comparação do contador, reload/enable, fronteira de linha e instante de publicação do status/IRQ pelo Scheduler.
+3. Separar os erros compartilhados do Ares dos defeitos exclusivos; não “corrigir” os casos compartilhados apenas para imitar Ares sem uma referência independente.
+4. Manter os resultados de sprites como cobertura parcialmente positiva: não há, nesta captura, uma reprovação exclusiva do Sega Emulator nos casos de colisão/overflow listados; os erros de Offscreen Y collision e collision correct HC também aparecem no Ares.
+5. Repetir os casos com mesma região, perfil, build e fase temporal, registrando snapshot/trace do VDP e do Scheduler antes de alterar código.
+
+**Limite da evidência:** são resultados observados em comparação visual com Ares, não medições de hardware físico. Ares é a referência operacional desta campanha, mas um erro compartilhado não prova que ambos estejam errados nem que o comportamento físico corresponda a um dos dois.
