@@ -237,9 +237,7 @@ mod windows_host {
                             keyboard_state.borrow().controller_buttons(),
                             next_players[0],
                         );
-                        if let Err(error) =
-                            worker.set_controller_at(1, combined, Instant::now())
-                        {
+                        if let Err(error) = worker.set_controller_at(1, combined, Instant::now()) {
                             eprintln!("R4_SDL3 player=1 action=controller_update error={error}");
                         }
                     }
@@ -2711,10 +2709,8 @@ mod windows_host {
                 state.clear();
                 previous
             };
-            let combined = merge_controller_buttons(
-                previous_buttons,
-                keyboard_focus_gamepad.borrow()[0],
-            );
+            let combined =
+                merge_controller_buttons(previous_buttons, keyboard_focus_gamepad.borrow()[0]);
             if let Some(worker) = keyboard_focus_worker.borrow().as_ref()
                 && let Err(error) = worker.set_controller_at(1, combined, Instant::now())
             {
