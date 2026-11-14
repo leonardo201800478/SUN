@@ -551,7 +551,7 @@ jobs:
   windows-sdl3-input:
     name: Windows SDL3 input validation
     needs: [changes]
-    if: github.event_name != 'workflow_dispatch' && (needs.changes.outputs.input == 'true' || needs.changes.outputs.slint_desktop == 'true') && needs.changes.outputs.full != 'true'
+    if: github.event_name != 'workflow_dispatch' && (needs.changes.outputs.input == 'true' || needs.changes.outputs.slint_desktop == 'true')
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -939,7 +939,7 @@ jobs:
           WORKFLOW_LINT: ${{ needs.workflow-lint.result }}
           EXPECT_WINDOWS_SLINT_WGPU: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true') }}
           WINDOWS_SLINT_WGPU: ${{ needs.windows-slint-wgpu.result }}
-          EXPECT_WINDOWS_SDL3_INPUT: ${{ github.event_name != 'workflow_dispatch' && (needs.changes.outputs.input == 'true' || needs.changes.outputs.slint_desktop == 'true') && needs.changes.outputs.full != 'true' }}
+          EXPECT_WINDOWS_SDL3_INPUT: ${{ github.event_name != 'workflow_dispatch' && (needs.changes.outputs.input == 'true' || needs.changes.outputs.slint_desktop == 'true') }}
           WINDOWS_SDL3_INPUT: ${{ needs.windows-sdl3-input.result }}
           EXPECT_WINDOWS_TOOLING: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.tooling == 'true' || needs.changes.outputs.slint_desktop == 'true')) }}
           WINDOWS_TOOLING: ${{ needs.windows-tooling.result }}
