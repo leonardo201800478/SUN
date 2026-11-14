@@ -33,7 +33,7 @@ Não avançar para plataforma posterior com bloqueadores estruturais anteriores.
 
 ## 3. Replataforma — R1 a R5
 
-### R1 — POC gráfica mínima (prioridade imediata)
+### R1 — POC gráfica mínima
 
 Comprovar no Windows x64: janela Slint; WGPU 30; Vulkan explicitamente selecionado/identificado; mesmo wgpu::Device e wgpu::Queue compartilhados com Slint; textura externa WGPU atualizada continuamente; composição na mesma janela; resize, lifecycle da surface e shutdown limpo; build Release reproduzível.
 
@@ -43,15 +43,15 @@ R1 é isolada. Não integrar SMS real, SmsTemporalWorker, menu de jogo, pausa do
 
 ### R2 — vídeo real
 
-Integrar frames SMS por contrato portátil, preservando SmsTemporalWorker, FrameMailbox e Scheduler. Validar formato, ownership, sincronização, lifecycle e apresentação sem alterar timing.
+Frames SMS integrados pelo contrato portátil, preservando `SmsTemporalWorker`, `FrameMailbox` e `MachineScheduler`. O aceite físico de janela, backend Vulkan efetivo, ROM/gameplay e apresentação sustentada continua separado da integração de software.
 
 ### R3 — áudio CPAL 0.18.2
 
-Enumerar dispositivos/formatos; criar, executar e encerrar streams; reproduzir PCM real; tratar erros, remoção/reconexão e underruns. Callback eficiente. Thread de áudio não controla Scheduler.
+CPAL 0.18.2 e o pipeline PCM estão integrados em software. Permanecem como gates físicos a abertura/reprodução em endpoint real, formatos negociados, estabilidade prolongada, hotplug, recuperação de endpoint e underruns. A thread de áudio não controla o Scheduler.
 
 ### R4 — input SDL3
 
-Auditar APIs; integrar teclado, gamepads, hotplug e mapeamentos; encaminhar eventos sem lógica de hardware no host.
+O teclado SMS básico é tratado pelos eventos nativos do Slint. Gamepads SDL3, hotplug e mapeamentos permanecem pendentes; eventos de input não carregam lógica de hardware.
 
 ### R5 — frontend
 
@@ -59,18 +59,16 @@ Consolidar native/sega_desktop, native/video_output_wgpu e native/audio_output; 
 
 ## 4. Estado operacional
 
-A fotografia completa de PRs, issues, workflows, riscos e próximos passos está em [Auditoria geral — 2026-11-12](project-status-2026-11-12.md).
+**Evidência Windows x64:** [relatório local de validação Release](testing/windows-x64-release-validation-2026-11-14.md) registra uma execução do usuário no snapshot `118b96bf411248173b6215b7bf16aebdf3a66bff`: desktop 26/26 testes, crate CPAL 21/21 testes, fmt/Clippy e build Release PASS. Essa evidência é histórica e limitada ao SHA declarado; não certifica automaticamente commits posteriores nem aceite físico.
 
-- Main auditada: `f5a0b691824322ce56c1a921329d3aa0957c4963`.
-- R1 POC Slint/WGPU/Vulkan: PR #747 MERGED; execução física inicial reportada, com evidências complementares de teardown/recriação ainda pendentes.
-- R2 frames SMS: PR #752 MERGED; preferências persistentes #754 MERGED; aceite manual permanece incompleto (#756).
-- R3 CPAL 0.18.2: PR #770 MERGED; H3 PCM 48 kHz PR #774 MERGED; validação física prolongada, hotplug e formatos adaptativos ainda pendentes.
-- H2 concluído como investigação experimental; nenhum DSP alternativo aprovado para produção.
-- A1 PSG SMS permanece parcial, com oráculos e validação física pendentes.
-- R4 SDL3 e R5 consolidação permanecem pendentes.
-- P0 #755 (frame pacing/Scheduler) deve ser diagnosticado antes de novas mudanças temporais ou hardening de áudio.
+**Auditoria VDP SMS1:** [auditoria do caminho ativo](audits/sms1-vdp-runtime-path-audit-2026-11-14.md) inspeciona estaticamente o mesmo snapshot `118b96bf...`. Confirma a cadeia de construção do `SmsVdp` SMS1 315-5124 no host desktop e documenta limitações de fetch/temporização de sprites; não identifica a causa de bugs específicos sem reprodução por jogo.
 
-Branches antigas devem ser reconciliadas por portabilidade seletiva para branches novas sobre a main atual. Não fazer merge cego de histórico divergente.
+- Frame pacing: issue #755 encerrada como resolvida em 2026-11-14; não reabrir sem evidência reproduzível de regressão.
+- R1/R2 e integração de software CPAL estão presentes na linha principal; os aceites físicos correspondentes continuam separados e devem ser executados no HEAD atual.
+- R4 gamepads SDL3 e R5 consolidação final permanecem pendentes.
+- Para evidência local ou auditoria estática, sempre preservar o SHA exato e não promover um snapshot histórico a validação da `main` atual.
+
+Branches antigas devem ser reconciliadas por portabilidade seletiva para branches novas sobre a `main` atual. Não fazer merge cego de histórico divergente.
 
 ## 5. Z80
 
