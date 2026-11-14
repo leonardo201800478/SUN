@@ -2231,6 +2231,14 @@ fn handle_command(
                 let _ = reply.send(Err(
                     "load_state is available only while the native worker is paused".to_owned(),
                 ));
+            } else if state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
+                || state.bus.vdp.profile() != machine.vdp().profile()
+                || state.bus.psg.clock_hz() != machine.psg().clock_hz()
+            {
+                let _ = reply.send(Err(
+                    "save state ROM identity or hardware profile does not match the active machine"
+                        .to_owned(),
+                ));
             } else {
                 match SmsTemporalMachine::restore_state(state) {
                     Ok(restored) => {
