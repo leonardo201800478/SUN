@@ -211,7 +211,7 @@ mod windows_host {
             let (mut next_players, mut pause_pressed, status_update) = match poll_result {
                 Some(Ok((players, pause_pressed, status_update))) => {
                     (players, pause_pressed, status_update)
-                },
+                }
                 Some(Err(error)) => {
                     eprintln!("R4_SDL3 event=poll_failed error={error}");
                     input_host = None;
@@ -224,8 +224,7 @@ mod windows_host {
                 None => ([ControllerButtons::default(); 2], false, None),
             };
 
-            let gameplay_enabled =
-                app.get_has_rom() && app.get_active_menu().as_str() == "none";
+            let gameplay_enabled = app.get_has_rom() && app.get_active_menu().as_str() == "none";
             if !gameplay_enabled {
                 next_players = [ControllerButtons::default(); 2];
             }
