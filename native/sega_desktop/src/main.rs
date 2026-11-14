@@ -16,7 +16,7 @@ mod windows_host {
             atomic::{AtomicBool, Ordering},
         },
         thread,
-        time::{Duration, Instant},
+        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
 
     use sega_media::{CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity};
@@ -239,6 +239,7 @@ mod windows_host {
             callback close-rom-requested();
             callback exit-requested();
             callback debug-snapshot-requested();
+            callback trace-export-requested();
             callback trace-toggle-requested(bool);
             callback sprite-limit-toggle-requested(bool);
             callback display-mode-toggle-requested(string);
@@ -533,6 +534,7 @@ mod windows_host {
                             Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
                             CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
                             CompactButton { text: root.trace-enabled ? "Desativar trace" : "Ativar trace"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                            CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
                             Text { font-size: 12px; text: root.debug-status; color: #b9c5ce; }
                             Text { font-size: 12px; text: "Debugger com registradores, breakpoints e memória será migrado em etapa própria; a GUI não executa instruções."; color: #9baab6; }
                         }
@@ -2823,6 +2825,54 @@ mod windows_host {
                         .unwrap_or_else(|error| format!("Falha no snapshot: {error}"))
                         .into(),
                 );
+            }
+        });
+        
+        let trace_export_app = app.as_weak();
+        let trace_export_worker = Rc::clone(&worker);
+        app.on_trace_export_requested(move || {
+            let result = (|| -> Result<PathBuf, String> {
+                let worker_guard = trace_export_worker.borrow();
+                let worker = worker_guard
+                    .as_ref()
+                    .ok_or_else(|| "SMS worker indisponível".to_owned())?;
+                let snapshot = worker.debug_snapshot()?;
+                if !snapshot.trace_enabled {
+                    return Err("Ative o trace antes de exportar".to_owned());
+                }
+                let root = std::env::var_os("LOCALAPPDATA")
+                    .map(PathBuf::from)
+                    .ok_or_else(|| "LOCALAPPDATA não está definido".to_owned())?;
+                let directory = root.join(APP_DATA_DIRECTORY).join("diagnostics");
+                fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+                let timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_err(|error| error.to_string())?
+                    .as_secs();
+                let path = directory.join(format!("sms-bus-trace-{timestamp}.txt"));
+                let mut report = format!(
+                    "SEGA EMULATOR — SMS BUS TRACE\\nformat_version=1\\nframe={}\\nmachine_time_ticks={}\\ntrace_enabled={}\\ntrace_events={}\\ntrace_dropped={}\\nPC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} IX={:04X} IY={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={}\\nVDP_STATUS={:02X} VDP_SCANLINE={} VDP_CYCLES_INTO_LINE={}\\nMAPPER_BANKS={:02X},{:02X},{:02X} MAPPER_CONTROL={:02X} MEMORY_CONTROL={:02X}\\n\\nEVENTS (oldest first)\\n",
+                    snapshot.frame_number, snapshot.machine_time_ticks, snapshot.trace_enabled,
+                    snapshot.trace_events.len(), snapshot.trace_dropped,
+                    snapshot.pc, snapshot.sp, snapshot.af, snapshot.bc, snapshot.de, snapshot.hl,
+                    snapshot.ix, snapshot.iy, snapshot.i, snapshot.r, snapshot.iff1, snapshot.iff2,
+                    snapshot.interrupt_mode, snapshot.halted, snapshot.vdp_status,
+                    snapshot.vdp_scanline, snapshot.vdp_cycles_into_line,
+                    snapshot.mapper_banks[0], snapshot.mapper_banks[1], snapshot.mapper_banks[2],
+                    snapshot.mapper_control, snapshot.memory_control
+                );
+                for (index, event) in snapshot.trace_events.iter().enumerate() {
+                    report.push_str(&format!("{index:04} {event:?}\\n"));
+                }
+                fs::write(&path, report).map_err(|error| error.to_string())?;
+                Ok(path)
+            })();
+            if let Some(app) = trace_export_app.upgrade() {
+                let status = result.map_or_else(
+                    |error| format!("Falha ao exportar trace: {error}"),
+                    |path| format!("Trace exportado: {}", path.display()),
+                );
+                app.set_debug_status(status.into());
             }
         });
 
