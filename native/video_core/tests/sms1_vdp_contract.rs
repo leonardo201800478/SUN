@@ -42,11 +42,11 @@ fn configure_sms1_background(vdp: &mut SmsVdp, r2: u8, r3: u8, r4: u8) {
 }
 
 #[test]
-fn control_port_requires_two_bytes_and_status_read_cancels_partial_word() {
+fn first_control_byte_updates_low_address_and_status_read_cancels_partial_word() {
     let mut vdp = new_sms1();
 
     vdp.write_port(0xBF, 0x12);
-    assert_eq!(vdp.address(), 0x0000);
+    assert_eq!(vdp.address(), 0x0012);
     assert_eq!(vdp.read_port(0xBF), 0x00);
 
     // These bytes now form a fresh VRAM-write command for address 0x1640.
@@ -54,6 +54,45 @@ fn control_port_requires_two_bytes_and_status_read_cancels_partial_word() {
     assert_eq!(vdp.address(), 0x1640);
     vdp.write_port(0xBE, 0xA5);
     assert_eq!(vdp.vram()[0x1640], 0xA5);
+}
+
+#[test]
+fn one_byte_control_write_updates_read_address_low_byte_without_replacing_read_buffer() {
+    let mut vdp = new_sms1();
+
+    write_vram(&mut vdp, 0x3E10, 0x5A);
+    write_vram(&mut vdp, 0x3E58, 0xA5);
+
+    // Prime the read-ahead buffer at 0x3E58; the address advances to 0x3E59.
+    select(&mut vdp, 0x3E58, 0);
+    assert_eq!(vdp.address(), 0x3E59);
+
+    // A single control byte replaces only A7..A0 and preserves A13..A8.
+    vdp.write_port(0xBF, 0x10);
+    assert_eq!(vdp.address(), 0x3E10);
+
+    // The already-prefetched byte remains observable; the next read comes
+    // from the newly selected address.
+    assert_eq!(vdp.read_port(0xBE), 0xA5);
+    assert_eq!(vdp.read_port(0xBE), 0x5A);
+    assert_eq!(vdp.address(), 0x3E12);
+}
+
+#[test]
+fn one_byte_control_write_updates_write_address_before_the_next_data_byte() {
+    let mut vdp = new_sms1();
+
+    select(&mut vdp, 0x3E72, 1);
+    assert_eq!(vdp.address(), 0x3E72);
+
+    // This byte changes the low address without requiring a second control
+    // byte; the next data-port write must target 0x3E10.
+    vdp.write_port(0xBF, 0x10);
+    assert_eq!(vdp.address(), 0x3E10);
+    vdp.write_port(0xBE, 0xC7);
+
+    assert_eq!(vdp.vram()[0x3E10], 0xC7);
+    assert_eq!(vdp.address(), 0x3E11);
 }
 
 #[test]
