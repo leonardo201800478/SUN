@@ -2827,7 +2827,7 @@ mod windows_host {
                 );
             }
         });
-        
+
         let trace_export_app = app.as_weak();
         let trace_export_worker = Rc::clone(&worker);
         app.on_trace_export_requested(move || {
