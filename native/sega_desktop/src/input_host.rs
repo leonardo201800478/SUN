@@ -364,10 +364,16 @@ mod tests {
         state
             .set_axis(16, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown)
             .unwrap();
-        state.set_hat(0, 0b0100).unwrap();
+        state
+            .set_axis(17, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown)
+            .unwrap();
+        // Hat DOWN and vertical-axis UP are simultaneous; profile bindings OR
+        // controls targeting the same semantic action without suppressing either.
+        state.set_hat(0, 0b0101).unwrap();
 
         let (buttons, pause) = profiles.evaluate(DeviceClass::Joystick, &reading(state));
         assert!(buttons.left);
+        assert!(buttons.up);
         assert!(buttons.down);
         assert!(buttons.button_1);
         assert!(buttons.button_2);
