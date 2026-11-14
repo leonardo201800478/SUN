@@ -151,3 +151,22 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         });
     }
 }
+
+#[test]
+fn every_supported_sms_region_selects_the_sms1_asic_profile() {
+    use sega_sms_runtime::sms_temporal_region_profile;
+    use sega_sms_core::SmsVdpRevision;
+
+    for region in ["usa", "brazil", "europe", "japan"] {
+        let (_, profile, clock_hz) = sms_temporal_region_profile(region)
+            .unwrap_or_else(|error| panic!("{region}: {error}"));
+        assert_eq!(
+            profile.revision,
+            SmsVdpRevision::Sega3155124,
+            "{region} must instantiate the SMS1 VDP ASIC"
+        );
+        assert!(clock_hz > 0, "{region} must define a valid machine clock");
+    }
+
+    assert!(sms_temporal_region_profile("unknown").is_err());
+}
