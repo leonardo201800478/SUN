@@ -112,7 +112,7 @@ mod windows {
 
     /// Resolve SDL3 from the executable directory, the workspace tree or an explicit override.
     /// Relative overrides are checked against the executable and current-directory ancestry.
-    fn resolve_sdl3_dll_path(
+    pub(super) fn resolve_sdl3_dll_path(
         configured: Option<&OsStr>,
         executable: &Path,
         current_dir: &Path,
@@ -120,7 +120,7 @@ mod windows {
         let requested = configured.unwrap_or_else(|| OsStr::new("SDL3.dll"));
         let mut candidates = Vec::new();
 
-        if requested.is_absolute() {
+        if Path::new(requested).is_absolute() {
             candidates.push(requested.to_path_buf());
         } else {
             let mut bases = Vec::new();
@@ -150,9 +150,9 @@ mod windows {
             .iter()
             .map(|path| format!("  - {}", path.display()))
             .collect::<Vec<_>>()
-            .join("\\n");
+            .join("\n");
         Err(format!(
-            "SDL3.dll não foi encontrado. Caminhos pesquisados:\\n{searched}\\n             Coloque SDL3.dll junto ao executável ou na raiz do workspace;              SEGA_EMULATOR_SDL3_DLL pode apontar para um caminho absoluto."
+            "SDL3.dll não foi encontrado. Caminhos pesquisados:\n{searched}\nColoque SDL3.dll junto ao executável ou na raiz do workspace; SEGA_EMULATOR_SDL3_DLL pode apontar para um caminho absoluto."
         ))
     }
 
