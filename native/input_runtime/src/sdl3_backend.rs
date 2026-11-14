@@ -5,8 +5,8 @@
 //! hats, plus SDL's standardized gamepad mapping where available.
 
 /// Reserved indices that separate raw joystick controls from SDL Gamepad API values.
-pub const SDL3_SDL3_RAW_BUTTON_OFFSET: usize = 32;
-pub const SDL3_SDL3_RAW_AXIS_OFFSET: usize = 16;
+pub const SDL3_RAW_BUTTON_OFFSET: usize = 32;
+pub const SDL3_RAW_AXIS_OFFSET: usize = 16;
 
 use crate::{BackendError, BackendKind, DeviceDescriptor, InputBackend, InputBuffers};
 
