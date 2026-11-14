@@ -10,7 +10,9 @@
 
 Este scorecard registra somente capacidades presentes na `main` e evidências executadas no SHA correspondente. PR aberta, branch de trabalho ou teste ainda em execução não contam como implementação integrada.
 
-Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/sms1-vdp-temporal-evidence-matrix-2026-11-14.md).\n\nEscopo funcional atualizado: [SMS1 software compatibility scope](audits/sms1-vdp-software-scope-2026-11-14.md).
+Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/sms1-vdp-temporal-evidence-matrix-2026-11-14.md).
+
+Escopo funcional atualizado: [SMS1 software compatibility scope](audits/sms1-vdp-software-scope-2026-11-14.md).
 
 ## 1. Critérios funcionais
 
@@ -37,7 +39,9 @@ Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/s
 | VBlank / IRQ | IMPLEMENTED_TSTATE_QUANTIZED | VINT pendente em HPos 20/T13; VBlank flag em HPos 24/T16. Chunking e snapshot/restore validados; MAME usa VINT_HPOS24, diferença física não resolvida |
 | Scheduler / determinismo | IMPLEMENTED_INTEGRATED | VDP e entradas TH externas avançam pelo Scheduler; eventos TH têm timestamp absoluto, ordem de empate explícita, snapshot/restore e trace |
 | Save State | RUNTIME_IN_MEMORY_SNAPSHOT_RESTORE | `SmsTemporalWorker::save_state/load_state` captura e restaura CPU, Scheduler, bus, mapper, VDP, PSG e eventos pendentes com validação de versões. Persistência binária em arquivo/slots ainda pendente; não confundir com SRAM `.srm` |
-| Overscan / borda esquerda | RUNTIME_PRESENTATION_CROP | `SmsOverscanMode::CropLeft8` publica imagem 248×192 removendo apenas os oito pixels da esquerda; framebuffer canônico 256×192 e temporização permanecem intactos. Não é uma simulação de overscan elétrico |\n| Limite de sprites | IMPLEMENTED_UI_AND_RUNTIME | `HardwareLimit` e `UnlockedCompatibility` já estão ligados ao worker e à preferência persistida da UI; o modo desbloqueado altera composição, não o clock nem o estado de overflow do hardware |\n| SMS2 / outros perfis | REGRESSION_GATED | Renderer e perfis não SMS1 preservados pelos testes direcionados; não generalizar spans SMS1 |
+| Overscan / borda esquerda | RUNTIME_PRESENTATION_CROP | `SmsOverscanMode::CropLeft8` publica imagem 248×192 removendo apenas os oito pixels da esquerda; framebuffer canônico 256×192 e temporização permanecem intactos. Não é uma simulação de overscan elétrico |
+| Limite de sprites | IMPLEMENTED_UI_AND_RUNTIME | `HardwareLimit` e `UnlockedCompatibility` já estão ligados ao worker e à preferência persistida da UI; o modo desbloqueado altera composição, não o clock nem o estado de overflow do hardware |
+| SMS2 / outros perfis | REGRESSION_GATED | Renderer e perfis não SMS1 preservados pelos testes direcionados; não generalizar spans SMS1 |
 
 ## 2. Política de granularidade
 
@@ -59,7 +63,8 @@ Matriz independente de evidências: [SMS1 VDP temporal evidence matrix](audits/s
 7. Expandir a demonstração de equivalência contínua/em blocos/save-load para todos os eventos subline. VINT já possui equivalência contínuo/blocos com snapshot em T12; TH software possui invariância 3+5 T-states.
 8. Executar regressões SMS1/SMS2 e build Windows x64 Release no candidato final.
 9. Integrar a mira de software ao host: coordenadas do mouse, analógico e giroscópio devem ser transformadas para coordenadas lógicas do frame após aspect ratio/crop; desenhar mira branca somente na composição de apresentação, sem gravá-la no framebuffer do VDP.
-10. Registrar os comportamentos ainda aproximados antes da primeira campanha in-game. Medições físicas e pistola Light Phaser não são gates deste escopo.
+10. Implementar serialização persistente dos snapshots versionados em arquivos/slots, com identidade da ROM, checksum, gravação atômica e rejeição de versões incompatíveis. A API de snapshot/restore em memória já está disponível.
+11. Registrar os comportamentos ainda aproximados antes da primeira campanha in-game. Medições físicas e pistola Light Phaser não são gates deste escopo.
 
 ## 4. Evidências integradas
 
