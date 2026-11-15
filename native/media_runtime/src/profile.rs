@@ -13,6 +13,95 @@ pub enum CartridgeMapper {
     Unknown,
 }
 
+/// Minimum SMS VDP capability required by a cartridge, independent of region and mapper.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmsVdpRequirement {
+    /// No independently supported minimum-VDP declaration is available.
+    #[default]
+    Unknown,
+    /// The cartridge is documented to work with the SMS1 315-5124 VDP and later.
+    Sms1Compatible,
+    /// The cartridge requires the SMS2 315-5246 extra-height capabilities.
+    Sms2Required,
+}
+
+/// Explicitly selected SMS hardware model. It is never inferred from region.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmsHardwareModel {
+    Sms1,
+    Sms2,
+}
+
+impl SmsHardwareModel {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sms1 => "sms1",
+            Self::Sms2 => "sms2",
+        }
+    }
+}
+
+/// Result of comparing a cartridge requirement with the selected SMS hardware.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmsCompatibilityStatus {
+    Compatible,
+    Incompatible,
+    Unknown,
+}
+
+impl SmsCompatibilityStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Compatible => "compatible",
+            Self::Incompatible => "incompatible",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+impl SmsVdpRequirement {
+    /// Evaluate compatibility without inferring hardware from ROM region or filename.
+    pub const fn evaluate(self, selected: SmsHardwareModel) -> SmsCompatibilityStatus {
+        match self {
+            Self::Unknown => SmsCompatibilityStatus::Unknown,
+            Self::Sms1Compatible => SmsCompatibilityStatus::Compatible,
+            Self::Sms2Required => match selected {
+                SmsHardwareModel::Sms1 => SmsCompatibilityStatus::Incompatible,
+                SmsHardwareModel::Sms2 => SmsCompatibilityStatus::Compatible,
+            },
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Sms1Compatible => "sms1_compatible",
+            Self::Sms2Required => "sms2_required",
+        }
+    }
+}
+
+/// Run cartridge preparation only after the selected hardware passes the metadata gate.
+///
+/// Callers must invoke this before taking or replacing the currently active worker.
+pub fn preflight_sms_cartridge<T>(
+    requirement: SmsVdpRequirement,
+    selected: SmsHardwareModel,
+    prepare: impl FnOnce() -> Result<T, String>,
+) -> Result<(T, SmsCompatibilityStatus), String> {
+    let status = requirement.evaluate(selected);
+    if status == SmsCompatibilityStatus::Incompatible {
+        return Err(format!(
+            "ROM exige SMS2 (VDP 315-5246), mas o hardware selecionado é SMS1 (VDP 315-5124)"
+        ));
+    }
+
+    prepare().map(|prepared| (prepared, status))
+}
+
 /// Physical RAM technology and persistence semantics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CartridgeRamKind {
@@ -99,5 +188,92 @@ impl CartridgeHardwareProfile {
     /// Return the declared RAM capacity, without inferring it from ROM or save size.
     pub fn ram_capacity_bytes(&self) -> Option<usize> {
         self.ram.as_ref().map(|ram| ram.capacity_bytes)
+    }
+}
+
+#[cfg(test)]
+mod sms_compatibility_tests {
+    use super::{
+        SmsCompatibilityStatus, SmsHardwareModel, SmsVdpRequirement, preflight_sms_cartridge,
+    };
+
+    #[test]
+    fn sms1_compatible_requirement_accepts_both_selected_models() {
+        assert_eq!(
+            SmsVdpRequirement::Sms1Compatible.evaluate(SmsHardwareModel::Sms1),
+            SmsCompatibilityStatus::Compatible
+        );
+        assert_eq!(
+            SmsVdpRequirement::Sms1Compatible.evaluate(SmsHardwareModel::Sms2),
+            SmsCompatibilityStatus::Compatible
+        );
+    }
+
+    #[test]
+    fn sms2_required_rejects_sms1_and_accepts_sms2() {
+        assert_eq!(
+            SmsVdpRequirement::Sms2Required.evaluate(SmsHardwareModel::Sms1),
+            SmsCompatibilityStatus::Incompatible
+        );
+        assert_eq!(
+            SmsVdpRequirement::Sms2Required.evaluate(SmsHardwareModel::Sms2),
+            SmsCompatibilityStatus::Compatible
+        );
+    }
+
+    #[test]
+    fn unknown_requirement_remains_unknown_for_both_models() {
+        assert_eq!(
+            SmsVdpRequirement::Unknown.evaluate(SmsHardwareModel::Sms1),
+            SmsCompatibilityStatus::Unknown
+        );
+        assert_eq!(
+            SmsVdpRequirement::Unknown.evaluate(SmsHardwareModel::Sms2),
+            SmsCompatibilityStatus::Unknown
+        );
+    }
+
+    #[test]
+    fn incompatible_preflight_does_not_build_or_replace_the_active_session() {
+        let mut active_session = Some("current ROM");
+        let mut preparation_called = false;
+
+        let result = preflight_sms_cartridge(
+            SmsVdpRequirement::Sms2Required,
+            SmsHardwareModel::Sms1,
+            || {
+                preparation_called = true;
+                Ok("next ROM")
+            },
+        );
+
+        if let Ok((next, _)) = result {
+            active_session = Some(next);
+        }
+
+        assert!(result_is_incompatible());
+        assert!(!preparation_called);
+        assert_eq!(active_session, Some("current ROM"));
+    }
+
+    #[test]
+    fn unknown_preflight_allows_load_without_changing_selected_hardware() {
+        let selected = SmsHardwareModel::Sms1;
+        let (prepared, status) =
+            preflight_sms_cartridge(SmsVdpRequirement::Unknown, selected, || Ok("ROM"))
+                .unwrap();
+
+        assert_eq!(prepared, "ROM");
+        assert_eq!(status, SmsCompatibilityStatus::Unknown);
+        assert_eq!(selected, SmsHardwareModel::Sms1);
+    }
+
+    fn result_is_incompatible() -> bool {
+        preflight_sms_cartridge(
+            SmsVdpRequirement::Sms2Required,
+            SmsHardwareModel::Sms1,
+            || Ok(()),
+        )
+        .is_err()
     }
 }
