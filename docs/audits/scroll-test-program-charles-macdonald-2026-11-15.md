@@ -200,3 +200,50 @@ At head `a0d895fbe181afc94278356d5fa881bba295c27d`:
 - These are code/quality checks, not a run of the Scroll Test Program and not a frame-differential result.
 
 **Status remains:** `STATIC_ROM_ANALYSIS_COMPLETE / DIFFERENTIAL_RUNTIME_REPRODUCTION_PENDING`.
+
+## 9. Additional visual symptom report from the project owner — 2026-11-15
+
+The project owner clarified the observed comparison against Ares. This is a user-reported observation, not yet an independently captured or frame-synchronized reproduction.
+
+### 9.1 Reported Ares behavior
+
+The test image contains three visually distinct raster scroll regions, including background content and visually overlapping/overlaid blocks:
+- The upper region follows the expected Ares movement.
+- Two large overlaid blocks move horizontally from right to left and remain visually distinct instead of collapsing into the surrounding background.
+- The lower region scrolls vertically in a regular straight downward direction.
+
+### 9.2 Reported Sega Emulator behavior
+
+- The two large overlaid blocks barely form. Their pixels appear to merge/collide with the background instead of preserving the expected visible separation/overlap.
+- The lower region moves in the opposite vertical direction (bottom-to-top) and along a diagonal biased to the left.
+- That lower-region trajectory resembles the trajectory of the upper region, even though the upper region itself follows Ares correctly.
+
+### 9.3 Diagnostic implications
+
+This symptom set is broader than the fine-scroll leading-pixel defect fixed by the current PR:
+1. The missing/merged blocks require checking background tile fetch/address selection, tile attributes, palette index/transparency handling, and raster-span composition. Do not assume these are hardware sprites; the ROM's SAT initialization analysis indicates the principal moving content is Mode 4 background data.
+2. The lower region's reversed vertical direction requires checking the effective Y coordinate and R9 value/sign/wrap for each raster region, including whether the correct R9 write is visible at the intended scanline boundary.
+3. The lower region sharing the upper region's leftward diagonal trajectory suggests a possible stale or incorrectly shared scroll state between raster regions. Verify independent R8/R9 state at each boundary rather than assuming a single frame-wide scroll value is sufficient.
+4. Because the upper region reportedly tracks Ares, a global inversion of scroll direction or a universal R8 formula defect is not currently the leading explanation. The first divergence is likely region-/boundary-specific, but this remains a hypothesis pending trace and captures.
+
+### 9.4 Important Mode 4 terminology
+
+The analysis must distinguish visually overlaid background sections from actual independent hardware planes or sprites. SMS Mode 4 does not provide multiple independently scrolling background planes like later 16-bit systems. The test's visual regions are produced through raster register changes and background/name-table content. The SAT finding must be retained unless runtime evidence contradicts it.
+
+### 9.5 Updated investigation priority
+
+Before changing the renderer, instrument and compare the three region transitions:
+- last scanline of upper region;
+- first and subsequent scanlines of the middle/overlaid region;
+- first scanline and steady-state of the lower region.
+
+For each transition, capture the CPU's R8/R9 write completion, VCounter read, VDP beam position, effective latched scroll values, name-table row/column, tile pattern row, tile attributes, palette index and final RGB output.
+
+The first divergence must be classified as:
+- incorrect CPU/port write timing;
+- incorrect register latch/state propagation;
+- incorrect background fetch/address calculation;
+- incorrect tile/palette composition;
+- or frame presentation.
+
+No root cause is established by this symptom report alone. No temporal or composition correction is authorized without synchronized evidence.
