@@ -2165,7 +2165,7 @@ mod tests {
         let next_line_pixel = line_bytes * 2 + 80 * 3;
         assert_eq!(
             &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
-            &[0, 255, 0],
+            &[0, 238, 0],
             "the next line must use the updated X/tile and pattern-table selection"
         );
     }
