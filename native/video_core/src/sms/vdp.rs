@@ -2283,29 +2283,22 @@ mod tests {
             SpriteLimitMode::HardwareLimit,
         ));
         v.registers[0] = 0x04;
-        v.registers[1] = 0x41; // Mode 4, sprite magnification enabled.
+        v.registers[1] = 0x41; // Mode 4, display and sprite magnification enabled.
         v.registers[2] = 0x0E;
         v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        solid_sprite_tile(&mut v, 1, 1);
         for index in 0..8 {
             set_sprite(&mut v, index, 0xFF, (index * 28) as u8, 1);
         }
         v.vram[0x3F08] = 0xD0;
 
-        let evaluation = evaluate_mode4_sprites(
-            &v.vram,
-            &v.registers,
-            0,
-            SmsVdpRevision::Sega3155246,
-            192,
-            8,
-        );
-        assert_eq!(evaluation.selected.len(), 8);
-        assert!(
-            evaluation
-                .selected
-                .iter()
-                .all(|sprite| sprite.width_scale == 2),
-            "the 315-5246 magnifies all eight selected sprites horizontally"
+        v.advance(LINE_TSTATES);
+        let eighth_sprite_right_edge = 210 * 3;
+        assert_eq!(
+            &v.working_framebuffer[eighth_sprite_right_edge..eighth_sprite_right_edge + 3],
+            &[255, 0, 0],
+            "the 315-5246 magnifies the eighth selected sprite horizontally"
         );
     }
 
