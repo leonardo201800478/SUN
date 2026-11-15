@@ -1,6 +1,6 @@
 # SMS Firmware Manager — arquitetura de UI, preferências e resolução regional
 **Data:** 2026-11-15
-**Base:** `feat/sms-built-in-firmware-catalog-20261115` (PR #905)
+**Base:** `main` após integração da PR #905 (`db1df24b814dd6dd880cdfed001d8ba91f798cb5`)
 **Status:** implementação incremental; boot sem cartucho permanece bloqueado até o dispositivo interno entrar no runtime temporal.
 ## 1. Objetivo
 Disponibilizar, no contexto dos sistemas Master System I e Master System II, uma tela própria de gerenciamento de firmware. O host Slint configura e apresenta os recursos; o catálogo Rust identifica arquivos; o runtime executa o dispositivo efetivamente selecionado.
