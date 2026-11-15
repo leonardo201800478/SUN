@@ -192,10 +192,10 @@ mod windows_host {
     impl Drop for Sdl3PollingThread {
         fn drop(&mut self) {
             self.stop.store(true, Ordering::Release);
-            if let Some(join) = self.join.take() {
-                if join.join().is_err() {
-                    eprintln!("R4_SDL3 event=poll_thread_panicked");
-                }
+            if let Some(join) = self.join.take()
+                && join.join().is_err()
+            {
+                eprintln!("R4_SDL3 event=poll_thread_panicked");
             }
         }
     }
