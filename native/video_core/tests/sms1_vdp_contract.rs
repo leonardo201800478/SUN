@@ -42,12 +42,16 @@ fn configure_sms1_background(vdp: &mut SmsVdp, r2: u8, r3: u8, r4: u8) {
 }
 
 #[test]
-fn control_port_requires_two_bytes_and_status_read_cancels_partial_word() {
+fn first_control_byte_updates_low_address_and_status_read_cancels_partial_command() {
     let mut vdp = new_sms1();
 
     vdp.write_port(0xBF, 0x12);
-    assert_eq!(vdp.address(), 0x0000);
+    // The low address byte is already visible; read mode reloads the buffer
+    // and advances the address. The status read cancels only the pending
+    // second command byte, not the address update.
+    assert_eq!(vdp.address(), 0x0013);
     assert_eq!(vdp.read_port(0xBF), 0x00);
+    assert_eq!(vdp.address(), 0x0013);
 
     // These bytes now form a fresh VRAM-write command for address 0x1640.
     select(&mut vdp, 0x1640, 1);
