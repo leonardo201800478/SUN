@@ -187,9 +187,7 @@ fn run_until_result_with_trace(
                 address,
                 data,
                 ..
-            } if address & 0x00FF == 0x7F => {
-                Some((timestamp.ticks(), "IN", address, data))
-            }
+            } if address & 0x00FF == 0x7F => Some((timestamp.ticks(), "IN", address, data)),
             _ => None,
         })
         .collect();
@@ -203,14 +201,10 @@ fn run_until_result_with_trace(
 
 #[test]
 fn diagnostic_dump_hcounter_bus_trace() {
-    let (_, frame_sample, frame_events) = run_until_result_with_trace(
-        build_irq_rom(FRAME_IRQ_MAIN, FRAME_IRQ_PROGRAM),
-        8,
-    );
-    let (_, line_sample, line_events) = run_until_result_with_trace(
-        build_irq_rom(LINE_IRQ_MAIN, LINE_IRQ_PROGRAM),
-        10,
-    );
+    let (_, frame_sample, frame_events) =
+        run_until_result_with_trace(build_irq_rom(FRAME_IRQ_MAIN, FRAME_IRQ_PROGRAM), 8);
+    let (_, line_sample, line_events) =
+        run_until_result_with_trace(build_irq_rom(LINE_IRQ_MAIN, LINE_IRQ_PROGRAM), 10);
     panic!(
         "frame_sample={frame_sample:#04X} frame_events={:?}; line_sample={line_sample:#04X} line_events={:?}",
         &frame_events[frame_events.len().saturating_sub(24)..],
