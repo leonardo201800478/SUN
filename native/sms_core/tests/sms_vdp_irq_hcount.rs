@@ -91,7 +91,13 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
             build_irq_rom(&line_irq_main_with_delay(delay_nops), LINE_IRQ_PROGRAM),
             16,
         );
-        observed.push((delay_nops, frame_result, frame_sample, line_result, line_sample));
+        observed.push((
+            delay_nops,
+            frame_result,
+            frame_sample,
+            line_result,
+            line_sample,
+        ));
         assert!(
             matches!(frame_result, 0xAA | 0xFF),
             "Frame IRQ diagnostic returned an invalid marker ${frame_result:02X} at delay {delay_nops}"
@@ -102,11 +108,15 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
         );
     }
     assert!(
-        observed.iter().any(|(_, result, sample, _, _)| *result == 0xAA && *sample == 0x84),
+        observed
+            .iter()
+            .any(|(_, result, sample, _, _)| *result == 0xAA && *sample == 0x84),
         "no reset phase produced the RunTest32 reference sample $84; observed={observed:?}"
     );
     assert!(
-        observed.iter().any(|(_, _, _, result, sample)| *result == 0xAA && *sample == 0x8A),
+        observed
+            .iter()
+            .any(|(_, _, _, result, sample)| *result == 0xAA && *sample == 0x8A),
         "no reset phase produced the RunTest34 reference sample $8A; observed={observed:?}"
     );
 }
