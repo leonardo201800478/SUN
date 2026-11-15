@@ -7,7 +7,8 @@
 
 use std::{env, fs};
 
-use sega_sms_core::{SmsTemporalMachine, SmsVdpProfile, Territory};
+use sega_sms_core::{SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile, Territory};
+use sega_z80_cpu::Z80BusOperation;
 
 const PSG_CLOCK_HZ: u64 = 3_579_545;
 const SAMPLE_RATE_HZ: u64 = 44_100;
@@ -30,11 +31,53 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     )
     .expect("the full SmsVdpTest ROM should initialize on the SMS1 temporal machine");
 
+    machine.set_trace_enabled(true);
     let mut completed_at_frame = None;
+    let mut vcounter_reads = Vec::new();
+    let mut hcounter_reads = Vec::new();
+    let mut th_writes = Vec::new();
+
     for frame in 0..600 {
         machine
             .step_frame(100_000)
             .unwrap_or_else(|error| panic!("SmsVdpTest failed while advancing frame {frame}: {error}"));
+        for event in machine.take_trace() {
+            match event {
+                SmsTemporalTraceEvent::BusCompleted {
+                    timestamp,
+                    operation: Z80BusOperation::PortRead,
+                    address,
+                    data,
+                    ..
+                } if address & 0x00FF == 0x7E => {
+                    vcounter_reads.push((timestamp.ticks(), data.unwrap_or(0)));
+                }
+                SmsTemporalTraceEvent::BusCompleted {
+                    timestamp,
+                    operation: Z80BusOperation::PortRead,
+                    address,
+                    data,
+                    ..
+                } if address & 0x00FF == 0x7F => {
+                    hcounter_reads.push((timestamp.ticks(), data.unwrap_or(0)));
+                    if hcounter_reads.len() > 80 {
+                        hcounter_reads.remove(0);
+                    }
+                }
+                SmsTemporalTraceEvent::BusCompleted {
+                    timestamp,
+                    operation: Z80BusOperation::PortWrite { value },
+                    address,
+                    ..
+                } if address & 0x00FF == 0x3F && matches!(value, 0x55 | 0xFF) => {
+                    th_writes.push((timestamp.ticks(), value));
+                    if th_writes.len() > 80 {
+                        th_writes.remove(0);
+                    }
+                }
+                _ => {}
+            }
+        }
         if machine.inspect_memory(COMPLETION_MARKER) == 0xAA {
             completed_at_frame = Some(frame + 1);
             break;
@@ -49,16 +92,18 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
         (34, 0xC921),
     ]
     .map(|(test, address)| (test, machine.inspect_memory(address)));
+    let all_results = (21u16..=34)
+        .map(|test| (test, machine.inspect_memory(0xC900 + test - 1)))
+        .collect::<Vec<_>>();
 
     assert!(
         completed_at_frame.is_some(),
-        "SmsVdpTest did not reach the post-RunTest34 marker within 600 frames; results={results:?}"
+        "SmsVdpTest did not reach the post-RunTest34 marker within 600 frames; results={results:?}; all={all_results:?}"
     );
 
-    for (test, result) in results {
-        assert_eq!(
-            result, 0,
-            "upstream SmsVdpTest v1.31 RunTest{test} failed (result byte at its RAM slot)"
-        );
-    }
+    assert_eq!(
+        results,
+        [(25, 0), (31, 0), (32, 0), (33, 0), (34, 0)],
+        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; VCounter reads={vcounter_reads:?}; recent HCounter reads={hcounter_reads:?}; recent TH writes={th_writes:?}"
+    );
 }
