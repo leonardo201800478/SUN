@@ -32,8 +32,8 @@ const SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE: u64 = 1;
 const DEFAULT_MAX_FRAME_INSTRUCTIONS: usize = 100_000;
 // Retain a materially useful diagnostic window without turning the trace into
 // an unbounded instruction/T-state log. The collector remains opt-in.
-const DEBUG_TRACE_CAPACITY: usize = 65_536;
-const DEBUG_TRACE_QUEUE_CAPACITY: usize = 16_384;
+const DEBUG_TRACE_CAPACITY: usize = 16_384;
+const DEBUG_TRACE_QUEUE_CAPACITY: usize = 4_096;
 const WORKER_COMMAND_QUEUE_CAPACITY: usize = 64;
 // Running workers accept control commands at complete-frame boundaries; debug builds may need
 // substantially longer than one wall-clock frame to reach that safe point.
