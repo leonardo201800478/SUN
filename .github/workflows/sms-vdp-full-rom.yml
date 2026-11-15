@@ -70,7 +70,7 @@ jobs:
           & (Join-Path $env:WLA_DX_BIN "wla-z80.exe") -o object.o testmain.asm
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "[objects]`nobject.o" | Set-Content -Path linkfile -Encoding ascii
-          & (Join-Path $env:WLA_DX_BIN "wlalink.exe") -drvs linkfile output.sms
+          & (Join-Path $env:WLA_DX_BIN "wlalink.exe") -d -r -v -s linkfile output.sms
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path "output.sms")) { throw "WLA-DX did not produce output.sms" }
           Add-Content -Path $env:GITHUB_ENV -Value "SMSVDPTEST_ROM_PATH=$(Join-Path $env:SMSVDPTEST_SOURCE 'output.sms')"
