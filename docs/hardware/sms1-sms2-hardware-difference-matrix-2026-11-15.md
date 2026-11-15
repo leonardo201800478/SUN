@@ -21,7 +21,7 @@ Não há evidência suficiente para afirmar uma substituição geral de CPU, RAM
 | VDP — modos | Mode 4 até 192 linhas; modos legados TMS9918 | Mode 4 com 192, 224 e 240 linhas; modos legados | Diferença confirmada | Perfil 315-5246 habilita alturas estendidas; SMS1 deve permanecer em 192 |
 | VDP — endereçamento de tabelas | Bits de máscara legados em R2/R5/R6 podem forçar linhas do endereço VRAM a zero | Esses bits não mascaram os endereços | Diferença confirmada | Manter funções de geração de endereço condicionadas ao ASIC |
 | VDP — sprites/zoom | Em zoom 2×, os últimos quatro sprites encontrados na linha não recebem zoom horizontal; zoom vertical continua | Os oito sprites podem receber zoom horizontal e vertical | Diferença confirmada | Avaliação/composição de sprites precisa considerar revisão; não duplicar SAT sem evidência |
-| VDP — paleta/DAC | Modelo de níveis R/G: 0,78,160,238; B: 0,98,160,238 | Modelo de níveis RGB: 0,89,174,255 | Diferença de saída documentada/medida; valores de 8 bits são modelo de referência, encoder analógico varia por placa | Conversão CRAM→RGB precisa ser perfilada pelo ASIC e separada do encoder de vídeo |
+| VDP — paleta/DAC | Modelo de níveis R/G: 0,78,160,238; B: 0,98,160,238 | Modelo secundário MAME: RGB 0,89,174,255; valores exatos ainda precisam de medição independente | SMS Power confirma o azul inicial elevado no SMS1; MAME codifica níveis SMS2 distintos, mas não é oráculo normativo e a página primária consultada não fornece a tabela SMS2 completa | O runtime já aplica perfil SMS1 específico; SMS2 ainda usa escala linear [0,85,170,255], divergindo do modelo MAME. Manter como discrepância aberta até captura/medição independente; não alterar pixels por tentativa |
 | VDP — SAT e limite por linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Compartilhado na documentação SMS Power; MAME usa base comum | PR #894 integrada: buffer SAT Mode 4 de próxima linha compartilhado, com zoom horizontal específico por ASIC; fase elétrica ainda exige validação |
 | VDP — HBlank/raster writes | Commit parcial no modelo atual em T213 | Fase SMS2 ainda não caracterizada; commit parcial não habilitado | SMS1 possui testes; não foi demonstrada equivalência subciclo para SMS2 | Manter caminho conservador SMS2 até teste independente |
 
@@ -79,6 +79,12 @@ O código em `native/video_core/src/sms/vdp.rs` já possui condicionais por `Sms
 A PR #894 foi integrada: o buffer SAT de próxima linha de Mode 4 é compartilhado entre 315-5124 e 315-5246, com política de zoom específica por ASIC e testes de metadados, oito entradas, overflow, prioridade e colisão. O buffer legacy/TMS continua restrito ao caminho SMS1 enquanto o comportamento SMS2 não for caracterizado. O HBlank parcial e raster writes continuam SMS1-only; não declarar esse comportamento fechado para SMS2.
 
 A existência dessas condicionais e testes sintéticos não comprova temporização elétrica completa. A validação com SmsVdpTest em 315-5246 e captura de hardware continua pendente.
+
+## 3.4 Lacuna de evidência — paleta SMS2
+
+A revisão do código em `native/video_core/src/sms/vdp.rs` identificou que `palette_rgb_for_revision` usa níveis lineares `[0,85,170,255]` para o 315-5246. O MAME mantém um perfil separado `[0,89,174,255]` para o 315-5246, enquanto o SMS Power documenta explicitamente o realce do primeiro nível azul no 315-5124, mas não expõe na página consultada uma tabela numérica completa para o SMS2. As fontes MAME/debian refletem a mesma implementação e não constituem duas medições independentes.
+
+**Decisão:** registrar a discrepância; não mudar a saída RGB SMS2 até obter captura de hardware, medição independente ou uma segunda fonte primária. A validação deve cobrir os 64 valores CRAM e comparar a saída digital antes do encoder analógico.
 
 ## 4. Lacunas que bloqueiam declarar SMS2 completo
 
