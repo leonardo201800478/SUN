@@ -35,10 +35,7 @@ pub struct CartridgeCompatibilityMetadata {
 }
 
 impl CartridgeCompatibilityMetadata {
-    pub fn new(
-        sms_vdp_requirement: SmsVdpRequirement,
-        evidence: Vec<String>,
-    ) -> Self {
+    pub fn new(sms_vdp_requirement: SmsVdpRequirement, evidence: Vec<String>) -> Self {
         Self {
             sms_vdp_requirement,
             evidence,
@@ -301,8 +298,7 @@ mod sms_compatibility_tests {
     fn unknown_preflight_allows_load_without_changing_selected_hardware() {
         let selected = SmsHardwareModel::Sms1;
         let (prepared, status) =
-            preflight_sms_cartridge(SmsVdpRequirement::Unknown, selected, || Ok("ROM"))
-                .unwrap();
+            preflight_sms_cartridge(SmsVdpRequirement::Unknown, selected, || Ok("ROM")).unwrap();
 
         assert_eq!(prepared, "ROM");
         assert_eq!(status, SmsCompatibilityStatus::Unknown);
