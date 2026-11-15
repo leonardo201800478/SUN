@@ -27,7 +27,7 @@ mod windows_host {
     use sega_save_runtime::SaveRamStore;
     use sega_sms_core::ControllerButtons;
     use sega_sms_runtime::{
-        AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SpriteLimitMode,
+        AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SmsVdpRevision, SpriteLimitMode,
     };
     use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
     use std::os::windows::process::CommandExt;
@@ -415,6 +415,8 @@ mod windows_host {
             in-out property <string> rom-status;
             in-out property <string> active-menu: "none";
             in-out property <string> selected-region: "usa";
+            in-out property <string> selected-system: "sms1";
+            in-out property <string> active-system: "sms1";
             in-out property <string> selected-aspect: "4:3";
             in-out property <string> recent-rom-path: "";
             in-out property <[string]> recent-roms: [];
@@ -587,10 +589,15 @@ mod windows_host {
                     height: root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
-                            Text { font-size: 12px; text: "Sistema ativo: Sega Master System I"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: "Perfil VDP ativo: Sega 315-5124 (SMS1)"; color: #8bd5ca; }
-                            Text { font-size: 11px; text: "Revisão do ASIC e padrão regional são perfis independentes."; color: #b9c5ce; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "SMS II (315-5246): perfil distinto, ainda não habilitado no runtime desktop."; color: #d6b879; wrap: word-wrap; }
+                            Text { font-size: 12px; text: "Modelo de hardware para a próxima ROM"; color: #f2f5f7; }
+                            Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II — VDP 315-5246" : "Em execução: Master System — VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II — VDP 315-5246" : "Selecionado: Master System — VDP 315-5124"); color: #8bd5ca; }
+                            FlexboxLayout {
+                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
+                                CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); } }
+                                CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); } }
+                            }
+                            Text { font-size: 11px; text: root.has-rom ? (root.selected-system == "sms2" ? "Próxima ROM: SMS2 / 315-5246. A ROM atual mantém o hardware já construído." : "Próxima ROM: SMS1 / 315-5124. A ROM atual mantém o hardware já construído.") : "O hardware selecionado será construído ao carregar a ROM."; color: #b9c5ce; wrap: word-wrap; }
+                            Text { font-size: 11px; text: "Região e frequência são configurações independentes do ASIC selecionado."; color: #b9c5ce; wrap: word-wrap; }
                             Text { font-size: 12px; text: "Região / padrão de vídeo"; color: #b9c5ce; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
@@ -599,18 +606,16 @@ mod windows_host {
                                 CompactButton { text: root.selected-region == "europe" ? "✓ Europa / PAL" : "Europa / PAL"; clicked => { root.selected-region = "europe"; root.preferences-changed(); } }
                                 CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
                             }
-                            Text { font-size: 12px; text: "A região selecionada será aplicada ao carregar a próxima ROM."; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Outros perfis de sistema"; color: #b9c5ce; }
+                            Text { font-size: 11px; text: "A região e o padrão de vídeo selecionados serão aplicados ao carregar a próxima ROM; a sessão atual mantém o clock já construído."; color: #b9c5ce; wrap: word-wrap; }
+                            Text { font-size: 12px; text: "Outros sistemas ainda indisponíveis neste runtime"; color: #b9c5ce; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: "SMS II — 315-5246"; enabled: false; }
                                 CompactButton { text: "SG-1000 — TMS9918"; enabled: false; }
-                                CompactButton { text: "Game Gear"; enabled: false; }
+                                CompactButton { text: "Game Gear — 315-5378"; enabled: false; }
                                 CompactButton { text: "Mega Drive / Genesis"; enabled: false; }
                                 CompactButton { text: "Sega CD"; enabled: false; }
                                 CompactButton { text: "32X"; enabled: false; }
                             }
-                            Text { font-size: 11px; text: "Perfis futuros permanecem isolados e indisponíveis até a integração e validação de seus runtimes."; color: #9baab6; wrap: word-wrap; }
                         }
                         if root.active-menu == "file": VerticalLayout {
                             LineEdit { text <=> root.rom-path-input; placeholder-text: "C:\\ROMs\\game.sms"; }
@@ -764,6 +769,7 @@ mod windows_host {
     #[derive(Debug, Clone)]
     struct DesktopPreferences {
         region: String,
+        sms_system: String,
         aspect: String,
         show_fps: bool,
         show_status_footer: bool,
@@ -783,6 +789,7 @@ mod windows_host {
         fn default() -> Self {
             Self {
                 region: "usa".to_owned(),
+                sms_system: "sms1".to_owned(),
                 aspect: "4:3".to_owned(),
                 show_fps: true,
                 show_status_footer: true,
@@ -832,6 +839,9 @@ mod windows_host {
             match key.trim() {
                 "region" if ["usa", "brazil", "europe", "japan"].contains(&value.trim()) => {
                     preferences.region = value.trim().to_owned();
+                }
+                "sms_system" if ["sms1", "sms2"].contains(&value.trim()) => {
+                    preferences.sms_system = value.trim().to_owned();
                 }
                 "aspect" if ["4:3", "1:1", "16:9"].contains(&value.trim()) => {
                     preferences.aspect = value.trim().to_owned();
@@ -910,8 +920,9 @@ mod windows_host {
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
         let contents = format!(
-            "region={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\n",
+            "region={}\nsms_system={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\n",
             preferences.region,
+            preferences.sms_system,
             preferences.aspect,
             preferences.show_fps,
             preferences.show_status_footer,
@@ -2416,9 +2427,10 @@ mod windows_host {
         save_store: Arc<SaveRamStore>,
     ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
         let prepared = prepare_cartridge(&rom, save_store)?;
-        let worker = SmsTemporalWorker::new_with_cartridge_sram_size(
+        let worker = SmsTemporalWorker::new_with_hardware_profile_and_cartridge_sram_size(
             rom,
             &settings.region,
+            settings.vdp_revision,
             prepared.sram_capacity,
             prepared.initial_sram,
         )?;
@@ -2539,9 +2551,19 @@ mod windows_host {
 
     struct SmsWorkerSettings {
         region: String,
+        vdp_revision: SmsVdpRevision,
         audio_volume: u8,
         dsp_config: AnalogOutputConfig,
         renderer_mode: String,
+    }
+
+    /// Convert the user-selected console model into its explicit VDP ASIC revision.
+    fn sms_vdp_revision_for_system(system: &str) -> Result<SmsVdpRevision, String> {
+        match system {
+            "sms1" => Ok(SmsVdpRevision::Sega3155124),
+            "sms2" => Ok(SmsVdpRevision::Sega3155246),
+            _ => Err(format!("unsupported SMS hardware selection: {system}")),
+        }
     }
 
     /// Material Icons are decoded to Slint SVG images once during application startup.
@@ -2581,6 +2603,7 @@ mod windows_host {
         let save_store = cartridge_save_store()?;
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
+            vdp_revision: sms_vdp_revision_for_system(&preferences.sms_system)?,
             audio_volume: effective_audio_volume(preferences.audio_volume, preferences.audio_muted),
             dsp_config: audio_dsp_config(
                 preferences.audio_dsp_preset,
@@ -2625,6 +2648,10 @@ mod windows_host {
         app.set_frame_status("Aguardando o primeiro frame completo do VDP.".into());
         app.set_lifecycle_status("Renderer setup: 0 | teardown: 0".into());
         app.set_selected_region(region.clone().into());
+        app.set_selected_system(preferences.sms_system.clone().into());
+        if rom_path.is_some() {
+            app.set_active_system(preferences.sms_system.clone().into());
+        }
         app.set_show_fps(preferences.show_fps);
         app.set_show_status_footer(preferences.show_status_footer);
         app.set_sprite_limit_enabled(preferences.sprite_limit_enabled);
@@ -2889,37 +2916,50 @@ mod windows_host {
                 return;
             }
 
-            let (region, sprite_limit_enabled, audio_volume, dsp_config, renderer_mode) = open_app
-                .upgrade()
-                .map(|app| {
-                    (
-                        app.get_selected_region().to_string(),
-                        app.get_sprite_limit_enabled(),
-                        effective_audio_volume(
-                            app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
-                            app.get_audio_muted(),
-                        ),
-                        audio_dsp_config(
-                            app.get_audio_dsp_preset(),
-                            app.get_audio_hpf_enabled(),
-                            f64::from(app.get_audio_hpf_cutoff().round() as u16),
-                            app.get_audio_lpf_enabled(),
-                            f64::from(app.get_audio_lpf_cutoff().round() as u16),
-                        ),
-                        app.get_audio_renderer_mode().to_string(),
-                    )
-                })
-                .unwrap_or_else(|| {
-                    (
-                        "usa".to_owned(),
-                        true,
-                        70,
-                        AnalogOutputConfig::default(),
-                        "psg".to_owned(),
-                    )
-                });
+            let (region, system, sprite_limit_enabled, audio_volume, dsp_config, renderer_mode) =
+                open_app
+                    .upgrade()
+                    .map(|app| {
+                        (
+                            app.get_selected_region().to_string(),
+                            app.get_selected_system().to_string(),
+                            app.get_sprite_limit_enabled(),
+                            effective_audio_volume(
+                                app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
+                                app.get_audio_muted(),
+                            ),
+                            audio_dsp_config(
+                                app.get_audio_dsp_preset(),
+                                app.get_audio_hpf_enabled(),
+                                f64::from(app.get_audio_hpf_cutoff().round() as u16),
+                                app.get_audio_lpf_enabled(),
+                                f64::from(app.get_audio_lpf_cutoff().round() as u16),
+                            ),
+                            app.get_audio_renderer_mode().to_string(),
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        (
+                            "usa".to_owned(),
+                            "sms1".to_owned(),
+                            true,
+                            70,
+                            AnalogOutputConfig::default(),
+                            "psg".to_owned(),
+                        )
+                    });
+            let vdp_revision = match sms_vdp_revision_for_system(&system) {
+                Ok(revision) => revision,
+                Err(error) => {
+                    if let Some(app) = open_app.upgrade() {
+                        app.set_rom_status(format!("Sistema selecionado inválido: {error}").into());
+                    }
+                    return;
+                }
+            };
             let open_settings = SmsWorkerSettings {
                 region,
+                vdp_revision,
                 audio_volume,
                 dsp_config,
                 renderer_mode,
@@ -2953,6 +2993,7 @@ mod windows_host {
                             recent_roms_model(&open_recent_list.borrow()),
                         )));
                         app.set_has_rom(true);
+                        app.set_active_system(system.clone().into());
                         app.set_audio_status(if video_only_capture_enabled() {
                             "Saída física desativada pelo modo de captura somente vídeo.".into()
                         } else if open_worker
@@ -3095,6 +3136,7 @@ mod windows_host {
             if let Some(app) = exit_prefs_app.upgrade() {
                 let prefs = DesktopPreferences {
                     region: app.get_selected_region().to_string(),
+                    sms_system: app.get_selected_system().to_string(),
                     aspect: app.get_selected_aspect().to_string(),
                     show_fps: app.get_show_fps(),
                     show_status_footer: app.get_show_status_footer(),
@@ -3200,6 +3242,7 @@ mod windows_host {
             };
             let prefs = DesktopPreferences {
                 region: app.get_selected_region().to_string(),
+                sms_system: app.get_selected_system().to_string(),
                 aspect: app.get_selected_aspect().to_string(),
                 show_fps: app.get_show_fps(),
                 show_status_footer: app.get_show_status_footer(),
@@ -3458,6 +3501,7 @@ mod windows_host {
         let run_result = app.run();
         let final_preferences = DesktopPreferences {
             region: app.get_selected_region().to_string(),
+            sms_system: app.get_selected_system().to_string(),
             aspect: app.get_selected_aspect().to_string(),
             show_fps: app.get_show_fps(),
             show_status_footer: app.get_show_status_footer(),
@@ -3888,6 +3932,19 @@ mod windows_host {
         #[test]
         fn zip_rom_loader_rejects_invalid_archive_bytes() {
             assert!(extract_rom_from_zip(b"not a ZIP archive").is_err());
+        }
+
+        #[test]
+        fn selected_sms_system_maps_to_the_matching_vdp_asic() {
+            assert_eq!(
+                sms_vdp_revision_for_system("sms1").unwrap(),
+                SmsVdpRevision::Sega3155124
+            );
+            assert_eq!(
+                sms_vdp_revision_for_system("sms2").unwrap(),
+                SmsVdpRevision::Sega3155246
+            );
+            assert!(sms_vdp_revision_for_system("sg1000").is_err());
         }
 
         #[test]
