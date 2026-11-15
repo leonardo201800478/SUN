@@ -149,7 +149,12 @@ impl SmsInputProfiles {
         })
     }
 
-    fn set_profile(&mut self, player: usize, class: DeviceClass, profile: InputProfile) -> Result<(), String> {
+    fn set_profile(
+        &mut self,
+        player: usize,
+        class: DeviceClass,
+        profile: InputProfile,
+    ) -> Result<(), String> {
         if player >= 2 {
             return Err("SMS player index must be 0 or 1".to_owned());
         }
@@ -162,7 +167,12 @@ impl SmsInputProfiles {
         Ok(())
     }
 
-    fn evaluate(&self, player: usize, class: DeviceClass, reading: &DeviceReading) -> (ControllerButtons, bool) {
+    fn evaluate(
+        &self,
+        player: usize,
+        class: DeviceClass,
+        reading: &DeviceReading,
+    ) -> (ControllerButtons, bool) {
         let profiles = if class == DeviceClass::Gamepad {
             &self.gamepad
         } else {
@@ -247,7 +257,9 @@ impl Sdl3InputHost {
                 .iter()
                 .find(|reading| reading.device_id == descriptor.id)
             {
-                let (buttons, pause) = self.profiles.evaluate(current_slot, descriptor.class, reading);
+                let (buttons, pause) =
+                    self.profiles
+                        .evaluate(current_slot, descriptor.class, reading);
                 players[current_slot] = buttons;
                 pause_pressed |= pause;
             }
@@ -414,7 +426,9 @@ mod tests {
             0,
         )
         .unwrap();
-        profiles.set_profile(0, DeviceClass::Gamepad, custom_gamepad).unwrap();
+        profiles
+            .set_profile(0, DeviceClass::Gamepad, custom_gamepad)
+            .unwrap();
 
         let mut state = DeviceState::default();
         state.buttons.set(8, true).unwrap();
@@ -443,8 +457,11 @@ mod tests {
         let player_two = InputProfile::new(
             vec![binding(SmsInputAction::Button1, PhysicalControl::Button(7))],
             0,
-        ).unwrap();
-        profiles.set_profile(1, DeviceClass::Gamepad, player_two).unwrap();
+        )
+        .unwrap();
+        profiles
+            .set_profile(1, DeviceClass::Gamepad, player_two)
+            .unwrap();
 
         let mut state = DeviceState::default();
         state.buttons.set(7, true).unwrap();
@@ -459,7 +476,11 @@ mod tests {
     fn invalid_player_profile_slot_is_rejected() {
         let mut profiles = SmsInputProfiles::defaults().unwrap();
         let profile = InputProfile::new(Vec::new(), 0).unwrap();
-        assert!(profiles.set_profile(2, DeviceClass::Gamepad, profile).is_err());
+        assert!(
+            profiles
+                .set_profile(2, DeviceClass::Gamepad, profile)
+                .is_err()
+        );
     }
 
     #[test]
@@ -477,7 +498,9 @@ mod tests {
             0,
         )
         .unwrap();
-        profiles.set_profile(0, DeviceClass::Joystick, custom_joystick).unwrap();
+        profiles
+            .set_profile(0, DeviceClass::Joystick, custom_joystick)
+            .unwrap();
 
         let mut state = DeviceState::default();
         state
