@@ -88,23 +88,34 @@ fn frame_duration_from_machine_ticks(
 pub fn sms_temporal_region_profile(
     region: &str,
 ) -> Result<(Territory, SmsVdpProfile, u64), &'static str> {
-    let sms1 = SmsVdpRevision::Sega3155124;
+    sms_temporal_hardware_profile(region, SmsVdpRevision::Sega3155124)
+}
+
+/// Resolve regional timing independently from the explicitly selected VDP ASIC.
+pub fn sms_temporal_hardware_profile(
+    region: &str,
+    revision: SmsVdpRevision,
+) -> Result<(Territory, SmsVdpProfile, u64), &'static str> {
     let sprite_limit = SpriteLimitMode::HardwareLimit;
     match region {
-        "usa" => Ok((Territory::Export, SmsVdpProfile::sms1_t0_ntsc(), 3_579_545)),
+        "usa" => Ok((
+            Territory::Export,
+            SmsVdpProfile::new(revision, VideoStandard::Ntsc, sprite_limit),
+            3_579_545,
+        )),
         "brazil" => Ok((
             Territory::Export,
-            SmsVdpProfile::new(sms1, VideoStandard::PalM, sprite_limit),
+            SmsVdpProfile::new(revision, VideoStandard::PalM, sprite_limit),
             3_579_545,
         )),
         "europe" => Ok((
             Territory::Export,
-            SmsVdpProfile::new(sms1, VideoStandard::Pal, sprite_limit),
+            SmsVdpProfile::new(revision, VideoStandard::Pal, sprite_limit),
             3_546_895,
         )),
         "japan" => Ok((
             Territory::Japan,
-            SmsVdpProfile::new(sms1, VideoStandard::Ntsc, sprite_limit),
+            SmsVdpProfile::new(revision, VideoStandard::Ntsc, sprite_limit),
             3_579_545,
         )),
         _ => Err("region deve ser usa, brazil, europe ou japan"),
@@ -144,7 +155,12 @@ fn receive_worker_reply<T>(receiver: Receiver<T>, operation: &str) -> Result<T, 
 }
 
 fn build_sms_temporal_machine(rom: Vec<u8>, region: &str) -> Result<SmsTemporalMachine, String> {
-    build_sms_temporal_machine_with_sram_size(rom, region, None)
+    build_sms_temporal_machine_with_revision_and_sram_size(
+        rom,
+        region,
+        SmsVdpRevision::Sega3155124,
+        None,
+    )
 }
 
 fn build_sms_temporal_machine_with_sram_size(
@@ -152,8 +168,22 @@ fn build_sms_temporal_machine_with_sram_size(
     region: &str,
     cartridge_sram_size: Option<usize>,
 ) -> Result<SmsTemporalMachine, String> {
+    build_sms_temporal_machine_with_revision_and_sram_size(
+        rom,
+        region,
+        SmsVdpRevision::Sega3155124,
+        cartridge_sram_size,
+    )
+}
+
+fn build_sms_temporal_machine_with_revision_and_sram_size(
+    rom: Vec<u8>,
+    region: &str,
+    revision: SmsVdpRevision,
+    cartridge_sram_size: Option<usize>,
+) -> Result<SmsTemporalMachine, String> {
     let (territory, vdp_profile, psg_clock_hz) =
-        sms_temporal_region_profile(region).map_err(str::to_owned)?;
+        sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
     SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
         rom,
         SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
@@ -166,15 +196,17 @@ fn build_sms_temporal_machine_with_sram_size(
     .map_err(|error| error.to_string())
 }
 
-/// Rebuild power-on machine state while retaining the exact physical SRAM image.
+/// Rebuild power-on machine state while retaining the exact physical SRAM image and ASIC.
 fn rebuild_sms_temporal_machine_preserving_sram(
     current: &SmsTemporalMachine,
     rom: Vec<u8>,
     region: &str,
+    revision: SmsVdpRevision,
 ) -> Result<SmsTemporalMachine, String> {
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
-    let mut rebuilt = build_sms_temporal_machine_with_sram_size(rom, region, capacity)?;
+    let mut rebuilt =
+        build_sms_temporal_machine_with_revision_and_sram_size(rom, region, revision, capacity)?;
     if let Some(contents) = sram {
         rebuilt
             .load_cartridge_sram(&contents)
@@ -1116,6 +1148,23 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
+        Self::new_with_hardware_profile_and_cartridge_sram_size(
+            rom,
+            region,
+            SmsVdpRevision::Sega3155124,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    /// Start the worker with an explicit VDP ASIC, regional timing, and cartridge SRAM profile.
+    pub fn new_with_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
@@ -1147,13 +1196,15 @@ impl SmsTemporalWorker {
         let (commands, receiver) = mpsc::sync_channel(WORKER_COMMAND_QUEUE_CAPACITY);
         let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
         let worker_region = region.clone();
+        let worker_vdp_revision = vdp_revision;
 
         let worker = thread::Builder::new()
             .name("sms-temporal-machine".to_owned())
             .spawn(move || {
-                let machine = match build_sms_temporal_machine_with_sram_size(
+                let machine = match build_sms_temporal_machine_with_revision_and_sram_size(
                     rom.clone(),
                     &worker_region,
+                    worker_vdp_revision,
                     cartridge_sram_size,
                 )
                 .and_then(|mut machine| {
@@ -1173,7 +1224,14 @@ impl SmsTemporalWorker {
                         return;
                     }
                 };
-                worker_loop(machine, rom, worker_region, receiver, worker_telemetry);
+                worker_loop(
+                    machine,
+                    rom,
+                    worker_region,
+                    worker_vdp_revision,
+                    receiver,
+                    worker_telemetry,
+                );
             })
             .map_err(|error| format!("could not start SMS machine worker: {error}"))?;
 
@@ -1937,6 +1995,7 @@ fn worker_loop(
     mut machine: SmsTemporalMachine,
     mut rom: Vec<u8>,
     region: String,
+    vdp_revision: SmsVdpRevision,
     commands: Receiver<WorkerCommand>,
     telemetry: Arc<WorkerTelemetry>,
 ) {
@@ -2177,7 +2236,7 @@ fn handle_command(
             // POWER-off is different from Pause: retain the ROM, but cold-reset the machine.
             *running = false;
             telemetry.running.store(false, Ordering::Release);
-            let result = rebuild_sms_temporal_machine_preserving_sram(machine, rom.clone(), region)
+            let result = rebuild_sms_temporal_machine_preserving_sram(machine, rom.clone(), region, vdp_revision)
                 .and_then(|powered_off| {
                     audio_session
                         .as_mut()
@@ -2201,7 +2260,7 @@ fn handle_command(
             let _ = reply.send(result);
         }
         WorkerCommand::Reset(reply) => {
-            match rebuild_sms_temporal_machine_preserving_sram(machine, rom.clone(), region) {
+            match rebuild_sms_temporal_machine_preserving_sram(machine, rom.clone(), region, vdp_revision) {
                 Ok(reset_machine) => {
                     *running = false;
                     telemetry.running.store(false, Ordering::Release);
@@ -2239,7 +2298,12 @@ fn handle_command(
                     "cannot replace a cartridge with SRAM through load_rom; persist it and create a new worker".to_owned(),
                 ));
             } else {
-                match build_sms_temporal_machine(new_rom.clone(), region) {
+                match build_sms_temporal_machine_with_revision_and_sram_size(
+                    new_rom.clone(),
+                    region,
+                    vdp_revision,
+                    None,
+                ) {
                     Ok(new_machine) => {
                         *running = false;
                         telemetry.running.store(false, Ordering::Release);
