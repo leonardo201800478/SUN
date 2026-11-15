@@ -15,6 +15,11 @@ use std::time::{Duration, Instant};
 use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
+use sega_media::{
+    CartridgeCatalog, CartridgeIdentity, SmsCompatibilityStatus, SmsHardwareModel,
+    SmsVdpRequirement, SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION,
+    SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION, preflight_sms_cartridge,
+};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
     SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
@@ -92,6 +97,52 @@ pub fn sms_temporal_region_profile(
 }
 
 /// Resolve regional timing independently from the explicitly selected VDP ASIC.
+fn sms_hardware_model_for_revision(revision: SmsVdpRevision) -> SmsHardwareModel {
+    match revision {
+        SmsVdpRevision::Sega3155124 => SmsHardwareModel::Sms1,
+        SmsVdpRevision::Sega3155246 => SmsHardwareModel::Sms2,
+    }
+}
+
+/// Evaluate content-addressed SMS compatibility before creating or replacing a machine.
+fn evaluate_sms_cartridge_compatibility(
+    catalog: &CartridgeCatalog,
+    identity: &CartridgeIdentity,
+    revision: SmsVdpRevision,
+) -> Result<SmsCompatibilityStatus, String> {
+    let matched = catalog
+        .lookup(identity)
+        .map_err(|error| format!("failed to identify SMS cartridge: {error}"))?;
+    let requirement = matched
+        .as_ref()
+        .and_then(|entry| entry.compatibility)
+        .map(|metadata| metadata.sms_vdp_requirement)
+        .unwrap_or(SmsVdpRequirement::Unknown);
+    let selected = sms_hardware_model_for_revision(revision);
+    let (_, status) = preflight_sms_cartridge(requirement, selected, || Ok(()))?;
+
+    eprintln!(
+        "SMS_COMPATIBILITY status={} requirement={} selected={} schema={} data_version={} sha1={}",
+        status.as_str(),
+        requirement.as_str(),
+        selected.as_str(),
+        SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION,
+        SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION,
+        identity.sha1_hex()
+    );
+    Ok(status)
+}
+
+fn validate_sms_cartridge_compatibility(
+    rom: &[u8],
+    revision: SmsVdpRevision,
+) -> Result<SmsCompatibilityStatus, String> {
+    let identity = CartridgeIdentity::from_bytes(rom);
+    let catalog = CartridgeCatalog::sms_default()
+        .map_err(|error| format!("failed to load SMS cartridge catalog: {error}"))?;
+    evaluate_sms_cartridge_compatibility(&catalog, &identity, revision)
+}
+
 pub fn sms_temporal_hardware_profile(
     region: &str,
     revision: SmsVdpRevision,
@@ -1037,6 +1088,7 @@ const DEBUG_MEMORY_READ_LIMIT: usize = 256;
 /// Handle to the thread that exclusively owns the temporal SMS machine.
 pub struct SmsTemporalWorker {
     commands: SyncSender<WorkerCommand>,
+    vdp_revision: SmsVdpRevision,
     worker: Option<JoinHandle<()>>,
     telemetry: Arc<WorkerTelemetry>,
     trace_collector: Arc<Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>>,
@@ -1153,6 +1205,7 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
+        validate_sms_cartridge_compatibility(&rom, vdp_revision)?;
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
@@ -1226,6 +1279,7 @@ impl SmsTemporalWorker {
         match ready_receiver.recv_timeout(WORKER_STARTUP_TIMEOUT) {
             Ok(Ok(())) => Ok(Self {
                 commands,
+                vdp_revision,
                 worker: Some(worker),
                 telemetry,
                 trace_collector,
@@ -1259,6 +1313,7 @@ impl SmsTemporalWorker {
     }
 
     pub fn load_rom(&self, rom: Vec<u8>) -> Result<(), String> {
+        validate_sms_cartridge_compatibility(&rom, self.vdp_revision)?;
         self.request_unit(|reply| WorkerCommand::LoadRom(rom, reply))
     }
 
