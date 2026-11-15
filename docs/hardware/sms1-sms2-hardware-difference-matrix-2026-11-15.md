@@ -21,7 +21,7 @@ Não há evidência suficiente para afirmar uma substituição geral de CPU, RAM
 | VDP — modos | Mode 4 até 192 linhas; modos legados TMS9918 | Mode 4 com 192, 224 e 240 linhas; modos legados | Diferença confirmada | Perfil 315-5246 habilita alturas estendidas; SMS1 deve permanecer em 192 |
 | VDP — endereçamento de tabelas | Bits de máscara legados em R2/R5/R6 podem forçar linhas do endereço VRAM a zero | Esses bits não mascaram os endereços | Diferença confirmada | Manter funções de geração de endereço condicionadas ao ASIC |
 | VDP — sprites/zoom | Em zoom 2×, os últimos quatro sprites encontrados na linha não recebem zoom horizontal; zoom vertical continua | Os oito sprites podem receber zoom horizontal e vertical | Diferença confirmada | Avaliação/composição de sprites precisa considerar revisão; não duplicar SAT sem evidência |
-| VDP — paleta/DAC | Primeiro nível de azul ligeiramente mais brilhante em 16 cores | Sem esse realce | Diferença confirmada | Conversão CRAM→RGB precisa ser perfilada pelo ASIC |
+| VDP — paleta/DAC | Modelo de níveis R/G: 0,78,160,238; B: 0,98,160,238 | Modelo de níveis RGB: 0,89,174,255 | Diferença de saída documentada/medida; valores de 8 bits são modelo de referência, encoder analógico varia por placa | Conversão CRAM→RGB precisa ser perfilada pelo ASIC e separada do encoder de vídeo |
 | VDP — SAT e limite por linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Compartilhado na documentação SMS Power; MAME usa base comum | Buffer Mode 4 compartilhado no candidato PR #894; fase elétrica ainda exige validação |
 | VDP — HBlank/raster writes | Commit parcial no modelo atual em T213 | Fase SMS2 ainda não caracterizada; commit parcial não habilitado | SMS1 possui testes; não foi demonstrada equivalência subciclo para SMS2 | Manter caminho conservador SMS2 até teste independente |
 
@@ -100,7 +100,8 @@ A existência dessas condicionais e testes sintéticos não comprova temporizaç
 - SMS Power — [SMS1/SMS2 VDPs](https://www.smspower.org/Development/SMS1SMS2VDPs): identifica 315-5124/315-5246, masks de endereço legado e modos estendidos.
 - SMS Power — [VDP Registers](https://www.smspower.org/Development/VDPRegisters): semântica dos masks em R2/R5/R6 e bits de modo.
 - SMS Power — [Sprites](https://www.smspower.org/Development/Sprites): limite, ordem SAT e diferença de zoom entre SMS1 e SMS2.
-- SMS Power — [Palette](https://www.smspower.org/Development/Palette): realce do primeiro nível de azul no SMS1.
+- SMS Power — [Palette](https://www.smspower.org/Development/Palette): diferenças de saída de cor entre revisões.
+- MAME — [315_5124.cpp](https://github.com/mamedev/mame/blob/master/src/devices/video/315_5124.cpp): tabelas de nível de saída 315-5124/315-5246; referência secundária baseada em die shot e medições, não oráculo normativo.
 - SMS Power — [SN76489](https://www.smspower.org/Development/SN76489): comportamento do PSG e medições de ruído SMS1/SMS2.
 - SMS Power — [SMS Master System Service Manual](https://www.smspower.org/Development/SegaMasterSystemServiceManual): lista de peças das placas Master System consultadas.
 - SMS Power — [SMS II Service Manual](https://www.smspower.org/Development/SegaMasterSystemIIServiceManual): lista de peças das placas Master System II consultadas.
