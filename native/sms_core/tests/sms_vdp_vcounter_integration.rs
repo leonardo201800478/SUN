@@ -156,8 +156,14 @@ fn line_irq_r10_c0_is_observed_before_vint_as_vcounter_c0() {
             address,
             data,
             ..
-        } = event {
-            println!("port read t={} address={:04X} data={:02X?}", timestamp.ticks(), address, data);
+        } = event
+        {
+            println!(
+                "port read t={} address={:04X} data={:02X?}",
+                timestamp.ticks(),
+                address,
+                data
+            );
         }
     }
 
