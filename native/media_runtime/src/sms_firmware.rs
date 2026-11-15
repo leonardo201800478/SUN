@@ -358,7 +358,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
     const LOCAL_HASH: &[&str] = &["User-supplied image: size and cryptographic hashes calculated from extracted .sms bytes"];
     const SMS_POWER: &[&str] = &["https://www.smspower.org/Development/BIOSes"];
     const BIOS_EVIDENCE: &[&str] = &["Existing project SMS BIOS catalog; conventional 8 KiB BIOS"];
-    &[
+    [
         SmsFirmwareDescriptor {
             id: Id::JapanV21,
             name: "Master System Japan v2.1",
@@ -380,7 +380,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             name: "Master System USA/Europe v1.3",
             kind: Kind::ConventionalBios,
             console: Console::Sms1,
-            region: Region::ExportUsEurope,
+            region: Region::Export,
             built_in_game: None,
             size_bytes: BIOS_8K,
             sha256: "477617917a12a30f9f43844909dc2de6e6a617430f5c9a36306c86414a670d50".to_owned(),
@@ -405,14 +405,14 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: None,
             mapping: Mapping::ConventionalBios8KiB,
             validation: Validation::IdentifiedOnly,
-            evidence: BIOS_8K,
+            evidence: BIOS_EVIDENCE,
         },
         SmsFirmwareDescriptor {
             id: Id::HangOnV34,
             name: "Hang On USA/Europe v3.4",
             kind: Kind::BuiltInGameFirmware,
             console: Console::Sms1,
-            region: Region::ExportUsEurope,
+            region: Region::Export,
             built_in_game: Some(Game::HangOn),
             size_bytes: FIRMWARE_128K,
             sha256: "1a73bc6e1a9973b98432774a1480b3ac1259027a97590d5e67d52745159abbbc".to_owned(),
@@ -428,7 +428,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             name: "Hang On & Safari Hunt USA/Europe/Brazil v2.4",
             kind: Kind::BuiltInGameFirmware,
             console: Console::Sms1,
-            region: Region::ExportUsEurope,
+            region: Region::Export,
             built_in_game: Some(Game::HangOnAndSafariHunt),
             size_bytes: FIRMWARE_128K,
             sha256: "e9eb04ec80ded8658f765c4eca75cdbe23cbc7d8fed73f9c3db7a868dbf649ff".to_owned(),
@@ -444,7 +444,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             name: "Missile Defense 3-D USA/Europe v4.4",
             kind: Kind::BuiltInGameFirmware,
             console: Console::Sms1,
-            region: Region::ExportUsEurope,
+            region: Region::Export,
             built_in_game: Some(Game::MissileDefense3d),
             size_bytes: FIRMWARE_128K,
             sha256: "13c0639cc037167f53e6151dbdea013758c3d09a76b064a894bf15c39c0a3897".to_owned(),
@@ -528,7 +528,7 @@ mod tests {
             name: "Synthetic firmware",
             kind: SmsFirmwareKind::BuiltInGameFirmware,
             console: SmsConsoleVariant::Sms1,
-            region: SmsFirmwareRegion::ExportUsEurope,
+            region: SmsFirmwareRegion::Export,
             built_in_game: Some(SmsBuiltInGame::HangOn),
             size_bytes: bytes.len(),
             sha256: identity.sha256_hex(),
