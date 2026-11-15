@@ -3091,6 +3091,22 @@ mod tests {
     }
 
     #[test]
+    fn worker_rejects_sms1_conventional_bios_under_sms2_asic_profile() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let result = SmsTemporalWorker::new_with_hardware_profile_bios_and_cartridge_sram_size(
+            SYNTHETIC_ROM.to_vec(),
+            Some(vec![0xA5; 0x2000]),
+            "usa",
+            SmsVdpRevision::Sega3155246,
+            None,
+            None,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn worker_rejects_invalid_conventional_bios_size_at_startup() {
         use sega_sms_core::SmsVdpRevision;
 

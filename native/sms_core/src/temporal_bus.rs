@@ -133,6 +133,7 @@ pub enum SmsTemporalBusError {
     NoPendingRequest,
     WrongRequestId { expected: u64, received: u64 },
     UnsupportedOperation,
+    UnsupportedBiosHardwareProfile,
     InvalidState,
 }
 
@@ -154,6 +155,9 @@ impl fmt::Display for SmsTemporalBusError {
             ),
             Self::UnsupportedOperation => f.write_str(
                 "this temporal bus operation is not implemented by the SMS temporal slice",
+            ),
+            Self::UnsupportedBiosHardwareProfile => f.write_str(
+                "the conventional 8 KiB BIOS mapping is currently validated only for SMS1 hardware",
             ),
             Self::InvalidState => f.write_str("SMS temporal bus snapshot is inconsistent"),
         }
@@ -300,6 +304,12 @@ impl SmsTemporalBus {
         territory: Territory,
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalBusError> {
+        // SmsMemory currently models the original SMS slot priority. SMS2 has
+        // distinct wired-AND arbitration, so do not expose an SMS1 BIOS map
+        // under a 315-5246 profile until that electrical behavior is modeled.
+        if bios.is_some() && vdp_profile.revision.asic_number() != 3_155_124 {
+            return Err(SmsTemporalBusError::UnsupportedBiosHardwareProfile);
+        }
         sega_observability::tracing::info!(
             target: "sega::machine",
             master_ticks_per_tstate,
