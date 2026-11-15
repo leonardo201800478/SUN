@@ -14,5 +14,4 @@ sega-debugger-core.workspace = true
 sega-audio-runtime = { path = "../../../native/audio_runtime" }
 sega-sms-core = { path = "../../../native/sms_core" }
 sega-sn76489 = { path = "../../../native/sn76489" }
-sega-z80-cpu = { path = "../../../native/z80_cpu" }
 sega-video-runtime = { path = "../../../native/video_runtime" }
