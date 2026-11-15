@@ -583,6 +583,7 @@ impl SmsVdp {
                 SMS_VINT_IRQ_TSTATE,
                 SMS_HINT_TSTATE,
                 SMS_VCOUNTER_LATCH_TSTATE,
+                SMS_VBLANK_FLAG_TSTATE,
                 SMS_HBLANK_TSTATE,
                 LINE_TSTATES,
             ]
@@ -1924,6 +1925,7 @@ mod tests {
         let height = u64::from(vdp.visible_height());
 
         vdp.advance(LINE_TSTATES * (height + 1));
+        assert!(vdp.frame_ready, "SMS2 publishes the frame at line height/T16");
         vdp.advance(12);
         assert!(!vdp.interrupt_pending());
         assert_eq!(vdp.status & VBLANK, 0);
