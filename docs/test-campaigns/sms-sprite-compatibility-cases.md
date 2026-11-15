@@ -325,3 +325,52 @@ A ordem de trabalho passa a ser:
 3. Isolar a distorção de zoom comparando framebuffer lógico com saída WGPU.
 4. Completar a evidência de fetch/pipeline de sprites e VRAM antes de alterações de timing.
 5. Manter os casos de ZEXALL fora do gate E8 até fechamento formal de E7 do Z80.
+
+
+## Reteste manual Windows — 15/11/2026 (evidência posterior às correções)
+
+**Origem:** capturas sequenciais fornecidas pelo usuário na conversa em 15/11/2026. Build local Windows; SHA do executável/commit, hash da ROM de teste, região e configuração exata não foram informados. Os resultados abaixo são observações da tela do teste, não uma medição em hardware físico. O contador FPS foi deliberadamente excluído: havia outra compilação sob alta carga de CPU.
+
+### SMS VDP Test v1.31 — perfil SMS
+
+| Grupo/caso | Resultado observado | Estado de campanha |
+|---|---|---|
+| VDP data test — todos os itens exibidos, inclusive `1byte wr sets rd adr` e `1byte wr sets wr adr` | OK | PASS manual observado |
+| `VCounter values: NTSC`, `HCounter keeps value`, `HC change on TH 0->1`, `HCounter correct` | OK | PASS manual observado |
+| `VCounter chg time` | Error | FAIL manual observado |
+| Mirrors de registradores, dados, controle e V/H counter exibidos | OK | PASS manual observado |
+| `Frame IRQ VCount` / `Line IRQ VCount` | OK | PASS manual observado |
+| `Frame IRQ HCount` / `Line IRQ HCount` | Error | FAIL manual observado |
+| `VINT flag HCount` / `VINT flag kept` | OK | PASS manual observado |
+| Colisão: testes básicos, transparência, clipping X, linha correta, múltiplas linhas e flag mantida em VBlank | OK | PASS manual observado |
+| `Offscreen Y, col` | Error | FAIL manual observado |
+| `Spr col correct HC` | Error | FAIL manual observado |
+| Overflow: casos básicos, limite, offscreen Y, flag em VBlank, linha correta e múltiplas linhas | OK | PASS manual observado |
+| `Spr ovr correct HC` | Error | FAIL manual observado |
+| X-Scroll latchtime — coluna vertical apresentada | Visualmente reta | Positivo visual; sem veredito automatizado registrado |
+| HCounter values | Tabela hexadecimal exibida | Captura informativa; sem fase de leitura sincronizada não classificar como PASS/FAIL |
+
+**Conclusão SMS:** houve avanço objetivo em relação ao baseline anterior: os dois testes de endereço de leitura/escrita após escrita de um byte na porta de controle, antes reprovados, aparecem agora como OK no build testado. Permanecem três falhas de temporização misc (`VCounter chg time`, `Frame IRQ HCount`, `Line IRQ HCount`) e três falhas de timing/condição de sprite (`Offscreen Y, col`, `Spr col correct HC`, `Spr ovr correct HC`). A correção de VDP data/control port integrada anteriormente deve ser preservada.
+
+### Mega Drive VDP — modo de compatibilidade, trilha independente
+
+As capturas também avançaram para as páginas Mega Drive VDP data, misc e sprite. Foram observados erros em operações de buffer/endereço após escritas, em `VCounter chg time`, mirrors de registradores, IRQs horizontais/flag HINT e casos de colisão/overflow com timing horizontal ou display disable. Não consolidar totais sem transcrição completa de cada linha da tela. Estes resultados pertencem ao modelo de compatibilidade Mega Drive e não devem ser misturados com os resultados do SMS nem corrigidos alterando indiscriminadamente a semântica do 315-5124.
+
+### Validação funcional de jogos e firmware
+
+- **Cosmic Spacehead (Europe) (En,Fr,De,Es):** o usuário confirmou execução normal em SMS2 e chegada ao gameplay. Classificar como PASS manual de inicialização/gameplay básica neste perfil; áudio, controles, colisões, estabilidade prolongada e todos os modos de 224 linhas não são inferidos além do que foi relatado.
+- **The Smurfs Travel the World (Brazil):** sprites continuam visualmente incorretos, inclusive no sistema SMS. Caso permanece aberto; a causa não está isolada. Não reimplementar o buffer SAT de próxima linha já integrado na PR #894. Próxima investigação: primeira divergência entre SAT selecionado, metadados latched e composição por pixel, com estado/trace local da ROM.
+- **Firmware SMS:** o usuário confirmou que o firmware Samsung Gam*Boy II/Coreia é oferecido no SMS2 e não no SMS1. Não há firmware japonês SMS2 disponível na seleção; o catálogo atual só classifica o BIOS Japan v2.1 conhecido como SMS1. Registrar como cobertura não catalogada de SMS2, não reutilizar BIOS SMS1 sem evidência. A ausência de firmware Coreia no SMS1 é esperada pela variante catalogada.
+- **Tela do gerenciador:** dimensionamento e rolagem foram aprovados após a correção.
+- Boot sem cartucho e execução autônoma de jogos incorporados em BIOS continuam sem validação.
+
+### Próximas ações internas
+
+1. Reproduzir e criar testes determinísticos para VCounter transition e IRQ HCount, seguindo VDP → linha INT → Scheduler → Z80; não aplicar offsets fixos.
+2. Isolar os três casos de sprite em fixtures separados: colisão com Y offscreen, instante horizontal da colisão e instante horizontal do overflow.
+3. Preservar os PASS já observados: control-port single-byte, HCounter correct, VCount IRQs, X-scroll visual e testes básicos de colisão/overflow.
+4. Manter a trilha Mega Drive em testes e documentação próprios.
+5. Para The Smurfs, identificar a primeira divergência SAT/linha/pixel antes de modificar a implementação; comparar framebuffer lógico, não somente screenshot final.
+6. Registrar SHA do build, região, perfil ASIC e hash local da ROM na próxima execução reproduzível. Não versionar ROM comercial nem BIOS.
+
+**Limite:** esta atualização é documentação de evidência manual relatada pelo usuário. Não declara CI, teste automatizado, validação em hardware físico, TEMPORAL_PASS ou conclusão da campanha.
