@@ -89,7 +89,7 @@ pub struct SmsFirmwareDescriptor {
     pub md5: Option<&'static str>,
     pub mapping: SmsFirmwareMappingStrategy,
     pub validation: SmsFirmwareValidation,
-    pub evidence: &'static [&'static str],
+    pub evidence: Vec<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -386,7 +386,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: None,
             mapping: Mapping::ConventionalBios8KiB,
             validation: Validation::IdentifiedOnly,
-            evidence: BIOS_EVIDENCE,
+            evidence: BIOS_EVIDENCE.to_vec(),
         },
         SmsFirmwareDescriptor {
             id: Id::ExportUsEuV13,
@@ -434,7 +434,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: Some("5cd8f62cd8786af0226e6d2248279338"),
             mapping: Mapping::InternalRomSlot2,
             validation: Validation::MappingDocumentedBootPending,
-            evidence: &[LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 128 KiB ROM and slot 2 mapping"],
+            evidence: vec![LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 128 KiB ROM and slot 2 mapping"],
         },
         SmsFirmwareDescriptor {
             id: Id::HangOnSafariHuntV24,
@@ -482,7 +482,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: Some("e49e63328c78fe3d24ae32bf903583e0"),
             mapping: Mapping::HardwareSpecificUnresolved,
             validation: Validation::MappingUnresolvedBootPending,
-            evidence: &[LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents Samsung SMS2-variant slot detection; exact internal game mapping remains unaudited"],
+            evidence: vec![LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents Samsung SMS2-variant slot detection; exact internal game mapping remains unaudited"],
         },
         SmsFirmwareDescriptor {
             id: Id::SonicEurope,
@@ -498,7 +498,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: Some("4187d96beaf36385e681a3cf3bd1663d"),
             mapping: Mapping::InternalRomSlots1And2,
             validation: Validation::MappingDocumentedBootPending,
-            evidence: &[LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 256 KiB ROM requiring slot 1 and slot 2 mapping; used only in Master System II"],
+            evidence: vec![LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 256 KiB ROM requiring slot 1 and slot 2 mapping; used only in Master System II"],
         },
     ].into()
 }
@@ -550,7 +550,7 @@ mod tests {
             md5: None,
             mapping: SmsFirmwareMappingStrategy::InternalRomSlot2,
             validation: SmsFirmwareValidation::IdentifiedOnly,
-            evidence: &["synthetic test fixture"],
+            evidence: vec!["synthetic test fixture"],
         }])
     }
 
