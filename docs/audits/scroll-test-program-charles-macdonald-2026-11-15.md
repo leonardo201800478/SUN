@@ -133,3 +133,70 @@ This is a localized, reproducible mismatch. It does not by itself explain the en
 - [SMS Power — Scroll Test Program](https://www.smspower.org/Homebrew/ScrollTestProgram-SMS)
 - [MAME — 315_5124.cpp](https://github.com/mamedev/mame/blob/master/src/devices/video/315_5124.cpp)
 - [Ares — SMS background.cpp](https://raw.githubusercontent.com/ares-emulator/ares/master/ares/ms/vdp/background.cpp)
+
+## 8. Runtime-path audit — 2026-11-15
+
+This section records a source audit of the current PR head. It does not claim that the ROM has been executed.
+
+### 8.1 Actual runtime path exists
+
+The current runtime path is:
+
+`SmsTemporalWorker → SmsTemporalMachine → SmsTemporalBus → SmsVdp`.
+
+The worker constructs the temporal machine with the selected region and SMS1 `Sega3155124` profile. In `SmsTemporalBus::dispatch_next()`, the scheduler dispatch is consumed, the VDP is advanced by the elapsed Z80 T-states, and only then is the completed bus operation applied. A VDP port write therefore follows the scheduled bus-completion boundary; no GUI or direct-register simulation is required.
+
+Relevant implementation:
+- `native/sms_core/src/temporal_bus.rs`: `dispatch_next()` and `write_port()`.
+- `native/sms_core/src/temporal_machine.rs`: `step_frame()`, `step_instruction()`, `dispatch_next()`.
+- `rust/runtime/sms-runtime/src/worker.rs`: SMS1 hardware-profile construction and worker frame stepping.
+
+### 8.2 Existing trace is insufficient for the requested differential
+
+The current instrumentation already records actual bus completions:
+- `SmsTemporalTraceEvent::BusCompleted`: Scheduler timestamp, request ID, operation, address, base T-states, WAIT T-states and data.
+- `SmsTemporalPortWrite`: port, value and completion timestamp.
+
+However, neither record currently carries the executing instruction's starting PC or the VDP beam position (frame, scanline, T-state and HPos) at the same event. The debugger snapshot exposes PC and VDP position only when a snapshot is requested; it cannot reconstruct every R8/R9 write's instruction and beam location after the fact.
+
+A non-invasive bus-boundary trace extension is therefore required. It must record the pre-completion instruction PC and the VDP raster/latch snapshot at the existing scheduled dispatch boundary. It must not add instruction callbacks, advance time, or change bus ordering.
+
+### 8.3 Existing in-game smoke test is not a visual differential harness
+
+`rust/runtime/sms-runtime/tests/in_game_rom_smoke.rs` already executes user-supplied ROMs through `SmsTemporalWorker` and a real `FrameMailbox`. Its default campaign is 1,800 frames. It verifies instruction progress, frame dimensions/payload, non-black output and state/frame fingerprints.
+
+It does not currently:
+- verify the exact ROM SHA-256 before execution;
+- save lossless frame captures;
+- select and label frame indices for comparison;
+- export every R8/R9 write with PC and beam position;
+- compare images or traces against MAME/Ares.
+
+Consequently, a passing smoke test is not evidence that this visual test ROM is correct.
+
+### 8.4 R9 latch model is not yet a proven root cause
+
+The current SMS1 code stores R9 writes made during active display in `pending_scroll_y` and commits the pending value at the visible-area/frame-publication boundary (line 192, T16 in the 192-line profile). MAME's 315-5124 implementation copies R9 at the beginning of active display. Both models make an R9 value written during one active display available to the following active display, rather than changing the current frame's active lines.
+
+This means the mere existence of `pending_scroll_y` does not establish a defect. The Ares scanline-latch model differs, but Ares alone is not a hardware oracle. Any R9 correction must be supported by the exact write sequence and a synchronized output comparison.
+
+### 8.5 Remaining candidate boundaries
+
+The runtime comparison must now distinguish, in this order:
+1. VCounter read completion and the exact loop transition at $40/$80.
+2. Z80 instruction PC and interrupt service timing for writes originating at $0038/$0068.
+3. R8 writes, HPos at bus completion, HPos 21 latch decision and next-line visibility.
+4. R9 writes, pending value, active-display latch and next-frame visibility.
+5. VDP framebuffer pixels at the same frame/scanline phase.
+
+No Scheduler, Z80, VDP timing or renderer correction is justified by the source audit alone.
+
+### 8.6 PR #920 CI evidence
+
+At head `a0d895fbe181afc94278356d5fa881bba295c27d`:
+- CI run #43768567169 completed successfully. Documentation patch hygiene and SMS1 VDP core/machine integration validation passed.
+- The selective CI skipped Rust workspace regression, Scheduler deterministic stress, Z80 focused validation and unrelated platform jobs.
+- SMS Debugger Runtime run #43768567179 completed successfully: Release format, Clippy, tests and Windows x64 Release build passed.
+- These are code/quality checks, not a run of the Scroll Test Program and not a frame-differential result.
+
+**Status remains:** `STATIC_ROM_ANALYSIS_COMPLETE / DIFFERENTIAL_RUNTIME_REPRODUCTION_PENDING`.
