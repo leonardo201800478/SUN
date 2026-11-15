@@ -73,6 +73,14 @@ pub struct SmsRasterPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum VdpAddressMode {
+    #[default]
+    VramRead,
+    VramWrite,
+    CramWrite,
+}
+
 pub struct SmsVdp {
     vram: Vec<u8>,
     cram: [u8; CRAM_SIZE],
@@ -84,6 +92,7 @@ pub struct SmsVdp {
     legacy_sprite_line_buffer: Option<LegacySpriteLineBuffer>,
     status: u8,
     address: u16,
+    address_mode: VdpAddressMode,
     read_buffer: u8,
     control_first: Option<u8>,
     cram_write: bool,
@@ -142,6 +151,7 @@ impl SmsVdp {
             legacy_sprite_line_buffer: None,
             status: 0,
             address: 0,
+            address_mode: VdpAddressMode::VramRead,
             read_buffer: 0,
             control_first: None,
             cram_write: false,
@@ -879,11 +889,21 @@ impl SmsVdp {
     }
     fn write_control(&mut self, value: u8) {
         let Some(first) = self.control_first.take() else {
+            // The first byte is already visible on the low address pins.
+            // In read mode the VDP also restarts the read-ahead pipeline at
+            // that partially updated address; write/CRAM modes keep their
+            // current destination and do not advance the address.
+            self.address = (self.address & 0x3F00) | u16::from(value);
+            if self.address_mode == VdpAddressMode::VramRead {
+                self.read_buffer = self.vram[usize::from(self.address)];
+                self.address = self.address.wrapping_add(1) & 0x3FFF;
+            }
             self.control_first = Some(value);
             return;
         };
         if value & 0xC0 == 0x80 {
             self.address = ((u16::from(value & 0x3F) << 8) | u16::from(first)) & 0x3FFF;
+            self.address_mode = VdpAddressMode::VramRead;
             let register = usize::from(value & 0x0F);
             if register <= 10 {
                 let previous = self.registers[register];
@@ -923,15 +943,23 @@ impl SmsVdp {
         self.address = ((u16::from(value & 0x3F) << 8) | u16::from(first)) & 0x3FFF;
         match value & 0xC0 {
             0x00 => {
+                self.address_mode = VdpAddressMode::VramRead;
                 self.cram_write = false;
                 self.read_buffer = self.vram[usize::from(self.address)];
                 self.address = self.address.wrapping_add(1) & 0x3FFF;
             }
-            0x40 => self.cram_write = false,
+            0x40 => {
+                self.address_mode = VdpAddressMode::VramWrite;
+                self.cram_write = false;
+            }
             0xC0 => {
+                self.address_mode = VdpAddressMode::CramWrite;
                 self.cram_write = true;
             }
-            _ => self.cram_write = false,
+            _ => {
+                self.address_mode = VdpAddressMode::VramRead;
+                self.cram_write = false;
+            }
         }
     }
 }
@@ -3753,6 +3781,56 @@ mod tests {
         assert_eq!(v.cram()[0], 0x12);
         assert_eq!(v.address(), 0x0021);
         assert_eq!(v.read_port(0xBE), 0x12);
+    }
+
+    #[test]
+    fn first_control_byte_retargets_read_address_and_restarts_read_ahead() {
+        let mut v = SmsVdp::default();
+        let expected = [
+            0x00, 0xFF, 0x55, 0xAA, 0x01, 0x02, 0x04, 0x08,
+            0x10, 0x20, 0x40, 0x80, b'T', b'e', b's', b't',
+        ];
+        v.vram[0x3E10..0x3E20].copy_from_slice(&expected);
+        v.vram[0x3E58] = 0xCC;
+
+        // Match SMS VDP Test RunTest11: enter read mode at 3E58, then issue
+        // only the low address byte for 3E10 before reading the data port.
+        addr(&mut v, 0x3E58, 0x00);
+        assert_eq!(v.read_buffer, 0xCC);
+        v.write_port(0xBF, 0x10);
+
+        assert_eq!(v.address(), 0x3E11);
+        assert_eq!(v.read_port(0xBE), expected[0]);
+        for byte in expected.iter().skip(1) {
+            assert_eq!(v.read_port(0xBE), *byte);
+        }
+    }
+
+    #[test]
+    fn first_control_byte_retargets_write_address_without_incrementing() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x3E72, 0x40);
+
+        // Match SMS VDP Test RunTest12: a one-byte control write changes the
+        // low address byte, and the following data write targets that byte.
+        v.write_port(0xBF, 0x30);
+        assert_eq!(v.address(), 0x3E30);
+        v.write_port(0xBE, 0xAA);
+        assert_eq!(v.vram[0x3E30], 0xAA);
+        assert_eq!(v.address(), 0x3E31);
+    }
+
+    #[test]
+    fn first_control_byte_preserves_cram_write_destination() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x001F, 0xC0);
+
+        v.write_port(0xBF, 0x10);
+        assert_eq!(v.address(), 0x0010);
+        v.write_port(0xBE, 0x2A);
+
+        assert_eq!(v.cram[0x10], 0x2A);
+        assert_eq!(v.address(), 0x0011);
     }
 
     #[test]
