@@ -154,15 +154,6 @@ fn receive_worker_reply<T>(receiver: Receiver<T>, operation: &str) -> Result<T, 
     receive_worker_reply_with_timeout(receiver, operation, WORKER_REPLY_TIMEOUT)
 }
 
-fn build_sms_temporal_machine(rom: Vec<u8>, region: &str) -> Result<SmsTemporalMachine, String> {
-    build_sms_temporal_machine_with_revision_and_sram_size(
-        rom,
-        region,
-        SmsVdpRevision::Sega3155124,
-        None,
-    )
-}
-
 fn build_sms_temporal_machine_with_revision_and_sram_size(
     rom: Vec<u8>,
     region: &str,
