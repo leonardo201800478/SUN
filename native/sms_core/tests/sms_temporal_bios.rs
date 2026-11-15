@@ -94,3 +94,48 @@ fn temporal_machine_executes_instruction_fetch_from_bios_through_scheduler() {
     assert_eq!(machine.cpu().registers.pc, 2);
     assert!(machine.memory().bios_enabled());
 }
+
+#[test]
+fn temporal_scheduler_applies_bios_handoff_port_write_before_next_instruction_fetch() {
+    // This synthetic program validates the bus contract, not the exact instruction
+    // sequence of any commercial BIOS revision.
+    let mut cartridge = vec![0x00; 0x4000];
+    cartridge[4..6].copy_from_slice(&[0x3E, 0x99]);
+
+    let mut bios = vec![0x00; 0x2000];
+    // LD A, $AB ; OUT ($3E), A
+    bios[0..4].copy_from_slice(&[0x3E, 0xAB, 0xD3, 0x3E]);
+
+    let mut machine = SmsTemporalMachine::new_with_hardware_profile_bios_and_sram_size(
+        cartridge,
+        SmsTemporalMemoryOptions {
+            bios: Some(bios),
+            cartridge_sram_size: None,
+        },
+        1,
+        3_579_545,
+        48_000,
+        SmsVdpProfile::sms1_t0_ntsc(),
+        Territory::Export,
+    )
+    .expect("valid conventional BIOS should initialize temporal memory");
+
+    machine
+        .step_complete_instruction()
+        .expect("BIOS must execute LD A through the scheduler");
+    assert_eq!(machine.cpu().registers.a, 0xAB);
+    assert!(machine.memory().bios_enabled());
+
+    machine
+        .step_complete_instruction()
+        .expect("BIOS must execute OUT ($3E), A through the scheduler");
+    assert!(!machine.memory().bios_enabled());
+    assert_eq!(machine.memory().control_port(), 0xAB);
+    assert_eq!(machine.cpu().registers.pc, 4);
+
+    machine
+        .step_complete_instruction()
+        .expect("the next opcode fetch must come from cartridge memory");
+    assert_eq!(machine.cpu().registers.a, 0x99);
+    assert_eq!(machine.cpu().registers.pc, 6);
+}
