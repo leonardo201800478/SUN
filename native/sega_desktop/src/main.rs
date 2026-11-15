@@ -606,6 +606,7 @@ mod windows_host {
                                 CompactButton { text: root.selected-region == "europe" ? "✓ Europa / PAL" : "Europa / PAL"; clicked => { root.selected-region = "europe"; root.preferences-changed(); } }
                                 CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
                             }
+                            Text { font-size: 11px; text: "A região e o padrão de vídeo selecionados serão aplicados ao carregar a próxima ROM; a sessão atual mantém o clock já construído."; color: #b9c5ce; wrap: word-wrap; }
                             Text { font-size: 12px; text: "Outros sistemas ainda indisponíveis neste runtime"; color: #b9c5ce; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
