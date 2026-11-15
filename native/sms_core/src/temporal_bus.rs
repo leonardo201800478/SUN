@@ -958,6 +958,79 @@ mod tests {
     }
 
     #[test]
+    fn sms1_offscreen_vertical_border_collision_crosses_scheduler_frame_boundary_and_restores() {
+        const FRAME_TSTATES: u32 = 262 * 228;
+
+        fn advance_internal(bus: &mut SmsTemporalBus, id: u64, tstates: u32) {
+            bus.schedule_internal_cycle(id, tstates).unwrap();
+            assert!(matches!(
+                bus.dispatch_next().unwrap(),
+                Some(SmsTemporalDispatch::InternalCycleComplete(_))
+            ));
+            bus.acknowledge_internal_completion(id).unwrap();
+        }
+
+        let mut initial = SmsTemporalBus::new_with_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            44_100,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Export,
+        )
+        .unwrap();
+
+        {
+            let vdp = initial.vdp_mut();
+            vdp_write_register(vdp, 0, 0x04); // Mode 4.
+            vdp_write_register(vdp, 1, 0x40); // Display enabled.
+            vdp_write_register(vdp, 5, 0x7F); // SAT at $3F00.
+
+            vdp_write_memory(vdp, 0x3F00, 0xF0); // Sprite 0 Y: top border.
+            vdp_write_memory(vdp, 0x3F01, 0xF0); // Sprite 1 Y: top border.
+            vdp_write_memory(vdp, 0x3F02, 0xD0); // SAT terminator.
+            vdp_write_memory(vdp, 0x3F80, 0x7C); // Sprite 0 X.
+            vdp_write_memory(vdp, 0x3F81, 0x01); // Sprite 0 tile.
+            vdp_write_memory(vdp, 0x3F82, 0x7C); // Sprite 1 X.
+            vdp_write_memory(vdp, 0x3F83, 0x02); // Sprite 1 tile.
+
+            for row in 0..8_u16 {
+                for plane in 0..4_u16 {
+                    vdp_write_memory(vdp, 32 + row * 4 + plane, 0xFF);
+                    vdp_write_memory(vdp, 64 + row * 4 + plane, 0xFF);
+                }
+            }
+        }
+
+        let mut continuous = initial.clone();
+        advance_internal(&mut continuous, 1, FRAME_TSTATES);
+
+        let mut chunked = SmsTemporalBus::restore_state(initial.export_state()).unwrap();
+        advance_internal(&mut chunked, 1, FRAME_TSTATES - 1);
+        let mut restored = SmsTemporalBus::restore_state(chunked.export_state()).unwrap();
+        advance_internal(&mut restored, 2, 1);
+
+        let read_status = |bus: &SmsTemporalBus| {
+            let mut vdp = bus.vdp().clone();
+            vdp.read_port(0xBF)
+        };
+        let continuous_status = read_status(&continuous);
+        let restored_status = read_status(&restored);
+
+        assert_ne!(
+            continuous_status & 0x20,
+            0,
+            "SMS1 must latch collision for overlapping sprites at Y=$F0"
+        );
+        assert_eq!(restored_status, continuous_status);
+        assert_eq!(restored.vdp().scanline(), continuous.vdp().scanline());
+        assert_eq!(
+            restored.vdp().cycles_into_line(),
+            continuous.vdp().cycles_into_line()
+        );
+    }
+
+    #[test]
     fn sms1_vint_boundary_is_chunk_invariant_and_survives_snapshot_restore() {
         const VBLANK_START_TSTATES: u32 = 193 * 228;
 

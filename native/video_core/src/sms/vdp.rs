@@ -724,6 +724,14 @@ impl SmsVdp {
     }
 
     fn evaluate_mode4_sprite_line(&self, target_line: u16) -> Mode4SpriteEvaluation {
+        self.evaluate_mode4_sprite_line_at(i32::from(target_line))
+    }
+
+    /// Evaluate a Mode 4 line in the signed sprite-Y coordinate space.
+    ///
+    /// Negative lines are required for the SMS1 top-border sprite collision
+    /// behavior; they are never sent to the framebuffer renderer.
+    fn evaluate_mode4_sprite_line_at(&self, target_line: i32) -> Mode4SpriteEvaluation {
         let sprite_limit = if self.profile.sprite_limit == SpriteLimitMode::HardwareLimit {
             8
         } else {
@@ -732,11 +740,39 @@ impl SmsVdp {
         evaluate_mode4_sprites(
             &self.vram,
             &self.registers,
-            usize::from(target_line),
+            target_line,
             self.profile.revision,
             usize::from(self.visible_height()),
             sprite_limit,
         )
+    }
+
+    /// Latch SMS1 Mode 4 collisions produced in the vertical top border.
+    ///
+    /// The SMS VDP test ROM documents that opaque sprite overlap at Y=$F0
+    /// asserts collision on SMS1, although those pixels are never displayed.
+    /// This path updates only the sticky status flag: it does not draw pixels
+    /// and deliberately does not publish sprite overflow for offscreen lines.
+    fn latch_sms1_vertical_border_collision(&mut self) {
+        if self.profile.revision != SmsVdpRevision::Sega3155124
+            || self.registers[0] & 0x04 == 0
+            || self.registers[1] & 0x40 == 0
+        {
+            return;
+        }
+
+        for target_line in -15..0 {
+            let evaluation = self.evaluate_mode4_sprite_line_at(target_line);
+            if mode4_sprite_pixels_overlap(
+                &self.vram,
+                &self.registers,
+                &evaluation,
+                self.profile.revision,
+            ) {
+                self.status |= COLLISION;
+                return;
+            }
+        }
     }
 
     fn evaluate_legacy_sprite_line(&self, target_line: u16) -> LegacySpriteEvaluation {
@@ -827,6 +863,12 @@ impl SmsVdp {
         self.sprite_line_buffer = None;
         self.legacy_sprite_line_buffer = None;
         self.prepare_next_sprite_line(line, height);
+        if line + 1 == self.total_lines() {
+            // The SMS1 VDP evaluates sprites in the vertical top border before
+            // the next visible frame begins. Collision is sticky status, not
+            // framebuffer content, so this must run at the frame boundary.
+            self.latch_sms1_vertical_border_collision();
+        }
         self.scanline += 1;
         if self.scanline >= self.total_lines() {
             self.scanline = 0;
@@ -1163,7 +1205,7 @@ struct LegacySpriteLineBuffer {
 fn evaluate_mode4_sprites(
     vram: &[u8],
     regs: &[u8; 16],
-    y: usize,
+    y: i32,
     revision: SmsVdpRevision,
     height: usize,
     sprite_limit: usize,
@@ -1191,7 +1233,7 @@ fn evaluate_mode4_sprites(
         } else {
             i32::from(raw_y) + 1
         };
-        if (y as i32) < sprite_y || (y as i32) >= sprite_y + (sprite_height_i32 * zoom_i32) {
+        if y < sprite_y || y >= sprite_y + (sprite_height_i32 * zoom_i32) {
             continue;
         }
         if selected.len() == 8 {
@@ -1229,7 +1271,7 @@ fn evaluate_mode4_sprites(
         if regs[6] & 0x04 != 0 {
             tile += 256;
         }
-        let row = ((y as i32 - sprite_y) / zoom_i32) as usize;
+        let row = ((y - sprite_y) / zoom_i32) as usize;
         selected.push(Mode4SpriteEntry { row, x, tile });
     }
     Mode4SpriteEvaluation {
@@ -1239,6 +1281,67 @@ fn evaluate_mode4_sprites(
         zoom,
         sprite_pattern_register: regs[6],
     }
+}
+
+/// Return whether two selected Mode 4 sprites have overlapping opaque pixels.
+fn mode4_sprite_pixels_overlap(
+    vram: &[u8],
+    regs: &[u8; 16],
+    evaluation: &Mode4SpriteEvaluation,
+    revision: SmsVdpRevision,
+) -> bool {
+    let mut occupied = [false; SMS_VDP_WIDTH];
+    let count = evaluation.selected.len();
+
+    for (rank, sprite) in evaluation.selected.iter().enumerate() {
+        let tile_row = if evaluation.sprite_height == 16 && sprite.row >= 8 {
+            sprite.tile + 1
+        } else {
+            sprite.tile
+        };
+        let py = if evaluation.sprite_height == 16 {
+            sprite.row & 7
+        } else {
+            sprite.row
+        };
+        let raw_pattern = (tile_row * 32 + py * 4) & 0x3FFF;
+        let pattern = if revision == SmsVdpRevision::Sega3155124 {
+            sms1_sprite_pattern_address(raw_pattern, evaluation.sprite_pattern_register)
+        } else {
+            raw_pattern
+        };
+        let width_scale = if revision == SmsVdpRevision::Sega3155124 && evaluation.zoom == 2 {
+            if rank < count.saturating_sub(4) { 2 } else { 1 }
+        } else {
+            evaluation.zoom
+        };
+
+        for px in 0..8 {
+            let mut color = 0_u8;
+            for plane in 0..4 {
+                color |= ((vram[(pattern + plane) & 0x3FFF] >> (7 - px)) & 1) << plane;
+            }
+            if color == 0 {
+                continue;
+            }
+
+            for zoom_x in 0..width_scale {
+                let x = sprite.x + (px * width_scale + zoom_x) as i32;
+                if !(0..SMS_VDP_WIDTH as i32).contains(&x) {
+                    continue;
+                }
+                let x = x as usize;
+                if regs[0] & 0x20 != 0 && x < 8 {
+                    continue;
+                }
+                if occupied[x] {
+                    return true;
+                }
+                occupied[x] = true;
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -1674,7 +1777,7 @@ fn render_scanline_for_revision_with_evaluation(
         computed_evaluation = evaluate_mode4_sprites(
             vram,
             regs,
-            y,
+            y as i32,
             revision,
             height,
             if hardware_sprite_limit { 8 } else { 64 },
@@ -3080,6 +3183,55 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sms1_offscreen_vertical_border_collision_latches_at_frame_wrap_without_drawing() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[5] = 0x7F;
+        set_sprite(&mut v, 0, 0xF0, 0x7C, 1);
+        set_sprite(&mut v, 1, 0xF0, 0x7C, 2);
+        v.vram[0x3F02] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 1);
+        solid_sprite_tile(&mut v, 2, 2);
+
+        let frame_tstates = LINE_TSTATES * u64::from(v.total_lines());
+        v.advance(frame_tstates);
+
+        assert_ne!(v.status & COLLISION, 0);
+        assert_eq!(v.status & OVERFLOW, 0);
+        assert!(
+            v.framebuffer().iter().all(|pixel| *pixel == 0),
+            "offscreen collision must not render border pixels"
+        );
+        let status = v.read_port(0xBF);
+        assert_ne!(status & COLLISION, 0);
+        assert_eq!(v.status & COLLISION, 0);
+    }
+
+    #[test]
+    fn sms1_offscreen_vertical_border_collision_does_not_latch_overflow() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[5] = 0x7F;
+        for index in 0..9 {
+            set_sprite(&mut v, index, 0xF0, 0x7C, 1);
+        }
+        v.vram[0x3F09] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 1);
+
+        let frame_tstates = LINE_TSTATES * u64::from(v.total_lines());
+        v.advance(frame_tstates);
+
+        assert_ne!(v.status & COLLISION, 0);
+        assert_eq!(
+            v.status & OVERFLOW,
+            0,
+            "sprites outside the vertical display border must not set overflow"
+        );
     }
 
     #[test]
