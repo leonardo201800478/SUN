@@ -33,7 +33,7 @@ References:
 
 ## 3. Implementation
 
-The common CPU-visible event schedule now runs for both 315-5124 and 315-5246:
+The CPU-visible interrupt/frame events now run for both 315-5124 and 315-5246:
 
 | Event | Current project boundary | Effect |
 |---|---:|---|
@@ -41,9 +41,8 @@ The common CPU-visible event schedule now runs for both 315-5124 and 315-5246:
 | HINT | T14 | Decrement/reload R10 and latch line IRQ |
 | VCounter | T15 | Latch current scanline |
 | VBlank frame publication/status | T16 | Publish completed visible frame at `height`; set VBlank status at `height + 1` |
-| HBlank | T213 | Commit the remaining visible raster span |
 
-The SMS1 sprite-overflow latch remains revision-specific at T16 and continues to consume the persistent SMS1 sprite line buffer. This change does not invent an SMS2 sprite buffer or claim that sprite fetch timing is complete.
+HBlank partial-span commits (T213) and the sprite-overflow latch at T16 remain SMS1-only for now. The SMS2 HBlank/raster-write and sprite-evaluation phases remain uncharacterized; the implementation deliberately retains its previous scanline rendering path rather than importing the SMS1 latch behavior without evidence. This change does not invent an SMS2 sprite buffer or claim that sprite fetch timing is complete.
 
 The VINT interrupt line now uses the dedicated `vint_pending` latch for both revisions. The VBlank status flag remains a separate event and is cleared by the status-port read.
 
@@ -59,7 +58,7 @@ These tests prove consistency of the model and prevent the previous SMS2 no-VINT
 
 ## 5. Remaining SMS2 timing work
 
-- Validate HINT/VINT/VCounter/HBlank against the SMS VDP Test on PAL SMS2 hardware or a documented capture.
-- Characterize the 315-5246 sprite evaluation and overflow/collision phases independently; SMS1's persistent line buffer is not assumed to represent SMS2.
+- Validate HINT/VINT/VCounter against the SMS VDP Test on PAL SMS2 hardware or a documented capture.
+- Characterize 315-5246 HBlank/raster-write, sprite evaluation, overflow and collision phases independently; SMS1's persistent line buffer is not assumed to represent SMS2.
 - Validate raster writes and framebuffer publication for 224/240 lines through WGPU/Slint.
 - Run Cosmic Spacehead (CRC32 29822980) from menu through gameplay after explicit SMS2 selection is integrated.
