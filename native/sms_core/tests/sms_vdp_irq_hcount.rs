@@ -108,9 +108,14 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
         );
     }
     assert!(
-        observed.iter().all(|(_, frame_result, frame_sample, line_result, line_sample)| {
-            *frame_result == 0xFF && *frame_sample == 0x81 && *line_result == 0xFF && *line_sample == 0x87
-        }),
+        observed.iter().all(
+            |(_, frame_result, frame_sample, line_result, line_sample)| {
+                *frame_result == 0xFF
+                    && *frame_sample == 0x81
+                    && *line_result == 0xFF
+                    && *line_sample == 0x87
+            }
+        ),
         "isolated phase sweep must retain its documented non-conformant samples; observed={observed:?}"
     );
 }
