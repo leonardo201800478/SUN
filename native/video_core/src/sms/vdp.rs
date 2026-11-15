@@ -72,7 +72,6 @@ pub struct SmsRasterPosition {
     pub total_lines: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum VdpAddressMode {
     #[default]
@@ -81,6 +80,7 @@ enum VdpAddressMode {
     CramWrite,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmsVdp {
     vram: Vec<u8>,
     cram: [u8; CRAM_SIZE],
