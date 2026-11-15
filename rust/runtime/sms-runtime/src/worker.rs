@@ -958,7 +958,9 @@ fn capture_debug_snapshot(
         .map_err(|_| "debugger collector state is unavailable".to_owned())?;
     if let Some(collector) = slot.as_ref() {
         snapshot.trace_events = collector.snapshot();
-        snapshot.trace_dropped = collector.ingress_dropped();
+        snapshot.trace_dropped = collector
+            .ingress_dropped()
+            .saturating_add(collector.history_dropped());
         snapshot.trace_enabled = true;
     }
     Ok(snapshot)
