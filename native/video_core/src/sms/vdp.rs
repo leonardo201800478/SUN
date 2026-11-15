@@ -591,10 +591,13 @@ impl SmsVdp {
         let tstate = u64::from(self.tstates_into_line);
         let height = self.visible_height();
         match tstate {
-            SMS_VINT_IRQ_TSTATE if self.scanline == height => {
+            // HINT includes the first non-visible line. VINT is asserted on
+            // the following line so the status register still identifies the
+            // boundary HINT when the CPU services its interrupt.
+            SMS_VINT_IRQ_TSTATE if self.scanline == height + 1 => {
                 self.vint_pending = true;
             }
-            SMS_HINT_TSTATE if self.scanline < height => {
+            SMS_HINT_TSTATE if self.scanline <= height => {
                 if self.line_counter == 0 {
                     self.line_irq_pending = true;
                     sega_observability::tracing::trace!(
@@ -626,7 +629,21 @@ impl SmsVdp {
                 };
                 self.latch_sms1_sprite_overflow_index(overflow_index);
             }
-            SMS_VBLANK_FLAG_TSTATE if self.scanline == height => self.enter_vblank(),
+            // Publish the completed visible image at line 192/T16. The VBlank
+            // status flag itself follows at line 193/T16.
+            SMS_VBLANK_FLAG_TSTATE if self.scanline == height => {
+                self.publish_completed_frame();
+            }
+            SMS_VBLANK_FLAG_TSTATE if self.scanline == height + 1 => {
+                self.status |= VBLANK;
+                sega_observability::tracing::debug!(
+                    target: "sega::vdp",
+                    frame_number = self.frame_number,
+                    visible_height = height,
+                    video_standard = ?self.profile.video_standard,
+                    "SMS VDP entered VBlank"
+                );
+            }
             SMS_HBLANK_TSTATE if self.scanline < height => {
                 self.commit_raster_span_to_beam();
                 if self.line_overflow_status != 0 {
@@ -635,6 +652,26 @@ impl SmsVdp {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn publish_completed_frame(&mut self) {
+        let height = self.visible_height();
+        if let Some(scroll_y) = self.pending_scroll_y.take() {
+            self.latched_scroll_y = scroll_y;
+        }
+        self.frame_ready = true;
+        sega_observability::tracing::debug!(
+            target: "sega::vdp",
+            frame_number = self.frame_number,
+            visible_height = height,
+            video_standard = ?self.profile.video_standard,
+            "SMS VDP published completed frame"
+        );
+        self.framebuffer.clone_from(&self.working_framebuffer);
+        match self.stereo_eye {
+            SmsVdpEye::Left => self.left_frame.clone_from(&self.working_framebuffer),
+            SmsVdpEye::Right => self.right_frame.clone_from(&self.working_framebuffer),
         }
     }
 
@@ -1739,8 +1776,9 @@ fn render_scanline_for_revision_with_evaluation(
 mod tests {
     use super::super::profile::{SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, VideoStandard};
     use super::{
-        COLLISION, CRAM_SIZE, FRAME_SIZE, LINE_TSTATES, OVERFLOW, SMS_VDP_WIDTH, SmsVdp,
-        StereoPresentation, TMS_PALETTE, VBLANK, evaluate_mode4_sprites, render_legacy_scanline,
+        COLLISION, CRAM_SIZE, FRAME_SIZE, LINE_TSTATES, OVERFLOW, SMS_HINT_TSTATE,
+        SMS_VBLANK_FLAG_TSTATE, SMS_VDP_WIDTH, SMS_VINT_IRQ_TSTATE, SmsVdp, StereoPresentation,
+        TMS_PALETTE, VBLANK, evaluate_mode4_sprites, render_legacy_scanline,
         render_legacy_scanline_span, render_legacy_sprites, render_legacy_sprites_span,
         render_scanline, render_scanline_for_revision,
     };
@@ -1865,12 +1903,12 @@ mod tests {
     }
 
     #[test]
-    fn sms1_vint_irq_precedes_the_vblank_status_flag() {
+    fn sms1_vint_irq_precedes_the_vblank_status_flag_on_following_scanline() {
         let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
         vdp.registers[1] = 0x20; // VINT enable.
         let height = u64::from(vdp.visible_height());
 
-        vdp.advance(LINE_TSTATES * height);
+        vdp.advance(LINE_TSTATES * (height + 1));
         vdp.advance(12);
         assert!(!vdp.interrupt_pending());
         assert_eq!(vdp.status & VBLANK, 0);
@@ -1918,7 +1956,7 @@ mod tests {
     }
 
     #[test]
-    fn sms1_vblank_flag_and_frame_ready_latch_at_hpos24_of_vblank_line() {
+    fn sms1_frame_ready_precedes_vblank_status_on_the_following_scanline() {
         let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
         let height = u64::from(vdp.visible_height());
 
@@ -1932,8 +1970,54 @@ mod tests {
         assert!(!vdp.frame_ready);
 
         vdp.advance(1);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert!(vdp.frame_ready);
+
+        vdp.advance(LINE_TSTATES - 1);
+        assert_eq!(vdp.scanline, (height + 1) as u16);
+        assert_eq!(vdp.status & VBLANK, 0);
+        vdp.advance(1);
         assert_ne!(vdp.status & VBLANK, 0);
         assert!(vdp.frame_ready);
+    }
+
+    #[test]
+    fn sms1_hint_r10_192_expires_on_first_vblank_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[0] = 0x14; // Mode 4 plus HINT enable.
+        vdp.registers[1] = 0x20; // VINT enable.
+        vdp.registers[10] = 192;
+        vdp.line_counter = 192;
+
+        let height = u64::from(vdp.visible_height());
+        vdp.advance(LINE_TSTATES * height + SMS_HINT_TSTATE);
+        assert_eq!(u64::from(vdp.scanline), height);
+        assert!(vdp.line_irq_pending);
+        assert!(!vdp.vint_pending);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert_eq!(vdp.line_counter, 192);
+
+        let status = vdp.read_port(0xBF);
+        assert_eq!(status & VBLANK, 0);
+        assert!(!vdp.interrupt_pending());
+
+        vdp.advance(LINE_TSTATES - SMS_HINT_TSTATE + SMS_VINT_IRQ_TSTATE);
+        assert_eq!(u64::from(vdp.scanline), height + 1);
+        assert!(vdp.vint_pending);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert!(vdp.interrupt_pending());
+
+        vdp.advance(SMS_VBLANK_FLAG_TSTATE - SMS_VINT_IRQ_TSTATE);
+        assert_ne!(vdp.status & VBLANK, 0);
+        assert!(vdp.frame_ready);
+        let status = vdp.read_port(0xBF);
+        assert_ne!(status & VBLANK, 0);
+        assert!(!vdp.interrupt_pending());
+
+        vdp.advance(LINE_TSTATES - SMS_VBLANK_FLAG_TSTATE);
+        assert_eq!(u64::from(vdp.scanline), height + 2);
+        assert!(!vdp.line_irq_pending);
+        assert_eq!(vdp.line_counter, 192);
     }
 
     #[test]

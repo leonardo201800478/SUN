@@ -959,7 +959,7 @@ mod tests {
 
     #[test]
     fn sms1_vint_boundary_is_chunk_invariant_and_survives_snapshot_restore() {
-        const VBLANK_START_TSTATES: u32 = 192 * 228;
+        const VBLANK_START_TSTATES: u32 = 193 * 228;
 
         fn advance_internal(bus: &mut SmsTemporalBus, id: u64, tstates: u32) {
             bus.schedule_internal_cycle(id, tstates).unwrap();
@@ -1053,6 +1053,48 @@ mod tests {
         advance_internal(&mut restored, 2, 1);
         assert!(restored.vdp().interrupt_pending());
         assert_eq!(restored.vdp().cycles_into_line(), 14);
+    }
+
+    #[test]
+    fn sms1_hint_r10_192_boundary_is_preserved_by_scheduler_snapshot_restore() {
+        fn advance_internal(bus: &mut SmsTemporalBus, id: u64, tstates: u32) {
+            bus.schedule_internal_cycle(id, tstates).unwrap();
+            assert!(matches!(
+                bus.dispatch_next().unwrap(),
+                Some(SmsTemporalDispatch::InternalCycleComplete(_))
+            ));
+            bus.acknowledge_internal_completion(id).unwrap();
+        }
+
+        let mut bus = SmsTemporalBus::new_with_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            44_100,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Export,
+        )
+        .unwrap();
+        vdp_write_register(bus.vdp_mut(), 0, 0x10); // HINT enabled.
+        vdp_write_register(bus.vdp_mut(), 10, 192);
+
+        // Complete one frame so the SMS1 frame-start path reloads R10 into
+        // the line counter. Acknowledge the initial line-0 HINT/VBlank state.
+        advance_internal(&mut bus, 1, 262 * 228);
+        bus.vdp_mut().read_port(0xBF);
+
+        // Stop one T-state before R10=192 expires on scanline 192.
+        advance_internal(&mut bus, 2, 192 * 228 + 13);
+        assert_eq!(bus.vdp().scanline(), 192);
+        assert_eq!(bus.vdp().cycles_into_line(), 13);
+        assert!(!bus.vdp().interrupt_pending());
+
+        let mut restored = SmsTemporalBus::restore_state(bus.export_state()).unwrap();
+        advance_internal(&mut restored, 3, 1);
+        assert!(restored.vdp().interrupt_pending());
+        assert_eq!(restored.vdp().scanline(), 192);
+        assert_eq!(restored.vdp().cycles_into_line(), 14);
+        assert_eq!(restored.vdp().status() & 0x80, 0);
     }
 
     #[test]
