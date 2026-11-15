@@ -60,7 +60,6 @@ fn temporal_machine_rejects_non_8k_bios_before_scheduler_execution() {
         48_000,
         SmsVdpProfile::sms1_t0_ntsc(),
         Territory::Export,
-        None,
     );
     assert!(result.is_err());
 }
