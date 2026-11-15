@@ -53,7 +53,7 @@ fn run_until_memory(machine: &mut SmsTemporalMachine, address: u16, value: u8, l
 }
 
 #[test]
-fn vcounter_port_read_observes_the_t15_latch_boundary_through_the_z80() {
+fn smsvdptest_run_test25_vcounter_transition_has_one_increment_and_stable_followup() {
     fn read_after_nops(nops: usize) -> (u8, u64) {
         let mut program = vec![0x00; nops]; // NOPs align the CPU against the raster.
         program.extend_from_slice(&[
@@ -92,10 +92,15 @@ fn vcounter_port_read_observes_the_t15_latch_boundary_through_the_z80() {
     // One more NOP moves the same IN completion to T15 exactly.
     let at_boundary = read_after_nops(58);
     assert_eq!(at_boundary, (0x01, 243));
+
+    // The next sample remains on the new counter value, matching the
+    // third sample in SmsVdpTest RunTest25's before/after transition check.
+    let after = read_after_nops(59);
+    assert_eq!(after, (0x01, 247));
 }
 
 #[test]
-fn frame_irq_is_serviced_by_the_z80_and_reads_vcounter_c1() {
+fn smsvdptest_run_test31_frame_irq_isr_reads_vcounter_c1() {
     // DI; LD SP,$DFF0; IM 1; enable VINT in R1; EI; HALT; JR HALT.
     let program = [
         0xF3, 0x31, 0xF0, 0xDF, 0xED, 0x56, 0x3E, 0x20, 0xD3, 0xBF, 0x3E, 0x81, 0xD3, 0xBF, 0xFB,
@@ -156,4 +161,51 @@ fn line_irq_r10_c0_is_observed_before_vint_as_vcounter_c0() {
         0xC0,
         "R10=$BE countdown must produce the second HINT on the first non-visible line"
     );
+}
+
+ 
+fn run_smsvdptest_run_test33_hint_sample(r10: u8) -> (u8, u8) {
+    // Match RunTest33's sequence: wait for VBlank via IM1, then program
+    // R10 and enable HINT. The ISR distinguishes VINT (status bit 7) from
+    // HINT and stores the CPU-visible VCounter sample.
+    let program = [
+        0xF3, 0x31, 0xF0, 0xDF, 0xED, 0x56,
+        0x3E, 0x20, 0xD3, 0xBF, 0x3E, 0x81, 0xD3, 0xBF,
+        0xFB, 0x76,
+        0x3E, r10, 0xD3, 0xBF, 0x3E, 0x8A, 0xD3, 0xBF,
+        0x3E, 0x14, 0xD3, 0xBF, 0x3E, 0x80, 0xD3, 0xBF,
+        0xFB, 0x76, 0x18, 0xFD,
+    ];
+    let handler = [
+        0xF5,                   // PUSH AF
+        0xDB, 0xBF,             // IN A,($BF) - acknowledge and classify IRQ
+        0xCB, 0x7F,             // BIT 7,A
+        0x20, 0x0C,             // JR NZ,vint
+        0xDB, 0x40,             // IN A,($40) - HINT VCounter sample
+        0x32, 0x01, 0xC0,       // LD ($C001),A
+        0x3E, 0x01,
+        0x32, 0x00, 0xC0,       // LD ($C000),A - HINT completed
+        0x18, 0x05,             // JR done
+        0xDB, 0x40,             // vint: IN A,($40)
+        0x32, 0x02, 0xC0,       // LD ($C002),A - first VINT sample
+        0xF1, 0xFB, 0xED, 0x4D, // POP AF; EI; RETI
+    ];
+    let mut machine = machine_with_program(&program, Some(&handler));
+    run_until_memory(&mut machine, 0xC000, 0x01, 120_000);
+    (machine.inspect_memory(0xC001), machine.inspect_memory(0xC002))
+}
+
+#[test]
+fn smsvdptest_run_test33_hint_vcounter_matches_r10_samples() {
+    for r10 in [0x00, 0x61, 0x80, 0xAF, 0xC0] {
+        let (hint_sample, vblank_sample) = run_smsvdptest_run_test33_hint_sample(r10);
+        assert_eq!(
+            vblank_sample, 0xC1,
+            "RunTest33 precondition: VINT ISR must sample C1 before R10={r10:#04X}"
+        );
+        assert_eq!(
+            hint_sample, r10,
+            "RunTest33 HINT VCounter sample must equal R10={r10:#04X}"
+        );
+    }
 }
