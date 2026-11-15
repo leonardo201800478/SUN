@@ -163,7 +163,6 @@ fn line_irq_r10_c0_is_observed_before_vint_as_vcounter_c0() {
     );
 }
 
-
 fn run_smsvdptest_run_test33_hint_sample(r10: u8) -> (u8, u8) {
     // Match RunTest33's sequence: wait for VBlank via IM1, then program
     // R10 and enable HINT. The ISR distinguishes VINT (status bit 7) from
