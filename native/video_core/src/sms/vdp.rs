@@ -2301,7 +2301,10 @@ mod tests {
         );
         assert_eq!(evaluation.selected.len(), 8);
         assert!(
-            evaluation.selected.iter().all(|sprite| sprite.width_scale == 2),
+            evaluation
+                .selected
+                .iter()
+                .all(|sprite| sprite.width_scale == 2),
             "the 315-5246 magnifies all eight selected sprites horizontally"
         );
     }
