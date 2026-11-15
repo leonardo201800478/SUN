@@ -192,9 +192,10 @@ Fontes:
 - **PR #884 — integrada:** decodificação dos gates de altura SMS2 (R0.M4/R0.M2 e seleção exclusiva R1.M1/R1.M3).
 - **PR #889 — integrada:** latch do primeiro byte da porta de controle, read-ahead e preservação do modo; testes VDP/SMS runtime aprovados.
 - **PR #890 — integrada:** dimensões dinâmicas 256×192/224/240 no host Slint/WGPU; CI completa e Windows x64 POC passaram.
-- **PR #891 — aberta:** matriz documental de diferenças SMS1/SMS2, com CI de documentação verde.
-- **PR #892 — aberta:** seleção persistente SMS1/SMS2 e propagação explícita do ASIC até o worker; CI em execução/revisão.
-- **PR #881 — esta auditoria:** permanece aberta e em Draft como índice das duas investigações e da validação independente. O workflow de comparadores compilou Ares e Gearsystem em revisões fixadas.
+- **PR #891 — integrada:** matriz documental de diferenças SMS1/SMS2 na main.
+- **PR #892 — aberta:** seleção persistente SMS1/SMS2 e propagação explícita do ASIC até o worker; CI em execução após correções de integração.
+- **PR #893 — aberta:** agenda de HINT/VINT/VCounter e publicação VBlank para o 315-5246; HBlank e avaliação de sprites SMS2 permanecem explicitamente não resolvidos.
+- **PR #881 — esta auditoria:** permanece aberta e em Draft como índice das duas investigações e da validação independente. O workflow de comparadores compila Ares e Gearsystem em revisões fixadas, mas não executa ROMs comerciais nem produz comparação visual automática.
 
 Ainda não existe correção integrada na main para a seleção explícita do ASIC no desktop, para a ordenação visual de sprites de The Smurfs ou para as demais falhas de timing listadas em 2.5.
 
