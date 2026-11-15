@@ -3885,6 +3885,66 @@ mod windows_host {
         }
 
         #[test]
+        fn sms_frame_extent_accepts_only_documented_sms_vertical_modes() {
+            assert!(is_supported_sms_frame_extent(256, 192));
+            assert!(is_supported_sms_frame_extent(256, 224));
+            assert!(is_supported_sms_frame_extent(256, 240));
+            assert!(!is_supported_sms_frame_extent(256, 193));
+            assert!(!is_supported_sms_frame_extent(256, 223));
+            assert!(!is_supported_sms_frame_extent(256, 241));
+            assert!(!is_supported_sms_frame_extent(255, 224));
+        }
+
+        #[test]
+        fn wgpu_texture_extent_and_upload_layout_follow_dynamic_height() {
+            for height in [192, 224, 240] {
+                let extent = texture_extent(256, height);
+                assert_eq!(extent.width, 256);
+                assert_eq!(extent.height, height);
+                assert_eq!(extent.depth_or_array_layers, 1);
+
+                let layout = texture_data_layout(256, height);
+                assert_eq!(layout.bytes_per_row, Some(1024));
+                assert_eq!(layout.rows_per_image, Some(height));
+            }
+        }
+
+        #[test]
+        fn rgb888_conversion_preserves_all_extended_scanlines() {
+            for height in [224_u32, 240_u32] {
+                let width = 2_u32;
+                let stride = 8_usize;
+                let mut source = vec![0_u8; stride * height as usize];
+                for y in 0..height as usize {
+                    let row = y * stride;
+                    source[row] = y as u8;
+                    source[row + 1] = 0xA5;
+                    source[row + 2] = 0x5A;
+                    source[row + 3] = 0x3C;
+                    source[row + 4] = 0xC3;
+                    source[row + 5] = 0x69;
+                    source[row + 6] = 0xDE;
+                    source[row + 7] = 0xAD;
+                }
+
+                let frame = VideoFrame::new(
+                    9,
+                    width,
+                    height,
+                    PixelFormat::Rgb888,
+                    stride,
+                    source,
+                )
+                .unwrap();
+                let rgba = convert_rgb888_to_rgba8(&frame).unwrap();
+
+                assert_eq!(rgba.len(), width as usize * height as usize * 4);
+                let last_row = (height as usize - 1) * width as usize * 4;
+                assert_eq!(&rgba[last_row..last_row + 8], &[height as u8 - 1, 0xA5, 0x5A, 255, 0x3C, 0xC3, 0x69, 255]);
+            }
+        }
+
+        #[test]
         fn rgb888_conversion_rejects_other_pixel_formats() {
             let frame =
                 VideoFrame::new(1, 1, 1, PixelFormat::Rgba8888, 4, vec![1, 2, 3, 4]).unwrap();
