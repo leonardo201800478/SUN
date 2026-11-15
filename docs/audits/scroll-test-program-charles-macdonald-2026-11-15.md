@@ -1,11 +1,11 @@
 # Scroll Test Program — Charles MacDonald (SMS)
 
-**Date:** 2026-11-15  
-**ROM:** Scroll Test Program by Charles MacDonald (PD)  
-**Platform:** Sega Master System  
-**ROM size:** 32 KiB  
-**CRC32:** `6841CE1D`  
-**SHA-256:** `c23791e2b6dcd224092dfefa8b480884a85b87fd5667439c0a97841ab06ff52e`  
+**Date:** 2026-11-15
+**ROM:** Scroll Test Program by Charles MacDonald (PD)
+**Platform:** Sega Master System
+**ROM size:** 32 KiB
+**CRC32:** `6841CE1D`
+**SHA-256:** `c23791e2b6dcd224092dfefa8b480884a85b87fd5667439c0a97841ab06ff52e`
 **Status:** STATIC_ROM_ANALYSIS_COMPLETE / DIFFERENTIAL_RUNTIME_REPRODUCTION_PENDING
 
 ## 1. Scope and evidence
