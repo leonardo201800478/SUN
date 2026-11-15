@@ -856,15 +856,10 @@ impl SmsVdp {
     }
     fn write_control(&mut self, value: u8) {
         let Some(first) = self.control_first.take() else {
-            // The first byte is already visible on the low address pins.
-            // In read mode the VDP also restarts the read-ahead pipeline at
-            // that partially updated address; write/CRAM modes keep their
-            // current destination and do not advance the address.
+            // The first byte updates only the low eight bits of the address
+            // register. Operation selection, read-ahead, and address
+            // increment are effects of the second byte only.
             self.address = (self.address & 0x3F00) | u16::from(value);
-            if self.address_mode == VdpAddressMode::VramRead {
-                self.read_buffer = self.vram[usize::from(self.address)];
-                self.address = self.address.wrapping_add(1) & 0x3FFF;
-            }
             self.control_first = Some(value);
             return;
         };
@@ -3980,7 +3975,7 @@ mod tests {
     }
 
     #[test]
-    fn first_control_byte_retargets_read_address_and_restarts_read_ahead() {
+    fn first_control_byte_updates_only_low_read_address_without_read_ahead() {
         let mut v = SmsVdp::default();
         let expected = [
             0x00, 0xFF, 0x55, 0xAA, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, b'T', b'e',
@@ -3990,20 +3985,22 @@ mod tests {
         v.vram[0x3E58] = 0xCC;
 
         // Match SMS VDP Test RunTest11: enter read mode at 3E58, then issue
-        // only the low address byte for 3E10 before reading the data port.
+        // only the low address byte for 3E10. This changes the address but
+        // does not execute the read-mode prefetch associated with byte two.
         addr(&mut v, 0x3E58, 0x00);
         assert_eq!(v.read_buffer, 0xCC);
         v.write_port(0xBF, 0x10);
 
-        assert_eq!(v.address(), 0x3E11);
-        assert_eq!(v.read_port(0xBE), expected[0]);
-        for byte in expected.iter().skip(1) {
-            assert_eq!(v.read_port(0xBE), *byte);
+        assert_eq!(v.address(), 0x3E10);
+        assert_eq!(v.read_buffer, 0xCC);
+        assert_eq!(v.read_port(0xBE), 0xCC);
+        for byte in expected {
+            assert_eq!(v.read_port(0xBE), byte);
         }
     }
 
     #[test]
-    fn first_control_byte_retargets_sms1_read_address_and_read_ahead() {
+    fn first_control_byte_updates_only_low_sms1_read_address_without_read_ahead() {
         let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
         v.vram[0x3E10] = 0xAA;
         v.vram[0x3E11] = 0xBB;
@@ -4012,7 +4009,9 @@ mod tests {
         addr(&mut v, 0x3E58, 0x00);
         v.write_port(0xBF, 0x10);
 
+        assert_eq!(v.address(), 0x3E10);
         let mut restored = v.clone();
+        assert_eq!(restored.read_port(0xBE), 0xCC);
         assert_eq!(restored.read_port(0xBE), 0xAA);
         assert_eq!(restored.read_port(0xBE), 0xBB);
     }
@@ -4039,6 +4038,8 @@ mod tests {
 
         v.vram[0x0010] = 0x5A;
         v.write_port(0xBF, 0x10);
+        // The low byte alone does not start the read-ahead pipeline.
+        v.write_port(0xBF, 0x00);
         assert_eq!(v.read_port(0xBE), 0x5A);
     }
 
