@@ -169,7 +169,11 @@ impl SmsFirmwareCatalog {
     }
 
     pub fn identify(&self, bytes: &[u8]) -> Option<SmsFirmwareMatch> {
-        if !self.entries.iter().any(|entry| entry.size_bytes == bytes.len()) {
+        if !self
+            .entries
+            .iter()
+            .any(|entry| entry.size_bytes == bytes.len())
+        {
             return None;
         }
 
@@ -261,7 +265,10 @@ impl SmsFirmwareCatalog {
                 if file.read(&mut extra)? == 0 {
                     Ok(())
                 } else {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, "file grew during firmware scan"))
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "file grew during firmware scan",
+                    ))
                 }
             });
             if let Err(error) = read_result {
@@ -314,8 +321,8 @@ impl SmsFirmwareCatalog {
             .descriptor(expected)
             .ok_or(SmsFirmwareLoadError::IdentityMismatch { expected })?;
         let expected_size = descriptor.size_bytes;
-        let mut file = fs::File::open(path)
-            .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?;
+        let mut file =
+            fs::File::open(path).map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?;
         let actual_size = file
             .metadata()
             .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?
@@ -330,7 +337,11 @@ impl SmsFirmwareCatalog {
         file.read_exact(&mut bytes)
             .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?;
         let mut extra = [0_u8; 1];
-        if file.read(&mut extra).map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))? != 0 {
+        if file
+            .read(&mut extra)
+            .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?
+            != 0
+        {
             return Err(SmsFirmwareLoadError::SizeMismatch {
                 actual: expected_size.saturating_add(1),
                 expected: expected_size,
@@ -355,7 +366,9 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
     use SmsFirmwareRegion as Region;
     use SmsFirmwareValidation as Validation;
 
-    const LOCAL_HASH: &[&str] = &["User-supplied image: size and cryptographic hashes calculated from extracted .sms bytes"];
+    const LOCAL_HASH: &[&str] = &[
+        "User-supplied image: size and cryptographic hashes calculated from extracted .sms bytes",
+    ];
     const SMS_POWER: &[&str] = &["https://www.smspower.org/Development/BIOSes"];
     const BIOS_EVIDENCE: &[&str] = &["Existing project SMS BIOS catalog; conventional 8 KiB BIOS"];
     [
@@ -546,14 +559,27 @@ mod tests {
         let catalog = SmsFirmwareCatalog::sms_default();
         assert_eq!(catalog.entries().len(), 8);
         assert_eq!(
-            catalog.entries().iter().filter(|entry| entry.kind == SmsFirmwareKind::ConventionalBios).count(),
+            catalog
+                .entries()
+                .iter()
+                .filter(|entry| entry.kind == SmsFirmwareKind::ConventionalBios)
+                .count(),
             3
         );
         assert_eq!(
-            catalog.entries().iter().filter(|entry| entry.kind == SmsFirmwareKind::BuiltInGameFirmware).count(),
+            catalog
+                .entries()
+                .iter()
+                .filter(|entry| entry.kind == SmsFirmwareKind::BuiltInGameFirmware)
+                .count(),
             5
         );
-        assert!(catalog.entries().iter().all(|entry| entry.validation != SmsFirmwareValidation::BootConfirmed));
+        assert!(
+            catalog
+                .entries()
+                .iter()
+                .all(|entry| entry.validation != SmsFirmwareValidation::BootConfirmed)
+        );
     }
 
     #[test]
@@ -585,7 +611,11 @@ mod tests {
     #[test]
     fn directory_scan_reports_unknown_content_at_a_supported_size() {
         let directory = TempDirectory::new();
-        fs::write(directory.path().join("wrong-content.bin"), vec![0x5A; BIOS_8K]).unwrap();
+        fs::write(
+            directory.path().join("wrong-content.bin"),
+            vec![0x5A; BIOS_8K],
+        )
+        .unwrap();
         let catalog = SmsFirmwareCatalog::sms_default();
 
         let results = catalog.scan_directory(directory.path()).unwrap();
@@ -602,7 +632,9 @@ mod tests {
         fs::write(&path, &bytes).unwrap();
 
         assert_eq!(
-            catalog.load_validated(&path, SmsFirmwareId::HangOnV34).unwrap(),
+            catalog
+                .load_validated(&path, SmsFirmwareId::HangOnV34)
+                .unwrap(),
             bytes
         );
 
