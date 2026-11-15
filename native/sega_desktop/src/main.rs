@@ -231,7 +231,7 @@ mod windows_host {
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
                             .status_update = Some(status);
-                        Some(host)
+                        host
                     }
                     Err(error) => {
                         let status = format!("SDL3 indisponível — teclado ativo: {error}");
@@ -240,39 +240,33 @@ mod windows_host {
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
                             .status_update = Some(status);
                         eprintln!("R4_SDL3 event=initialization_failed error={error}");
-                        None
+                        return;
                     }
                 };
 
                 while !thread_stop.load(Ordering::Acquire) {
-                    let mut poll_failed = false;
-                    if let Some(host) = input_host.as_mut() {
-                        match host.poll() {
-                            Ok((players, pause_pressed, status_update)) => {
-                                let mut latest = thread_snapshot
-                                    .lock()
-                                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                                latest.players = players;
-                                latest.pause_pressed = pause_pressed;
-                                if status_update.is_some() {
-                                    latest.status_update = status_update;
-                                }
-                            }
-                            Err(error) => {
-                                eprintln!("R4_SDL3 event=poll_failed error={error}");
-                                let mut latest = thread_snapshot
-                                    .lock()
-                                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                                latest.players = [ControllerButtons::default(); 2];
-                                latest.pause_pressed = false;
-                                latest.status_update =
-                                    Some(format!("SDL3 interrompido — teclado ativo: {error}"));
-                                poll_failed = true;
+                    match input_host.poll() {
+                        Ok((players, pause_pressed, status_update)) => {
+                            let mut latest = thread_snapshot
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                            latest.players = players;
+                            latest.pause_pressed = pause_pressed;
+                            if status_update.is_some() {
+                                latest.status_update = status_update;
                             }
                         }
-                    }
-                    if poll_failed {
-                        input_host = None;
+                        Err(error) => {
+                            eprintln!("R4_SDL3 event=poll_failed error={error}");
+                            let mut latest = thread_snapshot
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                            latest.players = [ControllerButtons::default(); 2];
+                            latest.pause_pressed = false;
+                            latest.status_update =
+                                Some(format!("SDL3 interrompido — teclado ativo: {error}"));
+                            break;
+                        }
                     }
                     thread::sleep(Duration::from_millis(2));
                 }
