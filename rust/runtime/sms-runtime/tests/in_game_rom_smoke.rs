@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use sega_sms_runtime::{SmsTemporalWorker, SmsVdpRevision};
+use sega_sms_runtime::{SmsDebugSnapshot, SmsTemporalWorker, SmsVdpRevision};
 use sega_video_runtime::FrameMailbox;
 
 const DEFAULT_FRAMES_PER_ROM: usize = 1800;
@@ -26,6 +26,50 @@ fn is_sms_rom(path: &Path) -> bool {
         .is_some_and(|extension| {
             extension.eq_ignore_ascii_case("sms") || extension.eq_ignore_ascii_case("bin")
         })
+}
+
+fn machine_state_digest(snapshot: &SmsDebugSnapshot) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    macro_rules! feed {
+        ($value:expr) => {
+            for byte in $value.to_le_bytes() {
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x100000001b3);
+            }
+        };
+    }
+
+    feed!(snapshot.pc);
+    feed!(snapshot.sp);
+    feed!(snapshot.af);
+    feed!(snapshot.bc);
+    feed!(snapshot.de);
+    feed!(snapshot.hl);
+    feed!(snapshot.af_alt);
+    feed!(snapshot.bc_alt);
+    feed!(snapshot.de_alt);
+    feed!(snapshot.hl_alt);
+    feed!(snapshot.ix);
+    feed!(snapshot.iy);
+    feed!(snapshot.wz);
+    feed!(snapshot.instruction_tstates);
+    feed!(snapshot.i);
+    feed!(snapshot.r);
+    feed!(u8::from(snapshot.iff1));
+    feed!(u8::from(snapshot.iff2));
+    feed!(snapshot.interrupt_mode);
+    feed!(u8::from(snapshot.halted));
+    feed!(snapshot.machine_time_ticks);
+    feed!(snapshot.frame_number);
+    feed!(snapshot.vdp_status);
+    feed!(snapshot.vdp_scanline);
+    feed!(snapshot.vdp_cycles_into_line);
+    for bank in snapshot.mapper_banks {
+        feed!(bank);
+    }
+    feed!(snapshot.mapper_control);
+    feed!(snapshot.memory_control);
+    hash
 }
 
 fn frame_digest(bytes: &[u8]) -> u64 {
@@ -116,6 +160,11 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
                 panic!("{}: cannot attach video mailbox: {error}", path.display())
             });
 
+        let first_state_digest = machine_state_digest(
+            &worker.debug_snapshot().unwrap_or_else(|error| {
+                panic!("{}: initial machine snapshot failed: {error}", path.display())
+            }),
+        );
         let mut first_digest = None;
         let mut last_digest = 0;
         let mut non_black_frames = 0_u32;
@@ -207,8 +256,19 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             );
         }
 
+        let last_state_digest = machine_state_digest(
+            &worker.debug_snapshot().unwrap_or_else(|error| {
+                panic!("{}: final machine snapshot failed: {error}", path.display())
+            }),
+        );
+        assert_ne!(
+            first_state_digest, last_state_digest,
+            "{}: machine state did not change during the ROM campaign",
+            path.display()
+        );
+
         println!(
-            "SMS_IN_GAME_SMOKE rom={} system={} vdp={:?} region={} frames={} heights={:?} instructions={} non_black_frames={} first_frame_fnv1a={:016x} last_frame_fnv1a={:016x}",
+            "SMS_IN_GAME_SMOKE rom={} system={} vdp={:?} region={} frames={} heights={:?} instructions={} non_black_frames={} first_frame_fnv1a={:016x} last_frame_fnv1a={:016x} first_state_fnv1a={:016x} last_state_fnv1a={:016x}",
             path.display(),
             system,
             vdp_revision,
@@ -218,7 +278,9 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             worker.total_instructions(),
             non_black_frames,
             first_digest.expect("at least one frame was processed"),
-            last_digest
+            last_digest,
+            first_state_digest,
+            last_state_digest
         );
 
         worker.detach_video_mailbox().unwrap_or_else(|error| {
