@@ -67,7 +67,7 @@ jobs:
         shell: pwsh
         run: |
           Push-Location $env:SMSVDPTEST_SOURCE
-          & (Join-Path $env:WLA_DX_BIN "wla-z80.exe") -o testmain.asm object.o
+          & (Join-Path $env:WLA_DX_BIN "wla-z80.exe") -o object.o testmain.asm
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "[objects]`nobject.o" | Set-Content -Path linkfile -Encoding ascii
           & (Join-Path $env:WLA_DX_BIN "wlalink.exe") -drvs linkfile output.sms
