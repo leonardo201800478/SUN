@@ -278,13 +278,11 @@ mod windows_host {
                 join: Some(join),
             },
             Err(error) => {
-                let status = format!("SDL3 indisponível — teclado ativo: falha ao iniciar thread: {error}");
+                let status =
+                    format!("SDL3 indisponível — teclado ativo: falha ao iniciar thread: {error}");
                 app.set_input_status(status.into());
                 eprintln!("R4_SDL3 event=thread_start_failed error={error}");
-                Sdl3PollingThread {
-                    stop,
-                    join: None,
-                }
+                Sdl3PollingThread { stop, join: None }
             }
         };
 
