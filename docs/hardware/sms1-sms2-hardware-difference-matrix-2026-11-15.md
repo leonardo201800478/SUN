@@ -22,10 +22,10 @@ Não há evidência suficiente para afirmar uma substituição geral de CPU, RAM
 | VDP — endereçamento de tabelas | Bits de máscara legados em R2/R5/R6 podem forçar linhas do endereço VRAM a zero | Esses bits não mascaram os endereços | Diferença confirmada | Manter funções de geração de endereço condicionadas ao ASIC |
 | VDP — sprites/zoom | Em zoom 2×, os últimos quatro sprites encontrados na linha não recebem zoom horizontal; zoom vertical continua | Os oito sprites podem receber zoom horizontal e vertical | Diferença confirmada | Avaliação/composição de sprites precisa considerar revisão; não duplicar SAT sem evidência |
 | VDP — paleta/DAC | Modelo de níveis R/G: 0,78,160,238; B: 0,98,160,238 | Modelo de níveis RGB: 0,89,174,255 | Diferença de saída documentada/medida; valores de 8 bits são modelo de referência, encoder analógico varia por placa | Conversão CRAM→RGB precisa ser perfilada pelo ASIC e separada do encoder de vídeo |
-| VDP — SAT e limite por linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Compartilhado na documentação SMS Power; MAME usa base comum | Buffer Mode 4 compartilhado no candidato PR #894; fase elétrica ainda exige validação |
+| VDP — SAT e limite por linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Compartilhado na documentação SMS Power; MAME usa base comum | PR #894 integrada: buffer SAT Mode 4 de próxima linha compartilhado, com zoom horizontal específico por ASIC; fase elétrica ainda exige validação |
 | VDP — HBlank/raster writes | Commit parcial no modelo atual em T213 | Fase SMS2 ainda não caracterizada; commit parcial não habilitado | SMS1 possui testes; não foi demonstrada equivalência subciclo para SMS2 | Manter caminho conservador SMS2 até teste independente |
 
-| VDP — HINT/VINT/status | HINT/VINT e flags de status documentados | HINT/VINT e flags de status documentados | Interface compartilhada; MAME usa tabela horizontal comum; SMS VDP Test inclui SMS2 | PR #893 compartilha eventos T13/T14/T15/T16; confirmação em hardware permanece pendente |
+| VDP — HINT/VINT/status | HINT/VINT e flags de status documentados | HINT/VINT e flags de status documentados | Interface compartilhada; MAME usa tabela horizontal comum; SMS VDP Test inclui SMS2 | PR #893 integrada: eventos HINT/VINT/VCounter/VBlank tratados para ambos os ASICs; limites subscanline e confirmação em hardware permanecem pendentes |
 | VDP — portas | Dados $BE e controle/status $BF | Dados $BE e controle/status $BF | Compartilhado | Barramento/decodificador comum com estado interno explícito |
 | Controle VDP — primeiro byte | O primeiro byte pode atualizar somente a parte baixa do endereço; a ação de modo/read-ahead depende do segundo byte | Mesmo contrato geral descrito para a porta de controle | Evidência documental geral; diferenças de microtiming entre ASICs não estabelecidas | Testar latch parcial e read-ahead por revisão; não supor equivalência subciclo |
 | PSG digital | SN76489 integrado ao VDP | SN76489 integrado ao VDP | Compartilhado; SMS Power registra o mesmo padrão de ruído amostrado para SMS1/SMS2 | Reutilizar o core PSG e a sincronização do Scheduler |
@@ -76,21 +76,21 @@ O código em `native/video_core/src/sms/vdp.rs` já possui condicionais por `Sms
 - paleta RGB;
 - eventos HINT/VINT/VCounter/VBlank compartilhados após a PR #893.
 
-A PR #894 propõe compartilhar também o buffer SAT de Mode 4 de próxima linha, conforme a documentação SMS Power. O buffer de sprites legacy/TMS permanece SMS1-only. O HBlank/raster-write parcial continua SMS1-only; não declarar esse comportamento fechado para SMS2.
+A PR #894 foi integrada: o buffer SAT de próxima linha de Mode 4 é compartilhado entre 315-5124 e 315-5246, com política de zoom específica por ASIC e testes de metadados, oito entradas, overflow, prioridade e colisão. O buffer legacy/TMS continua restrito ao caminho SMS1 enquanto o comportamento SMS2 não for caracterizado. O HBlank parcial e raster writes continuam SMS1-only; não declarar esse comportamento fechado para SMS2.
 
 A existência dessas condicionais e testes sintéticos não comprova temporização elétrica completa. A validação com SmsVdpTest em 315-5246 e captura de hardware continua pendente.
 
 ## 4. Lacunas que bloqueiam declarar SMS2 completo
 
-1. Seleção explícita persistida no desktop e propagada até `SmsTemporalWorker`.
+1. Seleção explícita persistida no desktop e propagada até `SmsTemporalWorker` (implementação em PR #892; a validação integral e o merge dependem da CI do HEAD atualizado).
 2. Configuração do 315-5246 independente de região, ROM e mapper.
 3. Testes contratuais específicos de máscara de endereços R2/R5/R6.
 4. Testes de zoom para 1–8 sprites e evidência da ordem de avaliação.
 5. Testes de paleta que comprovem o realce de azul apenas no 315-5124.
 6. Testes de 224/240 linhas, contadores, HINT/VINT e interrupções no perfil 315-5246.
-7. Auditoria do caminho SMS2 de sprite evaluation/latch; não presumir que o buffer SMS1 representa o ASIC SMS2.
-8. Validação de framebuffer dinâmico no Windows com 192/224/240 linhas.
-9. Validação funcional de Cosmic Spacehead (CRC32 29822980) do menu ao gameplay.
+7. Caracterização do timing elétrico SMS2 de sprite evaluation/fetch/latch, overflow e colisão. O buffer SAT Mode 4 já é compartilhado por #894; não extrapolar essa implementação para modos legacy/TMS nem para fases subscanline não medidas.
+8. Suporte e testes de dimensões dinâmicas 256x192/224/240 integrados por #890; ainda falta validação prolongada com frames SMS2 reais no host Windows e confirmação de ausência de truncamento/linhas antigas.
+9. Validação funcional de Cosmic Spacehead (CRC32 29822980) do menu ao gameplay, usando explicitamente 315-5246 e região europeia.
 10. Regressões SMS1 e SG-1000.
 
 ## 5. Evidências e referências
