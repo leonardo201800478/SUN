@@ -6,6 +6,7 @@ use crate::{
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::sync::OnceLock;
 
 /// Version of the compatibility metadata structure used by the SMS catalog.
 pub const SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION: u32 = 1;
@@ -99,10 +100,22 @@ pub struct CartridgeCatalog {
     profiles: Vec<KnownCartridgeProfile>,
 }
 
+static SMS_CARTRIDGE_CATALOG: OnceLock<Result<CartridgeCatalog, String>> = OnceLock::new();
+
 impl CartridgeCatalog {
     /// Load the SMS DAT committed in this repository and its explicit hardware profiles.
     pub fn sms_default() -> Result<Self, crate::DatParseError> {
         Ok(Self::from_dat(NoIntroDat::sms_default()?, sms_profiles()))
+    }
+
+    /// Return the process-wide parsed SMS catalog for repeated runtime preflights.
+    pub fn sms_shared() -> Result<&'static Self, String> {
+        match SMS_CARTRIDGE_CATALOG
+            .get_or_init(|| Self::sms_default().map_err(|error| error.to_string()))
+        {
+            Ok(catalog) => Ok(catalog),
+            Err(error) => Err(error.clone()),
+        }
     }
 
     pub fn from_dat(dat: NoIntroDat, profiles: Vec<KnownCartridgeProfile>) -> Self {
@@ -526,6 +539,14 @@ mod tests {
                 profile.sha1
             );
         }
+    }
+
+    #[test]
+    fn shared_sms_catalog_reuses_the_parsed_dat_and_profiles() {
+        let first = CartridgeCatalog::sms_shared().unwrap();
+        let second = CartridgeCatalog::sms_shared().unwrap();
+
+        assert!(std::ptr::eq(first, second));
     }
 
     #[test]
