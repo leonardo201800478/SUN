@@ -499,7 +499,8 @@ mod tests {
         assert_eq!(matched.profile, Some(&profile));
         let metadata = matched.compatibility.unwrap();
         assert_eq!(metadata.sms_vdp_requirement, SmsVdpRequirement::Sms2Required);
-        assert_eq!(metadata.evidence, ["independent VDP evidence"]);
+        assert_eq!(metadata.evidence.len(), 1);
+        assert_eq!(metadata.evidence[0], "independent VDP evidence");
         assert!(catalog.lookup_runtime_profile(&identity).unwrap().is_some());
     }
 
