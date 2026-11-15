@@ -9,6 +9,7 @@ mod dat;
 mod identity;
 mod profile;
 mod sms_firmware;
+mod sms_region;
 
 pub use catalog::{
     CartridgeCatalog, CartridgeMatch, CatalogLookupError, KnownCartridgeProfile,
@@ -25,4 +26,8 @@ pub use sms_firmware::{
     SmsBuiltInGame, SmsConsoleVariant, SmsFirmwareCatalog, SmsFirmwareDescriptor, SmsFirmwareId,
     SmsFirmwareKind, SmsFirmwareLoadError, SmsFirmwareMappingStrategy, SmsFirmwareMatch,
     SmsFirmwareRegion, SmsFirmwareScanEntry, SmsFirmwareScanStatus, SmsFirmwareValidation,
+};
+pub use sms_region::{
+    SmsRegion, SmsRegionPreference, SmsRegionResolution, SmsRegionResolutionSource,
+    resolve_sms_region,
 };

@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
+use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
     SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
@@ -113,12 +114,15 @@ pub fn sms_temporal_hardware_profile(
             SmsVdpProfile::new(revision, VideoStandard::Pal, sprite_limit),
             3_546_895,
         )),
-        "japan" => Ok((
+        "japan" | "korea" => Ok((
+            // SMS Power documents Japan and Korea as the same Japanese/NTSC
+            // hardware signal. Korea remains a distinct software/firmware
+            // selection in the application layer.
             Territory::Japan,
             SmsVdpProfile::new(revision, VideoStandard::Ntsc, sprite_limit),
             3_579_545,
         )),
-        _ => Err("region deve ser usa, brazil, europe ou japan"),
+        _ => Err("region deve ser usa, brazil, europe, japan ou korea"),
     }
 }
 
@@ -1140,6 +1144,45 @@ impl SmsTemporalWorker {
             rom,
             region,
             SmsVdpRevision::Sega3155124,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    /// Resolve automatic/manual region preference before creating the temporal worker.
+    /// DAT access and hashing happen on the caller thread, never in the Scheduler.
+    pub fn new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    eprintln!(
+                        "SMS_REGION preference=auto resolved={} source={:?} dat_title={}",
+                        resolution.region.key(),
+                        resolution.source,
+                        resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    "usa".to_owned()
+                }
+            },
+        };
+
+        Self::new_with_hardware_profile_and_cartridge_sram_size(
+            rom,
+            &region,
+            vdp_revision,
             cartridge_sram_size,
             initial_sram,
         )
@@ -2660,6 +2703,7 @@ mod tests {
             ("brazil", VideoStandard::PalM, 3_579_545),
             ("europe", VideoStandard::Pal, 3_546_895),
             ("japan", VideoStandard::Ntsc, 3_579_545),
+            ("korea", VideoStandard::Ntsc, 3_579_545),
         ] {
             let (_, sms1, sms1_clock) =
                 sms_temporal_hardware_profile(region, SmsVdpRevision::Sega3155124).unwrap();
