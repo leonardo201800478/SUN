@@ -208,6 +208,7 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             vdp_revision,
             region,
             completed_frames,
+            observed_heights,
             worker.total_instructions(),
             non_black_frames,
             first_digest.expect("at least one frame was processed"),
