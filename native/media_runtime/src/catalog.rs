@@ -1,22 +1,39 @@
 use crate::{
-    CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper, CartridgeRamKind,
-    CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, DatGameEntry, DatRomEntry,
-    NoIntroDat, ProfileStatus,
+    CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper,
+    CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, DatGameEntry,
+    DatRomEntry, NoIntroDat, ProfileStatus, SmsVdpRequirement,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::sync::OnceLock;
+
+/// Version of the compatibility metadata structure used by the SMS catalog.
+pub const SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION: u32 = 1;
+/// Revision of the evidence-backed SMS compatibility declarations.
+pub const SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION: &str = "2026-11-15";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KnownCartridgeProfile {
     pub sha1: String,
     pub profile: CartridgeHardwareProfile,
+    pub compatibility: CartridgeCompatibilityMetadata,
 }
 
 impl KnownCartridgeProfile {
+    /// Construct a profile without an independently supported VDP requirement.
     pub fn new(sha1: impl Into<String>, profile: CartridgeHardwareProfile) -> Self {
+        Self::with_compatibility(sha1, profile, CartridgeCompatibilityMetadata::default())
+    }
+
+    pub fn with_compatibility(
+        sha1: impl Into<String>,
+        profile: CartridgeHardwareProfile,
+        compatibility: CartridgeCompatibilityMetadata,
+    ) -> Self {
         Self {
             sha1: sha1.into().to_ascii_lowercase(),
             profile,
+            compatibility,
         }
     }
 }
@@ -26,6 +43,7 @@ pub struct CartridgeMatch<'a> {
     pub game: &'a DatGameEntry,
     pub rom: &'a DatRomEntry,
     pub profile: Option<&'a CartridgeHardwareProfile>,
+    pub compatibility: Option<&'a CartridgeCompatibilityMetadata>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -81,10 +99,22 @@ pub struct CartridgeCatalog {
     profiles: Vec<KnownCartridgeProfile>,
 }
 
+static SMS_CARTRIDGE_CATALOG: OnceLock<Result<CartridgeCatalog, String>> = OnceLock::new();
+
 impl CartridgeCatalog {
     /// Load the SMS DAT committed in this repository and its explicit hardware profiles.
     pub fn sms_default() -> Result<Self, crate::DatParseError> {
         Ok(Self::from_dat(NoIntroDat::sms_default()?, sms_profiles()))
+    }
+
+    /// Return the process-wide parsed SMS catalog for repeated runtime preflights.
+    pub fn sms_shared() -> Result<&'static Self, String> {
+        match SMS_CARTRIDGE_CATALOG
+            .get_or_init(|| Self::sms_default().map_err(|error| error.to_string()))
+        {
+            Ok(catalog) => Ok(catalog),
+            Err(error) => Err(error.clone()),
+        }
     }
 
     pub fn from_dat(dat: NoIntroDat, profiles: Vec<KnownCartridgeProfile>) -> Self {
@@ -146,9 +176,9 @@ impl CartridgeCatalog {
             .iter()
             .filter(|known| known.sha1.eq_ignore_ascii_case(&rom.sha1))
             .collect();
-        let profile = match matching_profiles.as_slice() {
-            [] => None,
-            [known] => Some(&known.profile),
+        let (profile, compatibility) = match matching_profiles.as_slice() {
+            [] => (None, None),
+            [known] => (Some(&known.profile), Some(&known.compatibility)),
             _ => {
                 return Err(CatalogLookupError::AmbiguousHardwareProfile {
                     sha1,
@@ -157,7 +187,12 @@ impl CartridgeCatalog {
             }
         };
 
-        Ok(Some(CartridgeMatch { game, rom, profile }))
+        Ok(Some(CartridgeMatch {
+            game,
+            rom,
+            profile,
+            compatibility,
+        }))
     }
 
     /// Return a profile only when the exact ROM identity has a verified executable mapping.
@@ -174,6 +209,33 @@ impl CartridgeCatalog {
 
 fn sms_profiles() -> Vec<KnownCartridgeProfile> {
     let mut profiles = Vec::new();
+
+    // Cosmic Spacehead (Europe) is tied to the exact No-Intro identity.
+    // Genesis Plus GX independently classifies it as SYSTEM_SMS2 and Codemasters;
+    // SMS Power documents its 224-line mode and SMS1 incompatibility.
+    profiles.push(KnownCartridgeProfile::with_compatibility(
+        "f46f716dd34a1a5013a2d8a59769f6ef7536a567",
+        CartridgeHardwareProfile {
+            system: CartridgeSystem::MasterSystem,
+            mapper: CartridgeMapper::Codemasters,
+            ram: None,
+            status: ProfileStatus::EvidenceOnly,
+            board: None,
+            evidence: vec![
+                "Project No-Intro SMS DAT 20261013-064924: exact SHA-1/CRC32/size".to_owned(),
+                "Genesis Plus GX core/cart_hw/sms_cart.c game_list: CRC32 0x29822980, MAPPER_CODIES, SYSTEM_SMS2, REGION_EUROPE".to_owned(),
+                "SMS Power Development/CodemastersHeader: Codemasters cartridge header".to_owned(),
+            ],
+        },
+        CartridgeCompatibilityMetadata::new(
+            SmsVdpRequirement::Sms2Required,
+            vec![
+                "Genesis Plus GX core/cart_hw/sms_cart.c game_list: CRC32 0x29822980 is classified as SYSTEM_SMS2".to_owned(),
+                "SMS Power forums/1484-CosmicSpacehead: Charles MacDonald identifies Cosmic Spacehead as a 224-line title and reports SMS1/Game Gear incompatibility".to_owned(),
+                "SMS Power forums/8170-SMS2VDP224240LineModes: Charles MacDonald lists Cosmic Spacehead among the titles using the SMS2 224-line mode".to_owned(),
+            ],
+        ),
+    ));
 
     // Commercial battery-backed 8 KiB SRAM identities explicitly confirmed by
     // the project No-Intro DAT, MAME sms.xml, and the project's SMS mapper audit.
@@ -361,9 +423,9 @@ mod tests {
         sms_profiles,
     };
     use crate::{
-        CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper, CartridgeRamKind,
-        CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, DatGameEntry, DatRomEntry,
-        NoIntroDat, ProfileStatus,
+        CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeIdentity,
+        CartridgeMapper, CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile,
+        CartridgeSystem, DatGameEntry, DatRomEntry, NoIntroDat, ProfileStatus, SmsVdpRequirement,
     };
 
     fn test_battery_profile() -> CartridgeHardwareProfile {
@@ -418,6 +480,41 @@ mod tests {
         assert_eq!(matched.game.name, "Synthetic Cartridge");
         assert_eq!(matched.rom.name, "this-filename-is-not-the-identity.sms");
         assert_eq!(matched.profile, Some(&profile));
+        assert_eq!(
+            matched
+                .compatibility
+                .map(|metadata| metadata.sms_vdp_requirement),
+            Some(SmsVdpRequirement::Unknown)
+        );
+        assert!(catalog.lookup_runtime_profile(&identity).unwrap().is_some());
+    }
+
+    #[test]
+    fn lookup_exposes_compatibility_metadata_separately_from_mapper_and_ram() {
+        let identity = CartridgeIdentity::from_bytes(b"abc");
+        let profile = test_battery_profile();
+        let compatibility = CartridgeCompatibilityMetadata::new(
+            SmsVdpRequirement::Sms2Required,
+            vec!["independent VDP evidence".to_owned()],
+        );
+        let catalog = CartridgeCatalog::from_dat(
+            synthetic_dat(&identity, identity.crc32()),
+            vec![KnownCartridgeProfile::with_compatibility(
+                identity.sha1_hex(),
+                profile.clone(),
+                compatibility,
+            )],
+        );
+
+        let matched = catalog.lookup(&identity).unwrap().unwrap();
+        assert_eq!(matched.profile, Some(&profile));
+        let metadata = matched.compatibility.unwrap();
+        assert_eq!(
+            metadata.sms_vdp_requirement,
+            SmsVdpRequirement::Sms2Required
+        );
+        assert_eq!(metadata.evidence.len(), 1);
+        assert_eq!(metadata.evidence[0], "independent VDP evidence");
         assert!(catalog.lookup_runtime_profile(&identity).unwrap().is_some());
     }
 
@@ -443,6 +540,59 @@ mod tests {
                 profile.sha1
             );
         }
+    }
+
+    #[test]
+    fn shared_sms_catalog_reuses_the_parsed_dat_and_profiles() {
+        let first = CartridgeCatalog::sms_shared().unwrap();
+        let second = CartridgeCatalog::sms_shared().unwrap();
+
+        assert!(std::ptr::eq(first, second));
+    }
+
+    #[test]
+    fn cosmic_spacehead_exact_identity_requires_sms2_and_keeps_mapper_separate() {
+        let catalog = CartridgeCatalog::sms_default().unwrap();
+        let sha1 = "f46f716dd34a1a5013a2d8a59769f6ef7536a567";
+        let (_, rom) = catalog
+            .dat()
+            .find_sha1(sha1)
+            .expect("Cosmic Spacehead DAT entry");
+
+        assert_eq!(rom.size_bytes, 262_144);
+        assert_eq!(rom.crc32, 0x2982_2980);
+        assert_eq!(rom.sha1, sha1);
+
+        let known = catalog
+            .profiles()
+            .iter()
+            .find(|entry| entry.sha1 == sha1)
+            .expect("Cosmic Spacehead compatibility profile");
+        assert_eq!(known.profile.mapper, CartridgeMapper::Codemasters);
+        assert_eq!(
+            known.compatibility.sms_vdp_requirement,
+            SmsVdpRequirement::Sms2Required
+        );
+        assert!(known.profile.ram.is_none());
+        assert!(!known.profile.is_runtime_usable());
+        assert_eq!(known.compatibility.evidence.len(), 3);
+    }
+
+    #[test]
+    fn smurfs_brazil_identity_is_absent_from_dat_and_remains_uncharacterized() {
+        let catalog = CartridgeCatalog::sms_default().unwrap();
+        let sha1 = "15b882ad3263cdc1e78c732d96f9bb18e25f4743";
+
+        assert!(catalog.dat().find_sha1(sha1).is_none());
+        assert!(
+            !catalog
+                .dat()
+                .entries
+                .iter()
+                .flat_map(|game| game.roms.iter())
+                .any(|rom| rom.crc32 == 0xE14C_8A1C)
+        );
+        assert!(!catalog.profiles().iter().any(|entry| entry.sha1 == sha1));
     }
 
     #[test]
