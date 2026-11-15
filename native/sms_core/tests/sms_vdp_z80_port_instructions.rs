@@ -73,9 +73,9 @@ fn z80_out_immediate_a_commits_vdp_control_and_data_writes_on_io_boundaries() {
     assert_eq!(
         writes,
         vec![
-            (11, 0x00BF, 0x00, 4, None),
-            (29, 0x40BF, 0x40, 4, None),
-            (47, 0xA5BE, 0xA5, 4, None),
+            (18, 0x00BF, 0x00, 4, None),
+            (36, 0x40BF, 0x40, 4, None),
+            (54, 0xA5BE, 0xA5, 4, None),
         ],
         "OUT (n),A must preserve A as the high port-address byte and commit the I/O M-cycle at the expected 4T boundary"
     );
@@ -95,6 +95,7 @@ fn z80_in_immediate_a_reads_the_th_latched_hcounter_through_the_scheduler() {
     run_instructions(&mut machine, 7);
 
     let captured = machine.inspect_memory(0xC000);
+    assert_eq!(captured, 0x03, "TH rising edge at T36 should latch HCounter $03");
     assert_eq!(
         captured,
         machine.vdp().read_h_counter(),
@@ -118,6 +119,7 @@ fn z80_in_immediate_a_reads_the_th_latched_hcounter_through_the_scheduler() {
         .collect();
 
     assert_eq!(reads.len(), 1, "program should perform one immediate I/O read");
+    assert_eq!(reads[0].0, 47, "IN I/O read completes after its 4T I/O M-cycle");
     assert_eq!(reads[0].1, 0xDF7F, "IN A,(n) uses A as the high port byte");
     assert_eq!(reads[0].2, 4, "I/O read M-cycle must take four T-states");
     assert_eq!(reads[0].3, Some(captured));
