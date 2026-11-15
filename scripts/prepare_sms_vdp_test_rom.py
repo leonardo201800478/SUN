@@ -5,6 +5,7 @@ The upstream source is not modified in place by the repository. This script is
 run against a temporary CI clone and changes only its boot/menu flow:
 - enter the normal WarmReset initialization instead of the register-dump screen;
 - skip the interactive menu and the pause between test groups 1 and 2;
+- isolate RunTest25 scratch samples at an unused RAM address without adding cycles;
 - stop immediately after RunTest34 and publish a RAM completion marker.
 """
 
@@ -37,16 +38,20 @@ def prepare(source_path: Path) -> None:
     source = replace_once(
         source,
         "define TestScratch $C880",
-        "define TestScratch $C880\\ndefine TestScratch25 $C9F0",
+        "define TestScratch $C880\ndefine TestScratch25 $C9F0",
         "RunTest25 isolated sample storage",
     )
 
     test25_start = source.index("RunTest25:")
     test26_start = source.index("RunTest26:", test25_start)
     test25_block = source[test25_start:test26_start]
-    if "TestScratch" not in test25_block:
-        raise SystemExit("RunTest25 scratch references not found")
-    source = source[:test25_start] + test25_block.replace("TestScratch", "TestScratch25") + source[test26_start:]
+    if test25_block.count("TestScratch") != 5:
+        raise SystemExit("RunTest25 scratch references changed; refusing to instrument timing")
+    source = (
+        source[:test25_start]
+        + test25_block.replace("TestScratch", "TestScratch25")
+        + source[test26_start:]
+    )
 
     source = replace_once(
         source,
