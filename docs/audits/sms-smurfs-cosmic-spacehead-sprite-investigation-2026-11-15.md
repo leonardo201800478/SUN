@@ -50,6 +50,30 @@ O workflow deve compilar os dois projetos e publicar os executáveis/logs como a
 
 Ares é uma aplicação desktop; não presumir suporte a headless/screenshot CLI. Gearsystem documenta `--headless` com MCP/Link Cable. O método de captura precisa respeitar as capacidades reais de cada build, e as imagens só serão comparadas após normalizar região, overscan, escala e estado de gameplay.
  
+## 2.3 Workflow de compilação dos comparadores
+
+Foi adicionado `.github/workflows/sms-reference-emulators.yml`. O workflow compila, em jobs Linux x86_64 separados:
+
+- Gearsystem na revisão `96b70aac107a1a2acace9091cce37f9649eb6e0e`, com SDL3 fixado em `877399b2b2cf21e67554ed9046410f268ce1d1b2`.
+- Ares na revisão `0b928930af4cc59ed99e942996f0d3c815379388`, configurado para compilar somente o core SMS (`ARES_CORES=ms`).
+
+Os executáveis e arquivos de proveniência são publicados como artifacts separados, com retenção de 14 dias. A compilação de cada comparador é uma verificação independente; ela não prova equivalência gráfica nem execução das ROMs.
+
+### Limite deliberado do CI
+
+As ROMs não são armazenadas em Git, cache ou artifacts. Portanto, este workflow compila e empacota os comparadores, mas não executa as ROMs comerciais no runner. A execução comparativa ocorre localmente, com as ROMs fornecidas pelo usuário. Não habilitar secret ou URL para redistribuir ROMs.
+
+### Protocolo de execução local após baixar os artifacts
+
+1. Extraia os artifacts `ares-linux-x86_64` e `gearsystem-linux-x86_64` em ambiente Linux compatível com as bibliotecas listadas no artifact.
+2. Execute Gearsystem com cada ROM usando a interface desktop ou MCP headless. Para MCP HTTP local, use uma instância por ROM e porta distinta; não compartilhe a mesma instância entre agentes.
+3. Execute Ares com cada ROM pela interface desktop. Não assumir que Ares oferece screenshot CLI/headless; registrar screenshots manuais e a revisão exata.
+4. No Sega Emulator, capture o framebuffer bruto RGB888 do core e a imagem final da janela no mesmo estado de jogo.
+5. Alinhe as cenas por estado de gameplay, não apenas por número absoluto de frame. Normalize área visível/overscan, escala e proporção antes do diff.
+6. Guarde screenshots, dumps e logs de VRAM/CRAM/registradores em armazenamento local privado; publique no PR apenas relatórios textuais sem conteúdo de ROM.
+
+**Critério de comparação:** a imagem final de outro emulador é uma referência empírica. A regra de hardware só será adotada após corroborar com documentação técnica, testes de VDP ou comportamento conhecido do ASIC.
+
 ## 3. Hipóteses a investigar — sem assumir causalidade
 
 1. Avaliação e seleção de sprites: Y termination, overflow, índice, limite por linha e modo de limite configurado.
