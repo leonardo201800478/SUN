@@ -1,9 +1,9 @@
 # Andre Agassi Tennis (SMS) — auditoria da fronteira HINT/VINT
 
-**Data da auditoria:** 2026-11-15  
-**Sistema:** Master System 1 / Sega 315-5124  
-**ROM analisada:** Andre Agassi Tennis (Europe, Brazil) (En), 262.144 bytes  
-**Escopo da correção:** contagem HINT/R10, pedido VINT, flag VBlank e publicação do frame  
+**Data da auditoria:** 2026-11-15
+**Sistema:** Master System 1 / Sega 315-5124
+**ROM analisada:** Andre Agassi Tennis (Europe, Brazil) (En), 262.144 bytes
+**Escopo da correção:** contagem HINT/R10, pedido VINT, flag VBlank e publicação do frame
 **Estado deste PR:** correção implementada em branch; validação automatizada deste commit depende do CI.
 
 ## 1. Resumo executivo
