@@ -579,29 +579,26 @@ impl SmsVdp {
         let mut remaining = tstates;
         while remaining > 0 {
             let current = u64::from(self.tstates_into_line);
-            let next_boundary = if self.profile.revision == SmsVdpRevision::Sega3155124 {
-                [
-                    SMS_VINT_IRQ_TSTATE,
-                    SMS_HINT_TSTATE,
-                    SMS_VCOUNTER_LATCH_TSTATE,
-                    SMS_SPRITE_OVERFLOW_TSTATE,
-                    SMS_HBLANK_TSTATE,
-                    LINE_TSTATES,
-                ]
-                .into_iter()
-                .filter(|boundary| *boundary > current)
-                .min()
-                .unwrap_or(LINE_TSTATES)
-            } else {
-                LINE_TSTATES
-            };
+            let next_boundary = [
+                SMS_VINT_IRQ_TSTATE,
+                SMS_HINT_TSTATE,
+                SMS_VCOUNTER_LATCH_TSTATE,
+                SMS_HBLANK_TSTATE,
+                LINE_TSTATES,
+            ]
+            .into_iter()
+            .chain(
+                (self.profile.revision == SmsVdpRevision::Sega3155124)
+                    .then_some(SMS_SPRITE_OVERFLOW_TSTATE),
+            )
+            .filter(|boundary| *boundary > current)
+            .min()
+            .unwrap_or(LINE_TSTATES);
             let step = remaining.min(next_boundary - current);
             self.tstates_into_line += step as u16;
             remaining -= step;
 
-            if self.profile.revision == SmsVdpRevision::Sega3155124 {
-                self.process_sms1_tstate_events();
-            }
+            self.process_tstate_events();
             if u64::from(self.tstates_into_line) == LINE_TSTATES {
                 self.tstates_into_line = 0;
                 self.complete_scanline();
@@ -609,7 +606,7 @@ impl SmsVdp {
         }
     }
 
-    fn process_sms1_tstate_events(&mut self) {
+    fn process_tstate_events(&mut self) {
         let tstate = u64::from(self.tstates_into_line);
         let height = self.visible_height();
         match tstate {
@@ -637,7 +634,10 @@ impl SmsVdp {
             SMS_VCOUNTER_LATCH_TSTATE => {
                 self.v_counter_latch = self.scanline;
             }
-            SMS_SPRITE_OVERFLOW_TSTATE if self.scanline < height => {
+            SMS_SPRITE_OVERFLOW_TSTATE
+                if self.profile.revision == SmsVdpRevision::Sega3155124
+                    && self.scanline < height =>
+            {
                 let overflow_index = if self.registers[0] & 0x04 != 0 {
                     self.sprite_line_buffer
                         .as_ref()
@@ -689,27 +689,6 @@ impl SmsVdp {
             visible_height = height,
             video_standard = ?self.profile.video_standard,
             "SMS VDP published completed frame"
-        );
-        self.framebuffer.clone_from(&self.working_framebuffer);
-        match self.stereo_eye {
-            SmsVdpEye::Left => self.left_frame.clone_from(&self.working_framebuffer),
-            SmsVdpEye::Right => self.right_frame.clone_from(&self.working_framebuffer),
-        }
-    }
-
-    fn enter_vblank(&mut self) {
-        let height = self.visible_height();
-        if let Some(scroll_y) = self.pending_scroll_y.take() {
-            self.latched_scroll_y = scroll_y;
-        }
-        self.status |= VBLANK;
-        self.frame_ready = true;
-        sega_observability::tracing::debug!(
-            target: "sega::vdp",
-            frame_number = self.frame_number,
-            visible_height = height,
-            video_standard = ?self.profile.video_standard,
-            "SMS VDP entered VBlank"
         );
         self.framebuffer.clone_from(&self.working_framebuffer);
         match self.stereo_eye {
@@ -847,21 +826,6 @@ impl SmsVdp {
             }
             self.sprite_line_buffer = None;
             self.legacy_sprite_line_buffer = None;
-            if self.profile.revision != SmsVdpRevision::Sega3155124 {
-                if self.line_counter == 0 {
-                    self.line_irq_pending = true;
-                    sega_observability::tracing::trace!(
-                        target: "sega::vdp",
-                        scanline = line,
-                        reload_value = self.registers[10],
-                        frame_number = self.frame_number,
-                        "SMS VDP line interrupt asserted"
-                    );
-                    self.line_counter = self.registers[10];
-                } else {
-                    self.line_counter = self.line_counter.wrapping_sub(1);
-                }
-            }
         }
         self.raster_span_cursor_x = 0;
         self.line_collision_seen = false;
@@ -870,9 +834,6 @@ impl SmsVdp {
         self.legacy_sprite_line_buffer = None;
         self.prepare_next_sms1_sprite_line(line, height);
         self.scanline += 1;
-        if self.scanline == height && self.profile.revision != SmsVdpRevision::Sega3155124 {
-            self.enter_vblank();
-        }
         if self.scanline >= self.total_lines() {
             self.scanline = 0;
             self.frame_number = self.frame_number.wrapping_add(1);
@@ -1934,6 +1895,50 @@ mod tests {
             vdp.interrupt_pending(),
             "HINT asserts at the HPos 21 / T-state 14 boundary"
         );
+    }
+
+    #[test]
+    fn sms2_hinterrupt_is_asserted_at_the_shared_hpos21_tstate_boundary() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        vdp.registers[0] = 0x14; // Mode 4 plus HINT enable.
+        vdp.registers[10] = 0;
+
+        vdp.advance(13);
+        assert!(!vdp.interrupt_pending());
+        vdp.advance(1);
+        assert!(vdp.interrupt_pending());
+    }
+
+    #[test]
+    fn sms2_vint_irq_precedes_the_vblank_status_flag_on_following_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        vdp.registers[1] = 0x20; // VINT enable.
+        let height = u64::from(vdp.visible_height());
+
+        vdp.advance(LINE_TSTATES * (height + 1));
+        vdp.advance(12);
+        assert!(!vdp.interrupt_pending());
+        assert_eq!(vdp.status & VBLANK, 0);
+
+        vdp.advance(1);
+        assert!(vdp.interrupt_pending(), "SMS2 VINT IRQ asserts at T13");
+        assert_eq!(vdp.status & VBLANK, 0);
+
+        vdp.advance(3);
+        assert_ne!(vdp.status & VBLANK, 0, "SMS2 VBlank status latches at T16");
+        assert!(vdp.interrupt_pending());
+
+        let status = vdp.read_port(0xBF);
+        assert_ne!(status & VBLANK, 0);
+        assert!(!vdp.interrupt_pending());
     }
 
     #[test]
