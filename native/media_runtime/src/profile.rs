@@ -270,7 +270,10 @@ mod sms_compatibility_tests {
 
         match result {
             Ok((next, _)) => active_session = Some(next),
-            Err(_) => {}
+            Err(error) => {
+                assert!(error.contains("SMS2"));
+                assert!(error.contains("315-5124"));
+            }
         }
         assert!(!preparation_called);
         assert_eq!(active_session, Some("current ROM"));
