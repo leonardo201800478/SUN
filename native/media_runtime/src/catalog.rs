@@ -224,16 +224,16 @@ fn sms_profiles() -> Vec<KnownCartridgeProfile> {
             board: None,
             evidence: vec![
                 "Project No-Intro SMS DAT 20261013-064924: exact SHA-1/CRC32/size".to_owned(),
-                "Genesis Plus GX core/cart_hw/sms_cart.c: CRC32 29822980 is classified as Codemasters and SYSTEM_SMS2".to_owned(),
+                "Genesis Plus GX core/cart_hw/sms_cart.c game_list: CRC32 0x29822980, MAPPER_CODIES, SYSTEM_SMS2, REGION_EUROPE".to_owned(),
                 "SMS Power Development/CodemastersHeader: Codemasters cartridge header".to_owned(),
             ],
         },
         CartridgeCompatibilityMetadata::new(
             SmsVdpRequirement::Sms2Required,
             vec![
-                "Genesis Plus GX core/cart_hw/sms_cart.c: CRC32 29822980 is classified as SYSTEM_SMS2".to_owned(),
-                "SMS Power Development/SMS1SMS2VDPs: 224/240-line modes are supported by the 315-5246 SMS2 VDP".to_owned(),
-                "SMS Power forums/1484-CosmicSpacehead: Charles MacDonald identifies Cosmic Spacehead as a 224-line title and reports SMS1 incompatibility".to_owned(),
+                "Genesis Plus GX core/cart_hw/sms_cart.c game_list: CRC32 0x29822980 is classified as SYSTEM_SMS2".to_owned(),
+                "SMS Power forums/1484-CosmicSpacehead: Charles MacDonald identifies Cosmic Spacehead as a 224-line title and reports SMS1/Game Gear incompatibility".to_owned(),
+                "SMS Power forums/8170-SMS2VDP224240LineModes: Charles MacDonald lists Cosmic Spacehead among the titles using the SMS2 224-line mode".to_owned(),
             ],
         ),
     ));
