@@ -450,7 +450,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: Some("02cbb2e348945c9ac41e37502a58ca76"),
             mapping: Mapping::InternalRomSlot2,
             validation: Validation::MappingDocumentedBootPending,
-            evidence: &[LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 128 KiB ROM and slot 2 mapping"],
+            evidence: vec![LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 128 KiB ROM and slot 2 mapping"],
         },
         SmsFirmwareDescriptor {
             id: Id::MissileDefense3dV44,
@@ -466,7 +466,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: Some("08b81aa6be18b92daef1b875deecf824"),
             mapping: Mapping::InternalRomSlot2,
             validation: Validation::MappingDocumentedBootPending,
-            evidence: &[LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 128 KiB ROM and slot 2 mapping"],
+            evidence: vec![LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 128 KiB ROM and slot 2 mapping"],
         },
         SmsFirmwareDescriptor {
             id: Id::SamsungGamBoyIiKoreaAlexKidd,
