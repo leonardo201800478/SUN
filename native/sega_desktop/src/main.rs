@@ -2911,9 +2911,10 @@ mod windows_host {
                 return;
             }
 
-            let (region, system, sprite_limit_enabled, audio_volume, dsp_config, renderer_mode) = open_app
-                .upgrade()
-                .map(|app| {
+            let (region, system, sprite_limit_enabled, audio_volume, dsp_config, renderer_mode) =
+                open_app
+                    .upgrade()
+                    .map(|app| {
                     (
                         app.get_selected_region().to_string(),
                         app.get_selected_system().to_string(),
