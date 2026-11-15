@@ -1777,8 +1777,8 @@ mod tests {
     use super::super::profile::{SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, VideoStandard};
     use super::{
         COLLISION, CRAM_SIZE, FRAME_SIZE, LINE_TSTATES, OVERFLOW, SMS_HINT_TSTATE,
-        SMS_VBLANK_FLAG_TSTATE, SMS_VINT_IRQ_TSTATE, SMS_VDP_WIDTH, SmsVdp,
-        StereoPresentation, TMS_PALETTE, VBLANK, evaluate_mode4_sprites, render_legacy_scanline,
+        SMS_VBLANK_FLAG_TSTATE, SMS_VDP_WIDTH, SMS_VINT_IRQ_TSTATE, SmsVdp, StereoPresentation,
+        TMS_PALETTE, VBLANK, evaluate_mode4_sprites, render_legacy_scanline,
         render_legacy_scanline_span, render_legacy_sprites, render_legacy_sprites_span,
         render_scanline, render_scanline_for_revision,
     };
@@ -1918,8 +1918,15 @@ mod tests {
         assert_eq!(vdp.status & VBLANK, 0, "the status flag is still pending");
 
         vdp.advance(3);
-        assert_ne!(vdp.status & VBLANK, 0, "VBlank status latches at HPos 24 / T16");
-        assert!(vdp.interrupt_pending(), "the VINT request remains pending until status read");
+        assert_ne!(
+            vdp.status & VBLANK,
+            0,
+            "VBlank status latches at HPos 24 / T16"
+        );
+        assert!(
+            vdp.interrupt_pending(),
+            "the VINT request remains pending until status read"
+        );
 
         let status = vdp.read_port(0xBF);
         assert_ne!(status & VBLANK, 0);
