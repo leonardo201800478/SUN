@@ -350,7 +350,7 @@ A ordem de trabalho passa a ser:
 | X-Scroll latchtime — coluna vertical apresentada | Visualmente reta | Positivo visual; sem veredito automatizado registrado |
 | HCounter values | Tabela hexadecimal exibida | Captura informativa; sem fase de leitura sincronizada não classificar como PASS/FAIL |
 
-**Conclusão SMS:** houve avanço objetivo em relação ao baseline anterior: os dois testes de endereço de leitura/escrita após escrita de um byte na porta de controle, antes reprovados, aparecem agora como OK no build testado. Permanecem três falhas de temporização misc (`VCounter chg time`, `Frame IRQ HCount`, `Line IRQ HCount`) e três falhas de timing/condição de sprite (`Offscreen Y, col`, `Spr col correct HC`, `Spr ovr correct HC`). A correção de VDP data/control port integrada anteriormente deve ser preservada.
+**Contagem transcrita das telas SMS:** Data 19/19 OK; Misc 13/16 OK (3 Error); Sprite 17/20 OK (3 Error). A contagem considera apenas os itens visíveis nas capturas e deve ser reconciliada se a versão/build da ROM de teste diferir.\n\n**Conclusão SMS:** houve avanço objetivo em relação ao baseline anterior: os dois testes de endereço de leitura/escrita após escrita de um byte na porta de controle, antes reprovados, aparecem agora como OK no build testado. Permanecem três falhas de temporização misc (`VCounter chg time`, `Frame IRQ HCount`, `Line IRQ HCount`) e três falhas de timing/condição de sprite (`Offscreen Y, col`, `Spr col correct HC`, `Spr ovr correct HC`). A correção de VDP data/control port integrada anteriormente deve ser preservada.
 
 ### Mega Drive VDP — modo de compatibilidade, trilha independente
 
