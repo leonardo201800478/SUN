@@ -103,6 +103,7 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
             "Line IRQ diagnostic returned an invalid marker ${line_result:02X} at delay {delay_nops}"
         );
     }
+    panic!("temporary diagnostic probe: expose captured phase-sweep output in CI logs");
 }
 
 fn run_until_result(rom: Vec<u8>, max_frames: usize) -> (u8, u8) {
