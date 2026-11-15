@@ -2498,7 +2498,7 @@ fn handle_command(
                 ));
             } else if *trace_enabled {
                 let _ = reply.send(Err(
-                    "SMS debugger trace capture is already enabled".to_owned(),
+                    "SMS debugger trace capture is already enabled".to_owned()
                 ));
             } else {
                 machine.set_trace_enabled(true);
