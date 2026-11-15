@@ -198,9 +198,9 @@ impl CartridgeCatalog {
 fn sms_profiles() -> Vec<KnownCartridgeProfile> {
     let mut profiles = Vec::new();
 
-    // Cosmic Spacehead (Europe) is tied to the exact No-Intro identity. MAME
-    // documents that it requires an extra-height mode absent from 315-5124;
-    // SMS Power documents its 224-line mode and the SMS2 VDP capability.
+    // Cosmic Spacehead (Europe) is tied to the exact No-Intro identity.
+    // Genesis Plus GX independently classifies it as SYSTEM_SMS2 and Codemasters;
+    // SMS Power documents its 224-line mode and SMS1 incompatibility.
     profiles.push(KnownCartridgeProfile::with_compatibility(
         "f46f716dd34a1a5013a2d8a59769f6ef7536a567",
         CartridgeHardwareProfile {
@@ -211,14 +211,14 @@ fn sms_profiles() -> Vec<KnownCartridgeProfile> {
             board: None,
             evidence: vec![
                 "Project No-Intro SMS DAT 20261013-064924: exact SHA-1/CRC32/size".to_owned(),
-                "MAME hash/sms.xml: Codemasters slot and exact Cosmic Spacehead ROM identity".to_owned(),
+                "Genesis Plus GX core/cart_hw/sms_cart.c: CRC32 29822980 is classified as Codemasters and SYSTEM_SMS2".to_owned(),
                 "SMS Power Development/CodemastersHeader: Codemasters cartridge header".to_owned(),
             ],
         },
         CartridgeCompatibilityMetadata::new(
             SmsVdpRequirement::Sms2Required,
             vec![
-                "MAME hash/sms.xml: Cosmic Spacehead requires extra-height video mode absent on VDP 315-5124".to_owned(),
+                "Genesis Plus GX core/cart_hw/sms_cart.c: CRC32 29822980 is classified as SYSTEM_SMS2".to_owned(),
                 "SMS Power Development/SMS1SMS2VDPs: 224/240-line modes are supported by the 315-5246 SMS2 VDP".to_owned(),
                 "SMS Power forums/1484-CosmicSpacehead: Charles MacDonald identifies Cosmic Spacehead as a 224-line title and reports SMS1 incompatibility".to_owned(),
             ],
