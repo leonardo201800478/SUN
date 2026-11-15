@@ -146,6 +146,12 @@ impl SmsInputProfiles {
         Ok(Self { gamepad, joystick })
     }
 
+    #[cfg(test)]
+    fn set_profiles(&mut self, gamepad: InputProfile, joystick: InputProfile) {
+        self.gamepad = gamepad;
+        self.joystick = joystick;
+    }
+
     fn evaluate(&self, class: DeviceClass, reading: &DeviceReading) -> (ControllerButtons, bool) {
         let profile = if class == DeviceClass::Gamepad {
             &self.gamepad
