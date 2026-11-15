@@ -7,7 +7,7 @@ use crate::CartridgeIdentity;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 const BIOS_8K: usize = 8 * 1024;
@@ -83,7 +83,7 @@ pub struct SmsFirmwareDescriptor {
     pub region: SmsFirmwareRegion,
     pub built_in_game: Option<SmsBuiltInGame>,
     pub size_bytes: usize,
-    pub sha256: &'static str,
+    pub sha256: String,
     pub crc32: Option<u32>,
     pub sha1: Option<&'static str>,
     pub md5: Option<&'static str>,
@@ -150,7 +150,7 @@ pub struct SmsFirmwareCatalog {
 impl SmsFirmwareCatalog {
     pub fn sms_default() -> Self {
         Self {
-            entries: sms_firmware_entries().to_vec(),
+            entries: sms_firmware_entries(),
         }
     }
 
@@ -241,8 +241,8 @@ impl SmsFirmwareCatalog {
                 continue;
             }
 
-            let bytes = match fs::read(&path) {
-                Ok(bytes) => bytes,
+            let mut file = match fs::File::open(&path) {
+                Ok(file) => file,
                 Err(error) => {
                     results.push(SmsFirmwareScanEntry {
                         path,
@@ -254,6 +254,26 @@ impl SmsFirmwareCatalog {
                     continue;
                 }
             };
+            let expected_size = usize::try_from(size_bytes).unwrap_or_default();
+            let mut bytes = vec![0; expected_size];
+            let read_result = file.read_exact(&mut bytes).and_then(|()| {
+                let mut extra = [0_u8; 1];
+                if file.read(&mut extra)? == 0 {
+                    Ok(())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::InvalidData, "file grew during firmware scan"))
+                }
+            });
+            if let Err(error) = read_result {
+                results.push(SmsFirmwareScanEntry {
+                    path,
+                    size_bytes,
+                    sha256: None,
+                    firmware_id: None,
+                    status: SmsFirmwareScanStatus::ReadError(error.to_string()),
+                });
+                continue;
+            }
             let Some(found) = self.identify(&bytes) else {
                 results.push(SmsFirmwareScanEntry {
                     path,
@@ -293,16 +313,29 @@ impl SmsFirmwareCatalog {
         let descriptor = self
             .descriptor(expected)
             .ok_or(SmsFirmwareLoadError::IdentityMismatch { expected })?;
-        let metadata = fs::metadata(path.as_ref())
-            .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?;
         let expected_size = descriptor.size_bytes;
-        if metadata.len() != expected_size as u64 {
+        let mut file = fs::File::open(path)
+            .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?;
+        let actual_size = file
+            .metadata()
+            .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?
+            .len();
+        if actual_size != expected_size as u64 {
             return Err(SmsFirmwareLoadError::SizeMismatch {
-                actual: usize::try_from(metadata.len()).unwrap_or(usize::MAX),
+                actual: usize::try_from(actual_size).unwrap_or(usize::MAX),
                 expected: expected_size,
             });
         }
-        let bytes = fs::read(path).map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?;
+        let mut bytes = vec![0; expected_size];
+        file.read_exact(&mut bytes)
+            .map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))?;
+        let mut extra = [0_u8; 1];
+        if file.read(&mut extra).map_err(|error| SmsFirmwareLoadError::Io(error.to_string()))? != 0 {
+            return Err(SmsFirmwareLoadError::SizeMismatch {
+                actual: expected_size.saturating_add(1),
+                expected: expected_size,
+            });
+        }
         if self
             .identify(&bytes)
             .is_none_or(|found| found.descriptor.id != expected)
@@ -313,7 +346,7 @@ impl SmsFirmwareCatalog {
     }
 }
 
-fn sms_firmware_entries() -> &'static [SmsFirmwareDescriptor] {
+fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
     use SmsBuiltInGame as Game;
     use SmsConsoleVariant as Console;
     use SmsFirmwareId as Id;
@@ -454,7 +487,7 @@ fn sms_firmware_entries() -> &'static [SmsFirmwareDescriptor] {
             validation: Validation::MappingDocumentedBootPending,
             evidence: &[LOCAL_HASH[0], SMS_POWER[0], "SMS Power documents 256 KiB ROM requiring slot 1 and slot 2 mapping; used only in Master System II"],
         },
-    ]
+    ].into()
 }
 
 #[cfg(test)]
@@ -498,7 +531,7 @@ mod tests {
             region: SmsFirmwareRegion::ExportUsEurope,
             built_in_game: Some(SmsBuiltInGame::HangOn),
             size_bytes: bytes.len(),
-            sha256: Box::leak(identity.sha256_hex().into_boxed_str()),
+            sha256: identity.sha256_hex(),
             crc32: None,
             sha1: None,
             md5: None,
