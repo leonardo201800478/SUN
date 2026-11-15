@@ -411,9 +411,10 @@ mod tests {
         sms_profiles,
     };
     use crate::{
-        CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper, CartridgeRamKind,
-        CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, DatGameEntry, DatRomEntry,
-        NoIntroDat, ProfileStatus, SmsVdpRequirement,
+        CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeIdentity,
+        CartridgeMapper, CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile,
+        CartridgeSystem, DatGameEntry, DatRomEntry, NoIntroDat, ProfileStatus,
+        SmsVdpRequirement,
     };
 
     fn test_battery_profile() -> CartridgeHardwareProfile {
@@ -474,6 +475,31 @@ mod tests {
                 .map(|metadata| metadata.sms_vdp_requirement),
             Some(SmsVdpRequirement::Unknown)
         );
+        assert!(catalog.lookup_runtime_profile(&identity).unwrap().is_some());
+    }
+
+    #[test]
+    fn lookup_exposes_compatibility_metadata_separately_from_mapper_and_ram() {
+        let identity = CartridgeIdentity::from_bytes(b"abc");
+        let profile = test_battery_profile();
+        let compatibility = CartridgeCompatibilityMetadata::new(
+            SmsVdpRequirement::Sms2Required,
+            vec!["independent VDP evidence".to_owned()],
+        );
+        let catalog = CartridgeCatalog::from_dat(
+            synthetic_dat(&identity, identity.crc32()),
+            vec![KnownCartridgeProfile::with_compatibility(
+                identity.sha1_hex(),
+                profile.clone(),
+                compatibility,
+            )],
+        );
+
+        let matched = catalog.lookup(&identity).unwrap().unwrap();
+        assert_eq!(matched.profile, Some(&profile));
+        let metadata = matched.compatibility.unwrap();
+        assert_eq!(metadata.sms_vdp_requirement, SmsVdpRequirement::Sms2Required);
+        assert_eq!(metadata.evidence, ["independent VDP evidence"]);
         assert!(catalog.lookup_runtime_profile(&identity).unwrap().is_some());
     }
 
