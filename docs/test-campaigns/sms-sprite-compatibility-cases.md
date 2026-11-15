@@ -1,6 +1,6 @@
 # SMS VDP — campanha de compatibilidade de sprites
 
-**Status:** campanha exploratória em andamento
+**Status:** campanha exploratória interna retomada em 15/11/2026; campanha manual/física permanece pausada
 **Objetivo:** registrar ROMs, cenas, resultados observados e evidências comparativas antes de alterar a implementação do VDP.
 **Hardware de referência do desktop:** perfil SMS1 / ASIC 315-5124, salvo indicação explícita em cada caso.
 **Regra:** resultados relatados pelo usuário são registrados como observações; não constituem, isoladamente, prova da causa técnica.
@@ -308,7 +308,16 @@ Esses três resultados são as reprovações funcionais diretamente demonstradas
 
 ## Política de campanha após 14/11/2026
 
-A campanha manual/ física está **PAUSADA** por decisão do usuário. A retomada dependerá de progresso interno verificável: testes sintéticos direcionados, regressões automatizadas, traces reproduzíveis e correção integrada. Não solicitar novas capturas ou execução de ROMs ao usuário antes de demonstrar esse progresso.
+A campanha manual/física permanece **PAUSADA** por decisão do usuário. A campanha interna automatizada foi retomada em 15/11/2026 por solicitação explícita: priorizar testes sintéticos direcionados, regressões automatizadas, traces reproduzíveis e correções integradas. Não solicitar novas capturas nem binários ROM ao usuário; usar as identidades/hashes registrados, os casos sintéticos e os resultados de CI. Os binários comerciais não estão versionados no repositório.
+
+
+### Retomada interna — 15/11/2026
+
+- Seleção explícita SMS1/315-5124 e SMS2/315-5246 integrada pela PR #892.
+- O smoke harness opt-in executa 1.800 frames por ROM por padrão e registra hashes de framebuffer e fingerprints de estado Z80/VDP/mapper.
+- A caracterização do zoom horizontal SMS1 (regra fixa dos primeiros quatro vs. N−4) foi separada em #898; não alterar o modelo sem evidência de hardware.
+- A compatibilidade genérica cartucho ↔ ASIC está em #897.
+- Cosmic Spacehead e The Smurfs continuam sem execução automatizada nesta sessão porque os binários comerciais não estão no repositório; não inferir resultado de gameplay a partir de testes sintéticos.
 
 A ordem de trabalho passa a ser:
 1. Corrigir e ampliar testes do caminho de data/control port e Line IRQ/VCount já reprovados no SMS VDP Test v1.31.
