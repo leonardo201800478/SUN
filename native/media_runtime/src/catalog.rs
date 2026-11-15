@@ -1,8 +1,7 @@
 use crate::{
-    CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeIdentity,
-    CartridgeMapper, CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile,
-    CartridgeSystem, DatGameEntry, DatRomEntry, NoIntroDat, ProfileStatus,
-    SmsVdpRequirement,
+    CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper,
+    CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, DatGameEntry,
+    DatRomEntry, NoIntroDat, ProfileStatus, SmsVdpRequirement,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -426,8 +425,7 @@ mod tests {
     use crate::{
         CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeIdentity,
         CartridgeMapper, CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile,
-        CartridgeSystem, DatGameEntry, DatRomEntry, NoIntroDat, ProfileStatus,
-        SmsVdpRequirement,
+        CartridgeSystem, DatGameEntry, DatRomEntry, NoIntroDat, ProfileStatus, SmsVdpRequirement,
     };
 
     fn test_battery_profile() -> CartridgeHardwareProfile {
@@ -511,7 +509,10 @@ mod tests {
         let matched = catalog.lookup(&identity).unwrap().unwrap();
         assert_eq!(matched.profile, Some(&profile));
         let metadata = matched.compatibility.unwrap();
-        assert_eq!(metadata.sms_vdp_requirement, SmsVdpRequirement::Sms2Required);
+        assert_eq!(
+            metadata.sms_vdp_requirement,
+            SmsVdpRequirement::Sms2Required
+        );
         assert_eq!(metadata.evidence.len(), 1);
         assert_eq!(metadata.evidence[0], "independent VDP evidence");
         assert!(catalog.lookup_runtime_profile(&identity).unwrap().is_some());
@@ -553,7 +554,10 @@ mod tests {
     fn cosmic_spacehead_exact_identity_requires_sms2_and_keeps_mapper_separate() {
         let catalog = CartridgeCatalog::sms_default().unwrap();
         let sha1 = "f46f716dd34a1a5013a2d8a59769f6ef7536a567";
-        let (_, rom) = catalog.dat().find_sha1(sha1).expect("Cosmic Spacehead DAT entry");
+        let (_, rom) = catalog
+            .dat()
+            .find_sha1(sha1)
+            .expect("Cosmic Spacehead DAT entry");
 
         assert_eq!(rom.size_bytes, 262_144);
         assert_eq!(rom.crc32, 0x2982_2980);
