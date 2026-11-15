@@ -40,6 +40,22 @@ mod windows_host {
 
     const SMS_WIDTH: u32 = 256;
     const SMS_HEIGHT: u32 = 192;
+    const SMS_EXTENDED_HEIGHTS: [u32; 2] = [224, 240];
+
+    /// Shared renderer resources plus the dimensions of the Slint-imported texture.
+    /// This is host presentation state only; it never feeds back into the runtime.
+    #[derive(Clone)]
+    struct GpuFrameContext {
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        texture_width: u32,
+        texture_height: u32,
+    }
+
+    fn is_supported_sms_frame_extent(width: u32, height: u32) -> bool {
+        width == SMS_WIDTH
+            && (height == SMS_HEIGHT || SMS_EXTENDED_HEIGHTS.contains(&height))
+    }
     const DIAGNOSTICS_INTERVAL: Duration = Duration::from_millis(250);
     const APP_DATA_DIRECTORY: &str = "Sega Emulator";
     const MAX_RECENT_ROMS: usize = 10;
@@ -982,21 +998,21 @@ mod windows_host {
         Ok(())
     }
 
-    /// Retorna a extensão 2D da textura SMS em resolução nativa.
-    fn texture_extent() -> wgpu::Extent3d {
+    /// Retorna a extensão 2D correspondente ao frame efetivamente publicado.
+    fn texture_extent(width: u32, height: u32) -> wgpu::Extent3d {
         wgpu::Extent3d {
-            width: SMS_WIDTH,
-            height: SMS_HEIGHT,
+            width,
+            height,
             depth_or_array_layers: 1,
         }
     }
 
-    /// Descreve o layout tightly-packed RGBA8 exigido pelo upload WGPU.
-    fn texture_data_layout() -> wgpu::TexelCopyBufferLayout {
+    /// Descreve o layout tightly-packed RGBA8 para as dimensões do frame.
+    fn texture_data_layout(width: u32, height: u32) -> wgpu::TexelCopyBufferLayout {
         wgpu::TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(SMS_WIDTH * 4),
-            rows_per_image: Some(SMS_HEIGHT),
+            bytes_per_row: Some(width * 4),
+            rows_per_image: Some(height),
         }
     }
 
@@ -1050,10 +1066,12 @@ mod windows_host {
     fn create_imported_texture(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
     ) -> Result<slint::Image, Box<dyn Error>> {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("sega-r2-sms-vdp-frame"),
-            size: texture_extent(),
+            size: texture_extent(width, height),
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -1064,12 +1082,12 @@ mod windows_host {
             view_formats: &[],
         });
 
-        let initial_pixels = vec![0_u8; (SMS_WIDTH * SMS_HEIGHT * 4) as usize];
+        let initial_pixels = vec![0_u8; (width * height * 4) as usize];
         queue.write_texture(
             texture.as_image_copy(),
             &initial_pixels,
-            texture_data_layout(),
-            texture_extent(),
+            texture_data_layout(width, height),
+            texture_extent(width, height),
         );
 
         Ok(slint::Image::try_from(texture)?)
@@ -1078,7 +1096,7 @@ mod windows_host {
     /// Registra o device/queue WGPU do Slint e publica a textura externa na mesma cena.
     fn attach_gpu_texture(
         app: &MainWindow,
-        queue_slot: Arc<Mutex<Option<wgpu::Queue>>>,
+        gpu_context_slot: Arc<Mutex<Option<GpuFrameContext>>>,
         mailbox: FrameMailbox,
         setup_counter: Rc<Cell<u64>>,
         teardown_counter: Rc<Cell<u64>>,
@@ -1114,9 +1132,9 @@ mod windows_host {
                         return;
                     }
 
-                    match create_imported_texture(device, queue) {
+                    match create_imported_texture(device, queue, SMS_WIDTH, SMS_HEIGHT) {
                         Ok(image) => {
-                            *queue_slot.lock().unwrap() = Some(queue.clone());
+                            *gpu_context_slot.lock().unwrap() = Some(GpuFrameContext {\n                                device: device.clone(),\n                                queue: queue.clone(),\n                                texture_width: SMS_WIDTH,\n                                texture_height: SMS_HEIGHT,\n                            });
 
                             let app_weak = app_weak.clone();
                             let mailbox = mailbox.clone();
@@ -1163,7 +1181,7 @@ mod windows_host {
                         "R2_LIFECYCLE event=RenderingTeardown count={teardown_count}"
                     );
 
-                    *queue_slot.lock().unwrap() = None;
+                    *gpu_context_slot.lock().unwrap() = None;
 
                     let app_weak = app_weak.clone();
                     let lifecycle_status = format!(
@@ -1806,7 +1824,7 @@ mod windows_host {
     /// Consume and upload one latest frame after the mailbox signals publication.
     fn present_latest_frame(
         app_weak: &slint::Weak<MainWindow>,
-        queue_slot: &Arc<Mutex<Option<wgpu::Queue>>>,
+        gpu_context_slot: &Arc<Mutex<Option<GpuFrameContext>>>,
         mailbox: &FrameMailbox,
         host_pacing: &Arc<Mutex<HostFramePacingWindow>>,
     ) {
@@ -1823,16 +1841,15 @@ mod windows_host {
         let Some(app) = app_weak.upgrade() else {
             return;
         };
-        let queue = queue_slot
+        let context = gpu_context_slot
             .lock()
             .ok()
             .and_then(|slot| slot.as_ref().cloned());
-        let Some(queue) = queue else {
+        let Some(context) = context else {
             return;
         };
-        let Some(texture) = app.get_gpu_texture().to_wgpu_30_texture() else {
-            return;
-        };
+        let device = context.device.clone();
+        let queue = context.queue.clone();
 
         let mailbox_take_started = Instant::now();
         let take_result = mailbox.take_latest_with_timestamp();
@@ -1855,19 +1872,51 @@ mod windows_host {
             }
         };
 
-        if frame.width() != SMS_WIDTH || frame.height() != SMS_HEIGHT {
+        if !is_supported_sms_frame_extent(frame.width(), frame.height()) {
             app.set_frame_status(
                 format!(
-                    "Frame ignorado: {}x{}; esperado {}x{}",
+                    "Frame ignorado: {}x{}; suportado: 256x192, 256x224 ou 256x240",
                     frame.width(),
-                    frame.height(),
-                    SMS_WIDTH,
-                    SMS_HEIGHT
+                    frame.height()
                 )
                 .into(),
             );
             return;
         }
+
+        if context.texture_width != frame.width() || context.texture_height != frame.height() {
+            match create_imported_texture(&device, &queue, frame.width(), frame.height()) {
+                Ok(image) => {
+                    let mut slot = match gpu_context_slot.lock() {
+                        Ok(slot) => slot,
+                        Err(_) => {
+                            app.set_frame_status("Contexto WGPU indisponível durante resize".into());
+                            return;
+                        }
+                    };
+                    let Some(current) = slot.as_mut() else {
+                        return;
+                    };
+                    if current.device != device {
+                        return;
+                    }
+                    current.texture_width = frame.width();
+                    current.texture_height = frame.height();
+                    app.set_gpu_texture(image);
+                }
+                Err(error) => {
+                    app.set_frame_status(
+                        format!("Falha ao redimensionar textura WGPU: {error}").into(),
+                    );
+                    return;
+                }
+            }
+        }
+
+        let Some(texture) = app.get_gpu_texture().to_wgpu_30_texture() else {
+            app.set_frame_status("Textura WGPU indisponível após atualização de dimensões".into());
+            return;
+        };
 
         let now = Instant::now();
         host_pacing
@@ -1886,8 +1935,8 @@ mod windows_host {
                 queue.write_texture(
                     texture.as_image_copy(),
                     &pixels,
-                    texture_data_layout(),
-                    texture_extent(),
+                    texture_data_layout(frame.width(), frame.height()),
+                    texture_extent(frame.width(), frame.height()),
                 );
                 host_pacing
                     .lock()
@@ -1924,7 +1973,7 @@ mod windows_host {
     /// Wake Slint only when a new frame is published; the atomic gate bounds queued callbacks.
     fn start_frame_presentation(
         app: &MainWindow,
-        queue_slot: Arc<Mutex<Option<wgpu::Queue>>>,
+        gpu_context_slot: Arc<Mutex<Option<wgpu::Queue>>>,
         mailbox: FrameMailbox,
         host_pacing: Arc<Mutex<HostFramePacingWindow>>,
     ) -> Result<(), sega_video_runtime::FrameMailboxError> {
@@ -1938,7 +1987,7 @@ mod windows_host {
 
                 let callback_pending = Arc::clone(&notification_pending);
                 let callback_app = app_weak.clone();
-                let callback_queue = Arc::clone(&queue_slot);
+                let callback_gpu_context = Arc::clone(&gpu_context_slot);
                 let callback_mailbox = published_mailbox;
                 let callback_metrics = Arc::clone(&host_pacing);
                 let result = slint::invoke_from_event_loop(move || {
@@ -1947,7 +1996,7 @@ mod windows_host {
                     callback_pending.store(false, Ordering::Release);
                     present_latest_frame(
                         &callback_app,
-                        &callback_queue,
+                        &callback_gpu_context,
                         &callback_mailbox,
                         &callback_metrics,
                     );
@@ -3373,12 +3422,12 @@ mod windows_host {
             }
         });
 
-        let queue_slot = Arc::new(Mutex::new(None));
+        let gpu_context_slot = Arc::new(Mutex::new(None));
         let setup_counter = Rc::new(Cell::new(0_u64));
         let teardown_counter = Rc::new(Cell::new(0_u64));
         attach_gpu_texture(
             &app,
-            Arc::clone(&queue_slot),
+            Arc::clone(&gpu_context_slot),
             mailbox.clone(),
             setup_counter,
             teardown_counter,
@@ -3392,7 +3441,7 @@ mod windows_host {
             Rc::clone(&keyboard_state),
             Rc::clone(&gamepad_state),
         );
-        start_frame_presentation(&app, Arc::clone(&queue_slot), mailbox.clone(), host_pacing)?;
+        start_frame_presentation(&app, Arc::clone(&gpu_context_slot), mailbox.clone(), host_pacing)?;
 
         let run_result = app.run();
         let final_preferences = DesktopPreferences {
