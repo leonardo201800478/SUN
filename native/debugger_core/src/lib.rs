@@ -309,6 +309,15 @@ impl<T: Send + 'static> DiagnosticCollector<T> {
         self.publisher.dropped()
     }
 
+    /// Return the number of retained-history entries evicted by its FIFO limit.
+    #[must_use]
+    pub fn history_dropped(&self) -> u64 {
+        self.history
+            .lock()
+            .map(|history| history.dropped())
+            .unwrap_or(u64::MAX)
+    }
+
     /// Stop the collector, join its thread, and clear retained diagnostic data.
     pub fn stop(mut self) {
         self.shutdown();
