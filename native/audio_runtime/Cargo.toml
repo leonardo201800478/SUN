@@ -1,0 +1,14 @@
+[package]
+name = "sega-audio-runtime"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "sega_audio_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+sega-observability.workspace = true
+sega-machine-scheduler = { path = "../machine_scheduler" }
+sega-sn76489 = { path = "../sn76489" }

@@ -1,0 +1,216 @@
+# Projeto: carregamento nativo de BIOS do Sega Master System
+
+**Data:** 2026-10-29  
+**Base observada:** `main` em `0a6e77c2f01b87692accd033525197eb8812707b` (PR #279 integrada)  
+**Status:** IMPLEMENTED / CI_PENDING / REAL_BIOS_BOOT_PENDING. O scanner por SHA-256, a configuração persistente da pasta, a seleção regional, o encaminhamento Qt/PyO3 e o boot pelo core Rust estão conectados. A validação com BIOS real permanece dependente de arquivos locais do usuário e teste manual; CI deve ser avaliado no SHA candidato mais recente.
+
+## Objetivo
+
+Adicionar suporte nativo e opcional a BIOS de Master System fornecidas pelo usuário. Os arquivos devem permanecer fora do repositório e da distribuição do emulador. O usuário poderá escolher uma pasta de firmware nas configurações; o emulador identificará os arquivos por SHA-256, sem depender de nomes fixos, e selecionará a BIOS compatível com o perfil regional efetivo.
+
+O SMS deve continuar iniciando sem BIOS quando o modo de boot selecionado permitir isso. A presença de BIOS não deve ser confundida com a configuração PAL/NTSC nem com a região do cartucho.
+
+## Evidência dos três arquivos fornecidos nesta conversa
+
+Os hashes abaixo foram calculados localmente a partir dos arquivos anexados. Os binários não foram adicionados ao Git.
+
+| Arquivo recebido | Tamanho | SHA-256 | Identificação |
+|---|---:|---|---|
+| `[BIOS] Sega Master System (Japan) (v2.1).sms` | 8.192 bytes | `67846e26764bd862f19179294347f7353a4166b62ac4198a5ec32933b7da486e` | Master System Japan |
+| `[BIOS] Sega Master System (USA, Europe) (v1.3).sms` | 8.192 bytes | `477617917a12a30f9f43844909dc2de6e6a617430f5c9a36306c86414a670d50` | Master System export (USA/Europe) |
+| `[BIOS] Sega Master System (Europe) (v2.0).sms` | 8.192 bytes | `1eb16fc06ceaf05651d7cfd69d1713e6ddccc4349a511f6fd17e037d71f9d85b` | Master System Europe (distinct v2.0) |
+
+**Resultado importante:** USA/Europe v1.3 é a imagem compartilhada de exportação; Europe v2.0 é uma BIOS europeia distinta e não deve ser selecionada para USA/Brazil. Para Europe, v2.0 tem preferência; se ausente, a imagem compartilhada v1.3 é fallback. Japan v2.1 permanece na família japonesa. A seleção de BIOS não altera o perfil PAL/PAL-M/NTSC.
+
+Os hashes foram calculados a partir dos arquivos fornecidos pelo usuário nesta conversa. Os binários permanecem fora do Git.
+
+
+### Particularidade observada da BIOS Europe v2.0
+
+A documentação técnica do SMS Power descreve a BIOS v2.0 incomum como uma variante da v1.3: ela não valida o cabeçalho TMR SEGA nem o checksum da ROM, e usa uma verificação de variação nos primeiros 513 bytes. Portanto, não é apenas um alias de nome da v1.3 e sua seleção deve permanecer explícita. O MAME cataloga a imagem com CRC32 B3D854F8 como European BIOS v2.0 no perfil SMS PAL. Fontes: SMS Power, *BIOSes* (seção “Uncommon BIOS v2.0”); MAME, definição `sms1pal` (`mpr-10883.rom`).
+
+
+### Controle de boot por BIOS
+
+A aba **BIOS SMS** oferece a opção persistente `sms_bios_boot_enabled`. O padrão é ativado para preservar o comportamento anterior. Desativada, a inicialização ignora o carregamento e a varredura automática de firmware e usa o boot direto pelo cartucho; a varredura manual pelo botão continua disponível para diagnóstico. A mudança é aplicada no próximo carregamento de uma ROM SMS; para aplicá-la ao jogo atual, é necessário fechar e carregar a ROM novamente. Não altera uma máquina que já está em execução.
+
+## Referência: abordagem do ares
+
+A documentação pública do perfil ares no catálogo RetroBIOS informa que:
+- a identificação de firmware é feita por SHA-256, não pelo nome do arquivo;
+- os nomes são definidos pelo usuário;
+- a pasta de firmware pode ser configurada e existe uma pasta padrão de dados do usuário;
+- os slots de firmware são associados ao sistema/perfil depois da identificação.
+
+Fontes:
+- SMS Power, Port $3E: https://www.smspower.org/Development/Port3E
+- SMS Power, comportamento das BIOSes: https://www.smspower.org/Development/BIOSes
+- SMS Power, formato e códigos regionais do cabeçalho: https://www.smspower.org/Development/ROMHeader
+- Charles MacDonald, *SMS/GG hardware notes* (2002), seções 2–4 e 6; cópia de referência: https://github.com/drhelius/Gearsystem/blob/master/skills/gearsystem-debugging/references/smstech.md
+- ares upstream: https://github.com/ares-emulator/ares
+- perfil ares e referências ao código de varredura por hash: https://abdess.github.io/retrobios/emulators/ares/
+- catálogo Sega e hashes de Master System: https://abdess.github.io/retrobios/systems/sega/
+- código do core SMS atual no projeto: `native/sms_core/src/machine.rs`, `memory.rs`, `config.rs` e integração da interface.
+
+A pesquisa do catálogo descreve a identificação por conteúdo e os arquivos conhecidos; a implementação precisa verificar diretamente a revisão de código do ares que será usada como referência antes de fechar decisões de arquitetura. Não copiar código do ares.
+
+## Comportamento proposto
+
+### Configuração e diretório
+
+- Criar uma configuração persistente `firmware_directory` definida pelo usuário.
+- A pasta é configurada explicitamente pelo usuário nas configurações Qt; o valor vazio significa BIOS não configurada.
+- Expor caminho, seletor de pasta, botão de varredura explícita e resultado por arquivo (status, região e prefixo SHA-256).
+- Não varrer disco no startup. A varredura ocorre quando solicitada no diálogo ou ao carregar/resetar uma ROM SMS.
+- Não manter cache de bytes entre sessões; a seleção revalida tamanho e SHA-256 imediatamente antes de encaminhar os bytes ao core.
+- Não baixar BIOS automaticamente.
+
+### Identificação e validação
+
+- Ler arquivos candidatos como dados locais, calcular SHA-256 e comparar com uma lista interna de metadados (hash, sistema, região/alias, tamanho esperado e versão quando conhecida).
+- Não confiar em nomes, extensões ou diretórios para validar firmware.
+- A BIOS japonesa aceita a assinatura conhecida JP v2.1 indicada acima.
+- A BIOS compartilhada de exportação USA/Europe aceita a assinatura v1.3.
+- A BIOS Europe v2.0 tem assinatura própria e só é preferida para o território Europe; na ausência dela, Europe pode usar a BIOS compartilhada v1.3.
+- Recusar arquivos truncados, vazios, inacessíveis ou de tamanho incompatível, com erro diagnóstico explícito.
+- Nunca gravar o conteúdo ou dumps da BIOS em logs; registrar apenas nome/caminho escolhido pelo usuário, tamanho, hash, região identificada e resultado da validação.
+- Manter os hashes em testes de metadados, sem armazenar os binários proprietários no repositório.
+
+### Seleção regional
+
+- Separar **território do console**, **padrão de vídeo PAL/NTSC** e **região/identidade da BIOS**; não assumir que esses campos são equivalentes.
+- Definir uma política explícita de preferência: região manual do usuário tem prioridade; no modo automático, resolver a região usando os metadados confiáveis disponíveis do cartucho e do sistema, e registrar a decisão.
+- Para Japan, preferir BIOS JP; para Europe, preferir a imagem Europe v2.0 e usar USA/Europe v1.3 como fallback; para USA/Brazil, usar a imagem compartilhada v1.3.
+- Se não houver correspondência, respeitar a política de boot sem BIOS e mostrar estado “não instalada”; não escolher uma BIOS incompatível silenciosamente.
+- Para modo automático, ler o nibble alto de `$7FFF` em um cabeçalho `TMR SEGA` localizado em `$7FF0`, `$3FF0` ou `$1FF0`: código 3 identifica Japan e código 4 identifica Export. Um DAT exato e unânime pode refinar Export para Europe e selecionar a v2.0; sem essa evidência, usar a BIOS compartilhada v1.3.
+- Se o cabeçalho estiver ausente ou tiver código desconhecido, não inferir uma BIOS; preservar boot direto sem firmware. A preferência regional manual tem precedência.
+- Quando mais de um arquivo tiver o mesmo hash conhecido, manter a primeira ocorrência determinística selecionável e marcar as demais como `DUPLICATE_HASH`.
+- Os códigos do cabeçalho identificam território (Japan/Export), não PAL/NTSC. O padrão de vídeo continua sendo uma escolha separada.
+
+### Integração de hardware
+
+A BIOS deve ser parte do caminho de inicialização do cartucho/máquina, não uma imagem desenhada na interface. A implementação deve:
+- definir um objeto de firmware validado (metadados + bytes) fora da ROM do jogo;
+- encaminhar a BIOS validada pela fronteira Python/PyO3 ao core Rust sem callbacks por instrução;
+- implementar overlay/mapeamento de BIOS e o mecanismo de desabilitação conforme o comportamento documentado do SMS;
+- garantir que as leituras da BIOS e a desabilitação afetem o mapa de memória real visto pela CPU;
+- manter a ROM de cartucho e seu mapper intactos, e permitir que o jogo passe a ser executado após a BIOS transferir controle ou ser desabilitada;
+- limpar/reinicializar estado de overlay e latch no reset, de acordo com o contrato de hardware confirmado;
+- evitar duplicar o carregador de ROM ou criar um segundo runtime Python de hardware.
+
+### Semântica de controle validada para esta fatia
+
+- O SMS decodifica escritas pares no intervalo de portas `$00-$3F` como o latch de memória; o core aplica essa máscara, não apenas a porta literal `$3E`.
+- Os bits são ativos em nível baixo: bit 7 expansão, bit 6 cartucho, bit 5 card, bit 4 RAM interna, bit 3 BIOS e bit 2 I/O.
+- A BIOS fica habilitada no power-on. O core modela o perfil inicial `$E0` (BIOS e RAM interna habilitadas; cartucho, card e expansão desabilitados), alinhado ao SMS Plus GX e aos bits ativos em nível baixo do port `$3E`. O perfil pós-BIOS de cartucho permanece `$AB` (BIOS desabilitada; cartucho e RAM interna habilitados).
+- No perfil de hardware SMS original, o cartucho tem precedência quando BIOS e cartucho estão habilitados ao mesmo tempo; o SMS 2 possui comportamento elétrico distinto (AND lógico). O core atual modela o SMS original, não o SMS 2.
+- O fluxo sintético de aceitação habilita RAM mantendo BIOS, copia um pequeno stub para RAM, desabilita BIOS/habilita cartucho e transfere execução ao endereço zero do cartucho.
+- A BIOS de 8 KiB fornecida pelo usuário é mapeada integralmente em `$0000-$1FFF`; fora dessa janela, o slot de cartucho continua sujeito ao latch de memória. O slot do cartucho continua sujeito ao latch de memória.
+- A arbitragem elétrica quando BIOS e cartucho são habilitados simultaneamente difere entre SMS e SMS 2 (precedência/AND nas referências consultadas); esse caso não é exercitado pelo fluxo de boot implementado, que mantém os slots mutuamente selecionados. A modelagem explícita dessa sobreposição permanece uma limitação, não um comportamento declarado como validado.
+
+**Não assumir que a BIOS deve estar sempre mapeada ou sempre obrigatória.** O perfil de inicialização e a transferência de controle devem respeitar o latch e a ordem observada nos documentos técnicos citados.
+
+## Estados de diagnóstico propostos
+
+- `NOT_CONFIGURED`: pasta ainda não definida.
+- `DIRECTORY_MISSING`: pasta configurada não existe ou não está acessível.
+- `NOT_FOUND`: nenhum arquivo corresponde a uma assinatura conhecida.
+- `INVALID_FILE`: falha de leitura/tamanho/validação.
+- `VALID_JAPAN`: hash japonês validado.
+- `VALID_EUROPE`: assinatura conhecida da BIOS Europe v2.0 validada.
+- `VALID_EXPORT_US_EU`: assinatura conhecida da BIOS compartilhada USA/Europe v1.3 validada.
+- `DUPLICATE_HASH`: múltiplos nomes, mesmo conteúdo já reconhecido.
+- `IN_USE`: firmware selecionado e carregado na máquina.
+- `FALLBACK_NO_BIOS`: modo de compatibilidade selecionado sem BIOS.
+
+## Uso do DAT na seleção da BIOS SMS
+
+A inicialização SMS prioriza a preferência regional manual e, no modo
+automático, usa o perfil territorial já resolvido pelo cabeçalho e pelo DAT.
+Uma identidade DAT exclusivamente `EUR` pode selecionar a BIOS Europe v2.0;
+USA, Brazil, Australia e releases export compartilhadas selecionam a BIOS
+USA/Europe v1.3. Europe usa v1.3 como fallback quando v2.0 não está instalada.
+Brazil é território de exportação com padrão PAL-M; essa classificação não
+escolhe temporização Europe/PAL.
+Se um header reconhecido e um DAT exato contradisserem o grupo regional (por
+exemplo, header Export com release Japan), a seleção automática é recusada.
+Registros Korea/Taiwan também não são reduzidos automaticamente às famílias
+Japan ou Export, pois exigem perfis de console próprios. Entradas mistas,
+regiões sem mapeamento comprovado, ROMs desconhecidas e colisões entre sistemas
+não escolhem BIOS automaticamente. A seleção de firmware exige correspondência SHA-1 ou MD5;
+o fallback CRC-32 + tamanho do catálogo não é forte o bastante para escolher BIOS. Os DATs identificam releases; não determinam PAL/NTSC nem
+substituem a preferência de vídeo do console.
+
+## Critérios de aceitação
+
+### Validação de metadados e armazenamento
+- [ ] Testar hashes exatos dos três arquivos fornecidos por fixtures de teste não versionadas/localmente ou por constantes de metadados; não commitar binários.
+- [ ] Confirmar que JP v2.1 é classificada como Japan, USA/Europe v1.3 como BIOS compartilhada de exportação e Europe v2.0 como BIOS específica Europe.
+- [ ] Confirmar que nomes arbitrários funcionam e nomes “corretos” com conteúdo incorreto são rejeitados.
+- [ ] Testar arquivo ausente, tamanho incorreto, falha de leitura, pasta inexistente, duplicatas e arquivos não relacionados.
+- [ ] Garantir que arquivos grandes sejam rejeitados por tamanho antes de ler seu conteúdo integral.
+- [ ] Garantir que nenhum conteúdo de BIOS seja incluído em logs ou artefatos CI.
+
+### Integração SMS
+- [ ] Definir e testar o mapa integral de 8 KiB da BIOS e sua desabilitação com programa sintético.
+- [ ] Testar reset, leitura antes/depois de desabilitar BIOS, transferência ao cartucho e mapper padrão.
+- [ ] Testar perfil de power-on `$E0`, acesso imediato à RAM/stack com BIOS ativa, perfil de cartucho `$AB` e espelhamento de escritas pares em `$00-$3F`.
+- [ ] Executar um programa sintético que copia o stub da BIOS para RAM antes do hand-off.
+- [ ] Testar boot sem BIOS para preservar compatibilidade atual.
+- [ ] Testar JP v2.1, USA/Europe v1.3 e Europe v2.0 em perfis compatíveis; Europe v2.0 deve ter preferência apenas no perfil Europe, com v1.3 como fallback.
+- [ ] Confirmar o comportamento de jogos com e sem BIOS e evitar regressões nos testes SMS existentes.
+
+### Interface, CI e distribuição
+- [ ] Permitir escolher/alterar a pasta; mudanças na BIOS ativa aplicam-se no próximo reset ou carregamento.
+- [ ] Exibir resultado da varredura explícita com hash abreviado, região e validade.
+- [ ] Registrar carregamento/fallback com evento de diagnóstico sem registrar bytes da BIOS.
+- [ ] Garantir que empacotamento/CI não distribua os binários.
+- [ ] Executar fmt, clippy, testes Rust, lint/testes Python, build Release/Maturin e testes de integração pertinentes.
+- [ ] Validar manualmente no Windows com arquivos locais do usuário.
+
+## Plano de implementação por fatias
+
+1. **Contrato e catálogo:** tipo de metadados/firmware, SHA-256, estados e testes de identificação.
+2. **Core Rust:** entrada opcional de BIOS, overlay de memória e mecanismo de desabilitação com testes sintéticos.
+3. **Fronteira PyO3 e interface:** pasta configurável, scanner, status e seleção regional explícita.
+4. **Integração e validação:** fluxo completo, regressões de boot com e sem BIOS, build empacotado e testes manuais.
+5. **Documentação de usuário:** formatos aceitos, diretório padrão, como instalar legalmente arquivos obtidos pelo usuário e diagnóstico de hash.
+
+## Status desta PR
+
+### Fatia 1 — catálogo e scanner Python
+
+- **IMPLEMENTED:** assinaturas SHA-256 para BIOS JP v2.1, USA/Europe v1.3 e Europe v2.0; v1.3 é compartilhada entre USA/Europe, enquanto v2.0 mantém identidade Europe específica.
+- **IMPLEMENTED:** varredura explícita, nomes arbitrários, tamanho exato de 8 KiB e rejeição por tamanho antes da leitura integral.
+- **IMPLEMENTED:** seleção por território e revalidação do arquivo (tamanho + SHA-256) imediatamente antes do carregamento.
+- **IMPLEMENTED:** duplicatas determinísticas; primeira ocorrência selecionável e cópias adicionais marcadas como `DUPLICATE_HASH`.
+- **IMPLEMENTED:** inferência automática de território a partir dos códigos 3/4 de cabeçalho SMS reconhecido; cabeçalho desconhecido não provoca escolha especulativa.
+- **IMPLEMENTED:** testes sintéticos sem binários de BIOS no Git.
+
+### Fatia 2 — boot no core Rust e fronteira PyO3
+
+- **IMPLEMENTED:** BIOS opcional de 8 KiB; mapeamento integral de 8 KiB em `$0000-$1FFF`.
+- **IMPLEMENTED:** latch `$3E` com decodificação de portas pares espelhadas em `$00-$3F`.
+- **IMPLEMENTED:** perfil de power-on `$E0` com RAM imediatamente acessível e BIOS ativa, hand-off sintético para cartucho por `$AB`, e reset coerente com BIOS presente/ausente. O boot com BIOS comercial real permanece pendente de validação no emulador.
+- **IMPLEMENTED:** teste sintético executa cópia do stub BIOS para RAM antes de desabilitar a BIOS e saltar ao cartucho.
+- **IMPLEMENTED:** PyO3 mantém compatibilidade dos argumentos antigos e encaminha bytes opcionais sem callbacks por instrução.
+
+### Fatia 3 — Qt/configuração
+
+- **IMPLEMENTED:** preferência persistente `firmware_directory` e seletor de pasta na aba BIOS SMS.
+- **IMPLEMENTED:** botão de varredura explícita com status, região e prefixo SHA-256 por arquivo.
+- **IMPLEMENTED:** carregamento da BIOS compatível ao abrir/resetar ROM SMS; preferência manual prevalece e modo automático usa cabeçalho confiável.
+- **IMPLEMENTED:** fallback para boot direto quando BIOS não está configurada ou não há correspondência segura.
+- **IMPLEMENTED:** diagnóstico de BIOS carregada/fallback sem registrar bytes do firmware.
+
+### Validação
+
+- **QUICK_PASS / SHORT_PASS:** pendentes de confirmação no SHA final desta cadeia.
+- **CI:** avaliar todos os checks aplicáveis no SHA candidato atual; checks cancelados ou de commits anteriores não contam como PASS.
+- **Boot real com BIOS:** PENDING; requer firmware local do usuário e validação visual/manual.
+- **TEMPORAL_PASS:** não aplicável; esta fatia não altera o scheduler ciclo a ciclo.
+
+
+## Firmware SMS com jogos incorporados
+
+O inventário de imagens maiores que 8 KiB — Sonic, Hang On, Hang On & Safari Hunt, Missile Defense 3-D e Samsung Gam*Boy II com Alex Kidd — está documentado em [sms-built-in-game-firmware-catalog-2026-11-15.md](sms-built-in-game-firmware-catalog-2026-11-15.md). Essas imagens exigem identificação e estratégia de mapeamento próprias; não são aceitas pelo loader convencional de BIOS de 8 KiB. A identificação por hash está documentada, mas o boot real dessas variantes permanece pendente.

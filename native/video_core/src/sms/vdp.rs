@@ -1,0 +1,4571 @@
+//! SMS VDP (315-5124/315-5246 family), implemented independently from SG-1000.
+//! Deterministic scanline model: Mode 4, VRAM/CRAM, scroll, sprites, IRQ, light-gun
+//! click injection and standard-monitor SegaScope output. Not dot-cycle exact.
+
+use super::profile::{SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, VideoStandard};
+
+pub const SMS_VDP_WIDTH: usize = 256;
+pub const SMS_VDP_MAX_HEIGHT: usize = 240;
+const VRAM_SIZE: usize = 0x4000;
+const CRAM_SIZE: usize = 0x20;
+const LINE_TSTATES: u64 = 228;
+// CPU-visible raster boundaries follow the SmsVdpTest Z80-clock/pixel mapping:
+// VINT HPos 20/T13, HINT HPos 21/T14, VCounter HPos 23/T15 and
+// VBlank flag HPos 24/T16 are scheduled for both SMS ASIC revisions.
+// SMS1 additionally commits HBlank spans and latches sprite overflow at T16;
+// SMS2's HBlank/raster-write phase remains uncharacterized. These are T-state
+// boundaries, not sub-T-state arbitration or dot-accurate timestamps.
+const SMS_VINT_IRQ_TSTATE: u64 = 13;
+const SMS_HINT_TSTATE: u64 = 14;
+const SMS_VCOUNTER_LATCH_TSTATE: u64 = 15;
+const SMS_SPRITE_OVERFLOW_TSTATE: u64 = 16;
+const SMS_HBLANK_TSTATE: u64 = 213;
+const SMS_VBLANK_FLAG_TSTATE: u64 = 16;
+const SMS_HCOUNTER_POSITIONS_PER_LINE: u64 = 342;
+const SMS_R8_LATCH_HPOS: u16 = 21;
+// Comparative SMS timing uses HPos 63 as the active-window start and 319 as its exclusive end.
+// This is a comparative model boundary, not a measured board-specific latch.
+const SMS_ACTIVE_DISPLAY_START_HPOS: u16 = 63;
+const STRIDE: usize = SMS_VDP_WIDTH * 3;
+const FRAME_SIZE: usize = STRIDE * SMS_VDP_MAX_HEIGHT;
+const VBLANK: u8 = 0x80;
+const OVERFLOW: u8 = 0x40;
+const COLLISION: u8 = 0x20;
+const TMS_PALETTE: [[u8; 3]; 16] = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [33, 200, 66],
+    [94, 220, 120],
+    [84, 85, 237],
+    [125, 118, 252],
+    [212, 82, 77],
+    [66, 235, 245],
+    [252, 85, 84],
+    [255, 121, 120],
+    [212, 193, 84],
+    [230, 206, 128],
+    [33, 176, 59],
+    [201, 91, 186],
+    [204, 204, 204],
+    [255, 255, 255],
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SmsVdpEye {
+    #[default]
+    Right,
+    Left,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StereoPresentation {
+    #[default]
+    Alternating,
+    AnaglyphRedCyan,
+    SideBySide,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SmsRasterPosition {
+    pub line: u16,
+    pub tstates_into_line: u16,
+    pub visible_height: u16,
+    pub total_lines: u16,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum VdpAddressMode {
+    #[default]
+    VramRead,
+    VramWrite,
+    CramWrite,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SmsVdp {
+    vram: Vec<u8>,
+    cram: [u8; CRAM_SIZE],
+    registers: [u8; 16],
+    latched_scroll_x: u8,
+    latched_scroll_y: u8,
+    pending_scroll_y: Option<u8>,
+    sprite_line_buffer: Option<Mode4SpriteLineBuffer>,
+    legacy_sprite_line_buffer: Option<LegacySpriteLineBuffer>,
+    status: u8,
+    address: u16,
+    address_mode: VdpAddressMode,
+    read_buffer: u8,
+    control_first: Option<u8>,
+    cram_write: bool,
+    scanline: u16,
+    tstates_into_line: u16,
+    raster_span_cursor_x: u16,
+    line_collision_seen: bool,
+    line_overflow_status: u8,
+    frame_number: u64,
+    framebuffer: Vec<u8>,
+    working_framebuffer: Vec<u8>,
+    frame_ready: bool,
+    profile: SmsVdpProfile,
+    line_counter: u8,
+    line_irq_pending: bool,
+    vint_pending: bool,
+    v_counter_latch: u16,
+    light_x: u16,
+    light_y: u16,
+    light_trigger: bool,
+    light_pulse: bool,
+    h_counter_latch: u8,
+    stereo_eye: SmsVdpEye,
+    stereo_presentation: StereoPresentation,
+    left_frame: Vec<u8>,
+    right_frame: Vec<u8>,
+}
+
+/// Decode the active Mode 4 height from the ASIC-specific mode-select pins.
+fn mode4_active_height(revision: SmsVdpRevision, registers: &[u8; 16]) -> u16 {
+    if revision != SmsVdpRevision::Sega3155246
+        || registers[0] & 0x04 == 0
+        || registers[0] & 0x02 == 0
+    {
+        return 192;
+    }
+
+    let m1 = registers[1] & 0x10 != 0;
+    let m3 = registers[1] & 0x08 != 0;
+    match (m1, m3) {
+        (true, false) => 224,
+        (false, true) => 240,
+        (false, false) | (true, true) => 192,
+    }
+}
+
+impl SmsVdp {
+    /// Preserve the Legacy SMS2 constructor and its existing behavior.
+    pub fn new(video_standard: VideoStandard, sprite_limit: SpriteLimitMode) -> Self {
+        Self::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            video_standard,
+            sprite_limit,
+        ))
+    }
+
+    /// Construct the VDP with an explicit ASIC and regional profile.
+    pub fn new_with_profile(profile: SmsVdpProfile) -> Self {
+        sega_observability::tracing::info!(
+            target: "sega::vdp",
+            revision = ?profile.revision,
+            video_standard = ?profile.video_standard,
+            sprite_limit = ?profile.sprite_limit,
+            "SMS VDP initialized"
+        );
+        Self {
+            vram: vec![0; VRAM_SIZE],
+            cram: [0; CRAM_SIZE],
+            registers: [0; 16],
+            latched_scroll_x: 0,
+            latched_scroll_y: 0,
+            pending_scroll_y: None,
+            sprite_line_buffer: None,
+            legacy_sprite_line_buffer: None,
+            status: 0,
+            address: 0,
+            address_mode: VdpAddressMode::VramRead,
+            read_buffer: 0,
+            control_first: None,
+            cram_write: false,
+            scanline: 0,
+            tstates_into_line: 0,
+            raster_span_cursor_x: 0,
+            line_collision_seen: false,
+            line_overflow_status: 0,
+            frame_number: 0,
+            framebuffer: vec![0; FRAME_SIZE],
+            working_framebuffer: vec![0; FRAME_SIZE],
+            frame_ready: false,
+            profile,
+            line_counter: 0,
+            line_irq_pending: false,
+            vint_pending: false,
+            v_counter_latch: 0,
+            light_x: 0,
+            light_y: 0,
+            light_trigger: false,
+            light_pulse: false,
+            h_counter_latch: 0,
+            stereo_eye: SmsVdpEye::Right,
+            stereo_presentation: StereoPresentation::Alternating,
+            left_frame: vec![0; FRAME_SIZE],
+            right_frame: vec![0; FRAME_SIZE],
+        }
+    }
+
+    /// Return the immutable hardware profile currently selected.
+    pub const fn profile(&self) -> SmsVdpProfile {
+        self.profile
+    }
+
+    pub fn video_standard(&self) -> VideoStandard {
+        self.profile.video_standard
+    }
+    pub fn system_clock_hz(&self) -> u64 {
+        match self.profile.video_standard {
+            VideoStandard::Pal => 3_546_895,
+            VideoStandard::Ntsc | VideoStandard::PalM | VideoStandard::Unknown => 3_579_545,
+        }
+    }
+    pub fn total_lines(&self) -> u16 {
+        match self.profile.video_standard {
+            VideoStandard::Pal => 313,
+            _ => 262,
+        }
+    }
+    pub fn visible_height(&self) -> u16 {
+        let requested_height = mode4_active_height(self.profile.revision, &self.registers);
+        if self
+            .profile
+            .capabilities()
+            .active_height_modes
+            .contains(&requested_height)
+        {
+            requested_height
+        } else {
+            192
+        }
+    }
+    pub fn raster_position(&self) -> SmsRasterPosition {
+        SmsRasterPosition {
+            line: self.scanline,
+            tstates_into_line: self.tstates_into_line,
+            visible_height: self.visible_height(),
+            total_lines: self.total_lines(),
+        }
+    }
+    pub fn frame_number(&self) -> u64 {
+        self.frame_number
+    }
+    pub fn vram(&self) -> &[u8] {
+        &self.vram
+    }
+    pub fn cram(&self) -> &[u8; CRAM_SIZE] {
+        &self.cram
+    }
+    pub fn registers(&self) -> &[u8; 16] {
+        &self.registers
+    }
+    pub fn status(&self) -> u8 {
+        self.status
+    }
+    pub fn address(&self) -> u16 {
+        self.address
+    }
+    pub fn scanline(&self) -> u16 {
+        self.scanline
+    }
+    pub fn cycles_into_line(&self) -> u16 {
+        self.tstates_into_line
+    }
+    pub fn sprite_limit_mode(&self) -> SpriteLimitMode {
+        self.profile.sprite_limit
+    }
+    pub fn set_sprite_limit_mode(&mut self, mode: SpriteLimitMode) {
+        self.profile.sprite_limit = mode;
+    }
+    pub fn set_stereo_eye(&mut self, eye: SmsVdpEye) {
+        self.stereo_eye = eye;
+    }
+    pub fn set_stereo_presentation(&mut self, mode: StereoPresentation) {
+        self.stereo_presentation = mode;
+    }
+    pub fn light_pulse_active(&self) -> bool {
+        self.light_pulse
+    }
+
+    /// The host supplies logical SMS coordinates. A click creates a synthetic
+    /// raster event; it does not claim to simulate the physical photodiode.
+    pub fn set_light_phaser_input(&mut self, x: u16, y: u16, trigger_pressed: bool) {
+        self.light_x = x.min(255);
+        self.light_y = y.min(239);
+        self.light_trigger = trigger_pressed;
+        if !trigger_pressed {
+            self.light_pulse = false;
+        }
+    }
+
+    pub fn interrupt_pending(&self) -> bool {
+        (self.vint_pending && self.registers[1] & 0x20 != 0)
+            || (self.line_irq_pending && self.registers[0] & 0x10 != 0)
+    }
+    pub fn framebuffer(&self) -> &[u8] {
+        &self.framebuffer[..STRIDE * usize::from(self.visible_height())]
+    }
+
+    /// Return a presentation copy with an optional left-edge crop.
+    ///
+    /// The canonical VDP framebuffer remains 256 pixels wide and is never
+    /// modified. Cropping is a host presentation preference, not a hardware
+    /// overscan timing model; it cannot affect CPU, VDP, or Scheduler state.
+    pub fn framebuffer_with_overscan(
+        &self,
+        mode: super::profile::SmsOverscanMode,
+    ) -> (usize, usize, Vec<u8>) {
+        let height = usize::from(self.visible_height());
+        let source = self.framebuffer();
+        match mode {
+            super::profile::SmsOverscanMode::Off => (SMS_VDP_WIDTH, height, source.to_vec()),
+            super::profile::SmsOverscanMode::CropLeft8 => {
+                const CROP_PIXELS: usize = 8;
+                const CROP_BYTES: usize = CROP_PIXELS * 3;
+                const OUTPUT_WIDTH: usize = SMS_VDP_WIDTH - CROP_PIXELS;
+                let mut output = Vec::with_capacity(OUTPUT_WIDTH * height * 3);
+                for line in source.as_chunks::<STRIDE>().0 {
+                    output.extend_from_slice(&line[CROP_BYTES..STRIDE]);
+                }
+                (OUTPUT_WIDTH, height, output)
+            }
+        }
+    }
+    pub fn consume_frame_ready(&mut self) -> bool {
+        let ready = self.frame_ready;
+        self.frame_ready = false;
+        ready
+    }
+
+    pub fn presented_framebuffer(&self) -> (usize, usize, Vec<u8>) {
+        let height = usize::from(self.visible_height());
+        let row_bytes = SMS_VDP_WIDTH * 3;
+        let size = row_bytes * height;
+        match self.stereo_presentation {
+            StereoPresentation::Alternating => (SMS_VDP_WIDTH, height, self.framebuffer().to_vec()),
+            StereoPresentation::AnaglyphRedCyan => {
+                let mut out = vec![0; size];
+                for p in 0..SMS_VDP_WIDTH * height {
+                    let i = p * 3;
+                    out[i] = self.left_frame[i];
+                    out[i + 1] = self.right_frame[i + 1];
+                    out[i + 2] = self.right_frame[i + 2];
+                }
+                (SMS_VDP_WIDTH, height, out)
+            }
+            StereoPresentation::SideBySide => {
+                let mut out = vec![0; size * 2];
+                for y in 0..height {
+                    let src = y * row_bytes;
+                    let dst = y * row_bytes * 2;
+                    out[dst..dst + row_bytes]
+                        .copy_from_slice(&self.left_frame[src..src + row_bytes]);
+                    out[dst + row_bytes..dst + row_bytes * 2]
+                        .copy_from_slice(&self.right_frame[src..src + row_bytes]);
+                }
+                (SMS_VDP_WIDTH * 2, height, out)
+            }
+        }
+    }
+
+    pub fn reset(&mut self, clear_vram: bool) {
+        sega_observability::tracing::debug!(
+            target: "sega::vdp",
+            clear_vram,
+            frame_number = self.frame_number,
+            "SMS VDP reset"
+        );
+        self.cram.fill(0);
+        self.registers.fill(0);
+        self.latched_scroll_x = 0;
+        self.latched_scroll_y = 0;
+        self.pending_scroll_y = None;
+        self.sprite_line_buffer = None;
+        self.legacy_sprite_line_buffer = None;
+        self.status = 0;
+        self.address = 0;
+        self.address_mode = VdpAddressMode::VramRead;
+        self.read_buffer = 0;
+        self.control_first = None;
+        self.cram_write = false;
+        self.scanline = 0;
+        self.tstates_into_line = 0;
+        self.raster_span_cursor_x = 0;
+        self.line_collision_seen = false;
+        self.line_overflow_status = 0;
+        self.frame_number = 0;
+        self.frame_ready = false;
+        self.line_counter = 0;
+        self.line_irq_pending = false;
+        self.vint_pending = false;
+        self.v_counter_latch = 0;
+        self.light_pulse = false;
+        self.h_counter_latch = 0;
+        self.framebuffer.fill(0);
+        self.working_framebuffer.fill(0);
+        self.left_frame.fill(0);
+        self.right_frame.fill(0);
+        if clear_vram {
+            self.vram.fill(0);
+        }
+    }
+
+    /// SMS VDP data ($BE) and control/status ($BF) ports.
+    pub fn read_port(&mut self, port: u16) -> u8 {
+        if self.profile.revision == SmsVdpRevision::Sega3155124
+            && self.scanline < self.visible_height()
+            && (port as u8) & 0xC1 == 0x81
+        {
+            // Status reads are observable beam boundaries: compose the pixels
+            // reached so far before returning the collision/overflow flags.
+            self.commit_raster_span_to_beam();
+        }
+        match (port as u8) & 0xC1 {
+            0x80 => {
+                let value = self.read_buffer;
+                self.read_buffer = self.vram[usize::from(self.address) & 0x3FFF];
+                self.address = self.address.wrapping_add(1) & 0x3FFF;
+                self.control_first = None;
+                self.cram_write = false;
+                value
+            }
+            0x81 => {
+                let pending_collision = if self.profile.revision != SmsVdpRevision::Sega3155124
+                    && self.line_collision_seen
+                {
+                    COLLISION
+                } else {
+                    0
+                };
+                let value = self.status | pending_collision | self.line_overflow_status;
+                self.status = 0;
+                // SMS1 collision is not visible until HBlank. A status read
+                // before that edge must not acknowledge the pending line latch.
+                if self.profile.revision != SmsVdpRevision::Sega3155124 {
+                    self.line_collision_seen = false;
+                }
+                self.line_overflow_status = 0;
+                self.line_irq_pending = false;
+                self.vint_pending = false;
+                self.control_first = None;
+                value
+            }
+            _ => 0xFF,
+        }
+    }
+    pub fn write_port(&mut self, port: u16, value: u8) {
+        match (port as u8) & 0xC1 {
+            0x80 => self.write_data(value),
+            0x81 => self.write_control(value),
+            _ => {}
+        }
+    }
+
+    pub fn read_v_counter(&self) -> u8 {
+        let line = if self.profile.revision == SmsVdpRevision::Sega3155124 {
+            self.v_counter_latch
+        } else {
+            self.scanline
+        };
+        match (self.profile.video_standard, self.visible_height()) {
+            (VideoStandard::Ntsc | VideoStandard::PalM | VideoStandard::Unknown, 192)
+                if line >= 219 =>
+            {
+                0xD5_u8.wrapping_add((line - 219) as u8)
+            }
+            (VideoStandard::Ntsc | VideoStandard::PalM | VideoStandard::Unknown, 224)
+                if line >= 235 =>
+            {
+                0xE5_u8.wrapping_add((line - 235) as u8)
+            }
+            (VideoStandard::Pal, 192) if line >= 243 => 0xBA_u8.wrapping_add((line - 243) as u8),
+            (VideoStandard::Pal, 224) if line >= 259 => 0xCA_u8.wrapping_add((line - 259) as u8),
+            (VideoStandard::Pal, 240) if line >= 267 => 0xD2_u8.wrapping_add((line - 267) as u8),
+            _ => line as u8,
+        }
+    }
+    /// Return the last H-counter value captured by a TH rising edge or Light Phaser hit.
+    pub fn read_h_counter(&self) -> u8 {
+        self.h_counter_latch
+    }
+
+    /// Capture the current SMS H-counter value at a TH 0-to-1 transition.
+    ///
+    /// The conversion follows the 315-5124 timing model: 342 horizontal
+    /// positions per 228 Z80 T-states. The counter samples the previous HPos,
+    /// wraps at the line boundary, subtracts 46, and divides by two.
+    pub fn latch_h_counter(&mut self) {
+        let hpos = (u64::from(self.tstates_into_line) * 3 / 2) % SMS_HCOUNTER_POSITIONS_PER_LINE;
+        let previous_hpos = if hpos == 0 {
+            SMS_HCOUNTER_POSITIONS_PER_LINE - 1
+        } else {
+            hpos - 1
+        };
+        let hclock = previous_hpos as i64 - 46;
+        self.h_counter_latch = (hclock >> 1) as u8;
+    }
+
+    fn current_hpos(&self) -> u16 {
+        ((u64::from(self.tstates_into_line) * 3) / 2) as u16
+    }
+
+    /// Commit the active raster prefix before a display-visible SMS1 write.
+    ///
+    /// The 342-position line / 228-T-state conversion and HPos 63 active-area
+    /// start are the current comparative timing model. This intentionally
+    /// commits spans only at externally observable VDP write boundaries; it
+    /// is not a free-running dot pipeline.
+    fn commit_raster_span_to_beam(&mut self) {
+        if self.profile.revision != SmsVdpRevision::Sega3155124
+            || self.scanline >= self.visible_height()
+        {
+            return;
+        }
+
+        let end_x = usize::from(
+            self.current_hpos()
+                .saturating_sub(SMS_ACTIVE_DISPLAY_START_HPOS)
+                .min(SMS_VDP_WIDTH as u16),
+        );
+        let start_x = usize::from(self.raster_span_cursor_x);
+        if end_x <= start_x {
+            return;
+        }
+
+        let line = usize::from(self.scanline);
+        let mut render_registers = self.registers;
+        render_registers[8] = self.latched_scroll_x;
+        render_registers[9] = self.latched_scroll_y;
+        let active_height = usize::from(self.visible_height());
+        let sprite_evaluation = self
+            .sprite_line_buffer
+            .as_ref()
+            .and_then(|buffer| (buffer.target_line == self.scanline).then_some(&buffer.evaluation));
+        let legacy_sprite_evaluation = self
+            .legacy_sprite_line_buffer
+            .as_ref()
+            .and_then(|buffer| (buffer.target_line == self.scanline).then_some(&buffer.evaluation));
+        let overflow_was_sticky = self.status & OVERFLOW != 0;
+        let mut partial_status = self.status & !COLLISION;
+        render_scanline_for_revision_with_evaluation(
+            &self.vram,
+            &self.cram,
+            &render_registers,
+            &mut partial_status,
+            &mut self.working_framebuffer,
+            line,
+            self.profile.sprite_limit == SpriteLimitMode::HardwareLimit,
+            self.profile.revision,
+            active_height,
+            sprite_evaluation,
+            legacy_sprite_evaluation,
+            start_x,
+            end_x,
+        );
+        if partial_status & COLLISION != 0 {
+            // SMS1 exposes collision as soon as the beam has crossed an
+            // overlapping opaque pixel; status reads commit up to that beam.
+            self.status |= COLLISION;
+        }
+        if !overflow_was_sticky && partial_status & OVERFLOW != 0 && self.line_overflow_status == 0
+        {
+            self.line_overflow_status = partial_status & (OVERFLOW | 0x1F);
+        }
+        self.raster_span_cursor_x = end_x as u16;
+    }
+
+    pub fn advance(&mut self, tstates: u64) {
+        if tstates > 0 {
+            self.prime_sprite_line_buffer();
+        }
+        let mut remaining = tstates;
+        while remaining > 0 {
+            let current = u64::from(self.tstates_into_line);
+            let next_boundary = [
+                SMS_VINT_IRQ_TSTATE,
+                SMS_HINT_TSTATE,
+                SMS_VCOUNTER_LATCH_TSTATE,
+                SMS_VBLANK_FLAG_TSTATE,
+                SMS_SPRITE_OVERFLOW_TSTATE,
+                LINE_TSTATES,
+            ]
+            .into_iter()
+            .chain(
+                (self.profile.revision == SmsVdpRevision::Sega3155124).then_some(SMS_HBLANK_TSTATE),
+            )
+            .filter(|boundary| *boundary > current)
+            .min()
+            .unwrap_or(LINE_TSTATES);
+            let step = remaining.min(next_boundary - current);
+            self.tstates_into_line += step as u16;
+            remaining -= step;
+
+            self.process_tstate_events();
+            if u64::from(self.tstates_into_line) == LINE_TSTATES {
+                self.tstates_into_line = 0;
+                self.complete_scanline();
+            }
+        }
+    }
+
+    fn process_tstate_events(&mut self) {
+        let tstate = u64::from(self.tstates_into_line);
+        let height = self.visible_height();
+        match tstate {
+            // HINT includes the first non-visible line. VINT is asserted on
+            // the following line so the status register still identifies the
+            // boundary HINT when the CPU services its interrupt.
+            SMS_VINT_IRQ_TSTATE if self.scanline == height + 1 => {
+                self.vint_pending = true;
+            }
+            SMS_HINT_TSTATE if self.scanline <= height => {
+                if self.line_counter == 0 {
+                    self.line_irq_pending = true;
+                    sega_observability::tracing::trace!(
+                        target: "sega::vdp",
+                        scanline = self.scanline,
+                        reload_value = self.registers[10],
+                        frame_number = self.frame_number,
+                        "SMS VDP line interrupt asserted"
+                    );
+                    self.line_counter = self.registers[10];
+                } else {
+                    self.line_counter = self.line_counter.wrapping_sub(1);
+                }
+            }
+            SMS_VCOUNTER_LATCH_TSTATE => {
+                self.v_counter_latch = self.scanline;
+            }
+            SMS_SPRITE_OVERFLOW_TSTATE if self.scanline < height => {
+                let overflow_index = if self.registers[0] & 0x04 != 0 {
+                    self.sprite_line_buffer
+                        .as_ref()
+                        .filter(|buffer| buffer.target_line == self.scanline)
+                        .and_then(|buffer| buffer.evaluation.overflow_index)
+                } else {
+                    self.legacy_sprite_line_buffer
+                        .as_ref()
+                        .filter(|buffer| buffer.target_line == self.scanline)
+                        .and_then(|buffer| buffer.evaluation.overflow_index)
+                };
+                self.latch_sprite_overflow_index(overflow_index);
+            }
+            // Publish the completed visible image at line 192/T16. The VBlank
+            // status flag itself follows at line 193/T16.
+            SMS_VBLANK_FLAG_TSTATE if self.scanline == height => {
+                self.publish_completed_frame();
+            }
+            SMS_VBLANK_FLAG_TSTATE if self.scanline == height + 1 => {
+                self.status |= VBLANK;
+                sega_observability::tracing::debug!(
+                    target: "sega::vdp",
+                    frame_number = self.frame_number,
+                    visible_height = height,
+                    video_standard = ?self.profile.video_standard,
+                    "SMS VDP entered VBlank"
+                );
+            }
+            SMS_HBLANK_TSTATE
+                if self.profile.revision == SmsVdpRevision::Sega3155124
+                    && self.scanline < height =>
+            {
+                self.commit_raster_span_to_beam();
+                if self.line_overflow_status != 0 {
+                    self.status = (self.status & !0x1F) | self.line_overflow_status;
+                    self.line_overflow_status = 0;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn publish_completed_frame(&mut self) {
+        let height = self.visible_height();
+        if let Some(scroll_y) = self.pending_scroll_y.take() {
+            self.latched_scroll_y = scroll_y;
+        }
+        self.frame_ready = true;
+        sega_observability::tracing::debug!(
+            target: "sega::vdp",
+            frame_number = self.frame_number,
+            visible_height = height,
+            video_standard = ?self.profile.video_standard,
+            "SMS VDP published completed frame"
+        );
+        self.framebuffer.clone_from(&self.working_framebuffer);
+        match self.stereo_eye {
+            SmsVdpEye::Left => self.left_frame.clone_from(&self.working_framebuffer),
+            SmsVdpEye::Right => self.right_frame.clone_from(&self.working_framebuffer),
+        }
+    }
+
+    fn latch_sprite_overflow_index(&mut self, index: Option<usize>) {
+        if let Some(index) = index
+            && self.status & OVERFLOW == 0
+        {
+            self.status = (self.status & !0x1F) | OVERFLOW | ((index as u8) & 0x1F);
+        }
+    }
+
+    fn prime_sprite_line_buffer(&mut self) {
+        if self.sprite_line_buffer.is_some()
+            || self.legacy_sprite_line_buffer.is_some()
+            || self.scanline != 0
+            || self.tstates_into_line != 0
+        {
+            return;
+        }
+        let evaluation = self.evaluate_mode4_sprite_line(0);
+        self.sprite_line_buffer = Some(Mode4SpriteLineBuffer {
+            target_line: 0,
+            evaluation,
+        });
+        if self.profile.revision == SmsVdpRevision::Sega3155124 {
+            let legacy_evaluation = self.evaluate_legacy_sprite_line(0);
+            self.legacy_sprite_line_buffer = Some(LegacySpriteLineBuffer {
+                target_line: 0,
+                evaluation: legacy_evaluation,
+            });
+        }
+    }
+
+    fn evaluate_mode4_sprite_line(&self, target_line: u16) -> Mode4SpriteEvaluation {
+        let sprite_limit = if self.profile.sprite_limit == SpriteLimitMode::HardwareLimit {
+            8
+        } else {
+            64
+        };
+        evaluate_mode4_sprites(
+            &self.vram,
+            &self.registers,
+            usize::from(target_line),
+            self.profile.revision,
+            usize::from(self.visible_height()),
+            sprite_limit,
+        )
+    }
+
+    fn evaluate_legacy_sprite_line(&self, target_line: u16) -> LegacySpriteEvaluation {
+        evaluate_legacy_sprites(
+            &self.vram,
+            &self.registers,
+            usize::from(target_line),
+            self.profile.sprite_limit != SpriteLimitMode::HardwareLimit,
+        )
+    }
+
+    fn prepare_next_sprite_line(&mut self, completed_line: u16, height: u16) {
+        let next_line = if completed_line + 1 < height {
+            Some(completed_line + 1)
+        } else if completed_line + 1 == self.total_lines() {
+            Some(0)
+        } else {
+            None
+        };
+        if let Some(target_line) = next_line {
+            let evaluation = self.evaluate_mode4_sprite_line(target_line);
+            self.sprite_line_buffer = Some(Mode4SpriteLineBuffer {
+                target_line,
+                evaluation,
+            });
+            if self.profile.revision == SmsVdpRevision::Sega3155124 {
+                let legacy_evaluation = self.evaluate_legacy_sprite_line(target_line);
+                self.legacy_sprite_line_buffer = Some(LegacySpriteLineBuffer {
+                    target_line,
+                    evaluation: legacy_evaluation,
+                });
+            }
+        } else {
+            self.sprite_line_buffer = None;
+            self.legacy_sprite_line_buffer = None;
+        }
+    }
+
+    fn complete_scanline(&mut self) {
+        let line = self.scanline;
+        self.light_pulse = false;
+        let height = self.visible_height();
+        if line < height {
+            let mut render_registers = self.registers;
+            render_registers[8] = self.latched_scroll_x;
+            render_registers[9] = self.latched_scroll_y;
+            let sprite_evaluation = self
+                .sprite_line_buffer
+                .as_ref()
+                .and_then(|buffer| (buffer.target_line == line).then_some(&buffer.evaluation));
+            let legacy_sprite_evaluation = self
+                .legacy_sprite_line_buffer
+                .as_ref()
+                .and_then(|buffer| (buffer.target_line == line).then_some(&buffer.evaluation));
+            render_scanline_for_revision_with_evaluation(
+                &self.vram,
+                &self.cram,
+                &render_registers,
+                &mut self.status,
+                &mut self.working_framebuffer,
+                usize::from(line),
+                self.profile.sprite_limit == SpriteLimitMode::HardwareLimit,
+                self.profile.revision,
+                usize::from(height),
+                sprite_evaluation,
+                legacy_sprite_evaluation,
+                usize::from(self.raster_span_cursor_x),
+                SMS_VDP_WIDTH,
+            );
+            if self.profile.revision != SmsVdpRevision::Sega3155124 {
+                if self.line_collision_seen {
+                    self.status |= COLLISION;
+                }
+                if self.line_overflow_status != 0 {
+                    self.status = (self.status & !0x1F) | self.line_overflow_status;
+                }
+            }
+            if self.light_trigger && self.light_y == line {
+                self.light_pulse = true;
+                self.h_counter_latch = 0x08 + (self.light_x / 2) as u8;
+            }
+            self.sprite_line_buffer = None;
+            self.legacy_sprite_line_buffer = None;
+        }
+        self.raster_span_cursor_x = 0;
+        self.line_collision_seen = false;
+        self.line_overflow_status = 0;
+        self.sprite_line_buffer = None;
+        self.legacy_sprite_line_buffer = None;
+        self.prepare_next_sprite_line(line, height);
+        self.scanline += 1;
+        if self.scanline >= self.total_lines() {
+            self.scanline = 0;
+            self.frame_number = self.frame_number.wrapping_add(1);
+            self.working_framebuffer.fill(0);
+            self.line_counter = self.registers[10];
+        }
+        // R8 is copied for the next scanline. Writes during the current line
+        // may replace this latch only through HPos 21 (inclusive).
+        self.latched_scroll_x = self.registers[8];
+    }
+
+    fn write_data(&mut self, value: u8) {
+        self.control_first = None;
+        if self.cram_write {
+            self.commit_raster_span_to_beam();
+            self.cram[usize::from(self.address & 0x1F)] = value & 0x3F;
+            self.read_buffer = value;
+            self.address = self.address.wrapping_add(1) & 0x3FFF;
+        } else {
+            self.commit_raster_span_to_beam();
+            let address = usize::from(self.address) & 0x3FFF;
+            self.vram[address] = value;
+            self.read_buffer = value;
+            self.address = self.address.wrapping_add(1) & 0x3FFF;
+        }
+    }
+    fn write_control(&mut self, value: u8) {
+        let Some(first) = self.control_first.take() else {
+            // The first byte updates only the low eight bits of the address
+            // register. Operation selection, read-ahead, and address
+            // increment are effects of the second byte only.
+            self.address = (self.address & 0x3F00) | u16::from(value);
+            self.control_first = Some(value);
+            return;
+        };
+        if value & 0xC0 == 0x80 {
+            self.address = ((u16::from(value & 0x3F) << 8) | u16::from(first)) & 0x3FFF;
+            self.address_mode = VdpAddressMode::VramRead;
+            let register = usize::from(value & 0x0F);
+            if register <= 10 {
+                let previous = self.registers[register];
+                if (0..=7).contains(&register) {
+                    self.commit_raster_span_to_beam();
+                }
+                self.registers[register] = first;
+                if previous != first && register <= 1 {
+                    sega_observability::tracing::debug!(
+                        target: "sega::vdp",
+                        register,
+                        previous,
+                        value = first,
+                        visible_height = self.visible_height(),
+                        video_standard = ?self.profile.video_standard,
+                        "SMS VDP display-control register changed"
+                    );
+                }
+                if register == 8
+                    && (self.scanline >= self.visible_height()
+                        || self.current_hpos() <= SMS_R8_LATCH_HPOS)
+                {
+                    self.latched_scroll_x = first;
+                }
+                if register == 9 {
+                    if self.scanline < self.visible_height() {
+                        self.pending_scroll_y = Some(first);
+                    } else {
+                        self.latched_scroll_y = first;
+                        self.pending_scroll_y = None;
+                    }
+                }
+            }
+            self.cram_write = false;
+            return;
+        }
+        self.address = ((u16::from(value & 0x3F) << 8) | u16::from(first)) & 0x3FFF;
+        match value & 0xC0 {
+            0x00 => {
+                self.address_mode = VdpAddressMode::VramRead;
+                self.cram_write = false;
+                self.read_buffer = self.vram[usize::from(self.address)];
+                self.address = self.address.wrapping_add(1) & 0x3FFF;
+            }
+            0x40 => {
+                self.address_mode = VdpAddressMode::VramWrite;
+                self.cram_write = false;
+            }
+            0xC0 => {
+                self.address_mode = VdpAddressMode::CramWrite;
+                self.cram_write = true;
+            }
+            _ => {
+                self.address_mode = VdpAddressMode::VramRead;
+                self.cram_write = false;
+            }
+        }
+    }
+}
+impl Default for SmsVdp {
+    fn default() -> Self {
+        Self::new(VideoStandard::Ntsc, SpriteLimitMode::HardwareLimit)
+    }
+}
+
+fn palette_rgb(cram: &[u8; CRAM_SIZE], index: u8) -> [u8; 3] {
+    let v = cram[usize::from(index & 0x1F)] & 0x3F;
+    [(v & 3) * 85, ((v >> 2) & 3) * 85, ((v >> 4) & 3) * 85]
+}
+
+fn palette_rgb_for_revision(
+    cram: &[u8; CRAM_SIZE],
+    index: u8,
+    revision: SmsVdpRevision,
+) -> [u8; 3] {
+    let value = cram[usize::from(index & 0x1F)] & 0x3F;
+    let red = value & 0x03;
+    let green = (value >> 2) & 0x03;
+    let blue = (value >> 4) & 0x03;
+
+    match revision {
+        SmsVdpRevision::Sega3155124 => {
+            const LEVEL: [u8; 4] = [0, 78, 160, 238];
+            const BLUE_LEVEL: [u8; 4] = [0, 98, 160, 238];
+            [
+                LEVEL[usize::from(red)],
+                LEVEL[usize::from(green)],
+                BLUE_LEVEL[usize::from(blue)],
+            ]
+        }
+        // Keep the existing SMS2 output unchanged until its dedicated
+        // profile/palette validation phase.
+        SmsVdpRevision::Sega3155246 => palette_rgb(cram, index),
+    }
+}
+fn put_pixel(frame: &mut [u8], x: usize, y: usize, rgb: [u8; 3]) {
+    if x < SMS_VDP_WIDTH && y < SMS_VDP_MAX_HEIGHT {
+        let i = (y * SMS_VDP_WIDTH + x) * 3;
+        frame[i..i + 3].copy_from_slice(&rgb);
+    }
+}
+
+fn tms_rgb(color: u8) -> [u8; 3] {
+    TMS_PALETTE[usize::from(color & 0x0F)]
+}
+fn tms_pixel(frame: &mut [u8], x: usize, y: usize, color: u8) {
+    if x < SMS_VDP_WIDTH && y < SMS_VDP_MAX_HEIGHT {
+        let i = (y * SMS_VDP_WIDTH + x) * 3;
+        frame[i..i + 3].copy_from_slice(&tms_rgb(color));
+    }
+}
+#[allow(clippy::too_many_arguments)]
+fn tms_span_range(
+    frame: &mut [u8],
+    x: usize,
+    y: usize,
+    bits: u8,
+    fg: u8,
+    bg: u8,
+    width: usize,
+    start_x: usize,
+    end_x: usize,
+) {
+    for bit in 0..width {
+        let pixel_x = x + bit;
+        if (start_x..end_x).contains(&pixel_x) {
+            let color = if bits & (0x80 >> bit) != 0 { fg } else { bg };
+            tms_pixel(frame, pixel_x, y, color);
+        }
+    }
+}
+
+fn tms_quarter_range(
+    frame: &mut [u8],
+    x: usize,
+    y: usize,
+    color: u8,
+    start_x: usize,
+    end_x: usize,
+) {
+    for bit in 0..4 {
+        let pixel_x = x + bit;
+        if (start_x..end_x).contains(&pixel_x) {
+            tms_pixel(frame, pixel_x, y, color);
+        }
+    }
+}
+
+/// SMS1 R5 bit 0 gates address bit 7 across the sprite attribute table.
+fn sms1_sprite_attribute_address(sat_base: usize, offset: usize, register5: u8) -> usize {
+    let address = (sat_base + offset) & 0x3FFF;
+    if register5 & 0x01 == 0 {
+        address & !0x0080
+    } else {
+        address
+    }
+}
+
+/// SMS1 R6 bits 1-0 gate sprite pattern address bits 12-11.
+fn evaluate_legacy_sprites(
+    vram: &[u8],
+    regs: &[u8; 16],
+    y: usize,
+    unlocked: bool,
+) -> LegacySpriteEvaluation {
+    let table = (usize::from(regs[5] & 0x7F) << 7) & 0x3F80;
+    let sprite_size = if regs[1] & 0x02 != 0 { 16 } else { 8 };
+    let zoom = if regs[1] & 0x01 != 0 { 2 } else { 1 };
+    let sprite_limit = if unlocked { 32 } else { 4 };
+    let mut selected = Vec::with_capacity(sprite_limit);
+    let mut overflow_index = None;
+
+    for index in 0..32 {
+        let at = (table + index * 4) & 0x3FFF;
+        let raw_y = vram[at];
+        if raw_y == 0xD0 {
+            break;
+        }
+        let mut sprite_y = i32::from(raw_y.wrapping_add(1));
+        if sprite_y >= 0xE0 {
+            sprite_y -= 0x100;
+        }
+        if (y as i32) < sprite_y || (y as i32) >= sprite_y + (sprite_size * zoom) as i32 {
+            continue;
+        }
+        if selected.len() == 4 {
+            overflow_index.get_or_insert(index);
+            if !unlocked {
+                break;
+            }
+        }
+        if selected.len() == sprite_limit {
+            break;
+        }
+
+        let attributes = vram[at + 3];
+        let mut x = i32::from(vram[at + 1]);
+        if attributes & 0x80 != 0 {
+            x -= 32;
+        }
+        let row = ((y as i32 - sprite_y) / zoom as i32) as usize;
+        selected.push(LegacySpriteEntry {
+            x,
+            pattern: vram[at + 2],
+            color: attributes & 0x0F,
+            row,
+        });
+    }
+
+    LegacySpriteEvaluation {
+        selected,
+        overflow_index,
+        sprite_size,
+        zoom,
+        pattern_register: regs[6],
+    }
+}
+
+fn sms1_sprite_pattern_address(address: usize, register6: u8) -> usize {
+    let mask = usize::from(register6 & 0x03) << 11;
+    (address & !0x1800) | (address & mask)
+}
+
+/// SMS1 R3/R4 gate background pattern address bits according to bitplane.
+fn sms1_background_pattern_address(address: usize, plane: usize, registers: &[u8; 16]) -> usize {
+    let mask = if plane < 2 {
+        0x003F | (usize::from(registers[3]) << 6)
+    } else {
+        0x07FF | (usize::from(registers[4] & 0x07) << 11)
+    };
+    address & mask & 0x3FFF
+}
+
+/// One sprite whose SAT metadata was sampled during line evaluation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Mode4SpriteEntry {
+    row: usize,
+    /// X position after the R0 horizontal shift has been applied.
+    x: i32,
+    /// Tile number after 8x16 alignment and the R6 pattern-table select.
+    tile: usize,
+}
+
+/// Result of one Mode 4 SAT evaluation pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Mode4SpriteEvaluation {
+    /// SAT metadata selected for this scanline, in hardware priority order.
+    selected: Vec<Mode4SpriteEntry>,
+    /// SAT index of the first additional sprite that also intersects the line.
+    overflow_index: Option<usize>,
+    sprite_height: usize,
+    zoom: usize,
+    /// R6 address gates sampled with the SAT metadata.
+    sprite_pattern_register: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Mode4SpriteLineBuffer {
+    target_line: u16,
+    evaluation: Mode4SpriteEvaluation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LegacySpriteEntry {
+    x: i32,
+    pattern: u8,
+    color: u8,
+    row: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LegacySpriteEvaluation {
+    selected: Vec<LegacySpriteEntry>,
+    overflow_index: Option<usize>,
+    sprite_size: usize,
+    zoom: usize,
+    pattern_register: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LegacySpriteLineBuffer {
+    target_line: u16,
+    evaluation: LegacySpriteEvaluation,
+}
+
+/// Evaluate Mode 4 SAT candidates in table order.
+///
+/// The evaluator always records the first matching candidate after the
+/// hardware's eight-entry capacity, even when the caller requests additional
+/// candidates for unlocked compatibility rendering. The selected vector is
+/// bounded by sprite_limit (8 for hardware, up to 64 for compatibility).
+/// SMS1 retains the result for the following scanline at the preceding
+/// scanline boundary. This is a functional approximation, not a measured
+/// subline evaluation timestamp.
+fn evaluate_mode4_sprites(
+    vram: &[u8],
+    regs: &[u8; 16],
+    y: usize,
+    revision: SmsVdpRevision,
+    height: usize,
+    sprite_limit: usize,
+) -> Mode4SpriteEvaluation {
+    let sat = (usize::from(regs[5] & 0x7E) << 7) & 0x3F00;
+    let sprite_height = if regs[1] & 0x02 != 0 { 16_usize } else { 8 };
+    let zoom = if regs[1] & 0x01 != 0 { 2_usize } else { 1 };
+    let sprite_height_i32 = sprite_height as i32;
+    let zoom_i32 = zoom as i32;
+    let sprite_limit = sprite_limit.min(64);
+    let mut selected = Vec::with_capacity(sprite_limit);
+    let mut overflow_index = None;
+    for index in 0..64 {
+        let y_address = if revision == SmsVdpRevision::Sega3155124 {
+            sms1_sprite_attribute_address(sat, index, regs[5])
+        } else {
+            (sat + index) & 0x3FFF
+        };
+        let raw_y = vram[y_address];
+        if raw_y == 0xD0 && height == 192 {
+            break;
+        }
+        let sprite_y = if raw_y >= 0xF0 {
+            i32::from(raw_y) - 255
+        } else {
+            i32::from(raw_y) + 1
+        };
+        if (y as i32) < sprite_y || (y as i32) >= sprite_y + (sprite_height_i32 * zoom_i32) {
+            continue;
+        }
+        if selected.len() == 8 {
+            overflow_index.get_or_insert(index);
+            if sprite_limit <= 8 {
+                break;
+            }
+        }
+        if selected.len() == sprite_limit {
+            break;
+        }
+
+        // The VDP samples SAT X/tile metadata during line evaluation. Pattern
+        // bytes remain fetched by the renderer, so later pattern RAM writes
+        // can still affect pixels that have not been composed yet.
+        let sprite_offset = 0x80 + index * 2;
+        let x_address = if revision == SmsVdpRevision::Sega3155124 {
+            sms1_sprite_attribute_address(sat, sprite_offset, regs[5])
+        } else {
+            (sat + sprite_offset) & 0x3FFF
+        };
+        let tile_address = if revision == SmsVdpRevision::Sega3155124 {
+            sms1_sprite_attribute_address(sat, sprite_offset + 1, regs[5])
+        } else {
+            (sat + sprite_offset + 1) & 0x3FFF
+        };
+        let mut x = i32::from(vram[x_address]);
+        if regs[0] & 0x08 != 0 {
+            x -= 8;
+        }
+        let mut tile = usize::from(vram[tile_address]);
+        if sprite_height == 16 {
+            tile &= !1;
+        }
+        if regs[6] & 0x04 != 0 {
+            tile += 256;
+        }
+        let row = ((y as i32 - sprite_y) / zoom_i32) as usize;
+        selected.push(Mode4SpriteEntry { row, x, tile });
+    }
+    Mode4SpriteEvaluation {
+        selected,
+        overflow_index,
+        sprite_height,
+        zoom,
+        sprite_pattern_register: regs[6],
+    }
+}
+
+#[cfg(test)]
+fn render_legacy_scanline(
+    vram: &[u8],
+    regs: &[u8; 16],
+    status: &mut u8,
+    frame: &mut [u8],
+    y: usize,
+    unlocked: bool,
+) {
+    render_legacy_scanline_span(
+        vram,
+        regs,
+        status,
+        frame,
+        y,
+        unlocked,
+        None,
+        0,
+        SMS_VDP_WIDTH,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_legacy_scanline_span(
+    vram: &[u8],
+    regs: &[u8; 16],
+    status: &mut u8,
+    frame: &mut [u8],
+    y: usize,
+    unlocked: bool,
+    sprite_evaluation: Option<&LegacySpriteEvaluation>,
+    start_x: usize,
+    end_x: usize,
+) {
+    let start_x = start_x.min(SMS_VDP_WIDTH);
+    let end_x = end_x.min(SMS_VDP_WIDTH).max(start_x);
+    let backdrop = regs[7] & 0x0F;
+    for x in start_x..end_x {
+        tms_pixel(frame, x, y, backdrop);
+    }
+    if regs[1] & 0x40 == 0 {
+        return;
+    }
+    let mode = ((regs[1] >> 4) & 1) | ((regs[1] >> 2) & 2) | (((regs[0] >> 1) & 1) << 2);
+    let names = usize::from(regs[2] & 0x0F) << 10;
+    let patterns = usize::from(regs[4] & 0x07) << 11;
+
+    if mode == 1 {
+        let fg = if regs[7] >> 4 != 0 {
+            regs[7] >> 4
+        } else {
+            backdrop
+        };
+        for col in 0..40 {
+            let ch = vram[(names + (y / 8) * 40 + col) & 0x3FFF];
+            let bits = vram[(patterns + usize::from(ch) * 8 + (y & 7)) & 0x3FFF];
+            tms_span_range(frame, 8 + col * 6, y, bits, fg, backdrop, 6, start_x, end_x);
+        }
+        return;
+    }
+    if mode == 2 {
+        for col in 0..32 {
+            let ch = vram[(names + (y / 8) * 32 + col) & 0x3FFF];
+            let bits = vram[(patterns + usize::from(ch) * 8 + ((y & 0x1C) >> 2)) & 0x3FFF];
+            tms_quarter_range(
+                frame,
+                col * 8,
+                y,
+                if bits >> 4 != 0 { bits >> 4 } else { backdrop },
+                start_x,
+                end_x,
+            );
+            tms_quarter_range(
+                frame,
+                col * 8 + 4,
+                y,
+                if bits & 0x0F != 0 {
+                    bits & 0x0F
+                } else {
+                    backdrop
+                },
+                start_x,
+                end_x,
+            );
+        }
+    } else if mode == 4 {
+        let pat_base = usize::from(regs[4] & 0x04) << 11;
+        let color_base = usize::from(regs[3] & 0x80) << 6;
+        for col in 0..32 {
+            let ch = vram[(names + (y / 8) * 32 + col) & 0x3FFF];
+            let offset = ((y & 0xC0) << 5) + usize::from(ch) * 8 + (y & 7);
+            let bits = vram[(pat_base + offset) & 0x3FFF];
+            let colors = vram[(color_base + offset) & 0x3FFF];
+            let fg = if colors >> 4 != 0 {
+                colors >> 4
+            } else {
+                backdrop
+            };
+            let bg = if colors & 0x0F != 0 {
+                colors & 0x0F
+            } else {
+                backdrop
+            };
+            tms_span_range(frame, col * 8, y, bits, fg, bg, 8, start_x, end_x);
+        }
+    } else {
+        let color_base = (usize::from(regs[3]) << 6) & 0x3FC0;
+        for col in 0..32 {
+            let ch = vram[(names + (y / 8) * 32 + col) & 0x3FFF];
+            let bits = vram[(patterns + usize::from(ch) * 8 + (y & 7)) & 0x3FFF];
+            let colors = vram[(color_base + usize::from(ch) / 8) & 0x3FFF];
+            let fg = if colors >> 4 != 0 {
+                colors >> 4
+            } else {
+                backdrop
+            };
+            let bg = if colors & 0x0F != 0 {
+                colors & 0x0F
+            } else {
+                backdrop
+            };
+            tms_span_range(frame, col * 8, y, bits, fg, bg, 8, start_x, end_x);
+        }
+    }
+    render_legacy_sprites_span(
+        vram,
+        regs,
+        status,
+        frame,
+        y,
+        unlocked,
+        sprite_evaluation,
+        start_x,
+        end_x,
+    );
+}
+
+#[cfg(test)]
+fn render_legacy_sprites(
+    vram: &[u8],
+    regs: &[u8; 16],
+    status: &mut u8,
+    frame: &mut [u8],
+    y: usize,
+    unlocked: bool,
+) {
+    render_legacy_sprites_span(
+        vram,
+        regs,
+        status,
+        frame,
+        y,
+        unlocked,
+        None,
+        0,
+        SMS_VDP_WIDTH,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_legacy_sprites_span(
+    vram: &[u8],
+    regs: &[u8; 16],
+    status: &mut u8,
+    frame: &mut [u8],
+    y: usize,
+    unlocked: bool,
+    sprite_evaluation: Option<&LegacySpriteEvaluation>,
+    start_x: usize,
+    end_x: usize,
+) {
+    let start_x = start_x.min(SMS_VDP_WIDTH);
+    let end_x = end_x.min(SMS_VDP_WIDTH).max(start_x);
+    let fallback_evaluation;
+    let evaluation = if let Some(evaluation) = sprite_evaluation {
+        evaluation
+    } else {
+        fallback_evaluation = evaluate_legacy_sprites(vram, regs, y, unlocked);
+        &fallback_evaluation
+    };
+    // SMS1 overflow was already latched when the line buffer was prepared.
+    // Only the unbuffered fallback path derives it during composition.
+    if sprite_evaluation.is_none()
+        && start_x == 0
+        && let Some(index) = evaluation.overflow_index
+        && *status & OVERFLOW == 0
+    {
+        *status = (*status & !0x1F) | OVERFLOW | (index as u8 & 0x1F);
+    }
+
+    let pattern_base = usize::from(evaluation.pattern_register & 0x07) << 11;
+    let size = evaluation.sprite_size;
+    let zoom = evaluation.zoom;
+    let mut occupied = [false; SMS_VDP_WIDTH];
+    let mut drawn = [false; SMS_VDP_WIDTH];
+    for sprite in &evaluation.selected {
+        if sprite.color == 0 {
+            continue;
+        }
+        for source_x in 0..size {
+            let tile = if size == 16 {
+                (usize::from(sprite.pattern) & 0xFC) + (source_x / 8) * 2 + sprite.row / 8
+            } else {
+                usize::from(sprite.pattern)
+            };
+            let at = (pattern_base + tile * 8 + (sprite.row & 7)) & 0x3FFF;
+            if vram[at] & (0x80 >> (source_x & 7)) == 0 {
+                continue;
+            }
+            for dx in 0..zoom {
+                let x = sprite.x + (source_x * zoom + dx) as i32;
+                if !(start_x as i32..end_x as i32).contains(&x) {
+                    continue;
+                }
+                let x = x as usize;
+                if occupied[x] {
+                    *status |= COLLISION;
+                }
+                occupied[x] = true;
+                if !drawn[x] {
+                    tms_pixel(frame, x, y, sprite.color);
+                    drawn[x] = true;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+fn render_scanline(
+    vram: &[u8],
+    cram: &[u8; CRAM_SIZE],
+    regs: &[u8; 16],
+    status: &mut u8,
+    frame: &mut [u8],
+    y: usize,
+    hardware_sprite_limit: bool,
+) {
+    render_scanline_for_revision(
+        vram,
+        cram,
+        regs,
+        status,
+        frame,
+        y,
+        hardware_sprite_limit,
+        SmsVdpRevision::Sega3155246,
+    );
+}
+
+#[cfg(test)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit render inputs keep hardware state ownership at the VDP boundary"
+)]
+fn render_scanline_for_revision(
+    vram: &[u8],
+    cram: &[u8; CRAM_SIZE],
+    regs: &[u8; 16],
+    status: &mut u8,
+    frame: &mut [u8],
+    y: usize,
+    hardware_sprite_limit: bool,
+    revision: SmsVdpRevision,
+) {
+    let active_height = usize::from(mode4_active_height(revision, regs));
+    render_scanline_for_revision_with_evaluation(
+        vram,
+        cram,
+        regs,
+        status,
+        frame,
+        y,
+        hardware_sprite_limit,
+        revision,
+        active_height,
+        None,
+        None,
+        0,
+        SMS_VDP_WIDTH,
+    );
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit render inputs keep hardware state ownership at the VDP boundary"
+)]
+fn render_scanline_for_revision_with_evaluation(
+    vram: &[u8],
+    cram: &[u8; CRAM_SIZE],
+    regs: &[u8; 16],
+    status: &mut u8,
+    frame: &mut [u8],
+    y: usize,
+    hardware_sprite_limit: bool,
+    revision: SmsVdpRevision,
+    active_height: usize,
+    sprite_evaluation: Option<&Mode4SpriteEvaluation>,
+    legacy_sprite_evaluation: Option<&LegacySpriteEvaluation>,
+    start_x: usize,
+    end_x: usize,
+) {
+    let start_x = start_x.min(SMS_VDP_WIDTH);
+    let end_x = end_x.min(SMS_VDP_WIDTH).max(start_x);
+    if regs[0] & 0x04 == 0 {
+        render_legacy_scanline_span(
+            vram,
+            regs,
+            status,
+            frame,
+            y,
+            !hardware_sprite_limit,
+            legacy_sprite_evaluation,
+            start_x,
+            end_x,
+        );
+        return;
+    }
+    let backdrop = palette_rgb_for_revision(cram, 16 + (regs[7] & 0x0F), revision);
+    for x in start_x..end_x {
+        put_pixel(frame, x, y, backdrop);
+    }
+    if regs[1] & 0x40 == 0 {
+        return;
+    }
+    let height = active_height;
+    let name_base = if height == 192 {
+        usize::from(regs[2] & 0x0E) << 10
+    } else {
+        (usize::from(regs[2] & 0x0C) << 10) | 0x0700
+    };
+    // SMS1 retains the legacy R2/R3/R4 address gates in Mode 4. SMS2/GG
+    // feed ones into those gates, so their pattern/name addresses are unmasked.
+    let mut bg_color = [0_u8; SMS_VDP_WIDTH];
+    let mut bg_priority = [false; SMS_VDP_WIDTH];
+    let backdrop = 16_u8 + (regs[7] & 0x0F);
+    for x in start_x..end_x {
+        if regs[0] & 0x20 != 0 && x < 8 {
+            bg_color[x] = backdrop;
+            put_pixel(
+                frame,
+                x,
+                y,
+                palette_rgb_for_revision(cram, backdrop, revision),
+            );
+            continue;
+        }
+        let hs = if regs[0] & 0x40 != 0 && y < 16 {
+            0
+        } else {
+            usize::from(regs[8])
+        };
+        // Fine-scroll leading pixels use the VDP's special tile-$100 palette
+        // selector rather than wrapping the last name-table column.
+        if x < (hs & 7) {
+            // The SMS fine-scroll leading pixels are not the R7 backdrop.
+            // The VDP selects color 0 from one of the two BG palettes using
+            // plane 1, pixel 4 of tile $100, sampled from the preceding row.
+            // This behavior is documented in the SMS Power scroll-test
+            // discussion and modeled by MAME's 315-5124 renderer.
+            let parse_row = ((y as i32 - 1) & 7) as usize;
+            let raw_address = 0x2000 + parse_row * 4 + 1;
+            let address = if revision == SmsVdpRevision::Sega3155124 {
+                sms1_background_pattern_address(raw_address, 1, regs)
+            } else {
+                raw_address
+            };
+            let selector = vram[address] & 0x08 != 0;
+            let color = if selector { 16 } else { 0 };
+            bg_color[x] = color;
+            put_pixel(frame, x, y, palette_rgb_for_revision(cram, color, revision));
+            continue;
+        }
+        let vs = if regs[0] & 0x80 != 0 && x >= 192 {
+            0
+        } else {
+            usize::from(regs[9])
+        };
+        let sx = (x + 0x100 - hs) & 0xFF;
+        // The standard 192-line mode scrolls through a 224-line name table;
+        // extended 224/240-line modes use the full 256-line address range.
+        let raw_sy = y + vs;
+        let sy = if height == 192 && raw_sy >= 224 {
+            raw_sy - 224
+        } else {
+            raw_sy & 0xFF
+        };
+        let name_row = if revision == SmsVdpRevision::Sega3155124 && height == 192 {
+            let row_mask = 0x0F | (usize::from(regs[2] & 0x01) << 4);
+            (sy / 8) & row_mask
+        } else {
+            sy / 8
+        };
+        let entry = (name_base + name_row * 64 + (sx / 8) * 2) & 0x3FFF;
+        let name = u16::from(vram[entry]) | (u16::from(vram[(entry + 1) & 0x3FFF]) << 8);
+        let tile = usize::from(name & 0x01FF);
+        let mut px = sx & 7;
+        let mut py = sy & 7;
+        if name & (1 << 9) != 0 {
+            px = 7 - px;
+        }
+        if name & (1 << 10) != 0 {
+            py = 7 - py;
+        }
+        let pattern_row = (tile * 32 + py * 4) & 0x3FFF;
+        let mut color = 0_u8;
+        for plane in 0..4 {
+            let raw_address = (pattern_row + plane) & 0x3FFF;
+            let address = if revision == SmsVdpRevision::Sega3155124 {
+                sms1_background_pattern_address(raw_address, plane, regs)
+            } else {
+                raw_address
+            };
+            color |= ((vram[address] >> (7 - px)) & 1) << plane;
+        }
+        let palette = if name & (1 << 11) != 0 { 16 } else { 0 };
+        bg_color[x] = palette + color;
+        bg_priority[x] = name & (1 << 12) != 0 && color != 0;
+        put_pixel(
+            frame,
+            x,
+            y,
+            palette_rgb_for_revision(cram, bg_color[x], revision),
+        );
+    }
+
+    let computed_evaluation;
+    let evaluation = if let Some(evaluation) = sprite_evaluation {
+        evaluation
+    } else {
+        computed_evaluation = evaluate_mode4_sprites(
+            vram,
+            regs,
+            y,
+            revision,
+            height,
+            if hardware_sprite_limit { 8 } else { 64 },
+        );
+        &computed_evaluation
+    };
+    let overflow_was_latched =
+        revision == SmsVdpRevision::Sega3155124 && sprite_evaluation.is_some();
+    if !overflow_was_latched
+        && let Some(index) = evaluation.overflow_index
+        && *status & OVERFLOW == 0
+    {
+        *status = (*status & !0x1F) | OVERFLOW | ((index as u8) & 0x1F);
+    }
+    let sprite_height = evaluation.sprite_height;
+    let zoom = evaluation.zoom;
+    let active = &evaluation.selected;
+    let count = active.len();
+    let mut occupied = [false; SMS_VDP_WIDTH];
+    let mut sprite_rgb: [Option<[u8; 3]>; SMS_VDP_WIDTH] = [None; SMS_VDP_WIDTH];
+    // Lower sprite index wins visually; all drawn opaque sprite pixels affect collision.
+    for (rank, sprite) in active.iter().enumerate() {
+        let sx = sprite.x;
+        let tile = sprite.tile;
+        let row = sprite.row;
+        let tile_row = if sprite_height == 16 && row >= 8 {
+            tile + 1
+        } else {
+            tile
+        };
+        let py = if sprite_height == 16 { row & 7 } else { row };
+        let raw_pattern = (tile_row * 32 + py * 4) & 0x3FFF;
+        let p = if revision == SmsVdpRevision::Sega3155124 {
+            sms1_sprite_pattern_address(raw_pattern, evaluation.sprite_pattern_register)
+        } else {
+            raw_pattern
+        };
+        let width_scale = if revision == SmsVdpRevision::Sega3155124 && zoom == 2 {
+            if rank < count.saturating_sub(4) { 2 } else { 1 }
+        } else {
+            zoom
+        };
+        for px in 0..8 {
+            let mut color = 0_u8;
+            for plane in 0..4 {
+                color |= ((vram[(p + plane) & 0x3FFF] >> (7 - px)) & 1) << plane;
+            }
+            if color == 0 {
+                continue;
+            }
+            for zx in 0..width_scale {
+                let x = sx + (px * width_scale + zx) as i32;
+                if !(0..SMS_VDP_WIDTH as i32).contains(&x) {
+                    continue;
+                }
+                let x = x as usize;
+                if x < start_x || x >= end_x {
+                    continue;
+                }
+                if regs[0] & 0x20 != 0 && x < 8 {
+                    continue;
+                }
+                if occupied[x] {
+                    *status |= COLLISION;
+                }
+                occupied[x] = true;
+                if sprite_rgb[x].is_none() {
+                    sprite_rgb[x] = Some(palette_rgb_for_revision(cram, 16 + color, revision));
+                }
+            }
+        }
+    }
+    for x in start_x..end_x {
+        if let Some(rgb) = sprite_rgb[x]
+            && (!bg_priority[x] || bg_color[x] & 0x0F == 0)
+        {
+            put_pixel(frame, x, y, rgb);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::profile::{SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, VideoStandard};
+    use super::{
+        COLLISION, CRAM_SIZE, FRAME_SIZE, LINE_TSTATES, OVERFLOW, SMS_HINT_TSTATE,
+        SMS_VBLANK_FLAG_TSTATE, SMS_VDP_WIDTH, SMS_VINT_IRQ_TSTATE, SmsVdp, StereoPresentation,
+        TMS_PALETTE, VBLANK, evaluate_mode4_sprites, render_legacy_scanline,
+        render_legacy_scanline_span, render_legacy_sprites, render_legacy_sprites_span,
+        render_scanline, render_scanline_for_revision,
+    };
+    fn reg(v: &mut SmsVdp, i: u8, value: u8) {
+        v.write_port(0xBF, value);
+        v.write_port(0xBF, 0x80 | i);
+    }
+    fn addr(v: &mut SmsVdp, a: u16, mode: u8) {
+        v.write_port(0xBF, a as u8);
+        v.write_port(0xBF, ((a >> 8) as u8 & 0x3F) | mode);
+    }
+
+    fn set_sprite(v: &mut SmsVdp, index: usize, y: u8, x: u8, tile: u8) {
+        v.vram[0x3F00 + index] = y;
+        v.vram[0x3F80 + index * 2] = x;
+        v.vram[0x3F81 + index * 2] = tile;
+    }
+
+    fn solid_sprite_tile(v: &mut SmsVdp, tile: u8, color: u8) {
+        let base = usize::from(tile) * 32;
+        for row in 0..8 {
+            for plane in 0..4 {
+                v.vram[base + row * 4 + plane] = if color & (1 << plane) != 0 { 0xFF } else { 0 };
+            }
+        }
+    }
+    #[test]
+    fn mode4_sprite_evaluation_preserves_sat_order_and_next_line_y_rule() {
+        let mut vram = vec![0; 0x4000];
+        let mut regs = [0; 16];
+        regs[5] = 0x7E;
+        // A raw Y of 9 selects output line 10 (the SMS Y coordinate is +1).
+        for index in 0..10 {
+            vram[0x3F00 + index] = 9;
+            vram[0x3F80 + index * 2] = (index * 8) as u8;
+            vram[0x3F81 + index * 2] = index as u8;
+        }
+        vram[0x3F00 + 10] = 0xD0;
+
+        let evaluation =
+            evaluate_mode4_sprites(&vram, &regs, 10, SmsVdpRevision::Sega3155246, 192, 8);
+
+        assert_eq!(evaluation.selected.len(), 8);
+        assert_eq!(
+            evaluation
+                .selected
+                .iter()
+                .map(|sprite| sprite.x)
+                .collect::<Vec<_>>(),
+            (0..8).map(|index| index * 8).collect::<Vec<_>>(),
+            "the eight retained entries must preserve SAT order"
+        );
+        assert_eq!(evaluation.overflow_index, Some(8));
+        assert!(evaluation.selected.iter().all(|sprite| sprite.row == 0));
+        assert_eq!(evaluation.selected[0].x, 0);
+        assert_eq!(evaluation.selected[0].tile, 0);
+    }
+
+    #[test]
+    fn mode4_sprite_evaluation_honors_192_line_terminator() {
+        let mut vram = vec![0; 0x4000];
+        let mut regs = [0; 16];
+        regs[5] = 0x7E;
+        vram[0x3F00] = 0xD0;
+        vram[0x3F01] = 9;
+        let evaluation =
+            evaluate_mode4_sprites(&vram, &regs, 10, SmsVdpRevision::Sega3155246, 192, 8);
+        assert!(evaluation.selected.is_empty());
+        assert_eq!(evaluation.overflow_index, None);
+    }
+
+    #[test]
+    fn sms1_sprite_overflow_is_set_during_sat_evaluation_and_clears_on_status_read() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[0] = 0x04;
+        vdp.registers[1] = 0x40;
+        vdp.registers[5] = 0x7F;
+        vdp.vram[0x3F00..0x3F09].fill(0);
+        vdp.vram[0x3F09] = 0xD0;
+
+        vdp.advance(LINE_TSTATES);
+        assert_eq!(
+            vdp.status & OVERFLOW,
+            0,
+            "overflow must remain clear before the selected line reaches HPos 24"
+        );
+        vdp.advance(16);
+        assert_ne!(vdp.status & OVERFLOW, 0);
+        assert_eq!(vdp.status & 0x1F, 8);
+
+        let status = vdp.read_port(0xBF);
+        assert_ne!(status & OVERFLOW, 0);
+        assert_eq!(vdp.status & OVERFLOW, 0);
+
+        // The already-prepared line keeps its sprite membership, but a later
+        // SAT update must prevent the next line's evaluation from overflowing.
+        vdp.vram[0x3F00..0x3F09].fill(20);
+        vdp.advance(LINE_TSTATES);
+        assert_eq!(
+            vdp.status & OVERFLOW,
+            0,
+            "the next line's HPos 24 evaluation must not reassert the cleared flag"
+        );
+    }
+
+    #[test]
+    fn sms1_hinterrupt_is_asserted_at_the_hpos21_tstate_boundary() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[0] = 0x14; // Mode 4 plus HINT enable.
+        vdp.registers[10] = 0;
+
+        vdp.advance(13);
+        assert!(
+            !vdp.interrupt_pending(),
+            "HINT must remain clear before the HPos 21 boundary"
+        );
+        vdp.advance(1);
+        assert!(
+            vdp.interrupt_pending(),
+            "HINT asserts at the HPos 21 / T-state 14 boundary"
+        );
+    }
+
+    #[test]
+    fn sms2_hinterrupt_is_asserted_at_the_shared_hpos21_tstate_boundary() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        vdp.registers[0] = 0x14; // Mode 4 plus HINT enable.
+        vdp.registers[10] = 0;
+
+        vdp.advance(13);
+        assert!(!vdp.interrupt_pending());
+        vdp.advance(1);
+        assert!(vdp.interrupt_pending());
+    }
+
+    #[test]
+    fn sms2_vint_irq_precedes_the_vblank_status_flag_on_following_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        vdp.registers[1] = 0x20; // VINT enable.
+        let height = u64::from(vdp.visible_height());
+
+        vdp.advance(LINE_TSTATES * (height + 1));
+        assert!(
+            vdp.frame_ready,
+            "SMS2 publishes the frame at line height/T16"
+        );
+        vdp.advance(12);
+        assert!(!vdp.interrupt_pending());
+        assert_eq!(vdp.status & VBLANK, 0);
+
+        vdp.advance(1);
+        assert!(vdp.interrupt_pending(), "SMS2 VINT IRQ asserts at T13");
+        assert_eq!(vdp.status & VBLANK, 0);
+
+        vdp.advance(3);
+        assert_ne!(vdp.status & VBLANK, 0, "SMS2 VBlank status latches at T16");
+        assert!(vdp.interrupt_pending());
+
+        let status = vdp.read_port(0xBF);
+        assert_ne!(status & VBLANK, 0);
+        assert!(!vdp.interrupt_pending());
+    }
+
+    #[test]
+    fn sms2_extended_heights_keep_vint_and_vblank_boundaries_relative_to_height() {
+        for (mode_bits, expected_height) in [(0, 192), (0x10, 224), (0x08, 240)] {
+            let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+                SmsVdpRevision::Sega3155246,
+                VideoStandard::Ntsc,
+                SpriteLimitMode::HardwareLimit,
+            ));
+            vdp.registers[0] = 0x06; // Mode 4 and M2 enable extended-height decoding.
+            vdp.registers[1] = 0x20 | mode_bits; // VINT enable plus M1/M3 height select.
+            let height = u64::from(vdp.visible_height());
+            assert_eq!(height, expected_height);
+
+            vdp.advance(LINE_TSTATES * (height + 1) + 12);
+            assert_eq!(vdp.status & VBLANK, 0);
+            assert!(!vdp.vint_pending);
+            vdp.advance(1);
+            assert!(
+                vdp.vint_pending,
+                "VINT must assert at T13 for {height} lines"
+            );
+            assert_eq!(vdp.status & VBLANK, 0);
+            vdp.advance(3);
+            assert_ne!(vdp.status & VBLANK, 0);
+            assert!(vdp.frame_ready);
+        }
+    }
+
+    #[test]
+    fn sms1_vint_irq_precedes_the_vblank_status_flag_on_following_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[1] = 0x20; // VINT enable.
+        let height = u64::from(vdp.visible_height());
+
+        vdp.advance(LINE_TSTATES * (height + 1));
+        vdp.advance(12);
+        assert!(!vdp.interrupt_pending());
+        assert_eq!(vdp.status & VBLANK, 0);
+
+        vdp.advance(1);
+        assert!(vdp.interrupt_pending(), "VINT IRQ asserts at HPos 20 / T13");
+        assert_eq!(vdp.status & VBLANK, 0, "the status flag is still pending");
+
+        vdp.advance(3);
+        assert_ne!(
+            vdp.status & VBLANK,
+            0,
+            "VBlank status latches at HPos 24 / T16"
+        );
+        assert!(
+            vdp.interrupt_pending(),
+            "the VINT request remains pending until status read"
+        );
+
+        let status = vdp.read_port(0xBF);
+        assert_ne!(status & VBLANK, 0);
+        assert!(!vdp.interrupt_pending());
+    }
+
+    #[test]
+    fn sms1_vcounter_changes_at_hpos23_of_each_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+
+        vdp.advance(LINE_TSTATES);
+        assert_eq!(vdp.scanline, 1);
+        assert_eq!(
+            vdp.read_v_counter(),
+            0,
+            "VCounter retains the prior line at HPos 0"
+        );
+
+        vdp.advance(14);
+        assert_eq!(
+            vdp.read_v_counter(),
+            0,
+            "VCounter has not latched at HPos 21"
+        );
+        vdp.advance(1);
+        assert_eq!(vdp.read_v_counter(), 1, "VCounter changes at HPos 23 / T15");
+    }
+
+    #[test]
+    fn sms1_frame_ready_precedes_vblank_status_on_the_following_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        let height = u64::from(vdp.visible_height());
+
+        vdp.advance(LINE_TSTATES * height);
+        assert_eq!(vdp.scanline, height as u16);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert!(!vdp.frame_ready);
+
+        vdp.advance(15);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert!(!vdp.frame_ready);
+
+        vdp.advance(1);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert!(vdp.frame_ready);
+
+        vdp.advance(LINE_TSTATES - 1);
+        assert_eq!(vdp.scanline, (height + 1) as u16);
+        assert_eq!(vdp.status & VBLANK, 0);
+        vdp.advance(1);
+        assert_ne!(vdp.status & VBLANK, 0);
+        assert!(vdp.frame_ready);
+    }
+
+    #[test]
+    fn sms1_hint_r10_192_expires_on_first_vblank_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[0] = 0x14; // Mode 4 plus HINT enable.
+        vdp.registers[1] = 0x20; // VINT enable.
+        vdp.registers[10] = 192;
+        vdp.line_counter = 192;
+
+        let height = u64::from(vdp.visible_height());
+        vdp.advance(LINE_TSTATES * height + SMS_HINT_TSTATE);
+        assert_eq!(u64::from(vdp.scanline), height);
+        assert!(vdp.line_irq_pending);
+        assert!(!vdp.vint_pending);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert_eq!(vdp.line_counter, 192);
+
+        let status = vdp.read_port(0xBF);
+        assert_eq!(status & VBLANK, 0);
+        assert!(!vdp.interrupt_pending());
+
+        vdp.advance(LINE_TSTATES - SMS_HINT_TSTATE + SMS_VINT_IRQ_TSTATE);
+        assert_eq!(u64::from(vdp.scanline), height + 1);
+        assert!(vdp.vint_pending);
+        assert_eq!(vdp.status & VBLANK, 0);
+        assert!(vdp.interrupt_pending());
+
+        vdp.advance(SMS_VBLANK_FLAG_TSTATE - SMS_VINT_IRQ_TSTATE);
+        assert_ne!(vdp.status & VBLANK, 0);
+        assert!(vdp.frame_ready);
+        let status = vdp.read_port(0xBF);
+        assert_ne!(status & VBLANK, 0);
+        assert!(!vdp.interrupt_pending());
+
+        vdp.advance(LINE_TSTATES - SMS_VBLANK_FLAG_TSTATE);
+        assert_eq!(u64::from(vdp.scanline), height + 2);
+        assert!(!vdp.line_irq_pending);
+        assert_eq!(vdp.line_counter, 192);
+    }
+
+    #[test]
+    fn sms1_sprite_y_selection_is_latched_for_the_following_scanline() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[0] = 0x04;
+        vdp.registers[1] = 0x40;
+        vdp.registers[5] = 0x7F;
+        vdp.cram[17] = 0x03;
+        vdp.vram[0x20] = 0xFF;
+        set_sprite(&mut vdp, 0, 0, 10, 1);
+        vdp.vram[0x3F01] = 0xD0;
+
+        vdp.advance(LINE_TSTATES);
+        // Line 0 completion has selected this sprite for line 1.
+        vdp.vram[0x3F00] = 20;
+        vdp.advance(LINE_TSTATES);
+
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        let sprite_pixel = line_bytes + 10 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[sprite_pixel..sprite_pixel + 3],
+            &[238, 0, 0],
+            "a late SAT Y mutation must not revoke the already-selected line-1 sprite"
+        );
+
+        vdp.advance(LINE_TSTATES);
+        let next_line_pixel = line_bytes * 2 + 10 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
+            &[0, 0, 0],
+            "the new Y coordinate must be observed by the subsequent evaluation"
+        );
+    }
+
+    #[test]
+    fn sms1_sprite_x_tile_shift_and_pattern_select_are_latched_with_sat_metadata() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[0] = 0x0C; // Mode 4 plus the -8 sprite X shift.
+        vdp.registers[1] = 0x40;
+        vdp.registers[5] = 0x7F;
+        vdp.registers[6] = 0x04;
+        vdp.cram[17] = 0x03; // red
+        vdp.cram[18] = 0x0C; // green
+
+        // Tile 1 is red in the R6-selected upper pattern table.
+        for row in 0..8 {
+            vdp.vram[0x2020 + row * 4] = 0xFF;
+            // Tile 2 is green in the lower pattern table used by the next line.
+            vdp.vram[0x0040 + row * 4 + 1] = 0xFF;
+        }
+        set_sprite(&mut vdp, 0, 0, 18, 1);
+        vdp.vram[0x3F01] = 0xD0;
+
+        // Completing line 0 selects the SAT metadata for line 1.
+        vdp.advance(LINE_TSTATES);
+        // Later SAT/register writes must not move or retarget the selected sprite.
+        vdp.vram[0x3F80] = 80;
+        vdp.vram[0x3F81] = 2;
+        vdp.registers[0] = 0x04;
+        vdp.registers[6] = 0;
+
+        vdp.advance(LINE_TSTATES);
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        let latched_pixel = line_bytes + 10 * 3;
+        let new_x_pixel = line_bytes + 80 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[latched_pixel..latched_pixel + 3],
+            &[238, 0, 0],
+            "the selected X, tile and R0/R6 metadata must remain latched for line 1"
+        );
+        assert_eq!(
+            &vdp.working_framebuffer[new_x_pixel..new_x_pixel + 3],
+            &[0, 0, 0],
+            "later SAT writes must not retarget the already-selected line"
+        );
+
+        // The next evaluation observes the updated SAT and register values.
+        vdp.advance(LINE_TSTATES);
+        let next_line_pixel = line_bytes * 2 + 80 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
+            &[0, 238, 0],
+            "the next line must use the updated X/tile and pattern-table selection"
+        );
+    }
+
+    #[test]
+    fn sms2_sprite_x_tile_shift_and_pattern_select_are_latched_with_sat_metadata() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        vdp.registers[0] = 0x0C; // Mode 4 plus the -8 sprite X shift.
+        vdp.registers[1] = 0x40;
+        vdp.registers[5] = 0x7F;
+        vdp.registers[6] = 0x04;
+        vdp.cram[17] = 0x03; // red
+        vdp.cram[18] = 0x0C; // green
+
+        for row in 0..8 {
+            vdp.vram[0x2020 + row * 4] = 0xFF;
+            vdp.vram[0x0040 + row * 4 + 1] = 0xFF;
+        }
+        set_sprite(&mut vdp, 0, 0, 18, 1);
+        vdp.vram[0x3F01] = 0xD0;
+
+        vdp.advance(LINE_TSTATES);
+        vdp.vram[0x3F80] = 80;
+        vdp.vram[0x3F81] = 2;
+        vdp.registers[0] = 0x04;
+        vdp.registers[6] = 0;
+
+        vdp.advance(LINE_TSTATES);
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        let latched_pixel = line_bytes + 10 * 3;
+        let new_x_pixel = line_bytes + 80 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[latched_pixel..latched_pixel + 3],
+            &[255, 0, 0],
+            "315-5246 must retain selected X/tile/R0/R6 metadata for line 1"
+        );
+        assert_eq!(
+            &vdp.working_framebuffer[new_x_pixel..new_x_pixel + 3],
+            &[0, 0, 0],
+            "later SAT writes must not retarget the already-selected line"
+        );
+
+        vdp.advance(LINE_TSTATES);
+        let next_line_pixel = line_bytes * 2 + 80 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
+            &[0, 255, 0],
+            "the next line must use updated SAT and pattern-table values"
+        );
+    }
+
+    #[test]
+    fn sms2_sprite_buffer_selects_eight_and_latches_overflow_at_t16() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        solid_sprite_tile(&mut v, 1, 1);
+
+        for index in 0..9 {
+            set_sprite(&mut v, index, 0xFF, (index * 28) as u8, 1);
+        }
+        v.vram[0x3F09] = 0xD0;
+
+        v.advance(16);
+        assert_ne!(v.status & OVERFLOW, 0);
+        assert_eq!(v.status & 0x1F, 8);
+
+        v.advance(LINE_TSTATES - 16);
+        assert_eq!(&v.working_framebuffer[196 * 3..196 * 3 + 3], &[255, 0, 0]);
+        assert_eq!(&v.working_framebuffer[224 * 3..224 * 3 + 3], &[0, 0, 0]);
+    }
+
+    #[test]
+    fn sms2_sprite_overlap_preserves_sat_priority_and_sets_collision() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        v.cram[18] = 0x0C;
+        set_sprite(&mut v, 0, 0xFF, 20, 1);
+        set_sprite(&mut v, 1, 0xFF, 20, 2);
+        v.vram[0x3F02] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 1);
+        solid_sprite_tile(&mut v, 2, 2);
+
+        // The SMS2 SAT line buffer is sampled before line 0 is rendered.
+        v.advance(LINE_TSTATES);
+
+        assert_ne!(v.status & COLLISION, 0);
+        assert_eq!(&v.working_framebuffer[20 * 3..20 * 3 + 3], &[255, 0, 0]);
+    }
+
+    #[test]
+    fn sms2_zoom_applies_horizontally_to_all_eight_selected_sprites() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x41; // Mode 4, display and sprite magnification enabled.
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        solid_sprite_tile(&mut v, 1, 1);
+        for index in 0..8 {
+            set_sprite(&mut v, index, 0xFF, (index * 28) as u8, 1);
+        }
+        v.vram[0x3F08] = 0xD0;
+
+        v.advance(LINE_TSTATES);
+        let eighth_sprite_right_edge = 210 * 3;
+        assert_eq!(
+            &v.working_framebuffer[eighth_sprite_right_edge..eighth_sprite_right_edge + 3],
+            &[255, 0, 0],
+            "the 315-5246 magnifies the eighth selected sprite horizontally"
+        );
+    }
+
+    #[test]
+    fn sms1_legacy_sprite_x_pattern_color_and_r6_are_latched_per_line() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        vdp.registers[0] = 0x00; // Legacy/TMS mode.
+        vdp.registers[1] = 0x40;
+        vdp.registers[5] = 0x7F;
+        vdp.registers[6] = 0;
+
+        vdp.vram[0x3F80] = 0xFF;
+        vdp.vram[0x3F81] = 20;
+        vdp.vram[0x3F82] = 1;
+        vdp.vram[0x3F83] = 4;
+        vdp.vram[0x3F84] = 0xD0;
+        vdp.vram[8..16].fill(0xFF);
+        // Pattern 2 in the R6=1 table has only its leftmost pixel set.
+        vdp.vram[0x810..0x818].fill(0x80);
+
+        // Line 0 completion evaluates the legacy SAT metadata for line 1.
+        vdp.advance(LINE_TSTATES);
+        vdp.vram[0x3F81] = 80;
+        vdp.vram[0x3F82] = 2;
+        vdp.vram[0x3F83] = 2;
+        vdp.registers[6] = 1;
+
+        vdp.advance(LINE_TSTATES);
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        let old_position = line_bytes + 20 * 3;
+        let new_position = line_bytes + 80 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[old_position..old_position + 3],
+            &TMS_PALETTE[4],
+            "the selected line must retain its old X, pattern, color and R6"
+        );
+        assert_eq!(
+            &vdp.working_framebuffer[new_position..new_position + 3],
+            &TMS_PALETTE[0],
+            "later SAT writes must not move the already-selected sprite"
+        );
+
+        // The next line evaluation observes the new SAT and R6 values.
+        vdp.advance(LINE_TSTATES);
+        let next_line_position = line_bytes * 2 + 80 * 3;
+        let next_line_second_pixel = next_line_position + 3;
+        assert_eq!(
+            &vdp.working_framebuffer[next_line_position..next_line_position + 3],
+            &TMS_PALETTE[2]
+        );
+        assert_eq!(
+            &vdp.working_framebuffer[next_line_second_pixel..next_line_second_pixel + 3],
+            &TMS_PALETTE[0],
+            "the updated pattern row must be fetched from the newly selected pattern table"
+        );
+    }
+
+    #[test]
+    fn sms1_sprite_line_buffer_is_preserved_by_vdp_clone_restore() {
+        let mut original = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        original.registers[0] = 0x04;
+        original.registers[1] = 0x40;
+        original.registers[5] = 0x7F;
+        original.cram[17] = 0x03;
+        original.vram[0x20] = 0xFF;
+        set_sprite(&mut original, 0, 0, 10, 1);
+        original.vram[0x3F01] = 0xD0;
+
+        original.advance(LINE_TSTATES);
+        let mut restored = original.clone();
+        assert_eq!(
+            original.legacy_sprite_line_buffer,
+            restored.legacy_sprite_line_buffer
+        );
+        original.vram[0x3F00] = 20;
+        restored.vram[0x3F00] = 20;
+
+        original.advance(LINE_TSTATES);
+        restored.advance(LINE_TSTATES);
+        assert_eq!(original, restored);
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        let sprite_pixel = line_bytes + 10 * 3;
+        assert_eq!(
+            &restored.working_framebuffer[sprite_pixel..sprite_pixel + 3],
+            &[238, 0, 0]
+        );
+    }
+
+    #[test]
+    fn owns_16k_vram_and_32_byte_cram() {
+        let v = SmsVdp::default();
+        assert_eq!(v.vram().len(), 0x4000);
+        assert_eq!(v.cram().len(), 0x20);
+    }
+    #[test]
+    fn control_register_vram_write_and_wrap() {
+        let mut v = SmsVdp::default();
+        reg(&mut v, 1, 0x40);
+        assert_eq!(v.registers()[1], 0x40);
+        addr(&mut v, 0x3FFF, 0x40);
+        v.write_port(0xBE, 0xA5);
+        v.write_port(0xBE, 0x5A);
+        assert_eq!(v.vram()[0x3FFF], 0xA5);
+        assert_eq!(v.vram()[0], 0x5A);
+        assert_eq!(v.address(), 1);
+    }
+    #[test]
+    fn cram_is_six_bit_and_separate_from_vram() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 3, 0xC0);
+        v.write_port(0xBE, 0xFF);
+        assert_eq!(v.cram()[3], 0x3F);
+        assert_eq!(v.vram()[3], 0);
+    }
+    #[test]
+    fn read_ahead_and_vblank_irq_clear_on_status_read() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x1234, 0x40);
+        v.write_port(0xBE, 0x71);
+        addr(&mut v, 0x1234, 0);
+        assert_eq!(v.read_port(0xBE), 0x71);
+        reg(&mut v, 1, 0x20);
+        v.advance(228 * 193 + 16);
+        assert!(v.interrupt_pending());
+        assert_ne!(v.read_port(0xBF) & 0x80, 0);
+        assert!(!v.interrupt_pending());
+    }
+    #[test]
+    fn regional_clocks_and_raster_lengths_are_distinct() {
+        let n = SmsVdp::new(VideoStandard::Ntsc, SpriteLimitMode::HardwareLimit);
+        let pm = SmsVdp::new(VideoStandard::PalM, SpriteLimitMode::HardwareLimit);
+        let p = SmsVdp::new(VideoStandard::Pal, SpriteLimitMode::HardwareLimit);
+        assert_eq!((n.total_lines(), n.system_clock_hz()), (262, 3_579_545));
+        assert_eq!((pm.total_lines(), pm.system_clock_hz()), (262, 3_579_545));
+        assert_eq!((p.total_lines(), p.system_clock_hz()), (313, 3_546_895));
+    }
+    #[test]
+    fn explicit_sms1_profile_keeps_only_192_line_mode() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+
+        assert_eq!(vdp.profile().revision, SmsVdpRevision::Sega3155124);
+        vdp.registers[0] = 0x06;
+        vdp.registers[1] = 0x08;
+        assert_eq!(vdp.visible_height(), 192);
+        vdp.registers[1] = 0x10;
+        assert_eq!(vdp.visible_height(), 192);
+    }
+
+    #[test]
+    fn sms2_extended_heights_require_mode4_m2_and_exclusive_m1_m3() {
+        let mut vdp = SmsVdp::new(VideoStandard::Ntsc, SpriteLimitMode::HardwareLimit);
+
+        assert_eq!(vdp.profile().revision, SmsVdpRevision::Sega3155246);
+
+        // M1 alone cannot select 224 lines while R0.M2 is clear.
+        vdp.registers[1] = 0x10;
+        assert_eq!(vdp.visible_height(), 192);
+
+        // R0.M4 + R0.M2 enable the SMS2 Mode 4 height selectors.
+        vdp.registers[0] = 0x06;
+        assert_eq!(vdp.visible_height(), 224);
+
+        vdp.registers[1] = 0x08;
+        assert_eq!(vdp.visible_height(), 240);
+
+        // M1 and M3 together select the standard 192-line mode.
+        vdp.registers[1] = 0x18;
+        assert_eq!(vdp.visible_height(), 192);
+
+        // With Mode 4 disabled, M1/M2/M3 select legacy TMS modes, not height.
+        vdp.registers[0] = 0x02;
+        vdp.registers[1] = 0x10;
+        assert_eq!(vdp.visible_height(), 192);
+    }
+
+    #[test]
+    fn legacy_constructor_preserves_sms2_profile_and_extended_modes() {
+        let mut vdp = SmsVdp::new(VideoStandard::Ntsc, SpriteLimitMode::HardwareLimit);
+
+        assert_eq!(vdp.profile().revision, SmsVdpRevision::Sega3155246);
+        vdp.registers[0] = 0x06;
+        vdp.registers[1] = 0x10;
+        assert_eq!(vdp.visible_height(), 224);
+        vdp.registers[1] = 0x08;
+        assert_eq!(vdp.visible_height(), 240);
+    }
+
+    #[test]
+    fn extended_modes_expose_224_and_240_line_framebuffers() {
+        let mut v = SmsVdp::default();
+        reg(&mut v, 0, 0x06);
+        reg(&mut v, 1, 0x10);
+        assert_eq!(v.visible_height(), 224);
+        reg(&mut v, 1, 0x08);
+        assert_eq!(v.visible_height(), 240);
+        assert_eq!(v.framebuffer().len(), 256 * 240 * 3);
+    }
+    #[test]
+    fn unlocked_mode_renders_extra_sms1_sprites_without_losing_hardware_overflow() {
+        let mut vram = vec![0; 0x4000];
+        let mut regs = [0; 16];
+        regs[5] = 0x7F;
+        let sat = 0x3F00;
+
+        for index in 0..9 {
+            vram[sat + index] = 0;
+            vram[sat + 0x80 + index * 2] = 16;
+            vram[sat + 0x81 + index * 2] = 0;
+        }
+        vram[sat + 9] = 0xD0;
+
+        let hardware = evaluate_mode4_sprites(&vram, &regs, 1, SmsVdpRevision::Sega3155124, 192, 8);
+        let unlocked =
+            evaluate_mode4_sprites(&vram, &regs, 1, SmsVdpRevision::Sega3155124, 192, 64);
+
+        assert_eq!(hardware.selected.len(), 8);
+        assert_eq!(hardware.overflow_index, Some(8));
+        assert_eq!(unlocked.selected.len(), 9);
+        assert_eq!(unlocked.overflow_index, Some(8));
+    }
+
+    #[test]
+    fn unlocked_sprite_policy_is_configurable() {
+        let mut v = SmsVdp::default();
+        assert_eq!(v.sprite_limit_mode(), SpriteLimitMode::HardwareLimit);
+        v.set_sprite_limit_mode(SpriteLimitMode::UnlockedCompatibility);
+        assert_eq!(
+            v.sprite_limit_mode(),
+            SpriteLimitMode::UnlockedCompatibility
+        );
+    }
+    #[test]
+    fn mouse_click_is_qualified_by_raster_line() {
+        let mut v = SmsVdp::default();
+        v.set_light_phaser_input(120, 45, true);
+        v.advance(228 * 46);
+        assert!(v.light_pulse_active());
+        assert_eq!(v.read_h_counter(), 0x08 + 60);
+        v.set_light_phaser_input(120, 45, false);
+        assert!(!v.light_pulse_active());
+        assert_eq!(v.read_h_counter(), 0x08 + 60);
+    }
+    #[test]
+    fn stereo_output_modes_have_expected_dimensions() {
+        let mut v = SmsVdp::default();
+        v.set_stereo_presentation(StereoPresentation::SideBySide);
+        let (w, h, frame) = v.presented_framebuffer();
+        assert_eq!((w, h, frame.len()), (512, 192, 512 * 192 * 3));
+        v.set_stereo_presentation(StereoPresentation::AnaglyphRedCyan);
+        assert_eq!(v.presented_framebuffer().0, SMS_VDP_WIDTH);
+    }
+    #[test]
+    fn advance_is_chunking_invariant() {
+        let mut a = SmsVdp::default();
+        let mut b = SmsVdp::default();
+        a.advance(228 * 262 * 3 + 17);
+        b.advance(228 * 100);
+        b.advance(228 * 162 + 17);
+        b.advance(228 * 262 * 2);
+        assert_eq!(a.raster_position(), b.raster_position());
+        assert_eq!(a.frame_number(), b.frame_number());
+    }
+    #[test]
+    fn line_counter_reloads_from_register_ten() {
+        let mut v = SmsVdp::default();
+        reg(&mut v, 0, 0x14);
+        reg(&mut v, 10, 1);
+        v.advance(228 * 2);
+        assert!(v.interrupt_pending());
+        let _ = v.read_port(0xBF);
+        assert!(!v.interrupt_pending());
+    }
+
+    #[test]
+    fn mid_irq_r10_write_changes_next_reload_not_active_countdown() {
+        let mut v = SmsVdp::default();
+        reg(&mut v, 0, 0x14);
+        reg(&mut v, 10, 63);
+        // Model the counter after frame-start initialization. The first
+        // line IRQ occurs after the 64th visible scanline.
+        v.line_counter = 63;
+        v.advance(228 * 64);
+        assert!(v.interrupt_pending());
+
+        // The interrupt handler changes the reload value. The countdown
+        // already reloaded at underflow and must remain at 63 for this period.
+        let _ = v.read_port(0xBF);
+        reg(&mut v, 10, 47);
+        assert_eq!(v.line_counter, 63);
+
+        v.advance(228 * 63);
+        assert!(!v.interrupt_pending());
+        v.advance(228);
+        assert!(v.interrupt_pending());
+
+        // The new reload value applies at the next underflow: 48 lines.
+        let _ = v.read_port(0xBF);
+        v.advance(228 * 47);
+        assert!(!v.interrupt_pending());
+        v.advance(228);
+        assert!(v.interrupt_pending());
+    }
+
+    #[test]
+    fn legacy_graphics_i_uses_the_tms_palette_and_pattern_color_table() {
+        let mut v = SmsVdp::default();
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x01;
+        v.registers[3] = 0x01;
+        v.registers[4] = 0x01;
+        v.registers[7] = 0x01;
+        v.vram[0x400] = 1;
+        v.vram[0x808] = 0x80;
+        v.vram[0x40] = 0x42;
+        let mut status = 0x1F;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_legacy_scanline(&v.vram, &v.registers, &mut status, &mut frame, 0, false);
+        assert_eq!(&frame[0..3], &TMS_PALETTE[4]);
+        assert_eq!(&frame[3..6], &TMS_PALETTE[2]);
+    }
+
+    #[test]
+    fn legacy_scanline_spans_match_full_line_for_each_tms_mode() {
+        let mut v = SmsVdp::default();
+        v.registers[2] = 0x01;
+        v.registers[3] = 0x01;
+        v.registers[4] = 0x01;
+        v.registers[5] = 0x7F;
+        v.registers[6] = 0x01;
+        v.registers[7] = 0x21;
+        for (index, byte) in v.vram.iter_mut().enumerate() {
+            *byte = (index as u8).wrapping_mul(37).wrapping_add(11);
+        }
+        v.vram[0x3F80] = 0xD0;
+
+        let modes = [
+            (0x00, 0x40),
+            (0x00, 0x50),
+            (0x00, 0x48),
+            (0x00, 0x58),
+            (0x02, 0x40),
+        ];
+        for (r0, r1) in modes {
+            v.registers[0] = r0;
+            v.registers[1] = r1;
+            let mut full_status = 0;
+            let mut full = vec![0; FRAME_SIZE];
+            render_legacy_scanline(&v.vram, &v.registers, &mut full_status, &mut full, 0, false);
+
+            let mut split_status = 0;
+            let mut split = vec![0; FRAME_SIZE];
+            for (start_x, end_x) in [(0, 63), (63, 108), (108, 171), (171, SMS_VDP_WIDTH)] {
+                render_legacy_scanline_span(
+                    &v.vram,
+                    &v.registers,
+                    &mut split_status,
+                    &mut split,
+                    0,
+                    false,
+                    None,
+                    start_x,
+                    end_x,
+                );
+            }
+            assert_eq!(
+                &split[..SMS_VDP_WIDTH * 3],
+                &full[..SMS_VDP_WIDTH * 3],
+                "legacy mode r0={r0:#04x} r1={r1:#04x} must compose identically across spans"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_sprite_spans_match_full_line_for_a_sprite_crossing_the_boundary() {
+        let mut v = SmsVdp::default();
+        v.registers[1] = 0x40;
+        v.registers[5] = 0x7F;
+        v.vram[0x3F80] = 0;
+        v.vram[0x3F81] = 104;
+        v.vram[0x3F82] = 1;
+        v.vram[0x3F83] = 4;
+        v.vram[0x3F84] = 0xD0;
+        v.vram[8..16].fill(0xFF);
+
+        let mut full_status = 0;
+        let mut full = vec![0; FRAME_SIZE];
+        render_legacy_sprites(&v.vram, &v.registers, &mut full_status, &mut full, 1, false);
+
+        let mut split_status = 0;
+        let mut split = vec![0; FRAME_SIZE];
+        render_legacy_sprites_span(
+            &v.vram,
+            &v.registers,
+            &mut split_status,
+            &mut split,
+            1,
+            false,
+            None,
+            0,
+            108,
+        );
+        render_legacy_sprites_span(
+            &v.vram,
+            &v.registers,
+            &mut split_status,
+            &mut split,
+            1,
+            false,
+            None,
+            108,
+            SMS_VDP_WIDTH,
+        );
+
+        assert_eq!(
+            &split[SMS_VDP_WIDTH * 3..SMS_VDP_WIDTH * 6],
+            &full[SMS_VDP_WIDTH * 3..SMS_VDP_WIDTH * 6]
+        );
+    }
+
+    #[test]
+    fn sms1_mode4_to_legacy_transition_preserves_the_mode4_prefix() {
+        let mut v = setup_midline_sms1_write_fixture();
+
+        v.advance(114);
+        reg(&mut v, 0, 0x00);
+        reg(&mut v, 1, 0x00);
+        v.advance(114);
+
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 8, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [0, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_legacy_to_mode4_transition_preserves_the_legacy_prefix() {
+        let mut v = setup_midline_sms1_write_fixture();
+        v.registers[0] = 0;
+        v.registers[1] = 0;
+        v.vram[0] = 0xFF;
+
+        v.advance(114);
+        reg(&mut v, 0, 0x04);
+        reg(&mut v, 1, 0x40);
+        v.advance(114);
+
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [238, 0, 0]);
+    }
+
+    #[test]
+    fn legacy_overflow_from_a_committed_prefix_survives_sat_base_change() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        for index in 0..5 {
+            let at = 0x3F80 + index * 4;
+            v.vram[at] = 0xFF;
+            v.vram[at + 1] = 10 + (index as u8 * 8);
+            v.vram[at + 2] = 1;
+            v.vram[at + 3] = 4;
+        }
+        v.vram[0x3F80 + 5 * 4] = 0xD0;
+
+        v.advance(114);
+        reg(&mut v, 5, 0x00);
+        let mut restored = v.clone();
+        v.vram[0] = 0xD0;
+        restored.vram[0] = 0xD0;
+        v.advance(114);
+        restored.advance(114);
+
+        assert_ne!(v.status & OVERFLOW, 0);
+        assert_eq!(v.status & 0x1F, 4);
+        assert_eq!(restored.status, v.status);
+    }
+
+    #[test]
+    fn status_read_acknowledges_legacy_overflow_and_collision_without_reactivation() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[1] = 0x40;
+        v.registers[5] = 0x7F;
+        for index in 0..5 {
+            let at = 0x3F80 + index * 4;
+            v.vram[at] = 0xFF;
+            v.vram[at + 1] = 20;
+            v.vram[at + 2] = 1;
+            v.vram[at + 3] = 4;
+        }
+        v.vram[8..16].fill(0xFF);
+        v.vram[0x3F80 + 5 * 4] = 0xD0;
+
+        // Overflow is latched at HPos 24; a partial commit reaches the
+        // overlapping opaque sprite pixels before the status read.
+        v.advance(114);
+        assert_ne!(v.status & OVERFLOW, 0);
+        reg(&mut v, 7, 0);
+        assert_ne!(v.status & COLLISION, 0);
+        assert!(!v.line_collision_seen);
+
+        let status = v.read_port(0xBF);
+        assert_ne!(status & OVERFLOW, 0);
+        assert_ne!(status & COLLISION, 0);
+        assert_eq!(v.line_overflow_status, 0);
+        assert!(!v.line_collision_seen);
+
+        // Remove SAT entries for the next line. The current suffix retains
+        // its latched entries but contains no additional overlapping pixels.
+        v.vram[0x3F80] = 0xD0;
+        v.advance(114);
+        assert_eq!(v.status & (OVERFLOW | COLLISION), 0);
+    }
+
+    #[test]
+    fn legacy_partial_overflow_does_not_replace_an_existing_sticky_index() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.status = OVERFLOW | 3;
+        for index in 0..5 {
+            let at = 0x3F80 + index * 4;
+            v.vram[at] = 0xFF;
+            v.vram[at + 1] = 10 + (index as u8 * 8);
+            v.vram[at + 2] = 1;
+            v.vram[at + 3] = 4;
+        }
+        v.vram[0x3F80 + 5 * 4] = 0xD0;
+
+        v.advance(114);
+        reg(&mut v, 5, 0x00);
+        v.vram[0] = 0xD0;
+        v.advance(114);
+
+        assert_ne!(v.status & OVERFLOW, 0);
+        assert_eq!(v.status & 0x1F, 3);
+    }
+
+    #[test]
+    fn sms1_r5_bit_zero_aliases_sprite_x_and_tile_addresses_into_y_table() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[17] = 0x03;
+        v.vram[0x20] = 0x80;
+        v.vram[0x3F00] = 0x80;
+        v.vram[0x3F01] = 0xFF;
+        v.vram[0x3F02] = 20;
+        v.vram[0x3F03] = 1;
+        v.vram[0x3F82] = 0;
+        v.vram[0x3F83] = 0;
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+        assert_eq!(&frame[20 * 3..20 * 3 + 3], &[238, 0, 0]);
+
+        v.registers[5] = 0x7F;
+        frame.fill(0);
+        status = 0;
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+        assert_eq!(&frame[20 * 3..20 * 3 + 3], &[0, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_r6_bit_one_gates_sprite_pattern_address_bit_twelve() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.registers[6] = 0x05;
+        v.cram[17] = 0x03;
+        set_sprite(&mut v, 0, 0xFF, 10, 0x80);
+        v.vram[0x2000] = 0x80;
+        v.vram[0x3000] = 0;
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_eq!(&frame[10 * 3..10 * 3 + 3], &[238, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_r6_bit_zero_gates_sprite_pattern_address_bit_eleven() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.registers[6] = 0x06;
+        v.cram[17] = 0x03;
+        set_sprite(&mut v, 0, 0xFF, 10, 0x40);
+        v.vram[0x2000] = 0x80;
+        v.vram[0x2800] = 0;
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_eq!(&frame[10 * 3..10 * 3 + 3], &[238, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_first_sprite_uses_sprite_palette_entries() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        set_sprite(&mut v, 0, 0xFF, 10, 1);
+        v.vram[0x3F01] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 1);
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_eq!(&frame[10 * 3..10 * 3 + 3], &[238, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_hardware_sprite_buffer_selects_eight_and_overflows_on_ninth() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        solid_sprite_tile(&mut v, 1, 1);
+
+        for index in 0..9 {
+            set_sprite(&mut v, index, 0xFF, (index * 28) as u8, 1);
+        }
+        v.vram[0x3F09] = 0xD0;
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_ne!(status & OVERFLOW, 0);
+        assert_eq!(status & 0x1F, 8);
+        assert_eq!(&frame[196 * 3..196 * 3 + 3], &[238, 0, 0]);
+        assert_eq!(&frame[224 * 3..224 * 3 + 3], &[0, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_tall_magnified_sprite_uses_even_tile_pair_and_vertical_duplication() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x43;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        set_sprite(&mut v, 0, 0xFF, 10, 3);
+        v.vram[0x3F01] = 0xD0;
+        v.vram[0x40] = 0x80;
+        v.vram[0x60] = 0x80;
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        for y in [0usize, 1, 16, 17] {
+            render_scanline_for_revision(
+                &v.vram,
+                &v.cram,
+                &v.registers,
+                &mut status,
+                &mut frame,
+                y,
+                true,
+                SmsVdpRevision::Sega3155124,
+            );
+            assert_eq!(
+                &frame[(y * SMS_VDP_WIDTH + 10) * 3..(y * SMS_VDP_WIDTH + 10) * 3 + 3],
+                &[238, 0, 0],
+                "sprite row {y} must use the even tile pair and duplicate vertically"
+            );
+        }
+    }
+
+    #[test]
+    fn sms1_horizontal_zoom_skips_last_four_selected_sprites() {
+        for sprite_count in [2usize, 4, 6, 8] {
+            let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+            v.registers[0] = 0x04;
+            v.registers[1] = 0x41;
+            v.registers[2] = 0x0E;
+            v.registers[5] = 0x7F;
+            v.cram[17] = 0x03;
+            solid_sprite_tile(&mut v, 1, 1);
+
+            for index in 0..sprite_count {
+                set_sprite(&mut v, index, 0xFF, (index * 28) as u8, 1);
+            }
+            v.vram[0x3F00 + sprite_count] = 0xD0;
+
+            let mut status = 0;
+            let mut frame = vec![0; FRAME_SIZE];
+            render_scanline_for_revision(
+                &v.vram,
+                &v.cram,
+                &v.registers,
+                &mut status,
+                &mut frame,
+                0,
+                true,
+                SmsVdpRevision::Sega3155124,
+            );
+            assert_eq!(status, 0, "unexpected status for {sprite_count} sprites");
+
+            for index in 0..sprite_count {
+                let x = index * 28;
+                let doubled = index < sprite_count.saturating_sub(4);
+                let width = if doubled { 16 } else { 8 };
+                assert_eq!(
+                    &frame[(x + width - 1) * 3..(x + width) * 3],
+                    &[238, 0, 0],
+                    "last pixel of sprite {index} at count {sprite_count}"
+                );
+                assert_eq!(
+                    &frame[(x + width) * 3..(x + width + 1) * 3],
+                    &[0, 0, 0],
+                    "sprite {index} at count {sprite_count} exceeded its SMS1 width"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sms1_opaque_sprite_overlap_sets_collision_and_preserves_earlier_sprite() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        v.cram[18] = 0x0C;
+        set_sprite(&mut v, 0, 0xFF, 20, 1);
+        set_sprite(&mut v, 1, 0xFF, 20, 2);
+        v.vram[0x3F02] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 1);
+        solid_sprite_tile(&mut v, 2, 2);
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_ne!(status & COLLISION, 0);
+        assert_eq!(&frame[20 * 3..20 * 3 + 3], &[238, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_sprite_collision_becomes_visible_when_beam_crosses_overlap_pixel() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        set_sprite(&mut v, 0, 0xFF, 20, 1);
+        set_sprite(&mut v, 1, 0xFF, 20, 2);
+        v.vram[0x3F02] = 0xD0;
+
+        // Only sprite pixel X=20 is opaque in both patterns. The next
+        // span must not rediscover that already-committed pixel.
+        v.vram[32] = 0x80;
+        v.vram[2 * 32 + 1] = 0x80;
+
+        v.advance(55);
+        assert_eq!(v.status & COLLISION, 0);
+        let before_pixel = v.read_port(0xBF);
+        assert_eq!(before_pixel & COLLISION, 0);
+
+        v.advance(1);
+        let at_pixel = v.read_port(0xBF);
+        assert_ne!(
+            at_pixel & COLLISION,
+            0,
+            "status read after the overlapping pixel must observe collision"
+        );
+        assert_eq!(v.status & COLLISION, 0);
+
+        v.advance(LINE_TSTATES - 56);
+        assert_eq!(
+            v.status & COLLISION,
+            0,
+            "the suffix must not reassert a collision already acknowledged"
+        );
+    }
+
+    #[test]
+    fn sms1_hblank_boundary_commits_the_last_active_pixel_and_status() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        set_sprite(&mut v, 0, 0xFF, 255, 1);
+        set_sprite(&mut v, 1, 0xFF, 255, 2);
+        v.vram[0x3F02] = 0xD0;
+        v.vram[32] = 0x80;
+        v.vram[2 * 32 + 1] = 0x80;
+
+        // T212 maps to HPos318: the last active pixel has not crossed yet.
+        v.advance(212);
+        assert_eq!(v.status & COLLISION, 0);
+        assert_eq!(v.raster_span_cursor_x, 0);
+
+        // T213 maps to HPos319 and closes the 256-pixel active span.
+        v.advance(1);
+        assert_eq!(v.raster_span_cursor_x, 256);
+        assert_ne!(
+            v.status & COLLISION,
+            0,
+            "HBlank must commit the final active pixel before status is sampled"
+        );
+
+        let status = v.read_port(0xBF);
+        assert_ne!(status & COLLISION, 0);
+        assert_eq!(v.status & COLLISION, 0);
+    }
+
+    #[test]
+    fn prior_sticky_collision_is_not_relatched_by_a_collision_free_partial_span() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        set_sprite(&mut v, 0, 0xFF, 20, 1);
+        set_sprite(&mut v, 1, 0xFF, 20, 2);
+        v.vram[0x3F02] = 0xD0;
+        v.vram[32] = 0xFF;
+        v.vram[2 * 32 + 1] = 0xFF;
+
+        v.advance(LINE_TSTATES);
+        assert_ne!(
+            v.status & COLLISION,
+            0,
+            "line zero establishes a sticky collision"
+        );
+
+        // Line one has no selected sprites. A partial CRAM commit must not
+        // mistake the previous line's sticky status bit for a new collision.
+        v.advance(114);
+        addr(&mut v, 1, 0xC0);
+        v.write_port(0xBE, 0x0C);
+        let _ = v.read_port(0xBF);
+        assert_eq!(v.status & COLLISION, 0);
+
+        v.advance(114);
+        assert_eq!(
+            v.status & COLLISION,
+            0,
+            "a collision-free line must not reassert a previously cleared sticky flag"
+        );
+    }
+
+    #[test]
+    fn sms1_sprite_collision_respects_left_column_mask_and_sprite_shift() {
+        for (register_zero, sprite_x, expected_collision) in
+            [(0x24, 0, false), (0x2C, 8, false), (0x2C, 16, true)]
+        {
+            let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+            v.registers[0] = register_zero;
+            v.registers[1] = 0x40;
+            v.registers[2] = 0x0E;
+            v.registers[5] = 0x7F;
+            set_sprite(&mut v, 0, 0xFF, sprite_x, 1);
+            set_sprite(&mut v, 1, 0xFF, sprite_x, 2);
+            v.vram[0x3F02] = 0xD0;
+            solid_sprite_tile(&mut v, 1, 1);
+            solid_sprite_tile(&mut v, 2, 2);
+
+            let mut status = 0;
+            let mut frame = vec![0; FRAME_SIZE];
+            render_scanline_for_revision(
+                &v.vram,
+                &v.cram,
+                &v.registers,
+                &mut status,
+                &mut frame,
+                0,
+                true,
+                SmsVdpRevision::Sega3155124,
+            );
+
+            assert_eq!(
+                status & COLLISION != 0,
+                expected_collision,
+                "R0={register_zero:#04x}, sprite X={sprite_x}"
+            );
+        }
+    }
+
+    #[test]
+    fn sms1_transparent_sprite_overlap_does_not_set_collision() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        set_sprite(&mut v, 0, 0xFF, 20, 1);
+        set_sprite(&mut v, 1, 0xFF, 20, 2);
+        v.vram[0x3F02] = 0xD0;
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_eq!(status & COLLISION, 0);
+    }
+
+    #[test]
+    fn sms1_sprite_priority_respects_opaque_high_priority_background() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[1] = 0x03;
+        v.cram[18] = 0x0C;
+        for column in 0..32 {
+            v.vram[0x3800 + column * 2] = 0;
+            v.vram[0x3801 + column * 2] = 0x10;
+        }
+        v.vram[0] = 0xFF;
+        set_sprite(&mut v, 0, 0xFF, 20, 1);
+        v.vram[0x3F01] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 2);
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_eq!(&frame[20 * 3..20 * 3 + 3], &[238, 0, 0]);
+    }
+
+    #[test]
+    fn sms1_ninth_offscreen_sprite_sets_overflow() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x0C;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        for index in 0..9 {
+            set_sprite(&mut v, index, 0xFF, 0, 1);
+        }
+        v.vram[0x3F09] = 0xD0;
+
+        let mut status = 0;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        assert_ne!(status & OVERFLOW, 0);
+        assert_eq!(status & 0x1F, 8);
+        assert!(frame.iter().all(|pixel| *pixel == 0));
+    }
+
+    #[test]
+    fn sms_mode4_renders_cram_palette_entries_from_4bpp_tiles() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.cram[1] = 0x03;
+        v.vram[0x3800] = 0;
+        v.vram[0x3801] = 0;
+        v.vram[0] = 0x80;
+        let mut status = 0x1F;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+        );
+        assert_eq!(&v.working_framebuffer[0..3], &[255, 0, 0]);
+        assert_eq!(&v.working_framebuffer[3..6], &[0, 0, 0]);
+    }
+
+    #[test]
+    fn sms_mode4_background_tile_index_is_not_offset_by_register_four() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[4] = 0x04;
+        v.cram[1] = 0x03;
+        v.vram[0x3800] = 1;
+        v.vram[0x3801] = 0;
+        v.vram[0x20] = 0x80;
+        let mut status = 0x1F;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+        );
+        assert_eq!(&v.working_framebuffer[0..3], &[255, 0, 0]);
+    }
+
+    #[test]
+    fn sms_mode4_192_line_vertical_scroll_wraps_at_224_lines() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[9] = 224;
+        v.cram[1] = 0x03;
+        v.cram[2] = 0x0C;
+        v.vram[0x3800] = 1;
+        v.vram[0x3801] = 0;
+        // If the renderer incorrectly wraps at 256, y=224 selects this row
+        // from $3F00 instead of wrapping to the first name-table row.
+        v.vram[0x3F00] = 2;
+        v.vram[0x3F01] = 0;
+        v.vram[0x20] = 0x80;
+        v.vram[0x40] = 0x80;
+        let mut status = 0x1F;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+        );
+        assert_eq!(&v.working_framebuffer[0..3], &[255, 0, 0]);
+    }
+
+    #[test]
+    fn unlocked_mode4_draws_sprite_nine_but_keeps_hardware_overflow_flag() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[17] = 0x03;
+        v.vram[0x20] = 0x80;
+        for index in 0..9 {
+            v.vram[0x3F00 + index] = 0;
+            let attr = 0x3F80 + index * 2;
+            v.vram[attr] = if index == 8 { 50 } else { 10 };
+            v.vram[attr + 1] = 1;
+        }
+        v.vram[0x3F09] = 0xD0;
+        let mut status = 0x1F;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            1,
+            true,
+        );
+        assert_ne!(status & OVERFLOW, 0);
+        assert_eq!(status & 0x1F, 8);
+        let x50 = (SMS_VDP_WIDTH + 50) * 3;
+        assert_eq!(&v.working_framebuffer[x50..x50 + 3], &[0, 0, 0]);
+
+        let mut unlocked = v.clone();
+        unlocked.status = 0x1F;
+        unlocked.working_framebuffer.fill(0);
+        let (vram, cram, regs, status, frame) = (
+            &unlocked.vram,
+            &unlocked.cram,
+            &unlocked.registers,
+            &mut unlocked.status,
+            &mut unlocked.working_framebuffer,
+        );
+        render_scanline(vram, cram, regs, status, frame, 1, false);
+        assert_ne!(*status & OVERFLOW, 0);
+        assert_eq!(&frame[x50..x50 + 3], &[255, 0, 0]);
+    }
+
+    #[test]
+    fn sms_mode4_horizontal_scroll_uses_subtractive_source_coordinates() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.registers[8] = 8;
+        v.cram[1] = 0x03;
+        // Source column 31 is blank; source column 0 starts with red.
+        v.vram[0x3800 + 31 * 2] = 2;
+        v.vram[0x3800 + 31 * 2 + 1] = 0;
+        v.vram[0] = 0x80;
+        v.vram[0x3F00] = 0xD0;
+        let mut status = 0x1F;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+        );
+        assert_eq!(&v.working_framebuffer[0..3], &[0, 0, 0]);
+        assert_eq!(&v.working_framebuffer[8 * 3..8 * 3 + 3], &[255, 0, 0]);
+    }
+
+    #[test]
+    fn sms_mode4_horizontal_fine_scroll_matches_source_pixel_offsets() {
+        for scroll in [0_u8, 1, 7, 8, 255] {
+            let mut v = SmsVdp::default();
+            v.registers[0] = 0x04;
+            v.registers[1] = 0x40;
+            v.registers[2] = 0x0E;
+            v.registers[5] = 0x7E;
+            v.registers[8] = scroll;
+            v.cram[1] = 0x03;
+            for row in 0..8 {
+                v.vram[row * 4] = 0x80;
+            }
+            for row in 0..28 {
+                for col in 0..32 {
+                    v.vram[0x3800 + row * 64 + col * 2] = 0;
+                    v.vram[0x3800 + row * 64 + col * 2 + 1] = 0;
+                }
+            }
+            v.vram[0x3F00] = 0xD0;
+            let mut status = 0x1F;
+            render_scanline(
+                &v.vram,
+                &v.cram,
+                &v.registers,
+                &mut status,
+                &mut v.working_framebuffer,
+                0,
+                true,
+            );
+            for x in 0..32 {
+                let source_x = (x + 0x100 - usize::from(scroll)) & 0xFF;
+                let expected = if source_x & 7 == 0 {
+                    [255, 0, 0]
+                } else {
+                    [0, 0, 0]
+                };
+                assert_eq!(
+                    &v.working_framebuffer[x * 3..x * 3 + 3],
+                    &expected,
+                    "R8={scroll}, screen x={x}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sms_mode4_fine_scroll_leading_pixels_use_tile_100_palette_selector() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.registers[7] = 1;
+        v.registers[8] = 3;
+        v.cram[0] = 0x03;
+        v.cram[1] = 0x03;
+        v.cram[16] = 0x0C;
+        v.cram[17] = 0x30;
+        v.vram[0x3800 + 31 * 2] = 1;
+        v.vram[32] = 0xFF;
+        v.vram[0] = 0x80;
+        // For output line 0, the selector samples row 7 of tile $100.
+        // Plane 1, pixel 4 selects BG palette 1 color 0 when set.
+        v.vram[0x2000 + 7 * 4 + 1] = 0x08;
+        v.vram[0x3F00] = 0xD0;
+        let mut status = 0;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+        );
+        let palette_one_zero = super::palette_rgb(&v.cram, 16);
+        let source_zero = super::palette_rgb(&v.cram, 1);
+        for x in 0..3 {
+            assert_eq!(
+                &v.working_framebuffer[x * 3..x * 3 + 3],
+                &palette_one_zero,
+                "leading fine-scroll pixel x={x}"
+            );
+        }
+        assert_eq!(
+            &v.working_framebuffer[3 * 3..3 * 3 + 3],
+            &source_zero,
+            "first non-blanked pixel must map to source x=0"
+        );
+
+        // Clearing the selector bit chooses palette 0 color 0, not R7.
+        v.vram[0x2000 + 7 * 4 + 1] = 0;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+        );
+        let palette_zero_zero = super::palette_rgb(&v.cram, 0);
+        assert_eq!(
+            &v.working_framebuffer[0..3],
+            &palette_zero_zero,
+            "unset selector must choose BG palette 0 color 0"
+        );
+    }
+
+    #[test]
+    fn sms1_cram_palette_uses_315_5124_output_levels_and_nonlinear_blue() {
+        let mut cram = [0; CRAM_SIZE];
+        for (value, expected) in [
+            (0x01, [78, 0, 0]),
+            (0x03, [238, 0, 0]),
+            (0x04, [0, 78, 0]),
+            (0x0C, [0, 238, 0]),
+            (0x10, [0, 0, 98]),
+            (0x30, [0, 0, 238]),
+            (0x3F, [238, 238, 238]),
+        ] {
+            cram[0] = value;
+            assert_eq!(
+                super::palette_rgb_for_revision(&cram, 0, SmsVdpRevision::Sega3155124),
+                expected,
+                "CRAM value {value:#04x}"
+            );
+        }
+    }
+
+    #[test]
+    fn sms2_palette_output_remains_unchanged_during_sms1_calibration() {
+        let mut cram = [0; CRAM_SIZE];
+        cram[0] = 0x3F;
+        assert_eq!(
+            super::palette_rgb_for_revision(&cram, 0, SmsVdpRevision::Sega3155246),
+            [255, 255, 255]
+        );
+    }
+
+    #[test]
+    fn sms_mode4_horizontal_scroll_is_fixed_for_the_first_sixteen_lines() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x44;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.registers[8] = 8;
+        v.cram[1] = 0x03;
+        for row in 0..8 {
+            v.vram[row * 4] = 0x80;
+        }
+        for row in 0..28 {
+            v.vram[0x3800 + row * 64 + 31 * 2] = 2;
+        }
+        v.vram[0x3F00] = 0xD0;
+        let mut status = 0x1F;
+        for y in [0, 15, 16] {
+            render_scanline(
+                &v.vram,
+                &v.cram,
+                &v.registers,
+                &mut status,
+                &mut v.working_framebuffer,
+                y,
+                true,
+            );
+        }
+        assert_eq!(&v.working_framebuffer[0..3], &[255, 0, 0]);
+        assert_eq!(
+            &v.working_framebuffer[15 * SMS_VDP_WIDTH * 3..15 * SMS_VDP_WIDTH * 3 + 3],
+            &[255, 0, 0]
+        );
+        assert_eq!(
+            &v.working_framebuffer[16 * SMS_VDP_WIDTH * 3..16 * SMS_VDP_WIDTH * 3 + 3],
+            &[0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn sms_mode4_192_line_vertical_scroll_wrap_boundaries_are_223_224_and_255() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[1] = 0x03;
+        v.cram[2] = 0x0C;
+        v.cram[4] = 0x30;
+        for col in 0..32 {
+            v.vram[0x3800 + col * 2] = 0;
+            v.vram[0x3800 + col * 2 + 1] = 0;
+            v.vram[0x3840 + col * 2] = 0;
+            v.vram[0x3840 + col * 2 + 1] = 0;
+            v.vram[0x38C0 + col * 2] = 2;
+            v.vram[0x38C0 + col * 2 + 1] = 0;
+            v.vram[0x3EC0 + col * 2] = 1;
+            v.vram[0x3EC0 + col * 2 + 1] = 0;
+        }
+        for row in 0..8 {
+            v.vram[row * 4] = 0xFF;
+            v.vram[32 + row * 4 + 1] = 0xFF;
+            v.vram[64 + row * 4 + 2] = 0xFF;
+        }
+        v.vram[0x3F00] = 0xD0;
+        let mut status = 0x1F;
+        for (scroll, expected) in [
+            (223_u8, [0, 255, 0]),
+            (224_u8, [255, 0, 0]),
+            (255_u8, [0, 0, 255]),
+        ] {
+            v.registers[9] = scroll;
+            render_scanline(
+                &v.vram,
+                &v.cram,
+                &v.registers,
+                &mut status,
+                &mut v.working_framebuffer,
+                0,
+                true,
+            );
+            assert_eq!(&v.working_framebuffer[0..3], &expected, "R9={scroll}");
+        }
+    }
+
+    #[test]
+    fn sms_mode4_vertical_scroll_lock_starts_at_column_24() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x84;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.registers[9] = 8;
+        v.cram[1] = 0x03;
+        v.cram[2] = 0x0C;
+        for col in 0..32 {
+            v.vram[0x3800 + col * 2] = 0;
+            v.vram[0x3800 + col * 2 + 1] = 0;
+            v.vram[0x3840 + col * 2] = 1;
+            v.vram[0x3840 + col * 2 + 1] = 0;
+        }
+        for row in 0..8 {
+            v.vram[row * 4] = 0xFF;
+            v.vram[32 + row * 4 + 1] = 0xFF;
+        }
+        v.vram[0x3F00] = 0xD0;
+        let mut status = 0x1F;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+        );
+        assert_eq!(&v.working_framebuffer[0..3], &[0, 255, 0]);
+        assert_eq!(&v.working_framebuffer[192 * 3..192 * 3 + 3], &[255, 0, 0]);
+    }
+
+    #[test]
+    fn sms_mode4_left_column_mask_also_masks_sprites() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x24;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[17] = 0x03;
+        v.vram[0x20] = 0x80;
+        v.vram[0x3F00] = 0;
+        v.vram[0x3F01] = 0xD0;
+        v.vram[0x3F80] = 0;
+        v.vram[0x3F81] = 1;
+        let mut status = 0x1F;
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            1,
+            true,
+        );
+        assert_eq!(&v.working_framebuffer[0..3], &[0, 0, 0]);
+    }
+
+    #[test]
+    fn mode4_r0_sprite_shift_and_left_column_mask_cover_all_combinations_for_sms1_and_sms2() {
+        let revisions = [
+            (SmsVdpRevision::Sega3155124, "SMS1", 0x7F),
+            (SmsVdpRevision::Sega3155246, "SMS2", 0x7E),
+        ];
+        let cases = [
+            (false, false, 0_u8),
+            (false, false, 8),
+            (true, false, 0),
+            (true, false, 1),
+            (false, true, 0),
+            (false, true, 4),
+            (true, true, 1),
+            (true, true, 16),
+        ];
+
+        for (revision, revision_name, register5) in revisions {
+            for (sprite_shift, left_mask, sprite_x) in cases {
+                let mut v = SmsVdp::default();
+                v.registers[0] =
+                    0x04 | if sprite_shift { 0x08 } else { 0 } | if left_mask { 0x20 } else { 0 };
+                v.registers[1] = 0x40;
+                v.registers[2] = 0x0E;
+                v.registers[5] = register5;
+                v.cram[2] = 0x0C;
+                v.cram[17] = 0x03;
+
+                // Fill the background with palette color 2 (green).
+                for column in 0..32 {
+                    let entry = 0x3800 + column * 2;
+                    v.vram[entry] = 1;
+                    v.vram[entry + 1] = 0;
+                }
+                for row in 0..8 {
+                    v.vram[0x20 + row * 4 + 1] = 0xFF;
+                }
+
+                // Sprite tile 2 is opaque in palette color 1 (red).
+                v.vram[0x40] = 0xFF;
+                v.vram[0x3F00] = 0;
+                v.vram[0x3F01] = 0xD0;
+                v.vram[0x3F80] = sprite_x;
+                v.vram[0x3F81] = 2;
+
+                let mut status = 0x1F;
+                render_scanline_for_revision(
+                    &v.vram,
+                    &v.cram,
+                    &v.registers,
+                    &mut status,
+                    &mut v.working_framebuffer,
+                    1,
+                    true,
+                    revision,
+                );
+
+                let sprite_shift_pixels: i16 = if sprite_shift { 8 } else { 0 };
+                let sprite_start = i16::from(sprite_x) - sprite_shift_pixels;
+                for x in 0..SMS_VDP_WIDTH {
+                    let max_level = if revision == SmsVdpRevision::Sega3155124 {
+                        238
+                    } else {
+                        255
+                    };
+                    let expected = if left_mask && x < 8 {
+                        [0, 0, 0]
+                    } else if (sprite_start..sprite_start + 8).contains(&(x as i16)) {
+                        [max_level, 0, 0]
+                    } else {
+                        [0, max_level, 0]
+                    };
+                    let offset = (SMS_VDP_WIDTH + x) * 3;
+                    assert_eq!(
+                        &v.working_framebuffer[offset..offset + 3],
+                        &expected,
+                        "{revision_name}: R0 bit3={sprite_shift}, bit5={left_mask}, sprite X={sprite_x:#04x}, pixel X={x}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sms_mode4_r9_written_during_active_display_latches_after_active_period() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[1] = 0x03;
+        v.cram[2] = 0x0C;
+        for col in 0..32 {
+            v.vram[0x3840 + col * 2] = 1;
+            v.vram[0x3840 + col * 2 + 1] = 0;
+        }
+        for row in 0..8 {
+            v.vram[row * 4] = 0xFF;
+            v.vram[32 + row * 4 + 1] = 0xFF;
+        }
+        v.vram[0x3F00] = 0xD0;
+        reg(&mut v, 9, 8);
+
+        v.advance(228 * 192 + SMS_VBLANK_FLAG_TSTATE);
+        assert_eq!(&v.framebuffer()[0..3], &[255, 0, 0]);
+
+        v.advance(228 * (262 - 192));
+        v.advance(228 * 192);
+        assert_eq!(&v.framebuffer()[0..3], &[0, 255, 0]);
+    }
+
+    #[test]
+    fn sms_mode4_extended_mode_d0_is_not_sprite_terminator_and_d1_stays_visible() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x06;
+        v.registers[1] = 0x50;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[17] = 0x03;
+        v.vram[0x20] = 0x80;
+        v.vram[0x3F00] = 0xD0;
+        v.vram[0x3F01] = 0xD1;
+        v.vram[0x3F80] = 10;
+        v.vram[0x3F81] = 1;
+        v.vram[0x3F82] = 30;
+        v.vram[0x3F83] = 1;
+        let mut status = 0x1F;
+        let mut frame = vec![0; FRAME_SIZE];
+
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            209,
+            true,
+        );
+        assert_eq!(
+            &frame[(209 * SMS_VDP_WIDTH + 10) * 3..(209 * SMS_VDP_WIDTH + 10) * 3 + 3],
+            &[255, 0, 0]
+        );
+        assert_eq!(
+            &frame[(209 * SMS_VDP_WIDTH + 30) * 3..(209 * SMS_VDP_WIDTH + 30) * 3 + 3],
+            &[0, 0, 0]
+        );
+
+        render_scanline(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut frame,
+            210,
+            true,
+        );
+        assert_eq!(
+            &frame[(210 * SMS_VDP_WIDTH + 30) * 3..(210 * SMS_VDP_WIDTH + 30) * 3 + 3],
+            &[255, 0, 0]
+        );
+    }
+
+    #[test]
+    fn status_port_preserves_sprite_index_and_clears_status_flags() {
+        let mut v = SmsVdp {
+            status: VBLANK | OVERFLOW | COLLISION | 0x0A,
+            ..SmsVdp::default()
+        };
+        let status = v.read_port(0xBF);
+        assert_eq!(status, 0xEA);
+        assert_eq!(v.status(), 0);
+        assert!(!v.interrupt_pending());
+    }
+
+    #[test]
+    fn cram_write_wraps_palette_index_but_keeps_fourteen_bit_address() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x001F, 0xC0);
+        v.write_port(0xBE, 0xFF);
+        assert_eq!(v.cram()[0x1F], 0x3F);
+        assert_eq!(v.address(), 0x0020);
+        v.write_port(0xBE, 0x12);
+        assert_eq!(v.cram()[0], 0x12);
+        assert_eq!(v.address(), 0x0021);
+        assert_eq!(v.read_port(0xBE), 0x12);
+    }
+
+    #[test]
+    fn first_control_byte_updates_only_low_read_address_without_read_ahead() {
+        let mut v = SmsVdp::default();
+        let expected = [
+            0x00, 0xFF, 0x55, 0xAA, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, b'T', b'e',
+            b's', b't',
+        ];
+        v.vram[0x3E10..0x3E20].copy_from_slice(&expected);
+        v.vram[0x3E58] = 0xCC;
+
+        // Match SMS VDP Test RunTest11: enter read mode at 3E58, then issue
+        // only the low address byte for 3E10. This changes the address but
+        // does not execute the read-mode prefetch associated with byte two.
+        addr(&mut v, 0x3E58, 0x00);
+        assert_eq!(v.read_buffer, 0xCC);
+        v.write_port(0xBF, 0x10);
+
+        assert_eq!(v.address(), 0x3E10);
+        assert_eq!(v.read_buffer, 0xCC);
+        assert_eq!(v.read_port(0xBE), 0xCC);
+        for byte in expected {
+            assert_eq!(v.read_port(0xBE), byte);
+        }
+    }
+
+    #[test]
+    fn first_control_byte_updates_only_low_sms1_read_address_without_read_ahead() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.vram[0x3E10] = 0xAA;
+        v.vram[0x3E11] = 0xBB;
+        v.vram[0x3E58] = 0xCC;
+
+        addr(&mut v, 0x3E58, 0x00);
+        v.write_port(0xBF, 0x10);
+
+        assert_eq!(v.address(), 0x3E10);
+        let mut restored = v.clone();
+        assert_eq!(restored.read_port(0xBE), 0xCC);
+        assert_eq!(restored.read_port(0xBE), 0xAA);
+        assert_eq!(restored.read_port(0xBE), 0xBB);
+    }
+
+    #[test]
+    fn first_control_byte_retargets_write_address_without_incrementing() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x3E72, 0x40);
+
+        // Match SMS VDP Test RunTest12: a one-byte control write changes the
+        // low address byte, and the following data write targets that byte.
+        v.write_port(0xBF, 0x30);
+        assert_eq!(v.address(), 0x3E30);
+        v.write_port(0xBE, 0xAA);
+        assert_eq!(v.vram[0x3E30], 0xAA);
+        assert_eq!(v.address(), 0x3E31);
+    }
+
+    #[test]
+    fn reset_restores_the_default_vram_read_address_mode() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x001F, 0xC0);
+        v.reset(false);
+
+        v.vram[0x0010] = 0x5A;
+        v.write_port(0xBF, 0x10);
+        // The low byte alone does not start the read-ahead pipeline.
+        v.write_port(0xBF, 0x00);
+        assert_eq!(v.read_port(0xBE), 0x5A);
+    }
+
+    #[test]
+    fn first_control_byte_preserves_cram_write_destination() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x001F, 0xC0);
+
+        v.write_port(0xBF, 0x10);
+        assert_eq!(v.address(), 0x0010);
+        v.write_port(0xBE, 0x2A);
+
+        assert_eq!(v.cram[0x10], 0x2A);
+        assert_eq!(v.address(), 0x0011);
+    }
+
+    #[test]
+    fn register_write_command_updates_vdp_address_register() {
+        let mut v = SmsVdp::default();
+        reg(&mut v, 8, 0xA5);
+        assert_eq!(v.registers()[8], 0xA5);
+        assert_eq!(v.address(), 0x08A5);
+    }
+
+    #[test]
+    fn vdp_ports_are_mirrored_by_the_low_address_decode() {
+        let mut v = SmsVdp::default();
+        v.write_port(0x9F, 0x03);
+        v.write_port(0x9F, 0xC0);
+        v.write_port(0x9E, 0x3F);
+        assert_eq!(v.cram()[3], 0x3F);
+    }
+
+    #[test]
+    fn legacy_sprite_limit_is_four_and_unlock_draws_the_fifth_sprite() {
+        let mut v = SmsVdp::default();
+        v.registers[5] = 0x7F;
+        v.vram[8] = 0x80;
+        for index in 0..5 {
+            let attr = 0x3F80 + index * 4;
+            v.vram[attr] = 0;
+            v.vram[attr + 1] = if index == 4 { 50 } else { 10 };
+            v.vram[attr + 2] = 1;
+            v.vram[attr + 3] = 4;
+        }
+        v.vram[0x3F80 + 5 * 4] = 0xD0;
+        let mut status = 0x1F;
+        let mut frame = vec![0; FRAME_SIZE];
+        render_legacy_sprites(&v.vram, &v.registers, &mut status, &mut frame, 1, false);
+        assert_ne!(status & OVERFLOW, 0);
+        assert_eq!(status & 0x1F, 4);
+        let x50 = (SMS_VDP_WIDTH + 50) * 3;
+        assert_eq!(&frame[x50..x50 + 3], &[0, 0, 0]);
+
+        status = 0x1F;
+        frame.fill(0);
+        render_legacy_sprites(&v.vram, &v.registers, &mut status, &mut frame, 1, true);
+        assert_eq!(&frame[x50..x50 + 3], &TMS_PALETTE[4]);
+    }
+
+    #[test]
+    fn unknown_video_standard_uses_the_ntsc_counter_profile() {
+        let mut v = SmsVdp::new(VideoStandard::Unknown, SpriteLimitMode::HardwareLimit);
+        v.scanline = 219;
+        assert_eq!(v.read_v_counter(), 0xD5);
+    }
+
+    #[test]
+    fn pal_m_uses_ntsc_like_vertical_counter_profile() {
+        let mut v = SmsVdp::new(VideoStandard::PalM, SpriteLimitMode::HardwareLimit);
+        v.scanline = 219;
+        assert_eq!(v.read_v_counter(), 0xD5);
+        assert_eq!(v.total_lines(), 262);
+        assert_eq!(v.system_clock_hz(), 3_579_545);
+    }
+
+    #[test]
+    fn pal_224_line_counter_has_documented_wrap_sequence() {
+        let mut v = SmsVdp::new(VideoStandard::Pal, SpriteLimitMode::HardwareLimit);
+        reg(&mut v, 0, 0x06);
+        reg(&mut v, 1, 0x10);
+        v.scanline = 256;
+        assert_eq!(v.read_v_counter(), 0x00);
+        v.scanline = 258;
+        assert_eq!(v.read_v_counter(), 0x02);
+        v.scanline = 259;
+        assert_eq!(v.read_v_counter(), 0xCA);
+        v.scanline = 312;
+        assert_eq!(v.read_v_counter(), 0xFF);
+    }
+
+    #[test]
+    fn pal_240_line_counter_has_documented_wrap_sequence() {
+        let mut v = SmsVdp::new(VideoStandard::Pal, SpriteLimitMode::HardwareLimit);
+        reg(&mut v, 0, 0x06);
+        reg(&mut v, 1, 0x08);
+        v.scanline = 266;
+        assert_eq!(v.read_v_counter(), 0x0A);
+        v.scanline = 267;
+        assert_eq!(v.read_v_counter(), 0xD2);
+        v.scanline = 312;
+        assert_eq!(v.read_v_counter(), 0xFF);
+    }
+
+    fn configure_horizontal_scroll_pattern(v: &mut SmsVdp) {
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[1] = 0x03;
+        for row in 0..8 {
+            v.vram[0x20 + row * 4] = 0xAA;
+        }
+        for row in 0..24 {
+            for col in 0..32 {
+                v.vram[0x3800 + row * 64 + col * 2] = 1;
+                v.vram[0x3800 + row * 64 + col * 2 + 1] = 0;
+            }
+        }
+        v.vram[0x3F00] = 0xD0;
+    }
+
+    #[test]
+    fn horizontal_scroll_changes_between_scanlines_without_rewriting_prior_lines() {
+        let mut v = SmsVdp::default();
+        configure_horizontal_scroll_pattern(&mut v);
+
+        v.advance(228);
+        let first_line = v.working_framebuffer[..SMS_VDP_WIDTH * 3].to_vec();
+
+        reg(&mut v, 8, 1);
+        v.advance(228);
+        let second_line = v.working_framebuffer[SMS_VDP_WIDTH * 3..SMS_VDP_WIDTH * 6].to_vec();
+
+        assert_ne!(
+            first_line, second_line,
+            "R8 change must affect the next rendered line"
+        );
+        assert_eq!(
+            &v.working_framebuffer[..SMS_VDP_WIDTH * 3],
+            &first_line,
+            "a later R8 write must not retroactively rewrite an already-rendered line"
+        );
+        assert_eq!(v.raster_position().line, 2);
+        assert_eq!(v.raster_position().tstates_into_line, 0);
+    }
+
+    #[test]
+    fn horizontal_scroll_and_raster_progress_are_chunking_invariant() {
+        let mut whole_chunks = SmsVdp::default();
+        let mut split_chunks = SmsVdp::default();
+        configure_horizontal_scroll_pattern(&mut whole_chunks);
+        configure_horizontal_scroll_pattern(&mut split_chunks);
+
+        for scroll in [0_u8, 1, 7, 8] {
+            whole_chunks.advance(228);
+            split_chunks.advance(57);
+            split_chunks.advance(171);
+            reg(&mut whole_chunks, 8, scroll);
+            reg(&mut split_chunks, 8, scroll);
+        }
+
+        assert_eq!(
+            whole_chunks.raster_position(),
+            split_chunks.raster_position()
+        );
+        assert_eq!(
+            whole_chunks.working_framebuffer,
+            split_chunks.working_framebuffer
+        );
+        assert_eq!(whole_chunks.registers()[8], split_chunks.registers()[8]);
+    }
+
+    #[test]
+    fn sms_mode4_horizontal_scroll_all_register_values_match_full_width_pixel_oracle() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[1] = 0x03;
+        // Every tile is tile zero; its first bit in each row is set.
+        // This creates a one-pixel vertical stripe every eight source pixels.
+        for row in 0..8 {
+            v.vram[row * 4] = 0x80;
+        }
+        for row in 0..24 {
+            for col in 0..32 {
+                let entry = 0x3800 + row * 64 + col * 2;
+                v.vram[entry] = 0;
+                v.vram[entry + 1] = 0;
+            }
+        }
+        v.vram[0x3F00] = 0xD0;
+
+        for scroll in 0_u16..=255 {
+            v.registers[8] = scroll as u8;
+            v.working_framebuffer.fill(0);
+            let mut status = 0;
+            render_scanline(
+                &v.vram,
+                &v.cram,
+                &v.registers,
+                &mut status,
+                &mut v.working_framebuffer,
+                0,
+                true,
+            );
+
+            let fine_scroll = (scroll & 7) as usize;
+            for x in 0..SMS_VDP_WIDTH {
+                let expected = if x < fine_scroll {
+                    [0, 0, 0]
+                } else if (x - fine_scroll) & 7 == 0 {
+                    [255, 0, 0]
+                } else {
+                    [0, 0, 0]
+                };
+                let offset = x * 3;
+                assert_eq!(
+                    &v.working_framebuffer[offset..offset + 3],
+                    &expected,
+                    "R8={scroll}, screen x={x}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sms_vdp_raster_is_invariant_for_every_single_line_advance_split() {
+        for split in 1_u64..LINE_TSTATES {
+            let mut whole = SmsVdp::default();
+            let mut fragmented = whole.clone();
+            configure_horizontal_scroll_pattern(&mut whole);
+            configure_horizontal_scroll_pattern(&mut fragmented);
+
+            whole.advance(LINE_TSTATES);
+            fragmented.advance(split);
+            fragmented.advance(LINE_TSTATES - split);
+
+            assert_eq!(
+                whole.raster_position(),
+                fragmented.raster_position(),
+                "raster mismatch at split={split}"
+            );
+            assert_eq!(
+                whole.working_framebuffer, fragmented.working_framebuffer,
+                "framebuffer mismatch at split={split}"
+            );
+            assert_eq!(
+                whole.status(),
+                fragmented.status(),
+                "status at split={split}"
+            );
+        }
+    }
+
+    #[test]
+    fn framebuffer_is_rgb24() {
+        let v = SmsVdp::default();
+        assert_eq!(v.framebuffer().len(), SMS_VDP_WIDTH * 192 * 3);
+    }
+
+    // Characterization tests for the current scanline renderer. These record
+    // when the model samples mutable VDP state; they are not hardware oracles.
+    fn setup_midline_write_fixture() -> SmsVdp {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[1] = 0x03;
+        v.vram[0] = 0x80;
+        v.vram[0x3800] = 0;
+        v.vram[0x3F00] = 0xD0;
+        v
+    }
+
+    #[test]
+    fn r8_write_at_hpos_21_updates_the_current_scanline() {
+        let mut actual = setup_midline_write_fixture();
+        actual.write_port(0xBF, 8);
+        actual.advance(14);
+        actual.write_port(0xBF, 0x88);
+        actual.advance(214);
+
+        let mut expected = setup_midline_write_fixture();
+        reg(&mut expected, 8, 8);
+        expected.advance(228);
+
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        assert_eq!(
+            &actual.working_framebuffer[..line_bytes],
+            &expected.working_framebuffer[..line_bytes]
+        );
+    }
+
+    #[test]
+    fn r8_write_after_hpos_21_updates_only_the_next_scanline() {
+        let mut actual = setup_midline_write_fixture();
+        actual.write_port(0xBF, 8);
+        actual.advance(15);
+        actual.write_port(0xBF, 0x88);
+        actual.advance(213);
+
+        let mut expected_current = setup_midline_write_fixture();
+        expected_current.advance(228);
+
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        assert_eq!(
+            &actual.working_framebuffer[..line_bytes],
+            &expected_current.working_framebuffer[..line_bytes]
+        );
+
+        actual.advance(228);
+
+        let mut expected_next = setup_midline_write_fixture();
+        reg(&mut expected_next, 8, 8);
+        expected_next.advance(456);
+
+        assert_eq!(
+            &actual.working_framebuffer[line_bytes..line_bytes * 2],
+            &expected_next.working_framebuffer[line_bytes..line_bytes * 2]
+        );
+    }
+
+    #[test]
+    fn h_counter_conversion_matches_sms_reference_positions() {
+        for (tstates, expected) in [(0, 0x93), (1, 0xE9), (31, 0xFF), (32, 0x00), (136, 0x4E)] {
+            let mut vdp = SmsVdp::default();
+            vdp.advance(tstates);
+            vdp.latch_h_counter();
+            assert_eq!(
+                vdp.read_h_counter(),
+                expected,
+                "H-counter at Z80 T-state {tstates}"
+            );
+        }
+    }
+
+    #[test]
+    fn h_counter_remains_latched_while_the_vdp_advances() {
+        let mut vdp = SmsVdp::default();
+        assert_eq!(vdp.read_h_counter(), 0);
+
+        vdp.advance(136);
+        vdp.latch_h_counter();
+        assert_eq!(vdp.read_h_counter(), 0x4E);
+
+        vdp.advance(50);
+        assert_eq!(vdp.read_h_counter(), 0x4E);
+    }
+
+    fn setup_midline_sms1_write_fixture() -> SmsVdp {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7E;
+        v.cram[1] = 0x03;
+        v.vram[0] = 0x80;
+        v.vram[0x3800] = 0;
+        v.vram[0x3F00] = 0xD0;
+        v
+    }
+
+    fn setup_midline_cram_write_fixture() -> SmsVdp {
+        let mut v = setup_midline_sms1_write_fixture();
+        for row in 0..8 {
+            v.vram[row * 4] = 0xFF;
+        }
+        v
+    }
+
+    fn framebuffer_pixel(vdp: &SmsVdp, x: usize, y: usize) -> [u8; 3] {
+        let offset = (y * SMS_VDP_WIDTH + x) * 3;
+        vdp.working_framebuffer[offset..offset + 3]
+            .try_into()
+            .expect("RGB24 pixel has three channels")
+    }
+
+    #[test]
+    fn midline_cram_write_commits_old_and_new_color_spans() {
+        let mut v = setup_midline_cram_write_fixture();
+
+        v.advance(114);
+        addr(&mut v, 1, 0xC0);
+        v.write_port(0xBE, 0x0C);
+        v.advance(114);
+
+        // HPos 171 minus the comparative active-area start HPos 63 gives
+        // the current coarse commit boundary at active pixel 108.
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 107, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [0, 238, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [0, 238, 0]);
+    }
+
+    #[test]
+    fn midline_r7_write_commits_old_and_new_backdrop_spans() {
+        let mut v = setup_midline_sms1_write_fixture();
+        v.registers[1] = 0;
+        v.cram[16] = 0x03;
+        v.cram[17] = 0x0C;
+
+        v.advance(114);
+        reg(&mut v, 7, 1);
+        v.advance(114);
+
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 107, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [0, 238, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [0, 238, 0]);
+    }
+
+    #[test]
+    fn midline_vram_pattern_write_preserves_prefix_and_updates_suffix() {
+        let mut v = setup_midline_sms1_write_fixture();
+
+        v.advance(114);
+        addr(&mut v, 0, 0x40);
+        v.write_port(0xBE, 0xFF);
+        v.advance(114);
+
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 1, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 107, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 115, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [238, 0, 0]);
+    }
+
+    #[test]
+    fn multiple_midline_vram_writes_preserve_each_committed_span() {
+        let mut v = setup_midline_sms1_write_fixture();
+
+        v.advance(114);
+        addr(&mut v, 0, 0x40);
+        v.write_port(0xBE, 0xFF);
+
+        v.advance(30);
+        addr(&mut v, 0, 0x40);
+        v.write_port(0xBE, 0x00);
+        v.advance(84);
+
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 107, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 152, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 153, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [0, 0, 0]);
+    }
+
+    #[test]
+    fn midline_r0_sprite_shift_preserves_the_unshifted_prefix() {
+        let mut v = setup_midline_sms1_write_fixture();
+        v.registers[5] = 0x7F;
+        set_sprite(&mut v, 0, 0xFF, 100, 1);
+        v.vram[0x3F01] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 1);
+        v.cram[17] = 0x03;
+
+        v.advance(114);
+        // The prefix is committed by the R0 write at the current beam position.
+        reg(&mut v, 0, 0x0C);
+        v.advance(114);
+
+        assert_eq!(
+            framebuffer_pixel(&v, 100, 0),
+            [238, 0, 0],
+            "pixels already committed retain the old sprite X position"
+        );
+        assert_eq!(
+            framebuffer_pixel(&v, 92, 0),
+            [0, 0, 0],
+            "the new left shift must not redraw pixels behind the beam"
+        );
+    }
+
+    #[test]
+    fn midline_r1_display_disable_preserves_the_rendered_prefix() {
+        let mut v = setup_midline_sms1_write_fixture();
+
+        v.advance(114);
+        reg(&mut v, 1, 0x00);
+        v.advance(114);
+
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 8, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [0, 0, 0]);
+    }
+
+    #[test]
+    fn midline_r2_name_table_base_write_preserves_the_old_prefix() {
+        let mut v = setup_midline_sms1_write_fixture();
+        for column in 0..32 {
+            v.vram[0x3000 + column * 2] = 1;
+        }
+        v.vram[32] = 0xFF;
+
+        v.advance(114);
+        reg(&mut v, 2, 0x0C);
+        v.advance(114);
+
+        assert_eq!(framebuffer_pixel(&v, 0, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 1, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 107, 0), [0, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 108, 0), [238, 0, 0]);
+        assert_eq!(framebuffer_pixel(&v, 255, 0), [238, 0, 0]);
+    }
+
+    #[test]
+    fn midline_cram_raster_spans_are_chunking_invariant_and_clone_restorable() {
+        let mut whole = setup_midline_cram_write_fixture();
+        whole.advance(114);
+        addr(&mut whole, 1, 0xC0);
+        whole.write_port(0xBE, 0x0C);
+
+        let mut restored = whole.clone();
+        whole.advance(114);
+        restored.advance(57);
+        restored.advance(57);
+
+        assert_eq!(whole.raster_position(), restored.raster_position());
+        assert_eq!(whole.working_framebuffer, restored.working_framebuffer);
+        assert_eq!(whole.status(), restored.status());
+    }
+}

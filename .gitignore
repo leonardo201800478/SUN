@@ -1,0 +1,29 @@
+# Rust build output
+**/target/
+
+# Local ROMs and firmware (never commit copyrighted/protected assets)
+local-assets/roms_sg1000/
+local-assets/firmware/
+
+# Runtime logs, snapshots, and generated diagnostics
+logs/
+*.log
+*.prof
+runtime-diagnostic*.json
+*-audit-results*/
+z80-audit-results*/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and operating system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local SDL3 runtime used by the native Rust input backend
+SDL3.dll

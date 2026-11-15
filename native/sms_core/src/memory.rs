@@ -1,0 +1,1118 @@
+//! Sega and Codemasters cartridge mappers, cartridge SRAM, and 8 KiB mirrored SMS work RAM.
+//!
+//! The Sega mapper exposes three 16 KiB slots. The first 1 KiB at 0000-03FF
+//! is fixed to ROM bank 0; writes at FFFD-FFFF select the remaining slots.
+//! The Codemasters mapper pages all three slots through writes to 0000, 4000
+//! and 8000. Sega mapper writes also reach mirrored work RAM, and reads from
+//! those addresses return the RAM copy. Sega mapper SRAM is selected by $FFFC
+//! bit 3 in slot 2 and bit 2 selects one of two 16 KiB SRAM banks; 8 KiB SRAM
+//! mirrors across both banks and the 16 KiB slot.
+//!
+//! Reference: https://www.smspower.org/Development/Mappers
+//! Reference: https://www.smspower.org/Development/MemoryMap
+//! Standard cartridges retain the documented 6-bit bank-address limit (1 MiB).
+//! A distinct extended profile supports 8-bit bank addressing (4 MiB) for
+//! homebrew cartridges larger than 1 MiB with a TMR SEGA header. This models a
+//! custom mapper extension, not baseline hardware; non-power-of-two images do
+//! not gain implicit bank mirroring.
+
+use crate::{CartridgeImage, SmsCoreError};
+
+const BANK_SIZE: usize = 0x4000;
+// SMS Power documents up to six significant bank bits (1 MiB) among known
+// Sega mapper revisions; smaller revisions exist. Do not infer 4 MiB support
+// merely from the width of the software-visible register.
+const MAX_BANKS: usize = 64;
+const MAX_ROM_SIZE: usize = BANK_SIZE * MAX_BANKS;
+const MAX_EXTENDED_BANKS: usize = 256;
+const MAX_EXTENDED_ROM_SIZE: usize = BANK_SIZE * MAX_EXTENDED_BANKS;
+const RAM_SIZE: usize = 0x2000;
+const CARTRIDGE_SRAM_8K: usize = 0x2000;
+const CARTRIDGE_SRAM_16K: usize = 0x4000;
+const CARTRIDGE_SRAM_32K: usize = 0x8000;
+const RAM_START: u16 = 0xC000;
+// SMS Plus GX initializes the BIOS slot with $E0: BIOS and work RAM enabled,
+// while cartridge, card and expansion slots remain disabled. Port $3E bits
+// are active-low (SMS Power / Charles MacDonald hardware notes).
+const BIOS_POWER_ON_CONTROL: u8 = 0xE0;
+const CARTRIDGE_BOOT_CONTROL: u8 = 0xAB;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MapperKind {
+    Sega,
+    SegaExtended,
+    Codemasters,
+}
+
+fn is_bcd(value: u8) -> bool {
+    value >> 4 <= 9 && value & 0x0F <= 9
+}
+
+/// Detect the Codemasters header at $7FE0 without relying on the Sega checksum.
+///
+/// The bank count, BCD build timestamp, checksum/complement pair and zeroed
+/// reserved bytes form a narrow signature. This avoids treating arbitrary
+/// homebrew metadata (for example SDSC) as a Codemasters mapper.
+fn has_codemasters_header(rom: &[u8]) -> bool {
+    if rom.len() < 0x8000 || !rom.len().is_multiple_of(BANK_SIZE) {
+        return false;
+    }
+
+    if &rom[0x7FF0..0x7FF8] != b"TMR SEGA" {
+        return false;
+    }
+    let header = &rom[0x7FE0..0x7FF0];
+    if usize::from(header[0]) != rom.len() / BANK_SIZE
+        || !header[1..6].iter().copied().all(is_bcd)
+        || header[10..].iter().any(|value| *value != 0)
+    {
+        return false;
+    }
+
+    let day = (header[1] >> 4) * 10 + (header[1] & 0x0F);
+    let month = (header[2] >> 4) * 10 + (header[2] & 0x0F);
+    let hour = (header[4] >> 4) * 10 + (header[4] & 0x0F);
+    let minute = (header[5] >> 4) * 10 + (header[5] & 0x0F);
+    if !(1..=31).contains(&day) || !(1..=12).contains(&month) || hour > 23 || minute > 59 {
+        return false;
+    }
+
+    let checksum = u16::from_le_bytes([header[6], header[7]]);
+    let complement = u16::from_le_bytes([header[8], header[9]]);
+    checksum.wrapping_add(complement) == 0
+}
+
+fn has_sega_header(rom: &[u8]) -> bool {
+    rom.len() >= 0x8000 && &rom[0x7FF0..0x7FF8] == b"TMR SEGA"
+}
+
+fn detect_mapper(rom: &CartridgeImage) -> MapperKind {
+    if has_codemasters_header(rom.bytes()) {
+        MapperKind::Codemasters
+    } else if rom.len() > MAX_ROM_SIZE
+        && rom.len().is_multiple_of(BANK_SIZE)
+        && has_sega_header(rom.bytes())
+    {
+        // Homebrew 4 MiB cartridges can use an extended 8-bit bank latch.
+        // This is not the standard six-address-bit Sega mapper profile.
+        MapperKind::SegaExtended
+    } else {
+        MapperKind::Sega
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SmsMemory {
+    rom: CartridgeImage,
+    mapper: MapperKind,
+    mapper_control: u8,
+    bank_registers: [u8; 3],
+    work_ram: [u8; RAM_SIZE],
+    /// Battery-backed cartridge RAM (8 KiB mirrored or two 16 KiB banks).
+    cartridge_sram: Option<Vec<u8>>,
+    bios: Option<Box<[u8]>>,
+    control_port: u8,
+    #[cfg(test)]
+    mapper_register_write_count: u64,
+}
+
+impl SmsMemory {
+    /// Return the immutable cartridge ROM bytes for save-state identity checks.
+    pub fn rom_bytes(&self) -> &[u8] {
+        self.rom.bytes()
+    }
+
+    pub fn new(rom: CartridgeImage) -> Result<Self, SmsCoreError> {
+        Self::with_bios(rom, None)
+    }
+
+    /// Construct memory with an optional user-supplied 8 KiB SMS BIOS.
+    /// The complete BIOS image is mapped at $0000-$1FFF while enabled.
+    pub fn with_bios(rom: CartridgeImage, bios: Option<Vec<u8>>) -> Result<Self, SmsCoreError> {
+        // Cartridge capacity is hardware metadata, never inferred from ROM
+        // length or mapper kind. Unknown cartridges start without SRAM.
+        Self::with_bios_and_sram_size(rom, bios, None)
+    }
+
+    /// Construct a cartridge with an explicit battery-backed SRAM capacity.
+    /// Supported capacities are 8 KiB (mirrored), 16 KiB (one full slot),
+    /// and 32 KiB (two independently selected 16 KiB pages via $FFFC bit 2).
+    pub fn with_cartridge_sram_size(
+        rom: CartridgeImage,
+        sram_size: Option<usize>,
+    ) -> Result<Self, SmsCoreError> {
+        Self::with_bios_and_sram_size(rom, None, sram_size)
+    }
+
+    /// Construct memory with explicit BIOS and cartridge SRAM hardware.
+    pub fn with_bios_and_sram_size(
+        rom: CartridgeImage,
+        bios: Option<Vec<u8>>,
+        sram_size: Option<usize>,
+    ) -> Result<Self, SmsCoreError> {
+        let mapper = detect_mapper(&rom);
+        let max_rom_size = match mapper {
+            MapperKind::SegaExtended => MAX_EXTENDED_ROM_SIZE,
+            MapperKind::Sega | MapperKind::Codemasters => MAX_ROM_SIZE,
+        };
+        if rom.len() > max_rom_size {
+            sega_observability::tracing::error!(
+                target: "sega::mapper",
+                mapper = ?mapper,
+                rom_bytes = rom.len(),
+                maximum_rom_bytes = max_rom_size,
+                "cartridge image exceeds mapper address capacity"
+            );
+            return Err(SmsCoreError::RomTooLargeForSegaMapper {
+                size: rom.len(),
+                max_size: max_rom_size,
+            });
+        }
+
+        if bios.as_ref().is_some_and(|image| image.len() != 0x2000) {
+            sega_observability::tracing::error!(
+                target: "sega::mapper",
+                bios_bytes = bios.as_ref().map_or(0, Vec::len),
+                expected_bios_bytes = 0x2000,
+                "invalid SMS BIOS image size"
+            );
+            return Err(SmsCoreError::InvalidBiosSize {
+                size: bios.as_ref().map_or(0, Vec::len),
+                expected: 0x2000,
+            });
+        }
+
+        if sram_size.is_some_and(|size| {
+            size != CARTRIDGE_SRAM_8K && size != CARTRIDGE_SRAM_16K && size != CARTRIDGE_SRAM_32K
+        }) {
+            return Err(SmsCoreError::InvalidCartridgeRamSize {
+                size: sram_size.unwrap_or_default(),
+                expected: CARTRIDGE_SRAM_8K,
+            });
+        }
+        if sram_size.is_some() && !matches!(mapper, MapperKind::Sega | MapperKind::SegaExtended) {
+            return Err(SmsCoreError::InvalidCartridgeRamSize {
+                size: sram_size.unwrap_or_default(),
+                expected: CARTRIDGE_SRAM_8K,
+            });
+        }
+
+        let bank_registers = match mapper {
+            MapperKind::Sega | MapperKind::SegaExtended => [0, 1, 2],
+            MapperKind::Codemasters => [0, 1, 0],
+        };
+
+        // Power-on with BIOS: BIOS and work RAM enabled; cartridge, card and
+        // expansion slots disabled. Without BIOS, emulate the normal post-BIOS
+        // cartridge profile so legacy direct boot remains available.
+        let control_port = if bios.is_some() {
+            BIOS_POWER_ON_CONTROL
+        } else {
+            CARTRIDGE_BOOT_CONTROL
+        };
+        sega_observability::tracing::info!(
+            target: "sega::mapper",
+            mapper = ?mapper,
+            rom_bytes = rom.len(),
+            rom_banks = rom.len() / BANK_SIZE,
+            maximum_rom_bytes = max_rom_size,
+            bios_present = bios.is_some(),
+            bios_bytes = bios.as_ref().map_or(0, Vec::len),
+            selected_banks = ?bank_registers,
+            memory_control = control_port,
+            "SMS cartridge mapper selected"
+        );
+        Ok(Self {
+            rom,
+            mapper,
+            mapper_control: 0,
+            bank_registers,
+            work_ram: [0; RAM_SIZE],
+            // Keep cartridge RAM separate from console work RAM. Its capacity
+            // is hardware metadata supplied by the cartridge profile.
+            cartridge_sram: sram_size.map(|size| vec![0; size]),
+            bios: bios.map(Vec::into_boxed_slice),
+            control_port,
+            #[cfg(test)]
+            mapper_register_write_count: 0,
+        })
+    }
+
+    #[inline]
+    pub fn read(&self, address: u16) -> u8 {
+        if address <= 0xBFFF && self.control_port & 0x40 != 0 {
+            if address <= 0x1FFF && self.bios.is_some() && self.control_port & 0x08 == 0 {
+                return self
+                    .bios
+                    .as_ref()
+                    .map_or(0xFF, |bios| bios[usize::from(address)]);
+            }
+            return 0xFF;
+        }
+        // On the original SMS, the cartridge wins if both cartridge and BIOS
+        // are enabled. SMS 2 has a distinct wired-AND behavior and is not the
+        // hardware profile modeled by this core.
+        match address {
+            0x0000..=0x3FFF => {
+                if matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
+                    && address <= 0x03FF
+                {
+                    self.read_rom_offset(usize::from(address))
+                } else {
+                    self.read_bank(self.bank_registers[0], usize::from(address))
+                }
+            }
+            0x4000..=0x7FFF => {
+                self.read_bank(self.bank_registers[1], usize::from(address) - 0x4000)
+            }
+            0x8000..=0xBFFF => {
+                let offset = usize::from(address) - 0x8000;
+                if matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
+                    && self.mapper_control & 0x08 != 0
+                {
+                    self.cartridge_sram.as_ref().map_or(0xFF, |sram| {
+                        let bank_offset = usize::from((self.mapper_control >> 2) & 1) * BANK_SIZE;
+                        sram[(bank_offset + offset) % sram.len()]
+                    })
+                } else {
+                    self.read_bank(self.bank_registers[2], offset)
+                }
+            }
+            0xC000..=0xFFFF => {
+                if self.control_port & 0x10 != 0 {
+                    if self.control_port & 0x40 == 0
+                        && matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
+                        && self.mapper_control & 0x10 != 0
+                    {
+                        self.cartridge_sram.as_ref().map_or(0xFF, |sram| {
+                            let offset = usize::from(address - RAM_START) % sram.len();
+                            sram[offset]
+                        })
+                    } else {
+                        0xFF
+                    }
+                } else {
+                    self.work_ram[usize::from(address - RAM_START) & (RAM_SIZE - 1)]
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub fn write(&mut self, address: u16, value: u8) {
+        let previous_mapper_control = self.mapper_control;
+        let previous_banks = self.bank_registers;
+        // Work RAM is mirrored through FFFF. Mapper writes update both the
+        // mapper register and the RAM mirror at the same logical address.
+        if address >= RAM_START && self.control_port & 0x10 == 0 {
+            self.work_ram[usize::from(address - RAM_START) & (RAM_SIZE - 1)] = value;
+        }
+
+        // Sega mapper bit 3 replaces slot 2 ROM with cartridge SRAM. An 8 KiB
+        // device mirrors across both bank selections; 32 KiB devices expose
+        // two independent 16 KiB pages selected by bit 2.
+        if (0x8000..=0xBFFF).contains(&address)
+            && self.control_port & 0x40 == 0
+            && matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
+            && self.mapper_control & 0x08 != 0
+        {
+            if let Some(sram) = self.cartridge_sram.as_mut() {
+                let offset = usize::from(address - 0x8000);
+                let bank_offset = usize::from((self.mapper_control >> 2) & 1) * BANK_SIZE;
+                let index = (bank_offset + offset) % sram.len();
+                sram[index] = value;
+            }
+            return;
+        }
+
+        // The mapper registers belong to the cartridge slot. A BIOS-only
+        // power-on profile must not mutate a disabled cartridge mapper.
+        if self.control_port & 0x40 == 0 {
+            match self.mapper {
+                MapperKind::Sega | MapperKind::SegaExtended => match address {
+                    0xFFFC => self.mapper_control = value,
+                    0xFFFD => self.bank_registers[0] = value,
+                    0xFFFE => self.bank_registers[1] = value,
+                    0xFFFF => self.bank_registers[2] = value,
+                    _ => {}
+                },
+                MapperKind::Codemasters => match address {
+                    0x0000..=0x3FFF => self.bank_registers[0] = value,
+                    0x4000..=0x7FFF => self.bank_registers[1] = value,
+                    0x8000..=0xBFFF => self.bank_registers[2] = value,
+                    _ => {}
+                },
+            }
+            #[cfg(test)]
+            if matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
+                && matches!(address, 0xFFFD..=0xFFFF)
+            {
+                self.mapper_register_write_count += 1;
+            }
+        }
+
+        // $FFFC bit 4 selects cartridge RAM in $C000-$FFFF when internal work RAM is disabled.
+        // The upper window mirrors 8 KiB devices and exposes the lower 16 KiB page of 32 KiB devices.
+        if address >= RAM_START
+            && self.control_port & 0x10 != 0
+            && self.control_port & 0x40 == 0
+            && matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
+            && self.mapper_control & 0x10 != 0
+            && let Some(sram) = self.cartridge_sram.as_mut()
+        {
+            let offset = usize::from(address - RAM_START) % sram.len();
+            sram[offset] = value;
+        }
+
+        if previous_mapper_control != self.mapper_control || previous_banks != self.bank_registers {
+            sega_observability::tracing::trace!(
+                target: "sega::mapper",
+                mapper = ?self.mapper,
+                address,
+                value,
+                previous_control = previous_mapper_control,
+                control = self.mapper_control,
+                previous_banks = ?previous_banks,
+                selected_banks = ?self.bank_registers,
+                "cartridge mapper register changed"
+            );
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn mapper_register_write_count_for_test(&self) -> u64 {
+        self.mapper_register_write_count
+    }
+
+    #[inline]
+    fn read_bank(&self, bank: u8, offset: usize) -> u8 {
+        let bank_count = self.rom.len() / BANK_SIZE;
+        let bank = if self.rom.len().is_multiple_of(BANK_SIZE) && bank_count.is_power_of_two() {
+            // For power-of-two ROM sizes, unconnected high bank-address lines
+            // mirror the physical ROM. SMS Power documents this aliasing.
+            usize::from(bank) & (bank_count - 1)
+        } else {
+            // Non-power-of-two images need mapper-specific evidence; keep this
+            // slice deterministic rather than claiming hardware-accurate aliasing.
+            usize::from(bank)
+        };
+        self.read_rom_offset(bank * BANK_SIZE + offset)
+    }
+
+    #[inline]
+    fn read_rom_offset(&self, offset: usize) -> u8 {
+        let rom_size = self.rom.len();
+        // Small power-of-two ROMs (for example 8 KiB images) leave address
+        // lines unconnected and mirror through the 16 KiB CPU window.
+        // For non-power-of-two images, do not invent aliasing behavior.
+        let physical_offset = if rom_size.is_power_of_two() {
+            offset & (rom_size - 1)
+        } else {
+            offset
+        };
+        self.rom
+            .bytes()
+            .get(physical_offset)
+            .copied()
+            .unwrap_or(0xFF)
+    }
+
+    pub fn work_ram(&self) -> &[u8] {
+        &self.work_ram
+    }
+
+    /// Return the battery-backed cartridge SRAM contents, if this cartridge
+    /// profile exposes a Sega-mapper RAM device.
+    pub fn cartridge_sram(&self) -> Option<&[u8]> {
+        self.cartridge_sram.as_deref()
+    }
+
+    /// Restore an image matching the configured cartridge SRAM capacity.
+    pub fn load_cartridge_sram(&mut self, contents: &[u8]) -> Result<(), SmsCoreError> {
+        let Some(sram) = self.cartridge_sram.as_mut() else {
+            return Err(SmsCoreError::InvalidCartridgeRamSize {
+                size: contents.len(),
+                expected: CARTRIDGE_SRAM_8K,
+            });
+        };
+        if contents.len() != sram.len() {
+            return Err(SmsCoreError::InvalidCartridgeRamSize {
+                size: contents.len(),
+                expected: sram.len(),
+            });
+        }
+        sram.copy_from_slice(contents);
+        Ok(())
+    }
+
+    pub fn selected_banks(&self) -> [u8; 3] {
+        self.bank_registers
+    }
+
+    pub fn mapper_control(&self) -> u8 {
+        self.mapper_control
+    }
+
+    /// Apply the SMS memory-control latch written through I/O port $3E.
+    #[inline]
+    pub fn write_control_port(&mut self, value: u8) {
+        let previous = self.control_port;
+        self.control_port = value;
+        if previous != value {
+            sega_observability::tracing::debug!(
+                target: "sega::mapper",
+                previous,
+                value,
+                bios_enabled = self.bios_enabled(),
+                "SMS memory-control latch changed"
+            );
+        }
+    }
+
+    pub fn reset_control_port(&mut self) {
+        let previous = self.control_port;
+        self.control_port = if self.bios.is_some() {
+            BIOS_POWER_ON_CONTROL
+        } else {
+            CARTRIDGE_BOOT_CONTROL
+        };
+        sega_observability::tracing::debug!(
+            target: "sega::mapper",
+            previous,
+            value = self.control_port,
+            bios_enabled = self.bios_enabled(),
+            "SMS memory-control latch reset"
+        );
+    }
+
+    pub fn control_port(&self) -> u8 {
+        self.control_port
+    }
+
+    pub fn bios_enabled(&self) -> bool {
+        self.bios.is_some() && self.control_port & 0x08 == 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BANK_SIZE, BIOS_POWER_ON_CONTROL, CARTRIDGE_SRAM_8K, CARTRIDGE_SRAM_16K,
+        CARTRIDGE_SRAM_32K, MAX_EXTENDED_BANKS, MAX_EXTENDED_ROM_SIZE, MAX_ROM_SIZE, MapperKind,
+        RAM_SIZE, SmsMemory,
+    };
+    use crate::{CartridgeImage, SmsCoreError};
+
+    fn patterned_rom(bank_count: usize) -> CartridgeImage {
+        let mut bytes = vec![0; bank_count * BANK_SIZE];
+        for bank in 0..bank_count {
+            let start = bank * BANK_SIZE;
+            bytes[start..start + BANK_SIZE].fill(bank as u8);
+        }
+        CartridgeImage::new(bytes).unwrap()
+    }
+
+    #[test]
+    fn mirrors_small_power_of_two_roms_across_the_16k_window() {
+        let mut bytes = vec![0x12; 0x2000];
+        bytes[0x1000..].fill(0x34);
+        let memory = SmsMemory::new(CartridgeImage::new(bytes).unwrap()).unwrap();
+
+        assert_eq!(memory.read(0x0000), 0x12);
+        assert_eq!(memory.read(0x1000), 0x34);
+        assert_eq!(memory.read(0x2000), 0x12);
+        assert_eq!(memory.read(0x3000), 0x34);
+        assert_eq!(memory.read(0x4000), 0x12);
+        assert_eq!(memory.read(0x5000), 0x34);
+    }
+
+    #[test]
+    fn maps_fixed_first_kib_and_three_banked_slots() {
+        let mut memory = SmsMemory::new(patterned_rom(4)).unwrap();
+        assert_eq!(memory.read(0x0000), 0);
+        assert_eq!(memory.read(0x03FF), 0);
+        assert_eq!(memory.read(0x0400), 0);
+        assert_eq!(memory.read(0x3FFF), 0);
+        assert_eq!(memory.read(0x4000), 1);
+        assert_eq!(memory.read(0x8000), 2);
+
+        memory.write(0xFFFD, 3);
+        assert_eq!(memory.read(0x0400), 3);
+        assert_eq!(memory.read(0x03FF), 0, "first 1 KiB remains fixed");
+
+        memory.write(0xFFFE, 2);
+        memory.write(0xFFFF, 1);
+        assert_eq!(memory.selected_banks(), [3, 2, 1]);
+        assert_eq!(memory.read(0x4000), 2);
+        assert_eq!(memory.read(0x8000), 1);
+    }
+
+    #[test]
+    fn slot_zero_preserves_bank_offset_after_fixed_vector_area() {
+        let mut bytes = vec![0; 4 * BANK_SIZE];
+        bytes[0x03FF] = 0x3F;
+        bytes[0x0400] = 0x40;
+        bytes[0x3FFF] = 0x4F;
+        bytes[3 * BANK_SIZE + 0x0400] = 0xD0;
+        bytes[3 * BANK_SIZE + 0x3FFF] = 0xDF;
+        let rom = CartridgeImage::new(bytes).unwrap();
+        let mut memory = SmsMemory::new(rom).unwrap();
+
+        assert_eq!(memory.read(0x03FF), 0x3F);
+        assert_eq!(memory.read(0x0400), 0x40);
+        assert_eq!(memory.read(0x3FFF), 0x4F);
+
+        memory.write(0xFFFD, 3);
+        assert_eq!(memory.read(0x03FF), 0x3F);
+        assert_eq!(memory.read(0x0400), 0xD0);
+        assert_eq!(memory.read(0x3FFF), 0xDF);
+    }
+
+    #[test]
+    fn mirrors_work_ram_across_the_upper_address_window() {
+        let mut memory = SmsMemory::new(patterned_rom(1)).unwrap();
+        memory.write(0xC000, 0xA5);
+        assert_eq!(memory.read(0xC000), 0xA5);
+        assert_eq!(memory.read(0xE000), 0xA5);
+        memory.write(0xDFFF, 0x5A);
+        assert_eq!(memory.read(0xFFFF), 0x5A);
+        assert_eq!(memory.work_ram().len(), RAM_SIZE);
+    }
+
+    #[test]
+    fn mapper_register_writes_also_update_the_ram_mirror() {
+        let mut memory = SmsMemory::new(patterned_rom(4)).unwrap();
+
+        memory.write(0xFFFC, 0x08);
+        assert_eq!(memory.mapper_control(), 0x08);
+        assert_eq!(memory.read(0xDFFC), 0x08);
+        assert_eq!(memory.read(0xFFFC), 0x08);
+
+        memory.write(0xFFFD, 3);
+        assert_eq!(memory.selected_banks()[0], 3);
+        assert_eq!(memory.read(0xDFFD), 3);
+        assert_eq!(memory.read(0xFFFD), 3);
+    }
+
+    #[test]
+    fn power_of_two_rom_banks_mirror_when_bank_register_exceeds_size() {
+        let mut memory = SmsMemory::new(patterned_rom(2)).unwrap();
+        memory.write(0xFFFE, 0xFF);
+        assert_eq!(memory.read(0x4000), 1);
+    }
+
+    #[test]
+    fn non_power_of_two_rom_does_not_assume_bank_aliasing() {
+        let mut memory = SmsMemory::new(patterned_rom(3)).unwrap();
+        memory.write(0xFFFE, 3);
+        assert_eq!(memory.read(0x4000), 0xFF);
+    }
+
+    #[test]
+    fn rejects_rom_beyond_standard_mapper_range_without_truncation() {
+        let image = CartridgeImage::new(vec![0xAA; MAX_ROM_SIZE + 1]).unwrap();
+        assert_eq!(
+            SmsMemory::new(image).unwrap_err(),
+            SmsCoreError::RomTooLargeForSegaMapper {
+                size: MAX_ROM_SIZE + 1,
+                max_size: MAX_ROM_SIZE,
+            }
+        );
+    }
+
+    fn extended_sega_rom() -> CartridgeImage {
+        let mut bytes = vec![0; MAX_EXTENDED_ROM_SIZE];
+        for bank in 0..MAX_EXTENDED_BANKS {
+            let start = bank * BANK_SIZE;
+            bytes[start..start + BANK_SIZE].fill(bank as u8);
+        }
+        bytes[0x7FF0..0x7FF8].copy_from_slice(b"TMR SEGA");
+        CartridgeImage::new(bytes).unwrap()
+    }
+
+    #[test]
+    fn extended_sega_mapper_addresses_all_256_banks() {
+        let mut memory = SmsMemory::new(extended_sega_rom()).unwrap();
+
+        assert_eq!(memory.mapper, MapperKind::SegaExtended);
+        assert_eq!(memory.read(0x0000), 0);
+        assert_eq!(memory.read(0x03FF), 0);
+        assert_eq!(memory.read(0x0400), 0);
+        assert_eq!(memory.read(0x8000), 2);
+
+        memory.write(0xFFFF, 0x80);
+        assert_eq!(memory.read(0x8000), 0x80);
+        memory.write(0xFFFF, 0xFF);
+        assert_eq!(memory.read(0x8000), 0xFF);
+    }
+
+    #[test]
+    fn extended_sega_mapper_rejects_images_above_four_mib() {
+        let mut bytes = vec![0xAA; MAX_EXTENDED_ROM_SIZE + BANK_SIZE];
+        bytes[0x7FF0..0x7FF8].copy_from_slice(b"TMR SEGA");
+        let image = CartridgeImage::new(bytes).unwrap();
+
+        assert_eq!(
+            SmsMemory::new(image).unwrap_err(),
+            SmsCoreError::RomTooLargeForSegaMapper {
+                size: MAX_EXTENDED_ROM_SIZE + BANK_SIZE,
+                max_size: MAX_EXTENDED_ROM_SIZE,
+            }
+        );
+    }
+
+    fn codemasters_rom(bank_count: usize) -> CartridgeImage {
+        let mut bytes = vec![0; bank_count * BANK_SIZE];
+        for bank in 0..bank_count {
+            let start = bank * BANK_SIZE;
+            bytes[start..start + BANK_SIZE].fill(bank as u8);
+        }
+
+        let header = [
+            bank_count as u8,
+            0x31,
+            0x08,
+            0x93,
+            0x10,
+            0x59,
+            0xC5,
+            0x1B,
+            0x3B,
+            0xE4,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ];
+        bytes[0x7FE0..0x7FF0].copy_from_slice(&header);
+        bytes[0x7FF0..0x7FF8].copy_from_slice(b"TMR SEGA");
+        CartridgeImage::new(bytes).unwrap()
+    }
+
+    #[test]
+    fn codemasters_header_selects_its_three_slot_mapper() {
+        let mut memory = SmsMemory::new(codemasters_rom(16)).unwrap();
+
+        assert_eq!(memory.bank_registers, [0, 1, 0]);
+        assert_eq!(memory.read(0x0000), 0);
+        assert_eq!(memory.read(0x4000), 1);
+        assert_eq!(memory.read(0x8000), 0);
+
+        // Codemasters has no fixed first 1 KiB and decodes writes throughout
+        // each 16 KiB slot, unlike the standard Sega mapper.
+        memory.write(0x0000, 5);
+        memory.write(0x4000, 6);
+        memory.write(0x8000, 7);
+
+        assert_eq!(memory.read(0x0000), 5);
+        assert_eq!(memory.read(0x4000), 6);
+        assert_eq!(memory.read(0x8000), 7);
+    }
+
+    #[test]
+    fn codemasters_mapper_registers_stay_disabled_during_bios_power_on() {
+        let mut memory =
+            SmsMemory::with_bios(codemasters_rom(16), Some(vec![0xA5; 0x2000])).unwrap();
+
+        memory.write(0x4000, 7);
+
+        assert_eq!(memory.bank_registers, [0, 1, 0]);
+        assert_eq!(memory.control_port, BIOS_POWER_ON_CONTROL);
+    }
+
+    #[test]
+    fn invalid_codemasters_metadata_keeps_the_sega_mapper() {
+        let mut rom = codemasters_rom(16);
+        let mut bytes = rom.bytes().to_vec();
+        bytes[0x7FE9] ^= 0x01;
+        rom = CartridgeImage::new(bytes).unwrap();
+        let memory = SmsMemory::new(rom).unwrap();
+
+        assert_eq!(memory.mapper, MapperKind::Sega);
+        assert_eq!(memory.selected_banks(), [0, 1, 2]);
+    }
+
+    #[test]
+    fn bios_maps_all_eight_kib_and_can_be_disabled() {
+        let rom = patterned_rom(2);
+        let mut bios = vec![0xA5; 0x2000];
+        bios[0x03FF] = 0x5A;
+        bios[0x0400] = 0x6B;
+        bios[0x1FFF] = 0x7C;
+        let mut memory = SmsMemory::with_bios(rom, Some(bios)).unwrap();
+        assert!(memory.bios_enabled());
+        assert_eq!(memory.read(0x0000), 0xA5);
+        assert_eq!(memory.read(0x03FF), 0x5A);
+        assert_eq!(memory.read(0x0400), 0x6B);
+        assert_eq!(memory.read(0x1FFF), 0x7C);
+        assert_eq!(
+            memory.read(0x2000),
+            0xFF,
+            "disabled cartridge slot remains unmapped outside the 8 KiB BIOS"
+        );
+        memory.write_control_port(0x08);
+        assert!(!memory.bios_enabled());
+        assert_eq!(memory.read(0x0000), 0x00);
+        assert_eq!(memory.read(0x0400), 0x00);
+    }
+
+    #[test]
+    fn bios_power_on_profile_matches_sms_slot_and_ram_latches() {
+        let mut memory = SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
+        assert_eq!(memory.control_port(), 0xE0);
+        assert!(memory.bios_enabled());
+        assert_eq!(memory.read(0x0000), 0xA5);
+        assert_eq!(memory.read(0x0400), 0xA5);
+        assert_eq!(memory.read(0xC000), 0x00);
+        memory.write(0xC000, 0x5A);
+        assert_eq!(memory.read(0xC000), 0x5A);
+        assert!(
+            memory.bios_enabled(),
+            "RAM access must not disable the BIOS overlay"
+        );
+    }
+
+    #[test]
+    fn cartridge_has_priority_when_bios_and_cartridge_slots_are_both_enabled() {
+        let mut memory = SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
+        memory.write_control_port(0xA0); // BIOS + cartridge + work RAM enabled.
+        assert_eq!(memory.read(0x0000), 0x00);
+        assert_eq!(memory.read(0x2000), 0x00);
+    }
+
+    #[test]
+    fn cartridge_boot_profile_matches_post_bios_slot_and_ram_latches() {
+        let memory = SmsMemory::new(patterned_rom(1)).unwrap();
+        assert_eq!(memory.control_port(), 0xAB);
+        assert!(!memory.bios_enabled());
+        assert_eq!(memory.read(0x0000), 0x00);
+        assert_eq!(memory.read(0xC000), 0x00);
+    }
+
+    #[test]
+    fn cartridge_slot_disable_returns_open_bus_without_disabling_work_ram() {
+        let mut memory = SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
+        memory.write_control_port(0x40);
+        assert_eq!(
+            memory.read(0x0400),
+            0xA5,
+            "BIOS remains mapped while its disable bit is clear"
+        );
+        assert_eq!(memory.read(0xC000), 0x00);
+        assert_eq!(memory.read(0x0000), 0xA5);
+    }
+
+    #[test]
+    fn disabled_cartridge_slot_does_not_receive_mapper_register_writes() {
+        let mut memory = SmsMemory::with_bios(patterned_rom(3), Some(vec![0xA5; 0x2000])).unwrap();
+        assert_eq!(memory.selected_banks(), [0, 1, 2]);
+        memory.write(0xFFFD, 0x07);
+        assert_eq!(memory.selected_banks(), [0, 1, 2]);
+
+        memory.write_control_port(0xAB);
+        memory.write(0xFFFD, 0x07);
+        assert_eq!(memory.selected_banks(), [0x07, 1, 2]);
+    }
+
+    #[test]
+    fn memory_control_port_can_disable_and_reenable_work_ram() {
+        let mut memory = SmsMemory::new(patterned_rom(1)).unwrap();
+        memory.write(0xC000, 0x5A);
+        memory.write_control_port(0x18);
+        assert_eq!(memory.read(0xC000), 0xFF);
+        memory.write(0xC000, 0xA5);
+        memory.write_control_port(0x08);
+        assert_eq!(memory.read(0xC000), 0x5A);
+    }
+
+    #[test]
+    fn rejects_bios_with_wrong_size() {
+        let error = SmsMemory::with_bios(patterned_rom(1), Some(vec![0x00; 0x400])).unwrap_err();
+        assert_eq!(
+            error,
+            SmsCoreError::InvalidBiosSize {
+                size: 0x400,
+                expected: 0x2000
+            }
+        );
+    }
+
+    #[test]
+    fn sega_mapper_maps_and_mirrors_eight_kib_cartridge_sram() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_8K)).unwrap();
+        assert_eq!(memory.cartridge_sram().unwrap().len(), CARTRIDGE_SRAM_8K);
+        assert_eq!(
+            memory.read(0x8000),
+            2,
+            "ROM remains visible until SRAM is enabled"
+        );
+
+        memory.write(0xFFFC, 0x08);
+        memory.write(0x8000, 0xA5);
+        memory.write(0x9FFF, 0x5A);
+        assert_eq!(memory.read(0x8000), 0xA5);
+        assert_eq!(memory.read(0xA000), 0xA5, "8 KiB SRAM mirrors at +$2000");
+        assert_eq!(memory.read(0x9FFF), 0x5A);
+        assert_eq!(memory.read(0xBFFF), 0x5A, "upper 8 KiB mirrors lower 8 KiB");
+        assert_eq!(memory.read(0xC000), 0x00, "system RAM remains independent");
+
+        memory.write(0xFFFC, 0x00);
+        assert_eq!(
+            memory.read(0x8000),
+            2,
+            "ROM bank is visible when SRAM is disabled"
+        );
+    }
+
+    #[test]
+    fn sega_mapper_selects_second_sram_bank_with_control_bit_two() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_32K))
+                .unwrap();
+
+        memory.write(0xFFFC, 0x08);
+        memory.write(0x8000, 0x11);
+        assert_eq!(memory.read(0x8000), 0x11);
+
+        memory.write(0xFFFC, 0x0C);
+        assert_eq!(memory.read(0x8000), 0x00, "second SRAM bank is independent");
+        memory.write(0x8000, 0x22);
+        assert_eq!(memory.read(0x8000), 0x22);
+
+        memory.write(0xFFFC, 0x08);
+        assert_eq!(memory.read(0x8000), 0x11, "first SRAM bank is retained");
+    }
+
+    #[test]
+    fn mapper_bit_four_maps_cartridge_sram_into_high_window_when_system_ram_is_disabled() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_16K))
+                .unwrap();
+
+        // Port $3E bit 4 disables internal work RAM; bit 6 remains clear
+        // so the cartridge is connected.
+        memory.write_control_port(0x18);
+        memory.write(0xFFFC, 0x10);
+        memory.write(0xC000, 0xA5);
+        memory.write(0xDFFF, 0x5A);
+        memory.write(0xE000, 0x3C);
+        memory.write(0xFFFF, 0xC3);
+
+        assert_eq!(memory.read(0xC000), 0xA5);
+        assert_eq!(memory.read(0xDFFF), 0x5A);
+        assert_eq!(memory.read(0xE000), 0x3C);
+        assert_eq!(memory.read(0xFFFF), 0xC3);
+        assert_eq!(
+            memory.work_ram()[0],
+            0,
+            "internal work RAM remains isolated"
+        );
+    }
+
+    #[test]
+    fn mapper_bit_four_high_window_mirrors_eight_kib_and_uses_lower_page_of_32k() {
+        let mut eight_k =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_8K)).unwrap();
+        eight_k.write_control_port(0x18);
+        eight_k.write(0xFFFC, 0x10);
+        eight_k.write(0xC123, 0x61);
+        assert_eq!(eight_k.read(0xE123), 0x61);
+
+        let mut thirty_two_k =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_32K))
+                .unwrap();
+        thirty_two_k.write_control_port(0x18);
+        thirty_two_k.write(0xFFFC, 0x1C);
+        thirty_two_k.write(0xC000, 0x11);
+        thirty_two_k.write(0x8000, 0x22);
+        assert_eq!(thirty_two_k.read(0xC000), 0x11);
+        assert_eq!(thirty_two_k.read(0x8000), 0x22);
+        thirty_two_k.write(0xFFFC, 0x18);
+        assert_eq!(
+            thirty_two_k.read(0x8000),
+            0x11,
+            "slot-2 bank 0 aliases the lower page exposed in the high window"
+        );
+        assert_eq!(thirty_two_k.read(0xC000), 0x11);
+    }
+
+    #[test]
+    fn mapper_register_overlay_reads_and_writes_the_selected_high_window_ram() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_16K))
+                .unwrap();
+        memory.write_control_port(0x18);
+
+        memory.write(0xFFFC, 0x10);
+        memory.write(0xFFFD, 0x23);
+        memory.write(0xFFFE, 0x34);
+        memory.write(0xFFFF, 0x45);
+
+        assert_eq!(memory.mapper_control(), 0x10);
+        assert_eq!(memory.selected_banks(), [0x23, 0x34, 0x45]);
+        assert_eq!(memory.read(0xFFFC), 0x10);
+        assert_eq!(memory.read(0xFFFD), 0x23);
+        assert_eq!(memory.read(0xFFFE), 0x34);
+        assert_eq!(memory.read(0xFFFF), 0x45);
+    }
+
+    #[test]
+    fn high_window_sram_is_not_visible_when_system_ram_or_cartridge_is_disabled() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_16K))
+                .unwrap();
+        memory.write(0xC000, 0xA5);
+        memory.write_control_port(0x08);
+        memory.write(0xFFFC, 0x10);
+        assert_eq!(
+            memory.read(0xC000),
+            0xA5,
+            "enabled internal RAM has priority"
+        );
+
+        memory.write_control_port(0x58);
+        assert_eq!(
+            memory.read(0xC000),
+            0xFF,
+            "disabled cartridge does not expose SRAM"
+        );
+    }
+
+    #[test]
+    fn unknown_sega_mapper_cartridge_does_not_infer_sram_from_rom_size() {
+        let memory = SmsMemory::new(patterned_rom(4)).unwrap();
+        assert!(memory.cartridge_sram().is_none());
+    }
+
+    #[test]
+    fn sixteen_kib_sram_is_one_page_and_aliases_when_bit_two_changes() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_16K))
+                .unwrap();
+        memory.write(0xFFFC, 0x08);
+        memory.write(0x8000, 0x31);
+        memory.write(0xBFFF, 0x7E);
+        memory.write(0xFFFC, 0x0C);
+        assert_eq!(memory.read(0x8000), 0x31);
+        assert_eq!(memory.read(0xBFFF), 0x7E);
+    }
+
+    #[test]
+    fn eight_kib_sram_mirrors_across_both_sram_bank_selections() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_8K)).unwrap();
+        memory.write(0xFFFC, 0x08);
+        memory.write(0x8000, 0x5A);
+        memory.write(0xFFFC, 0x0C);
+        assert_eq!(memory.read(0x8000), 0x5A);
+    }
+
+    #[test]
+    fn rejects_unsupported_cartridge_sram_capacity() {
+        let error =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(0x6000)).unwrap_err();
+        assert_eq!(
+            error,
+            SmsCoreError::InvalidCartridgeRamSize {
+                size: 0x6000,
+                expected: CARTRIDGE_SRAM_8K,
+            }
+        );
+    }
+
+    #[test]
+    fn disabled_cartridge_slot_rejects_sram_writes() {
+        let mut memory = SmsMemory::with_bios_and_sram_size(
+            patterned_rom(4),
+            Some(vec![0xA5; 0x2000]),
+            Some(CARTRIDGE_SRAM_8K),
+        )
+        .unwrap();
+        memory.write_control_port(0xAB);
+        memory.write(0xFFFC, 0x08);
+        memory.write(0x8000, 0x11);
+        assert_eq!(memory.cartridge_sram().unwrap()[0], 0x11);
+
+        memory.write_control_port(0xEB);
+        memory.write(0x8000, 0x22);
+        assert_eq!(memory.cartridge_sram().unwrap()[0], 0x11);
+        assert_eq!(memory.read(0x8000), 0xFF);
+    }
+
+    #[test]
+    fn cartridge_sram_contents_survive_memory_clone_and_explicit_reload() {
+        let mut memory =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_8K)).unwrap();
+        memory.write(0xFFFC, 0x08);
+        memory.write(0x8123, 0xC7);
+
+        let cloned = memory.clone();
+        assert_eq!(cloned.cartridge_sram().unwrap()[0x123], 0xC7);
+
+        let mut reloaded =
+            SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_8K)).unwrap();
+        reloaded
+            .load_cartridge_sram(memory.cartridge_sram().unwrap())
+            .unwrap();
+        reloaded.write(0xFFFC, 0x08);
+        assert_eq!(reloaded.read(0x8123), 0xC7);
+    }
+
+    #[test]
+    fn codemasters_mapper_does_not_expose_sega_cartridge_sram() {
+        let memory = SmsMemory::new(codemasters_rom(16)).unwrap();
+        assert!(memory.cartridge_sram().is_none());
+    }
+
+    #[test]
+    fn ignores_rom_writes_and_only_mapper_registers_change_mapper_state() {
+        let mut memory = SmsMemory::new(patterned_rom(3)).unwrap();
+        memory.write(0x0000, 0x99);
+        assert_eq!(memory.read(0x0000), 0);
+        memory.write(0xFFFC, 0x08);
+        assert_eq!(memory.selected_banks(), [0, 1, 2]);
+        assert_eq!(memory.mapper_control(), 0x08);
+    }
+}
+
+impl sega_z80_bus::CpuBus for SmsMemory {
+    #[inline]
+    fn read_memory(&mut self, address: u16) -> u8 {
+        self.read(address)
+    }
+
+    #[inline]
+    fn write_memory(&mut self, address: u16, value: u8) {
+        self.write(address, value);
+    }
+}
+
+#[cfg(test)]
+mod bus_contract_tests {
+    use super::SmsMemory;
+    use crate::CartridgeImage;
+    use sega_z80_bus::CpuBus;
+
+    #[test]
+    fn shared_bus_reads_cartridge_and_writes_mirrored_work_ram() {
+        let rom = CartridgeImage::new(vec![0xA5; 0x4000]).unwrap();
+        let mut memory = SmsMemory::new(rom).unwrap();
+
+        assert_eq!(memory.read_memory(0x0123), 0xA5);
+        memory.write_memory(0xC123, 0x5A);
+        assert_eq!(memory.read_memory(0xE123), 0x5A);
+    }
+
+    #[test]
+    fn shared_bus_defaults_to_open_bus_for_unimplemented_ports() {
+        let rom = CartridgeImage::new(vec![0x00; 0x4000]).unwrap();
+        let mut memory = SmsMemory::new(rom).unwrap();
+
+        assert_eq!(memory.read_port(0x00), 0xFF);
+        memory.write_port(0x00, 0x42);
+        assert_eq!(memory.read_memory(0x0000), 0x00);
+    }
+}
