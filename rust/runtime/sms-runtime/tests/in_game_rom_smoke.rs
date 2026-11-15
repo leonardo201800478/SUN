@@ -160,11 +160,13 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
                 panic!("{}: cannot attach video mailbox: {error}", path.display())
             });
 
-        let first_state_digest = machine_state_digest(
-            &worker.debug_snapshot().unwrap_or_else(|error| {
-                panic!("{}: initial machine snapshot failed: {error}", path.display())
-            }),
-        );
+        let first_state_digest =
+            machine_state_digest(&worker.debug_snapshot().unwrap_or_else(|error| {
+                panic!(
+                    "{}: initial machine snapshot failed: {error}",
+                    path.display()
+                )
+            }));
         let mut first_digest = None;
         let mut last_digest = 0;
         let mut non_black_frames = 0_u32;
@@ -256,13 +258,13 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             );
         }
 
-        let last_state_digest = machine_state_digest(
-            &worker.debug_snapshot().unwrap_or_else(|error| {
+        let last_state_digest =
+            machine_state_digest(&worker.debug_snapshot().unwrap_or_else(|error| {
                 panic!("{}: final machine snapshot failed: {error}", path.display())
-            }),
-        );
+            }));
         assert_ne!(
-            first_state_digest, last_state_digest,
+            first_state_digest,
+            last_state_digest,
             "{}: machine state did not change during the ROM campaign",
             path.display()
         );
