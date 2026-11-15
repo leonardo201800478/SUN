@@ -209,3 +209,8 @@ substituem a preferência de vídeo do console.
 - **CI:** avaliar todos os checks aplicáveis no SHA candidato atual; checks cancelados ou de commits anteriores não contam como PASS.
 - **Boot real com BIOS:** PENDING; requer firmware local do usuário e validação visual/manual.
 - **TEMPORAL_PASS:** não aplicável; esta fatia não altera o scheduler ciclo a ciclo.
+
+
+## Firmware SMS com jogos incorporados
+
+O inventário de imagens maiores que 8 KiB — Sonic, Hang On, Hang On & Safari Hunt, Missile Defense 3-D e Samsung Gam*Boy II com Alex Kidd — está documentado em [sms-built-in-game-firmware-catalog-2026-11-15.md](sms-built-in-game-firmware-catalog-2026-11-15.md). Essas imagens exigem identificação e estratégia de mapeamento próprias; não são aceitas pelo loader convencional de BIOS de 8 KiB. A identificação por hash está documentada, mas o boot real dessas variantes permanece pendente.
