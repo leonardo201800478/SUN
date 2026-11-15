@@ -37,11 +37,11 @@ pub struct CartridgeCompatibilityMetadata {
 impl CartridgeCompatibilityMetadata {
     pub fn new(
         sms_vdp_requirement: SmsVdpRequirement,
-        evidence: impl IntoIterator<Item = impl Into<String>>,
+        evidence: Vec<String>,
     ) -> Self {
         Self {
             sms_vdp_requirement,
-            evidence: evidence.into_iter().map(Into::into).collect(),
+            evidence,
         }
     }
 }
