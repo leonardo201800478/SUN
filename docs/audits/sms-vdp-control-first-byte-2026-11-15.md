@@ -44,9 +44,9 @@ Read-ahead and address increment remain in the complete two-byte VRAM-read comma
 | Validation | Result |
 |---|---|
 | Static source inspection against SMS Power control-port contract | PASS |
-| Regression tests authored/updated | PASS — present in source; execution pending |
-| Linux `sega-video` + `sega-sms-core` focused CI | PENDING |
-| Rustfmt / Clippy in Linux CI | PENDING |
+| Regression tests authored/updated | UPDATED; first CI run found one stale reset-test assumption, corrected in the follow-up commit |
+| Linux `sega-video` + `sega-sms-core` focused CI | FIRST RUN FAILED: 112 passed, 1 failed (`reset_restores_the_default_vram_read_address_mode` expected the old one-byte prefetch); test corrected to issue the complete two-byte read command; rerun pending |
+| Rustfmt / Clippy in Linux CI | PASS on first run |
 | SMS1/SMS2 physical hardware | NOT RUN |
 | Original diagnostic ROM execution on this runtime | NOT RUN |
 
