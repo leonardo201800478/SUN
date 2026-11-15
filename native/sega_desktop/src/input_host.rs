@@ -1,29 +1,205 @@
 use sega_input_runtime::{
-    DeviceClass, DeviceDescriptor, DeviceReading, InputBackend, InputBuffers,
-    sdl3_backend::{SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, Sdl3Backend},
+    ActionBinding, ActionId, ActionState, AxisDirection, DeviceClass, DeviceDescriptor,
+    DeviceReading, InputBackend, InputBuffers, InputProfile, PhysicalControl,
+    sdl3_backend::{SDL3_RAW_BUTTON_OFFSET, Sdl3Backend},
 };
 use sega_sms_core::ControllerButtons;
 
-const GAMEPAD_BUTTON_SOUTH: usize = 0;
-const GAMEPAD_BUTTON_EAST: usize = 1;
-const GAMEPAD_BUTTON_START: usize = 6;
-const GAMEPAD_BUTTON_DPAD_UP: usize = 11;
-const GAMEPAD_BUTTON_DPAD_DOWN: usize = 12;
-const GAMEPAD_BUTTON_DPAD_LEFT: usize = 13;
-const GAMEPAD_BUTTON_DPAD_RIGHT: usize = 14;
-const GAMEPAD_AXIS_LEFT_X: usize = 0;
-const GAMEPAD_AXIS_LEFT_Y: usize = 1;
+/// Stable semantic identifiers shared by desktop configuration and SMS input profiles.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SmsInputAction {
+    Up = 0,
+    Down = 1,
+    Left = 2,
+    Right = 3,
+    Button1 = 4,
+    Button2 = 5,
+    PauseNmi = 6,
+}
 
-// SDL documents thumbstick centers within roughly 8,000 units of zero.
-// 10,000 adds a modest margin; per-device deadzone calibration remains pending.
-const DEFAULT_STICK_THRESHOLD: i32 = 10_000;
+impl SmsInputAction {
+    /// Numeric identifier consumed by the generic input-profile evaluator.
+    pub const fn id(self) -> u8 {
+        self as u8
+    }
+}
 
-// The current backend keeps standardized gamepad buttons in 0..21 and raw
-// joystick buttons/axes in separate ranges to avoid collisions.
+const DEFAULT_STICK_THRESHOLD: u16 = 10_000;
+
+fn action(value: SmsInputAction) -> ActionId {
+    ActionId::new(value.id()).expect("SMS input action identifier is in range")
+}
+
+fn binding(action_id: SmsInputAction, control: PhysicalControl) -> ActionBinding {
+    ActionBinding {
+        action: action(action_id),
+        control,
+    }
+}
+
+/// Default mappings for SDL's standardized Gamepad API and generic Joystick API.
+/// The profiles are built once and evaluated at the host polling boundary.
+#[derive(Debug, Clone)]
+struct SmsInputProfiles {
+    gamepad: [InputProfile; 2],
+    joystick: [InputProfile; 2],
+}
+
+impl SmsInputProfiles {
+    fn defaults() -> Result<Self, String> {
+        let gamepad = InputProfile::new(
+            vec![
+                binding(SmsInputAction::Up, PhysicalControl::Button(11)),
+                binding(SmsInputAction::Down, PhysicalControl::Button(12)),
+                binding(SmsInputAction::Left, PhysicalControl::Button(13)),
+                binding(SmsInputAction::Right, PhysicalControl::Button(14)),
+                binding(
+                    SmsInputAction::Up,
+                    PhysicalControl::Axis {
+                        index: 1,
+                        direction: AxisDirection::Negative,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    SmsInputAction::Down,
+                    PhysicalControl::Axis {
+                        index: 1,
+                        direction: AxisDirection::Positive,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    SmsInputAction::Left,
+                    PhysicalControl::Axis {
+                        index: 0,
+                        direction: AxisDirection::Negative,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(
+                    SmsInputAction::Right,
+                    PhysicalControl::Axis {
+                        index: 0,
+                        direction: AxisDirection::Positive,
+                        threshold: DEFAULT_STICK_THRESHOLD,
+                    },
+                ),
+                binding(SmsInputAction::Button1, PhysicalControl::Button(0)),
+                binding(SmsInputAction::Button2, PhysicalControl::Button(1)),
+                binding(SmsInputAction::PauseNmi, PhysicalControl::Button(6)),
+            ],
+            0,
+        )
+        .map_err(|error| error.to_string())?;
+
+        let joystick = InputProfile::new(
+            vec![
+                binding(
+                    SmsInputAction::Up,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b0001,
+                    },
+                ),
+                binding(
+                    SmsInputAction::Right,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b0010,
+                    },
+                ),
+                binding(
+                    SmsInputAction::Down,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b0100,
+                    },
+                ),
+                binding(
+                    SmsInputAction::Left,
+                    PhysicalControl::Hat {
+                        index: 0,
+                        direction_mask: 0b1000,
+                    },
+                ),
+                // Generic joystick axis ordering is device-specific. Do not assume
+                // axes 0/1 are a directional stick; calibrated profiles may bind them.
+                binding(
+                    SmsInputAction::Button1,
+                    PhysicalControl::Button(SDL3_RAW_BUTTON_OFFSET as u8),
+                ),
+                binding(
+                    SmsInputAction::Button2,
+                    PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 1) as u8),
+                ),
+                binding(
+                    SmsInputAction::PauseNmi,
+                    PhysicalControl::Button((SDL3_RAW_BUTTON_OFFSET + 2) as u8),
+                ),
+            ],
+            0,
+        )
+        .map_err(|error| error.to_string())?;
+
+        Ok(Self {
+            gamepad: [gamepad.clone(), gamepad],
+            joystick: [joystick.clone(), joystick],
+        })
+    }
+
+    fn set_profile(
+        &mut self,
+        player: usize,
+        class: DeviceClass,
+        profile: InputProfile,
+    ) -> Result<(), String> {
+        if player >= 2 {
+            return Err("SMS player index must be 0 or 1".to_owned());
+        }
+        let profiles = if class == DeviceClass::Gamepad {
+            &mut self.gamepad
+        } else {
+            &mut self.joystick
+        };
+        profiles[player] = profile;
+        Ok(())
+    }
+
+    fn evaluate(
+        &self,
+        player: usize,
+        class: DeviceClass,
+        reading: &DeviceReading,
+    ) -> (ControllerButtons, bool) {
+        let profiles = if class == DeviceClass::Gamepad {
+            &self.gamepad
+        } else {
+            &self.joystick
+        };
+        let profile = &profiles[player.min(1)];
+        let mut actions = ActionState::default();
+        profile.evaluate(&reading.state, &mut actions);
+        (
+            ControllerButtons {
+                up: actions.is_active(action(SmsInputAction::Up)),
+                down: actions.is_active(action(SmsInputAction::Down)),
+                left: actions.is_active(action(SmsInputAction::Left)),
+                right: actions.is_active(action(SmsInputAction::Right)),
+                button_1: actions.is_active(action(SmsInputAction::Button1)),
+                button_2: actions.is_active(action(SmsInputAction::Button2)),
+            },
+            actions.is_active(action(SmsInputAction::PauseNmi)),
+        )
+    }
+}
+
 pub struct Sdl3InputHost {
     backend: Sdl3Backend,
     buffers: InputBuffers,
     devices: Vec<DeviceDescriptor>,
+    profiles: SmsInputProfiles,
     status: String,
 }
 
@@ -39,6 +215,7 @@ impl Sdl3InputHost {
             backend,
             buffers: InputBuffers::default(),
             devices,
+            profiles: SmsInputProfiles::defaults()?,
             status: String::new(),
         };
         host.refresh_status();
@@ -80,8 +257,11 @@ impl Sdl3InputHost {
                 .iter()
                 .find(|reading| reading.device_id == descriptor.id)
             {
-                players[current_slot] = map_sms_controller(descriptor.class, reading);
-                pause_pressed |= map_sms_pause(descriptor.class, reading);
+                let (buttons, pause) =
+                    self.profiles
+                        .evaluate(current_slot, descriptor.class, reading);
+                players[current_slot] = buttons;
+                pause_pressed |= pause;
             }
             if slot == players.len() {
                 break;
@@ -89,6 +269,16 @@ impl Sdl3InputHost {
         }
 
         Ok((players, pause_pressed, status_update))
+    }
+
+    /// Replaces one player's mapping for a controller class without restarting SDL3.
+    pub fn set_player_profile(
+        &mut self,
+        player: usize,
+        class: DeviceClass,
+        profile: InputProfile,
+    ) -> Result<(), String> {
+        self.profiles.set_profile(player, class, profile)
     }
 
     pub fn status(&self) -> &str {
@@ -125,56 +315,14 @@ fn is_supported_controller(class: DeviceClass) -> bool {
     )
 }
 
-fn map_sms_pause(class: DeviceClass, reading: &DeviceReading) -> bool {
-    if class == DeviceClass::Gamepad {
-        reading.state.buttons.is_pressed(GAMEPAD_BUTTON_START)
-    } else {
-        reading.state.buttons.is_pressed(SDL3_RAW_BUTTON_OFFSET + 2)
-    }
-}
-
-fn map_sms_controller(class: DeviceClass, reading: &DeviceReading) -> ControllerButtons {
-    let state = &reading.state;
-
-    if class == DeviceClass::Gamepad {
-        let left_x = i32::from(state.axis(GAMEPAD_AXIS_LEFT_X));
-        let left_y = i32::from(state.axis(GAMEPAD_AXIS_LEFT_Y));
-        return ControllerButtons {
-            up: state.buttons.is_pressed(GAMEPAD_BUTTON_DPAD_UP)
-                || left_y <= -DEFAULT_STICK_THRESHOLD,
-            down: state.buttons.is_pressed(GAMEPAD_BUTTON_DPAD_DOWN)
-                || left_y >= DEFAULT_STICK_THRESHOLD,
-            left: state.buttons.is_pressed(GAMEPAD_BUTTON_DPAD_LEFT)
-                || left_x <= -DEFAULT_STICK_THRESHOLD,
-            right: state.buttons.is_pressed(GAMEPAD_BUTTON_DPAD_RIGHT)
-                || left_x >= DEFAULT_STICK_THRESHOLD,
-            button_1: state.buttons.is_pressed(GAMEPAD_BUTTON_SOUTH),
-            button_2: state.buttons.is_pressed(GAMEPAD_BUTTON_EAST),
-        };
-    }
-
-    let raw_x = i32::from(state.axis(SDL3_RAW_AXIS_OFFSET));
-    let raw_y = i32::from(state.axis(SDL3_RAW_AXIS_OFFSET + 1));
-    let hat = state.hat(0);
-
-    ControllerButtons {
-        up: hat & 0b0001 != 0 || raw_y <= -DEFAULT_STICK_THRESHOLD,
-        right: hat & 0b0010 != 0 || raw_x >= DEFAULT_STICK_THRESHOLD,
-        down: hat & 0b0100 != 0 || raw_y >= DEFAULT_STICK_THRESHOLD,
-        left: hat & 0b1000 != 0 || raw_x <= -DEFAULT_STICK_THRESHOLD,
-        button_1: state.buttons.is_pressed(SDL3_RAW_BUTTON_OFFSET),
-        button_2: state.buttons.is_pressed(SDL3_RAW_BUTTON_OFFSET + 1),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_STICK_THRESHOLD, SDL3_RAW_AXIS_OFFSET, SDL3_RAW_BUTTON_OFFSET, map_sms_controller,
-        map_sms_pause,
+        AxisDirection, DEFAULT_STICK_THRESHOLD, SmsInputAction, SmsInputProfiles, binding,
     };
     use sega_input_runtime::{
-        AxisSemantic, ButtonSet, DeviceClass, DeviceId, DeviceReading, DeviceState,
+        AxisSemantic, DeviceClass, DeviceId, DeviceReading, DeviceState, InputProfile,
+        PhysicalControl,
     };
 
     fn reading(state: DeviceState) -> DeviceReading {
@@ -188,6 +336,7 @@ mod tests {
 
     #[test]
     fn standardized_gamepad_maps_south_east_dpad_and_left_stick() {
+        let profiles = SmsInputProfiles::defaults().unwrap();
         let mut state = DeviceState::default();
         state.buttons.set(0, true).unwrap();
         state.buttons.set(1, true).unwrap();
@@ -196,65 +345,169 @@ mod tests {
             .set_axis(0, DEFAULT_STICK_THRESHOLD as i16, AxisSemantic::LeftStickX)
             .unwrap();
 
-        let buttons = map_sms_controller(DeviceClass::Gamepad, &reading(state));
+        let (buttons, pause) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert!(buttons.up);
         assert!(buttons.right);
         assert!(buttons.button_1);
         assert!(buttons.button_2);
         assert!(!buttons.down);
         assert!(!buttons.left);
+        assert!(!pause);
     }
 
     #[test]
     fn generic_joystick_maps_raw_buttons_axes_and_hat() {
+        let profiles = SmsInputProfiles::defaults().unwrap();
         let mut state = DeviceState::default();
-        let mut raw_buttons = ButtonSet::default();
-        raw_buttons.set(SDL3_RAW_BUTTON_OFFSET, true).unwrap();
-        raw_buttons.set(SDL3_RAW_BUTTON_OFFSET + 1, true).unwrap();
-        state.buttons = raw_buttons;
+        state.buttons.set(32, true).unwrap();
+        state.buttons.set(33, true).unwrap();
         state
-            .set_axis(
-                SDL3_RAW_AXIS_OFFSET,
-                -(DEFAULT_STICK_THRESHOLD as i16),
-                AxisSemantic::Unknown,
-            )
+            .set_axis(16, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown)
             .unwrap();
-        state.set_hat(0, 0b0100).unwrap();
+        state
+            .set_axis(17, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown)
+            .unwrap();
+        // Hat DOWN and vertical-axis UP are simultaneous; profile bindings OR
+        // controls targeting the same semantic action without suppressing either.
+        state.set_hat(0, 0b0101).unwrap();
 
-        let buttons = map_sms_controller(DeviceClass::Joystick, &reading(state));
-        assert!(buttons.left);
+        let (buttons, pause) = profiles.evaluate(0, DeviceClass::Joystick, &reading(state));
+        assert!(
+            !buttons.left,
+            "unconfigured generic axes must not be guessed"
+        );
+        assert!(buttons.up);
         assert!(buttons.down);
         assert!(buttons.button_1);
         assert!(buttons.button_2);
-        assert!(!buttons.up);
         assert!(!buttons.right);
+        assert!(!pause);
     }
 
     #[test]
     fn gamepad_start_maps_to_sms_pause_nmi() {
+        let profiles = SmsInputProfiles::defaults().unwrap();
         let mut state = DeviceState::default();
         state.buttons.set(6, true).unwrap();
 
-        assert!(map_sms_pause(DeviceClass::Gamepad, &reading(state)));
+        let (_, pause) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
+        assert!(pause);
     }
 
     #[test]
     fn generic_joystick_third_button_maps_to_sms_pause_nmi() {
+        let profiles = SmsInputProfiles::defaults().unwrap();
         let mut state = DeviceState::default();
-        let mut raw_buttons = ButtonSet::default();
-        raw_buttons.set(SDL3_RAW_BUTTON_OFFSET + 2, true).unwrap();
-        state.buttons = raw_buttons;
+        state.buttons.set(34, true).unwrap();
 
-        assert!(map_sms_pause(DeviceClass::Joystick, &reading(state)));
+        let (_, pause) = profiles.evaluate(0, DeviceClass::Joystick, &reading(state));
+        assert!(pause);
     }
 
     #[test]
     fn analog_center_noise_does_not_activate_directions() {
+        let profiles = SmsInputProfiles::defaults().unwrap();
         let mut state = DeviceState::default();
         state.set_axis(0, 8_000, AxisSemantic::LeftStickX).unwrap();
         state.set_axis(1, -8_000, AxisSemantic::LeftStickY).unwrap();
 
-        let buttons = map_sms_controller(DeviceClass::Gamepad, &reading(state));
+        let (buttons, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert_eq!(buttons, Default::default());
+    }
+
+    #[test]
+    fn custom_profile_maps_extra_button_and_ors_multiple_controls() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
+        let custom_gamepad = InputProfile::new(
+            vec![
+                binding(SmsInputAction::Button1, PhysicalControl::Button(8)),
+                binding(SmsInputAction::Button1, PhysicalControl::Button(0)),
+            ],
+            0,
+        )
+        .unwrap();
+        profiles
+            .set_profile(0, DeviceClass::Gamepad, custom_gamepad)
+            .unwrap();
+
+        let mut state = DeviceState::default();
+        state.buttons.set(8, true).unwrap();
+        let (extra_button, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
+        assert!(extra_button.button_1);
+        assert!(!extra_button.button_2);
+
+        let mut state = DeviceState::default();
+        state.buttons.set(0, true).unwrap();
+        let (standard_button, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
+        assert!(standard_button.button_1);
+
+        let mut state = DeviceState::default();
+        state.buttons.set(8, true).unwrap();
+        state.buttons.set(0, true).unwrap();
+        let (both_controls, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
+        assert!(
+            both_controls.button_1,
+            "bindings for one action must combine with OR"
+        );
+    }
+
+    #[test]
+    fn player_profiles_are_independent_for_the_same_controller_class() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
+        let player_two = InputProfile::new(
+            vec![binding(SmsInputAction::Button1, PhysicalControl::Button(7))],
+            0,
+        )
+        .unwrap();
+        profiles
+            .set_profile(1, DeviceClass::Gamepad, player_two)
+            .unwrap();
+
+        let mut state = DeviceState::default();
+        state.buttons.set(7, true).unwrap();
+        let reading = reading(state);
+        let (p1, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading);
+        let (p2, _) = profiles.evaluate(1, DeviceClass::Gamepad, &reading);
+        assert!(!p1.button_1, "P1 must retain its default mapping");
+        assert!(p2.button_1, "P2 must use its own customized mapping");
+    }
+
+    #[test]
+    fn invalid_player_profile_slot_is_rejected() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
+        let profile = InputProfile::new(Vec::new(), 0).unwrap();
+        assert!(
+            profiles
+                .set_profile(2, DeviceClass::Gamepad, profile)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn custom_profile_supports_nonstandard_generic_joystick_axis_order() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
+        let custom_joystick = InputProfile::new(
+            vec![binding(
+                SmsInputAction::Up,
+                PhysicalControl::Axis {
+                    index: 19,
+                    direction: AxisDirection::Negative,
+                    threshold: DEFAULT_STICK_THRESHOLD,
+                },
+            )],
+            0,
+        )
+        .unwrap();
+        profiles
+            .set_profile(0, DeviceClass::Joystick, custom_joystick)
+            .unwrap();
+
+        let mut state = DeviceState::default();
+        state
+            .set_axis(19, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown)
+            .unwrap();
+        let (buttons, _) = profiles.evaluate(0, DeviceClass::Joystick, &reading(state));
+        assert!(buttons.up, "the configured physical axis must drive SMS Up");
+        assert!(!buttons.down);
     }
 }
