@@ -4,6 +4,8 @@
 //!   $env:SEGA_SMS_TEST_ROM_DIR = "D:\\ROMs\\SMS"
 //!   $env:SEGA_SMS_TEST_REGION = "europe" # usa|brazil|europe|japan
 //!   $env:SEGA_SMS_SYSTEM = "sms2" # sms1|sms2
+//!   $env:SEGA_SMS_TEST_FRAMES = "1800" # optional; default 120
+//!   $env:SEGA_SMS_EXPECT_HEIGHT = "224" # optional; 192|224|240
 //!   cargo test --release -p sega-sms-runtime --test in_game_rom_smoke -- --ignored --nocapture
 //!
 //! ROM files are read in place and are never copied into the repository.
@@ -15,7 +17,7 @@ use std::path::{Path, PathBuf};
 use sega_sms_runtime::{SmsTemporalWorker, SmsVdpRevision};
 use sega_video_runtime::FrameMailbox;
 
-const FRAMES_PER_ROM: usize = 120;
+const DEFAULT_FRAMES_PER_ROM: usize = 120;
 const MAX_INSTRUCTIONS_PER_FRAME: usize = 100_000;
 
 fn is_sms_rom(path: &Path) -> bool {
@@ -67,6 +69,19 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         SmsVdpRevision::Sega3155124 => &[192],
         SmsVdpRevision::Sega3155246 => &[192, 224, 240],
     };
+    let frames_per_rom = std::env::var("SEGA_SMS_TEST_FRAMES")
+        .map(|value| value.parse::<usize>().expect("SEGA_SMS_TEST_FRAMES must be an integer"))
+        .unwrap_or(DEFAULT_FRAMES_PER_ROM);
+    assert!(frames_per_rom > 0, "SEGA_SMS_TEST_FRAMES must be positive");
+    let expected_height = std::env::var("SEGA_SMS_EXPECT_HEIGHT")
+        .ok()
+        .map(|value| value.parse::<u32>().expect("SEGA_SMS_EXPECT_HEIGHT must be an integer"));
+    if let Some(height) = expected_height {
+        assert!(
+            allowed_heights.contains(&height),
+            "expected height {height} is not supported by selected system {system}"
+        );
+    }
     let rom_paths = collect_roms(&directory);
 
     assert!(
@@ -101,7 +116,7 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         let mut completed_frames = 0_u64;
         let mut observed_heights = BTreeMap::<u32, u32>::new();
 
-        for frame_index in 0..FRAMES_PER_ROM {
+        for frame_index in 0..frames_per_rom {
             let instructions = worker
                 .step_frame(MAX_INSTRUCTIONS_PER_FRAME)
                 .unwrap_or_else(|error| {
@@ -174,8 +189,17 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             non_black_frames > 0,
             "{}: all {} published frames were black; investigate ROM startup, mapper, CPU and VDP path",
             path.display(),
-            FRAMES_PER_ROM
+            frames_per_rom
         );
+        if let Some(height) = expected_height {
+            assert!(
+                observed_heights.contains_key(&height),
+                "{}: expected {}-line mode was never published by system {}",
+                path.display(),
+                height,
+                system
+            );
+        }
 
         println!(
             "SMS_IN_GAME_SMOKE rom={} system={} vdp={:?} region={} frames={} heights={:?} instructions={} non_black_frames={} first_frame_fnv1a={:016x} last_frame_fnv1a={:016x}",
