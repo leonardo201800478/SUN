@@ -51,6 +51,16 @@ Os construtores antigos permanecem compatíveis com o perfil SMS1. O desktop usa
 
 Esses sistemas permanecem visíveis como indisponíveis, sem serem apresentados como funcionalidade concluída. A existência de um core isolado não equivale a uma máquina integrada ao desktop.
 
+## Validação por ROM
+
+O teste opt-in `rust/runtime/sms-runtime/tests/in_game_rom_smoke.rs` agora aceita:
+- `SEGA_SMS_SYSTEM=sms1|sms2`;
+- `SEGA_SMS_TEST_REGION=usa|brazil|europe|japan`;
+- `SEGA_SMS_TEST_FRAMES` para ampliar a duração;
+- `SEGA_SMS_EXPECT_HEIGHT=224` para exigir que o modo estendido seja publicado.
+
+Para Cosmic Spacehead, o smoke test pode ser executado isoladamente com SMS2/Europa e altura esperada de 224 linhas. Ele valida execução, publicação de frames, dimensões e ausência de frames totalmente pretos; não simula navegação de menus, gameplay, áudio ou colisões. A validação funcional completa continua sendo uma etapa separada.
+
 ## Limites de conclusão
 
 A seleção SMS2 configura o VDP 315-5246 explicitamente, mas não declara concluída a fidelidade integral do SMS2. Permanecem necessárias as validações de sprite evaluation, HBlank/raster writes, portas, interrupções, áudio, Cosmic Spacehead e hardware real.
