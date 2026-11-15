@@ -184,7 +184,7 @@ A inspeção do código-fonte original de FluBBa confirma que o teste SMS é des
 - `1byte wr sets wr adr` — RunTest12: após configurar escrita em 3E72, escreve apenas bytes baixos 0x30, 0x00, 0x20 e 0x10 e valida os destinos de escrita.
 - `1byte wr keeps wr mode` — RunTest13: verifica que a escrita de um único byte de controle não muda o destino CRAM/VRAM.
 
-O código atual de `write_control()` apenas guarda o primeiro byte em `control_first`; ele ainda não atualiza o registrador de endereço no primeiro byte. Essa lacuna está isolada na PR #889, com testes que reproduzem RunTest11/12/13, incluindo a sequência observável do read buffer. A CI ainda precisa validar o patch. Não misturar essa correção com o decodificador de altura já integrado.
+O código atual de `write_control()` apenas guarda o primeiro byte em `control_first`; ele ainda não atualiza o registrador de endereço no primeiro byte. Essa lacuna foi corrigida pela PR #889, integrada no commit `825c1cb4723a7fb931d720247ea797428495e041`. O primeiro byte agora atualiza o endereço baixo; em modo de leitura reinicia o read-ahead, enquanto VRAM/CRAM write preservam o destino sem incremento antecipado. RunTest11/12/13 e o contrato público SMS1 foram cobertos. CI VDP e SMS runtime passaram. Não misturar essa correção com o decodificador de altura já integrado.
 
 Outras falhas SMS Misc a cobrir por teste contratual: `VCounter chg time`, `Frame IRQ VCount`, `Frame IRQ HCount`, `Line IRQ VCount`, `Line IRQ HCount` e `VINT flag HCount`. Falhas SMS Sprite ainda listadas: `Offscreen Y, col` e `Spr col correct HC`. O teste `X-Scroll latchtime` já passa no Sega Emulator e não deve ser regredido para igualar Ares.
 
@@ -196,8 +196,8 @@ Fontes:
 ## 2.6 Estado das correções em revisão
 
 - **PR #884 — integrada:** decodificação dos gates de altura SMS2 (R0.M4/R0.M2 e seleção exclusiva R1.M1/R1.M3).
-- **PR #888 — aberta:** redimensionamento da textura WGPU e da imagem Slint para frames 256×192/224/240; validação CI Windows em andamento.
-- **PR #889 — aberta:** latch do primeiro byte da porta de controle, read-ahead e preservação do modo; CI em andamento.
+- **PR #889 — integrada:** latch do primeiro byte da porta de controle, read-ahead e preservação do modo; testes VDP/SMS runtime aprovados.
+- **PR #890 — aberta:** redimensionamento da textura WGPU e da imagem Slint para frames 256×192/224/240; CI Windows pendente.
 - **PR #881 — esta auditoria:** permanece aberta como índice das duas investigações e da matriz de evidências. CI documental e workflow dos comparadores passaram no run #7599 e run #8.
 
 Ainda não existe correção integrada para a seleção explícita do ASIC no desktop, para a ordenação visual de sprites de The Smurfs ou para as demais falhas de timing listadas em 2.5.
