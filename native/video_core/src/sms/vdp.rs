@@ -1921,7 +1921,10 @@ mod tests {
         let height = u64::from(vdp.visible_height());
 
         vdp.advance(LINE_TSTATES * (height + 1));
-        assert!(vdp.frame_ready, "SMS2 publishes the frame at line height/T16");
+        assert!(
+            vdp.frame_ready,
+            "SMS2 publishes the frame at line height/T16"
+        );
         vdp.advance(12);
         assert!(!vdp.interrupt_pending());
         assert_eq!(vdp.status & VBLANK, 0);
@@ -1956,7 +1959,10 @@ mod tests {
             assert_eq!(vdp.status & VBLANK, 0);
             assert!(!vdp.vint_pending);
             vdp.advance(1);
-            assert!(vdp.vint_pending, "VINT must assert at T13 for {height} lines");
+            assert!(
+                vdp.vint_pending,
+                "VINT must assert at T13 for {height} lines"
+            );
             assert_eq!(vdp.status & VBLANK, 0);
             vdp.advance(3);
             assert_ne!(vdp.status & VBLANK, 0);
