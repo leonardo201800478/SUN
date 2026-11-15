@@ -115,22 +115,16 @@ Portanto, a hipótese não é mais “falta de buffer persistente”. A investig
 
 A inspeção de `rust/runtime/sms-runtime/src/worker.rs` e `docs/desktop/sms1-active-system-profile.md` confirmou:
 
-- `sms_temporal_region_profile("europe")` seleciona PAL, mas mantém `SmsVdpRevision::Sega3155124` (SMS1).
-- O perfil ativo no desktop é SMS1 em todas as regiões; SMS2/315-5246 existe no VDP, mas não está selecionado nem habilitado no runtime desktop.
-- Portanto, **a região europeia/PAL não equivale à seleção de SMS2**. A configuração atual não satisfaz o requisito de hardware conhecido para Cosmic Spacehead.
-- O VDP já tem suporte interno condicional para 224 linhas, mas a política de runtime/host não seleciona o ASIC necessário. A janela desktop também declara `SMS_HEIGHT = 192`; precisamos rastrear o contrato de publicação e apresentação antes de habilitar 224 linhas para evitar truncamento ou buffer inconsistente.
+- Antes da PR #892, `sms_temporal_region_profile("europe")` selecionava PAL, mas mantinha `SmsVdpRevision::Sega3155124` (SMS1).
+- A região europeia/PAL não equivale à seleção de SMS2. A máquina precisa receber a revisão 315-5246 explicitamente.
+- O VDP já possui decodificação condicional de 224/240 linhas; a PR #890 fechou a rejeição de dimensões no host.
+- A PR #892 introduz a seleção explícita persistida e a propagação do ASIC até o worker, mas permanece sob CI/revisão e ainda não está integrada à main.
 
-A inspeção confirmou uma segunda divergência concreta na cadeia de apresentação:
+A PR #890 foi integrada na main em 2026-11-15 (merge commit `999a7391cd0a827f7035f8962e3a04ae4c985b76`). O host desktop deixou de rejeitar frames que não sejam 256×192: agora aceita 256×192/224/240, recria a textura importada pelo Slint quando a extensão muda e atualiza `bytes_per_row`, `rows_per_image` e `Extent3d` com as dimensões reais. A CI completa da PR passou, incluindo build Windows x64 Slint/WGPU 30/Vulkan.
 
-- VDP: framebuffer interno dimensionado para até 240 linhas.
-- SMS runtime: publica a largura/altura efetivas.
-- VideoFrame e FrameMailbox: aceitam dimensões/stride dinâmicos.
-- Desktop: `present_latest_frame()` rejeita frames diferentes de 256×192.
-- WGPU: a textura inicial é criada em 256×192.
+Essa integração fecha a incompatibilidade estática de dimensão na cadeia de apresentação, mas não comprova ainda uma sessão real em Windows com Cosmic Spacehead em 224 linhas. A seleção explícita do ASIC no desktop continua sendo a lacuna funcional: PR #892 está aberta e propaga a revisão do VDP até o worker; aguarda validação completa.
 
-Logo, mesmo com perfil SMS2 e VDP produzindo 224/240 linhas, o host atual descarta esses frames. A correção precisa redimensionar/recriar a textura e atualizar a imagem Slint com dimensões reais; não preencher linhas artificiais, comprimir a imagem nem alterar timing do Scheduler.
-
-A cadeia a fechar é: identidade da ROM → perfil explícito do ASIC → VDP → SMS runtime/temporal worker → mailbox/framebuffer → textura WGPU → imagem Slint.
+A cadeia a validar agora é: identidade/configuração selecionada → ASIC efetivo → VDP → SMS runtime/temporal worker → mailbox/framebuffer dinâmico → textura WGPU → imagem Slint.
 
 ### Evidências técnicas e fontes
 
@@ -197,10 +191,12 @@ Fontes:
 
 - **PR #884 — integrada:** decodificação dos gates de altura SMS2 (R0.M4/R0.M2 e seleção exclusiva R1.M1/R1.M3).
 - **PR #889 — integrada:** latch do primeiro byte da porta de controle, read-ahead e preservação do modo; testes VDP/SMS runtime aprovados.
-- **PR #890 — aberta:** redimensionamento da textura WGPU e da imagem Slint para frames 256×192/224/240; CI Windows pendente.
-- **PR #881 — esta auditoria:** permanece aberta como índice das duas investigações e da matriz de evidências. CI documental e workflow dos comparadores passaram no run #7599 e run #8.
+- **PR #890 — integrada:** dimensões dinâmicas 256×192/224/240 no host Slint/WGPU; CI completa e Windows x64 POC passaram.
+- **PR #891 — aberta:** matriz documental de diferenças SMS1/SMS2, com CI de documentação verde.
+- **PR #892 — aberta:** seleção persistente SMS1/SMS2 e propagação explícita do ASIC até o worker; CI em execução/revisão.
+- **PR #881 — esta auditoria:** permanece aberta e em Draft como índice das duas investigações e da validação independente. O workflow de comparadores compilou Ares e Gearsystem em revisões fixadas.
 
-Ainda não existe correção integrada para a seleção explícita do ASIC no desktop, para a ordenação visual de sprites de The Smurfs ou para as demais falhas de timing listadas em 2.5.
+Ainda não existe correção integrada na main para a seleção explícita do ASIC no desktop, para a ordenação visual de sprites de The Smurfs ou para as demais falhas de timing listadas em 2.5.
 
 ## 3. Hipóteses a investigar — sem assumir causalidade
 
