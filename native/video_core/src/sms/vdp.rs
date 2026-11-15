@@ -2246,6 +2246,32 @@ mod tests {
     }
 
     #[test]
+    fn sms2_sprite_overlap_preserves_sat_priority_and_sets_collision() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        v.cram[18] = 0x0C;
+        set_sprite(&mut v, 0, 0xFF, 20, 1);
+        set_sprite(&mut v, 1, 0xFF, 20, 2);
+        v.vram[0x3F02] = 0xD0;
+        solid_sprite_tile(&mut v, 1, 1);
+        solid_sprite_tile(&mut v, 2, 2);
+
+        // The SMS2 SAT line buffer is sampled before line 0 is rendered.
+        v.advance(LINE_TSTATES);
+
+        assert_ne!(v.status & COLLISION, 0);
+        assert_eq!(&v.working_framebuffer[20 * 3..20 * 3 + 3], &[238, 0, 0]);
+    }
+
+    #[test]
     fn sms2_zoom_applies_horizontally_to_all_eight_selected_sprites() {
         let mut v = SmsVdp::new_with_profile(SmsVdpProfile::new(
             SmsVdpRevision::Sega3155246,
