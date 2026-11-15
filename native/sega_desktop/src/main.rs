@@ -53,8 +53,7 @@ mod windows_host {
     }
 
     fn is_supported_sms_frame_extent(width: u32, height: u32) -> bool {
-        width == SMS_WIDTH
-            && (height == SMS_HEIGHT || SMS_EXTENDED_HEIGHTS.contains(&height))
+        width == SMS_WIDTH && (height == SMS_HEIGHT || SMS_EXTENDED_HEIGHTS.contains(&height))
     }
     const DIAGNOSTICS_INTERVAL: Duration = Duration::from_millis(250);
     const APP_DATA_DIRECTORY: &str = "Sega Emulator";
@@ -1895,7 +1894,9 @@ mod windows_host {
                     let mut slot = match gpu_context_slot.lock() {
                         Ok(slot) => slot,
                         Err(_) => {
-                            app.set_frame_status("Contexto WGPU indisponível durante resize".into());
+                            app.set_frame_status(
+                                "Contexto WGPU indisponível durante resize".into(),
+                            );
                             return;
                         }
                     };
@@ -3447,7 +3448,12 @@ mod windows_host {
             Rc::clone(&keyboard_state),
             Rc::clone(&gamepad_state),
         );
-        start_frame_presentation(&app, Arc::clone(&gpu_context_slot), mailbox.clone(), host_pacing)?;
+        start_frame_presentation(
+            &app,
+            Arc::clone(&gpu_context_slot),
+            mailbox.clone(),
+            host_pacing,
+        )?;
 
         let run_result = app.run();
         let final_preferences = DesktopPreferences {
@@ -3927,20 +3933,16 @@ mod windows_host {
                     source[row + 7] = 0xAD;
                 }
 
-                let frame = VideoFrame::new(
-                    9,
-                    width,
-                    height,
-                    PixelFormat::Rgb888,
-                    stride,
-                    source,
-                )
-                .unwrap();
+                let frame =
+                    VideoFrame::new(9, width, height, PixelFormat::Rgb888, stride, source).unwrap();
                 let rgba = convert_rgb888_to_rgba8(&frame).unwrap();
 
                 assert_eq!(rgba.len(), width as usize * height as usize * 4);
                 let last_row = (height as usize - 1) * width as usize * 4;
-                assert_eq!(&rgba[last_row..last_row + 8], &[height as u8 - 1, 0xA5, 0x5A, 255, 0x3C, 0xC3, 0x69, 255]);
+                assert_eq!(
+                    &rgba[last_row..last_row + 8],
+                    &[height as u8 - 1, 0xA5, 0x5A, 255, 0x3C, 0xC3, 0x69, 255]
+                );
             }
         }
 
