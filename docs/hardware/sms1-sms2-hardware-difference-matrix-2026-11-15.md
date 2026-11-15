@@ -22,7 +22,7 @@ Não há evidência suficiente para afirmar uma substituição geral de CPU, RAM
 | VDP — endereçamento de tabelas | Bits de máscara legados em R2/R5/R6 podem forçar linhas do endereço VRAM a zero | Esses bits não mascaram os endereços | Diferença confirmada | Manter funções de geração de endereço condicionadas ao ASIC |
 | VDP — sprites/zoom | Em zoom 2×, os últimos quatro sprites encontrados na linha não recebem zoom horizontal; zoom vertical continua | Os oito sprites podem receber zoom horizontal e vertical | Diferença confirmada | Avaliação/composição de sprites precisa considerar revisão; não duplicar SAT sem evidência |
 | VDP — paleta/DAC | Modelo de níveis R/G: 0,78,160,238; B: 0,98,160,238 | Modelo secundário MAME: RGB 0,89,174,255; valores exatos ainda precisam de medição independente | MAME documenta a não linearidade do azul no 315-5124 com referência a die shot/RetroRGB e mantém tabela própria para o 315-5246; a página geral de paleta SMS Power descreve CRAM de 2 bits, mas não fornece tabelas DAC numéricas por ASIC | O runtime já aplica perfil SMS1 específico; SMS2 ainda usa escala linear [0,85,170,255], divergindo do modelo MAME. Manter como discrepância aberta até captura/medição independente; não alterar pixels por tentativa |
-| VDP — SAT e limite por linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Até 64 sprites; buffer de 8 entradas para a próxima linha | Compartilhado na documentação SMS Power; MAME usa base comum | PR #894 integrada: buffer SAT Mode 4 de próxima linha compartilhado, com zoom horizontal específico por ASIC; fase elétrica ainda exige validação |
+| VDP — SAT e limite por linha | Até 64 sprites; buffer de 8 entradas para a próxima linha; zoom SMS1: regra de slots horizontais em disputa | Até 64 sprites; buffer de 8 entradas para a próxima linha; zoom horizontal nos oito | Compartilhado na documentação SMS Power; MAME usa base comum | PR #894 integrada: buffer SAT Mode 4 de próxima linha compartilhado. SMS1: docs/MAME dizem primeiros quatro fixos; código atual usa N−4 e há relatos de hardware conflitantes. SMS2: oito zoomados. Fase elétrica ainda exige validação |
 | VDP — HBlank/raster writes | Commit parcial no modelo atual em T213 | Fase SMS2 ainda não caracterizada; commit parcial não habilitado | SMS1 possui testes; não foi demonstrada equivalência subciclo para SMS2 | Manter caminho conservador SMS2 até teste independente |
 
 | VDP — HINT/VINT/status | HINT/VINT e flags de status documentados | HINT/VINT e flags de status documentados | Interface compartilhada; MAME usa tabela horizontal comum; SMS VDP Test inclui SMS2 | PR #893 integrada: eventos HINT/VINT/VCounter/VBlank tratados para ambos os ASICs; limites subscanline e confirmação em hardware permanecem pendentes |
@@ -72,7 +72,7 @@ O VDP deve permanecer uma implementação com revisão explícita, não duas có
 O código em `native/video_core/src/sms/vdp.rs` já possui condicionais por `SmsVdpRevision` para:
 - altura ativa 192/224/240;
 - geração de endereços de SAT e tabelas;
-- política de zoom de sprites;
+- política de zoom de sprites (SMS2 estabelecida; regra de slots horizontais SMS1 ainda em disputa entre documentação, MAME e relatos de hardware);
 - paleta RGB;
 - eventos HINT/VINT/VCounter/VBlank compartilhados após a PR #893.
 
@@ -86,12 +86,20 @@ A revisão do código em `native/video_core/src/sms/vdp.rs` identificou que `pal
 
 **Decisão:** registrar a discrepância; não mudar a saída RGB SMS2 até obter captura de hardware, medição independente ou uma segunda fonte primária. A validação deve cobrir os 64 valores CRAM e comparar a saída digital antes do encoder analógico.
 
+## 3.5 Lacuna de evidência — seleção dos slots de zoom horizontal SMS1
+
+A documentação SMS Power/Charles MacDonald descreve que os primeiros quatro sprites por linha recebem zoom horizontal e vertical; os quatro seguintes recebem somente zoom vertical. O MAME modela o 315-5124 com `max_sprite_zoom_hcount = 4` e os primeiros quatro índices do buffer. Entretanto, há relatos conflitantes de testes em hardware SMS1: um usuário observou que o comportamento efetivo pode ser `N−4` (com cinco sprites, somente o primeiro é zoomado horizontalmente; com quatro, nenhum), enquanto outro observou a regra dos primeiros quatro e sugeriu que entradas invisíveis/offscreen e ordenação SAT podem explicar a divergência.
+
+O código atual em `native/video_core/src/sms/vdp.rs` usa `selected_count.saturating_sub(4)` e o teste `sms1_horizontal_zoom_skips_last_four_selected_sprites` codifica essa hipótese. Não alterar esse comportamento até resolver a divergência em hardware real, controlando 0–8 entradas SAT, índice, X/Y offscreen, padrões transparentes e modos 8x8/8x16. O SMS2 315-5246 permanece com zoom horizontal nos oito sprites.
+
+Gearsystem e Ares não reproduzem essa exceção SMS1 no caminho Mode 4 consultado; portanto, não servem como oráculo para essa diferença. Referências: [SMS Power — Sprites](https://www.smspower.org/Development/Sprites), [SMS Power — discussão de zoom SMS1](https://www.smspower.org/forums/19069-ZoomedSpritesOnSMS1), [MAME 315-5124/5246](https://github.com/mamedev/mame/blob/master/src/devices/video/315_5124.cpp#L2350-L2433).
+
 ## 4. Lacunas que bloqueiam declarar SMS2 completo
 
 1. Seleção explícita persistida no desktop e propagada até `SmsTemporalWorker` (implementação em PR #892; a validação integral e o merge dependem da CI do HEAD atualizado).
 2. Configuração do 315-5246 independente de região, ROM e mapper.
 3. Testes contratuais específicos de máscara de endereços R2/R5/R6.
-4. Testes de zoom para 1–8 sprites e evidência da ordem de avaliação.
+4. Resolver por captura de hardware a seleção de slots de zoom horizontal SMS1 (primeiros quatro fixos vs. primeiros N−4), atualizar o teste existente somente após evidência; manter teste SMS2 para oito sprites.
 5. Testes de paleta que comprovem o realce de azul apenas no 315-5124.
 6. Testes de 224/240 linhas, contadores, HINT/VINT e interrupções no perfil 315-5246.
 7. Caracterização do timing elétrico SMS2 de sprite evaluation/fetch/latch, overflow e colisão. O buffer SAT Mode 4 já é compartilhado por #894; não extrapolar essa implementação para modos legacy/TMS nem para fases subscanline não medidas.
