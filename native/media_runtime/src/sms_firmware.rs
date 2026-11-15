@@ -402,7 +402,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: None,
             mapping: Mapping::ConventionalBios8KiB,
             validation: Validation::IdentifiedOnly,
-            evidence: BIOS_EVIDENCE,
+            evidence: BIOS_EVIDENCE.to_vec(),
         },
         SmsFirmwareDescriptor {
             id: Id::EuropeV20,
@@ -418,7 +418,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             md5: None,
             mapping: Mapping::ConventionalBios8KiB,
             validation: Validation::IdentifiedOnly,
-            evidence: BIOS_EVIDENCE,
+            evidence: BIOS_EVIDENCE.to_vec(),
         },
         SmsFirmwareDescriptor {
             id: Id::HangOnV34,
