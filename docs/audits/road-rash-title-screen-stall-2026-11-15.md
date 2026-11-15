@@ -1,10 +1,10 @@
 # Road Rash — travamento da animação do letreiro na tela de título
 
-**Data do registro:** 2026-11-15  
-**Sistema:** Sega Master System (SMS)  
-**Jogo:** Road Rash  
-**Classificação:** observação empírica / investigação pendente  
-**Estado:** não corrigido; nenhuma alteração de hardware ou temporização proposta nesta etapa
+- **Data do registro:** 2026-11-15
+- **Sistema:** Sega Master System (SMS)
+- **Jogo:** Road Rash
+- **Classificação:** observação empírica / investigação pendente
+- **Estado:** não corrigido; nenhuma alteração de hardware ou temporização proposta nesta etapa
 
 ## 1. Sintoma observado
 
