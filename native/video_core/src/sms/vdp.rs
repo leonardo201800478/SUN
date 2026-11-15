@@ -9,11 +9,12 @@ pub const SMS_VDP_MAX_HEIGHT: usize = 240;
 const VRAM_SIZE: usize = 0x4000;
 const CRAM_SIZE: usize = 0x20;
 const LINE_TSTATES: u64 = 228;
-// SMS1 boundaries follow the SmsVdpTest Z80-clock/pixel mapping:
+// CPU-visible raster boundaries follow the SmsVdpTest Z80-clock/pixel mapping:
 // VINT HPos 20/T13, HINT HPos 21/T14, VCounter HPos 23/T15,
-// overflow and VBlank flag HPos 24/T16. HBlank closes active pixels at T213.
-// These are CPU-visible T-state boundaries, not sub-T-state arbitration or
-// dot-accurate rendering timestamps.
+// overflow/VBlank flag HPos 24/T16. HBlank closes active pixels at T213.
+// The event schedule is shared by 315-5124 and 315-5246; SMS1's
+// scanline-buffered sprite-overflow latch remains ASIC-specific. These are
+// T-state boundaries, not sub-T-state arbitration or dot-accurate timestamps.
 const SMS_VINT_IRQ_TSTATE: u64 = 13;
 const SMS_HINT_TSTATE: u64 = 14;
 const SMS_VCOUNTER_LATCH_TSTATE: u64 = 15;
@@ -1936,6 +1937,31 @@ mod tests {
         let status = vdp.read_port(0xBF);
         assert_ne!(status & VBLANK, 0);
         assert!(!vdp.interrupt_pending());
+    }
+
+    #[test]
+    fn sms2_extended_heights_keep_vint_and_vblank_boundaries_relative_to_height() {
+        for (mode_bits, expected_height) in [(0, 192), (0x10, 224), (0x08, 240)] {
+            let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+                SmsVdpRevision::Sega3155246,
+                VideoStandard::Ntsc,
+                SpriteLimitMode::HardwareLimit,
+            ));
+            vdp.registers[0] = 0x06; // Mode 4 and M2 enable extended-height decoding.
+            vdp.registers[1] = 0x20 | mode_bits; // VINT enable plus M1/M3 height select.
+            let height = u64::from(vdp.visible_height());
+            assert_eq!(height, expected_height);
+
+            vdp.advance(LINE_TSTATES * (height + 1) + 12);
+            assert_eq!(vdp.status & VBLANK, 0);
+            assert!(!vdp.vint_pending);
+            vdp.advance(1);
+            assert!(vdp.vint_pending, "VINT must assert at T13 for {height} lines");
+            assert_eq!(vdp.status & VBLANK, 0);
+            vdp.advance(3);
+            assert_ne!(vdp.status & VBLANK, 0);
+            assert!(vdp.frame_ready);
+        }
     }
 
     #[test]
