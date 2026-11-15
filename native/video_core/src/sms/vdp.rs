@@ -3714,7 +3714,7 @@ mod tests {
     #[test]
     fn sms_mode4_extended_mode_d0_is_not_sprite_terminator_and_d1_stays_visible() {
         let mut v = SmsVdp::default();
-        v.registers[0] = 0x04;
+        v.registers[0] = 0x06;
         v.registers[1] = 0x50;
         v.registers[2] = 0x0E;
         v.registers[5] = 0x7E;
