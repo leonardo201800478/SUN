@@ -33,9 +33,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
 
     machine.set_trace_enabled(true);
     let mut completed_at_frame = None;
-    let mut vcounter_reads = Vec::new();
-    let mut hcounter_reads = Vec::new();
-    let mut th_writes = Vec::new();
+    let mut hcounter_reference_reads = Vec::new();
 
     for frame in 0..600 {
         machine
@@ -49,32 +47,21 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     address,
                     data,
                     ..
-                } if address & 0x00FF == 0x7E => {
-                    vcounter_reads.push((timestamp.ticks(), data.unwrap_or(0)));
-                }
+                } if address & 0x00FF == 0x7E => {}
                 SmsTemporalTraceEvent::BusCompleted {
                     timestamp,
                     operation: Z80BusOperation::PortRead,
                     address,
                     data,
                     ..
-                } if address & 0x00FF == 0x7F => {
-                    hcounter_reads.push((timestamp.ticks(), data.unwrap_or(0)));
-                    if hcounter_reads.len() > 80 {
-                        hcounter_reads.remove(0);
-                    }
+                } if address & 0x00FF == 0x7F && (0x80..=0x8F).contains(&data.unwrap_or(0)) => {
+                    hcounter_reference_reads.push((timestamp.ticks(), data.unwrap_or(0)));
                 }
                 SmsTemporalTraceEvent::BusCompleted {
-                    timestamp,
-                    operation: Z80BusOperation::PortWrite { value },
+                    operation: Z80BusOperation::PortWrite { .. },
                     address,
                     ..
-                } if address & 0x00FF == 0x3F && matches!(value, 0x55 | 0xFF) => {
-                    th_writes.push((timestamp.ticks(), value));
-                    if th_writes.len() > 80 {
-                        th_writes.remove(0);
-                    }
-                }
+                } if address & 0x00FF == 0x3F => {}
                 _ => {}
             }
         }
@@ -95,6 +82,11 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let all_results = (21u16..=34)
         .map(|test| (test, machine.inspect_memory(0xC900 + test - 1)))
         .collect::<Vec<_>>();
+    let run_test25_samples = [
+        machine.inspect_memory(0xC9F0),
+        machine.inspect_memory(0xC9F1),
+        machine.inspect_memory(0xC9F2),
+    ];
 
     assert!(
         completed_at_frame.is_some(),
@@ -104,6 +96,6 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     assert_eq!(
         results,
         [(25, 0), (31, 0), (32, 0), (33, 0), (34, 0)],
-        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; VCounter reads={vcounter_reads:?}; recent HCounter reads={hcounter_reads:?}; recent TH writes={th_writes:?}"
+        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples={run_test25_samples:?}; HCounter reference reads={hcounter_reference_reads:?}"
     );
 }
