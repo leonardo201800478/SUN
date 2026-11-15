@@ -1,8 +1,8 @@
 # SMS1 × SMS2 — matriz de diferenças de hardware
 
-**Estado:** AUDIT BASELINE — não representa conclusão de implementação  
-**Data:** 2026-11-15  
-**Escopo:** Master System com ASIC VDP Sega 315-5124 (SMS1) e 315-5246 (SMS2)  
+**Estado:** AUDIT BASELINE — não representa conclusão de implementação
+**Data:** 2026-11-15
+**Escopo:** Master System com ASIC VDP Sega 315-5124 (SMS1) e 315-5246 (SMS2)
 **Princípio:** distinguir o modelo comercial da placa efetiva e da revisão do ASIC. A literatura registra exceções: 315-5124 e 315-5246 não são identificadores infalíveis do gabinete/modelo comercial.
 
 ## 1. Resultado executivo
