@@ -3,7 +3,7 @@
 //! Firmware bytes are read only by the explicit scan/load APIs in this module.
 //! No filesystem operation is performed by the emulation core or Scheduler.
 
-use crate::CartridgeIdentity;
+use crate::{CartridgeIdentity, SmsRegion};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::fs;
@@ -18,6 +18,7 @@ const FIRMWARE_256K: usize = 256 * 1024;
 pub enum SmsFirmwareId {
     JapanV21,
     ExportUsEuV13,
+    AlexKiddUsEuBrazilV1990,
     EuropeV20,
     HangOnV34,
     HangOnSafariHuntV24,
@@ -36,6 +37,7 @@ pub enum SmsFirmwareKind {
 pub enum SmsConsoleVariant {
     Sms1,
     Sms2,
+    Sms1AndSms2,
     SamsungGamBoyIi,
 }
 
@@ -81,6 +83,8 @@ pub struct SmsFirmwareDescriptor {
     pub kind: SmsFirmwareKind,
     pub console: SmsConsoleVariant,
     pub region: SmsFirmwareRegion,
+    /// Software regions for which this exact firmware variant is catalogued.
+    pub supported_regions: &'static [SmsRegion],
     pub built_in_game: Option<SmsBuiltInGame>,
     pub size_bytes: usize,
     pub sha256: String,
@@ -193,28 +197,31 @@ impl SmsFirmwareCatalog {
         })
     }
 
-    /// Scan regular files in one directory. Names and extensions are ignored.
-    /// Files with unsupported sizes are rejected before their contents are read.
-    /// Results are deterministic: paths are sorted and the first matching hash
-    /// is Identified; later files with the same hash are DuplicateHash.
+    /// Recursively scan regular files without following symbolic links.
+    /// Names and extensions are ignored. Unsupported sizes are rejected before
+    /// their contents are read. Results are deterministic: sorted paths and
+    /// first matching hash is Identified; later matches are DuplicateHash.
     pub fn scan_directory(
         &self,
         directory: impl AsRef<Path>,
     ) -> Result<Vec<SmsFirmwareScanEntry>, io::Error> {
-        let mut paths = fs::read_dir(directory)?
-            .filter_map(Result::ok)
-            .filter_map(|entry| {
-                entry
-                    .file_type()
-                    .ok()
-                    .filter(|kind| kind.is_file())
-                    .map(|_| entry.path())
-            })
-            .collect::<Vec<_>>();
+        let mut paths = Vec::new();
+        let mut traversal_errors = Vec::new();
+        collect_firmware_files(directory.as_ref(), &mut paths, &mut traversal_errors)?;
         paths.sort();
+        traversal_errors.sort_by(|left, right| left.0.cmp(&right.0));
 
         let mut seen_hashes = HashSet::new();
-        let mut results = Vec::with_capacity(paths.len());
+        let mut results = Vec::with_capacity(paths.len() + traversal_errors.len());
+        for (path, error) in traversal_errors {
+            results.push(SmsFirmwareScanEntry {
+                path,
+                size_bytes: 0,
+                sha256: None,
+                firmware_id: None,
+                status: SmsFirmwareScanStatus::ReadError(error),
+            });
+        }
 
         for path in paths {
             let metadata = match fs::metadata(&path) {
@@ -357,6 +364,38 @@ impl SmsFirmwareCatalog {
     }
 }
 
+fn collect_firmware_files(
+    directory: &Path,
+    paths: &mut Vec<PathBuf>,
+    errors: &mut Vec<(PathBuf, String)>,
+) -> io::Result<()> {
+    for entry in fs::read_dir(directory)? {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                errors.push((directory.to_path_buf(), error.to_string()));
+                continue;
+            }
+        };
+        let path = entry.path();
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(error) => {
+                errors.push((path, error.to_string()));
+                continue;
+            }
+        };
+        if file_type.is_file() {
+            paths.push(path);
+        } else if file_type.is_dir()
+            && let Err(error) = collect_firmware_files(&path, paths, errors)
+        {
+            errors.push((path, error.to_string()));
+        }
+    }
+    Ok(())
+}
+
 fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
     use SmsBuiltInGame as Game;
     use SmsConsoleVariant as Console;
@@ -365,6 +404,13 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
     use SmsFirmwareMappingStrategy as Mapping;
     use SmsFirmwareRegion as Region;
     use SmsFirmwareValidation as Validation;
+
+    const REGION_USA_EUROPE: &[SmsRegion] = &[SmsRegion::Usa, SmsRegion::Europe];
+    const REGION_BRAZIL_USA_EUROPE: &[SmsRegion] =
+        &[SmsRegion::Brazil, SmsRegion::Usa, SmsRegion::Europe];
+    const REGION_JAPAN: &[SmsRegion] = &[SmsRegion::Japan];
+    const REGION_KOREA: &[SmsRegion] = &[SmsRegion::Korea];
+    const REGION_EUROPE: &[SmsRegion] = &[SmsRegion::Europe];
 
     const LOCAL_HASH: &[&str] = &[
         "User-supplied image: size and cryptographic hashes calculated from extracted .sms bytes",
@@ -378,6 +424,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             kind: Kind::ConventionalBios,
             console: Console::Sms1,
             region: Region::Japan,
+            supported_regions: REGION_JAPAN,
             built_in_game: None,
             size_bytes: BIOS_8K,
             sha256: "67846e26764bd862f19179294347f7353a4166b62ac4198a5ec32933b7da486e".to_owned(),
@@ -394,6 +441,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             kind: Kind::ConventionalBios,
             console: Console::Sms1,
             region: Region::Export,
+            supported_regions: REGION_USA_EUROPE,
             built_in_game: None,
             size_bytes: BIOS_8K,
             sha256: "477617917a12a30f9f43844909dc2de6e6a617430f5c9a36306c86414a670d50".to_owned(),
@@ -405,11 +453,34 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             evidence: BIOS_EVIDENCE.to_vec(),
         },
         SmsFirmwareDescriptor {
+            id: Id::AlexKiddUsEuBrazilV1990,
+            name: "Master System USA/Europe/Brazil — Alex Kidd (1990)",
+            kind: Kind::BuiltInGameFirmware,
+            console: Console::Sms1AndSms2,
+            region: Region::Export,
+            supported_regions: REGION_BRAZIL_USA_EUROPE,
+            built_in_game: Some(Game::AlexKiddInMiracleWorld),
+            size_bytes: FIRMWARE_128K,
+            sha256: "0c08e17b0ecc3967e1094f12841fdc97fdcbbf986e3bf9a06b35b69e7d95e4cd".to_owned(),
+            crc32: Some(0xCF4A_09EA),
+            sha1: Some("3af7b66248d34eb26da40c92bf2fa4c73a46a051"),
+            md5: Some("e8b26871629b938887757a64798df6dc"),
+            mapping: Mapping::InternalRomSlot2,
+            validation: Validation::MappingDocumentedBootPending,
+            evidence: vec![
+                LOCAL_HASH[0],
+                SMS_POWER[0],
+                "SMS Power documents MPR-12808, 128 KiB, slot 2 mapping, and use in later VA3 PAL model 1 and most Master System II consoles",
+                "RetroBIOS publishes the SHA-256/CRC32/SHA1/MD5 fingerprint for the No-Intro USA/Europe/Brazil Alex Kidd BIOS",
+            ],
+        },
+        SmsFirmwareDescriptor {
             id: Id::EuropeV20,
             name: "Master System Europe v2.0",
             kind: Kind::ConventionalBios,
             console: Console::Sms1,
             region: Region::Europe,
+            supported_regions: REGION_EUROPE,
             built_in_game: None,
             size_bytes: BIOS_8K,
             sha256: "1eb16fc06ceaf05651d7cfd69d1713e6ddccc4349a511f6fd17e037d71f9d85b".to_owned(),
@@ -426,6 +497,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             kind: Kind::BuiltInGameFirmware,
             console: Console::Sms1,
             region: Region::Export,
+            supported_regions: REGION_USA_EUROPE,
             built_in_game: Some(Game::HangOn),
             size_bytes: FIRMWARE_128K,
             sha256: "1a73bc6e1a9973b98432774a1480b3ac1259027a97590d5e67d52745159abbbc".to_owned(),
@@ -446,6 +518,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             kind: Kind::BuiltInGameFirmware,
             console: Console::Sms1,
             region: Region::Export,
+            supported_regions: REGION_BRAZIL_USA_EUROPE,
             built_in_game: Some(Game::HangOnAndSafariHunt),
             size_bytes: FIRMWARE_128K,
             sha256: "e9eb04ec80ded8658f765c4eca75cdbe23cbc7d8fed73f9c3db7a868dbf649ff".to_owned(),
@@ -466,6 +539,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             kind: Kind::BuiltInGameFirmware,
             console: Console::Sms1,
             region: Region::Export,
+            supported_regions: REGION_USA_EUROPE,
             built_in_game: Some(Game::MissileDefense3d),
             size_bytes: FIRMWARE_128K,
             sha256: "13c0639cc037167f53e6151dbdea013758c3d09a76b064a894bf15c39c0a3897".to_owned(),
@@ -486,6 +560,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             kind: Kind::BuiltInGameFirmware,
             console: Console::SamsungGamBoyIi,
             region: Region::Korea,
+            supported_regions: REGION_KOREA,
             built_in_game: Some(Game::AlexKiddInMiracleWorld),
             size_bytes: FIRMWARE_128K,
             sha256: "57abf3c00c82a8e042ebeb2bfe412adac9ba005e9009845236390de3ee645248".to_owned(),
@@ -506,6 +581,7 @@ fn sms_firmware_entries() -> Vec<SmsFirmwareDescriptor> {
             kind: Kind::BuiltInGameFirmware,
             console: Console::Sms2,
             region: Region::Europe,
+            supported_regions: REGION_EUROPE,
             built_in_game: Some(Game::SonicTheHedgehog),
             size_bytes: FIRMWARE_256K,
             sha256: "c51ec80b7a609c5ee3d203ceee2b602ae4dfb4479caf15dc1d030c40c0364e93".to_owned(),
@@ -562,6 +638,7 @@ mod tests {
             kind: SmsFirmwareKind::BuiltInGameFirmware,
             console: SmsConsoleVariant::Sms1,
             region: SmsFirmwareRegion::Export,
+            supported_regions: &[SmsRegion::Usa, SmsRegion::Europe],
             built_in_game: Some(SmsBuiltInGame::HangOn),
             size_bytes: bytes.len(),
             sha256: identity.sha256_hex(),
@@ -577,7 +654,7 @@ mod tests {
     #[test]
     fn default_catalog_keeps_conventional_and_builtin_firmware_distinct() {
         let catalog = SmsFirmwareCatalog::sms_default();
-        assert_eq!(catalog.entries().len(), 8);
+        assert_eq!(catalog.entries().len(), 9);
         assert_eq!(
             catalog
                 .entries()
@@ -592,13 +669,48 @@ mod tests {
                 .iter()
                 .filter(|entry| entry.kind == SmsFirmwareKind::BuiltInGameFirmware)
                 .count(),
-            5
+            6
         );
         assert!(
             catalog
                 .entries()
                 .iter()
                 .all(|entry| entry.validation != SmsFirmwareValidation::BootConfirmed)
+        );
+        assert_eq!(
+            catalog
+                .descriptor(SmsFirmwareId::HangOnV34)
+                .unwrap()
+                .supported_regions,
+            &[SmsRegion::Usa, SmsRegion::Europe]
+        );
+        assert_eq!(
+            catalog
+                .descriptor(SmsFirmwareId::ExportUsEuV13)
+                .unwrap()
+                .supported_regions,
+            &[SmsRegion::Usa, SmsRegion::Europe]
+        );
+        assert_eq!(
+            catalog
+                .descriptor(SmsFirmwareId::HangOnSafariHuntV24)
+                .unwrap()
+                .supported_regions,
+            &[SmsRegion::Brazil, SmsRegion::Usa, SmsRegion::Europe]
+        );
+        assert_eq!(
+            catalog
+                .descriptor(SmsFirmwareId::SamsungGamBoyIiKoreaAlexKidd)
+                .unwrap()
+                .supported_regions,
+            &[SmsRegion::Korea]
+        );
+        assert_eq!(
+            catalog
+                .descriptor(SmsFirmwareId::AlexKiddUsEuBrazilV1990)
+                .unwrap()
+                .supported_regions,
+            &[SmsRegion::Brazil, SmsRegion::Usa, SmsRegion::Europe]
         );
     }
 
@@ -615,6 +727,21 @@ mod tests {
         assert_eq!(results[0].status, SmsFirmwareScanStatus::Identified);
         assert_eq!(results[1].status, SmsFirmwareScanStatus::DuplicateHash);
         assert_eq!(results[0].firmware_id, Some(SmsFirmwareId::HangOnV34));
+    }
+
+    #[test]
+    fn directory_scan_recursively_finds_firmware_in_nested_directories() {
+        let directory = TempDirectory::new();
+        let nested = directory.path().join("bios").join("regional");
+        fs::create_dir_all(&nested).unwrap();
+        let bytes = vec![0xA5; FIRMWARE_128K];
+        let catalog = synthetic_catalog(&bytes);
+        fs::write(nested.join("firmware.data"), &bytes).unwrap();
+
+        let results = catalog.scan_directory(directory.path()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].status, SmsFirmwareScanStatus::Identified);
+        assert!(results[0].path.ends_with("firmware.data"));
     }
 
     #[test]

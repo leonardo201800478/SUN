@@ -11,19 +11,23 @@ mod windows_host {
         error::Error,
         fs,
         io::{Cursor, Read},
-        path::PathBuf,
+        path::{Path, PathBuf},
         process::Command,
         rc::Rc,
         sync::{
             Arc, Mutex,
-            atomic::{AtomicBool, Ordering},
+            atomic::{AtomicBool, AtomicU64, Ordering},
         },
         thread,
         time::{Duration, Instant},
     };
 
     use crate::input_host::Sdl3InputHost;
-    use sega_media::{CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity};
+    use sega_media::{
+        CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity, SmsConsoleVariant,
+        SmsFirmwareCatalog, SmsFirmwareId, SmsFirmwareScanEntry, SmsFirmwareScanStatus,
+        SmsFirmwareValidation, SmsRegion,
+    };
     use sega_save_runtime::SaveRamStore;
     use sega_sms_core::ControllerButtons;
     use sega_sms_runtime::{
@@ -372,7 +376,7 @@ mod windows_host {
     }
 
     slint::slint! {
-        import { Button, CheckBox, LineEdit, ScrollView, Slider } from "std-widgets.slint";
+        import { Button, CheckBox, ComboBox, LineEdit, ScrollView, Slider } from "std-widgets.slint";
         component CompactButton inherits Button {
             height: 28px;
         }
@@ -414,8 +418,22 @@ mod windows_host {
             in-out property <string> lifecycle-status;
             in-out property <string> rom-status;
             in-out property <string> active-menu: "none";
-            in-out property <string> selected-region: "usa";
+            in-out property <string> selected-region: "auto";
             in-out property <string> selected-system: "sms1";
+            in-out property <string> firmware-directory: "";
+            in-out property <string> firmware-scan-status: "Selecione a pasta de firmware e execute a varredura.";
+            in-out property <string> firmware-scan-results: "Nenhuma varredura realizada.";
+            in-out property <bool> firmware-boot-enabled: false;
+            in-out property <[string]> firmware-brazil-options: [];
+            in-out property <[string]> firmware-usa-options: [];
+            in-out property <[string]> firmware-europe-options: [];
+            in-out property <[string]> firmware-japan-options: [];
+            in-out property <[string]> firmware-korea-options: [];
+            in-out property <string> firmware-brazil-selected: "";
+            in-out property <string> firmware-usa-selected: "";
+            in-out property <string> firmware-europe-selected: "";
+            in-out property <string> firmware-japan-selected: "";
+            in-out property <string> firmware-korea-selected: "";
             in-out property <string> active-system: "sms1";
             in-out property <string> selected-aspect: "4:3";
             in-out property <string> recent-rom-path: "";
@@ -461,6 +479,10 @@ mod windows_host {
             callback display-mode-toggle-requested(string);
             callback video-area-clicked();
             callback preferences-changed();
+            callback browse-firmware-directory-requested();
+            callback scan-firmware-directory-requested(string);
+            callback firmware-selection-changed(string, string);
+            callback firmware-boot-toggle-requested(bool);
             callback audio-volume-changed(float);
             callback audio-mute-changed(bool);
             callback audio-renderer-changed(string);
@@ -572,41 +594,44 @@ mod windows_host {
             clicked => { root.active-menu = "none"; }
         }
         if !root.immersive-fullscreen && root.active-menu != "none": Rectangle {
-            x: min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
+            x: root.active-menu == "firmware" ? (parent.width - self.width) / 2 : min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
             y: 88px;
-            width: min(parent.width - 16px, root.active-menu == "file" ? 560px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
+            width: min(parent.width - 16px, root.active-menu == "firmware" ? 760px : root.active-menu == "file" ? 560px : 480px);
+            height: min(parent.height - 104px, root.active-menu == "firmware" ? 680px : root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
-            border-color: #405365; min-height: 120px; max-height: 480px; max-width: 560px;
+            border-color: #405365; min-height: 120px; max-height: 680px; max-width: 760px;
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             Text { font-size: 12px; text: "Modelo de hardware para a próxima ROM"; color: #f2f5f7; }
                             Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II — VDP 315-5246" : "Em execução: Master System — VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II — VDP 315-5246" : "Selecionado: Master System — VDP 315-5124"); color: #8bd5ca; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); } }
+                                CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                             }
                             Text { font-size: 11px; text: root.has-rom ? (root.selected-system == "sms2" ? "Próxima ROM: SMS2 / 315-5246. A ROM atual mantém o hardware já construído." : "Próxima ROM: SMS1 / 315-5124. A ROM atual mantém o hardware já construído.") : "O hardware selecionado será construído ao carregar a ROM."; color: #b9c5ce; wrap: word-wrap; }
                             Text { font-size: 11px; text: "Região e frequência são configurações independentes do ASIC selecionado."; color: #b9c5ce; wrap: word-wrap; }
                             Text { font-size: 12px; text: "Região / padrão de vídeo"; color: #b9c5ce; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
+                                CompactButton { text: root.selected-region == "auto" ? "✓ Automático" : "Automático"; clicked => { root.selected-region = "auto"; root.preferences-changed(); } }
                                 CompactButton { text: root.selected-region == "brazil" ? "✓ Brasil / PAL-M" : "Brasil / PAL-M"; clicked => { root.selected-region = "brazil"; root.preferences-changed(); } }
                                 CompactButton { text: root.selected-region == "europe" ? "✓ Europa / PAL" : "Europa / PAL"; clicked => { root.selected-region = "europe"; root.preferences-changed(); } }
                                 CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
+                                CompactButton { text: root.selected-region == "korea" ? "✓ Coreia / NTSC" : "Coreia / NTSC"; clicked => { root.selected-region = "korea"; root.preferences-changed(); } }
+                                CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
                             }
-                            Text { font-size: 11px; text: "A região e o padrão de vídeo selecionados serão aplicados ao carregar a próxima ROM; a sessão atual mantém o clock já construído."; color: #b9c5ce; wrap: word-wrap; }
+                            Text { font-size: 11px; text: root.selected-region == "auto" ? "Automático: World → USA; múltiplas regiões: Brasil → USA → Europa → Japão → Coreia; sem evidência confiável: USA." : "A preferência regional será aplicada ao carregar a próxima ROM; a sessão atual mantém o clock já construído."; color: #b9c5ce; wrap: word-wrap; }
+                            CompactButton { text: "Gerenciar firmware SMS..."; clicked => { root.active-menu = "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                             Text { font-size: 12px; text: "Outros sistemas ainda indisponíveis neste runtime"; color: #b9c5ce; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
@@ -750,6 +775,93 @@ mod windows_host {
                             CompactButton { text: root.fullscreen-enabled && !root.immersive-fullscreen ? "✓ Tela cheia com menus" : "Tela cheia com menus (F11)"; clicked => { root.display-mode-toggle-requested("f11"); } }
                             CompactButton { text: root.immersive-fullscreen ? "✓ Tela cheia imersiva" : "Tela cheia imersiva (Alt+Enter)"; clicked => { root.display-mode-toggle-requested("alt-enter"); } }
                         }
+                        if root.active-menu == "firmware": VerticalLayout {
+                            spacing: 10px;
+                            Text { font-size: 20px; text: "Gerenciamento de firmware — Sega Master System"; color: #f2f5f7; height: self.preferred-height; }
+                            Text { font-size: 12px; text: root.selected-system == "sms2" ? "Console selecionado: Master System II. Somente imagens catalogadas para SMS2/Samsung SMS2 ficam disponíveis para seleção." : "Console selecionado: Master System I. Somente imagens catalogadas para SMS1 ficam disponíveis para seleção."; color: #8bd5ca; wrap: word-wrap; height: self.preferred-height; }
+                            Text { font-size: 12px; text: "1. Diretório das BIOS e firmwares"; color: #f2f5f7; }
+                            HorizontalLayout {
+                                spacing: 6px;
+                                LineEdit { text <=> root.firmware-directory; placeholder-text: "Selecione a pasta que contém os arquivos de firmware"; }
+                                CompactButton { text: "Selecionar pasta..."; clicked => { root.browse-firmware-directory-requested(); } }
+                            }
+                            CompactButton { text: "Escanear diretório"; enabled: root.firmware-directory != ""; clicked => { root.scan-firmware-directory-requested(root.firmware-directory); } }
+                            Text { font-size: 11px; text: root.firmware-scan-status; color: #8bd5ca; wrap: word-wrap; height: self.preferred-height; }
+                            Text { font-size: 11px; text: root.firmware-scan-results; color: #b9c5ce; wrap: word-wrap; height: self.preferred-height; }
+                            Text { font-size: 12px; text: "2. Firmware selecionado por região"; color: #f2f5f7; }
+                            Text { font-size: 11px; text: "Cada região mantém uma seleção independente. Opções indisponíveis ou incompatíveis com o modelo do console permanecem desativadas."; color: #b9c5ce; wrap: word-wrap; height: self.preferred-height; }
+                            VerticalLayout {
+                                spacing: 6px;
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { width: 100px; text: "Brasil"; color: #f2f5f7; vertical-alignment: center; }
+                                    ComboBox {
+                                        horizontal-stretch: 1;
+                                        model: root.firmware-brazil-options;
+                                        current-value: root.firmware-brazil-selected;
+                                        enabled: root.firmware-brazil-options.length > 0;
+                                        selected(value) => { root.firmware-brazil-selected = value; root.firmware-selection-changed("brazil", value); root.preferences-changed(); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { width: 100px; text: "USA"; color: #f2f5f7; vertical-alignment: center; }
+                                    ComboBox {
+                                        horizontal-stretch: 1;
+                                        model: root.firmware-usa-options;
+                                        current-value: root.firmware-usa-selected;
+                                        enabled: root.firmware-usa-options.length > 0;
+                                        selected(value) => { root.firmware-usa-selected = value; root.firmware-selection-changed("usa", value); root.preferences-changed(); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { width: 100px; text: "Europa"; color: #f2f5f7; vertical-alignment: center; }
+                                    ComboBox {
+                                        horizontal-stretch: 1;
+                                        model: root.firmware-europe-options;
+                                        current-value: root.firmware-europe-selected;
+                                        enabled: root.firmware-europe-options.length > 0;
+                                        selected(value) => { root.firmware-europe-selected = value; root.firmware-selection-changed("europe", value); root.preferences-changed(); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { width: 100px; text: "Japão"; color: #f2f5f7; vertical-alignment: center; }
+                                    ComboBox {
+                                        horizontal-stretch: 1;
+                                        model: root.firmware-japan-options;
+                                        current-value: root.firmware-japan-selected;
+                                        enabled: root.firmware-japan-options.length > 0;
+                                        selected(value) => { root.firmware-japan-selected = value; root.firmware-selection-changed("japan", value); root.preferences-changed(); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { width: 100px; text: "Coreia"; color: #f2f5f7; vertical-alignment: center; }
+                                    ComboBox {
+                                        horizontal-stretch: 1;
+                                        model: root.firmware-korea-options;
+                                        current-value: root.firmware-korea-selected;
+                                        enabled: root.firmware-korea-options.length > 0;
+                                        selected(value) => { root.firmware-korea-selected = value; root.firmware-selection-changed("korea", value); root.preferences-changed(); }
+                                    }
+                                }
+                            }
+                            if root.firmware-brazil-options.length == 0: Text { font-size: 10px; text: "Brasil: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
+                            if root.firmware-usa-options.length == 0: Text { font-size: 10px; text: "USA: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
+                            if root.firmware-europe-options.length == 0: Text { font-size: 10px; text: "Europa: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
+                            if root.firmware-japan-options.length == 0: Text { font-size: 10px; text: "Japão: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
+                            if root.firmware-korea-options.length == 0: Text { font-size: 10px; text: "Coreia: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
+                            Text { font-size: 11px; text: "O firmware Samsung Gam*Boy II é uma variante própria de SMS2. Identificação e seleção não significam que seu boot esteja validado."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
+                            Text { font-size: 12px; text: "3. Inicialização"; color: #f2f5f7; }
+                            CheckBox {
+                                text: "Habilitar boot pela BIOS / firmware";
+                                checked <=> root.firmware-boot-enabled;
+                                toggled => { root.firmware-boot-toggle-requested(self.checked); root.preferences-changed(); }
+                            }
+                            Text { font-size: 11px; text: "O scan identifica arquivos, mas não comprova o boot. A inicialização sem cartucho será habilitada somente quando o dispositivo interno e o mapa específico da variante estiverem integrados e validados no runtime temporal."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
+                        }
                         if root.active-menu == "debug": VerticalLayout {
                             Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
                             CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
@@ -770,6 +882,13 @@ mod windows_host {
     struct DesktopPreferences {
         region: String,
         sms_system: String,
+        firmware_directory: String,
+        firmware_boot_enabled: bool,
+        firmware_brazil_selected: String,
+        firmware_usa_selected: String,
+        firmware_europe_selected: String,
+        firmware_japan_selected: String,
+        firmware_korea_selected: String,
         aspect: String,
         show_fps: bool,
         show_status_footer: bool,
@@ -788,8 +907,15 @@ mod windows_host {
     impl Default for DesktopPreferences {
         fn default() -> Self {
             Self {
-                region: "usa".to_owned(),
+                region: "auto".to_owned(),
                 sms_system: "sms1".to_owned(),
+                firmware_directory: String::new(),
+                firmware_boot_enabled: false,
+                firmware_brazil_selected: String::new(),
+                firmware_usa_selected: String::new(),
+                firmware_europe_selected: String::new(),
+                firmware_japan_selected: String::new(),
+                firmware_korea_selected: String::new(),
                 aspect: "4:3".to_owned(),
                 show_fps: true,
                 show_status_footer: true,
@@ -837,11 +963,37 @@ mod windows_host {
                 continue;
             };
             match key.trim() {
-                "region" if ["usa", "brazil", "europe", "japan"].contains(&value.trim()) => {
+                "region"
+                    if ["auto", "brazil", "europe", "japan", "korea", "usa"]
+                        .contains(&value.trim()) =>
+                {
                     preferences.region = value.trim().to_owned();
                 }
                 "sms_system" if ["sms1", "sms2"].contains(&value.trim()) => {
                     preferences.sms_system = value.trim().to_owned();
+                }
+                "firmware_directory" => {
+                    preferences.firmware_directory = value.trim().to_owned();
+                }
+                "firmware_boot_enabled" => {
+                    if let Ok(value) = value.trim().parse() {
+                        preferences.firmware_boot_enabled = value;
+                    }
+                }
+                "firmware_brazil_selected" => {
+                    preferences.firmware_brazil_selected = value.trim().to_owned();
+                }
+                "firmware_usa_selected" => {
+                    preferences.firmware_usa_selected = value.trim().to_owned();
+                }
+                "firmware_europe_selected" => {
+                    preferences.firmware_europe_selected = value.trim().to_owned();
+                }
+                "firmware_japan_selected" => {
+                    preferences.firmware_japan_selected = value.trim().to_owned();
+                }
+                "firmware_korea_selected" => {
+                    preferences.firmware_korea_selected = value.trim().to_owned();
                 }
                 "aspect" if ["4:3", "1:1", "16:9"].contains(&value.trim()) => {
                     preferences.aspect = value.trim().to_owned();
@@ -920,9 +1072,16 @@ mod windows_host {
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
         let contents = format!(
-            "region={}\nsms_system={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\n",
+            "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\n",
             preferences.region,
             preferences.sms_system,
+            preferences.firmware_directory,
+            preferences.firmware_boot_enabled,
+            preferences.firmware_brazil_selected,
+            preferences.firmware_usa_selected,
+            preferences.firmware_europe_selected,
+            preferences.firmware_japan_selected,
+            preferences.firmware_korea_selected,
             preferences.aspect,
             preferences.show_fps,
             preferences.show_status_footer,
@@ -2108,6 +2267,221 @@ mod windows_host {
         }
     }
 
+    /// Abre o seletor nativo de diretório do Windows para a pasta de firmware SMS.
+    /// Cancelar retorna None e não modifica as preferências.
+    fn pick_firmware_directory() -> Result<Option<PathBuf>, String> {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        const SCRIPT: &str = r#"
+            Add-Type -AssemblyName System.Windows.Forms
+            [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+            $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+            $dialog.Description = 'Selecione a pasta que contém BIOS e firmwares do Sega Master System'
+            $dialog.ShowNewFolderButton = $false
+            if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                [Console]::Out.Write($dialog.SelectedPath)
+            }
+        "#;
+
+        let output = Command::new("powershell.exe")
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-STA",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                SCRIPT,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|error| format!("não foi possível iniciar o seletor de diretório: {error}"))?;
+
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+        let selected = String::from_utf8_lossy(&output.stdout);
+        let selected = selected.trim_end_matches(['\r', '\n']);
+        if selected.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(PathBuf::from(selected)))
+        }
+    }
+
+    #[derive(Debug)]
+    struct FirmwareScanView {
+        status: String,
+        results: String,
+        brazil: Vec<String>,
+        usa: Vec<String>,
+        europe: Vec<String>,
+        japan: Vec<String>,
+        korea: Vec<String>,
+    }
+
+    fn firmware_id_key(id: SmsFirmwareId) -> &'static str {
+        match id {
+            SmsFirmwareId::JapanV21 => "JapanV21",
+            SmsFirmwareId::ExportUsEuV13 => "ExportUsEuV13",
+            SmsFirmwareId::AlexKiddUsEuBrazilV1990 => "AlexKiddUsEuBrazilV1990",
+            SmsFirmwareId::EuropeV20 => "EuropeV20",
+            SmsFirmwareId::HangOnV34 => "HangOnV34",
+            SmsFirmwareId::HangOnSafariHuntV24 => "HangOnSafariHuntV24",
+            SmsFirmwareId::MissileDefense3dV44 => "MissileDefense3dV44",
+            SmsFirmwareId::SamsungGamBoyIiKoreaAlexKidd => "SamsungGamBoyIiKoreaAlexKidd",
+            SmsFirmwareId::SonicEurope => "SonicEurope",
+        }
+    }
+
+    fn firmware_console_compatible(console: SmsConsoleVariant, system: &str) -> bool {
+        match system {
+            "sms1" => matches!(
+                console,
+                SmsConsoleVariant::Sms1 | SmsConsoleVariant::Sms1AndSms2
+            ),
+            "sms2" => matches!(
+                console,
+                SmsConsoleVariant::Sms2
+                    | SmsConsoleVariant::SamsungGamBoyIi
+                    | SmsConsoleVariant::Sms1AndSms2
+            ),
+            _ => false,
+        }
+    }
+
+    fn firmware_options_for_region(
+        catalog: &SmsFirmwareCatalog,
+        entries: &[SmsFirmwareScanEntry],
+        system: &str,
+        region: SmsRegion,
+    ) -> Vec<String> {
+        let mut options = entries
+            .iter()
+            .filter(|entry| matches!(&entry.status, SmsFirmwareScanStatus::Identified))
+            .filter_map(|entry| entry.firmware_id)
+            .filter_map(|id| catalog.descriptor(id).map(|descriptor| (id, descriptor)))
+            .filter(|(_, descriptor)| firmware_console_compatible(descriptor.console, system))
+            .filter(|(_, descriptor)| descriptor.supported_regions.contains(&region))
+            .map(|(id, descriptor)| {
+                format!(
+                    "{} — {} ({} KiB)",
+                    firmware_id_key(id),
+                    descriptor.name,
+                    descriptor.size_bytes / 1024
+                )
+            })
+            .collect::<Vec<_>>();
+        options.sort();
+        options.dedup();
+        options
+    }
+
+    fn scan_sms_firmware_directory(
+        directory: &Path,
+        system: &str,
+    ) -> Result<FirmwareScanView, String> {
+        let catalog = SmsFirmwareCatalog::sms_default();
+        let entries = catalog
+            .scan_directory(directory)
+            .map_err(|error| format!("não foi possível escanear o diretório: {error}"))?;
+
+        let identified = entries
+            .iter()
+            .filter(|entry| matches!(&entry.status, SmsFirmwareScanStatus::Identified))
+            .count();
+        let duplicates = entries
+            .iter()
+            .filter(|entry| matches!(&entry.status, SmsFirmwareScanStatus::DuplicateHash))
+            .count();
+        let unknown = entries
+            .iter()
+            .filter(|entry| matches!(&entry.status, SmsFirmwareScanStatus::UnknownContent))
+            .count();
+        let unsupported = entries
+            .iter()
+            .filter(|entry| matches!(&entry.status, SmsFirmwareScanStatus::UnsupportedSize))
+            .count();
+        let read_errors = entries
+            .iter()
+            .filter(|entry| matches!(&entry.status, SmsFirmwareScanStatus::ReadError(_)))
+            .count();
+
+        let mut lines = entries
+            .iter()
+            .filter(|entry| matches!(&entry.status, SmsFirmwareScanStatus::Identified))
+            .map(|entry| {
+                let filename = entry
+                    .path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().replace(['\r', '\n'], " "))
+                    .unwrap_or_else(|| "(arquivo sem nome)".to_owned());
+                let size_kib = entry.size_bytes / 1024;
+                let digest = entry
+                    .sha256
+                    .as_deref()
+                    .map(|hash| hash.chars().take(12).collect::<String>())
+                    .unwrap_or_else(|| "não calculado".to_owned());
+                let descriptor = entry.firmware_id.and_then(|id| catalog.descriptor(id));
+                let name = descriptor
+                    .map(|item| item.name)
+                    .unwrap_or("Firmware não catalogado");
+                let validation = descriptor
+                    .map(|item| match item.validation {
+                        SmsFirmwareValidation::IdentifiedOnly => "IDENTIFICADO — BOOT NÃO VALIDADO",
+                        SmsFirmwareValidation::MappingDocumentedBootPending => {
+                            "MAPEAMENTO DOCUMENTADO — BOOT PENDENTE"
+                        }
+                        SmsFirmwareValidation::MappingUnresolvedBootPending => {
+                            "MAPEAMENTO PENDENTE — BOOT NÃO VALIDADO"
+                        }
+                        SmsFirmwareValidation::BootConfirmed => "BOOT VALIDADO",
+                    })
+                    .unwrap_or("CONTEÚDO NÃO CATALOGADO");
+                format!("{name} — {filename} | {size_kib} KiB | SHA-256 {digest} | {validation}")
+            })
+            .collect::<Vec<_>>();
+        if lines.is_empty() {
+            lines.push("Nenhum firmware válido foi identificado.".to_owned());
+        }
+        if duplicates > 0 {
+            lines.push(format!("{duplicates} arquivo(s) duplicado(s) ignorado(s)."));
+        }
+        if unknown > 0 {
+            lines.push(format!("{unknown} arquivo(s) com conteúdo desconhecido."));
+        }
+        if unsupported > 0 {
+            lines.push(format!(
+                "{unsupported} arquivo(s) com tamanho não catalogado."
+            ));
+        }
+        if read_errors > 0 {
+            lines.push(format!(
+                "{read_errors} erro(s) de leitura ou acesso a subdiretório."
+            ));
+        }
+
+        Ok(FirmwareScanView {
+            status: format!(
+                "Varredura concluída: {} arquivos; {identified} firmware(s) identificados; {duplicates} duplicatas; {unknown} desconhecidos; {unsupported} tamanhos não suportados; {read_errors} erros.",
+                entries.len()
+            ),
+            results: lines.join("\n"),
+            brazil: firmware_options_for_region(&catalog, &entries, system, SmsRegion::Brazil),
+            usa: firmware_options_for_region(&catalog, &entries, system, SmsRegion::Usa),
+            europe: firmware_options_for_region(&catalog, &entries, system, SmsRegion::Europe),
+            japan: firmware_options_for_region(&catalog, &entries, system, SmsRegion::Japan),
+            korea: firmware_options_for_region(&catalog, &entries, system, SmsRegion::Korea),
+        })
+    }
+
+    fn slint_string_model(values: Vec<String>) -> slint::ModelRc<slint::SharedString> {
+        let values = values
+            .into_iter()
+            .map(slint::SharedString::from)
+            .collect::<Vec<_>>();
+        slint::ModelRc::new(slint::VecModel::from(values))
+    }
+
     /// Abre o diálogo nativo do Windows para escolher explicitamente o destino do trace.
     ///
     /// O cancelamento retorna None e não cria nem altera qualquer arquivo.
@@ -2427,13 +2801,14 @@ mod windows_host {
         save_store: Arc<SaveRamStore>,
     ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
         let prepared = prepare_cartridge(&rom, save_store)?;
-        let worker = SmsTemporalWorker::new_with_hardware_profile_and_cartridge_sram_size(
-            rom,
-            &settings.region,
-            settings.vdp_revision,
-            prepared.sram_capacity,
-            prepared.initial_sram,
-        )?;
+        let worker =
+            SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                rom,
+                &settings.region,
+                settings.vdp_revision,
+                prepared.sram_capacity,
+                prepared.initial_sram,
+            )?;
         configure_sms_audio(
             &worker,
             settings.audio_volume,
@@ -2649,6 +3024,13 @@ mod windows_host {
         app.set_lifecycle_status("Renderer setup: 0 | teardown: 0".into());
         app.set_selected_region(region.clone().into());
         app.set_selected_system(preferences.sms_system.clone().into());
+        app.set_firmware_directory(preferences.firmware_directory.clone().into());
+        app.set_firmware_boot_enabled(preferences.firmware_boot_enabled);
+        app.set_firmware_brazil_selected(preferences.firmware_brazil_selected.clone().into());
+        app.set_firmware_usa_selected(preferences.firmware_usa_selected.clone().into());
+        app.set_firmware_europe_selected(preferences.firmware_europe_selected.clone().into());
+        app.set_firmware_japan_selected(preferences.firmware_japan_selected.clone().into());
+        app.set_firmware_korea_selected(preferences.firmware_korea_selected.clone().into());
         if rom_path.is_some() {
             app.set_active_system(preferences.sms_system.clone().into());
         }
@@ -2741,37 +3123,18 @@ mod windows_host {
             }
         });
 
-        let stop_worker = Rc::clone(&worker);
-        let stop_save_context = Rc::clone(&save_context);
+        // STOP encerra a sessão atual (persistindo SRAM, destacando o mailbox e
+        // destruindo o worker) para permitir selecionar outro sistema/ROM sem fechar
+        // a janela. PAUSE continua sendo a operação que apenas suspende a máquina.
         let stop_app = app.as_weak();
         app.on_stop_requested(move || {
-            let result = stop_worker.borrow().as_ref().map_or(Ok(()), |worker| {
-                let stop_result = worker.stop();
-                let save_result =
-                    persist_worker_sram(worker, stop_save_context.borrow().as_ref());
-                match (stop_result, save_result) {
-                    (Ok(()), Ok(())) => Ok(()),
-                    (Err(stop_error), Err(save_error)) => Err(format!(
-                        "{stop_error}; a persistência da SRAM também falhou: {save_error}"
-                    )),
-                    (Err(stop_error), Ok(())) => Err(stop_error),
-                    (Ok(()), Err(save_error)) => {
-                        Err(format!("máquina desligada, mas a SRAM não foi gravada: {save_error}"))
-                    }
-                }
-            });
             if let Some(app) = stop_app.upgrade() {
-                match result {
-                    Ok(()) => {
-                        app.set_emulation_paused(false);
-                        app.set_rom_status(
-                            "Máquina desligada (POWER OFF). ROM mantida; pressione Iniciar para ligar.".into(),
-                        );
-                    }
-                    Err(error) => {
-                        app.set_rom_status(format!("Falha ao desligar a máquina: {error}").into());
-                        eprintln!("R2_CONTROL action=stop error={error}");
-                    }
+                app.invoke_close_rom_requested();
+                if !app.get_has_rom() {
+                    app.set_emulation_paused(false);
+                    app.set_rom_status(
+                        "Emulação encerrada. Selecione o sistema e carregue outra ROM.".into(),
+                    );
                 }
             }
         });
@@ -2993,7 +3356,7 @@ mod windows_host {
                             recent_roms_model(&open_recent_list.borrow()),
                         )));
                         app.set_has_rom(true);
-                        app.set_active_system(system.clone().into());
+                        app.set_active_system(system.to_owned().into());
                         app.set_audio_status(if video_only_capture_enabled() {
                             "Saída física desativada pelo modo de captura somente vídeo.".into()
                         } else if open_worker
@@ -3049,6 +3412,140 @@ mod windows_host {
             Err(error) => {
                 if let Some(app) = browse_app.upgrade() {
                     app.set_rom_status(format!("Seletor de arquivos indisponível: {error}").into());
+                }
+            }
+        });
+
+        let firmware_picker_app = app.as_weak();
+        app.on_browse_firmware_directory_requested(move || match pick_firmware_directory() {
+            Ok(Some(path)) => {
+                if let Some(app) = firmware_picker_app.upgrade() {
+                    let directory = path.to_string_lossy().into_owned();
+                    app.set_firmware_directory(directory.clone().into());
+                    app.set_firmware_scan_status(
+                        "Pasta selecionada; iniciando varredura...".into(),
+                    );
+                    app.invoke_preferences_changed();
+                    app.invoke_scan_firmware_directory_requested(directory.into());
+                }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                if let Some(app) = firmware_picker_app.upgrade() {
+                    app.set_firmware_scan_status(
+                        format!("Seletor de diretório indisponível: {error}").into(),
+                    );
+                }
+            }
+        });
+
+        let firmware_scan_app = app.as_weak();
+        let firmware_scan_generation = Arc::new(AtomicU64::new(0));
+        app.on_scan_firmware_directory_requested(move |directory: slint::SharedString| {
+            let Some(app) = firmware_scan_app.upgrade() else {
+                return;
+            };
+            let path = PathBuf::from(directory.as_str());
+            if !path.is_dir() {
+                app.set_firmware_scan_status(
+                    "O diretório informado não existe ou não está acessível.".into(),
+                );
+                return;
+            }
+            let system = app.get_selected_system().to_string();
+            let generation = firmware_scan_generation.fetch_add(1, Ordering::AcqRel) + 1;
+            let generation_state = Arc::clone(&firmware_scan_generation);
+            let selected = [
+                app.get_firmware_brazil_selected().to_string(),
+                app.get_firmware_usa_selected().to_string(),
+                app.get_firmware_europe_selected().to_string(),
+                app.get_firmware_japan_selected().to_string(),
+                app.get_firmware_korea_selected().to_string(),
+            ];
+            app.set_firmware_scan_status("Escaneando arquivos de firmware...".into());
+            app.set_firmware_scan_results(
+                "A leitura ocorre fora da thread da interface e fora do Scheduler.".into(),
+            );
+
+            let weak = firmware_scan_app.clone();
+            let spawn = thread::Builder::new()
+                .name("sms-firmware-directory-scan".to_owned())
+                .spawn(move || {
+                    let result = scan_sms_firmware_directory(&path, &system);
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if generation_state.load(Ordering::Acquire) != generation {
+                            return;
+                        }
+                        let Some(app) = weak.upgrade() else {
+                            return;
+                        };
+                        match result {
+                            Ok(view) => {
+                                let keep_selection = |options: &[String], current: &str| {
+                                    if options.is_empty()
+                                        || options.iter().any(|option| option == current)
+                                    {
+                                        current.to_owned()
+                                    } else {
+                                        String::new()
+                                    }
+                                };
+                                let brazil = keep_selection(&view.brazil, &selected[0]);
+                                let usa = keep_selection(&view.usa, &selected[1]);
+                                let europe = keep_selection(&view.europe, &selected[2]);
+                                let japan = keep_selection(&view.japan, &selected[3]);
+                                let korea = keep_selection(&view.korea, &selected[4]);
+
+                                app.set_firmware_brazil_options(slint_string_model(view.brazil));
+                                app.set_firmware_usa_options(slint_string_model(view.usa));
+                                app.set_firmware_europe_options(slint_string_model(view.europe));
+                                app.set_firmware_japan_options(slint_string_model(view.japan));
+                                app.set_firmware_korea_options(slint_string_model(view.korea));
+                                app.set_firmware_brazil_selected(brazil.into());
+                                app.set_firmware_usa_selected(usa.into());
+                                app.set_firmware_europe_selected(europe.into());
+                                app.set_firmware_japan_selected(japan.into());
+                                app.set_firmware_korea_selected(korea.into());
+                                app.set_firmware_scan_status(view.status.into());
+                                app.set_firmware_scan_results(view.results.into());
+                                app.invoke_preferences_changed();
+                            }
+                            Err(error) => {
+                                app.set_firmware_scan_status(
+                                    format!("Falha na varredura: {error}").into(),
+                                );
+                                app.set_firmware_scan_results(
+                                    "Nenhum resultado válido foi produzido.".into(),
+                                );
+                            }
+                        }
+                    });
+                });
+            if let Err(error) = spawn {
+                app.set_firmware_scan_status(
+                    format!("Não foi possível iniciar a varredura: {error}").into(),
+                );
+            }
+        });
+
+        app.on_firmware_selection_changed(move |region, firmware| {
+            eprintln!(
+                "SMS_FIRMWARE_SELECTION region={} selection={}",
+                region, firmware
+            );
+        });
+
+        let firmware_toggle_app = app.as_weak();
+        app.on_firmware_boot_toggle_requested(move |enabled| {
+            if let Some(app) = firmware_toggle_app.upgrade() {
+                if enabled {
+                    app.set_firmware_scan_status(
+                        "Preferência de boot salva. Boot sem cartucho aguarda a integração do dispositivo interno no runtime temporal.".into(),
+                    );
+                } else {
+                    app.set_firmware_scan_status(
+                        "Boot por BIOS/firmware desativado; boot direto por cartucho permanece como caminho padrão.".into(),
+                    );
                 }
             }
         });
@@ -3137,6 +3634,13 @@ mod windows_host {
                 let prefs = DesktopPreferences {
                     region: app.get_selected_region().to_string(),
                     sms_system: app.get_selected_system().to_string(),
+                    firmware_directory: app.get_firmware_directory().to_string(),
+                    firmware_boot_enabled: app.get_firmware_boot_enabled(),
+                    firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
+                    firmware_usa_selected: app.get_firmware_usa_selected().to_string(),
+                    firmware_europe_selected: app.get_firmware_europe_selected().to_string(),
+                    firmware_japan_selected: app.get_firmware_japan_selected().to_string(),
+                    firmware_korea_selected: app.get_firmware_korea_selected().to_string(),
                     aspect: app.get_selected_aspect().to_string(),
                     show_fps: app.get_show_fps(),
                     show_status_footer: app.get_show_status_footer(),
@@ -3243,6 +3747,13 @@ mod windows_host {
             let prefs = DesktopPreferences {
                 region: app.get_selected_region().to_string(),
                 sms_system: app.get_selected_system().to_string(),
+                firmware_directory: app.get_firmware_directory().to_string(),
+                firmware_boot_enabled: app.get_firmware_boot_enabled(),
+                firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
+                firmware_usa_selected: app.get_firmware_usa_selected().to_string(),
+                firmware_europe_selected: app.get_firmware_europe_selected().to_string(),
+                firmware_japan_selected: app.get_firmware_japan_selected().to_string(),
+                firmware_korea_selected: app.get_firmware_korea_selected().to_string(),
                 aspect: app.get_selected_aspect().to_string(),
                 show_fps: app.get_show_fps(),
                 show_status_footer: app.get_show_status_footer(),
@@ -3502,6 +4013,13 @@ mod windows_host {
         let final_preferences = DesktopPreferences {
             region: app.get_selected_region().to_string(),
             sms_system: app.get_selected_system().to_string(),
+            firmware_directory: app.get_firmware_directory().to_string(),
+            firmware_boot_enabled: app.get_firmware_boot_enabled(),
+            firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
+            firmware_usa_selected: app.get_firmware_usa_selected().to_string(),
+            firmware_europe_selected: app.get_firmware_europe_selected().to_string(),
+            firmware_japan_selected: app.get_firmware_japan_selected().to_string(),
+            firmware_korea_selected: app.get_firmware_korea_selected().to_string(),
             aspect: app.get_selected_aspect().to_string(),
             show_fps: app.get_show_fps(),
             show_status_footer: app.get_show_status_footer(),
@@ -3932,6 +4450,67 @@ mod windows_host {
         #[test]
         fn zip_rom_loader_rejects_invalid_archive_bytes() {
             assert!(extract_rom_from_zip(b"not a ZIP archive").is_err());
+        }
+
+        #[test]
+        fn firmware_region_options_expose_sms2_regional_firmware_and_keep_variants_separate() {
+            let catalog = SmsFirmwareCatalog::sms_default();
+            let entries = [
+                SmsFirmwareScanEntry {
+                    path: PathBuf::from("samsung-gamboy.sms"),
+                    size_bytes: 128 * 1024,
+                    sha256: None,
+                    firmware_id: Some(SmsFirmwareId::SamsungGamBoyIiKoreaAlexKidd),
+                    status: SmsFirmwareScanStatus::Identified,
+                },
+                SmsFirmwareScanEntry {
+                    path: PathBuf::from("sonic-europe.sms"),
+                    size_bytes: 256 * 1024,
+                    sha256: None,
+                    firmware_id: Some(SmsFirmwareId::SonicEurope),
+                    status: SmsFirmwareScanStatus::Identified,
+                },
+                SmsFirmwareScanEntry {
+                    path: PathBuf::from("alex-kidd-international.sms"),
+                    size_bytes: 128 * 1024,
+                    sha256: None,
+                    firmware_id: Some(SmsFirmwareId::AlexKiddUsEuBrazilV1990),
+                    status: SmsFirmwareScanStatus::Identified,
+                },
+            ];
+
+            let sms2_korea =
+                firmware_options_for_region(&catalog, &entries, "sms2", SmsRegion::Korea);
+            assert_eq!(sms2_korea.len(), 1);
+            assert!(sms2_korea[0].contains("SamsungGamBoyIiKoreaAlexKidd"));
+
+            let sms2_europe =
+                firmware_options_for_region(&catalog, &entries, "sms2", SmsRegion::Europe);
+            assert_eq!(sms2_europe.len(), 2);
+            assert!(sms2_europe.iter().any(|item| item.contains("SonicEurope")));
+            assert!(
+                sms2_europe
+                    .iter()
+                    .any(|item| item.contains("AlexKiddUsEuBrazilV1990"))
+            );
+
+            let sms2_brazil =
+                firmware_options_for_region(&catalog, &entries, "sms2", SmsRegion::Brazil);
+            assert_eq!(sms2_brazil.len(), 1);
+            assert!(sms2_brazil[0].contains("AlexKiddUsEuBrazilV1990"));
+
+            let sms2_usa = firmware_options_for_region(&catalog, &entries, "sms2", SmsRegion::Usa);
+            assert_eq!(sms2_usa.len(), 1);
+            assert!(sms2_usa[0].contains("AlexKiddUsEuBrazilV1990"));
+
+            assert!(
+                firmware_options_for_region(&catalog, &entries, "sms1", SmsRegion::Korea)
+                    .is_empty()
+            );
+            let sms1_brazil =
+                firmware_options_for_region(&catalog, &entries, "sms1", SmsRegion::Brazil);
+            assert_eq!(sms1_brazil.len(), 1);
+            assert!(sms1_brazil[0].contains("AlexKiddUsEuBrazilV1990"));
         }
 
         #[test]

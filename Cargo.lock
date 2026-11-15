@@ -3813,6 +3813,7 @@ name = "sega-sms-runtime"
 version = "0.1.0"
 dependencies = [
  "sega-audio-runtime",
+ "sega-media",
  "sega-debugger-core",
  "sega-observability",
  "sega-sms-core",
