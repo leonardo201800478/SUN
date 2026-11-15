@@ -397,7 +397,6 @@ impl SmsTemporalMachine {
                 sample_rate,
                 vdp_profile,
                 territory,
-                cartridge_sram_size,
             )?,
             external_int_line: None,
             instruction_started_at: None,
