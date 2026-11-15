@@ -570,7 +570,7 @@ impl SmsVdp {
 
     pub fn advance(&mut self, tstates: u64) {
         if tstates > 0 {
-            self.prime_sms1_sprite_line_buffer();
+            self.prime_sprite_line_buffer();
         }
         let mut remaining = tstates;
         while remaining > 0 {
@@ -580,13 +580,10 @@ impl SmsVdp {
                 SMS_HINT_TSTATE,
                 SMS_VCOUNTER_LATCH_TSTATE,
                 SMS_VBLANK_FLAG_TSTATE,
+                SMS_SPRITE_OVERFLOW_TSTATE,
                 LINE_TSTATES,
             ]
             .into_iter()
-            .chain(
-                (self.profile.revision == SmsVdpRevision::Sega3155124)
-                    .then_some(SMS_SPRITE_OVERFLOW_TSTATE),
-            )
             .chain(
                 (self.profile.revision == SmsVdpRevision::Sega3155124).then_some(SMS_HBLANK_TSTATE),
             )
@@ -633,10 +630,7 @@ impl SmsVdp {
             SMS_VCOUNTER_LATCH_TSTATE => {
                 self.v_counter_latch = self.scanline;
             }
-            SMS_SPRITE_OVERFLOW_TSTATE
-                if self.profile.revision == SmsVdpRevision::Sega3155124
-                    && self.scanline < height =>
-            {
+            SMS_SPRITE_OVERFLOW_TSTATE if self.scanline < height => {
                 let overflow_index = if self.registers[0] & 0x04 != 0 {
                     self.sprite_line_buffer
                         .as_ref()
@@ -648,7 +642,7 @@ impl SmsVdp {
                         .filter(|buffer| buffer.target_line == self.scanline)
                         .and_then(|buffer| buffer.evaluation.overflow_index)
                 };
-                self.latch_sms1_sprite_overflow_index(overflow_index);
+                self.latch_sprite_overflow_index(overflow_index);
             }
             // Publish the completed visible image at line 192/T16. The VBlank
             // status flag itself follows at line 193/T16.
@@ -699,7 +693,7 @@ impl SmsVdp {
         }
     }
 
-    fn latch_sms1_sprite_overflow_index(&mut self, index: Option<usize>) {
+    fn latch_sprite_overflow_index(&mut self, index: Option<usize>) {
         if let Some(index) = index
             && self.status & OVERFLOW == 0
         {
@@ -707,17 +701,16 @@ impl SmsVdp {
         }
     }
 
-    fn prime_sms1_sprite_line_buffer(&mut self) {
-        if self.profile.revision != SmsVdpRevision::Sega3155124
-            || self.sprite_line_buffer.is_some()
+    fn prime_sprite_line_buffer(&mut self) {
+        if self.sprite_line_buffer.is_some()
             || self.legacy_sprite_line_buffer.is_some()
             || self.scanline != 0
             || self.tstates_into_line != 0
         {
             return;
         }
-        let evaluation = self.evaluate_sms1_sprite_line(0);
-        let legacy_evaluation = self.evaluate_sms1_legacy_sprite_line(0);
+        let evaluation = self.evaluate_mode4_sprite_line(0);
+        let legacy_evaluation = self.evaluate_legacy_sprite_line(0);
         self.sprite_line_buffer = Some(Mode4SpriteLineBuffer {
             target_line: 0,
             evaluation,
@@ -728,7 +721,7 @@ impl SmsVdp {
         });
     }
 
-    fn evaluate_sms1_sprite_line(&self, target_line: u16) -> Mode4SpriteEvaluation {
+    fn evaluate_mode4_sprite_line(&self, target_line: u16) -> Mode4SpriteEvaluation {
         let sprite_limit = if self.profile.sprite_limit == SpriteLimitMode::HardwareLimit {
             8
         } else {
@@ -744,7 +737,7 @@ impl SmsVdp {
         )
     }
 
-    fn evaluate_sms1_legacy_sprite_line(&self, target_line: u16) -> LegacySpriteEvaluation {
+    fn evaluate_legacy_sprite_line(&self, target_line: u16) -> LegacySpriteEvaluation {
         evaluate_legacy_sprites(
             &self.vram,
             &self.registers,
@@ -753,12 +746,7 @@ impl SmsVdp {
         )
     }
 
-    fn prepare_next_sms1_sprite_line(&mut self, completed_line: u16, height: u16) {
-        if self.profile.revision != SmsVdpRevision::Sega3155124 {
-            self.sprite_line_buffer = None;
-            self.legacy_sprite_line_buffer = None;
-            return;
-        }
+    fn prepare_next_sprite_line(&mut self, completed_line: u16, height: u16) {
         let next_line = if completed_line + 1 < height {
             Some(completed_line + 1)
         } else if completed_line + 1 == self.total_lines() {
@@ -767,8 +755,8 @@ impl SmsVdp {
             None
         };
         if let Some(target_line) = next_line {
-            let evaluation = self.evaluate_sms1_sprite_line(target_line);
-            let legacy_evaluation = self.evaluate_sms1_legacy_sprite_line(target_line);
+            let evaluation = self.evaluate_mode4_sprite_line(target_line);
+            let legacy_evaluation = self.evaluate_legacy_sprite_line(target_line);
             self.sprite_line_buffer = Some(Mode4SpriteLineBuffer {
                 target_line,
                 evaluation,
@@ -834,7 +822,7 @@ impl SmsVdp {
         self.line_overflow_status = 0;
         self.sprite_line_buffer = None;
         self.legacy_sprite_line_buffer = None;
-        self.prepare_next_sms1_sprite_line(line, height);
+        self.prepare_next_sprite_line(line, height);
         self.scanline += 1;
         if self.scanline >= self.total_lines() {
             self.scanline = 0;
@@ -2175,6 +2163,116 @@ mod tests {
             &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
             &[0, 238, 0],
             "the next line must use the updated X/tile and pattern-table selection"
+        );
+    }
+
+    #[test]
+    fn sms2_sprite_x_tile_shift_and_pattern_select_are_latched_with_sat_metadata() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        vdp.registers[0] = 0x0C; // Mode 4 plus the -8 sprite X shift.
+        vdp.registers[1] = 0x40;
+        vdp.registers[5] = 0x7F;
+        vdp.registers[6] = 0x04;
+        vdp.cram[17] = 0x03; // red
+        vdp.cram[18] = 0x0C; // green
+
+        for row in 0..8 {
+            vdp.vram[0x2020 + row * 4] = 0xFF;
+            vdp.vram[0x0040 + row * 4 + 1] = 0xFF;
+        }
+        set_sprite(&mut vdp, 0, 0, 18, 1);
+        vdp.vram[0x3F01] = 0xD0;
+
+        vdp.advance(LINE_TSTATES);
+        vdp.vram[0x3F80] = 80;
+        vdp.vram[0x3F81] = 2;
+        vdp.registers[0] = 0x04;
+        vdp.registers[6] = 0;
+
+        vdp.advance(LINE_TSTATES);
+        let line_bytes = SMS_VDP_WIDTH * 3;
+        let latched_pixel = line_bytes + 10 * 3;
+        let new_x_pixel = line_bytes + 80 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[latched_pixel..latched_pixel + 3],
+            &[238, 0, 0],
+            "315-5246 must retain selected X/tile/R0/R6 metadata for line 1"
+        );
+        assert_eq!(
+            &vdp.working_framebuffer[new_x_pixel..new_x_pixel + 3],
+            &[0, 0, 0],
+            "later SAT writes must not retarget the already-selected line"
+        );
+
+        vdp.advance(LINE_TSTATES);
+        let next_line_pixel = line_bytes * 2 + 80 * 3;
+        assert_eq!(
+            &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
+            &[0, 238, 0],
+            "the next line must use updated SAT and pattern-table values"
+        );
+    }
+
+    #[test]
+    fn sms2_sprite_buffer_selects_eight_and_latches_overflow_at_t16() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        v.cram[17] = 0x03;
+        solid_sprite_tile(&mut v, 1, 1);
+
+        for index in 0..9 {
+            set_sprite(&mut v, index, 0xFF, (index * 28) as u8, 1);
+        }
+        v.vram[0x3F09] = 0xD0;
+
+        v.advance(16);
+        assert_ne!(v.status & OVERFLOW, 0);
+        assert_eq!(v.status & 0x1F, 8);
+
+        v.advance(LINE_TSTATES - 16);
+        assert_eq!(&v.working_framebuffer[196 * 3..196 * 3 + 3], &[238, 0, 0]);
+        assert_eq!(&v.working_framebuffer[224 * 3..224 * 3 + 3], &[0, 0, 0]);
+    }
+
+    #[test]
+    fn sms2_zoom_applies_horizontally_to_all_eight_selected_sprites() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::new(
+            SmsVdpRevision::Sega3155246,
+            VideoStandard::Ntsc,
+            SpriteLimitMode::HardwareLimit,
+        ));
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x41; // Mode 4, sprite magnification enabled.
+        v.registers[2] = 0x0E;
+        v.registers[5] = 0x7F;
+        for index in 0..8 {
+            set_sprite(&mut v, index, 0xFF, (index * 28) as u8, 1);
+        }
+        v.vram[0x3F08] = 0xD0;
+
+        let evaluation = evaluate_mode4_sprites(
+            &v.vram,
+            &v.registers,
+            0,
+            SmsVdpRevision::Sega3155246,
+            192,
+            8,
+        );
+        assert_eq!(evaluation.selected.len(), 8);
+        assert!(
+            evaluation.selected.iter().all(|sprite| sprite.width_scale == 2),
+            "the 315-5246 magnifies all eight selected sprites horizontally"
         );
     }
 
