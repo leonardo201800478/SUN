@@ -245,6 +245,7 @@ mod windows_host {
                 };
 
                 while !thread_stop.load(Ordering::Acquire) {
+                    let mut poll_failed = false;
                     if let Some(host) = input_host.as_mut() {
                         match host.poll() {
                             Ok((players, pause_pressed, status_update)) => {
@@ -266,9 +267,12 @@ mod windows_host {
                                 latest.pause_pressed = false;
                                 latest.status_update =
                                     Some(format!("SDL3 interrompido — teclado ativo: {error}"));
-                                input_host = None;
+                                poll_failed = true;
                             }
                         }
+                    }
+                    if poll_failed {
+                        input_host = None;
                     }
                     thread::sleep(Duration::from_millis(2));
                 }
