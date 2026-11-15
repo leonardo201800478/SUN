@@ -3807,6 +3807,24 @@ mod tests {
     }
 
     #[test]
+    fn first_control_byte_retargets_sms1_read_address_and_read_ahead() {
+        let mut v = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        v.vram[0x3E10] = 0xAA;
+        v.vram[0x3E11] = 0xBB;
+        v.vram[0x3E58] = 0xCC;
+
+        addr(&mut v, 0x3E58, 0x00);
+        v.write_port(0xBF, 0x10);
+
+        // The partial control write must preserve the SMS1 read pipeline's
+        // observable byte order, not return the stale 3E58 buffer.
+        let restored = v.clone();
+        let mut restored = restored;
+        assert_eq!(restored.read_port(0xBE), 0xAA);
+        assert_eq!(restored.read_port(0xBE), 0xBB);
+    }
+
+    #[test]
     fn first_control_byte_retargets_write_address_without_incrementing() {
         let mut v = SmsVdp::default();
         addr(&mut v, 0x3E72, 0x40);
