@@ -3195,6 +3195,40 @@ mod tests {
     }
 
     #[test]
+    fn armed_trace_captures_from_the_first_started_frame() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let initial_frame = worker.frame_number();
+
+        worker.arm_trace_on_next_start().unwrap();
+        let armed = worker.debug_snapshot().unwrap();
+        assert!(armed.trace_enabled);
+        assert!(armed.trace_events.is_empty());
+
+        worker.start().unwrap();
+        assert!(worker.wait_for_frame_after(initial_frame, Duration::from_secs(2)));
+        worker.pause().unwrap();
+
+        let captured = worker.debug_snapshot().unwrap();
+        assert!(captured.trace_enabled);
+        assert!(
+            !captured.trace_events.is_empty(),
+            "arming before start must retain events from the boot/run sequence"
+        );
+    }
+
+    #[test]
+    fn arming_trace_while_running_is_rejected() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        worker.start().unwrap();
+
+        let result = worker.arm_trace_on_next_start();
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("requires a stopped machine"));
+        worker.pause().unwrap();
+    }
+
+    #[test]
     fn trace_capture_is_opt_in_and_exposes_bounded_owned_events() {
         let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
         let initial = worker.debug_snapshot().unwrap();
