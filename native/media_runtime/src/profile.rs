@@ -114,9 +114,10 @@ pub fn preflight_sms_cartridge<T>(
 ) -> Result<(T, SmsCompatibilityStatus), String> {
     let status = requirement.evaluate(selected);
     if status == SmsCompatibilityStatus::Incompatible {
-        return Err(format!(
+        return Err(
             "ROM exige SMS2 (VDP 315-5246), mas o hardware selecionado é SMS1 (VDP 315-5124)"
-        ));
+                .to_owned(),
+        );
     }
 
     prepare().map(|prepared| (prepared, status))
@@ -267,9 +268,9 @@ mod sms_compatibility_tests {
             },
         );
 
-        assert!(result.is_err());
-        if let Ok((next, _)) = result {
-            active_session = Some(next);
+        match result {
+            Ok((next, _)) => active_session = Some(next),
+            Err(_) => {}
         }
         assert!(!preparation_called);
         assert_eq!(active_session, Some("current ROM"));
