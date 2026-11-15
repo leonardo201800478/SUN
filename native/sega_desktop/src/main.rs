@@ -416,6 +416,7 @@ mod windows_host {
             in-out property <string> active-menu: "none";
             in-out property <string> selected-region: "usa";
             in-out property <string> selected-system: "sms1";
+            in-out property <string> active-system: "sms1";
             in-out property <string> selected-aspect: "4:3";
             in-out property <string> recent-rom-path: "";
             in-out property <[string]> recent-roms: [];
@@ -589,13 +590,13 @@ mod windows_host {
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             Text { font-size: 12px; text: "Modelo de hardware para a próxima ROM"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: root.selected-system == "sms2" ? "Selecionado: Sega Master System II — VDP 315-5246" : "Selecionado: Sega Master System — VDP 315-5124"; color: #8bd5ca; }
+                            Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II — VDP 315-5246" : "Em execução: Master System — VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II — VDP 315-5246" : "Selecionado: Master System — VDP 315-5124"); color: #8bd5ca; }
                             FlexboxLayout {
                                 flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); } }
+                                CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; clicked => { root.selected-system = "sms1"; root.preferences-changed(); } }
+                                CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; clicked => { root.selected-system = "sms2"; root.preferences-changed(); } }
                             }
-                            Text { font-size: 11px; text: root.has-rom ? "Feche a ROM atual antes de trocar o hardware. A seleção será aplicada ao próximo carregamento." : "O hardware selecionado será construído ao carregar a ROM."; color: #b9c5ce; wrap: word-wrap; }
+                            Text { font-size: 11px; text: root.has-rom ? (root.selected-system == "sms2" ? "Próxima ROM: SMS2 / 315-5246. A ROM atual mantém o hardware já construído." : "Próxima ROM: SMS1 / 315-5124. A ROM atual mantém o hardware já construído.") : "O hardware selecionado será construído ao carregar a ROM."; color: #b9c5ce; wrap: word-wrap; }
                             Text { font-size: 11px; text: "Região e frequência são configurações independentes do ASIC selecionado."; color: #b9c5ce; wrap: word-wrap; }
                             Text { font-size: 12px; text: "Região / padrão de vídeo"; color: #b9c5ce; }
                             FlexboxLayout {
@@ -2647,6 +2648,9 @@ mod windows_host {
         app.set_lifecycle_status("Renderer setup: 0 | teardown: 0".into());
         app.set_selected_region(region.clone().into());
         app.set_selected_system(preferences.sms_system.clone().into());
+        if rom_path.is_some() {
+            app.set_active_system(preferences.sms_system.clone().into());
+        }
         app.set_show_fps(preferences.show_fps);
         app.set_show_status_footer(preferences.show_status_footer);
         app.set_sprite_limit_enabled(preferences.sprite_limit_enabled);
@@ -2988,6 +2992,7 @@ mod windows_host {
                             recent_roms_model(&open_recent_list.borrow()),
                         )));
                         app.set_has_rom(true);
+                        app.set_active_system(system.clone().into());
                         app.set_audio_status(if video_only_capture_enabled() {
                             "Saída física desativada pelo modo de captura somente vídeo.".into()
                         } else if open_worker
