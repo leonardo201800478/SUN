@@ -94,18 +94,32 @@ O código atual em `native/video_core/src/sms/vdp.rs` usa `selected_count.satura
 
 Gearsystem e Ares não reproduzem essa exceção SMS1 no caminho Mode 4 consultado; portanto, não servem como oráculo para essa diferença. Referências: [SMS Power — Sprites](https://www.smspower.org/Development/Sprites), [SMS Power — discussão de zoom SMS1](https://www.smspower.org/forums/19069-ZoomedSpritesOnSMS1), [MAME 315-5124/5246](https://github.com/mamedev/mame/blob/master/src/devices/video/315_5124.cpp#L2350-L2433).
 
+## 3.6 Seleção explícita de hardware integrada
+
+A seleção de hardware foi integrada à main pela PR #892 (`1811df12e6c2568a5231602a39eaa0749514690f`):
+
+- SMS1 seleciona explicitamente o perfil VDP 315-5124.
+- SMS2 seleciona explicitamente o perfil VDP 315-5246.
+- A preferência é persistida e a troca de ASIC fica bloqueada durante uma sessão com ROM carregada.
+- Região/padrão de vídeo é independente do ASIC e aplica-se à próxima ROM; a sessão ativa mantém seu clock.
+- `SmsTemporalWorker` recebe a revisão explícita e a preserva na reconstrução/reset.
+- SG-1000 e Game Gear permanecem indisponíveis no desktop enquanto não houver runtime temporal/host correspondente; seus cores existentes não foram alterados.
+
+A seleção não resolve, por si só, compatibilidade de cada cartucho. Não há campo genérico de requisito mínimo de console/VDP no perfil de cartucho; essa lacuna está rastreada em #897. Hardware desconhecido não deve ser inferido pela região nem provocar troca automática.
+
 ## 4. Lacunas que bloqueiam declarar SMS2 completo
 
-1. Seleção explícita persistida no desktop e propagada até `SmsTemporalWorker` (implementação em PR #892; a validação integral e o merge dependem da CI do HEAD atualizado).
-2. Configuração do 315-5246 independente de região, ROM e mapper.
-3. Testes contratuais específicos de máscara de endereços R2/R5/R6.
-4. Resolver por captura de hardware a seleção de slots de zoom horizontal SMS1 (primeiros quatro fixos vs. primeiros N−4), atualizar o teste existente somente após evidência; manter teste SMS2 para oito sprites.
-5. Testes de paleta que comprovem o realce de azul apenas no 315-5124.
-6. Testes de 224/240 linhas, contadores, HINT/VINT e interrupções no perfil 315-5246.
-7. Caracterização do timing elétrico SMS2 de sprite evaluation/fetch/latch, overflow e colisão. O buffer SAT Mode 4 já é compartilhado por #894; não extrapolar essa implementação para modos legacy/TMS nem para fases subscanline não medidas.
-8. Suporte e testes de dimensões dinâmicas 256x192/224/240 integrados por #890; ainda falta validação prolongada com frames SMS2 reais no host Windows e confirmação de ausência de truncamento/linhas antigas.
-9. Validação funcional de Cosmic Spacehead (CRC32 29822980) do menu ao gameplay, usando explicitamente 315-5246 e região europeia.
-10. Regressões SMS1 e SG-1000.
+1. Metadados genéricos de compatibilidade cartucho ↔ console/ASIC, com estados compatível/incompatível/desconhecido e rollback antes de substituir a sessão (#897).
+2. Testes contratuais e evidência de hardware para máscaras de endereços R2/R5/R6.
+3. Resolver por captura de hardware a seleção de slots de zoom horizontal SMS1 (primeiros quatro fixos vs. primeiros N−4), atualizando o teste existente somente após evidência (#898); manter teste SMS2 para oito sprites.
+4. Medir independentemente os níveis DAC dos 64 valores CRAM em 315-5124 e 315-5246. O runtime SMS2 usa escala linear [0,85,170,255], enquanto o modelo secundário MAME usa [0,89,174,255]; não alterar pixels sem captura.
+5. Captura/validação física dos modos 224/240, contadores, HINT/VINT e limites de interrupção no perfil 315-5246; os testes de software já foram integrados por #884/#893.
+6. Caracterização do timing elétrico SMS2 de sprite evaluation/fetch/latch, HBlank, raster writes, contenção de VRAM, WAIT states, overflow e colisão. O buffer SAT Mode 4 já é compartilhado por #894; não extrapolar para modos legacy/TMS ou fases subscanline.
+7. Validação prolongada de frames SMS2 reais no host Windows através da cadeia VDP → runtime → mailbox → WGPU → Slint, confirmando 192/224/240 sem truncamento ou linhas antigas. O suporte dinâmico de dimensões foi integrado por #890.
+8. Validação funcional de Cosmic Spacehead (CRC32 29822980), Codemasters, com 315-5246 e região europeia, desde boot/menu até gameplay, incluindo input, áudio e colisões (#881).
+9. Reproduzir a primeira divergência de ordenação visual em The Smurfs (Brazil) com ROM real; validar uma correção geral e sintética, sem hacks por título (#881).
+10. Regressões independentes em SMS1 e SG-1000, incluindo ROMs e hardware real quando disponíveis.
+
 
 ## 5. Evidências e referências
 
