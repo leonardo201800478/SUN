@@ -55,14 +55,13 @@ Result: no compatibility profile is declared; the loader reports `Unknown`, cont
 
 The ROM is not present in the repository. No execution or compatibility validation of this dump is claimed.
 
-## Loader enforcement
+## Loader enforcement — staged, not yet merged
 
-The cross-platform `SmsTemporalWorker` performs compatibility preflight:
+This metadata change adds the pure `preflight_sms_cartridge` gate. It rejects a known incompatible selection before invoking its preparation closure, permits unknown metadata without changing the selected hardware, and has unit tests for the active-session preservation contract.
 
-- before creating the worker/machine for a new ROM;
-- before queuing `load_rom` on an existing worker.
+The runtime integration is prepared separately on branch `hold/sms-cartridge-runtime-preflight-windows-validation`. That branch calls the gate before worker construction and before queuing `load_rom` on an existing worker. It is intentionally not submitted as a PR in this stage: changing `rust/runtime/sms-runtime` automatically starts the `SMS Debugger Runtime` workflow, which runs Clippy and tests on Windows.
 
-A known SMS2-only cartridge selected with SMS1 returns an explicit error before machine construction or command submission. The desktop replacement path creates the new worker before taking the active worker out of its slot; therefore this preflight error leaves the active session untouched. Unknown metadata is logged as `SMS_COMPATIBILITY status=unknown` and does not change the selected VDP.
+The existing desktop replacement path constructs the next worker before taking the active worker out of its slot. Once runtime preflight is validated and merged, an incompatibility error will therefore leave the active session untouched. **Until that integration is merged, the current `main` does not yet reject SMS2-only cartridges selected with SMS1.** Unknown metadata remains the intended permissive default.
 
 ## Validation classification
 
@@ -72,7 +71,8 @@ A known SMS2-only cartridge selected with SMS1 returns an explicit error before 
 | Cosmic Spacehead SMS2 requirement | Independently documented; no ROM execution claimed |
 | The Smurfs Brazil exact identity in project DAT | Not found |
 | The Smurfs Brazil minimum VDP requirement | Unknown |
-| Compatibility model unit tests | Added; Linux CI pending |
-| Runtime loader preflight tests | Added; Linux CI pending |
-| Windows tests | Not run by design |
+| Compatibility model and catalog unit tests | Added; Linux CI pending |
+| Preflight helper rollback tests | Added; Linux CI pending |
+| Runtime worker integration | Prepared on hold branch; not merged |
+| Windows tests | Not run by design; required for runtime integration |
 | Physical SMS1/SMS2 hardware | Not tested |
