@@ -959,7 +959,7 @@ mod tests {
 
     #[test]
     fn sms1_vint_boundary_is_chunk_invariant_and_survives_snapshot_restore() {
-        const VBLANK_START_TSTATES: u32 = 192 * 228;
+        const VBLANK_START_TSTATES: u32 = 193 * 228;
 
         fn advance_internal(bus: &mut SmsTemporalBus, id: u64, tstates: u32) {
             bus.schedule_internal_cycle(id, tstates).unwrap();
