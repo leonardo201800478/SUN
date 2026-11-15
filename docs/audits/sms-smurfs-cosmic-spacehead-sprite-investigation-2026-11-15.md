@@ -95,6 +95,17 @@ O próprio scorecard do VDP documenta que a fase atual separou a avaliação dos
 
 **Hipótese prioritária específica:** perfil do VDP/ASIC e modo de altura vertical. Cosmic Spacehead é um título Codemasters PAL europeu e pertence à família SMS2. A documentação de compatibilidade registra que Cosmic Spacehead usa o modo de resolução vertical estendida de 224 linhas, disponível no VDP 315-5246 (SMS2 e revisões PAL tardias), não no 315-5124 SMS1. O core já implementa a seleção de 224 linhas quando R1 bit 4 está ativo e o perfil permite `active_height_modes`; porém `SmsTemporalBus::new_with_psg_config` escolhe por padrão `SmsVdpProfile::sms1_t0_ntsc()`. Precisamos rastrear a seleção de perfil feita pelo launcher/loader e confirmar qual perfil chega à máquina quando essa ROM é carregada. Não forçar SMS2/PAL apenas pelo nome do jogo: a identificação de hardware deve ser explícita e reproduzível.
 
+### Confirmação adicional no caminho real do runtime desktop
+
+A inspeção de `rust/runtime/sms-runtime/src/worker.rs` e `docs/desktop/sms1-active-system-profile.md` confirmou:
+
+- `sms_temporal_region_profile("europe")` seleciona PAL, mas mantém `SmsVdpRevision::Sega3155124` (SMS1).
+- O perfil ativo no desktop é SMS1 em todas as regiões; SMS2/315-5246 existe no VDP, mas não está selecionado nem habilitado no runtime desktop.
+- Portanto, **a região europeia/PAL não equivale à seleção de SMS2**. A configuração atual não satisfaz o requisito de hardware conhecido para Cosmic Spacehead.
+- O VDP já tem suporte interno condicional para 224 linhas, mas a política de runtime/host não seleciona o ASIC necessário. A janela desktop também declara `SMS_HEIGHT = 192`; precisamos rastrear o contrato de publicação e apresentação antes de habilitar 224 linhas para evitar truncamento ou buffer inconsistente.
+
+Isso transforma a hipótese de Cosmic Spacehead em uma divergência concreta de configuração arquitetural, não em uma suspeita genérica de sprites. Próxima investigação deve rastrear a cadeia completa: identidade da ROM → perfil de sistema/cartucho → seleção do ASIC → padrão PAL → dimensões do mailbox/framebuffer → composição da janela. Não corrigir apenas aumentando a altura constante da GUI.
+
 ### Evidências técnicas e fontes
 
 - SMS Power, Codemasters mapper: três slots de 16 KiB, registradores em `$0000/$4000/$8000`, primeiro 1 KiB do slot 0 paginável e estado inicial `[0,1,0]`.
