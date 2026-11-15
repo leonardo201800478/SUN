@@ -11,7 +11,8 @@ const CRAM_SIZE: usize = 0x20;
 const LINE_TSTATES: u64 = 228;
 // CPU-visible raster boundaries follow the SmsVdpTest Z80-clock/pixel mapping:
 // VINT HPos 20/T13, HINT HPos 21/T14, VCounter HPos 23/T15 and
-// VBlank flag HPos 24/T16 are scheduled for both SMS ASIC revisions.
+// VBlank status HPos 25/T17 are scheduled for both SMS ASIC revisions.
+// The completed visible frame is published separately at line height/T16.
 // SMS1 additionally commits HBlank spans and latches sprite overflow at T16;
 // SMS2's HBlank/raster-write phase remains uncharacterized. These are T-state
 // boundaries, not sub-T-state arbitration or dot-accurate timestamps.
@@ -19,8 +20,9 @@ const SMS_VINT_IRQ_TSTATE: u64 = 13;
 const SMS_HINT_TSTATE: u64 = 14;
 const SMS_VCOUNTER_LATCH_TSTATE: u64 = 15;
 const SMS_SPRITE_OVERFLOW_TSTATE: u64 = 16;
+const SMS_FRAME_PUBLISH_TSTATE: u64 = 16;
 const SMS_HBLANK_TSTATE: u64 = 213;
-const SMS_VBLANK_FLAG_TSTATE: u64 = 16;
+const SMS_VBLANK_FLAG_TSTATE: u64 = 17;
 const SMS_HCOUNTER_POSITIONS_PER_LINE: u64 = 342;
 const SMS_R8_LATCH_HPOS: u16 = 21;
 // Comparative SMS timing uses HPos 63 as the active-window start and 319 as its exclusive end.
@@ -644,9 +646,9 @@ impl SmsVdp {
                 };
                 self.latch_sprite_overflow_index(overflow_index);
             }
-            // Publish the completed visible image at line 192/T16. The VBlank
-            // status flag itself follows at line 193/T16.
-            SMS_VBLANK_FLAG_TSTATE if self.scanline == height => {
+            // Publish the completed visible image at line height/T16. The
+            // VBlank status flag follows at line height+1/T17 (HCount $F5).
+            SMS_FRAME_PUBLISH_TSTATE if self.scanline == height => {
                 self.publish_completed_frame();
             }
             SMS_VBLANK_FLAG_TSTATE if self.scanline == height + 1 => {
@@ -2029,7 +2031,17 @@ mod tests {
         assert_eq!(vdp.status & VBLANK, 0);
 
         vdp.advance(3);
-        assert_ne!(vdp.status & VBLANK, 0, "SMS2 VBlank status latches at T16");
+        assert_eq!(
+            vdp.status & VBLANK,
+            0,
+            "SMS2 VBlank status remains clear at HCount $F4"
+        );
+        vdp.advance(1);
+        assert_ne!(
+            vdp.status & VBLANK,
+            0,
+            "SMS2 VBlank status latches at HCount $F5 / T17"
+        );
         assert!(vdp.interrupt_pending());
 
         let status = vdp.read_port(0xBF);
@@ -2060,7 +2072,13 @@ mod tests {
             );
             assert_eq!(vdp.status & VBLANK, 0);
             vdp.advance(3);
-            assert_ne!(vdp.status & VBLANK, 0);
+            assert_eq!(
+                vdp.status & VBLANK,
+                0,
+                "VBlank flag remains clear at HCount $F4"
+            );
+            vdp.advance(1);
+            assert_ne!(vdp.status & VBLANK, 0, "VBlank flag sets at HCount $F5");
             assert!(vdp.frame_ready);
         }
     }
@@ -2081,10 +2099,16 @@ mod tests {
         assert_eq!(vdp.status & VBLANK, 0, "the status flag is still pending");
 
         vdp.advance(3);
+        assert_eq!(
+            vdp.status & VBLANK,
+            0,
+            "VBlank flag remains clear at HCount $F4"
+        );
+        vdp.advance(1);
         assert_ne!(
             vdp.status & VBLANK,
             0,
-            "VBlank status latches at HPos 24 / T16"
+            "VBlank status latches at HCount $F5 / T17"
         );
         assert!(
             vdp.interrupt_pending(),
@@ -2094,6 +2118,30 @@ mod tests {
         let status = vdp.read_port(0xBF);
         assert_ne!(status & VBLANK, 0);
         assert!(!vdp.interrupt_pending());
+    }
+
+    #[test]
+    fn sms1_vblank_flag_transitions_between_hcounter_f4_and_f5() {
+        let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
+        let vblank_line = u64::from(vdp.visible_height()) + 1;
+
+        vdp.advance(LINE_TSTATES * vblank_line + 16);
+        vdp.latch_h_counter();
+        assert_eq!(vdp.read_h_counter(), 0xF4);
+        assert_eq!(
+            vdp.status & VBLANK,
+            0,
+            "the reference test observes no VBlank flag at HCount $F4"
+        );
+
+        vdp.advance(1);
+        vdp.latch_h_counter();
+        assert_eq!(vdp.read_h_counter(), 0xF5);
+        assert_ne!(
+            vdp.status & VBLANK,
+            0,
+            "the reference test observes VBlank at HCount $F5"
+        );
     }
 
     #[test]
@@ -2140,8 +2188,10 @@ mod tests {
         assert_eq!(vdp.scanline, (height + 1) as u16);
         assert_eq!(vdp.status & VBLANK, 0);
         vdp.advance(1);
-        assert_ne!(vdp.status & VBLANK, 0);
+        assert_eq!(vdp.status & VBLANK, 0, "VBlank remains clear at HCount $F4");
         assert!(vdp.frame_ready);
+        vdp.advance(1);
+        assert_ne!(vdp.status & VBLANK, 0, "VBlank sets at HCount $F5");
     }
 
     #[test]
@@ -2519,7 +2569,7 @@ mod tests {
         addr(&mut v, 0x1234, 0);
         assert_eq!(v.read_port(0xBE), 0x71);
         reg(&mut v, 1, 0x20);
-        v.advance(228 * 193 + 16);
+        v.advance(228 * 193 + 17);
         assert!(v.interrupt_pending());
         assert_ne!(v.read_port(0xBF) & 0x80, 0);
         assert!(!v.interrupt_pending());
