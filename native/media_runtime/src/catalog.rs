@@ -413,7 +413,7 @@ mod tests {
     use crate::{
         CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper, CartridgeRamKind,
         CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, DatGameEntry, DatRomEntry,
-        NoIntroDat, ProfileStatus,
+        NoIntroDat, ProfileStatus, SmsVdpRequirement,
     };
 
     fn test_battery_profile() -> CartridgeHardwareProfile {
@@ -468,6 +468,12 @@ mod tests {
         assert_eq!(matched.game.name, "Synthetic Cartridge");
         assert_eq!(matched.rom.name, "this-filename-is-not-the-identity.sms");
         assert_eq!(matched.profile, Some(&profile));
+        assert_eq!(
+            matched
+                .compatibility
+                .map(|metadata| metadata.sms_vdp_requirement),
+            Some(SmsVdpRequirement::Unknown)
+        );
         assert!(catalog.lookup_runtime_profile(&identity).unwrap().is_some());
     }
 
@@ -493,6 +499,40 @@ mod tests {
                 profile.sha1
             );
         }
+    }
+
+    #[test]
+    fn cosmic_spacehead_exact_identity_requires_sms2_and_keeps_mapper_separate() {
+        let catalog = CartridgeCatalog::sms_default().unwrap();
+        let sha1 = "f46f716dd34a1a5013a2d8a59769f6ef7536a567";
+        let (_, rom) = catalog.dat().find_sha1(sha1).expect("Cosmic Spacehead DAT entry");
+
+        assert_eq!(rom.size_bytes, 262_144);
+        assert_eq!(rom.crc32, 0x2982_2980);
+        assert_eq!(rom.sha1, sha1);
+
+        let known = catalog
+            .profiles()
+            .iter()
+            .find(|entry| entry.sha1 == sha1)
+            .expect("Cosmic Spacehead compatibility profile");
+        assert_eq!(known.profile.mapper, CartridgeMapper::Codemasters);
+        assert_eq!(
+            known.compatibility.sms_vdp_requirement,
+            SmsVdpRequirement::Sms2Required
+        );
+        assert!(known.profile.ram.is_none());
+        assert!(!known.profile.is_runtime_usable());
+        assert_eq!(known.compatibility.evidence.len(), 3);
+    }
+
+    #[test]
+    fn smurfs_brazil_identity_is_absent_from_dat_and_remains_uncharacterized() {
+        let catalog = CartridgeCatalog::sms_default().unwrap();
+        let sha1 = "15b882ad3263cdc1e78c732d96f9bb18e25f4743";
+
+        assert!(catalog.dat().find_sha1(sha1).is_none());
+        assert!(!catalog.profiles().iter().any(|entry| entry.sha1 == sha1));
     }
 
     #[test]
