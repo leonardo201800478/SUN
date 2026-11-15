@@ -31,6 +31,8 @@ fn emit_vram_write(program: &mut Vec<u8>, address: u16, bytes: &[u8]) {
 
 fn sprite_status_rom(overflow: bool) -> Vec<u8> {
     let mut program = Vec::new();
+    // Clear host-visible result slots before any raster activity.
+    program.extend_from_slice(&[0x3E, 0x00, 0x32, 0x00, 0xC0, 0x3E, 0x00, 0x32, 0x01, 0xC0]);
     // Mode 4, display enabled, name table at $3800, SAT at $3F00.
     emit_vdp_register(&mut program, 0, 0x04);
     emit_vdp_register(&mut program, 1, 0x40);
@@ -66,9 +68,11 @@ fn sprite_status_rom(overflow: bool) -> Vec<u8> {
     }
 
     // Poll the CPU-visible status port until the selected sticky flag appears.
-    // IN A,($BF); LD ($C000),A; AND mask; JR Z,loop; HALT.
+    // IN A,($BF); LD ($C000),A; AND mask; JR Z,loop; LD A,1; LD ($C001),A; HALT.
     let mask = if overflow { 0x40 } else { 0x20 };
-    program.extend_from_slice(&[0xDB, 0xBF, 0x32, 0x00, 0xC0, 0xE6, mask, 0x28, 0xF7, 0x76]);
+    program.extend_from_slice(&[
+        0xDB, 0xBF, 0x32, 0x00, 0xC0, 0xE6, mask, 0x28, 0xF7, 0x3E, 0x01, 0x32, 0x01, 0xC0, 0x76,
+    ]);
 
     let mut rom = vec![0; ROM_SIZE];
     rom[..program.len()].copy_from_slice(&program);
@@ -87,9 +91,8 @@ fn run_until_status(overflow: bool) -> u8 {
     .expect("SMS1 temporal machine should initialize");
 
     for _ in 0..80_000 {
-        let status = machine.inspect_memory(STATUS_ADDRESS);
-        if status != 0 {
-            return status;
+        if machine.inspect_memory(0xC001) == 0x01 {
+            return machine.inspect_memory(STATUS_ADDRESS);
         }
         machine
             .step_complete_instruction()
