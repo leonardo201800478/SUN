@@ -2223,8 +2223,13 @@ fn handle_command(
             // POWER-off is different from Pause: retain the ROM, but cold-reset the machine.
             *running = false;
             telemetry.running.store(false, Ordering::Release);
-            let result = rebuild_sms_temporal_machine_preserving_sram(machine, rom.clone(), region, vdp_revision)
-                .and_then(|powered_off| {
+            let result = rebuild_sms_temporal_machine_preserving_sram(
+                machine,
+                rom.clone(),
+                region,
+                vdp_revision,
+            )
+            .and_then(|powered_off| {
                     audio_session
                         .as_mut()
                         .map_or(Ok::<(), String>(()), |session| {
@@ -2247,7 +2252,12 @@ fn handle_command(
             let _ = reply.send(result);
         }
         WorkerCommand::Reset(reply) => {
-            match rebuild_sms_temporal_machine_preserving_sram(machine, rom.clone(), region, vdp_revision) {
+            match rebuild_sms_temporal_machine_preserving_sram(
+                machine,
+                rom.clone(),
+                region,
+                vdp_revision,
+            ) {
                 Ok(reset_machine) => {
                     *running = false;
                     telemetry.running.store(false, Ordering::Release);
@@ -2677,7 +2687,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(machine.vdp().profile().revision, SmsVdpRevision::Sega3155246);
+        assert_eq!(
+            machine.vdp().profile().revision,
+            SmsVdpRevision::Sega3155246
+        );
         assert_eq!(machine.vdp().visible_height(), 192);
     }
 
