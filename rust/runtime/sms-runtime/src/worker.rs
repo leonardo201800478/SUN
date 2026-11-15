@@ -18,7 +18,7 @@ use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
-    SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
+    SmsTemporalMachineState, SmsTemporalMemoryOptions, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
     Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
@@ -194,13 +194,15 @@ fn build_sms_temporal_machine_with_bios_and_revision_and_sram_size(
         sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
     SmsTemporalMachine::new_with_hardware_profile_bios_and_sram_size(
         rom,
-        bios,
+        SmsTemporalMemoryOptions {
+            bios,
+            cartridge_sram_size,
+        },
         SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
         psg_clock_hz,
         SMS_INTERNAL_AUDIO_SAMPLE_RATE,
         vdp_profile,
         territory,
-        cartridge_sram_size,
     )
     .map_err(|error| error.to_string())
 }

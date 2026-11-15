@@ -42,7 +42,7 @@ pub use temporal::{
 };
 pub use temporal_bus::{
     SMS_TEMPORAL_BUS_STATE_VERSION, SmsBusCompletion, SmsInternalCycleCompletion, SmsTemporalBus,
-    SmsTemporalBusError, SmsTemporalBusState, SmsTemporalDispatch,
+    SmsTemporalBusError, SmsTemporalBusState, SmsTemporalDispatch, SmsTemporalMemoryOptions,
 };
 pub use temporal_m1::{SmsTemporalM1, SmsTemporalM1Error, SmsTemporalM1State};
 pub use temporal_machine::{

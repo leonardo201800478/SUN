@@ -196,6 +196,18 @@ impl From<SmsIoError> for SmsTemporalBusError {
     }
 }
 
+/// Optional firmware and cartridge-memory configuration for the temporal bus.
+///
+/// SRAM capacity is supplied by the cartridge profile. BIOS bytes are already
+/// loaded by the host/media layer; this type performs no filesystem access.
+#[derive(Debug, Clone, Default)]
+pub struct SmsTemporalMemoryOptions {
+    /// Conventional 8 KiB SMS1 BIOS image, when selected by the firmware catalog.
+    pub bios: Option<Vec<u8>>,
+    /// Physical cartridge SRAM capacity in bytes, when present.
+    pub cartridge_sram_size: Option<usize>,
+}
+
 /// SMS mapper-backed memory and its scheduler-owned bus completion timeline.
 #[derive(Debug, Clone)]
 pub struct SmsTemporalBus {
@@ -282,13 +294,15 @@ impl SmsTemporalBus {
     ) -> Result<Self, SmsTemporalBusError> {
         Self::new_with_hardware_profile_bios_and_sram_size(
             rom,
-            None,
+            SmsTemporalMemoryOptions {
+                bios: None,
+                cartridge_sram_size,
+            },
             master_ticks_per_tstate,
             psg_clock_hz,
             sample_rate,
             vdp_profile,
             territory,
-            cartridge_sram_size,
         )
     }
 
@@ -296,14 +310,17 @@ impl SmsTemporalBus {
     /// Bytes are preloaded by the host/media layer; no filesystem access occurs here.
     pub fn new_with_hardware_profile_bios_and_sram_size(
         rom: impl Into<Vec<u8>>,
-        bios: Option<Vec<u8>>,
+        memory_options: SmsTemporalMemoryOptions,
         master_ticks_per_tstate: u64,
         psg_clock_hz: u64,
         sample_rate: u64,
         vdp_profile: SmsVdpProfile,
         territory: Territory,
-        cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalBusError> {
+        let SmsTemporalMemoryOptions {
+            bios,
+            cartridge_sram_size,
+        } = memory_options;
         // SmsMemory currently models the original SMS slot priority. SMS2 has
         // distinct wired-AND arbitration, so do not expose an SMS1 BIOS map
         // under a 315-5246 profile until that electrical behavior is modeled.

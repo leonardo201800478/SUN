@@ -12,7 +12,8 @@ use core::fmt;
 
 use crate::{
     ControllerButtons, SmsTemporalBus, SmsTemporalBusError, SmsTemporalBusState,
-    SmsTemporalDispatch, SmsTemporalM1, SmsTemporalM1Error, SmsTemporalM1State, SmsVdp, Territory,
+    SmsTemporalDispatch, SmsTemporalM1, SmsTemporalM1Error, SmsTemporalM1State, SmsTemporalMemoryOptions,
+    SmsVdp, Territory,
 };
 use sega_sn76489::{PsgAmplitudeEvent, PsgEventCaptureError, Sn76489Core};
 use sega_temporal_core::{
@@ -363,13 +364,15 @@ impl SmsTemporalMachine {
     ) -> Result<Self, SmsTemporalMachineError> {
         Self::new_with_hardware_profile_bios_and_sram_size(
             rom,
-            None,
+            SmsTemporalMemoryOptions {
+                bios: None,
+                cartridge_sram_size,
+            },
             master_ticks_per_tstate,
             psg_clock_hz,
             sample_rate,
             vdp_profile,
             territory,
-            cartridge_sram_size,
         )
     }
 
@@ -377,19 +380,18 @@ impl SmsTemporalMachine {
     /// BIOS reads and hand-off use the same scheduler-dispatched SmsMemory path.
     pub fn new_with_hardware_profile_bios_and_sram_size(
         rom: impl Into<Vec<u8>>,
-        bios: Option<Vec<u8>>,
+        memory_options: SmsTemporalMemoryOptions,
         master_ticks_per_tstate: u64,
         psg_clock_hz: u64,
         sample_rate: u64,
         vdp_profile: SmsVdpProfile,
         territory: Territory,
-        cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalMachineError> {
         Ok(Self {
             cpu: Z80MicroSequencer::default(),
             bus: SmsTemporalBus::new_with_hardware_profile_bios_and_sram_size(
                 rom,
-                bios,
+                memory_options,
                 master_ticks_per_tstate,
                 psg_clock_hz,
                 sample_rate,
