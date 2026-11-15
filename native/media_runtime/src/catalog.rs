@@ -1,22 +1,39 @@
 use crate::{
-    CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper, CartridgeRamKind,
-    CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, DatGameEntry, DatRomEntry,
-    NoIntroDat, ProfileStatus,
+    CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeIdentity,
+    CartridgeMapper, CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile,
+    CartridgeSystem, DatGameEntry, DatRomEntry, NoIntroDat, ProfileStatus,
+    SmsVdpRequirement,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+
+/// Version of the compatibility metadata structure used by the SMS catalog.
+pub const SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION: u32 = 1;
+/// Revision of the evidence-backed SMS compatibility declarations.
+pub const SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION: &str = "2026-11-15";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KnownCartridgeProfile {
     pub sha1: String,
     pub profile: CartridgeHardwareProfile,
+    pub compatibility: CartridgeCompatibilityMetadata,
 }
 
 impl KnownCartridgeProfile {
+    /// Construct a profile without an independently supported VDP requirement.
     pub fn new(sha1: impl Into<String>, profile: CartridgeHardwareProfile) -> Self {
+        Self::with_compatibility(sha1, profile, CartridgeCompatibilityMetadata::default())
+    }
+
+    pub fn with_compatibility(
+        sha1: impl Into<String>,
+        profile: CartridgeHardwareProfile,
+        compatibility: CartridgeCompatibilityMetadata,
+    ) -> Self {
         Self {
             sha1: sha1.into().to_ascii_lowercase(),
             profile,
+            compatibility,
         }
     }
 }
@@ -26,6 +43,7 @@ pub struct CartridgeMatch<'a> {
     pub game: &'a DatGameEntry,
     pub rom: &'a DatRomEntry,
     pub profile: Option<&'a CartridgeHardwareProfile>,
+    pub compatibility: Option<&'a CartridgeCompatibilityMetadata>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -146,9 +164,9 @@ impl CartridgeCatalog {
             .iter()
             .filter(|known| known.sha1.eq_ignore_ascii_case(&rom.sha1))
             .collect();
-        let profile = match matching_profiles.as_slice() {
-            [] => None,
-            [known] => Some(&known.profile),
+        let (profile, compatibility) = match matching_profiles.as_slice() {
+            [] => (None, None),
+            [known] => (Some(&known.profile), Some(&known.compatibility)),
             _ => {
                 return Err(CatalogLookupError::AmbiguousHardwareProfile {
                     sha1,
@@ -157,7 +175,12 @@ impl CartridgeCatalog {
             }
         };
 
-        Ok(Some(CartridgeMatch { game, rom, profile }))
+        Ok(Some(CartridgeMatch {
+            game,
+            rom,
+            profile,
+            compatibility,
+        }))
     }
 
     /// Return a profile only when the exact ROM identity has a verified executable mapping.
@@ -174,6 +197,33 @@ impl CartridgeCatalog {
 
 fn sms_profiles() -> Vec<KnownCartridgeProfile> {
     let mut profiles = Vec::new();
+
+    // Cosmic Spacehead (Europe) is tied to the exact No-Intro identity. MAME
+    // documents that it requires an extra-height mode absent from 315-5124;
+    // SMS Power documents its 224-line mode and the SMS2 VDP capability.
+    profiles.push(KnownCartridgeProfile::with_compatibility(
+        "f46f716dd34a1a5013a2d8a59769f6ef7536a567",
+        CartridgeHardwareProfile {
+            system: CartridgeSystem::MasterSystem,
+            mapper: CartridgeMapper::Codemasters,
+            ram: None,
+            status: ProfileStatus::EvidenceOnly,
+            board: None,
+            evidence: vec![
+                "Project No-Intro SMS DAT 20261013-064924: exact SHA-1/CRC32/size".to_owned(),
+                "MAME hash/sms.xml: Codemasters slot and exact Cosmic Spacehead ROM identity".to_owned(),
+                "SMS Power Development/CodemastersHeader: Codemasters cartridge header".to_owned(),
+            ],
+        },
+        CartridgeCompatibilityMetadata::new(
+            SmsVdpRequirement::Sms2Required,
+            vec![
+                "MAME hash/sms.xml: Cosmic Spacehead requires extra-height video mode absent on VDP 315-5124".to_owned(),
+                "SMS Power Development/SMS1SMS2VDPs: 224/240-line modes are supported by the 315-5246 SMS2 VDP".to_owned(),
+                "SMS Power forums/1484-CosmicSpacehead: Charles MacDonald identifies Cosmic Spacehead as a 224-line title and reports SMS1 incompatibility".to_owned(),
+            ],
+        ),
+    ));
 
     // Commercial battery-backed 8 KiB SRAM identities explicitly confirmed by
     // the project No-Intro DAT, MAME sms.xml, and the project's SMS mapper audit.
