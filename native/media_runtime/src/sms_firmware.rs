@@ -42,7 +42,7 @@ pub enum SmsConsoleVariant {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SmsFirmwareRegion {
     Japan,
-    ExportUsEurope,
+    Export,
     Europe,
     Korea,
 }
@@ -323,7 +323,7 @@ fn sms_firmware_entries() -> &'static [SmsFirmwareDescriptor] {
     use SmsFirmwareValidation as Validation;
 
     const LOCAL_HASH: &[&str] = &["User-supplied image: size and cryptographic hashes calculated from extracted .sms bytes"];
-    const SMS_POWER: &[&str] = &["SMS Power, Development/BIOSes"];
+    const SMS_POWER: &[&str] = &["https://www.smspower.org/Development/BIOSes"];
     const BIOS_EVIDENCE: &[&str] = &["Existing project SMS BIOS catalog; conventional 8 KiB BIOS"];
     &[
         SmsFirmwareDescriptor {
@@ -356,7 +356,7 @@ fn sms_firmware_entries() -> &'static [SmsFirmwareDescriptor] {
             md5: None,
             mapping: Mapping::ConventionalBios8KiB,
             validation: Validation::IdentifiedOnly,
-            evidence: BIOS_8K,
+            evidence: BIOS_EVIDENCE,
         },
         SmsFirmwareDescriptor {
             id: Id::EuropeV20,
