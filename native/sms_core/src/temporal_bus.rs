@@ -276,6 +276,33 @@ impl SmsTemporalBus {
         territory: Territory,
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalBusError> {
+        Self::new_with_hardware_profile_bios_and_sram_size(
+            rom,
+            None,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        )
+    }
+
+    /// Construct the temporal bus with a conventional 8 KiB BIOS image.
+    ///
+    /// BIOS bytes are already loaded and validated by the host/media layer.
+    /// This constructor performs no filesystem access; memory visibility and
+    /// the BIOS/cartridge hand-off remain governed by the SMS memory-control latch.
+    pub fn new_with_hardware_profile_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Option<Vec<u8>>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalBusError> {
         sega_observability::tracing::info!(
             target: "sega::machine",
             master_ticks_per_tstate,
@@ -283,10 +310,15 @@ impl SmsTemporalBus {
             sample_rate,
             vdp_profile = ?vdp_profile,
             territory = ?territory,
+            bios_present = bios.is_some(),
             "SMS temporal bus configuration selected"
         );
         let cartridge = CartridgeImage::new(rom)?;
-        let memory = SmsMemory::with_cartridge_sram_size(cartridge, cartridge_sram_size)?;
+        let memory = SmsMemory::with_bios_and_sram_size(
+            cartridge,
+            bios,
+            cartridge_sram_size,
+        )?;
         let coordinator = SmsTemporalCoordinator::new(master_ticks_per_tstate)?;
         let psg = ScheduledPsg::new(
             SMS_PSG_CLOCK_DOMAIN_ID,
