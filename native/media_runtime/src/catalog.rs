@@ -580,6 +580,14 @@ mod tests {
         let sha1 = "15b882ad3263cdc1e78c732d96f9bb18e25f4743";
 
         assert!(catalog.dat().find_sha1(sha1).is_none());
+        assert!(
+            !catalog
+                .dat()
+                .entries
+                .iter()
+                .flat_map(|game| game.roms.iter())
+                .any(|rom| rom.crc32 == 0xE14C_8A1C)
+        );
         assert!(!catalog.profiles().iter().any(|entry| entry.sha1 == sha1));
     }
 
