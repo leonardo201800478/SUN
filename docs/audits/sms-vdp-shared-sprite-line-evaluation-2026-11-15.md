@@ -1,6 +1,6 @@
 # SMS VDP — shared SAT line evaluation for 315-5124 and 315-5246
 
-**Date:** 2026-11-15  
+**Date:** 2026-11-15
 **Status:** implementation candidate; hardware capture remains pending
 
 ## 1. Evidence
