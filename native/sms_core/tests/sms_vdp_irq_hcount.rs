@@ -74,7 +74,7 @@ fn frame_irq_main_with_delay(delay_nops: usize) -> Vec<u8> {
 
 fn line_irq_main_with_delay(delay_nops: usize) -> Vec<u8> {
     let mut main = LINE_IRQ_MAIN[..10].to_vec();
-    main.extend(std::iter::repeat(0x00).take(delay_nops));
+    main.resize(main.len() + delay_nops, 0x00);
     main.extend_from_slice(&[0xCD, 0x40, 0x01, 0x76, 0x18, 0xFD]);
     main
 }
