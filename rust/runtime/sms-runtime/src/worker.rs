@@ -160,26 +160,12 @@ fn receive_worker_reply<T>(receiver: Receiver<T>, operation: &str) -> Result<T, 
 
 #[cfg(test)]
 fn build_sms_temporal_machine(rom: Vec<u8>, region: &str) -> Result<SmsTemporalMachine, String> {
-    build_sms_temporal_machine_with_revision_and_sram_size(
-        rom,
-        region,
-        SmsVdpRevision::Sega3155124,
-        None,
-    )
-}
-
-fn build_sms_temporal_machine_with_revision_and_sram_size(
-    rom: Vec<u8>,
-    region: &str,
-    revision: SmsVdpRevision,
-    cartridge_sram_size: Option<usize>,
-) -> Result<SmsTemporalMachine, String> {
     build_sms_temporal_machine_with_bios_and_revision_and_sram_size(
         rom,
         None,
         region,
-        revision,
-        cartridge_sram_size,
+        SmsVdpRevision::Sega3155124,
+        None,
     )
 }
 
