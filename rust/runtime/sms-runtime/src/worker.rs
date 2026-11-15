@@ -3054,6 +3054,46 @@ mod tests {
     const SYNTHETIC_ROM: [u8; 0x4000] = [0; 0x4000];
 
     #[test]
+    fn worker_retains_conventional_bios_across_reset_and_cartridge_replacement() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let bios = vec![0xA5; 0x2000];
+        let worker = SmsTemporalWorker::new_with_hardware_profile_bios_and_cartridge_sram_size(
+            SYNTHETIC_ROM.to_vec(),
+            Some(bios),
+            "usa",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(worker.inspect_memory(0, 2).unwrap(), vec![0xA5, 0xA5]);
+
+        worker.reset().unwrap();
+        assert_eq!(worker.inspect_memory(0, 2).unwrap(), vec![0xA5, 0xA5]);
+
+        worker.load_rom(vec![0x3C; 0x4000]).unwrap();
+        assert_eq!(worker.inspect_memory(0, 2).unwrap(), vec![0xA5, 0xA5]);
+    }
+
+    #[test]
+    fn worker_rejects_invalid_conventional_bios_size_at_startup() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let result = SmsTemporalWorker::new_with_hardware_profile_bios_and_cartridge_sram_size(
+            SYNTHETIC_ROM.to_vec(),
+            Some(vec![0xA5; 0x1000]),
+            "usa",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn worker_exports_sram_and_preserves_it_across_reset_and_power_off() {
         let initial = vec![0x5A; 0x2000];
         let worker = SmsTemporalWorker::new_with_cartridge_sram_size(
