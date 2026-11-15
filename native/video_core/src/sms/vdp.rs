@@ -4038,6 +4038,8 @@ mod tests {
 
         v.vram[0x0010] = 0x5A;
         v.write_port(0xBF, 0x10);
+        // The low byte alone does not start the read-ahead pipeline.
+        v.write_port(0xBF, 0x00);
         assert_eq!(v.read_port(0xBE), 0x5A);
     }
 
