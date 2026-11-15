@@ -29,9 +29,10 @@ That restriction was not supported by the documentation. It also meant the 315-5
 
 ## 3. Changes in this candidate
 
-- Share line-buffer priming and next-line SAT evaluation across 315-5124 and 315-5246.
+- Share Mode 4 line-buffer priming and next-line SAT evaluation across 315-5124 and 315-5246.
+- Keep the legacy/TMS sprite line buffer restricted to the existing SMS1 path until SMS2 legacy-mode behavior is characterized.
 - Keep `evaluate_mode4_sprites` revision-aware so the 315-5124 zoom bug and 315-5246 full eight-sprite zoom remain distinct.
-- Latch the selected line's overflow index at the existing T16 event for both revisions.
+- Latch the selected Mode 4 line's overflow index at the existing T16 event for both revisions.
 - Preserve the existing SMS1 HBlank partial-span path; SMS2 HBlank/raster-write timing remains uncharacterized.
 - Preserve the SAT order in the buffered evaluation; the first opaque sprite retains priority.
 - Keep the full evaluation and buffer state inside the VDP state so clone/save-state behavior remains deterministic.
