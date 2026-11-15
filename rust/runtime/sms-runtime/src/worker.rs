@@ -2173,12 +2173,12 @@ fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
     use sega_sms_core::Z80BusOperation;
 
     match *event {
-        SmsTemporalTraceEvent::BusCompleted { operation, .. } => {
-            // Retain completed bus transactions across the whole machine map.
-            // This preserves ROM/RAM reads and writes, mapper activity, I/O,
-            // and interrupt acknowledge while still discarding the much noisier
-            // per-T-state M1/internal-cycle stream below.
-            !matches!(operation, Z80BusOperation::OpcodeFetch)
+        SmsTemporalTraceEvent::BusCompleted { .. } => {
+            // Retain every completed bus transaction, including opcode fetches.
+            // A fetch is the only completed transaction for simple instructions
+            // such as NOP; filtering it would make short diagnostic steps empty.
+            // Per-T-state M1/internal-cycle events remain filtered below.
+            true
         }
         SmsTemporalTraceEvent::ExternalThTransition { .. } => true,
         SmsTemporalTraceEvent::InternalCycleCompleted { .. }
