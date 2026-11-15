@@ -145,6 +145,7 @@ jobs:
               - 'native/video_core/**'
               - 'native/sms_core/src/vdp.rs'
               - 'native/sms_core/src/temporal*.rs'
+              - 'native/sms_core/tests/sms_vdp_*.rs'
               - 'native/sg1000_core/src/vdp.rs'
               - 'native/video_core/tests/**'
             video:
