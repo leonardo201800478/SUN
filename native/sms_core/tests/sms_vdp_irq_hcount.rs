@@ -81,6 +81,7 @@ fn line_irq_main_with_delay(delay_nops: usize) -> Vec<u8> {
 
 #[test]
 fn diagnostic_irq_hcount_reset_phase_sweep() {
+    let mut observed = Vec::new();
     for delay_nops in 0..8 {
         let (frame_result, frame_sample) = run_until_result(
             build_irq_rom(&frame_irq_main_with_delay(delay_nops), FRAME_IRQ_PROGRAM),
@@ -90,10 +91,7 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
             build_irq_rom(&line_irq_main_with_delay(delay_nops), LINE_IRQ_PROGRAM),
             16,
         );
-        println!(
-            "phase sweep NOPs={}: Frame result={:02X} sample={:02X}; Line result={:02X} sample={:02X}",
-            delay_nops, frame_result, frame_sample, line_result, line_sample
-        );
+        observed.push((delay_nops, frame_result, frame_sample, line_result, line_sample));
         assert!(
             matches!(frame_result, 0xAA | 0xFF),
             "Frame IRQ diagnostic returned an invalid marker ${frame_result:02X} at delay {delay_nops}"
@@ -103,6 +101,14 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
             "Line IRQ diagnostic returned an invalid marker ${line_result:02X} at delay {delay_nops}"
         );
     }
+    assert!(
+        observed.iter().any(|(_, result, sample, _, _)| *result == 0xAA && *sample == 0x84),
+        "no reset phase produced the RunTest32 reference sample $84; observed={observed:?}"
+    );
+    assert!(
+        observed.iter().any(|(_, _, _, result, sample)| *result == 0xAA && *sample == 0x8A),
+        "no reset phase produced the RunTest34 reference sample $8A; observed={observed:?}"
+    );
 }
 
 fn run_until_result(rom: Vec<u8>, max_frames: usize) -> (u8, u8) {
