@@ -2230,22 +2230,22 @@ fn handle_command(
                 vdp_revision,
             )
             .and_then(|powered_off| {
-                    audio_session
-                        .as_mut()
-                        .map_or(Ok::<(), String>(()), |session| {
-                            session.suspend_and_flush()?;
-                            session.reset_dsp();
-                            Ok(())
-                        })?;
-                    if let Some(session) = audio_session.as_ref() {
-                        telemetry.record_audio_session_metrics(session.as_ref());
-                    }
-                    *machine = powered_off;
-                    machine.set_trace_enabled(*trace_enabled);
-                    audio_renderer.reset_epoch_if_selected(machine, telemetry);
-                    telemetry.reset_machine_counters();
-                    Ok(())
-                });
+                audio_session
+                    .as_mut()
+                    .map_or(Ok::<(), String>(()), |session| {
+                        session.suspend_and_flush()?;
+                        session.reset_dsp();
+                        Ok(())
+                    })?;
+                if let Some(session) = audio_session.as_ref() {
+                    telemetry.record_audio_session_metrics(session.as_ref());
+                }
+                *machine = powered_off;
+                machine.set_trace_enabled(*trace_enabled);
+                audio_renderer.reset_epoch_if_selected(machine, telemetry);
+                telemetry.reset_machine_counters();
+                Ok(())
+            });
             if let Err(error) = &result {
                 telemetry.set_runtime_error(Some(error.clone()));
             }
