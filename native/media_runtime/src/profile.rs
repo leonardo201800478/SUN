@@ -10,6 +10,7 @@ pub enum CartridgeSystem {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CartridgeMapper {
     SmsSega,
+    Codemasters,
     Unknown,
 }
 
@@ -24,6 +25,25 @@ pub enum SmsVdpRequirement {
     Sms1Compatible,
     /// The cartridge requires the SMS2 315-5246 extra-height capabilities.
     Sms2Required,
+}
+
+/// Per-cartridge compatibility evidence, separate from mapper and RAM metadata.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CartridgeCompatibilityMetadata {
+    pub sms_vdp_requirement: SmsVdpRequirement,
+    pub evidence: Vec<String>,
+}
+
+impl CartridgeCompatibilityMetadata {
+    pub fn new(
+        sms_vdp_requirement: SmsVdpRequirement,
+        evidence: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        Self {
+            sms_vdp_requirement,
+            evidence: evidence.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 /// Explicitly selected SMS hardware model. It is never inferred from region.
@@ -247,11 +267,10 @@ mod sms_compatibility_tests {
             },
         );
 
+        assert!(result.is_err());
         if let Ok((next, _)) = result {
             active_session = Some(next);
         }
-
-        assert!(result_is_incompatible());
         assert!(!preparation_called);
         assert_eq!(active_session, Some("current ROM"));
     }
@@ -266,14 +285,5 @@ mod sms_compatibility_tests {
         assert_eq!(prepared, "ROM");
         assert_eq!(status, SmsCompatibilityStatus::Unknown);
         assert_eq!(selected, SmsHardwareModel::Sms1);
-    }
-
-    fn result_is_incompatible() -> bool {
-        preflight_sms_cartridge(
-            SmsVdpRequirement::Sms2Required,
-            SmsHardwareModel::Sms1,
-            || Ok(()),
-        )
-        .is_err()
     }
 }
