@@ -1056,6 +1056,47 @@ mod tests {
     }
 
     #[test]
+    fn sms1_hint_r10_192_boundary_is_preserved_by_scheduler_snapshot_restore() {
+        fn advance_internal(bus: &mut SmsTemporalBus, id: u64, tstates: u32) {
+            bus.schedule_internal_cycle(id, tstates).unwrap();
+            assert!(matches!(
+                bus.dispatch_next().unwrap(),
+                Some(SmsTemporalDispatch::InternalCycleComplete(_))
+            ));
+            bus.acknowledge_internal_completion(id).unwrap();
+        }
+
+        let mut bus = SmsTemporalBus::new_with_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            44_100,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Export,
+        )
+        .unwrap();
+        vdp_write_register(bus.vdp_mut(), 0, 0x10); // HINT enabled.
+        vdp_write_register(bus.vdp_mut(), 10, 192);
+
+        // The first-line HINT reloads R10. Acknowledge it, then stop one
+        // T-state before the R10=192 boundary on scanline 192.
+        advance_internal(&mut bus, 1, 14);
+        assert!(bus.vdp().interrupt_pending());
+        bus.vdp_mut().read_port(0xBF);
+        advance_internal(&mut bus, 2, 192 * 228 - 15);
+        assert_eq!(bus.vdp().scanline(), 192);
+        assert_eq!(bus.vdp().cycles_into_line(), 13);
+        assert!(!bus.vdp().interrupt_pending());
+
+        let mut restored = SmsTemporalBus::restore_state(bus.export_state()).unwrap();
+        advance_internal(&mut restored, 3, 1);
+        assert!(restored.vdp().interrupt_pending());
+        assert_eq!(restored.vdp().scanline(), 192);
+        assert_eq!(restored.vdp().cycles_into_line(), 14);
+        assert_eq!(restored.vdp().status() & 0x80, 0);
+    }
+
+    #[test]
     fn external_th_transition_is_applied_at_scheduler_boundary_and_survives_restore() {
         let mut bus = SmsTemporalBus::new_with_hardware_profile(
             vec![0; 0x4000],
