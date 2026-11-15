@@ -2154,9 +2154,7 @@ fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
 
     match *event {
         SmsTemporalTraceEvent::BusCompleted {
-            operation,
-            address,
-            ..
+            operation, address, ..
         } => match operation {
             // The failing game polls these RAM latches. Preserve both reads and
             // writes so a capture can identify the producer/consumer sequence.
