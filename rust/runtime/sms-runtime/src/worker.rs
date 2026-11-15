@@ -15,11 +15,6 @@ use std::time::{Duration, Instant};
 use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
-use sega_media::{
-    CartridgeCatalog, CartridgeIdentity, SmsCompatibilityStatus, SmsHardwareModel,
-    SmsVdpRequirement, SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION,
-    SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION, SMS_DAT_VERSION, preflight_sms_cartridge,
-};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
     SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
@@ -97,53 +92,6 @@ pub fn sms_temporal_region_profile(
 }
 
 /// Resolve regional timing independently from the explicitly selected VDP ASIC.
-fn sms_hardware_model_for_revision(revision: SmsVdpRevision) -> SmsHardwareModel {
-    match revision {
-        SmsVdpRevision::Sega3155124 => SmsHardwareModel::Sms1,
-        SmsVdpRevision::Sega3155246 => SmsHardwareModel::Sms2,
-    }
-}
-
-/// Evaluate content-addressed SMS compatibility before creating or replacing a machine.
-fn evaluate_sms_cartridge_compatibility(
-    catalog: &CartridgeCatalog,
-    identity: &CartridgeIdentity,
-    revision: SmsVdpRevision,
-) -> Result<SmsCompatibilityStatus, String> {
-    let matched = catalog
-        .lookup(identity)
-        .map_err(|error| format!("failed to identify SMS cartridge: {error}"))?;
-    let requirement = matched
-        .as_ref()
-        .and_then(|entry| entry.compatibility)
-        .map(|metadata| metadata.sms_vdp_requirement)
-        .unwrap_or(SmsVdpRequirement::Unknown);
-    let selected = sms_hardware_model_for_revision(revision);
-    let (_, status) = preflight_sms_cartridge(requirement, selected, || Ok(()))?;
-
-    eprintln!(
-        "SMS_COMPATIBILITY status={} requirement={} selected={} schema={} data_version={} dat_version={} sha1={}",
-        status.as_str(),
-        requirement.as_str(),
-        selected.as_str(),
-        SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION,
-        SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION,
-        SMS_DAT_VERSION,
-        identity.sha1_hex()
-    );
-    Ok(status)
-}
-
-fn validate_sms_cartridge_compatibility(
-    rom: &[u8],
-    revision: SmsVdpRevision,
-) -> Result<SmsCompatibilityStatus, String> {
-    let identity = CartridgeIdentity::from_bytes(rom);
-    let catalog = CartridgeCatalog::sms_shared()
-        .map_err(|error| format!("failed to load SMS cartridge catalog: {error}"))?;
-    evaluate_sms_cartridge_compatibility(catalog, &identity, revision)
-}
-
 pub fn sms_temporal_hardware_profile(
     region: &str,
     revision: SmsVdpRevision,
@@ -1089,7 +1037,6 @@ const DEBUG_MEMORY_READ_LIMIT: usize = 256;
 /// Handle to the thread that exclusively owns the temporal SMS machine.
 pub struct SmsTemporalWorker {
     commands: SyncSender<WorkerCommand>,
-    vdp_revision: SmsVdpRevision,
     worker: Option<JoinHandle<()>>,
     telemetry: Arc<WorkerTelemetry>,
     trace_collector: Arc<Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>>,
@@ -1206,7 +1153,6 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
-        validate_sms_cartridge_compatibility(&rom, vdp_revision)?;
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
@@ -1280,7 +1226,6 @@ impl SmsTemporalWorker {
         match ready_receiver.recv_timeout(WORKER_STARTUP_TIMEOUT) {
             Ok(Ok(())) => Ok(Self {
                 commands,
-                vdp_revision,
                 worker: Some(worker),
                 telemetry,
                 trace_collector,
@@ -1314,7 +1259,6 @@ impl SmsTemporalWorker {
     }
 
     pub fn load_rom(&self, rom: Vec<u8>) -> Result<(), String> {
-        validate_sms_cartridge_compatibility(&rom, self.vdp_revision)?;
         self.request_unit(|reply| WorkerCommand::LoadRom(rom, reply))
     }
 
@@ -3828,128 +3772,5 @@ mod tests {
         assert_eq!(metrics.frame_interval_p99_ns, 508);
         assert_eq!(metrics.machine_ticks_per_frame_min, 2);
         assert_eq!(metrics.machine_ticks_per_frame_max, 513);
-    }
-}
-
-
-#[cfg(test)]
-mod cartridge_compatibility_tests {
-    use super::evaluate_sms_cartridge_compatibility;
-    use sega_media::{
-        CartridgeCatalog, CartridgeCompatibilityMetadata, CartridgeHardwareProfile,
-        CartridgeIdentity, CartridgeMapper, CartridgeSystem, DatGameEntry, DatRomEntry,
-        KnownCartridgeProfile, NoIntroDat, ProfileStatus, SmsCompatibilityStatus,
-        SmsVdpRequirement,
-    };
-    use sega_sms_core::SmsVdpRevision;
-
-    fn synthetic_catalog(
-        identity: &CartridgeIdentity,
-        requirement: SmsVdpRequirement,
-    ) -> CartridgeCatalog {
-        let dat = NoIntroDat {
-            name: Some("Synthetic SMS DAT".to_owned()),
-            version: Some("compatibility-test".to_owned()),
-            entries: vec![DatGameEntry {
-                name: "Synthetic SMS cartridge".to_owned(),
-                roms: vec![DatRomEntry {
-                    name: "synthetic.sms".to_owned(),
-                    size_bytes: identity.size_bytes(),
-                    crc32: identity.crc32(),
-                    md5: None,
-                    sha1: identity.sha1_hex(),
-                    status: Some("verified".to_owned()),
-                }],
-            }],
-        };
-        let profile = CartridgeHardwareProfile {
-            system: CartridgeSystem::MasterSystem,
-            mapper: CartridgeMapper::Codemasters,
-            ram: None,
-            status: ProfileStatus::EvidenceOnly,
-            board: None,
-            evidence: vec!["synthetic mapper evidence".to_owned()],
-        };
-        let known = KnownCartridgeProfile::with_compatibility(
-            identity.sha1_hex(),
-            profile,
-            CartridgeCompatibilityMetadata::new(requirement, Vec::new()),
-        );
-        CartridgeCatalog::from_dat(dat, vec![known])
-    }
-
-    #[test]
-    fn sms2_required_cartridge_is_rejected_for_sms1_before_worker_creation() {
-        let identity = CartridgeIdentity::from_bytes(b"synthetic SMS2-only ROM");
-        let catalog = synthetic_catalog(&identity, SmsVdpRequirement::Sms2Required);
-
-        let error = evaluate_sms_cartridge_compatibility(
-            &catalog,
-            &identity,
-            SmsVdpRevision::Sega3155124,
-        )
-        .expect_err("SMS1 must reject an SMS2-only cartridge");
-
-        assert!(error.contains("SMS2"));
-        assert!(error.contains("315-5124"));
-    }
-
-    #[test]
-    fn sms2_required_cartridge_is_accepted_without_switching_selected_sms2() {
-        let identity = CartridgeIdentity::from_bytes(b"synthetic SMS2-only ROM");
-        let catalog = synthetic_catalog(&identity, SmsVdpRequirement::Sms2Required);
-        let selected = SmsVdpRevision::Sega3155246;
-
-        let status =
-            evaluate_sms_cartridge_compatibility(&catalog, &identity, selected).unwrap();
-
-        assert_eq!(status, SmsCompatibilityStatus::Compatible);
-        assert_eq!(selected, SmsVdpRevision::Sega3155246);
-    }
-
-    #[test]
-    fn unknown_cartridge_remains_loadable_and_keeps_selected_sms1() {
-        let identity = CartridgeIdentity::from_bytes(b"uncharacterized SMS ROM");
-        let catalog = synthetic_catalog(&identity, SmsVdpRequirement::Unknown);
-        let selected = SmsVdpRevision::Sega3155124;
-
-        let status =
-            evaluate_sms_cartridge_compatibility(&catalog, &identity, selected).unwrap();
-
-        assert_eq!(status, SmsCompatibilityStatus::Unknown);
-        assert_eq!(selected, SmsVdpRevision::Sega3155124);
-    }
-
-    #[test]
-    fn unlisted_rom_passes_the_real_catalog_preflight_as_unknown() {
-        let status = super::validate_sms_cartridge_compatibility(
-            b"synthetic unlisted ROM bytes",
-            SmsVdpRevision::Sega3155124,
-        )
-        .unwrap();
-
-        assert_eq!(status, SmsCompatibilityStatus::Unknown);
-    }
-
-    #[test]
-    fn identity_absent_from_catalog_is_explicitly_unknown() {
-        let identity = CartridgeIdentity::from_bytes(b"ROM absent from DAT");
-        let catalog = CartridgeCatalog::from_dat(
-            NoIntroDat {
-                name: Some("Empty test DAT".to_owned()),
-                version: Some("test".to_owned()),
-                entries: Vec::new(),
-            },
-            Vec::new(),
-        );
-
-        let status = evaluate_sms_cartridge_compatibility(
-            &catalog,
-            &identity,
-            SmsVdpRevision::Sega3155124,
-        )
-        .unwrap();
-
-        assert_eq!(status, SmsCompatibilityStatus::Unknown);
     }
 }
