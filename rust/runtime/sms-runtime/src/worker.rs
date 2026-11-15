@@ -2650,6 +2650,49 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
+    fn explicit_vdp_revision_is_independent_of_regional_video_standard() {
+        use sega_sms_core::{SmsVdpRevision, VideoStandard};
+
+        for (region, standard, clock) in [
+            ("usa", VideoStandard::Ntsc, 3_579_545),
+            ("brazil", VideoStandard::PalM, 3_579_545),
+            ("europe", VideoStandard::Pal, 3_546_895),
+            ("japan", VideoStandard::Ntsc, 3_579_545),
+        ] {
+            let (_, sms1, sms1_clock) =
+                sms_temporal_hardware_profile(region, SmsVdpRevision::Sega3155124).unwrap();
+            let (_, sms2, sms2_clock) =
+                sms_temporal_hardware_profile(region, SmsVdpRevision::Sega3155246).unwrap();
+
+            assert_eq!(sms1.revision, SmsVdpRevision::Sega3155124);
+            assert_eq!(sms2.revision, SmsVdpRevision::Sega3155246);
+            assert_eq!(sms1.video_standard, standard);
+            assert_eq!(sms2.video_standard, standard);
+            assert_eq!(sms1_clock, clock);
+            assert_eq!(sms2_clock, clock);
+        }
+
+        let (_, legacy_default, _) = sms_temporal_region_profile("europe").unwrap();
+        assert_eq!(legacy_default.revision, SmsVdpRevision::Sega3155124);
+    }
+
+    #[test]
+    fn worker_machine_builder_instantiates_the_selected_sms2_vdp_asic() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let machine = build_sms_temporal_machine_with_revision_and_sram_size(
+            vec![0; 0x4000],
+            "europe",
+            SmsVdpRevision::Sega3155246,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(machine.vdp().profile().revision, SmsVdpRevision::Sega3155246);
+        assert_eq!(machine.vdp().visible_height(), 192);
+    }
+
+    #[test]
     fn frame_timing_uses_worker_completion_timestamps_not_video_presentation() {
         use super::FrameTimingState;
         use std::time::Instant;
