@@ -1,0 +1,119 @@
+name: SMS Reference Emulator Builds
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "docs/audits/sms-smurfs-cosmic-spacehead-sprite-investigation-2026-11-15.md"
+      - ".github/workflows/sms-reference-emulators.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-reference-emulators-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gearsystem-linux:
+    name: Build Gearsystem reference (pinned source)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SDL3_COMMIT: 877399b2b2cf21e67554ed9046410f268ce1d1b2
+      GEARSYSTEM_COMMIT: 96b70aac107a1a2acace9091cce37f9649eb6e0e
+    steps:
+      - name: Checkout Gearsystem at pinned revision
+        uses: actions/checkout@v4
+        with:
+          repository: drhelius/Gearsystem
+          ref: ${{ env.GEARSYSTEM_COMMIT }}
+          path: refs/gearsystem
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+            libxi-dev libxss-dev libxkbcommon-dev libwayland-dev libdecor-0-dev \
+            libdrm-dev libgbm-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libdbus-1-dev libudev-dev libxtst-dev
+
+      - name: Build pinned SDL3
+        run: |
+          git clone https://github.com/libsdl-org/SDL.git refs/SDL3
+          git -C refs/SDL3 checkout "${SDL3_COMMIT}"
+          cmake -S refs/SDL3 -B refs/SDL3/build \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+          cmake --build refs/SDL3/build --parallel 2
+          sudo cmake --install refs/SDL3/build
+          sudo ldconfig
+
+      - name: Build Gearsystem Release
+        run: make -C refs/gearsystem/platforms/linux --jobs=2
+
+      - name: Record build provenance
+        run: |
+          mkdir -p out/gearsystem
+          cp refs/gearsystem/platforms/linux/gearsystem out/gearsystem/
+          git -C refs/gearsystem rev-parse HEAD > out/gearsystem/source-commit.txt
+          git -C refs/SDL3 rev-parse HEAD > out/gearsystem/sdl3-commit.txt
+          out/gearsystem/gearsystem --version > out/gearsystem/version.txt 2>&1 || true
+          ldd out/gearsystem/gearsystem > out/gearsystem/linked-libraries.txt
+
+      - name: Upload Gearsystem build
+        uses: actions/upload-artifact@v4
+        with:
+          name: gearsystem-linux-x86_64
+          path: out/gearsystem/
+          if-no-files-found: error
+          retention-days: 14
+
+  ares-linux:
+    name: Build Ares SMS reference (pinned source)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ARES_COMMIT: 0b928930af4cc59ed99e942996f0d3c815379388
+    steps:
+      - name: Checkout Ares at pinned revision
+        uses: actions/checkout@v4
+        with:
+          repository: ares-emulator/ares
+          ref: ${{ env.ARES_COMMIT }}
+          path: refs/ares
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config \
+            curl git libgtk-3-dev libcanberra-gtk3-module libgl-dev \
+            libasound2-dev libao-dev libopenal-dev libpulse-dev libudev-dev
+
+      - name: Configure Ares with SMS core only
+        run: |
+          cmake -S refs/ares -B refs/ares/build -G Ninja \
+            -DARES_CORES=ms \
+            -DARES_BUNDLE_SHADERS=NO
+
+      - name: Build Ares Release
+        run: cmake --build refs/ares/build --parallel 2
+
+      - name: Collect Ares runtime and provenance
+        run: |
+          mkdir -p out/ares
+          cp -a refs/ares/build/rundir/. out/ares/
+          git -C refs/ares rev-parse HEAD > out/ares/source-commit.txt
+          find out/ares -maxdepth 4 -type f -printf '%p\n' | sort > out/ares/file-manifest.txt
+          test -x out/ares/bin/ares
+
+      - name: Upload Ares build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ares-linux-x86_64
+          path: out/ares/
+          if-no-files-found: error
+          retention-days: 14
