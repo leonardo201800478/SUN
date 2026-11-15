@@ -36,6 +36,20 @@ def prepare(source_path: Path) -> None:
     )
     source = replace_once(
         source,
+        "define TestScratch $C880",
+        "define TestScratch $C880\\ndefine TestScratch25 $C9F0",
+        "RunTest25 isolated sample storage",
+    )
+
+    test25_start = source.index("RunTest25:")
+    test26_start = source.index("RunTest26:", test25_start)
+    test25_block = source[test25_start:test26_start]
+    if "TestScratch" not in test25_block:
+        raise SystemExit("RunTest25 scratch references not found")
+    source = source[:test25_start] + test25_block.replace("TestScratch", "TestScratch25") + source[test26_start:]
+
+    source = replace_once(
+        source,
         "call WaitForNoButton",
         "nop\n\tnop\n\tnop",
         "startup input wait",
