@@ -1,8 +1,8 @@
 # SMS — investigação de corrupção gráfica em The Smurfs e Cosmic Spacehead
 
-**Estado:** INVESTIGATION_OPEN  
-**Escopo:** sprites/objetos e composição de imagem no VDP SMS  
-**Runtime:** SMS via Slint 1.18 + WGPU 30/Vulkan  
+**Estado:** INVESTIGATION_OPEN
+**Escopo:** sprites/objetos e composição de imagem no VDP SMS
+**Runtime:** SMS via Slint 1.18 + WGPU 30/Vulkan
 **Data de abertura:** 2026-11-15
 
 ## 1. Relato de reprodução no Windows
@@ -49,7 +49,7 @@ A matriz de comparação será Sega Emulator × Ares × Gearsystem. Os builds de
 O workflow deve compilar os dois projetos e publicar os executáveis/logs como artifacts. As ROMs comerciais não devem ser commitadas nem publicadas como artifacts. A execução comparativa com essas ROMs ocorre no ambiente local autorizado, usando os binários produzidos pelo workflow e os hashes desta seção. Para automatizar execução integral dentro de CI será necessário um mecanismo privado de fornecimento das ROMs; não usar URLs públicas, segredos de tamanho inadequado ou conteúdo comercial no repositório.
 
 Ares é uma aplicação desktop; não presumir suporte a headless/screenshot CLI. Gearsystem documenta `--headless` com MCP/Link Cable. O método de captura precisa respeitar as capacidades reais de cada build, e as imagens só serão comparadas após normalizar região, overscan, escala e estado de gameplay.
- 
+
 ## 2.3 Workflow de compilação dos comparadores
 
 Foi adicionado `.github/workflows/sms-reference-emulators.yml`. O workflow compila, em jobs Linux x86_64 separados:
