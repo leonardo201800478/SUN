@@ -144,7 +144,6 @@ fn run_until_result(rom: Vec<u8>, max_frames: usize) -> (u8, u8) {
     (machine.memory().read(0xC000), machine.memory().read(0xC002))
 }
 
-
 fn run_until_result_with_trace(
     rom: Vec<u8>,
     max_frames: usize,
