@@ -282,8 +282,8 @@ mod tests {
         AxisDirection, DEFAULT_STICK_THRESHOLD, SmsInputAction, SmsInputProfiles, binding,
     };
     use sega_input_runtime::{
-        AxisSemantic, DeviceClass, DeviceId, DeviceReading, DeviceState,
-        InputProfile, PhysicalControl,
+        AxisSemantic, DeviceClass, DeviceId, DeviceReading, DeviceState, InputProfile,
+        PhysicalControl,
     };
 
     fn reading(state: DeviceState) -> DeviceReading {
