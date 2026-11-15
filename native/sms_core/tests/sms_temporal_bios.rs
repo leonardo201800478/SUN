@@ -38,7 +38,6 @@ fn temporal_machine_save_state_retains_bios_image_and_mapping_latch() {
         48_000,
         SmsVdpProfile::sms1_t0_ntsc(),
         Territory::Export,
-        None,
     )
     .unwrap();
     let restored = SmsTemporalMachine::restore_state(machine.export_state())
