@@ -10,12 +10,16 @@ mod identity;
 mod profile;
 mod sms_firmware;
 
-pub use catalog::{CartridgeCatalog, CartridgeMatch, CatalogLookupError, KnownCartridgeProfile};
+pub use catalog::{
+    CartridgeCatalog, CartridgeMatch, CatalogLookupError, KnownCartridgeProfile,
+    SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION, SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION,
+};
 pub use dat::{DatGameEntry, DatParseError, DatRomEntry, NoIntroDat, SMS_DAT_VERSION};
 pub use identity::CartridgeIdentity;
 pub use profile::{
-    CartridgeHardwareProfile, CartridgeMapper, CartridgeRamKind, CartridgeRamMapping,
-    CartridgeRamProfile, CartridgeSystem, ProfileStatus,
+    CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeMapper, CartridgeRamKind,
+    CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, ProfileStatus,
+    SmsCompatibilityStatus, SmsHardwareModel, SmsVdpRequirement, preflight_sms_cartridge,
 };
 pub use sms_firmware::{
     SmsBuiltInGame, SmsConsoleVariant, SmsFirmwareCatalog, SmsFirmwareDescriptor, SmsFirmwareId,
