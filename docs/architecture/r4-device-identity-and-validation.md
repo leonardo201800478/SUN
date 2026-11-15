@@ -220,3 +220,65 @@ R4 somente poderá ser encerrada quando:
 - CI aplicável estiver verde no SHA candidato.
 
 Até então, estado: **R4 — integração de software concluída; aceite funcional/físico e persistência ainda pendentes.**
+
+
+## 11. Auditoria documental da API SDL3 — 2026-11-15
+
+**Escopo:** verificar a disponibilidade das APIs de identidade no SDL3 fixado pelo projeto (3.4.20), sem declarar estabilidade física que ainda não foi demonstrada em Windows com dispositivos reais.
+
+### 11.1 APIs disponíveis na versão mínima
+
+O backend exige SDL3 **3.4.20 ou superior** (MINIMUM_SDL_VERSION = 3_004_020) e o instalador fixa o pacote oficial 3.4.20. A documentação oficial do SDL3 registra as seguintes APIs desde SDL 3.2.0:
+
+| API | Informação | Limite para identidade |
+|---|---|---|
+| SDL_GetJoystickGUID | GUID de 128 bits dependente da implementação | Identifica a classe/modelo do dispositivo; não diferencia necessariamente duas unidades idênticas |
+| SDL_GetJoystickPath | Caminho de implementação do dispositivo aberto | Pode distinguir instâncias no host atual; estabilidade entre reconexões, portas e transportes não é garantida pelo contrato da API |
+| SDL_GetJoystickSerial | Número de série, quando disponível | Opcional; pode retornar NULL e deve ser tratado como dado sensível |
+| SDL_GetJoystickProductVersion | Revisão de produto, quando disponível | Metadado de modelo/revisão, não identidade de instância |
+| SDL_GetJoystickFirmwareVersion | Firmware, quando disponível | Metadado de firmware, não identidade de instância |
+| SDL_GetJoystickPathForID | Caminho antes de abrir o dispositivo | Mesmo limite de estabilidade de SDL_GetJoystickPath |
+
+A documentação do SDL define o GUID como identificador estável de 128 bits para a **classe** do dispositivo e define o instance ID como identificador da conexão atual, que muda após remoção e reinserção. Portanto, GUID e instance ID não podem ser promovidos isoladamente a chave persistente por unidade física.
+
+### 11.2 Estado do backend neste commit
+
+O backend atual carrega apenas funções de nome, VID/PID, tipo, capacidades e leitura. Não resolve nem consulta path, serial ou GUID. O campo DeviceDescriptor.physical_key permanece None.
+
+O instalador fixa SDL3 3.4.20 por URL de release e SHA-256, e o carregador valida versão mínima 3.4.20. As APIs de path, serial e GUID existem desde 3.2.0, logo são compatíveis com a versão mínima documentada do projeto; isso confirma disponibilidade da ABI, não a qualidade do identificador retornado em cada driver/dispositivo.
+
+### 11.3 Decisão técnica
+
+1. **Não usar GUID, VID/PID, nome, revisão, firmware, índice ou instance ID isoladamente** para gerar PhysicalDeviceKey.
+2. Consultar path, serial e GUID no próximo spike Windows; preservar os valores apenas em memória durante a auditoria e nunca registrá-los em logs.
+3. Tratar serial como candidato de maior valor para distinguir unidades idênticas, mas somente quando não vazio e após verificar unicidade em hardware real.
+4. Tratar path como candidato dependente do transporte/driver. Não presumir estabilidade ao trocar porta USB, alternar USB/Bluetooth, reiniciar o host ou reconectar.
+5. Se serial/path não fornecerem evidência suficiente, manter physical_key = None e classificar a identidade como não persistente/ambígua. Não gerar chave determinística baseada somente em metadados de modelo.
+6. A futura chave deve usar material canônico versionado, domain separation e hash criptográfico; os valores brutos de serial/path não devem ser persistidos nem registrados.
+7. Não alterar ainda PhysicalDeviceKey, DeviceDescriptor, persistência ou roteamento P1/P2. Primeiro produzir matriz experimental de dispositivos e reconexões.
+
+### 11.4 Matriz experimental obrigatória
+
+Executar no Windows x64 com SDL3 3.4.20, registrando somente os resultados sanitizados:
+
+- mesmo controle, mesma porta USB, desconectar/reconectar;
+- mesmo controle, outra porta USB;
+- reinicialização do aplicativo e do Windows;
+- dois controles do mesmo modelo conectados simultaneamente;
+- controles idênticos com e sem serial reportado;
+- USB versus Bluetooth, quando suportado;
+- remoção durante input pressionado e reconexão;
+- comparação entre Gamepad API e Joystick API para o mesmo dispositivo.
+
+Para cada caso, registrar presença/ausência de serial e path, igualdade/diferença dos valores normalizados e resultado de distinção. Nunca publicar serial ou path bruto. O aceite de estabilidade exige que duas unidades idênticas sejam distinguidas e que a mesma unidade mantenha a identidade sob as transições que o produto promete suportar.
+
+### 11.5 Resultado e bloqueios
+
+- **API disponível:** confirmado documentalmente para SDL3 3.4.20.
+- **GUID distingue unidades idênticas:** não; o contrato documenta identidade de classe/modelo.
+- **Serial sempre disponível:** não; a API permite ausência.
+- **Path estável entre reconexões/portas/transportes:** não comprovado pelo contrato SDL.
+- **PhysicalDeviceKey implementada no backend:** não.
+- **Validação física Windows:** NOT RUN / BLOCKED até execução com controles reais.
+
+Esta auditoria reduz a incerteza sobre a ABI, mas não autoriza persistência por unidade física. A próxima implementação deve ser condicionada à matriz experimental, sem alterar o Scheduler ou qualquer componente de hardware.
