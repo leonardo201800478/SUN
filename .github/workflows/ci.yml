@@ -984,14 +984,6 @@ jobs:
           check_job "Windows x64 CPAL audio output" "$EXPECT_WINDOWS_CPAL_OUTPUT" "$WINDOWS_CPAL_OUTPUT"
           check_job "SMS frame pacing ROM build" "$EXPECT_SMS_PACING_ROM" "$SMS_PACING_ROM"
 
-  windows-d3d12-retired:
-    name: Windows x64 D3D12 compile
-    if: github.event_name == 'repository_dispatch'
-    runs-on: windows-latest
-    steps:
-      - name: Retired host validation (intentionally not executed)
-        run: echo "D3D12 validation is retired; this job exists only for the legacy required-check name."
-
   windows-cpal-output:
     name: Windows x64 CPAL audio output
     needs: [changes]

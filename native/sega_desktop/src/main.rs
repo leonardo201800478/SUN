@@ -177,51 +177,133 @@ mod windows_host {
         }
     }
 
-    /// Polling SDL3 ocorre no limite do host Slint, nunca no Scheduler ou em callbacks
-    /// de instrução. O intervalo nominal de 8 ms não altera o tempo virtual da máquina.
+    /// Owns the SDL polling thread and its lightweight Slint snapshot consumer.
+    /// Dropping this value stops and joins the SDL thread before the desktop host exits.
+    struct Sdl3InputPolling {
+        _timer: Timer,
+        _thread: Sdl3PollingThread,
+    }
+
+    struct Sdl3PollingThread {
+        stop: Arc<AtomicBool>,
+        join: Option<thread::JoinHandle<()>>,
+    }
+
+    impl Drop for Sdl3PollingThread {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::Release);
+            if let Some(join) = self.join.take()
+                && join.join().is_err()
+            {
+                eprintln!("R4_SDL3 event=poll_thread_panicked");
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct Sdl3InputSnapshot {
+        players: [ControllerButtons; 2],
+        pause_pressed: bool,
+        status_update: Option<String>,
+    }
+
+    /// SDL3 handles are created, polled and destroyed on one dedicated host thread.
+    /// Slint only consumes the newest coarse-grained snapshot; it never calls SDL.
+    /// The 2 ms cadence is a host sampling target, not a hardware-clock guarantee.
     fn start_sdl3_input_polling(
         app: &MainWindow,
         worker_slot: Rc<RefCell<Option<SmsTemporalWorker>>>,
         keyboard_state: Rc<RefCell<KeyboardInputState>>,
         gamepad_state: Rc<RefCell<[ControllerButtons; 2]>>,
-    ) -> Timer {
-        let mut last_pause_pressed = false;
-        let mut input_host = match Sdl3InputHost::new() {
-            Ok(host) => {
-                let status = host.status().to_owned();
-                app.set_input_status(status.clone().into());
-                Some(host)
-            }
+    ) -> Sdl3InputPolling {
+        let snapshot = Arc::new(Mutex::new(Sdl3InputSnapshot::default()));
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_snapshot = Arc::clone(&snapshot);
+        let thread_stop = Arc::clone(&stop);
+
+        let join = thread::Builder::new()
+            .name("sega-sdl3-input".to_owned())
+            .spawn(move || {
+                let mut input_host = match Sdl3InputHost::new() {
+                    Ok(host) => {
+                        let status = host.status().to_owned();
+                        thread_snapshot
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .status_update = Some(status);
+                        host
+                    }
+                    Err(error) => {
+                        let status = format!("SDL3 indisponível — teclado ativo: {error}");
+                        thread_snapshot
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .status_update = Some(status);
+                        eprintln!("R4_SDL3 event=initialization_failed error={error}");
+                        return;
+                    }
+                };
+
+                while !thread_stop.load(Ordering::Acquire) {
+                    match input_host.poll() {
+                        Ok((players, pause_pressed, status_update)) => {
+                            let mut latest = thread_snapshot
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                            latest.players = players;
+                            latest.pause_pressed = pause_pressed;
+                            if status_update.is_some() {
+                                latest.status_update = status_update;
+                            }
+                        }
+                        Err(error) => {
+                            eprintln!("R4_SDL3 event=poll_failed error={error}");
+                            let mut latest = thread_snapshot
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                            latest.players = [ControllerButtons::default(); 2];
+                            latest.pause_pressed = false;
+                            latest.status_update =
+                                Some(format!("SDL3 interrompido — teclado ativo: {error}"));
+                            break;
+                        }
+                    }
+                    thread::sleep(Duration::from_millis(2));
+                }
+            });
+
+        let thread_guard = match join {
+            Ok(join) => Sdl3PollingThread {
+                stop,
+                join: Some(join),
+            },
             Err(error) => {
-                let status = format!("SDL3 indisponível — teclado ativo: {error}");
+                let status =
+                    format!("SDL3 indisponível — teclado ativo: falha ao iniciar thread: {error}");
                 app.set_input_status(status.into());
-                eprintln!("R4_SDL3 event=initialization_failed error={error}");
-                None
+                eprintln!("R4_SDL3 event=thread_start_failed error={error}");
+                Sdl3PollingThread { stop, join: None }
             }
         };
-        let app_weak = app.as_weak();
-        let timer = Timer::default();
 
-        timer.start(TimerMode::Repeated, Duration::from_millis(8), move || {
+        let app_weak = app.as_weak();
+        let timer_snapshot = Arc::clone(&snapshot);
+        let mut last_pause_pressed = false;
+        let timer = Timer::default();
+        timer.start(TimerMode::Repeated, Duration::from_millis(2), move || {
             let Some(app) = app_weak.upgrade() else {
                 return;
             };
 
-            let poll_result = input_host.as_mut().map(Sdl3InputHost::poll);
-            let (mut next_players, pause_pressed, status_update) = match poll_result {
-                Some(Ok((players, pause_pressed, status_update))) => {
-                    (players, pause_pressed, status_update)
-                }
-                Some(Err(error)) => {
-                    eprintln!("R4_SDL3 event=poll_failed error={error}");
-                    input_host = None;
-                    (
-                        [ControllerButtons::default(); 2],
-                        false,
-                        Some(format!("SDL3 interrompido — teclado ativo: {error}")),
-                    )
-                }
-                None => ([ControllerButtons::default(); 2], false, None),
+            let (mut next_players, pause_pressed, status_update) = {
+                let mut latest = timer_snapshot
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                (
+                    latest.players,
+                    latest.pause_pressed,
+                    latest.status_update.take(),
+                )
             };
 
             let gameplay_enabled = app.get_has_rom() && app.get_active_menu().as_str() == "none";
@@ -268,7 +350,10 @@ mod windows_host {
             }
         });
 
-        timer
+        Sdl3InputPolling {
+            _timer: timer,
+            _thread: thread_guard,
+        }
     }
 
     slint::slint! {
