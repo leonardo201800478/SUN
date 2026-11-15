@@ -30,7 +30,10 @@ const H2_EVENT_CAPTURE_CAPACITY: usize = 16_384;
 const AUDIO_RENDERER_FADE_SAMPLES: usize = 256;
 const SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE: u64 = 1;
 const DEFAULT_MAX_FRAME_INSTRUCTIONS: usize = 100_000;
-const DEBUG_TRACE_CAPACITY: usize = 2_048;
+// Retain a materially useful diagnostic window without turning the trace into
+// an unbounded instruction/T-state log. The collector remains opt-in.
+const DEBUG_TRACE_CAPACITY: usize = 65_536;
+const DEBUG_TRACE_QUEUE_CAPACITY: usize = 16_384;
 const WORKER_COMMAND_QUEUE_CAPACITY: usize = 64;
 // Running workers accept control commands at complete-frame boundaries; debug builds may need
 // substantially longer than one wall-clock frame to reach that safe point.
@@ -921,7 +924,7 @@ fn set_trace_capture(
     }
     let collector = if enabled {
         Some(
-            DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY)
+            DiagnosticCollector::start(DEBUG_TRACE_QUEUE_CAPACITY, DEBUG_TRACE_CAPACITY)
                 .map_err(|error| format!("failed to start SMS debugger collector: {error}"))?,
         )
     } else {
@@ -2103,15 +2106,52 @@ fn worker_loop(
     drop(video_mailbox);
 }
 
+/// Keep high-value diagnostic transitions and discard per-T-state noise before
+/// crossing the worker boundary. This is observation-only: it never changes the
+/// machine, Scheduler, bus transaction, WAIT-state handling or event ordering.
+fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
+    use sega_z80_cpu::Z80BusOperation;
+
+    match *event {
+        SmsTemporalTraceEvent::BusCompleted {
+            operation,
+            address,
+            ..
+        } => match operation {
+            // The failing game polls these RAM latches. Preserve both reads and
+            // writes so a capture can identify the producer/consumer sequence.
+            Z80BusOperation::MemoryRead => matches!(address, 0xC121 | 0xC122),
+            Z80BusOperation::MemoryWrite { .. } => {
+                matches!(address, 0xC121 | 0xC122 | 0xFFFC..=0xFFFF)
+            }
+            // Port traffic carries VDP/PSG/IO activity and is low enough in
+            // volume to retain as a useful subsystem timeline.
+            Z80BusOperation::PortRead | Z80BusOperation::PortWrite { .. } => true,
+            // Interrupt acknowledge is a causal event; ordinary opcode fetches
+            // and their individual M1 T-states are intentionally not retained.
+            Z80BusOperation::InterruptAcknowledge => true,
+            Z80BusOperation::OpcodeFetch => false,
+        },
+        SmsTemporalTraceEvent::ExternalThTransition { .. } => true,
+        SmsTemporalTraceEvent::InternalCycleCompleted { .. }
+        | SmsTemporalTraceEvent::M1TStateCompleted { .. } => false,
+    }
+}
+
+/// Drain the machine-local trace at a safe worker boundary and publish only
+/// selected events. The bounded collector counts queue overflow separately.
 fn drain_machine_trace(
     machine: &mut SmsTemporalMachine,
     publisher: Option<&DiagnosticPublisher<SmsTemporalTraceEvent>>,
 ) {
+    let events = machine.take_trace();
     let Some(publisher) = publisher.filter(|publisher| publisher.is_active()) else {
         return;
     };
-    for event in machine.take_trace() {
-        let _ = publisher.try_publish(event);
+    for event in events {
+        if is_debugger_diagnostic_event(&event) {
+            let _ = publisher.try_publish(event);
+        }
     }
 }
 
