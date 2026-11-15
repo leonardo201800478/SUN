@@ -147,7 +147,7 @@ fn run_until_result(rom: Vec<u8>, max_frames: usize) -> (u8, u8) {
 fn run_until_result_with_trace(
     rom: Vec<u8>,
     max_frames: usize,
-) -> (u8, u8, Vec<(u64, &'static str, u16, Option<u8>)>) {
+) -> (u8, u8, Vec<(u128, &'static str, u16, Option<u8>)>) {
     let mut machine = SmsTemporalMachine::new_with_hardware_profile(
         rom,
         1,
