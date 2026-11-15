@@ -292,12 +292,7 @@ impl SmsVdp {
     }
 
     pub fn interrupt_pending(&self) -> bool {
-        let vertical_pending = if self.profile.revision == SmsVdpRevision::Sega3155124 {
-            self.vint_pending
-        } else {
-            self.status & VBLANK != 0
-        };
-        (vertical_pending && self.registers[1] & 0x20 != 0)
+        (self.vint_pending && self.registers[1] & 0x20 != 0)
             || (self.line_irq_pending && self.registers[0] & 0x10 != 0)
     }
     pub fn framebuffer(&self) -> &[u8] {
