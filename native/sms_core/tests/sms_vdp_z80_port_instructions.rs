@@ -4,9 +4,7 @@
 //! directly: opcode fetch, immediate operand fetch, I/O M-cycle, Scheduler
 //! completion, VDP side effect, and (for IN) the returned byte.
 
-use sega_sms_core::{
-    SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile, Territory,
-};
+use sega_sms_core::{SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile, Territory};
 use sega_z80_cpu::Z80BusOperation;
 
 const ROM_SIZE: usize = 0x8000;
@@ -118,7 +116,11 @@ fn z80_in_immediate_a_reads_the_th_latched_hcounter_through_the_scheduler() {
         })
         .collect();
 
-    assert_eq!(reads.len(), 1, "program should perform one immediate I/O read");
+    assert_eq!(
+        reads.len(),
+        1,
+        "program should perform one immediate I/O read"
+    );
     assert_eq!(reads[0].0, 47, "IN I/O read completes after its 4T I/O M-cycle");
     assert_eq!(reads[0].1, 0xDF7F, "IN A,(n) uses A as the high port byte");
     assert_eq!(reads[0].2, 4, "I/O read M-cycle must take four T-states");
