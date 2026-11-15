@@ -3,7 +3,7 @@
 **Sistema-alvo:** Sega Master System 1
 **ASIC prioritário:** Sega 315-5124
 **Backend:** Rust / `sega-video`
-**Baseline integrada:** `main` após PR #910 (`a41c7706c2527858fb4454837afca21b4f0ae108`)
+**Baseline integrada:** `main` após PR #914 (`7de9d2d1dbd260a9c9ce600bf61281b2f6478443`)
 **Baseline de comparação:** `202cdfc695d0c2346c86da4144b6e8a3316e0c4d`
 **HEAD de validação da PR #843:** `0f2415f9382887c94d9214abe06cb6c295ed2154`
 **Estado:** EM DESENVOLVIMENTO — compatibilidade funcional SMS1 ainda em fechamento
@@ -54,11 +54,11 @@ Escopo funcional atualizado: [SMS1 software compatibility scope](audits/sms1-vdp
 
 ## 3. Lacunas de software que bloqueiam a liberação
 
-1. Reproduzir `Frame IRQ HCount` e `Line IRQ HCount` com o fluxo Z80/Scheduler/TH da SmsVdpTest. Os boundaries VINT T13 e HINT T14 já têm testes internos, mas estes ainda não verificam o HCounter observado após HALT, acknowledge e ISR. Normalizar a origem HPos antes de comparar MAME HINT_HPOS26/VINT_HPOS24; não mover constantes sem teste discriminante.
+1. Fechar a reprodução CPU-visible de `Frame IRQ HCount` (RunTest32) e `Line IRQ HCount` (RunTest34) com o fluxo Z80/Scheduler/TH da SmsVdpTest. A PR #912 adicionou fixtures exploratórias e a CI passou, mas os dois asserts de conformance continuam `#[ignore]`; o teste de phase sweep aceita apenas marcadores diagnósticos `$AA/$FF` e não prova as amostras finais `$82/$84` e `$88/$8A`. Os boundaries VINT T13 e HINT T14 têm testes internos e os novos testes VCounter/ISR da PR #914 cobrem leituras CPU-visible, mas ainda não fecham RunTest32/34. Normalizar a origem HPos antes de comparar MAME HINT_HPOS26/VINT_HPOS24; não mover constantes sem teste discriminante.
 2. Expandir testes automatizados de escritas CRAM durante a linha, mudanças de backdrop e spans antes/depois do boundary, usando ROMs diagnósticas quando disponíveis.
 3. Modelar ou justificar por evidência o fetch-ahead de tiles, bitplanes e padrões de sprites.
 4. Modelar fetches de padrão por sprite/dot e separar seleção SAT de fetch real; Mode 4 e legacy/TMS já capturam metadados por scanline, mas bitplanes continuam consultados durante a composição.
-5. Executar ou reproduzir fielmente os testes `RunTest32` (Frame IRQ HCount) e `RunTest34` (Line IRQ HCount) da SmsVdpTest. Registrar a primeira divergência em timestamps de evento, amostragem T4 do HALT, acknowledge, ISR ou captura TH; preservar VINT T13, HINT T14, VCounter T15, overflow/frame publish T16 e VBlank flag T17 até haver evidência contrária.
+5. Executar ou reproduzir fielmente os testes `RunTest32` (Frame IRQ HCount) e `RunTest34` (Line IRQ HCount) da SmsVdpTest, sem ignorar os asserts de conformance. Registrar a primeira divergência em timestamps de evento, amostragem T4 do HALT, acknowledge, ISR ou captura TH; preservar VINT T13, HINT T14, VCounter T15, overflow/frame publish T16 e VBlank flag T17 até haver evidência contrária.
 6. Confirmar o instante de colisão pixel a pixel: o modelo publica a colisão no commit do pixel, mas não possui pipeline dot-level do ASIC.
 7. Expandir a demonstração de equivalência contínua/em blocos/save-load para todos os eventos subline. VINT já possui equivalência contínuo/blocos com snapshot em T12; TH software possui invariância 3+5 T-states.
 8. Executar regressões SMS1/SMS2 e build Windows x64 Release no candidato final.
@@ -86,6 +86,8 @@ Escopo funcional atualizado: [SMS1 software compatibility scope](audits/sms1-vdp
 - PR #843 — valida HINT/R10 e VINT nos boundaries do Scheduler: VINT pendente T13, VBlank flag T16, HINT T14, snapshot/restore e equivalência contínuo/blocos; confirma propagação HINT à linha INT do Z80. No HEAD `0f2415f9382887c94d9214abe06cb6c295ed2154`: 98 testes `sega-video`, 131 testes `sega-sms-core`, 14 testes de integração SMS; Z80 focused, input focused, Scheduler stress, workspace regression, Clippy, Rustfmt, runtime Release (45 + 1 testes) e build Windows x64 Release aprovados.
 - PR #909 — colisão de sprites SMS1 no border vertical; restrita ao ASIC 315-5124, sem desenhar pixels fora da área visível ou gerar overflow indevido. Merge commit `355bf02b111d2d691762071360dbe502b64a6aba`.
 - PR #910 — separa publicação do frame em T16 da flag VBlank em T17/HCount `$F5`; VINT IRQ permanece inalterada. HEAD validado `3fb41e8184a08ab07e5a258ae9d1239fbe40749a`, merge commit `a41c7706c2527858fb4454837afca21b4f0ae108`; CI, SMS Debugger Runtime, Scheduler stress, workspace regression e Windows x64 Release aprovados.
+- PR #914 — adiciona três testes de integração CPU-visible em `native/sms_core/tests/sms_vdp_vcounter_integration.rs`: leitura de VCounter antes/em T15 via `IN A,(n)` (T239 `$00`; T243 `$01`), serviço VINT por Z80 IM1/HALT com leitura de status e VCounter `$C1` na ISR, e HINT R10=`$BE` observado em VCounter `$C0` antes de VBlank. Merge commit `7de9d2d1dbd260a9c9ce600bf61281b2f6478443`. CI pós-merge `43758763908` aprovou classificação, validação Actions, regressão Rust do workspace e SMS1 VDP core/machine integration; SMS Runtime Release `43758763928` aprovou fmt, Clippy, testes e build Windows x64 Release. Fixtures são discriminantes CPU-visible, não reprodução integral da ROM SmsVdpTest.
+- PR #912 — branch exploratória `test/sms1-vdp-irq-hcount-20261115`; CI no HEAD sincronizado `2e4f9a3bb1cf87d6fcb8dd00007ea6f4332a1bd7` passou em regressão Rust, SMS1 VDP core/machine integration e SMS Runtime Release/Windows x64. Limite: `smsvdptest_run_test32_frame_irq_hcount_matches_reference_samples` e `smsvdptest_run_test34_line_irq_hcount_matches_reference_samples` permanecem ignorados; o phase sweep aceita `$AA/$FF` como marcadores, portanto não é evidência de conformance. PR permanece Draft e não integrada.
 - PR #845 — crop de apresentação SMS1 `CropLeft8` (248×192) sem mutação do framebuffer/timing; APIs runtime de snapshot/restore em memória com validação de versão/ROM/região/perfil; teste confirma nove sprites renderizados em modo desbloqueado mantendo overflow de hardware.
   No HEAD `bfbef337a7f894911d9bc976cdcad88b3902858f`: 99 testes `sega-video`, 131 testes `sega-sms-core`, 15 testes de integração SMS, 45 testes runtime e 6 testes de API pública; Rustfmt, Clippy, workspace regression, documentação, build runtime Windows x64 Release e POC Slint/WGPU/Vulkan Windows x64 aprovados.
 
