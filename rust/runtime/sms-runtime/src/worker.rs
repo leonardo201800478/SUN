@@ -864,6 +864,10 @@ enum WorkerCommand {
         Option<DiagnosticPublisher<SmsTemporalTraceEvent>>,
         SyncSender<Result<(), String>>,
     ),
+    ArmTraceOnNextStart(
+        DiagnosticPublisher<SmsTemporalTraceEvent>,
+        SyncSender<Result<(), String>>,
+    ),
     SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
     SetOverscanMode(SmsOverscanMode, SyncSender<Result<(), String>>),
     SetBreakpoint(u16, bool, SyncSender<Result<(), String>>),
@@ -894,6 +898,7 @@ impl WorkerCommand {
             Self::LoadState(_, _) => "load_state",
             Self::ReadMemory(_, _, _) => "read_memory",
             Self::SetTraceEnabled(_, _, _) => "set_trace_enabled",
+            Self::ArmTraceOnNextStart(_, _) => "arm_trace_on_next_start",
             Self::SetSpriteLimitMode(_, _) => "set_sprite_limit_mode",
             Self::SetOverscanMode(_, _) => "set_overscan_mode",
             Self::SetBreakpoint(_, _, _) => "set_breakpoint",
@@ -942,6 +947,33 @@ fn set_trace_capture(
     } else {
         slot.take();
     }
+    Ok(())
+}
+
+/// Prepare a collector and serialize trace arming with Start on the machine worker.
+///
+/// Unlike a host-side running-state check, the worker processes this command in
+/// the same FIFO as Start, so the stopped-state validation cannot race a resume.
+fn arm_trace_capture(
+    commands: &SyncSender<WorkerCommand>,
+    collector_slot: &Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>,
+) -> Result<(), String> {
+    let mut slot = collector_slot
+        .lock()
+        .map_err(|_| "debugger collector state is unavailable".to_owned())?;
+    if slot.is_some() {
+        return Err("SMS debugger trace capture is already armed or enabled".to_owned());
+    }
+    let collector = DiagnosticCollector::start(DEBUG_TRACE_QUEUE_CAPACITY, DEBUG_TRACE_CAPACITY)
+        .map_err(|error| format!("failed to start SMS debugger collector: {error}"))?;
+    let publisher = collector.publisher();
+    let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+    enqueue_worker_command(
+        commands,
+        WorkerCommand::ArmTraceOnNextStart(publisher, reply_sender),
+    )?;
+    receive_worker_reply(reply_receiver, "arming debugger trace for the next start")??;
+    *slot = Some(collector);
     Ok(())
 }
 
@@ -1087,13 +1119,7 @@ impl SmsTemporalWorkerDebugHandle {
     ///
     /// Returns an error if the machine is running or the collector cannot start.
     pub fn arm_trace_on_next_start(&self) -> Result<(), String> {
-        if self.is_running() {
-            return Err(
-                "arm_trace_on_next_start requires a stopped machine; pause or stop before arming"
-                    .to_owned(),
-            );
-        }
-        set_trace_capture(&self.commands, &self.trace_collector, true)
+        arm_trace_capture(&self.commands, &self.trace_collector)
     }
 
     /// Capture an immutable, owned machine snapshot.
@@ -1328,13 +1354,7 @@ impl SmsTemporalWorker {
     ///
     /// Returns an error if the machine is running or the collector cannot start.
     pub fn arm_trace_on_next_start(&self) -> Result<(), String> {
-        if self.telemetry.running.load(Ordering::Acquire) {
-            return Err(
-                "arm_trace_on_next_start requires a stopped machine; pause or stop before arming"
-                    .to_owned(),
-            );
-        }
-        set_trace_capture(&self.commands, &self.trace_collector, true)
+        arm_trace_capture(&self.commands, &self.trace_collector)
     }
 
     /// Change the active SMS VDP sprite rendering limit through the machine worker.
@@ -2470,6 +2490,22 @@ fn handle_command(
             *trace_enabled = enabled;
             *trace_publisher = publisher;
             let _ = reply.send(Ok(()));
+        }
+        WorkerCommand::ArmTraceOnNextStart(publisher, reply) => {
+            if *running {
+                let _ = reply.send(Err(
+                    "arm_trace_on_next_start requires the machine to be stopped".to_owned(),
+                ));
+            } else if *trace_enabled {
+                let _ = reply.send(Err(
+                    "SMS debugger trace capture is already enabled".to_owned(),
+                ));
+            } else {
+                machine.set_trace_enabled(true);
+                *trace_enabled = true;
+                *trace_publisher = Some(publisher);
+                let _ = reply.send(Ok(()));
+            }
         }
         WorkerCommand::SetSpriteLimitMode(mode, reply) => {
             machine.set_sprite_limit_mode(mode);
