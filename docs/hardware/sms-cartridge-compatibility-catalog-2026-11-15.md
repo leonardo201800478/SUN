@@ -47,7 +47,7 @@ Identity supplied for investigation:
 - CRC32: `E14C8A1C`
 - SHA-1: `15b882ad3263cdc1e78c732d96f9bb18e25f4743`
 
-The SHA-1 is absent from the project's No-Intro DAT `20261013-064924`, and no independent source currently establishes a minimum SMS VDP requirement for this exact Brazilian dump.
+Neither the SHA-1 nor CRC32 is present in the project's No-Intro DAT `20261013-064924`, and no independent source currently establishes a minimum SMS VDP requirement for this exact Brazilian dump.
 
 Result: no compatibility profile is declared; the loader reports `Unknown`, continues with the explicitly selected hardware, and does not infer SMS2 from the Brazilian region or filename.
 
