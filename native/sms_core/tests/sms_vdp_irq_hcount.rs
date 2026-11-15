@@ -94,13 +94,13 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
             "phase sweep NOPs={}: Frame result={:02X} sample={:02X}; Line result={:02X} sample={:02X}",
             delay_nops, frame_result, frame_sample, line_result, line_sample
         );
-        assert_ne!(
-            frame_result, 0,
-            "Frame IRQ diagnostic did not finish at delay {delay_nops}"
+        assert!(
+            matches!(frame_result, 0xAA | 0xFF),
+            "Frame IRQ diagnostic returned an invalid marker ${frame_result:02X} at delay {delay_nops}"
         );
-        assert_ne!(
-            line_result, 0,
-            "Line IRQ diagnostic did not finish at delay {delay_nops}"
+        assert!(
+            matches!(line_result, 0xAA | 0xFF),
+            "Line IRQ diagnostic returned an invalid marker ${line_result:02X} at delay {delay_nops}"
         );
     }
 }
