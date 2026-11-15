@@ -588,8 +588,7 @@ impl SmsVdp {
                     .then_some(SMS_SPRITE_OVERFLOW_TSTATE),
             )
             .chain(
-                (self.profile.revision == SmsVdpRevision::Sega3155124)
-                    .then_some(SMS_HBLANK_TSTATE),
+                (self.profile.revision == SmsVdpRevision::Sega3155124).then_some(SMS_HBLANK_TSTATE),
             )
             .filter(|boundary| *boundary > current)
             .min()
