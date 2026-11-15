@@ -37,13 +37,13 @@ def prepare(source_path: Path) -> None:
     )
     source = replace_once(
         source,
-        "define TestScratch $C880",
-        "define TestScratch $C880\ndefine TestScratch25 $C9F0",
+        ".define TestScratch\\t\\t$c880",
+        ".define TestScratch\\t\\t$c880\\n.define TestScratch25 $c9f0",
         "RunTest25 isolated sample storage",
     )
 
     test25_start = source.index("RunTest25:")
-    test26_start = source.index("RunTest26:", test25_start)
+    test26_start = source.index("RunTest25_MD:", test25_start)
     test25_block = source[test25_start:test26_start]
     if test25_block.count("TestScratch") != 5:
         raise SystemExit("RunTest25 scratch references changed; refusing to instrument timing")
