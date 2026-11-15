@@ -1,7 +1,7 @@
 # SMS2 VDP — raster events and interrupt timing
 
-**Date:** 2026-11-15  
-**ASIC:** Sega 315-5246  
+**Date:** 2026-11-15
+**ASIC:** Sega 315-5246
 **Status:** implementation candidate; physical hardware validation remains open
 
 ## 1. Defect found in the previous SMS2 path
