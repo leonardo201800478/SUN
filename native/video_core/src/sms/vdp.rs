@@ -3818,8 +3818,7 @@ mod tests {
 
         // The partial control write must preserve the SMS1 read pipeline's
         // observable byte order, not return the stale 3E58 buffer.
-        let restored = v.clone();
-        let mut restored = restored;
+        let mut restored = v.clone();
         assert_eq!(restored.read_port(0xBE), 0xAA);
         assert_eq!(restored.read_port(0xBE), 0xBB);
     }
