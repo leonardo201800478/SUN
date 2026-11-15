@@ -3197,7 +3197,8 @@ mod tests {
         solid_sprite_tile(&mut v, 1, 1);
         solid_sprite_tile(&mut v, 2, 2);
 
-        v.advance(LINE_TSTATES * u64::from(v.total_lines()));
+        let frame_tstates = LINE_TSTATES * u64::from(v.total_lines());
+        v.advance(frame_tstates);
 
         assert_ne!(v.status & COLLISION, 0);
         assert_eq!(v.status & OVERFLOW, 0);
@@ -3222,7 +3223,8 @@ mod tests {
         v.vram[0x3F09] = 0xD0;
         solid_sprite_tile(&mut v, 1, 1);
 
-        v.advance(LINE_TSTATES * u64::from(v.total_lines()));
+        let frame_tstates = LINE_TSTATES * u64::from(v.total_lines());
+        v.advance(frame_tstates);
 
         assert_ne!(v.status & COLLISION, 0);
         assert_eq!(
