@@ -2641,9 +2641,8 @@ mod tests {
         Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
         WorkerTelemetry, build_sms_temporal_machine,
         build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
-        execute_frame, execute_frame_with_renderer,
-        frame_duration_from_machine_ticks, sms_temporal_hardware_profile,
-        sms_temporal_region_profile,
+        execute_frame, execute_frame_with_renderer, frame_duration_from_machine_ticks,
+        sms_temporal_hardware_profile, sms_temporal_region_profile,
     };
     use crate::SmsTemporalWorkerDebugHandle;
     use sega_audio_runtime::{AudioOutputMetrics, NativeAudioSession, PcmSink};
