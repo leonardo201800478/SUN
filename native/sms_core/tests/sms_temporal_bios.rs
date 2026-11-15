@@ -63,3 +63,34 @@ fn temporal_machine_rejects_non_8k_bios_before_scheduler_execution() {
     );
     assert!(result.is_err());
 }
+
+#[test]
+fn temporal_machine_executes_instruction_fetch_from_bios_through_scheduler() {
+    let mut cartridge = vec![0x00; 0x4000];
+    cartridge[0..2].copy_from_slice(&[0x3E, 0x99]);
+
+    let mut bios = vec![0x00; 0x2000];
+    bios[0..2].copy_from_slice(&[0x3E, 0x42]);
+
+    let mut machine = SmsTemporalMachine::new_with_hardware_profile_bios_and_sram_size(
+        cartridge,
+        SmsTemporalMemoryOptions {
+            bios: Some(bios),
+            cartridge_sram_size: None,
+        },
+        1,
+        3_579_545,
+        48_000,
+        SmsVdpProfile::sms1_t0_ntsc(),
+        Territory::Export,
+    )
+    .expect("valid conventional BIOS should initialize temporal memory");
+
+    machine
+        .step_complete_instruction()
+        .expect("the BIOS instruction should execute on the scheduler timeline");
+
+    assert_eq!(machine.cpu().registers.a, 0x42);
+    assert_eq!(machine.cpu().registers.pc, 2);
+    assert!(machine.memory().bios_enabled());
+}
