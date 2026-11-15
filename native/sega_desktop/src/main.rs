@@ -3235,7 +3235,7 @@ mod windows_host {
             };
             let prefs = DesktopPreferences {
                 region: app.get_selected_region().to_string(),
-                    sms_system: app.get_selected_system().to_string(),
+                sms_system: app.get_selected_system().to_string(),
                 aspect: app.get_selected_aspect().to_string(),
                 show_fps: app.get_show_fps(),
                 show_status_footer: app.get_show_status_footer(),
@@ -3494,7 +3494,7 @@ mod windows_host {
         let run_result = app.run();
         let final_preferences = DesktopPreferences {
             region: app.get_selected_region().to_string(),
-                    sms_system: app.get_selected_system().to_string(),
+            sms_system: app.get_selected_system().to_string(),
             aspect: app.get_selected_aspect().to_string(),
             show_fps: app.get_show_fps(),
             show_status_footer: app.get_show_status_footer(),
