@@ -112,6 +112,24 @@ pub struct SmsVdp {
     right_frame: Vec<u8>,
 }
 
+/// Decode the active Mode 4 height from the ASIC-specific mode-select pins.
+fn mode4_active_height(revision: SmsVdpRevision, registers: &[u8; 16]) -> u16 {
+    if revision != SmsVdpRevision::Sega3155246
+        || registers[0] & 0x04 == 0
+        || registers[0] & 0x02 == 0
+    {
+        return 192;
+    }
+
+    let m1 = registers[1] & 0x10 != 0;
+    let m3 = registers[1] & 0x08 != 0;
+    match (m1, m3) {
+        (true, false) => 224,
+        (false, true) => 240,
+        (false, false) | (true, true) => 192,
+    }
+}
+
 impl SmsVdp {
     /// Preserve the Legacy SMS2 constructor and its existing behavior.
     pub fn new(video_standard: VideoStandard, sprite_limit: SpriteLimitMode) -> Self {
@@ -192,25 +210,7 @@ impl SmsVdp {
         }
     }
     pub fn visible_height(&self) -> u16 {
-        // The 315-5246 reuses the legacy M1/M2/M3 mode bits for extended
-        // Mode 4 heights. R0.M4 must select Mode 4 and R0.M2 must be set;
-        // R1.M1 and R1.M3 are mutually exclusive height selectors.
-        if self.profile.revision != SmsVdpRevision::Sega3155246
-            || self.registers[0] & 0x04 == 0
-            || self.registers[0] & 0x02 == 0
-        {
-            return 192;
-        }
-
-        let m1 = self.registers[1] & 0x10 != 0;
-        let m3 = self.registers[1] & 0x08 != 0;
-        let requested_height = match (m1, m3) {
-            (true, false) => 224,
-            (false, true) => 240,
-            // Both selectors set means the standard 192-line mode.
-            (false, false) | (true, true) => 192,
-        };
-
+        let requested_height = mode4_active_height(self.profile.revision, &self.registers);
         if self
             .profile
             .capabilities()
@@ -1527,13 +1527,7 @@ fn render_scanline_for_revision(
     hardware_sprite_limit: bool,
     revision: SmsVdpRevision,
 ) {
-    let active_height = if regs[1] & 0x08 != 0 {
-        240
-    } else if regs[1] & 0x10 != 0 {
-        224
-    } else {
-        192
-    };
+    let active_height = usize::from(mode4_active_height(revision, regs));
     render_scanline_for_revision_with_evaluation(
         vram,
         cram,
