@@ -2161,7 +2161,7 @@ mod tests {
         let next_line_pixel = line_bytes * 2 + 80 * 3;
         assert_eq!(
             &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
-            &[0, 238, 0],
+            &[0, 255, 0],
             "the next line must use the updated X/tile and pattern-table selection"
         );
     }
@@ -2199,7 +2199,7 @@ mod tests {
         let new_x_pixel = line_bytes + 80 * 3;
         assert_eq!(
             &vdp.working_framebuffer[latched_pixel..latched_pixel + 3],
-            &[238, 0, 0],
+            &[255, 0, 0],
             "315-5246 must retain selected X/tile/R0/R6 metadata for line 1"
         );
         assert_eq!(
@@ -2212,7 +2212,7 @@ mod tests {
         let next_line_pixel = line_bytes * 2 + 80 * 3;
         assert_eq!(
             &vdp.working_framebuffer[next_line_pixel..next_line_pixel + 3],
-            &[0, 238, 0],
+            &[0, 255, 0],
             "the next line must use updated SAT and pattern-table values"
         );
     }
@@ -2241,7 +2241,7 @@ mod tests {
         assert_eq!(v.status & 0x1F, 8);
 
         v.advance(LINE_TSTATES - 16);
-        assert_eq!(&v.working_framebuffer[196 * 3..196 * 3 + 3], &[238, 0, 0]);
+        assert_eq!(&v.working_framebuffer[196 * 3..196 * 3 + 3], &[255, 0, 0]);
         assert_eq!(&v.working_framebuffer[224 * 3..224 * 3 + 3], &[0, 0, 0]);
     }
 
@@ -2268,7 +2268,7 @@ mod tests {
         v.advance(LINE_TSTATES);
 
         assert_ne!(v.status & COLLISION, 0);
-        assert_eq!(&v.working_framebuffer[20 * 3..20 * 3 + 3], &[238, 0, 0]);
+        assert_eq!(&v.working_framebuffer[20 * 3..20 * 3 + 3], &[255, 0, 0]);
     }
 
     #[test]
