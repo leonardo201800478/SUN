@@ -2173,22 +2173,12 @@ fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
     use sega_sms_core::Z80BusOperation;
 
     match *event {
-        SmsTemporalTraceEvent::BusCompleted {
-            operation, address, ..
-        } => match operation {
-            // The failing game polls these RAM latches. Preserve both reads and
-            // writes so a capture can identify the producer/consumer sequence.
-            Z80BusOperation::MemoryRead => matches!(address, 0xC121 | 0xC122),
-            Z80BusOperation::MemoryWrite { .. } => {
-                matches!(address, 0xC121 | 0xC122 | 0xFFFC..=0xFFFF)
-            }
-            // Port traffic carries VDP/PSG/IO activity and is low enough in
-            // volume to retain as a useful subsystem timeline.
-            Z80BusOperation::PortRead | Z80BusOperation::PortWrite { .. } => true,
-            // Interrupt acknowledge is a causal event; ordinary opcode fetches
-            // and their individual M1 T-states are intentionally not retained.
-            Z80BusOperation::InterruptAcknowledge => true,
-            Z80BusOperation::OpcodeFetch => false,
+        SmsTemporalTraceEvent::BusCompleted { operation, .. } => {
+            // Retain completed bus transactions across the whole machine map.
+            // This preserves ROM/RAM reads and writes, mapper activity, I/O,
+            // and interrupt acknowledge while still discarding the much noisier
+            // per-T-state M1/internal-cycle stream below.
+            !matches!(operation, Z80BusOperation::OpcodeFetch)
         },
         SmsTemporalTraceEvent::ExternalThTransition { .. } => true,
         SmsTemporalTraceEvent::InternalCycleCompleted { .. }
@@ -2494,7 +2484,7 @@ fn handle_command(
         WorkerCommand::ArmTraceOnNextStart(publisher, reply) => {
             if *running {
                 let _ = reply.send(Err(
-                    "arm_trace_on_next_start requires the machine to be stopped".to_owned(),
+                    "arm_trace_on_next_start requires a stopped machine".to_owned(),
                 ));
             } else if *trace_enabled {
                 let _ = reply.send(Err(
