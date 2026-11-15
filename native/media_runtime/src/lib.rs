@@ -13,12 +13,12 @@ mod sms_firmware;
 pub use catalog::{CartridgeCatalog, CartridgeMatch, CatalogLookupError, KnownCartridgeProfile};
 pub use dat::{DatGameEntry, DatParseError, DatRomEntry, NoIntroDat, SMS_DAT_VERSION};
 pub use identity::CartridgeIdentity;
+pub use profile::{
+    CartridgeHardwareProfile, CartridgeMapper, CartridgeRamKind, CartridgeRamMapping,
+    CartridgeRamProfile, CartridgeSystem, ProfileStatus,
+};
 pub use sms_firmware::{
     SmsBuiltInGame, SmsConsoleVariant, SmsFirmwareCatalog, SmsFirmwareDescriptor, SmsFirmwareId,
     SmsFirmwareKind, SmsFirmwareLoadError, SmsFirmwareMappingStrategy, SmsFirmwareMatch,
     SmsFirmwareRegion, SmsFirmwareScanEntry, SmsFirmwareScanStatus, SmsFirmwareValidation,
-};
-pub use profile::{
-    CartridgeHardwareProfile, CartridgeMapper, CartridgeRamKind, CartridgeRamMapping,
-    CartridgeRamProfile, CartridgeSystem, ProfileStatus,
 };
