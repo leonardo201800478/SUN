@@ -1,7 +1,7 @@
 # Catálogo de firmware SMS com jogos incorporados
 
-**Data da auditoria:** 2026-11-15  
-**Escopo:** inventário e identificação de imagens de firmware SMS fornecidas localmente pelo usuário.  
+**Data da auditoria:** 2026-11-15
+**Escopo:** inventário e identificação de imagens de firmware SMS fornecidas localmente pelo usuário.
 **Status:** IDENTIDADES DOS ARQUIVOS VERIFICADAS / MAPEAMENTO E BOOT AINDA NÃO VALIDADOS.
 
 ## Objetivo
