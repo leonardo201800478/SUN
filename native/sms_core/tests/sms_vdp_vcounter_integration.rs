@@ -139,34 +139,7 @@ fn line_irq_r10_c0_is_observed_before_vint_as_vcounter_c0() {
     ];
     let mut machine = machine_with_program(&program, Some(&handler));
 
-    machine.set_trace_enabled(true);
     run_until_memory(&mut machine, 0xC012, 0x02, 60_000);
-
-    println!(
-        "HINT diagnostic: R10={:02X}, raster={:?}, status={:02X}, vcounter={:02X}, count={:02X}",
-        machine.vdp().registers()[10],
-        machine.vdp().raster_position(),
-        machine.inspect_memory(0xC010),
-        machine.inspect_memory(0xC011),
-        machine.inspect_memory(0xC012),
-    );
-    for event in machine.take_trace() {
-        if let SmsTemporalTraceEvent::BusCompleted {
-            timestamp,
-            operation: Z80BusOperation::PortRead,
-            address,
-            data,
-            ..
-        } = event
-        {
-            println!(
-                "port read t={} address={:04X} data={:02X?}",
-                timestamp.ticks(),
-                address,
-                data
-            );
-        }
-    }
 
     assert_eq!(
         machine.vdp().registers()[10],
