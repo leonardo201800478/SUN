@@ -12,8 +12,8 @@ use core::fmt;
 
 use crate::{
     ControllerButtons, SmsTemporalBus, SmsTemporalBusError, SmsTemporalBusState,
-    SmsTemporalDispatch, SmsTemporalM1, SmsTemporalM1Error, SmsTemporalM1State, SmsTemporalMemoryOptions,
-    SmsVdp, Territory,
+    SmsTemporalDispatch, SmsTemporalM1, SmsTemporalM1Error, SmsTemporalM1State,
+    SmsTemporalMemoryOptions, SmsVdp, Territory,
 };
 use sega_sn76489::{PsgAmplitudeEvent, PsgEventCaptureError, Sn76489Core};
 use sega_temporal_core::{
