@@ -46,12 +46,12 @@ fn first_control_byte_updates_low_address_and_status_read_cancels_partial_comman
     let mut vdp = new_sms1();
 
     vdp.write_port(0xBF, 0x12);
-    // The low address byte is already visible; read mode reloads the buffer
-    // and advances the address. The status read cancels only the pending
-    // second command byte, not the address update.
-    assert_eq!(vdp.address(), 0x0013);
+    // The first byte updates only the low address byte. Read-ahead and
+    // address increment are deferred until a complete two-byte command.
+    // The status read cancels the pending second byte, not the address update.
+    assert_eq!(vdp.address(), 0x0012);
     assert_eq!(vdp.read_port(0xBF), 0x00);
-    assert_eq!(vdp.address(), 0x0013);
+    assert_eq!(vdp.address(), 0x0012);
 
     // These bytes now form a fresh VRAM-write command for address 0x1640.
     select(&mut vdp, 0x1640, 1);
