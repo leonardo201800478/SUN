@@ -61,6 +61,12 @@ O teste opt-in `rust/runtime/sms-runtime/tests/in_game_rom_smoke.rs` agora aceit
 
 Para Cosmic Spacehead, o smoke test pode ser executado isoladamente com SMS2/Europa e altura esperada de 224 linhas. Ele valida execução, publicação de frames, dimensões e ausência de frames totalmente pretos; não simula navegação de menus, gameplay, áudio ou colisões. A validação funcional completa continua sendo uma etapa separada.
 
+## Compatibilidade de cartuchos
+
+A seleção explícita define a máquina antes do carregamento, mas a base atual de metadados do cartucho não declara um campo geral de requisitos mínimos de ASIC/revisão. A compatibilidade SMS1/SMS2 ainda não é validada por uma matriz de requisitos na abertura da ROM. A região não será usada como substituto dessa informação.
+
+Os cartuchos SMS comuns compartilham mapper e mapa de memória; recursos exclusivos como 224/240 linhas dependem do VDP selecionado. A detecção de um jogo que tente ativar um modo estendido incompatível com SMS1 ainda precisa de um diagnóstico explícito em runtime. Não há troca automática de hardware.
+
 ## Limites de conclusão
 
 A seleção SMS2 configura o VDP 315-5246 explicitamente, mas não declara concluída a fidelidade integral do SMS2. Permanecem necessárias as validações de sprite evaluation, HBlank/raster writes, portas, interrupções, áudio, Cosmic Spacehead e hardware real.
