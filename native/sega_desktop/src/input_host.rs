@@ -42,8 +42,8 @@ fn binding(action_id: SmsInputAction, control: PhysicalControl) -> ActionBinding
 /// The profiles are built once and evaluated at the host polling boundary.
 #[derive(Debug, Clone)]
 struct SmsInputProfiles {
-    gamepad: InputProfile,
-    joystick: InputProfile,
+    gamepad: [InputProfile; 2],
+    joystick: [InputProfile; 2],
 }
 
 impl SmsInputProfiles {
@@ -143,21 +143,32 @@ impl SmsInputProfiles {
         )
         .map_err(|error| error.to_string())?;
 
-        Ok(Self { gamepad, joystick })
+        Ok(Self {
+            gamepad: [gamepad.clone(), gamepad],
+            joystick: [joystick.clone(), joystick],
+        })
     }
 
-    #[cfg(test)]
-    fn set_profiles(&mut self, gamepad: InputProfile, joystick: InputProfile) {
-        self.gamepad = gamepad;
-        self.joystick = joystick;
+    fn set_profile(&mut self, player: usize, class: DeviceClass, profile: InputProfile) -> Result<(), String> {
+        if player >= 2 {
+            return Err("SMS player index must be 0 or 1".to_owned());
+        }
+        let profiles = if class == DeviceClass::Gamepad {
+            &mut self.gamepad
+        } else {
+            &mut self.joystick
+        };
+        profiles[player] = profile;
+        Ok(())
     }
 
-    fn evaluate(&self, class: DeviceClass, reading: &DeviceReading) -> (ControllerButtons, bool) {
-        let profile = if class == DeviceClass::Gamepad {
+    fn evaluate(&self, player: usize, class: DeviceClass, reading: &DeviceReading) -> (ControllerButtons, bool) {
+        let profiles = if class == DeviceClass::Gamepad {
             &self.gamepad
         } else {
             &self.joystick
         };
+        let profile = &profiles[player.min(1)];
         let mut actions = ActionState::default();
         profile.evaluate(&reading.state, &mut actions);
         (
@@ -236,7 +247,7 @@ impl Sdl3InputHost {
                 .iter()
                 .find(|reading| reading.device_id == descriptor.id)
             {
-                let (buttons, pause) = self.profiles.evaluate(descriptor.class, reading);
+                let (buttons, pause) = self.profiles.evaluate(current_slot, descriptor.class, reading);
                 players[current_slot] = buttons;
                 pause_pressed |= pause;
             }
@@ -246,6 +257,16 @@ impl Sdl3InputHost {
         }
 
         Ok((players, pause_pressed, status_update))
+    }
+
+    /// Replaces one player's mapping for a controller class without restarting SDL3.
+    pub fn set_player_profile(
+        &mut self,
+        player: usize,
+        class: DeviceClass,
+        profile: InputProfile,
+    ) -> Result<(), String> {
+        self.profiles.set_profile(player, class, profile)
     }
 
     pub fn status(&self) -> &str {
@@ -312,7 +333,7 @@ mod tests {
             .set_axis(0, DEFAULT_STICK_THRESHOLD as i16, AxisSemantic::LeftStickX)
             .unwrap();
 
-        let (buttons, pause) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        let (buttons, pause) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert!(buttons.up);
         assert!(buttons.right);
         assert!(buttons.button_1);
@@ -338,7 +359,7 @@ mod tests {
         // controls targeting the same semantic action without suppressing either.
         state.set_hat(0, 0b0101).unwrap();
 
-        let (buttons, pause) = profiles.evaluate(DeviceClass::Joystick, &reading(state));
+        let (buttons, pause) = profiles.evaluate(0, DeviceClass::Joystick, &reading(state));
         assert!(
             !buttons.left,
             "unconfigured generic axes must not be guessed"
@@ -357,7 +378,7 @@ mod tests {
         let mut state = DeviceState::default();
         state.buttons.set(6, true).unwrap();
 
-        let (_, pause) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        let (_, pause) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert!(pause);
     }
 
@@ -367,7 +388,7 @@ mod tests {
         let mut state = DeviceState::default();
         state.buttons.set(34, true).unwrap();
 
-        let (_, pause) = profiles.evaluate(DeviceClass::Joystick, &reading(state));
+        let (_, pause) = profiles.evaluate(0, DeviceClass::Joystick, &reading(state));
         assert!(pause);
     }
 
@@ -378,7 +399,7 @@ mod tests {
         state.set_axis(0, 8_000, AxisSemantic::LeftStickX).unwrap();
         state.set_axis(1, -8_000, AxisSemantic::LeftStickY).unwrap();
 
-        let (buttons, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        let (buttons, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert_eq!(buttons, Default::default());
     }
 
@@ -393,28 +414,52 @@ mod tests {
             0,
         )
         .unwrap();
-        let default_joystick = profiles.joystick.clone();
-        profiles.set_profiles(custom_gamepad, default_joystick);
+        profiles.set_profile(0, DeviceClass::Gamepad, custom_gamepad).unwrap();
 
         let mut state = DeviceState::default();
         state.buttons.set(8, true).unwrap();
-        let (extra_button, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        let (extra_button, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert!(extra_button.button_1);
         assert!(!extra_button.button_2);
 
         let mut state = DeviceState::default();
         state.buttons.set(0, true).unwrap();
-        let (standard_button, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        let (standard_button, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert!(standard_button.button_1);
 
         let mut state = DeviceState::default();
         state.buttons.set(8, true).unwrap();
         state.buttons.set(0, true).unwrap();
-        let (both_controls, _) = profiles.evaluate(DeviceClass::Gamepad, &reading(state));
+        let (both_controls, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading(state));
         assert!(
             both_controls.button_1,
             "bindings for one action must combine with OR"
         );
+    }
+
+    #[test]
+    fn player_profiles_are_independent_for_the_same_controller_class() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
+        let player_two = InputProfile::new(
+            vec![binding(SmsInputAction::Button1, PhysicalControl::Button(7))],
+            0,
+        ).unwrap();
+        profiles.set_profile(1, DeviceClass::Gamepad, player_two).unwrap();
+
+        let mut state = DeviceState::default();
+        state.buttons.set(7, true).unwrap();
+        let reading = reading(state);
+        let (p1, _) = profiles.evaluate(0, DeviceClass::Gamepad, &reading);
+        let (p2, _) = profiles.evaluate(1, DeviceClass::Gamepad, &reading);
+        assert!(!p1.button_1, "P1 must retain its default mapping");
+        assert!(p2.button_1, "P2 must use its own customized mapping");
+    }
+
+    #[test]
+    fn invalid_player_profile_slot_is_rejected() {
+        let mut profiles = SmsInputProfiles::defaults().unwrap();
+        let profile = InputProfile::new(Vec::new(), 0).unwrap();
+        assert!(profiles.set_profile(2, DeviceClass::Gamepad, profile).is_err());
     }
 
     #[test]
@@ -432,14 +477,13 @@ mod tests {
             0,
         )
         .unwrap();
-        let default_gamepad = profiles.gamepad.clone();
-        profiles.set_profiles(default_gamepad, custom_joystick);
+        profiles.set_profile(0, DeviceClass::Joystick, custom_joystick).unwrap();
 
         let mut state = DeviceState::default();
         state
             .set_axis(19, -(DEFAULT_STICK_THRESHOLD as i16), AxisSemantic::Unknown)
             .unwrap();
-        let (buttons, _) = profiles.evaluate(DeviceClass::Joystick, &reading(state));
+        let (buttons, _) = profiles.evaluate(0, DeviceClass::Joystick, &reading(state));
         assert!(buttons.up, "the configured physical axis must drive SMS Up");
         assert!(!buttons.down);
     }
