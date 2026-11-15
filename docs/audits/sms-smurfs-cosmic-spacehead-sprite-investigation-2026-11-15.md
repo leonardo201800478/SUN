@@ -30,6 +30,26 @@ As capturas são evidência de reprodução visual, mas não determinam por si s
 
 A interface reportou Vulkan, NVIDIA GeForce RTX 5070 e device/queue compartilhados entre Slint/WGPU. O contador de upload não é uma medição de scanout físico nem prova de correção da imagem.
 
+## 2.1 Identificação criptográfica das ROMs fornecidas
+
+As duas ROMs foram materializadas apenas no ambiente de análise para calcular hashes. Não foram adicionadas ao repositório.
+
+| Jogo | Tamanho | SHA-1 | SHA-256 | CRC32 |
+|---|---:|---|---|---|
+| The Smurfs: Travel the World (Brazil) | 262.144 bytes | `15b882ad3263cdc1e78c732d96f9bb18e25f4743` | `f3d493c5a673f78213f7544b3d9bacb1601721490d65e6bd041f4e01e5c6f85e` | `E14C8A1C` |
+| Cosmic Spacehead (Europe) (En,Fr,De,Es) | 262.144 bytes | `f46f716dd34a1a5013a2d8a59769f6ef7536a567` | `1377189c097116fd49f9298368fd3138a28fbe48a08ff7b097d9360ac891bb9b` | `29822980` |
+
+## 2.2 Emuladores de referência e reprodutibilidade
+
+A matriz de comparação será Sega Emulator × Ares × Gearsystem. Os builds de referência devem ser feitos no workflow, a partir de revisões fixadas (não baixar binários opacos nem usar `latest`):
+
+- **Ares:** `ares-emulator/ares@0b928930af4cc59ed99e942996f0d3c815379388` (revisão consultada em 2026-11-15).
+- **Gearsystem:** `drhelius/Gearsystem@96b70aac107a1a2acace9091cce37f9649eb6e0e` (revisão consultada em 2026-11-15).
+
+O workflow deve compilar os dois projetos e publicar os executáveis/logs como artifacts. As ROMs comerciais não devem ser commitadas nem publicadas como artifacts. A execução comparativa com essas ROMs ocorre no ambiente local autorizado, usando os binários produzidos pelo workflow e os hashes desta seção. Para automatizar execução integral dentro de CI será necessário um mecanismo privado de fornecimento das ROMs; não usar URLs públicas, segredos de tamanho inadequado ou conteúdo comercial no repositório.
+
+Ares é uma aplicação desktop; não presumir suporte a headless/screenshot CLI. Gearsystem documenta `--headless` com MCP/Link Cable. O método de captura precisa respeitar as capacidades reais de cada build, e as imagens só serão comparadas após normalizar região, overscan, escala e estado de gameplay.
+ 
 ## 3. Hipóteses a investigar — sem assumir causalidade
 
 1. Avaliação e seleção de sprites: Y termination, overflow, índice, limite por linha e modo de limite configurado.
