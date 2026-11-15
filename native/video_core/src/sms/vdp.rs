@@ -192,12 +192,23 @@ impl SmsVdp {
         }
     }
     pub fn visible_height(&self) -> u16 {
-        let requested_height = if self.registers[1] & 0x08 != 0 {
-            240
-        } else if self.registers[1] & 0x10 != 0 {
-            224
-        } else {
-            192
+        // The 315-5246 reuses the legacy M1/M2/M3 mode bits for extended
+        // Mode 4 heights. R0.M4 must select Mode 4 and R0.M2 must be set;
+        // R1.M1 and R1.M3 are mutually exclusive height selectors.
+        if self.profile.revision != SmsVdpRevision::Sega3155246
+            || self.registers[0] & 0x04 == 0
+            || self.registers[0] & 0x02 == 0
+        {
+            return 192;
+        }
+
+        let m1 = self.registers[1] & 0x10 != 0;
+        let m3 = self.registers[1] & 0x08 != 0;
+        let requested_height = match (m1, m3) {
+            (true, false) => 224,
+            (false, true) => 240,
+            // Both selectors set means the standard 192-line mode.
+            (false, false) | (true, true) => 192,
         };
 
         if self
@@ -2243,11 +2254,36 @@ mod tests {
         let mut vdp = SmsVdp::new_with_profile(SmsVdpProfile::sms1_t0_ntsc());
 
         assert_eq!(vdp.profile().revision, SmsVdpRevision::Sega3155124);
-        assert_eq!(vdp.visible_height(), 192);
-
+        vdp.registers[0] = 0x06;
         vdp.registers[1] = 0x08;
         assert_eq!(vdp.visible_height(), 192);
+        vdp.registers[1] = 0x10;
+        assert_eq!(vdp.visible_height(), 192);
+    }
 
+    #[test]
+    fn sms2_extended_heights_require_mode4_m2_and_exclusive_m1_m3() {
+        let mut vdp = SmsVdp::new(VideoStandard::Ntsc, SpriteLimitMode::HardwareLimit);
+
+        assert_eq!(vdp.profile().revision, SmsVdpRevision::Sega3155246);
+
+        // M1 alone cannot select 224 lines while R0.M2 is clear.
+        vdp.registers[1] = 0x10;
+        assert_eq!(vdp.visible_height(), 192);
+
+        // R0.M4 + R0.M2 enable the SMS2 Mode 4 height selectors.
+        vdp.registers[0] = 0x06;
+        assert_eq!(vdp.visible_height(), 224);
+
+        vdp.registers[1] = 0x08;
+        assert_eq!(vdp.visible_height(), 240);
+
+        // M1 and M3 together select the standard 192-line mode.
+        vdp.registers[1] = 0x18;
+        assert_eq!(vdp.visible_height(), 192);
+
+        // With Mode 4 disabled, M1/M2/M3 select legacy TMS modes, not height.
+        vdp.registers[0] = 0x02;
         vdp.registers[1] = 0x10;
         assert_eq!(vdp.visible_height(), 192);
     }
@@ -2257,6 +2293,7 @@ mod tests {
         let mut vdp = SmsVdp::new(VideoStandard::Ntsc, SpriteLimitMode::HardwareLimit);
 
         assert_eq!(vdp.profile().revision, SmsVdpRevision::Sega3155246);
+        vdp.registers[0] = 0x06;
         vdp.registers[1] = 0x10;
         assert_eq!(vdp.visible_height(), 224);
         vdp.registers[1] = 0x08;
@@ -2266,6 +2303,7 @@ mod tests {
     #[test]
     fn extended_modes_expose_224_and_240_line_framebuffers() {
         let mut v = SmsVdp::default();
+        reg(&mut v, 0, 0x06);
         reg(&mut v, 1, 0x10);
         assert_eq!(v.visible_height(), 224);
         reg(&mut v, 1, 0x08);
@@ -3818,6 +3856,7 @@ mod tests {
     #[test]
     fn pal_224_line_counter_has_documented_wrap_sequence() {
         let mut v = SmsVdp::new(VideoStandard::Pal, SpriteLimitMode::HardwareLimit);
+        reg(&mut v, 0, 0x06);
         reg(&mut v, 1, 0x10);
         v.scanline = 256;
         assert_eq!(v.read_v_counter(), 0x00);
@@ -3832,6 +3871,7 @@ mod tests {
     #[test]
     fn pal_240_line_counter_has_documented_wrap_sequence() {
         let mut v = SmsVdp::new(VideoStandard::Pal, SpriteLimitMode::HardwareLimit);
+        reg(&mut v, 0, 0x06);
         reg(&mut v, 1, 0x08);
         v.scanline = 266;
         assert_eq!(v.read_v_counter(), 0x0A);
