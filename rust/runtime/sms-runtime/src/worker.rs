@@ -154,6 +154,16 @@ fn receive_worker_reply<T>(receiver: Receiver<T>, operation: &str) -> Result<T, 
     receive_worker_reply_with_timeout(receiver, operation, WORKER_REPLY_TIMEOUT)
 }
 
+#[cfg(test)]
+fn build_sms_temporal_machine(rom: Vec<u8>, region: &str) -> Result<SmsTemporalMachine, String> {
+    build_sms_temporal_machine_with_revision_and_sram_size(
+        rom,
+        region,
+        SmsVdpRevision::Sega3155124,
+        None,
+    )
+}
+
 fn build_sms_temporal_machine_with_revision_and_sram_size(
     rom: Vec<u8>,
     region: &str,
@@ -2629,8 +2639,9 @@ mod tests {
         AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
         Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
-        WorkerTelemetry, build_sms_temporal_machine_with_revision_and_sram_size,
-        calculate_next_frame_deadline, execute_frame, execute_frame_with_renderer,
+        WorkerTelemetry, build_sms_temporal_machine,
+        build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
+        execute_frame, execute_frame_with_renderer,
         frame_duration_from_machine_ticks, sms_temporal_hardware_profile,
         sms_temporal_region_profile,
     };
