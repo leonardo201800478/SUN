@@ -163,19 +163,6 @@ fn build_sms_temporal_machine(rom: Vec<u8>, region: &str) -> Result<SmsTemporalM
     )
 }
 
-fn build_sms_temporal_machine_with_sram_size(
-    rom: Vec<u8>,
-    region: &str,
-    cartridge_sram_size: Option<usize>,
-) -> Result<SmsTemporalMachine, String> {
-    build_sms_temporal_machine_with_revision_and_sram_size(
-        rom,
-        region,
-        SmsVdpRevision::Sega3155124,
-        cartridge_sram_size,
-    )
-}
-
 fn build_sms_temporal_machine_with_revision_and_sram_size(
     rom: Vec<u8>,
     region: &str,
