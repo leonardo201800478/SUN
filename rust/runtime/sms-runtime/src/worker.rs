@@ -1077,6 +1077,25 @@ impl SmsTemporalWorkerDebugHandle {
         set_trace_capture(&self.commands, &self.trace_collector, enabled)
     }
 
+    /// Arm diagnostic capture while the machine is stopped.
+    ///
+    /// The collector is prepared now, but the first emulated events are produced
+    /// only after the next `start()`. Call this before loading/starting the ROM
+    /// when the boot sequence itself must be captured.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the machine is running or the collector cannot start.
+    pub fn arm_trace_on_next_start(&self) -> Result<(), String> {
+        if self.is_running() {
+            return Err(
+                "arm_trace_on_next_start requires a stopped machine; pause or stop before arming"
+                    .to_owned(),
+            );
+        }
+        set_trace_capture(&self.commands, &self.trace_collector, true)
+    }
+
     /// Capture an immutable, owned machine snapshot.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
         capture_debug_snapshot(&self.commands, &self.trace_collector)
@@ -1297,6 +1316,25 @@ impl SmsTemporalWorker {
     /// Enable or disable bounded scheduler/bus trace capture.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
         set_trace_capture(&self.commands, &self.trace_collector, enabled)
+    }
+
+    /// Arm diagnostic capture while the machine is stopped.
+    ///
+    /// The capture is ready before the next `start()`, so the boot sequence is
+    /// included from its first emulated instruction. Call this before loading
+    /// or starting the ROM when startup behavior is under investigation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the machine is running or the collector cannot start.
+    pub fn arm_trace_on_next_start(&self) -> Result<(), String> {
+        if self.telemetry.running.load(Ordering::Acquire) {
+            return Err(
+                "arm_trace_on_next_start requires a stopped machine; pause or stop before arming"
+                    .to_owned(),
+            );
+        }
+        set_trace_capture(&self.commands, &self.trace_collector, true)
     }
 
     /// Change the active SMS VDP sprite rendering limit through the machine worker.
