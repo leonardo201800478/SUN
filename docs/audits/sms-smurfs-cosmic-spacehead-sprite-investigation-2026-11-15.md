@@ -74,6 +74,42 @@ As ROMs não são armazenadas em Git, cache ou artifacts. Portanto, este workflo
 
 **Critério de comparação:** a imagem final de outro emulador é uma referência empírica. A regra de hardware só será adotada após corroborar com documentação técnica, testes de VDP ou comportamento conhecido do ASIC.
 
+## 2.4 Refinamento do diagnóstico após esclarecimento do usuário
+
+O usuário esclareceu que os sintomas são diferentes e devem ser tratados como duas linhas independentes:
+
+### A. The Smurfs: Travel the World (Brazil)
+
+- O jogo entra em gameplay e funciona; o problema é a **ordem visual dos sprites durante o gameplay**.
+- Não há relato de falha no menu de introdução.
+- Prioridade de investigação: ordem do SAT, buffer de oito sprites por linha, ordem de composição dos pixels transparentes/opacos, prioridade sprite/background e fase em que os números dos sprites são avaliados para a linha seguinte.
+- Não classificar como corrupção de tiles, mapper ou problema de upload sem evidência.
+
+O próprio scorecard do VDP documenta que a fase atual separou a avaliação dos sprites, mas ainda não implementa o buffer persistente de números de sprites da linha seguinte: a lista de candidatos ainda é produzida para a linha renderizada. Isso torna a avaliação/ordem por linha uma hipótese prioritária, mas não prova que seja a causa específica do jogo. Ver `docs/audits/sms-vdp-sprite-evaluation-phase1-2026-11-14.md`.
+
+### B. Cosmic Spacehead (Europe, En/Fr/De/Es)
+
+- O usuário esclareceu que o defeito aparece já na **tela de menu/introdução**, antes do gameplay.
+- A ROM fornecida tem CRC32 `29822980`, correspondência exata no catálogo Genesis Plus GX para Cosmic Spacehead, mapper Codemasters, sistema SMS2 e região Europe. Essa correspondência é evidência de catalogação independente.
+- O cabeçalho Codemasters no offset `$7FE0` também identifica essa família de cartucho. O runtime já contém detecção do cabeçalho Codemasters e implementação do mapper com bancos iniciais `[0, 1, 0]`; portanto, não presumir que falta implementar o mapper nem reescrever essa parte sem localizar uma divergência de bancos.
+
+**Hipótese prioritária específica:** perfil do VDP/ASIC e modo de altura vertical. Cosmic Spacehead é um título Codemasters PAL europeu e pertence à família SMS2. A documentação de compatibilidade registra que Cosmic Spacehead usa o modo de resolução vertical estendida de 224 linhas, disponível no VDP 315-5246 (SMS2 e revisões PAL tardias), não no 315-5124 SMS1. O core já implementa a seleção de 224 linhas quando R1 bit 4 está ativo e o perfil permite `active_height_modes`; porém `SmsTemporalBus::new_with_psg_config` escolhe por padrão `SmsVdpProfile::sms1_t0_ntsc()`. Precisamos rastrear a seleção de perfil feita pelo launcher/loader e confirmar qual perfil chega à máquina quando essa ROM é carregada. Não forçar SMS2/PAL apenas pelo nome do jogo: a identificação de hardware deve ser explícita e reproduzível.
+
+### Evidências técnicas e fontes
+
+- SMS Power, Codemasters mapper: três slots de 16 KiB, registradores em `$0000/$4000/$8000`, primeiro 1 KiB do slot 0 paginável e estado inicial `[0,1,0]`.
+- SMS Power, sprites: até oito sprites por linha; a ordem no buffer interno determina qual sprite opaco prevalece.
+- SMS Power, Codemasters header: assinatura e metadados a partir de `$7FE0`; data de compilação de Cosmic Spacehead em 31/08/1993.
+- Genesis Plus GX: CRC `29822980` catalogado como `MAPPER_CODIES`, `SYSTEM_SMS2`, `REGION_EUROPE`.
+- Core atual: `native/sms_core/src/memory.rs` detecta o cabeçalho Codemasters e implementa o mapper; `native/video_core/src/sms/vdp.rs` implementa 224 linhas sob capacidade do perfil; `SmsTemporalBus::new_with_psg_config` usa perfil SMS1 T0 NTSC por padrão.
+
+Referências públicas:
+- https://www.smspower.org/Development/Mappers
+- https://www.smspower.org/Development/Sprites
+- https://www.smspower.org/Development/CodemastersHeader
+- https://github.com/ekeeke/Genesis-Plus-GX/blob/master/core/cart_hw/sms_cart.c
+- https://consolemods.org/wiki/Genesis:Master_System_Games_Info
+
 ## 3. Hipóteses a investigar — sem assumir causalidade
 
 1. Avaliação e seleção de sprites: Y termination, overflow, índice, limite por linha e modo de limite configurado.
