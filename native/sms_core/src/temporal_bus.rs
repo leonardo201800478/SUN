@@ -1055,7 +1055,7 @@ mod tests {
         vdp_write_register(continuous.vdp_mut(), 1, 0x20); // VINT enabled.
         let mut chunked = continuous.clone();
 
-        advance_internal(&mut continuous, 1, VBLANK_START_TSTATES + 16);
+        advance_internal(&mut continuous, 1, VBLANK_START_TSTATES + 17);
         advance_internal(&mut chunked, 1, VBLANK_START_TSTATES + 12);
         assert!(!chunked.vdp().interrupt_pending());
 
@@ -1067,15 +1067,22 @@ mod tests {
             let mut vdp = restored.vdp().clone();
             vdp.read_port(0xBF)
         };
-        assert_eq!(
-            status_at_t13 & 0x80,
-            0,
-            "VBlank status flag is later at T16"
-        );
+        assert_eq!(status_at_t13 & 0x80, 0, "VBlank is not set at T13");
 
         advance_internal(&mut restored, 3, 3);
         let status_at_t16 = {
             let mut vdp = restored.vdp().clone();
+            vdp.latch_h_counter();
+            assert_eq!(vdp.read_h_counter(), 0xF4);
+            vdp.read_port(0xBF)
+        };
+        assert_eq!(status_at_t16 & 0x80, 0, "HCount $F4 precedes VBlank status");
+
+        advance_internal(&mut restored, 4, 1);
+        let status_at_t17 = {
+            let mut vdp = restored.vdp().clone();
+            vdp.latch_h_counter();
+            assert_eq!(vdp.read_h_counter(), 0xF5);
             vdp.read_port(0xBF)
         };
         let continuous_status = {
@@ -1083,8 +1090,8 @@ mod tests {
             vdp.read_port(0xBF)
         };
 
-        assert_ne!(status_at_t16 & 0x80, 0);
-        assert_eq!(status_at_t16, continuous_status);
+        assert_ne!(status_at_t17 & 0x80, 0);
+        assert_eq!(status_at_t17, continuous_status);
         assert_eq!(
             restored.vdp().interrupt_pending(),
             continuous.vdp().interrupt_pending()

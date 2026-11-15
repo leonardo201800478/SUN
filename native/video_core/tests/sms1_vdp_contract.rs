@@ -303,8 +303,8 @@ fn mirrored_data_and_control_ports_share_the_same_protocol() {
 fn status_read_returns_vblank_once_and_clears_it() {
     let mut vdp = new_sms1();
 
-    // VBlank status is asserted at HPos 24 of the second non-visible line (T16).
-    vdp.advance(228 * 193 + 16);
+    // VBlank status is asserted at HCount $F5 (T17) on the second non-visible line.
+    vdp.advance(228 * 193 + 17);
     assert_ne!(vdp.status() & 0x80, 0);
 
     assert_ne!(vdp.read_port(0x00BF) & 0x80, 0);
