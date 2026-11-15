@@ -2919,34 +2919,34 @@ mod windows_host {
                 open_app
                     .upgrade()
                     .map(|app| {
-                    (
-                        app.get_selected_region().to_string(),
-                        app.get_selected_system().to_string(),
-                        app.get_sprite_limit_enabled(),
-                        effective_audio_volume(
-                            app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
-                            app.get_audio_muted(),
-                        ),
-                        audio_dsp_config(
-                            app.get_audio_dsp_preset(),
-                            app.get_audio_hpf_enabled(),
-                            f64::from(app.get_audio_hpf_cutoff().round() as u16),
-                            app.get_audio_lpf_enabled(),
-                            f64::from(app.get_audio_lpf_cutoff().round() as u16),
-                        ),
-                        app.get_audio_renderer_mode().to_string(),
-                    )
-                })
-                .unwrap_or_else(|| {
-                    (
-                        "usa".to_owned(),
-                        "sms1".to_owned(),
-                        true,
-                        70,
-                        AnalogOutputConfig::default(),
-                        "psg".to_owned(),
-                    )
-                });
+                        (
+                            app.get_selected_region().to_string(),
+                            app.get_selected_system().to_string(),
+                            app.get_sprite_limit_enabled(),
+                            effective_audio_volume(
+                                app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
+                                app.get_audio_muted(),
+                            ),
+                            audio_dsp_config(
+                                app.get_audio_dsp_preset(),
+                                app.get_audio_hpf_enabled(),
+                                f64::from(app.get_audio_hpf_cutoff().round() as u16),
+                                app.get_audio_lpf_enabled(),
+                                f64::from(app.get_audio_lpf_cutoff().round() as u16),
+                            ),
+                            app.get_audio_renderer_mode().to_string(),
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        (
+                            "usa".to_owned(),
+                            "sms1".to_owned(),
+                            true,
+                            70,
+                            AnalogOutputConfig::default(),
+                            "psg".to_owned(),
+                        )
+                    });
             let vdp_revision = match sms_vdp_revision_for_system(&system) {
                 Ok(revision) => revision,
                 Err(error) => {
