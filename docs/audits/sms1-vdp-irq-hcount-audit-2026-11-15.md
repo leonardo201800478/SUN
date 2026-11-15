@@ -1,8 +1,8 @@
 # SMS1 VDP — auditoria de Frame IRQ HCount e Line IRQ HCount
 
-**Data:** 15/11/2026  
-**Baseline:** `main` pós-PR #910, merge commit `a41c7706c2527858fb4454837afca21b4f0ae108`  
-**ASIC-alvo:** Sega 315-5124 (SMS1)  
+**Data:** 15/11/2026
+**Baseline:** `main` pós-PR #910, merge commit `a41c7706c2527858fb4454837afca21b4f0ae108`
+**ASIC-alvo:** Sega 315-5124 (SMS1)
 **Estado:** investigação reproduzível pendente; nenhuma constante temporal alterada.
 
 ## 1. Pergunta da auditoria
