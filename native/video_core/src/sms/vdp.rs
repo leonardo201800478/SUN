@@ -1706,7 +1706,11 @@ fn render_scanline_for_revision_with_evaluation(
             // plane 1, pixel 4 of tile $100, sampled from the preceding row.
             // This behavior is documented in the SMS Power scroll-test
             // discussion and modeled by MAME's 315-5124 renderer.
-            let parse_row = ((y as i32 - 1) & 7) as usize;
+            // MAME's 315-5124 renderer derives this from tile_line,
+            // which already includes the low three bits of the vertical scroll.
+            // The leading fine-scroll pixels therefore sample the preceding
+            // source row, not simply the preceding output scanline.
+            let parse_row = (y + usize::from(regs[9] & 7) + 7) & 7;
             let raw_address = 0x2000 + parse_row * 4 + 1;
             let address = if revision == SmsVdpRevision::Sega3155124 {
                 sms1_background_pattern_address(raw_address, 1, regs)
@@ -3810,6 +3814,50 @@ mod tests {
             &palette_zero_zero,
             "unset selector must choose BG palette 0 color 0"
         );
+    }
+
+    #[test]
+    fn sms1_fine_scroll_leading_pixels_include_vertical_scroll_in_tile_100_row() {
+        let mut v = SmsVdp::default();
+        v.registers[0] = 0x04;
+        v.registers[1] = 0x40;
+        v.registers[2] = 0x0E;
+        v.registers[3] = 0xFF;
+        v.registers[4] = 0x07;
+        v.registers[5] = 0x7E;
+        v.registers[8] = 3;
+        v.registers[9] = 1;
+        v.cram[0] = 0x01;
+        v.cram[16] = 0x03;
+
+        // Output line 0 with R9=1 samples tile-$100 row 0 (not row 7):
+        // MAME computes tile_line = line + (R9 & 7) - 8, then subtracts 1.
+        // Plane 1, pixel 4 is set only in row 0, selecting BG palette 1 color 0.
+        v.vram[0x2000 + 1] = 0x08;
+        v.vram[0x2000 + 7 * 4 + 1] = 0x00;
+        v.vram[0x3F00] = 0xD0;
+
+        let mut status = 0;
+        render_scanline_for_revision(
+            &v.vram,
+            &v.cram,
+            &v.registers,
+            &mut status,
+            &mut v.working_framebuffer,
+            0,
+            true,
+            SmsVdpRevision::Sega3155124,
+        );
+
+        let palette_one_zero =
+            super::palette_rgb_for_revision(&v.cram, 16, SmsVdpRevision::Sega3155124);
+        for x in 0..3 {
+            assert_eq!(
+                &v.working_framebuffer[x * 3..x * 3 + 3],
+                &palette_one_zero,
+                "R9=1 must select tile-$100 row 0 for leading pixel x={x}"
+            );
+        }
     }
 
     #[test]
