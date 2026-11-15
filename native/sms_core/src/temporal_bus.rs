@@ -277,8 +277,14 @@ impl SmsTemporalBus {
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalBusError> {
         Self::new_with_hardware_profile_bios_and_sram_size(
-            rom, None, master_ticks_per_tstate, psg_clock_hz, sample_rate,
-            vdp_profile, territory, cartridge_sram_size,
+            rom,
+            None,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
         )
     }
 

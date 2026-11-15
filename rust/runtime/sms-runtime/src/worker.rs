@@ -175,7 +175,11 @@ fn build_sms_temporal_machine_with_revision_and_sram_size(
     cartridge_sram_size: Option<usize>,
 ) -> Result<SmsTemporalMachine, String> {
     build_sms_temporal_machine_with_bios_and_revision_and_sram_size(
-        rom, None, region, revision, cartridge_sram_size,
+        rom,
+        None,
+        region,
+        revision,
+        cartridge_sram_size,
     )
 }
 
@@ -212,7 +216,11 @@ fn rebuild_sms_temporal_machine_preserving_sram(
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
     let mut rebuilt = build_sms_temporal_machine_with_bios_and_revision_and_sram_size(
-        rom, bios.map(<[u8]>::to_vec), region, revision, capacity,
+        rom,
+        bios.map(<[u8]>::to_vec),
+        region,
+        revision,
+        capacity,
     )?;
     if let Some(contents) = sram {
         rebuilt
@@ -1212,7 +1220,12 @@ impl SmsTemporalWorker {
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
         Self::new_with_hardware_profile_bios_and_cartridge_sram_size(
-            rom, None, region, vdp_revision, cartridge_sram_size, initial_sram,
+            rom,
+            None,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
         )
     }
 

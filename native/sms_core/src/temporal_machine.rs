@@ -362,8 +362,14 @@ impl SmsTemporalMachine {
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalMachineError> {
         Self::new_with_hardware_profile_bios_and_sram_size(
-            rom, None, master_ticks_per_tstate, psg_clock_hz, sample_rate,
-            vdp_profile, territory, cartridge_sram_size,
+            rom,
+            None,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
         )
     }
 
@@ -382,8 +388,14 @@ impl SmsTemporalMachine {
         Ok(Self {
             cpu: Z80MicroSequencer::default(),
             bus: SmsTemporalBus::new_with_hardware_profile_bios_and_sram_size(
-                rom, bios, master_ticks_per_tstate, psg_clock_hz, sample_rate,
-                vdp_profile, territory, cartridge_sram_size,
+                rom,
+                bios,
+                master_ticks_per_tstate,
+                psg_clock_hz,
+                sample_rate,
+                vdp_profile,
+                territory,
+                cartridge_sram_size,
             )?,
             external_int_line: None,
             instruction_started_at: None,
