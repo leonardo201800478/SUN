@@ -14,12 +14,12 @@ O usuário executou os dois jogos no desktop atual. Ambos:
 - aceitam controles;
 - apresentam comportamento de colisão/gameplay suficiente para serem jogáveis.
 
-A falha reportada é gráfica: sprites/objetos aparecem incorretos. As capturas anexadas à conversa mostram:
+A falha reportada é gráfica: sprites/objetos aparecem incorretos. O relato atualizado do usuário delimita os sintomas:
 
-- **The Smurfs: Travel the World (Brazil):** cena de árvore com objetos/personagens e uma faixa horizontal preta larga na região inferior da imagem, além de fragmentos visuais junto à borda direita.
-- **Cosmic Spacehead (Europe, En/Fr/De/Es):** cena de plataforma/cenário com elementos visuais aparentemente deslocados ou incorretamente compostos.
+- **The Smurfs: Travel the World (Brazil):** o defeito é a **ordem visual dos sprites durante o gameplay**. Não há relato de que o menu inicial apresente o mesmo defeito. Não tratar faixa preta, clipping ou corrupção de tiles como sintomas confirmados sem nova evidência.
+- **Cosmic Spacehead (Europe, En/Fr/De/Es):** a corrupção gráfica já aparece na tela de introdução/menu, antes do gameplay.
 
-As capturas são evidência de reprodução visual, mas não determinam por si só se a origem é avaliação de sprites, composição de prioridade, clipping, scroll, framebuffer, conversão ou apresentação. Não classificar antecipadamente os sintomas como um único defeito.
+Capturas antigas são evidência visual auxiliar, não substituem a reprodução por estado de jogo nem determinam sozinhas a causa. As duas linhas permanecem independentes.
 
 ## 2. Telemetria observada
 
@@ -63,6 +63,8 @@ Os executáveis e arquivos de proveniência são publicados como artifacts separ
 
 As ROMs não são armazenadas em Git, cache ou artifacts. Portanto, este workflow compila e empacota os comparadores, mas não executa as ROMs comerciais no runner. A execução comparativa ocorre localmente, com as ROMs fornecidas pelo usuário. Não habilitar secret ou URL para redistribuir ROMs.
 
+**Resultado de 2026-11-15:** o workflow de referência concluiu com sucesso (run #7): Gearsystem e Ares foram compilados em revisões fixadas. O job Ares passou após instalar SDL3 na mesma revisão fixada usada pelo job Gearsystem. A CI principal da PR #881 também concluiu com sucesso (run #7591), incluindo higiene documental.
+
 ### Protocolo de execução local após baixar os artifacts
 
 1. Extraia os artifacts `ares-linux-x86_64` e `gearsystem-linux-x86_64` em ambiente Linux compatível com as bibliotecas listadas no artifact.
@@ -85,7 +87,17 @@ O usuário esclareceu que os sintomas são diferentes e devem ser tratados como 
 - Prioridade de investigação: ordem do SAT, buffer de oito sprites por linha, ordem de composição dos pixels transparentes/opacos, prioridade sprite/background e fase em que os números dos sprites são avaliados para a linha seguinte.
 - Não classificar como corrupção de tiles, mapper ou problema de upload sem evidência.
 
-O próprio scorecard do VDP documenta que a fase atual separou a avaliação dos sprites, mas ainda não implementa o buffer persistente de números de sprites da linha seguinte: a lista de candidatos ainda é produzida para a linha renderizada. Isso torna a avaliação/ordem por linha uma hipótese prioritária, mas não prova que seja a causa específica do jogo. Ver `docs/audits/sms-vdp-sprite-evaluation-phase1-2026-11-14.md`.
+A auditoria do código atual em main corrigiu a leitura histórica anterior: **o buffer persistente de sprites da linha seguinte já existe para o caminho SMS1**. Não devemos reimplementar essa etapa.
+
+Evidências no código/testes atuais:
+- `Mode4SpriteLineBuffer` armazena a avaliação destinada à linha seguinte.
+- A avaliação percorre o SAT em ordem de índice e preserva os metadados selecionados (Y/linha, X e tile/pattern select).
+- A renderização SMS1 consome a avaliação latched para a linha-alvo.
+- Existem testes para ordem SAT, limite de oito sprites, overflow do nono, latch de Y/X/tile, prioridade de sprite/background, transparência, colisão e left-column mask.
+
+Testes já presentes incluem `mode4_sprite_evaluation_preserves_sat_order_and_next_line_y_rule`, `sms1_hardware_sprite_buffer_selects_eight_and_overflows_on_ninth`, `sms1_sprite_x_tile_shift_and_pattern_select_are_latched_with_sat_metadata`, `sms1_opaque_sprite_overlap_sets_collision_and_preserves_earlier_sprite`, `sms1_transparent_sprite_overlap_does_not_set_collision` e `sms1_sprite_priority_respects_opaque_high_priority_background`.
+
+Portanto, a hipótese não é mais “falta de buffer persistente”. A investigação deve localizar a primeira divergência durante o gameplay: confirmar o perfil efetivo, registrar SAT/VRAM/registradores por linha, comparar a lista selecionada com os pixels compostos e verificar se a ordem SAT observada pelo core corresponde ao comportamento de hardware. Referências de implementação: `docs/audits/sms1-sprite-line-buffer-phase2-2026-11-14.md`, `docs/audits/sms1-sprite-overflow-evaluation-phase3-2026-11-14.md` e `docs/audits/sms1-vdp-runtime-path-audit-2026-11-14.md`.
 
 ### B. Cosmic Spacehead (Europe, En/Fr/De/Es)
 
@@ -93,7 +105,11 @@ O próprio scorecard do VDP documenta que a fase atual separou a avaliação dos
 - A ROM fornecida tem CRC32 `29822980`, correspondência exata no catálogo Genesis Plus GX para Cosmic Spacehead, mapper Codemasters, sistema SMS2 e região Europe. Essa correspondência é evidência de catalogação independente.
 - O cabeçalho Codemasters no offset `$7FE0` também identifica essa família de cartucho. O runtime já contém detecção do cabeçalho Codemasters e implementação do mapper com bancos iniciais `[0, 1, 0]`; portanto, não presumir que falta implementar o mapper nem reescrever essa parte sem localizar uma divergência de bancos.
 
-**Hipótese prioritária específica:** perfil do VDP/ASIC e modo de altura vertical. Cosmic Spacehead é um título Codemasters PAL europeu e pertence à família SMS2. A documentação de compatibilidade registra que Cosmic Spacehead usa o modo de resolução vertical estendida de 224 linhas, disponível no VDP 315-5246 (SMS2 e revisões PAL tardias), não no 315-5124 SMS1. O core já implementa a seleção de 224 linhas quando R1 bit 4 está ativo e o perfil permite `active_height_modes`; porém `SmsTemporalBus::new_with_psg_config` escolhe por padrão `SmsVdpProfile::sms1_t0_ntsc()`. Precisamos rastrear a seleção de perfil feita pelo launcher/loader e confirmar qual perfil chega à máquina quando essa ROM é carregada. Não forçar SMS2/PAL apenas pelo nome do jogo: a identificação de hardware deve ser explícita e reproduzível.
+**Hipótese prioritária específica:** perfil do VDP/ASIC e modo de altura vertical. Cosmic Spacehead é um título Codemasters europeu catalogado como SMS2 e utiliza resolução estendida de 224 linhas.
+
+**Correção já integrada:** PR #884 foi incorporada à main no commit `7a8f1dd72f9ea87e0625fb178a031bc0563d09ca`. O decodificador compartilhado agora exige R0.M4 + R0.M2 e seleciona 224/240 por R1.M1/R1.M3 mutuamente exclusivos; ambos os seletores ligados mantêm 192 linhas. SMS1 continua limitado a 192. Os testes de VDP, Clippy e build Release do SMS runtime passaram na CI aplicável.
+
+**Limitação ainda aberta:** `SmsTemporalBus::new_with_psg_config` e `sms_temporal_region_profile` continuam selecionando SMS1 315-5124 no caminho desktop para todas as regiões. PAL não seleciona SMS2. A política do runtime precisa receber uma revisão de ASIC explícita e reproduzível, independente da região e sem hacks por ROM.
 
 ### Confirmação adicional no caminho real do runtime desktop
 
@@ -104,7 +120,17 @@ A inspeção de `rust/runtime/sms-runtime/src/worker.rs` e `docs/desktop/sms1-ac
 - Portanto, **a região europeia/PAL não equivale à seleção de SMS2**. A configuração atual não satisfaz o requisito de hardware conhecido para Cosmic Spacehead.
 - O VDP já tem suporte interno condicional para 224 linhas, mas a política de runtime/host não seleciona o ASIC necessário. A janela desktop também declara `SMS_HEIGHT = 192`; precisamos rastrear o contrato de publicação e apresentação antes de habilitar 224 linhas para evitar truncamento ou buffer inconsistente.
 
-Isso transforma a hipótese de Cosmic Spacehead em uma divergência concreta de configuração arquitetural, não em uma suspeita genérica de sprites. Próxima investigação deve rastrear a cadeia completa: identidade da ROM → perfil de sistema/cartucho → seleção do ASIC → padrão PAL → dimensões do mailbox/framebuffer → composição da janela. Não corrigir apenas aumentando a altura constante da GUI.
+A inspeção confirmou uma segunda divergência concreta na cadeia de apresentação:
+
+- VDP: framebuffer interno dimensionado para até 240 linhas.
+- SMS runtime: publica a largura/altura efetivas.
+- VideoFrame e FrameMailbox: aceitam dimensões/stride dinâmicos.
+- Desktop: `present_latest_frame()` rejeita frames diferentes de 256×192.
+- WGPU: a textura inicial é criada em 256×192.
+
+Logo, mesmo com perfil SMS2 e VDP produzindo 224/240 linhas, o host atual descarta esses frames. A correção precisa redimensionar/recriar a textura e atualizar a imagem Slint com dimensões reais; não preencher linhas artificiais, comprimir a imagem nem alterar timing do Scheduler.
+
+A cadeia a fechar é: identidade da ROM → perfil explícito do ASIC → VDP → SMS runtime/temporal worker → mailbox/framebuffer → textura WGPU → imagem Slint.
 
 ### Evidências técnicas e fontes
 
@@ -148,6 +174,25 @@ O relato atual é específico: os sprites ficam fora de ordem durante o gameplay
 
 A PR só deve ser fechada quando ambas as trilhas tiverem diagnóstico, correção validada e testes de regressão, ou quando forem separadas em PRs de implementação com referências cruzadas e esta auditoria permanecer como índice de validação. Nenhum merge é presumido por esta decisão.
 
+## 2.5 Lacunas da suíte SMS VDP — baseline independente
+
+O arquivo comparativo anterior registra para SMS VDP Test v1.31: Data 17/19, Misc 11/16 e Sprites 17/19 no Sega Emulator; Ares registra 19/19, 11/16 e 16/19, respectivamente. O Sega Emulator já supera Ares em X-Scroll latchtime e no caso de overflow de sprites testado. Esses resultados são baseline, não uma especificação de comportamento.
+
+A inspeção do código-fonte original de FluBBa confirma que o teste SMS é descrito como executado em hardware PAL SMS1 (50/60 Hz) e PAL SMS2 (50 Hz). Os casos Data que falham no comparativo são:
+
+- `1byte wr sets rd adr` — RunTest11: após configurar leitura em 3E58, escreve apenas o byte baixo 0x10 na porta de controle e valida a sequência de leitura em 3E10.
+- `1byte wr sets wr adr` — RunTest12: após configurar escrita em 3E72, escreve apenas bytes baixos 0x30, 0x00, 0x20 e 0x10 e valida os destinos de escrita.
+- `1byte wr keeps wr mode` — RunTest13: verifica que a escrita de um único byte de controle não muda o destino CRAM/VRAM.
+
+O código atual de `write_control()` apenas guarda o primeiro byte em `control_first`; ele ainda não atualiza o registrador de endereço no primeiro byte. Essa lacuna será tratada em uma correção isolada com testes que reproduzem RunTest11/12/13, incluindo a sequência observável do read buffer. Não misturar essa correção com o decodificador de altura já integrado.
+
+Outras falhas SMS Misc a cobrir por teste contratual: `VCounter chg time`, `Frame IRQ VCount`, `Frame IRQ HCount`, `Line IRQ VCount`, `Line IRQ HCount` e `VINT flag HCount`. Falhas SMS Sprite ainda listadas: `Offscreen Y, col` e `Spr col correct HC`. O teste `X-Scroll latchtime` já passa no Sega Emulator e não deve ser regredido para igualar Ares.
+
+Fontes:
+- Comparativo versionado no projeto: `comparativo_de_testes_vdp_sega_emulator_vs_ares.md`.
+- Test ROM e código-fonte: https://github.com/FluBBaOfWard/SmsVdpTest
+- Histórico de validação em hardware: https://www.smspower.org/forums/10695-SMSVDPTester
+
 ## 3. Hipóteses a investigar — sem assumir causalidade
 
 1. Avaliação e seleção de sprites: Y termination, overflow, índice, limite por linha e modo de limite configurado.
@@ -155,7 +200,7 @@ A PR só deve ser fechada quando ambas as trilhas tiverem diagnóstico, correç�
 3. Prioridade e composição: sprites atrás do background, cor transparente, colisão e ordem de desenho.
 4. Clipping e bordas: pixels fora da área ativa, left-column mask e transições de linha.
 5. Scroll horizontal/vertical e mudanças de registradores durante o frame.
-6. Preservação/limpeza de linhas do framebuffer, especialmente a faixa preta observada em The Smurfs.
+6. Verificar preservação/limpeza de linhas do framebuffer somente se o dump RGB888 bruto demonstrar divergência; faixa preta não é um sintoma confirmado no relato atualizado de The Smurfs.
 7. Diferenças de perfil SMS1/SMS2, padrão de vídeo/região e temporização de avaliação.
 8. Conversão RGB888→RGBA8 e upload WGPU, somente se o framebuffer produzido pelo core estiver correto e a imagem apresentada divergir.
 
@@ -182,7 +227,7 @@ Para cada jogo:
 - [ ] Cenas de referência reproduzíveis e capturas pareadas com Ares.
 - [ ] Origem de cada artefato localizada no core VDP, no framebuffer ou na apresentação.
 - [ ] Regras de sprite/prioridade/clipping/scroll relevantes demonstradas por teste.
-- [ ] Faixa preta e fragmentos visuais explicados e corrigidos, se confirmados como defeito do core.
+- [ ] Ordem visual dos sprites de The Smurfs corrigida durante o gameplay e coberta por regressão; artefatos adicionais só entram no aceite se forem reproduzidos e medidos.
 - [ ] Testes de regressão para os dois jogos e casos sintéticos.
 - [ ] SMS1, SMS2 e SG-1000 sem regressões.
 - [ ] CI verde no SHA final.
