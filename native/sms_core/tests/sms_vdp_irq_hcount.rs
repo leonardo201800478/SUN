@@ -4,8 +4,7 @@
 //! acknowledge/ISR path, TH 0->1 latch, and HCounter port read. The only
 //! instrumentation added is storing the already-read HCounter byte in RAM.
 
-use sega_sms_core::{SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile, Territory};
-use sega_z80_cpu::Z80BusOperation;
+use sega_sms_core::{SmsTemporalMachine, SmsVdpProfile, Territory};
 
 const ROM_SIZE: usize = 0x8000;
 const ENTRY: &[u8] = &[0xF3, 0x31, 0xF0, 0xDF, 0xED, 0x56, 0xC3, 0x00, 0x01];
@@ -142,73 +141,6 @@ fn run_until_result(rom: Vec<u8>, max_frames: usize) -> (u8, u8) {
     }
 
     (machine.memory().read(0xC000), machine.memory().read(0xC002))
-}
-
-fn run_until_result_with_trace(
-    rom: Vec<u8>,
-    max_frames: usize,
-) -> (u8, u8, Vec<(u128, &'static str, u16, Option<u8>)>) {
-    let mut machine = SmsTemporalMachine::new_with_hardware_profile(
-        rom,
-        1,
-        3_579_545,
-        44_100,
-        SmsVdpProfile::sms1_t0_ntsc(),
-        Territory::Export,
-    )
-    .expect("SMS1 temporal machine should initialize");
-    machine.set_trace_enabled(true);
-
-    for _ in 0..max_frames {
-        machine
-            .step_frame(100_000)
-            .expect("diagnostic ROM should reach the next frame boundary");
-        if machine.memory().read(0xC000) != 0 {
-            break;
-        }
-    }
-
-    let events = machine
-        .take_trace()
-        .into_iter()
-        .filter_map(|event| match event {
-            SmsTemporalTraceEvent::BusCompleted {
-                timestamp,
-                operation: Z80BusOperation::PortWrite { value },
-                address,
-                ..
-            } if address & 0x00FF == 0x3F && matches!(value, 0x55 | 0xFF) => {
-                Some((timestamp.ticks(), "OUT", address, Some(value)))
-            }
-            SmsTemporalTraceEvent::BusCompleted {
-                timestamp,
-                operation: Z80BusOperation::PortRead,
-                address,
-                data,
-                ..
-            } if address & 0x00FF == 0x7F => Some((timestamp.ticks(), "IN", address, data)),
-            _ => None,
-        })
-        .collect();
-
-    (
-        machine.memory().read(0xC000),
-        machine.memory().read(0xC002),
-        events,
-    )
-}
-
-#[test]
-fn diagnostic_dump_hcounter_bus_trace() {
-    let (_, frame_sample, frame_events) =
-        run_until_result_with_trace(build_irq_rom(FRAME_IRQ_MAIN, FRAME_IRQ_PROGRAM), 8);
-    let (_, line_sample, line_events) =
-        run_until_result_with_trace(build_irq_rom(LINE_IRQ_MAIN, LINE_IRQ_PROGRAM), 10);
-    panic!(
-        "frame_sample={frame_sample:#04X} frame_events={:?}; line_sample={line_sample:#04X} line_events={:?}",
-        &frame_events[frame_events.len().saturating_sub(24)..],
-        &line_events[line_events.len().saturating_sub(24)..],
-    );
 }
 
 #[test]
