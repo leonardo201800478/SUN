@@ -2110,7 +2110,7 @@ fn worker_loop(
 /// crossing the worker boundary. This is observation-only: it never changes the
 /// machine, Scheduler, bus transaction, WAIT-state handling or event ordering.
 fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
-    use sega_z80_cpu::Z80BusOperation;
+    use sega_sms_core::Z80BusOperation;
 
     match *event {
         SmsTemporalTraceEvent::BusCompleted {
