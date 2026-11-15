@@ -710,15 +710,17 @@ impl SmsVdp {
             return;
         }
         let evaluation = self.evaluate_mode4_sprite_line(0);
-        let legacy_evaluation = self.evaluate_legacy_sprite_line(0);
         self.sprite_line_buffer = Some(Mode4SpriteLineBuffer {
             target_line: 0,
             evaluation,
         });
-        self.legacy_sprite_line_buffer = Some(LegacySpriteLineBuffer {
-            target_line: 0,
-            evaluation: legacy_evaluation,
-        });
+        if self.profile.revision == SmsVdpRevision::Sega3155124 {
+            let legacy_evaluation = self.evaluate_legacy_sprite_line(0);
+            self.legacy_sprite_line_buffer = Some(LegacySpriteLineBuffer {
+                target_line: 0,
+                evaluation: legacy_evaluation,
+            });
+        }
     }
 
     fn evaluate_mode4_sprite_line(&self, target_line: u16) -> Mode4SpriteEvaluation {
@@ -756,15 +758,17 @@ impl SmsVdp {
         };
         if let Some(target_line) = next_line {
             let evaluation = self.evaluate_mode4_sprite_line(target_line);
-            let legacy_evaluation = self.evaluate_legacy_sprite_line(target_line);
             self.sprite_line_buffer = Some(Mode4SpriteLineBuffer {
                 target_line,
                 evaluation,
             });
-            self.legacy_sprite_line_buffer = Some(LegacySpriteLineBuffer {
-                target_line,
-                evaluation: legacy_evaluation,
-            });
+            if self.profile.revision == SmsVdpRevision::Sega3155124 {
+                let legacy_evaluation = self.evaluate_legacy_sprite_line(target_line);
+                self.legacy_sprite_line_buffer = Some(LegacySpriteLineBuffer {
+                    target_line,
+                    evaluation: legacy_evaluation,
+                });
+            }
         } else {
             self.sprite_line_buffer = None;
             self.legacy_sprite_line_buffer = None;
