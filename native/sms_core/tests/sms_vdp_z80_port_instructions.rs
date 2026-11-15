@@ -93,7 +93,10 @@ fn z80_in_immediate_a_reads_the_th_latched_hcounter_through_the_scheduler() {
     run_instructions(&mut machine, 7);
 
     let captured = machine.inspect_memory(0xC000);
-    assert_eq!(captured, 0x03, "TH rising edge at T36 should latch HCounter $03");
+    assert_eq!(
+        captured, 0x03,
+        "TH rising edge at T36 should latch HCounter $03"
+    );
     assert_eq!(
         captured,
         machine.vdp().read_h_counter(),
@@ -121,7 +124,10 @@ fn z80_in_immediate_a_reads_the_th_latched_hcounter_through_the_scheduler() {
         1,
         "program should perform one immediate I/O read"
     );
-    assert_eq!(reads[0].0, 47, "IN I/O read completes after its 4T I/O M-cycle");
+    assert_eq!(
+        reads[0].0, 47,
+        "IN I/O read completes after its 4T I/O M-cycle"
+    );
     assert_eq!(reads[0].1, 0xDF7F, "IN A,(n) uses A as the high port byte");
     assert_eq!(reads[0].2, 4, "I/O read M-cycle must take four T-states");
     assert_eq!(reads[0].3, Some(captured));
