@@ -55,4 +55,4 @@ Esses sistemas permanecem visíveis como indisponíveis, sem serem apresentados 
 
 A seleção SMS2 configura o VDP 315-5246 explicitamente, mas não declara concluída a fidelidade integral do SMS2. Permanecem necessárias as validações de sprite evaluation, HBlank/raster writes, portas, interrupções, áudio, Cosmic Spacehead e hardware real.
 
-A implementação de VINT/HINT/VCounter para 315-5246 está sendo tratada separadamente na PR #893; a validação em hardware real continua pendente.
+A implementação de VINT/HINT/VCounter e publicação de frame para 315-5246 foi integrada pela PR #893. A validação do timing em hardware real continua pendente; HBlank/raster writes e sprite evaluation SMS2 permanecem abertos.
