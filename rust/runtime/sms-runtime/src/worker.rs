@@ -139,9 +139,9 @@ fn validate_sms_cartridge_compatibility(
     revision: SmsVdpRevision,
 ) -> Result<SmsCompatibilityStatus, String> {
     let identity = CartridgeIdentity::from_bytes(rom);
-    let catalog = CartridgeCatalog::sms_default()
+    let catalog = CartridgeCatalog::sms_shared()
         .map_err(|error| format!("failed to load SMS cartridge catalog: {error}"))?;
-    evaluate_sms_cartridge_compatibility(&catalog, &identity, revision)
+    evaluate_sms_cartridge_compatibility(catalog, &identity, revision)
 }
 
 pub fn sms_temporal_hardware_profile(
