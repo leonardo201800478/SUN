@@ -18,7 +18,7 @@ use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher
 use sega_media::{
     CartridgeCatalog, CartridgeIdentity, SmsCompatibilityStatus, SmsHardwareModel,
     SmsVdpRequirement, SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION,
-    SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION, preflight_sms_cartridge,
+    SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION, SMS_DAT_VERSION, preflight_sms_cartridge,
 };
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
@@ -122,12 +122,13 @@ fn evaluate_sms_cartridge_compatibility(
     let (_, status) = preflight_sms_cartridge(requirement, selected, || Ok(()))?;
 
     eprintln!(
-        "SMS_COMPATIBILITY status={} requirement={} selected={} schema={} data_version={} sha1={}",
+        "SMS_COMPATIBILITY status={} requirement={} selected={} schema={} data_version={} dat_version={} sha1={}",
         status.as_str(),
         requirement.as_str(),
         selected.as_str(),
         SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION,
         SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION,
+        SMS_DAT_VERSION,
         identity.sha1_hex()
     );
     Ok(status)
@@ -3917,6 +3918,17 @@ mod cartridge_compatibility_tests {
 
         assert_eq!(status, SmsCompatibilityStatus::Unknown);
         assert_eq!(selected, SmsVdpRevision::Sega3155124);
+    }
+
+    #[test]
+    fn unlisted_rom_passes_the_real_catalog_preflight_as_unknown() {
+        let status = super::validate_sms_cartridge_compatibility(
+            b"synthetic unlisted ROM bytes",
+            SmsVdpRevision::Sega3155124,
+        )
+        .unwrap();
+
+        assert_eq!(status, SmsCompatibilityStatus::Unknown);
     }
 
     #[test]
