@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 sega-observability.workspace = true
 sega-debugger-core.workspace = true
-sega-media = { path = "../../../native/media_runtime" }
 sega-audio-runtime = { path = "../../../native/audio_runtime" }
 sega-sms-core = { path = "../../../native/sms_core" }
 sega-sn76489 = { path = "../../../native/sn76489" }
