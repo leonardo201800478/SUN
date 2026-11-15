@@ -65,7 +65,7 @@ fn z80_out_immediate_a_commits_vdp_control_and_data_writes_on_io_boundaries() {
                 base_tstates,
                 data,
                 ..
-            } => Some((timestamp.as_ticks(), address, value, base_tstates, data)),
+            } => Some((timestamp.ticks(), address, value, base_tstates, data)),
             _ => None,
         })
         .collect();
@@ -112,7 +112,7 @@ fn z80_in_immediate_a_reads_the_th_latched_hcounter_through_the_scheduler() {
                 base_tstates,
                 data,
                 ..
-            } => Some((timestamp.as_ticks(), address, base_tstates, data)),
+            } => Some((timestamp.ticks(), address, base_tstates, data)),
             _ => None,
         })
         .collect();
