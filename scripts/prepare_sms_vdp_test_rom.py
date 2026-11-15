@@ -12,6 +12,7 @@ run against a temporary CI clone and changes only its boot/menu flow:
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 
@@ -35,12 +36,17 @@ def prepare(source_path: Path) -> None:
         "jp WarmReset",
         "boot entry",
     )
-    source = replace_once(
+    scratch_define, count = re.subn(
+        r"(?m)^\.define TestScratch\s+\$c880$",
+        ".define TestScratch $c880\n.define TestScratch25 $c9f0",
         source,
-        ".define TestScratch\\t\\t$c880",
-        ".define TestScratch\\t\\t$c880\\n.define TestScratch25 $c9f0",
-        "RunTest25 isolated sample storage",
+        count=1,
     )
+    if count != 1:
+        raise SystemExit(
+            f"Expected exactly one TestScratch definition, found {count}"
+        )
+    source = scratch_define
 
     test25_start = source.index("RunTest25:")
     test26_start = source.index("RunTest25_MD:", test25_start)
