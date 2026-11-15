@@ -1,0 +1,59 @@
+use sega_sms_core::{SmsTemporalMachine, SmsVdpProfile, Territory};
+
+#[test]
+fn temporal_machine_maps_conventional_bios_in_scheduler_owned_memory() {
+    let cartridge = vec![0x3C; 0x4000];
+    let mut bios = vec![0xA5; 0x2000];
+    bios[0] = 0xF3;
+    bios[0x1FFF] = 0x7E;
+    let machine = SmsTemporalMachine::new_with_hardware_profile_bios_and_sram_size(
+        cartridge,
+        Some(bios),
+        1,
+        3_579_545,
+        48_000,
+        SmsVdpProfile::sms1_t0_ntsc(),
+        Territory::Export,
+        None,
+    )
+    .expect("valid conventional BIOS should initialize temporal memory");
+    assert!(machine.memory().bios_enabled());
+    assert_eq!(machine.memory().read(0x0000), 0xF3);
+    assert_eq!(machine.memory().read(0x1FFF), 0x7E);
+    assert_eq!(machine.memory().read(0x2000), 0xFF);
+}
+
+#[test]
+fn temporal_machine_save_state_retains_bios_image_and_mapping_latch() {
+    let machine = SmsTemporalMachine::new_with_hardware_profile_bios_and_sram_size(
+        vec![0x3C; 0x4000],
+        Some(vec![0xA5; 0x2000]),
+        1,
+        3_579_545,
+        48_000,
+        SmsVdpProfile::sms1_t0_ntsc(),
+        Territory::Export,
+        None,
+    )
+    .unwrap();
+    let restored = SmsTemporalMachine::restore_state(machine.export_state())
+        .expect("BIOS-backed temporal snapshot should restore");
+    assert!(restored.memory().bios_enabled());
+    assert_eq!(restored.memory().read(0x0000), 0xA5);
+    assert_eq!(restored.memory().read(0x1FFF), 0xA5);
+}
+
+#[test]
+fn temporal_machine_rejects_non_8k_bios_before_scheduler_execution() {
+    let result = SmsTemporalMachine::new_with_hardware_profile_bios_and_sram_size(
+        vec![0x3C; 0x4000],
+        Some(vec![0xA5; 0x1000]),
+        1,
+        3_579_545,
+        48_000,
+        SmsVdpProfile::sms1_t0_ntsc(),
+        Territory::Export,
+        None,
+    );
+    assert!(result.is_err());
+}
