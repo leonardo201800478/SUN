@@ -23,7 +23,12 @@ mod windows_host {
     };
 
     use crate::input_host::Sdl3InputHost;
-    use sega_media::{CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity};
+    use sega_media::{
+        CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity, CartridgeMapper,
+        SmsCompatibilityStatus, SmsHardwareModel, SmsVdpRequirement,
+        SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION, SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION,
+        preflight_sms_cartridge,
+    };
     use sega_save_runtime::SaveRamStore;
     use sega_sms_core::ControllerButtons;
     use sega_sms_runtime::{
@@ -2353,71 +2358,125 @@ mod windows_host {
         Ok(Some(capacity))
     }
 
-    /// Resolve um perfil apenas pela identidade binária e carrega o SRM, se existir.
+    /// Resolve identidade, compatibilidade de VDP e perfil SRAM sem tocar no worker ativo.
     fn prepare_cartridge(
         rom: &[u8],
         store: Arc<SaveRamStore>,
+        selected_vdp_revision: SmsVdpRevision,
     ) -> Result<PreparedCartridge, String> {
         let identity = CartridgeIdentity::from_bytes(rom);
         let catalog = CartridgeCatalog::sms_default()
             .map_err(|error| format!("falha ao carregar catálogo SMS: {error}"))?;
-        let profile = catalog
-            .lookup_runtime_profile(&identity)
-            .map_err(|error| format!("falha ao identificar cartucho SMS: {error}"))?
-            .cloned();
+        let matched = catalog
+            .lookup(&identity)
+            .map_err(|error| format!("falha ao identificar cartucho SMS: {error}"))?;
+        let metadata_profile = matched.as_ref().and_then(|entry| entry.profile);
+        let requirement = matched
+            .as_ref()
+            .and_then(|entry| entry.compatibility)
+            .map(|metadata| metadata.sms_vdp_requirement)
+            .unwrap_or(SmsVdpRequirement::Unknown);
+        let selected_model = sms_hardware_model_for_revision(selected_vdp_revision);
 
-        let Some(profile) = profile else {
-            let diagnostic_capacity = parse_diagnostic_sram_capacity(
-                std::env::var(DIAGNOSTIC_SRAM_CAPACITY_ENV).ok().as_deref(),
-            )?;
-            if let Some(capacity) = diagnostic_capacity {
-                eprintln!(
-                    "SRAM_PROFILE status=diagnostic-override sha1={} sha256={} capacity={} persistent=false restored=false",
-                    identity.sha1_hex(),
-                    identity.sha256_hex(),
-                    capacity
-                );
-                return Ok(PreparedCartridge {
-                    sram_capacity: Some(capacity),
+        let (mut prepared, compatibility_status) = preflight_sms_cartridge(
+            requirement,
+            selected_model,
+            || {
+                let runtime_profile = metadata_profile
+                    .filter(|profile| profile.is_runtime_usable())
+                    .cloned();
+
+                if let Some(profile) = runtime_profile {
+                    let initial_sram = store
+                        .load(&identity, &profile)
+                        .map_err(|error| {
+                            format!("não foi possível validar/restaurar o SRM: {error}")
+                        })?;
+                    let save_context = profile
+                        .requires_persistent_store()
+                        .then(|| CartridgeSaveContext {
+                            identity: identity.clone(),
+                            profile: profile.clone(),
+                            store: Arc::clone(&store),
+                        });
+                    eprintln!(
+                        "SRAM_PROFILE status=verified sha1={} sha256={} capacity={} persistent={} restored={}",
+                        identity.sha1_hex(),
+                        identity.sha256_hex(),
+                        profile.ram_capacity_bytes().unwrap_or_default(),
+                        profile.requires_persistent_store(),
+                        initial_sram.is_some()
+                    );
+                    return Ok(PreparedCartridge {
+                        sram_capacity: profile.ram_capacity_bytes(),
+                        initial_sram,
+                        save_context,
+                        compatibility_status: SmsCompatibilityStatus::Unknown,
+                    });
+                }
+
+                // A capacidade diagnóstica não pode sobrepor um mapper conhecido,
+                // mesmo quando o perfil não declara SRAM persistente.
+                let diagnostic_override_allowed = metadata_profile
+                    .is_none_or(|profile| profile.mapper == CartridgeMapper::Unknown);
+                let diagnostic_capacity = if diagnostic_override_allowed {
+                    parse_diagnostic_sram_capacity(
+                        std::env::var(DIAGNOSTIC_SRAM_CAPACITY_ENV).ok().as_deref(),
+                    )?
+                } else {
+                    None
+                };
+
+                if let Some(capacity) = diagnostic_capacity {
+                    eprintln!(
+                        "SRAM_PROFILE status=diagnostic-override sha1={} sha256={} capacity={} persistent=false restored=false",
+                        identity.sha1_hex(),
+                        identity.sha256_hex(),
+                        capacity
+                    );
+                    return Ok(PreparedCartridge {
+                        sram_capacity: Some(capacity),
+                        initial_sram: None,
+                        save_context: None,
+                        compatibility_status: SmsCompatibilityStatus::Unknown,
+                    });
+                }
+
+                if let Some(profile) = metadata_profile {
+                    eprintln!(
+                        "SRAM_PROFILE status=not-runtime-usable mapper={:?} sha1={} sha256={}",
+                        profile.mapper,
+                        identity.sha1_hex(),
+                        identity.sha256_hex()
+                    );
+                } else {
+                    eprintln!(
+                        "SRAM_PROFILE status=unknown sha1={} sha256={}",
+                        identity.sha1_hex(),
+                        identity.sha256_hex()
+                    );
+                }
+                Ok(PreparedCartridge {
+                    sram_capacity: None,
                     initial_sram: None,
                     save_context: None,
-                });
-            }
-            eprintln!(
-                "SRAM_PROFILE status=unknown sha1={} sha256={}",
-                identity.sha1_hex(),
-                identity.sha256_hex()
-            );
-            return Ok(PreparedCartridge {
-                sram_capacity: None,
-                initial_sram: None,
-                save_context: None,
-            });
-        };
+                    compatibility_status: SmsCompatibilityStatus::Unknown,
+                })
+            },
+        )?;
 
-        let initial_sram = store
-            .load(&identity, &profile)
-            .map_err(|error| format!("não foi possível validar/restaurar o SRM: {error}"))?;
-        let save_context = profile
-            .requires_persistent_store()
-            .then(|| CartridgeSaveContext {
-                identity: identity.clone(),
-                profile: profile.clone(),
-                store,
-            });
+        prepared.compatibility_status = compatibility_status;
         eprintln!(
-            "SRAM_PROFILE status=verified sha1={} sha256={} capacity={} persistent={} restored={}",
+            "SMS_COMPATIBILITY status={} requirement={} selected={} schema={} data_version={} sha1={} sha256={}",
+            compatibility_status.as_str(),
+            requirement.as_str(),
+            selected_model.as_str(),
+            SMS_CARTRIDGE_COMPATIBILITY_SCHEMA_VERSION,
+            SMS_CARTRIDGE_COMPATIBILITY_DATA_VERSION,
             identity.sha1_hex(),
-            identity.sha256_hex(),
-            profile.ram_capacity_bytes().unwrap_or_default(),
-            profile.requires_persistent_store(),
-            initial_sram.is_some()
+            identity.sha256_hex()
         );
-        Ok(PreparedCartridge {
-            sram_capacity: profile.ram_capacity_bytes(),
-            initial_sram,
-            save_context,
-        })
+        Ok(prepared)
     }
 
     /// Cria o worker já configurado com o perfil físico e o snapshot SRM restaurado.
@@ -2425,8 +2484,9 @@ mod windows_host {
         rom: Vec<u8>,
         settings: &SmsWorkerSettings,
         save_store: Arc<SaveRamStore>,
-    ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
-        let prepared = prepare_cartridge(&rom, save_store)?;
+    ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>, SmsCompatibilityStatus), String> {
+        let prepared = prepare_cartridge(&rom, save_store, settings.vdp_revision)?;
+        let compatibility_status = prepared.compatibility_status;
         let worker = SmsTemporalWorker::new_with_hardware_profile_and_cartridge_sram_size(
             rom,
             &settings.region,
@@ -2442,7 +2502,7 @@ mod windows_host {
         );
         // Detailed diagnostics are session opt-in. The worker and machine start
         // with tracing/telemetry disabled; the user enables them from DEBUG.
-        Ok((worker, prepared.save_context))
+        Ok((worker, prepared.save_context, compatibility_status))
     }
 
     /// Persistência executada no host, após snapshot imutável obtido no worker.
@@ -2486,9 +2546,10 @@ mod windows_host {
         save_store: Arc<SaveRamStore>,
         mailbox: &FrameMailbox,
         settings: &SmsWorkerSettings,
-    ) -> Result<(), String> {
+    ) -> Result<SmsCompatibilityStatus, String> {
         let rom = read_rom_image(path)?;
-        let (next, next_save_context) = create_sms_worker(rom, settings, save_store)?;
+        let (next, next_save_context, compatibility_status) =
+            create_sms_worker(rom, settings, save_store)?;
 
         let previous = worker_slot.borrow_mut().take();
         if let Some(previous) = previous {
@@ -2532,7 +2593,7 @@ mod windows_host {
             *save_context_slot.borrow_mut() = next_save_context;
         }
 
-        Ok(())
+        Ok(compatibility_status)
     }
 
     /// Contexto host-side que associa um worker ao arquivo SRM da ROM exata.
@@ -2547,6 +2608,7 @@ mod windows_host {
         sram_capacity: Option<usize>,
         initial_sram: Option<Vec<u8>>,
         save_context: Option<CartridgeSaveContext>,
+        compatibility_status: SmsCompatibilityStatus,
     }
 
     struct SmsWorkerSettings {
@@ -2563,6 +2625,21 @@ mod windows_host {
             "sms1" => Ok(SmsVdpRevision::Sega3155124),
             "sms2" => Ok(SmsVdpRevision::Sega3155246),
             _ => Err(format!("unsupported SMS hardware selection: {system}")),
+        }
+    }
+
+    fn sms_hardware_model_for_revision(revision: SmsVdpRevision) -> SmsHardwareModel {
+        match revision {
+            SmsVdpRevision::Sega3155124 => SmsHardwareModel::Sms1,
+            SmsVdpRevision::Sega3155246 => SmsHardwareModel::Sms2,
+        }
+    }
+
+    fn sms_compatibility_status_label(status: SmsCompatibilityStatus) -> &'static str {
+        match status {
+            SmsCompatibilityStatus::Compatible => "compatível",
+            SmsCompatibilityStatus::Incompatible => "incompatível",
+            SmsCompatibilityStatus::Unknown => "não caracterizada",
         }
     }
 
@@ -2615,13 +2692,15 @@ mod windows_host {
             renderer_mode: preferences.audio_renderer_mode.clone(),
         };
         let mut initial_save_context = None;
+        let mut initial_compatibility_status = SmsCompatibilityStatus::Unknown;
         let worker = if let Some(path) = rom_path.as_ref() {
-            let (worker, context) = create_sms_worker(
+            let (worker, context, compatibility_status) = create_sms_worker(
                 read_rom_image(path)?,
                 &worker_settings,
                 Arc::clone(&save_store),
             )?;
             initial_save_context = context;
+            initial_compatibility_status = compatibility_status;
             worker.attach_video_mailbox(mailbox.clone())?;
             if !preferences.sprite_limit_enabled {
                 worker.set_sprite_limit_mode(SpriteLimitMode::UnlockedCompatibility)?;
@@ -2704,7 +2783,14 @@ mod windows_host {
             "Carregue uma ROM SMS para inicializar a saída CPAL.".into()
         });
         if let Some(path) = rom_path.as_ref() {
-            app.set_rom_status(format!("ROM: {} | região: {region}", path.display()).into());
+            app.set_rom_status(
+                format!(
+                    "ROM: {} | região: {region} | compatibilidade SMS: {}",
+                    path.display(),
+                    sms_compatibility_status_label(initial_compatibility_status)
+                )
+                .into(),
+            );
             app.set_recent_rom_path(path.display().to_string().into());
             app.set_rom_path_input(path.display().to_string().into());
         } else {
@@ -2973,7 +3059,7 @@ mod windows_host {
                 &open_mailbox,
                 &open_settings,
             ) {
-                Ok(()) => {
+                Ok(compatibility_status) => {
                     *open_gamepad_state.borrow_mut() = [ControllerButtons::default(); 2];
                     let sprite_mode = if sprite_limit_enabled {
                         SpriteLimitMode::HardwareLimit
@@ -3009,7 +3095,11 @@ mod windows_host {
                         app.set_rom_status(
                             match start_result {
                                 Some(Ok(())) => {
-                                    format!("ROM: {} | execução iniciada", path.display())
+                                    format!(
+                                        "ROM: {} | execução iniciada | compatibilidade SMS: {}",
+                                        path.display(),
+                                        sms_compatibility_status_label(compatibility_status)
+                                    )
                                 }
                                 Some(Err(error)) => {
                                     format!("ROM: {} | falha ao iniciar: {error}", path.display())
