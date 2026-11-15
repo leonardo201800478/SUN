@@ -121,6 +121,33 @@ Referências públicas:
 - https://github.com/ekeeke/Genesis-Plus-GX/blob/master/core/cart_hw/sms_cart.c
 - https://consolemods.org/wiki/Genesis:Master_System_Games_Info
 
+## Decisão de escopo — 2026-11-15
+
+A PR permanece **aberta e em Draft** como registro contínuo de validação dos dois títulos. Os problemas não serão tratados como uma única falha gráfica.
+
+### Cosmic Spacehead: trilha SMS2
+
+O projeto precisa construir e validar SMS2 como perfil de hardware real, não apenas habilitar uma resolução maior. Cosmic Spacehead será uma ROM de validação funcional desse perfil, mas não a única evidência de conformidade.
+
+Escopo mínimo da trilha SMS2:
+
+1. Especificar diferenças documentadas entre VDP SMS1 (315-5124) e SMS2 (315-5246), distinguindo ASIC/revisão, região e clock de vídeo.
+2. Implementar seleção explícita e reproduzível do perfil de hardware. PAL não implica automaticamente SMS2; SMS2 não pode ser inferido apenas do país da ROM.
+3. Auditar modos de 192/224/240 linhas, R1 e permissões por perfil, timing de HINT/VINT/VBlank, status/IRQ, composição e publicação do framebuffer.
+4. Propagar dimensões e contratos do frame de ponta a ponta: VDP → temporal runtime/mailbox → video output → Slint/WGPU. Não deixar constantes fixas de 192 linhas truncarem um frame 224/240.
+5. Auditar diferenças de sprites, scroll, clipping, palette/CRAM e comportamento de portas entre revisões.
+6. Criar testes unitários/contratuais sintéticos para cada diferença documentada e testes de integração por perfil.
+7. Validar com ROMs de teste VDP e jogos comerciais conhecidos, incluindo Cosmic Spacehead, sem hacks específicos por ROM.
+8. Preservar SMS1/SG-1000 e demonstrar ausência de regressões.
+
+### The Smurfs: trilha de ordenação de sprites
+
+O relato atual é específico: os sprites ficam fora de ordem durante o gameplay. Não há relato de falha no menu inicial. Investigar primeiro SAT order, sprite line evaluation/buffer, prioridade entre sprites, transparência e composição por pixel. Não misturar essa investigação com a construção SMS2.
+
+### Critério de saída
+
+A PR só deve ser fechada quando ambas as trilhas tiverem diagnóstico, correção validada e testes de regressão, ou quando forem separadas em PRs de implementação com referências cruzadas e esta auditoria permanecer como índice de validação. Nenhum merge é presumido por esta decisão.
+
 ## 3. Hipóteses a investigar — sem assumir causalidade
 
 1. Avaliação e seleção de sprites: Y termination, overflow, índice, limite por linha e modo de limite configurado.
