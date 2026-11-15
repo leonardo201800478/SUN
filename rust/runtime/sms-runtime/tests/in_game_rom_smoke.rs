@@ -70,12 +70,18 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         SmsVdpRevision::Sega3155246 => &[192, 224, 240],
     };
     let frames_per_rom = std::env::var("SEGA_SMS_TEST_FRAMES")
-        .map(|value| value.parse::<usize>().expect("SEGA_SMS_TEST_FRAMES must be an integer"))
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .expect("SEGA_SMS_TEST_FRAMES must be an integer")
+        })
         .unwrap_or(DEFAULT_FRAMES_PER_ROM);
     assert!(frames_per_rom > 0, "SEGA_SMS_TEST_FRAMES must be positive");
-    let expected_height = std::env::var("SEGA_SMS_EXPECT_HEIGHT")
-        .ok()
-        .map(|value| value.parse::<u32>().expect("SEGA_SMS_EXPECT_HEIGHT must be an integer"));
+    let expected_height = std::env::var("SEGA_SMS_EXPECT_HEIGHT").ok().map(|value| {
+        value
+            .parse::<u32>()
+            .expect("SEGA_SMS_EXPECT_HEIGHT must be an integer")
+    });
     if let Some(height) = expected_height {
         assert!(
             allowed_heights.contains(&height),
@@ -240,13 +246,9 @@ fn every_supported_region_keeps_its_timing_independent_of_sms_asic_selection() {
         ("europe", 3_546_895),
         ("japan", 3_579_545),
     ] {
-        for revision in [
-            SmsVdpRevision::Sega3155124,
-            SmsVdpRevision::Sega3155246,
-        ] {
-            let (_, profile, clock_hz) =
-                sms_temporal_hardware_profile(region, revision)
-                    .unwrap_or_else(|error| panic!("{region}: {error}"));
+        for revision in [SmsVdpRevision::Sega3155124, SmsVdpRevision::Sega3155246] {
+            let (_, profile, clock_hz) = sms_temporal_hardware_profile(region, revision)
+                .unwrap_or_else(|error| panic!("{region}: {error}"));
             assert_eq!(profile.revision, revision);
             assert_eq!(clock_hz, expected_clock);
         }
