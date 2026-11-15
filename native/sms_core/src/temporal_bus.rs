@@ -1078,12 +1078,13 @@ mod tests {
         vdp_write_register(bus.vdp_mut(), 0, 0x10); // HINT enabled.
         vdp_write_register(bus.vdp_mut(), 10, 192);
 
-        // The first-line HINT reloads R10. Acknowledge it, then stop one
-        // T-state before the R10=192 boundary on scanline 192.
-        advance_internal(&mut bus, 1, 14);
-        assert!(bus.vdp().interrupt_pending());
+        // Complete one frame so the SMS1 frame-start path reloads R10 into
+        // the line counter. Acknowledge the initial line-0 HINT/VBlank state.
+        advance_internal(&mut bus, 1, 262 * 228);
         bus.vdp_mut().read_port(0xBF);
-        advance_internal(&mut bus, 2, 192 * 228 - 15);
+
+        // Stop one T-state before R10=192 expires on scanline 192.
+        advance_internal(&mut bus, 2, 192 * 228 + 13);
         assert_eq!(bus.vdp().scanline(), 192);
         assert_eq!(bus.vdp().cycles_into_line(), 13);
         assert!(!bus.vdp().interrupt_pending());
