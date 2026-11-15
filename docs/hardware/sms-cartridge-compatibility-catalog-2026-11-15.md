@@ -51,7 +51,7 @@ Identity supplied for investigation:
 
 Neither the SHA-1 nor CRC32 is present in the project's No-Intro DAT `20261013-064924`, and no independent source currently establishes a minimum SMS VDP requirement for this exact Brazilian dump.
 
-Result: no compatibility profile is declared; the loader reports `Unknown`, continues with the explicitly selected hardware, and does not infer SMS2 from the Brazilian region or filename.
+Result: no compatibility profile is declared. Once the staged runtime preflight is merged, this identity will report `Unknown`, continue with the explicitly selected hardware, and never infer SMS2 from the Brazilian region or filename.
 
 The ROM is not present in the repository. No execution or compatibility validation of this dump is claimed.
 
