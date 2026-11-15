@@ -277,6 +277,24 @@ mod sms_compatibility_tests {
     }
 
     #[test]
+    fn sms2_required_preflight_runs_preparation_when_sms2_is_selected() {
+        let mut preparation_called = false;
+        let (prepared, status) = preflight_sms_cartridge(
+            SmsVdpRequirement::Sms2Required,
+            SmsHardwareModel::Sms2,
+            || {
+                preparation_called = true;
+                Ok("prepared")
+            },
+        )
+        .unwrap();
+
+        assert_eq!(prepared, "prepared");
+        assert_eq!(status, SmsCompatibilityStatus::Compatible);
+        assert!(preparation_called);
+    }
+
+    #[test]
     fn unknown_preflight_allows_load_without_changing_selected_hardware() {
         let selected = SmsHardwareModel::Sms1;
         let (prepared, status) =
