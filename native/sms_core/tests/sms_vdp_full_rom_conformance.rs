@@ -38,7 +38,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     for frame in 0..600 {
         machine
             .step_frame(100_000)
-            .unwrap_or_else(|error| panic!("SmsVdpTest failed while advancing frame {frame}: {error}"));
+            panic!("SmsVdpTest failed while advancing frame {frame}: {error}");
         for event in machine.take_trace() {
             match event {
                 SmsTemporalTraceEvent::BusCompleted {
