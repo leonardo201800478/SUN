@@ -2725,7 +2725,8 @@ mod tests {
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
         Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
         WorkerTelemetry, build_sms_temporal_machine,
-        build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
+        build_sms_temporal_machine_with_bios_and_revision_and_sram_size,
+        calculate_next_frame_deadline,
         execute_frame, execute_frame_with_renderer, frame_duration_from_machine_ticks,
         sms_temporal_hardware_profile, sms_temporal_region_profile,
     };
@@ -2768,8 +2769,9 @@ mod tests {
     fn worker_machine_builder_instantiates_the_selected_sms2_vdp_asic() {
         use sega_sms_core::SmsVdpRevision;
 
-        let machine = build_sms_temporal_machine_with_revision_and_sram_size(
+        let machine = build_sms_temporal_machine_with_bios_and_revision_and_sram_size(
             vec![0; 0x4000],
+            None,
             "europe",
             SmsVdpRevision::Sega3155246,
             None,
