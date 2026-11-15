@@ -40,6 +40,8 @@ Result: `SmsVdpRequirement::Sms2Required`.
 
 The catalog entry is `EvidenceOnly` for executable mapper/SRAM configuration because this record does not declare a verified SRAM mapping. The runtime's existing Codemasters mapper detection remains responsible for actual bank behavior. No SRAM capacity is inferred.
 
+The existing `native/sms_core/src/memory.rs` implementation already detects the Codemasters header and maps the three 16 KiB slots through writes in the `$0000`, `$4000`, and `$8000` windows. Existing unit tests cover header selection, slot switching, BIOS power-on gating, invalid-header fallback, and the absence of Sega-mapper SRAM on Codemasters cartridges. This metadata change does not rewrite or alter that mapper implementation.
+
 ### The Smurfs (Brazil) — unknown
 
 Identity supplied for investigation:
