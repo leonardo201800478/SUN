@@ -371,6 +371,7 @@ impl SmsVdp {
         self.legacy_sprite_line_buffer = None;
         self.status = 0;
         self.address = 0;
+        self.address_mode = VdpAddressMode::VramRead;
         self.read_buffer = 0;
         self.control_first = None;
         self.cram_write = false;
@@ -3835,6 +3836,17 @@ mod tests {
         v.write_port(0xBE, 0xAA);
         assert_eq!(v.vram[0x3E30], 0xAA);
         assert_eq!(v.address(), 0x3E31);
+    }
+
+    #[test]
+    fn reset_restores_the_default_vram_read_address_mode() {
+        let mut v = SmsVdp::default();
+        addr(&mut v, 0x001F, 0xC0);
+        v.reset(false);
+
+        v.vram[0x0010] = 0x5A;
+        v.write_port(0xBF, 0x10);
+        assert_eq!(v.read_port(0xBE), 0x5A);
     }
 
     #[test]
