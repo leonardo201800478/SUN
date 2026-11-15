@@ -1,7 +1,8 @@
 //! Shared ROM identity and cartridge hardware metadata.
 //!
-//! This crate deliberately contains no filesystem or emulator execution code.
-//! Host layers load ROM/save bytes; core/runtime layers consume explicit profiles.
+//! This crate contains no emulator execution code. Filesystem access is limited
+//! to explicit media/firmware scan and load operations; it is never called by
+//! the machine Scheduler. Core/runtime layers consume validated metadata/bytes.
 
 mod catalog;
 mod dat;
