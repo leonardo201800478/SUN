@@ -67,7 +67,7 @@ fn build_irq_rom(main: &[u8], program: &[u8]) -> Vec<u8> {
 
 fn frame_irq_main_with_delay(delay_nops: usize) -> Vec<u8> {
     let mut main = FRAME_IRQ_MAIN[..10].to_vec();
-    main.extend(std::iter::repeat(0x00).take(delay_nops));
+    main.resize(main.len() + delay_nops, 0x00);
     main.extend_from_slice(&[0xC3, 0x40, 0x01]);
     main
 }
