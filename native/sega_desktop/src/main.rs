@@ -1134,7 +1134,12 @@ mod windows_host {
 
                     match create_imported_texture(device, queue, SMS_WIDTH, SMS_HEIGHT) {
                         Ok(image) => {
-                            *gpu_context_slot.lock().unwrap() = Some(GpuFrameContext {\n                                device: device.clone(),\n                                queue: queue.clone(),\n                                texture_width: SMS_WIDTH,\n                                texture_height: SMS_HEIGHT,\n                            });
+                            *gpu_context_slot.lock().unwrap() = Some(GpuFrameContext {
+                                device: device.clone(),
+                                queue: queue.clone(),
+                                texture_width: SMS_WIDTH,
+                                texture_height: SMS_HEIGHT,
+                            });
 
                             let app_weak = app_weak.clone();
                             let mailbox = mailbox.clone();
@@ -1902,6 +1907,7 @@ mod windows_host {
                     }
                     current.texture_width = frame.width();
                     current.texture_height = frame.height();
+                    drop(slot);
                     app.set_gpu_texture(image);
                 }
                 Err(error) => {
@@ -1973,7 +1979,7 @@ mod windows_host {
     /// Wake Slint only when a new frame is published; the atomic gate bounds queued callbacks.
     fn start_frame_presentation(
         app: &MainWindow,
-        gpu_context_slot: Arc<Mutex<Option<wgpu::Queue>>>,
+        gpu_context_slot: Arc<Mutex<Option<GpuFrameContext>>>,
         mailbox: FrameMailbox,
         host_pacing: Arc<Mutex<HostFramePacingWindow>>,
     ) -> Result<(), sega_video_runtime::FrameMailboxError> {
