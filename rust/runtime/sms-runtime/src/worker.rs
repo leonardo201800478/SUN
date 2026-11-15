@@ -2179,7 +2179,7 @@ fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
             // and interrupt acknowledge while still discarding the much noisier
             // per-T-state M1/internal-cycle stream below.
             !matches!(operation, Z80BusOperation::OpcodeFetch)
-        },
+        }
         SmsTemporalTraceEvent::ExternalThTransition { .. } => true,
         SmsTemporalTraceEvent::InternalCycleCompleted { .. }
         | SmsTemporalTraceEvent::M1TStateCompleted { .. } => false,
@@ -2484,7 +2484,7 @@ fn handle_command(
         WorkerCommand::ArmTraceOnNextStart(publisher, reply) => {
             if *running {
                 let _ = reply.send(Err(
-                    "arm_trace_on_next_start requires a stopped machine".to_owned(),
+                    "arm_trace_on_next_start requires a stopped machine".to_owned()
                 ));
             } else if *trace_enabled {
                 let _ = reply.send(Err(
