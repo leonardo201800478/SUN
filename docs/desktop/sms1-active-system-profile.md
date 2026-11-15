@@ -71,4 +71,4 @@ Os cartuchos SMS comuns compartilham mapper e mapa de memória; recursos exclusi
 
 A seleção SMS2 configura o VDP 315-5246 explicitamente, mas não declara concluída a fidelidade integral do SMS2. Permanecem necessárias as validações de sprite evaluation, HBlank/raster writes, portas, interrupções, áudio, Cosmic Spacehead e hardware real.
 
-A implementação de VINT/HINT/VCounter e publicação de frame para 315-5246 foi integrada pela PR #893. A validação do timing em hardware real continua pendente; HBlank/raster writes e sprite evaluation SMS2 permanecem abertos.
+A implementação de VINT/HINT/VCounter e publicação de frame para 315-5246 foi integrada pela PR #893. O buffer SAT de próxima linha para sprites Mode 4 foi compartilhado pela PR #894, mantendo zoom específico por ASIC. A validação em hardware real continua pendente; HBlank/raster writes, sprites legacy/TMS e fases exatas de fetch/colisão SMS2 permanecem abertos.
