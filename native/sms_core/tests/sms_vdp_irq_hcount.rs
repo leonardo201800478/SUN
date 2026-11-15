@@ -65,7 +65,6 @@ fn build_irq_rom(main: &[u8], program: &[u8]) -> Vec<u8> {
     rom
 }
 
-
 fn frame_irq_main_with_delay(delay_nops: usize) -> Vec<u8> {
     let mut main = FRAME_IRQ_MAIN[..10].to_vec();
     main.extend(std::iter::repeat(0x00).take(delay_nops));
@@ -95,8 +94,14 @@ fn diagnostic_irq_hcount_reset_phase_sweep() {
             "phase sweep NOPs={}: Frame result={:02X} sample={:02X}; Line result={:02X} sample={:02X}",
             delay_nops, frame_result, frame_sample, line_result, line_sample
         );
-        assert_ne!(frame_result, 0, "Frame IRQ diagnostic did not finish at delay {delay_nops}");
-        assert_ne!(line_result, 0, "Line IRQ diagnostic did not finish at delay {delay_nops}");
+        assert_ne!(
+            frame_result, 0,
+            "Frame IRQ diagnostic did not finish at delay {delay_nops}"
+        );
+        assert_ne!(
+            line_result, 0,
+            "Line IRQ diagnostic did not finish at delay {delay_nops}"
+        );
     }
 }
 
