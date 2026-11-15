@@ -4,7 +4,7 @@
 //!   $env:SEGA_SMS_TEST_ROM_DIR = "D:\\ROMs\\SMS"
 //!   $env:SEGA_SMS_TEST_REGION = "europe" # usa|brazil|europe|japan
 //!   $env:SEGA_SMS_SYSTEM = "sms2" # sms1|sms2
-//!   $env:SEGA_SMS_TEST_FRAMES = "1800" # optional; default 120
+//!   $env:SEGA_SMS_TEST_FRAMES = "1800" # optional; default 1800
 //!   $env:SEGA_SMS_EXPECT_HEIGHT = "224" # optional; 192|224|240
 //!   cargo test --release -p sega-sms-runtime --test in_game_rom_smoke -- --ignored --nocapture
 //!
@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use sega_sms_runtime::{SmsTemporalWorker, SmsVdpRevision};
 use sega_video_runtime::FrameMailbox;
 
-const DEFAULT_FRAMES_PER_ROM: usize = 120;
+const DEFAULT_FRAMES_PER_ROM: usize = 1800;
 const MAX_INSTRUCTIONS_PER_FRAME: usize = 100_000;
 
 fn is_sms_rom(path: &Path) -> bool {
