@@ -3,7 +3,7 @@
 **Baseline:** `e122679913f8c9f9fa133f9ed92d6aeca4eb2891`
 **Scope:** shared SMS VDP control/data port, both 315-5124 and 315-5246 profiles
 **Implementation branch:** `fix/vdp-first-control-byte-address-only`
-**Validation state:** Linux VDP CI and SMS runtime CI PASS on PR #902 HEAD `232ef9513cacb2024610bf9b91ffd3f68cc35243`
+**Validation state:** Linux VDP CI and SMS runtime CI PASS on PR #902 HEAD `3794f2f25d9deca451db198d46d976c4cb34fc36` (code unchanged since tested commit)
 **Hardware validation:** NOT RUN
 
 ## Finding
@@ -45,9 +45,9 @@ Read-ahead and address increment remain in the complete two-byte VRAM-read comma
 |---|---|
 | Static source inspection against SMS Power control-port contract | PASS |
 | Regression tests | PASS — SMS2/default and SMS1 read-buffer tests, public SMS1 port contract, and reset/read-ahead regression |
-| Linux `sega-video` + `sega-sms-core` focused CI | PASS — run `43701573782`; rustfmt, Clippy, VDP/SMS core tests and documentation hygiene green. The first run exposed one stale reset-test assumption; the test was corrected to issue the complete two-byte read command before the passing run |
+| Linux `sega-video` + `sega-sms-core` focused CI | PASS — run `43701798603`; rustfmt, Clippy, VDP/SMS core tests and documentation hygiene green. The first run exposed one stale reset-test assumption; the test was corrected to issue the complete two-byte read command before the passing run |
 | Rustfmt / Clippy in Linux CI | PASS — run `43701573782` |
-| SMS runtime CI | PASS — run `43701573739`; Linux runtime formatting, Clippy and tests passed; Windows x64 build was compile-only, no Windows tests ran |
+| SMS runtime CI | PASS — run `43701798602`; Linux runtime formatting, Clippy and tests passed; Windows x64 build was compile-only, no Windows tests ran |
 | SMS1/SMS2 physical hardware | NOT RUN |
 | Original diagnostic ROM execution on this runtime | NOT RUN |
 
