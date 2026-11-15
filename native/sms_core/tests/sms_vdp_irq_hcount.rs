@@ -129,7 +129,6 @@ fn run_until_result(rom: Vec<u8>, max_frames: usize) -> (u8, u8) {
 }
 
 #[test]
-#[ignore = "isolated reset fixture does not yet reproduce the full ROM's pre-test phase"]
 fn smsvdptest_run_test32_frame_irq_hcount_matches_reference_samples() {
     let (result, second) = run_until_result(build_irq_rom(FRAME_IRQ_MAIN, FRAME_IRQ_PROGRAM), 8);
 
@@ -142,7 +141,6 @@ fn smsvdptest_run_test32_frame_irq_hcount_matches_reference_samples() {
 }
 
 #[test]
-#[ignore = "isolated reset fixture does not yet reproduce the full ROM's pre-test phase"]
 fn smsvdptest_run_test34_line_irq_hcount_matches_reference_samples() {
     let (result, second) = run_until_result(build_irq_rom(LINE_IRQ_MAIN, LINE_IRQ_PROGRAM), 10);
 
