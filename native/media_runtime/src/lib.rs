@@ -15,7 +15,7 @@ pub use catalog::{
 pub use dat::{DatGameEntry, DatParseError, DatRomEntry, NoIntroDat, SMS_DAT_VERSION};
 pub use identity::CartridgeIdentity;
 pub use profile::{
-    CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeMapper,
-    CartridgeRamKind, CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, ProfileStatus,
+    CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeMapper, CartridgeRamKind,
+    CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, ProfileStatus,
     SmsCompatibilityStatus, SmsHardwareModel, SmsVdpRequirement, preflight_sms_cartridge,
 };
