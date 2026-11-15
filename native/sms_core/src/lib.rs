@@ -35,6 +35,7 @@ pub use io::{SmsIo, SmsIoError};
 pub use memory::SmsMemory;
 pub use sega_sn76489::{PsgAmplitudeEvent, PsgError, PsgEventCaptureError};
 pub use sega_video::sms::SmsOverscanMode;
+pub use sega_z80_cpu::Z80BusOperation;
 pub use temporal::{
     SMS_PSG_CLOCK_DOMAIN_ID, SMS_TEMPORAL_COORDINATOR_STATE_VERSION, SMS_VDP_CLOCK_DOMAIN_ID,
     SMS_Z80_CLOCK_DOMAIN_ID, SmsTemporalCoordinator, SmsTemporalCoordinatorError,
@@ -45,7 +46,6 @@ pub use temporal_bus::{
     SmsTemporalBusError, SmsTemporalBusState, SmsTemporalDispatch,
 };
 pub use temporal_m1::{SmsTemporalM1, SmsTemporalM1Error, SmsTemporalM1State};
-pub use sega_z80_cpu::Z80BusOperation;
 pub use temporal_machine::{
     SMS_TEMPORAL_MACHINE_STATE_VERSION, SmsTemporalMachine, SmsTemporalMachineError,
     SmsTemporalMachineState, SmsTemporalTraceEvent,
