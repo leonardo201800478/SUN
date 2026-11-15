@@ -32,9 +32,9 @@ The profile is keyed by SHA-1. CRC32 and size are retained as DAT consistency ch
 
 Independent evidence:
 
-1. [Genesis Plus GX SMS cartridge implementation](https://github.com/ekeeke/Genesis-Plus-GX/blob/master/core/cart_hw/sms_cart.c) classifies the corresponding CRC identity as a Codemasters cartridge and SMS2 software.
+1. [Genesis Plus GX SMS cartridge implementation](https://github.com/ekeeke/Genesis-Plus-GX/blob/master/core/cart_hw/sms_cart.c) classifies CRC32 `0x29822980` as `MAPPER_CODIES`, `SYSTEM_SMS2`, region Europe.
 2. [SMS Power forum — Cosmic Spacehead](https://www.smspower.org/forums/1484-CosmicSpacehead): Charles MacDonald identifies the title's 224-line mode and reports SMS1/Game Gear incompatibility.
-3. [SMS Power — SMS1/SMS2 VDPs](https://www.smspower.org/Development/SMS1SMS2VDPs) documents the additional 224/240-line modes on the SMS2 VDP.
+3. [SMS Power forum — SMS2 VDP 224/240-line modes](https://www.smspower.org/forums/8170-SMS2VDP224240LineModes): Charles MacDonald lists Cosmic Spacehead among titles using the 224-line mode and identifies the SMS2 VDP capability.
 
 Result: `SmsVdpRequirement::Sms2Required`.
 
