@@ -580,13 +580,16 @@ impl SmsVdp {
                 SMS_HINT_TSTATE,
                 SMS_VCOUNTER_LATCH_TSTATE,
                 SMS_VBLANK_FLAG_TSTATE,
-                SMS_HBLANK_TSTATE,
                 LINE_TSTATES,
             ]
             .into_iter()
             .chain(
                 (self.profile.revision == SmsVdpRevision::Sega3155124)
                     .then_some(SMS_SPRITE_OVERFLOW_TSTATE),
+            )
+            .chain(
+                (self.profile.revision == SmsVdpRevision::Sega3155124)
+                    .then_some(SMS_HBLANK_TSTATE),
             )
             .filter(|boundary| *boundary > current)
             .min()
@@ -663,7 +666,10 @@ impl SmsVdp {
                     "SMS VDP entered VBlank"
                 );
             }
-            SMS_HBLANK_TSTATE if self.scanline < height => {
+            SMS_HBLANK_TSTATE
+                if self.profile.revision == SmsVdpRevision::Sega3155124
+                    && self.scanline < height =>
+            {
                 self.commit_raster_span_to_beam();
                 if self.line_overflow_status != 0 {
                     self.status = (self.status & !0x1F) | self.line_overflow_status;
@@ -2292,7 +2298,7 @@ mod tests {
         addr(&mut v, 0x1234, 0);
         assert_eq!(v.read_port(0xBE), 0x71);
         reg(&mut v, 1, 0x20);
-        v.advance(228 * 192);
+        v.advance(228 * 193 + 16);
         assert!(v.interrupt_pending());
         assert_ne!(v.read_port(0xBF) & 0x80, 0);
         assert!(!v.interrupt_pending());
@@ -3766,7 +3772,7 @@ mod tests {
         v.vram[0x3F00] = 0xD0;
         reg(&mut v, 9, 8);
 
-        v.advance(228 * 192);
+        v.advance(228 * 192 + SMS_VBLANK_FLAG_TSTATE);
         assert_eq!(&v.framebuffer()[0..3], &[255, 0, 0]);
 
         v.advance(228 * (262 - 192));
