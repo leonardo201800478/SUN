@@ -2,15 +2,17 @@
 //!
 //! Run on a machine with legally obtained test ROMs:
 //!   $env:SEGA_SMS_TEST_ROM_DIR = "D:\\ROMs\\SMS"
-//!   $env:SEGA_SMS_TEST_REGION = "usa" # usa|brazil|europe|japan
+//!   $env:SEGA_SMS_TEST_REGION = "europe" # usa|brazil|europe|japan
+//!   $env:SEGA_SMS_SYSTEM = "sms2" # sms1|sms2
 //!   cargo test --release -p sega-sms-runtime --test in_game_rom_smoke -- --ignored --nocapture
 //!
 //! ROM files are read in place and are never copied into the repository.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use sega_sms_runtime::SmsTemporalWorker;
+use sega_sms_runtime::{SmsTemporalWorker, SmsVdpRevision};
 use sega_video_runtime::FrameMailbox;
 
 const FRAMES_PER_ROM: usize = 120;
@@ -55,6 +57,16 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         .map(PathBuf::from)
         .expect("set SEGA_SMS_TEST_ROM_DIR to a directory containing .sms/.bin ROMs");
     let region = std::env::var("SEGA_SMS_TEST_REGION").unwrap_or_else(|_| "usa".to_owned());
+    let system = std::env::var("SEGA_SMS_SYSTEM").unwrap_or_else(|_| "sms1".to_owned());
+    let vdp_revision = match system.as_str() {
+        "sms1" => SmsVdpRevision::Sega3155124,
+        "sms2" => SmsVdpRevision::Sega3155246,
+        other => panic!("unsupported SEGA_SMS_SYSTEM '{other}'; expected sms1 or sms2"),
+    };
+    let allowed_heights: &[u32] = match vdp_revision {
+        SmsVdpRevision::Sega3155124 => &[192],
+        SmsVdpRevision::Sega3155246 => &[192, 224, 240],
+    };
     let rom_paths = collect_roms(&directory);
 
     assert!(
@@ -68,8 +80,14 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             .unwrap_or_else(|error| panic!("cannot read ROM {}: {error}", path.display()));
         assert!(!rom.is_empty(), "ROM {} is empty", path.display());
 
-        let worker = SmsTemporalWorker::new(rom, &region)
-            .unwrap_or_else(|error| panic!("{}: worker rejected ROM: {error}", path.display()));
+        let worker = SmsTemporalWorker::new_with_hardware_profile_and_cartridge_sram_size(
+            rom,
+            &region,
+            vdp_revision,
+            None,
+            None,
+        )
+        .unwrap_or_else(|error| panic!("{}: worker rejected ROM: {error}", path.display()));
         let mailbox = FrameMailbox::new();
         worker
             .attach_video_mailbox(mailbox.clone())
@@ -81,6 +99,7 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         let mut last_digest = 0;
         let mut non_black_frames = 0_u32;
         let mut completed_frames = 0_u64;
+        let mut observed_heights = BTreeMap::<u32, u32>::new();
 
         for frame_index in 0..FRAMES_PER_ROM {
             let instructions = worker
@@ -117,18 +136,22 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
                 "{}: unexpected frame width",
                 path.display()
             );
-            assert_eq!(
-                frame.height(),
-                192,
-                "{}: unexpected frame height",
-                path.display()
+            let height = frame.height();
+            assert!(
+                allowed_heights.contains(&height),
+                "{}: frame height {} is incompatible with selected system {}",
+                path.display(),
+                height,
+                system
             );
             assert_eq!(
                 frame.pixels().len(),
-                256 * 192 * 3,
-                "{}: unexpected RGB888 frame payload length",
-                path.display()
+                256 * height as usize * 3,
+                "{}: unexpected RGB888 frame payload length for {} lines",
+                path.display(),
+                height
             );
+            *observed_heights.entry(height).or_default() += 1;
 
             let digest = frame_digest(frame.pixels());
             first_digest.get_or_insert(digest);
@@ -155,8 +178,10 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         );
 
         println!(
-            "SMS_IN_GAME_SMOKE rom={} region={} frames={} instructions={} non_black_frames={} first_frame_fnv1a={:016x} last_frame_fnv1a={:016x}",
+            "SMS_IN_GAME_SMOKE rom={} system={} vdp={:?} region={} frames={} heights={:?} instructions={} non_black_frames={} first_frame_fnv1a={:016x} last_frame_fnv1a={:016x}",
             path.display(),
+            system,
+            vdp_revision,
             region,
             completed_frames,
             worker.total_instructions(),
@@ -181,20 +206,30 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
 }
 
 #[test]
-fn every_supported_sms_region_selects_the_sms1_asic_profile() {
-    use sega_sms_core::SmsVdpRevision;
-    use sega_sms_runtime::sms_temporal_region_profile;
+fn every_supported_region_keeps_its_timing_independent_of_sms_asic_selection() {
+    use sega_sms_runtime::{sms_temporal_hardware_profile, sms_temporal_region_profile};
 
-    for region in ["usa", "brazil", "europe", "japan"] {
-        let (_, profile, clock_hz) =
-            sms_temporal_region_profile(region).unwrap_or_else(|error| panic!("{region}: {error}"));
-        assert_eq!(
-            profile.revision,
+    for (region, expected_clock) in [
+        ("usa", 3_579_545),
+        ("brazil", 3_579_545),
+        ("europe", 3_546_895),
+        ("japan", 3_579_545),
+    ] {
+        for revision in [
             SmsVdpRevision::Sega3155124,
-            "{region} must instantiate the SMS1 VDP ASIC"
-        );
-        assert!(clock_hz > 0, "{region} must define a valid machine clock");
+            SmsVdpRevision::Sega3155246,
+        ] {
+            let (_, profile, clock_hz) =
+                sms_temporal_hardware_profile(region, revision)
+                    .unwrap_or_else(|error| panic!("{region}: {error}"));
+            assert_eq!(profile.revision, revision);
+            assert_eq!(clock_hz, expected_clock);
+        }
     }
 
-    assert!(sms_temporal_region_profile("unknown").is_err());
+    // Compatibility constructors retain the legacy SMS1 profile.
+    let (_, legacy_default, _) =
+        sms_temporal_region_profile("europe").expect("legacy regional profile");
+    assert_eq!(legacy_default.revision, SmsVdpRevision::Sega3155124);
+    assert!(sms_temporal_hardware_profile("unknown", SmsVdpRevision::Sega3155246).is_err());
 }
