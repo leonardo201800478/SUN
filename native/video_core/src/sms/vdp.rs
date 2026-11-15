@@ -1776,7 +1776,8 @@ fn render_scanline_for_revision_with_evaluation(
 mod tests {
     use super::super::profile::{SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, VideoStandard};
     use super::{
-        COLLISION, CRAM_SIZE, FRAME_SIZE, LINE_TSTATES, OVERFLOW, SMS_VDP_WIDTH, SmsVdp,
+        COLLISION, CRAM_SIZE, FRAME_SIZE, LINE_TSTATES, OVERFLOW, SMS_HINT_TSTATE,
+        SMS_VBLANK_FLAG_TSTATE, SMS_VINT_IRQ_TSTATE, SMS_VDP_WIDTH, SmsVdp,
         StereoPresentation, TMS_PALETTE, VBLANK, evaluate_mode4_sprites, render_legacy_scanline,
         render_legacy_scanline_span, render_legacy_sprites, render_legacy_sprites_span,
         render_scanline, render_scanline_for_revision,
