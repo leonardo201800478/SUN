@@ -79,7 +79,7 @@ O perfil é selecionado pelo host antes de criar a máquina. O host fornece byte
 - Memory Control deve habilitar o slot do cartucho e a RAM conforme o modelo.
 - O perfil atual usa $AB; esse byte é uma escolha de boot direto/pós-BIOS do emulador, não evidência de que a BIOS foi executada.
 - RAM, VDP e I/O devem usar valores de power-on documentados quando existirem; caso contrário, um valor determinístico do emulador deve ser explicitamente classificado como policy.
-- SP, AF/BC/DE/HL, alternativos e IX/IY não podem ser declarados valores universais do Z80 após RESET. Não forçar SP=$DFF0/$DFF8/$DFFF sem perfil sustentado.
+- SP, AF/BC/DE/HL, alternativos e IX/IY não podem ser declarados valores universais do Z80 após RESET. BIOS SMS v1.3 define SP=$DFF0 por software; SMS Official Docs recomenda DFF8 para software geral. Não forçar nenhum desses valores globalmente.
 - O boot direto não pode copiar silenciosamente efeitos da BIOS para RAM, VDP ou PSG. Em particular, não gravar artificialmente o latch $3E em $C000 para simular uma BIOS que não executou.
 
 O perfil direto é útil para desenvolvimento e para emuladores sem BIOS, mas deve declarar suas limitações de fidelidade.
@@ -94,7 +94,7 @@ O perfil direto é útil para desenvolvimento e para emuladores sem BIOS, mas de
 - A BIOS deve ser executada pela CPU compartilhada, barramento temporal e MachineScheduler. Não executar rotinas BIOS atomicamente na GUI ou no host.
 - O suporte da PR #908 limita-se a BIOS convencional de 8 KiB no perfil SMS1. Não declarar SMS2 compatível sem modelar e validar a arbitragem correspondente.
 
-A documentação SMS Power descreve, em alto nível, execução inicial da BIOS em $0000, cópia de uma rotina para RAM em $C700, sondagem de slots e transferência para o cartucho. O disassembly público da BIOS v1.3 confirma `DI`, `IM 1`, `SP=$DFF0`, inicialização VDP, mute/reset PSG, limpeza RAM, bumper/jingle e handoff por `$AB`/`$C000`. Esses efeitos são específicos dessa BIOS; a sequência byte a byte deve ser validada contra o hash da imagem executada.
+A documentação SMS Power descreve, em alto nível, execução inicial da BIOS em $0000, cópia de uma rotina para RAM em $C700, sondagem de slots e transferência para o cartucho. O disassembly público da BIOS v1.3 confirma `DI`, `IM 1`, `SP=$DFF0`, inicialização VDP, mute/reset PSG, limpeza RAM, bumper/jingle e handoff por `$AB`/`$C000`. A imagem pública de referência tem SHA-256 `477617917a12a30f9f43844909dc2de6e6a617430f5c9a36306c86414a670d50`. Esses efeitos são específicos dessa BIOS; a sequência byte a byte deve ser validada contra o hash da imagem executada.
 
 ### 4.3 Handoff da BIOS
 
@@ -112,7 +112,7 @@ A BIOS v1.3 não inicializa os registradores de paginação antes da sondagem; o
 
 ### 4.4 Reset e botão físico
 
-**Botão RESET físico:** no Master System que possui esse botão, ele é uma entrada de software lida no port `$DD` (bit 4 ativo em nível baixo); não aciona diretamente o pino RESET do Z80. A baseline possui `SmsInputState::reset_pressed` e `SmsIo::read_dd()`, mas o perfil de I/O ainda não distingue modelos que não possuem botão físico. O BIOS/jogo consulta a entrada e decide como reagir. Não reconstruir a máquina ao pressionar esse bit.
+**Botão RESET físico:** no Master System que possui esse botão, ele é uma entrada de software lida no port `$DD` (bit 4 ativo em nível baixo); não aciona diretamente o pino RESET do Z80. A BIOS v1.3 tem um handler de software para essa entrada. A baseline possui `SmsInputState::reset_pressed` e `SmsIo::read_dd()`, mas o perfil de I/O ainda não distingue modelos que não possuem botão físico. O BIOS/jogo consulta a entrada e decide como reagir. Não reconstruir a máquina ao pressionar esse bit.
 
 **RESET do Z80:** o manual Zilog especifica RESET ativo por pelo menos três ciclos completos de clock; reinicia PC, I, R e controle de interrupções/IM. Não define SP, registradores gerais ou IX/IY. O helper atual `SmsTemporalMachine::reset_cpu()` é atômico e não consome três T-states; não deve ser apresentado como pino RESET temporal.
 
