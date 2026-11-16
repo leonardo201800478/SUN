@@ -151,3 +151,22 @@ O teste z80_dd_fd_exception_matrix_f028.rs recebeu dois casos: NMI e INT são so
 - F-028: AUDIT_PARTIAL; matriz original 108 combinações PASS no SHA 98c1cf4; ledger de classificação de todos os 256 bytes e testes de INT/NMI entre DD/FD PASS no SHA b3320ea. A semântica completa por opcode/estado continua pendente.
 - Nenhuma alteração de produção da CPU, prefix FSM, microsequenciador, Scheduler ou runtime foi feita.
 - E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
+
+## 8. Atualização de continuidade — após a auditoria de cobertura
+
+**Main permanece em** `caa9a76a6f09d588155ea4e0cbc95f487f079143`. As alterações abaixo estão em PRs Draft e não são atribuídas à main.
+
+| PR | HEAD observado | CI | SMS Runtime | Escopo |
+|---|---|---|---|---|
+| #936 | `c77759796349e02ee1f31449ce2a616b8a16d5d0` | #43873956181 SUCCESS | #43873956227 SUCCESS | ROM v5.0 e atribuição F-021/F-022; matriz temporária microsequenciada foi removida desta branch e isolada na #944 |
+| #942 | `53aaf5c415eba3acc4704d1d2214a358755fad08` | #43871487677 SUCCESS | #43871487582 SUCCESS | Woodmass test 09 com assertions específicas RLD 117F e RRD 34AE, além do hash global |
+| #943 | `f6254bb56d861cc3ce3da08d08ebab032841b7e7` | A consultar no HEAD atual | A consultar no HEAD atual | Documentação, plano de execução e reconciliação 85 UsesIndex/167 Ignored |
+| #944 | `ef22ddc871e9790eb2fd65b1d4a70a6795c24872` | #43873337726 SUCCESS | #43873337682 SUCCESS | 64 cenários microsequenciados de repetição/IM2, incluindo Q/previous-Q até retomada |
+
+### Evidências novas consolidadas
+
+- **F-022:** PR #944 adiciona 64 cenários no microsequenciador: quatro opcodes × quatro padrões PC × dois BC × dois seeds Q. Verifica flags, Q/previous-Q na aposentadoria, aceitação IM2, PUSH AF/POP AF, EI/RETI e retomada. Snapshot/restore é exercitado nas fronteiras de barramento e T-state interno. O escopo é INT IM2; NMI e IM0/IM1 não foram cobertos.
+- **F-023:** o output Woodmass extraído no CI #43870800175 contém RLD `117F passed` e RRD `34AE passed`. O harness exige ambas as linhas individualmente e preserva o FNV-1 `F5AE5140`, 61×32, HALT 0x80E6 e 50.904.931 T-states. Os quatro dígitos são assinaturas da suíte, não valores literais de WZ.
+- **F-028:** os 85 bytes UsesIndex foram reconciliados: E3A1=9, E3A2=5, E4A=15, E4B=8, E4C=2, F-036=24, PR #680=6 e F-037=16. O gap residual está nos 167 Ignored: os testes E6 atuais são representativos e não provam fallback prefixado de todas as famílias BASE.
+
+Nenhuma dessas alterações altera CPU de produção, MachineScheduler ou runtime. Todas as PRs permanecem Draft e sem revisão independente. E7 IN_PROGRESS; E8 BLOCKED.
