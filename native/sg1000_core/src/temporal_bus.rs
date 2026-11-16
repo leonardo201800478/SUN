@@ -917,6 +917,49 @@ mod tests {
     }
 
     #[test]
+    fn port_read_samples_controller_after_request_start_at_completion() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
+        bus.set_joystick(1, 0xFE).unwrap();
+        bus.begin_request(request(11, Z80BusOperation::PortRead, 0x00DC, 4), 0)
+            .unwrap();
+
+        // Input is sampled when the scheduled transaction completes, not when
+        // the request is first queued.
+        bus.set_joystick(1, 0xFD).unwrap();
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected controller port-read completion");
+        };
+        assert_eq!(completion.data, Some(0xFD));
+        bus.acknowledge_completion(11).unwrap();
+    }
+
+    #[test]
+    fn vdp_status_port_read_observes_vblank_at_completion_deadline() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 1).unwrap();
+        let before_vblank = 228_u32 * 192 - 2;
+        bus.schedule_internal_cycle(99, before_vblank).unwrap();
+        let Some(Sg1000TemporalDispatch::InternalCycleComplete(_)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected pre-vblank internal-cycle completion");
+        };
+        bus.acknowledge_internal_completion(99).unwrap();
+        assert_eq!(bus.vdp().status() & 0x80, 0);
+
+        bus.begin_request(request(100, Z80BusOperation::PortRead, 0x0081, 4), 0)
+            .unwrap();
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected VDP status port-read completion");
+        };
+        // The VDP crosses into VBlank during the I/O cycle. The status read
+        // must observe and clear that event at the transaction deadline.
+        assert_eq!(completion.data.map(|status| status & 0x80), Some(0x80));
+        assert_eq!(bus.vdp().status() & 0x80, 0);
+        bus.acknowledge_completion(100).unwrap();
+    }
+
+    #[test]
     fn psg_port_write_is_committed_once_and_survives_completion_restore() {
         let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
         let deadline = bus
