@@ -722,8 +722,8 @@ A ausência de review no GitHub não prova que não houve inspeção fora do rep
 - [x] PR #951 integrada: previous-Q e WZ das formas simples LDI/LDD/CPI/CPD; CI #43890238681 e SMS Runtime #43890238056 PASS.
 - [x] PR #952 integrada: matriz WZ/MEMPTR por família e classificação de proveniência; Documentation patch hygiene e Rust quality PASS no CI #43890997152.
 - [x] PR #953: ambos os resultados condicionais e PC final exato para os 167 Ignored sob DD/FD; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
-- [ ] PR #954: WZ de IN/OUT imediato, RETN/RETI, IM0 RST e preservação IM1; aguardar CI e revisar a proveniência.
-- [ ] PR #954: IN/OUT imediato, WZ de RETN/RETI/RST e preservação de WZ em IM0/IM1; aguardar CI.
+- [x] PR #954: IN/OUT imediato, WZ de RETN/RETI/RST e preservação de WZ em IM0/IM1; CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS.
+- [ ] PR #955: asserção WZ para BASE EX (SP),HL; aguardar CI.
 - [x] Control flow WZ: condições tomadas/não tomadas e wrap em `z80_conditional_control_flow_coverage.rs`.
 - [x] IM2 WZ: PC vetorial observado em `snapshot_restore_e7_2e.rs`.
 - [x] Block repeat WZ: 64 cenários microsequenciados e quatro formas com snapshot/restore em cada fronteira.
