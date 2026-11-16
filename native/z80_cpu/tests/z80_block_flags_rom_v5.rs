@@ -13,8 +13,12 @@ use sega_z80_cpu::{Z80, Z80AlternateRegisters, Z80ArchitecturalState, Z80Registe
 const SNA_SIZE: usize = 49_179;
 const FRAME_TSTATES: u64 = 69_888;
 const INT_PULSE_TSTATES: u64 = 32;
-const MAX_TSTATES: u64 = 50_000_000;
-const MAX_STEPS: u64 = 12_000_000;
+// The ROM's six B-loop groups run 65 frame-synchronized cases each. Every
+// case includes a calibrated ~3,500-iteration LDIR delay (~73,500 T-states),
+// so the previous 50M budget stopped before the finite test sequence ended.
+// 80M leaves margin over the estimated ~61M T-state full run.
+const MAX_TSTATES: u64 = 80_000_000;
+const MAX_STEPS: u64 = 20_000_000;
 const LOG_AREA: usize = 0x8900;
 const B_LOOP_ITERATIONS: usize = 65;
 const B_LOOP_GROUPS: [[u8; 4]; 6] = [*b"OTIR", *b"OTIR", *b"OTDR", *b"OTDR", *b"INIR", *b"INDR"];
@@ -322,7 +326,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         );
         assert!(
             cpu.total_tstates <= MAX_TSTATES,
-            "Z80 block-flags ROM exceeded {MAX_TSTATES} T-states: PC={:04X} SP={:04X} AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} I={:02X} R={:02X} WZ={:04X} IFF1={} IFF2={} IM={} HALT={} INT={:?} caller={:04X} exit_sp={:04X} initial_pc={:04X} initial_sp={:04X} frames={} int_requests={} int_accepts={} output_bytes={} next_int={} pulse_end={:?} code={:02X?} output_tail={} output_progress={:?} recent_steps={:?}",
+            "Z80 block-flags ROM exceeded {MAX_TSTATES} T-states after {step_index} instructions: PC={:04X} SP={:04X} AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} I={:02X} R={:02X} WZ={:04X} IFF1={} IFF2={} IM={} HALT={} INT={:?} caller={:04X} exit_sp={:04X} initial_pc={:04X} initial_sp={:04X} frames={} int_requests={} int_accepts={} output_bytes={} next_int={} pulse_end={:?} code={:02X?} output_tail={} output_progress={:?} recent_steps={:?}",
             cpu.registers.pc,
             cpu.registers.sp,
             cpu.registers.a,
