@@ -1,6 +1,6 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Reconciliação atual:** `main` = `caa9a76a6f09d588155ea4e0cbc95f487f079143` (2026-11-16, após PRs #937–#939; as alterações posteriores não modificaram o runtime Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
+**Reconciliação atual:** `main` = `bf7e7584df421000d040a3ee057799a75bfeb3eb` (2026-11-16, após PR #935; PRs #937/#938 não alteraram o Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
@@ -531,7 +531,6 @@ Em cada execução, o log registra o comando explícito com `--ignored`, executa
 **Limite:** o CI da main documental `5f24e22...`, run [43831038791](https://github.com/leonardo201800478/sega-emulator/actions/runs/43831038791), marcou Z80 focused como SKIPPED. Para a main atual, a classificação é **NOT RUN**. Os resultados das PRs não são transferidos para essa SHA.
 
 F-028 permanece AUDIT_PARTIAL: os vetores cobrem o corpus validado, mas não substituem a auditoria integral de DD/FD, exceções, prefixos, HALT, PC/R, flags, Q/previous-Q e efeitos arquiteturais. E7 IN_PROGRESS; E8 BLOCKED.
-
 
 ## 31. F-028 — matriz dirigida de exceções DD/FD — PR #943 — 2026-11-16
 
