@@ -596,3 +596,16 @@ O ledger contém exatamente os 256 bytes possíveis após DD/FD. A classificaç�
 
 
 **Cobertura preexistente relacionada:** os testes unitários de cpu.rs já percorrem todos os 256 bytes BASE/DD/FD/CB/ED e os 256 subopcodes DDCB/FDCB para garantir que o executor não retorna erro; isso é smoke/classification, não prova semântica. O teste indexed-CB exaustivo em sms_core percorre todos os valores/carry para rotate/shift; BIT/RES/SET e cópias para registrador têm matrizes específicas, mas não formam uma prova semântica combinatória de todos os estados para todos os 256 subopcodes. O ledger e o novo teste completam a classificação explícita UsesIndex/Ignored/IndexedCB, não essa prova semântica.
+
+## 34. Estado pós-merge da matriz DD/FD — 2026-11-16
+
+**Main integrada:** `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`. PR #943 está MERGED pelo commit `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`. CI #43880197594 e SMS Debugger Runtime #43880197552 terminaram SUCCESS no HEAD `81d6f2fe955867dc16c5e80061524ea713c99c28`; o tree SHA é idêntico ao da main integrada (`9b13446b005b908d80607b8a258d87008db82433`).
+
+O ledger integral de 256 bytes e os testes de classificação e de fronteira INT/NMI DD/FD agora fazem parte da main. Isso fecha a enumeração da classificação efetiva, mas **não** fecha a semântica integral dos opcodes nem o comportamento temporal de todas as famílias.
+
+- 85 UsesIndex: reconciliados com E3A1/E3A2/E4A/E4B/E4C/F-036/#680/F-037, mas ainda exigem prova semântica por forma e estado.
+- 167 Ignored: exigem demonstração de fallback BASE sem refetch indevido, preservando os M1 e o custo dos prefixos.
+- IndexedCB, ED cancel-index e repetição DD/FD permanecem tratados pela FSM conforme o ledger; o ledger não é oracle externo.
+- Os testes NMI/INT, WAIT e snapshot/restore exercitam o microsequenciador Z80 diretamente; não substituem a integração temporal com MachineScheduler nem evidência independente de hardware.
+
+**Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Não reabrir E4A/E4B nem alterar CPU de produção sem falha reproduzível.

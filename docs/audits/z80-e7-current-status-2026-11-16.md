@@ -170,3 +170,21 @@ O teste z80_dd_fd_exception_matrix_f028.rs recebeu dois casos: NMI e INT são so
 - **F-028:** os 85 bytes UsesIndex foram reconciliados: E3A1=9, E3A2=5, E4A=15, E4B=8, E4C=2, F-036=24, PR #680=6 e F-037=16. O gap residual está nos 167 Ignored: os testes E6 atuais são representativos e não provam fallback prefixado de todas as famílias BASE.
 
 Nenhuma dessas alterações altera CPU de produção, MachineScheduler ou runtime. Todas as PRs permanecem Draft e sem revisão independente. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 9. Reconciliação pós-merge das PRs #936, #942, #943 e #944 — 2026-11-16
+
+**Baseline integrada:** `main` = `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`.
+
+As quatro PRs desta rodada estão fechadas e integradas:
+- #944 — merge commit `a3cc1edc0f94ca5da1850996d3bf164b0839a2e9`.
+- #936 — merge commit `3b85be47d1f07b7eaa25ea65299a0608e68761d4`.
+- #942 — merge commit `1a6f032861cebf3bf23867edec81ca08db97b064`.
+- #943 — merge commit `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`.
+
+A #943 foi validada nos workflows CI #43880197594 e SMS Debugger Runtime #43880197552, ambos SUCCESS no HEAD `81d6f2fe955867dc16c5e80061524ea713c99c28`. O merge commit final tem exatamente a mesma árvore Git do HEAD testado (`9b13446b005b908d80607b8a258d87008db82433`); portanto, o conteúdo integrado corresponde ao conteúdo validado. Jobs não relacionados foram SKIPPED e continuam NOT RUN.
+
+As sincronizações preservaram as alterações concorrentes nos documentos compartilhados. Não houve alteração de CPU, decoder, prefix FSM, microsequenciador de produção, MachineScheduler ou runtime nesta reconciliação.
+
+**Status técnico não muda com o merge:** F-022, F-023 e F-028 permanecem AUDIT_PARTIAL. O merge integra evidências e harnesses, não converte cobertura parcial em fechamento semântico. F-021 continua separado de F-022: os 390 B-loop records da ROM v5.0 são evidência de OTIR/OTDR/INIR/INDR e não devem ser atribuídos às oito formas LDI/LDD/CPI/CPD.
+
+**Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. A próxima etapa é reconciliar, no checklist mestre, cada lacuna residual e sua prova independente exigida antes de implementar novos testes ou tocar no runtime.

@@ -837,3 +837,16 @@ Relatório consolidado: [audits/z80-e7-current-status-2026-11-16.md](audits/z80-
 - A extensão não alterou código de produção, CPU, decoder, microsequenciador, MachineScheduler ou runtime.
 - Não transferir o PASS anterior de #43859000666/#43859000676 ao código posterior.
 - E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+## 51. Estado pós-merge das evidências E7 — 2026-11-16
+
+**Main integrada:** `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`.
+
+PRs #936 (F-022), #942 (F-023), #943 (F-028) e #944 (cenários microsequenciados de repetição/INT IM2) estão MERGED. A #943 foi testada nos workflows CI #43880197594 e SMS Runtime #43880197552, ambos SUCCESS no HEAD `81d6f2fe955867dc16c5e80061524ea713c99c28`; o merge commit `fbd70c4d668902d1869d7cfbdfde5c880c9b3857` possui a mesma árvore Git do HEAD testado.
+
+- **F-022 — AUDIT_PARTIAL:** ROM v5.0 e os cenários microsequenciados da #944 estão integrados. A distinção F-021/F-022 permanece obrigatória: os 390 B-loop records pertencem a OTIR/OTDR/INIR/INDR (F-021). Ainda é necessário reconciliar as comparações principais da ROM com LDI/LDD/CPI/CPD e demonstrar a cobertura de flags/iteração nos casos simples e microsequenciados, WAIT e interrupções.
+- **F-023 — AUDIT_PARTIAL:** Woodmass MEMPTR test 09 está integrado e foi aprovado no HEAD da #942; assinatura FNV-1 `F5AE5140`, 50.904.931 T-states, HALT `0x80E6`, saída 61×32. A suíte não fecha a matriz de WZ/MEMPTR, X/Y e temporização para todas as famílias e condições.
+- **F-028 — AUDIT_PARTIAL:** ledger de 256 bytes, classificação UsesIndex/Ignored/IndexedCB e testes de INT/NMI entre DD/FD estão integrados. CI #43880197594 e SMS Runtime #43880197552 passaram no HEAD #943; a árvore é idêntica à main integrada. O ledger classifica o dispatch, não prova semântica integral dos 85 UsesIndex nem fallback temporal dos 167 Ignored.
+- **#944 — evidência parcial complementar:** 64 cenários microsequenciados de repetição/INT IM2 permanecem integrados; não cobrem NMI nem IM0/IM1.
+
+Os estados F-022/F-023/F-028 não são promovidos a CLOSED. E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED. Não reabrir famílias já fechadas sem regressão reproduzível.
