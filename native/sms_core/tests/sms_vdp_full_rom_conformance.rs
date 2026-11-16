@@ -58,7 +58,7 @@ type InternalCycleTrace = (
     bool,
     bool,
 );
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct BusTrace {
     timestamp: u128,
     operation: Z80BusOperation,
