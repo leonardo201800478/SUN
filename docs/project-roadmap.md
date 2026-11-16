@@ -1,7 +1,7 @@
 # Roadmap mestre — Sega Emulator
 
 **Revisão:** 2026-11-16
-**Baseline consultada:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
+**Baseline consultada:** `main` `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
 **Autoridade temporal:** MachineScheduler.
 **Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
@@ -37,8 +37,8 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 ### P4 — escopo inicial de acessórios
 
 1. **YM2413:** emular o perfil de Master System japonês com YM2413 integrado e mistura simultânea com SN76489. Chip opcional por configuração Auto/On/Off, independente da região; sem emular Mark III FM Sound Unit como módulo externo.
-2. **Sega Card / My Card:** mídia de ROM, slot, seleção e arbitragem com cartucho via port $3E, respeitando diferenças Mark III/SMS.
-3. **Sega Card/My Card:** manter carregamento da mídia e o slot nativo SMS/Mark III quando necessário. Excluir Card Catcher C-1000; o adaptador físico não é necessário para carregar software no core SG-1000.
+2. **Sega Card/My Card:** mídia de software; preservar carregamento de cartões e slots nativos SMS/Mark III, com seleção/arbitragem via $3E conforme a geração. Não confundir mídia com adaptador.
+3. **Card Catcher C-1000:** adaptador físico histórico para SG-1000/SC-3000, excluído da implementação. Não transportar lógica do adaptador para o core SG-1000.
 4. **SegaScope/3D Glasses:** emular protocolo $FFF8–$FFFB e obturadores sincronizados ao VDP. A interface Video adotará o modelo simples do Gearsystem: `Both Eyes / OFF`, `Only Left Eye` e `Only Right Eye`. A seleção é de apresentação e não altera a temporização do hardware; modos adicionais não fazem parte do escopo inicial.
 5. **Periféricos DE-9:** Paddle, Sports Pad e Light Phaser, além de Rapid Fire quando suportado pelo perfil de hardware.
 6. **Expansões e interfaces:** auditar pinouts, sinais, arbitragem e compatibilidade por console/revisão antes de implementar.
@@ -73,14 +73,14 @@ O boot por BIOS convencional de 8 KiB está em implementação candidata na PR #
 
 ## 5. Estado operacional da baseline
 
-- Main SHA: `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
-- CI associado à baseline: run #43945796678 e SMS Runtime #43945796477. Quatro checks SUCCESS; 14 SKIPPED. PASS inclui Rust quality/unit, Z80 focused, change impact e SMS Runtime Release format/Clippy/tests. Os jobs SKIPPED não são validação.
+- Main SHA: `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
+- CI push pós-merge da baseline: run [#43962737265](https://github.com/leonardo201800478/sega-emulator/actions/runs/43962737265). Change impact, Documentation patch hygiene e Rust quality/unit PASS; workspace, Z80, Scheduler, SMS1 VDP, CPAL, SDL3, Slint/WGPU/Vulkan e demais jobs de runtime foram SKIPPED. Não há validação de runtime pós-merge nesta execução.
 - Árvore atual: 285 documentos Markdown sob `docs/`; inventário estrutural anterior não equivale à leitura e reconciliação semântica integral dos 285 arquivos.
 - Road Rash: usuário reportou teste físico OK; retirar da lista de defeitos abertos, sem inventar SHA/relatório.
 - Alinhamento de sprites SMS: usuário reportou corrigido; não manter como defeito aberto sem regressão.
 - BIOS boot: validação física pendente.
 - Host gráfico anterior: não está em uso ativo.
-- SG-1000: ainda precisa concluir integração temporal na arquitetura existente.
+- SG-1000: a main ainda não integra a máquina ao Scheduler. O coordenador registra apenas Z80; o barramento rejeita PortRead/PortWrite; Sg1000Machine ainda usa cpu.step() e avança VDP/PSG em fronteiras de instrução. PR #981 (HEAD `2f35c334d57dd381ea271f44067684348303eb94`, 13/0) é candidata P2.1 não integrada; CI #43969683876 passou nos jobs aplicáveis. Próxima fatia: P2.2, integrar Z80MicroSequencer/M1/T4 no próprio Sg1000Machine, com snapshot composto e replay contínuo/em blocos.
 
 ## 6. Método, evidência e gates
 
