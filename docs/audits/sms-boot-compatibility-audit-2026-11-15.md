@@ -208,7 +208,7 @@ O Z80 User Manual UM008011-0816 especifica que o sinal RESET limpa o Program Cou
 
 A implementação de `Z80MicroSequencer::reset()` preserva os registradores gerais, alternativos, IX/IY e SP, e reinicia PC/I/R e o controle de interrupções. Isso é coerente com a distinção entre o pino RESET e o estado default de construção do emulador.
 
-**Não alterar o Z80 para forçar SP=$DFF0** nesta investigação. Há valores diferentes em fontes de naturezas diferentes: SMS Official Docs recomenda SP=$DFF8 para compatibilidade; o caminho normal do SmsVdpTest executa `LD SP,$DFF0`; uma alegação de BIOS SP=$DFFF está marcada como não confirmada no documento de engenharia reversa do projeto; o Z80 RESET não define SP. Nenhum desses valores é prova de um valor universal de power-on. A stack deve ser inicializada pelo firmware/software quando necessário, e o perfil de boot deve preservar a incerteza em vez de inventar um estado físico.
+**Não alterar o Z80 para forçar SP globalmente.** As fontes descrevem contextos distintos: SMS Official Docs recomenda SP=$DFF8 para software por compatibilidade; BIOS SMS v1.3 executa explicitamente `LD SP,$DFF0`; o `WarmReset` do SmsVdpTest também usa `$DFF0`; a antiga alegação de BIOS SP=$DFFF permanece sem suporte. O Z80 RESET não define SP. O valor de BIOS v1.3 é comprovado para aquela BIOS, mas não é um valor universal de power-on. O perfil deve executar a BIOS ou declarar uma policy direta; não impor DFF0 a todos os modelos.
 
 ### 2.4 Instrumentação de boot já existente
 
@@ -324,6 +324,10 @@ Decisão: não fazer merge nem duplicar a implementação. A PR será usada como
 
 Nenhum desses arquivos de runtime foi alterado nesta etapa. O próximo passo é fechar a inspeção dos chamadores host, localizar o código exato da rotina de dump do SmsVdpTest e obter os binários locais para reprodução/hash antes de escolher a correção.
 
+
+### Identidade pública da BIOS SMS v1.3
+
+O catálogo RetroBIOS/No-Intro identifica a BIOS US/Europe v1.3 de 8 KiB com SHA-256 `477617917a12a30f9f43844909dc2de6e6a617430f5c9a36306c86414a670d50`, SHA-1 `c315672807d8ddb8d91443729405c766dd95cae7` e CRC32 `0072ed54`. Isso é uma referência para verificar o arquivo efetivamente usado, não prova de que o Ares carregou essa imagem. <Cite ref="turn872606search2" />
 
 ## 13. Fontes consultadas e natureza da evidência
 
