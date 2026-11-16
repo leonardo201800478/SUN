@@ -247,10 +247,16 @@ fn remove_prefix_m1_and_normalize_stream_addresses(
     opcode: u8,
     initial_pc: u16,
 ) -> Vec<TraceEvent> {
-    let prefixed_return_address = initial_pc.wrapping_add(if matches!(
-        opcode,
-        0xC4 | 0xCC | 0xD4 | 0xDC | 0xE4 | 0xEC | 0xF4 | 0xFC | 0xCD
-    ) { 4 } else { 2 });
+    let prefixed_return_address = initial_pc.wrapping_add(
+        if matches!(
+            opcode,
+            0xC4 | 0xCC | 0xD4 | 0xDC | 0xE4 | 0xEC | 0xF4 | 0xFC | 0xCD
+        ) {
+            4
+        } else {
+            2
+        },
+    );
     let high_byte_wrap = prefixed_return_address & 0x00FF == 0;
     let mut events = trace.into_iter();
     assert_eq!(
@@ -283,7 +289,7 @@ fn remove_prefix_m1_and_normalize_stream_addresses(
 
             // CALL/conditional CALL/RST push the address after the complete
             // instruction. The ignored prefix shifts that return address by
-            // one byte; normalize only its low-byte stack write (SP-2).
+            // one byte; normalize both bytes of the return-address word on the stack.
             if *kind == BusTraceKind::MemoryWrite && CALL_RST_OPCODES.contains(&opcode) {
                 if *address == 0x5676 {
                     *write_value = write_value.map(|value| value.wrapping_sub(1));
@@ -477,7 +483,6 @@ fn all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc() {
         }
     }
 }
-
 
 #[test]
 fn ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address() {
