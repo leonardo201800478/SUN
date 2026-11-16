@@ -617,3 +617,42 @@ A observação X/Y = bits 5/3 do novo A é testada como comportamento de referê
 - Os 34.000 vetores SingleStepTests DD/FD permanecem vinculados ao HEAD validado da PR #692 (`1606556814a8746a445d3ad32fc948ab97f0fde5`); não foram reexecutados nem reatribuídos ao HEAD atual da main.
 - E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED até fechamento demonstrável de E7.
 - Nenhuma alteração de implementação Z80 foi integrada pelas PRs #736 ou #843; #736 é test-only e #843 adiciona testes de integração temporal SMS.
+
+
+## 43. Reconciliação E7 após PRs #929 e #930 — 2026-11-16
+
+**Main auditada:** `6c963d040a4f293c259c19fd09e5e18f2d67be84`.
+
+### E7 — HALT M1, NMI e integração temporal SMS
+
+- **PR #929:** integrada por squash no commit `de5395c1c6e8115324fe23a2086cdcbd9121d1bb`.
+- **Teste:** `native/sms_core/tests/z80_halt_nmi_e7.rs`, `sms_temporal_nmi_asserted_during_halt_m1_is_sampled_at_t4_and_restores_exactly`.
+- O caso inicia o M1 repetido de HALT antes de solicitar NMI; agenda o barramento e solicita NMI enquanto o M1 está em andamento. Verifica a amostragem na fronteira T4, snapshot/restore, equivalência da retomada, serviço NMI de 11T, PC=$0066, SP=$C0FE, refresh R=$03, bytes empilhados, tempo da máquina e igualdade do trace.
+- **CI da PR:** HEAD `66409f3489ad1932cc57f8884a2548afca8fa293`; CI #43813686879 PASS e SMS Runtime #43813686809 PASS.
+- **CI pós-merge:** main `de5395c1c6e8115324fe23a2086cdcbd9121d1bb`; CI #43814278038 PASS e SMS Runtime #43814278065 PASS.
+- **Limite:** esta evidência fecha o cenário específico de NMI solicitado durante HALT M1 no worker temporal SMS. Não declara cobertura integral de todas as combinações HALT/INT/NMI, clones ou TEMPORAL_PASS global.
+
+### F-022 — matriz microsequenciada LDI/LDD/CPI/CPD
+
+- **PR #930:** integrada por squash no commit `6c963d040a4f293c259c19fd09e5e18f2d67be84`.
+- **HEAD da PR:** `c96d39f2a7c3f53a44a44c425f3d34b459eb0a81`.
+- **Cobertura adicionada:** 4 opcodes × 256 valores de A × 256 bytes de memória × BC inicial 0/1/2 = **786.432 execuções** no microsequenciador retomável. O oráculo de flags é calculado diretamente das regras de instrução, sem chamar helpers de produção ou o executor atômico.
+- Verifica flags preservadas/substituídas, A, BC, DE/HL, PC, refresh, Q e write-back/não write-back. Inclui WAIT e snapshot encode/decode + restore em cada fronteira de barramento e ciclo interno.
+- **CI da PR:** HEAD exato #43815302707 PASS (fmt, Clippy, testes Z80/SMS/SG-1000, 34.000 vetores externos DD/FD); SMS Runtime #43815302680 PASS (fmt, Clippy, testes e build Windows x64).
+- **CI pós-merge:** main exata `6c963d040a4f293c259c19fd09e5e18f2d67be84`; CI #43815538834 PASS e SMS Runtime #43815538794 PASS.
+- **Limites:** WZ/MEMPTR não é promovido por esta matriz. A execução integral do Z80 Block Instruction Flags Test v5.0 no core e a validação física SMS continuam NOT RUN; CMOS/clones permanecem NOT_VERIFIED. **F-022 permanece AUDIT_PARTIAL**, apesar da nova cobertura microsequenciada.
+
+### F-023 — nova fonte de teste MEMPTR derivada de hardware
+
+- Foi identificada a suíte pública [raxoft/z80test](https://github.com/raxoft/z80test), cujo README declara que os resultados esperados foram obtidos em um ZX Spectrum 48K com Zilog Z80 real.
+- A variante `z80memptr` executa `BIT 0,(HL)` após cada instrução para tornar observáveis flags relacionadas ao MEMPTR/WZ. Os grupos `RLD` e `RRD` registram CRC MEMPTR esperado `0x670a95ea` cada em `src/tests.asm`.
+- **Limite explícito da própria suíte:** o autor informa que os vetores atuais não foram projetados especificamente para estressar MEMPTR e podem deixar defeitos sem detecção. Portanto, é uma fonte complementar de evidência hardware-derived, não uma prova isolada nem fechamento de WZ.
+- Integração/execução da variante MEMPTR no core Sega Emulator: NOT RUN. X/Y e WZ ainda não têm evidência física específica e independente no projeto. CMOS/clones permanecem NOT_VERIFIED.
+
+### Estado E7 após a reconciliação
+
+- F-022: AUDIT_PARTIAL — matriz atômica e microsequenciada ampliadas; ROM v5.0 completo e hardware SMS pendentes.
+- F-023: AUDIT_PARTIAL — cobertura exaustiva de transformação/flags documentadas; X/Y e WZ sem prova física específica; suíte MEMPTR externa identificada, ainda não executada no core.
+- F-028: AUDIT_PARTIAL — auditoria residual de exceções DD/FD, Q/previous-Q e efeitos observáveis ainda pendente.
+- E7.7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED até o fechamento formal e demonstrável de E7.
+- Nenhuma alteração de implementação do Z80 ou do MachineScheduler foi necessária nas PRs #929 e #930.
