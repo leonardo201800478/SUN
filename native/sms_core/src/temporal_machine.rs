@@ -410,6 +410,7 @@ impl SmsTemporalMachine {
     }
 
     /// Construct an SMS temporal machine with BIOS firmware and explicit cartridge SRAM.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_hardware_profile_and_bios_and_sram_size(
         rom: impl Into<Vec<u8>>,
         bios: Vec<u8>,
