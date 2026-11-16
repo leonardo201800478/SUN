@@ -858,3 +858,59 @@ Os estados F-022/F-023/F-028 não são promovidos a CLOSED. E7 permanece IN_PROG
 O teste `z80_dd_fd_ignored_fallback_matrix_f028.rs` percorre 167 bytes × DD/FD, 334 execuções prefixadas. Verifica fetches M1 em PC 0 e 1, nenhum refetch, R incrementado por dois e `T_prefixed = T_BASE + 4`. O teste passou 1/1 no CI #43882287467. Rust quality/unit também SUCCESS; SMS Runtime Release format, Clippy, testes e build Windows x64 SUCCESS no #43882287458.
 
 **F-028 permanece AUDIT_PARTIAL.** A matriz não prova todos os efeitos arquiteturais nem requests/endereço/ordem de operandos por família; WAIT/snapshot por classe e oracle independente continuam pendentes. Não promover a CLOSED com base em cobertura estrutural. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 53. F-028 — diferencial de requests dos 167 bytes Ignored — 2026-11-16
+
+**PR #948 MERGED:** `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`. **HEAD validado:** `74715cbc777acc6625745489a4dfa495cde18ee9`.
+
+| Verificação | Resultado |
+|---|---|
+| Inventário | 167 bytes efetivos Ignored |
+| DD + FD | 334 execuções prefixadas |
+| Trace BASE × prefixado | Tipo/ordem de request, endereço, base T-states e ciclos internos |
+| M1/refetch | Prefixo em PC 0, terminal em PC 1, sem refetch |
+| R/custo | R +2; BASE +4T |
+| CI Z80 focused #43884118254 | PASS |
+| Rust quality/unit no mesmo run | PASS |
+| SMS Runtime #43884118298 | PASS; inclui build Windows x64 |
+| Jobs não relacionados | SKIPPED; não contar como PASS |
+| Workflow push pós-merge | NOT VERIFIED/NOT RUN |
+| Review independente GitHub | Não registrado |
+
+O trace não compara valores de leitura, payloads de escrita nem estado arquitetural final; usa leituras sintéticas `0x5A`, não aplica WAIT/snapshot por classe e compara contra o próprio caminho BASE. O normalizador de endereços ainda trata todo `MemoryRead < 0x0100` como stream sem provar essa classificação. A matriz é evidência estrutural, não oracle semântico independente.
+
+**F-028 permanece AUDIT_PARTIAL.** Endurecer a classificação stream/data, comparar payloads/estado final, cobrir WAIT/snapshot por família e obter revisão adversarial independente. E7 IN_PROGRESS; E8 BLOCKED.
+
+### Gate transversal de revisão independente — 2026-11-16
+
+Auditoria GitHub: #936/#942/#943/#944/#945/#946/#947/#948 não possuem review submetido nem review threads. #946 e #948 têm comentários Codex de falha por limite de uso. Não há evidência auditável de revisão independente desses merges no repositório. Os merges são testes/documentação e não alteram produção, mas a revisão adversarial continua um gate BLOCKED para E7; nenhum F-022/F-023/F-028 pode ser promovido a CLOSED e E8 permanece BLOCKED.
+
+
+## Addendum — 16/11/2026, PRs #950–#952
+
+- **F-028:** PR #950 integrada em `45b40755e46aef752d58f571de856ae25ff9e81c`; CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD com árvore idêntica ao merge. Cobertura adicional de 167 Ignored × DD/FD com estado, payloads, WAIT e snapshot/restore. PC final exato por condições complementares foi integrado na PR #953; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
+- **F-022:** PR #951 integrada em `b9d18f48466e3647aec73207f38c416bfef2b3dc`; CI #43890238681 e SMS Runtime #43890238056 PASS. previous-Q e WZ explicitamente assertados para LDI/LDD/CPI/CPD.
+- **F-023:** PR #952 integrada em `564074366fdc9bad59895163c8501134e88cce99`; matriz WZ/MEMPTR por família documentada em `docs/audits/z80-e7-memptr-family-matrix-2026-11-16.md`. As lacunas restantes de evidência independente para regras WZ não documentadas permanecem; a cobertura temporal de repetição (64 cenários micro + quatro formas com snapshot/restore) já está demonstrada. PR #954 integrou asserções WZ de I/O e interrupção; CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS. A única asserção WZ de família ainda pendente é BASE EX (SP),HL na PR #955.
+- **E7: IN_PROGRESS. E8: BLOCKED.** Não marcar as frentes como CLOSED.
+
+## Reconciliação após PR #955 — 16/11/2026
+
+A PR #955 foi integrada na main pelo commit `67f4149e1933d18ffa5201da66ca6ff46c598e32`. O diff é exclusivamente test-only: quatro linhas de assertion em `native/z80_cpu/src/cpu.rs`, no teste `exchange_stack_hl_and_di_ei_update_state`, verificando `cpu.wz == 0xABCD` após BASE `EX (SP),HL`. Não houve alteração de produção, decoder, microsequenciador, Scheduler, SMS ou SG-1000.
+
+Validação no HEAD exato da PR #955 (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
+- CI #43897766618: PASS — Z80 focused validation, incluindo rustfmt, Clippy, testes Z80/SMS/SG-1000, fixtures SingleStepTests DD/FD, Z80 Block Instruction Flags v5.0 e Woodmass MEMPTR; Rust quality/unit regression PASS.
+- SMS Debugger Runtime #43897766471: PASS — formatação, Clippy Release, testes SMS Runtime e build Release Windows x64.
+- SMS debugger Windows Release validation: SKIPPED. Não contar como PASS; o workflow concluiu SUCCESS porque esse job condicional não era aplicável ao diff.
+- Workflow push pós-merge no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`: não localizado na consulta de runs; classificar NOT_RUN/NOT_VERIFIED, não PASS.
+
+A matriz WZ/MEMPTR agora possui assertion dirigida para BASE `EX (SP),HL`, além das coberturas IX/IY já existentes. Isso fecha a pendência específica de teste dessa instrução, mas não declara F-023 CLOSED: permanecem a revisão de consistência da matriz completa, a proveniência das regras e a revisão adversarial transversal.
+
+Estado após a integração:
+- F-023: AUDIT_PARTIAL — lacuna específica BASE `EX (SP),HL` coberta; revisão integral e reconciliação ainda necessárias.
+- F-028: IN_PROGRESS — manter limites e lacunas documentados; não inferir fechamento a partir das matrizes.
+- F-022: IN_PROGRESS — manter separação de F-021 e validar integralmente as oito formas.
+- Temporalidade/Scheduler: NOT_VERIFIED como fechamento E7 até demonstração integrada de determinismo e equivalência contínua/em blocos.
+- E7: IN_PROGRESS.
+- E8/ZEXDOC/ZEXALL: BLOCKED.
+
+A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.

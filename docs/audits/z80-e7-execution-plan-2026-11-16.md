@@ -140,3 +140,45 @@ A matriz estrutural não fecha a semântica. Próximo trabalho deve decompor os 
 Para cada família, comparar explicitamente o caminho BASE com DD e FD: opcode terminal consumido uma vez, endereços e ordem dos requests, valores transferidos, efeitos arquiteturais e custo adicional de 4T. WAIT e snapshot/restore devem ser aplicados em cada classe de request, não apenas no M1. Se um opcode não for coberto pelo executor ou se o comportamento não tiver referência independente, registrar NOT_IMPLEMENTED/NOT_VERIFIED; não inferir PASS pela classificação do ledger.
 
 Não alterar CPU/decoder/FSM/microsequenciador de produção sem uma falha reproduzível. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+## Atualização pós-merge — PR #948 request-trace diferencial — 2026-11-16
+
+**Main:** `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`. **HEAD testado:** `74715cbc777acc6625745489a4dfa495cde18ee9`. CI Z80 focused #43884118254 e SMS Runtime #43884118298 SUCCESS nos jobs aplicáveis.
+
+A nova matriz compara a sequência de requests BASE × DD/FD para os 167 bytes efetivos Ignored: tipo, endereço, duração base e ciclos internos, além de M1/refetch, R e custo +4T. Ela não compara payloads, valores lidos ou estado final; leituras são sintéticas, e WAIT/snapshot por classe continuam ausentes.
+
+O normalizador de memória abaixo de `0x0100` ainda não prova que o endereço pertence ao stream. O fixture atual mantém os endereços de dados esperados acima dessa página, mas a hipótese deve virar asserção ou ser substituída por classificação explícita via PC no request.
+
+**Próximo recorte:** normalização stream/data robusta; payloads e efeitos arquiteturais por família; WAIT/snapshot por classe; oracle independente e revisão adversarial. Nenhuma alteração de CPU/decoder/FSM/microsequenciador de produção é autorizada por esta evidência.
+
+F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+
+## Atualização operacional — 16/11/2026 (pós #950–#952)
+
+- P0 recebeu a matriz #950 para payloads, estado arquitetural, WAIT e snapshot/restore nos 167 fallbacks. A PR #953 integrou as duas fixtures condicionais e o PC final exato; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
+- P1 recebeu as asserções previous-Q e WZ nas quatro formas simples de bloco pela #951. LDI/LDD preservam WZ; CPI/CPD alteram WZ em ±1.
+- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow, IM2, IN/OUT imediato, IM0/IM1, RETN/RETI e RST possuem testes WZ rastreáveis após a PR #954 (CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS). A única lacuna de teste identificada na matriz é a asserção BASE EX (SP),HL da PR #955.
+- Não reimplementar UsesIndex nem iniciar E8. Manter F-028/F-022/F-023 abertas até passar a PR #955 e concluir a revisão adversarial documentada.
+
+## Reconciliação após PR #955 — 16/11/2026
+
+A PR #955 foi integrada na main pelo commit `67f4149e1933d18ffa5201da66ca6ff46c598e32`. O diff é exclusivamente test-only: quatro linhas de assertion em `native/z80_cpu/src/cpu.rs`, no teste `exchange_stack_hl_and_di_ei_update_state`, verificando `cpu.wz == 0xABCD` após BASE `EX (SP),HL`. Não houve alteração de produção, decoder, microsequenciador, Scheduler, SMS ou SG-1000.
+
+Validação no HEAD exato da PR #955 (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
+- CI #43897766618: PASS — Z80 focused validation, incluindo rustfmt, Clippy, testes Z80/SMS/SG-1000, fixtures SingleStepTests DD/FD, Z80 Block Instruction Flags v5.0 e Woodmass MEMPTR; Rust quality/unit regression PASS.
+- SMS Debugger Runtime #43897766471: PASS — formatação, Clippy Release, testes SMS Runtime e build Release Windows x64.
+- SMS debugger Windows Release validation: SKIPPED. Não contar como PASS; o workflow concluiu SUCCESS porque esse job condicional não era aplicável ao diff.
+- Workflow push pós-merge no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`: não localizado na consulta de runs; classificar NOT_RUN/NOT_VERIFIED, não PASS.
+
+A matriz WZ/MEMPTR agora possui assertion dirigida para BASE `EX (SP),HL`, além das coberturas IX/IY já existentes. Isso fecha a pendência específica de teste dessa instrução, mas não declara F-023 CLOSED: permanecem a revisão de consistência da matriz completa, a proveniência das regras e a revisão adversarial transversal.
+
+Estado após a integração:
+- F-023: AUDIT_PARTIAL — lacuna específica BASE `EX (SP),HL` coberta; revisão integral e reconciliação ainda necessárias.
+- F-028: IN_PROGRESS — manter limites e lacunas documentados; não inferir fechamento a partir das matrizes.
+- F-022: IN_PROGRESS — manter separação de F-021 e validar integralmente as oito formas.
+- Temporalidade/Scheduler: NOT_VERIFIED como fechamento E7 até demonstração integrada de determinismo e equivalência contínua/em blocos.
+- E7: IN_PROGRESS.
+- E8/ZEXDOC/ZEXALL: BLOCKED.
+
+A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
