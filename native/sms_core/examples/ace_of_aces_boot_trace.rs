@@ -27,11 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let rom_path = &args[1];
     let region = args.get(2).map(String::as_str).unwrap_or("europe");
+    let bios_path = args.get(5).map(String::as_str);
     let max_instructions = args
         .get(3)
         .map(|value| value.parse::<usize>())
         .transpose()?
-        .unwrap_or(5_000);
+        .unwrap_or(if bios_path.is_some() { 100_000 } else { 5_000 });
     let trace_path = args
         .get(4)
         .map(String::as_str)
@@ -45,7 +46,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let rom = fs::read(rom_path)?;
-    let bios_path = args.get(5).map(String::as_str);
     let bios = if let Some(path) = bios_path {
         let image = fs::read(path)?;
         if image.len() != 0x2000 {
@@ -216,7 +216,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
             break;
         }
-    }
 
         // BIOS boot: retain 64 cartridge instructions after the handoff so
         // the trace includes the first real cartridge code path.
