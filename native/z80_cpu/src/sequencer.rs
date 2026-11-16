@@ -13736,19 +13736,19 @@ mod ed_block_transfer_repeat_interrupt_tests {
         }
     }
 
-    fn initial_state(opcode: u8) -> Z80ArchitecturalState {
+    fn initial_state(opcode: u8, pc: u16, initial_bc: u16) -> Z80ArchitecturalState {
         let compare = matches!(opcode, 0xB1 | 0xB9);
         Z80ArchitecturalState {
             registers: Z80Registers {
                 a: 0x10,
                 f: if compare { 0x01 } else { 0xC1 },
-                b: 0x10,
-                c: 0x02,
+                b: (initial_bc >> 8) as u8,
+                c: initial_bc as u8,
                 d: 0x50,
                 e: 0x00,
                 h: 0x40,
                 l: 0x00,
-                pc: 0xA002,
+                pc,
                 sp: 0xD000,
             },
             alternate: Z80AlternateRegisters::default(),
@@ -13770,10 +13770,10 @@ mod ed_block_transfer_repeat_interrupt_tests {
         }
     }
 
-    fn initial_bus(opcode: u8) -> TestBus {
+    fn initial_bus(opcode: u8, pc: u16) -> TestBus {
         let mut bus = TestBus::default();
-        bus.memory[0xA002] = 0xED;
-        bus.memory[0xA003] = opcode;
+        bus.memory[usize::from(pc)] = 0xED;
+        bus.memory[usize::from(pc.wrapping_add(1))] = opcode;
         bus.memory[0xC0FF] = 0x00;
         bus.memory[0xC100] = 0x90;
         bus.memory[0x9000] = 0xF5; // PUSH AF
@@ -13797,6 +13797,56 @@ mod ed_block_transfer_repeat_interrupt_tests {
             }
         }
         bus
+    }
+
+    fn expected_repeat_flags(
+        opcode: u8,
+        initial_f: u8,
+        a: u8,
+        value: u8,
+        bc_after: u16,
+        pc: u16,
+    ) -> u8 {
+        const FLAG_C: u8 = 0x01;
+        const FLAG_N: u8 = 0x02;
+        const FLAG_PV: u8 = 0x04;
+        const FLAG_H: u8 = 0x10;
+        const FLAG_Z: u8 = 0x40;
+        const FLAG_S: u8 = 0x80;
+        const FLAG_XY: u8 = 0x28;
+        let pc_xy = ((pc >> 8) as u8) & FLAG_XY;
+
+        if matches!(opcode, 0xB0 | 0xB8) {
+            (initial_f & (FLAG_S | FLAG_Z | FLAG_C))
+                | if bc_after != 0 { FLAG_PV } else { 0 }
+                | pc_xy
+        } else {
+            let result = a.wrapping_sub(value);
+            let half_borrow = (a & 0x0F) < (value & 0x0F);
+            (initial_f & FLAG_C)
+                | FLAG_N
+                | (result & FLAG_S)
+                | if result == 0 { FLAG_Z } else { 0 }
+                | if half_borrow { FLAG_H } else { 0 }
+                | if bc_after != 0 { FLAG_PV } else { 0 }
+                | pc_xy
+        }
+    }
+
+    // Q/previous-Q are compared between executors at each architectural
+    // boundary. This is internal differential evidence, not an independent
+    // hardware oracle for the undocumented latches.
+    fn assert_q_latches_match(
+        atomic: &Z80,
+        sequenced: &Z80MicroSequencer,
+        context: &str,
+    ) {
+        let state = sequenced.export_architectural_state();
+        assert_eq!(state.q, atomic.q, "{context}: Q");
+        assert_eq!(
+            state.q_previous, atomic.q_previous,
+            "{context}: previous-Q"
+        );
     }
 
     fn round_trip(cpu: &mut Z80MicroSequencer) {
@@ -13947,10 +13997,10 @@ mod ed_block_transfer_repeat_interrupt_tests {
                 // Preserve S/Z/C, set PV while BC remains non-zero, and source X/Y from PC.
                 0xE5
             };
-            let state = initial_state(opcode);
+            let state = initial_state(opcode, 0xA002, 0x1002);
             let mut atomic = Z80::default();
             atomic.import_architectural_state(state).unwrap();
-            let mut atomic_bus = initial_bus(opcode);
+            let mut atomic_bus = initial_bus(opcode, 0xA002);
 
             assert_eq!(
                 atomic.step(&mut atomic_bus),
@@ -13997,7 +14047,7 @@ mod ed_block_transfer_repeat_interrupt_tests {
 
             let mut sequenced = Z80MicroSequencer::default();
             sequenced.import_architectural_state(state).unwrap();
-            let mut sequenced_bus = initial_bus(opcode);
+            let mut sequenced_bus = initial_bus(opcode, 0xA002);
             assert_eq!(
                 run_block_until_repeat_interrupt(&mut sequenced, &mut sequenced_bus),
                 21,
@@ -14051,4 +14101,215 @@ mod ed_block_transfer_repeat_interrupt_tests {
             assert_eq!(sequenced_bus.writes, atomic_bus.writes);
         }
     }
+
+    #[test]
+    fn block_repeat_im2_matrix_matches_atomic_for_pc_and_bc_edges() {
+        let pcs = [0x8002_u16, 0x8802, 0xA002, 0xA802];
+
+        for opcode in [0xB0, 0xB8, 0xB1, 0xB9] {
+            let compare = matches!(opcode, 0xB1 | 0xB9);
+            let transfer = !compare;
+            let direction = if matches!(opcode, 0xB8 | 0xB9) {
+                -1_i16
+            } else {
+                1_i16
+            };
+            let initial_a = 0x10;
+            let initial_f = if compare { 0x01 } else { 0xC1 };
+            let value = if compare { 0x21 } else { 0x22 };
+
+            for pc in pcs {
+                for initial_bc in [0_u16, 2] {
+                    let state = initial_state(opcode, pc, initial_bc);
+                    let mut atomic = Z80::default();
+                    atomic.import_architectural_state(state).unwrap();
+                    let mut atomic_bus = initial_bus(opcode, pc);
+                    let mut sequenced = Z80MicroSequencer::default();
+                    sequenced.import_architectural_state(state).unwrap();
+                    let mut sequenced_bus = initial_bus(opcode, pc);
+
+                    let bc_after_first = initial_bc.wrapping_sub(1);
+                    let expected_flags =
+                        expected_repeat_flags(opcode, initial_f, initial_a, value, bc_after_first, pc);
+
+                    // First iteration repeats. The atomic fixture observes the
+                    // four PC.11/PC.13 combinations and both BC wrap/ordinary
+                    // repeat paths; the microsequencer asserts INT on the final
+                    // T-state of the repeat-internal cycle.
+                    assert_eq!(
+                        atomic.step(&mut atomic_bus),
+                        Ok(21),
+                        "atomic ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}"
+                    );
+                    assert_eq!(
+                        run_block_until_repeat_interrupt(&mut sequenced, &mut sequenced_bus),
+                        21,
+                        "sequenced ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}"
+                    );
+
+                    for (label, f, actual_pc, bc, wz, hl, de) in [
+                        (
+                            "atomic",
+                            atomic.registers.f,
+                            atomic.registers.pc,
+                            atomic.registers.bc(),
+                            atomic.wz,
+                            atomic.registers.hl(),
+                            atomic.registers.de(),
+                        ),
+                        (
+                            "sequenced",
+                            sequenced.registers.f,
+                            sequenced.registers.pc,
+                            sequenced.registers.bc(),
+                            sequenced.wz,
+                            sequenced.registers.hl(),
+                            sequenced.registers.de(),
+                        ),
+                    ] {
+                        assert_eq!(f, expected_flags, "{label} repeat F");
+                        assert_eq!(actual_pc, pc, "{label} repeat PC");
+                        assert_eq!(bc, bc_after_first, "{label} repeat BC");
+                        assert_eq!(wz, pc.wrapping_add(1), "{label} repeat WZ");
+                        assert_eq!(
+                            hl,
+                            0x4000_u16.wrapping_add_signed(direction),
+                            "{label} repeat HL"
+                        );
+                        assert_eq!(
+                            de,
+                            if transfer {
+                                0x5000_u16.wrapping_add_signed(direction)
+                            } else {
+                                0x5000
+                            },
+                            "{label} repeat DE"
+                        );
+                    }
+                    assert_eq!(atomic.q, expected_flags, "atomic repeat Q");
+                    assert_eq!(atomic.q_previous, 0, "atomic repeat previous-Q");
+                    let sequenced_latches = sequenced.export_architectural_state();
+                    assert_eq!(sequenced_latches.q, expected_flags, "sequenced repeat Q");
+                    assert_eq!(sequenced_latches.q_previous, 0, "sequenced repeat previous-Q");
+                    assert_q_latches_match(&atomic, &sequenced, "after repeat iteration");
+
+                    // Accept IM2 at the next instruction boundary and retain
+                    // the flag result for the ISR's PUSH AF observation.
+                    atomic.request_int(0xFF);
+                    assert_eq!(
+                        atomic.step(&mut atomic_bus),
+                        Ok(19),
+                        "atomic IM2 ED {opcode:02X}"
+                    );
+                    atomic.clear_int_request();
+                    assert_eq!(run_im2_interrupt(&mut sequenced, &mut sequenced_bus), 19);
+                    assert_eq!(atomic.registers.pc, 0x9000);
+                    assert_eq!(sequenced.registers.pc, 0x9000);
+                    assert_eq!(atomic.wz, 0x9000);
+                    assert_eq!(sequenced.wz, 0x9000);
+                    assert_eq!(atomic.registers.f, expected_flags);
+                    assert_eq!(sequenced.registers.f, expected_flags);
+                    // Starting the acknowledge response clears Q and transfers
+                    // the previous flag-producing Q into previous-Q.
+                    assert_eq!(atomic.q, 0, "Q after IM2 acknowledge");
+                    assert_eq!(atomic.q_previous, expected_flags, "previous-Q after IM2");
+                    assert_q_latches_match(&atomic, &sequenced, "after IM2 acknowledge");
+
+                    // PUSH AF, POP AF, EI and RETI must not make the two
+                    // execution paths disagree about either internal latch.
+                    assert_eq!(atomic.step(&mut atomic_bus), Ok(11)); // PUSH AF
+                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 11);
+                    assert_eq!(atomic_bus.memory[0xCFFC], expected_flags);
+                    assert_eq!(sequenced_bus.memory[0xCFFC], expected_flags);
+                    assert_eq!(atomic_bus.memory[0xCFFD], initial_a);
+                    assert_eq!(sequenced_bus.memory[0xCFFD], initial_a);
+                    assert_q_latches_match(&atomic, &sequenced, "after PUSH AF");
+
+                    assert_eq!(atomic.step(&mut atomic_bus), Ok(10)); // POP AF
+                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 10);
+                    assert_eq!(atomic.registers.f, expected_flags);
+                    assert_eq!(sequenced.registers.f, expected_flags);
+                    assert_q_latches_match(&atomic, &sequenced, "after POP AF");
+
+                    assert_eq!(atomic.step(&mut atomic_bus), Ok(4)); // EI
+                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 4);
+                    assert_q_latches_match(&atomic, &sequenced, "after EI");
+
+                    assert_eq!(atomic.step(&mut atomic_bus), Ok(14)); // RETI
+                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 14);
+                    assert_eq!(atomic.registers.pc, pc);
+                    assert_eq!(sequenced.registers.pc, pc);
+                    assert_eq!(atomic.registers.sp, 0xD000);
+                    assert_eq!(sequenced.registers.sp, 0xD000);
+                    assert!(atomic.iff1 && atomic.iff2);
+                    assert!(sequenced.iff1 && sequenced.iff2);
+                    assert_q_latches_match(&atomic, &sequenced, "after RETI");
+
+                    // Resume exactly one more iteration. BC=0/2 both enter
+                    // the first repeat; BC=2 then reaches the terminal
+                    // non-repeat iteration, while BC=0 remains in the loop.
+                    let bc_after_second = bc_after_first.wrapping_sub(1);
+                    let second_tstates = if bc_after_second == 0 { 16 } else { 21 };
+                    assert_eq!(
+                        atomic.step(&mut atomic_bus),
+                        Ok(second_tstates),
+                        "atomic resume ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}"
+                    );
+                    assert_eq!(
+                        run_sequenced_instruction(&mut sequenced, &mut sequenced_bus),
+                        second_tstates,
+                        "sequenced resume ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}"
+                    );
+                    assert_eq!(atomic.registers.bc(), bc_after_second);
+                    assert_eq!(sequenced.registers.bc(), bc_after_second);
+                    let expected_pc = if bc_after_second == 0 {
+                        pc.wrapping_add(2)
+                    } else {
+                        pc
+                    };
+                    assert_eq!(atomic.registers.pc, expected_pc);
+                    assert_eq!(sequenced.registers.pc, expected_pc);
+                    assert_eq!(
+                        atomic.registers.hl(),
+                        0x4000_u16.wrapping_add_signed(direction * 2)
+                    );
+                    assert_eq!(
+                        sequenced.registers.hl(),
+                        0x4000_u16.wrapping_add_signed(direction * 2)
+                    );
+                    if transfer {
+                        let expected_de = 0x5000_u16.wrapping_add_signed(direction * 2);
+                        assert_eq!(atomic.registers.de(), expected_de);
+                        assert_eq!(sequenced.registers.de(), expected_de);
+                        let first_destination = 0x5000_u16.wrapping_add_signed(direction);
+                        let second_destination = 0x5000_u16.wrapping_add_signed(direction * 2);
+                        assert_eq!(atomic_bus.memory[usize::from(first_destination)], value);
+                        assert_eq!(atomic_bus.memory[usize::from(second_destination)], value);
+                        assert_eq!(
+                            sequenced_bus.memory[usize::from(first_destination)],
+                            value
+                        );
+                        assert_eq!(
+                            sequenced_bus.memory[usize::from(second_destination)],
+                            value
+                        );
+                    } else {
+                        assert_eq!(atomic.registers.de(), 0x5000);
+                        assert_eq!(sequenced.registers.de(), 0x5000);
+                    }
+
+                    assert_eq!(
+                        sequenced.export_architectural_state(),
+                        atomic.export_architectural_state(),
+                        "atomic/sequenced final state ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}"
+                    );
+                    assert_eq!(sequenced_bus.memory.as_ref(), atomic_bus.memory.as_ref());
+                    assert_eq!(sequenced_bus.reads, atomic_bus.reads);
+                    assert_eq!(sequenced_bus.writes, atomic_bus.writes);
+                    assert_q_latches_match(&atomic, &sequenced, "after resumed iteration");
+                }
+            }
+        }
+    }
+
 }
