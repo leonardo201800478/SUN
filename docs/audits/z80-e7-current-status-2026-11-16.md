@@ -11,7 +11,7 @@ A rodada encerrou os testes atuais de F-022, F-023 e F-028. As três PRs permane
 
 | Frente | PR | HEAD de código validado | CI Z80 focused | SMS Runtime | Estado |
 |---|---:|---|---|---|---|
-| F-022 — Block Instruction Flags ROM v5.0 | [#936](https://github.com/leonardo201800478/sega-emulator/pull/936) | 306db2a91ff796b4c5f66eabc4ebd4c4baad903e | [#43852582196](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582196) SUCCESS | [#43852582229](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582229) SUCCESS | AUDIT_PARTIAL |
+| F-021 — I/O block B-loop | [#936](https://github.com/leonardo201800478/sega-emulator/pull/936) | 306db2a91ff796b4c5f66eabc4ebd4c4baad903e | [#43852582196](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582196) SUCCESS | [#43852582229](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582229) SUCCESS | AUDIT_PARTIAL |\n| F-022 — Block Instruction Flags ROM v5.0 | [#936](https://github.com/leonardo201800478/sega-emulator/pull/936) | 306db2a91ff796b4c5f66eabc4ebd4c4baad903e | [#43852582196](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582196) SUCCESS | [#43852582229](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582229) SUCCESS | AUDIT_PARTIAL |
 | F-023 — Woodmass MEMPTR | [#942](https://github.com/leonardo201800478/sega-emulator/pull/942) | 7402ff138ced95da2d8b9e0008919c8cd22484f1; HEAD documental da PR 15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021 | [#43851550529](https://github.com/leonardo201800478/sega-emulator/actions/runs/43851550529) SUCCESS | [#43851550520](https://github.com/leonardo201800478/sega-emulator/actions/runs/43851550520) SUCCESS | AUDIT_PARTIAL |
 | F-028 — exceções DD/FD | [#943](https://github.com/leonardo201800478/sega-emulator/pull/943) | 98c1cf41587f6af66c3d272e4b07a638d5da7919 | [#43859000666](https://github.com/leonardo201800478/sega-emulator/actions/runs/43859000666) SUCCESS | [#43859000676](https://github.com/leonardo201800478/sega-emulator/actions/runs/43859000676) SUCCESS | AUDIT_PARTIAL |
 
@@ -25,7 +25,7 @@ Nenhuma PR altera CPU, decoder, microsequenciador, MachineScheduler ou runtime. 
 - Upstream: MrKWatkins/ZXSpectrumNextTests, commit 8adcbc8384b2311fb6d36d424478aef583d5c307; fixture Tests/ZX48_ZX128/Z80BlockInstructionFlags/z80bltst.sna; Git blob SHA 41b7b0da0f5abfd5d2841fbae005f05291986f8b.
 - CI #43852582196: Z80 focused SUCCESS; SMS Runtime #43852582229 SUCCESS.
 - ROM v5.0: 1 passed/0 failed em 6,50 s.
-- O log confirma pelo menos 60 comparações principais de instrução/PC, 390 registros B-loop em seis grupos (OTIR×2, OTDR×2, INIR, INDR), B observado conforme 0x0D + 3*i, flags exatas, calibração e retorno ao caller aprovados.
+- O log confirma pelo menos 60 comparações principais de instrução/PC e 390 registros B-loop em seis grupos (OTIR×2, OTDR×2, INIR, INDR), B observado conforme 0x0D + 3*i, flags exatas, calibração e retorno ao caller aprovados. Os seis grupos B-loop são operações de I/O block da família F-021; não os contabilizar como cobertura das oito formas de transferência/comparação de F-022. O mapeamento da stream principal para cada opcode F-022 ainda precisa ser reconciliado.
 - SingleStepTests DD/FD executados explicitamente com --ignored: 2.000 SCF/CCF/Q + 32.000 indexed ALU = 34.000/34.000 PASS.
 
 ### Diagnóstico preservado
@@ -39,7 +39,7 @@ A primeira execução limitada a 50M T-states expirou durante LDIR. A instrument
 
 O limite de 80M T-states já existia no harness e não foi aumentado nesta investigação. O PASS é específico para a ROM no modelo Spectrum 48K do teste; não prova todas as operações de bloco nem hardware SMS.
 
-**Limite:** a suíte upstream é declarada não exaustiva. Casos adicionais de iteração simples, flags/Q/IRQ e integração temporal continuam pendentes. F-022 permanece AUDIT_PARTIAL.
+**Escopo do harness:** o ROM é executado pelo executor atômico Z80::step com Spectrum48Bus; não exercita o microsequenciador, WAIT, snapshot de transação ou MachineScheduler. **Limite:** a suíte upstream é declarada não exaustiva. Casos adicionais de iteração simples, flags/Q/IRQ e integração temporal continuam pendentes. F-022 permanece AUDIT_PARTIAL.
 
 ## 3. F-023 — Mark Woodmass MEMPTR/WZ
 
@@ -49,7 +49,7 @@ O limite de 80M T-states já existia no harness e não foi aumentado nesta inves
 - Resultado exato: HALT em 0x80E6; 50.904.931 T-states; FNV-1 F5AE5140; 61 linhas; largura máxima 32 colunas.
 - TAP original obtido no runner, tamanho e SHA3-512 verificados; ROM Spectrum 48K reconstruída no runner e Git blob SHA verificado. Artefatos não são commitados.
 
-O caso fornece evidência externa hardware-derived para MEMPTR, incluindo a regra RLD/RRD → HL+1 documentada pela suíte. Não fecha X/Y não documentados em todas as famílias, toda a tabela de WZ, todos os limites temporais ou validação física SMS. F-023 permanece AUDIT_PARTIAL.
+O caso fornece evidência externa hardware-derived para MEMPTR, incluindo a regra RLD/RRD → HL+1 documentada pela suíte. O harness usa executor atômico Z80::step e T-states nominais; não exercita microsequenciador, WAIT, snapshot de transação ou MachineScheduler. Não fecha X/Y não documentados em todas as famílias, toda a tabela de WZ, todos os limites temporais ou validação física SMS. F-023 permanece AUDIT_PARTIAL.
 
 ## 4. F-028 — matriz de exceções DD/FD
 
@@ -145,7 +145,7 @@ O teste z80_dd_fd_exception_matrix_f028.rs recebeu dois casos: NMI e INT são so
 
 ### 8.5 Estado atualizado
 
-- F-022: AUDIT_PARTIAL; ROM v5.0 PASS no SHA 306db2a com executor atômico, sem microsequenciador/WAIT/Scheduler e sem cobertura exaustiva.
+- F-021: AUDIT_PARTIAL; 390 B-loop records da ROM v5.0 para OTIR/OTDR/INIR/INDR (seis grupos), B=0x0D+3*i e flags exatas, no SHA 306db2a; executor atômico, sem microsequenciador/WAIT/Scheduler.
 - F-023: AUDIT_PARTIAL; Woodmass MEMPTR 09 PASS no SHA 7402ff1 com executor atômico e T-states nominais, sem tabela completa WZ/X/Y nem integração temporal.
 - F-028: AUDIT_PARTIAL; matriz original 108 combinações PASS no SHA 98c1cf4; ledger de classificação de todos os 256 bytes e testes de INT/NMI entre DD/FD PASS no SHA b3320ea. A semântica completa por opcode/estado continua pendente.
 - Nenhuma alteração de produção da CPU, prefix FSM, microsequenciador, Scheduler ou runtime foi feita.
