@@ -113,3 +113,12 @@ Se a causa for a política regional, adicionar testes para Automatic/Europe/USA/
 - Código público do GearSystem e Ares para comparar o comportamento, sem copiar código nem presumir independência dos oráculos.
 
 Esta PR documenta o plano e não declara a causa nem uma correção.
+
+
+## Atualização de identidade de dump — 2026-11-15
+
+O DAT público No-Intro/libretro identifica **Ace of Aces (Europe, Brazil) (En)** como 262.144 bytes, região catalogada Europe, CRC32 `887D9F6B`, MD5 `CE26B4372655F35F1B7C9D0C3B700F93` e SHA-1 `08A79905767B8E5AF8A9C9C232342E6C47588093`. O MAME software list registra Ace of Aces (Europe), 1991, publisher Sega, serial `7054`, tamanho 262.144, CRC32 e SHA-1 iguais, mas usa somente a interface genérica `sms_cart` e não informa PCB/mapper.
+
+O DAT reforça que a região de catálogo é Europe, mas não prova por si só o nibble do cabeçalho, a temporização exigida pelo dump local ou o motivo da tela preta. A hipótese regional permanece em aberto e deve ser testada isoladamente (Europe/PAL versus outros perfis), sem alterar simultaneamente mapper/boot.
+
+Esses dados são de catálogo, não hash local. O SHA-256 local, inspeção de cabeçalho, mapper efetivo e trace dos primeiros T-states continuam pendentes. A baseline `90036d8d` constrói a máquina temporal sem BIOS; a preferência de firmware do frontend ainda não executa BIOS. O próximo teste deve usar o mesmo dump em todas as configurações e registrar o perfil efetivamente entregue ao core.
