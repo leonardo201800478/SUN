@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `bb9e31bdf04099a4116d27836691f0b31ab8c8a8` (2026-11-16, após PRs #955–#962). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `2607e45e4d35e52cd61d825d42a6514b789cfc30` (2026-11-16, após PRs #955–#964). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -975,3 +975,8 @@ Estado vigente:
 - F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
 - Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+
+## Atualização do scorecard — PR #964
+
+F-022: integração Scheduler/SMS das quatro formas repetitivas agora inclui INT no último T-state da repetição, serviço IM1, RETI, retomada, WAIT de fixture, snapshots por safe point e assertions Q/previous-Q/WZ/PC/BC/HL/DE/stack. PR #964 integrada em `2607e45e4d35e52cd61d825d42a6514b789cfc30`; CI #43903631872 workspace/Rust quality PASS; SMS Runtime #43903632358 Release format/Clippy/tests/Windows x64 build PASS. Debugger Windows Release, Z80 focused e Scheduler stress SKIPPED. F-022 continua IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; E7 IN_PROGRESS; E8 BLOCKED.
