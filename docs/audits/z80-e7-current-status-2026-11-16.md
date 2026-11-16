@@ -458,3 +458,8 @@ F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS (
 O checklist do repositório não define um conjunto separado e canônico de exatamente 12 critérios numerados E7. Os IDs formais estão distribuídos pelas famílias F-, estado S-, temporalidade T-, determinismo D-, validação V- e arquitetura C-. Qualquer resumo de 12 itens deve ser identificado como matriz consolidada derivada, não como uma lista preexistente do checklist.
 
 Não atribuir workflows de PR ao SHA da main. SKIPPED permanece NOT RUN. Nenhum critério pode ser CLOSED sem evidência exata e reproduzível.
+
+
+## Matriz consolidada dos 12 critérios E7
+
+A avaliação agrupada solicitada foi formalizada em [z80-e7-12-criteria-matrix-2026-11-16.md](z80-e7-12-criteria-matrix-2026-11-16.md). Ela separa PASS de software, PARTIAL e NOT_VERIFIED físico; registra o HEAD #972 e os workflows exatos. A lista é uma consolidação derivada dos itens temporais da continuidade, não uma lista numerada preexistente no checklist mestre.
