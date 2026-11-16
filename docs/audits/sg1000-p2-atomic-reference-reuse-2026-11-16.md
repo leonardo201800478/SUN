@@ -1,7 +1,7 @@
 # SG-1000 P2 — reutilização do executor atômico e do core funcional legado
 
-**Data:** 2026-11-16  
-**Baseline:** `main` em `1b16256358e3f17837a95cc071048c5ee5307f82`  
+**Data:** 2026-11-16
+**Baseline:** `main` em `1b16256358e3f17837a95cc071048c5ee5307f82`
 **Escopo:** auditoria documental, sem alteração de runtime.
 
 ## Decisão arquitetural
