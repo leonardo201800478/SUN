@@ -87,27 +87,11 @@ fn initial_architectural_state() -> Z80ArchitecturalState {
 
 fn seed_atomic() -> Z80 {
     let mut cpu = Z80::default();
-    cpu.registers = initial_registers();
-    cpu.alternate = initial_alternate();
-    cpu.ix = 0x1357;
-    cpu.iy = 0x2468;
-    cpu.i = 0x81;
-    cpu.r = INITIAL_R;
-    cpu.iff1 = true;
-    cpu.iff2 = false;
-    cpu.interrupt_mode = 2;
-    cpu.wz = INITIAL_WZ;
-    cpu.ei_delay = 0;
-    cpu.nmi_pending = false;
-    cpu.int_pending = None;
-    cpu.q = 0x5A;
-    cpu.q_previous = 0xA5;
-    cpu.p = true;
-    cpu.halted = false;
+    cpu.import_architectural_state(initial_architectural_state())
+        .expect("initial state imports");
     cpu.total_tstates = 0;
     cpu
 }
-
 fn run_atomic(prefix: Option<u8>, opcode: u8) -> (Z80, u32) {
     let mut bus = FlatBus::default();
     match prefix {
