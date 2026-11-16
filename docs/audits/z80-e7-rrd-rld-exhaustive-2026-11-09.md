@@ -102,3 +102,28 @@ PR #714 MERGED por squash em `3a81437362dad79577058852b5f469381d3bde2c`. HEAD va
 A fixture exaustiva passou com 262.144 vetores. O primeiro ensaio da fixture tinha um erro de isolamento: a memória fonte não era restaurada entre os dois estados de Carry; isso foi corrigido antes da aprovação final. Não houve alteração de runtime nem bug do Z80 identificado nesta tarefa.
 
 F-023 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+
+## 8. Oracle independente hardware-derived — Mark Woodmass MEMPTR test 09
+
+**PR candidata:** #942 (Draft), HEAD de código testado: `7402ff138ced95da2d8b9e0008919c8cd22484f1`.
+
+A suíte **Z80 Test Suite (2008), Mark Woodmass**, possui uma variante MEMPTR. A documentação upstream descreve a suíte como verificação das regras MEMPTR e informa comparação dos resultados com um NEC D780C-1 e testes adicionais em outros clones. A tabela MEMPTR upstream inclui explicitamente RLD/RRD com WZ/MEMPTR = HL+1.
+
+Proveniência e integridade das fixtures:
+- TAP GPL-2.0 obtido somente durante CI, sem commit/redistribuição no repositório: 5.573 bytes; SHA3-512 `BB1DCE3187FBF5EA871FE41EB76AE7E0C94D08136FF4D8E756E2624DA589AAE69CAD074EB43CBFB9E2B9E0D2CC505343D9804EDCDE3CEA1FB1881DCBF5C865B0`.
+- Metadados do caso 09 pinados em `redcode/Z80/sources/test-Z80.c`, commit `266f460fea6b07096404c8e8170b65581dfe6eca`: offset do código 120, tamanho 5.452, load 0x8000, PC inicial 0x8049, HALT 0x80E6, 50.904.931 T-states, hash FNV-1 `F5AE5140`, 61 linhas e 32 colunas.
+- A ROM Spectrum 48K original (16.384 bytes) é reconstruída no runner a partir de `antirez/ZOT/rom.h`, commit `1cb85abbbd1b5e00d9e2b7c6c2ab87b3f8c11cf3`, com Git blob SHA `626b8eb763b0964de3b1496f47647a154c1322cb`. O arquivo-fonte preserva a nota de copyright e a permissão Amstrad para uso em emuladores. Nenhum binário ROM é commitado.
+- O harness replica o caminho específico Woodmass: RST 10h → JP 0x70F2 → hook PRINT que retorna RET; também reproduz CHAN_OPEN em 0x1601, CLS em 0x0D6B, portas pares 0xBF/ímpares 0xFF e writes de I/O sem efeito.
+
+**Resultado no HEAD exato:** CI [#43850972785](https://github.com/leonardo201800478/sega-emulator/actions/runs/43850972785), job Z80 focused, PASS. O teste explícito `woodmass_memptr_tap_matches_hardware_reference` terminou com 1 passed/0 failed em 0,10 s:
+- HALT em 0x80E6;
+- 50.904.931 T-states;
+- FNV-1 `F5AE5140`;
+- 61 linhas e 32 colunas.
+
+SMS Runtime [#43850972708](https://github.com/leonardo201800478/sega-emulator/actions/runs/43850972708) também PASS em Release format, Clippy e testes. No CI Z80, SingleStepTests DD/FD (2.000 SCF/CCF/Q + 32.000 indexed ALU), testes integrados Z80/SMS/SG-1000, format e Clippy passaram. Jobs não relacionados ao diff foram SKIPPED e não são contabilizados como PASS.
+
+**Interpretação e limites:** esta é evidência independente hardware-derived para o comportamento MEMPTR/WZ exercitado pela suíte, incluindo a regra RLD/RRD → HL+1. Não é uma medição física executada neste projeto nem prova universal de todos os clones. A suíte MEMPTR não fecha os bits X/Y não especificados pelo UM0080, não substitui a auditoria temporal microsequenciada completa e não valida hardware SMS diretamente. CMOS/clones permanecem NOT_VERIFIED.
+
+**Classificação atualizada:** a lacuna de oracle independente para WZ/MEMPTR foi reduzida; F-023 permanece AUDIT_PARTIAL por X/Y, abrangência temporal e limites de plataforma. A PR #942 continua Draft e não está integrada. E7 IN_PROGRESS; E8 BLOCKED. Nenhuma alteração de runtime/CPU.
