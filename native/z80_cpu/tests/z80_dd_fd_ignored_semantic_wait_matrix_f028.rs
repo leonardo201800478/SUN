@@ -96,7 +96,6 @@ fn expected_stream_operand_bytes(opcode: u8) -> usize {
     } else {
         0
     }
-    }
 }
 
 fn execute_one_instruction(
@@ -583,54 +582,62 @@ fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
 
     for initial_pc in INITIAL_PCS {
         for (opcode, flags, bc, taken) in cases {
-        let base = execute_one_instruction(&[opcode], true, flags, bc, INITIAL_PC, INITIAL_WZ);
-        assert_eq!(base.fetch_addresses, vec![INITIAL_PC]);
+            let base =
+                execute_one_instruction(&[opcode], true, flags, bc, initial_pc, INITIAL_WZ);
+            assert_eq!(base.fetch_addresses, vec![initial_pc]);
 
-        for prefix in [0xDD, 0xFD] {
-            let prefixed =
-                execute_one_instruction(&[prefix, opcode], true, flags, bc, INITIAL_PC, INITIAL_WZ);
-            assert_eq!(
-                prefixed.fetch_addresses,
-                vec![INITIAL_PC, INITIAL_PC.wrapping_add(1)],
-                "{prefix:02X} {opcode:02X}: prefix and terminal M1"
-            );
-            assert_eq!(
-                prefixed.state.registers.pc,
-                base.state.registers.pc.wrapping_add(1),
-                "{prefix:02X} {opcode:02X}: stream-relative PC shift"
-            );
+            for prefix in [0xDD, 0xFD] {
+                let prefixed = execute_one_instruction(
+                    &[prefix, opcode],
+                    true,
+                    flags,
+                    bc,
+                    initial_pc,
+                    INITIAL_WZ,
+                );
+                assert_eq!(
+                    prefixed.fetch_addresses,
+                    vec![initial_pc, initial_pc.wrapping_add(1)],
+                    "{prefix:02X} {opcode:02X}: prefix and terminal M1"
+                );
+                assert_eq!(
+                    prefixed.state.registers.pc,
+                    base.state.registers.pc.wrapping_add(1),
+                    "{prefix:02X} {opcode:02X}: stream-relative PC shift"
+                );
 
-            if taken {
+                if taken {
+                    assert_eq!(
+                        base.state.wz, base.state.registers.pc,
+                        "BASE {opcode:02X}: taken relative branch WZ"
+                    );
+                    assert_eq!(
+                        prefixed.state.wz,
+                        base.state.wz.wrapping_add(1),
+                        "{prefix:02X} {opcode:02X}: WZ must follow the shifted target"
+                    );
+                } else {
+                    assert_eq!(
+                        base.state.wz, INITIAL_WZ,
+                        "BASE {opcode:02X}: not-taken branch preserves WZ"
+                    );
+                    assert_eq!(
+                        prefixed.state.wz, INITIAL_WZ,
+                        "{prefix:02X} {opcode:02X}: ignored prefix must preserve WZ when not taken"
+                    );
+                }
+
                 assert_eq!(
-                    base.state.wz, base.state.registers.pc,
-                    "BASE {opcode:02X}: taken relative branch WZ"
-                );
-                assert_eq!(
-                    prefixed.state.wz,
-                    base.state.wz.wrapping_add(1),
-                    "{prefix:02X} {opcode:02X}: WZ must follow the shifted target"
-                );
-            } else {
-                assert_eq!(
-                    base.state.wz, INITIAL_WZ,
-                    "BASE {opcode:02X}: not-taken branch preserves WZ"
-                );
-                assert_eq!(
-                    prefixed.state.wz, INITIAL_WZ,
-                    "{prefix:02X} {opcode:02X}: ignored prefix must preserve WZ when not taken"
+                    remove_prefix_m1_and_normalize_stream_addresses(
+                        prefixed.trace,
+                        prefix,
+                        opcode,
+                        initial_pc,
+                    ),
+                    base.trace,
+                    "{prefix:02X} {opcode:02X}: normalized bus stream and timing"
                 );
             }
-
-            assert_eq!(
-                remove_prefix_m1_and_normalize_stream_addresses(
-                    prefixed.trace,
-                    prefix,
-                    opcode,
-                    INITIAL_PC,
-                ),
-                base.trace,
-                "{prefix:02X} {opcode:02X}: normalized bus stream and timing"
-            );
         }
     }
 }
