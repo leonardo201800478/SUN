@@ -94,11 +94,17 @@ fn compare_runs(
     actual
 }
 
+#[derive(Debug, Clone, Copy)]
+enum RepeatInterruptSignal {
+    Int(u8),
+    Nmi,
+}
+
 fn run_boundary_with_repeat_interrupt(
     machine: &mut SmsTemporalMachine,
     snapshot_each: bool,
     waits: u32,
-    interrupt_vector: u8,
+    interrupt: RepeatInterruptSignal,
 ) -> (
     Z80MicroStep,
     Vec<sega_sms_core::temporal_machine::SmsTemporalTraceEvent>,
@@ -128,7 +134,10 @@ fn run_boundary_with_repeat_interrupt(
                 ) {
                     // Assert level-sensitive INT immediately before the final
                     // repeat T-state; the signal change itself consumes no time.
-                    machine.set_int_line(Some(interrupt_vector));
+                    match interrupt {
+                        RepeatInterruptSignal::Int(vector) => machine.set_int_line(Some(vector)),
+                        RepeatInterruptSignal::Nmi => machine.request_nmi(),
+                    }
                 }
                 machine.schedule_internal_cycle(tstates).unwrap();
                 if snapshot_each {
@@ -161,14 +170,14 @@ fn compare_repeat_interrupt_runs(
     continuous: &mut SmsTemporalMachine,
     resumed: &mut SmsTemporalMachine,
     waits: u32,
-    interrupt_vector: u8,
+    interrupt: RepeatInterruptSignal,
 ) -> Z80MicroStep {
     continuous.set_trace_enabled(true);
     resumed.set_trace_enabled(true);
     let (expected, continuous_trace) =
-        run_boundary_with_repeat_interrupt(continuous, false, waits, interrupt_vector);
+        run_boundary_with_repeat_interrupt(continuous, false, waits, interrupt);
     let (actual, resumed_trace) =
-        run_boundary_with_repeat_interrupt(resumed, true, waits, interrupt_vector);
+        run_boundary_with_repeat_interrupt(resumed, true, waits, interrupt);
     assert_eq!(actual, expected);
     assert_eq!(
         resumed_trace, continuous_trace,
@@ -654,7 +663,7 @@ fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
 
         // Repeat iteration retires with PC rewound; INT was asserted on its
         // final internal T-state and is pending at the next boundary.
-        let first = compare_repeat_interrupt_runs(&mut continuous, &mut resumed, 1, 0xFF);
+        let first = compare_repeat_interrupt_runs(&mut continuous, &mut resumed, 1, RepeatInterruptSignal::Int(0xFF));
         assert!(matches!(
             first,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
@@ -875,7 +884,7 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
         }
 
         // The interrupt is asserted on the last T-state of the repeat phase.
-        let first = compare_repeat_interrupt_runs(&mut continuous, &mut resumed, 1, 0x80);
+        let first = compare_repeat_interrupt_runs(&mut continuous, &mut resumed, 1, RepeatInterruptSignal::Int(0x80));
         assert!(matches!(
             first,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
@@ -968,6 +977,117 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
         assert_eq!(continuous.cpu().wz, expected_wz);
         assert_eq!(continuous.cpu().q, continuous.cpu().registers.f);
         assert_eq!(continuous.cpu().q_previous, 0);
+        assert_eq!(continuous.export_state(), resumed.export_state());
+        assert_eq!(continuous.now(), resumed.now());
+    }
+}
+
+
+#[test]
+fn e7_f022_repeat_nmi_is_sampled_and_restored_by_sms_scheduler() {
+    let cases = [
+        (0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16, 0x0000_u16),
+        (0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16, 0x0000_u16),
+        (0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16, 0x0001_u16),
+        (0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16, 0xFFFF_u16),
+    ];
+
+    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases
+    {
+        let mut rom = vec![0; 0x4000];
+        rom[0] = 0xED;
+        rom[1] = opcode;
+        rom[0x0066..0x006A].copy_from_slice(&[0xF5, 0xF1, 0xED, 0x45]);
+        rom[0x0100] = 0x21;
+        rom[0x0101] = 0x22;
+
+        let mut continuous = machine(rom.clone());
+        let mut resumed = machine(rom);
+        for candidate in [&mut continuous, &mut resumed] {
+            let cpu = candidate.cpu_mut();
+            cpu.registers.set_hl(initial_hl);
+            cpu.registers.set_de(initial_de);
+            cpu.registers.set_bc(2);
+            cpu.registers.sp = 0xC100;
+            cpu.registers.a = 0x10;
+            cpu.registers.f = initial_f;
+            cpu.iff1 = true;
+            cpu.iff2 = true;
+            cpu.q = 0xA5;
+        }
+
+        // NMI is latched on the final T-state of the first repeat iteration.
+        let first = compare_repeat_interrupt_runs(
+            &mut continuous,
+            &mut resumed,
+            1,
+            RepeatInterruptSignal::Nmi,
+        );
+        assert!(matches!(
+            first,
+            Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
+        ));
+        assert_eq!(continuous.cpu().registers.pc, 0);
+        assert_eq!(continuous.cpu().registers.bc(), 1);
+        assert_eq!(continuous.cpu().wz, 1);
+        assert_eq!(continuous.cpu().q, continuous.cpu().registers.f);
+        assert_eq!(continuous.cpu().q_previous, 0xA5);
+        let repeat_flags = continuous.cpu().registers.f;
+
+        assert_eq!(
+            compare_runs(&mut continuous, &mut resumed, 1),
+            Z80MicroStep::InterruptServiced {
+                kind: Z80InterruptKind::Nmi,
+                tstates: 14,
+            },
+            "ED {opcode:02X}: NMI acceptance"
+        );
+        assert_eq!(continuous.cpu().registers.pc, 0x0066);
+        assert_eq!(continuous.cpu().registers.sp, 0xC0FE);
+        assert!(!continuous.cpu().iff1);
+        assert!(continuous.cpu().iff2);
+        assert_eq!(continuous.memory().read(0xC0FF), 0x00);
+        assert_eq!(continuous.memory().read(0xC0FE), 0x00);
+
+        let push = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            push,
+            Z80MicroStep::InstructionRetired { opcode: 0xF5, .. }
+        ));
+        assert_eq!(continuous.cpu().registers.sp, 0xC0FC);
+        assert_eq!(continuous.memory().read(0xC0FC), repeat_flags);
+        assert_eq!(continuous.memory().read(0xC0FD), 0x10);
+
+        let pop = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            pop,
+            Z80MicroStep::InstructionRetired { opcode: 0xF1, .. }
+        ));
+        assert_eq!(continuous.cpu().registers.sp, 0xC0FE);
+        assert_eq!(continuous.cpu().registers.f, repeat_flags);
+        assert_eq!(continuous.cpu().registers.a, 0x10);
+
+        let retn = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            retn,
+            Z80MicroStep::InstructionRetired { opcode: 0x45, .. }
+        ));
+        assert_eq!(continuous.cpu().registers.pc, 0);
+        assert_eq!(continuous.cpu().registers.sp, 0xC100);
+        assert!(continuous.cpu().iff1 && continuous.cpu().iff2);
+        assert_eq!(continuous.cpu().wz, 0);
+
+        let final_iteration = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            final_iteration,
+            Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
+        ));
+        assert_eq!(continuous.cpu().registers.pc, 2);
+        assert_eq!(continuous.cpu().registers.bc(), 0);
+        assert_eq!(continuous.cpu().registers.hl(), expected_hl);
+        assert_eq!(continuous.cpu().registers.de(), expected_de);
+        assert_eq!(continuous.cpu().wz, expected_wz);
+        assert_eq!(continuous.cpu().q, continuous.cpu().registers.f);
         assert_eq!(continuous.export_state(), resumed.export_state());
         assert_eq!(continuous.now(), resumed.now());
     }
