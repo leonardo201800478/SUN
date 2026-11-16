@@ -861,7 +861,7 @@ mod windows_host {
                                 checked <=> root.firmware-boot-enabled;
                                 toggled => { root.firmware-boot-toggle-requested(self.checked); root.preferences-changed(); }
                             }
-                            Text { font-size: 11px; text: "O scan identifica arquivos, mas não comprova o boot. A inicialização sem cartucho será habilitada somente quando o dispositivo interno e o mapa específico da variante estiverem integrados e validados no runtime temporal."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
+                            Text { font-size: 11px; text: "Com cartucho, somente BIOS convencional de 8 KiB identificada e revalidada será executada antes da ROM. Firmwares com jogo interno e boot sem cartucho continuam pendentes de seus mapas específicos no runtime."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
                         }
                         if root.active-menu == "debug": VerticalLayout {
                             Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
@@ -3716,11 +3716,11 @@ mod windows_host {
             if let Some(app) = firmware_toggle_app.upgrade() {
                 if enabled {
                     app.set_firmware_scan_status(
-                        "Preferência de boot salva. Boot sem cartucho aguarda a integração do dispositivo interno no runtime temporal.".into(),
+                        "Preferência salva para a próxima abertura da ROM. Com cartucho, selecione uma BIOS convencional de 8 KiB compatível; firmware com jogo interno e boot sem cartucho continuam pendentes.".into(),
                     );
                 } else {
                     app.set_firmware_scan_status(
-                        "Boot por BIOS/firmware desativado; boot direto por cartucho permanece como caminho padrão.".into(),
+                        "Boot direto por cartucho selecionado; a BIOS não será carregada na próxima abertura.".into(),
                     );
                 }
             }
