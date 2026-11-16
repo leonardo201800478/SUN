@@ -1,7 +1,7 @@
 # Plano de execução — fechamento E7 do Z80
 
 **Data da revisão:** 2026-11-16
-**Baseline remota main:** `08f633affdb7478b64b1ec2007ca1986c2a48978`
+**Baseline remota main pós-PR #970:** `1b16256358e3f17837a95cc071048c5ee5307f82` (PR #970 documental; sem alteração de runtime)
 **Estado global:** E7 `IN_PROGRESS`; E8/ZEXDOC/ZEXALL `BLOCKED`.
 
 Este documento organiza o trabalho subsequente a partir das evidências realmente observadas. Resultados de PR não são atribuídos à main até integração e validação no SHA pós-merge.
@@ -317,3 +317,8 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+## Baseline pós-PR #970 — 16/11/2026
+
+Main: `1b16256358e3f17837a95cc071048c5ee5307f82` (PR #970 documental, sem alteração de runtime). F-022 permanece IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS apenas como determinismo de software; E7 IN_PROGRESS; E8 BLOCKED. A lacuna da matriz de requests dos 167 Ignored foi resolvida por #950/#953; PR #971 documenta a reconciliação e PR #972 adiciona cobertura Scheduler IM2, ambas ainda não integradas. Ver [estado E7 consolidado](audits/z80-e7-current-status-2026-11-16.md) para SHAs, workflows e limites de evidência.
