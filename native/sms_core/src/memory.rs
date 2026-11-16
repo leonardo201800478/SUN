@@ -122,6 +122,11 @@ impl SmsMemory {
         self.rom.bytes()
     }
 
+    /// Return the immutable BIOS image for save-state identity checks.
+    pub fn bios_bytes(&self) -> Option<&[u8]> {
+        self.bios.as_deref()
+    }
+
     pub fn new(rom: CartridgeImage) -> Result<Self, SmsCoreError> {
         Self::with_bios(rom, None)
     }
