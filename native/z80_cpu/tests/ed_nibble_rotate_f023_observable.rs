@@ -150,8 +150,7 @@ fn rrd_rld_memptr_observation_survives_wait_and_snapshot_restore() {
                             "ED {opcode:02X}: memory"
                         );
 
-                        let mut expected_flags =
-                            FLAG_H | (((expected_wz >> 8) as u8) & FLAG_XY);
+                        let mut expected_flags = FLAG_H | (((expected_wz >> 8) as u8) & FLAG_XY);
                         if carry_in {
                             expected_flags |= FLAG_C;
                         }
