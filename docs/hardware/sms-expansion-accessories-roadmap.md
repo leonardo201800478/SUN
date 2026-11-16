@@ -6,11 +6,11 @@
 
 - **Sega Card / My Card:** mídia de jogo em cartão.
 - **Card slot:** slot nativo no Master System/Mark III. Port $3E controla seleção/arbitragem; prioridade entre card e cartucho difere entre SMS e Mark III.
-- **Card Catcher:** adaptador de cartucho que permite usar My Cards no SG-1000/SC-3000 sem slot próprio; não é o slot do SMS.
-- **FM Sound Unit:** expansão Mark III com Yamaha YM2413. O Master System japonês possui FM integrado.
-- **3D Glasses:** adaptador e óculos obturadores; usa $FFF8–$FFFB e não é uma mídia card.
+- **Card Catcher:** adaptador histórico para uso de My Cards no SG-1000/SC-3000; documentado para contexto, mas excluído da implementação do emulador.
+- **FM Sound Unit:** módulo externo histórico do Mark III, documentado apenas para distinguir sua topologia do YM2413 integrado do Master System japonês; fora do escopo de emulação.
+- **3D Glasses/SegaScope:** acessório de obturadores LCD controlado por $FFF8–$FFFB; o protocolo será emulado, mas não é necessário reproduzir o adaptador físico.
 
-“Card Graphics” não é a nomenclatura técnica encontrada nas referências consultadas; este escopo registra Sega Card/My Card e Card Catcher separadamente.
+A nomenclatura técnica encontrada é **Sega Card / My Card** (mídia) e **Card Catcher** (adaptador). O suporte ao arquivo/mídia não implica implementar o adaptador físico.
 
 ## YM2413 — FM integrado do Master System japonês
 
