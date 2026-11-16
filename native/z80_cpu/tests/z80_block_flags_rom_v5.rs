@@ -301,9 +301,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                     rom_entry,
                     cpu.registers.pc,
                     bus.output.len(),
-                    String::from_utf8_lossy(
-                        &bus.output[bus.output.len().saturating_sub(120)..]
-                    )
+                    String::from_utf8_lossy(&bus.output[bus.output.len().saturating_sub(120)..])
                 ));
             }
             continue;
@@ -410,6 +408,8 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     assert!(
         completed,
         "Z80 block-flags ROM did not return after {MAX_STEPS} instructions / {MAX_TSTATES} T-states; PC={:04X}, SP={:04X}, caller={caller_return_pc:04X}, exit_sp={exit_sp:04X}, int_requests={interrupt_requests}, int_accepts={interrupt_accepts}, output_bytes={}, output_progress={output_progress:?}, recent_steps={recent_steps:?}",
-        cpu.registers.pc, cpu.registers.sp, bus.output.len()
+        cpu.registers.pc,
+        cpu.registers.sp,
+        bus.output.len()
     );
 }
