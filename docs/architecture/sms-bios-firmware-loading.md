@@ -214,3 +214,6 @@ substituem a preferência de vídeo do console.
 ## Firmware SMS com jogos incorporados
 
 O inventário de imagens maiores que 8 KiB — Sonic, Hang On, Hang On & Safari Hunt, Missile Defense 3-D e Samsung Gam*Boy II com Alex Kidd — está documentado em [sms-built-in-game-firmware-catalog-2026-11-15.md](sms-built-in-game-firmware-catalog-2026-11-15.md). Essas imagens exigem identificação e estratégia de mapeamento próprias; não são aceitas pelo loader convencional de BIOS de 8 KiB. A identificação por hash está documentada, mas o boot real dessas variantes permanece pendente.
+
+
+> **Nota de atualização arquitetural (2026-11-15):** este documento registra o caminho anterior de BIOS/Qt/PyO3 e não comprova que a BIOS esteja conectada ao runtime temporal Slint atual. Na main `90036d8d`, a UI de firmware informa explicitamente que o boot por BIOS ainda aguarda integração do dispositivo interno/mapa ao runtime temporal. O factory `create_sms_worker` em `native/sega_desktop/src/main.rs` cria `SmsTemporalWorker` sem encaminhar bytes de BIOS. A preferência `firmware_boot_enabled` é persistida, mas não habilita boot real. Para o estado atual, consultar `docs/audits/sms-boot-compatibility-audit-2026-11-15.md` e a PR #908 (Draft, não integrada).
