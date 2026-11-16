@@ -547,8 +547,7 @@ impl Sg1000TemporalBus {
         }
         let coordinator = Sg1000TemporalCoordinator::restore_state(state.coordinator.clone())?;
         if state.psg.clock_hz() != state.coordinator.psg_clock_hz
-            || state.psg.elapsed_clocks() as u128
-                != coordinator.psg_clock_snapshot()?.total_cycles
+            || state.psg.elapsed_clocks() as u128 != coordinator.psg_clock_snapshot()?.total_cycles
             || state.vdp.elapsed_tstates() != coordinator.vdp_clock_snapshot()?.total_cycles
         {
             return Err(Sg1000TemporalBusError::InvalidState);
