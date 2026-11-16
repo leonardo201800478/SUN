@@ -94,7 +94,6 @@ fn compare_runs(
     actual
 }
 
-
 fn run_boundary_with_repeat_interrupt(
     machine: &mut SmsTemporalMachine,
     snapshot_each: bool,
@@ -164,8 +163,7 @@ fn compare_repeat_interrupt_runs(
 ) -> Z80MicroStep {
     continuous.set_trace_enabled(true);
     resumed.set_trace_enabled(true);
-    let (expected, continuous_trace) =
-        run_boundary_with_repeat_interrupt(continuous, false, waits);
+    let (expected, continuous_trace) = run_boundary_with_repeat_interrupt(continuous, false, waits);
     let (actual, resumed_trace) = run_boundary_with_repeat_interrupt(resumed, true, waits);
     assert_eq!(actual, expected);
     assert_eq!(
@@ -624,8 +622,7 @@ fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
         ),
     ];
 
-    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in
-        cases
+    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases
     {
         let mut rom = vec![0; 0x4000];
         rom[0] = 0xED;
@@ -658,8 +655,16 @@ fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
             first,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
         ));
-        assert_eq!(continuous.cpu().registers.pc, 0, "ED {opcode:02X}: repeat PC");
-        assert_eq!(continuous.cpu().registers.bc(), 1, "ED {opcode:02X}: repeat BC");
+        assert_eq!(
+            continuous.cpu().registers.pc,
+            0,
+            "ED {opcode:02X}: repeat PC"
+        );
+        assert_eq!(
+            continuous.cpu().registers.bc(),
+            1,
+            "ED {opcode:02X}: repeat BC"
+        );
         assert_eq!(continuous.cpu().wz, 1, "ED {opcode:02X}: repeat WZ");
         assert_eq!(
             continuous.cpu().q,
@@ -689,10 +694,7 @@ fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
         continuous.set_int_line(None);
         resumed.set_int_line(None);
         let reti = compare_runs(&mut continuous, &mut resumed, 1);
-        assert!(matches!(
-            reti,
-            Z80MicroStep::InstructionRetired { .. }
-        ));
+        assert!(matches!(reti, Z80MicroStep::InstructionRetired { .. }));
         assert_eq!(continuous.cpu().registers.pc, 0x0000);
         assert_eq!(continuous.cpu().registers.sp, 0xC100);
         assert_eq!(continuous.cpu().wz, 0x0000); // RETI loads WZ from popped PC
@@ -713,7 +715,11 @@ fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
             continuous.cpu().registers.f,
             "ED {opcode:02X}: final Q"
         );
-        assert_eq!(continuous.cpu().q_previous, 0, "ED {opcode:02X}: final previous-Q");
+        assert_eq!(
+            continuous.cpu().q_previous,
+            0,
+            "ED {opcode:02X}: final previous-Q"
+        );
         assert_eq!(continuous.export_state(), resumed.export_state());
         assert_eq!(continuous.now(), resumed.now());
     }
