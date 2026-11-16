@@ -436,3 +436,18 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Baseline vigente pós-PR #975 — 16/11/2026
+
+**Main:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #975 foi integrada por squash e alterou somente o teste F-028; PR #972 permanece integrada por `1b16256358e3f17837a95cc071048c5ee5307f82`, também test-only.
+
+- **F-022: IN_PROGRESS.** As oito formas estão integradas ao SMS Scheduler nos escopos documentados; #972 acrescenta INT IM2 e NMI durante repetição, handlers e retomada. Falta revisão adversarial final das oito formas e reconciliação dos oráculos/proveniência.
+- **F-023: CLOSED** para semântica de software WZ/MEMPTR do perfil Zilog Z80 NMOS delimitado. A revisão confrontou handlers atômicos/microsequenciados e a matriz por família. HW permanece restrito à evidência RRD/RLD; outras regras continuam INT/COMP. Variantes/clones fora do perfil NOT_VERIFIED. Ver `z80-e7-f023-adversarial-review-2026-11-16.md`.
+- **F-028: IN_PROGRESS.** PR #975 adicionou CALL nn em PC=FFFC e RST em PC=FFFE, DD/FD, verificando wrap do retorno 16-bit, os dois bytes da pilha, requests, WAIT e snapshot/restore. A revisão adversarial integral dos 167 Ignored, 85 UsesIndex e exceções continua em andamento.
+- **Scheduler:** LONG_PASS de software permanece vinculado ao SHA LONG documentado; não é TEMPORAL_PASS global. WAIT nos testes é fixture. WAIT físico, DMA e safe points de todos os dispositivos permanecem NOT_VERIFIED.
+- **Validação PR #975:** CI #43937118700 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43937118785 SUCCESS. Scheduler stress SKIPPED. Não há afirmação de workflow push pós-merge no SHA 22c489e.
+- **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
+
+O critério SG-1000 nesta fase significa consumo do Z80 compartilhado. A integração da máquina SG-1000 ao Scheduler pertence ao P2 e permanece DEFERRED; não deve ser usada para afirmar conclusão do P2 nem para reabrir a semântica já validada do Z80.
