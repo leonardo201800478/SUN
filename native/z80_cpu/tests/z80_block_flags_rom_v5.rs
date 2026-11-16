@@ -5,6 +5,8 @@
 //! and verified against its Git blob SHA before this ignored test is run.
 //! This harness models a Spectrum 48K 50 Hz interrupt cadence and the ROM
 //! print entry points used only for presentation by the test program.
+//! The PR is intentionally limited to this harness and its CI fixture; desktop/audio
+//! host behavior and the user-supplied SMS ROM catalog remain inherited from main.
 
 use std::{collections::VecDeque, env, fs};
 
