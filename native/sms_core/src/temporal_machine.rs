@@ -51,6 +51,14 @@ pub enum SmsTemporalTraceEvent {
         timestamp: MachineTime,
         continuation_id: u64,
         tstates: u32,
+        cpu_pc_before: u16,
+        cpu_pc_after: u16,
+        cpu_halted: bool,
+        cpu_int_line: Option<u8>,
+        cpu_iff1: bool,
+        cpu_ei_delay: u8,
+        cpu_halt_exit_int: bool,
+        cpu_halt_exit_nmi: bool,
     },
     M1TStateCompleted {
         timestamp: MachineTime,
@@ -806,6 +814,7 @@ impl SmsTemporalMachine {
                 // Prepare the CPU transition before acknowledging the scheduler
                 // event. On failure, both the bus completion and continuation
                 // metadata remain available for snapshot/restore/retry.
+                let cpu_pc_before = self.cpu.registers.pc;
                 let mut next_cpu = self.cpu.clone();
                 let step = next_cpu.complete_internal_cycle()?;
                 self.bus
@@ -827,6 +836,20 @@ impl SmsTemporalMachine {
                             timestamp: completion.completed_at,
                             continuation_id: completion.continuation_id,
                             tstates,
+                            cpu_pc_before,
+                            cpu_pc_after: self.cpu.registers.pc,
+                            cpu_halted: self.cpu.halted,
+                            cpu_int_line: self.cpu.int_pending,
+                            cpu_iff1: self.cpu.iff1,
+                            cpu_ei_delay: self.cpu.ei_delay,
+                            cpu_halt_exit_int: matches!(
+                                self.cpu.halt_exit_pending,
+                                Some(sega_z80_cpu::Z80HaltExit::Int)
+                            ),
+                            cpu_halt_exit_nmi: matches!(
+                                self.cpu.halt_exit_pending,
+                                Some(sega_z80_cpu::Z80HaltExit::Nmi)
+                            ),
                         });
                 }
                 Ok(step)
