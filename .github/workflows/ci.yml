@@ -325,6 +325,43 @@ jobs:
         env:
           SINGLESTEP_Z80_DIR: ${{ github.workspace }}/vendor/SingleStepTests-z80/v1
         run: cargo test --release --locked -p sega-z80-cpu --test singlestep_indexed_alu -- --ignored
+      - name: Fetch and verify original ZX Spectrum 48K ROM (Amstrad permission; CI-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_file="$RUNNER_TEMP/zx_spectrum_rom.h"
+          rom_file="$RUNNER_TEMP/zx_spectrum_48k.rom"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            "https://raw.githubusercontent.com/antirez/ZOT/1cb85abbbd1b5e00d9e2b7c6c2ab87b3f8c11cf3/rom.h" \
+            --output "$source_file"
+          python - "$source_file" "$rom_file" <<'PY'
+          import hashlib
+          import pathlib
+          import re
+          import sys
+
+          source = pathlib.Path(sys.argv[1]).read_bytes()
+          expected_blob = "626b8eb763b0964de3b1496f47647a154c1322cb"
+          actual_blob = hashlib.sha1(
+              b"blob " + str(len(source)).encode("ascii") + b"\\0" + source
+          ).hexdigest()
+          if actual_blob != expected_blob:
+              raise SystemExit(f"Spectrum ROM source blob mismatch: {actual_blob}")
+
+          match = re.search(
+              rb"unsigned char zx_spectrum_rom\\[16384\\] = \\{(.*?)\\};",
+              source,
+              re.DOTALL,
+          )
+          if match is None:
+              raise SystemExit("Could not locate the pinned 16K Spectrum ROM array")
+          rom = bytes(int(value, 16) for value in re.findall(rb"0x([0-9a-fA-F]{2})", match.group(1)))
+          if len(rom) != 16384:
+              raise SystemExit(f"Spectrum ROM size mismatch: {len(rom)}")
+          pathlib.Path(sys.argv[2]).write_bytes(rom)
+          print(f"Verified original Spectrum 48K ROM: {len(rom)} bytes; source blob {actual_blob}")
+          PY
+          echo "Z80_SPECTRUM_ROM=$rom_file" >> "$GITHUB_ENV"
       - name: Fetch and verify Mark Woodmass Z80 MEMPTR TAP (GPL-2.0; CI-only)
         shell: bash
         run: |
