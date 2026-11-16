@@ -75,7 +75,7 @@ A implementação deve permanecer na arquitetura atual. O core legado serve como
 
 ## Acompanhamento P2.1 — candidato temporal de I/O (2026-11-16)
 
-**Main reconciliada:** `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`, após integração documental da PR #980.  
+**Main reconciliada:** `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`, após integração documental da PR #980.
 **Candidato:** PR [#981](https://github.com/leonardo201800478/sega-emulator/pull/981), branch `feat/sg1000-temporal-port-io-20261116`, HEAD de código validado `17dd9ca18382e10b666155f375a9556944f4e4e4`, base main, 11 commits ahead / 0 behind. Draft; não integrado.
 
 ### Implementação candidata e rastreabilidade
