@@ -828,7 +828,6 @@ fn e7_f022_simple_forms_match_scheduler_wait_snapshot_replay() {
     }
 }
 
-
 #[test]
 fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
     let cases = [
@@ -881,7 +880,11 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
             first,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
         ));
-        assert_eq!(continuous.cpu().registers.pc, 0, "ED {opcode:02X}: repeat PC");
+        assert_eq!(
+            continuous.cpu().registers.pc,
+            0,
+            "ED {opcode:02X}: repeat PC"
+        );
         assert_eq!(continuous.cpu().bc(), 1, "ED {opcode:02X}: repeat BC");
         assert_eq!(continuous.cpu().wz, 1, "ED {opcode:02X}: repeat WZ");
         assert_eq!(continuous.cpu().q, continuous.cpu().registers.f);
