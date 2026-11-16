@@ -636,21 +636,22 @@ impl SmsTemporalMachine {
         if next_cpu.halted {
             next_cpu.sample_halt_interrupts_at_t4()?;
             if self.trace_enabled {
-                self.trace_events.push(SmsTemporalTraceEvent::HaltInterruptSampled {
-                    timestamp: self.bus.now(),
-                    pc: next_cpu.registers.pc,
-                    int_line: next_cpu.int_pending,
-                    iff1: next_cpu.iff1,
-                    ei_delay: next_cpu.ei_delay,
-                    accepted_int: matches!(
-                        next_cpu.halt_exit_pending,
-                        Some(sega_z80_cpu::Z80HaltExit::Int)
-                    ),
-                    accepted_nmi: matches!(
-                        next_cpu.halt_exit_pending,
-                        Some(sega_z80_cpu::Z80HaltExit::Nmi)
-                    ),
-                });
+                self.trace_events
+                    .push(SmsTemporalTraceEvent::HaltInterruptSampled {
+                        timestamp: self.bus.now(),
+                        pc: next_cpu.registers.pc,
+                        int_line: next_cpu.int_pending,
+                        iff1: next_cpu.iff1,
+                        ei_delay: next_cpu.ei_delay,
+                        accepted_int: matches!(
+                            next_cpu.halt_exit_pending,
+                            Some(sega_z80_cpu::Z80HaltExit::Int)
+                        ),
+                        accepted_nmi: matches!(
+                            next_cpu.halt_exit_pending,
+                            Some(sega_z80_cpu::Z80HaltExit::Nmi)
+                        ),
+                    });
             }
         }
         self.cpu = next_cpu;
@@ -1104,12 +1105,13 @@ impl SmsTemporalMachine {
         let vdp_irq = self.bus.vdp().interrupt_pending().then_some(0xFF);
         let effective_line = self.external_int_line.or(vdp_irq);
         if self.trace_enabled && self.cpu.int_pending != effective_line {
-            self.trace_events.push(SmsTemporalTraceEvent::InterruptLineChanged {
-                timestamp: self.bus.now(),
-                line: effective_line,
-                vdp_irq: vdp_irq.is_some(),
-                external_irq: self.external_int_line.is_some(),
-            });
+            self.trace_events
+                .push(SmsTemporalTraceEvent::InterruptLineChanged {
+                    timestamp: self.bus.now(),
+                    line: effective_line,
+                    vdp_irq: vdp_irq.is_some(),
+                    external_irq: self.external_int_line.is_some(),
+                });
         }
         self.bus
             .set_interrupt_vector(effective_line.unwrap_or(0xFF));
