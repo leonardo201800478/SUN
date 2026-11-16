@@ -1056,7 +1056,7 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 
 **Main:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #972 e PR #975 são alterações test-only sobre o núcleo Z80; os blobs de produção `cpu.rs`, `sequencer.rs` e `prefix.rs` permanecem os mesmos do HEAD #968 validado pelo Z80 focused.
 
-- **F-022 — IN_PROGRESS:** oito formas de transferência/comparação integradas nos caminhos documentados; #972 amplia a cobertura Scheduler de INT IM2 e NMI durante repetição. Revisão adversarial final das oito formas e proveniência dos oráculos ainda pendente.
+- **F-022 — CLOSED:** semântica de software das oito formas LDI/LDD/LDIR/LDDR/CPI/CPD/CPIR/CPDR do perfil NMOS delimitado; revisão adversarial, 786.432 cenários simples, matrizes repetitivas, ROM hardware-derived limitada e integração SMS/Scheduler documentadas.
 - **F-023 — CLOSED:** semântica de software WZ/MEMPTR do perfil Zilog NMOS delimitado. Revisão adversarial dos handlers e matriz por família concluída; HW limitado à evidência RRD/RLD, demais regras INT/COMP, variantes fora do perfil NOT_VERIFIED. Ver relatório de revisão adversarial.
 - **F-028 — IN_PROGRESS:** 167 Ignored e 85 UsesIndex permanecem reconciliados; #975 acrescenta CALL/RST com wrap 16-bit de retorno em DD/FD e snapshot/WAIT. Falta revisão adversarial final integral das exceções e limites.
 - **Scheduler:** LONG_PASS é determinismo/replay de software nas dimensões da campanha; não comprova WAIT físico, DMA ou TEMPORAL_PASS global.
