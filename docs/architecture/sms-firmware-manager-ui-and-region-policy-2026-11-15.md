@@ -133,3 +133,18 @@ O usuário executou a branch da PR #906 em Windows e reportou:
 A ausência de opção Coreia em SMS1 é intencional com o catálogo atual; a ausência de BIOS Japão em SMS2 deve ser tratada como lacuna de cobertura do catálogo, não como falha de habilitação da ComboBox, até que exista evidência de firmware japonês compatível com SMS2.
 
 O retorno manual não substitui CI nem teste automatizado. Nenhuma ROM/BIOS foi adicionada ao repositório.
+
+
+## 12. Atualização incremental — BIOS convencional antes do cartucho (16/11/2026)
+
+A implementação avançou parcialmente no contrato FM2 para o caso em que existe um cartucho inserido:
+
+- O core temporal aceita uma imagem BIOS convencional de exatamente 8 KiB e um perfil explícito de SRAM do cartucho.
+- O worker pode iniciar com BIOS, executa o firmware no mesmo MachineScheduler e mantém a mesma imagem ao reconstruir a máquina em Reset, Stop/power-off e LoadRom.
+- A identidade do BIOS faz parte da validação de Save State: estados criados com outra imagem de firmware são rejeitados, evitando que a restauração e o próximo reset usem firmwares diferentes.
+- O host resolve a região com a política já existente, escolhe a seleção regional persistida, reescaneia o diretório e usa `load_validated` para confirmar novamente tamanho e SHA-256 imediatamente antes da criação do worker.
+- Somente descritores `ConventionalBios8KiB` de 8 KiB compatíveis com região e variante de console são encaminhados ao core. Firmware com jogo interno é recusado explicitamente até que seu mapa próprio seja implementado.
+- A leitura do firmware e o hash ocorrem no host, antes da criação do worker. Não há filesystem nem hash no Scheduler.
+- A opção desativada preserva o boot direto original, sem BIOS.
+
+**Limites mantidos:** esta etapa não implementa boot sem cartucho, firmware com jogo interno, nem declara qualquer BIOS como boot-validada. Os descritores atualmente classificados como `IdentifiedOnly` continuam sendo apenas imagens identificadas. A execução de *Ace of Aces* com uma BIOS real compatível, comparação do handoff e validação manual ainda são gates obrigatórios antes de declarar a correção concluída.
