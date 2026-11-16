@@ -914,3 +914,11 @@ Estado após a integração:
 - E8/ZEXDOC/ZEXALL: BLOCKED.
 
 A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+
+## Correção pós-merge — PR #955 e documentação E7 — 16/11/2026
+
+- PR #955: CI push [#43898370234](https://github.com/leonardo201800478/sega-emulator/actions/runs/43898370234) e SMS Debugger Runtime [#43898370419](https://github.com/leonardo201800478/sega-emulator/actions/runs/43898370419) COMPLETED SUCCESS no merge `67f4149e1933d18ffa5201da66ca6ff46c598e32`; árvore idêntica à do HEAD testado `cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`.
+- PR #956: main `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`; CI push #43899020946 PASS em classificação de impacto, higiene documental e Rust quality/unit. Z80 focused/workspace/runtime SKIPPED por diff documental; não é PASS de runtime.
+- PR #955 e #956 não possuem review submetida nem review threads. O Codex review da #956 falhou por limite de uso; a revisão adversarial E7 continua BLOCKED.
+- F-023 permanece AUDIT_PARTIAL; F-022/F-028 permanecem IN_PROGRESS/AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
