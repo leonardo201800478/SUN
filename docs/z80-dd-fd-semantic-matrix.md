@@ -1,6 +1,8 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Reconciliação atual:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, pós-PR #972; PR #972 adicionou somente testes de integração SMS/Scheduler, sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
+> **Estado vigente 2026-11-16:** a matriz F-028 e suas extensões foram reconciliadas; E7 `CLOSED_WITH_LIMITATIONS` para o perfil NMOS delimitado. Main `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`. Não generalizar para CMOS/clones, WAIT físico ou equivalência elétrica global.
+
+**Reconciliação atual:** `main` = `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16, pós-PR #977; testes F-028 integrados sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
