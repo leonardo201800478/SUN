@@ -1,6 +1,6 @@
 # Status dos componentes — revisão 2026-11-16
 
-**Baseline:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
+**Baseline:** `main` `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
 **Regra:** estado integrado na main separado de PRs, testes físicos e relatos manuais.
 
 | Área | Estado na baseline | Pendência real |
@@ -16,11 +16,11 @@
 | SMS sprites | Alinhamento reportado pelo usuário como corrigido | Sem defeito aberto conhecido; reabrir somente por regressão reproduzível |
 | Road Rash | Testado fisicamente pelo usuário e reportado OK | Removido do backlog de defeitos; sem SHA/relatório técnico atribuído |
 | BIOS SMS | Implementação candidata na PR #928 | Teste físico com BIOS real, handoff e início do cartucho pendentes |
-| SG-1000 | Core funcional legado e componentes temporais existentes | Conectar máquina ao Scheduler atual; fechar CPU/VDP/PSG/I/O, snapshots e execução em blocos |
+| SG-1000 | Core funcional legado e coordenador/barramento temporal inicial | Na main, coordenador registra apenas Z80; barramento rejeita PortRead/PortWrite; Sg1000Machine ainda usa cpu.step() e avança VDP/PSG em fronteiras de instrução. PR #981 é candidata P2.1, ainda não integrada; P2.2 deve conectar Z80MicroSequencer/M1 ao próprio Sg1000Machine |
 | Game Gear | Scaffold/planejamento inicial | Auditoria independente e especificação própria após SG-1000 |
-| YM2413/FM | Modelo arquitetural e documentação existentes | Implementar após Game Gear; validar chip, barramento, $F2, perfis, mixer e snapshots |
-| Sega Card/My Card | Referência de hardware documentada | Implementar slot/media arbitration após Game Gear |
-| Card Catcher | Adaptador documentado para SG-1000/SC-3000 | Tratar como adaptador de mídia desses sistemas, não como slot nativo SMS |
+| YM2413 | Modelo arquitetural e documentação existentes | Após Game Gear, implementar somente YM2413 integrado do Master System japonês; FM Sound Unit externo do Mark III excluído |
+| Sega Card/My Card | Mídia de software documentada | Preservar carregamento e slots nativos SMS/Mark III; modelar seleção/arbitragem conforme geração após Game Gear |
+| Card Catcher C-1000 | Adaptador físico histórico documentado | Excluído da implementação; não transportar lógica para o core SG-1000 |
 | 3D Glasses / outros periféricos | Referências técnicas disponíveis | Especificação e implementação na fase P4, por compatibilidade de console |
 | Debugger SMS | Parcial e em evolução | Captura de duração fixa, snapshots CPU/VDP, exportação e usabilidade; não bloqueia hardware |
 | R5 desktop | Parcial | Biblioteca, configurações consolidadas, HUD/telemetria e limpeza segura de legado |
@@ -36,4 +36,4 @@
 
 ## CI da baseline
 
-Main `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`: run #43945796678 e SMS Runtime #43945796477. Quatro checks SUCCESS e 14 SKIPPED. SUCCESS inclui Rust quality/unit, Z80 focused, change impact e SMS Runtime Release format/Clippy/tests. Os jobs de PSG, workspace completo, CPAL, frame pacing, Slint/WGPU, SDL3, Scheduler stress, SMS1 VDP, input core, documentação e workflow validation foram SKIPPED nesta execução; não inferir validação desses domínios.
+Main `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`: workflow push pós-merge #43962737265. Change impact classification, Documentation patch hygiene e Rust quality/unit PASS. Workspace, Z80, Scheduler, SMS1 VDP, CPAL, SDL3, Slint/WGPU/Vulkan e demais jobs de código/runtime foram SKIPPED; portanto, não há nova validação de runtime pós-merge. A PR #980 foi validada em seu HEAD `c83d459ba710785a86ae28632b2c0bcc98e3a05f` pelo run #43959831347: impact, documentation hygiene e Rust quality/unit PASS; demais jobs SKIPPED.

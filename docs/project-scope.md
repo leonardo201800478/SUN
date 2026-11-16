@@ -27,7 +27,7 @@ A GUI não implementa hardware, instruções, clocks, temporização ou callback
 1. **SMS1/SMS2:** consolidar os perfis 315-5124/315-5246, boot, vídeo, áudio, I/O, mappers, BIOS e validação. Road Rash e alinhamento de sprites foram reportados pelo usuário como resolvidos; não reabrir sem regressão. BIOS boot permanece com validação física pendente.
 2. **SG-1000:** concluir a máquina temporal e a integração dos componentes existentes, usando o Z80 compartilhado e preservando VDP/PSG/I/O. Não redesenhar a arquitetura nem criar CPU, GUI ou pipeline paralelo.
 3. **Game Gear:** implementar como sistema próprio, com diferenças de VDP/LCD, CRAM, áudio estéreo, portas, memória, cartucho, snapshots e input. Não tratar como SMS com resolução reduzida.
-4. **Expansões e acessórios 8-bit:** após Game Gear, implementar YM2413 integrado no perfil de Master System japonês (opcional e independente de região); Sega Card/My Card como mídia carregável; 3D Glasses/SegaScope com apresentação 2D/estéreo; Paddle, Sports Pad, Light Phaser, Rapid Fire e interfaces de expansão conforme compatibilidade real de cada console/modelo. Card Catcher C-1000 não será implementado.
+4. **Expansões e acessórios 8-bit:** após Game Gear, implementar YM2413 integrado no perfil de Master System japonês (opcional e independente de região); Sega Card/My Card como mídia carregável; 3D Glasses/SegaScope com protocolo $FFF8–$FFFB, saída 2D por olho ou lado a lado e modo anaglífico opcional que exige óculos coloridos; Paddle, Sports Pad, Light Phaser, Rapid Fire e interfaces de expansão conforme compatibilidade real de cada console/modelo. Card Catcher C-1000 não será implementado.
 5. **Mega Drive/Genesis.**
 6. **Sega CD.**
 7. **32X.**
