@@ -2,8 +2,8 @@
 //!
 //! Expected values are calculated from the documented arithmetic/nibble
 //! transformations, without calling production ALU helpers. These tests
-//! validate architectural results and nominal instruction timing, not bus
-//! event ordering or clone-specific undocumented behavior.
+//! validate architectural results, nominal timing and a MEMPTR-observable X/Y
+//! path, not bus event ordering or clone-specific deviations.
 use sega_sms_core::{CpuBus, Z80};
 
 const FLAG_C: u8 = 0x01;
@@ -213,7 +213,7 @@ fn rrd_and_rld_memptr_is_observable_through_following_bit_hl_flags() {
                             "ED {opcode:02X}: memory"
                         );
 
-                        let mut expected_flags = FLAG_H | (expected_wz >> 8) as u8 & FLAG_XY;
+                        let mut expected_flags = FLAG_H | (((expected_wz >> 8) as u8) & FLAG_XY);
                         if carry_in {
                             expected_flags |= FLAG_C;
                         }
