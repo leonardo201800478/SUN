@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `08f633affdb7478b64b1ec2007ca1986c2a48978` (2026-11-16, após PRs #955–#969). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, após PR #975). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -1049,3 +1049,20 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Fotografia vigente — pós-PR #975 (16/11/2026)
+
+**Main:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #972 e PR #975 são alterações test-only sobre o núcleo Z80; os blobs de produção `cpu.rs`, `sequencer.rs` e `prefix.rs` permanecem os mesmos do HEAD #968 validado pelo Z80 focused.
+
+- **F-022 — INTERNAL_REVIEW_COMPLETE (candidate; independent review pending):** semântica de software das oito formas LDI/LDD/LDIR/LDDR/CPI/CPD/CPIR/CPDR do perfil NMOS delimitado; auditoria interna, 786.432 cenários simples, matrizes repetitivas, ROM hardware-derived limitada e integração SMS/Scheduler documentadas; falta review independente registrado.
+- **F-023 — INTERNAL_REVIEW_COMPLETE (candidate; PR #977 and independent review pending):** semântica de software WZ/MEMPTR do perfil Zilog NMOS delimitado. Revisão interna dos handlers e matriz por família concluída; PR #977 cobre WZ/JR/DJNZ com DD/FD; HW limitado à evidência RRD/RLD, demais regras INT/COMP, variantes fora do perfil NOT_VERIFIED; falta review independente registrado. Ver relatório de revisão adversarial.
+- **F-028 — IN_PROGRESS:** 167 Ignored e 85 UsesIndex permanecem reconciliados; #975 acrescenta CALL/RST com wrap 16-bit de retorno em DD/FD e snapshot/WAIT. Falta revisão adversarial final integral das exceções e limites.
+- **Scheduler:** LONG_PASS é determinismo/replay de software nas dimensões da campanha; não comprova WAIT físico, DMA ou TEMPORAL_PASS global.
+- **CI #975:** Z80 focused e Rust quality/unit PASS em #43937118700; SMS Runtime PASS em #43937118785; Scheduler stress SKIPPED.
+
+**E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.** Não iniciar E8 até F-022, F-028 e os gates finais E7 estarem formalmente fechados no candidato final. O milestone de integração temporal completa da máquina SG-1000 permanece P2, separado do fechamento do Z80 compartilhado.
+
+
+**Gate formal de revisão:** os relatórios F-022/F-023 registram inspeção interna, não aprovação independente. Não promover candidate closure a CLOSED sem review independente no GitHub. PR #977 continua sendo gate técnico para a interação WZ sob DD/FD Ignored.
