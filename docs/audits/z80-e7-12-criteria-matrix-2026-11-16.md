@@ -9,7 +9,7 @@
 
 Esta é a consolidação dos 12 critérios temporais e de integração solicitados na continuidade E7. O checklist mestre do repositório não contém uma lista autônoma numerada de exatamente 12 itens; seus requisitos estão distribuídos pelos grupos F-, S-, T-, D-, V- e C-. Esta matriz agrupa os itens temporais expressamente enumerados na continuidade, sem substituir o checklist mestre.
 
-**Workflow da validação complementar:** [CI #43918490165](https://github.com/leonardo201800478/sega-emulator/actions/runs/43918490165) — Rust workspace regression SUCCESS. O executável `snapshot_restore_e7_2e` registrou **13 passed, 0 failed**. [SMS Debugger Runtime #43918490096](https://github.com/leonardo201800478/sega-emulator/actions/runs/43918490096) — SUCCESS. Os jobs Z80 focused e Scheduler deterministic stress foram SKIPPED nessa execução e permanecem NOT RUN nela.
+**Workflow da validação complementar:** [CI #43918490165](https://github.com/leonardo201800478/sega-emulator/actions/runs/43918490165) — Rust workspace regression SUCCESS. O executável `snapshot_restore_e7_2e` registrou **13 passed, 0 failed**. [SMS Debugger Runtime #43918490096](https://github.com/leonardo201800478/sega-emulator/actions/runs/43918490096) — SUCCESS. Os jobs Z80 focused e Scheduler deterministic stress foram SKIPPED nessa execução e permanecem NOT RUN nela. A PR #972 foi integrada à main pelo commit `1b16256358e3f17837a95cc071048c5ee5307f82` (alteração somente de teste). O conector não expôs workflow push pós-merge no SHA main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`; validação pós-merge = **NOT VERIFIED/NOT RUN**.
 
 | # | Critério | Arquivos/símbolos de evidência | Resultado de software | Limite / classificação |
 |---:|---|---|---|---|
@@ -22,7 +22,7 @@ Esta é a consolidação dos 12 critérios temporais e de integração solicitad
 | 7 | M-cycles/T-states | `Z80MicroSequencer`; `snapshot_restore_e7_2e.rs`; matrizes temporais Z80 em `native/z80_cpu/tests` | PASS para a sequência nominal e durações cobertas | Não alegar precisão elétrica/sub-T-state ou timing de dispositivo ainda não integrado |
 | 8 | Operações de barramento e ordem dos requests | Trace de `SmsTemporalMachine`; WAIT matrix; requests M1, memória, I/O, acknowledge e ciclos internos | PASS nas classes de request cobertas | DMA/arbitragem externa e operações de dispositivos não presentes no perfil: NOT_VERIFIED/NOT_APPLICABLE conforme escopo |
 | 9 | Suspensão e retomada | `run_boundary`, `compare_runs`, `run_boundary_with_repeat_interrupt`, `compare_repeat_interrupt_runs` em `snapshot_restore_e7_2e.rs` | PASS nos safe points de request e ciclo interno exercitados | Não equivale a provar todos os estados possíveis de cada dispositivo |
-| 10 | Snapshot/restore | helper `snapshot` em `snapshot_restore_e7_2e.rs`; encode/decode de `Z80MicroSequencerState`; comparações de trace/estado/timestamp | PASS; a suíte de integração registrou 13/13 no workspace Release do HEAD #972 | Não atribuir esse resultado ao SHA da main; HEAD #972 ainda não integrado |
+| 10 | Snapshot/restore | helper `snapshot` em `snapshot_restore_e7_2e.rs`; encode/decode de `Z80MicroSequencerState`; comparações de trace/estado/timestamp | PASS; a suíte de integração registrou 13/13 no workspace Release no HEAD de PR #972 | PR #972 foi integrada por `1b16256358e3f17837a95cc071048c5ee5307f82`; o run de PR é pré-merge e não substitui validação pós-merge, que permanece NOT VERIFIED/NOT RUN |
 | 11 | Ordem causal e determinismo do Scheduler | LONG workflow #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`; 16 seeds, 320.000 operações e 4.000.000 dispatches | LONG_PASS de software | A campanha não prova WAIT físico, DMA, safe points de todos os dispositivos ou TEMPORAL_PASS global; stress foi SKIPPED no #972 |
 | 12 | Integração SMS/SG-1000 | SMS: `SmsTemporalMachine`/MachineScheduler e testes desta matriz. SG-1000: `native/sg1000_core/src/cpu.rs` reexporta `sega_z80_cpu`; `machine.rs` usa stepping por instrução; `temporal.rs`/`temporal_bus.rs` são primitives ainda não conectadas à máquina | SMS: PASS direcionado. SG-1000: integração do Z80 compartilhado PASS; integração da máquina SG-1000 ao Scheduler PARTIAL/deferida para P2 | O fechamento E7 do core compartilhado não deve ser confundido com conclusão do milestone standalone SG-1000 |
 
@@ -36,8 +36,8 @@ Esta é a consolidação dos 12 critérios temporais e de integração solicitad
 ## Bloqueios E7 que permanecem fora desta matriz resumida
 
 1. F-022: revisão adversarial final das oito formas e proveniência/oráculos ainda pendente; a integração IM2/NMI durante repetição tem teste e CI PASS na PR #972.
-2. F-023: revisão adversarial por família concluída; CLOSED para semântica de software WZ/MEMPTR do perfil Zilog NMOS delimitado. Somente RRD/RLD tem evidência HW específica para WZ=HL+1.
-3. F-028: revisão adversarial final ainda pendente; #975 acrescenta casos CALL/RST com wrap de retorno 16-bit para DD/FD, WAIT e snapshot.
+2. F-023: auditoria interna por família concluída; INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE, com revisão independente registrada ainda pendente. Somente RRD/RLD tem evidência HW específica para WZ=HL+1.
+3. F-028: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE após #975/#977 cobrirem CALL/RST stack wrap, WZ/PC dos 167 Ignored, DD/FD, WAIT fixture e snapshot/restore; revisão independente registrada ainda pendente.
 4. Obter revisão técnica independente registrada e executar os gates aplicáveis no candidato final e na main pós-merge.
 
 **Decisão:** E7 permanece IN_PROGRESS. E8/ZEXDOC/ZEXALL permanece BLOCKED. A matriz não libera E8 por si só.
@@ -45,7 +45,7 @@ Esta é a consolidação dos 12 critérios temporais e de integração solicitad
 
 ## Equivalência de código de produção entre os SHAs de validação
 
-A comparação de blobs confirma que o código de produção Z80 na main `2d526ea37c9cd65e82b54a330c52f54c07841400` é idêntico ao HEAD validado da PR #968 (`c39f79161e45cfcbf88b9367a3abc2ba136614cc`) nos arquivos centrais:
+A comparação de blobs reexecutada nesta auditoria confirma que o código de produção Z80 na main atual `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` é idêntico ao HEAD validado da PR #968 (`c39f79161e45cfcbf88b9367a3abc2ba136614cc`) nos arquivos centrais:
 
 | Arquivo | Blob SHA na main e no HEAD #968 |
 |---|---|
@@ -62,7 +62,7 @@ A comparação também confirma que o código central do Scheduler na main é id
 | `native/machine_scheduler/src/lib.rs` | `e25a62668102d18b452b9a358241a93450d5d189` |
 | `native/machine_scheduler/src/codec.rs` | `dfbaa492bec9a506653ba210ba420e9044610d9a` |
 
-Portanto, LONG #43901362527 é evidência válida para o mesmo código central do Scheduler atualmente em main. A PR #972 altera somente o teste de integração SMS e não altera o Scheduler nem o Z80 de produção. O CI #43918490165 executou o workspace no HEAD #972 e registrou 13/13 testes em `snapshot_restore_e7_2e`; o Z80 focused e o Scheduler stress foram SKIPPED nessa PR, mas suas campanhas anteriores continuam vinculadas aos mesmos blobs de produção.
+Portanto, LONG #43901362527 é evidência válida para o mesmo código central do Scheduler atualmente em main; os blobs de `machine_scheduler/src/lib.rs` e `codec.rs` foram reconsultados e coincidem com o SHA LONG. A PR #972 foi integrada por `1b16256358e3f17837a95cc071048c5ee5307f82` e altera somente `native/sms_core/tests/snapshot_restore_e7_2e.rs`, sem alterar o Scheduler nem o Z80 de produção. O CI #43918490165 executou o workspace no HEAD pré-merge #972 e registrou 13/13 testes em `snapshot_restore_e7_2e`; o Z80 focused e o Scheduler stress foram SKIPPED nessa PR, mas suas campanhas anteriores continuam vinculadas aos mesmos blobs de produção. O workflow push pós-merge no SHA main atual não foi exposto pelo conector: NOT VERIFIED/NOT RUN.
 
 
 ## Reconciliação pós-PR #975 — main 22c489e (16/11/2026)
