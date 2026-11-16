@@ -424,19 +424,21 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
         if &bus.memory[0x8900..0x8904] == b"OTIR" {
-            if let Some((ldir_pc, start_t, start_bc, frame_edge, saw_detour, saw_resume)) =
+            if let Some((ldir_pc, start_t, start_bc, frame_edge, in_detour, _resumed)) =
                 block_delay_loop
             {
-                if pc_before == ldir_pc && saw_detour && !saw_resume {
-                    // RETI returned to the suspended LDIR instruction. A later
-                    // PC change with BC=0 can now mean its actual completion.
-                    block_delay_loop = Some((ldir_pc, start_t, start_bc, frame_edge, true, true));
+                if pc_before == ldir_pc && in_detour {
+                    // RETI (or another valid return path) resumed the original
+                    // LDIR. Clear the detour state so its eventual BC=0 exit is
+                    // distinguishable from an ISR's own LDIR.
+                    block_delay_loop = Some((ldir_pc, start_t, start_bc, frame_edge, false, true));
                 } else if pc_before != ldir_pc && cpu.registers.bc() != 0 {
-                    // Every instruction outside the LDIR while BC remains nonzero
-                    // is a detour. A subsequent interrupt must invalidate the
-                    // previous resume marker until RETI returns to ldir_pc again.
+                    // Instructions outside the original LDIR with BC still
+                    // nonzero are a suspended-operation detour. This also
+                    // prevents the ISR's short register-save LDIR from being
+                    // mistaken for completion of the original delay loop.
                     block_delay_loop = Some((ldir_pc, start_t, start_bc, frame_edge, true, false));
-                } else if pc_before != ldir_pc && cpu.registers.bc() == 0 && !saw_detour {
+                } else if pc_before != ldir_pc && cpu.registers.bc() == 0 && !in_detour {
                     let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
                     block_delay_summary.push(format!(
                         "ldir_pc={:04X} start_t={} end_t={} elapsed_including_interrupts={} nominal_without_interrupts={} start_bc={:04X} end_pc={:04X} end_bc={:04X} first_frame_edge={} end_to_first_edge={}",
