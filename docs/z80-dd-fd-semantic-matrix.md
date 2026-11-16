@@ -595,5 +595,5 @@ O ledger contém exatamente os 256 bytes possíveis após DD/FD. A classificaç�
 
 **Estado:** o inventário por byte foi materializado; validação dos novos testes e revisão independente permanecem pendentes. F-028 continua AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
 
- 
+
 **Cobertura preexistente relacionada:** os testes unitários de cpu.rs já percorrem todos os 256 bytes BASE/DD/FD/CB/ED e os 256 subopcodes DDCB/FDCB para garantir que o executor não retorna erro; isso é smoke/classification, não prova semântica. O teste indexed-CB exaustivo em sms_core percorre todos os valores/carry para rotate/shift; BIT/RES/SET e cópias para registrador têm matrizes específicas, mas não formam uma prova semântica combinatória de todos os estados para todos os 256 subopcodes. O ledger e o novo teste completam a classificação explícita UsesIndex/Ignored/IndexedCB, não essa prova semântica.
