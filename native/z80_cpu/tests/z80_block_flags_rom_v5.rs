@@ -245,14 +245,12 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         let now = cpu.total_tstates;
 
         if pulse_end.is_some_and(|end| now >= end) {
-            if cpu.int_pending == Some(0xFF) {
-                cpu.int_pending = None;
-            }
+            cpu.clear_int_request();
             pulse_end = None;
         }
 
         if pulse_end.is_none() && now >= next_interrupt {
-            cpu.int_pending = Some(0xFF);
+            cpu.request_int(0xFF);
             pulse_end = Some(next_interrupt + INT_PULSE_TSTATES);
             next_interrupt = next_interrupt.saturating_add(FRAME_TSTATES);
         }
@@ -276,8 +274,29 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         );
         assert!(
             cpu.total_tstates <= MAX_TSTATES,
-            "Z80 block-flags ROM exceeded {MAX_TSTATES} T-states at PC={:04X}",
-            cpu.registers.pc
+            "Z80 block-flags ROM exceeded {MAX_TSTATES} T-states: PC={:04X} SP={:04X} AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} I={:02X} R={:02X} WZ={:04X} IFF1={} IFF2={} IM={} HALT={} INT={:?} next_int={} pulse_end={:?} code={:02X?} output_tail={}",
+            cpu.registers.pc,
+            cpu.registers.sp,
+            cpu.registers.a,
+            cpu.registers.f,
+            cpu.registers.b,
+            cpu.registers.c,
+            cpu.registers.d,
+            cpu.registers.e,
+            cpu.registers.h,
+            cpu.registers.l,
+            cpu.i,
+            cpu.r,
+            cpu.wz,
+            cpu.iff1,
+            cpu.iff2,
+            cpu.interrupt_mode,
+            cpu.halted,
+            cpu.int_pending,
+            next_interrupt,
+            pulse_end,
+            (0..8).map(|offset| bus.memory[usize::from(cpu.registers.pc.wrapping_add(offset))]).collect::<Vec<_>>(),
+            String::from_utf8_lossy(&bus.output[bus.output.len().saturating_sub(160)..])
         );
 
         cpu.step(&mut bus).unwrap_or_else(|error| {
