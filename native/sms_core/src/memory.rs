@@ -244,19 +244,13 @@ impl SmsMemory {
     }
 
     #[inline]
-    pub fn read(&self, address: u16) -> u8 {
-        if address <= 0xBFFF && self.control_port & 0x40 != 0 {
-            if address <= 0x1FFF && self.bios.is_some() && self.control_port & 0x08 == 0 {
-                return self
-                    .bios
-                    .as_ref()
-                    .map_or(0xFF, |bios| bios[usize::from(address)]);
-            }
-            return 0xFF;
-        }
-        // On the original SMS, the cartridge wins if both cartridge and BIOS
-        // are enabled. SMS 2 has a distinct wired-AND behavior and is not the
-        // hardware profile modeled by this core.
+    fn cartridge_slot_selected(&self) -> bool {
+        // Card has priority over cartridge on BIOS-using SMS hardware.
+        self.control_port & 0x20 != 0 && self.control_port & 0x40 == 0
+    }
+
+    #[inline]
+    fn read_cartridge_space(&self, address: u16) -> u8 {
         match address {
             0x0000..=0x3FFF => {
                 if matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
@@ -283,23 +277,48 @@ impl SmsMemory {
                     self.read_bank(self.bank_registers[2], offset)
                 }
             }
-            0xC000..=0xFFFF => {
-                if self.control_port & 0x10 != 0 {
-                    if self.control_port & 0x40 == 0
-                        && matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
-                        && self.mapper_control & 0x10 != 0
-                    {
-                        self.cartridge_sram.as_ref().map_or(0xFF, |sram| {
-                            let offset = usize::from(address - RAM_START) % sram.len();
-                            sram[offset]
-                        })
-                    } else {
-                        0xFF
-                    }
-                } else {
-                    self.work_ram[usize::from(address - RAM_START) & (RAM_SIZE - 1)]
-                }
+            _ => unreachable!("cartridge reads are restricted to $0000-$BFFF"),
+        }
+    }
+
+    #[inline]
+    pub fn read(&self, address: u16) -> u8 {
+        if address <= 0xBFFF {
+            // The card slot is checked before the cartridge on BIOS-using SMS
+            // hardware. Card and expansion devices are not implemented here,
+            // so an enabled unsupported slot reads as open bus.
+            if self.control_port & 0x20 == 0 {
+                return 0xFF;
             }
+            if self.cartridge_slot_selected() {
+                return self.read_cartridge_space(address);
+            }
+            if self.control_port & 0x80 == 0 {
+                return 0xFF;
+            }
+            if address <= 0x1FFF && self.bios_mapped() {
+                return self
+                    .bios
+                    .as_ref()
+                    .map_or(0xFF, |bios| bios[usize::from(address)]);
+            }
+            return 0xFF;
+        }
+
+        if self.control_port & 0x10 != 0 {
+            if self.cartridge_slot_selected()
+                && matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
+                && self.mapper_control & 0x10 != 0
+            {
+                self.cartridge_sram.as_ref().map_or(0xFF, |sram| {
+                    let offset = usize::from(address - RAM_START) % sram.len();
+                    sram[offset]
+                })
+            } else {
+                0xFF
+            }
+        } else {
+            self.work_ram[usize::from(address - RAM_START) & (RAM_SIZE - 1)]
         }
     }
 
@@ -317,7 +336,7 @@ impl SmsMemory {
         // device mirrors across both bank selections; 32 KiB devices expose
         // two independent 16 KiB pages selected by bit 2.
         if (0x8000..=0xBFFF).contains(&address)
-            && self.control_port & 0x40 == 0
+            && self.cartridge_slot_selected()
             && matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
             && self.mapper_control & 0x08 != 0
         {
@@ -332,7 +351,7 @@ impl SmsMemory {
 
         // The mapper registers belong to the cartridge slot. A BIOS-only
         // power-on profile must not mutate a disabled cartridge mapper.
-        if self.control_port & 0x40 == 0 {
+        if self.cartridge_slot_selected() {
             match self.mapper {
                 MapperKind::Sega | MapperKind::SegaExtended => match address {
                     0xFFFC => self.mapper_control = value,
@@ -501,10 +520,10 @@ impl SmsMemory {
 
     /// Whether BIOS ROM currently drives reads at $0000-$1FFF.
     ///
-    /// On SMS1, the cartridge takes priority when both BIOS and cartridge
-    /// slots are enabled, even if the BIOS-disable latch remains clear.
+    /// BIOS ROM drives reads only when its latch is enabled and all external
+    /// slots (expansion, cartridge and card) are disabled.
     pub fn bios_mapped(&self) -> bool {
-        self.bios_enabled() && self.control_port & 0x40 != 0
+        self.bios_enabled() && self.control_port & 0xE0 == 0xE0
     }
 }
 
@@ -824,7 +843,7 @@ mod tests {
     #[test]
     fn cartridge_slot_disable_returns_open_bus_without_disabling_work_ram() {
         let mut memory = SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
-        memory.write_control_port(0x40);
+        memory.write_control_port(0xE0);
         assert_eq!(
             memory.read(0x0400),
             0xA5,
