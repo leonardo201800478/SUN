@@ -1,7 +1,7 @@
 # Plano de execução — fechamento E7 do Z80
 
 **Data da revisão:** 2026-11-16
-**Baseline remota main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`
+**Baseline remota main:** `2607e45e4d35e52cd61d825d42a6514b789cfc30`
 **Estado global:** E7 `IN_PROGRESS`; E8/ZEXDOC/ZEXALL `BLOCKED`.
 
 Este documento organiza o trabalho subsequente a partir das evidências realmente observadas. Resultados de PR não são atribuídos à main até integração e validação no SHA pós-merge.
@@ -243,3 +243,8 @@ Estado vigente:
 - F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
 - Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+
+## Atualização de execução pós-PR #964
+
+A PR #964 integrou o caso de INT level-sensitive no último T-state da repetição LDIR/LDDR/CPIR/CPDR via SmsTemporalMachine/MachineScheduler, com IM1, RETI, WAIT de fixture e snapshot/restore por safe point. CI #43903631872 workspace regression/Rust quality PASS; SMS Runtime #43903632358 Release format/Clippy/testes/build Windows x64 PASS. Scheduler stress e Z80 focused SKIPPED; debugger Windows Release SKIPPED. F-022 continua IN_PROGRESS. A classificação stream/data de F-028 está em validação na PR #965, reaplicada sobre a main atual após bloqueio de required check na branch anterior #959. E7 IN_PROGRESS; E8 BLOCKED.
