@@ -230,7 +230,7 @@ O runtime atual classifica como Sega qualquer ROM que não satisfaça a assinatu
 | H3 — mapper real dos jogos pode divergir do mapper assumido | Detecção atual faz fallback Sega; DAT não traz PCB explícito | **Média como risco, sem confirmação por ROM** | Hash local, cabeçalho, dump de escritas e referência do PCB |
 | H4 — diferenças do Registers Startup Values são efeito de BIOS/tempo de execução distinto | JP no vetor cold reset; SP é inicializado mais tarde; VC é livre e HC é latched por TH | **Média/alta para não equivalência de instante; baixa para atribuição a um emulador específico** | Disassembly da ROM e captura sincronizada em T-state conhecido |
 | H5 — estado inicial de VDP/PSG/I/O pode não reproduzir estado deixado por BIOS | Defaults zerados/atenuados e I/O $FF; caminho temporal não executa BIOS | **Média como diferença entre perfis; causalidade dos black screens não provada** | Boot com BIOS real, trace de escritas da BIOS e comparação de estado no handoff |
-| H6 — worker temporal não recebe a BIOS já selecionada pela camada host na baseline | Construtores do worker não aceitam BIOS; PR #908 adiciona API nova | **Alta para a baseline atual** | Inspecionar integração host e testar caminho de firmware completo |
+| H6 — firmware catalogado ainda não é encaminhado ao worker temporal | UI persiste e escaneia firmware, mas informa explicitamente que boot ainda aguarda integração; `create_sms_worker` não passa BIOS | **Alta — limitação intencional e documentada** | Integrar bytes validados no host e testar caminho temporal completo antes de habilitar a opção |
 
 Não há evidência que permita afirmar que Andre Agassi Tennis e Ace of Aces compartilham a mesma causa.
 
