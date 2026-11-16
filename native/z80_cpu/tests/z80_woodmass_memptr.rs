@@ -7,8 +7,8 @@
 //!
 //! The test uses only the Spectrum ROM entry points stubbed by that runner:
 //! CHAN_OPEN (opcode-fetch override at 0x1601), CLS (RET at 0x0D6B), and PRINT
-//! (RST 10h hook at 0x0010). Other ROM code execution is rejected; ROM data reads are recorded,
-//! avoiding a copyrighted ROM dependency.
+//! (RST 10h hook at 0x0010). Other ROM code execution is rejected. The zero-filled
+//! ROM data reads are recorded and the output oracle determines whether these stubs suffice.
 
 use std::collections::BTreeSet;
 use std::fs;
