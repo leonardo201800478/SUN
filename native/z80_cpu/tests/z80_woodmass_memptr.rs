@@ -131,7 +131,9 @@ fn output_contains_row(output: &[u8], mnemonic: &[u8], result: &[u8]) -> bool {
     expected.extend_from_slice(mnemonic);
     expected.extend_from_slice(&[0x17, 0x13, 0x00]); // Spectrum TAB/INK/PAPER controls.
     expected.extend_from_slice(result);
-    output.windows(expected.len()).any(|window| window == expected)
+    output
+        .windows(expected.len())
+        .any(|window| window == expected)
 }
 
 #[test]
