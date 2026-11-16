@@ -253,7 +253,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
             .map(|(result_time, _, _)| {
                 let mut fetches = cpu_fetch_trace
                     .iter()
-                    .filter(|(timestamp, _)| {
+                    .filter(|(timestamp, _, _, _, _, _, _, _)| {
                         *timestamp >= (*result_time).saturating_sub(150_000)
                             && *timestamp <= *result_time
                     })
