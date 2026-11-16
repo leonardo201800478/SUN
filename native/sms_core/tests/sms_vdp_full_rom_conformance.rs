@@ -83,7 +83,8 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut io_control_writes: Vec<IoControlWriteTrace> = Vec::new();
     let mut cpu_memory_read_trace: VecDeque<CpuMemoryReadTrace> = VecDeque::with_capacity(65_536);
     let mut irq_line_changes: Vec<IrqLineTrace> = Vec::new();
-    let mut cpu_internal_cycle_trace: VecDeque<InternalCycleTrace> = VecDeque::with_capacity(65_536);
+    let mut cpu_internal_cycle_trace: VecDeque<InternalCycleTrace> =
+        VecDeque::with_capacity(65_536);
 
     for frame in 0..600 {
         if let Err(error) = machine.step_frame(100_000) {
