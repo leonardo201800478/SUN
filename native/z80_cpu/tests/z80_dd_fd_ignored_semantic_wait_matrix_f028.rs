@@ -582,8 +582,7 @@ fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
 
     for initial_pc in INITIAL_PCS {
         for (opcode, flags, bc, taken) in cases {
-            let base =
-                execute_one_instruction(&[opcode], true, flags, bc, initial_pc, INITIAL_WZ);
+            let base = execute_one_instruction(&[opcode], true, flags, bc, initial_pc, INITIAL_WZ);
             assert_eq!(base.fetch_addresses, vec![initial_pc]);
 
             for prefix in [0xDD, 0xFD] {
