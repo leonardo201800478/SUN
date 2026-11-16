@@ -1054,3 +1054,6 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 ## Baseline pós-PR #970 — 16/11/2026
 
 Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem alteração de runtime). F-022 permanece IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS apenas como determinismo de software; E7 IN_PROGRESS; E8 BLOCKED. A lacuna da matriz de requests dos 167 Ignored foi resolvida por #950/#953; PR #971 documenta a reconciliação e PR #972 adiciona cobertura Scheduler IM2, ambas ainda não integradas. Ver [estado E7 consolidado](audits/z80-e7-current-status-2026-11-16.md) para SHAs, workflows e limites de evidência.
+
+
+**Matriz temporal E7:** [12 critérios, arquivos, símbolos, workflows e limites de evidência](audits/z80-e7-12-criteria-matrix-2026-11-16.md). A matriz é uma consolidação derivada, não substitui os IDs formais F-/S-/T-/D-/V-/C- do checklist mestre.
