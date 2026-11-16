@@ -82,13 +82,22 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                 }
                 SmsTemporalTraceEvent::M1TStateCompleted {
                     timestamp,
-                    phase: sega_z80_cpu::Z80M1Phase::T3,
+                    phase,
                     pins,
                 } => {
                     if cpu_fetch_trace.len() == 4096 {
                         cpu_fetch_trace.remove(0);
                     }
-                    cpu_fetch_trace.push((timestamp.ticks(), pins.address));
+                    cpu_fetch_trace.push((
+                        timestamp.ticks(),
+                        phase,
+                        pins.address,
+                        pins.opcode_sample,
+                        pins.m1_n,
+                        pins.mreq_n,
+                        pins.rd_n,
+                        pins.rfsh_n,
+                    ));
                 }
                 SmsTemporalTraceEvent::BusCompleted {
                     timestamp,
@@ -300,6 +309,6 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     assert_eq!(
         results,
         [(25, 0), (31, 0), (32, 0), (33, 0), (34, 0)],
-        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}; RunTest32 IO control writes={run_test32_io_control_writes:?}; RunTest32 TH-rise/read pairs={run_test32_th_latches:?}; RunTest34 IO control writes={run_test34_io_control_writes:?}; RunTest34 TH-rise/read pairs={run_test34_th_latches:?}; RunTest32 last PC fetches={run_test32_pc_trace:?}; RunTest34 last PC fetches={run_test34_pc_trace:?}; RunTest32 IRQ line changes={run_test32_irq_lines:?}; RunTest32 HALT T4 samples={run_test32_halt_samples:?}; RunTest34 IRQ line changes={run_test34_irq_lines:?}; RunTest34 HALT T4 samples={run_test34_halt_samples:?}"
+        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}; RunTest32 IO control writes={run_test32_io_control_writes:?}; RunTest32 TH-rise/read pairs={run_test32_th_latches:?}; RunTest34 IO control writes={run_test34_io_control_writes:?}; RunTest34 TH-rise/read pairs={run_test34_th_latches:?}; RunTest32 last M1 phases={run_test32_pc_trace:?}; RunTest34 last M1 phases={run_test34_pc_trace:?}; RunTest32 IRQ line changes={run_test32_irq_lines:?}; RunTest32 HALT T4 samples={run_test32_halt_samples:?}; RunTest34 IRQ line changes={run_test34_irq_lines:?}; RunTest34 HALT T4 samples={run_test34_halt_samples:?}"
     );
 }
