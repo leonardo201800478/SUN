@@ -44,6 +44,19 @@ type CpuMemoryReadTrace = (
 );
 type ThLatchReadPair = (u128, u16, bool, Option<u8>, u128, u8, u16, bool, Option<u8>);
 type IrqLineTrace = (u128, Option<u8>, bool, bool);
+type InternalCycleTrace = (
+    u128,
+    u64,
+    u32,
+    u16,
+    u16,
+    bool,
+    Option<u8>,
+    bool,
+    u8,
+    bool,
+    bool,
+);
 
 #[test]
 #[ignore = "run by the dedicated SMS VDP full-ROM conformance workflow"]
@@ -70,6 +83,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut io_control_writes: Vec<IoControlWriteTrace> = Vec::new();
     let mut cpu_memory_read_trace: Vec<CpuMemoryReadTrace> = Vec::new();
     let mut irq_line_changes: Vec<IrqLineTrace> = Vec::new();
+    let mut cpu_internal_cycle_trace: Vec<InternalCycleTrace> = Vec::new();
 
     for frame in 0..600 {
         if let Err(error) = machine.step_frame(100_000) {
@@ -77,6 +91,36 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
         }
         for event in machine.take_trace() {
             match event {
+                SmsTemporalTraceEvent::InternalCycleCompleted {
+                    timestamp,
+                    continuation_id,
+                    tstates,
+                    cpu_pc_before,
+                    cpu_pc_after,
+                    cpu_halted,
+                    cpu_int_line,
+                    cpu_iff1,
+                    cpu_ei_delay,
+                    cpu_halt_exit_int,
+                    cpu_halt_exit_nmi,
+                } => {
+                    if cpu_internal_cycle_trace.len() == 65_536 {
+                        cpu_internal_cycle_trace.remove(0);
+                    }
+                    cpu_internal_cycle_trace.push((
+                        timestamp.ticks(),
+                        continuation_id,
+                        tstates,
+                        cpu_pc_before,
+                        cpu_pc_after,
+                        cpu_halted,
+                        cpu_int_line,
+                        cpu_iff1,
+                        cpu_ei_delay,
+                        cpu_halt_exit_int,
+                        cpu_halt_exit_nmi,
+                    ));
+                }
                 SmsTemporalTraceEvent::InterruptLineChanged {
                     timestamp,
                     line,
@@ -346,6 +390,28 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     };
     let run_test32_pc_trace = cpu_fetches_before_result(0xC91F);
     let run_test34_pc_trace = cpu_fetches_before_result(0xC921);
+    let cpu_internal_cycles_before_result = |result_address: u16| {
+        diagnostic_memory_writes
+            .iter()
+            .find(|(_, address, _)| *address == result_address)
+            .map(|(result_time, _, _)| {
+                let mut cycles = cpu_internal_cycle_trace
+                    .iter()
+                    .filter(|(timestamp, _, _, _, _, _, _, _, _, _, _)| {
+                        *timestamp >= (*result_time).saturating_sub(150_000)
+                            && *timestamp <= *result_time
+                    })
+                    .copied()
+                    .collect::<Vec<_>>();
+                if cycles.len() > 64 {
+                    cycles.drain(..cycles.len() - 64);
+                }
+                cycles
+            })
+            .unwrap_or_default()
+    };
+    let run_test32_internal_cycles = cpu_internal_cycles_before_result(0xC91F);
+    let run_test34_internal_cycles = cpu_internal_cycles_before_result(0xC921);
     let irq_events_before_result = |result_address: u16| {
         diagnostic_memory_writes
             .iter()
@@ -377,6 +443,6 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     assert_eq!(
         results,
         [(25, 0), (31, 0), (32, 0), (33, 0), (34, 0)],
-        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}; RunTest32 IO control writes={run_test32_io_control_writes:?}; RunTest32 TH-rise/read pairs={run_test32_th_latches:?}; RunTest34 IO control writes={run_test34_io_control_writes:?}; RunTest34 TH-rise/read pairs={run_test34_th_latches:?}; RunTest32 last CPU memory reads={run_test32_pc_trace:?}; RunTest34 last CPU memory reads={run_test34_pc_trace:?}; RunTest32 IRQ line changes={run_test32_irq_lines:?}; RunTest34 IRQ line changes={run_test34_irq_lines:?}"
+        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}; RunTest32 IO control writes={run_test32_io_control_writes:?}; RunTest32 TH-rise/read pairs={run_test32_th_latches:?}; RunTest34 IO control writes={run_test34_io_control_writes:?}; RunTest34 TH-rise/read pairs={run_test34_th_latches:?}; RunTest32 last CPU memory reads={run_test32_pc_trace:?}; RunTest34 last CPU memory reads={run_test34_pc_trace:?}; RunTest32 internal-cycle trace={run_test32_internal_cycles:?}; RunTest34 internal-cycle trace={run_test34_internal_cycles:?}; RunTest32 IRQ line changes={run_test32_irq_lines:?}; RunTest34 IRQ line changes={run_test34_irq_lines:?}"
     );
 }
