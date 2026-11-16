@@ -88,3 +88,34 @@ A descrição anterior refletia a primeira versão da matriz e foi supersedida p
 - Os 34.000 vetores SingleStepTests DD/FD também foram explicitamente executados e aprovados neste HEAD.
 - A falha intermediária em SCF/CCF era fixture incorreto: o estado inicial correto é expresso pelo latch Q, porque o início de instrução transfere Q para previous-Q; o caminho DD/FD limpa previous-Q conforme a regra NMOS. O fixture agora parametriza Q inicial e o caso BASE inicia com Q=0. Os quatro testes passam; nenhuma produção CPU foi alterada.
 - F-028 permanece AUDIT_PARTIAL: cobertura dirigida, não todos os 256 opcodes DD/FD e estados. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 6. Ledger integral de classificação e interrupções — extensão 2026-11-16
+
+### 6.1 Classificação dos 256 bytes após DD/FD
+
+Foi adicionado o ledger docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv com 256 registros, um por byte após DD/FD. A partição efetiva da FSM é 85 UsesIndex, 167 Ignored, 1 IndexedCB, 1 ED que cancela a seleção IX/IY e 2 bytes DD/FD que repetem/substituem o prefixo anterior.
+
+A função auxiliar classify_index_opcode() retorna Ignored para DD/FD/ED quando chamada diretamente porque a FSM trata esses bytes antes de invocá-la. O ledger distingue o resultado auxiliar da transição efetiva. O teste index_prefix_classification_f028.rs enumera todos os bytes e compara a classificação com uma lista explícita de 85 opcodes UsesIndex; as contagens esperadas da função auxiliar são 85 UsesIndex, 170 Ignored e 1 IndexedCB.
+
+Exceções explicitadas: HALT 76 permanece BASE/Ignored; EX AF,AF' 08, EXX D9 e EX DE,HL EB preservam semântica BASE; 66/6E/74/75 usam IX/IY+d mas mantêm H/L convencionais; CB entra em DDCB/FDCB; ED cancela a indexação; DD/FD repetidos obedecem last-prefix-wins.
+
+### 6.2 Interrupções solicitadas durante a cadeia
+
+Foram adicionados dois testes em z80_dd_fd_exception_matrix_f028.rs. Eles solicitam NMI ou INT depois do M1 de DD, antes de FD, durante a cadeia DD FD 00. Cada M1 recebe WAIT e passa por snapshot encode/decode/restore. Os testes verificam que a cadeia continua até a aposentadoria do NOP e que NMI/INT só são aceitos na fronteira seguinte. É um teste do microsequenciador Z80, não um novo teste de integração MachineScheduler/VDP SMS.
+
+### 6.3 Validação final das extensões
+
+- HEAD validado: b3320ea79c6b951d2ad8b70e762589f14da597df.
+- CI [#43863265215](https://github.com/leonardo201800478/sega-emulator/actions/runs/43863265215): SUCCESS. Z80 focused validation, Rust quality/unit e documentation patch hygiene SUCCESS.
+- Teste index_prefix_classification_f028.rs: 3 passed/0 failed; enumeração de todos os 256 bytes.
+- Teste z80_dd_fd_exception_matrix_f028.rs: 6 passed/0 failed; inclui os dois novos testes INT/NMI.
+- SingleStepTests DD/FD: 2.000 SCF/CCF/Q + 32.000 indexed ALU = 34.000/34.000 PASS no mesmo SHA.
+- SMS Runtime [#43863265197](https://github.com/leonardo201800478/sega-emulator/actions/runs/43863265197): SUCCESS; Release format, Clippy, testes e build Windows x64 PASS.
+- A primeira tentativa #43862912238/#43862912321 falhou somente em rustfmt; correção aplicada antes do HEAD b3320ea. Não houve falha semântica nessa primeira tentativa, pois os testes foram SKIPPED após o gate de formato.
+- Jobs não relacionados ao diff ficaram SKIPPED por classificação de impacto; não são contabilizados como PASS.
+
+### 6.4 Limites mantidos
+
+O ledger e o teste completam a classificação explícita de cada byte após DD/FD, mas não constituem validação semântica integral dos 256 opcodes em todos os estados. O repositório já possui smoke tests de 256 encodings DD/FD e DDCB/FDCB; eles demonstram dispatch sem erro. A suíte indexed-CB SMS exaustiva cobre rotate/shift para todos os valores/carry, e outras famílias têm testes dirigidos; isso não equivale a uma prova combinatória de BIT/RES/SET e todas as interações de estado/barramento. Atomic↔micro continua sendo consistência interna, não oracle independente.
+
+**Classificação:** a classificação de todos os 256 bytes e os novos casos de INT/NMI estão PASS no HEAD b3320ea. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Nenhuma alteração de produção CPU, decoder, microsequenciador, Scheduler ou runtime.
