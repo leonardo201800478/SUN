@@ -68,7 +68,10 @@ fn bios_executes_on_scheduler_and_establishes_real_cartridge_handoff_state() {
             .expect("BIOS instruction should complete through the MachineScheduler");
     }
 
-    assert!(cartridge_handoff_seen, "BIOS must hand control to cartridge ROM");
+    assert!(
+        cartridge_handoff_seen,
+        "BIOS must hand control to cartridge ROM"
+    );
     assert_eq!(machine.cpu().registers.sp, 0xDFF0);
     assert_eq!(machine.memory().control_port(), 0xAB);
     assert_eq!(machine.memory().read(0xC000), 0xAB);
