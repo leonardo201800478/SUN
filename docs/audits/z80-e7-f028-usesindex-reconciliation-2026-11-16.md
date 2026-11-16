@@ -111,9 +111,6 @@ A primeira execução CI/SMS (#43882092547) parou no rustfmt; a correção de fo
 
 **Limite:** o teste é uma prova estrutural de dispatch e custo M1, não prova independente de semântica, efeitos arquiteturais ou requests de barramento por família. WAIT/snapshot por tipo de request e comparação de endereços/ordem continuam pendentes. F-028 permanece AUDIT_PARTIAL.
 
-undefined
-
-
 ## Atualização após PR #950 — 16/11/2026
 
-A PR #950 não altera a classificação dos 85 opcodes UsesIndex. Ela adiciona validação de semântica BASE para os 167 opcodes Ignored, sem promover qualquer UseIndex a fallback. A reconciliação de 85 UsesIndex e 167 Ignored permanece preservada; PR #953 adiciona a segunda fixture condicional e ainda aguarda validação.
+A PR #950 não altera a classificação dos 85 opcodes UsesIndex. Ela adiciona validação de semântica BASE para os 167 opcodes Ignored, sem promover qualquer UseIndex a fallback. A reconciliação de 85 UsesIndex e 167 Ignored permanece preservada. PR #953 integrou a segunda fixture condicional e PC final exato (CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado). PR #954 não altera a classificação.
