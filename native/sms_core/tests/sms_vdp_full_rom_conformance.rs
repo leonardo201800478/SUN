@@ -253,7 +253,19 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     };
     let run_test32_io_control_writes = irq_io_control_writes(0xC91F);
     let run_test34_io_control_writes = irq_io_control_writes(0xC921);
-    let hcounter_reads_after_th_rise = |writes: &[(u128, u16, u8, u16, u16, bool, Option<u8>, bool, u8, bool, bool)]| {
+    let hcounter_reads_after_th_rise = |writes: &[(
+        u128,
+        u16,
+        u8,
+        u16,
+        u16,
+        bool,
+        Option<u8>,
+        bool,
+        u8,
+        bool,
+        bool,
+    )]| {
         let mut pairs = writes
             .iter()
             .filter(|(_, _, value, _, _, _, _, _, _, _, _)| *value == 0xFF)
@@ -262,8 +274,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     hcounter_reference_reads
                         .iter()
                         .find(|(timestamp, _, _, _, _, _, _, _, _, _)| {
-                            *timestamp >= *write_time
-                                && *timestamp <= write_time.saturating_add(32)
+                            *timestamp >= *write_time && *timestamp <= write_time.saturating_add(32)
                         })
                         .map(
                             |(timestamp, value, read_pc, _, read_halted, read_int, _, _, _, _)| {
