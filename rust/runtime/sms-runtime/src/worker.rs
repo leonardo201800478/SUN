@@ -174,17 +174,45 @@ fn build_sms_temporal_machine_with_revision_and_sram_size(
     revision: SmsVdpRevision,
     cartridge_sram_size: Option<usize>,
 ) -> Result<SmsTemporalMachine, String> {
-    let (territory, vdp_profile, psg_clock_hz) =
-        sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
-    SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
+    build_sms_temporal_machine_with_revision_bios_and_sram_size(
         rom,
-        SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
-        psg_clock_hz,
-        SMS_INTERNAL_AUDIO_SAMPLE_RATE,
-        vdp_profile,
-        territory,
+        region,
+        revision,
+        None,
         cartridge_sram_size,
     )
+}
+
+fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
+    rom: Vec<u8>,
+    region: &str,
+    revision: SmsVdpRevision,
+    bios: Option<Vec<u8>>,
+    cartridge_sram_size: Option<usize>,
+) -> Result<SmsTemporalMachine, String> {
+    let (territory, vdp_profile, psg_clock_hz) =
+        sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
+    match bios {
+        Some(bios) => SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+            psg_clock_hz,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        ),
+        None => SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
+            rom,
+            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+            psg_clock_hz,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        ),
+    }
     .map_err(|error| error.to_string())
 }
 
@@ -194,11 +222,17 @@ fn rebuild_sms_temporal_machine_preserving_sram(
     rom: Vec<u8>,
     region: &str,
     revision: SmsVdpRevision,
+    bios: Option<Vec<u8>>,
 ) -> Result<SmsTemporalMachine, String> {
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
-    let mut rebuilt =
-        build_sms_temporal_machine_with_revision_and_sram_size(rom, region, revision, capacity)?;
+    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_and_sram_size(
+        rom,
+        region,
+        revision,
+        bios,
+        capacity,
+    )?;
     if let Some(contents) = sram {
         rebuilt
             .load_cartridge_sram(&contents)
@@ -1196,6 +1230,43 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            None,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    /// Start the worker with a verified 8 KiB BIOS and explicit hardware profile.
+    pub fn new_with_bios_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            Some(bios),
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    fn new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Option<Vec<u8>>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
@@ -1232,10 +1303,11 @@ impl SmsTemporalWorker {
         let worker = thread::Builder::new()
             .name("sms-temporal-machine".to_owned())
             .spawn(move || {
-                let machine = match build_sms_temporal_machine_with_revision_and_sram_size(
+                let machine = match build_sms_temporal_machine_with_revision_bios_and_sram_size(
                     rom.clone(),
                     &worker_region,
                     worker_vdp_revision,
+                    bios.clone(),
                     cartridge_sram_size,
                 )
                 .and_then(|mut machine| {
@@ -1258,6 +1330,7 @@ impl SmsTemporalWorker {
                 worker_loop(
                     machine,
                     rom,
+                    bios,
                     worker_region,
                     worker_vdp_revision,
                     receiver,
@@ -2025,6 +2098,7 @@ fn execute_frame_with_renderer(
 fn worker_loop(
     mut machine: SmsTemporalMachine,
     mut rom: Vec<u8>,
+    bios: Option<Vec<u8>>,
     region: String,
     vdp_revision: SmsVdpRevision,
     commands: Receiver<WorkerCommand>,
@@ -2274,6 +2348,7 @@ fn handle_command(
                 rom.clone(),
                 region,
                 vdp_revision,
+                bios.clone(),
             )
             .and_then(|powered_off| {
                 audio_session
@@ -2303,6 +2378,7 @@ fn handle_command(
                 rom.clone(),
                 region,
                 vdp_revision,
+                bios.clone(),
             ) {
                 Ok(reset_machine) => {
                     *running = false;
@@ -2341,10 +2417,11 @@ fn handle_command(
                     "cannot replace a cartridge with SRAM through load_rom; persist it and create a new worker".to_owned(),
                 ));
             } else {
-                match build_sms_temporal_machine_with_revision_and_sram_size(
+                match build_sms_temporal_machine_with_revision_bios_and_sram_size(
                     new_rom.clone(),
                     region,
                     vdp_revision,
+                    bios.clone(),
                     None,
                 ) {
                     Ok(new_machine) => {
