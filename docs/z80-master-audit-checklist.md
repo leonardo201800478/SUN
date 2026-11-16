@@ -653,3 +653,20 @@ Fotografia de status na baseline main caa9a76a6f09d588155ea4e0cbc95f487f079143, 
 - F-021 e F-022 são famílias distintas: os 390 B-loop records da ROM v5.0 correspondem a OTIR/OTDR/INIR/INDR (F-021). A stream principal tem ≥60 comparações de instrução/PC, mas o mapeamento por opcode para as oito formas LDI/LDD/CPI/CPD de F-022 ainda precisa ser reconciliado. Não atribuir os 390 registros à cobertura F-022.
 - O inventário de status não implica que toda a evidência de PR esteja na main: F-021/F-022, F-023 e F-028 permanecem associados às respectivas SHAs de PR; a main caa9 ainda não recebeu essas alterações.
 - E7 continua IN_PROGRESS; E8/ZEXDOC/ZEXALL continua BLOCKED.
+
+## 49. Reconciliação da main após integração das PRs #936/#942/#943/#944 — 2026-11-16
+
+**Main:** `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`. As quatro PRs estão MERGED: #944 `a3cc1edc0f94ca5da1850996d3bf164b0839a2e9`, #936 `3b85be47d1f07b7eaa25ea65299a0608e68761d4`, #942 `1a6f032861cebf3bf23867edec81ca08db97b064`, #943 `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`.
+
+A #943 foi validada por CI #43880197594 e SMS Runtime #43880197552 (SUCCESS). O tree SHA do merge commit e do HEAD testado é o mesmo: `9b13446b005b908d80607b8a258d87008db82433`. SKIPPED continua NOT RUN.
+
+| Requisito | Estado pós-merge | Pendência que impede CLOSED |
+|---|---|---|
+| F-022 | AUDIT_PARTIAL | Mapear explicitamente as comparações ROM para LDI/LDD/CPI/CPD; completar a matriz simples/microsequenciada, WAIT, interrupções e flags sem atribuir B-loop de F-021 a F-022. |
+| F-023 | AUDIT_PARTIAL | Expandir WZ/MEMPTR e X/Y por família/condição; acrescentar referência independente e validação temporal para os casos ainda não cobertos. |
+| F-028 | AUDIT_PARTIAL | Demonstrar semântica por opcode/família para UsesIndex e fallback dos Ignored, incluindo custo M1, refetch, WAIT e fronteiras de interrupção/snapshot. |
+| T-009 / D-006 / D-007 | AUDIT_PARTIAL | Ainda não há prova global de equivalência contínuo/em blocos para todos os estados e tamanhos de bloco. |
+| V-007 / V-008 | AUDIT_PARTIAL | Executar regressões finais SMS/SG-1000 no SHA integrado e manter os resultados vinculados ao SHA efetivamente testado. |
+| V-009 | BLOCKED | ZEXDOC/ZEXALL somente após fechamento formal de E7. |
+
+Nenhum dos merges altera a classificação técnica parcial. A sequência correta é fechar as lacunas de evidência, revisar os oráculos para independência e só então avaliar promoção individual para CLOSED. Não alterar produção para facilitar os testes; qualquer defeito precisa de reprodução discriminante e justificativa temporal.
