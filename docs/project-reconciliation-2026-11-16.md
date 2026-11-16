@@ -1,6 +1,6 @@
 # Reconciliação geral do projeto — 2026-11-16
 
-**Baseline remota:** `main` SHA `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.  
+**Baseline remota:** `main` SHA `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
 **Escopo:** estado, PRs, correções de autoridade documental e nova fase de expansões/acessórios. Somente documentação.
 
 ## 1. Estado remoto
