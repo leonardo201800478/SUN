@@ -51,8 +51,8 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 
 ### P2 — completar a reconciliação semântica F-028
 
-1. Relacionar cada um dos 85 bytes UsesIndex às famílias E3A1/E3A2/E4A/E4B/E4C/E5 e às exceções documentadas.
-2. Para os 167 bytes Ignored, provar fallback sem refetch, preservação de M1/R e custo prefixado nos grupos implementados.
+1. **Concluído documentalmente:** os 85 UsesIndex foram reconciliados byte a byte: E3A1=9, E3A2=5, E4A=15, E4B=8, E4C=2, F-036=24, PR #680 half-register INC/DEC/LD immediate=6 e F-037 half-register ALU=16. Soma=85; E3/E4/F-036/F-037 preservados. Detalhe em `docs/audits/z80-e7-f028-usesindex-reconciliation-2026-11-16.md`.
+2. **Próximo gap real:** os 167 Ignored efetivos ainda não têm fallback sem refetch provado byte/família por byte/família. `prefix_fallback_e6.rs` tem nove testes representativos; PR #943 cobre exceções de troca/HALT/ED/control em 108 combinações por executor, e `prefix_fsm.rs` cobre 257 prefixos/last-prefix-wins. Gerar uma matriz das 167 entradas por família BASE e distinguir cobertura prefixada de cobertura BASE sem prefixo.
 3. Manter separadas as transições especiais DD/FD repetidos, ED cancel-index e CB indexed-CB; o helper `classify_index_opcode` isolado não representa toda a FSM.
 4. Ampliar semântica por opcode/estado apenas onde houver lacuna real, sem duplicar E4/E5/E6 nem reabrir etapas validadas.
 5. Completar cenários de HALT, Q/previous-Q, interrupções, WAIT e snapshot nas fronteiras relevantes.
@@ -104,3 +104,9 @@ Essas SHAs são fotografias da auditoria de 2026-11-16; sempre consultar o estad
 - CI #43873337726 SUCCESS; SMS Runtime #43873337682 SUCCESS.
 - As assertions de Q/previous-Q passaram na aposentadoria do repeat, aceitação IM2, PUSH AF, POP AF, EI, RETI e retomada.
 - Escopo: INT IM2 apenas; não afirmar cobertura NMI ou IM0/IM1.
+
+ 
+### PR #944 — estado final observado após a extensão Q
+- PR #944 continua OPEN/DRAFT, base `caa9a76a6f09d588155ea4e0cbc95f487f079143`, HEAD `ef22ddc871e9790eb2fd65b1d4a70a6795c24872`.
+- CI #43873337726 SUCCESS; SMS Runtime #43873337682 SUCCESS.
+- A extensão de Q/previous-Q está validada para a sequência INT IM2 → PUSH AF → POP AF → EI → RETI → retomada; NMI e IM0/IM1 continuam fora do escopo.
