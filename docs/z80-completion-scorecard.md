@@ -771,3 +771,14 @@ Uma instrumentação adicional do LDIR de calibração foi adicionada em `e0c4ca
 - O escopo de fechamento de software permanece o perfil Zilog NMOS clássico SMS/SG-1000 declarado no projeto. Validação física de silício, variantes CMOS e clones não são gates universais automáticos; devem permanecer explicitamente NOT_VERIFIED quando não executados.
 
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Esta reconciliação documental não altera o runtime nem fecha F-022/F-023/F-028.
+
+
+## 49. Encerramento da rodada de testes E7 — 2026-11-16
+
+Relatório consolidado: [audits/z80-e7-current-status-2026-11-16.md](audits/z80-e7-current-status-2026-11-16.md).
+
+- F-022 / PR #936: HEAD 306db2a91ff796b4c5f66eabc4ebd4c4baad903e; CI #43852582196 + SMS Runtime #43852582229 SUCCESS. ROM v5.0 1/1 PASS; 390 B-loop records, ≥60 comparações principais; 34.000 SingleStepTests DD/FD PASS. Não exaustivo; AUDIT_PARTIAL.
+- F-023 / PR #942: código 7402ff138ced95da2d8b9e0008919c8cd22484f1; CI #43851550529 + SMS Runtime #43851550520 SUCCESS. Woodmass MEMPTR 09 PASS, 50.904.931 T-states, FNV-1 F5AE5140, HALT 0x80E6, saída 61×32. Resto da matriz WZ/X/Y pendente; AUDIT_PARTIAL.
+- F-028 / PR #943: HEAD testado 98c1cf41587f6af66c3d272e4b07a638d5da7919; CI #43859000666 + SMS Runtime #43859000676 SUCCESS. 108 casos prefixados por executor em 12 formas, quatro testes PASS, WAIT/snapshot. Fixture SCF/CCF corrigido pelo Q inicial, sem alteração de CPU. Matriz integral pendente; AUDIT_PARTIAL.
+- Nenhuma das PRs foi mesclada. Resultados pertencem aos HEADs indicados, não à main.
+- E7 IN_PROGRESS; E8 BLOCKED.
