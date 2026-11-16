@@ -2858,6 +2858,7 @@ mod tests {
 
         assert_eq!(cpu.step(&mut bus), Ok(19));
         assert_eq!(cpu.registers.hl(), 0xABCD);
+        assert_eq!(cpu.wz, 0xABCD, "EX (SP),HL loads WZ from the exchanged word");
         assert_eq!((bus.0[0xC000], bus.0[0xC001]), (0x34, 0x12));
         assert_eq!(cpu.step(&mut bus), Ok(4));
         assert!(!cpu.iff1 && !cpu.iff2);
