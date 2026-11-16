@@ -28,11 +28,13 @@ type IoControlWriteTrace = (
     bool,
     bool,
 );
-type OpcodeFetchTrace = (
+type CpuMemoryReadTrace = (
     u128,
     u16,
     u16,
     u16,
+    u8,
+    u8,
     bool,
     Option<u8>,
     bool,
@@ -66,7 +68,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut vcounter_reference_reads = Vec::new();
     let mut diagnostic_memory_writes = Vec::new();
     let mut io_control_writes: Vec<IoControlWriteTrace> = Vec::new();
-    let mut cpu_m1_bus_trace: Vec<OpcodeFetchTrace> = Vec::new();
+    let mut cpu_memory_read_trace: Vec<CpuMemoryReadTrace> = Vec::new();
     let mut irq_line_changes: Vec<IrqLineTrace> = Vec::new();
 
     for frame in 0..600 {
@@ -88,8 +90,10 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                 }
                 SmsTemporalTraceEvent::BusCompleted {
                     timestamp,
-                    operation: Z80BusOperation::OpcodeFetch,
+                    operation: Z80BusOperation::MemoryRead,
                     address,
+                    base_tstates,
+                    wait_tstates,
                     cpu_pc_before,
                     cpu_pc_after,
                     cpu_halted,
@@ -100,14 +104,16 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     cpu_halt_exit_nmi,
                     ..
                 } => {
-                    if cpu_m1_bus_trace.len() == 65_536 {
-                        cpu_m1_bus_trace.remove(0);
+                    if cpu_memory_read_trace.len() == 65_536 {
+                        cpu_memory_read_trace.remove(0);
                     }
-                    cpu_m1_bus_trace.push((
+                    cpu_memory_read_trace.push((
                         timestamp.ticks(),
                         address,
                         cpu_pc_before,
                         cpu_pc_after,
+                        base_tstates,
+                        wait_tstates,
                         cpu_halted,
                         cpu_int_line,
                         cpu_iff1,
@@ -323,9 +329,9 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
             .iter()
             .find(|(_, address, _)| *address == result_address)
             .map(|(result_time, _, _)| {
-                let mut fetches = cpu_m1_bus_trace
+                let mut fetches = cpu_memory_read_trace
                     .iter()
-                    .filter(|(timestamp, _, _, _, _, _, _, _, _, _)| {
+                    .filter(|(timestamp, _, _, _, _, _, _, _, _, _, _, _)| {
                         *timestamp >= (*result_time).saturating_sub(150_000)
                             && *timestamp <= *result_time
                     })
@@ -371,6 +377,6 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     assert_eq!(
         results,
         [(25, 0), (31, 0), (32, 0), (33, 0), (34, 0)],
-        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}; RunTest32 IO control writes={run_test32_io_control_writes:?}; RunTest32 TH-rise/read pairs={run_test32_th_latches:?}; RunTest34 IO control writes={run_test34_io_control_writes:?}; RunTest34 TH-rise/read pairs={run_test34_th_latches:?}; RunTest32 last opcode fetches={run_test32_pc_trace:?}; RunTest34 last opcode fetches={run_test34_pc_trace:?}; RunTest32 IRQ line changes={run_test32_irq_lines:?}; RunTest34 IRQ line changes={run_test34_irq_lines:?}"
+        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}; RunTest32 IO control writes={run_test32_io_control_writes:?}; RunTest32 TH-rise/read pairs={run_test32_th_latches:?}; RunTest34 IO control writes={run_test34_io_control_writes:?}; RunTest34 TH-rise/read pairs={run_test34_th_latches:?}; RunTest32 last CPU memory reads={run_test32_pc_trace:?}; RunTest34 last CPU memory reads={run_test34_pc_trace:?}; RunTest32 IRQ line changes={run_test32_irq_lines:?}; RunTest34 IRQ line changes={run_test34_irq_lines:?}"
     );
 }
