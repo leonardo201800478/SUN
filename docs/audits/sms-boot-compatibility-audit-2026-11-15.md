@@ -180,7 +180,7 @@ O valor `$E0` aparece no código com referência a SMS Plus GX e notas de Charle
 
 Na baseline sem BIOS, `work_ram` começa zerada e `$C000` não recebe o valor final `$AB`. Esse efeito pós-BIOS está ausente no atalho de boot direto. Não se deve copiar `$AB` para `$C000` como correção isolada: o estado deve resultar da execução real da BIOS ou de uma policy de boot direto explicitamente documentada.
 
-### 3.2 Estado pós-BIOS v1.3 — evidência do disassembly
+### 3.2 Estado pós-BIOS v1.3 — evidência do disassembly (referência, não caminho usado no Sega Emulator)
 
 O disassembly público de `maxim-zhao/smsbioses/1.3/Bios13.asm` confirma a sequência de BIOS: `DI`, `IM 1`, `LD SP,$DFF0`; escrita da tabela `VDP_ResetData` com R0–R10 = `36 A0 FF FF FF FF FB 00 00 00 FF`; reset/mute inicial do PSG; limpeza de 8 KiB de RAM; espera de aproximadamente 1,67 s enquanto apresenta o bumper/jingle; detecção do cartucho; seleção por `Port3E_Values`; armazenamento do latch em `$C000`; e salto para `$0000` do cartucho.
 
@@ -234,7 +234,7 @@ O corpo de `DumpAllRegisters` mostra a sequência exata de captura:
 
 Logo, HC e VC não são amostrados no mesmo instante. O HCounter é latched na transição TH; o VCounter é lido posteriormente. O README do teste descreve HCounter como latched e a suíte usa 228 ciclos Z80 por scanline. Não comparar VC/HC sem reproduzir a mesma sequência e fase temporal.
 
-A correspondência com Ares é forte: SP=$DFF0 coincide com a instrução da BIOS; AF=$AB42 é compatível com A=$AB (slot de cartucho) e flags da comparação de checksum; DE=$20F3 é compatível com o checksum de cabeçalho; HL=$0000 é o resultado zero de `SBC HL,DE`; IFF2=0 coincide com DI antes do handoff. Como `DumpAllRegisters` preserva DE/HL e AF antes de usá-los, essa combinação é uma assinatura muito forte do handoff BIOS v1.3. VC=$E9 é compatível com o tempo gasto no bumper da BIOS (~1,67 s). Isso torna **altamente provável** que a captura do Ares seja pós-BIOS v1.3. A confirmação final é comparar o campo de checksum e a identidade da BIOS no arquivo local.
+A combinação Ares (SP=$DFF0, AF=$AB42, DE=$20F3, HL=$0000, IFF2=0) é **compatível** com o handoff da BIOS v1.3: os valores correspondem às operações da rotina de seleção/checksum e a `DumpAllRegisters` preserva esses registradores antes de reutilizá-los. VC=$E9 também é compatível com o tempo de bumper. Entretanto, o usuário confirmou que o modo BIOS estava desativado no **Sega Emulator**, não informou a configuração do Ares. Portanto, não atribuir essa captura ao boot por BIOS sem confirmar a configuração usada no Ares, a identidade da BIOS e o checksum do binário. A assinatura é uma evidência de compatibilidade com o handoff, não prova isolada da rota executada.
 
 O Gearsystem 3.9.23 upstream inicializa em `Processor::Reset` PC=0, SP=$DFF0, IX/IY=$FFFF, AF=$0040, demais registradores zero, I/R zero, IFF desabilitado e IM0. O AF=$00D0 observado na tabela não corresponde a esse reset da fonte; requer confirmar se o screenshot usa outro caminho de boot/BIOS, outra revisão do ROM ou outra configuração. Os demais valores Gearsystem (SP DFF0, IX/IY FFFF, IFF2=0) são compatíveis com o perfil de reset implementado nessa fonte. O valor IR=$0009 também é resultado da rotina de captura, não um R bruto de power-on.
 
@@ -264,7 +264,7 @@ O runtime atual classifica como Sega qualquer ROM que não satisfaça a assinatu
 | H1 — caminho temporal combina CPU default com mapa de memória pós-BIOS | CPU default PC/SP zero; sem BIOS; latch $AB | **Alta — fato estrutural** | Comparar trace com boot real de BIOS e primeiro estado do cartucho |
 | H2 — CALL/PUSH antes de inicializar SP pode escrever em $FFFE/$FFFF e alterar bancos Sega | Teste sintético existente reproduz a colisão | **Alta para o mecanismo; baixa para os dois jogos** | Trace por ROM até primeira inicialização de SP e primeira escrita FFFC-FFFF |
 | H3 — mapper real dos jogos pode divergir do mapper assumido | Detecção atual faz fallback Sega; DAT não traz PCB explícito | **Média como risco, sem confirmação por ROM** | Hash local, cabeçalho, dump de escritas e referência do PCB |
-| H4 — diferenças do Registers Startup Values são efeito de BIOS/tempo de execução distinto | Rotina de captura conhecida; BIOS v1.3 deixa SP DFF0/IM1/DI e $AB; Ares AF/DE/HL são compatíveis com o handoff e VC com bumper | **Alta para Ares pós-BIOS v1.3; média para o dump exato até confirmar checksum $20F3** | Hash da BIOS e ROM local; confirmar checksum e capturar no mesmo T-state |
+| H4 — diferenças do Registers Startup Values são efeito de BIOS/tempo de execução distinto | Rotina de captura conhecida; valores Ares são compatíveis com handoff v1.3; modo BIOS do Sega Emulator confirmado desativado | **Alta para a compatibilidade da assinatura; indeterminada para atribuir a rota do Ares** | Confirmar configuração/BIOS do Ares; hash da BIOS e ROM; captura no mesmo T-state |
 | H5 — estado inicial de VDP/PSG/I/O pode não reproduzir estado deixado por BIOS | BIOS v1.3 escreve R0-R10, reseta PSG, limpa RAM e executa jingle/bumper; baseline não executa BIOS | **Alta como diferença estrutural; causalidade dos black screens ainda não provada** | Boot com BIOS real, trace de escritas e comparação no handoff |
 | H6 — firmware catalogado ainda não é encaminhado ao worker temporal | UI persiste e escaneia firmware, mas informa explicitamente que boot ainda aguarda integração; `create_sms_worker` não passa BIOS | **Alta — limitação intencional e documentada** | Integrar bytes validados no host e testar caminho temporal completo antes de habilitar a opção |
 
@@ -364,3 +364,10 @@ O catálogo RetroBIOS/No-Intro identifica a BIOS US/Europe v1.3 de 8 KiB com SHA
 - `docs/audits/sms-boot-conformance-matrix-2026-11-15.md`
 
 Documentação técnica descreve comportamento geral; DAT identifica dumps; código confirma a policy efetivamente implementada; testes sintéticos provam somente seus cenários. Nenhuma dessas classes, isoladamente, prova a execução dos dois jogos no arquivo local.
+
+
+## Esclarecimento do experimento — configuração do Sega Emulator
+
+Em 2026-11-15, o usuário confirmou que o modo BIOS estava desativado no Sega Emulator durante os testes citados. Isso é consistente com o código da main: `create_sms_worker` constrói `SmsTemporalMachine` sem fornecer imagem de BIOS; `firmware_boot_enabled` é preferência persistida/preparatória e não ativa boot real no runtime temporal atual. Portanto, as telas pretas de Andre Agassi Tennis e Ace of Aces foram observadas no caminho Direct Boot. Não atribuir esses resultados a execução ou rejeição da BIOS.
+
+A confirmação refere-se somente ao Sega Emulator. A configuração do Ares e do Gearsystem continua desconhecida; os valores comparativos não devem ser classificados como pós-BIOS sem verificar cada emulador separadamente. Os valores Ares permanecem compatíveis com a assinatura do handoff v1.3, mas essa compatibilidade não comprova que a BIOS estava habilitada naquela execução.
