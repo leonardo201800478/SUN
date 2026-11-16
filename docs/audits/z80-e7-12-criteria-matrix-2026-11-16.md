@@ -41,3 +41,25 @@ Esta é a consolidação dos 12 critérios temporais e de integração solicitad
 4. Obter revisão técnica independente registrada e executar os gates aplicáveis no candidato final e na main pós-merge.
 
 **Decisão:** E7 permanece IN_PROGRESS. E8/ZEXDOC/ZEXALL permanece BLOCKED. A matriz não libera E8 por si só.
+
+
+## Equivalência de código de produção entre os SHAs de validação
+
+A comparação de blobs confirma que o código de produção Z80 na main `2d526ea37c9cd65e82b54a330c52f54c07841400` é idêntico ao HEAD validado da PR #968 (`c39f79161e45cfcbf88b9367a3abc2ba136614cc`) nos arquivos centrais:
+
+| Arquivo | Blob SHA na main e no HEAD #968 |
+|---|---|
+| `native/z80_cpu/src/cpu.rs` | `53b14327aaa84fa4f32289aa1cc373755b98a1e0` |
+| `native/z80_cpu/src/sequencer.rs` | `59734821b9bf32cbf22cc2ba55a77f756e7bde04` |
+| `native/z80_cpu/src/prefix.rs` | `177a52e55ed3d22ef34d6325222372240fffe960` |
+
+Assim, o Z80 focused PASS da #968 (CI #43904788014, incluindo SingleStepTests DD/FD, Z80 Block Flags ROM v5.0 e Woodmass MEMPTR) permanece aplicável ao mesmo código de produção da main. As PRs #969/#970 posteriores alteraram testes/documentação, não esses três arquivos de produção.
+
+A comparação também confirma que o código central do Scheduler na main é idêntico ao SHA LONG validado `b60f08eeab7b848727661e64a6c7eed671c2fcfe`:
+
+| Arquivo | Blob SHA na main e no SHA LONG |
+|---|---|
+| `native/machine_scheduler/src/lib.rs` | `e25a62668102d18b452b9a358241a93450d5d189` |
+| `native/machine_scheduler/src/codec.rs` | `dfbaa492bec9a506653ba210ba420e9044610d9a` |
+
+Portanto, LONG #43901362527 é evidência válida para o mesmo código central do Scheduler atualmente em main. A PR #972 altera somente o teste de integração SMS e não altera o Scheduler nem o Z80 de produção. O CI #43918490165 executou o workspace no HEAD #972 e registrou 13/13 testes em `snapshot_restore_e7_2e`; o Z80 focused e o Scheduler stress foram SKIPPED nessa PR, mas suas campanhas anteriores continuam vinculadas aos mesmos blobs de produção.
