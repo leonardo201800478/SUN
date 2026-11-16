@@ -90,6 +90,37 @@ fn bios_executes_on_scheduler_and_establishes_real_cartridge_handoff_state() {
 }
 
 #[test]
+fn bios_image_and_mapping_latch_survive_temporal_save_state_roundtrip() {
+    let bios = synthetic_boot_bios();
+    let mut machine = SmsTemporalMachine::new_with_hardware_profile_and_bios(
+        vec![0x00; 0x4000],
+        bios.clone(),
+        1,
+        PSG_CLOCK_HZ,
+        SAMPLE_RATE_HZ,
+        SmsVdpProfile::sms1_t0_ntsc(),
+        Territory::Export,
+    )
+    .expect("BIOS-backed SMS machine should initialize");
+
+    for _ in 0..64 {
+        if !machine.memory().bios_enabled() && machine.cpu().registers.pc == 0x0000 {
+            break;
+        }
+        machine
+            .step_complete_instruction()
+            .expect("BIOS instruction should complete through the MachineScheduler");
+    }
+
+    let restored = SmsTemporalMachine::restore_state(machine.export_state())
+        .expect("BIOS-backed temporal snapshot should restore");
+    assert!(!restored.memory().bios_enabled());
+    assert_eq!(restored.memory().bios_bytes(), Some(bios.as_slice()));
+    assert_eq!(restored.memory().control_port(), 0xAB);
+    assert_eq!(restored.memory().read(0x0000), 0x3E);
+}
+
+#[test]
 fn conventional_bios_rejects_sms2_asic_until_slot_arbitration_is_modeled() {
     let sms2_profile = SmsVdpProfile::new(
         SmsVdpRevision::Sega3155246,
