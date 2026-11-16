@@ -103,7 +103,7 @@ A sequência abaixo é uma ordem inicial de trabalho por frequência esperada e 
 | F-025 | IM 0/1/2, RETN e RETI | CLOSED (perfil NMOS SMS/SG-1000) | PR #718 MERGED em `f0cfc7b9df1834ae8ad418c6241702e9003f072e`; HEAD validado `24fd53a5eb7c36462fa6ebc332e1a15b1504cbce`; CI #6071 / run `42658617730` PASS. Oito aliases RETN/RETI × IFF2 0/1 × SP normal/FFFF/0000 em ambos os executores; IFF1 inicial invertida; PC/WZ, SP wrap, R, ordem low/high, WAIT e snapshot/restore. 14T nominal / 18T com quatro WAITs. IM aliases já têm testes independentes. RETI daisy-chain NOT_APPLICABLE sem consumidor SMS/SG-1000. CI pós-merge #6072 / run `42658844499` PASS no HEAD exato da main; hardware SMS NOT RUN; CMOS/clones NOT_VERIFIED. |
 | F-026 | HALT, NOP e estado após HALT | AUDIT_PARTIAL | Fetch/refresh, R, saída por interrupção e snapshot. |
 | F-027 | DD/FD substituição HL por IX/IY | AUDIT_PARTIAL | Matriz por opcode e exceções. |
-| F-028 | IXH/IXL/IYH/IYL: LD, INC/DEC, ALU e transferências | AUDIT_PARTIAL | PR #702 corrigiu Q/previous-Q; 34.000 SingleStepTests DD/FD passaram em HEADs de PRs #930/#934/#935/#936/#943, mas o corpus é Ares-derived e os PASS não pertencem à main. PR #935 cobre EX AF/EXX/EX DE-HL. PR #943, código validado `98c1cf41587f6af66c3d272e4b07a638d5da7919`, CI #43859000666 + SMS Runtime #43859000676 SUCCESS: nove cadeias × 12 formas = 108 combinações prefixadas por executor, WAIT/snapshot por M1 e comparação arquitetural. Fixture SCF/CCF corrigido pelo Q inicial, sem mudança de CPU. A nova classificação dos 256 bytes e os testes de NMI/INT durante cadeia DD/FD foram adicionados à branch em código HEAD `958585010fb47f30333cac9494bd45d90a03801b`; CI desses commits = NOT RUN. A matriz é de classificação e seleção dirigida, não varredura semântica de todos os opcodes. E4A/E4B/E5/E6 preservados. F-028 AUDIT_PARTIAL. |
+| F-028 | IXH/IXL/IYH/IYL: LD, INC/DEC, ALU e transferências | AUDIT_PARTIAL | PR #702 corrigiu Q/previous-Q; 34.000 SingleStepTests DD/FD passaram em HEADs de PRs #930/#934/#935/#936/#943, mas o corpus é Ares-derived e os PASS não pertencem à main. PR #935 cobre EX AF/EXX/EX DE-HL. PR #943, código validado `98c1cf41587f6af66c3d272e4b07a638d5da7919`, CI #43859000666 + SMS Runtime #43859000676 SUCCESS: nove cadeias × 12 formas = 108 combinações prefixadas por executor, WAIT/snapshot por M1 e comparação arquitetural. Fixture SCF/CCF corrigido pelo Q inicial, sem mudança de CPU. A nova classificação dos 256 bytes e os testes de NMI/INT durante cadeia DD/FD passaram no HEAD `b3320ea79c6b951d2ad8b70e762589f14da597df`: CI #43863265215 e SMS Runtime #43863265197 SUCCESS; teste de classificação 3/3, matriz F-028 6/6 e SingleStepTests 34.000/34.000. Nenhuma alteração de produção. A matriz é de classificação e seleção dirigida, não varredura semântica de todos os opcodes. E4A/E4B/E5/E6 preservados. F-028 AUDIT_PARTIAL. |
 | F-029 | (IX+d)/(IY+d): loads, stores e RMW | AUDIT_PARTIAL | Displacement assinado, wrap, exceções H/L e ordem de acesso. |
 | F-030 | DDCB/FDCB: BIT/RES/SET/rotate/shift e destinos | AUDIT_PARTIAL | Matriz completa por prefixo, subopcode e destino. |
 | F-031 | Prefixos repetidos/alternados DD/FD e last-prefix-wins | AUDIT_PARTIAL | Verificar consumo, PC/R, M1 e semântica terminal. |
@@ -602,7 +602,7 @@ Esta seção reconcilia as evidências de PR sem transferi-las para a main e ide
 |---|---|---|---|
 | F-022 | AUDIT_PARTIAL | Matriz microsequenciada LDI/LDD/CPI/CPD (#930); interrupções IM2 (#932); ROM v5.0 no SHA 306db2a... (#936) PASS. | Operações simples e repetidas não cobertas pela ROM; flags/Q em todas as fronteiras de INT; retomada e timing adicional. |
 | F-023 | AUDIT_PARTIAL | Testes internos RRD/RLD→BIT; Woodmass MEMPTR 09 no SHA 7402ff1... PASS. | Matriz WZ/MEMPTR por família, condições tomadas/não tomadas, wrap, prefixos e X/Y sem evidência independente suficiente. |
-| F-028 | AUDIT_PARTIAL | 34.000 vetores Ares-derived em HEADs de PR; matriz dirigida #943 com 108 casos por executor; prefixos repetidos/alternados, HALT, ED NEG, Q/previous-Q. | Ledger semântico integral, cobertura de estados e interrupções; novos testes de classificação/INT/NMI ainda NOT RUN. |
+| F-028 | AUDIT_PARTIAL | 34.000 vetores Ares-derived em HEADs de PR; matriz dirigida #943 com 108 casos por executor; ledger explícito dos 256 bytes e testes de INT/NMI durante DD/FD PASS no HEAD b3320ea; CI #43863265215 e SMS Runtime #43863265197 SUCCESS. | Semântica integral por opcode/estado, matriz de todas as combinações de interrupções/WAIT e oracle independente ainda incompletos. |
 | F-026 | AUDIT_PARTIAL | Testes HALT/NMI/INT T4 e integração temporal SMS existentes. | Matriz combinada de HALT, prefixos, refresh e interrupções em todos os pontos observáveis ainda incompleta. |
 
 ### 48.2 Estado dos critérios arquiteturais e transversais
@@ -614,16 +614,16 @@ Esta seção reconcilia as evidências de PR sem transferi-las para a main e ide
 | S-004 — IFF/IM/EI delay | AUDIT_PARTIAL | IM0/1/2, RETN/RETI, EI/DI e interrupções HALT têm evidência específica; interações combinadas com prefixos permanecem incompletas. |
 | S-005 — WZ/MEMPTR | AUDIT_PARTIAL | Woodmass MEMPTR 09 adiciona evidência externa para um caso; falta matriz completa por família e condições. |
 | S-006 — Q/previous-Q | AUDIT_PARTIAL | DD/FD→SCF/CCF resolvido; matriz dirigida #943 cobre 12 formas; Q durante/após acknowledge e demais famílias ainda requer reconciliação. |
-| T-001/T-004/T-005 — M1, INT e NMI | AUDIT_PARTIAL | HALT T4 e resposta NMI/INT existentes; novo teste de interrupção solicitada entre DD/FD ainda NOT RUN. |
+| T-001/T-004/T-005 — M1, INT e NMI | AUDIT_PARTIAL | HALT T4 e resposta NMI/INT existentes; testes que solicitam NMI/INT entre DD e FD passam no microsequenciador no HEAD b3320ea. Não é integração adicional do Scheduler SMS. |
 | T-006 — HALT | AUDIT_PARTIAL | HALT simples e saída por INT/NMI testados; combinações completas de prefixos e bordas ainda não fechadas. |
 | T-007/T-008 — WAIT e T-states | AUDIT_PARTIAL | WAIT por M1 e transações selecionadas com snapshot; não declarar trace temporal global nem precisão elétrica. |
 | T-009 — Scheduler | AUDIT_PARTIAL | Integração SMS/VDP e testes de interrupção existem; equivalência global contínua/em blocos de todos os perfis ainda não provada. |
-| D-001/D-002/D-003 — snapshot/restore | AUDIT_PARTIAL | Codec e snapshots por safe point estão cobertos em famílias selecionadas; novos casos de interrupção durante prefixo NOT RUN. |
+| D-001/D-002/D-003 — snapshot/restore | AUDIT_PARTIAL | Codec e snapshots por safe point estão cobertos em famílias selecionadas; novos casos NMI/INT durante cadeia DD/FD e WAIT round-trip passam no HEAD b3320ea. Não fecha todos os estados/fases. |
 | D-006/D-007 — retomada e chunk invariance | AUDIT_PARTIAL | Há equivalência local em testes dirigidos; não há prova global para todos os tamanhos de bloco e estados. |
-| V-001 — inventário por opcode | AUDIT_PARTIAL | O ledger CSV enumera os 256 bytes posteriores a DD/FD e classifica a FSM; classificação não substitui semântica por opcode. |
+| V-001 — inventário por opcode | AUDIT_PARTIAL | Ledger CSV de 256 bytes e teste explícito de classe (85 UsesIndex, 170 Ignored no helper, 1 IndexedCB) PASS no HEAD b3320ea. Classificação não substitui semântica por opcode. |
 | V-002 — vetores externos | AUDIT_PARTIAL | ROM v5.0 MIT e Woodmass MEMPTR 09 com hashes/proveniência pinados; limites de domínio e licenças mantidos. |
 | V-003 — diferencial independente | AUDIT_PARTIAL | Woodmass e ROM v5.0 são evidência hardware-derived em ambiente Spectrum; SingleStepTests é Ares-derived; atomic↔micro é consistência interna. |
-| V-006 — prefixos/indexed-CB | AUDIT_PARTIAL | E5/E6 preservados; DDCB/FDCB tem testes específicos; ledger 256 bytes novo e teste de classificação NOT RUN. |
+| V-006 — prefixos/indexed-CB | AUDIT_PARTIAL | E5/E6 preservados; DDCB/FDCB tem testes de classificação dos 256 subopcodes e semântica exaustiva de rotate/shift; ledger DD/FD e classificação explícita PASS no HEAD b3320ea. Semântica de todas as famílias/estados ainda incompleta. |
 | V-007/V-008 — regressões SMS/SG-1000 | AUDIT_PARTIAL | SMS Runtime PASS nas PRs citadas; regressões completas devem ser repetidas no SHA final integrado. |
 | V-009 — ZEXDOC/ZEXALL | BLOCKED | Não iniciar antes do fechamento formal de E7. |
 | C-001/C-004/C-005 — decoder/FSM/sequenciador | AUDIT_PARTIAL | Inspeção de prefix.rs, prefix_fsm.rs e prefix_fallback_e6.rs; nenhuma alteração de produção foi feita. |
@@ -635,8 +635,8 @@ Esta seção reconcilia as evidências de PR sem transferi-las para a main e ide
 - Ledger completo: docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv, 256 linhas de dados; contagens 85 UsesIndex, 167 Ignored, 1 IndexedCB, 1 ED-cancel e 2 repeat-prefix.
 - Teste de classificação: native/z80_cpu/tests/index_prefix_classification_f028.rs; enumera todos os bytes e compara com uma lista explícita de 85 UsesIndex.
 - Testes de interrupção: native/z80_cpu/tests/z80_dd_fd_exception_matrix_f028.rs; solicita NMI ou INT entre DD e FD, inclui WAIT e round-trip de snapshot, e exige atendimento somente após o opcode terminal.
-- Código/harness candidato mais recente: 958585010fb47f30333cac9494bd45d90a03801b.
-- Documentação atualizada depois do código; nenhum dos novos testes foi executado nesta auditoria: NOT RUN. Não atribuir o PASS de CI #43859000666/#43859000676 ao código posterior.
+- Código/harness validado: b3320ea79c6b951d2ad8b70e762589f14da597df. CI #43863265215 Z80 focused SUCCESS (classificação 3/3; F-028 6/6; 34.000 SingleStepTests PASS); SMS Runtime #43863265197 SUCCESS (Release format, Clippy, testes e build Windows x64).
+- Os novos testes foram executados e passaram no HEAD b3320ea. O PASS anterior #43859000666/#43859000676 continua vinculado exclusivamente ao código 98c1cf4; a nova evidência é #43863265215/#43863265197.
 
 ### 48.4 Decisão de auditoria
 
