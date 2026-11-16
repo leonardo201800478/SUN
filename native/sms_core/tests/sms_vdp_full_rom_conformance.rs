@@ -85,12 +85,12 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let all_results = (21u16..=34)
         .map(|test| (test, machine.inspect_memory(0xC900 + test - 1)))
         .collect::<Vec<_>>();
-    // SmsVdpTest defines TestScratch at $C880; RunTest25 stores its three
-    // VCounter samples at $C880-$C882 (not the unrelated $C9F0 page).
+    // prepare_sms_vdp_test_rom.py relocates RunTest25's TestScratch to $C9F0
+    // without adding cycles, keeping its three VCounter samples isolated.
     let run_test25_samples = [
-        machine.inspect_memory(0xC880),
-        machine.inspect_memory(0xC881),
-        machine.inspect_memory(0xC882),
+        machine.inspect_memory(0xC9F0),
+        machine.inspect_memory(0xC9F1),
+        machine.inspect_memory(0xC9F2),
     ];
 
     assert!(
