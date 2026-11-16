@@ -1,8 +1,8 @@
 # Z80 E7 — revisão adversarial F-023 (WZ/MEMPTR)
 
-**Data:** 2026-11-16  
-**Main após PR #975:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`  
-**Perfil:** Zilog Z80 NMOS clássico, limitado aos consumidores Sega SMS/SG-1000.  
+**Data:** 2026-11-16
+**Main após PR #975:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
+**Perfil:** Zilog Z80 NMOS clássico, limitado aos consumidores Sega SMS/SG-1000.
 **Resultado:** F-023 CLOSED no escopo de semântica de software do perfil delimitado.
 
 ## 1. Escopo e método
