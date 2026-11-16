@@ -732,14 +732,21 @@ fn e7_f022_simple_forms_match_scheduler_wait_snapshot_replay() {
     // a snapshot/restore round-trip at every scheduler-owned safe point.
     let cases = [
         // opcode, HL, DE, expected HL, expected DE, expected WZ, expected F
-        (0xA0_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC001_u16, 0xA55A_u16, 0xC5_u8),
-        (0xA8_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC000_u16, 0xA55A_u16, 0xC5_u8),
-        (0xA1_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC000_u16, 0xA55B_u16, 0xFF_u8),
-        (0xA9_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC001_u16, 0xA559_u16, 0xFF_u8),
+        (
+            0xA0_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC001_u16, 0xA55A_u16, 0xC5_u8,
+        ),
+        (
+            0xA8_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC000_u16, 0xA55A_u16, 0xC5_u8,
+        ),
+        (
+            0xA1_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC000_u16, 0xA55B_u16, 0xFF_u8,
+        ),
+        (
+            0xA9_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC001_u16, 0xA559_u16, 0xFF_u8,
+        ),
     ];
 
-    for (opcode, initial_hl, initial_de, expected_hl, expected_de, expected_wz, expected_f) in
-        cases
+    for (opcode, initial_hl, initial_de, expected_hl, expected_de, expected_wz, expected_f) in cases
     {
         let mut rom = vec![0; 0x4000];
         rom[0] = 0xED;
@@ -794,11 +801,7 @@ fn e7_f022_simple_forms_match_scheduler_wait_snapshot_replay() {
             0x28,
             "ED {opcode:02X}: previous-Q"
         );
-        assert_eq!(
-            continuous.cpu().wz,
-            expected_wz,
-            "ED {opcode:02X}: WZ"
-        );
+        assert_eq!(continuous.cpu().wz, expected_wz, "ED {opcode:02X}: WZ");
         assert_eq!(continuous.cpu().registers.a, 0x80, "ED {opcode:02X}: A");
 
         if matches!(opcode, 0xA0 | 0xA8) {
