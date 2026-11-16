@@ -1,36 +1,51 @@
 # Arquitetura — Sega Emulator
 
-**Baseline:** main `3ad1781f84b7824b5aa889a583ae6d4545987ec1` (2026-11-07).  
-**Decisões normativas:** [ADR 0010 — Rust-only/SMS temporal](adr/0010-rust-only-sms-temporal-first.md) e [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
+**Baseline:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16).  
+**Decisões normativas:** ADR 0010 (runtime Rust), ADR 0011 (desktop Slint/WGPU/CPAL) e ADR-0016 (fidelidade observável).
 
-## Produto
+## Produto e hosts ativos
 
-O produto é nativo Rust. A interface desktop é egui/eframe. Python, PySide6/Qt, PyO3 e Maturin não fazem parte do produto nem dos fluxos ativos de desenvolvimento.
+O runtime de hardware é 100% Rust. O host de produto ativo é Slint 1.18.x, com renderização WGPU 30.x (Vulkan inicial no Windows x64), saída física CPAL 0.18.2 e SDL3/input runtime para gamepads. O host anterior egui/D3D12/Qt não é caminho ativo. Referências e módulos remanescentes devem ser classificados como histórico/legado e removidos somente após inventário de consumidores e regressão.
 
 ## Camadas
 
 | Camada | Responsabilidade |
 |---|---|
-| Hardware Rust | CPU Z80 compartilhada, ALU, barramento, memória, mapper, VDP, PSG e interrupções |
-| Tempo Rust | MachineScheduler e primitives temporais; autoridade única de clocks/eventos |
-| Runtime SMS | `rust/runtime/sms-runtime`; worker dono da máquina e comandos coarse-grained |
-| Hosts desktop | Slint 1.18 + WGPU 30/Vulkan; CPAL 0.18.2 (R3); SDL3 após auditoria |
-| Aplicação egui | Menus, apresentação, estado de sessão e comandos; sem lógica de hardware |
+| Hardware Rust | CPU Z80 compartilhada, memória, barramentos, mappers, VDP, PSG/FM, periféricos e interrupções |
+| Tempo Rust | MachineScheduler, clocks, eventos, causalidade, WAIT, suspensão/retomada e snapshots |
+| Runtime | Máquinas SMS, SG-1000 e futuras plataformas; worker e comandos coarse-grained |
+| GUI | Slint: janelas, menus, biblioteca, launcher, configurações, logs e telemetria |
+| Vídeo host | WGPU/Vulkan, texturas, composição e apresentação |
+| Áudio host | CPAL e pipeline PCM já existente |
+| Input host | Eventos de teclado Slint e `sega-input-runtime`/SDL3 |
 
 ## Estado integrado
 
-O worker SMS temporal é preservado. O desktop Slint/WGPU recebe frames reais do runtime pelo contrato de frame e não controla o tempo emulado. A saída física CPAL e o input SDL3 permanecem etapas posteriores (R3/R4). O estado de migração e os componentes transitórios estão documentados no plano de corte dos hosts anteriores.
+- R1: POC Slint/WGPU/Vulkan integrada em software; revalidar execução física Vulkan, resize/lifecycle e apresentação sustentada no HEAD atual.
+- R2: frames SMS integrados por `SmsTemporalWorker`/`FrameMailbox`, preservando Scheduler.
+- R3: CPAL 0.18.2 integrado em software; validação física prolongada, hotplug e underruns permanecem gates separados.
+- R4: primeira fatia SDL3/Slint integrada; identidade persistente, hotplug físico e remapeamento avançado permanecem pendentes.
+- R5: launcher, biblioteca, configurações, HUD, telemetria e limpeza segura do legado ainda parciais.
 
-## Regras
+## Regras arquiteturais
 
 - Uma única implementação compartilhada do Z80.
-- Uma única máquina SMS temporal ativa; nenhum fallback atômico.
-- A GUI envia comandos de sessão, não instruções, ciclos ou timestamps de hardware.
-- O Scheduler define causalidade e ordenação de eventos.
-- Áudio/vídeo físicos não podem alterar a timeline emulada.
-- A precisão temporal é proporcional ao comportamento observável, conforme ADR-0016.
-- Sem JIT, frame skipping, hacks temporais ou otimizações especulativas.
+- Uma autoridade temporal: MachineScheduler.
+- Nenhuma instrução, ciclo ou timestamp de hardware atravessa a GUI.
+- GUI envia comandos de sessão; runtime possui estado mutável da máquina.
+- Vídeo, áudio físico e input não avançam nem corrigem clocks emulados.
+- Não duplicar worker, mailbox, PSG, VDP, Scheduler, mixer ou pipeline.
+- Sem JIT, frame skipping ou hacks temporais.
+- Aplicativos e benchmarks usam Release.
 
-## Validação
+## Roadmap de plataformas
 
-A compilação de uma crate não comprova fidelidade funcional. São obrigatórios os gates Rust, os testes semânticos/determinísticos e a validação física Vulkan, CPAL e SDL3 quando aplicáveis. A campanha longa do Scheduler tem [evidência própria](evidence/scheduler-stress-long-2026-11-07.md), mas não prova integração temporal SMS. ZEXDOC/ZEXALL permanecem NOT RUN até o fechamento E7 e a conclusão de harness Rust.
+SMS1/SMS2 → SG-1000 → Game Gear → expansões/acessórios 8-bit (YM2413/FM, Sega Card/My Card, Card Catcher, 3D Glasses e periféricos) → Mega Drive/Genesis → Sega CD → 32X.
+
+O SG-1000 deve ser concluído na arquitetura existente. Game Gear é sistema próprio, não apenas SMS com resolução reduzida. 16-bit só começa depois da fase 8-bit e dos acessórios.
+
+## Z80 e evidência
+
+E7: `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e escopo praticável SMS/SG-1000. CMOS/clones, WAIT físico, DMA e sincronismo físico global permanecem não verificados. E8/ZEXDOC/ZEXALL é complementar, não gate permanente. Não reabrir sem defeito/regressão reproduzível.
+
+Classificar evidência como documental, comparativa, interna ou física; vincular testes ao SHA exato. SKIPPED e NOT RUN nunca são PASS.
