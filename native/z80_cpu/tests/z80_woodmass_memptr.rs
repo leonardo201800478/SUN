@@ -203,7 +203,10 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
 
     printed.finish();
 
-    println!("WOODMASS_MEMPTR_OUTPUT_BEGIN\\n{}\\nWOODMASS_MEMPTR_OUTPUT_END", String::from_utf8_lossy(&printed.output));
+    println!(
+        "WOODMASS_MEMPTR_OUTPUT_BEGIN\\n{}\\nWOODMASS_MEMPTR_OUTPUT_END",
+        String::from_utf8_lossy(&printed.output)
+    );
 
     let mut hot_pcs: Vec<(u64, u16, u64, [u8; 4])> = (0..0x1_0000)
         .filter(|&pc| cycles_by_pc[pc] != 0)
