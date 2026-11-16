@@ -535,9 +535,9 @@ F-028 permanece AUDIT_PARTIAL: os vetores cobrem o corpus validado, mas não sub
 
 ## 31. F-028 — matriz dirigida de exceções DD/FD — PR #943 — 2026-11-16
 
-**Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`.  
-**HEAD testado:** `cab4cc387818888dfac0b4f9e41b60cafeb843c3`.  
-**CI:** [#43853516396](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516396), Z80 focused SUCCESS; Rust quality/unit SUCCESS.  
+**Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`.
+**HEAD testado:** `cab4cc387818888dfac0b4f9e41b60cafeb843c3`.
+**CI:** [#43853516396](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516396), Z80 focused SUCCESS; Rust quality/unit SUCCESS.
 **SMS Runtime:** [#43853516405](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516405) SUCCESS.
 
 O novo teste `native/z80_cpu/tests/z80_dd_fd_exception_matrix_f028.rs` executa 45 combinações prefixadas em cada executor (45 atomic + 45 micro), mais cinco formas BASE em ambos:
