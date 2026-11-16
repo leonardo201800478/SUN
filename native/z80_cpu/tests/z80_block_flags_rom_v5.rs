@@ -19,35 +19,6 @@ const LOG_AREA: usize = 0x8900;
 const B_LOOP_ITERATIONS: usize = 65;
 const B_LOOP_GROUPS: [[u8; 4]; 6] = [*b"OTIR", *b"OTIR", *b"OTDR", *b"OTDR", *b"INIR", *b"INDR"];
 
-#[derive(Clone, Copy, Debug)]
-struct RomStepTrace {
-    tstates: u64,
-    pc: u16,
-    opcode: [u8; 4],
-    a: u8,
-    f: u8,
-    bc: u16,
-    de: u16,
-    hl: u16,
-    sp: u16,
-    i: u8,
-    r: u8,
-    iff1: bool,
-    iff2: bool,
-    im: u8,
-    halted: bool,
-    int_pending: Option<u8>,
-}
-
-#[derive(Debug)]
-struct RomOutputProgress {
-    tstates: u64,
-    rom_entry: u16,
-    return_pc: u16,
-    output_len: usize,
-    output_tail: String,
-}
-
 struct Spectrum48Bus {
     memory: Box<[u8; 0x1_0000]>,
     output: Vec<u8>,
@@ -324,16 +295,16 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                 if output_progress.len() == 8 {
                     output_progress.pop_front();
                 }
-                output_progress.push_back(RomOutputProgress {
-                    tstates: now,
+                output_progress.push_back(format!(
+                    "t={} rom_entry={:04X} return_pc={:04X} output_len={} tail={:?}",
+                    now,
                     rom_entry,
-                    return_pc: cpu.registers.pc,
-                    output_len: bus.output.len(),
-                    output_tail: String::from_utf8_lossy(
-                        &bus.output[bus.output.len().saturating_sub(120)..],
+                    cpu.registers.pc,
+                    bus.output.len(),
+                    String::from_utf8_lossy(
+                        &bus.output[bus.output.len().saturating_sub(120)..]
                     )
-                    .into_owned(),
-                });
+                ));
             }
             continue;
         }
@@ -394,26 +365,28 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         let sp_before = cpu.registers.sp;
         let iff1_before = cpu.iff1;
         let int_pending_before = cpu.int_pending;
-        let trace = RomStepTrace {
-            tstates: cpu.total_tstates,
-            pc: pc_before,
-            opcode: std::array::from_fn(|offset| {
-                bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
-            }),
-            a: cpu.registers.a,
-            f: cpu.registers.f,
-            bc: cpu.registers.bc(),
-            de: cpu.registers.de(),
-            hl: cpu.registers.hl(),
-            sp: sp_before,
-            i: cpu.i,
-            r: cpu.r,
-            iff1: cpu.iff1,
-            iff2: cpu.iff2,
-            im: cpu.interrupt_mode,
-            halted: cpu.halted,
-            int_pending: cpu.int_pending,
-        };
+        let opcode = std::array::from_fn(|offset| {
+            bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
+        });
+        let trace = format!(
+            "t={} pc={:04X} op={:02X?} AF={:02X}{:02X} BC={:04X} DE={:04X} HL={:04X} SP={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={} INT={:?}",
+            cpu.total_tstates,
+            pc_before,
+            opcode,
+            cpu.registers.a,
+            cpu.registers.f,
+            cpu.registers.bc(),
+            cpu.registers.de(),
+            cpu.registers.hl(),
+            sp_before,
+            cpu.i,
+            cpu.r,
+            cpu.iff1,
+            cpu.iff2,
+            cpu.interrupt_mode,
+            cpu.halted,
+            cpu.int_pending
+        );
         if recent_steps.len() == 64 {
             recent_steps.pop_front();
         }
