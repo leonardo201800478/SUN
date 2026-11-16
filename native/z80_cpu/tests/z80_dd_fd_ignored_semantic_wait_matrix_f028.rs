@@ -368,7 +368,6 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
     }
 }
 
-
 #[test]
 fn all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc() {
     let ignored = ignored_opcodes_from_ledger();
