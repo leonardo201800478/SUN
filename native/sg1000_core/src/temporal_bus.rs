@@ -911,7 +911,7 @@ mod tests {
         assert_eq!(bus.psg().tone_periods()[0], 5);
 
         let snapshot = bus.export_state();
-        let mut restored = Sg1000TemporalBus::restore_state(snapshot.clone()).unwrap();
+        let restored = Sg1000TemporalBus::restore_state(snapshot.clone()).unwrap();
         assert_eq!(
             restored.dispatch_next().unwrap(),
             Some(Sg1000TemporalDispatch::BusCompletion(completion))
