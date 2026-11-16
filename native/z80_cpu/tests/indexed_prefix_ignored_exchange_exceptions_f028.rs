@@ -13,6 +13,10 @@ const START_PC: u16 = 0xFFFF;
 const INITIAL_WZ: u16 = 0xABCD;
 const INITIAL_R: u8 = 0xFE;
 
+fn increment_refresh(value: u8) -> u8 {
+    (value & 0x80) | (value.wrapping_add(1) & 0x7F)
+}
+
 struct FlatBus {
     memory: Vec<u8>,
 }
@@ -180,7 +184,7 @@ fn assert_architecture_equal_except_prefix(
     assert_eq!(prefixed.ix, base.ix);
     assert_eq!(prefixed.iy, base.iy);
     assert_eq!(prefixed.i, base.i);
-    assert_eq!(prefixed.r, base.r.wrapping_add(1));
+    assert_eq!(prefixed.r, increment_refresh(base.r));
     assert_eq!(prefixed.iff1, base.iff1);
     assert_eq!(prefixed.iff2, base.iff2);
     assert_eq!(prefixed.interrupt_mode, base.interrupt_mode);
