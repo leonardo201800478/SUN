@@ -14152,7 +14152,10 @@ mod ed_block_transfer_repeat_interrupt_tests {
                         );
                         assert_eq!(sequenced.registers.f, expected_f, "repeat F");
                         assert_eq!(sequenced.q, expected_f, "repeat Q");
-                        assert_eq!(sequenced.q_previous, q_seed, "previous Q at repeat retirement");
+                        assert_eq!(
+                            sequenced.q_previous, q_seed,
+                            "previous Q at repeat retirement"
+                        );
                         assert_eq!(sequenced.registers.pc, pc, "repeat PC rewind");
                         assert_eq!(sequenced.registers.bc(), bc_after_first, "repeat BC");
                         assert_eq!(sequenced.wz, pc.wrapping_add(1), "repeat WZ");
@@ -14202,7 +14205,11 @@ mod ed_block_transfer_repeat_interrupt_tests {
                         assert_eq!(sequenced.registers.bc(), bc_after_second, "resumed BC");
                         assert_eq!(
                             sequenced.registers.pc,
-                            if second_repeats { pc } else { pc.wrapping_add(2) },
+                            if second_repeats {
+                                pc
+                            } else {
+                                pc.wrapping_add(2)
+                            },
                             "resumed PC"
                         );
                         if second_repeats {
@@ -14214,5 +14221,4 @@ mod ed_block_transfer_repeat_interrupt_tests {
             }
         }
     }
-
 }
