@@ -81,6 +81,8 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut hcounter_reference_reads: Vec<HCounterReadTrace> = Vec::new();
     let mut vcounter_reference_reads = Vec::new();
     let mut diagnostic_memory_writes = Vec::new();
+    let mut run_test32_m1_fetches = Vec::new();
+    let mut run_test34_m1_fetches = Vec::new();
     let mut io_control_writes: Vec<IoControlWriteTrace> = Vec::new();
     let mut cpu_memory_read_trace: VecDeque<CpuMemoryReadTrace> = VecDeque::with_capacity(65_536);
     let mut cpu_m1_fetch_trace: VecDeque<M1FetchTrace> = VecDeque::with_capacity(65_536);
@@ -214,6 +216,15 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     || address == 0xC921 =>
                 {
                     diagnostic_memory_writes.push((timestamp.ticks(), address, value));
+                    if address == 0xC91F {
+                        run_test32_m1_fetches =
+                            cpu_m1_fetch_trace.iter().rev().take(64).copied().collect();
+                        run_test32_m1_fetches.reverse();
+                    } else if address == 0xC921 {
+                        run_test34_m1_fetches =
+                            cpu_m1_fetch_trace.iter().rev().take(64).copied().collect();
+                        run_test34_m1_fetches.reverse();
+                    }
                 }
                 SmsTemporalTraceEvent::BusCompleted {
                     timestamp,
@@ -419,28 +430,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     };
     let run_test32_pc_trace = cpu_fetches_before_result(0xC91F);
     let run_test34_pc_trace = cpu_fetches_before_result(0xC921);
-    let cpu_m1_fetches_before_result = |result_address: u16| {
-        diagnostic_memory_writes
-            .iter()
-            .find(|(_, address, _)| *address == result_address)
-            .map(|(result_time, _, _)| {
-                let mut fetches = cpu_m1_fetch_trace
-                    .iter()
-                    .filter(|(timestamp, _, _, _, _, _, _, _, _)| {
-                        *timestamp >= (*result_time).saturating_sub(150_000)
-                            && *timestamp <= *result_time
-                    })
-                    .copied()
-                    .collect::<Vec<_>>();
-                if fetches.len() > 64 {
-                    fetches.drain(..fetches.len() - 64);
-                }
-                fetches
-            })
-            .unwrap_or_default()
-    };
-    let run_test32_m1_fetches = cpu_m1_fetches_before_result(0xC91F);
-    let run_test34_m1_fetches = cpu_m1_fetches_before_result(0xC921);
+
     let cpu_internal_cycles_before_result = |result_address: u16| {
         diagnostic_memory_writes
             .iter()
