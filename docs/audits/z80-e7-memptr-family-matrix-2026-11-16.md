@@ -239,4 +239,4 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 
 **F-023: CLOSED — semântica de software WZ/MEMPTR para o perfil Zilog Z80 NMOS delimitado.** O fechamento significa que todas as famílias modeladas têm regra, condição, wrap, observabilidade e teste rastreável, com proveniência explicitamente classificada; não significa que cada regra interna tenha medição física própria, nem conformidade universal de clones.
 
-Nenhuma alteração de produção foi necessária. A validação temporal de WAIT físico/DMA continua fora desta conclusão e não é inferida dos fixtures. E8 permanece bloqueada até F-022, F-028 e os gates globais E7 serem formalmente fechados.
+Nenhuma alteração de produção foi necessária. A validação temporal de WAIT físico/DMA continua fora desta conclusão e não é inferida dos fixtures. E8 permanece bloqueada até F-028 e os gates globais E7 serem formalmente fechados.
