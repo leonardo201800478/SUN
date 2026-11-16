@@ -107,13 +107,18 @@ struct RunMode {
     snapshot_each_boundary: bool,
 }
 
-fn run_case(
-    memory: &mut [u8; 0x1_0000],
-    case: Case,
-    mode: RunMode,
-) -> (Z80MicroSequencer, u32) {
-    let Case { opcode, accumulator, initial_f, value, initial_count } = case;
-    let RunMode { add_waits, snapshot_each_boundary } = mode;
+fn run_case(memory: &mut [u8; 0x1_0000], case: Case, mode: RunMode) -> (Z80MicroSequencer, u32) {
+    let Case {
+        opcode,
+        accumulator,
+        initial_f,
+        value,
+        initial_count,
+    } = case;
+    let RunMode {
+        add_waits,
+        snapshot_each_boundary,
+    } = mode;
     let source = 0xC000_u16;
     let destination = 0xC100_u16;
     memory[0x1000] = 0xED;
