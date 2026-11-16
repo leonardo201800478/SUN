@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** além da supersessão Qt indicada abaixo, a arquitetura de produto vigente passou a Slint/WGPU/Vulkan/CPAL/SDL3. Este documento não é destino de implementação.
+
 > **SUPERSEDED (2026-11-05):** a diretriz de evolução incremental foi substituída pela [ADR — Reconstrução Qt Temporal e fechamento vertical do Master System](ADR-sms-temporal-machine-qt-rebuild.md). Use o documento novo como autoridade para o frontend SMS Temporal; este arquivo permanece como referência histórica de conceitos que não conflitem com a ADR aceita.
 
 # Arquitetura-alvo enxuta do frontend Qt
