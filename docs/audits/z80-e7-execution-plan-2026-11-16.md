@@ -1,8 +1,8 @@
 # Plano de execução — fechamento E7 do Z80
 
 **Data da revisão:** 2026-11-16
-**Baseline remota main pós-PR #975:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (merge de testes de integração SMS/Scheduler; sem alteração de produção Z80/Scheduler)
-**Estado global:** E7 `IN_PROGRESS`; E8/ZEXDOC/ZEXALL `BLOCKED`.
+**Baseline remota main pós-PR #977:** `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (matriz F-028 integrada; sem alteração de produção Z80)
+**Estado global vigente:** E7 `CLOSED_WITH_LIMITATIONS`; E8/ZEXDOC/ZEXALL complementar futura. Este plano é histórico/supersedido como fila obrigatória.
 
 Este documento organiza o trabalho subsequente a partir das evidências realmente observadas. Resultados de PR não são atribuídos à main até integração e validação no SHA pós-merge.
 
