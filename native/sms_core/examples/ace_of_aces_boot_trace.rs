@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         writeln!(
             output,
-            "STEP n={} t={:?} PC=${:04X}->${:04X} SP=${:04X}->${:04X} AF=${:02X}{:02X} BC=${:02X}{:02X} DE=${:02X}{:02X} HL=${:02X}{:02X} banks={:?} control=${:02X} slot1_probe=${:02X}",
+            "STEP n={} t={:?} PC=${:04X}->${:04X} SP=${:04X}->${:04X} AF=${:02X}{:02X} BC=${:02X}{:02X} DE=${:02X}{:02X} HL=${:02X}{:02X} banks={:?} control=${:02X} c000=${:02X} slot1_probe=${:02X}",
             index + 1,
             machine.now(),
             before_pc,
