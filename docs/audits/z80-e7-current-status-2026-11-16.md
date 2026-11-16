@@ -454,3 +454,9 @@ O critério SG-1000 nesta fase significa consumo do Z80 compartilhado. A integra
 
 
 **Gate formal:** os relatórios internos não substituem uma revisão independente registrada no GitHub. F-022/F-023 permanecem candidatas a fechamento até esse gate. PR #977 deve passar no HEAD exato antes de atualizar F-023/F-028. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+
+## Atualização de validação — PR #977
+
+PR #977 HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: CI #43939973117 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43939957730 SUCCESS. A nova cobertura JR/DJNZ/JR cc sob DD/FD Ignored verifica WZ/PC, tomado/não tomado e wrap em PC=FFFD. Scheduler deterministic stress SKIPPED. F-022/F-023 seguem auditorias internas candidatas; F-028 segue IN_PROGRESS até revisão independente registrada. E7 IN_PROGRESS; E8 BLOCKED.
