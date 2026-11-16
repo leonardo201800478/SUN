@@ -188,3 +188,9 @@ A seção **8. Gap residual: os 167 Ignored** registra corretamente o estado ant
 ## Adendo PR #977 — WZ em saltos relativos com DD/FD Ignored
 
 A PR #977 amplia a auditoria F-028/F-023 com JR, DJNZ e JR NZ/Z/NC/C, caminhos tomado/não tomado, prefixos DD/FD e PCs iniciais `2000` e `FFFD`. Verifica o deslocamento de PC/WZ, preservação de WZ quando não tomado, fetch M1 e trace normalizado. HEAD após correção rustfmt: `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`; CI #43939973117 em andamento na última consulta. Não declarar PASS antes do resultado final. F-028 permanece IN_PROGRESS e a revisão independente continua pendente.
+
+
+
+## Resultado CI PR #977 — 16/11/2026
+
+HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: CI #43939973117 SUCCESS, incluindo Z80 focused e Rust quality/unit; SMS Runtime #43939957730 SUCCESS. O teste cobre WZ para JR/DJNZ/JR cc sob DD/FD Ignored, ambos os resultados condicionais e PC=FFFD. Scheduler stress SKIPPED. A cobertura técnica adicional passou, mas F-028 permanece IN_PROGRESS até review independente integral registrada.
