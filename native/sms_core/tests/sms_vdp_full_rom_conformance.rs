@@ -552,7 +552,25 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                             .filter(|event| {
                                 event.timestamp >= window_start && event.timestamp <= window_end
                             })
-                            .copied()
+                            .map(|event| {
+                                format!(
+                                    "t={} {:?} addr={:04X} base={} wait={} data={:?} pc={:04X}->{:04X} halted={} int={:?} iff1={} ei_delay={} halt_exit_int={} halt_exit_nmi={}",
+                                    event.timestamp,
+                                    event.operation,
+                                    event.address,
+                                    event.base_tstates,
+                                    event.wait_tstates,
+                                    event.data,
+                                    event.cpu_pc_before,
+                                    event.cpu_pc_after,
+                                    event.cpu_halted,
+                                    event.cpu_int_line,
+                                    event.cpu_iff1,
+                                    event.cpu_ei_delay,
+                                    event.cpu_halt_exit_int,
+                                    event.cpu_halt_exit_nmi
+                                )
+                            })
                             .collect::<Vec<_>>();
                         let m1 = cpu_m1_fetch_trace
                             .iter()
