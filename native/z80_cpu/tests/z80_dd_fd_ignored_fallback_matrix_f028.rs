@@ -46,7 +46,7 @@ fn execute_one_instruction(opcode_stream: &[u8]) -> (u32, Vec<u16>, u8) {
                         opcode_fetch_addresses.push(request.address);
                         Some(stream.next().unwrap_or_else(|| {
                             panic!(
-                                "unexpected opcode refetch at address {:04X}; stream={opcode_stream:02X?}",
+                                "unexpected opcode refetch at address {:04X}; stream={opcode_stream:?}",
                                 request.address
                             )
                         }))
@@ -83,7 +83,7 @@ fn execute_one_instruction(opcode_stream: &[u8]) -> (u32, Vec<u16>, u8) {
         };
     }
 
-    panic!("opcode stream {opcode_stream:02X?} did not retire within 128 micro-operations");
+    panic!("opcode stream {opcode_stream:?} did not retire within 128 micro-operations");
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn all_167_effective_ignored_bytes_fall_back_without_refetch_for_dd_and_fd() {
 
     for opcode in ignored {
         let (base_tstates, base_fetches, base_refresh) = execute_one_instruction(&[opcode]);
-        assert_eq!(base_fetches, [0], "BASE opcode {opcode:02X}");
+        assert_eq!(base_fetches, vec![0], "BASE opcode {opcode:02X}");
         assert_eq!(base_refresh, 1, "BASE opcode {opcode:02X}");
 
         for prefix in [0xDD, 0xFD] {
@@ -105,7 +105,7 @@ fn all_167_effective_ignored_bytes_fall_back_without_refetch_for_dd_and_fd() {
                 execute_one_instruction(&[prefix, opcode]);
             assert_eq!(
                 prefixed_fetches,
-                [0, 1],
+                vec![0, 1],
                 "{prefix:02X} {opcode:02X}: one prefix M1 and one terminal M1 only"
             );
             assert_eq!(
