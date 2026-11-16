@@ -259,26 +259,31 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
         let mut pairs = writes
             .iter()
             .filter(|(_, _, value, _, _, _, _, _, _, _, _)| *value == 0xFF)
-            .filter_map(|(write_time, _, _, write_pc, _, write_halted, write_int, _, _, _, _)| {
-                hcounter_reference_reads
-                    .iter()
-                    .find(|(timestamp, _, _, _, _, _, _, _, _, _)| {
-                        *timestamp >= *write_time && *timestamp <= write_time.saturating_add(32)
-                    })
-                    .map(|(timestamp, value, read_pc, _, read_halted, read_int, _, _, _, _)| {
-                        (
-                            *write_time,
-                            *write_pc,
-                            *write_halted,
-                            *write_int,
-                            *timestamp,
-                            *value,
-                            *read_pc,
-                            *read_halted,
-                            *read_int,
+            .filter_map(
+                |(write_time, _, _, write_pc, _, write_halted, write_int, _, _, _, _)| {
+                    hcounter_reference_reads
+                        .iter()
+                        .find(|(timestamp, _, _, _, _, _, _, _, _, _)| {
+                            *timestamp >= *write_time
+                                && *timestamp <= write_time.saturating_add(32)
+                        })
+                        .map(
+                            |(timestamp, value, read_pc, _, read_halted, read_int, _, _, _, _)| {
+                                (
+                                    *write_time,
+                                    *write_pc,
+                                    *write_halted,
+                                    *write_int,
+                                    *timestamp,
+                                    *value,
+                                    *read_pc,
+                                    *read_halted,
+                                    *read_int,
+                                )
+                            },
                         )
-                    })
-            })
+                },
+            )
             .collect::<Vec<_>>();
         if pairs.len() > 12 {
             pairs.drain(..pairs.len() - 12);
