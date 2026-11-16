@@ -133,15 +133,18 @@ fn return_from_rom(cpu: &mut Z80, bus: &Spectrum48Bus) {
     cpu.registers.sp = sp.wrapping_add(2);
 }
 
+fn append_spectrum_print_character(output: &mut Vec<u8>, character: u8) {
+    if character == b'\r' {
+        output.push(b'\n');
+    } else if character >= 0x20 {
+        output.push(character);
+    }
+}
+
 fn handle_rom_entry(cpu: &mut Z80, bus: &mut Spectrum48Bus) -> bool {
     match cpu.registers.pc {
         0x0010 => {
-            let character = cpu.registers.a;
-            if character == b'\r' {
-                bus.output.push(b'\n');
-            } else if character >= 0x20 {
-                bus.output.push(character);
-            }
+            append_spectrum_print_character(&mut bus.output, cpu.registers.a);
             return_from_rom(cpu, bus);
             true
         }
@@ -151,18 +154,19 @@ fn handle_rom_entry(cpu: &mut Z80, bus: &mut Spectrum48Bus) -> bool {
             true
         }
         0x203C => {
-            // ROM_PRINT is used only to print the four-byte instruction name.
-            let mut address = (u16::from(cpu.registers.d) << 8) | u16::from(cpu.registers.e);
-            let count =
-                (((u16::from(cpu.registers.b) << 8) | u16::from(cpu.registers.c)).min(32)) as usize;
+            // ZX Spectrum PR-STRING consumes BC bytes from (DE), advances DE,
+            // and returns with BC=FFFF, A=0 and Z/PV set by the final OR C.
+            let count = cpu.registers.bc();
+            let mut address = cpu.registers.de();
             for _ in 0..count {
                 let character = bus.memory[usize::from(address)];
-                if character == 0xFF {
-                    break;
-                }
-                bus.output.push(character);
+                append_spectrum_print_character(&mut bus.output, character);
                 address = address.wrapping_add(1);
             }
+            cpu.registers.set_de(address);
+            cpu.registers.set_bc(u16::MAX);
+            cpu.registers.a = 0;
+            cpu.registers.f = 0x44;
             return_from_rom(cpu, bus);
             true
         }
@@ -231,7 +235,30 @@ fn validate_b_loop_log(memory: &[u8; 0x1_0000]) {
 
 #[test]
 #[ignore = "requires pinned Z80 Block Instruction Flags Test v5.0 SNA downloaded by CI"]
-fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
+#[test]
+fn rom_print_stub_matches_spectrum_pr_string_register_side_effects() {
+    let mut cpu = Z80::default();
+    let mut bus = Spectrum48Bus::default();
+    cpu.registers.pc = 0x203C;
+    cpu.registers.sp = 0x9000;
+    cpu.registers.set_bc(4);
+    cpu.registers.set_de(0x8000);
+    bus.memory[0x8000..0x8004].copy_from_slice(b"LDIR");
+    bus.memory[0x9000..0x9002].copy_from_slice(&0x3456_u16.to_le_bytes());
+
+    assert!(handle_rom_entry(&mut cpu, &mut bus));
+
+    assert_eq!(bus.output, b"LDIR");
+    assert_eq!(cpu.registers.de(), 0x8004);
+    assert_eq!(cpu.registers.bc(), u16::MAX);
+    assert_eq!(cpu.registers.a, 0);
+    assert_eq!(cpu.registers.f, 0x44);
+    assert_eq!(cpu.registers.pc, 0x3456);
+    assert_eq!(cpu.registers.sp, 0x9002);
+}
+
+#[test]
+
     let fixture = env::var("SEGA_Z80_BLOCK_FLAGS_SNA")
         .expect("CI must set SEGA_Z80_BLOCK_FLAGS_SNA to the pinned SNA fixture path");
     let bytes = fs::read(&fixture).expect("pinned Z80 block-flags SNA is readable");
