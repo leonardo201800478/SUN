@@ -231,14 +231,15 @@ A consulta a `pull_request_reviews` e a `review_threads` retornou coleções vaz
 
 ## 2026-11-16 — atualização após PRs #950–#952
 
-Baseline remota atual após as integrações de teste e documentação: `a6cec0d744b8120c8c3e2d1d56abd1aa75fc1031`.
+Baseline remota atual após as integrações de teste e documentação: `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`.
 
 - **PR #950 — F-028:** integrada em `45b40755e46aef752d58f571de856ae25ff9e81c`. A matriz acrescenta 167 opcodes Ignored × DD/FD, comparação arquitetural BASE, payloads de leitura/escrita, transações, WAIT e snapshot/restore em fronteiras de barramento/ciclo interno. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado. A árvore do merge foi confirmada idêntica à árvore validada.
 - **PR #951 — F-022/F-023:** integrada em `b9d18f48466e3647aec73207f38c416bfef2b3dc`. Acrescenta assertions de previous-Q e WZ para LDI/LDD/CPI/CPD na matriz microsequenciada de 786.432 casos e nos ensaios dirigidos de WAIT/snapshot. CI #43890238681 e SMS Runtime #43890238056 PASS no HEAD validado. A regra é diferenciada: LDI/LDD preservam WZ; CPI/CPD atualizam WZ por ±1.
 - **PR #952 — F-023:** integrada em `564074366fdc9bad59895163c8501134e88cce99`. Adiciona matriz documental WZ/MEMPTR por família, separando DOC/HW/COMP/INT/GAP. CI #43890997152: Documentation patch hygiene PASS e Rust quality and unit regression PASS; os jobs de runtime foram SKIPPED por serem alterações documentais.
 - **PR #953 — F-028:** integrada em `a6cec0d744b8120c8c3e2d1d56abd1aa75fc1031`. Adiciona segundo fixture F=FF/B=1, complementa os resultados condicionais e verifica o delta exato de PC por opcode. CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado; árvore do merge idêntica à árvore testada.
-- **PR #954 — F-023:** aberta, aguardando CI. Acrescenta asserções WZ para D3/DB, RETN/RETI, IM0 RST e preservação em IM1; não contabilizar como PASS antes dos gates.
+- **PR #954 — F-023:** integrada em `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`. Acrescenta WZ para D3/DB, RETN/RETI, IM0 RST e preservação em IM1. CI #43893014345 e SMS Runtime #43893014300 PASS no HEAD validado; workspace regression PASS; árvore do merge idêntica à árvore testada.
+- **PR #955 — F-023:** aberta, aguardando CI. Acrescenta asserção WZ para BASE EX (SP),HL, completando a família de troca com pilha.
 
 A matriz PR #950 é diferencial interno BASE↔DD/FD, não oracle independente de silício. O PC final exato por resultado condicional permanece pendente da PR #953. WZ é tratado na matriz F-023 e não é mascarado como equivalência universal.
 
-**Estado:** F-028 IN_PROGRESS (matrizes 167 Ignored, WAIT/snapshot e PC condicional integradas); F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL (PR #954 pendente); E7 IN_PROGRESS; E8 BLOCKED. Não iniciar ZEXDOC/ZEXALL.
+**Estado:** F-028 IN_PROGRESS (matrizes 167 Ignored, WAIT/snapshot e PC condicional integradas); F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL (asserção BASE EX (SP),HL pendente na PR #955); E7 IN_PROGRESS; E8 BLOCKED. Não iniciar ZEXDOC/ZEXALL.
