@@ -28,7 +28,7 @@
 | `JR e`, `DJNZ e` | Quando tomado, WZ recebe o PC de destino; quando não tomado, preserva WZ | Destino calculado após displacement; wrap 16-bit | WZ, PC, flags e ciclos nos dois caminhos | `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::conditional_jr_covers_taken_and_not_taken_paths`, `djnz_covers_taken_and_not_taken_paths_without_changing_flags`, `conditional_jr_wraparound_and_signed_displacement_boundaries` | INT; ambos os caminhos e limites assinados/wrap cobertos |
 | `JP nn`, `CALL nn` e condicionais | WZ recebe o alvo imediato, mesmo quando a condição de JP/CALL condicional não é tomada | WZ anterior → nn | WZ, PC, flags, stack writes e ciclos nos dois caminhos | `z80_conditional_control_flow_coverage.rs::conditional_jp_covers_all_conditions_without_changing_flags`, `conditional_call_covers_both_paths_and_stack_write_order`, `conditional_call_and_ret_wrap_stack_pointer_at_zero` | INT; oito condições, taken/not-taken e wrap do SP cobertos |
 | `RET cc` | Quando tomado, WZ recebe o PC desempilhado; quando não tomado, preserva WZ | WZ anterior → PC retornado ou permanece | WZ, PC, stack reads e wrap do SP | `z80_conditional_control_flow_coverage.rs::conditional_ret_covers_both_paths_and_stack_read_order`, `conditional_call_and_ret_wrap_stack_pointer_at_zero` | INT; ambas as condições e wrap cobertos |
-| `RET`, `RETN/RETI`, `RST` | WZ recebe o PC resultante do pop ou o vetor de restart | WZ anterior → PC/vektor; stack/PC com wrap | Estado WZ após retorno/restart | `cpu.rs::ed_retn_reti_aliases_restore_iff1_and_pop_return_address`; IM0 RST em `snapshot_restore_e7_2e.rs` | GAP: WZ de RETN/RETI e RST será afirmado pela PR #954, ainda pendente de CI |
+| `RET`, `RETN/RETI`, `RST` | WZ recebe o PC resultante do pop ou o vetor de restart | WZ anterior → PC/vetor; stack/PC com wrap | Estado WZ após retorno/restart | `cpu.rs::ed_retn_reti_aliases_restore_iff1_and_pop_return_address`; IM0 RST em `snapshot_restore_e7_2e.rs` | GAP: WZ de RETN/RETI e RST será afirmado pela PR #954, ainda pendente de CI |
 | `OUT (n),A` | WZ = `(port & FF00) | ((port + 1) & 00FF)`, port = A:n | Byte baixo incrementa com wrap dentro da página | Estado WZ após I/O | Implementação `cpu.rs::step_inner` | GAP: teste específico de WZ para D3, inclusive n=FF |
 | `IN A,(n)` | WZ = port + 1, port = A:n | Incremento de 16 bits; wrap `FFFF → 0000` | Estado WZ após I/O | Implementação `cpu.rs::step_inner` | GAP: teste específico de WZ para DB |
 | ED `IN r,(C)` / `OUT (C),r` | WZ = BC + 1 | Incremento de 16 bits; wrap `FFFF → 0000` | Estado WZ após acesso à porta | `native/sms_core/tests/z80_ed_io_exhaustive_semantics.rs` | INT; varredura de dados/encodings e wrap; não cobre semântica física de todas as variantes |
@@ -47,12 +47,11 @@
 
 ## Lacunas que permanecem explícitas
 
-1. **Control flow:** falta uma matriz específica de WZ para JR/DJNZ, JP/CALL condicionais, RET condicional, RETN/RETI e RST, incluindo condições tomadas/não tomadas e wrap de PC/stack.
-2. **Immediate I/O:** D3/DB têm regra no executor, mas não foi identificado nesta auditoria um teste dedicado que confira WZ nos dois opcodes e no wrap do byte baixo/word.
-3. **INT IM2:** o handler atribui WZ ao endereço lido do vetor; falta evidência de teste WZ específica associada ao cenário IM2 já existente.
-4. **Block temporal:** os testes simples exaustivos e a matriz micro F-022 precisam ser considerados em conjunto; a nova asserção WZ/previous-Q da PR #951 deve passar nos gates antes de integrar.
-5. **WZ de instruções não documentadas:** regras de MAME/Ares e valores do core não são promovidos a comportamento universal. Os quatro dígitos `117F` e `34AE` do Woodmass são assinaturas de resultado das linhas, não valores literais de WZ.
-6. **Hardware SMS e variantes:** teste Woodmass é hardware-derived no perfil coberto; hardware Master System não foi executado nesta auditoria. CMOS, NEC/R800/Z180, Z80N e clones fora do perfil continuam NOT_VERIFIED.
+1. **Immediate I/O:** D3/DB têm regra no executor; a asserção WZ específica para os dois opcodes e os dois tipos de wrap está proposta na PR #954 e aguarda CI.
+2. **IM0/IM1, RETN/RETI e RST:** os caminhos existem e há cobertura de acknowledge/stack; as asserções WZ adicionais estão propostas na PR #954 e aguardam CI.
+3. **Block temporal:** LDI/LDD/CPI/CPD simples agora têm WZ e previous-Q na matriz micro F-022 pela PR #951. A repetição tem WZ=PC+1 na matriz de interrupção; falta demonstrar explicitamente snapshot/restore microsequenciado de WZ nas quatro formas de repetição de transferência/comparação.
+4. **WZ de instruções não documentadas:** regras de MAME/Ares e valores do core não são promovidos a comportamento universal. Os quatro dígitos `117F` e `34AE` do Woodmass são assinaturas de resultado das linhas, não valores literais de WZ.
+5. **Hardware SMS e variantes:** teste Woodmass é hardware-derived no perfil coberto; hardware Master System não foi executado nesta auditoria. CMOS, NEC/R800/Z180, Z80N e clones fora do perfil continuam NOT_VERIFIED.
 
 ## Decisão F-023
 
