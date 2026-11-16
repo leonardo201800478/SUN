@@ -460,3 +460,9 @@ O critério SG-1000 nesta fase significa consumo do Z80 compartilhado. A integra
 ## Atualização de validação — PR #977
 
 PR #977 HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: CI #43939973117 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43939957730 SUCCESS. A nova cobertura JR/DJNZ/JR cc sob DD/FD Ignored verifica WZ/PC, tomado/não tomado e wrap em PC=FFFD. Scheduler deterministic stress SKIPPED. F-022/F-023 seguem auditorias internas candidatas; F-028 segue IN_PROGRESS até revisão independente registrada. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+
+## Atualização F-028 — HEAD validado da PR #977
+
+PR #977 HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: CI #43940980741 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43940971722 SUCCESS. A matriz dos 167 Ignored agora compara WZ, aplicando +1 somente para JR/DJNZ/JR cc tomados; casos dirigidos cobrem PC=2000/FFFD, CALL/RST stack wrap, DD e FD. Scheduler deterministic stress SKIPPED. F-028 tem auditoria interna completa e é candidata a fechamento, pendente de review independente registrada. F-022/F-023 também permanecem candidatas; E7 IN_PROGRESS; E8 BLOCKED.
