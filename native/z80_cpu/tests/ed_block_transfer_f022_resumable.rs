@@ -15,7 +15,6 @@ const FLAG_PV: u8 = 0x04;
 const FLAG_H: u8 = 0x10;
 const FLAG_Z: u8 = 0x40;
 const FLAG_S: u8 = 0x80;
-const FLAG_XY: u8 = 0x28;
 
 fn is_transfer(opcode: u8) -> bool {
     matches!(opcode, 0xA0 | 0xA8)
@@ -53,7 +52,7 @@ fn expected_flags(opcode: u8, initial_f: u8, accumulator: u8, value: u8, count: 
     }
 }
 
-fn initial_state(opcode: u8, accumulator: u8, initial_f: u8, count: u16) -> Z80ArchitecturalState {
+fn initial_state(accumulator: u8, initial_f: u8, count: u16) -> Z80ArchitecturalState {
     Z80ArchitecturalState {
         registers: Z80Registers {
             a: accumulator,
@@ -111,7 +110,6 @@ fn run_case(
 
     let mut cpu = Z80MicroSequencer::default();
     cpu.import_architectural_state(initial_state(
-        opcode,
         accumulator,
         initial_f,
         initial_count,
