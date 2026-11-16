@@ -494,8 +494,17 @@ impl SmsMemory {
         self.control_port
     }
 
+    /// Whether the BIOS-disable latch is clear, independent of cartridge priority.
     pub fn bios_enabled(&self) -> bool {
         self.bios.is_some() && self.control_port & 0x08 == 0
+    }
+
+    /// Whether BIOS ROM currently drives reads at $0000-$1FFF.
+    ///
+    /// On SMS1, the cartridge takes priority when both BIOS and cartridge
+    /// slots are enabled, even if the BIOS-disable latch remains clear.
+    pub fn bios_mapped(&self) -> bool {
+        self.bios_enabled() && self.control_port & 0x40 != 0
     }
 }
 
@@ -785,6 +794,25 @@ mod tests {
         memory.write_control_port(0xA0); // BIOS + cartridge + work RAM enabled.
         assert_eq!(memory.read(0x0000), 0x00);
         assert_eq!(memory.read(0x2000), 0x00);
+    }
+
+    #[test]
+    fn cartridge_priority_unmaps_bios_even_when_bios_disable_latch_is_clear() {
+        let mut memory = SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
+
+        assert!(memory.bios_enabled());
+        assert!(memory.bios_mapped());
+
+        memory.write_control_port(0xA0);
+        assert!(
+            memory.bios_enabled(),
+            "BIOS-disable latch remains clear"
+        );
+        assert!(
+            !memory.bios_mapped(),
+            "cartridge slot has read priority over BIOS"
+        );
+        assert_eq!(memory.read(0x0000), 0x00);
     }
 
     #[test]
