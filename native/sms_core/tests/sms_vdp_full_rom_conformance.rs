@@ -61,8 +61,6 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     timestamp,
                     operation: Z80BusOperation::OpcodeFetch,
                     address,
-                    base_tstates: 3,
-                    wait_tstates: 1,
                     cpu_pc_before,
                     cpu_pc_after,
                     cpu_halted,
