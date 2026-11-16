@@ -663,7 +663,12 @@ fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
 
         // Repeat iteration retires with PC rewound; INT was asserted on its
         // final internal T-state and is pending at the next boundary.
-        let first = compare_repeat_interrupt_runs(&mut continuous, &mut resumed, 1, RepeatInterruptSignal::Int(0xFF));
+        let first = compare_repeat_interrupt_runs(
+            &mut continuous,
+            &mut resumed,
+            1,
+            RepeatInterruptSignal::Int(0xFF),
+        );
         assert!(matches!(
             first,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
@@ -884,7 +889,12 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
         }
 
         // The interrupt is asserted on the last T-state of the repeat phase.
-        let first = compare_repeat_interrupt_runs(&mut continuous, &mut resumed, 1, RepeatInterruptSignal::Int(0x80));
+        let first = compare_repeat_interrupt_runs(
+            &mut continuous,
+            &mut resumed,
+            1,
+            RepeatInterruptSignal::Int(0x80),
+        );
         assert!(matches!(
             first,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
@@ -982,14 +992,21 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
     }
 }
 
-
 #[test]
 fn e7_f022_repeat_nmi_is_sampled_and_restored_by_sms_scheduler() {
     let cases = [
-        (0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16, 0x0000_u16),
-        (0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16, 0x0000_u16),
-        (0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16, 0x0001_u16),
-        (0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16, 0xFFFF_u16),
+        (
+            0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16, 0x0000_u16,
+        ),
+        (
+            0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16, 0x0000_u16,
+        ),
+        (
+            0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16, 0x0001_u16,
+        ),
+        (
+            0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16, 0xFFFF_u16,
+        ),
     ];
 
     for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases
