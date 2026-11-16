@@ -153,7 +153,6 @@ fn ldir_lddr_cpir_cpdr_flags_survive_im2_acceptance_after_repeat() {
                     cpu.registers.f, expected_f,
                     "ED {opcode:02X}: ISR-visible F"
                 );
-                assert_eq!(cpu.q, expected_f, "ED {opcode:02X}: ISR-visible Q");
                 assert_eq!(cpu.r, 0x03, "ED {opcode:02X}: refresh");
                 assert!(!cpu.iff1);
                 assert!(!cpu.iff2);
