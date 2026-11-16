@@ -802,12 +802,12 @@ Relatório consolidado: [audits/z80-e7-current-status-2026-11-16.md](audits/z80-
 - index_prefix_classification_f028.rs enumera os 256 bytes e compara o resultado com uma lista explícita de 85 UsesIndex; a contagem do classificador auxiliar esperada é 85 UsesIndex, 170 Ignored e 1 IndexedCB.
 - z80_dd_fd_exception_matrix_f028.rs recebeu dois testes adicionais: NMI e INT são solicitados após o M1 de DD, durante a cadeia DD FD 00; WAIT e snapshot/restore são aplicados nos M1; o teste exige que o opcode terminal seja aposentado antes de NMI/INT ser aceito na próxima fronteira.
 - Esses testes usam o microsequenciador Z80 diretamente; não são um teste adicional de integração do MachineScheduler SMS nem um oracle físico independente.
-- O primeiro CI do novo código, run #43862912238, falhou exclusivamente em cargo fmt --all -- --check. O SMS Runtime #43862912321 falhou no mesmo gate de formatação; Clippy, testes e build foram SKIPPED em consequência do gate anterior.
+- O primeiro CI das extensões, #43862912238, e SMS Runtime #43862912321 falharam exclusivamente em cargo fmt --all -- --check; Clippy, testes e build foram SKIPPED. As diferenças apontadas foram corrigidas nos commits 0e29f164e2047bf206902de7d87b1a0c6efabe19 e dcfb74fae2d207126da59562eb8745fa0d733bd4.
 - O diff de rustfmt foi aplicado aos dois arquivos de teste. A revisão desta atualização ainda aguarda o CI do HEAD atual; até conclusão, os novos testes são NOT RUN/NOT VALIDATED.
 
 ### Estado
 
-- F-028 permanece AUDIT_PARTIAL: classificação por byte adicionada, semântica integral por opcode/estado e interações restantes ainda não demonstradas.
+- O repositório já possuía smoke tests de 256 bytes para BASE/DD/FD/CB/ED e para os 256 subopcodes DDCB/FDCB; esses testes comprovam dispatch sem erro, não semântica. A suíte SMS indexed-CB cobre rotate/shift para todos os valores/carry, enquanto outras famílias têm matrizes dirigidas. O novo ledger e teste adicionam classificação explícita UsesIndex/Ignored/IndexedCB. F-028 permanece AUDIT_PARTIAL: semântica integral por opcode/estado e interações restantes ainda não demonstradas.
 - A extensão não alterou código de produção, CPU, decoder, microsequenciador, MachineScheduler ou runtime.
 - Não transferir o PASS anterior de #43859000666/#43859000676 ao código posterior.
 - E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
