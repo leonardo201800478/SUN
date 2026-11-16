@@ -90,3 +90,9 @@ No mesmo HEAD `a7f551336104e1c2c03d7e6790b0aafbb5e346e7`:
 Não houve alteração de runtime, CPU, Scheduler ou temporização de produção nesta validação. A correção foi restrita ao harness de teste/CI e à sua instrumentação.
 
 **E7:** IN_PROGRESS. **E8/ZEXDOC/ZEXALL:** BLOCKED até fechamento demonstrável de E7.
+
+## 7. Status de integração pós-merge — 2026-11-16
+
+A PR #936 está MERGED pelo commit `3b85be47d1f07b7eaa25ea65299a0608e68761d4`. A evidência ROM v5.0 permanece limitada aos cenários upstream descritos neste relatório; a integração não amplia seu domínio nem fecha F-022. A PR #944 também está integrada (`a3cc1edc0f94ca5da1850996d3bf164b0839a2e9`) e acrescenta 64 cenários microsequenciados de repetição/INT IM2, sem cobrir NMI ou IM0/IM1.
+
+F-022 permanece AUDIT_PARTIAL. Os 390 B-loop records continuam pertencendo a F-021 (OTIR/OTDR/INIR/INDR); a ROM principal contém 16 comparações de repetição LDIR/LDDR/CPIR/CPDR, não as oito formas simples e repetitivas completas. E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.

@@ -120,3 +120,23 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 - Assertions estruturais mínimas: prefix M1 e R incrementados, exatamente um fetch M1 do opcode terminal, ausência de refetch, PC/R corretos, custo 4T do prefixo e requests/ordem de operandos preservados.
 - WAIT/snapshot devem ser cobertos por classe de request. Instruções BASE sem implementação e codificações reservadas devem ser marcadas NOT_IMPLEMENTED/NOT_APPLICABLE, nunca PASS por mera classificação.
 - Nenhuma alteração de CPU de produção é autorizada sem falha reproduzível no fallback.
+
+## Atualização pós-merge — PR #946 e próximo recorte F-028
+
+**Baseline main:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`.
+
+PR #946 está MERGED. A matriz ledger-driven executou 167 bytes efetivos Ignored sob DD e FD (334 casos), confirmou M1 em PC 0/1, ausência de refetch, R +2 e custo BASE +4T. CI Z80 focused #43882287467 e SMS Runtime #43882287458 passaram no HEAD `162772ad8fba7249f8f4c7b8fb67b9816202cc80`, cujo tree é idêntico ao merge.
+
+### Próximo passo F-028 — requests e efeitos BASE por família
+
+A matriz estrutural não fecha a semântica. Próximo trabalho deve decompor os 167 bytes em famílias de request e acrescentar fixtures independentes por formato:
+1. Sem operandos e registrador/flags.
+2. Imediato de 8/16 bits e fluxo relativo.
+3. Memória indireta e absoluta, leitura e escrita.
+4. Stack: PUSH/POP, CALL/RET/RST e EX (SP),HL.
+5. I/O: IN/OUT imediato e (C).
+6. Controle de fluxo: condições tomadas/não tomadas, JP (HL), HALT, DI/EI.
+
+Para cada família, comparar explicitamente o caminho BASE com DD e FD: opcode terminal consumido uma vez, endereços e ordem dos requests, valores transferidos, efeitos arquiteturais e custo adicional de 4T. WAIT e snapshot/restore devem ser aplicados em cada classe de request, não apenas no M1. Se um opcode não for coberto pelo executor ou se o comportamento não tiver referência independente, registrar NOT_IMPLEMENTED/NOT_VERIFIED; não inferir PASS pela classificação do ledger.
+
+Não alterar CPU/decoder/FSM/microsequenciador de produção sem uma falha reproduzível. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.

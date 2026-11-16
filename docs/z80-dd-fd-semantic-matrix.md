@@ -609,3 +609,13 @@ O ledger integral de 256 bytes e os testes de classificação e de fronteira INT
 - Os testes NMI/INT, WAIT e snapshot/restore exercitam o microsequenciador Z80 diretamente; não substituem a integração temporal com MachineScheduler nem evidência independente de hardware.
 
 **Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Não reabrir E4A/E4B nem alterar CPU de produção sem falha reproduzível.
+
+## 35. Matriz estrutural dos 167 bytes Ignored — 2026-11-16
+
+**PR #946 MERGED:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`; HEAD validado `162772ad8fba7249f8f4c7b8fb67b9816202cc80`; tree integrado/testado `77840465f65a3d6f4f522ea475e9f1d7a9f2c320`.
+
+O teste `z80_dd_fd_ignored_fallback_matrix_f028.rs` usa o CSV de 256 bytes como inventário e percorre os 167 registros com ação efetiva `ExecuteBaseWithoutRefetch`. Para cada byte executa BASE, DD+opcode e FD+opcode. O CI confirmou 334 execuções prefixadas, com exatamente dois M1 (endereços 0 e 1), nenhum refetch, R incrementado em dois e `T_prefixed = T_BASE + 4`. CI Z80 focused #43882287467 PASS; SMS Runtime #43882287458 PASS (format, Clippy, testes e build).
+
+A matriz não valida integralmente efeitos arquiteturais, endereços/ordem de operandos nem os estados intermediários de WAIT/snapshot. O próximo recorte deve cobrir formatos de request por família: imediato, relativo, memória indireta/absoluta, stack, I/O e controle de fluxo, sem confundir cobertura estrutural com semântica independente.
+
+**Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.

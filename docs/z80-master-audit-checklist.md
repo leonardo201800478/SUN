@@ -670,3 +670,20 @@ A #943 foi validada por CI #43880197594 e SMS Runtime #43880197552 (SUCCESS). O 
 | V-009 | BLOCKED | ZEXDOC/ZEXALL somente após fechamento formal de E7. |
 
 Nenhum dos merges altera a classificação técnica parcial. A sequência correta é fechar as lacunas de evidência, revisar os oráculos para independência e só então avaliar promoção individual para CLOSED. Não alterar produção para facilitar os testes; qualquer defeito precisa de reprodução discriminante e justificativa temporal.
+
+## 50. F-028 — evidência pós-merge dos 167 fallbacks Ignored — 2026-11-16
+
+**PR #946 MERGED:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`; HEAD testado `162772ad8fba7249f8f4c7b8fb67b9816202cc80`, tree SHA integrado/testado `77840465f65a3d6f4f522ea475e9f1d7a9f2c320`.
+
+| Verificação | Resultado |
+|---|---|
+| Inventário do CSV | 167 efetivos Ignored |
+| DD + FD | 334 execuções prefixadas |
+| M1 | Prefixo em PC 0 e terminal em PC 1 |
+| Refetch do terminal | Nenhum |
+| R | Dois incrementos |
+| Custo | BASE + 4 T-states |
+| CI Z80 focused #43882287467 | PASS; matriz 1/1 |
+| SMS Runtime #43882287458 | PASS; format, Clippy, testes e build Windows x64 |
+
+**Estado F-028: AUDIT_PARTIAL.** A matriz é estrutural, não um oracle semântico independente. Ainda falta verificar efeitos arquiteturais e requests/ordem/endereço por família, além de WAIT/snapshot por classe e integração temporal. E7 IN_PROGRESS; E8 BLOCKED.
