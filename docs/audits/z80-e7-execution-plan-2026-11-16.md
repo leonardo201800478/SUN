@@ -346,3 +346,9 @@ Main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` integra os casos F-028 de wrap C
 ## Resultado confirmado PR #977 — 16/11/2026
 
 HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724` passou CI #43939973117 (Z80 focused e Rust quality/unit SUCCESS) e SMS Runtime #43939957730 (Release format/Clippy/tests SUCCESS). O teste cobre JR/DJNZ/JR cc, tomado/não tomado, DD/FD, WZ, PC e wrap relativo em PC=FFFD. Scheduler deterministic stress ficou SKIPPED. Nenhuma alteração de produção. Revisão independente registrada ainda pendente; E7 permanece IN_PROGRESS.
+
+
+
+## F-028 — resultado confirmado após ampliação WZ
+
+PR #977 HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: Z80 focused e Rust quality/unit SUCCESS no CI #43940980741; SMS Runtime SUCCESS #43940971722. O teste genérico agora compara WZ em todos os 167 Ignored, com exceção matemática explícita para branches relativos tomados. Casos dirigidos validam DD/FD, JR/DJNZ/JR cc, PC=FFFD, CALL/RST e stack wrap. Scheduler stress SKIPPED. F-028 é candidato a fechamento técnico, pendente review independente. E7 IN_PROGRESS.
