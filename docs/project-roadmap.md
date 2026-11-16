@@ -1,107 +1,98 @@
 # Roadmap mestre — Sega Emulator
 
-**Revisão documental:** 2026-11-14. Estado operacional consultado na `main` em `f93cb777e69c54c1b347a71da58673a6d8751f47` (PR #867 integrada).
-**Decisões:** ADR 0010 (runtime/hardware), ADR 0011 (desktop/hosts) e ADR-0016 (fidelidade temporal).
+**Revisão:** 2026-11-16  
+**Baseline consultada:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.  
+**Autoridade temporal:** MachineScheduler.  
+**Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
-Duas trilhas coordenadas: evolução dos sistemas Sega (P0–P9) e replataforma desktop/host (R1–R5). A segunda não autoriza reescrever hardware nem antecipar sistemas.
+O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debugger, áudio host e validação são transversais e não autorizam reescrever hardware.
 
 ## 1. Diretrizes
 
-- Runtime 100% Rust; MachineScheduler é autoridade de clocks, eventos e ordem causal.
-- CPU, VDP, PSG, memória, barramentos, mappers, interrupções e estados pertencem ao runtime.
-- Slint é GUI; WGPU é API gráfica; Vulkan é backend inicial preferencial; CPAL é saída física.
-- sega-input-runtime já contém contratos host-independent e backend SDL3 Windows x64; R4 integra esse backend ao host Slint. Teclado continua nos eventos nativos do Slint.
-- Não ampliar nem reintroduzir o host desktop anterior. A retirada física dos módulos transitórios ocorre somente após R3/R5 e inventário de consumidores.
-- GUI não executa hardware, avança clocks ou usa callbacks por instrução.
-- Preservar SmsTemporalWorker, Scheduler, SMS e SG-1000. Não duplicar componentes.
-- Sem JIT, frame skipping, hacks temporais ou otimizações especulativas.
+- Runtime e hardware integralmente em Rust.
+- MachineScheduler é a autoridade única de clocks, eventos e ordem causal.
+- Preservar Z80 compartilhado, SmsTemporalWorker, FrameMailbox, VDPs, PSG, barramentos e componentes validados.
+- GUI Slint; WGPU para renderização; Vulkan backend inicial; CPAL para áudio físico; SDL3 para gamepads.
+- Host gráfico anterior fora de uso ativo; código remanescente é legado, não arquitetura-alvo.
+- Sem CPU/Scheduler/PSG/VDP/worker paralelo, JIT, frame skipping, hacks temporais ou callbacks por instrução.
+- Save States/replays devem preservar estado suficiente e determinismo; renderização/áudio/input não comandam ciclos.
 
-## 2. Plataformas — P0 a P9
+## 2. Roadmap de plataformas
 
-1. **P0:** infraestrutura/hosts, toolchain, workspaces, CI e contratos.
-2. **P1:** Master System temporal, Z80 compartilhado, ROM, lifecycle, vídeo, áudio, input e validação.
-3. **P2:** SG-1000, preservando componentes compartilhados e regressões.
-4. **P3:** Game Gear.
-5. **P4:** Mega Drive/Genesis.
-6. **P5:** Sega CD.
-7. **P6:** 32X / Sega CD 32X.
-8. **P7:** frontend desktop completo em Slint: launcher, biblioteca, configurações, HUD e telemetria.
-9. **P8:** compatibilidade e auditoria.
-10. **P9:** comprovação temporal sistêmica dos caminhos observáveis.
-
-Não avançar para plataforma posterior com bloqueadores estruturais anteriores. O shell mínimo e as integrações necessárias ao SMS não equivalem ao frontend completo P7.
-
-## 3. Replataforma — R1 a R5
-
-| Trilha | Situação | Avaliação |
+| Fase | Sistema/escopo | Critério de saída |
 |---|---|---|
-| R1 — Slint + WGPU 30 + Vulkan | POC integrada; workflow Windows x64 passou | Integração de software aprovada. O relatório local 118b96bf registra inicialização física, Vulkan efetivo, resize/lifecycle e apresentação sustentada como NOT RUN; repetir no HEAD atual. |
-| R2 — Frames reais do SMS | FrameMailbox e SmsTemporalWorker integrados; frame pacing resolvido (#755); smoke test físico relatado | Caminho de frames integrado. O relato manual ainda não está vinculado a log/HEAD reproduzível; completar campanha de ROM/gameplay no HEAD atual. |
-| R3 — Áudio CPAL 0.18.2 | CPAL e pipeline PCM integrados; CI Windows e testes automatizados aprovados; reprodução física relatada | Integração aprovada. Reprodução prolongada, hotplug, recuperação de endpoint e underruns ainda não estão documentados no HEAD atual. |
-| R4 — SDL3 input | Primeira integração SDL3/Slint integrada pela PR #867 (`f93cb777`); CI #7512 verde | Integração de software aprovada: smoke test da ABI dinâmica SDL3, Clippy/testes do input runtime, testes/build Release do desktop e regressão do workspace passaram. Aceite com controles físicos, hotplug real e recursos avançados de configuração continuam pendentes. |
-| R5 — Frontend completo | Slint desktop parcial, menus e controles em evolução | Pendente: biblioteca, configurações consolidadas, HUD, telemetria e retirada dos hosts antigos. |
+| P0 | Fundação Rust, toolchain, CI, contratos e hosts | Workspaces e boundaries reproduzíveis; host Slint/WGPU ativo |
+| P1 | SMS1/SMS2 | Perfis 315-5124/315-5246, runtime, BIOS/cartucho, VDP, PSG, I/O, mappers e regressões consolidados |
+| P2 | SG-1000 | Máquina temporal integrada ao Scheduler existente; Z80 compartilhado; VDP TMS9918A, PSG, memória, I/O e snapshots integrados |
+| P3 | Game Gear | Máquina própria com LCD 160×144, VDP/CRAM, áudio estéreo, memória/cartucho, portas e snapshots específicos |
+| P4 | Expansões e acessórios 8-bit | YM2413/FM Sound Unit; Sega Card/My Card; Card Catcher no SG-1000/SC-3000; 3D Glasses; Paddle, Sports Pad, Light Phaser, Rapid Fire e expansão conforme compatibilidade |
+| P5 | Mega Drive / Genesis | M68k, VDP, áudio, barramentos, cartuchos e Scheduler próprios, reutilizando somente contratos realmente comuns |
+| P6 | Sega CD | Subsystem CD, CPUs/co-processadores e mídia conforme hardware documentado |
+| P7 | 32X | SH-2 e expansão 32X após Mega Drive/Sega CD |
+| P8 | Consolidação do produto | Biblioteca, launcher, configurações, HUD, telemetria, input e remoção segura de código legado |
+| P9 | Compatibilidade e aceite final | Campanhas por sistema, regressões, documentação, release e limites declarados |
 
+**Ordem obrigatória:** SMS1/SMS2 → SG-1000 → Game Gear → expansões/acessórios 8-bit → Mega Drive/Genesis → Sega CD → 32X. Não antecipar M68k ou SH-2.
 
-### R1 — POC gráfica mínima
+### P4 — escopo inicial de acessórios
 
-Comprovar no Windows x64: janela Slint; WGPU 30; Vulkan explicitamente selecionado/identificado; mesmo wgpu::Device e wgpu::Queue compartilhados com Slint; textura externa WGPU atualizada continuamente; composição na mesma janela; resize, lifecycle da surface e shutdown limpo; build Release reproduzível.
+1. **YM2413 / FM Sound Unit:** núcleo OPLL reutilizável, portas $F0/$F1/$F2, perfis japoneses integrados e Mark III com unidade externa, roteamento/mute e mistura com PSG conforme hardware.
+2. **Sega Card / My Card:** mídia de ROM, slot, seleção e arbitragem com cartucho via port $3E, respeitando diferenças Mark III/SMS.
+3. **Card Catcher:** adaptador de cartucho para uso de Sega My Cards no SG-1000/SC-3000; não é o slot nativo do SMS.
+4. **3D Glasses:** interface do adaptador no slot de expansão/card, escrita em $FFF8–$FFFB e temporização das obturações.
+5. **Periféricos DE-9:** Paddle, Sports Pad e Light Phaser, além de Rapid Fire quando suportado pelo perfil de hardware.
+6. **Expansões e interfaces:** auditar pinouts, sinais, arbitragem e compatibilidade por console/revisão antes de implementar.
 
-R1 é isolada. Não integrar SMS real, SmsTemporalWorker, menu de jogo, pausa do Scheduler, HUD, CPAL, SDL3, HDR ou VRR. Não alterar hardware/runtime.
+Cada item terá especificação própria, proveniência DOCUMENTADO/MEDIDO/INFERIDO, modelo temporal, snapshots, testes sintéticos e regressões. Não presumir que um acessório funciona em todos os consoles ou regiões.
 
-**Estado:** POC Slint/WGPU 30/Vulkan integrada e validada pelo workflow Windows x64. O relatório local vinculado ao snapshot 118b96bf411248173b6215b7bf16aebdf3a66bff classifica inicialização física da janela, seleção física do Vulkan, apresentação sustentada e lifecycle da surface como NOT RUN. Não promover o PASS do CI a aceite físico. Repetir os critérios no HEAD atual.
+## 3. Trilhas transversais — desktop R1–R5
 
-### R2 — vídeo real
+| Trilha | Estado consolidado | Limites |
+|---|---|---|
+| R1 Slint/WGPU/Vulkan | POC e integração de software presentes | Revalidar execução física Vulkan, resize/lifecycle e apresentação sustentada no HEAD atual |
+| R2 Frames SMS | Integrada via SmsTemporalWorker/FrameMailbox | Não atribuir evidência de snapshot antigo ao HEAD atual |
+| R3 CPAL 0.18.2 | Integrada em software | Reprodução física prolongada, hotplug/reconexão, underruns e formatos reais ainda exigem evidência |
+| R4 SDL3 input | Primeira integração SDL3/Slint presente | Controles físicos, hotplug, identidade persistente e remapeamento avançado pendentes |
+| R5 Produto desktop | Parcial | Biblioteca, configurações consolidadas, HUD/telemetria e remoção segura dos componentes legados |
 
-Frames SMS integrados pelo contrato portátil, preservando `SmsTemporalWorker`, `FrameMailbox` e `MachineScheduler`. A issue #755 de frame pacing foi encerrada como resolvida. Há relatos manuais de execução, mas o relatório Windows do snapshot 118b96bf... ainda classifica ROM/gameplay e apresentação física sustentada como NOT RUN; repetir e registrar a sessão no HEAD atual. Compatibilidade ampla de ROMs permanece fora do gate de integração.
+R5 é transversal; não deve bloquear implementação de hardware quando a integração coarse-grained necessária já existe.
 
-### R3 — áudio CPAL 0.18.2
+## 4. Trilhas transversais adicionais
 
-CPAL 0.18.2 e o pipeline PCM estão integrados em software; testes automatizados e CI Windows foram aprovados em SHAs anteriores. O relatório Windows do snapshot 118b96bf... registra abertura/reprodução física, hotplug, estabilidade prolongada e underruns como NOT RUN. Relatos manuais de áudio audível não estão vinculados a um SHA reproduzível. Repetir no HEAD atual. A thread de áudio não controla o Scheduler.
+### Z80 compartilhado
 
-### R4 — input SDL3
+Estado: `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e o escopo praticável de SMS/SG-1000. As famílias E4C/E5/E6/E7 e as extensões de F-021/F-022/F-023/F-028 possuem testes internos, diferenciais e integrações registradas. Permanecem limites: CMOS/clones fora do perfil, WAIT físico, DMA, validação elétrica e cobertura universal não demonstrados. ZEXDOC/ZEXALL e outras suítes são complementares futuras. Não reabrir E7 sem bug/regressão ou evidência concreta.
 
-O crate native/input_runtime e o backend SDL3 dinâmico Windows x64 já existem na linha principal, mas não eram consumidos pelo desktop Slint: o host usava somente eventos de teclado nativos. A PR #313 histórica pertence ao host Qt/PyO3 e não comprova integração no desktop atual.
+### Debugger
 
-A PR #867 integrou a primeira fatia ao desktop Slint e foi merged na `main` pelo commit `f93cb777e69c54c1b347a71da58673a6d8751f47`. A implementação adiciona `sega-input-runtime` ao desktop, polling SDL3 no limite do host Slint com intervalo nominal de 8 ms, hotplug observado pelo backend a cada 250 ms, mapeamento inicial Gamepad API (D-pad/analógico esquerdo + South/East + Start como NMI por borda de subida) e fallback Joystick API. Os dois primeiros dispositivos elegíveis são atribuídos a P1/P2 por ordem da sessão. Atualizações usam `SmsTemporalWorker::set_controller_at`; não há polling no Scheduler nem callbacks por instrução.
+Implementado parcialmente e em evolução. Melhorar captura, retenção/exportação, snapshots CPU/VDP, janela de diagnóstico e usabilidade em trilha separada. Não é bloqueio para fechar SMS/SG-1000.
 
-O CI #7512 (`43638680588`) passou no HEAD da PR #867 (`dbad9fae...`): `Windows SDL3 input validation`, `Rust workspace regression`, `Rust quality and unit regression` e `Windows x64 Slint WGPU 30 Vulkan POC` concluíram SUCCESS. O job SDL3 instalou o runtime 3.4.20 fixado por SHA-256, executou fmt, Clippy e teste da ABI dinâmica/input runtime no Windows x64. O job desktop executou fmt, Clippy Release, testes Release e build Release. O job de CPAL, PSG, Z80, VDP, Scheduler stress e input core/console foi SKIPPED por classificação de impacto; SKIPPED não é PASS nem falha, e esses subsistemas não foram alterados pela R4. O CI não exigiu controle físico.
+### BIOS
 
-**Pendências R4:** teste físico com controles reais, hotplug/reconexão e remoção do controle que ocupa P1; identidade persistente por dispositivo (o descritor atual ainda retorna `physical_key=None`); perfis individuais, remapeamento e atribuição configurável P1/P2; captura analógica/calibração separada do threshold inicial de gameplay de 10.000; validação física do Start como NMI por borda de subida e dos caminhos Pause/NMI. XInput direto não está implementado; dispositivos XInput podem ser reconhecidos pelo SDL3 conforme driver/mapeamento. Não alegar input latency sem instrumentação específica.
+O boot por BIOS convencional de 8 KiB está em implementação candidata na PR #928. Validação física com firmware real, handoff e primeiro código do cartucho permanece pendente. Não declarar boot físico validado.
 
-### R5 — frontend
+## 5. Estado operacional da baseline
 
-Consolidar native/sega_desktop, native/video_output_wgpu e native/audio_output; implementar launcher, biblioteca, configurações, menus, HUD, logs e telemetria; provar paridade; remover egui/eframe e hosts antigos somente após regressão e aceite Release no HEAD exato.
+- Main SHA: `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
+- CI associado à baseline: run #43945796678 e SMS Runtime #43945796477. Quatro checks SUCCESS; 14 SKIPPED. PASS inclui Rust quality/unit, Z80 focused, change impact e SMS Runtime Release format/Clippy/tests. Os jobs SKIPPED não são validação.
+- Árvore atual: 285 documentos Markdown sob `docs/`; inventário estrutural anterior não equivale à leitura e reconciliação semântica integral dos 285 arquivos.
+- Road Rash: usuário reportou teste físico OK; retirar da lista de defeitos abertos, sem inventar SHA/relatório.
+- Alinhamento de sprites SMS: usuário reportou corrigido; não manter como defeito aberto sem regressão.
+- BIOS boot: validação física pendente.
+- Host gráfico anterior: não está em uso ativo.
+- SG-1000: ainda precisa concluir integração temporal na arquitetura existente.
 
-## 4. Estado operacional
+## 6. Método, evidência e gates
 
-**Evidência Windows x64:** [relatório local de validação Release](testing/windows-x64-release-validation-2026-11-14.md) registra uma execução do usuário no snapshot `118b96bf411248173b6215b7bf16aebdf3a66bff`: desktop 26/26 testes, crate CPAL 21/21 testes, fmt/Clippy e build Release PASS. Essa evidência é histórica e limitada ao SHA declarado; não certifica automaticamente commits posteriores nem aceite físico.
+Antes de alterar código: auditar main/PRs/branches/workflows; consultar documentação técnica primária; identificar consumidor e efeito observável; modelar ownership, clocks, eventos, estados e snapshots; implementar mudanças pequenas.
 
-**Auditoria VDP SMS1:** [auditoria do caminho ativo](audits/sms1-vdp-runtime-path-audit-2026-11-14.md) inspeciona estaticamente o mesmo snapshot `118b96bf...`. Confirma a cadeia de construção do `SmsVdp` SMS1 315-5124 no host desktop e documenta limitações de fetch/temporização de sprites; não identifica a causa de bugs específicos sem reprodução por jogo.
+Gates Rust conforme workspace/target afetado:
+- `cargo fmt --all -- --check`
+- `cargo clippy --release --workspace --all-targets --locked -- -D warnings`
+- `cargo test --release --workspace --locked`
 
-- Frame pacing: issue #755 encerrada como resolvida em 2026-11-14; não reabrir sem evidência reproduzível de regressão.
-- R1 está integrada e o workflow Windows da POC passa; os critérios físicos listados no relatório histórico ainda não foram executados no SHA atual.
-- R2 (frames SMS) e R3 (CPAL) estão integradas em software; frame pacing foi resolvido, mas a campanha física reproduzível e o aceite sustentado ainda precisam ser vinculados ao HEAD atual.
-- R4: primeira integração SDL3/Slint concluída e integrada pela PR #867; CI #7512 verde no HEAD da PR. O aceite físico e recursos avançados de configuração continuam pendentes. Não confundir a antiga PR #313 Qt/PyO3 com integração no desktop Slint.
-- R5 consolidação final permanece pendente.
-- Para evidência local ou auditoria estática, sempre preservar o SHA exato e não promover um snapshot histórico a validação da `main` atual.
+Executar também os workspaces standalone e os testes focados pertinentes. Classificar PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED nunca é PASS. Vincular cada resultado ao SHA exato. Não transferir resultados de PR para a main sem validação pós-merge.
 
-Branches antigas devem ser reconciliadas por portabilidade seletiva para branches novas sobre a `main` atual. Não fazer merge cego de histórico divergente.
+## 7. GitHub e integração
 
-## 5. Z80
-
-E4C → E5 → E6 → E7 → E8 → E9. Consultar docs/z80-completion-scorecard.md e docs/z80-dd-fd-semantic-matrix.md antes de qualquer tarefa. Não iniciar E8/ZEXDOC/ZEXALL antes do fechamento demonstrável de E7. Não reabrir etapas validadas sem evidência de defeito/regressão.
-
-## 6. Método e gates
-
-Auditar SHA/PRs/workflows; pesquisar fontes primárias; definir critérios; modelar estados/ownership/timing; implementar incrementos pequenos; conferir formatação, Clippy e testes antes do workflow; regredir; auditar diff; atualizar documentação/evidências; publicar por PR.
-
-Gates:
-- cargo fmt --all -- --check
-- cargo clippy --release --workspace --all-targets --locked -- -D warnings
-- cargo test --release --workspace --locked
-
-Validar workspaces/targets standalone. Aplicativos e testes de desempenho devem usar Release. Classificar PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED nunca é PASS. Vincular evidências ao SHA exato.
-
-## 7. GitHub e integração contínua
-
-GitHub é a fonte da verdade. Integrar continuamente na main o código tecnicamente validado, em incrementos pequenos. Manter branches curtas; para branches antigas/divergentes, preservar o histórico e portar seletivamente as mudanças úteis para uma branch nova baseada na main atual. Não fazer merge cego, force-push ou reset destrutivo. Toda alteração passa por branch/PR, diff revisado, testes direcionados, regressões pertinentes e CI aplicável verde no HEAD final. A autorização permanente do usuário permite integrar após os gates; não permite contorná-los. SKIPPED, queued e NOT RUN não são PASS.
+Toda alteração em branch/PR. Não fazer commit direto na main, force-push, reset destrutivo ou merge cego. Portar seletivamente branches divergentes. Merge somente após diff revisado, CI aplicável verde no HEAD final e autorização explícita.
