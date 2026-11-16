@@ -42,7 +42,7 @@ MachineScheduler é a autoridade temporal única. Preservar ordem causal, clocks
 - Main: `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
 - Na main, Sg1000TemporalCoordinator registra somente o domínio Z80; Sg1000TemporalBus aceita fetch/memória/interrupt acknowledge e rejeita PortRead/PortWrite.
 - Sg1000Machine ainda executa por cpu.step() e avança VDP/PSG em fronteiras de instrução; o coordenador não está integrado à máquina.
-- PR #981 é um candidato P2.1 em Draft, HEAD `2f35c334d57dd381ea271f44067684348303eb94`, 13 commits ahead / 0 behind. CI #43969683876 passou nos jobs aplicáveis de workspace, Scheduler, SMS1 VDP, Z80 e higiene documental; não houve merge.
+- PR #981 é um candidato P2.1 em Draft, HEAD `a69312cafad08d855709ea44841dc0fb1705e2b1`, 15 commits ahead / 0 behind. CI #43977932262 no HEAD exato: Change impact, workspace regression, SMS1 VDP, Z80 focused, Scheduler deterministic stress, documentação e Rust quality/unit PASS. Os demais jobs foram SKIPPED e não são PASS; não houve merge. Os testes de leitura agora verificam amostragem de controle após o início da transação e leitura/limpeza do status VBlank no deadline.
 - P2.2 deve integrar o Z80MicroSequencer e M1/T4 ao próprio Sg1000Machine, compondo CPU, barramento, Scheduler, memória, IO, VDP e PSG em um snapshot retomável. Não criar segunda máquina/runtime.
 
 Não iniciar 16-bit antes de concluir sistemas 8-bit e fase de acessórios. Não criar CPU, Scheduler, GUI, áudio/vídeo/input ou runtime paralelo para SG-1000.
