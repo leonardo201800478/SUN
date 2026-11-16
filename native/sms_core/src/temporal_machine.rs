@@ -397,9 +397,32 @@ impl SmsTemporalMachine {
         vdp_profile: SmsVdpProfile,
         territory: Territory,
     ) -> Result<Self, SmsTemporalMachineError> {
+        Self::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            None,
+        )
+    }
+
+    /// Construct an SMS temporal machine with BIOS firmware and explicit cartridge SRAM.
+    pub fn new_with_hardware_profile_and_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalMachineError> {
         Ok(Self {
             cpu: Z80MicroSequencer::default(),
-            bus: SmsTemporalBus::new_with_hardware_profile_and_bios(
+            bus: SmsTemporalBus::new_with_hardware_profile_and_bios_and_sram_size(
                 rom,
                 bios,
                 master_ticks_per_tstate,
@@ -407,6 +430,7 @@ impl SmsTemporalMachine {
                 sample_rate,
                 vdp_profile,
                 territory,
+                cartridge_sram_size,
             )?,
             external_int_line: None,
             instruction_started_at: None,
