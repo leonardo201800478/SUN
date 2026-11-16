@@ -22,6 +22,7 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Instruções para agentes](../AGENTS.md)
 - [ADRs normativas](adr/README.md)
 - [Arquitetura geral](architecture.md)
+- [Índice de hosts/documentos históricos](architecture/legacy-document-index.md)
 - [Scheduler](architecture/scheduler/README.md)
 
 ## Sistemas e hardware
