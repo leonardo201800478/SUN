@@ -88,13 +88,12 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                 SmsTemporalTraceEvent::M1TStateCompleted {
                     timestamp,
                     phase: sega_z80_cpu::Z80M1Phase::T3,
-                    address,
-                    ..
+                    pins,
                 } => {
                     if cpu_fetch_trace.len() == 4096 {
                         cpu_fetch_trace.remove(0);
                     }
-                    cpu_fetch_trace.push((timestamp.ticks(), address));
+                    cpu_fetch_trace.push((timestamp.ticks(), pins.address));
                 }
                 SmsTemporalTraceEvent::BusCompleted {
                     timestamp,
