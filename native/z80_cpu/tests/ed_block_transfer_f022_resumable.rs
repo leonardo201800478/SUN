@@ -191,7 +191,7 @@ fn all_simple_block_transfer_and_compare_inputs_match_independent_flags() {
     for opcode in [0xA0_u8, 0xA8, 0xA1, 0xA9] {
         for accumulator in u8::MIN..=u8::MAX {
             for value in u8::MIN..=u8::MAX {
-                for initial_count in [1_u16, 2] {
+                for initial_count in [0_u16, 1, 2] {
                     // Across the exhaustive A/value domain, all eight
                     // combinations of preserved S/Z/C are exercised. H/N/PV
                     // are seeded independently and must be replaced.
