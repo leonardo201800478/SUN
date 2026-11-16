@@ -7,7 +7,8 @@
 
 use sega_z80_cpu::{
     Z80, Z80AlternateRegisters, Z80ArchitecturalState, Z80BusOperation, Z80MicroSequencer,
-    Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep, Z80PrefixState, Z80Registers, bus::CpuBus,
+    Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep, Z80PrefixState, Z80Registers,
+    bus::CpuBus,
 };
 
 const START_PC: u16 = 0xFFFF;
@@ -346,7 +347,6 @@ fn ignored_flag_and_interrupt_opcodes_preserve_base_semantics_across_prefix_chai
     }
 }
 
-
 fn execute_prefixed_nop_with_interrupt_pending(nmi: bool) -> (Z80MicroSequencer, Z80MicroStep) {
     let mut cpu = Z80MicroSequencer::default();
     cpu.registers.pc = START_PC;
@@ -407,8 +407,14 @@ fn nmi_latched_between_dd_fd_prefixes_is_serviced_after_terminal_opcode() {
     );
     assert_eq!(cpu.registers.pc, START_PC.wrapping_add(3));
     assert_eq!(cpu.refresh, increment_refresh_by(INITIAL_R, 3));
-    assert!(cpu.nmi_pending, "NMI remains latched through the full prefix chain");
-    assert!(cpu.iff1, "NMI is not accepted in the middle of the instruction");
+    assert!(
+        cpu.nmi_pending,
+        "NMI remains latched through the full prefix chain"
+    );
+    assert!(
+        cpu.iff1,
+        "NMI is not accepted in the middle of the instruction"
+    );
 
     let response = match cpu.begin_instruction().expect("next boundary samples NMI") {
         Z80MicroStep::BusRequest(request) => request,
@@ -439,7 +445,10 @@ fn int_asserted_between_dd_fd_prefixes_is_acknowledged_after_terminal_opcode() {
     assert_eq!(cpu.registers.pc, START_PC.wrapping_add(3));
     assert_eq!(cpu.refresh, increment_refresh_by(INITIAL_R, 3));
     assert_eq!(cpu.int_pending, Some(0xFF));
-    assert!(cpu.iff1, "INT is not accepted in the middle of the instruction");
+    assert!(
+        cpu.iff1,
+        "INT is not accepted in the middle of the instruction"
+    );
 
     let acknowledge = match cpu
         .begin_instruction()
