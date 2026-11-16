@@ -293,3 +293,38 @@ Decisão: não fazer merge nem duplicar a implementação. A PR será usada como
 - documentação em `docs/audits` e matriz de conformidade SMS.
 
 Nenhum desses arquivos de runtime foi alterado nesta etapa. O próximo passo é fechar a inspeção dos chamadores host, localizar o código exato da rotina de dump do SmsVdpTest e obter os binários locais para reprodução/hash antes de escolher a correção.
+
+
+## 13. Fontes consultadas e natureza da evidência
+
+### Documentação de hardware/firmware
+
+- Zilog, *Z80 CPU User Manual*, UM008011-0816 — RESET, duração mínima e registradores afetados: https://www.zilog.com/docs/z80/um0080.pdf
+- SMS Power, *BIOSes* — rotina de seleção de slots e comportamento por revisão: https://www.smspower.org/Development/BIOSes
+- SMS Power, *SMS Official Docs* — fluxo de boot de BIOS, RAM/stack e mapa de hardware: https://www.smspower.org/Development/SMSOfficialDocs
+- SMS Power, *Port $3E* — bits de habilitação e semântica ativa baixa: https://www.smspower.org/Development/Port3E
+- SMS Power, *Memory Map* — RAM espelhada, slots e registradores Sega: https://www.smspower.org/Development/MemoryMap
+- SMS Power, *Cartridge Mappers* — Sega/Codemasters e protocolos de mapper: https://www.smspower.org/Development/CartridgeMappers
+- SMS Power, *SN76489* — estado de registradores em variantes integradas/discretas: https://www.smspower.org/Development/SN76489
+- SMS Power, *HCounter* e *ScanlineCounter* — leitura latched e contadores dependentes de raster: https://www.smspower.org/Development/HCounter ; https://www.smspower.org/Development/ScanlineCounter
+- SmsVdpTest v1.31, fonte pública: https://github.com/FluBBaOfWard/SmsVdpTest/blob/main/testmain.asm
+
+### Identidade de ROM — catálogos, não arquivos locais
+
+- No-Intro/libretro, DAT Sega Master System: https://github.com/libretro/libretro-database/blob/master/metadat/no-intro/Sega%20-%20Master%20System%20-%20Mark%20III.dat
+- MAME software list, SMS XML: https://sources.debian.org/src/mame/0.251%2Bdfsg.1-1/hash/sms.xml
+
+### Documentação interna consultada
+
+- `docs/audits/sms-bios-boot-sequence-reverse-engineering.md`
+- `docs/audits/sms-cartridge-boot-integrity-execution-plan.md`
+- `docs/audits/andre-agassi-tennis-sms-black-screen-investigation-2026-10-29.md`
+- `docs/audits/sms-ace-of-aces-region-boot-investigation-2026-10-29.md`
+- `docs/testing/sms-in-game-rom-smoke-campaign.md`
+- `docs/architecture/sms-firmware-manager-ui-and-region-policy-2026-11-15.md`
+- `docs/architecture/sms-built-in-game-firmware-catalog-2026-11-15.md`
+- `docs/architecture/shared-debugger-mvp.md`
+- `docs/architecture/sms-boot-contract.md`
+- `docs/audits/sms-boot-conformance-matrix-2026-11-15.md`
+
+Documentação técnica descreve comportamento geral; DAT identifica dumps; código confirma a policy efetivamente implementada; testes sintéticos provam somente seus cenários. Nenhuma dessas classes, isoladamente, prova a execução dos dois jogos no arquivo local.
