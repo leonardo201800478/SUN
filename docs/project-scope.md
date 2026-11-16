@@ -27,13 +27,13 @@ A GUI não implementa hardware, instruções, clocks, temporização ou callback
 1. **SMS1/SMS2:** consolidar os perfis 315-5124/315-5246, boot, vídeo, áudio, I/O, mappers, BIOS e validação. Road Rash e alinhamento de sprites foram reportados pelo usuário como resolvidos; não reabrir sem regressão. BIOS boot permanece com validação física pendente.
 2. **SG-1000:** concluir a máquina temporal e a integração dos componentes existentes, usando o Z80 compartilhado e preservando VDP/PSG/I/O. Não redesenhar a arquitetura nem criar CPU, GUI ou pipeline paralelo.
 3. **Game Gear:** implementar como sistema próprio, com diferenças de VDP/LCD, CRAM, áudio estéreo, portas, memória, cartucho, snapshots e input. Não tratar como SMS com resolução reduzida.
-4. **Expansões e acessórios 8-bit:** após Game Gear, implementar YM2413/FM Sound Unit e suporte a mídias/periféricos documentados: Sega Card/My Card, Card Catcher (adaptador para SG-1000/SC-3000), 3D Glasses, Paddle, Sports Pad, Light Phaser, Rapid Fire e interfaces de expansão, conforme compatibilidade real de cada console/modelo.
+4. **Expansões e acessórios 8-bit:** após Game Gear, implementar YM2413 integrado no perfil de Master System japonês (opcional e independente de região); Sega Card/My Card como mídia carregável; 3D Glasses/SegaScope com apresentação 2D/estéreo; Paddle, Sports Pad, Light Phaser, Rapid Fire e interfaces de expansão conforme compatibilidade real de cada console/modelo. Card Catcher C-1000 não será implementado.
 5. **Mega Drive/Genesis.**
 6. **Sega CD.**
 7. **32X.**
 8. **Consolidação, compatibilidade, auditoria e aceite final.**
 
-A fase 4 é transversal aos consoles compatíveis: Card Catcher pertence ao ecossistema SG-1000/SC-3000, enquanto o SMS/Mark III possui slot nativo Sega Card/My Card. Não confundir adaptador, mídia e periférico.
+A fase 4 é transversal aos consoles compatíveis. Sega Card/My Card permanece como formato de mídia para SMS/Mark III; Card Catcher C-1000 é excluído por ser adaptador físico redundante no emulador. O SC-3000 teve jogos SC/SG compatíveis e software de computador próprio; apenas os jogos compatíveis com SG-1000 entram no escopo atual. Não implementar computador SC-3000, SK-1100, BASIC ou cassette neste roadmap.
 
 ## Estado das trilhas transversais
 
