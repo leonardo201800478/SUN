@@ -2171,14 +2171,15 @@ fn worker_loop(
 /// machine, Scheduler, bus transaction, WAIT-state handling or event ordering.
 fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
     match *event {
-        SmsTemporalTraceEvent::BusCompleted { .. } => {
-            // Retain every completed bus transaction, including opcode fetches.
-            // A fetch is the only completed transaction for simple instructions
-            // such as NOP; filtering it would make short diagnostic steps empty.
-            // Per-T-state M1/internal-cycle events remain filtered below.
-            true
-        }
-        SmsTemporalTraceEvent::ExternalThTransition { .. } => true,
+        SmsTemporalTraceEvent::BusCompleted { .. }
+        | SmsTemporalTraceEvent::ExternalThTransition { .. } => true,
+        // T3 is the opcode sampling boundary. Retain one event per M1 fetch so
+        // simple instructions (e.g. NOP) remain observable without forwarding
+        // every M1 T-state or internal cycle into the bounded host collector.
+        SmsTemporalTraceEvent::M1TStateCompleted {
+            phase: sega_sms_core::Z80M1Phase::T3,
+            ..
+        } => true,
         SmsTemporalTraceEvent::InternalCycleCompleted { .. }
         | SmsTemporalTraceEvent::M1TStateCompleted { .. } => false,
     }
