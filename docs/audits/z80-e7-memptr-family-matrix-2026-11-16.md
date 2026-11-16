@@ -1,7 +1,7 @@
 # F-023 — Matriz de famílias WZ/MEMPTR
 
-**Baseline examinada:** `45b40755e46aef752d58f571de856ae25ff9e81c` (main após PR #950).
-**Perfil:** Zilog Z80 NMOS clássico usado pelo runtime SMS/SG-1000.
+**Baseline examinada:** `2f72a6d94207cc78e5014363e72d16cf8806316a` (main após PRs #955–#957).
+**Perfil:** Zilog Z80 NMOS compartilhado; runtime temporal SMS; SG-1000 mantido como core de referência com execução em fronteiras de instrução.
 **Objetivo:** inventariar regras WZ/MEMPTR efetivamente implementadas, condições de atualização, wrap, observabilidade e proveniência dos testes. Esta matriz não atribui ao UM0080 regras que o fabricante não documenta.
 
 ## Classificação de evidência
@@ -32,7 +32,7 @@
 | `OUT (n),A` | WZ = `(port & FF00) | ((port + 1) & 00FF)`, port = A:n | Byte baixo incrementa com wrap dentro da página | Estado WZ após I/O | `cpu.rs::tests::immediate_io_updates_wz_with_port_specific_wrap_rules` (PR #954), inclui D3 com n=FF e wrap dentro da página | INT; PR #954 CI #43893014345 PASS |
 | `IN A,(n)` | WZ = port + 1, port = A:n | Incremento de 16 bits; wrap `FFFF → 0000` | Estado WZ após I/O | `cpu.rs::tests::immediate_io_updates_wz_with_port_specific_wrap_rules` (PR #954), inclui DB com A:n=FFFF e wrap 16-bit | INT; PR #954 CI #43893014345 PASS |
 | ED `IN r,(C)` / `OUT (C),r` | WZ = BC + 1 | Incremento de 16 bits; wrap `FFFF → 0000` | Estado WZ após acesso à porta | `native/sms_core/tests/z80_ed_io_exhaustive_semantics.rs` | INT; varredura de dados/encodings e wrap; não cobre semântica física de todas as variantes |
-| `EX (SP),HL/IX/IY` | WZ recebe a palavra lida da pilha e trocada com HL/IX/IY | WZ anterior → palavra lida; endereço SP não é o valor final | Estado WZ e stack writes | BASE `cpu.rs::tests::exchange_stack_hl_and_di_ei_update_state` (asserção WZ proposta na PR #955); `indexed_exchange_stack_e3a2c.rs` para IX/IY | INT; PR #955 pendente de CI |
+| `EX (SP),HL/IX/IY` | WZ recebe a palavra lida da pilha e trocada com HL/IX/IY | WZ anterior → palavra lida; endereço SP não é o valor final | Estado WZ e stack writes | BASE `cpu.rs::tests::exchange_stack_hl_and_di_ei_update_state` (asserção integrada pela #955); `indexed_exchange_stack_e3a2c.rs` para IX/IY | INT; CI #43897766618 e SMS Runtime #43897766471 PASS no HEAD da #955; debugger Windows Release SKIPPED |
 | `LD (IX/IY+d),r/n`, `LD r,(IX/IY+d)`, ALU e INC/DEC indexed | WZ = endereço efetivo IX/IY + displacement assinado | Soma 16-bit; wrap em `0000/FFFF` | WZ diretamente e, para BIT, flags X/Y derivados do byte alto | `indexed_memory_e4a.rs`; `indexed_alu_e4b.rs`; `indexed_incdec_e4c.rs`; `indexed_hl_memory_special_cases.rs` | INT; WAIT/snapshot cobertos nos caminhos microsequenciados pertinentes |
 | DDCB/FDCB | WZ = endereço efetivo IX/IY+d | Soma 16-bit com wrap | WZ direto; BIT usa bits 5/3 do byte alto do endereço | `indexed_cb_e5.rs`; `z80_indexed_cb_reference_vectors.rs`; `z80_indexed_cb_bit_res_set_wz.rs` | INT + referências de software; não é prova física |
 | `LD (nn),IX/IY` / `LD IX/IY,(nn)` | WZ = nn + 1 | 16-bit; wrap | WZ direto e acessos little-endian | `indexed_absolute_transfer_e3a2a.rs` | INT |
@@ -41,19 +41,19 @@
 | RRD/RLD | WZ = HL + 1 | Incremento de 16 bits; `FFFF → 0000` | WZ direto e subsequente BIT 0,(HL) observa X/Y | 262.144 vetores em `cpu.rs::ed_rrd_rld_exhaustive_nibble_transform_and_flag_contract`; 16.384 cenários observáveis RRD/RLD→BIT 0,(HL) (PR #934); 240 cenários micro com WAIT/snapshot em `ed_nibble_rotate_f023_observable.rs`; Woodmass test 09, linhas RLD `117F` e RRD `34AE` | HW para regra WZ=HL+1 no escopo do teste 09; INT para transformação/WAIT/snapshot; X/Y ainda COMP |
 | LDI/LDD/CPI/CPD simples | LDI/LDD preservam WZ; CPI/CPD atualizam WZ = WZ anterior ± 1 conforme direção | LDI/LDD: `WZ_old → WZ_old`; CPI/CPD: incrementa/decrementa WZ anterior com wrap 16-bit | Estado WZ diretamente | `cpu.rs::ed_block_simple_forms_exhaustively_preserve_flags_and_track_wz` (524.288 casos); PR #951 acrescenta WZ e previous-Q à matriz micro de 786.432 casos | INT; sem oracle físico independente para esta regra |
 | LDIR/LDDR/CPIR/CPDR quando repetem | WZ = PC após recuo + 1 | PC recua 2 bytes; WZ = PC+1 | WZ, flags/Q/previous-Q, IM2, PUSH AF/POP AF/EI/RETI e retomada | `z80_ed_block_repeat_interrupt_observation.rs` (32 casos atômicos); `sequencer.rs::repeat_im2_microsequencer_matrix_covers_all_pc_bc_and_q_boundaries` (64 cenários micro); `ed_block_transfer_repeat_interrupt_tests::block_transfer_and_compare_repeat_flags_are_observable_through_im2_and_resume` (4 formas com snapshot/restore em cada fronteira) | COMP + INT; matriz micro não é oracle independente, mas cobertura temporal/snapshot já existe |
-| LDIR/LDDR/CPIR/CPDR quando terminam | LDIR/LDDR preservam WZ; CPIR/CPDR atualizam WZ = WZ anterior ± 1 conforme direção | Transferências: `WZ_old → WZ_old`; comparações: incrementa/decrementa WZ anterior com wrap 16-bit | Estado WZ diretamente | `z80_ed_block_transfer_compare_boundaries.rs`; testes unitários em `cpu.rs` | INT; temporal micro WZ ainda precisa ser ligado à matriz de retomada F-022 |
+| LDIR/LDDR/CPIR/CPDR quando terminam | LDIR/LDDR preservam WZ; CPIR/CPDR atualizam WZ = WZ anterior ± 1 conforme direção | Transferências: `WZ_old → WZ_old`; comparações: incrementa/decrementa WZ anterior com wrap 16-bit | Estado WZ diretamente | `z80_ed_block_transfer_compare_boundaries.rs`; testes unitários em `cpu.rs`; integração Scheduler/replay das quatro formas em `snapshot_restore_e7_2e.rs` (PR #957) | INT; #957 comprova continuidade/restauração temporal, não oracle independente nem valor físico de WZ |
 | INI/IND/INIR/INDR/OUTI/OUTD/OTIR/OTDR | Repetindo: WZ = PC+1. Não repetindo: base é BC antigo para input e BC novo para output; WZ = base ± 1 | Wrap 16-bit; direção conforme IN/OUT e incremento/decremento | Estado WZ, portas e memória | `cpu.rs::execute_block_io`; `z80_ed_block_io_reference_vectors.rs`; relatório F-021 (390 B-loop records) | COMP: SingleStepTests é traduzido do Ares; não é oráculo físico. Manter F-021 separado de F-022 |
 | ED NEG, LD I/R, IM e ED reservados | WZ é preservado nos handlers que não o atualizam | `WZ_old → WZ_old` | Estado WZ após instrução | `z80_ed_neg_nibble_exhaustive.rs`; `z80_ed_special_registers_exhaustive.rs`; `ed_reserved_f033.rs` | INT; não generalizar codificações reservadas a CMOS/clones |
 
 ## Lacunas que permanecem explícitas
 
-1. **BASE EX (SP),HL:** a asserção WZ está proposta na PR #955 e aguarda CI; IX/IY já possuem cobertura em E3A2c.
+1. **BASE EX (SP),HL:** a assertion WZ foi integrada pela PR #955; a lacuna específica está resolvida. A revisão integral da matriz e da proveniência continua pendente.
 2. **Proveniência:** somente RRD/RLD possui evidência hardware-derived específica nesta matriz. As demais regras não documentadas são classificadas como INT/COMP; não são garantias físicas universais. Os dígitos `117F` e `34AE` do Woodmass são assinaturas de resultado das linhas, não valores literais de WZ.
 3. **Perfil e variantes:** CMOS, NEC/R800/Z180, Z80N e clones fora do perfil Zilog NMOS delimitado permanecem NOT_VERIFIED, deliberadamente fora do critério de fechamento. Não exigir hardware SMS físico nem universalidade de clones para fechar o perfil NMOS delimitado.
 
 ## Decisão F-023
 
-As regras WZ/MEMPTR relevantes do perfil delimitado estão classificadas por família e possuem testes rastreáveis; as propriedades não comprovadas em hardware estão explicitamente classificadas como INT/COMP ou NOT_VERIFIED. **F-023 permanece AUDIT_PARTIAL somente até passar a asserção BASE EX (SP),HL da PR #955 e revisar a reconciliação documental.**
+As regras WZ/MEMPTR relevantes do perfil delimitado estão classificadas por família e possuem testes rastreáveis; as propriedades não comprovadas em hardware estão explicitamente classificadas como INT/COMP ou NOT_VERIFIED. **F-023 permanece AUDIT_PARTIAL até a revisão integral da matriz, a reconciliação da proveniência e a revisão adversarial; a assertion BASE EX (SP),HL da #955 já está integrada.**
 
 Nenhuma alteração de produção é autorizada por esta matriz. Não iniciar E8/ZEXDOC/ZEXALL.
 
@@ -78,3 +78,26 @@ Estado após a integração:
 - E8/ZEXDOC/ZEXALL: BLOCKED.
 
 A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+## Atualização pós-merge PR #957 — 16/11/2026
+
+**Main:** `2f72a6d94207cc78e5014363e72d16cf8806316a`. **PR #957:** integrada; alteração somente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`.
+
+O teste `e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay` executa LDIR, LDDR, CPIR e CPDR pelo `SmsTemporalMachine`/MachineScheduler, cobrindo a iteração repetitiva e a final. Insere um WAIT de fixture em cada request de barramento; a execução retomada faz snapshot/restore em cada safe point de request/ciclo interno. A execução contínua e a retomada são comparadas por trace de dispatch, estado completo da máquina e timestamp final.
+
+Validação no HEAD exato `8a6ef8bbf20c770479999f00675718a58349985e`:
+- CI #43899876697: Rust workspace regression PASS.
+- SMS Debugger Runtime #43899876806: rustfmt PASS, Clippy Release PASS, SMS Runtime tests PASS e build Release Windows x64 PASS.
+- Scheduler deterministic stress e Z80 focused foram SKIPPED por classificação de impacto; não contar como PASS.
+- SMS debugger Windows Release foi SKIPPED; não contar como PASS.
+- A execução anterior #43899664243 falhou somente em rustfmt; a formatação foi corrigida antes do HEAD final e não se atribui PASS ao run anterior.
+- Workflow push pós-merge no SHA `2f72a6d94207cc78e5014363e72d16cf8806316a`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+Esta integração fecha a lacuna específica de execução das quatro formas repetitivas através do Scheduler com WAIT de fixture e snapshot/restore. Não demonstra WAIT físico, interrupção injetada no meio da repetição dentro da mesma máquina temporal, nem oracle independente de silício. A cobertura IM2/flags/Q/previous-Q permanece demonstrada separadamente no microsequenciador; não somar essas duas camadas como se fossem uma única prova integrada.
+
+Estado atualizado:
+- F-022: IN_PROGRESS — agora possui integração Scheduler/replay para as quatro formas; permanecem revisão adversarial, reconciliação final das oito formas e proveniência independente dos efeitos não documentados.
+- F-023: AUDIT_PARTIAL — BASE EX (SP),HL já possui assertion integrada pela #955; permanecem revisão integral da matriz/proveniência e limitações de hardware.
+- F-028: IN_PROGRESS — 167 Ignored com estado/requests/WAIT/snapshot e caminhos condicionais; permanece a revisão adversarial e a validação independente de limites semânticos.
+- Temporalidade: evidência integrada SMS ampliada; WAIT físico/DMA permanecem fora da fatia temporal atual.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
