@@ -56,12 +56,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     if irq_line_changes.len() == 4096 {
                         irq_line_changes.remove(0);
                     }
-                    irq_line_changes.push((
-                        timestamp.ticks(),
-                        line,
-                        vdp_irq,
-                        external_irq,
-                    ));
+                    irq_line_changes.push((timestamp.ticks(), line, vdp_irq, external_irq));
                 }
                 SmsTemporalTraceEvent::HaltInterruptSampled {
                     timestamp,
@@ -294,10 +289,8 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
             })
             .unwrap_or_default()
     };
-    let (run_test32_irq_lines, run_test32_halt_samples) =
-        irq_events_before_result(0xC91F);
-    let (run_test34_irq_lines, run_test34_halt_samples) =
-        irq_events_before_result(0xC921);
+    let (run_test32_irq_lines, run_test32_halt_samples) = irq_events_before_result(0xC91F);
+    let (run_test34_irq_lines, run_test34_halt_samples) = irq_events_before_result(0xC921);
 
     assert!(
         completed_at_frame.is_some(),
