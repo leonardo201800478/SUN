@@ -25,8 +25,9 @@ mod windows_host {
     use crate::input_host::Sdl3InputHost;
     use sega_media::{
         CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity, SmsConsoleVariant,
-        SmsFirmwareCatalog, SmsFirmwareId, SmsFirmwareScanEntry, SmsFirmwareScanStatus,
-        SmsFirmwareValidation, SmsRegion,
+        SmsFirmwareCatalog, SmsFirmwareId, SmsFirmwareKind, SmsFirmwareMappingStrategy,
+        SmsFirmwareScanEntry, SmsFirmwareScanStatus, SmsFirmwareValidation, SmsRegion,
+        SmsRegionPreference, resolve_sms_region,
     };
     use sega_save_runtime::SaveRamStore;
     use sega_sms_core::ControllerButtons;
@@ -860,7 +861,7 @@ mod windows_host {
                                 checked <=> root.firmware-boot-enabled;
                                 toggled => { root.firmware-boot-toggle-requested(self.checked); root.preferences-changed(); }
                             }
-                            Text { font-size: 11px; text: "O scan identifica arquivos, mas não comprova o boot. A inicialização sem cartucho será habilitada somente quando o dispositivo interno e o mapa específico da variante estiverem integrados e validados no runtime temporal."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
+                            Text { font-size: 11px; text: "Com cartucho, somente BIOS convencional de 8 KiB identificada e revalidada será executada antes da ROM. Firmwares com jogo interno e boot sem cartucho continuam pendentes de seus mapas específicos no runtime."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
                         }
                         if root.active-menu == "debug": VerticalLayout {
                             Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
@@ -2333,6 +2334,21 @@ mod windows_host {
         }
     }
 
+    fn firmware_id_from_key(key: &str) -> Option<SmsFirmwareId> {
+        match key.trim() {
+            "JapanV21" => Some(SmsFirmwareId::JapanV21),
+            "ExportUsEuV13" => Some(SmsFirmwareId::ExportUsEuV13),
+            "AlexKiddUsEuBrazilV1990" => Some(SmsFirmwareId::AlexKiddUsEuBrazilV1990),
+            "EuropeV20" => Some(SmsFirmwareId::EuropeV20),
+            "HangOnV34" => Some(SmsFirmwareId::HangOnV34),
+            "HangOnSafariHuntV24" => Some(SmsFirmwareId::HangOnSafariHuntV24),
+            "MissileDefense3dV44" => Some(SmsFirmwareId::MissileDefense3dV44),
+            "SamsungGamBoyIiKoreaAlexKidd" => Some(SmsFirmwareId::SamsungGamBoyIiKoreaAlexKidd),
+            "SonicEurope" => Some(SmsFirmwareId::SonicEurope),
+            _ => None,
+        }
+    }
+
     fn firmware_console_compatible(console: SmsConsoleVariant, system: &str) -> bool {
         match system {
             "sms1" => matches!(
@@ -2801,14 +2817,24 @@ mod windows_host {
         save_store: Arc<SaveRamStore>,
     ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
         let prepared = prepare_cartridge(&rom, save_store)?;
-        let worker =
-            SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+        let bios = load_selected_sms_bios(&rom, settings)?;
+        let worker = match bios {
+            Some(bios) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                rom,
+                bios,
+                &settings.region,
+                settings.vdp_revision,
+                prepared.sram_capacity,
+                prepared.initial_sram,
+            )?,
+            None => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
                 rom,
                 &settings.region,
                 settings.vdp_revision,
                 prepared.sram_capacity,
                 prepared.initial_sram,
-            )?;
+            )?,
+        };
         configure_sms_audio(
             &worker,
             settings.audio_volume,
@@ -2926,10 +2952,117 @@ mod windows_host {
 
     struct SmsWorkerSettings {
         region: String,
+        sms_system: String,
+        firmware_directory: String,
+        firmware_boot_enabled: bool,
+        firmware_brazil_selected: String,
+        firmware_usa_selected: String,
+        firmware_europe_selected: String,
+        firmware_japan_selected: String,
+        firmware_korea_selected: String,
         vdp_revision: SmsVdpRevision,
         audio_volume: u8,
         dsp_config: AnalogOutputConfig,
         renderer_mode: String,
+    }
+
+    /// Load only a catalog-identified conventional 8 KiB BIOS for the resolved
+    /// cartridge region. Built-in-game firmware needs its own internal-ROM map.
+    fn load_selected_sms_bios(
+        rom: &[u8],
+        settings: &SmsWorkerSettings,
+    ) -> Result<Option<Vec<u8>>, String> {
+        if !settings.firmware_boot_enabled {
+            return Ok(None);
+        }
+        if settings.firmware_directory.trim().is_empty() {
+            return Err(
+                "boot pela BIOS está habilitado, mas o diretório de firmware não foi configurado"
+                    .to_owned(),
+            );
+        }
+
+        let preference =
+            SmsRegionPreference::parse(&settings.region).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region,
+            SmsRegionPreference::Automatic => {
+                let cartridge_catalog = CartridgeCatalog::sms_default()
+                    .map_err(|error| format!("não foi possível resolver a região do cartucho: {error}"))?;
+                resolve_sms_region(preference, rom, &cartridge_catalog).region
+            }
+        };
+        let selected = match region {
+            SmsRegion::Brazil => &settings.firmware_brazil_selected,
+            SmsRegion::Usa => &settings.firmware_usa_selected,
+            SmsRegion::Europe => &settings.firmware_europe_selected,
+            SmsRegion::Japan => &settings.firmware_japan_selected,
+            SmsRegion::Korea => &settings.firmware_korea_selected,
+        };
+        let key = selected
+            .split_once(" — ")
+            .map_or(selected.as_str(), |(key, _)| key)
+            .trim();
+        let id = firmware_id_from_key(key).ok_or_else(|| {
+            format!(
+                "boot pela BIOS está habilitado, mas não há firmware selecionado para {}",
+                region.label()
+            )
+        })?;
+
+        let catalog = SmsFirmwareCatalog::sms_default();
+        let descriptor = catalog
+            .descriptor(id)
+            .ok_or_else(|| format!("firmware {key} não existe no catálogo"))?;
+        if descriptor.kind != SmsFirmwareKind::ConventionalBios
+            || descriptor.mapping != SmsFirmwareMappingStrategy::ConventionalBios8KiB
+            || descriptor.size_bytes != 0x2000
+        {
+            return Err(format!(
+                "{} é firmware com jogo interno, não uma BIOS convencional de 8 KiB; seu mapeamento ainda não está integrado ao runtime",
+                descriptor.name
+            ));
+        }
+        if !firmware_console_compatible(descriptor.console, &settings.sms_system)
+            || !descriptor.supported_regions.contains(&region)
+        {
+            return Err(format!(
+                "{} não é compatível com {} / {}",
+                descriptor.name,
+                settings.sms_system,
+                region.label()
+            ));
+        }
+
+        let entries = catalog
+            .scan_directory(&settings.firmware_directory)
+            .map_err(|error| format!("não foi possível revalidar o diretório de firmware: {error}"))?;
+        let entry = entries
+            .iter()
+            .find(|entry| {
+                entry.firmware_id == Some(id)
+                    && matches!(
+                        &entry.status,
+                        SmsFirmwareScanStatus::Identified | SmsFirmwareScanStatus::DuplicateHash
+                    )
+            })
+            .ok_or_else(|| {
+                format!(
+                    "{} não foi encontrado como firmware identificado; execute novamente a varredura",
+                    descriptor.name
+                )
+            })?;
+        let bytes = catalog
+            .load_validated(&entry.path, id)
+            .map_err(|error| format!("não foi possível validar {}: {error}", descriptor.name))?;
+        eprintln!(
+            "SMS_BIOS status=validated id={} region={} bytes={} sha256={}",
+            firmware_id_key(id),
+            region.key(),
+            bytes.len(),
+            descriptor.sha256
+        );
+        Ok(Some(bytes))
     }
 
     /// Convert the user-selected console model into its explicit VDP ASIC revision.
@@ -2978,6 +3111,14 @@ mod windows_host {
         let save_store = cartridge_save_store()?;
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
+            sms_system: preferences.sms_system.clone(),
+            firmware_directory: preferences.firmware_directory.clone(),
+            firmware_boot_enabled: preferences.firmware_boot_enabled,
+            firmware_brazil_selected: preferences.firmware_brazil_selected.clone(),
+            firmware_usa_selected: preferences.firmware_usa_selected.clone(),
+            firmware_europe_selected: preferences.firmware_europe_selected.clone(),
+            firmware_japan_selected: preferences.firmware_japan_selected.clone(),
+            firmware_korea_selected: preferences.firmware_korea_selected.clone(),
             vdp_revision: sms_vdp_revision_for_system(&preferences.sms_system)?,
             audio_volume: effective_audio_volume(preferences.audio_volume, preferences.audio_muted),
             dsp_config: audio_dsp_config(
@@ -3279,14 +3420,27 @@ mod windows_host {
                 return;
             }
 
-            let (region, system, sprite_limit_enabled, audio_volume, dsp_config, renderer_mode) =
-                open_app
-                    .upgrade()
-                    .map(|app| {
-                        (
-                            app.get_selected_region().to_string(),
-                            app.get_selected_system().to_string(),
-                            app.get_sprite_limit_enabled(),
+            let (
+                region,
+                system,
+                sprite_limit_enabled,
+                audio_volume,
+                dsp_config,
+                renderer_mode,
+                firmware_directory,
+                firmware_boot_enabled,
+                firmware_brazil_selected,
+                firmware_usa_selected,
+                firmware_europe_selected,
+                firmware_japan_selected,
+                firmware_korea_selected,
+            ) = open_app
+                .upgrade()
+                .map(|app| {
+                    (
+                        app.get_selected_region().to_string(),
+                        app.get_selected_system().to_string(),
+                        app.get_sprite_limit_enabled(),
                             effective_audio_volume(
                                 app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
                                 app.get_audio_muted(),
@@ -3298,19 +3452,33 @@ mod windows_host {
                                 app.get_audio_lpf_enabled(),
                                 f64::from(app.get_audio_lpf_cutoff().round() as u16),
                             ),
-                            app.get_audio_renderer_mode().to_string(),
-                        )
-                    })
-                    .unwrap_or_else(|| {
-                        (
-                            "usa".to_owned(),
-                            "sms1".to_owned(),
-                            true,
-                            70,
-                            AnalogOutputConfig::default(),
-                            "psg".to_owned(),
-                        )
-                    });
+                        app.get_audio_renderer_mode().to_string(),
+                        app.get_firmware_directory().to_string(),
+                        app.get_firmware_boot_enabled(),
+                        app.get_firmware_brazil_selected().to_string(),
+                        app.get_firmware_usa_selected().to_string(),
+                        app.get_firmware_europe_selected().to_string(),
+                        app.get_firmware_japan_selected().to_string(),
+                        app.get_firmware_korea_selected().to_string(),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    (
+                        "usa".to_owned(),
+                        "sms1".to_owned(),
+                        true,
+                        70,
+                        AnalogOutputConfig::default(),
+                        "psg".to_owned(),
+                        String::new(),
+                        false,
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                    )
+                });
             let vdp_revision = match sms_vdp_revision_for_system(&system) {
                 Ok(revision) => revision,
                 Err(error) => {
@@ -3322,6 +3490,14 @@ mod windows_host {
             };
             let open_settings = SmsWorkerSettings {
                 region,
+                sms_system: system.clone(),
+                firmware_directory,
+                firmware_boot_enabled,
+                firmware_brazil_selected,
+                firmware_usa_selected,
+                firmware_europe_selected,
+                firmware_japan_selected,
+                firmware_korea_selected,
                 vdp_revision,
                 audio_volume,
                 dsp_config,
@@ -3540,11 +3716,11 @@ mod windows_host {
             if let Some(app) = firmware_toggle_app.upgrade() {
                 if enabled {
                     app.set_firmware_scan_status(
-                        "Preferência de boot salva. Boot sem cartucho aguarda a integração do dispositivo interno no runtime temporal.".into(),
+                        "Preferência salva para a próxima abertura da ROM. Com cartucho, selecione uma BIOS convencional de 8 KiB compatível; firmware com jogo interno e boot sem cartucho continuam pendentes.".into(),
                     );
                 } else {
                     app.set_firmware_scan_status(
-                        "Boot por BIOS/firmware desativado; boot direto por cartucho permanece como caminho padrão.".into(),
+                        "Boot direto por cartucho selecionado; a BIOS não será carregada na próxima abertura.".into(),
                     );
                 }
             }
@@ -4450,6 +4626,51 @@ mod windows_host {
         #[test]
         fn zip_rom_loader_rejects_invalid_archive_bytes() {
             assert!(extract_rom_from_zip(b"not a ZIP archive").is_err());
+        }
+
+        #[test]
+        fn conventional_bios_loader_rejects_builtin_game_firmware() {
+            let settings = SmsWorkerSettings {
+                region: "usa".to_owned(),
+                sms_system: "sms1".to_owned(),
+                firmware_directory: "unused-firmware-directory".to_owned(),
+                firmware_boot_enabled: true,
+                firmware_brazil_selected: String::new(),
+                firmware_usa_selected: "HangOnV34 — Hang On USA/Europe v3.4 (128 KiB)".to_owned(),
+                firmware_europe_selected: String::new(),
+                firmware_japan_selected: String::new(),
+                firmware_korea_selected: String::new(),
+                vdp_revision: SmsVdpRevision::Sega3155124,
+                audio_volume: 70,
+                dsp_config: AnalogOutputConfig::default(),
+                renderer_mode: "psg".to_owned(),
+            };
+
+            let error = load_selected_sms_bios(&[0; 0x4000], &settings).unwrap_err();
+            assert!(error.contains("não uma BIOS convencional de 8 KiB"));
+        }
+
+        #[test]
+        fn disabled_bios_preference_keeps_direct_cartridge_boot() {
+            let settings = SmsWorkerSettings {
+                region: "usa".to_owned(),
+                sms_system: "sms1".to_owned(),
+                firmware_directory: String::new(),
+                firmware_boot_enabled: false,
+                firmware_brazil_selected: String::new(),
+                firmware_usa_selected: String::new(),
+                firmware_europe_selected: String::new(),
+                firmware_japan_selected: String::new(),
+                firmware_korea_selected: String::new(),
+                vdp_revision: SmsVdpRevision::Sega3155124,
+                audio_volume: 70,
+                dsp_config: AnalogOutputConfig::default(),
+                renderer_mode: "psg".to_owned(),
+            };
+
+            assert!(load_selected_sms_bios(&[0; 0x4000], &settings)
+                .unwrap()
+                .is_none());
         }
 
         #[test]
