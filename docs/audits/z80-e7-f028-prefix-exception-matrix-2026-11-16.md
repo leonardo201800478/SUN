@@ -75,3 +75,16 @@ A comparação atomic↔microsequenciador é uma propriedade de consistência in
 - Jobs não relacionados ao diff ficaram SKIPPED e não são contabilizados como PASS.
 
 **Classificação:** a matriz dirigida de exceções coberta está PASS no HEAD da PR #943. F-028 permanece **AUDIT_PARTIAL** até a reconciliação de todo o ledger DD/FD. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+## Aditivo supersedente — ampliação e validação final — 2026-11-16
+
+A descrição anterior refletia a primeira versão da matriz e foi supersedida pela validação final abaixo.
+
+- **HEAD de código/harness:** 98c1cf41587f6af66c3d272e4b07a638d5da7919.
+- **CI:** [#43859000666](https://github.com/leonardo201800478/sega-emulator/actions/runs/43859000666) SUCCESS; Z80 focused, Rust quality/unit e documentation hygiene SUCCESS.
+- **SMS Runtime:** [#43859000676](https://github.com/leonardo201800478/sega-emulator/actions/runs/43859000676) SUCCESS; Release format, Clippy, testes e build Windows x64 concluídos.
+- **Cobertura:** quatro testes; nove cadeias DD/FD × 12 formas (EX AF, EXX, EX DE/HL, HALT, ED NEG, NOP, DAA, CPL, SCF, CCF, DI, EI) = 108 combinações prefixadas por executor.
+- Os 34.000 vetores SingleStepTests DD/FD também foram explicitamente executados e aprovados neste HEAD.
+- A falha intermediária em SCF/CCF era fixture incorreto: o estado inicial correto é expresso pelo latch Q, porque o início de instrução transfere Q para previous-Q; o caminho DD/FD limpa previous-Q conforme a regra NMOS. O fixture agora parametriza Q inicial e o caso BASE inicia com Q=0. Os quatro testes passam; nenhuma produção CPU foi alterada.
+- F-028 permanece AUDIT_PARTIAL: cobertura dirigida, não todos os 256 opcodes DD/FD e estados. E7 IN_PROGRESS; E8 BLOCKED.
