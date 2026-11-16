@@ -166,7 +166,7 @@ fn rrd_rld_memptr_observation_survives_wait_and_snapshot_restore() {
                         assert_eq!(cpu.wz, expected_wz, "ED {opcode:02X}: WZ after BIT");
                         assert_eq!(cpu.registers.hl(), hl, "ED {opcode:02X}: HL preserved");
                         assert_eq!(cpu.registers.pc, pc.wrapping_add(4), "ED {opcode:02X}: PC");
-                        assert_eq!(cpu.r, 4, "ED {opcode:02X}: refresh");
+                        assert_eq!(cpu.refresh, 4, "ED {opcode:02X}: refresh");
                     }
                 }
             }
