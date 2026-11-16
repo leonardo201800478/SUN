@@ -922,6 +922,7 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
             Z80MicroStep::InstructionRetired { opcode: 0xF5, .. }
         ));
         assert_eq!(continuous.cpu().registers.sp, 0xC0FC);
+        assert_eq!(continuous.cpu().q_previous, 0);
         assert_eq!(continuous.memory().read(0xC0FC), repeat_flags);
         assert_eq!(continuous.memory().read(0xC0FD), 0x10);
 
@@ -931,6 +932,7 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
             Z80MicroStep::InstructionRetired { opcode: 0xF1, .. }
         ));
         assert_eq!(continuous.cpu().registers.sp, 0xC0FE);
+        assert_eq!(continuous.cpu().q_previous, 0);
         assert_eq!(continuous.cpu().registers.f, repeat_flags);
         assert_eq!(continuous.cpu().registers.a, 0x10);
 
@@ -940,13 +942,18 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
             Z80MicroStep::InstructionRetired { opcode: 0xFB, .. }
         ));
         assert_eq!(continuous.cpu().ei_delay, 1);
+        assert_eq!(continuous.cpu().q_previous, 0);
 
         let reti = compare_runs(&mut continuous, &mut resumed, 1);
-        assert!(matches!(reti, Z80MicroStep::InstructionRetired { .. }));
+        assert!(matches!(
+            reti,
+            Z80MicroStep::InstructionRetired { opcode: 0x4D, .. }
+        ));
         assert_eq!(continuous.cpu().registers.pc, 0);
         assert_eq!(continuous.cpu().registers.sp, 0xC100);
         assert_eq!(continuous.cpu().wz, 0);
         assert_eq!(continuous.cpu().ei_delay, 0);
+        assert_eq!(continuous.cpu().q_previous, 0);
         assert!(continuous.cpu().iff1 && continuous.cpu().iff2);
 
         let final_iteration = compare_runs(&mut continuous, &mut resumed, 1);
