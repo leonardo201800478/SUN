@@ -276,6 +276,56 @@ impl SmsTemporalBus {
         territory: Territory,
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalBusError> {
+        Self::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            None,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        )
+    }
+
+    /// Construct the temporal bus with an actual 8 KiB SMS BIOS image.
+    ///
+    /// The CPU still starts at its hardware reset vector. The BIOS executes on
+    /// the shared Scheduler and is responsible for establishing the cartridge
+    /// handoff state (CPU, RAM, mapper, memory-control and VDP) before the game
+    /// receives control. No post-BIOS register values are fabricated here.
+    pub fn new_with_hardware_profile_and_bios(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalBusError> {
+        Self::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            Some(bios),
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            None,
+        )
+    }
+
+    /// Construct the temporal bus with optional BIOS and explicit cartridge SRAM capacity.
+    pub fn new_with_hardware_profile_and_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Option<Vec<u8>>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalBusError> {
         sega_observability::tracing::info!(
             target: "sega::machine",
             master_ticks_per_tstate,
@@ -283,10 +333,11 @@ impl SmsTemporalBus {
             sample_rate,
             vdp_profile = ?vdp_profile,
             territory = ?territory,
+            bios_present = bios.is_some(),
             "SMS temporal bus configuration selected"
         );
         let cartridge = CartridgeImage::new(rom)?;
-        let memory = SmsMemory::with_cartridge_sram_size(cartridge, cartridge_sram_size)?;
+        let memory = SmsMemory::with_bios_and_sram_size(cartridge, bios, cartridge_sram_size)?;
         let coordinator = SmsTemporalCoordinator::new(master_ticks_per_tstate)?;
         let psg = ScheduledPsg::new(
             SMS_PSG_CLOCK_DOMAIN_ID,
