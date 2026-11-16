@@ -8,7 +8,7 @@
 //!
 //! The test reproduces the upstream runner's Spectrum hooks: CHAN_OPEN
 //! (opcode-fetch override at 0x1601), CLS (RET at 0x0D6B), and PRINT (RST 10h
-//! hook at 0x0010). ROM writes are ignored, and the original ROM supplies reads.
+//! hook at 0x70F2). ROM writes are ignored, and the original ROM supplies reads.
 
 use std::fs;
 
@@ -24,6 +24,7 @@ const EXIT_ADDRESS: u16 = 0x80E6;
 const CHAN_OPEN: u16 = 0x1601;
 const CLS: u16 = 0x0D6B;
 const PRINT_VECTOR: u16 = 0x0010;
+const PRINT_HOOK: u16 = 0x70F2;
 
 const EXPECTED_TSTATES: u64 = 50_904_931;
 const MAX_TSTATES: u64 = EXPECTED_TSTATES + 2_000_000;
@@ -150,9 +151,11 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
     bus.memory[..0x4000].copy_from_slice(&rom);
     bus.memory[LOAD_ADDRESS..LOAD_ADDRESS + TAP_CODE_SIZE].copy_from_slice(code);
 
-    // Spectrum ROM services installed by the upstream test runner. RST 10h
-    // reaches the PRINT hook directly at 0x0010; the hook returns as RET.
-    bus.memory[usize::from(PRINT_VECTOR)] = 0xC9;
+    // Woodmass runner setup: RST 10h -> JP 0x70F2 -> PRINT hook (RET).
+    bus.memory[usize::from(PRINT_VECTOR)] = 0xC3; // JP PRINT_HOOK
+    bus.memory[usize::from(PRINT_VECTOR) + 1] = PRINT_HOOK as u8;
+    bus.memory[usize::from(PRINT_VECTOR) + 2] = (PRINT_HOOK >> 8) as u8;
+    bus.memory[usize::from(PRINT_HOOK)] = 0xC9; // Z80_HOOK callback returns RET.
     bus.memory[usize::from(CLS)] = 0xC9; // RET
     bus.memory[usize::from(EXIT_ADDRESS)] = 0x76; // HALT, as in test-Z80.c.
 
@@ -171,7 +174,7 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
     while !cpu.halted {
         let pc_before = cpu.registers.pc;
 
-        if pc_before == PRINT_VECTOR {
+        if pc_before == PRINT_HOOK {
             printed.write_character(cpu.registers.a);
         }
 
