@@ -112,6 +112,7 @@ pub struct Sg1000TemporalBusState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Sg1000TemporalBusError {
     Memory(MemoryError),
+    Audio(PsgError),
     Coordinator(Sg1000TemporalCoordinatorError),
     Busy,
     NoPendingRequest,
@@ -124,6 +125,7 @@ impl fmt::Display for Sg1000TemporalBusError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Memory(error) => write!(f, "SG-1000 memory initialization failed: {error}"),
+            Self::Audio(error) => write!(f, "SG-1000 PSG initialization failed: {error}"),
             Self::Coordinator(error) => write!(f, "SG-1000 temporal coordinator failed: {error}"),
             Self::Busy => f.write_str("SG-1000 temporal bus already owns an unacknowledged event"),
             Self::NoPendingRequest => f.write_str("SG-1000 temporal bus has no pending request"),
@@ -144,6 +146,12 @@ impl std::error::Error for Sg1000TemporalBusError {}
 impl From<MemoryError> for Sg1000TemporalBusError {
     fn from(error: MemoryError) -> Self {
         Self::Memory(error)
+    }
+}
+
+impl From<PsgError> for Sg1000TemporalBusError {
+    fn from(error: PsgError) -> Self {
+        Self::Audio(error)
     }
 }
 
@@ -189,10 +197,11 @@ impl Sg1000TemporalBus {
         )
     }
 
-    /// Construct the temporal bus with an explicit PSG input clock and sample rate.
+    /// Construct the temporal bus with explicit CPU/PSG oscillator frequencies and PCM rate.
     ///
-    /// The PSG clock is configuration input. Its default value mirrors the existing
-    /// provisional SG-1000 profile and is not a claim of board-level clock fidelity.
+    /// The oscillator values are configuration inputs. The default profile is provisional
+    /// and is not a claim of board-level clock fidelity. PSG progression uses the exact
+    /// rational PSG/CPU ratio registered with the MachineScheduler.
     pub fn new_with_audio(
         rom: impl Into<Vec<u8>>,
         memory_config: MemoryConfig,
