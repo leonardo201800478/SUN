@@ -1,63 +1,63 @@
 # Sega Emulator — instruções permanentes
 
-**Stack desktop alvo:** Slint 1.18.x + WGPU 30.x + CPAL 0.18.2; Vulkan inicial no Windows x64; SDL3 após auditoria.
-**Repositório:** https://github.com/leonardo201800478/sega-emulator
-**Referência:** https://www.smspower.org/
+**Repositório:** https://github.com/leonardo201800478/sega-emulator  
+**Referência técnica:** https://www.smspower.org/  
+**Baseline consultada:** `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16).
 
-## Objetivo e prioridades
+## Papel e prioridades
 
-Atuar como arquiteto de software, engenheiro de emulação e desenvolvedor principal de um emulador Sega multissistema, modular, determinístico e de alta precisão temporal.
+Atuar como arquiteto de software, engenheiro de emulação e desenvolvedor principal do emulador Sega multissistema.
 
-Prioridades: fidelidade ao hardware; determinismo; integridade arquitetural; cobertura e validação independente; desempenho após comprovação de correção. Compilar ou apresentar funcionamento visual não significa conclusão.
+Prioridades: fidelidade ao hardware; determinismo; integridade arquitetural; preservação de componentes validados; cobertura funcional e validação independente proporcional; desempenho somente após comprovação de correção. Compilar ou apresentar uma imagem não significa conclusão.
 
 ## Arquitetura
 
-- Backend 100% Rust: CPUs, ALUs, registradores, memória, barramentos, mappers, VDPs, áudio, interrupções, MachineScheduler, timing e estados.
-- GUI alvo: Slint 1.18.x; renderização WGPU 30.x; Vulkan preferencial no Windows x64; saída física CPAL 0.18.2; SDL3 após auditoria.
-- egui/eframe e hosts D3D12/WASAPI/XAudio2 são baseline transitória, não destino final.
-- Preservar runtime SMS/SG-1000, Z80, Scheduler, VDP, PSG, barramentos, memórias, mappers e testes validados.
-- GUI exclusivamente apresentação e integração OS. Proibido implementar hardware, instruções ou timing na UI.
-- Comunicação coarse-grained: start, pause, stop, reset, load_rom, step_frame. Sem callbacks por instrução.
-- Estrutura de referência: native/sega_desktop, native/video_output_wgpu, native/audio_output; prevalece a estrutura real e não duplicar crates.
+- Backend/runtime 100% Rust: CPUs, ALUs, registradores, memória, barramentos, mappers, VDPs, PSG/FM, periféricos, interrupções, MachineScheduler, timing, estados e execução.
+- GUI: Slint 1.18.x.
+- Renderização: WGPU 30.x; Vulkan como backend inicial no Windows x64.
+- Saída física de áudio: CPAL 0.18.2.
+- Input: eventos nativos Slint para teclado e `sega-input-runtime`/SDL3 para gamepads.
+- Host gráfico anterior egui/D3D12/Qt está fora de uso ativo; módulos remanescentes são legado e exigem inventário antes de remoção.
+- Preservar SmsTemporalWorker, FrameMailbox, MachineScheduler, Z80, SMS, SG-1000, VDPs, PSG, barramentos, memórias, mappers e testes validados.
+- GUI exclusivamente apresentação/integração com SO. Proibido implementar hardware, instruções, clocks, temporização ou callbacks por instrução.
+- Integração coarse-grained: load_rom, start, pause, stop, reset, step_frame e snapshots.
 
 ## Determinismo
 
-MachineScheduler é a autoridade temporal. Exigir ordem causal, sincronização CPU/vídeo/áudio/barramentos, WAIT states reais, operações suspensíveis/retomáveis e preservação integral do estado. Execução contínua e em blocos deve ser equivalente. UI, renderização e saída de áudio não controlam ciclos.
+MachineScheduler é a autoridade temporal única. Preservar ordem causal, clocks, WAIT states comprovados, operações suspensíveis/retomáveis, snapshots e replays. Execução contínua e em blocos deve ser equivalente nas dimensões testadas. GUI, renderização, áudio físico e input nunca controlam ciclos.
 
-## Migração R1–R5
+## Roadmap normativo
 
-- R1: POC isolada Slint/WGPU/Vulkan; janela, device/queue compartilhados, textura externa atualizada e composição. Sem runtime SMS, menus, HUD, CPAL ou SDL3.
-- R2: integrar frames SMS, preservando SmsTemporalWorker, FrameMailbox e Scheduler.
-- R3: integrar CPAL, dispositivos, formatos, streams e underruns.
-- R4: auditar/integrar SDL3 para teclado/gamepads.
-- R5: consolidar frontend, launcher, biblioteca, configurações, HUD e telemetria; remover baseline somente após paridade.
+1. SMS1/SMS2.
+2. SG-1000, concluído na arquitetura temporal existente.
+3. Game Gear como sistema próprio.
+4. Expansões/acessórios 8-bit: YM2413/FM Sound Unit, Sega Card/My Card, Card Catcher para SG-1000/SC-3000, 3D Glasses, Paddle, Sports Pad, Light Phaser, Rapid Fire e expansão compatível.
+5. Mega Drive/Genesis.
+6. Sega CD.
+7. 32X.
+8. Consolidação e aceite final.
 
-## Z80 e plataformas
+Não iniciar 16-bit antes de concluir sistemas 8-bit e fase de acessórios. Não criar CPU, Scheduler, GUI, áudio/vídeo/input ou runtime paralelo para SG-1000.
 
-Roadmap Z80: E4C → E5 → E6 → E7 → E8 → E9. Consultar docs/z80-completion-scorecard.md e docs/z80-dd-fd-semantic-matrix.md. E8/ZEXDOC/ZEXALL bloqueado até fechamento demonstrável de E7.
+## Z80
 
-Plataformas: P0 infraestrutura/hosts → P1 Master System → P2 SG-1000 → P3 Game Gear → P4 Mega Drive/Genesis → P5 Sega CD → P6 32X/Sega CD 32X → P7 frontend Slint completo → P8 compatibilidade/auditoria → P9 comprovação temporal sistêmica. Não avançar com pendências estruturais anteriores.
+E7 está `CLOSED_WITH_LIMITATIONS` para o perfil NMOS delimitado e o escopo praticável SMS/SG-1000. E8/ZEXDOC/ZEXALL e revisão por outra IA são complementares, não gates permanentes. CMOS/clones, WAIT físico, DMA e sincronismo físico global permanecem não verificados. Não reabrir E7 sem defeito/regressão concreta.
 
-## Método
+## Trilhas transversais
 
-Auditar SHA/main, PRs, branches e workflows; pesquisar fontes primárias e APIs oficiais; verificar versões/licenças; definir critérios; modelar estados, ciclos, ownership e contratos; implementar mudanças pequenas em branch; conferir formatação, Clippy e testes direcionados antes do workflow; executar regressões; auditar diff; atualizar documentos; publicar PR.
+- Debugger parcial: melhorar trace, captura, exportação e snapshots sem bloquear hardware.
+- BIOS boot: validação física com BIOS real ainda pendente.
+- R1/R2/R3 integradas em software; revalidar aceites físicos no HEAD atual.
+- R4 SDL3: primeira fatia integrada; identidade persistente, hotplug real e remapeamento avançado pendentes.
+- R5: biblioteca, launcher, configurações, HUD, telemetria e limpeza segura do legado.
 
-Para tarefas complexas, confrontar três frentes: engenharia reversa, documentação e arquitetura/modelagem. Não inventar resultados de agentes ou testes.
+## Método e gates
 
-## Gates e desempenho
+Auditar SHA/main, PRs, branches, diffs e workflows antes de cada tarefa. Pesquisar documentação primária e versões atuais de bibliotecas quando relevantes. Definir contratos, ownership, timing, snapshots e critérios antes de implementar.
 
-- cargo fmt --all -- --check
-- cargo clippy --release --workspace --all-targets --locked -- -D warnings
-- cargo test --release --workspace --locked
+Gates de referência:
+- `cargo fmt --all -- --check`
+- `cargo clippy --release --workspace --all-targets --locked -- -D warnings`
+- `cargo test --release --workspace --locked`
 
-Validar workspaces/targets standalone separadamente. Builds de aplicação e desempenho somente Release; Debug não serve como referência. Classificar cada suíte PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED nunca é PASS. Vincular evidência ao SHA exato.
-
-## Integração contínua, GitHub e privacidade
-
-GitHub é a fonte da verdade. O objetivo é integrar continuamente na main tudo o que estiver tecnicamente validado, em incrementos pequenos. Evitar branches longas e divergências; quando uma branch estiver antiga, preservar seu histórico e portar seletivamente as alterações úteis para uma branch nova baseada na main atual. Não fazer merge cego de branches divergentes, force-push ou reset destrutivo.
-
-Toda alteração deve passar por branch e PR. Exigir CI aplicável verde no HEAD final, testes direcionados, regressões pertinentes e revisão do diff. Depois de integrada, corrigir bugs com testes de regressão direcionados; não acumular implementação validada por receio de bugs posteriores. PASS é específico ao SHA/ambiente; SKIPPED, queued e NOT RUN nunca são PASS.
-
-A autorização permanente do usuário permite integrar código validado assim que os gates forem satisfeitos; não autoriza contornar gates técnicos ou invariantes arquiteturais. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
-
-Ao receber "Prossiga", auditar main/PRs/CI, identificar a última tarefa concluída, resolver pendências e avançar até conclusão ou bloqueio real, sem duplicar trabalho.
+Validar workspaces/targets standalone separadamente. Classificar PASS, FAIL, BLOCKED ou NOT RUN. SKIPPED nunca é PASS. Toda evidência pertence ao SHA exato. Trabalhar em branch/PR; sem commit direto na main, force-push, reset destrutivo ou merge sem CI aplicável verde e autorização explícita. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
