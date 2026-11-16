@@ -81,3 +81,9 @@ Portanto, LONG #43901362527 é evidência válida para o mesmo código central d
 - Não há review independente submetido/thread; Codex review indisponível por limite de uso.
 
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+
+
+## Revalidação mais recente — PR #977
+
+PR #977 HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: CI #43939973117 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43939957730 SUCCESS; Scheduler deterministic stress SKIPPED. A cobertura WZ de JR/DJNZ e JR cc sob DD/FD Ignored está aprovada tecnicamente. F-022/F-023 continuam candidatas a fechamento até revisão independente registrada; F-028 permanece IN_PROGRESS até revisão independente integral. E7 IN_PROGRESS; E8 BLOCKED.
