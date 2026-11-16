@@ -1,7 +1,7 @@
 # Checklist mestre de auditoria e fechamento do Z80
 
 **Documento operacional:** atualizar este checklist a cada etapa efetivamente concluída, sempre vinculando evidências ao SHA integrado na `main`.
-**Baseline remota reconciliada:** `main` = `08f633affdb7478b64b1ec2007ca1986c2a48978` (2026-11-16, após PR #969). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
+**Baseline remota reconciliada:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, após PR #975). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
 **Baseline documental reconciliada:** scorecard, matriz DD/FD e checklist foram atualizados pelas PRs #687 e #688; baselines históricas permanecem preservadas e não representam a main corrente.
 **Núcleo canônico:** `native/z80_cpu` (`sega-z80-cpu`).
 **Perfil inicial de referência:** Zilog Z80 NMOS usado pelas plataformas Sega documentadas. Não generalizar automaticamente para Z80 CMOS, Z180, R800 ou clones.
@@ -884,3 +884,22 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Atualização operacional — main pós-PR #975 (16/11/2026)
+
+Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+
+| Família | Estado vigente | Evidência/pendência |
+|---|---|---|
+| F-022 — Block Instructions | INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) | Oito formas; 786.432 cenários simples, matrizes micro/repetição, ROM hardware-derived limitada e integração SMS/Scheduler; auditoria interna completa, review independente pendente |
+| F-023 — WZ/MEMPTR | INTERNAL_REVIEW_COMPLETE (candidate; PR #977 and independent review pending) | Revisão interna dos handlers e matriz concluída; PR #977 cobre JR/DJNZ WZ sob DD/FD; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
+| F-028 — DD/FD | IN_PROGRESS | 85 UsesIndex, 167 Ignored; #975 cobre wrap 16-bit de retorno CALL/RST em DD/FD; falta revisão adversarial integral de exceções/limites |
+
+PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`: CI #43937118700 Z80 focused e Rust quality/unit PASS; SMS Runtime #43937118785 PASS; Scheduler stress SKIPPED. Merge squash: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+
+WAIT dos testes é fixture, não WAIT físico. LONG_PASS do Scheduler não significa TEMPORAL_PASS global. E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. A integração da máquina SG-1000 ao Scheduler permanece P2/DEFERRED.
+
+
+**Regra de aceitação:** os estados acima são auditorias internas/candidatos, não fechamentos formais. A revisão independente registrada no GitHub e a validação PR #977 no HEAD exato são gates obrigatórios antes de fechar E7.
