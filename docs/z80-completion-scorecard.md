@@ -1049,3 +1049,17 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Fotografia vigente — pós-PR #975 (16/11/2026)
+
+**Main:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #972 e PR #975 são alterações test-only sobre o núcleo Z80; os blobs de produção `cpu.rs`, `sequencer.rs` e `prefix.rs` permanecem os mesmos do HEAD #968 validado pelo Z80 focused.
+
+- **F-022 — IN_PROGRESS:** oito formas de transferência/comparação integradas nos caminhos documentados; #972 amplia a cobertura Scheduler de INT IM2 e NMI durante repetição. Revisão adversarial final das oito formas e proveniência dos oráculos ainda pendente.
+- **F-023 — CLOSED:** semântica de software WZ/MEMPTR do perfil Zilog NMOS delimitado. Revisão adversarial dos handlers e matriz por família concluída; HW limitado à evidência RRD/RLD, demais regras INT/COMP, variantes fora do perfil NOT_VERIFIED. Ver relatório de revisão adversarial.
+- **F-028 — IN_PROGRESS:** 167 Ignored e 85 UsesIndex permanecem reconciliados; #975 acrescenta CALL/RST com wrap 16-bit de retorno em DD/FD e snapshot/WAIT. Falta revisão adversarial final integral das exceções e limites.
+- **Scheduler:** LONG_PASS é determinismo/replay de software nas dimensões da campanha; não comprova WAIT físico, DMA ou TEMPORAL_PASS global.
+- **CI #975:** Z80 focused e Rust quality/unit PASS em #43937118700; SMS Runtime PASS em #43937118785; Scheduler stress SKIPPED.
+
+**E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.** Não iniciar E8 até F-022, F-028 e os gates finais E7 estarem formalmente fechados no candidato final. O milestone de integração temporal completa da máquina SG-1000 permanece P2, separado do fechamento do Z80 compartilhado.
