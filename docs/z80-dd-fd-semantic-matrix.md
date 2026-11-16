@@ -1,6 +1,6 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Reconciliação atual:** `main` = `2fe93dd4c1ed0af7725b92805e5d1b29c126217e` (2026-11-14). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
+**Reconciliação atual:** `main` = `bf7e7584df421000d040a3ee057799a75bfeb3eb` (2026-11-16, após PR #935; PRs #937/#938 não alteraram o Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
@@ -495,3 +495,19 @@ Main `f0cfc7b9df1834ae8ad418c6241702e9003f072e`. A PR #718 fechou F-025 (RETN/RE
 - Portanto, as classificações DD/FD desta matriz permanecem aplicáveis ao código atual, sem reabrir E4C/E5/E6 ou promover evidências antigas.
 - Os 34.000 vetores externos SingleStepTests continuam comprovados somente no HEAD validado da PR #692 (`1606556814a8746a445d3ad32fc948ab97f0fde5`). A main atual não recebeu uma nova execução desses vetores nesta reconciliação.
 - E7 permanece IN_PROGRESS; E8 permanece BLOCKED. Esta reconciliação documental não altera status de implementação ou validação funcional.
+
+
+## 29. Reconciliação DD/FD após PR #935 — main 2026-11-16
+
+**Main auditada:** `bf7e7584df421000d040a3ee057799a75bfeb3eb`.
+
+- PR #935 foi integrada por squash no SHA `f86108f368f0e7b27af941b91ceec66e53c048b9`; HEAD validado `6e665fe08fa1a32f4b45b42ab78224881b53734a`.
+- O teste `native/z80_cpu/tests/indexed_prefix_ignored_exchange_exceptions_f028.rs` cobre DD/FD antes de EX AF,AF' (08), EXX (D9) e EX DE,HL (EB).
+- A cobertura compara a instrução BASE com a forma prefixada no executor atômico e no microsequenciador. Verifica bancos alternativos, IX/IY, WZ, PC/R, dois M1, wrap de PC, WAIT e snapshot/restore.
+- O contrato de previous-Q é explícito: o prefixo DD/FD limpa previous-Q; Q é comparado entre BASE e forma prefixada, mas previous-Q não é indevidamente tratado como igual.
+- CI no HEAD exato: [43819970660](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819970660) PASS; SMS Runtime [43819971679](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819971679) PASS.
+- A PR alterou somente testes. Não modificou decoder, handlers, microsequenciador ou runtime.
+
+**Classificação:** três exceções de troca ficam cobertas por regressão direcionada; F-028 permanece AUDIT_PARTIAL até a reconciliação de todas as exceções, prefixos, HALT, PC/R, flags e efeitos arquiteturais. Os 34.000 vetores SingleStepTests DD/FD permanecem comprovados somente no HEAD da PR #692 e não foram reexecutados no baseline `bf7e7584`.
+
+PR #934 acrescentou testes MEMPTR para RRD/RLD, mas não altera esta matriz DD/FD; consulte a seção 45 do scorecard Z80. E7 permanece IN_PROGRESS e E8 permanece BLOCKED.

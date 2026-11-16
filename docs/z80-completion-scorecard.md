@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `2fe93dd4c1ed0af7725b92805e5d1b29c126217e` (2026-11-14, após integração documental da PR #861). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `bf7e7584df421000d040a3ee057799a75bfeb3eb` (2026-11-16, após PRs #929/#930/#932/#934/#935; #937/#938 não alteraram o Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -687,3 +687,42 @@ A observação X/Y = bits 5/3 do novo A é testada como comportamento de referê
 - F-023: AUDIT_PARTIAL — suíte MEMPTR de Mark Woodmass identificada, mas artefato não recuperado/executado; WZ/X/Y ainda sem fechamento independente.
 - F-028: AUDIT_PARTIAL — Q/previous-Q em exceções e após acknowledge, precedência residual DD/FD e reconciliação semântica ainda pendentes.
 - E7.7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED até o fechamento formal de E7.
+
+
+## 45. Reconciliação da main após PRs #934/#935 e tentativa ROM v5.0 — 2026-11-16
+
+**Main auditada:** `bf7e7584df421000d040a3ee057799a75bfeb3eb`.
+
+As seções 43 e 44 preservam a evidência já registrada para PR #929 (NMI durante HALT M1), #930 (matriz microsequenciada LDI/LDD/CPI/CPD) e #932 (flags de repetição observadas na aceitação IM2). Esta seção acrescenta somente as mudanças posteriores e a tentativa atual do ROM v5.0.
+
+### F-023 — MEMPTR/WZ observável após RRD/RLD
+
+- **PR #934:** merge SHA `2bec56aaa017909ef3d4583257a2c1c8fb8bb6f0`; HEAD validado `75f897c1fb8270bcc22ea1ff0274bc7dc11c0d58`.
+- Executor atômico: 16.384 cenários de RRD/RLD, com BIT 0,(HL) para observar F3/F5 derivados de WZ[11]/WZ[13].
+- Microsequenciador: 240 cenários com WAIT e snapshot/restore em cada fronteira relevante.
+- CI no HEAD exato: [43818081949](https://github.com/leonardo201800478/sega-emulator/actions/runs/43818081949) PASS; SMS Runtime [43818081966](https://github.com/leonardo201800478/sega-emulator/actions/runs/43818081966) PASS.
+- **Limite:** os vetores são regressões observáveis derivadas da documentação. O TAP de Mark Woodmass continua não recuperado/não executado; a suíte externa não foi usada como oráculo independente. F-023 permanece AUDIT_PARTIAL.
+
+### F-028 — exceções de troca com prefixos DD/FD
+
+- **PR #935:** merge SHA `f86108f368f0e7b27af941b91ceec66e53c048b9`; HEAD validado `6e665fe08fa1a32f4b45b42ab78224881b53734a`.
+- A nova matriz cobre DD/FD antes de EX AF,AF' (08), EXX (D9) e EX DE,HL (EB), no executor atômico e no microsequenciador.
+- Verifica bancos alternativos, IX/IY, WZ, PC/R com wrap, 8T sem WAIT, 10T com WAIT nos dois M1, snapshot/restore e o reset de previous-Q provocado pelo prefixo.
+- CI no HEAD exato: [43819970660](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819970660) PASS; SMS Runtime [43819971679](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819971679) PASS.
+- **Limite:** são três exceções específicas, não auditoria integral dos 256 opcodes DD/FD. F-028 permanece AUDIT_PARTIAL.
+
+### F-022 — tentativa de execução integral do Z80 Block Instruction Flags Test v5.0
+
+- **PR #936**, HEAD atual observado `6cf3c45c2812d5e96f086630b4218209284a929f`, adiciona o harness `z80_block_flags_rom_v5_passes_on_spectrum48_timing`.
+- CI [43823701736](https://github.com/leonardo201800478/sega-emulator/actions/runs/43823701736): **FAIL** no job Z80 focused `133152525181`, na etapa de execução do ROM. O teste excedeu o limite de 50.000.000 T-states sem retornar ao caller.
+- Último estado capturado nesse run: PC=`819F`, SP=`87FA`, AF=`0184`, BC=`0763`, DE=HL=`D89D`, I=`86`, R=`66`, IM2, IFF1/IFF2 ativos, sem HALT/INT pendente; opcode no PC inicia com `ED B0` (LDIR). O ROM ainda estava em uma transferência repetitiva quando o orçamento expirou.
+- SMS Runtime [43823701761](https://github.com/leonardo201800478/sega-emulator/actions/runs/43823701761) PASS no mesmo HEAD.
+- **Classificação:** a execução integral do ROM v5.0 foi tentada e terminou em FAIL/timeout; não é PASS nem NOT_RUN. O log não discrimina ainda entre orçamento do harness, cadência de INT/IM2, stubs das rotinas de apresentação e semântica de repetição do core. Não aumentar o limite nem alterar a CPU sem trace discriminante.
+
+### Estado global no baseline `bf7e7584`
+
+- E7.7 permanece IN_PROGRESS; F-022, F-023 e F-028 permanecem AUDIT_PARTIAL nos limites descritos.
+- CMOS/clones fora do perfil Zilog NMOS documentado e validação direta em hardware SMS continuam NOT_VERIFIED/NOT_RUN.
+- Os 34.000 vetores SingleStepTests DD/FD continuam vinculados somente ao HEAD validado da PR #692; não foram reexecutados no baseline atual.
+- PRs #937 (áudio) e #938 (catálogo de ROMs) não alteraram o núcleo Z80. O CI pós-merge da main `bf7e7584` passou em [43822939548](https://github.com/leonardo201800478/sega-emulator/actions/runs/43822939548), mas os jobs Z80 não foram executados por classificação de impacto.
+- **E8/ZEXDOC/ZEXALL permanece BLOCKED.** Não iniciar E8 antes do fechamento demonstrável de E7.
