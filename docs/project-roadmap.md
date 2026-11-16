@@ -1,8 +1,8 @@
 # Roadmap mestre — Sega Emulator
 
-**Revisão:** 2026-11-16  
-**Baseline consultada:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.  
-**Autoridade temporal:** MachineScheduler.  
+**Revisão:** 2026-11-16
+**Baseline consultada:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
+**Autoridade temporal:** MachineScheduler.
 **Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
 O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debugger, áudio host e validação são transversais e não autorizam reescrever hardware.
