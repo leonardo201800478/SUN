@@ -531,3 +531,22 @@ Em cada execução, o log registra o comando explícito com `--ignored`, executa
 **Limite:** o CI da main documental `5f24e22...`, run [43831038791](https://github.com/leonardo201800478/sega-emulator/actions/runs/43831038791), marcou Z80 focused como SKIPPED. Para a main atual, a classificação é **NOT RUN**. Os resultados das PRs não são transferidos para essa SHA.
 
 F-028 permanece AUDIT_PARTIAL: os vetores cobrem o corpus validado, mas não substituem a auditoria integral de DD/FD, exceções, prefixos, HALT, PC/R, flags, Q/previous-Q e efeitos arquiteturais. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+## 31. F-028 — matriz dirigida de exceções DD/FD — PR #943 — 2026-11-16
+
+**Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`.  
+**HEAD testado:** `cab4cc387818888dfac0b4f9e41b60cafeb843c3`.  
+**CI:** [#43853516396](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516396), Z80 focused SUCCESS; Rust quality/unit SUCCESS.  
+**SMS Runtime:** [#43853516405](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516405) SUCCESS.
+
+O novo teste `native/z80_cpu/tests/z80_dd_fd_exception_matrix_f028.rs` executa 45 combinações prefixadas em cada executor (45 atomic + 45 micro), mais cinco formas BASE em ambos:
+- EX AF,AF' (08), EXX (D9), EX DE,HL (EB);
+- HALT (76);
+- ED NEG (ED 44), demonstrando cancelamento do prefixo indexado antes do decoder ED.
+
+As nove cadeias DD/FD cobrem prefixo único, repetido e alternado, até quatro bytes. A comparação verifica PC com wrap em 0xFFFF, R por M1, Q/previous-Q, flags, WZ, IX/IY, bancos alternativos, IFF/IM, interrupções pendentes, estado HALT e limpeza do prefix_state. O caminho microsequenciado insere um WAIT por M1 e serializa/restaura o estado antes e depois de cada conclusão de barramento; os estados arquiteturais atomic e micro são comparados integralmente.
+
+A PR #935 já cobria os três opcodes de troca com um único DD ou FD. Esta matriz amplia a cobertura para cadeias repetidas/alternadas, HALT e ED NEG, mas continua sendo uma seleção dirigida, não todos os 256 opcodes DD/FD. A comparação atomic↔micro é consistência interna, não oracle independente de silício.
+
+**Classificação:** as exceções cobertas por esta matriz estão PASS no HEAD da PR #943 (Draft). F-028 permanece AUDIT_PARTIAL até fechar a matriz integral de exceções e interações DD/FD, sem reabrir E4A/E4B. E7 IN_PROGRESS; E8 BLOCKED. Nenhuma alteração de runtime/CPU.
