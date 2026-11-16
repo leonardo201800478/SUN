@@ -268,7 +268,7 @@ fn run_prefix_matrix_with_states(
         );
 
         let (prefixed_micro_state, prefixed_micro_tstates) =
-            run_micro_with_state(&bytes, prefixed_initial_state.clone());
+            run_micro_with_state(&bytes, prefixed_initial_state);
         assert_eq!(
             prefixed_micro_state, prefixed_atomic_state,
             "atomic/micro architectural state for {bytes:02X?}"
