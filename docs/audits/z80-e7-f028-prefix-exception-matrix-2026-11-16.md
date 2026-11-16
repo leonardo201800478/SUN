@@ -194,3 +194,9 @@ A PR #977 amplia a auditoria F-028/F-023 com JR, DJNZ e JR NZ/Z/NC/C, caminhos t
 ## Resultado CI PR #977 — 16/11/2026
 
 HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: CI #43939973117 SUCCESS, incluindo Z80 focused e Rust quality/unit; SMS Runtime #43939957730 SUCCESS. O teste cobre WZ para JR/DJNZ/JR cc sob DD/FD Ignored, ambos os resultados condicionais e PC=FFFD. Scheduler stress SKIPPED. A cobertura técnica adicional passou, mas F-028 permanece IN_PROGRESS até review independente integral registrada.
+
+
+
+## Resultado final PR #977 — 16/11/2026
+
+HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: CI #43940980741 SUCCESS (Z80 focused e Rust quality/unit); SMS Runtime #43940971722 SUCCESS; Scheduler stress SKIPPED. A matriz dos 167 Ignored agora verifica WZ em todos os opcodes, com +1 para JR/DJNZ/JR cc tomados e preservação quando não tomados. Casos dirigidos verificam PC=2000/FFFD, CALL/RST stack wrap, DD e FD. F-028: auditoria interna completa/candidata; review independente pendente.
