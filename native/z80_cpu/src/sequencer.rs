@@ -13836,17 +13836,10 @@ mod ed_block_transfer_repeat_interrupt_tests {
     // Q/previous-Q are compared between executors at each architectural
     // boundary. This is internal differential evidence, not an independent
     // hardware oracle for the undocumented latches.
-    fn assert_q_latches_match(
-        atomic: &Z80,
-        sequenced: &Z80MicroSequencer,
-        context: &str,
-    ) {
+    fn assert_q_latches_match(atomic: &Z80, sequenced: &Z80MicroSequencer, context: &str) {
         let state = sequenced.export_architectural_state();
         assert_eq!(state.q, atomic.q, "{context}: Q");
-        assert_eq!(
-            state.q_previous, atomic.q_previous,
-            "{context}: previous-Q"
-        );
+        assert_eq!(state.q_previous, atomic.q_previous, "{context}: previous-Q");
     }
 
     fn round_trip(cpu: &mut Z80MicroSequencer) {
@@ -14129,8 +14122,14 @@ mod ed_block_transfer_repeat_interrupt_tests {
                     let mut sequenced_bus = initial_bus(opcode, pc);
 
                     let bc_after_first = initial_bc.wrapping_sub(1);
-                    let expected_flags =
-                        expected_repeat_flags(opcode, initial_f, initial_a, value, bc_after_first, pc);
+                    let expected_flags = expected_repeat_flags(
+                        opcode,
+                        initial_f,
+                        initial_a,
+                        value,
+                        bc_after_first,
+                        pc,
+                    );
 
                     // First iteration repeats. The atomic fixture observes the
                     // four PC.11/PC.13 combinations and both BC wrap/ordinary
@@ -14190,7 +14189,10 @@ mod ed_block_transfer_repeat_interrupt_tests {
                     assert_eq!(atomic.q_previous, 0, "atomic repeat previous-Q");
                     let sequenced_latches = sequenced.export_architectural_state();
                     assert_eq!(sequenced_latches.q, expected_flags, "sequenced repeat Q");
-                    assert_eq!(sequenced_latches.q_previous, 0, "sequenced repeat previous-Q");
+                    assert_eq!(
+                        sequenced_latches.q_previous, 0,
+                        "sequenced repeat previous-Q"
+                    );
                     assert_q_latches_match(&atomic, &sequenced, "after repeat iteration");
 
                     // Accept IM2 at the next instruction boundary and retain
@@ -14218,7 +14220,10 @@ mod ed_block_transfer_repeat_interrupt_tests {
                     // PUSH AF, POP AF, EI and RETI must not make the two
                     // execution paths disagree about either internal latch.
                     assert_eq!(atomic.step(&mut atomic_bus), Ok(11)); // PUSH AF
-                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 11);
+                    assert_eq!(
+                        run_sequenced_instruction(&mut sequenced, &mut sequenced_bus),
+                        11
+                    );
                     assert_eq!(atomic_bus.memory[0xCFFC], expected_flags);
                     assert_eq!(sequenced_bus.memory[0xCFFC], expected_flags);
                     assert_eq!(atomic_bus.memory[0xCFFD], initial_a);
@@ -14226,17 +14231,26 @@ mod ed_block_transfer_repeat_interrupt_tests {
                     assert_q_latches_match(&atomic, &sequenced, "after PUSH AF");
 
                     assert_eq!(atomic.step(&mut atomic_bus), Ok(10)); // POP AF
-                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 10);
+                    assert_eq!(
+                        run_sequenced_instruction(&mut sequenced, &mut sequenced_bus),
+                        10
+                    );
                     assert_eq!(atomic.registers.f, expected_flags);
                     assert_eq!(sequenced.registers.f, expected_flags);
                     assert_q_latches_match(&atomic, &sequenced, "after POP AF");
 
                     assert_eq!(atomic.step(&mut atomic_bus), Ok(4)); // EI
-                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 4);
+                    assert_eq!(
+                        run_sequenced_instruction(&mut sequenced, &mut sequenced_bus),
+                        4
+                    );
                     assert_q_latches_match(&atomic, &sequenced, "after EI");
 
                     assert_eq!(atomic.step(&mut atomic_bus), Ok(14)); // RETI
-                    assert_eq!(run_sequenced_instruction(&mut sequenced, &mut sequenced_bus), 14);
+                    assert_eq!(
+                        run_sequenced_instruction(&mut sequenced, &mut sequenced_bus),
+                        14
+                    );
                     assert_eq!(atomic.registers.pc, pc);
                     assert_eq!(sequenced.registers.pc, pc);
                     assert_eq!(atomic.registers.sp, 0xD000);
@@ -14285,14 +14299,8 @@ mod ed_block_transfer_repeat_interrupt_tests {
                         let second_destination = 0x5000_u16.wrapping_add_signed(direction * 2);
                         assert_eq!(atomic_bus.memory[usize::from(first_destination)], value);
                         assert_eq!(atomic_bus.memory[usize::from(second_destination)], value);
-                        assert_eq!(
-                            sequenced_bus.memory[usize::from(first_destination)],
-                            value
-                        );
-                        assert_eq!(
-                            sequenced_bus.memory[usize::from(second_destination)],
-                            value
-                        );
+                        assert_eq!(sequenced_bus.memory[usize::from(first_destination)], value);
+                        assert_eq!(sequenced_bus.memory[usize::from(second_destination)], value);
                     } else {
                         assert_eq!(atomic.registers.de(), 0x5000);
                         assert_eq!(sequenced.registers.de(), 0x5000);
@@ -14311,5 +14319,4 @@ mod ed_block_transfer_repeat_interrupt_tests {
             }
         }
     }
-
 }
