@@ -1229,6 +1229,46 @@ impl SmsTemporalWorker {
         )
     }
 
+    /// Resolve the same deterministic region policy as direct boot, then start with BIOS.
+    pub fn new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    eprintln!(
+                        "SMS_REGION preference=auto resolved={} source={:?} dat_title={}",
+                        resolution.region.key(),
+                        resolution.source,
+                        resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    "usa".to_owned()
+                }
+            },
+        };
+
+        Self::new_with_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            bios,
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
     /// Start the worker with an explicit VDP ASIC, regional timing, and cartridge SRAM profile.
     pub fn new_with_hardware_profile_and_cartridge_sram_size(
         rom: Vec<u8>,
