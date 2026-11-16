@@ -1,9 +1,9 @@
 # E7 — validação ROM v5.0 de flags das instruções de bloco
 
-**Data da validação:** 2026-11-16  
-**PR:** [#936](https://github.com/leonardo201800478/sega-emulator/pull/936) (Draft)  
-**HEAD de código validado:** `a7f551336104e1c2c03d7e6790b0aafbb5e346e7`  
-**CI:** [#43846321428](https://github.com/leonardo201800478/sega-emulator/actions/runs/43846321428), job `Z80 focused validation`  
+**Data da validação:** 2026-11-16
+**PR:** [#936](https://github.com/leonardo201800478/sega-emulator/pull/936) (Draft)
+**HEAD de código validado:** `a7f551336104e1c2c03d7e6790b0aafbb5e346e7`
+**CI:** [#43846321428](https://github.com/leonardo201800478/sega-emulator/actions/runs/43846321428), job `Z80 focused validation`
 **Escopo:** comportamento das flags quando instruções Z80 de bloco repetitivas são interrompidas durante a repetição, no perfil NMOS.
 
 ## 1. Resultado
