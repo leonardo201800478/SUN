@@ -777,6 +777,8 @@ Uma instrumentação adicional do LDIR de calibração foi adicionada em `e0c4ca
 
 **PR candidata:** #942 (Draft). **HEAD exato testado:** `7402ff138ced95da2d8b9e0008919c8cd22484f1`.
 
+**Base main da PR:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`. O HEAD atual da PR após a inclusão desta reconciliação (`2d7d796b0da94b3b4108e1510fdf2ae7d9b1b643`) difere do HEAD testado somente nos três arquivos documentais desta seção; o código/harness/CI testados não foram alterados.
+
 - A suíte MEMPTR de Mark Woodmass (2008), descrita pelo upstream como comparada com NEC D780C-1 e outros clones, foi executada no core compartilhado. A referência MEMPTR documenta RLD/RRD com WZ=HL+1.
 - TAP GPL-2.0 e ROM Spectrum 48K são obtidos somente no CI e verificados por SHA3-512/Git blob SHA; nenhum binário foi adicionado ao repositório.
 - CI [#43850972785](https://github.com/leonardo201800478/sega-emulator/actions/runs/43850972785) PASS no job Z80 focused. Teste 09: 50.904.931 T-states, FNV-1 `F5AE5140`, 61 linhas, 32 colunas e HALT em 0x80E6; 1 passed/0 failed.
