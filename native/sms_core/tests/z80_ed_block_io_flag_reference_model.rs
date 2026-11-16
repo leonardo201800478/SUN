@@ -252,7 +252,6 @@ fn all_ed_block_io_opcodes_match_nmos_flag_equations_at_boundaries() {
     }
 }
 
-
 #[test]
 fn repeated_block_io_flags_survive_im2_acceptance_at_repeat_boundary() {
     let opcodes = [0xB2_u8, 0xBA, 0xB3, 0xBB];
@@ -351,7 +350,10 @@ fn repeated_block_io_flags_survive_im2_acceptance_at_repeat_boundary() {
                                 assert_eq!(cpu.registers.sp, 0xEFFE);
                                 assert_eq!(bus.memory[0xEFFE], pc as u8);
                                 assert_eq!(bus.memory[0xEFFF], (pc >> 8) as u8);
-                                assert_eq!(cpu.registers.f, expected_f, "opcode={opcode:02X}: ISR F");
+                                assert_eq!(
+                                    cpu.registers.f, expected_f,
+                                    "opcode={opcode:02X}: ISR F"
+                                );
                                 assert_eq!(cpu.q, expected_f, "opcode={opcode:02X}: ISR Q");
                                 assert_eq!(cpu.r, 0x03);
                                 assert!(!cpu.iff1);
