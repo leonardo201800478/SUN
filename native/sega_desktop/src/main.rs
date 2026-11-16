@@ -25,8 +25,9 @@ mod windows_host {
     use crate::input_host::Sdl3InputHost;
     use sega_media::{
         CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity, SmsConsoleVariant,
-        SmsFirmwareCatalog, SmsFirmwareId, SmsFirmwareScanEntry, SmsFirmwareScanStatus,
-        SmsFirmwareValidation, SmsRegion,
+        SmsFirmwareCatalog, SmsFirmwareId, SmsFirmwareKind, SmsFirmwareMappingStrategy,
+        SmsFirmwareScanEntry, SmsFirmwareScanStatus, SmsFirmwareValidation, SmsRegion,
+        SmsRegionPreference, resolve_sms_region,
     };
     use sega_save_runtime::SaveRamStore;
     use sega_sms_core::ControllerButtons;
@@ -2333,6 +2334,21 @@ mod windows_host {
         }
     }
 
+    fn firmware_id_from_key(key: &str) -> Option<SmsFirmwareId> {
+        match key.trim() {
+            "JapanV21" => Some(SmsFirmwareId::JapanV21),
+            "ExportUsEuV13" => Some(SmsFirmwareId::ExportUsEuV13),
+            "AlexKiddUsEuBrazilV1990" => Some(SmsFirmwareId::AlexKiddUsEuBrazilV1990),
+            "EuropeV20" => Some(SmsFirmwareId::EuropeV20),
+            "HangOnV34" => Some(SmsFirmwareId::HangOnV34),
+            "HangOnSafariHuntV24" => Some(SmsFirmwareId::HangOnSafariHuntV24),
+            "MissileDefense3dV44" => Some(SmsFirmwareId::MissileDefense3dV44),
+            "SamsungGamBoyIiKoreaAlexKidd" => Some(SmsFirmwareId::SamsungGamBoyIiKoreaAlexKidd),
+            "SonicEurope" => Some(SmsFirmwareId::SonicEurope),
+            _ => None,
+        }
+    }
+
     fn firmware_console_compatible(console: SmsConsoleVariant, system: &str) -> bool {
         match system {
             "sms1" => matches!(
@@ -2801,14 +2817,24 @@ mod windows_host {
         save_store: Arc<SaveRamStore>,
     ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
         let prepared = prepare_cartridge(&rom, save_store)?;
-        let worker =
-            SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+        let bios = load_selected_sms_bios(&rom, settings)?;
+        let worker = match bios {
+            Some(bios) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                rom,
+                bios,
+                &settings.region,
+                settings.vdp_revision,
+                prepared.sram_capacity,
+                prepared.initial_sram,
+            )?,
+            None => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
                 rom,
                 &settings.region,
                 settings.vdp_revision,
                 prepared.sram_capacity,
                 prepared.initial_sram,
-            )?;
+            )?,
+        };
         configure_sms_audio(
             &worker,
             settings.audio_volume,
@@ -2926,10 +2952,117 @@ mod windows_host {
 
     struct SmsWorkerSettings {
         region: String,
+        sms_system: String,
+        firmware_directory: String,
+        firmware_boot_enabled: bool,
+        firmware_brazil_selected: String,
+        firmware_usa_selected: String,
+        firmware_europe_selected: String,
+        firmware_japan_selected: String,
+        firmware_korea_selected: String,
         vdp_revision: SmsVdpRevision,
         audio_volume: u8,
         dsp_config: AnalogOutputConfig,
         renderer_mode: String,
+    }
+
+    /// Load only a catalog-identified conventional 8 KiB BIOS for the resolved
+    /// cartridge region. Built-in-game firmware needs its own internal-ROM map.
+    fn load_selected_sms_bios(
+        rom: &[u8],
+        settings: &SmsWorkerSettings,
+    ) -> Result<Option<Vec<u8>>, String> {
+        if !settings.firmware_boot_enabled {
+            return Ok(None);
+        }
+        if settings.firmware_directory.trim().is_empty() {
+            return Err(
+                "boot pela BIOS está habilitado, mas o diretório de firmware não foi configurado"
+                    .to_owned(),
+            );
+        }
+
+        let preference =
+            SmsRegionPreference::parse(&settings.region).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region,
+            SmsRegionPreference::Automatic => {
+                let cartridge_catalog = CartridgeCatalog::sms_default()
+                    .map_err(|error| format!("não foi possível resolver a região do cartucho: {error}"))?;
+                resolve_sms_region(preference, rom, &cartridge_catalog).region
+            }
+        };
+        let selected = match region {
+            SmsRegion::Brazil => &settings.firmware_brazil_selected,
+            SmsRegion::Usa => &settings.firmware_usa_selected,
+            SmsRegion::Europe => &settings.firmware_europe_selected,
+            SmsRegion::Japan => &settings.firmware_japan_selected,
+            SmsRegion::Korea => &settings.firmware_korea_selected,
+        };
+        let key = selected
+            .split_once(" — ")
+            .map_or(selected.as_str(), |(key, _)| key)
+            .trim();
+        let id = firmware_id_from_key(key).ok_or_else(|| {
+            format!(
+                "boot pela BIOS está habilitado, mas não há firmware selecionado para {}",
+                region.label()
+            )
+        })?;
+
+        let catalog = SmsFirmwareCatalog::sms_default();
+        let descriptor = catalog
+            .descriptor(id)
+            .ok_or_else(|| format!("firmware {key} não existe no catálogo"))?;
+        if descriptor.kind != SmsFirmwareKind::ConventionalBios
+            || descriptor.mapping != SmsFirmwareMappingStrategy::ConventionalBios8KiB
+            || descriptor.size_bytes != 0x2000
+        {
+            return Err(format!(
+                "{} é firmware com jogo interno, não uma BIOS convencional de 8 KiB; seu mapeamento ainda não está integrado ao runtime",
+                descriptor.name
+            ));
+        }
+        if !firmware_console_compatible(descriptor.console, &settings.sms_system)
+            || !descriptor.supported_regions.contains(&region)
+        {
+            return Err(format!(
+                "{} não é compatível com {} / {}",
+                descriptor.name,
+                settings.sms_system,
+                region.label()
+            ));
+        }
+
+        let entries = catalog
+            .scan_directory(&settings.firmware_directory)
+            .map_err(|error| format!("não foi possível revalidar o diretório de firmware: {error}"))?;
+        let entry = entries
+            .iter()
+            .find(|entry| {
+                entry.firmware_id == Some(id)
+                    && matches!(
+                        entry.status,
+                        SmsFirmwareScanStatus::Identified | SmsFirmwareScanStatus::DuplicateHash
+                    )
+            })
+            .ok_or_else(|| {
+                format!(
+                    "{} não foi encontrado como firmware identificado; execute novamente a varredura",
+                    descriptor.name
+                )
+            })?;
+        let bytes = catalog
+            .load_validated(&entry.path, id)
+            .map_err(|error| format!("não foi possível validar {}: {error}", descriptor.name))?;
+        eprintln!(
+            "SMS_BIOS status=validated id={} region={} bytes={} sha256={}",
+            firmware_id_key(id),
+            region.key(),
+            bytes.len(),
+            descriptor.sha256
+        );
+        Ok(Some(bytes))
     }
 
     /// Convert the user-selected console model into its explicit VDP ASIC revision.
