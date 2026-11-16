@@ -126,6 +126,14 @@ impl PrintCapture {
     }
 }
 
+fn output_contains_row(output: &[u8], mnemonic: &[u8], result: &[u8]) -> bool {
+    let mut expected = Vec::with_capacity(mnemonic.len() + 3 + result.len());
+    expected.extend_from_slice(mnemonic);
+    expected.extend_from_slice(&[0x17, 0x13, 0x00]); // Spectrum TAB/INK/PAPER controls.
+    expected.extend_from_slice(result);
+    output.windows(expected.len()).any(|window| window == expected)
+}
+
 #[test]
 #[ignore = "requires the pinned Mark Woodmass Z80 Test Suite TAP downloaded by CI"]
 fn woodmass_memptr_tap_matches_hardware_reference() {
@@ -203,9 +211,15 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
 
     printed.finish();
 
-    println!(
-        "WOODMASS_MEMPTR_OUTPUT_BEGIN\\n{}\\nWOODMASS_MEMPTR_OUTPUT_END",
-        String::from_utf8_lossy(&printed.output)
+    // The complete screen hash remains the global oracle. These two explicit
+    // rows make the RLD/RRD MEMPTR-related results individually auditable.
+    assert!(
+        output_contains_row(&printed.output, b"RLD", b": 117F passed"),
+        "Woodmass MEMPTR RLD row missing or mismatched"
+    );
+    assert!(
+        output_contains_row(&printed.output, b"RRD", b": 34AE passed"),
+        "Woodmass MEMPTR RRD row missing or mismatched"
     );
 
     let mut hot_pcs: Vec<(u64, u16, u64, [u8; 4])> = (0..0x1_0000)
