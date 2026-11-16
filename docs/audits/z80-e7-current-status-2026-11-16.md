@@ -227,3 +227,17 @@ A matriz amplia o teste dos 167 bytes efetivos `Ignored / ExecuteBaseWithoutRefe
 ### Auditoria formal de revisão dos merges E7 — 2026-11-16
 
 A consulta a `pull_request_reviews` e a `review_threads` retornou coleções vazias para as PRs integradas #936, #942, #943, #944, #945, #946, #947 e #948. Os comentários automáticos do Codex em #946 e #948 registram falha por limite de uso; não constituem review. Isso não prova ausência de revisão humana fora do GitHub, mas não há trilha independente auditável no repositório. Os merges permanecem integrados (todos os diffs deste conjunto são testes/documentação, sem alteração de CPU/Scheduler/runtime de produção), porém a revisão adversarial formal continua BLOCKED como gate de fechamento E7. Não converter F-022/F-023/F-028 para CLOSED nem iniciar E8 com base apenas nos checks verdes.
+
+
+## 2026-11-16 — atualização após PRs #950–#952
+
+Baseline remota atual após as integrações documentais e de teste: `564074366fdc9bad59895163c8501134e88cce99`.
+
+- **PR #950 — F-028:** integrada em `45b40755e46aef752d58f571de856ae25ff9e81c`. A matriz acrescenta 167 opcodes Ignored × DD/FD, comparação arquitetural BASE, payloads de leitura/escrita, transações, WAIT e snapshot/restore em fronteiras de barramento/ciclo interno. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado. A árvore do merge foi confirmada idêntica à árvore validada.
+- **PR #951 — F-022/F-023:** integrada em `b9d18f48466e3647aec73207f38c416bfef2b3dc`. Acrescenta assertions de previous-Q e WZ para LDI/LDD/CPI/CPD na matriz microsequenciada de 786.432 casos e nos ensaios dirigidos de WAIT/snapshot. CI #43890238681 e SMS Runtime #43890238056 PASS no HEAD validado. A regra é diferenciada: LDI/LDD preservam WZ; CPI/CPD atualizam WZ por ±1.
+- **PR #952 — F-023:** integrada em `564074366fdc9bad59895163c8501134e88cce99`. Adiciona matriz documental WZ/MEMPTR por família, separando DOC/HW/COMP/INT/GAP. CI #43890997152: Documentation patch hygiene PASS e Rust quality and unit regression PASS; os jobs de runtime foram SKIPPED por serem alterações documentais.
+- **PR #953 — F-028:** aberta, aguardando validação. Adiciona segundo fixture de flags e B, cobre resultados condicionais complementares e calcula o delta exato de PC. Não contabilizar como PASS antes dos gates no HEAD atualizado.
+
+A matriz PR #950 é diferencial interno BASE↔DD/FD, não oracle independente de silício. O PC final exato por resultado condicional permanece pendente da PR #953. WZ é tratado na matriz F-023 e não é mascarado como equivalência universal.
+
+**Estado:** F-028 IN_PROGRESS; F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED. Não iniciar ZEXDOC/ZEXALL.
