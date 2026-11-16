@@ -55,9 +55,7 @@ fn execute_one_instruction(opcode_stream: &[u8]) -> (u32, Vec<u16>, u8) {
                         panic!("unexpected interrupt acknowledge in F-028 fallback matrix")
                     }
                     Z80BusOperation::MemoryRead | Z80BusOperation::PortRead => Some(0x5A),
-                    Z80BusOperation::MemoryWrite { .. } | Z80BusOperation::PortWrite { .. } => {
-                        None
-                    }
+                    Z80BusOperation::MemoryWrite { .. } | Z80BusOperation::PortWrite { .. } => None,
                 };
                 cpu.complete_bus_cycle(request.id, data)
                     .expect("BASE bus operation completes")
@@ -76,8 +74,7 @@ fn execute_one_instruction(opcode_stream: &[u8]) -> (u32, Vec<u16>, u8) {
                 );
                 return (tstates, opcode_fetch_addresses, cpu.refresh & 0x7F);
             }
-            Z80MicroStep::InterruptAcknowledge { .. }
-            | Z80MicroStep::InterruptServiced { .. } => {
+            Z80MicroStep::InterruptAcknowledge { .. } | Z80MicroStep::InterruptServiced { .. } => {
                 panic!("unexpected interrupt service in F-028 fallback matrix")
             }
         };
