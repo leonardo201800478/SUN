@@ -1971,6 +1971,11 @@ mod tests {
         vdp.advance(16);
         assert_ne!(vdp.status & OVERFLOW, 0);
         assert_eq!(vdp.status & 0x1F, 8);
+        assert_eq!(
+            vdp.read_v_counter(),
+            1,
+            "VCounter latch and sprite overflow must both commit at the shared T16 boundary"
+        );
 
         let status = vdp.read_port(0xBF);
         assert_ne!(status & OVERFLOW, 0);
