@@ -424,7 +424,8 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
         ),
     ];
 
-    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases {
+    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases
+    {
         let mut rom = vec![0; 0x4000];
         rom[0] = 0xED;
         rom[1] = opcode;
@@ -499,7 +500,11 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
             expected_de,
             "ED {opcode:02X}: final DE"
         );
-        assert_eq!(continuous.cpu().wz, expected_wz, "ED {opcode:02X}: final WZ");
+        assert_eq!(
+            continuous.cpu().wz,
+            expected_wz,
+            "ED {opcode:02X}: final WZ"
+        );
         assert_eq!(
             continuous.cpu().q_previous,
             repeat_q,
