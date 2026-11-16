@@ -42,7 +42,7 @@ type CpuMemoryReadTrace = (
     bool,
     bool,
 );
-type M1FetchTrace = (u128, u16, u16, bool, Option<u8>, bool, u8, bool, bool);
+type M1FetchTrace = (u128, u16, u16, u16, bool, Option<u8>, bool, u8, bool, bool);
 type ThLatchReadPair = (u128, u16, bool, Option<u8>, u128, u8, u16, bool, Option<u8>);
 type IrqLineTrace = (u128, Option<u8>, bool, bool);
 type InternalCycleTrace = (
@@ -154,6 +154,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                 SmsTemporalTraceEvent::M1FetchCompleted {
                     timestamp,
                     address,
+                    refresh_address,
                     cpu_pc,
                     cpu_halted,
                     cpu_int_line,
@@ -168,6 +169,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     cpu_m1_fetch_trace.push_back((
                         timestamp.ticks(),
                         address,
+                        refresh_address,
                         cpu_pc,
                         cpu_halted,
                         cpu_int_line,
