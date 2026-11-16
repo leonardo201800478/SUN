@@ -47,12 +47,12 @@
 
 ## Lacunas que permanecem explícitas
 
-1. **BASE EX (SP),HL:** a asserção WZ está proposta na PR #955 e aguarda CI; IX/IY já possuem cobertura em E3A2c.
+1. **BASE EX (SP),HL:** a asserção WZ passou no HEAD `cbc75e9205db5f1c29726962ce3d3cdd312f4ba1` (CI #43897766618; SMS Runtime #43897766471); PR #955 segue aberta sem review independente. IX/IY já possuem cobertura em E3A2c.
 2. **Proveniência:** somente RRD/RLD possui evidência hardware-derived específica nesta matriz. As demais regras não documentadas são classificadas como INT/COMP; não são garantias físicas universais. Os dígitos `117F` e `34AE` do Woodmass são assinaturas de resultado das linhas, não valores literais de WZ.
 3. **Perfil e variantes:** CMOS, NEC/R800/Z180, Z80N e clones fora do perfil Zilog NMOS delimitado permanecem NOT_VERIFIED, deliberadamente fora do critério de fechamento. Não exigir hardware SMS físico nem universalidade de clones para fechar o perfil NMOS delimitado.
 
 ## Decisão F-023
 
-As regras WZ/MEMPTR relevantes do perfil delimitado estão classificadas por família e possuem testes rastreáveis; as propriedades não comprovadas em hardware estão explicitamente classificadas como INT/COMP ou NOT_VERIFIED. **F-023 permanece AUDIT_PARTIAL somente até passar a asserção BASE EX (SP),HL da PR #955 e revisar a reconciliação documental.**
+As regras WZ/MEMPTR relevantes do perfil delimitado estão classificadas por família e possuem testes rastreáveis; as propriedades não comprovadas em hardware estão explicitamente classificadas como INT/COMP ou NOT_VERIFIED. **F-023 permanece AUDIT_PARTIAL:** a asserção BASE EX (SP),HL foi validada, mas o fechamento exige review independente e reconciliação das lacunas WZ/X/Y/temporalidade restantes.
 
 Nenhuma alteração de produção é autorizada por esta matriz. Não iniciar E8/ZEXDOC/ZEXALL.
