@@ -127,3 +127,16 @@ SMS Runtime [#43850972708](https://github.com/leonardo201800478/sega-emulator/ac
 **Interpretação e limites:** esta é evidência independente hardware-derived para o comportamento MEMPTR/WZ exercitado pela suíte, incluindo a regra RLD/RRD → HL+1. Não é uma medição física executada neste projeto nem prova universal de todos os clones. A suíte MEMPTR não fecha os bits X/Y não especificados pelo UM0080, não substitui a auditoria temporal microsequenciada completa e não valida hardware SMS diretamente. CMOS/clones permanecem NOT_VERIFIED.
 
 **Classificação atualizada:** a lacuna de oracle independente para WZ/MEMPTR foi reduzida; F-023 permanece AUDIT_PARTIAL por X/Y, abrangência temporal e limites de plataforma. A PR #942 continua Draft e não está integrada. E7 IN_PROGRESS; E8 BLOCKED. Nenhuma alteração de runtime/CPU.
+
+
+## 9. Extração e assertions por instrução — 2026-11-16
+
+A captura do output do Woodmass test 09 no CI [#43870800175](https://github.com/leonardo201800478/sega-emulator/actions/runs/43870800175), HEAD de diagnóstico `d70b1687174cc5b83c0f7fbff70e8413923214d3`, confirmou as linhas individuais:
+- `RLD` — `117F passed`;
+- `RRD` — `34AE passed`.
+
+Os quatro dígitos são a assinatura de resultado exibida pela suíte, não um valor literal do registrador WZ. A tabela de referência upstream associa RLD/RRD a MEMPTR=HL+1; o teste observa a assinatura hardware-derived da linha de cada instrução.
+
+O harness foi fortalecido para exigir as duas linhas (incluindo os bytes de controle TAB/INK/PAPER do Spectrum), mantendo as verificações globais de FNV-1, linhas/colunas, HALT e T-states. No HEAD `df015e8c39e23d7d36da7076ef544e1892cff6a8`, CI [#43871236879](https://github.com/leonardo201800478/sega-emulator/actions/runs/43871236879), job Z80 focused, PASS; o teste explícito Woodmass terminou com 1 passed/0 failed. O job SMS Runtime do mesmo HEAD ainda estava em execução no momento desta atualização.
+
+**Escopo:** a evidência agora é rastreável às linhas RLD/RRD, além do hash global. Não é uma captura física local, não revela numericamente WZ dentro do harness e não fecha X/Y não documentados ou toda a matriz temporal. F-023 permanece AUDIT_PARTIAL. Nenhuma alteração de CPU/runtime.
