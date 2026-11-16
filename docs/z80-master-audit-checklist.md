@@ -884,3 +884,19 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Atualização operacional — main pós-PR #975 (16/11/2026)
+
+Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+
+| Família | Estado vigente | Evidência/pendência |
+|---|---|---|
+| F-022 — Block Instructions | IN_PROGRESS | Oito formas com integração SMS/Scheduler; #972 INT IM2/NMI durante repetição e snapshot/replay; revisão adversarial final/oráculos pendente |
+| F-023 — WZ/MEMPTR | CLOSED (perfil NMOS de software delimitado) | Revisão adversarial dos handlers e matriz concluída; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
+| F-028 — DD/FD | IN_PROGRESS | 85 UsesIndex, 167 Ignored; #975 cobre wrap 16-bit de retorno CALL/RST em DD/FD; falta revisão adversarial integral de exceções/limites |
+
+PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`: CI #43937118700 Z80 focused e Rust quality/unit PASS; SMS Runtime #43937118785 PASS; Scheduler stress SKIPPED. Merge squash: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+
+WAIT dos testes é fixture, não WAIT físico. LONG_PASS do Scheduler não significa TEMPORAL_PASS global. E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. A integração da máquina SG-1000 ao Scheduler permanece P2/DEFERRED.
