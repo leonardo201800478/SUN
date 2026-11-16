@@ -2170,7 +2170,6 @@ fn worker_loop(
 /// crossing the worker boundary. This is observation-only: it never changes the
 /// machine, Scheduler, bus transaction, WAIT-state handling or event ordering.
 fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
-
     match *event {
         SmsTemporalTraceEvent::BusCompleted { .. } => {
             // Retain every completed bus transaction, including opcode fetches.
