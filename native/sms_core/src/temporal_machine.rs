@@ -2244,7 +2244,7 @@ mod tests {
         retired(machine.step_instruction(0).unwrap(), 0x34, 11);
 
         let trace = machine.take_trace();
-        assert_eq!(trace.len(), 7);
+        assert_eq!(trace.len(), 8);
         assert!(matches!(
             trace[0],
             super::SmsTemporalTraceEvent::M1TStateCompleted {
@@ -2263,6 +2263,15 @@ mod tests {
         ));
         assert!(matches!(
             trace[4],
+            super::SmsTemporalTraceEvent::M1FetchCompleted {
+                timestamp,
+                address: 0,
+                cpu_pc: 1,
+                ..
+            } if timestamp == MachineTime::from_ticks(12)
+        ));
+        assert!(matches!(
+            trace[5],
             super::SmsTemporalTraceEvent::BusCompleted {
                 timestamp,
                 operation: sega_z80_cpu::Z80BusOperation::MemoryRead,
@@ -2272,7 +2281,7 @@ mod tests {
             } if timestamp == MachineTime::from_ticks(21)
         ));
         assert!(matches!(
-            trace[5],
+            trace[6],
             super::SmsTemporalTraceEvent::InternalCycleCompleted {
                 timestamp,
                 tstates: 1,
@@ -2280,7 +2289,7 @@ mod tests {
             } if timestamp == MachineTime::from_ticks(24)
         ));
         assert!(matches!(
-            trace[6],
+            trace[7],
             super::SmsTemporalTraceEvent::BusCompleted {
                 timestamp,
                 operation: sega_z80_cpu::Z80BusOperation::MemoryWrite { value: 1 },
@@ -2355,7 +2364,29 @@ mod tests {
             Z80MicroStep::BusRequest(_)
         ));
         // The four M1 phase boundaries are captured separately from the mapper write.
-        assert_eq!(original.take_trace().len(), 4);
+        let fetch_trace = original.take_trace();
+        assert_eq!(
+            fetch_trace
+                .iter()
+                .filter(|event| matches!(
+                    **event,
+                    super::SmsTemporalTraceEvent::M1TStateCompleted { .. }
+                ))
+                .count(),
+            4,
+            "each of the four M1 T-state boundaries must be retained"
+        );
+        assert_eq!(
+            fetch_trace
+                .iter()
+                .filter(|event| matches!(
+                    **event,
+                    super::SmsTemporalTraceEvent::M1FetchCompleted { .. }
+                ))
+                .count(),
+            1,
+            "the completed M1 fetch must be recorded separately"
+        );
 
         original.schedule_pending_bus(2).unwrap();
         assert_eq!(original.memory().selected_banks(), [0, 1, 2]);
