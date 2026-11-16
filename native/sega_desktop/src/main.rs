@@ -4658,6 +4658,37 @@ mod windows_host {
         }
 
         #[test]
+        fn conventional_bios_loader_rejects_region_and_console_mismatches() {
+            let mut settings = SmsWorkerSettings {
+                region: "brazil".to_owned(),
+                sms_system: "sms1".to_owned(),
+                firmware_directory: "unused-firmware-directory".to_owned(),
+                firmware_boot_enabled: true,
+                firmware_brazil_selected: "EuropeV20 — Master System Europe v2.0 (8 KiB)".to_owned(),
+                firmware_usa_selected: String::new(),
+                firmware_europe_selected: String::new(),
+                firmware_japan_selected: String::new(),
+                firmware_korea_selected: String::new(),
+                vdp_revision: SmsVdpRevision::Sega3155124,
+                audio_volume: 70,
+                dsp_config: AnalogOutputConfig::default(),
+                renderer_mode: "psg".to_owned(),
+            };
+
+            let region_error = load_selected_sms_bios(&[0; 0x4000], &settings).unwrap_err();
+            assert!(region_error.contains("não é compatível"));
+
+            settings.region = "europe".to_owned();
+            settings.sms_system = "sms2".to_owned();
+            settings.firmware_brazil_selected.clear();
+            settings.firmware_europe_selected =
+                "EuropeV20 — Master System Europe v2.0 (8 KiB)".to_owned();
+
+            let console_error = load_selected_sms_bios(&[0; 0x4000], &settings).unwrap_err();
+            assert!(console_error.contains("não é compatível"));
+        }
+
+        #[test]
         fn disabled_bios_preference_keeps_direct_cartridge_boot() {
             let settings = SmsWorkerSettings {
                 region: "usa".to_owned(),
