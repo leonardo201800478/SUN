@@ -32,7 +32,7 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 
 1. **Concluído nesta auditoria:** PR #932 adiciona `native/sms_core/tests/z80_ed_block_repeat_interrupt_observation.rs`, com exatamente 32 cenários = 4 opcodes (LDIR/LDDR/CPIR/CPDR) × 4 PCs ($8002/$8802/$A002/$A802) × 2 BC iniciais (0000/0002). Também há 4 cenários adicionais no teste `ed_block_transfer_repeat_interrupt_tests::block_transfer_and_compare_repeat_flags_are_observable_through_im2_and_resume`, no microsequenciador compartilhado, um por opcode, com snapshot/restore em cada fronteira e observação via PUSH AF/RETI. O scorecard de 32 casos está correto; manter as duas camadas de evidência separadas.
 2. **Cobertura atual reconciliada:** a matriz atômica PR #932 contém 32 casos (4 opcodes × quatro PCs × BC inicial 0000/0002); o teste no microsequenciador compartilhado cobre quatro casos (um por opcode), com INT no último T-state do repeat internal cycle e snapshot/restore em cada fronteira. O próximo incremento de código será espelhar os 32 cenários no microsequenciador, mantendo o teste de quatro casos existente, e comparar o estado arquitetural/traço com o executor atômico sem promovê-lo a oracle independente.
-3. Auditar Q/previous-Q antes da repetição, no limite final do ciclo de repetição, durante acknowledge e após RETI. Não extrapolar o valor de Q observado em um único ponto para toda a sequência.
+3. Auditar Q/previous-Q através de toda a sequência: o novo teste varia Q inicial e verifica previous-Q na aposentadoria do repeat, mas ainda falta observar a evolução de Q durante acknowledge IM2, handler PUSH/POP AF, EI/RETI e retomada. Não extrapolar o valor de Q observado num único ponto para toda a sequência.
 4. Separar resultados do executor atômico, microsequenciador, WAIT/snapshot e integração MachineScheduler. A comparação atomic↔micro é consistência interna, não oracle independente.
 5. Reconciliar os 16 casos F-022 do ROM com a matriz interna e registrar explicitamente qualquer dimensão que o ROM não cobre.
 6. Não alterar CPU/Scheduler sem uma divergência reproduzível, trace discriminante e causa-raiz.
@@ -42,7 +42,7 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 ### P1 — consolidar F-023 (RRD/RLD e WZ/MEMPTR)
 
 1. **Concluído:** output do Woodmass test 09 extraído do CI #43870800175; linhas identificadas: RLD = `117F passed`, RRD = `34AE passed`. Esses quatro dígitos são assinaturas de resultado da suíte, não valores literais de WZ.
-2. **Concluído no código candidato:** o harness agora exige individualmente as duas linhas, incluindo os bytes de controle TAB/INK/PAPER, preservando FNV-1, dimensões, HALT e T-states. O teste explícito passou 1/1 no CI #43871236879, HEAD `df015e8c39e23d7d36da7076ef544e1892cff6a8`. O job SMS Runtime deste HEAD ainda estava em execução no momento da atualização.
+2. **Concluído:** o harness exige individualmente as duas linhas, incluindo os bytes de controle TAB/INK/PAPER, preservando FNV-1, dimensões, HALT e T-states. O teste explícito passou 1/1 no CI #43871236879, HEAD de código `df015e8c39e23d7d36da7076ef544e1892cff6a8`. O HEAD documental atual da PR #942, `53aaf5c415eba3acc4704d1d2214a358755fad08`, também recebeu CI #43871487677 e SMS Runtime #43871487582 SUCCESS; o diff adicional é apenas documentação.
 3. Construir uma matriz de RRD/RLD por A, (HL), carry, WZ inicial, wrap de HL, e fronteiras WAIT/snapshot; manter a matriz atômica de 262.144 casos e os 240 casos microsequenciados existentes.
 4. Separar UM0080 (flags documentadas e timing), Woodmass/NEC hardware-derived (MEMPTR), e referências MAME/ares (comparação de implementação). Não transformar X/Y não documentados em requisitos primários sem fonte adequada.
 5. **Fonte complementar identificada:** Patrik Rak, raxoft/z80test, commit `c490c0ca94f1021509f8bd656b413861bd7cfb41`. O README afirma que os programas comparam resultados com um ZX Spectrum 48K real com Zilog Z80; a variante `z80memptr` executa BIT N,(HL) após cada instrução e o arquivo `src/tests.asm` inclui explicitamente RLD e RRD. O próprio autor alerta que os vetores atuais não foram desenhados especificamente para estressar MEMPTR e podem deixar muitos defeitos sem detecção. Tratar como evidência hardware-derived complementar, não como oracle específico suficiente. Antes de integrar, validar versão/artefato TAP, licença, hash e extrair o resultado por instrução.
@@ -88,3 +88,12 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 | #943 | `caa9a76a6f09d588155ea4e0cbc95f487f079143` | `462ec750b9b4c20e4f89b4545e4161435bae6a13` | #43865677187 e SMS Runtime #43865677170 SUCCESS |
 
 Essas SHAs são fotografias da auditoria de 2026-11-16; sempre consultar o estado remoto antes de executar a próxima tarefa.
+
+ 
+### PR #944 — matriz IM2 do microsequenciador
+- Branch: `test/z80-f022-repeat-microseq-matrix-20261116`
+- HEAD: `c88739b6f027e62dfc28f4379bbafc633bbab7ed`
+- Alteração: somente 164 linhas de testes dentro do módulo `ed_block_transfer_repeat_interrupt_tests` em `native/z80_cpu/src/sequencer.rs`.
+- CI #43872577766 SUCCESS; SMS Runtime #43872577771 SUCCESS.
+- 64 cenários: 4 opcodes × 4 padrões PC × 2 BC iniciais × 2 seeds Q; INT no último T-state do repeat, handler IM2, RETI/resume e snapshot/restore por fronteira.
+- F-022 permanece AUDIT_PARTIAL: a matriz amplia o microsequenciador, mas não prova WZ independente nem toda a evolução Q durante acknowledge/handler.
