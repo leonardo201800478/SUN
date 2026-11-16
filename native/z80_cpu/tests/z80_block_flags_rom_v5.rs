@@ -415,10 +415,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         if block_instruction_steps.len() < 12
             && contains_bytes(&bus.output, b"HF vs B, binary log")
             && opcode[0] == 0xED
-            && (opcode[1] == 0xB2
-                || opcode[1] == 0xBA
-                || opcode[1] == 0xB3
-                || opcode[1] == 0xBB)
+            && (opcode[1] == 0xB2 || opcode[1] == 0xBA || opcode[1] == 0xB3 || opcode[1] == 0xBB)
         {
             let frame_edge = pulse_end
                 .map(|end| end.saturating_sub(32))
