@@ -158,5 +158,5 @@ F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
 
 - P0 recebeu a matriz #950 para payloads, estado arquitetural, WAIT e snapshot/restore nos 167 fallbacks. A PR #953 integrou as duas fixtures condicionais e o PC final exato; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
 - P1 recebeu as asserções previous-Q e WZ nas quatro formas simples de bloco pela #951. LDI/LDD preservam WZ; CPI/CPD alteram WZ em ±1.
-- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow e IM2 possuem testes WZ rastreáveis; IN/OUT imediato e assertions adicionais IM0/IM1/RETN/RETI/RST estão na PR #954. A observabilidade temporal de repetição de bloco permanece em auditoria.
+- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow e IM2 possuem testes WZ rastreáveis; IN/OUT imediato e assertions adicionais IM0/IM1/RETN/RETI/RST estão na PR #954. A repetição de bloco já tem 64 cenários microsequenciados e quatro formas com snapshot/restore em cada fronteira; não reabrir essa cobertura sem regressão.
 - Não reimplementar UsesIndex nem iniciar E8. Manter F-028/F-022/F-023 abertas até cobrir as lacunas documentadas.
