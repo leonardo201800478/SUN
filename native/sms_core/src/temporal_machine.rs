@@ -65,6 +65,17 @@ pub enum SmsTemporalTraceEvent {
         phase: Z80M1Phase,
         pins: Z80M1Pins,
     },
+    M1FetchCompleted {
+        timestamp: MachineTime,
+        address: u16,
+        cpu_pc: u16,
+        cpu_halted: bool,
+        cpu_int_line: Option<u8>,
+        cpu_iff1: bool,
+        cpu_ei_delay: u8,
+        cpu_halt_exit_int: bool,
+        cpu_halt_exit_nmi: bool,
+    },
     InterruptLineChanged {
         timestamp: MachineTime,
         line: Option<u8>,
@@ -794,7 +805,27 @@ impl SmsTemporalMachine {
 
                 self.m1 = Some(m1);
                 if next_phase == Z80M1Phase::Complete {
-                    self.finish_m1_fetch()
+                    let step = self.finish_m1_fetch()?;
+                    if self.trace_enabled {
+                        self.trace_events.push(SmsTemporalTraceEvent::M1FetchCompleted {
+                            timestamp: completed_at,
+                            address: pins.address,
+                            cpu_pc: self.cpu.registers.pc,
+                            cpu_halted: self.cpu.halted,
+                            cpu_int_line: self.cpu.int_pending,
+                            cpu_iff1: self.cpu.iff1,
+                            cpu_ei_delay: self.cpu.ei_delay,
+                            cpu_halt_exit_int: matches!(
+                                self.cpu.halt_exit_pending,
+                                Some(sega_z80_cpu::Z80HaltExit::Int)
+                            ),
+                            cpu_halt_exit_nmi: matches!(
+                                self.cpu.halt_exit_pending,
+                                Some(sega_z80_cpu::Z80HaltExit::Nmi)
+                            ),
+                        });
+                    }
+                    Ok(step)
                 } else {
                     let request = self
                         .cpu
