@@ -317,3 +317,8 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+## Decisão de escopo — plano supersedido (2026-11-16)
+
+Este plano deixa de ser fila obrigatória para manter E7 `IN_PROGRESS`. O estado vigente é `CLOSED_WITH_LIMITATIONS` no perfil NMOS delimitado e no escopo praticável SMS/SG-1000. Lacunas descritas permanecem como limitações e validação complementar, não como bloqueio permanente. Não exigir revisão independente, ZEXDOC/ZEXALL ou console físico para iniciar SG-1000. Reabrir somente com defeito/regressão ou evidência técnica concreta.
