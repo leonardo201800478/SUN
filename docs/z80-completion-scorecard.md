@@ -1,5 +1,7 @@
 # Z80 compartilhado — scorecard de conclusão
 
+> **Decisão de escopo — 2026-11-16:** E7 está `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e as necessidades praticáveis de SMS/SG-1000. A main `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` executou PASS no gate Z80 focused (#43945796678). Não se declara equivalência elétrica universal, nem validação de CMOS/clones, WAIT físico, DMA ou sincronismo físico global. E8/ZEXDOC/ZEXALL e revisão adversarial independente são validações complementares futuras, não bloqueios permanentes. Não reabrir E7 sem bug/regressão reproduzível; SG-1000 pode avançar.
+
 **Reconciliação atual:** `main` = `08f633affdb7478b64b1ec2007ca1986c2a48978` (2026-11-16, após PRs #955–#969). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
