@@ -587,3 +587,61 @@ Relatório consolidado: [docs/audits/z80-e7-current-status-2026-11-16.md](audits
 - F-028 / PR #943: HEAD de código validado 98c1cf41587f6af66c3d272e4b07a638d5da7919; CI #43859000666 e SMS Runtime #43859000676 SUCCESS. Matriz com 108 combinações prefixadas por executor, nove cadeias DD/FD × 12 formas. Quatro testes PASS; WAIT e snapshot/restore por M1. Fixture SCF/CCF corrigido para controlar Q inicial; CPU/runtime não alterados. A matriz não cobre todos os 256 opcodes DD/FD; F-028 AUDIT_PARTIAL.
 - As três PRs permanecem Draft e sem merge. Os testes foram executados nos SHAs de PR indicados, não na main atual. SKIPPED permanece NOT RUN.
 - E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Nenhuma alteração de CPU, decoder, microsequenciador, MachineScheduler ou runtime nesta rodada.
+
+## 48. Reconciliação integral dos critérios E7 — baseline main 2026-11-16
+
+Main confirmada: caa9a76a6f09d588155ea4e0cbc95f487f079143.
+Branch de continuidade: test/z80-f028-exception-matrix-20261116.
+Estado global: E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+Esta seção reconcilia as evidências de PR sem transferi-las para a main e identifica o estado dos critérios transversais que ainda impedem o fechamento formal.
+
+### 48.1 Famílias funcionais críticas
+
+| Critério | Estado | Evidência confirmada | Lacuna para fechamento |
+|---|---|---|---|
+| F-022 | AUDIT_PARTIAL | Matriz microsequenciada LDI/LDD/CPI/CPD (#930); interrupções IM2 (#932); ROM v5.0 no SHA 306db2a... (#936) PASS. | Operações simples e repetidas não cobertas pela ROM; flags/Q em todas as fronteiras de INT; retomada e timing adicional. |
+| F-023 | AUDIT_PARTIAL | Testes internos RRD/RLD→BIT; Woodmass MEMPTR 09 no SHA 7402ff1... PASS. | Matriz WZ/MEMPTR por família, condições tomadas/não tomadas, wrap, prefixos e X/Y sem evidência independente suficiente. |
+| F-028 | AUDIT_PARTIAL | 34.000 vetores Ares-derived em HEADs de PR; matriz dirigida #943 com 108 casos por executor; prefixos repetidos/alternados, HALT, ED NEG, Q/previous-Q. | Ledger semântico integral, cobertura de estados e interrupções; novos testes de classificação/INT/NMI ainda NOT RUN. |
+| F-026 | AUDIT_PARTIAL | Testes HALT/NMI/INT T4 e integração temporal SMS existentes. | Matriz combinada de HALT, prefixos, refresh e interrupções em todos os pontos observáveis ainda incompleta. |
+
+### 48.2 Estado dos critérios arquiteturais e transversais
+
+| Critério | Estado atual | Reconciliação |
+|---|---|---|
+| S-001/S-002 — bancos e IX/IY | AUDIT_PARTIAL | Exceções H/L e bancos alternativos têm testes direcionados; não há cobertura semântica completa por opcode/estado. |
+| S-003 — SP/PC/I/R | AUDIT_PARTIAL | PC wrap, R por M1 e prefixos repetidos cobertos em cenários selecionados; interrupções e wrap global ainda precisam de reconciliação. |
+| S-004 — IFF/IM/EI delay | AUDIT_PARTIAL | IM0/1/2, RETN/RETI, EI/DI e interrupções HALT têm evidência específica; interações combinadas com prefixos permanecem incompletas. |
+| S-005 — WZ/MEMPTR | AUDIT_PARTIAL | Woodmass MEMPTR 09 adiciona evidência externa para um caso; falta matriz completa por família e condições. |
+| S-006 — Q/previous-Q | AUDIT_PARTIAL | DD/FD→SCF/CCF resolvido; matriz dirigida #943 cobre 12 formas; Q durante/após acknowledge e demais famílias ainda requer reconciliação. |
+| T-001/T-004/T-005 — M1, INT e NMI | AUDIT_PARTIAL | HALT T4 e resposta NMI/INT existentes; novo teste de interrupção solicitada entre DD/FD ainda NOT RUN. |
+| T-006 — HALT | AUDIT_PARTIAL | HALT simples e saída por INT/NMI testados; combinações completas de prefixos e bordas ainda não fechadas. |
+| T-007/T-008 — WAIT e T-states | AUDIT_PARTIAL | WAIT por M1 e transações selecionadas com snapshot; não declarar trace temporal global nem precisão elétrica. |
+| T-009 — Scheduler | AUDIT_PARTIAL | Integração SMS/VDP e testes de interrupção existem; equivalência global contínua/em blocos de todos os perfis ainda não provada. |
+| D-001/D-002/D-003 — snapshot/restore | AUDIT_PARTIAL | Codec e snapshots por safe point estão cobertos em famílias selecionadas; novos casos de interrupção durante prefixo NOT RUN. |
+| D-006/D-007 — retomada e chunk invariance | AUDIT_PARTIAL | Há equivalência local em testes dirigidos; não há prova global para todos os tamanhos de bloco e estados. |
+| V-001 — inventário por opcode | AUDIT_PARTIAL | O ledger CSV enumera os 256 bytes posteriores a DD/FD e classifica a FSM; classificação não substitui semântica por opcode. |
+| V-002 — vetores externos | AUDIT_PARTIAL | ROM v5.0 MIT e Woodmass MEMPTR 09 com hashes/proveniência pinados; limites de domínio e licenças mantidos. |
+| V-003 — diferencial independente | AUDIT_PARTIAL | Woodmass e ROM v5.0 são evidência hardware-derived em ambiente Spectrum; SingleStepTests é Ares-derived; atomic↔micro é consistência interna. |
+| V-006 — prefixos/indexed-CB | AUDIT_PARTIAL | E5/E6 preservados; DDCB/FDCB tem testes específicos; ledger 256 bytes novo e teste de classificação NOT RUN. |
+| V-007/V-008 — regressões SMS/SG-1000 | AUDIT_PARTIAL | SMS Runtime PASS nas PRs citadas; regressões completas devem ser repetidas no SHA final integrado. |
+| V-009 — ZEXDOC/ZEXALL | BLOCKED | Não iniciar antes do fechamento formal de E7. |
+| C-001/C-004/C-005 — decoder/FSM/sequenciador | AUDIT_PARTIAL | Inspeção de prefix.rs, prefix_fsm.rs e prefix_fallback_e6.rs; nenhuma alteração de produção foi feita. |
+| C-009 — testes tautológicos | AUDIT_PARTIAL | Comparações atomic↔micro explicitamente classificadas como internas; revisar cada novo oracle antes de promover status. |
+| C-011 — documentação | AUDIT_PARTIAL | Baseline do checklist corrigida nesta branch; a main permanece na baseline caa9 até eventual integração. |
+
+### 48.3 Novos artefatos candidatos e proveniência
+
+- Ledger completo: docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv, 256 linhas de dados; contagens 85 UsesIndex, 167 Ignored, 1 IndexedCB, 1 ED-cancel e 2 repeat-prefix.
+- Teste de classificação: native/z80_cpu/tests/index_prefix_classification_f028.rs; enumera todos os bytes e compara com uma lista explícita de 85 UsesIndex.
+- Testes de interrupção: native/z80_cpu/tests/z80_dd_fd_exception_matrix_f028.rs; solicita NMI ou INT entre DD e FD, inclui WAIT e round-trip de snapshot, e exige atendimento somente após o opcode terminal.
+- Código/harness candidato mais recente: 958585010fb47f30333cac9494bd45d90a03801b.
+- Documentação atualizada depois do código; nenhum dos novos testes foi executado nesta auditoria: NOT RUN. Não atribuir o PASS de CI #43859000666/#43859000676 ao código posterior.
+
+### 48.4 Decisão de auditoria
+
+- F-022, F-023 e F-028 permanecem AUDIT_PARTIAL.
+- F-005 é CLOSED para o perfil NMOS delimitado, conforme PR #731 e seção 39; o estado inicial antigo da tabela foi corrigido.
+- As novas tabelas e testes aumentam a cobertura de classificação e de fronteiras, mas ainda não fecham semântica, independência de oráculo ou timing global.
+- Nenhuma alteração de CPU, decoder, microsequenciador de produção, MachineScheduler ou runtime foi feita.
+- E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
