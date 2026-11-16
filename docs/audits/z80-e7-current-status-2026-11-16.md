@@ -278,3 +278,15 @@ A nota anterior que classificava o workflow push da PR #955 como NOT_RUN/NOT_VER
 - PR #956 não possui review submetida nem review thread; o comentário Codex registra falha por limite de uso. PR #955 também não possui review auditável. A revisão adversarial independente permanece BLOCKED como gate transversal E7. PR #949 foi encerrada como supersedida pela #956.
 
 **Estado técnico não muda:** F-022 e F-028 permanecem IN_PROGRESS/AUDIT_PARTIAL nos limites já descritos; F-023 permanece AUDIT_PARTIAL apesar da asserção BASE EX (SP),HL integrada; E7 permanece IN_PROGRESS e E8/ZEXDOC/ZEXALL permanece BLOCKED. Não iniciar E8 nem converter SKIPPED em PASS.
+
+## Addendum F-022 — integração SMS/TemporalMachine da PR #957 — 16/11/2026
+
+A PR #957 foi integrada em `2f72a6d94207cc78e5014363e72d16cf8806316a`. O teste de integração executa LDIR, LDDR, CPIR e CPDR através de `SmsTemporalMachine`/MachineScheduler, cobrindo iteração repetitiva e terminadora, WAIT em cada request de barramento e snapshot/restore em cada safe point de barramento/ciclo interno; compara estado completo da máquina, tempo do Scheduler e trace com a execução contínua.
+
+- HEAD validado da PR: `8a6ef8bbf20c770479999f00675718a58349985e`; árvore do merge idêntica (`30e8781ca4b1aab2991e999edb00d1c0a9616301`).
+- CI #43899876697 SUCCESS: Rust workspace regression PASS; Z80 focused, Scheduler deterministic stress e demais jobs não aplicáveis ficaram SKIPPED.
+- SMS Runtime #43899876806 SUCCESS: Release format, Clippy, testes e build Windows x64 PASS; debugger Windows Release SKIPPED.
+- Pós-merge: CI push #43900377071 SUCCESS em workspace regression; SMS Runtime push #43900376933 SUCCESS em Release format/Clippy/testes/build Windows x64. Scheduler deterministic stress e Z80 focused ficaram SKIPPED por classificação do diff.
+- Não há review submetida nem review thread para #957; o Codex review falhou por limite de uso. Esta evidência de integração não substitui review adversarial nem valida todas as oito formas de bloco.
+
+**F-022 permanece IN_PROGRESS/AUDIT_PARTIAL**: a integração SMS para as quatro formas acima foi adicionada, mas o fechamento exige a matriz completa das oito formas e revisão independente. E7 IN_PROGRESS; E8 BLOCKED.
