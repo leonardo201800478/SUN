@@ -13,6 +13,9 @@ const ROM_SIZE: usize = 0x40000;
 #[test]
 fn direct_boot_call_before_sp_initialization_mutates_sega_mapper_banks() {
     let mut rom = vec![0xFF; ROM_SIZE];
+    for (bank, contents) in rom.chunks_exact_mut(0x4000).enumerate() {
+        contents.fill(bank as u8);
+    }
 
     // Reset vector -> $001C, matching the static startup sequence previously
     // identified in Ace of Aces (Europe, Brazil).
@@ -37,6 +40,7 @@ fn direct_boot_call_before_sp_initialization_mutates_sega_mapper_banks() {
     assert_eq!(initial.cpu.registers.sp, 0x0000);
     assert_eq!(machine.memory().control_port(), 0xAB);
     assert_eq!(machine.memory().selected_banks(), [0, 1, 2]);
+    assert_eq!(machine.memory().read(0x4000), 1);
 
     machine
         .step_complete_instruction()
@@ -57,6 +61,11 @@ fn direct_boot_call_before_sp_initialization_mutates_sega_mapper_banks() {
         [0, 0x1F, 0],
         "CALL from SP=0 pushes its return address through the Sega mapper registers"
     );
+    assert_eq!(
+        machine.memory().read(0x4000),
+        15,
+        "bank register $1F selects bank 15 in this 16-bank cartridge"
+    );
 
     machine
         .step_complete_instruction()
@@ -73,4 +82,5 @@ fn direct_boot_call_before_sp_initialization_mutates_sega_mapper_banks() {
         [0, 0x1F, 0],
         "initializing SP after CALL does not undo mapper writes already performed"
     );
+    assert_eq!(machine.memory().read(0x4000), 15);
 }
