@@ -38,6 +38,8 @@ pub enum SmsTemporalTraceEvent {
         base_tstates: u8,
         wait_tstates: u32,
         data: Option<u8>,
+        cpu_pc_before: u16,
+        cpu_pc_after: u16,
     },
     InternalCycleCompleted {
         timestamp: MachineTime,
@@ -708,7 +710,11 @@ impl SmsTemporalMachine {
                         .bus
                         .pending_request()
                         .ok_or(SmsTemporalMachineError::InvalidState)?;
-                    Some((request, self.cpu.export_state().handshake.wait_tstates))
+                    Some((
+                        request,
+                        self.cpu.export_state().handshake.wait_tstates,
+                        self.cpu.registers.pc,
+                    ))
                 } else {
                     None
                 };
@@ -729,7 +735,7 @@ impl SmsTemporalMachine {
                     self.instruction_started_at = None;
                 }
 
-                if let Some((request, wait_tstates)) = trace_data {
+                if let Some((request, wait_tstates, cpu_pc_before)) = trace_data {
                     self.trace_events.push(SmsTemporalTraceEvent::BusCompleted {
                         timestamp: completion.completed_at,
                         request_id: request.id,
@@ -738,6 +744,8 @@ impl SmsTemporalMachine {
                         base_tstates: request.base_tstates,
                         wait_tstates,
                         data: completion.data,
+                        cpu_pc_before,
+                        cpu_pc_after: self.cpu.registers.pc,
                     });
                 }
                 Ok(step)
