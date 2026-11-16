@@ -55,7 +55,7 @@ A matriz foi corrigida para referências explícitas e para a baseline atual. N�
 |---|---|---|
 | Z80 focused, SingleStepTests DD/FD, Z80 Block Flags ROM v5.0 e Woodmass | PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`, CI run [#43937118700](https://github.com/leonardo201800478/sega-emulator/actions/runs/43937118700) | SUCCESS; jobs Z80 focused e Rust quality/unit PASS |
 | SMS Runtime Release format, Clippy, testes e build Windows x64 | PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`, run [#43937118785](https://github.com/leonardo201800478/sega-emulator/actions/runs/43937118785) | SUCCESS |
-| Integração INT IM2/NMI durante repetição | PR #972 HEAD `c0e72a9cd8afffe988fb4e76b456cc8245f56c19`, run #43918490165 | Rust workspace regression SUCCESS; `snapshot_restore_e7_2e`: 13 passed, 0 failed; Z80 focused e Scheduler stress SKIPPED |
+| Integração INT IM2/NMI durante repetição | PR #972 HEAD `ff922996e797b287e275fdbf1d1791314c61a749`, run #43918490165 | Rust workspace regression SUCCESS; `snapshot_restore_e7_2e`: 13 passed, 0 failed; Z80 focused e Scheduler stress SKIPPED |
 | Merge da PR #975 | `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` | Integrado; alteração exclusivamente de teste |
 
 Os resultados acima são vinculados aos respectivos HEADs. Não se declara workflow push pós-merge no SHA 22c489e como executado. Scheduler deterministic stress não foi executado na PR #975.
