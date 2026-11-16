@@ -1,8 +1,8 @@
 # Z80 E7 — fechamento da rodada de testes e estado consolidado
 
-**Data:** 2026-11-16  
-**Main de referência:** caa9a76a6f09d588155ea4e0cbc95f487f079143  
-**Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.  
+**Data:** 2026-11-16
+**Main de referência:** caa9a76a6f09d588155ea4e0cbc95f487f079143
+**Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
 ## 1. Resumo executivo
