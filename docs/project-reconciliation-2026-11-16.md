@@ -41,7 +41,7 @@ Concluir a máquina temporal conectando os componentes existentes: Z80 compartil
 
 SMS1/SMS2 → SG-1000 → Game Gear → expansões/acessórios 8-bit → Mega Drive/Genesis → Sega CD → 32X.
 
-A fase de acessórios inclui YM2413/FM Sound Unit, Sega Card/My Card, Card Catcher para SG-1000/SC-3000, 3D Glasses, Paddle, Sports Pad, Light Phaser, Rapid Fire e interfaces de expansão. Ver `hardware/sms-expansion-accessories-roadmap.md`.
+A fase de acessórios inclui YM2413 integrado do SMS japonês (opcional e independente de região), Sega Card/My Card como mídia, SegaScope/3D Glasses, Paddle, Sports Pad, Light Phaser, Rapid Fire e interfaces compatíveis. Card Catcher C-1000 e o computador SC-3000 completo ficam fora do escopo; ver `hardware/sms-expansion-accessories-roadmap.md`.
 
 ## 7. PRs abertas observadas
 
