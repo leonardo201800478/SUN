@@ -1,151 +1,107 @@
 # Roadmap mestre — Sega Emulator
 
-**Status:** única rota normativa de implementação.  
-**Baseline documental atualizada:** `main` em `c8da934d051f69f0fad01d133a923c26248a7250` (2026-11-05); esta alteração é documental.  
-**Prioridade imediata:** Master System e consolidação do Z80 compartilhado, preservando o SG-1000.  
-**Política de fidelidade:** [ADR-0016](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
+**Revisão documental:** 2026-11-14. Estado operacional consultado na `main` em `f93cb777e69c54c1b347a71da58673a6d8751f47` (PR #867 integrada).
+**Decisões:** ADR 0010 (runtime/hardware), ADR 0011 (desktop/hosts) e ADR-0016 (fidelidade temporal).
 
-O objetivo é uma emulação funcionalmente correta e temporalmente fiel nos caminhos de execução que influenciam jogos e periféricos. O detalhamento temporal é prioritário para sequências de instruções e processos de gameplay sensíveis a ordem/duração; o restante usa operações atômicas determinísticas e semanticamente exatas. Não reproduzir pinos, fases elétricas ou estados internos sem efeito observável.
+Duas trilhas coordenadas: evolução dos sistemas Sega (P0–P9) e replataforma desktop/host (R1–R5). A segunda não autoriza reescrever hardware nem antecipar sistemas.
 
-Não manter roadmaps ou planos de sprint paralelos. ADRs, auditorias e referências de hardware não criam fases ou prioridades concorrentes.
+## 1. Diretrizes
 
-## 1. Princípios de execução
+- Runtime 100% Rust; MachineScheduler é autoridade de clocks, eventos e ordem causal.
+- CPU, VDP, PSG, memória, barramentos, mappers, interrupções e estados pertencem ao runtime.
+- Slint é GUI; WGPU é API gráfica; Vulkan é backend inicial preferencial; CPAL é saída física.
+- sega-input-runtime já contém contratos host-independent e backend SDL3 Windows x64; R4 integra esse backend ao host Slint. Teclado continua nos eventos nativos do Slint.
+- Não ampliar nem reintroduzir o host desktop anterior. A retirada física dos módulos transitórios ocorre somente após R3/R5 e inventário de consumidores.
+- GUI não executa hardware, avança clocks ou usa callbacks por instrução.
+- Preservar SmsTemporalWorker, Scheduler, SMS e SG-1000. Não duplicar componentes.
+- Sem JIT, frame skipping, hacks temporais ou otimizações especulativas.
 
-1. Rust é o único runtime de hardware; Python/PySide6 é frontend, launcher, configuração, diagnóstico e tooling.
-2. PyO3 oferece operações coarse-grained; sem callbacks por instrução.
-3. Reutilizar componentes compartilhados quando representarem hardware compatível; manter diferenças reais por plataforma.
-4. Corrigir primeiro comportamento funcional e compatibilidade; adicionar precisão temporal onde uma interação real exigir.
-5. Um Scheduler por máquina composta coordena os eventos relevantes, sem impor atualização de cada pino/tick de cada componente.
-6. Não implementar detalhes de barramento, WAIT, arbitragem, M-cycle/T-state ou pinos sem identificar o console e o comportamento que dependem deles.
-7. Desempenho deve ser medido; não usar JIT, frame skipping, hacks de timing ou otimizações especulativas.
-8. Mudanças não triviais seguem branch + PR. Sem commit direto na main, force-push ou merge sem gates verdes no HEAD final.
-9. ROMs comerciais, BIOS proprietárias e dumps protegidos não entram no Git.
+## 2. Plataformas — P0 a P9
 
-## Regra normativa de granularidade — prioridade temporal e execução atômica
+1. **P0:** infraestrutura/hosts, toolchain, workspaces, CI e contratos.
+2. **P1:** Master System temporal, Z80 compartilhado, ROM, lifecycle, vídeo, áudio, input e validação.
+3. **P2:** SG-1000, preservando componentes compartilhados e regressões.
+4. **P3:** Game Gear.
+5. **P4:** Mega Drive/Genesis.
+6. **P5:** Sega CD.
+7. **P6:** 32X / Sega CD 32X.
+8. **P7:** frontend desktop completo em Slint: launcher, biblioteca, configurações, HUD e telemetria.
+9. **P8:** compatibilidade e auditoria.
+10. **P9:** comprovação temporal sistêmica dos caminhos observáveis.
 
-O projeto adota dois níveis complementares, sem reduzir a correção funcional:
+Não avançar para plataforma posterior com bloqueadores estruturais anteriores. O shell mínimo e as integrações necessárias ao SMS não equivalem ao frontend completo P7.
 
-1. **Precisão temporal prioritária para gameplay:** instruções, sequências e processos cuja ordem ou duração possa alterar a execução de jogos ou a interação entre CPU, memória/barramento, mapper, VDP/raster, PSG/FM/PCM, interrupções, DMA ou periféricos. Nesses caminhos, preservar clocks, ordem causal, pontos de interação e a menor resolução temporal que reproduza o efeito observado. Usar M-cycles, T-states, WAIT, suspensão/retomada ou fases de transação somente quando testes, documentação ou divergência reproduzível demonstrarem essa necessidade.
-2. **Precisão funcional atômica como padrão para o restante:** executar a operação em uma unidade atômica definida pela interface (instrução, acesso, escrita de registrador, avanço de scanline/bloco ou amostra), com resultado, flags, memória, efeitos colaterais, estado e duração nominal corretos quando conhecidos. Não criar micro-operações, fases internas, safe points ou eventos por tick apenas para espelhar a estrutura elétrica do chip.
+## 3. Replataforma — R1 a R5
 
-A semântica funcional de toda instrução e operação suportada continua obrigatoriamente correta. “Atômica” não significa aproximada, nondeterminística ou incompleta; significa que estados intermediários não observáveis não são modelados sem necessidade. O detalhamento temporal deve concentrar-se nos caminhos de gameplay sensíveis ao tempo. **Não existe requisito de precisão por pino, por borda elétrica ou por transistor.**
+| Trilha | Situação | Avaliação |
+|---|---|---|
+| R1 — Slint + WGPU 30 + Vulkan | POC integrada; workflow Windows x64 passou | Integração de software aprovada. O relatório local 118b96bf registra inicialização física, Vulkan efetivo, resize/lifecycle e apresentação sustentada como NOT RUN; repetir no HEAD atual. |
+| R2 — Frames reais do SMS | FrameMailbox e SmsTemporalWorker integrados; frame pacing resolvido (#755); smoke test físico relatado | Caminho de frames integrado. O relato manual ainda não está vinculado a log/HEAD reproduzível; completar campanha de ROM/gameplay no HEAD atual. |
+| R3 — Áudio CPAL 0.18.2 | CPAL e pipeline PCM integrados; CI Windows e testes automatizados aprovados; reprodução física relatada | Integração aprovada. Reprodução prolongada, hotplug, recuperação de endpoint e underruns ainda não estão documentados no HEAD atual. |
+| R4 — SDL3 input | Primeira integração SDL3/Slint integrada pela PR #867 (`f93cb777`); CI #7512 verde | Integração de software aprovada: smoke test da ABI dinâmica SDL3, Clippy/testes do input runtime, testes/build Release do desktop e regressão do workspace passaram. Aceite com controles físicos, hotplug real e recursos avançados de configuração continuam pendentes. |
+| R5 — Frontend completo | Slint desktop parcial, menus e controles em evolução | Pendente: biblioteca, configurações consolidadas, HUD, telemetria e retirada dos hosts antigos. |
 
-Antes de elevar uma operação do nível atômico ao temporal, registrar: jogo/console/revisão/periférico afetado, efeito observável, evidência, menor granularidade suficiente, teste de regressão e custo. Na ausência dessa evidência, manter execução atômica e registrar a incerteza sem bloquear a plataforma.
 
-## 2. Fases de plataforma
+### R1 — POC gráfica mínima
 
-### P0 — Infraestrutura e hosts
+Comprovar no Windows x64: janela Slint; WGPU 30; Vulkan explicitamente selecionado/identificado; mesmo wgpu::Device e wgpu::Queue compartilhados com Slint; textura externa WGPU atualizada continuamente; composição na mesma janela; resize, lifecycle da surface e shutdown limpo; build Release reproduzível.
 
-Consolidar workspace, ferramentas, CI, runtime Rust, integração coarse-grained e interfaces de host necessárias às plataformas ativas.
+R1 é isolada. Não integrar SMS real, SmsTemporalWorker, menu de jogo, pausa do Scheduler, HUD, CPAL, SDL3, HDR ou VRR. Não alterar hardware/runtime.
 
-**Saída:** builds reproduzíveis, gates confiáveis, fronteira Rust/Python clara e runtime de hardware independente da GUI.
+**Estado:** POC Slint/WGPU 30/Vulkan integrada e validada pelo workflow Windows x64. O relatório local vinculado ao snapshot 118b96bf411248173b6215b7bf16aebdf3a66bff classifica inicialização física da janela, seleção física do Vulkan, apresentação sustentada e lifecycle da surface como NOT RUN. Não promover o PASS do CI a aceite físico. Repetir os critérios no HEAD atual.
 
-### P1 — Master System
+### R2 — vídeo real
 
-Prioridade principal. Consolidar a máquina SMS em Rust:
-- Z80 compartilhado e semanticamente correto para o software suportado;
-- memória, mappers, I/O e periféricos;
-- VDP Mode 4, registradores, sprites, raster e interrupções relevantes;
-- PSG e áudio;
-- sincronização CPU/vídeo/áudio nos pontos de interação que afetem jogos;
-- compatibilidade com ROMs de teste e jogos representativos.
+Frames SMS integrados pelo contrato portátil, preservando `SmsTemporalWorker`, `FrameMailbox` e `MachineScheduler`. A issue #755 de frame pacing foi encerrada como resolvida. Há relatos manuais de execução, mas o relatório Windows do snapshot 118b96bf... ainda classifica ROM/gameplay e apresentação física sustentada como NOT RUN; repetir e registrar a sessão no HEAD atual. Compatibilidade ampla de ROMs permanece fora do gate de integração.
 
-Priorizar temporização de instruções e processos que afetem gameplay: escritas/leituras de I/O e registradores de VDP/PSG, efeitos de mapper, interrupções, raster/H-counter, DMA, contenção e WAIT quando presentes no console. Instruções puramente internas de CPU e operações sem interação observável permanecem atômicas, preservando semântica e duração nominal conhecida. Não exigir execução por T-state de todas as instruções nem representação integral dos pinos.
+### R3 — áudio CPAL 0.18.2
 
-### P2 — SG-1000
+CPAL 0.18.2 e o pipeline PCM estão integrados em software; testes automatizados e CI Windows foram aprovados em SHAs anteriores. O relatório Windows do snapshot 118b96bf... registra abertura/reprodução física, hotplug, estabilidade prolongada e underruns como NOT RUN. Relatos manuais de áudio audível não estão vinculados a um SHA reproduzível. Repetir no HEAD atual. A thread de áudio não controla o Scheduler.
 
-Preservar e consolidar o runtime SG-1000, reutilizando o Z80 e componentes comuns quando compatíveis. Manter VDP TMS9918A, mapa de memória, cartuchos, PSG e particularidades do sistema. Não regredir jogos já validados.
+### R4 — input SDL3
 
-### P3 — Game Gear
+O crate native/input_runtime e o backend SDL3 dinâmico Windows x64 já existem na linha principal, mas não eram consumidos pelo desktop Slint: o host usava somente eventos de teclado nativos. A PR #313 histórica pertence ao host Qt/PyO3 e não comprova integração no desktop atual.
 
-Reutilizar a base SMS onde houver equivalência. Implementar diferenças reais de LCD, viewport, paleta, áudio estéreo, I/O e perfil de hardware.
+A PR #867 integrou a primeira fatia ao desktop Slint e foi merged na `main` pelo commit `f93cb777e69c54c1b347a71da58673a6d8751f47`. A implementação adiciona `sega-input-runtime` ao desktop, polling SDL3 no limite do host Slint com intervalo nominal de 8 ms, hotplug observado pelo backend a cada 250 ms, mapeamento inicial Gamepad API (D-pad/analógico esquerdo + South/East + Start como NMI por borda de subida) e fallback Joystick API. Os dois primeiros dispositivos elegíveis são atribuídos a P1/P2 por ordem da sessão. Atualizações usam `SmsTemporalWorker::set_controller_at`; não há polling no Scheduler nem callbacks por instrução.
 
-### P4 — Mega Drive / Genesis
+O CI #7512 (`43638680588`) passou no HEAD da PR #867 (`dbad9fae...`): `Windows SDL3 input validation`, `Rust workspace regression`, `Rust quality and unit regression` e `Windows x64 Slint WGPU 30 Vulkan POC` concluíram SUCCESS. O job SDL3 instalou o runtime 3.4.20 fixado por SHA-256, executou fmt, Clippy e teste da ABI dinâmica/input runtime no Windows x64. O job desktop executou fmt, Clippy Release, testes Release e build Release. O job de CPAL, PSG, Z80, VDP, Scheduler stress e input core/console foi SKIPPED por classificação de impacto; SKIPPED não é PASS nem falha, e esses subsistemas não foram alterados pela R4. O CI não exigiu controle físico.
 
-Adicionar o Motorola 68000, VDP, áudio e integração do Z80 auxiliar. Modelar arbitragem e sincronização entre CPUs conforme as necessidades observáveis dos jogos.
+**Pendências R4:** teste físico com controles reais, hotplug/reconexão e remoção do controle que ocupa P1; identidade persistente por dispositivo (o descritor atual ainda retorna `physical_key=None`); perfis individuais, remapeamento e atribuição configurável P1/P2; captura analógica/calibração separada do threshold inicial de gameplay de 10.000; validação física do Start como NMI por borda de subida e dos caminhos Pause/NMI. XInput direto não está implementado; dispositivos XInput podem ser reconhecidos pelo SDL3 conforme driver/mapeamento. Não alegar input latency sem instrumentação específica.
 
-### P5 — Sega CD
+### R5 — frontend
 
-Compor a plataforma Mega Drive com CD-ROM, sub-CPU, memória compartilhada, áudio e ASICs específicos.
+Consolidar native/sega_desktop, native/video_output_wgpu e native/audio_output; implementar launcher, biblioteca, configurações, menus, HUD, logs e telemetria; provar paridade; remover egui/eframe e hosts antigos somente após regressão e aceite Release no HEAD exato.
 
-### P6 — 32X / Sega CD 32X
+## 4. Estado operacional
 
-Adicionar SH-2, vídeo e áudio do 32X e composição com Mega Drive/Sega CD.
+**Evidência Windows x64:** [relatório local de validação Release](testing/windows-x64-release-validation-2026-11-14.md) registra uma execução do usuário no snapshot `118b96bf411248173b6215b7bf16aebdf3a66bff`: desktop 26/26 testes, crate CPAL 21/21 testes, fmt/Clippy e build Release PASS. Essa evidência é histórica e limitada ao SHA declarado; não certifica automaticamente commits posteriores nem aceite físico.
 
-### P7 — Frontend Qt / PyO3
+**Auditoria VDP SMS1:** [auditoria do caminho ativo](audits/sms1-vdp-runtime-path-audit-2026-11-14.md) inspeciona estaticamente o mesmo snapshot `118b96bf...`. Confirma a cadeia de construção do `SmsVdp` SMS1 315-5124 no host desktop e documenta limitações de fetch/temporização de sprites; não identifica a causa de bugs específicos sem reprodução por jogo.
 
-Consolidar launcher, biblioteca, configurações, telemetria e automação. A GUI não executa nem temporiza hardware.
+- Frame pacing: issue #755 encerrada como resolvida em 2026-11-14; não reabrir sem evidência reproduzível de regressão.
+- R1 está integrada e o workflow Windows da POC passa; os critérios físicos listados no relatório histórico ainda não foram executados no SHA atual.
+- R2 (frames SMS) e R3 (CPAL) estão integradas em software; frame pacing foi resolvido, mas a campanha física reproduzível e o aceite sustentado ainda precisam ser vinculados ao HEAD atual.
+- R4: primeira integração SDL3/Slint concluída e integrada pela PR #867; CI #7512 verde no HEAD da PR. O aceite físico e recursos avançados de configuração continuam pendentes. Não confundir a antiga PR #313 Qt/PyO3 com integração no desktop Slint.
+- R5 consolidação final permanece pendente.
+- Para evidência local ou auditoria estática, sempre preservar o SHA exato e não promover um snapshot histórico a validação da `main` atual.
 
-### P8 — Compatibilidade e auditoria
+Branches antigas devem ser reconciliadas por portabilidade seletiva para branches novas sobre a `main` atual. Não fazer merge cego de histórico divergente.
 
-Ampliar matriz de jogos, ROMs de diagnóstico, regressões, compatibilidade de revisões e validação em ambientes de host suportados.
+## 5. Z80
 
-### P9 — Validação sistêmica
+E4C → E5 → E6 → E7 → E8 → E9. Consultar docs/z80-completion-scorecard.md e docs/z80-dd-fd-semantic-matrix.md antes de qualquer tarefa. Não iniciar E8/ZEXDOC/ZEXALL antes do fechamento demonstrável de E7. Não reabrir etapas validadas sem evidência de defeito/regressão.
 
-Comprovar determinismo, save states, replay e sincronização de cada plataforma na granularidade realmente necessária. Não exigir um selo global de cycle-accuracy ou pin-accuracy como condição universal.
+## 6. Método e gates
 
-## 3. Z80 compartilhado — política de conclusão
+Auditar SHA/PRs/workflows; pesquisar fontes primárias; definir critérios; modelar estados/ownership/timing; implementar incrementos pequenos; conferir formatação, Clippy e testes antes do workflow; regredir; auditar diff; atualizar documentação/evidências; publicar por PR.
 
-O Z80 é um componente compartilhado, não uma CPU duplicada por console.
+Gates:
+- cargo fmt --all -- --check
+- cargo clippy --release --workspace --all-targets --locked -- -D warnings
+- cargo test --release --workspace --locked
 
-Critérios funcionais:
-- instruções documentadas necessárias aos sistemas suportados;
-- registradores, flags e efeitos arquiteturais corretos;
-- prefixos e operações indexadas utilizadas pelo conjunto de instruções;
-- interrupções e HALT conforme o uso da plataforma;
-- regressões SG-1000 e SMS.
+Validar workspaces/targets standalone. Aplicativos e testes de desempenho devem usar Release. Classificar PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED nunca é PASS. Vincular evidências ao SHA exato.
 
-Critérios temporais prioritários:
-- preservar duração nominal e ordem das instruções executadas por jogos;
-- detalhar sequência temporal quando uma instrução/processo interagir com VDP, áudio, mapper, I/O, interrupção ou barramento de modo sensível ao instante;
-- manter atomicidade para operações internas sem efeito intermediário observável;
-- representar transações suspensíveis, WAIT, M-cycle/T-state e sinais derivados somente quando a plataforma exigir;
-- não simular todos os pinos ou estados internos como meta independente.
+## 7. GitHub e integração contínua
 
-Suítes externas como ZEXDOC/ZEXALL e traces de barramento são instrumentos de diagnóstico/validação. Não são autorização para ampliar indefinidamente o escopo nem substituem testes de integração nos consoles.
-
-## 4. Método por tarefa
-
-1. Auditar SHA da main, código, PRs, workflows e documentação relevante.
-2. Identificar o comportamento observável que precisa ser corrigido.
-3. Consultar documentação primária e referências independentes proporcionais ao risco.
-4. Definir critérios de aceitação objetivos.
-5. Implementar a menor mudança Rust que resolva o comportamento.
-6. Executar testes direcionados e regressões dos consoles afetados.
-7. Medir desempenho quando o caminho crítico for alterado.
-8. Atualizar status/documentação e abrir PR.
-9. Integrar somente com CI verde no SHA final.
-
-Para tarefas complexas, pesquisas independentes podem ser conduzidas em três frentes (implementações de referência, documentação de hardware, arquitetura/testes). A pesquisa não deve criar uma obrigação de modelar fenômenos sem impacto no console.
-
-## 5. Gates de qualidade
-
-```text
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-python -m pytest
-python -m ruff check .
-python -m ruff format --check .
-```
-
-Cada suíte é PASS, FAIL, BLOCKED ou NOT RUN. SKIPPED nunca é PASS. Registrar o SHA exato, jobs executados e jobs não executados.
-
-## 6. Estado observado na baseline consultada
-
-- O repositório contém runtimes Rust para SG-1000 e Master System e uma CPU Z80 compartilhada.
-- E5 DDCB/FDCB e E6 resolução geral de prefixos constam como integradas na main nas auditorias recentes.
-- E7.3/HALT T4 consta como integrada. O fechamento semântico global e a integração temporal completa não estão comprovados.
-- PRs #512, #514 e #526 permanecem propostas abertas/Draft na consulta; não são código integrado em main. A PR #527 também é documental e não foi integrada.
-- O runtime não possui comprovação de cycle-accuracy sistêmica. Isso não é, por si só, um defeito: o critério passa a ser a fidelidade observável necessária aos consoles suportados.
-
-A descrição acima é uma fotografia documental. Antes de qualquer implementação, conferir novamente main, PRs e workflows. O código integrado prevalece sobre status antigo de auditoria.
-
-## 7. Autoridade documental
-
-- [Escopo e princípios arquiteturais](project-scope.md)
-- [Estado dos componentes](component-status.md)
-- [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md)
-- [ADRs de arquitetura](architecture/adr/README.md)
-
-Documentos históricos podem explicar como uma proposta surgiu, mas não devem ser tratados como requisitos vigentes quando conflitam com esta política. Planos de sprint avulsos ou roadmaps reconciliados fora do repositório (incluindo cópias anexadas em conversas) são referências históricas, não uma segunda rota de execução; tarefas antigas que exijam microsequenciamento universal devem ser reinterpretadas pela regra temporal-para-gameplay/atômica-para-o-restante. Não manter nem atualizar cronogramas paralelos.
+GitHub é a fonte da verdade. Integrar continuamente na main o código tecnicamente validado, em incrementos pequenos. Manter branches curtas; para branches antigas/divergentes, preservar o histórico e portar seletivamente as mudanças úteis para uma branch nova baseada na main atual. Não fazer merge cego, force-push ou reset destrutivo. Toda alteração passa por branch/PR, diff revisado, testes direcionados, regressões pertinentes e CI aplicável verde no HEAD final. A autorização permanente do usuário permite integrar após os gates; não permite contorná-los. SKIPPED, queued e NOT RUN não são PASS.

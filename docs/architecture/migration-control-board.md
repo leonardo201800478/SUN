@@ -1,3 +1,5 @@
+> **Áudio — atualização de 2026-11-12:** as decisões WASAPI/XAudio2 descritas abaixo são históricas e estão superseded pela arquitetura CPAL 0.18.2 candidata na [PR #770](https://github.com/leonardo201800478/sega-emulator/pull/770). No Windows, CPAL utiliza WASAPI internamente como backend do sistema; o projeto não mantém adaptador próprio WASAPI, XAudio2 nem bindings de áudio Win32. Consulte [saída física CPAL](../audio/cpal-output-backend.md).
+
 > **Marco funcional SG-1000 (2026-10-28):** concluído no escopo validado pelo mantenedor. PR [#141](https://github.com/leonardo201800478/sega-emulator/pull/141) integrada à `main` no commit `f51c0fac8dfd850a761e65de48709a2e7002d11d`; issue [#136](https://github.com/leonardo201800478/sega-emulator/issues/136) fechado. O mantenedor reportou PASS manual para os oito jogos afetados e informou que os demais jogos continuam funcionando como antes. Testes diferenciais e alguns checks Python continuam NOT RUN; workflows para o SHA de merge não foram confirmados. Isso não declara precisão ciclo a ciclo nem compatibilidade universal.
 > **Estado vigente (2026-10-27):** hardware SG-1000 ativo exclusivamente em Rust. O código Python antigo de hardware, os testes/ferramentas dependentes e os workflows históricos foram arquivados sob `legacy/`; não são importados nem executados pelo projeto ativo. Este documento mantém observações históricas quando indicadas.
 
@@ -57,7 +59,7 @@ A CI workflow only validates the commands it actually executes. A green Python w
 - Baseline SHA: `2e93350d2a27dd0f37671ccca1df11b5b6654a55`
 - No PR exists at this baseline.
 - The shared crates and PyO3 adapter remain in their old directories.
-- `native/sega_emu_core` remains a scaffold outside the root workspace; its path dependencies now point to the existing sibling crates. The shared-crate relocation is still pending.
+- The former `native/sega_emu_core` re-export scaffold was removed during the 2026-11-06 cleanup: it had no runtime, frontend, or test consumer. The planned shared-crate relocation remains deferred; recreate the destination when Gate 1 is actually scheduled.
 - The Rust SG-1000 and SMS crates remain partial. No fidelity or standalone-runtime acceptance is implied.
 - Baseline crate validation: **PASS** on main SHA `632f2f69e7a9e6d9a81b19a4f994bb1ce42eb951` via [Rust SG-1000 Workspace run #131](https://github.com/leonardo201800478/sega-emulator/actions/runs/40442082201): formatting, Clippy, and workspace tests succeeded; logs show 22 SG-1000 tests passed, plus 15 SMS and 7 Z80 ALU tests. This run predates the migration branch's documentation-only commits and validates the same SG-1000 source blobs.
 - Historical baseline note (before PR #126): VDP, PSG and machine-wide scheduling were not integrated. The current status is recorded below; the crate is still not a complete standalone emulator.

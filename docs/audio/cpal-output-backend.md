@@ -1,0 +1,95 @@
+# Saída física de áudio — CPAL 0.18.2
+
+**Estado:** CPAL 0.18.2 (#770) e pipeline H4 integrados na main pela PR #787.
+**Validação automatizada H4:** PASS no HEAD da PR `a1b8774acf39101ecb1a3697571a526a98160f32` (Windows x64 CPAL, workspace regression, PSG integration, Slint/WGPU/Vulkan POC, Rust quality, rustfmt/Clippy e patch hygiene).
+**Validação física Windows x64:** NOT RUN.
+**Escopo:** substituir os adaptadores próprios WASAPI/XAudio2 por um único adaptador CPAL, mantendo a geração PCM e o runtime DSP independentes do dispositivo.
+
+## Arquitetura
+
+`SMS/SG-1000 PSG → NativeAudioSession → PcmSink → NativeCpalOutput → PcmFrameProducer → SPSC FIFO → callback CPAL → dispositivo`
+
+- `native/audio_runtime` mantém mixer, resampler, volume, lifecycle e contrato `PcmSink::write_samples(Vec<f64>)`.
+- `native/audio_output` mantém transporte SPSC com `StereoFrame = [f64; 2]` e conversão mono→estéreo.
+- `NativeCpalOutput` é o único adaptador de saída física do projeto.
+- CPAL enumera dispositivos, identifica dispositivos por ID estável e negocia uma tupla suportada de canais/taxa/formato. A seleção H4 prioriza stereo→mono, F32→I24→I16 e, dentro de cada formato, 48→88,2→96→44,1 kHz. O default CPAL é fallback somente quando nenhum desses formatos/rates está anunciado.
+- `native/sega_desktop` e o shell anterior usam o mesmo adaptador, sem backends concorrentes.
+- O PSG e o MachineScheduler não conhecem CPAL, dispositivos, sample rate de saída ou clocks do host.
+
+No Windows, CPAL usa seu backend WASAPI interno. Isso não é dependência do adaptador WASAPI próprio: o projeto não importa o crate `wasapi`, não chama IAudioClient/IAudioClient3 e não mantém um caminho de saída XAudio2.
+
+## Callback e transporte
+
+- O produtor PCM pertence ao worker de emulação; o consumidor SPSC pertence ao callback CPAL.
+- A FIFO é limitada, drop-newest e contabiliza frames aceitos/perdidos.
+- O callback não executa emulação, não chama o Scheduler, não acessa GUI, não faz I/O e não aloca buffers.
+- Os buffers temporários do callback são pré-alocados; underruns são preenchidos com silêncio.
+- A fonte interna permanece em f64 normalizado até a fronteira CPAL; não existe quantização PCM16 intermediária.
+- A conversão final usa `FromSample<f64>` no callback para o formato efetivamente negociado. I16 é fallback implementado; I24 e F32 são escolhidos somente quando anunciados pelo endpoint. I24 usa armazenamento de 4 bytes com 24 bits significativos; F32 é float, não deve ser rotulado como I24.
+- Saída mono recebe downmix de L/R; em dispositivos com mais de dois canais, os canais adicionais recebem silêncio.
+- O sample rate real negociado é fornecido à sessão DSP; a fonte permanece em 48 kHz e o resampler converte para 48/88,2/96 kHz quando disponíveis, com 44,1 kHz como fallback de taxa.
+
+## Dispositivos e lifecycle
+
+A API do adaptador oferece enumeração de dispositivos com ID estável, abertura do dispositivo padrão ou de um ID previamente enumerado, abertura/fechamento do stream, pause e retomada.
+
+CPAL cria streams pausados; a sessão chama `play()` somente ao retomar a execução. Erros do callback são registrados e propagados em operações subsequentes. Reconexão automática/hotplug ainda não está implementada e permanece pendente.
+
+## Limite de flush
+
+CPAL oferece pause/play portável, mas não oferece uma operação genérica para esvaziar buffers que já foram entregues ao sistema operacional/dispositivo. `suspend_and_flush` suspende o stream e agenda o descarte da FIFO de aplicação antes de consumir dados no próximo epoch. Não promete cortar amostras que já estejam no buffer interno do driver/dispositivo; a latência residual deve ser medida em hardware real.
+
+Esse limite não altera a timeline emulada e não autoriza compensar atraso modificando clocks do PSG ou do MachineScheduler.
+
+## Métricas
+
+Mantidas no contrato genérico:
+
+- sample rate efetivo;
+- log `R3_AUDIO CPAL output opened` informa formato CPAL real (I16/I24/F32 ou fallback) e flag `default_config_fallback`;
+- capacidade, ocupação e high-water da FIFO;
+- frames aceitos, consumidos e descartados;
+- underrun em frames e eventos;
+- blocos com overflow;
+- frames descartados na invalidação da FIFO.
+
+Foram removidas métricas exclusivas de XAudio2, como source-voice starvation e falhas de SubmitSourceBuffer.
+
+## Dependências removidas do adaptador
+
+- crate `wasapi`;
+- bindings diretos `windows` para WASAPI;
+- bindings diretos `windows` para XAudio2;
+- implementação própria de workers, source voices, callbacks e staging de buffers XAudio2.
+
+D3D12 é tecnologia de vídeo e não integra o subsistema de áudio. Suas referências no shell legado pertencem exclusivamente à apresentação e serão retiradas no corte de vídeo R5.
+
+## Critérios ainda pendentes para concluir R3/H4
+
+1. Testar em endpoint físico que anuncia F32, I24 e I16; confirmar que a seleção respeita as capacidades reais e reporta o formato.
+3. Reprodução SMS em 48/88,2/96 kHz quando disponíveis e fallback para PCM16/44,1 kHz quando necessário.
+4. Pause, stop, reset, troca de ROM e retomada sem vazamento de epoch.
+5. Remoção/erro de stream: o worker já desanexa e fecha a sessão de áudio ao receber erro do sink, sem parar a emulação; o host pode reconfigurar pelo comando coarse-grained `ConfigureAudio`. Detecção automática de hotplug e reabertura automática ainda pendentes.
+6. Campanha prolongada, underruns, latência e loopback físico.
+7. Verificação de que áudio físico não altera Scheduler, determinismo ou equivalência contínua/em blocos.
+
+A PR #787 foi integrada por squash em `323f295f459feaed457550db2b8d2c2e4188d81e`. Os jobs SDL3, D3D12, stress do Scheduler, Z80 e VDP ficaram SKIPPED por não serem aplicáveis ao diff; não foram contabilizados como PASS. A CI de PR não substitui validação física.
+
+Até a conclusão dos gates físicos/lifecycle restantes, R3 permanece **IN_PROGRESS**, não concluída.
+
+**Lockfiles:** CPAL 0.18.2 e os lockfiles aplicáveis foram integrados pela PR #770. A branch H4 não altera dependências nem lockfiles; a CI `--locked` deve confirmar a consistência.
+
+
+## Auditoria de underrun e métricas por janela — 2026-11-13
+
+A semântica dos contadores foi auditada diretamente no callback e na FIFO:
+
+- `underrun_frames` é a quantidade de frames estéreo que `PcmFrameConsumer::read_frames` preencheu com zero quando não havia dados disponíveis. É zero-fill efetivo no buffer entregue pelo callback, não apenas um evento abstrato.
+- `consumed_frames` conta os frames retirados da FIFO. O total de frames solicitados ao consumidor é `consumed_frames + underrun_frames`.
+- `underrun_events` conta chamadas de leitura que precisaram inserir ao menos um frame de silêncio. Não equivale necessariamente a um callback CPAL nem a um episódio acústico.
+- Os contadores originais continuam cumulativos desde a criação da fila. O host agora calcula deltas entre snapshots monotônicos consecutivos, com `window_ms`, `window_valid` e `counter_reset` para identificar a primeira janela ou um reset/configuração alterada.
+- O log `R3_AUDIO_HEALTH` expõe totais cumulativos (`requested_frames_total`, `zero_fill_percent_total`) e deltas por janela (`accepted_frames_delta`, `consumed_frames_delta`, `requested_frames_delta`, `underrun_frames_delta`, `underrun_events_delta`, `zero_fill_percent_window`), além das taxas de frames aceitos/solicitados. `rate_valid=0` na primeira janela ou quando um reset/configuração alterada é detectado; nesse caso as taxas e `zero_fill_percent_window` são zeradas e não devem ser interpretadas como medição válida. `counter_reset` é acionado quando um contador retrocede ou quando sample rate/capacidade muda.
+- `zero_fill_percent` usa `underrun_frames_delta / requested_frames_delta`, onde `requested_frames_delta = consumed_frames_delta + underrun_frames_delta`. Não usar `underrun_frames / consumed_frames` como percentual de silêncio.
+- Se um reset de contador for detectado, a janela atual é marcada com `counter_reset=1` e deve ser tratada como início de uma nova epoch; a taxa dessa primeira janela não deve ser comparada diretamente com uma janela estável.
+
+Esta instrumentação não altera FIFO, prebuffer, resampler, sample rate da máquina, PSG ou Scheduler. A validação física/loopback continua pendente e será feita somente na etapa final de aceitação.

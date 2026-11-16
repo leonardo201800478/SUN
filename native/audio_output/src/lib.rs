@@ -1,836 +1,448 @@
-//! Native Windows audio output. Qt/Python owns configuration only.
+//! CPAL-backed physical PCM output for the Sega audio runtime.
+//!
+//! The emulated PSG and DSP remain upstream of this crate. The CPAL callback
+//! only consumes completed normalized-f64 stereo frames from a bounded SPSC queue,
+//! converts them to the negotiated device sample format, and fills missing
+//! frames with digital silence. It never advances emulated time or calls the
+//! MachineScheduler.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-#[cfg(windows)]
-use std::sync::mpsc;
-#[cfg(windows)]
-use std::thread::{self, JoinHandle};
-#[cfg(windows)]
-use std::time::Duration;
+mod pcm_convert;
+mod pcm_fifo;
 
-#[cfg(windows)]
-use std::collections::VecDeque;
-#[cfg(windows)]
-use wasapi::{
-    DeviceEnumerator, Direction, SampleType, StreamMode, TimingMode, WaveFormat, deinitialize,
-    initialize_mta,
+pub use pcm_fifo::{
+    PcmFrameQueueError, PcmFrameQueueMetrics, PcmFrameReadReport, PcmFrameWriteReport, StereoFrame,
+    pcm_frame_queue,
 };
 
+use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{FromSample, Sample, SizedSample};
+use sega_audio_runtime::{
+    AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ, NativeAudioSession, PcmSink,
+};
+
+use crate::pcm_convert::mono_sample_to_stereo_frame;
+use crate::pcm_fifo::{PcmFrameConsumer, PcmFrameProducer};
+
+const CALLBACK_SCRATCH_FRAMES: usize = 4096;
+
+/// Stable output-device identity and human-readable name supplied by CPAL.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AudioOutputError {
-    InvalidSampleRate,
-    InvalidBufferSize,
-    InvalidQueueCapacity,
-    InvalidBalance,
-    InvalidPcmBlock,
-    Device(String),
-    WorkerStopped,
+pub struct AudioOutputDeviceInfo {
+    /// Stable CPAL device identifier suitable for persistence.
+    pub id: String,
+    /// Human-readable device name.
+    pub name: String,
 }
 
-impl std::fmt::Display for AudioOutputError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidSampleRate => write!(f, "sample_rate must be positive"),
-            Self::InvalidBufferSize => write!(f, "buffer_size must be positive"),
-            Self::InvalidQueueCapacity => write!(f, "queue_blocks must be positive"),
-            Self::InvalidBalance => write!(f, "balance must be between -100 and 100"),
-            Self::InvalidPcmBlock => write!(f, "PCM16 blocks must contain an even byte count"),
-            Self::Device(message) => write!(f, "WASAPI output failed: {message}"),
-            Self::WorkerStopped => write!(f, "WASAPI output worker has stopped"),
-        }
+/// CPAL output stream and bounded PCM transport.
+pub struct NativeCpalOutput {
+    stream: Option<cpal::Stream>,
+    producer: PcmFrameProducer,
+    sample_rate_hz: u32,
+    channels: u16,
+    sample_format: cpal::SampleFormat,
+    used_default_fallback: bool,
+    started: bool,
+    closed: bool,
+    flush_requested: Arc<AtomicBool>,
+    callback_error: Arc<Mutex<Option<String>>>,
+    frame_scratch: Vec<StereoFrame>,
+    dropped_blocks: u64,
+}
+
+impl NativeCpalOutput {
+    /// Enumerate available output devices and their stable CPAL identifiers.
+    pub fn output_devices() -> Result<Vec<AudioOutputDeviceInfo>, String> {
+        let host = cpal::default_host();
+        let devices = host
+            .output_devices()
+            .map_err(|error| format!("CPAL output-device enumeration failed: {error}"))?;
+
+        devices
+            .map(|device| {
+                let id = device
+                    .id()
+                    .map_err(|error| format!("CPAL device identifier unavailable: {error}"))?
+                    .to_string();
+                let name = device
+                    .description()
+                    .map_err(|error| format!("CPAL device description unavailable: {error}"))?
+                    .name()
+                    .to_owned();
+                Ok(AudioOutputDeviceInfo { id, name })
+            })
+            .collect()
     }
-}
 
-impl std::error::Error for AudioOutputError {}
-
-/// Expand mono signed PCM16 to interleaved stereo, duplicating each sample.
-/// The emulated PSG remains mono; channel routing is handled only at the output boundary.
-fn mono_pcm16_to_stereo(pcm: &[u8], balance: i8) -> Vec<u8> {
-    let mut stereo = Vec::with_capacity(pcm.len().saturating_mul(2));
-    let left_gain = if balance > 0 {
-        100 - balance as i32
-    } else {
-        100
-    };
-    let right_gain = if balance < 0 {
-        100 + balance as i32
-    } else {
-        100
-    };
-    for sample in pcm.as_chunks::<2>().0 {
-        let value = i16::from_le_bytes([sample[0], sample[1]]) as i32;
-        let left = ((value * left_gain) / 100).clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-        let right = ((value * right_gain) / 100).clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-        stereo.extend_from_slice(&left.to_le_bytes());
-        stereo.extend_from_slice(&right.to_le_bytes());
+    /// Open the operating system's default output device.
+    pub fn new(buffer_frames: u32, queue_blocks: usize) -> Result<Self, String> {
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .ok_or_else(|| "CPAL did not find a default output device".to_owned())?;
+        Self::new_with_device(device, buffer_frames, queue_blocks)
     }
-    stereo
-}
 
-/// Bounded producer queue and event-driven WASAPI consumer owned entirely by Rust.
-pub struct NativeWasapiOutput {
-    #[cfg(windows)]
-    producer: Option<rtrb::Producer<Vec<u8>>>,
-    #[cfg(windows)]
-    worker: Option<JoinHandle<()>>,
-    shutdown: Arc<AtomicBool>,
-    underruns: Arc<AtomicU64>,
-    dropped_blocks: Arc<AtomicU64>,
-    sample_rate: u32,
-    buffer_size: u32,
-    balance: i8,
-}
-
-impl NativeWasapiOutput {
-    pub fn new(
-        sample_rate: u32,
-        buffer_size: u32,
+    /// Open a previously enumerated output device by its stable CPAL identifier.
+    pub fn new_for_device(
+        device_id: &str,
+        buffer_frames: u32,
         queue_blocks: usize,
-    ) -> Result<Self, AudioOutputError> {
-        Self::new_with_balance(sample_rate, buffer_size, queue_blocks, 0)
+    ) -> Result<Self, String> {
+        let host = cpal::default_host();
+        let id = cpal::DeviceId::from_str(device_id)
+            .map_err(|error| format!("Invalid CPAL device identifier: {error}"))?;
+        let device = host
+            .device_by_id(&id)
+            .ok_or_else(|| format!("CPAL output device '{device_id}' is no longer available"))?;
+        Self::new_with_device(device, buffer_frames, queue_blocks)
     }
 
-    pub fn new_with_balance(
-        sample_rate: u32,
-        buffer_size: u32,
+    fn new_with_device(
+        device: cpal::Device,
+        buffer_frames: u32,
         queue_blocks: usize,
-        balance: i8,
-    ) -> Result<Self, AudioOutputError> {
-        if sample_rate == 0 {
-            return Err(AudioOutputError::InvalidSampleRate);
+    ) -> Result<Self, String> {
+        if buffer_frames == 0 {
+            return Err("CPAL buffer size must be positive".to_owned());
         }
-        if buffer_size == 0 || buffer_size > 16_384 {
-            return Err(AudioOutputError::InvalidBufferSize);
-        }
-        if queue_blocks == 0 || queue_blocks > 64 {
-            return Err(AudioOutputError::InvalidQueueCapacity);
-        }
-        if !(-100..=100).contains(&balance) {
-            return Err(AudioOutputError::InvalidBalance);
+        if queue_blocks == 0 {
+            return Err("CPAL queue block count must be positive".to_owned());
         }
 
-        #[cfg(windows)]
-        {
-            let (producer, consumer) = rtrb::RingBuffer::<Vec<u8>>::new(queue_blocks);
-            let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
-            let shutdown = Arc::new(AtomicBool::new(false));
-            let underruns = Arc::new(AtomicU64::new(0));
-            let dropped_blocks = Arc::new(AtomicU64::new(0));
-            let worker_shutdown = Arc::clone(&shutdown);
-            let worker_underruns = Arc::clone(&underruns);
-            let worker = thread::Builder::new()
-                .name("sega-wasapi-output".to_owned())
-                .spawn(move || {
-                    run_wasapi_worker(
-                        consumer,
-                        ready_sender,
-                        worker_shutdown,
-                        worker_underruns,
-                        sample_rate,
-                        buffer_size,
-                    );
-                })
-                .map_err(|error| AudioOutputError::Device(error.to_string()))?;
-
-            match ready_receiver.recv_timeout(Duration::from_secs(5)) {
-                Ok(Ok(())) => Ok(Self {
-                    producer: Some(producer),
-                    worker: Some(worker),
-                    shutdown,
-                    underruns,
-                    dropped_blocks,
-                    sample_rate,
-                    buffer_size,
-                    balance,
-                }),
-                Ok(Err(message)) => {
-                    shutdown.store(true, Ordering::Release);
-                    drop(producer);
-                    let _ = worker.join();
-                    Err(AudioOutputError::Device(message))
-                }
-                Err(error) => {
-                    shutdown.store(true, Ordering::Release);
-                    drop(producer);
-                    let _ = worker.join();
-                    Err(AudioOutputError::Device(format!(
-                        "audio worker initialization timed out: {error}"
-                    )))
-                }
-            }
-        }
-
-        #[cfg(not(windows))]
-        {
-            let _ = queue_blocks;
-            Err(AudioOutputError::Device(
-                "native WASAPI output is available only on Windows".to_owned(),
-            ))
-        }
-    }
-
-    pub fn write_pcm(&mut self, pcm: Vec<u8>) -> Result<(), AudioOutputError> {
-        if !pcm.len().is_multiple_of(2) || pcm.len() > (u32::MAX as usize / 2) {
-            return Err(AudioOutputError::InvalidPcmBlock);
-        }
-        if pcm.is_empty() {
-            return Ok(());
-        }
-        let pcm = mono_pcm16_to_stereo(&pcm, self.balance);
-        #[cfg(windows)]
-        {
-            if self.shutdown.load(Ordering::Acquire) {
-                return Err(AudioOutputError::WorkerStopped);
-            }
-            let producer = self
-                .producer
-                .as_mut()
-                .ok_or(AudioOutputError::WorkerStopped)?;
-            if producer.is_abandoned() {
-                return Err(AudioOutputError::WorkerStopped);
-            }
-            match producer.push(pcm) {
-                Ok(()) => Ok(()),
-                Err(rtrb::PushError::Full(_block)) => {
-                    self.dropped_blocks.fetch_add(1, Ordering::Relaxed);
-                    Ok(())
-                }
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = pcm;
-            Err(AudioOutputError::Device(
-                "native WASAPI output is available only on Windows".to_owned(),
-            ))
-        }
-    }
-
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
-
-    pub fn buffer_size(&self) -> u32 {
-        self.buffer_size
-    }
-
-    pub fn underrun_count(&self) -> u64 {
-        self.underruns.load(Ordering::Relaxed)
-    }
-
-    pub fn dropped_block_count(&self) -> u64 {
-        self.dropped_blocks.load(Ordering::Relaxed)
-    }
-
-    pub fn close(&mut self) {
-        self.shutdown.store(true, Ordering::Release);
-        #[cfg(windows)]
-        {
-            drop(self.producer.take());
-            if let Some(worker) = self.worker.take() {
-                let _ = worker.join();
-            }
-        }
-    }
-}
-
-impl Drop for NativeWasapiOutput {
-    fn drop(&mut self) {
-        self.close();
-    }
-}
-
-/// Select an IAudioClient3 period in frames, respecting endpoint limits and alignment.
-fn select_shared_period(requested: u32, min: u32, max: u32, fundamental: u32) -> Option<u32> {
-    if fundamental == 0 || min == 0 || min > max {
-        return None;
-    }
-    let target = requested.max(1).clamp(min, max);
-    let aligned = target.div_ceil(fundamental).saturating_mul(fundamental);
-    let selected = if aligned <= max {
-        aligned
-    } else {
-        (max / fundamental) * fundamental
-    };
-    (selected >= min && selected <= max).then_some(selected)
-}
-
-#[cfg(windows)]
-struct ComApartment;
-
-#[cfg(windows)]
-impl Drop for ComApartment {
-    fn drop(&mut self) {
-        deinitialize();
-    }
-}
-
-#[cfg(windows)]
-fn run_wasapi_worker(
-    mut consumer: rtrb::Consumer<Vec<u8>>,
-    ready: mpsc::SyncSender<Result<(), String>>,
-    shutdown: Arc<AtomicBool>,
-    underruns: Arc<AtomicU64>,
-    sample_rate: u32,
-    buffer_size: u32,
-) {
-    if let Err(error) = initialize_mta().ok() {
-        let _ = ready.send(Err(error.to_string()));
-        return;
-    }
-    let _com_apartment = ComApartment;
-    let mut first_start = true;
-
-    // Re-enumerate and reopen the default render endpoint after stream loss.
-    // The first initialization failure is reported to the constructor; later
-    // failures retry until shutdown or the producer closes the queue.
-    loop {
-        if shutdown.load(Ordering::Acquire) {
-            break;
-        }
-
-        let setup = (|| {
-            let enumerator = DeviceEnumerator::new().map_err(|error| error.to_string())?;
-            let device = enumerator
-                .get_default_device(&Direction::Render)
-                .map_err(|error| error.to_string())?;
-            let mut audio_client = device
-                .get_iaudioclient()
-                .map_err(|error| error.to_string())?;
-            let format = WaveFormat::new(16, 16, &SampleType::Int, sample_rate as usize, 2, None);
-            let block_align = format.get_blockalign() as usize;
-            let (default_period, _minimum_period) = audio_client
-                .get_device_period()
-                .map_err(|error| error.to_string())?;
-
-            // Prefer IAudioClient3 in shared/event-driven mode. Clamp the
-            // requested period to the endpoint range and align it to the
-            // fundamental period. Retain the previous Shared path when the
-            // interface or initialization is unavailable.
-            let requested_frames = buffer_size.max(1);
-            let selected_period = audio_client
-                .get_shared_mode_engine_period(&format)
-                .ok()
-                .and_then(|periods| {
-                    select_shared_period(
-                        requested_frames,
-                        periods.min,
-                        periods.max,
-                        periods.fundamental,
-                    )
-                });
-            let initialized_with_client3 = selected_period.is_some_and(|period| {
-                audio_client
-                    .initialize_shared_audio_stream(&format, TimingMode::Events, period)
-                    .is_ok()
-            });
-            if !initialized_with_client3 {
-                let requested_period =
-                    (buffer_size as u64 * 10_000_000 / sample_rate as u64) as i64;
-                let mode = StreamMode::EventsShared {
-                    autoconvert: true,
-                    buffer_duration_hns: requested_period.max(default_period),
-                };
-                audio_client
-                    .initialize_client(&format, &Direction::Render, &mode)
-                    .map_err(|error| error.to_string())?;
-            }
-            let event = audio_client
-                .set_get_eventhandle()
-                .map_err(|error| error.to_string())?;
-            let render_client = audio_client
-                .get_audiorenderclient()
-                .map_err(|error| error.to_string())?;
-            let initial_buffer_frames = audio_client
-                .get_buffer_size()
-                .map_err(|error| error.to_string())?
-                as usize;
-            Ok((
-                audio_client,
-                event,
-                render_client,
-                block_align,
-                initial_buffer_frames,
-            ))
-        })();
-
-        let (audio_client, event, render_client, block_align, initial_buffer_frames) = match setup {
-            Ok(state) => state,
-            Err(message) => {
-                if first_start {
-                    let _ = ready.send(Err(message));
-                    return;
-                }
-                thread::sleep(Duration::from_millis(250));
-                continue;
-            }
+        let preferred = device
+            .supported_output_configs()
+            .ok()
+            .and_then(|ranges| select_preferred_output_config(&ranges.collect::<Vec<_>>()));
+        let (supported, used_default_fallback) = match preferred {
+            Some(config) => (config, false),
+            None => (
+                device.default_output_config().map_err(|error| {
+                    format!("CPAL default output configuration failed: {error}")
+                })?,
+                true,
+            ),
         };
-
-        let mut pending = VecDeque::<u8>::with_capacity(buffer_size as usize * block_align * 8);
-        pending.resize(initial_buffer_frames.saturating_mul(block_align), 0);
-        if render_client
-            .write_to_device_from_deque(initial_buffer_frames, &mut pending, None)
-            .is_err()
-        {
-            if first_start {
-                let _ = ready.send(Err("failed to prime the WASAPI render buffer".to_owned()));
-                return;
-            }
-            thread::sleep(Duration::from_millis(250));
-            continue;
+        let sample_rate_hz = supported.sample_rate();
+        let channels = supported.channels();
+        let sample_format = supported.sample_format();
+        if channels == 0 {
+            return Err("CPAL output device reported zero channels".to_owned());
         }
-        if let Err(error) = audio_client.start_stream() {
-            if first_start {
-                let _ = ready.send(Err(error.to_string()));
-                return;
-            }
-            thread::sleep(Duration::from_millis(250));
-            continue;
-        }
-        if first_start {
-            let _ = ready.send(Ok(()));
-            first_start = false;
+        if sample_format.is_dsd() {
+            return Err(format!(
+                "CPAL endpoint selected a DSD format unsupported by PCM output: {sample_format:?}"
+            ));
         }
 
-        let mut disconnected = false;
-        loop {
-            if shutdown.load(Ordering::Acquire) {
-                break;
-            }
-            if event.wait_for_event(1000).is_err() {
-                // A failed event wait usually means that the endpoint stopped.
-                break;
-            }
+        let config: cpal::StreamConfig = supported.into();
+        // Let CPAL and the selected host negotiate the callback quantum.
+        // `buffer_frames` sizes the bounded application FIFO, not the OS endpoint.
 
-            let frames = match audio_client.get_available_space_in_frames() {
-                Ok(frames) => frames as usize,
-                Err(_) => break,
-            };
-            if frames == 0 {
-                continue;
-            }
-            let required = frames.saturating_mul(block_align);
-            while pending.len() < required {
-                match consumer.pop() {
-                    Ok(block) => pending.extend(block),
-                    Err(rtrb::PopError::Empty) => {
-                        if consumer.is_abandoned() {
-                            disconnected = true;
-                            break;
-                        }
-                        pending.resize(required, 0);
-                        underruns.fetch_add(1, Ordering::Relaxed);
-                        break;
-                    }
-                }
-            }
-            if disconnected || shutdown.load(Ordering::Acquire) {
-                break;
-            }
-            if render_client
-                .write_to_device_from_deque(frames, &mut pending, None)
-                .is_err()
-            {
-                break;
-            }
-        }
+        let queue_capacity = usize::try_from(buffer_frames)
+            .ok()
+            .and_then(|frames| frames.checked_mul(queue_blocks))
+            .filter(|capacity| *capacity > 0)
+            .ok_or_else(|| "CPAL PCM queue capacity overflow".to_owned())?;
+        let (producer, consumer) =
+            crate::pcm_fifo::pcm_frame_queue(queue_capacity).map_err(|error| error.to_string())?;
 
-        let _ = audio_client.stop_stream();
-        if shutdown.load(Ordering::Acquire) || disconnected {
-            break;
-        }
-        thread::sleep(Duration::from_millis(250));
-    }
-}
+        let flush_requested = Arc::new(AtomicBool::new(false));
+        let callback_error = Arc::new(Mutex::new(None));
+        let stream = build_stream_for_format(
+            &device,
+            config,
+            sample_format,
+            channels,
+            consumer,
+            Arc::clone(&flush_requested),
+            Arc::clone(&callback_error),
+        )
+        .map_err(|error| format!("CPAL output stream creation failed: {error}"))?;
 
-#[cfg(windows)]
-use windows::Win32::Media::Audio::XAudio2::{
-    IXAudio2, IXAudio2MasteringVoice, IXAudio2SourceVoice, IXAudio2VoiceCallback, XAUDIO2_BUFFER,
-    XAUDIO2_DEFAULT_PROCESSOR, XAUDIO2_VOICE_STATE, XAudio2CreateWithVersionInfo,
-};
-#[cfg(windows)]
-use windows::Win32::Media::Audio::{AudioCategory_GameEffects, WAVE_FORMAT_PCM, WAVEFORMATEX};
-#[cfg(windows)]
-use windows::Win32::System::SystemInformation::NTDDI_WIN10_RS5;
-#[cfg(windows)]
-use windows::core::PCWSTR;
-
-/// Native XAudio2 output using Rust-owned source buffers and a bounded producer queue.
-pub struct NativeXAudio2Output {
-    #[cfg(windows)]
-    producer: Option<rtrb::Producer<Vec<u8>>>,
-    #[cfg(windows)]
-    worker: Option<JoinHandle<()>>,
-    shutdown: Arc<AtomicBool>,
-    underruns: Arc<AtomicU64>,
-    dropped_blocks: Arc<AtomicU64>,
-    sample_rate: u32,
-    buffer_size: u32,
-    balance: i8,
-}
-
-impl NativeXAudio2Output {
-    pub fn new(
-        sample_rate: u32,
-        buffer_size: u32,
-        queue_blocks: usize,
-    ) -> Result<Self, AudioOutputError> {
-        Self::new_with_balance(sample_rate, buffer_size, queue_blocks, 0)
+        Ok(Self {
+            stream: Some(stream),
+            producer,
+            sample_rate_hz,
+            channels,
+            sample_format,
+            used_default_fallback,
+            started: false,
+            closed: false,
+            flush_requested,
+            callback_error,
+            frame_scratch: Vec::new(),
+            dropped_blocks: 0,
+        })
     }
 
-    pub fn new_with_balance(
-        sample_rate: u32,
-        buffer_size: u32,
-        queue_blocks: usize,
-        balance: i8,
-    ) -> Result<Self, AudioOutputError> {
-        if sample_rate == 0 {
-            return Err(AudioOutputError::InvalidSampleRate);
-        }
-        if buffer_size == 0 || buffer_size > 16_384 {
-            return Err(AudioOutputError::InvalidBufferSize);
-        }
-        if queue_blocks == 0 || queue_blocks > 64 {
-            return Err(AudioOutputError::InvalidQueueCapacity);
-        }
-        if !(-100..=100).contains(&balance) {
-            return Err(AudioOutputError::InvalidBalance);
-        }
-
-        #[cfg(windows)]
-        {
-            let (producer, consumer) = rtrb::RingBuffer::<Vec<u8>>::new(queue_blocks);
-            let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
-            let shutdown = Arc::new(AtomicBool::new(false));
-            let underruns = Arc::new(AtomicU64::new(0));
-            let dropped_blocks = Arc::new(AtomicU64::new(0));
-            let worker_shutdown = Arc::clone(&shutdown);
-            let worker_underruns = Arc::clone(&underruns);
-            let worker = thread::Builder::new()
-                .name("sega-xaudio2-output".to_owned())
-                .spawn(move || {
-                    run_xaudio2_worker(
-                        consumer,
-                        ready_sender,
-                        worker_shutdown,
-                        worker_underruns,
-                        sample_rate,
-                        queue_blocks,
-                    );
-                })
-                .map_err(|error| AudioOutputError::Device(error.to_string()))?;
-
-            match ready_receiver.recv_timeout(Duration::from_secs(5)) {
-                Ok(Ok(())) => Ok(Self {
-                    producer: Some(producer),
-                    worker: Some(worker),
-                    shutdown,
-                    underruns,
-                    dropped_blocks,
-                    sample_rate,
-                    buffer_size,
-                    balance,
-                }),
-                Ok(Err(message)) => {
-                    shutdown.store(true, Ordering::Release);
-                    drop(producer);
-                    let _ = worker.join();
-                    Err(AudioOutputError::Device(message))
-                }
-                Err(error) => {
-                    shutdown.store(true, Ordering::Release);
-                    drop(producer);
-                    let _ = worker.join();
-                    Err(AudioOutputError::Device(format!(
-                        "XAudio2 initialization timed out: {error}"
-                    )))
-                }
-            }
-        }
-
-        #[cfg(not(windows))]
-        {
-            let _ = queue_blocks;
-            Err(AudioOutputError::Device(
-                "native XAudio2 output is available only on Windows".to_owned(),
-            ))
-        }
+    /// Return the actual sample rate selected by the output device.
+    pub const fn sample_rate_hz(&self) -> u32 {
+        self.sample_rate_hz
     }
 
-    pub fn write_pcm(&mut self, pcm: Vec<u8>) -> Result<(), AudioOutputError> {
-        if !pcm.len().is_multiple_of(2) || pcm.len() > (u32::MAX as usize / 2) {
-            return Err(AudioOutputError::InvalidPcmBlock);
-        }
-        if pcm.is_empty() {
-            return Ok(());
-        }
-        let pcm = mono_pcm16_to_stereo(&pcm, self.balance);
-        #[cfg(windows)]
-        {
-            if self.shutdown.load(Ordering::Acquire) {
-                return Err(AudioOutputError::WorkerStopped);
-            }
-            let producer = self
-                .producer
-                .as_mut()
-                .ok_or(AudioOutputError::WorkerStopped)?;
-            let max_block_bytes = (self.buffer_size as usize).saturating_mul(4).max(4);
-            for block in pcm.chunks(max_block_bytes) {
-                if producer.is_abandoned() {
-                    return Err(AudioOutputError::WorkerStopped);
-                }
-                match producer.push(block.to_vec()) {
-                    Ok(()) => {}
-                    Err(rtrb::PushError::Full(_block)) => {
-                        self.dropped_blocks.fetch_add(1, Ordering::Relaxed);
-                    }
-                }
-            }
-            Ok(())
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = pcm;
-            Err(AudioOutputError::Device(
-                "native XAudio2 output is available only on Windows".to_owned(),
-            ))
-        }
+    /// Return the channel count selected by the output device.
+    pub const fn channels(&self) -> u16 {
+        self.channels
     }
 
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate
+    /// Return the actual sample format selected by the output device.
+    pub const fn sample_format(&self) -> cpal::SampleFormat {
+        self.sample_format
     }
 
-    pub fn buffer_size(&self) -> u32 {
-        self.buffer_size
+    /// Whether CPAL's default configuration was used because no preferred PCM tuple was advertised.
+    pub const fn used_default_config_fallback(&self) -> bool {
+        self.used_default_fallback
     }
 
-    pub fn underrun_count(&self) -> u64 {
-        self.underruns.load(Ordering::Relaxed)
+    /// Wrap this sink in the shared Rust DSP/resampler session.
+    pub fn into_audio_session(self, volume: u8) -> Result<NativeAudioSession<Self>, String> {
+        NativeAudioSession::new(
+            DEFAULT_PCM_SOURCE_RATE_HZ,
+            self.sample_rate_hz,
+            volume,
+            self,
+        )
     }
 
-    pub fn dropped_block_count(&self) -> u64 {
-        self.dropped_blocks.load(Ordering::Relaxed)
-    }
-
-    pub fn close(&mut self) {
-        self.shutdown.store(true, Ordering::Release);
-        #[cfg(windows)]
-        {
-            drop(self.producer.take());
-            if let Some(worker) = self.worker.take() {
-                let _ = worker.join();
-            }
+    fn check_callback_error(&self) -> Result<(), String> {
+        let error = self
+            .callback_error
+            .lock()
+            .map_err(|_| "CPAL callback error state is poisoned".to_owned())?
+            .clone();
+        match error {
+            Some(error) => Err(format!("CPAL output stream failed: {error}")),
+            None => Ok(()),
         }
     }
 }
 
-impl Drop for NativeXAudio2Output {
-    fn drop(&mut self) {
-        self.close();
-    }
-}
+impl PcmSink for NativeCpalOutput {
+    fn write_samples(&mut self, samples: Vec<f64>) -> Result<(), String> {
+        if self.closed {
+            return Err("CPAL output is closed".to_owned());
+        }
+        self.check_callback_error()?;
 
-#[cfg(windows)]
-fn run_xaudio2_worker(
-    mut consumer: rtrb::Consumer<Vec<u8>>,
-    ready: mpsc::SyncSender<Result<(), String>>,
-    shutdown: Arc<AtomicBool>,
-    underruns: Arc<AtomicU64>,
-    sample_rate: u32,
-    max_queued_buffers: usize,
-) {
-    if let Err(error) = initialize_mta().ok() {
-        let _ = ready.send(Err(error.to_string()));
-        return;
-    }
-    let _com_apartment = ComApartment;
+        self.frame_scratch.clear();
+        self.frame_scratch.reserve(samples.len());
+        for sample in samples {
+            self.frame_scratch
+                .push(mono_sample_to_stereo_frame(sample, 0));
+        }
 
-    let setup = (|| {
-        let mut engine: Option<IXAudio2> = None;
-        unsafe {
-            XAudio2CreateWithVersionInfo(
-                &mut engine,
-                0,
-                XAUDIO2_DEFAULT_PROCESSOR,
-                NTDDI_WIN10_RS5,
-            )
+        let report = self
+            .producer
+            .push_frames(&self.frame_scratch)
             .map_err(|error| error.to_string())?;
+        if report.dropped_frames > 0 {
+            self.dropped_blocks = self.dropped_blocks.saturating_add(1);
         }
-        let engine = engine.ok_or_else(|| "XAudio2Create returned no engine".to_owned())?;
-        let mut mastering_voice: Option<IXAudio2MasteringVoice> = None;
-        // The source voice is stereo PCM16. Keep the mastering voice stereo too;
-        // declaring it mono forces a downmix and defeats the output balance control.
-        unsafe {
-            engine
-                .CreateMasteringVoice(
-                    &mut mastering_voice,
-                    2,
-                    sample_rate,
-                    0,
-                    PCWSTR::null(),
-                    None,
-                    AudioCategory_GameEffects,
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        let mastering_voice =
-            mastering_voice.ok_or_else(|| "XAudio2 did not create a mastering voice".to_owned())?;
-        let format = WAVEFORMATEX {
-            wFormatTag: WAVE_FORMAT_PCM as u16,
-            nChannels: 2,
-            nSamplesPerSec: sample_rate,
-            nAvgBytesPerSec: sample_rate.saturating_mul(4),
-            nBlockAlign: 4,
-            wBitsPerSample: 16,
-            cbSize: 0,
-        };
-        let mut source_voice: Option<IXAudio2SourceVoice> = None;
-        unsafe {
-            engine
-                .CreateSourceVoice(
-                    &mut source_voice,
-                    &format,
-                    0,
-                    2.0,
-                    None::<&IXAudio2VoiceCallback>,
-                    None,
-                    None,
-                )
-                .map_err(|error| error.to_string())?;
-            engine.StartEngine().map_err(|error| error.to_string())?;
-        }
-        let source_voice =
-            source_voice.ok_or_else(|| "XAudio2 did not create a source voice".to_owned())?;
-        unsafe {
-            source_voice
-                .Start(0, 0)
-                .map_err(|error| error.to_string())?;
-        }
-        Ok((engine, mastering_voice, source_voice))
-    })();
+        Ok(())
+    }
 
-    let (engine, _mastering_voice, source_voice) = match setup {
-        Ok(state) => state,
-        Err(message) => {
-            let _ = ready.send(Err(message));
+    fn suspend_and_flush(&mut self) -> Result<(), String> {
+        if self.closed {
+            return Err("CPAL output is closed".to_owned());
+        }
+        self.check_callback_error()?;
+        if self.started {
+            self.stream
+                .as_ref()
+                .ok_or_else(|| "CPAL output stream is unavailable".to_owned())?
+                .pause()
+                .map_err(|error| format!("CPAL stream pause failed: {error}"))?;
+            self.started = false;
+        }
+        // The callback performs the consumer-side SPSC discard before it reads
+        // any samples in the next playback epoch. CPAL does not expose a
+        // portable command to purge samples already buffered by the OS/device.
+        self.flush_requested.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    fn resume(&mut self) -> Result<(), String> {
+        if self.closed {
+            return Err("CPAL output is closed".to_owned());
+        }
+        self.check_callback_error()?;
+        if !self.started {
+            self.stream
+                .as_ref()
+                .ok_or_else(|| "CPAL output stream is unavailable".to_owned())?
+                .play()
+                .map_err(|error| format!("CPAL stream start failed: {error}"))?;
+            self.started = true;
+        }
+        Ok(())
+    }
+
+    fn metrics(&self) -> AudioOutputMetrics {
+        let queue = self.producer.metrics();
+        AudioOutputMetrics {
+            sample_rate_hz: self.sample_rate_hz,
+            queue_capacity_frames: queue.capacity_frames as u64,
+            queue_queued_frames: queue.queued_frames as u64,
+            queue_high_water_frames: queue.high_water_frames as u64,
+            accepted_frames: queue.accepted_frames,
+            consumed_frames: queue.consumed_frames,
+            dropped_frames: queue.dropped_frames,
+            underrun_frames: queue.underrun_frames,
+            underrun_events: queue.underrun_events,
+            dropped_blocks: self.dropped_blocks,
+            flushed_frames: queue.flushed_frames,
+        }
+    }
+
+    fn close(&mut self) {
+        if self.closed {
             return;
         }
-    };
-    let _ = ready.send(Ok(()));
-
-    let mut submitted = VecDeque::<Vec<u8>>::with_capacity(max_queued_buffers);
-    let mut was_underrun = false;
-    loop {
-        if shutdown.load(Ordering::Acquire) {
-            break;
+        if self.started {
+            if let Some(stream) = self.stream.as_ref() {
+                let _ = stream.pause();
+            }
+            self.started = false;
         }
+        self.stream.take();
+        self.closed = true;
+    }
+}
 
-        let mut state = XAUDIO2_VOICE_STATE::default();
-        unsafe {
-            source_voice.GetState(&mut state, 0);
-        }
-        while submitted.len() > state.BuffersQueued as usize {
-            submitted.pop_front();
-        }
+fn select_preferred_output_config(
+    ranges: &[cpal::SupportedStreamConfigRange],
+) -> Option<cpal::SupportedStreamConfig> {
+    // Prefer stereo, then mono; format priority is F32 > I24 > I16. Within each
+    // format, prefer 48 kHz, then 88.2/96 kHz, then 44.1 kHz. I16 is the
+    // mandatory PCM16 fallback when no higher-precision format is advertised.
+    const CHANNELS: [u16; 2] = [2, 1];
+    const FORMATS: [cpal::SampleFormat; 3] = [
+        cpal::SampleFormat::F32,
+        cpal::SampleFormat::I24,
+        cpal::SampleFormat::I16,
+    ];
+    const RATES: [u32; 4] = [48_000, 88_200, 96_000, 44_100];
 
-        let mut submitted_new = false;
-        while submitted.len() < max_queued_buffers {
-            match consumer.pop() {
-                Ok(block) => {
-                    submitted.push_back(block);
-                    let block = submitted.back().expect("just inserted XAudio2 block");
-                    let buffer = XAUDIO2_BUFFER {
-                        AudioBytes: block.len() as u32,
-                        pAudioData: block.as_ptr(),
-                        ..Default::default()
-                    };
-                    let result = unsafe { source_voice.SubmitSourceBuffer(&buffer, None) };
-                    if result.is_err() {
-                        submitted.pop_back();
-                        break;
+    for channels in CHANNELS {
+        for format in FORMATS {
+            for rate in RATES {
+                for range in ranges {
+                    if range.channels() != channels || range.sample_format() != format {
+                        continue;
                     }
-                    submitted_new = true;
+                    if let Some(config) = (*range).try_with_sample_rate(rate) {
+                        return Some(config);
+                    }
                 }
-                Err(_) => break,
             }
         }
-
-        let mut current_state = XAUDIO2_VOICE_STATE::default();
-        unsafe {
-            source_voice.GetState(&mut current_state, 0);
-        }
-        let is_underrun = current_state.BuffersQueued == 0 && !submitted_new;
-        if is_underrun && !was_underrun {
-            underruns.fetch_add(1, Ordering::Relaxed);
-        }
-        was_underrun = is_underrun;
-        thread::sleep(Duration::from_millis(2));
     }
 
-    unsafe {
-        let _ = source_voice.Stop(0, 0);
-        let _ = source_voice.FlushSourceBuffers();
-        source_voice.DestroyVoice();
-        engine.StopEngine();
-    }
-}
-// The output crate owns these concrete sink types, so it implements the
-// runtime's sink contract here without introducing a dependency cycle.
-impl sega_audio_runtime::PcmSink for NativeWasapiOutput {
-    fn write_pcm(&mut self, pcm: Vec<u8>) -> Result<(), String> {
-        NativeWasapiOutput::write_pcm(self, pcm).map_err(|error| error.to_string())
-    }
-
-    fn metrics(&self) -> (u64, u64) {
-        (self.underrun_count(), self.dropped_block_count())
-    }
-
-    fn close(&mut self) {
-        NativeWasapiOutput::close(self);
-    }
+    None
 }
 
-impl NativeWasapiOutput {
-    /// Compose this native endpoint with the Rust DSP/resampling session.
-    pub fn into_audio_session(
-        self,
-        output_sample_rate: u32,
-        volume: u8,
-    ) -> Result<sega_audio_runtime::NativeAudioSession<Self>, String> {
-        if self.sample_rate() != output_sample_rate {
-            return Err("WASAPI device rate must match the DSP output rate".to_owned());
-        }
-        sega_audio_runtime::NativeAudioSession::new(output_sample_rate, volume, self)
-    }
+fn build_stream<T>(
+    device: &cpal::Device,
+    config: cpal::StreamConfig,
+    channels: u16,
+    mut consumer: PcmFrameConsumer,
+    flush_requested: Arc<AtomicBool>,
+    callback_error: Arc<Mutex<Option<String>>>,
+) -> Result<cpal::Stream, cpal::Error>
+where
+    T: SizedSample + Sample + FromSample<f64>,
+{
+    let channel_count = usize::from(channels);
+    let mut scratch = vec![[0.0_f64; 2]; CALLBACK_SCRATCH_FRAMES];
+
+    device.build_output_stream(
+        config,
+        move |output: &mut [T], _info: &cpal::OutputCallbackInfo| {
+            if flush_requested.swap(false, Ordering::AcqRel) {
+                consumer.discard_queued_frames();
+            }
+
+            let frame_count = output.len() / channel_count;
+            let mut frame_offset = 0;
+            while frame_offset < frame_count {
+                let count = (frame_count - frame_offset).min(scratch.len());
+                consumer.read_frames(&mut scratch[..count]);
+                let sample_start = frame_offset * channel_count;
+                let sample_end = sample_start + count * channel_count;
+                let output_chunk = &mut output[sample_start..sample_end];
+
+                for (frame, destination) in scratch[..count]
+                    .iter()
+                    .zip(output_chunk.chunks_exact_mut(channel_count))
+                {
+                    if channel_count == 1 {
+                        let mono = (frame[0] + frame[1]) * 0.5;
+                        destination[0] = T::from_sample(mono);
+                    } else {
+                        destination[0] = T::from_sample(frame[0]);
+                        destination[1] = T::from_sample(frame[1]);
+                        destination[2..].fill(T::EQUILIBRIUM);
+                    }
+                }
+                frame_offset += count;
+            }
+
+            output[frame_count * channel_count..].fill(T::EQUILIBRIUM);
+        },
+        move |error| {
+            if let Ok(mut current) = callback_error.lock() {
+                *current = Some(error.to_string());
+            }
+        },
+        None,
+    )
 }
 
-impl sega_audio_runtime::PcmSink for NativeXAudio2Output {
-    fn write_pcm(&mut self, pcm: Vec<u8>) -> Result<(), String> {
-        NativeXAudio2Output::write_pcm(self, pcm).map_err(|error| error.to_string())
+fn build_stream_for_format(
+    device: &cpal::Device,
+    config: cpal::StreamConfig,
+    format: cpal::SampleFormat,
+    channels: u16,
+    consumer: PcmFrameConsumer,
+    flush_requested: Arc<AtomicBool>,
+    callback_error: Arc<Mutex<Option<String>>>,
+) -> Result<cpal::Stream, String> {
+    macro_rules! build {
+        ($sample:ty) => {
+            build_stream::<$sample>(
+                device,
+                config,
+                channels,
+                consumer,
+                flush_requested,
+                callback_error,
+            )
+            .map_err(|error| error.to_string())
+        };
     }
 
-    fn metrics(&self) -> (u64, u64) {
-        (self.underrun_count(), self.dropped_block_count())
-    }
-
-    fn close(&mut self) {
-        NativeXAudio2Output::close(self);
-    }
-}
-
-impl NativeXAudio2Output {
-    /// Compose this native endpoint with the Rust DSP/resampling session.
-    pub fn into_audio_session(
-        self,
-        output_sample_rate: u32,
-        volume: u8,
-    ) -> Result<sega_audio_runtime::NativeAudioSession<Self>, String> {
-        if self.sample_rate() != output_sample_rate {
-            return Err("XAudio2 device rate must match the DSP output rate".to_owned());
-        }
-        sega_audio_runtime::NativeAudioSession::new(output_sample_rate, volume, self)
+    match format {
+        cpal::SampleFormat::I8 => build!(i8),
+        cpal::SampleFormat::I16 => build!(i16),
+        cpal::SampleFormat::I24 => build!(cpal::I24),
+        cpal::SampleFormat::I32 => build!(i32),
+        cpal::SampleFormat::I64 => build!(i64),
+        cpal::SampleFormat::U8 => build!(u8),
+        cpal::SampleFormat::U16 => build!(u16),
+        cpal::SampleFormat::U24 => build!(cpal::U24),
+        cpal::SampleFormat::U32 => build!(u32),
+        cpal::SampleFormat::U64 => build!(u64),
+        cpal::SampleFormat::F32 => build!(f32),
+        cpal::SampleFormat::F64 => build!(f64),
+        unsupported => Err(format!(
+            "unsupported CPAL output sample format: {unsupported}"
+        )),
     }
 }
 
@@ -839,92 +451,98 @@ mod tests {
     use super::*;
 
     #[test]
-    fn iaudio_client3_period_is_clamped_and_aligned_to_fundamental() {
-        assert_eq!(select_shared_period(512, 48, 448, 4), Some(448));
-        assert_eq!(select_shared_period(49, 48, 448, 4), Some(52));
-        assert_eq!(select_shared_period(1, 48, 448, 4), Some(48));
-        assert_eq!(select_shared_period(512, 49, 50, 48), None);
-        assert_eq!(select_shared_period(100, 0, 448, 4), None);
-        assert_eq!(select_shared_period(100, 48, 448, 0), None);
+    fn output_device_identifiers_are_non_empty_when_enumeration_succeeds() {
+        match NativeCpalOutput::output_devices() {
+            Ok(devices) => {
+                for device in devices {
+                    assert!(!device.id.is_empty());
+                    assert!(!device.name.is_empty());
+                }
+            }
+            Err(error) => assert!(!error.is_empty()),
+        }
     }
 
     #[test]
-    fn mono_pcm16_is_duplicated_to_left_and_right_stereo_channels() {
-        let mono = [
-            0x34, 0x12, // +0x1234
-            0x00, 0x80, // -32768
-            0xff, 0x7f, // +32767
+    fn pcm_sink_metrics_start_at_zero_without_opening_a_device() {
+        let (producer, _consumer) = pcm_frame_queue(64).unwrap();
+        let metrics = producer.metrics();
+        assert_eq!(metrics.accepted_frames, 0);
+        assert_eq!(metrics.consumed_frames, 0);
+        assert_eq!(metrics.underrun_frames, 0);
+    }
+
+    #[test]
+    fn mono_float_conversion_preserves_normalized_precision() {
+        for sample in [-1.0, -0.123_456_789, 0.0, 0.123_456_789, 1.0] {
+            assert_eq!(mono_sample_to_stereo_frame(sample, 0), [sample, sample]);
+        }
+    }
+
+    fn range(
+        channels: u16,
+        min_rate: u32,
+        max_rate: u32,
+        format: cpal::SampleFormat,
+    ) -> cpal::SupportedStreamConfigRange {
+        cpal::SupportedStreamConfigRange::new(
+            channels,
+            min_rate,
+            max_rate,
+            cpal::SupportedBufferSize::Unknown,
+            format,
+        )
+    }
+
+    #[test]
+    fn config_negotiation_prefers_f32_then_i24_then_i16() {
+        let ranges = [
+            range(2, 48_000, 96_000, cpal::SampleFormat::I16),
+            range(2, 48_000, 96_000, cpal::SampleFormat::I24),
+            range(2, 48_000, 96_000, cpal::SampleFormat::F32),
         ];
-        assert_eq!(
-            mono_pcm16_to_stereo(&mono, 0),
-            [
-                0x34, 0x12, 0x34, 0x12, 0x00, 0x80, 0x00, 0x80, 0xff, 0x7f, 0xff, 0x7f,
-            ]
-        );
+        let selected = select_preferred_output_config(&ranges).unwrap();
+        assert_eq!(selected.channels(), 2);
+        assert_eq!(selected.sample_format(), cpal::SampleFormat::F32);
+        assert_eq!(selected.sample_rate(), 48_000);
     }
 
     #[test]
-    fn mono_pcm16_balance_routes_samples_to_both_channels() {
-        let mono = [0x00, 0x40, 0x00, 0xc0];
-        assert_eq!(
-            mono_pcm16_to_stereo(&mono, 0),
-            [0x00, 0x40, 0x00, 0x40, 0x00, 0xc0, 0x00, 0xc0]
-        );
-        assert_eq!(
-            mono_pcm16_to_stereo(&mono, 100),
-            [0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0xc0]
-        );
-        assert_eq!(
-            mono_pcm16_to_stereo(&mono, -100),
-            [0x00, 0x40, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00]
-        );
+    fn config_negotiation_supports_88200_and_96000_when_48000_is_unavailable() {
+        let ranges = [range(2, 88_200, 96_000, cpal::SampleFormat::F32)];
+        let selected = select_preferred_output_config(&ranges).unwrap();
+        assert_eq!(selected.sample_rate(), 88_200);
     }
 
     #[test]
-    fn wasapi_rejects_invalid_configuration_before_device_access() {
-        assert!(matches!(
-            NativeWasapiOutput::new(0, 512, 4),
-            Err(AudioOutputError::InvalidSampleRate)
-        ));
-        assert!(matches!(
-            NativeWasapiOutput::new(44_100, 0, 4),
-            Err(AudioOutputError::InvalidBufferSize)
-        ));
-        assert!(matches!(
-            NativeWasapiOutput::new(44_100, 16_385, 4),
-            Err(AudioOutputError::InvalidBufferSize)
-        ));
-        assert!(matches!(
-            NativeWasapiOutput::new(44_100, 512, 0),
-            Err(AudioOutputError::InvalidQueueCapacity)
-        ));
-        assert!(matches!(
-            NativeWasapiOutput::new_with_balance(44_100, 512, 4, 101),
-            Err(AudioOutputError::InvalidBalance)
-        ));
+    fn config_negotiation_selects_i24_when_f32_is_unavailable() {
+        let ranges = [
+            range(2, 48_000, 48_000, cpal::SampleFormat::I24),
+            range(2, 48_000, 96_000, cpal::SampleFormat::I16),
+        ];
+        let selected = select_preferred_output_config(&ranges).unwrap();
+        assert_eq!(selected.sample_format(), cpal::SampleFormat::I24);
+        assert_eq!(selected.sample_rate(), 48_000);
     }
 
     #[test]
-    fn xaudio2_rejects_invalid_configuration_before_device_access() {
-        assert!(matches!(
-            NativeXAudio2Output::new(0, 512, 4),
-            Err(AudioOutputError::InvalidSampleRate)
-        ));
-        assert!(matches!(
-            NativeXAudio2Output::new(44_100, 0, 4),
-            Err(AudioOutputError::InvalidBufferSize)
-        ));
-        assert!(matches!(
-            NativeXAudio2Output::new(44_100, 16_385, 4),
-            Err(AudioOutputError::InvalidBufferSize)
-        ));
-        assert!(matches!(
-            NativeXAudio2Output::new(44_100, 512, 0),
-            Err(AudioOutputError::InvalidQueueCapacity)
-        ));
-        assert!(matches!(
-            NativeXAudio2Output::new_with_balance(44_100, 512, 4, -101),
-            Err(AudioOutputError::InvalidBalance)
-        ));
+    fn config_negotiation_supports_96000_when_88200_is_unavailable() {
+        let ranges = [range(2, 96_000, 96_000, cpal::SampleFormat::F32)];
+        let selected = select_preferred_output_config(&ranges).unwrap();
+        assert_eq!(selected.sample_rate(), 96_000);
+    }
+
+    #[test]
+    fn config_negotiation_keeps_pcm16_as_fallback() {
+        let ranges = [range(2, 48_000, 48_000, cpal::SampleFormat::I16)];
+        let selected = select_preferred_output_config(&ranges).unwrap();
+        assert_eq!(selected.sample_format(), cpal::SampleFormat::I16);
+        assert_eq!(selected.sample_rate(), 48_000);
+    }
+
+    #[test]
+    fn config_negotiation_returns_none_when_only_other_formats_are_advertised() {
+        let ranges = [range(2, 48_000, 96_000, cpal::SampleFormat::I32)];
+        assert!(select_preferred_output_config(&ranges).is_none());
     }
 }

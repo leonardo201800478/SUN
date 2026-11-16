@@ -1,69 +1,46 @@
 # Instruções para agentes de código — Sega Emulator
 
-Estas regras orientam agentes e revisores. As decisões normativas vigentes são a [ADR-0016 — fidelidade observável](docs/architecture/adr/0016-observable-fidelity-and-proportional-timing.md), o [roadmap mestre](docs/project-roadmap.md) e o [escopo do projeto](docs/project-scope.md).
+Decisões vigentes: ADR 0010 (runtime/hardware), ADR 0011 (desktop/hosts) e ADR-0016 (fidelidade temporal). O roadmap mestre define sequência e gates. GitHub é a única fonte da verdade.
 
-## Prioridade e arquitetura
+## Arquitetura
 
-- Seguir a sequência P0 infraestrutura/hosts → P1 Master System → P2 SG-1000 → P3 Game Gear → P4 Mega Drive/Genesis → P5 Sega CD → P6 32X/Sega CD 32X → P7 frontend Qt/PyO3 → P8 compatibilidade/auditoria → P9 validação sistêmica.
-- A prioridade imediata é consolidar o Z80 compartilhado e o Master System, preservando o SG-1000.
-- Todo hardware/runtime ativo pertence a Rust. Python/PySide6 fica restrito a GUI, launcher, biblioteca, configurações, logs, diagnóstico, telemetria e tooling.
-- PyO3 é coarse-grained. Não usar callbacks Python por instrução, pixel ou amostra.
-- Não duplicar CPUs ou componentes compartilháveis por console.
-- Não adicionar JIT, frame skipping, hacks temporais ou otimizações especulativas.
+- Backend/runtime 100% Rust: CPU, barramentos, memória, mappers, VDP, áudio, interrupções, Scheduler, timing e estados.
+- Desktop alvo: Slint 1.18.x + WGPU 30.x + CPAL 0.18.2; Vulkan inicial preferencial no Windows x64; SDL3 após auditoria.
+- Slint/WGPU 30/Vulkan é o caminho desktop-alvo; CPAL 0.18.2 é a saída física-alvo; SDL3 após auditoria. Não adicionar dependências ao host anterior. Preservar temporariamente módulos ainda consumidos até os gates R3/R5 e removê-los por inventário de referências, testes e CI. Ver docs/architecture/migrations/legacy-host-retirement.md.
+- Preservar SmsTemporalWorker, FrameMailbox, Scheduler, SMS, SG-1000 e componentes validados.
+- Não duplicar CPU, worker, máquina, PSG, VDP ou Scheduler.
+- GUI exclusivamente apresentação/integração OS. Sem hardware, instruções, clocks ou callbacks por instrução.
+- Comunicação coarse-grained: load_rom/start/pause/stop/reset/step_frame e snapshots/frames com ownership explícito.
+- Proibidos JIT, frame skipping, hacks temporais e otimizações especulativas.
+
+## R1–R5
+
+1. R1: POC isolada Slint/WGPU/Vulkan; janela, device/queue compartilhados, textura externa atualizada e composição. Sem SMS real, menus, HUD, CPAL ou SDL3.
+2. R2: frames reais SMS, preservando worker e Scheduler.
+3. R3: CPAL 0.18.2, dispositivos, formatos, streams e underruns.
+4. R4: auditar/integrar SDL3.
+5. R5: frontend Slint completo e corte da baseline após paridade.
+
+## Método
+
+Auditar SHA/main, PRs, branches e workflows; pesquisar documentação oficial e referências primárias; verificar versões, APIs e licenças; definir critérios; modelar estados/ownership/timing; implementar incrementos pequenos; executar fmt, Clippy e testes direcionados antes do workflow; regredir; auditar diff; documentar; publicar por PR.
+
+Para tarefas complexas, confrontar três frentes: engenharia reversa, documentação primária e arquitetura/modelagem. Não inventar resultados de agentes ou testes.
 
 ## Fidelidade e desempenho
 
-A correção funcional de toda instrução/operação suportada é obrigatória. A granularidade segue dois níveis:
+MachineScheduler é a autoridade única dos clocks/eventos. Preservar ordem causal, determinismo, WAIT states e estado necessário à retomada. Execução contínua e em blocos deve ser equivalente. UI, renderização e áudio físico nunca controlam ciclos. Aplicativos e avaliações de desempenho somente Release.
 
-- **Temporal prioritário para gameplay:** preservar ordem e duração de instruções/processos que interagem com barramento, mapper, VDP/raster, PSG/FM/PCM, interrupções, DMA ou periféricos quando o instante altera o jogo.
-- **Atômico como padrão:** instruções internas e operações sem efeito intermediário observável executam como unidades determinísticas, com semântica, flags, estado, side effects e duração nominal correta quando conhecida.
-- M-cycles, T-states, WAIT, arbitragem, fases e sinais só são exigidos quando a dependência concreta estiver demonstrada.
-- Não exigir representação de todos os pinos nem simular capacitância, tensão, transistores ou fenômenos analógicos.
-- Não adicionar eventos por tick/pixel/pino ou estados serializados sem necessidade demonstrada.
-- Antes de detalhar um componente, identificar jogo/console/periférico, efeito observável, evidência e menor granularidade capaz de reproduzi-lo.
-- Ausência de microsequenciamento não é falha funcional quando a execução atômica satisfaz o contrato observável.
-- Medir desempenho no caminho crítico; otimizar sem alterar a saída funcional/temporal.
+## Gates
 
-## Antes de alterar
+- cargo fmt --all -- --check
+- cargo clippy --release --workspace --all-targets --locked -- -D warnings
+- cargo test --release --workspace --locked
 
-1. Confirme repositório, branch, HEAD/SHA remoto, PRs, workflows e estado dos arquivos.
-2. Leia código, testes e documentação relevantes; não presuma que um documento histórico descreve a main.
-3. Defina o comportamento observável a corrigir, critérios de aceitação, riscos e testes.
-4. Pesquise proporcionalmente ao risco: documentação primária, implementações de referência e testes independentes. Distinguir fato, medição, inferência e hipótese.
-5. Implemente mudanças pequenas, compiláveis e revisáveis; preserve trabalho existente.
-6. Use branch e PR. Não commitar diretamente na main, não fazer force-push ou reset destrutivo.
-7. Não fazer merge sem autorização e sem gates aplicáveis verdes no SHA final.
+Validar workspaces/targets standalone separadamente. Classificar cada suíte PASS, FAIL, BLOCKED ou NOT RUN. SKIPPED nunca é PASS. Testes físicos não executados permanecem NOT RUN. CI verde só valida jobs executados no SHA correspondente.
 
-## Pesquisa em três frentes
+## GitHub e privacidade
 
-Para tarefas complexas de hardware, dividir análise sem duplicar implementação:
-1. Engenharia reversa: comparar implementações abertas e identificar comportamento, sem copiar código.
-2. Documentação/fidelidade: consultar manuais do fabricante e referências técnicas do console.
-3. Arquitetura/validação: reconciliar evidências, identificar comportamento observável, escolher granularidade mínima e definir testes.
-A pesquisa não obriga implementar detalhes sem impacto no console.
+Toda alteração em branch e PR. Proibidos commit direto na main, force-push e reset destrutivo. Não fazer merge sem CI aplicável verde no HEAD final e autorização explícita. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
 
-## Testes e qualidade
-
-Criar testes de regressão para bugs quando viável. Priorizar estado arquitetural, memória/I/O, interrupções, framebuffer, áudio, comportamento de cartuchos e interações temporais relevantes. Não ajustar expectativas apenas para fazer CI passar.
-
-Gates:
-```text
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-python -m pytest
-python -m ruff check .
-python -m ruff format --check .
-```
-
-Executar os checks pertinentes e os gates exigidos pelo CI. Classificar cada suíte PASS, FAIL, BLOCKED ou NOT RUN. SKIPPED não é PASS. Vincular resultados ao SHA exato.
-
-## Workflows
-
-Inspecionar os filtros paths dos workflows e acompanhar os jobs que realmente executaram. Ler logs e artefatos quando necessário. Jobs chamados Agent 1/2/3 são automações do CI, não prova de que agentes de IA participaram.
-
-## Relatório obrigatório
-
-Informar objetivo, arquivos alterados, branch/PR/commits com links, testes realmente executados, resultados de CI, itens NOT RUN/BLOCKED, limitações e próximo passo. Não alegar execução, aprovação ou merge sem evidência.
-
-Leia também [política permanente de desenvolvimento e validação](docs/development-and-validation-policy.md).
+Ao receber "Prossiga", auditar main/PRs/CI, identificar a última tarefa concluída, resolver pendências e avançar até conclusão ou bloqueio real, sem duplicar trabalho.

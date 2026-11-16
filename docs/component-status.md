@@ -1,66 +1,71 @@
-# Estado atual dos componentes — Sega Emulator
+# Status dos componentes — revisão 2026-11-12
 
-**Baseline documental:** main em c8da934d051f69f0fad01d133a923c26248a7250 (2026-11-05).  
-**Política de fidelidade:** [ADR-0016](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).  
-**Prioridade:** Master System, mantendo SG-1000 funcional e sem regressões.
+**Revisão:** arquitetura desktop normativa conforme ADR 0011; estados de PR/workflow devem ser reconsultados no GitHub no SHA candidato.
+**Regra:** descreve somente código integrado na main; PRs abertas, evidência manual e validação física são classificadas separadamente.
 
-Este documento é a fotografia resumida do estado conhecido na baseline acima. Antes de implementar, atualizar a auditoria para o SHA corrente e verificar código, testes, PRs e workflows.
-
-## 1. Plataformas
-
-| Plataforma | Estado | Diretriz |
+| Componente | Estado integrado na main | Pendências / evidência |
 |---|---|---|
-| SG-1000 | Runtime Rust integrado | Preservar funcionalidades e jogos já validados |
-| Master System | Runtime Rust integrado | Prioridade atual; ampliar compatibilidade funcional e corrigir divergências observáveis |
-| Game Gear | Não concluído como plataforma independente | Fase futura, reutilizar SMS quando compatível |
-| Mega Drive / Genesis | Não concluído | Fase futura, CPU 68000 e Z80 auxiliar |
-| Sega CD / 32X | Não concluídos | Dependem das plataformas anteriores |
+| Produto / toolchain | Rust-only; toolchain fixada em `rust-toolchain.toml` | Gates devem ser reexecutados no HEAD candidato |
+| Aplicação desktop Slint | Desktop Slint/WGPU com frames SMS integrado (R2) | CPAL R3, SDL3 R4 e consolidação R5 pendentes |
+| Z80 compartilhado | Um núcleo Rust compartilhado | E7.7 IN_PROGRESS; E8 BLOCKED; consultar scorecard e matriz DD/FD |
+| MachineScheduler | Núcleo e testes determinísticos integrados | Stress do Scheduler não comprova sincronismo físico do áudio nem TEMPORAL_PASS sistêmico |
+| SMS core temporal | Base temporal Rust integrada | Precisão VDP ainda parcial; WAIT por fixture; Save States persistentes completos pendentes |
+| SMS runtime worker | Worker Rust puro integrado | Lifecycle e áudio físico precisam de validação no mesmo SHA |
+| Vídeo / Slint + WGPU | Frames SMS integrados ao desktop Slint/WGPU (R2) | Validação física Vulkan e campanha de frame pacing continuam exigindo captura Windows Release; ver plano R2 |
+| Áudio / PSG | SN76489 e geração PCM no runtime Rust; main ainda usa adaptadores legados | Candidata PR #770 introduz CPAL 0.18.2 e remove WASAPI/XAudio2 próprios; CI e validação física NOT RUN |
+| Input | Runtime de entrada existente | SDL3 na arquitetura desktop-alvo aguarda R4; teclado/gamepad físico NOT RUN |
+| SG-1000 | Implementação preservada fora da trilha de expansão SMS atual | Regressão obrigatória em cada alteração compartilhada; não criar fallback duplicado |
+| ZEXDOC / ZEXALL | NOT RUN | E8 bloqueada até fechamento E7 e harness Rust completo |
+| Python / Qt / PyO3 / Maturin | Fora da arquitetura ativa | Não reintroduzir em runtime, tooling, CI ou distribuição |
 
-## 2. Componentes
+## Prioridade operacional — áudio
 
-| Componente | Estado conhecido | Prioridade / limite |
+Consultar [scorecard de confiabilidade de áudio](audio/audio-reliability-scorecard.md) e [auditoria consolidada](audits/audio-reliability-consolidated-2026-11-08.md).
+
+- AUDIO-00 a AUDIO-05 são a trilha imediata.
+- Candidata PR #770: adaptador CPAL, enumeração por ID estável, conversão de formatos e integração aos workers SMS do Slint e shell anterior. Ainda não merged; validar PCM, lifecycle, desconexão, underruns e latência ponta a ponta.
+- A issue #640 permanece aberta; contagem de underrun isolada não prova causa raiz.
+- Não ajustar clocks do PSG/Scheduler, pitch, velocidade, buffer ou prebuffer sem evidência reproduzível.
+- Não considerar `consumed_frames` como frames reproduzidos nem `queue_duration_micros` como latência ponta a ponta.
+
+## PRs e issues relevantes
+
+| Referência | Estado em 2026-11-08 | Consequência |
 |---|---|---|
-| Z80 compartilhado | Implementado em Rust e consumido pelos perfis SG-1000/SMS | Corrigir semântica e regressões; não duplicar o core |
-| Z80 E5 / E6 | Consta como integrado na main nas auditorias recentes | Confirmar testes no SHA candidato antes de novas alterações |
-| Z80 E7 | Parcial; E7.3/HALT T4 consta como integrada | Revisar somente comportamentos relevantes aos consoles suportados |
-| Z80 M-cycle/T-state | Há contratos e fatias temporais no runtime | Não exigir microsequenciamento integral de todas as instruções |
-| WAIT / arbitragem | Dependem do circuito e dos consumidores de cada plataforma | Implementar somente quando houver ligação e efeito demonstrados |
-| Memória / mappers SMS | Implementações Rust presentes | Corrigir compatibilidade de cartuchos e mapas reais |
-| VDP SMS | Implementação Rust com Mode 4 e modos legados | Refinar raster/registradores quando jogos demonstrarem divergências |
-| VDP TMS9918A | Runtime SG-1000 em Rust | Preservar compatibilidade e particularidades próprias |
-| PSG / áudio | Runtime de áudio Rust integrado | Validar comportamento audível e temporização necessária |
-| Machine Scheduler | Infraestrutura Rust presente | Coordenar eventos relevantes sem impor eventos por pino/tick |
-| PyO3 / Qt | Extensão nativa e frontend ativos | Manter interface coarse-grained; sem lógica de hardware em Python |
+| [PR #752](https://github.com/leonardo201800478/sega-emulator/pull/752) | MERGED | Integração de frames SMS no desktop Slint/WGPU (R2) |
+| [PR #754](https://github.com/leonardo201800478/sega-emulator/pull/754) | MERGED | Preferências persistentes e histórico de ROMs no desktop Slint |
+| [PR #657](https://github.com/leonardo201800478/sega-emulator/pull/657) | CLOSED / NOT MERGED | Não atribuir a esta PR a integração do código atual |
+| [PR #658](https://github.com/leonardo201800478/sega-emulator/pull/658) | MERGED | Descarte da cauda do resampler após invalidação de epoch |
+| [PR #661](https://github.com/leonardo201800478/sega-emulator/pull/661) | MERGED | Amostragem SN76489 em posições fracionárias do clock de saída |
+| [PR #770](https://github.com/leonardo201800478/sega-emulator/pull/770) | CANDIDATE | CPAL 0.18.2; CI Windows e validação física pendentes |
+| [PR #643](https://github.com/leonardo201800478/sega-emulator/pull/643) | OPEN / mergeable=false | Base antiga; não integrada |
+| [PR #644](https://github.com/leonardo201800478/sega-emulator/pull/644) | OPEN / mergeable=false | Base antiga; não integrada |
+| [PR #645](https://github.com/leonardo201800478/sega-emulator/pull/645) | OPEN / mergeable=false | Base antiga; não integrada |
+| R3 — CPAL | IN_PROGRESS | Implementação candidata #770; não contar como concluída antes de CI e validação física |
+| [Issue #659](https://github.com/leonardo201800478/sega-emulator/issues/659) | OPEN | Distorção/descompasso em ambos os backends; causa não determinada |
+| [Issue #641](https://github.com/leonardo201800478/sega-emulator/issues/641) | OPEN | Corrupção visual; fora da trilha de áudio |
 
-## 2.1 Regra de granularidade vigente
+## CI da baseline
 
-- **Temporal prioritário:** caminhos de instrução/processo cuja ordem ou duração afete gameplay (I/O, registradores VDP/PSG, raster, mapper, IRQ/NMI, DMA, contenção e WAIT comprovado).
-- **Atômico padrão:** operações sem efeito intermediário observável; devem ser semanticamente exatas, determinísticas e preservar duração nominal conhecida, sem microestados artificiais.
-- A ausência de microsequenciamento não é falha funcional quando a execução atômica atende ao contrato observável.
-- Nenhuma plataforma exige precisão universal por pino ou ciclo elétrico.
+Workflow [42484594809](https://github.com/leonardo201800478/sega-emulator/actions/runs/42484594809), SHA `9731b37098e7937fa92fffc15007a7c79aac4e4c`, conclusão geral SUCCESS.
 
-## 3. Modelagem temporal em pausa
+- **PASS:** Rust quality and unit regression; Documentation patch hygiene; Change impact classification.
+- **SKIPPED / NOT RUN:** registrar por SHA e impacto. Checks de compatibilidade de hosts anteriores podem aparecer como SKIPPED; não representam validação do caminho Slint/WGPU, CPAL ou SDL3.
 
-Na consulta de 2026-11-05, as PRs #512, #514 e #526 estavam abertas/Draft e não integradas na main. A PR #527 também estava aberta/Draft e não integrada.
+Não interpretar o sucesso geral como validação das suítes ignoradas.
 
-Essas propostas não são trabalho ativo. Não avançar em timeline racional, microsequenciamento universal, WAIT/TW genérico, BUSREQ/BUSACK ou representação de pinos sem primeiro identificar uma dependência observável de SMS ou SG-1000 e demonstrar que a menor solução funcional exige esse detalhe.
+## CI da correção de áudio — PR #666
 
-## 4. Validação
+Workflow [42489225235](https://github.com/leonardo201800478/sega-emulator/actions/runs/42489225235), HEAD `29916f7ddb27a069b385a57e53d04760de5e01ed`, conclusão SUCCESS. PASS: workspace fmt/Clippy/testes; Linux audio-output; host de áudio transitório fmt/Clippy/testes; formatação e Clippy da aplicação Windows; documentação e classificação de impacto. SKIPPED: Scheduler stress, Z80 focused, SDL3, PowerShell e refresh manual de lockfiles. A CI não executa áudio em endpoint físico nem loopback.
 
-- Executar os gates Rust e Python no SHA candidato.
-- Testar a funcionalidade afetada e executar regressões SMS/SG-1000.
-- Usar ROMs de diagnóstico e referências independentes quando agregarem evidência.
-- Medir desempenho quando houver alteração no caminho crítico.
-- Classificar cada suíte como PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED não é PASS.
+## Evidência do Scheduler
 
-Nenhuma validação global de cycle-accuracy ou pin-accuracy é requisito universal.
+A campanha longa anterior executou 320.000 operações e 4.000.000 dispatches em 16 seeds, com 2 testes PASS e 0 falhas, conforme [registro de 2026-11-07](evidence/scheduler-stress-long-2026-11-07.md). Essa evidência é restrita ao Scheduler e não comprova áudio físico.
 
-## 5. Fontes de autoridade
+## Classificação de maturidade
 
-- [Roadmap mestre](project-roadmap.md)
-- [Escopo do projeto](project-scope.md)
-- [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md)
-- [Scorecard funcional do Z80](z80-completion-scorecard.md)
-- [Matriz semântica DD/FD](z80-dd-fd-semantic-matrix.md)
-
-Auditorias datadas preservam evidências históricas; não devem ser usadas como status corrente sem reconciliação com a main.
+- **IMPLEMENTED:** código existe e está integrado.
+- **TESTED:** testes direcionados executados no SHA indicado.
+- **INTEGRATION_PENDING:** depende de integração com outro componente/host.
+- **PHYSICAL_VALIDATION_PENDING:** depende de dispositivo ou GPU real.
+- **NOT RUN / BLOCKED:** teste não executado ou execução impedida; nunca equivale a PASS.

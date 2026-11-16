@@ -8,6 +8,13 @@
 #[cfg(windows)]
 pub mod d3d12;
 
+/// Host-side diagnostics that correlate telemetry with Windows performance traces.
+#[cfg(windows)]
+pub mod diagnostics;
+
+pub mod frame_queue;
+pub use frame_queue::{FrameQueue, FrameQueueError};
+
 use core::fmt;
 use std::sync::Arc;
 
@@ -16,6 +23,8 @@ use std::sync::Arc;
 pub enum PixelFormat {
     /// 16-bit RGB, little-endian byte order (R5:G6:B5).
     Rgb565Le,
+    /// Three bytes per pixel in red, green, blue order.
+    Rgb888,
     /// Four bytes per pixel in red, green, blue, alpha order.
     Rgba8888,
 }
@@ -25,6 +34,7 @@ impl PixelFormat {
     pub const fn bytes_per_pixel(self) -> usize {
         match self {
             Self::Rgb565Le => 2,
+            Self::Rgb888 => 3,
             Self::Rgba8888 => 4,
         }
     }
@@ -242,12 +252,32 @@ pub trait VideoFrameSink: Send + Sync {
     fn submit(&self, frame: VideoFrame) -> Result<(), FrameMailboxError>;
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct MailboxState {
-    latest: Option<VideoFrame>,
+    latest: Option<(VideoFrame, std::time::Instant)>,
     last_sequence: Option<u64>,
     replaced_frames: u64,
     closed: bool,
+    frame_available_notifier: Option<Arc<dyn Fn(FrameMailbox) + Send + Sync>>,
+}
+
+impl fmt::Debug for MailboxState {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MailboxState")
+            .field(
+                "latest_sequence",
+                &self.latest.as_ref().map(|(frame, _)| frame.sequence()),
+            )
+            .field("last_sequence", &self.last_sequence)
+            .field("replaced_frames", &self.replaced_frames)
+            .field("closed", &self.closed)
+            .field(
+                "has_frame_available_notifier",
+                &self.frame_available_notifier.is_some(),
+            )
+            .finish()
+    }
 }
 
 /// A bounded, single-slot mailbox for presentation.
@@ -257,9 +287,18 @@ struct MailboxState {
 /// This coalesces presentation work only: it does not skip machine execution,
 /// alter Scheduler time, or discard emulation events. Sequence numbers remain
 /// strictly monotonic across consumed and replaced frames.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct FrameMailbox {
     state: Arc<std::sync::Mutex<MailboxState>>,
+}
+
+impl fmt::Debug for FrameMailbox {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FrameMailbox")
+            .field("state", &self.state)
+            .finish()
+    }
 }
 
 impl FrameMailbox {
@@ -273,39 +312,114 @@ impl FrameMailbox {
     /// Frames must have strictly increasing sequence numbers. A frame already
     /// consumed by the host still participates in this monotonicity check.
     pub fn publish(&self, frame: VideoFrame) -> Result<(), FrameMailboxError> {
+        let notifier = {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|_| FrameMailboxError::SynchronizationPoisoned)?;
+
+            if state.closed {
+                return Err(FrameMailboxError::Closed);
+            }
+
+            if let Some(last) = state.last_sequence
+                && frame.sequence() <= last
+            {
+                return Err(FrameMailboxError::NonMonotonicSequence {
+                    last,
+                    incoming: frame.sequence(),
+                });
+            }
+
+            let published_at = std::time::Instant::now();
+            if state.latest.replace((frame, published_at)).is_some() {
+                state.replaced_frames = state.replaced_frames.saturating_add(1);
+            }
+
+            state.last_sequence = state.latest.as_ref().map(|(frame, _)| frame.sequence());
+            state.frame_available_notifier.clone()
+        };
+
+        // Never call host code while holding the mailbox lock. A notifier may
+        // enqueue work on another thread or even synchronously consume the frame.
+        if let Some(notifier) = notifier {
+            notifier(self.clone());
+        }
+        Ok(())
+    }
+
+    /// Register or clear a host notification for newly available presentation work.
+    ///
+    /// The callback runs on the publishing thread, or on the thread explicitly calling
+    /// notify_if_pending, and always runs after the mailbox lock has been released.
+    /// Hosts must keep the callback short and use it only to schedule work on their
+    /// presentation thread.
+    pub fn set_frame_available_notifier(
+        &self,
+        notifier: Option<Arc<dyn Fn(FrameMailbox) + Send + Sync>>,
+    ) -> Result<(), FrameMailboxError> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| FrameMailboxError::SynchronizationPoisoned)?;
+        state.frame_available_notifier = notifier;
+        Ok(())
+    }
 
-        if state.closed {
-            return Err(FrameMailboxError::Closed);
+    /// Notify the host when a pending frame needs another presentation attempt.
+    ///
+    /// This is useful after a renderer becomes available again. The callback is
+    /// cloned under the mailbox lock and invoked only after the lock is released.
+    pub fn notify_if_pending(&self) -> Result<(), FrameMailboxError> {
+        let notifier = {
+            let state = self
+                .state
+                .lock()
+                .map_err(|_| FrameMailboxError::SynchronizationPoisoned)?;
+            state
+                .latest
+                .as_ref()
+                .and(state.frame_available_notifier.clone())
+        };
+
+        if let Some(notifier) = notifier {
+            notifier(self.clone());
         }
-
-        if let Some(last) = state.last_sequence
-            && frame.sequence() <= last
-        {
-            return Err(FrameMailboxError::NonMonotonicSequence {
-                last,
-                incoming: frame.sequence(),
-            });
-        }
-
-        if state.latest.replace(frame).is_some() {
-            state.replaced_frames = state.replaced_frames.saturating_add(1);
-        }
-
-        state.last_sequence = state.latest.as_ref().map(VideoFrame::sequence);
         Ok(())
     }
 
     /// Take the newest pending frame, leaving the mailbox empty.
     pub fn take_latest(&self) -> Result<Option<VideoFrame>, FrameMailboxError> {
+        Ok(self
+            .take_latest_with_timestamp()?
+            .map(|(frame, _published_at)| frame))
+    }
+
+    /// Take the newest pending frame together with its monotonic publication timestamp.
+    ///
+    /// The timestamp is captured inside publish after the mailbox lock is acquired and
+    /// sequence validation succeeds. It can be compared with Instant values from the
+    /// same process to measure mailbox residence time; it is not emulated machine time.
+    pub fn take_latest_with_timestamp(
+        &self,
+    ) -> Result<Option<(VideoFrame, std::time::Instant)>, FrameMailboxError> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| FrameMailboxError::SynchronizationPoisoned)?;
         Ok(state.latest.take())
+    }
+
+    /// Return the last sequence accepted by this mailbox, including consumed frames.
+    ///
+    /// A newly attached producer uses this value to continue the mailbox sequence
+    /// instead of restarting at one when a ROM worker is replaced.
+    pub fn last_sequence(&self) -> Result<Option<u64>, FrameMailboxError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| FrameMailboxError::SynchronizationPoisoned)?;
+        Ok(state.last_sequence)
     }
 
     /// Return how many pending frames were replaced before presentation.
@@ -328,6 +442,7 @@ impl FrameMailbox {
             .map_err(|_| FrameMailboxError::SynchronizationPoisoned)?;
         state.closed = true;
         state.latest = None;
+        state.frame_available_notifier = None;
         Ok(())
     }
 
@@ -370,6 +485,16 @@ mod tests {
         assert_eq!(frame.stride_bytes(), 4);
         assert_eq!(frame.row(0), Some(&[1, 2, 3, 4][..]));
         assert_eq!(frame.row(1), Some(&[5, 6, 7, 8][..]));
+    }
+
+    #[test]
+    fn accepts_tightly_packed_rgb888_frame() {
+        let frame =
+            VideoFrame::new(8, 2, 1, PixelFormat::Rgb888, 6, vec![255, 0, 0, 0, 255, 0]).unwrap();
+
+        assert_eq!(frame.sequence(), 8);
+        assert_eq!(frame.row_bytes(), 6);
+        assert_eq!(frame.row(0), Some(&[255, 0, 0, 0, 255, 0][..]));
     }
 
     #[test]
@@ -467,6 +592,102 @@ mod tests {
     }
 
     #[test]
+    fn mailbox_notifier_runs_after_publish_releases_the_lock() {
+        use std::sync::{Arc, Mutex};
+
+        let mailbox = super::FrameMailbox::new();
+        let notified_sequence = Arc::new(Mutex::new(None));
+        let callback_sequence = Arc::clone(&notified_sequence);
+
+        mailbox
+            .set_frame_available_notifier(Some(Arc::new(move |notified_mailbox| {
+                let sequence = notified_mailbox
+                    .take_latest()
+                    .unwrap()
+                    .map(|frame| frame.sequence());
+                *callback_sequence.lock().unwrap() = sequence;
+            })))
+            .unwrap();
+
+        mailbox.publish(test_frame(9)).unwrap();
+
+        assert_eq!(*notified_sequence.lock().unwrap(), Some(9));
+        assert_eq!(mailbox.take_latest().unwrap(), None);
+    }
+
+    #[test]
+    fn mailbox_can_renotify_a_pending_frame_after_host_recovery() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        let mailbox = super::FrameMailbox::new();
+        let notifications = Arc::new(AtomicUsize::new(0));
+        let callback_notifications = Arc::clone(&notifications);
+        mailbox
+            .set_frame_available_notifier(Some(Arc::new(move |_notified_mailbox| {
+                callback_notifications.fetch_add(1, Ordering::Relaxed);
+            })))
+            .unwrap();
+
+        mailbox.notify_if_pending().unwrap();
+        assert_eq!(notifications.load(Ordering::Relaxed), 0);
+
+        mailbox.publish(test_frame(7)).unwrap();
+        mailbox.notify_if_pending().unwrap();
+
+        assert_eq!(notifications.load(Ordering::Relaxed), 2);
+        assert_eq!(mailbox.take_latest().unwrap().unwrap().sequence(), 7);
+    }
+
+    #[test]
+    fn mailbox_notifier_is_not_called_for_rejected_publications() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        let mailbox = super::FrameMailbox::new();
+        let notifications = Arc::new(AtomicUsize::new(0));
+        let callback_notifications = Arc::clone(&notifications);
+
+        mailbox
+            .set_frame_available_notifier(Some(Arc::new(move |_notified_mailbox| {
+                callback_notifications.fetch_add(1, Ordering::Relaxed);
+            })))
+            .unwrap();
+
+        mailbox.publish(test_frame(3)).unwrap();
+        assert!(mailbox.publish(test_frame(3)).is_err());
+
+        assert_eq!(notifications.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn mailbox_exposes_monotonic_publication_timestamp() {
+        let mailbox = super::FrameMailbox::new();
+        let before_publish = std::time::Instant::now();
+        mailbox.publish(test_frame(4)).unwrap();
+
+        let (frame, published_at) = mailbox.take_latest_with_timestamp().unwrap().unwrap();
+        let consumed_at = std::time::Instant::now();
+
+        assert_eq!(frame.sequence(), 4);
+        assert!(published_at >= before_publish);
+        assert!(published_at <= consumed_at);
+    }
+
+    #[test]
+    fn mailbox_reports_last_accepted_sequence_after_consumption() {
+        let mailbox = super::FrameMailbox::new();
+        assert_eq!(mailbox.last_sequence().unwrap(), None);
+        mailbox.publish(test_frame(12)).unwrap();
+        mailbox.take_latest().unwrap();
+        assert_eq!(mailbox.last_sequence().unwrap(), Some(12));
+    }
+
+    #[test]
     fn mailbox_rejects_non_monotonic_sequences_even_after_consumption() {
         let mailbox = super::FrameMailbox::new();
         mailbox.publish(test_frame(10)).unwrap();
@@ -525,6 +746,7 @@ mod tests {
     #[test]
     fn pixel_format_reports_exact_bytes_per_pixel() {
         assert_eq!(PixelFormat::Rgb565Le.bytes_per_pixel(), 2);
+        assert_eq!(PixelFormat::Rgb888.bytes_per_pixel(), 3);
         assert_eq!(PixelFormat::Rgba8888.bytes_per_pixel(), 4);
     }
 }

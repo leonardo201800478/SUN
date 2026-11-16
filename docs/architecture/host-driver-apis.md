@@ -1,3 +1,5 @@
+> **Áudio — atualização de 2026-11-12:** as decisões WASAPI/XAudio2 descritas abaixo são históricas e estão superseded pela arquitetura CPAL 0.18.2 candidata na [PR #770](https://github.com/leonardo201800478/sega-emulator/pull/770). No Windows, CPAL utiliza WASAPI internamente como backend do sistema; o projeto não mantém adaptador próprio WASAPI, XAudio2 nem bindings de áudio Win32. Consulte [saída física CPAL](../audio/cpal-output-backend.md).
+
 # Contrato global de drivers de entrada, áudio e vídeo
 
 ## Objetivo
@@ -55,6 +57,6 @@ Qt é a única interface gráfica ativa e usa exclusivamente o runtime Rust. Pyg
 - Validar o contrato para cada console antes de habilitar drivers específicos nele.
 
 
-## Decisão normativa de áudio — 2026-10-30
+## Decisão histórica de áudio — 2026-10-30 (SUPERSEDED pela ADR 0011; CPAL R3 pendente)
 
 A seleção global de saída permanece WASAPI Shared por padrão e XAudio2 como alternativa. A fachada Qt/PySide6 envia apenas configuração e comandos de sessão; o runtime Rust possui produção, mixagem, resampling, filas, workers e saída. O frontend não drena nem transporta PCM. O WASAPI Shared tenta IAudioClient3 para negociar min/max/fundamental e recua para Shared convencional quando necessário; Exclusive permanece fora do padrão. O mixer DSP multi-fonte mono é compartilhado por WASAPI/XAudio2; filtros analógicos por chip não são habilitados sem calibração. Ver [Runtime de áudio nativo](native-audio-runtime.md).

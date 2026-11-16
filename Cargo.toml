@@ -1,13 +1,13 @@
 [workspace]
 resolver = "3"
 exclude = [
-    "native/z80_core",
-    "native/sega_emu_core",
     "native/audio_output",
 ]
 members = [
     "native/sg1000_core",
     "native/sms_core",
+    "native/media_runtime",
+    "native/save_runtime",
     "native/z80_cpu",
     "native/sn76489",
     "native/z80_alu",
@@ -17,10 +17,17 @@ members = [
     "native/temporal_core",
     "native/machine_scheduler",
     "native/video_runtime",
+    "native/video_core",
+    "native/observability",
+    "native/debugger_core",
+    "native/sega_desktop",
+    "rust/runtime/sms-runtime",
 ]
 default-members = [
     "native/sg1000_core",
     "native/sms_core",
+    "native/media_runtime",
+    "native/save_runtime",
     "native/z80_cpu",
     "native/sn76489",
     "native/z80_alu",
@@ -30,4 +37,11 @@ default-members = [
     "native/temporal_core",
     "native/machine_scheduler",
     "native/video_runtime",
+    "native/observability",
+    "native/sega_desktop",
+    "rust/runtime/sms-runtime",
 ]
+
+[workspace.dependencies]
+sega-observability = { path = "native/observability" }
+sega-debugger-core = { path = "native/debugger_core" }

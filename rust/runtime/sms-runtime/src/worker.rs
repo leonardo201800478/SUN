@@ -1,0 +1,3820 @@
+//! Rust-owned continuous execution worker for the temporal SMS machine.
+//!
+//! The worker constructs and owns the complete hardware machine on its own
+//! thread. The host sends only coarse-grained commands; CPU, Scheduler, VDP, PSG,
+//! audio pacing and state transitions remain inside Rust.
+
+#[cfg(test)]
+use std::sync::Condvar;
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
+
+use crate::audio::AudioSession;
+use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
+use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
+use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
+use sega_sms_core::{
+    ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
+    SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
+    Territory, VideoStandard,
+};
+use sega_sn76489::H2StreamingRenderer;
+#[cfg(windows)]
+use sega_video_runtime::d3d12::D3d12MailboxSession;
+use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
+
+const SMS_INTERNAL_AUDIO_SAMPLE_RATE: u64 = DEFAULT_PCM_SOURCE_RATE_HZ as u64;
+const H2_EVENT_CAPTURE_CAPACITY: usize = 16_384;
+const AUDIO_RENDERER_FADE_SAMPLES: usize = 256;
+const SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE: u64 = 1;
+const DEFAULT_MAX_FRAME_INSTRUCTIONS: usize = 100_000;
+const DEBUG_TRACE_CAPACITY: usize = 2_048;
+const WORKER_COMMAND_QUEUE_CAPACITY: usize = 64;
+// Running workers accept control commands at complete-frame boundaries; debug builds may need
+// substantially longer than one wall-clock frame to reach that safe point.
+const WORKER_REPLY_TIMEOUT: Duration = Duration::from_secs(2);
+// A complete frame step can execute tens of thousands of instructions, especially in debug builds.
+const WORKER_FRAME_STEP_TIMEOUT: Duration = Duration::from_secs(5);
+const WORKER_STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
+const WORKER_IDLE_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+/// Absolute host-clock deadline for the next SMS frame.
+///
+/// This is presentation pacing only. It never advances or modifies virtual
+/// machine time; non-pausing worker commands consume the existing budget
+/// instead of restarting it.
+#[derive(Debug, Default, Clone, Copy)]
+struct FramePacingDeadline {
+    deadline: Option<Instant>,
+}
+
+impl FramePacingDeadline {
+    fn set(&mut self, deadline: Option<Instant>) {
+        self.deadline = deadline;
+    }
+
+    fn remaining(&self, now: Instant) -> Option<Duration> {
+        self.deadline
+            .map(|deadline| deadline.saturating_duration_since(now))
+    }
+
+    fn clear(&mut self) {
+        self.deadline = None;
+    }
+}
+
+/// Advance the host presentation target without inheriting scheduler wake lateness.
+/// The first frame starts a new epoch; later frames advance from the prior target.
+fn calculate_next_frame_deadline(
+    frame_started: Instant,
+    frame_duration: Duration,
+    previous_deadline: Option<Instant>,
+) -> Instant {
+    previous_deadline.unwrap_or(frame_started) + frame_duration
+}
+
+/// Convert completed MachineScheduler ticks to host duration using the active region clock.
+/// `None` is returned only when the worker has no valid clock configuration.
+fn frame_duration_from_machine_ticks(
+    machine_ticks: u128,
+    machine_clock_hz: u64,
+) -> Option<Duration> {
+    (machine_clock_hz > 0)
+        .then(|| Duration::from_secs_f64(machine_ticks as f64 / machine_clock_hz as f64))
+}
+
+pub fn sms_temporal_region_profile(
+    region: &str,
+) -> Result<(Territory, SmsVdpProfile, u64), &'static str> {
+    sms_temporal_hardware_profile(region, SmsVdpRevision::Sega3155124)
+}
+
+/// Resolve regional timing independently from the explicitly selected VDP ASIC.
+pub fn sms_temporal_hardware_profile(
+    region: &str,
+    revision: SmsVdpRevision,
+) -> Result<(Territory, SmsVdpProfile, u64), &'static str> {
+    let sprite_limit = SpriteLimitMode::HardwareLimit;
+    match region {
+        "usa" => Ok((
+            Territory::Export,
+            SmsVdpProfile::new(revision, VideoStandard::Ntsc, sprite_limit),
+            3_579_545,
+        )),
+        "brazil" => Ok((
+            Territory::Export,
+            SmsVdpProfile::new(revision, VideoStandard::PalM, sprite_limit),
+            3_579_545,
+        )),
+        "europe" => Ok((
+            Territory::Export,
+            SmsVdpProfile::new(revision, VideoStandard::Pal, sprite_limit),
+            3_546_895,
+        )),
+        "japan" | "korea" => Ok((
+            // SMS Power documents Japan and Korea as the same Japanese/NTSC
+            // hardware signal. Korea remains a distinct software/firmware
+            // selection in the application layer.
+            Territory::Japan,
+            SmsVdpProfile::new(revision, VideoStandard::Ntsc, sprite_limit),
+            3_579_545,
+        )),
+        _ => Err("region deve ser usa, brazil, europe, japan ou korea"),
+    }
+}
+
+fn enqueue_worker_command(
+    commands: &SyncSender<WorkerCommand>,
+    command: WorkerCommand,
+) -> Result<(), String> {
+    match commands.try_send(command) {
+        Ok(()) => Ok(()),
+        Err(TrySendError::Full(_)) => {
+            Err("SMS machine worker command queue is full; retry shortly".to_owned())
+        }
+        Err(TrySendError::Disconnected(_)) => Err("SMS machine worker is unavailable".to_owned()),
+    }
+}
+
+fn receive_worker_reply_with_timeout<T>(
+    receiver: Receiver<T>,
+    operation: &str,
+    timeout: Duration,
+) -> Result<T, String> {
+    receiver.recv_timeout(timeout).map_err(|error| match error {
+        RecvTimeoutError::Timeout => {
+            format!("SMS machine worker timed out while {operation}")
+        }
+        RecvTimeoutError::Disconnected => {
+            format!("SMS machine worker stopped while {operation}")
+        }
+    })
+}
+
+fn receive_worker_reply<T>(receiver: Receiver<T>, operation: &str) -> Result<T, String> {
+    receive_worker_reply_with_timeout(receiver, operation, WORKER_REPLY_TIMEOUT)
+}
+
+#[cfg(test)]
+fn build_sms_temporal_machine(rom: Vec<u8>, region: &str) -> Result<SmsTemporalMachine, String> {
+    build_sms_temporal_machine_with_revision_and_sram_size(
+        rom,
+        region,
+        SmsVdpRevision::Sega3155124,
+        None,
+    )
+}
+
+fn build_sms_temporal_machine_with_revision_and_sram_size(
+    rom: Vec<u8>,
+    region: &str,
+    revision: SmsVdpRevision,
+    cartridge_sram_size: Option<usize>,
+) -> Result<SmsTemporalMachine, String> {
+    let (territory, vdp_profile, psg_clock_hz) =
+        sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
+    SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
+        rom,
+        SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+        psg_clock_hz,
+        SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+        vdp_profile,
+        territory,
+        cartridge_sram_size,
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Rebuild power-on machine state while retaining the exact physical SRAM image and ASIC.
+fn rebuild_sms_temporal_machine_preserving_sram(
+    current: &SmsTemporalMachine,
+    rom: Vec<u8>,
+    region: &str,
+    revision: SmsVdpRevision,
+) -> Result<SmsTemporalMachine, String> {
+    let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
+    let capacity = sram.as_ref().map(Vec::len);
+    let mut rebuilt =
+        build_sms_temporal_machine_with_revision_and_sram_size(rom, region, revision, capacity)?;
+    if let Some(contents) = sram {
+        rebuilt
+            .load_cartridge_sram(&contents)
+            .map_err(|error| error.to_string())?;
+    }
+    rebuilt.set_sprite_limit_mode(current.vdp().sprite_limit_mode());
+    Ok(rebuilt)
+}
+
+/// Host-clock measurements taken only when the SMS worker completes a full frame.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SmsPerformanceMetrics {
+    /// Completed SMS frames per wall-clock second, sampled over a rolling interval.
+    pub emulation_fps: f32,
+    /// Wall-clock milliseconds between consecutive completed SMS frames.
+    pub frame_time_ms: Option<f32>,
+    /// Milliseconds from host input detection to the first completed frame after it.
+    pub input_to_frame_ms: Option<f32>,
+    /// Monotonic SMS frame counter observed by this telemetry instance.
+    pub completed_frames: u64,
+}
+
+const FRAME_PACING_WINDOW_CAPACITY: usize = 512;
+
+#[derive(Debug, Clone, Copy, Default)]
+struct FramePacingSample {
+    frame_interval_ns: u64,
+    machine_ticks_per_frame: u64,
+    step_frame_ns: u64,
+    video_publish_ns: u64,
+    audio_submit_ns: u64,
+    frame_processing_ns: u64,
+    frame_budget_ns: u64,
+    audio_samples: u64,
+    pacing_wait_budget_ns: u64,
+    pacing_wait_elapsed_ns: u64,
+    pacing_timeout_lateness_ns: u64,
+    pacing_timeout_count: u64,
+    pacing_command_wakeups: u64,
+    pacing_command_remaining_ns: u64,
+    command_handler_ns: u64,
+}
+
+#[derive(Debug, Clone)]
+struct FramePacingWindow {
+    samples: [FramePacingSample; FRAME_PACING_WINDOW_CAPACITY],
+    len: usize,
+    next: usize,
+    total: u64,
+}
+
+impl Default for FramePacingWindow {
+    fn default() -> Self {
+        Self {
+            samples: [FramePacingSample::default(); FRAME_PACING_WINDOW_CAPACITY],
+            len: 0,
+            next: 0,
+            total: 0,
+        }
+    }
+}
+
+impl FramePacingWindow {
+    fn push(&mut self, sample: FramePacingSample) {
+        self.samples[self.next] = sample;
+        self.next = (self.next + 1) % FRAME_PACING_WINDOW_CAPACITY;
+        self.len = (self.len + 1).min(FRAME_PACING_WINDOW_CAPACITY);
+        self.total = self.total.saturating_add(1);
+    }
+
+    fn last_sample_mut(&mut self) -> Option<&mut FramePacingSample> {
+        if self.len == 0 {
+            return None;
+        }
+        let last = (self.next + FRAME_PACING_WINDOW_CAPACITY - 1) % FRAME_PACING_WINDOW_CAPACITY;
+        Some(&mut self.samples[last])
+    }
+
+    fn record_actual_wait(&mut self, elapsed: Duration) {
+        let elapsed_ns = elapsed.as_nanos().min(u128::from(u64::MAX)) as u64;
+        if let Some(sample) = self.last_sample_mut() {
+            sample.pacing_wait_elapsed_ns =
+                sample.pacing_wait_elapsed_ns.saturating_add(elapsed_ns);
+        }
+    }
+
+    fn record_timeout_lateness(&mut self, lateness: Duration) {
+        let lateness_ns = lateness.as_nanos().min(u128::from(u64::MAX)) as u64;
+        if let Some(sample) = self.last_sample_mut() {
+            sample.pacing_timeout_count = sample.pacing_timeout_count.saturating_add(1);
+            sample.pacing_timeout_lateness_ns = sample
+                .pacing_timeout_lateness_ns
+                .saturating_add(lateness_ns);
+        }
+    }
+
+    fn record_command_wakeup(&mut self, remaining: Duration) {
+        let remaining_ns = remaining.as_nanos().min(u128::from(u64::MAX)) as u64;
+        if let Some(sample) = self.last_sample_mut() {
+            sample.pacing_command_wakeups = sample.pacing_command_wakeups.saturating_add(1);
+            sample.pacing_command_remaining_ns =
+                sample.pacing_command_remaining_ns.max(remaining_ns);
+        }
+    }
+
+    fn record_command_handler(&mut self, elapsed: Duration) {
+        let elapsed_ns = elapsed.as_nanos().min(u128::from(u64::MAX)) as u64;
+        if let Some(sample) = self.last_sample_mut() {
+            sample.command_handler_ns = sample.command_handler_ns.saturating_add(elapsed_ns);
+        }
+    }
+
+    fn snapshot(&self) -> SmsFramePacingMetrics {
+        let samples: Vec<_> = (0..self.len)
+            .map(|offset| {
+                let index = (self.next + FRAME_PACING_WINDOW_CAPACITY - self.len + offset)
+                    % FRAME_PACING_WINDOW_CAPACITY;
+                self.samples[index]
+            })
+            .collect();
+
+        fn percentile(values: &mut [u64], percentile: usize) -> u64 {
+            if values.is_empty() {
+                return 0;
+            }
+            values.sort_unstable();
+            let rank = (values.len() * percentile).div_ceil(100).max(1) - 1;
+            values[rank.min(values.len() - 1)]
+        }
+
+        let mut intervals: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.frame_interval_ns)
+            .filter(|value| *value > 0)
+            .collect();
+        let mut machine_ticks: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.machine_ticks_per_frame)
+            .collect();
+        let mut steps: Vec<_> = samples.iter().map(|sample| sample.step_frame_ns).collect();
+        let mut publishes: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.video_publish_ns)
+            .collect();
+        let mut audio: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.audio_submit_ns)
+            .collect();
+        let mut processing: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.frame_processing_ns)
+            .collect();
+        let mut wait_budgets: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.pacing_wait_budget_ns)
+            .collect();
+        let mut wait_elapsed: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.pacing_wait_elapsed_ns)
+            .collect();
+        let mut frame_budgets: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.frame_budget_ns)
+            .collect();
+        let mut audio_samples: Vec<_> = samples.iter().map(|sample| sample.audio_samples).collect();
+        let mut timeout_lateness: Vec<_> = samples
+            .iter()
+            .filter(|sample| sample.pacing_timeout_count > 0)
+            .map(|sample| sample.pacing_timeout_lateness_ns)
+            .collect();
+        let mut command_remaining: Vec<_> = samples
+            .iter()
+            .filter(|sample| sample.pacing_command_wakeups > 0)
+            .map(|sample| sample.pacing_command_remaining_ns)
+            .collect();
+        let mut command_handlers: Vec<_> = samples
+            .iter()
+            .filter(|sample| sample.command_handler_ns > 0)
+            .map(|sample| sample.command_handler_ns)
+            .collect();
+
+        SmsFramePacingMetrics {
+            sample_count: self.len as u64,
+            total_samples: self.total,
+            frame_interval_p50_ns: percentile(&mut intervals, 50),
+            frame_interval_p95_ns: percentile(&mut intervals, 95),
+            frame_interval_p99_ns: percentile(&mut intervals, 99),
+            machine_ticks_per_frame_min: machine_ticks.iter().copied().min().unwrap_or(0),
+            machine_ticks_per_frame_p50: percentile(&mut machine_ticks, 50),
+            machine_ticks_per_frame_max: machine_ticks.iter().copied().max().unwrap_or(0),
+            step_frame_p50_ns: percentile(&mut steps, 50),
+            step_frame_p95_ns: percentile(&mut steps, 95),
+            step_frame_p99_ns: percentile(&mut steps, 99),
+            video_publish_p50_ns: percentile(&mut publishes, 50),
+            video_publish_p95_ns: percentile(&mut publishes, 95),
+            video_publish_p99_ns: percentile(&mut publishes, 99),
+            audio_submit_p50_ns: percentile(&mut audio, 50),
+            audio_submit_p95_ns: percentile(&mut audio, 95),
+            audio_submit_p99_ns: percentile(&mut audio, 99),
+            frame_processing_p50_ns: percentile(&mut processing, 50),
+            frame_processing_p95_ns: percentile(&mut processing, 95),
+            frame_processing_p99_ns: percentile(&mut processing, 99),
+            pacing_wait_budget_p50_ns: percentile(&mut wait_budgets, 50),
+            pacing_wait_budget_p95_ns: percentile(&mut wait_budgets, 95),
+            pacing_wait_budget_p99_ns: percentile(&mut wait_budgets, 99),
+            pacing_wait_elapsed_p50_ns: percentile(&mut wait_elapsed, 50),
+            pacing_wait_elapsed_p95_ns: percentile(&mut wait_elapsed, 95),
+            pacing_wait_elapsed_p99_ns: percentile(&mut wait_elapsed, 99),
+            frame_budget_p50_ns: percentile(&mut frame_budgets, 50),
+            frame_budget_p95_ns: percentile(&mut frame_budgets, 95),
+            frame_budget_p99_ns: percentile(&mut frame_budgets, 99),
+            audio_samples_p50: percentile(&mut audio_samples, 50),
+            audio_samples_p95: percentile(&mut audio_samples, 95),
+            audio_samples_p99: percentile(&mut audio_samples, 99),
+            pacing_timeout_lateness_p50_ns: percentile(&mut timeout_lateness, 50),
+            pacing_timeout_lateness_p95_ns: percentile(&mut timeout_lateness, 95),
+            pacing_timeout_lateness_p99_ns: percentile(&mut timeout_lateness, 99),
+            pacing_timeout_count_total: samples
+                .iter()
+                .map(|sample| sample.pacing_timeout_count)
+                .sum(),
+            pacing_command_wakeups_total: samples
+                .iter()
+                .map(|sample| sample.pacing_command_wakeups)
+                .sum(),
+            pacing_command_remaining_p95_ns: percentile(&mut command_remaining, 95),
+            command_handler_p95_ns: percentile(&mut command_handlers, 95),
+        }
+    }
+}
+
+/// Bounded rolling diagnostics for the SMS worker's completed-frame path.
+///
+/// Durations use the host monotonic clock; machine ticks remain virtual time.
+/// These metrics observe execution and never feed back into Scheduler progression.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SmsFramePacingMetrics {
+    pub sample_count: u64,
+    pub total_samples: u64,
+    pub frame_interval_p50_ns: u64,
+    pub frame_interval_p95_ns: u64,
+    pub frame_interval_p99_ns: u64,
+    pub machine_ticks_per_frame_min: u64,
+    pub machine_ticks_per_frame_p50: u64,
+    pub machine_ticks_per_frame_max: u64,
+    pub step_frame_p50_ns: u64,
+    pub step_frame_p95_ns: u64,
+    pub step_frame_p99_ns: u64,
+    pub video_publish_p50_ns: u64,
+    pub video_publish_p95_ns: u64,
+    pub video_publish_p99_ns: u64,
+    pub audio_submit_p50_ns: u64,
+    pub audio_submit_p95_ns: u64,
+    pub audio_submit_p99_ns: u64,
+    pub frame_processing_p50_ns: u64,
+    pub frame_processing_p95_ns: u64,
+    pub frame_processing_p99_ns: u64,
+    pub pacing_wait_budget_p50_ns: u64,
+    pub pacing_wait_budget_p95_ns: u64,
+    pub pacing_wait_budget_p99_ns: u64,
+    pub pacing_wait_elapsed_p50_ns: u64,
+    pub pacing_wait_elapsed_p95_ns: u64,
+    pub pacing_wait_elapsed_p99_ns: u64,
+    pub frame_budget_p50_ns: u64,
+    pub frame_budget_p95_ns: u64,
+    pub frame_budget_p99_ns: u64,
+    pub audio_samples_p50: u64,
+    pub audio_samples_p95: u64,
+    pub audio_samples_p99: u64,
+    pub pacing_timeout_lateness_p50_ns: u64,
+    pub pacing_timeout_lateness_p95_ns: u64,
+    pub pacing_timeout_lateness_p99_ns: u64,
+    pub pacing_timeout_count_total: u64,
+    pub pacing_command_wakeups_total: u64,
+    pub pacing_command_remaining_p95_ns: u64,
+    pub command_handler_p95_ns: u64,
+}
+
+#[derive(Debug, Default)]
+struct FrameTimingState {
+    last_completed: Option<Instant>,
+    sample_started: Option<Instant>,
+    sample_frames: u64,
+    metrics: SmsPerformanceMetrics,
+    pending_input: Option<Instant>,
+    pacing_window: FramePacingWindow,
+}
+
+impl FrameTimingState {
+    fn record_input(&mut self, detected_at: Instant) {
+        // Controller commands carry a complete button state. The latest accepted
+        // state is the one that the next completed frame can incorporate.
+        self.pending_input = Some(detected_at);
+    }
+
+    fn record_frame_completed(&mut self, completed_at: Instant) -> Option<u64> {
+        let interval_ns = self.last_completed.map(|previous| {
+            completed_at
+                .saturating_duration_since(previous)
+                .as_nanos()
+                .min(u128::from(u64::MAX)) as u64
+        });
+        self.metrics.completed_frames = self.metrics.completed_frames.saturating_add(1);
+        if let Some(previous) = self.last_completed {
+            self.metrics.frame_time_ms = Some(
+                completed_at
+                    .saturating_duration_since(previous)
+                    .as_secs_f32()
+                    * 1_000.0,
+            );
+            self.sample_frames = self.sample_frames.saturating_add(1);
+        }
+        self.last_completed = Some(completed_at);
+
+        let sample_started = *self.sample_started.get_or_insert(completed_at);
+        let elapsed = completed_at.saturating_duration_since(sample_started);
+        if elapsed >= Duration::from_millis(500) {
+            let sample_frames = u16::try_from(self.sample_frames).unwrap_or(u16::MAX);
+            self.metrics.emulation_fps = f32::from(sample_frames) / elapsed.as_secs_f32();
+            self.sample_frames = 0;
+            self.sample_started = Some(completed_at);
+        }
+
+        if let Some(input_detected_at) = self.pending_input.take() {
+            self.metrics.input_to_frame_ms = Some(
+                completed_at
+                    .saturating_duration_since(input_detected_at)
+                    .as_secs_f32()
+                    * 1_000.0,
+            );
+        }
+        interval_ns
+    }
+
+    fn record_pacing_sample(&mut self, sample: FramePacingSample) {
+        self.pacing_window.push(sample);
+    }
+
+    fn metrics_at(&self, now: Instant) -> SmsPerformanceMetrics {
+        let mut metrics = self.metrics;
+        if self
+            .last_completed
+            .is_none_or(|last| now.saturating_duration_since(last) >= Duration::from_millis(500))
+        {
+            metrics.emulation_fps = 0.0;
+        }
+        metrics
+    }
+
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+#[derive(Debug, Default)]
+struct WorkerTelemetry {
+    frame_timing: Mutex<FrameTimingState>,
+    running: AtomicBool,
+    shutdown: AtomicBool,
+    diagnostics_enabled: AtomicBool,
+    frame_number: AtomicU64,
+    machine_time_ticks: AtomicU64,
+    machine_clock_hz: AtomicU64,
+    total_instructions: AtomicU64,
+    audio_underruns: AtomicU64,
+    audio_dropped_blocks: AtomicU64,
+    audio_sample_rate_hz: AtomicU64,
+    audio_queue_capacity_frames: AtomicU64,
+    audio_queue_queued_frames: AtomicU64,
+    audio_queue_high_water_frames: AtomicU64,
+    audio_accepted_frames: AtomicU64,
+    audio_consumed_frames: AtomicU64,
+    audio_dropped_frames: AtomicU64,
+    audio_underrun_frames: AtomicU64,
+    audio_flushed_frames: AtomicU64,
+    audio_output_error: Mutex<Option<String>>,
+    video_output_error: Mutex<Option<String>>,
+    video_last_published_sequence: AtomicU64,
+    video_replaced_frames: AtomicU64,
+    overscan_mode: AtomicU8,
+    runtime_error: Mutex<Option<String>>,
+    #[cfg(test)]
+    frame_signal: (Mutex<u64>, Condvar),
+}
+
+impl WorkerTelemetry {
+    fn record_input_detected(&self, detected_at: Instant) {
+        if let Ok(mut timing) = self.frame_timing.lock() {
+            timing.record_input(detected_at);
+        }
+    }
+
+    fn record_frame_completed(&self, completed_at: Instant) -> Option<u64> {
+        self.frame_timing
+            .lock()
+            .ok()
+            .and_then(|mut timing| timing.record_frame_completed(completed_at))
+    }
+
+    fn record_frame_pacing_sample(&self, sample: FramePacingSample) {
+        if let Ok(mut timing) = self.frame_timing.lock() {
+            timing.record_pacing_sample(sample);
+        }
+    }
+
+    fn record_actual_pacing_wait(&self, elapsed: Duration) {
+        if !self.diagnostics_enabled() {
+            return;
+        }
+        if let Ok(mut timing) = self.frame_timing.lock() {
+            timing.pacing_window.record_actual_wait(elapsed);
+        }
+    }
+
+    fn record_pacing_timeout_lateness(&self, lateness: Duration) {
+        if !self.diagnostics_enabled() {
+            return;
+        }
+        if let Ok(mut timing) = self.frame_timing.lock() {
+            timing.pacing_window.record_timeout_lateness(lateness);
+        }
+    }
+
+    fn record_pacing_command_wakeup(&self, remaining: Duration) {
+        if !self.diagnostics_enabled() {
+            return;
+        }
+        if let Ok(mut timing) = self.frame_timing.lock() {
+            timing.pacing_window.record_command_wakeup(remaining);
+        }
+    }
+
+    fn record_command_handler(&self, elapsed: Duration) {
+        if !self.diagnostics_enabled() {
+            return;
+        }
+        if let Ok(mut timing) = self.frame_timing.lock() {
+            timing.pacing_window.record_command_handler(elapsed);
+        }
+    }
+
+    fn frame_pacing_metrics(&self) -> SmsFramePacingMetrics {
+        // Clone the fixed-size window under the mutex, then sort/allocate outside
+        // the worker's frame-completion critical section.
+        let window = self.frame_timing.lock().map_or_else(
+            |_| FramePacingWindow::default(),
+            |timing| timing.pacing_window.clone(),
+        );
+        window.snapshot()
+    }
+
+    fn performance_metrics(&self) -> SmsPerformanceMetrics {
+        self.frame_timing.lock().map_or_else(
+            |_| SmsPerformanceMetrics::default(),
+            |timing| timing.metrics_at(Instant::now()),
+        )
+    }
+
+    fn reset_frame_timing(&self) {
+        if let Ok(mut timing) = self.frame_timing.lock() {
+            timing.reset();
+        }
+    }
+
+    fn set_frame_number(&self, frame_number: u64) {
+        self.frame_number.store(frame_number, Ordering::Release);
+        #[cfg(test)]
+        if let Ok(mut observed) = self.frame_signal.0.lock() {
+            *observed = frame_number;
+            self.frame_signal.1.notify_all();
+        }
+    }
+
+    fn set_audio_error(&self, error: Option<String>) {
+        if let Ok(mut current) = self.audio_output_error.lock() {
+            *current = error;
+        }
+    }
+
+    fn set_video_error(&self, error: Option<String>) {
+        if let Ok(mut current) = self.video_output_error.lock() {
+            *current = error;
+        }
+    }
+
+    fn set_runtime_error(&self, error: Option<String>) {
+        if let Ok(mut current) = self.runtime_error.lock() {
+            *current = error;
+        }
+    }
+
+    fn set_diagnostics_enabled(&self, enabled: bool) {
+        self.diagnostics_enabled.store(enabled, Ordering::Release);
+        if !enabled {
+            self.total_instructions.store(0, Ordering::Release);
+            self.video_replaced_frames.store(0, Ordering::Release);
+            self.audio_underruns.store(0, Ordering::Release);
+            self.audio_dropped_blocks.store(0, Ordering::Release);
+            self.audio_sample_rate_hz.store(0, Ordering::Release);
+            self.audio_queue_capacity_frames.store(0, Ordering::Release);
+            self.audio_queue_queued_frames.store(0, Ordering::Release);
+            self.audio_queue_high_water_frames
+                .store(0, Ordering::Release);
+            self.audio_accepted_frames.store(0, Ordering::Release);
+            self.audio_consumed_frames.store(0, Ordering::Release);
+            self.audio_dropped_frames.store(0, Ordering::Release);
+            self.audio_underrun_frames.store(0, Ordering::Release);
+            self.audio_flushed_frames.store(0, Ordering::Release);
+        }
+    }
+
+    fn diagnostics_enabled(&self) -> bool {
+        self.diagnostics_enabled.load(Ordering::Acquire)
+    }
+
+    fn set_audio_metrics(&self, metrics: AudioOutputMetrics) {
+        if !self.diagnostics_enabled() {
+            return;
+        }
+        self.audio_underruns
+            .store(metrics.underrun_events, Ordering::Release);
+        self.audio_dropped_blocks
+            .store(metrics.dropped_blocks, Ordering::Release);
+        self.audio_sample_rate_hz
+            .store(u64::from(metrics.sample_rate_hz), Ordering::Release);
+        self.audio_queue_capacity_frames
+            .store(metrics.queue_capacity_frames, Ordering::Release);
+        self.audio_queue_queued_frames
+            .store(metrics.queue_queued_frames, Ordering::Release);
+        self.audio_queue_high_water_frames
+            .store(metrics.queue_high_water_frames, Ordering::Release);
+        self.audio_accepted_frames
+            .store(metrics.accepted_frames, Ordering::Release);
+        self.audio_consumed_frames
+            .store(metrics.consumed_frames, Ordering::Release);
+        self.audio_dropped_frames
+            .store(metrics.dropped_frames, Ordering::Release);
+        self.audio_underrun_frames
+            .store(metrics.underrun_frames, Ordering::Release);
+        self.audio_flushed_frames
+            .store(metrics.flushed_frames, Ordering::Release);
+    }
+
+    fn record_audio_session_metrics(&self, session: &dyn AudioSession) {
+        if self.diagnostics_enabled() {
+            self.set_audio_metrics(session.metrics());
+        }
+    }
+
+    fn audio_output_metrics(&self) -> AudioOutputMetrics {
+        AudioOutputMetrics {
+            sample_rate_hz: self.audio_sample_rate_hz.load(Ordering::Acquire) as u32,
+            queue_capacity_frames: self.audio_queue_capacity_frames.load(Ordering::Acquire),
+            queue_queued_frames: self.audio_queue_queued_frames.load(Ordering::Acquire),
+            queue_high_water_frames: self.audio_queue_high_water_frames.load(Ordering::Acquire),
+            accepted_frames: self.audio_accepted_frames.load(Ordering::Acquire),
+            consumed_frames: self.audio_consumed_frames.load(Ordering::Acquire),
+            dropped_frames: self.audio_dropped_frames.load(Ordering::Acquire),
+            underrun_frames: self.audio_underrun_frames.load(Ordering::Acquire),
+            underrun_events: self.audio_underruns.load(Ordering::Acquire),
+            dropped_blocks: self.audio_dropped_blocks.load(Ordering::Acquire),
+            flushed_frames: self.audio_flushed_frames.load(Ordering::Acquire),
+        }
+    }
+
+    fn reset_machine_counters(&self) {
+        self.total_instructions.store(0, Ordering::Release);
+        self.set_frame_number(0);
+        self.machine_time_ticks.store(0, Ordering::Release);
+        self.reset_frame_timing();
+        self.set_runtime_error(None);
+    }
+}
+
+type AudioSessionFactory = Box<dyn FnOnce() -> Result<Box<dyn AudioSession>, String> + Send>;
+
+/// SMS digital PSG reconstruction selected for the common audio output path.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum AudioRendererMode {
+    /// Existing SN76489 FIR/PCM renderer. This remains the default.
+    #[default]
+    Psg,
+    /// Experimental event-domain H2 reconstruction.
+    H2Experimental,
+}
+
+struct AudioRendererState {
+    mode: AudioRendererMode,
+    h2: Option<H2StreamingRenderer>,
+    events: Vec<PsgAmplitudeEvent>,
+    h2_samples: Vec<f64>,
+    transition_samples: Vec<f64>,
+    fade_remaining: usize,
+}
+
+impl Default for AudioRendererState {
+    fn default() -> Self {
+        Self {
+            mode: AudioRendererMode::Psg,
+            h2: None,
+            events: Vec::with_capacity(H2_EVENT_CAPTURE_CAPACITY),
+            h2_samples: Vec::with_capacity(2_048),
+            transition_samples: Vec::with_capacity(2_048),
+            fade_remaining: 0,
+        }
+    }
+}
+
+impl AudioRendererState {
+    fn select(
+        &mut self,
+        machine: &mut SmsTemporalMachine,
+        mode: AudioRendererMode,
+    ) -> Result<(), String> {
+        if self.mode == mode {
+            return Ok(());
+        }
+        match mode {
+            AudioRendererMode::Psg => {
+                machine.disable_psg_event_capture();
+                machine.drain_psg_amplitude_events(&mut self.events);
+                self.h2 = None;
+                self.h2_samples.clear();
+                self.mode = AudioRendererMode::Psg;
+            }
+            AudioRendererMode::H2Experimental => {
+                let clock_hz = machine.psg().clock_hz();
+                let start_clock = machine.psg().elapsed_clocks();
+                let initial_level = machine.psg_mixed_amplitude();
+                let mut renderer =
+                    H2StreamingRenderer::new(clock_hz, SMS_INTERNAL_AUDIO_SAMPLE_RATE)
+                        .map_err(|error| format!("could not initialize H2 renderer: {error}"))?;
+                renderer
+                    .begin_epoch(start_clock, initial_level)
+                    .map_err(|error| format!("could not start H2 audio epoch: {error}"))?;
+                machine
+                    .enable_psg_event_capture(H2_EVENT_CAPTURE_CAPACITY)
+                    .map_err(|error| format!("could not enable PSG event capture: {error}"))?;
+                self.h2 = Some(renderer);
+                self.events.clear();
+                self.h2_samples.clear();
+                self.mode = AudioRendererMode::H2Experimental;
+            }
+        }
+        self.fade_remaining = AUDIO_RENDERER_FADE_SAMPLES;
+        Ok(())
+    }
+
+    fn reset_epoch_if_selected(
+        &mut self,
+        machine: &mut SmsTemporalMachine,
+        telemetry: &WorkerTelemetry,
+    ) {
+        if self.mode == AudioRendererMode::H2Experimental {
+            // The machine was rebuilt; discard the previous renderer epoch even
+            // though the user-visible mode remains H2.
+            self.h2 = None;
+            self.mode = AudioRendererMode::Psg;
+            if let Err(error) = self.select(machine, AudioRendererMode::H2Experimental) {
+                let _ = self.select(machine, AudioRendererMode::Psg);
+                telemetry.set_runtime_error(Some(format!(
+                    "H2 renderer returned to PSG after machine epoch reset: {error}"
+                )));
+            }
+        }
+    }
+}
+
+enum WorkerCommand {
+    Start(SyncSender<Result<(), String>>),
+    Pause(SyncSender<Result<(), String>>),
+    Stop(SyncSender<Result<(), String>>),
+    Reset(SyncSender<Result<(), String>>),
+    ExportCartridgeSram(SyncSender<Option<Vec<u8>>>),
+    LoadRom(Vec<u8>, SyncSender<Result<(), String>>),
+    StepFrame(usize, SyncSender<Result<usize, String>>),
+    StepInstruction(SyncSender<Result<(), String>>),
+    DebugSnapshot(SyncSender<Result<SmsDebugSnapshot, String>>),
+    SaveState(SyncSender<Result<SmsWorkerSaveState, String>>),
+    LoadState(Box<SmsWorkerSaveState>, SyncSender<Result<(), String>>),
+    ReadMemory(u16, usize, SyncSender<Result<Vec<u8>, String>>),
+    SetTraceEnabled(
+        bool,
+        Option<DiagnosticPublisher<SmsTemporalTraceEvent>>,
+        SyncSender<Result<(), String>>,
+    ),
+    SetSpriteLimitMode(SpriteLimitMode, SyncSender<Result<(), String>>),
+    SetOverscanMode(SmsOverscanMode, SyncSender<Result<(), String>>),
+    SetBreakpoint(u16, bool, SyncSender<Result<(), String>>),
+    SetController(u8, ControllerButtons, Instant),
+    RequestNmi,
+    ConfigureAudio(AudioSessionFactory, SyncSender<Result<(), String>>),
+    SetAudioVolume(u8, SyncSender<Result<(), String>>),
+    SetAudioDspConfig(AnalogOutputConfig, SyncSender<Result<(), String>>),
+    SetAudioRenderer(AudioRendererMode, SyncSender<Result<(), String>>),
+    CloseAudio(SyncSender<()>),
+    SetVideoMailbox(Option<FrameMailbox>, SyncSender<Result<(), String>>),
+    Shutdown,
+}
+
+impl WorkerCommand {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Start(_) => "start",
+            Self::Pause(_) => "pause",
+            Self::Stop(_) => "stop",
+            Self::Reset(_) => "reset",
+            Self::ExportCartridgeSram(_) => "export_cartridge_sram",
+            Self::LoadRom(_, _) => "load_rom",
+            Self::StepFrame(_, _) => "step_frame",
+            Self::StepInstruction(_) => "step_instruction",
+            Self::DebugSnapshot(_) => "debug_snapshot",
+            Self::SaveState(_) => "save_state",
+            Self::LoadState(_, _) => "load_state",
+            Self::ReadMemory(_, _, _) => "read_memory",
+            Self::SetTraceEnabled(_, _, _) => "set_trace_enabled",
+            Self::SetSpriteLimitMode(_, _) => "set_sprite_limit_mode",
+            Self::SetOverscanMode(_, _) => "set_overscan_mode",
+            Self::SetBreakpoint(_, _, _) => "set_breakpoint",
+            Self::SetController(_, _, _) => "set_controller",
+            Self::RequestNmi => "request_nmi",
+            Self::ConfigureAudio(_, _) => "configure_audio",
+            Self::SetAudioVolume(_, _) => "set_audio_volume",
+            Self::SetAudioDspConfig(_, _) => "set_audio_dsp_config",
+            Self::SetAudioRenderer(_, _) => "set_audio_renderer",
+            Self::CloseAudio(_) => "close_audio",
+            Self::SetVideoMailbox(_, _) => "set_video_mailbox",
+            Self::Shutdown => "shutdown",
+        }
+    }
+}
+
+/// Host-side lifecycle for the isolated SMS diagnostic collector.
+fn set_trace_capture(
+    commands: &SyncSender<WorkerCommand>,
+    collector_slot: &Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut slot = collector_slot
+        .lock()
+        .map_err(|_| "debugger collector state is unavailable".to_owned())?;
+    if enabled == slot.is_some() {
+        return Ok(());
+    }
+    let collector = if enabled {
+        Some(
+            DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY)
+                .map_err(|error| format!("failed to start SMS debugger collector: {error}"))?,
+        )
+    } else {
+        None
+    };
+    let publisher = collector.as_ref().map(|collector| collector.publisher());
+    let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+    enqueue_worker_command(
+        commands,
+        WorkerCommand::SetTraceEnabled(enabled, publisher, reply_sender),
+    )?;
+    receive_worker_reply(reply_receiver, "changing debugger trace capture")??;
+    if enabled {
+        *slot = collector;
+    } else {
+        slot.take();
+    }
+    Ok(())
+}
+
+/// Machine state is captured by the worker; retained trace is read on the host.
+fn capture_debug_snapshot(
+    commands: &SyncSender<WorkerCommand>,
+    collector_slot: &Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>,
+) -> Result<SmsDebugSnapshot, String> {
+    let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+    enqueue_worker_command(commands, WorkerCommand::DebugSnapshot(reply_sender))?;
+    let mut snapshot = receive_worker_reply(reply_receiver, "returning a debugger snapshot")??;
+    let slot = collector_slot
+        .lock()
+        .map_err(|_| "debugger collector state is unavailable".to_owned())?;
+    if let Some(collector) = slot.as_ref() {
+        snapshot.trace_events = collector.snapshot();
+        snapshot.trace_dropped = collector.ingress_dropped();
+        snapshot.trace_enabled = true;
+    }
+    Ok(snapshot)
+}
+
+/// Versioned in-memory save state bound to its originating ROM region.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SmsWorkerSaveState {
+    pub format_version: u16,
+    pub region: String,
+    pub machine_state: SmsTemporalMachineState,
+}
+
+pub const SMS_WORKER_SAVE_STATE_VERSION: u16 = 1;
+
+/// Owned, immutable SMS/Z80 state captured on the machine worker thread.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SmsDebugSnapshot {
+    pub pc: u16,
+    pub sp: u16,
+    pub af: u16,
+    pub bc: u16,
+    pub de: u16,
+    pub hl: u16,
+    pub af_alt: u16,
+    pub bc_alt: u16,
+    pub de_alt: u16,
+    pub hl_alt: u16,
+    pub ix: u16,
+    pub iy: u16,
+    pub wz: u16,
+    pub instruction_tstates: u32,
+    pub i: u8,
+    pub r: u8,
+    pub iff1: bool,
+    pub iff2: bool,
+    pub interrupt_mode: u8,
+    pub halted: bool,
+    pub machine_time_ticks: u128,
+    pub frame_number: u64,
+    pub vdp_status: u8,
+    pub vdp_scanline: u16,
+    pub vdp_cycles_into_line: u16,
+    pub sprite_limit_mode: SpriteLimitMode,
+    pub mapper_banks: [u8; 3],
+    pub mapper_control: u8,
+    pub memory_control: u8,
+    pub framebuffer_rgb: Vec<u8>,
+    /// Most recent scheduler/bus events, oldest first.
+    pub trace_events: Vec<SmsTemporalTraceEvent>,
+    /// Number of trace events discarded after the bounded history filled.
+    pub trace_dropped: u64,
+    /// Whether runtime trace capture is currently enabled.
+    pub trace_enabled: bool,
+}
+
+const DEBUG_MEMORY_READ_LIMIT: usize = 256;
+
+/// Handle to the thread that exclusively owns the temporal SMS machine.
+pub struct SmsTemporalWorker {
+    commands: SyncSender<WorkerCommand>,
+    worker: Option<JoinHandle<()>>,
+    telemetry: Arc<WorkerTelemetry>,
+    trace_collector: Arc<Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>>,
+    #[cfg(windows)]
+    video_session: Mutex<Option<D3d12MailboxSession>>,
+}
+
+/// Cloneable, lightweight command handle for debugger viewports.
+#[derive(Clone)]
+pub struct SmsTemporalWorkerDebugHandle {
+    commands: SyncSender<WorkerCommand>,
+    telemetry: Arc<WorkerTelemetry>,
+    trace_collector: Arc<Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>>,
+}
+
+impl SmsTemporalWorkerDebugHandle {
+    fn request_unit(
+        &self,
+        command: impl FnOnce(SyncSender<Result<(), String>>) -> WorkerCommand,
+    ) -> Result<(), String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(&self.commands, command(reply_sender))?;
+        receive_worker_reply(reply_receiver, "acknowledging a command")?
+    }
+
+    /// Return whether the shared machine worker is currently running.
+    pub fn is_running(&self) -> bool {
+        self.telemetry.running.load(Ordering::Acquire)
+    }
+
+    /// Resume the machine through the shared worker command queue.
+    pub fn start(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::Start)
+    }
+
+    /// Pause the machine at the worker's supported command boundary.
+    pub fn pause(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::Pause)
+    }
+
+    /// Execute one complete instruction while the machine is paused.
+    pub fn step_instruction(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::StepInstruction)
+    }
+
+    /// Add or remove a program-counter breakpoint.
+    pub fn set_breakpoint(&self, address: u16, enabled: bool) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetBreakpoint(address, enabled, reply))
+    }
+
+    /// Enable or disable bounded scheduler and bus trace capture.
+    pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
+        set_trace_capture(&self.commands, &self.trace_collector, enabled)
+    }
+
+    /// Capture an immutable, owned machine snapshot.
+    pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
+        capture_debug_snapshot(&self.commands, &self.trace_collector)
+    }
+
+    /// Read at most 256 bytes from the active mapper without advancing emulated time.
+    pub fn inspect_memory(&self, start: u16, length: usize) -> Result<Vec<u8>, String> {
+        if length > DEBUG_MEMORY_READ_LIMIT {
+            return Err(format!(
+                "memory inspection is limited to {DEBUG_MEMORY_READ_LIMIT} bytes per request"
+            ));
+        }
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::ReadMemory(start, length, reply_sender),
+        )?;
+        receive_worker_reply(reply_receiver, "returning memory inspection data")?
+    }
+}
+
+impl SmsTemporalWorker {
+    /// Create a cloneable debugger client without transferring machine ownership.
+    pub fn debug_handle(&self) -> SmsTemporalWorkerDebugHandle {
+        SmsTemporalWorkerDebugHandle {
+            commands: self.commands.clone(),
+            telemetry: Arc::clone(&self.telemetry),
+            trace_collector: Arc::clone(&self.trace_collector),
+        }
+    }
+
+    /// Start the native worker with the default no-cartridge-SRAM hardware profile.
+    pub fn new(rom: Vec<u8>, region: &str) -> Result<Self, String> {
+        Self::new_with_cartridge_sram_size(rom, region, None, None)
+    }
+
+    /// Start the worker with an explicit cartridge SRAM capacity and optional persisted image.
+    /// Capacity must come from a verified cartridge profile; save-file length never configures hardware.
+    pub fn new_with_cartridge_sram_size(
+        rom: Vec<u8>,
+        region: &str,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_hardware_profile_and_cartridge_sram_size(
+            rom,
+            region,
+            SmsVdpRevision::Sega3155124,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    /// Resolve automatic/manual region preference before creating the temporal worker.
+    /// DAT access and hashing happen on the caller thread, never in the Scheduler.
+    pub fn new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    eprintln!(
+                        "SMS_REGION preference=auto resolved={} source={:?} dat_title={}",
+                        resolution.region.key(),
+                        resolution.source,
+                        resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    "usa".to_owned()
+                }
+            },
+        };
+
+        Self::new_with_hardware_profile_and_cartridge_sram_size(
+            rom,
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    /// Start the worker with an explicit VDP ASIC, regional timing, and cartridge SRAM profile.
+    pub fn new_with_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        if initial_sram.is_some() && cartridge_sram_size.is_none() {
+            return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
+        }
+        if let Some(capacity) = cartridge_sram_size
+            && !matches!(capacity, 0x2000 | 0x4000 | 0x8000)
+        {
+            return Err(format!(
+                "unsupported SMS cartridge SRAM capacity: {capacity} bytes"
+            ));
+        }
+        if let (Some(contents), Some(capacity)) = (initial_sram.as_ref(), cartridge_sram_size)
+            && contents.len() != capacity
+        {
+            return Err(format!(
+                "persisted SRAM has {} bytes; cartridge profile requires {capacity}",
+                contents.len()
+            ));
+        }
+
+        let region = region.to_owned();
+        let telemetry = Arc::new(WorkerTelemetry::default());
+        let trace_collector = Arc::new(Mutex::new(None));
+        if let Ok((_, _, clock_hz)) = sms_temporal_region_profile(&region) {
+            telemetry
+                .machine_clock_hz
+                .store(clock_hz, Ordering::Release);
+        }
+        let worker_telemetry = Arc::clone(&telemetry);
+        let (commands, receiver) = mpsc::sync_channel(WORKER_COMMAND_QUEUE_CAPACITY);
+        let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
+        let worker_region = region.clone();
+        let worker_vdp_revision = vdp_revision;
+
+        let worker = thread::Builder::new()
+            .name("sms-temporal-machine".to_owned())
+            .spawn(move || {
+                let machine = match build_sms_temporal_machine_with_revision_and_sram_size(
+                    rom.clone(),
+                    &worker_region,
+                    worker_vdp_revision,
+                    cartridge_sram_size,
+                )
+                .and_then(|mut machine| {
+                    if let Some(contents) = initial_sram.as_deref() {
+                        machine
+                            .load_cartridge_sram(contents)
+                            .map_err(|error| error.to_string())?;
+                    }
+                    Ok(machine)
+                }) {
+                    Ok(machine) => {
+                        let _ = ready_sender.send(Ok(()));
+                        machine
+                    }
+                    Err(error) => {
+                        let _ = ready_sender.send(Err(error));
+                        return;
+                    }
+                };
+                worker_loop(
+                    machine,
+                    rom,
+                    worker_region,
+                    worker_vdp_revision,
+                    receiver,
+                    worker_telemetry,
+                );
+            })
+            .map_err(|error| format!("could not start SMS machine worker: {error}"))?;
+
+        match ready_receiver.recv_timeout(WORKER_STARTUP_TIMEOUT) {
+            Ok(Ok(())) => Ok(Self {
+                commands,
+                worker: Some(worker),
+                telemetry,
+                trace_collector,
+                #[cfg(windows)]
+                video_session: Mutex::new(None),
+            }),
+            Ok(Err(error)) => {
+                let _ = worker.join();
+                Err(error)
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                // The command sender is dropped on return; the detached startup
+                // thread then observes a disconnected command receiver and exits.
+                drop(worker);
+                Err("SMS machine worker startup timed out after 5 seconds".to_owned())
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                let _ = worker.join();
+                Err("SMS machine worker startup channel closed".to_owned())
+            }
+        }
+    }
+
+    fn request_unit(
+        &self,
+        command: impl FnOnce(SyncSender<Result<(), String>>) -> WorkerCommand,
+    ) -> Result<(), String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(&self.commands, command(reply_sender))?;
+        receive_worker_reply(reply_receiver, "acknowledging a command")?
+    }
+
+    pub fn load_rom(&self, rom: Vec<u8>) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::LoadRom(rom, reply))
+    }
+
+    /// Capture an owned SRAM snapshot on the machine thread at a command-safe boundary.
+    /// No filesystem operation is performed by the worker or Scheduler.
+    pub fn export_cartridge_sram(&self) -> Result<Option<Vec<u8>>, String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::ExportCartridgeSram(reply_sender),
+        )?;
+        receive_worker_reply(reply_receiver, "exporting cartridge SRAM")
+    }
+
+    /// Enable or disable optional diagnostic telemetry without changing emulation.
+    pub fn set_diagnostics_enabled(&self, enabled: bool) {
+        self.telemetry.set_diagnostics_enabled(enabled);
+    }
+
+    pub fn reset(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::Reset)
+    }
+
+    pub fn start(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::Start)
+    }
+
+    pub fn pause(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::Pause)
+    }
+
+    pub fn stop(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::Stop)
+    }
+
+    /// Add or remove an instruction-boundary program-counter breakpoint.
+    pub fn set_breakpoint(&self, address: u16, enabled: bool) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetBreakpoint(address, enabled, reply))
+    }
+
+    /// Execute one complete CPU instruction while the worker is paused.
+    ///
+    /// CPU and Scheduler access remain exclusively on the machine-owning thread.
+    pub fn step_instruction(&self) -> Result<(), String> {
+        self.request_unit(WorkerCommand::StepInstruction)
+    }
+
+    /// Capture a coherent, owned debugger snapshot at a worker command boundary.
+    pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
+        capture_debug_snapshot(&self.commands, &self.trace_collector)
+    }
+
+    /// Capture a complete versioned machine state at a worker command boundary.
+    ///
+    /// The returned state is an owned in-memory snapshot. It includes CPU,
+    /// Scheduler, bus, mapper, VDP, PSG, controller and pending-event state.
+    /// File encoding and persistent slot management are host-layer concerns.
+    pub fn save_state(&self) -> Result<SmsWorkerSaveState, String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(&self.commands, WorkerCommand::SaveState(reply_sender))?;
+        receive_worker_reply(reply_receiver, "capturing a save state")?
+    }
+
+    /// Restore a previously captured state. The worker must be paused.
+    ///
+    /// Restoration validates all nested state versions and CPU/bus invariants
+    /// before replacing the active machine.
+    pub fn load_state(&self, state: SmsWorkerSaveState) -> Result<(), String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::LoadState(Box::new(state), reply_sender),
+        )?;
+        receive_worker_reply(reply_receiver, "restoring a save state")?
+    }
+
+    /// Enable or disable bounded scheduler/bus trace capture.
+    pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
+        set_trace_capture(&self.commands, &self.trace_collector, enabled)
+    }
+
+    /// Change the active SMS VDP sprite rendering limit through the machine worker.
+    ///
+    /// The setting changes rendering compatibility only; VDP timing, overflow
+    /// reporting and Scheduler progression remain owned by the emulated machine.
+    pub fn set_sprite_limit_mode(&self, mode: SpriteLimitMode) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetSpriteLimitMode(mode, reply))
+    }
+
+    /// Select a presentation-only crop for the SMS1 left edge.
+    ///
+    /// The canonical VDP image and emulated machine state remain unchanged.
+    pub fn set_overscan_mode(&self, mode: SmsOverscanMode) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetOverscanMode(mode, reply))
+    }
+
+    /// Read at most 256 bytes through the active mapper without advancing time.
+    pub fn inspect_memory(&self, start: u16, length: usize) -> Result<Vec<u8>, String> {
+        if length > DEBUG_MEMORY_READ_LIMIT {
+            return Err(format!(
+                "memory inspection is limited to {DEBUG_MEMORY_READ_LIMIT} bytes per request"
+            ));
+        }
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::ReadMemory(start, length, reply_sender),
+        )?;
+        receive_worker_reply(reply_receiver, "returning memory inspection data")?
+    }
+
+    pub fn step_frame(&self, max_instructions: usize) -> Result<usize, String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::StepFrame(max_instructions, reply_sender),
+        )?;
+        receive_worker_reply_with_timeout(
+            reply_receiver,
+            "completing a frame step",
+            WORKER_FRAME_STEP_TIMEOUT,
+        )?
+    }
+
+    pub fn set_controller(&self, player: u8, buttons: ControllerButtons) -> Result<(), String> {
+        self.set_controller_at(player, buttons, Instant::now())
+    }
+
+    /// Apply controller input with the host-detection timestamp used by latency telemetry.
+    pub fn set_controller_at(
+        &self,
+        player: u8,
+        buttons: ControllerButtons,
+        detected_at: Instant,
+    ) -> Result<(), String> {
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::SetController(player, buttons, detected_at),
+        )
+    }
+
+    /// Return frame-completion and input-to-frame measurements from the SMS worker.
+    pub fn performance_metrics(&self) -> SmsPerformanceMetrics {
+        self.telemetry.performance_metrics()
+    }
+
+    /// Return bounded stage-by-stage frame pacing diagnostics from the worker.
+    pub fn frame_pacing_metrics(&self) -> SmsFramePacingMetrics {
+        self.telemetry.frame_pacing_metrics()
+    }
+
+    pub fn request_nmi(&self) -> Result<(), String> {
+        enqueue_worker_command(&self.commands, WorkerCommand::RequestNmi)
+    }
+
+    /// Configure host audio on the worker thread using an application-supplied factory.
+    ///
+    /// The factory is transferred as a coarse-grained command and invoked by the
+    /// machine-owning thread, so host objects never cross thread boundaries.
+    pub fn configure_audio_output<F>(&self, factory: F) -> Result<(), String>
+    where
+        F: FnOnce() -> Result<Box<dyn AudioSession>, String> + Send + 'static,
+    {
+        self.request_unit(|reply| WorkerCommand::ConfigureAudio(Box::new(factory), reply))
+    }
+
+    /// Update the configured output volume without restarting the audio backend.
+    pub fn set_audio_volume(&self, volume: u8) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetAudioVolume(volume, reply))
+    }
+
+    /// Apply optional analog output filters on the audio worker, without restarting CPAL.
+    pub fn set_audio_dsp_config(&self, config: AnalogOutputConfig) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetAudioDspConfig(config, reply))
+    }
+
+    /// Select the SMS PSG reconstruction at a worker-safe frame/command boundary.
+    /// H2 is opt-in; the existing PSG renderer remains the default.
+    pub fn set_audio_renderer(&self, mode: AudioRendererMode) -> Result<(), String> {
+        self.request_unit(|reply| WorkerCommand::SetAudioRenderer(mode, reply))
+    }
+
+    pub fn close_audio_output(&self) -> Result<(), String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(&self.commands, WorkerCommand::CloseAudio(reply_sender))?;
+        receive_worker_reply(reply_receiver, "closing audio output")
+    }
+
+    fn set_video_mailbox(&self, mailbox: Option<FrameMailbox>) -> Result<(), String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::SetVideoMailbox(mailbox, reply_sender),
+        )?;
+        receive_worker_reply(reply_receiver, "configuring video output")?
+    }
+
+    /// Attach an externally owned presentation mailbox to the SMS worker.
+    ///
+    /// A host-owned presentation backend consumes completed frames through a
+    /// clone of this mailbox; graphics objects never cross into the machine worker.
+    /// Attaching or detaching the mailbox is a coarse-grained worker command;
+    /// it never advances MachineTime.
+    pub fn attach_video_mailbox(&self, mailbox: FrameMailbox) -> Result<(), String> {
+        self.set_video_mailbox(Some(mailbox))
+    }
+
+    /// Detach the presentation mailbox without closing its owner-managed queue.
+    ///
+    /// The caller remains responsible for shutting down the presentation
+    /// session after this command has been acknowledged.
+    pub fn detach_video_mailbox(&self) -> Result<(), String> {
+        self.set_video_mailbox(None)
+    }
+
+    #[cfg(windows)]
+    fn start_video_session<E>(
+        &self,
+        start: impl FnOnce() -> Result<D3d12MailboxSession, E>,
+    ) -> Result<(), String>
+    where
+        E: std::fmt::Display,
+    {
+        let mut session_guard = self
+            .video_session
+            .lock()
+            .map_err(|_| "video session lock is poisoned".to_owned())?;
+
+        if session_guard
+            .as_ref()
+            .is_some_and(D3d12MailboxSession::is_running)
+        {
+            return Ok(());
+        }
+
+        if let Some(stale_session) = session_guard.take() {
+            let _ = stale_session.shutdown();
+        }
+
+        let session = start().map_err(|error| error.to_string())?;
+        let mailbox = session.mailbox();
+        if let Err(error) = self.set_video_mailbox(Some(mailbox)) {
+            let _ = session.shutdown();
+            return Err(error);
+        }
+
+        self.telemetry.set_video_error(None);
+        self.telemetry
+            .video_replaced_frames
+            .store(0, Ordering::Release);
+        *session_guard = Some(session);
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    pub fn open_video_output(&self) -> Result<(), String> {
+        self.start_video_session(|| D3d12MailboxSession::start(256, 192, 768, 576))
+    }
+
+    #[cfg(windows)]
+    pub fn open_video_output_in_viewport(&self, window_handle: usize) -> Result<(), String> {
+        self.start_video_session(|| {
+            D3d12MailboxSession::start_for_existing_window(256, 192, window_handle)
+        })
+    }
+
+    #[cfg(not(windows))]
+    pub fn open_video_output(&self) -> Result<(), String> {
+        Err("D3D12 video output is available only on Windows".to_owned())
+    }
+
+    #[cfg(not(windows))]
+    pub fn open_video_output_in_viewport(&self, _window_handle: usize) -> Result<(), String> {
+        Err("D3D12 video output is available only on Windows".to_owned())
+    }
+
+    pub fn close_video_output(&self) -> Result<(), String> {
+        #[cfg(windows)]
+        {
+            let mut session_guard = self
+                .video_session
+                .lock()
+                .map_err(|_| "video session lock is poisoned".to_owned())?;
+            if session_guard.is_none() {
+                return Ok(());
+            }
+            self.set_video_mailbox(None)?;
+            if let Some(session) = session_guard.take() {
+                session.shutdown().map_err(|error| error.to_string())?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn video_output_is_running(&self) -> bool {
+        #[cfg(windows)]
+        {
+            self.video_session
+                .lock()
+                .ok()
+                .and_then(|session| session.as_ref().map(D3d12MailboxSession::is_running))
+                .unwrap_or(false)
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+
+    pub fn video_output_error(&self) -> Option<String> {
+        self.telemetry
+            .video_output_error
+            .lock()
+            .ok()
+            .and_then(|error| error.clone())
+    }
+
+    pub fn video_last_published_sequence(&self) -> u64 {
+        self.telemetry
+            .video_last_published_sequence
+            .load(Ordering::Acquire)
+    }
+
+    pub fn video_replaced_frames(&self) -> u64 {
+        self.telemetry.video_replaced_frames.load(Ordering::Acquire)
+    }
+
+    pub fn video_last_presented_sequence(&self) -> u64 {
+        #[cfg(windows)]
+        {
+            self.video_session
+                .lock()
+                .ok()
+                .and_then(|session| {
+                    session
+                        .as_ref()
+                        .map(D3d12MailboxSession::last_presented_sequence)
+                })
+                .unwrap_or(0)
+        }
+        #[cfg(not(windows))]
+        {
+            0
+        }
+    }
+
+    pub fn video_device_recovery_count(&self) -> u64 {
+        #[cfg(windows)]
+        {
+            self.video_session
+                .lock()
+                .ok()
+                .and_then(|session| {
+                    session
+                        .as_ref()
+                        .map(D3d12MailboxSession::device_recovery_count)
+                })
+                .unwrap_or(0)
+        }
+        #[cfg(not(windows))]
+        {
+            0
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.telemetry.running.load(Ordering::Acquire)
+    }
+
+    pub fn frame_number(&self) -> u64 {
+        self.telemetry.frame_number.load(Ordering::Acquire)
+    }
+
+    /// Scheduler time in master ticks at the most recently completed worker step.
+    pub fn machine_time_ticks(&self) -> u64 {
+        self.telemetry.machine_time_ticks.load(Ordering::Acquire)
+    }
+
+    /// Configured SMS machine clock in ticks per second for the active region.
+    pub fn machine_clock_hz(&self) -> u64 {
+        self.telemetry.machine_clock_hz.load(Ordering::Acquire)
+    }
+
+    pub fn total_instructions(&self) -> u64 {
+        self.telemetry.total_instructions.load(Ordering::Acquire)
+    }
+
+    pub fn audio_output_error(&self) -> Option<String> {
+        self.telemetry
+            .audio_output_error
+            .lock()
+            .ok()
+            .and_then(|error| error.clone())
+    }
+
+    pub fn runtime_error(&self) -> Option<String> {
+        self.telemetry
+            .runtime_error
+            .lock()
+            .ok()
+            .and_then(|error| error.clone())
+    }
+
+    pub fn audio_output_metrics(&self) -> AudioOutputMetrics {
+        self.telemetry.audio_output_metrics()
+    }
+    #[cfg(test)]
+    fn wait_for_frame_after(&self, frame_number: u64, timeout: Duration) -> bool {
+        let Ok(observed) = self.telemetry.frame_signal.0.lock() else {
+            return false;
+        };
+        let Ok((observed, timeout_result)) =
+            self.telemetry
+                .frame_signal
+                .1
+                .wait_timeout_while(observed, timeout, |current| *current <= frame_number)
+        else {
+            return false;
+        };
+        !timeout_result.timed_out() && *observed > frame_number
+    }
+}
+
+impl Drop for SmsTemporalWorker {
+    fn drop(&mut self) {
+        let _ = self.close_video_output();
+        self.telemetry.shutdown.store(true, Ordering::Release);
+        let _ = enqueue_worker_command(&self.commands, WorkerCommand::Shutdown);
+        // The worker observes the shutdown flag at its next safe event-loop
+        // boundary and performs audio/mailbox cleanup on its owning thread.
+        // Detach here so dropping the host handle cannot stall the GUI on join.
+        drop(self.worker.take());
+        if let Ok(mut collector) = self.trace_collector.lock() {
+            collector.take();
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn execute_frame(
+    machine: &mut SmsTemporalMachine,
+    breakpoints: &BreakpointSet,
+    max_instructions: usize,
+    publish_audio: bool,
+    audio_session: &mut Option<Box<dyn AudioSession>>,
+    video_mailbox: &mut Option<FrameMailbox>,
+    video_sequence: &mut u64,
+    telemetry: &WorkerTelemetry,
+) -> Result<(usize, Option<Instant>, bool), String> {
+    let mut renderer = AudioRendererState::default();
+    execute_frame_with_renderer(
+        machine,
+        breakpoints,
+        max_instructions,
+        publish_audio,
+        audio_session,
+        &mut renderer,
+        video_mailbox,
+        video_sequence,
+        telemetry,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_frame_with_renderer(
+    machine: &mut SmsTemporalMachine,
+    breakpoints: &BreakpointSet,
+    max_instructions: usize,
+    publish_audio: bool,
+    audio_session: &mut Option<Box<dyn AudioSession>>,
+    audio_renderer: &mut AudioRendererState,
+    video_mailbox: &mut Option<FrameMailbox>,
+    video_sequence: &mut u64,
+    telemetry: &WorkerTelemetry,
+    previous_deadline: Option<Instant>,
+) -> Result<(usize, Option<Instant>, bool), String> {
+    let frame_started = Instant::now();
+    let diagnostics_enabled = telemetry.diagnostics_enabled();
+    // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
+    let machine_time_start_ticks = machine.now().ticks();
+    let diagnostic_machine_start = diagnostics_enabled.then_some(machine_time_start_ticks);
+    let diagnostic_step_start = diagnostics_enabled.then(Instant::now);
+    let (instructions, breakpoint_hit) = machine
+        .step_frame_until(max_instructions, |pc| breakpoints.contains(u32::from(pc)))
+        .map_err(|error| error.to_string())?;
+    let step_frame_elapsed =
+        diagnostic_step_start.map_or(Duration::ZERO, |started| started.elapsed());
+    let machine_time_end_ticks = machine.now().ticks();
+    let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
+    let frame_completed = !breakpoint_hit;
+
+    if diagnostics_enabled {
+        telemetry
+            .total_instructions
+            .fetch_add(instructions as u64, Ordering::AcqRel);
+    }
+
+    // A breakpoint may stop this call at an instruction boundary before the
+    // VDP advances to the next frame. Such a partial execution is not a frame:
+    // do not increment frame telemetry or publish its incomplete framebuffer.
+    let frame_interval_ns = if frame_completed {
+        telemetry.record_frame_completed(Instant::now())
+    } else {
+        None
+    };
+    telemetry.set_frame_number(machine.frame_number());
+    telemetry.machine_time_ticks.store(
+        u64::try_from(machine.now().ticks()).unwrap_or(u64::MAX),
+        Ordering::Release,
+    );
+
+    let diagnostic_publish_start = diagnostics_enabled.then(Instant::now);
+    if frame_completed {
+        *video_sequence = video_sequence
+            .checked_add(1)
+            .ok_or_else(|| "SMS video frame sequence exhausted".to_owned())?;
+        let mut video_error = None;
+        if let Some(mailbox) = video_mailbox.as_ref() {
+            let overscan_mode = match telemetry.overscan_mode.load(Ordering::Acquire) {
+                value if value == SmsOverscanMode::CropLeft8 as u8 => SmsOverscanMode::CropLeft8,
+                _ => SmsOverscanMode::Off,
+            };
+            let (width, height, pixels) = machine.vdp().framebuffer_with_overscan(overscan_mode);
+            let frame = VideoFrame::new(
+                *video_sequence,
+                width as u32,
+                height as u32,
+                PixelFormat::Rgb888,
+                width * 3,
+                pixels,
+            )
+            .map_err(|error| error.to_string())
+            .and_then(|frame| mailbox.publish(frame).map_err(|error| error.to_string()));
+
+            match frame {
+                Ok(()) => {
+                    telemetry
+                        .video_last_published_sequence
+                        .store(*video_sequence, Ordering::Release);
+                    if diagnostics_enabled {
+                        match mailbox.replaced_frames() {
+                            Ok(replaced) => telemetry
+                                .video_replaced_frames
+                                .store(replaced, Ordering::Release),
+                            Err(error) => video_error = Some(error.to_string()),
+                        }
+                    }
+                }
+                Err(error) => video_error = Some(error),
+            }
+        }
+        if let Some(error) = video_error {
+            telemetry.set_video_error(Some(error));
+            *video_mailbox = None;
+        }
+    }
+
+    let video_publish_elapsed =
+        diagnostic_publish_start.map_or(Duration::ZERO, |started| started.elapsed());
+
+    // Keep the legacy PSG FIFO bounded in both modes. H2 consumes events from
+    // this same Scheduler-driven PSG instance; it never runs a second PSG.
+    let psg_samples = machine.drain_audio_samples(None);
+    let mut use_h2 = false;
+    if audio_renderer.mode == AudioRendererMode::H2Experimental {
+        machine.drain_psg_amplitude_events(&mut audio_renderer.events);
+        let h2_result = if machine.psg_event_capture_overflowed() {
+            Err("bounded PSG event capture overflowed".to_owned())
+        } else if let Some(renderer) = audio_renderer.h2.as_mut() {
+            renderer
+                .render_until(
+                    &audio_renderer.events,
+                    machine.psg().elapsed_clocks(),
+                    &mut audio_renderer.h2_samples,
+                )
+                .map(|_| ())
+                .map_err(|error| error.to_string())
+        } else {
+            Err("H2 renderer state is unavailable".to_owned())
+        };
+        match h2_result {
+            Ok(()) => use_h2 = true,
+            Err(error) => {
+                machine.disable_psg_event_capture();
+                audio_renderer.h2 = None;
+                audio_renderer.events.clear();
+                audio_renderer.mode = AudioRendererMode::Psg;
+                audio_renderer.fade_remaining = AUDIO_RENDERER_FADE_SAMPLES;
+                telemetry.set_runtime_error(Some(format!(
+                    "H2 renderer fault; safely falling back to PSG: {error}"
+                )));
+            }
+        }
+    }
+
+    let source_samples = if use_h2 {
+        audio_renderer.h2_samples.as_slice()
+    } else {
+        psg_samples.as_slice()
+    };
+    let samples = if audio_renderer.fade_remaining > 0 && !source_samples.is_empty() {
+        audio_renderer.transition_samples.clear();
+        audio_renderer
+            .transition_samples
+            .extend_from_slice(source_samples);
+        let fade_start = AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
+        for (index, sample) in audio_renderer.transition_samples.iter_mut().enumerate() {
+            let position = fade_start.saturating_add(index).saturating_add(1);
+            let gain = (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
+            *sample *= gain;
+        }
+        audio_renderer.fade_remaining = audio_renderer
+            .fade_remaining
+            .saturating_sub(audio_renderer.transition_samples.len());
+        audio_renderer.transition_samples.as_slice()
+    } else {
+        source_samples
+    };
+
+    let diagnostic_audio_start = diagnostics_enabled.then(Instant::now);
+    let audio_result = audio_session.as_mut().map(|session| {
+        if publish_audio && frame_completed {
+            session.process_samples(samples)
+        } else {
+            session.process_samples_discarding_output(samples)
+        }
+    });
+    let audio_submit_elapsed =
+        diagnostic_audio_start.map_or(Duration::ZERO, |started| started.elapsed());
+    match audio_result {
+        Some(Ok(())) => {
+            if let Some(session) = audio_session.as_ref() {
+                telemetry.record_audio_session_metrics(session.as_ref());
+            }
+        }
+        Some(Err(error)) => {
+            if let Some(mut failed_session) = audio_session.take() {
+                // Preserve the backend's terminal counters before close drops
+                // its producer endpoint and makes queue occupancy unavailable.
+                telemetry.record_audio_session_metrics(failed_session.as_ref());
+                failed_session.close();
+            }
+            telemetry.set_audio_error(Some(error));
+        }
+        None => {}
+    }
+
+    let sample_count = samples.len();
+    let machine_ticks_per_frame = machine_time_end_ticks.saturating_sub(machine_time_start_ticks);
+    let machine_clock_hz = telemetry.machine_clock_hz.load(Ordering::Acquire);
+    // The source-sample fallback is retained for isolated tests that construct telemetry
+    // directly; a live worker always receives its validated region clock at construction.
+    let frame_duration =
+        frame_duration_from_machine_ticks(machine_ticks_per_frame, machine_clock_hz)
+            .unwrap_or_else(|| {
+                Duration::from_secs_f64(
+                    sample_count.max(1) as f64 / SMS_INTERNAL_AUDIO_SAMPLE_RATE as f64,
+                )
+            });
+    // Anchor the pacing deadline to the beginning of this frame's host work.
+    // Time spent publishing diagnostics after this point consumes the same budget
+    // instead of shifting every subsequent frame later.
+    let processing_elapsed = frame_started.elapsed();
+    let frame_deadline = frame_completed
+        .then(|| calculate_next_frame_deadline(frame_started, frame_duration, previous_deadline));
+    let frame_wait = frame_deadline
+        .map(|deadline| deadline.saturating_duration_since(Instant::now()))
+        .unwrap_or(Duration::ZERO);
+
+    if frame_completed && diagnostics_enabled && publish_audio {
+        telemetry.record_frame_pacing_sample(FramePacingSample {
+            frame_interval_ns: frame_interval_ns.unwrap_or_default(),
+            machine_ticks_per_frame: u64::try_from(machine_ticks_per_frame).unwrap_or(u64::MAX),
+            step_frame_ns: step_frame_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+            video_publish_ns: video_publish_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+            audio_submit_ns: audio_submit_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+            frame_processing_ns: processing_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+            frame_budget_ns: frame_duration.as_nanos().min(u128::from(u64::MAX)) as u64,
+            audio_samples: sample_count as u64,
+            pacing_wait_budget_ns: frame_wait.as_nanos().min(u128::from(u64::MAX)) as u64,
+            pacing_wait_elapsed_ns: 0,
+            pacing_timeout_lateness_ns: 0,
+            pacing_timeout_count: 0,
+            pacing_command_wakeups: 0,
+            pacing_command_remaining_ns: 0,
+            command_handler_ns: 0,
+        });
+    }
+
+    // Per-frame timing instrumentation is sampled and emitted only for a
+    // completed SMS frame, never for a breakpoint-truncated execution.
+    if frame_completed
+        && let (Some(machine_time_start), Some(machine_time_end)) =
+            (diagnostic_machine_start, diagnostic_machine_end)
+    {
+        sega_observability::tracing::trace!(
+            target: "sega::audio::pacing",
+            frame_number = machine.frame_number(),
+            machine_time_start_ticks = machine_time_start,
+            machine_time_end_ticks = machine_time_end,
+            machine_time_delta_ticks = machine_time_end.saturating_sub(machine_time_start),
+            instructions,
+            psg_samples = sample_count,
+            frame_interval_ns = frame_interval_ns.unwrap_or_default(),
+            step_frame_elapsed_ns = step_frame_elapsed.as_nanos(),
+            video_publish_elapsed_ns = video_publish_elapsed.as_nanos(),
+            audio_submit_elapsed_ns = audio_submit_elapsed.as_nanos(),
+            frame_processing_elapsed_ns = processing_elapsed.as_nanos(),
+            pacing_budget_ns = frame_duration.as_nanos(),
+            pacing_wait_budget_ns = frame_wait.as_nanos(),
+            publish_audio,
+            "SMS frame pacing diagnostic"
+        );
+    }
+
+    Ok((instructions, frame_deadline, breakpoint_hit))
+}
+
+fn worker_loop(
+    mut machine: SmsTemporalMachine,
+    mut rom: Vec<u8>,
+    region: String,
+    vdp_revision: SmsVdpRevision,
+    commands: Receiver<WorkerCommand>,
+    telemetry: Arc<WorkerTelemetry>,
+) {
+    let mut running = false;
+    let mut breakpoints = BreakpointSet::default();
+    let mut trace_publisher: Option<DiagnosticPublisher<SmsTemporalTraceEvent>> = None;
+    let mut trace_enabled = false;
+    let mut audio_session: Option<Box<dyn AudioSession>> = None;
+    let mut audio_renderer = AudioRendererState::default();
+    let mut video_mailbox: Option<FrameMailbox> = None;
+    let mut video_sequence = 0_u64;
+    let mut frame_deadline = FramePacingDeadline::default();
+
+    loop {
+        if telemetry.shutdown.load(Ordering::Acquire) {
+            break;
+        }
+        let mut pacing_wait_active = false;
+        let command = if running {
+            let timeout = frame_deadline
+                .remaining(Instant::now())
+                .unwrap_or(Duration::ZERO);
+            let wait_deadline = frame_deadline.deadline;
+            pacing_wait_active = !timeout.is_zero();
+            let wait_started = Instant::now();
+            let wait_result = commands.recv_timeout(timeout);
+            let wait_finished = Instant::now();
+            if pacing_wait_active {
+                telemetry.record_actual_pacing_wait(
+                    wait_finished.saturating_duration_since(wait_started),
+                );
+            }
+            match wait_result {
+                Ok(command) => {
+                    // Count only commands that actually interrupted a wait before
+                    // the frame deadline. A zero-timeout poll after an expired
+                    // deadline is command processing, not a pacing wakeup.
+                    if let Some(deadline) =
+                        wait_deadline.filter(|deadline| wait_finished < *deadline)
+                    {
+                        telemetry.record_pacing_command_wakeup(
+                            deadline.saturating_duration_since(wait_finished),
+                        );
+                    }
+                    Some(command)
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    // A zero-timeout poll after an expired deadline is not an
+                    // OS wakeup-lateness sample; only measure an active wait.
+                    if pacing_wait_active && let Some(deadline) = wait_deadline {
+                        telemetry.record_pacing_timeout_lateness(
+                            wait_finished.saturating_duration_since(deadline),
+                        );
+                    }
+                    // Keep the expired target as the next frame's phase anchor.
+                    None
+                }
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        } else {
+            frame_deadline.clear();
+            match commands.recv_timeout(WORKER_IDLE_POLL_INTERVAL) {
+                Ok(command) => Some(command),
+                Err(RecvTimeoutError::Timeout) => continue,
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        };
+
+        if let Some(command) = command {
+            let was_running = running;
+            let command_kind = command.kind();
+            let command_handler_started = Instant::now();
+            let command_continues = handle_command(
+                command,
+                &mut machine,
+                &mut breakpoints,
+                &mut rom,
+                &region,
+                vdp_revision,
+                &mut running,
+                &mut audio_session,
+                &mut audio_renderer,
+                &mut video_mailbox,
+                &mut video_sequence,
+                &telemetry,
+                &mut trace_publisher,
+                &mut trace_enabled,
+            );
+            let command_handler_elapsed = command_handler_started.elapsed();
+            if was_running {
+                telemetry.record_command_handler(command_handler_elapsed);
+            }
+            sega_observability::tracing::trace!(
+                target: "sega::audio::pacing",
+                command_kind,
+                command_handler_ns = command_handler_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+                worker_was_running = was_running,
+                pacing_wait_active,
+                "SMS worker command handler"
+            );
+            if !command_continues {
+                break;
+            }
+            // Pause/reset/load/power transitions invalidate the previous
+            // frame's wall-clock epoch. Non-pausing commands retain it.
+            if was_running != running || !running {
+                frame_deadline.clear();
+            }
+            drain_machine_trace(&mut machine, trace_publisher.as_ref());
+            continue;
+        }
+
+        match execute_frame_with_renderer(
+            &mut machine,
+            &breakpoints,
+            DEFAULT_MAX_FRAME_INSTRUCTIONS,
+            true,
+            &mut audio_session,
+            &mut audio_renderer,
+            &mut video_mailbox,
+            &mut video_sequence,
+            &telemetry,
+            frame_deadline.deadline,
+        ) {
+            Ok((_, next_frame_deadline, breakpoint_hit)) => {
+                drain_machine_trace(&mut machine, trace_publisher.as_ref());
+                if breakpoint_hit {
+                    running = false;
+                    telemetry.running.store(false, Ordering::Release);
+                    frame_deadline.clear();
+                    if let Some(session) = audio_session.as_mut() {
+                        if let Err(error) = session.suspend_and_flush() {
+                            telemetry.set_audio_error(Some(error));
+                        }
+                        if telemetry.diagnostics_enabled() {
+                            telemetry.set_audio_metrics(session.metrics());
+                        }
+                    }
+                }
+                if running {
+                    frame_deadline.set(next_frame_deadline);
+                } else {
+                    frame_deadline.clear();
+                }
+            }
+            Err(error) => {
+                running = false;
+                telemetry.running.store(false, Ordering::Release);
+                frame_deadline.clear();
+                telemetry.set_runtime_error(Some(error));
+                if let Some(mut session) = audio_session.take() {
+                    session.close();
+                }
+                telemetry.set_audio_metrics(AudioOutputMetrics::default());
+            }
+        }
+    }
+
+    telemetry.running.store(false, Ordering::Release);
+    if let Some(mut session) = audio_session.take() {
+        session.close();
+    }
+    // The worker only borrows the publisher handle. Mailbox closure belongs
+    // to the host that created the presentation session.
+    drop(video_mailbox);
+}
+
+fn drain_machine_trace(
+    machine: &mut SmsTemporalMachine,
+    publisher: Option<&DiagnosticPublisher<SmsTemporalTraceEvent>>,
+) {
+    let Some(publisher) = publisher.filter(|publisher| publisher.is_active()) else {
+        return;
+    };
+    for event in machine.take_trace() {
+        let _ = publisher.try_publish(event);
+    }
+}
+
+/// Dispatch one coarse worker command over the worker-owned machine and outputs.
+///
+/// The explicit state references keep machine, audio, video and timing ownership
+/// visible at this boundary instead of hiding them in shared mutable globals.
+#[allow(clippy::too_many_arguments)]
+fn handle_command(
+    command: WorkerCommand,
+    machine: &mut SmsTemporalMachine,
+    breakpoints: &mut BreakpointSet,
+    rom: &mut Vec<u8>,
+    region: &str,
+    vdp_revision: SmsVdpRevision,
+    running: &mut bool,
+    audio_session: &mut Option<Box<dyn AudioSession>>,
+    audio_renderer: &mut AudioRendererState,
+    video_mailbox: &mut Option<FrameMailbox>,
+    video_sequence: &mut u64,
+    telemetry: &WorkerTelemetry,
+    trace_publisher: &mut Option<DiagnosticPublisher<SmsTemporalTraceEvent>>,
+    trace_enabled: &mut bool,
+) -> bool {
+    match command {
+        WorkerCommand::Start(reply) => {
+            let result = audio_session
+                .as_mut()
+                .map_or(Ok(()), |session| session.resume());
+            if let Some(session) = audio_session.as_ref() {
+                telemetry.record_audio_session_metrics(session.as_ref());
+            }
+            match result {
+                Ok(()) => {
+                    *running = true;
+                    telemetry.running.store(true, Ordering::Release);
+                    let _ = reply.send(Ok(()));
+                }
+                Err(error) => {
+                    telemetry.set_audio_error(Some(error.clone()));
+                    let _ = reply.send(Err(error));
+                }
+            }
+        }
+        WorkerCommand::Pause(reply) => {
+            *running = false;
+            telemetry.running.store(false, Ordering::Release);
+            let result = audio_session
+                .as_mut()
+                .map_or(Ok(()), |session| session.suspend_and_flush());
+            if let Some(session) = audio_session.as_ref() {
+                telemetry.record_audio_session_metrics(session.as_ref());
+            }
+            if let Err(error) = &result {
+                telemetry.set_audio_error(Some(error.clone()));
+            }
+            let _ = reply.send(result);
+        }
+        WorkerCommand::ExportCartridgeSram(reply) => {
+            let snapshot = machine.memory().cartridge_sram().map(<[u8]>::to_vec);
+            let _ = reply.send(snapshot);
+        }
+        WorkerCommand::Stop(reply) => {
+            // POWER-off is different from Pause: retain the ROM, but cold-reset the machine.
+            *running = false;
+            telemetry.running.store(false, Ordering::Release);
+            let result = rebuild_sms_temporal_machine_preserving_sram(
+                machine,
+                rom.clone(),
+                region,
+                vdp_revision,
+            )
+            .and_then(|powered_off| {
+                audio_session
+                    .as_mut()
+                    .map_or(Ok::<(), String>(()), |session| {
+                        session.suspend_and_flush()?;
+                        session.reset_dsp();
+                        Ok(())
+                    })?;
+                if let Some(session) = audio_session.as_ref() {
+                    telemetry.record_audio_session_metrics(session.as_ref());
+                }
+                *machine = powered_off;
+                machine.set_trace_enabled(*trace_enabled);
+                audio_renderer.reset_epoch_if_selected(machine, telemetry);
+                telemetry.reset_machine_counters();
+                Ok(())
+            });
+            if let Err(error) = &result {
+                telemetry.set_runtime_error(Some(error.clone()));
+            }
+            let _ = reply.send(result);
+        }
+        WorkerCommand::Reset(reply) => {
+            match rebuild_sms_temporal_machine_preserving_sram(
+                machine,
+                rom.clone(),
+                region,
+                vdp_revision,
+            ) {
+                Ok(reset_machine) => {
+                    *running = false;
+                    telemetry.running.store(false, Ordering::Release);
+                    let result: Result<(), String> =
+                        audio_session.as_mut().map_or(Ok(()), |session| {
+                            session.suspend_and_flush()?;
+                            session.reset_dsp();
+                            Ok(())
+                        });
+                    if let Some(session) = audio_session.as_ref() {
+                        telemetry.record_audio_session_metrics(session.as_ref());
+                    }
+                    match result {
+                        Ok(()) => {
+                            *machine = reset_machine;
+                            machine.set_trace_enabled(*trace_enabled);
+                            audio_renderer.reset_epoch_if_selected(machine, telemetry);
+                            telemetry.reset_machine_counters();
+                            let _ = reply.send(Ok(()));
+                        }
+                        Err(error) => {
+                            telemetry.set_audio_error(Some(error.clone()));
+                            let _ = reply.send(Err(error));
+                        }
+                    }
+                }
+                Err(error) => {
+                    let _ = reply.send(Err(error));
+                }
+            }
+        }
+        WorkerCommand::LoadRom(new_rom, reply) => {
+            if machine.memory().cartridge_sram().is_some() {
+                let _ = reply.send(Err(
+                    "cannot replace a cartridge with SRAM through load_rom; persist it and create a new worker".to_owned(),
+                ));
+            } else {
+                match build_sms_temporal_machine_with_revision_and_sram_size(
+                    new_rom.clone(),
+                    region,
+                    vdp_revision,
+                    None,
+                ) {
+                    Ok(new_machine) => {
+                        *running = false;
+                        telemetry.running.store(false, Ordering::Release);
+                        let result: Result<(), String> =
+                            audio_session.as_mut().map_or(Ok(()), |session| {
+                                session.suspend_and_flush()?;
+                                session.reset_dsp();
+                                Ok(())
+                            });
+                        if let Some(session) = audio_session.as_ref() {
+                            telemetry.record_audio_session_metrics(session.as_ref());
+                        }
+                        match result {
+                            Ok(()) => {
+                                *machine = new_machine;
+                                machine.set_trace_enabled(*trace_enabled);
+                                audio_renderer.reset_epoch_if_selected(machine, telemetry);
+                                *rom = new_rom;
+                                telemetry.reset_machine_counters();
+                                let _ = reply.send(Ok(()));
+                            }
+                            Err(error) => {
+                                telemetry.set_audio_error(Some(error.clone()));
+                                let _ = reply.send(Err(error));
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        let _ = reply.send(Err(error));
+                    }
+                }
+            }
+        }
+        WorkerCommand::StepInstruction(reply) => {
+            if *running {
+                let _ = reply.send(Err(
+                    "step_instruction is available only while the native worker is paused"
+                        .to_owned(),
+                ));
+            } else {
+                match machine.step_complete_instruction() {
+                    Ok(()) => {
+                        if telemetry.diagnostics_enabled() {
+                            telemetry.total_instructions.fetch_add(1, Ordering::AcqRel);
+                        }
+                        telemetry.set_frame_number(machine.frame_number());
+                        telemetry.machine_time_ticks.store(
+                            u64::try_from(machine.now().ticks()).unwrap_or(u64::MAX),
+                            Ordering::Release,
+                        );
+                        let _ = reply.send(Ok(()));
+                    }
+                    Err(error) => {
+                        let error = error.to_string();
+                        telemetry.set_runtime_error(Some(error.clone()));
+                        let _ = reply.send(Err(error));
+                    }
+                }
+            }
+        }
+        WorkerCommand::SaveState(reply) => {
+            let _ = reply.send(Ok(SmsWorkerSaveState {
+                format_version: SMS_WORKER_SAVE_STATE_VERSION,
+                region: region.to_owned(),
+                machine_state: machine.export_state(),
+            }));
+        }
+        WorkerCommand::LoadState(state, reply) => {
+            if *running {
+                let _ = reply.send(Err(
+                    "load_state is available only while the native worker is paused".to_owned(),
+                ));
+            } else if state.format_version != SMS_WORKER_SAVE_STATE_VERSION
+                || state.region != region
+                || state.machine_state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
+                || state.machine_state.bus.vdp.profile().revision
+                    != machine.vdp().profile().revision
+                || state.machine_state.bus.vdp.profile().video_standard
+                    != machine.vdp().profile().video_standard
+            {
+                let _ = reply.send(Err(
+                    "save state version, ROM identity or hardware profile does not match the active machine"
+                        .to_owned(),
+                ));
+            } else {
+                match SmsTemporalMachine::restore_state(state.machine_state) {
+                    Ok(restored) => {
+                        *machine = restored;
+                        machine.set_trace_enabled(*trace_enabled);
+                        audio_renderer.reset_epoch_if_selected(machine, telemetry);
+                        telemetry.set_frame_number(machine.frame_number());
+                        telemetry.machine_time_ticks.store(
+                            u64::try_from(machine.now().ticks()).unwrap_or(u64::MAX),
+                            Ordering::Release,
+                        );
+                        telemetry.set_runtime_error(None);
+                        let _ = reply.send(Ok(()));
+                    }
+                    Err(error) => {
+                        let error = error.to_string();
+                        telemetry.set_runtime_error(Some(error.clone()));
+                        let _ = reply.send(Err(error));
+                    }
+                }
+            }
+        }
+        WorkerCommand::DebugSnapshot(reply) => {
+            let cpu = machine.cpu().export_architectural_state();
+            let registers = cpu.registers;
+            let alternate = cpu.alternate;
+            let snapshot = SmsDebugSnapshot {
+                pc: registers.pc,
+                sp: registers.sp,
+                af: u16::from_be_bytes([registers.a, registers.f]),
+                bc: registers.bc(),
+                de: registers.de(),
+                hl: registers.hl(),
+                af_alt: u16::from_be_bytes([alternate.a, alternate.f]),
+                bc_alt: u16::from_be_bytes([alternate.b, alternate.c]),
+                de_alt: u16::from_be_bytes([alternate.d, alternate.e]),
+                hl_alt: u16::from_be_bytes([alternate.h, alternate.l]),
+                ix: cpu.ix,
+                iy: cpu.iy,
+                wz: cpu.wz,
+                instruction_tstates: machine.cpu().export_state().instruction_tstates,
+                i: cpu.i,
+                r: cpu.r,
+                iff1: cpu.iff1,
+                iff2: cpu.iff2,
+                interrupt_mode: cpu.interrupt_mode,
+                halted: cpu.halted,
+                machine_time_ticks: machine.now().ticks(),
+                frame_number: machine.frame_number(),
+                vdp_status: machine.vdp().status(),
+                vdp_scanline: machine.vdp().scanline(),
+                vdp_cycles_into_line: machine.vdp().cycles_into_line(),
+                sprite_limit_mode: machine.vdp().sprite_limit_mode(),
+                mapper_banks: machine.selected_mapper_banks(),
+                mapper_control: machine.mapper_control(),
+                memory_control: machine.memory_control(),
+                framebuffer_rgb: machine.framebuffer().to_vec(),
+                trace_events: Vec::new(),
+                trace_dropped: 0,
+                trace_enabled: *trace_enabled,
+            };
+            let _ = reply.send(Ok(snapshot));
+        }
+        WorkerCommand::SetTraceEnabled(enabled, publisher, reply) => {
+            machine.set_trace_enabled(enabled);
+            *trace_enabled = enabled;
+            *trace_publisher = publisher;
+            let _ = reply.send(Ok(()));
+        }
+        WorkerCommand::SetSpriteLimitMode(mode, reply) => {
+            machine.set_sprite_limit_mode(mode);
+            let _ = reply.send(Ok(()));
+        }
+        WorkerCommand::SetOverscanMode(mode, reply) => {
+            telemetry.overscan_mode.store(mode as u8, Ordering::Release);
+            let _ = reply.send(Ok(()));
+        }
+        WorkerCommand::ReadMemory(start, length, reply) => {
+            let bytes = (0..length)
+                .map(|offset| machine.inspect_memory(start.wrapping_add(offset as u16)))
+                .collect();
+            let _ = reply.send(Ok(bytes));
+        }
+        WorkerCommand::StepFrame(max_instructions, reply) => {
+            if *running {
+                let _ = reply.send(Err(
+                    "step_frame is available only while the native worker is paused".to_owned(),
+                ));
+            } else if max_instructions == 0 {
+                let _ = reply.send(Err("max_instructions must be positive".to_owned()));
+            } else {
+                match execute_frame_with_renderer(
+                    machine,
+                    breakpoints,
+                    max_instructions,
+                    false,
+                    audio_session,
+                    audio_renderer,
+                    video_mailbox,
+                    video_sequence,
+                    telemetry,
+                    None,
+                ) {
+                    Ok((instructions, _, _)) => {
+                        let _ = reply.send(Ok(instructions));
+                    }
+                    Err(error) => {
+                        telemetry.set_runtime_error(Some(error.clone()));
+                        let _ = reply.send(Err(error));
+                    }
+                }
+            }
+        }
+        WorkerCommand::SetBreakpoint(address, enabled, reply) => {
+            let result = if enabled {
+                if breakpoints.insert(u32::from(address)) {
+                    Ok(())
+                } else {
+                    Err("breakpoint already exists or the 64-address limit was reached".to_owned())
+                }
+            } else if breakpoints.remove(u32::from(address)) {
+                Ok(())
+            } else {
+                Err("breakpoint address was not configured".to_owned())
+            };
+            let _ = reply.send(result);
+        }
+        WorkerCommand::SetController(player, buttons, detected_at) => {
+            match machine.set_controller(player, buttons) {
+                Ok(()) => telemetry.record_input_detected(detected_at),
+                Err(error) => telemetry.set_runtime_error(Some(error.to_string())),
+            }
+        }
+        WorkerCommand::RequestNmi => machine.request_nmi(),
+        WorkerCommand::ConfigureAudio(factory, reply) => match factory() {
+            Ok(mut session) => {
+                let previous_result = audio_session
+                    .as_mut()
+                    .map_or(Ok(()), |previous| previous.suspend_and_flush());
+                if let Err(error) = previous_result {
+                    if let Some(mut previous) = audio_session.take() {
+                        previous.close();
+                    }
+                    session.close();
+                    telemetry.set_audio_metrics(AudioOutputMetrics::default());
+                    telemetry.set_audio_error(Some(error.clone()));
+                    let _ = reply.send(Err(error));
+                } else {
+                    if let Some(mut previous) = audio_session.take() {
+                        previous.close();
+                    }
+                    let result = if *running {
+                        session.resume()
+                    } else {
+                        session.suspend_and_flush()
+                    };
+                    match result {
+                        Ok(()) => {
+                            telemetry.record_audio_session_metrics(session.as_ref());
+                            *audio_session = Some(session);
+                            telemetry.set_audio_error(None);
+                            let _ = reply.send(Ok(()));
+                        }
+                        Err(error) => {
+                            session.close();
+                            telemetry.set_audio_metrics(AudioOutputMetrics::default());
+                            telemetry.set_audio_error(Some(error.clone()));
+                            let _ = reply.send(Err(error));
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                telemetry.set_audio_error(Some(error.clone()));
+                let _ = reply.send(Err(error));
+            }
+        },
+        WorkerCommand::SetAudioVolume(volume, reply) => {
+            let result = audio_session
+                .as_mut()
+                .ok_or_else(|| "native audio output is not configured".to_owned())
+                .and_then(|session| session.set_volume(volume));
+            let _ = reply.send(result);
+        }
+        WorkerCommand::SetAudioDspConfig(config, reply) => {
+            let result = audio_session
+                .as_mut()
+                .ok_or_else(|| "native audio output is not configured".to_owned())
+                .and_then(|session| session.set_analog_output_config(config));
+            let _ = reply.send(result);
+        }
+        WorkerCommand::SetAudioRenderer(mode, reply) => {
+            let result = audio_renderer.select(machine, mode);
+            if result.is_ok() {
+                telemetry.set_runtime_error(None);
+            } else if mode == AudioRendererMode::H2Experimental {
+                let _ = audio_renderer.select(machine, AudioRendererMode::Psg);
+            }
+            let _ = reply.send(result);
+        }
+        WorkerCommand::CloseAudio(reply) => {
+            let close_error = audio_session.take().and_then(|mut session| {
+                let error = session.suspend_and_flush().err();
+                session.close();
+                error
+            });
+            telemetry.set_audio_error(close_error);
+            telemetry.set_audio_metrics(AudioOutputMetrics::default());
+            let _ = reply.send(());
+        }
+        WorkerCommand::SetVideoMailbox(mailbox, reply) => {
+            if let Some(attached_mailbox) = mailbox.as_ref() {
+                match attached_mailbox.last_sequence() {
+                    Ok(Some(last_sequence)) => {
+                        *video_sequence = (*video_sequence).max(last_sequence);
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        let _ = reply.send(Err(format!(
+                            "could not read video mailbox sequence: {error}"
+                        )));
+                        return true;
+                    }
+                }
+            }
+            *video_mailbox = mailbox;
+            telemetry.set_video_error(None);
+            let _ = reply.send(Ok(()));
+        }
+        WorkerCommand::Shutdown => {
+            *running = false;
+            telemetry.running.store(false, Ordering::Release);
+            if let Some(mut session) = audio_session.take() {
+                let _ = session.suspend_and_flush();
+                session.close();
+            }
+            // Do not close a mailbox supplied by an external presentation host.
+            // The host detaches us and closes its own mailbox after worker shutdown.
+            drop(video_mailbox.take());
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
+        FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
+        Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
+        WorkerTelemetry, build_sms_temporal_machine,
+        build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
+        execute_frame, execute_frame_with_renderer, frame_duration_from_machine_ticks,
+        sms_temporal_hardware_profile, sms_temporal_region_profile,
+    };
+    use crate::SmsTemporalWorkerDebugHandle;
+    use sega_audio_runtime::{AudioOutputMetrics, NativeAudioSession, PcmSink};
+    use sega_sms_core::ControllerButtons;
+    use sega_video_runtime::{FrameMailbox, PixelFormat};
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn explicit_vdp_revision_is_independent_of_regional_video_standard() {
+        use sega_sms_core::{SmsVdpRevision, VideoStandard};
+
+        for (region, standard, clock) in [
+            ("usa", VideoStandard::Ntsc, 3_579_545),
+            ("brazil", VideoStandard::PalM, 3_579_545),
+            ("europe", VideoStandard::Pal, 3_546_895),
+            ("japan", VideoStandard::Ntsc, 3_579_545),
+            ("korea", VideoStandard::Ntsc, 3_579_545),
+        ] {
+            let (_, sms1, sms1_clock) =
+                sms_temporal_hardware_profile(region, SmsVdpRevision::Sega3155124).unwrap();
+            let (_, sms2, sms2_clock) =
+                sms_temporal_hardware_profile(region, SmsVdpRevision::Sega3155246).unwrap();
+
+            assert_eq!(sms1.revision, SmsVdpRevision::Sega3155124);
+            assert_eq!(sms2.revision, SmsVdpRevision::Sega3155246);
+            assert_eq!(sms1.video_standard, standard);
+            assert_eq!(sms2.video_standard, standard);
+            assert_eq!(sms1_clock, clock);
+            assert_eq!(sms2_clock, clock);
+        }
+
+        let (_, legacy_default, _) = sms_temporal_region_profile("europe").unwrap();
+        assert_eq!(legacy_default.revision, SmsVdpRevision::Sega3155124);
+    }
+
+    #[test]
+    fn worker_machine_builder_instantiates_the_selected_sms2_vdp_asic() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let machine = build_sms_temporal_machine_with_revision_and_sram_size(
+            vec![0; 0x4000],
+            "europe",
+            SmsVdpRevision::Sega3155246,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(
+            machine.vdp().profile().revision,
+            SmsVdpRevision::Sega3155246
+        );
+        assert_eq!(machine.vdp().visible_height(), 192);
+    }
+
+    #[test]
+    fn frame_timing_uses_worker_completion_timestamps_not_video_presentation() {
+        use super::FrameTimingState;
+        use std::time::Instant;
+
+        let start = Instant::now();
+        let mut timing = FrameTimingState::default();
+        timing.record_frame_completed(start);
+        timing.record_frame_completed(start + Duration::from_millis(20));
+        assert_eq!(timing.metrics.completed_frames, 2);
+        assert_eq!(timing.metrics.frame_time_ms, Some(20.0));
+        assert_eq!(timing.metrics.emulation_fps, 0.0);
+        timing.record_frame_completed(start + Duration::from_millis(520));
+        assert!((timing.metrics.emulation_fps - 3.846154).abs() < 0.0001);
+    }
+
+    #[test]
+    fn input_latency_ends_at_the_first_completed_sms_frame() {
+        use super::FrameTimingState;
+        use std::time::Instant;
+
+        let start = Instant::now();
+        let mut timing = FrameTimingState::default();
+        timing.record_input(start + Duration::from_millis(3));
+        timing.record_frame_completed(start + Duration::from_millis(19));
+        assert_eq!(timing.metrics.input_to_frame_ms, Some(16.0));
+        assert!(timing.pending_input.is_none());
+    }
+
+    #[test]
+    fn bounded_command_queue_rejects_overflow_without_waiting() {
+        let (commands, _receiver) = super::mpsc::sync_channel(1);
+        super::enqueue_worker_command(&commands, super::WorkerCommand::RequestNmi).unwrap();
+        let error = super::enqueue_worker_command(&commands, super::WorkerCommand::RequestNmi)
+            .expect_err("a full queue must reject commands immediately");
+        assert!(error.contains("queue is full"));
+    }
+
+    #[test]
+    fn input_latency_uses_the_latest_controller_state_applied_before_frame() {
+        use super::FrameTimingState;
+        use std::time::Instant;
+
+        let start = Instant::now();
+        let mut timing = FrameTimingState::default();
+        timing.record_input(start + Duration::from_millis(3));
+        timing.record_input(start + Duration::from_millis(10));
+        timing.record_frame_completed(start + Duration::from_millis(19));
+        assert_eq!(timing.metrics.input_to_frame_ms, Some(9.0));
+    }
+
+    #[test]
+    fn emulation_fps_expires_when_no_sms_frame_completes() {
+        use super::FrameTimingState;
+        use std::time::Instant;
+
+        let start = Instant::now();
+        let mut timing = FrameTimingState::default();
+        timing.record_frame_completed(start);
+        timing.record_frame_completed(start + Duration::from_millis(500));
+        assert!(
+            timing
+                .metrics_at(start + Duration::from_millis(999))
+                .emulation_fps
+                > 0.0
+        );
+        assert_eq!(
+            timing
+                .metrics_at(start + Duration::from_secs(1))
+                .emulation_fps,
+            0.0
+        );
+    }
+
+    #[test]
+    fn breakpoint_before_frame_completion_does_not_count_or_publish_a_frame() {
+        let mut machine = build_sms_temporal_machine(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let mut breakpoints = BreakpointSet::default();
+        breakpoints.insert(0);
+        let mut video_sequence = 0;
+        let telemetry = WorkerTelemetry::default();
+        let mut audio_session = None;
+        let mailbox = FrameMailbox::new();
+        let mut video_mailbox = Some(mailbox.clone());
+
+        let (instructions, _, breakpoint_hit) = execute_frame(
+            &mut machine,
+            &breakpoints,
+            DEFAULT_MAX_FRAME_INSTRUCTIONS,
+            false,
+            &mut audio_session,
+            &mut video_mailbox,
+            &mut video_sequence,
+            &telemetry,
+        )
+        .unwrap();
+
+        assert_eq!(instructions, 0);
+        assert!(breakpoint_hit);
+        assert_eq!(machine.frame_number(), 0);
+        assert_eq!(telemetry.performance_metrics().completed_frames, 0);
+        assert_eq!(telemetry.frame_number.load(Ordering::Acquire), 0);
+        assert_eq!(video_sequence, 0);
+        assert!(mailbox.take_latest().unwrap().is_none());
+    }
+
+    #[test]
+    fn input_latency_remains_pending_across_breakpoint_until_a_complete_frame() {
+        use std::time::Instant;
+
+        let mut machine = build_sms_temporal_machine(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let telemetry = WorkerTelemetry::default();
+        telemetry.record_input_detected(Instant::now());
+
+        let mut breakpoint = BreakpointSet::default();
+        breakpoint.insert(0);
+        let mut video_sequence = 0;
+        let mut audio_session = None;
+        let mut video_mailbox = None;
+
+        let (_, _, breakpoint_hit) = execute_frame(
+            &mut machine,
+            &breakpoint,
+            DEFAULT_MAX_FRAME_INSTRUCTIONS,
+            false,
+            &mut audio_session,
+            &mut video_mailbox,
+            &mut video_sequence,
+            &telemetry,
+        )
+        .unwrap();
+        assert!(breakpoint_hit);
+        assert_eq!(telemetry.performance_metrics().completed_frames, 0);
+        assert!(
+            telemetry
+                .frame_timing
+                .lock()
+                .unwrap()
+                .pending_input
+                .is_some()
+        );
+
+        let no_breakpoints = BreakpointSet::default();
+        let (_, _, breakpoint_hit) = execute_frame(
+            &mut machine,
+            &no_breakpoints,
+            DEFAULT_MAX_FRAME_INSTRUCTIONS,
+            false,
+            &mut audio_session,
+            &mut video_mailbox,
+            &mut video_sequence,
+            &telemetry,
+        )
+        .unwrap();
+
+        assert!(!breakpoint_hit);
+        let metrics = telemetry.performance_metrics();
+        assert_eq!(metrics.completed_frames, 1);
+        assert!(metrics.input_to_frame_ms.is_some());
+        assert_eq!(video_sequence, 1);
+    }
+
+    #[test]
+    fn worker_telemetry_round_trips_all_audio_output_metrics() {
+        let telemetry = WorkerTelemetry::default();
+        let expected = AudioOutputMetrics {
+            sample_rate_hz: 48_000,
+            queue_capacity_frames: 2_048,
+            queue_queued_frames: 480,
+            queue_high_water_frames: 960,
+            accepted_frames: 12_000,
+            consumed_frames: 11_513,
+            dropped_frames: 7,
+            underrun_frames: 32,
+            underrun_events: 4,
+            dropped_blocks: 3,
+            flushed_frames: 9,
+        };
+
+        telemetry.set_diagnostics_enabled(true);
+        telemetry.set_audio_metrics(expected);
+        assert_eq!(telemetry.audio_output_metrics(), expected);
+    }
+
+    #[test]
+    fn optional_diagnostic_telemetry_is_disabled_by_default() {
+        let telemetry = WorkerTelemetry::default();
+        assert!(!telemetry.diagnostics_enabled());
+        telemetry.set_audio_metrics(AudioOutputMetrics {
+            sample_rate_hz: 48_000,
+            underrun_events: 3,
+            ..AudioOutputMetrics::default()
+        });
+        assert_eq!(
+            telemetry.audio_output_metrics(),
+            AudioOutputMetrics::default()
+        );
+    }
+
+    #[test]
+    fn disabling_diagnostics_clears_optional_telemetry_counters() {
+        let telemetry = WorkerTelemetry::default();
+        telemetry.set_diagnostics_enabled(true);
+        telemetry.set_audio_metrics(AudioOutputMetrics {
+            sample_rate_hz: 48_000,
+            underrun_events: 3,
+            ..AudioOutputMetrics::default()
+        });
+        telemetry.total_instructions.store(99, Ordering::Release);
+        telemetry.set_diagnostics_enabled(false);
+        assert_eq!(
+            telemetry.audio_output_metrics(),
+            AudioOutputMetrics::default()
+        );
+        assert_eq!(telemetry.total_instructions.load(Ordering::Acquire), 0);
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingSink(Arc<Mutex<Vec<Vec<f64>>>>);
+
+    impl PcmSink for RecordingSink {
+        fn write_samples(&mut self, samples: Vec<f64>) -> Result<(), String> {
+            self.0
+                .lock()
+                .map_err(|_| "recording sink lock poisoned".to_owned())?
+                .push(samples);
+            Ok(())
+        }
+
+        fn suspend_and_flush(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn resume(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn metrics(&self) -> AudioOutputMetrics {
+            AudioOutputMetrics::default()
+        }
+
+        fn close(&mut self) {}
+    }
+
+    #[derive(Clone, Default)]
+    struct ControlSink(Arc<Mutex<Vec<&'static str>>>);
+
+    impl PcmSink for ControlSink {
+        fn write_samples(&mut self, _samples: Vec<f64>) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn suspend_and_flush(&mut self) -> Result<(), String> {
+            self.0.lock().unwrap().push("flush");
+            Ok(())
+        }
+
+        fn resume(&mut self) -> Result<(), String> {
+            self.0.lock().unwrap().push("resume");
+            Ok(())
+        }
+
+        fn metrics(&self) -> AudioOutputMetrics {
+            AudioOutputMetrics::default()
+        }
+
+        fn close(&mut self) {}
+    }
+
+    const SYNTHETIC_ROM: [u8; 0x4000] = [0; 0x4000];
+
+    #[test]
+    fn worker_exports_sram_and_preserves_it_across_reset_and_power_off() {
+        let initial = vec![0x5A; 0x2000];
+        let worker = SmsTemporalWorker::new_with_cartridge_sram_size(
+            SYNTHETIC_ROM.to_vec(),
+            "usa",
+            Some(0x2000),
+            Some(initial.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            worker.export_cartridge_sram().unwrap(),
+            Some(initial.clone())
+        );
+
+        worker.reset().unwrap();
+        assert_eq!(
+            worker.export_cartridge_sram().unwrap(),
+            Some(initial.clone())
+        );
+
+        worker.stop().unwrap();
+        assert_eq!(worker.export_cartridge_sram().unwrap(), Some(initial));
+    }
+
+    #[test]
+    fn worker_rejects_persisted_sram_without_a_verified_hardware_profile() {
+        let error = match SmsTemporalWorker::new_with_cartridge_sram_size(
+            SYNTHETIC_ROM.to_vec(),
+            "usa",
+            None,
+            Some(vec![0; 0x2000]),
+        ) {
+            Ok(_) => panic!("worker unexpectedly accepted SRAM without a profile"),
+            Err(error) => error,
+        };
+        assert!(error.contains("verified cartridge RAM profile"));
+    }
+
+    #[test]
+    fn h2_renderer_is_selected_at_worker_boundary_and_consumes_real_psg_events() {
+        let mut rom = vec![0; 0x4000];
+        let program = [
+            0xF3, 0x31, 0xF0, 0xDF, // DI; LD SP,$DFF0
+            0x3E, 0x80, 0xD3, 0x7F, // PSG tone 0 period low
+            0x3E, 0x02, 0xD3, 0x7F, // PSG tone 0 period high
+            0x3E, 0x90, 0xD3, 0x7F, // PSG tone 0 volume
+            0x18, 0xFE, // JR $
+        ];
+        rom[..program.len()].copy_from_slice(&program);
+        let mut machine = build_sms_temporal_machine(rom, "usa").unwrap();
+        let mut renderer = AudioRendererState::default();
+        assert_eq!(renderer.mode, AudioRendererMode::Psg);
+        renderer
+            .select(&mut machine, AudioRendererMode::H2Experimental)
+            .unwrap();
+
+        let breakpoints = BreakpointSet::default();
+        let mut audio_session = None;
+        let mut video_mailbox = None;
+        let mut video_sequence = 0;
+        let telemetry = WorkerTelemetry::default();
+        execute_frame_with_renderer(
+            &mut machine,
+            &breakpoints,
+            DEFAULT_MAX_FRAME_INSTRUCTIONS,
+            false,
+            &mut audio_session,
+            &mut renderer,
+            &mut video_mailbox,
+            &mut video_sequence,
+            &telemetry,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(renderer.mode, AudioRendererMode::H2Experimental);
+        let metrics = renderer.h2.as_ref().unwrap().metrics();
+        assert!(metrics.events_processed > 0);
+        assert!(metrics.output_samples > 0);
+        assert!(!machine.psg_event_capture_overflowed());
+    }
+
+    fn av_test_rom() -> Vec<u8> {
+        let mut rom = vec![0; 0x4000];
+        let mut program = vec![
+            0xF3, // DI
+            0x31, 0xF0, 0xDF, // LD SP,$DFF0
+            0x3E, 0x06, 0xD3, 0xBF, 0x3E, 0x80, 0xD3, 0xBF, // R0: Mode 4
+            0x3E, 0xC0, 0xD3, 0xBF, 0x3E, 0x81, 0xD3, 0xBF, // R1: 16 KB, display
+            0x3E, 0x0E, 0xD3, 0xBF, 0x3E, 0x82, 0xD3, 0xBF, // R2: name table
+            0x3E, 0x01, 0xD3, 0xBF, 0x3E, 0xC0, 0xD3, 0xBF, 0x3E, 0x3F, 0xD3, 0xBE, 0x3E, 0x00,
+            0xD3, 0xBF, 0x3E, 0x40, 0xD3, 0xBF,
+        ];
+        for _ in 0..8 {
+            // One byte per bitplane per row: only plane 0 is set, so every
+            // pixel selects background palette entry 1 (the white CRAM color).
+            program.extend([
+                0x3E, 0xFF, 0xD3, 0xBE, // Plane 0
+                0x3E, 0x00, 0xD3, 0xBE, // Plane 1
+                0x3E, 0x00, 0xD3, 0xBE, // Plane 2
+                0x3E, 0x00, 0xD3, 0xBE, // Plane 3
+            ]);
+        }
+        program.extend([
+            0x3E, 0x84, 0xD3, 0x7E, 0x3E, 0x00, 0xD3, 0x7E, 0x3E, 0x90, 0xD3, 0x7E, 0x18, 0xFE,
+        ]);
+        rom[..program.len()].copy_from_slice(&program);
+        rom
+    }
+
+    #[test]
+    fn sprite_limit_mode_changes_only_through_worker_command_queue() {
+        let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+        assert_eq!(
+            worker.debug_snapshot().unwrap().sprite_limit_mode,
+            SpriteLimitMode::HardwareLimit
+        );
+
+        worker
+            .set_sprite_limit_mode(SpriteLimitMode::UnlockedCompatibility)
+            .unwrap();
+        assert_eq!(
+            worker.debug_snapshot().unwrap().sprite_limit_mode,
+            SpriteLimitMode::UnlockedCompatibility
+        );
+
+        worker
+            .set_sprite_limit_mode(SpriteLimitMode::HardwareLimit)
+            .unwrap();
+        assert_eq!(
+            worker.debug_snapshot().unwrap().sprite_limit_mode,
+            SpriteLimitMode::HardwareLimit
+        );
+    }
+
+    #[test]
+    fn stop_powers_off_machine_but_keeps_rom_available_for_restart() {
+        let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+        worker.step_frame(100_000).unwrap();
+        assert!(worker.machine_time_ticks() > 0);
+
+        worker.stop().unwrap();
+        assert!(!worker.is_running());
+        let powered_off = worker.debug_snapshot().unwrap();
+        assert_eq!(powered_off.frame_number, 0);
+        assert_eq!(powered_off.machine_time_ticks, 0);
+
+        worker.start().unwrap();
+        assert!(worker.is_running());
+    }
+
+    #[test]
+    fn reset_preserves_host_selected_sprite_limit_mode() {
+        let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+        worker
+            .set_sprite_limit_mode(SpriteLimitMode::UnlockedCompatibility)
+            .unwrap();
+
+        worker.step_frame(100_000).unwrap();
+        worker.reset().unwrap();
+
+        let reset = worker.debug_snapshot().unwrap();
+        assert_eq!(
+            reset.sprite_limit_mode,
+            SpriteLimitMode::UnlockedCompatibility
+        );
+        assert_eq!(reset.frame_number, 0);
+        assert_eq!(reset.machine_time_ticks, 0);
+    }
+
+    #[test]
+    fn native_worker_runs_pauses_and_steps_through_coarse_commands() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let initial = worker.frame_number();
+
+        worker.start().unwrap();
+        assert!(worker.wait_for_frame_after(initial, Duration::from_secs(2)));
+        worker.pause().unwrap();
+
+        let paused_frame = worker.frame_number();
+        std::thread::sleep(Duration::from_millis(30));
+        assert_eq!(worker.frame_number(), paused_frame);
+
+        worker.step_frame(100_000).unwrap();
+        assert_eq!(worker.frame_number(), paused_frame + 1);
+    }
+
+    #[test]
+    fn single_instruction_step_advances_scheduler_on_paused_worker() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        worker.set_diagnostics_enabled(true);
+
+        let initial_ticks = worker.machine_time_ticks();
+        assert_eq!(worker.total_instructions(), 0);
+        assert!(!worker.is_running());
+
+        worker.step_instruction().unwrap();
+
+        assert!(!worker.is_running());
+        assert_eq!(worker.total_instructions(), 1);
+        assert!(worker.machine_time_ticks() > initial_ticks);
+    }
+
+    #[test]
+    fn single_instruction_step_is_rejected_while_worker_is_running() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        worker.start().unwrap();
+
+        let result = worker.step_instruction();
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .contains("only while the native worker is paused")
+        );
+        assert!(worker.is_running());
+    }
+
+    #[test]
+    fn debugger_snapshot_and_mapper_reads_are_owned_and_bounded() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let initial_ticks = worker.machine_time_ticks();
+
+        let snapshot = worker.debug_snapshot().unwrap();
+        assert_eq!(snapshot.pc, 0);
+        assert_eq!(snapshot.frame_number, 0);
+        assert_eq!(snapshot.machine_time_ticks, 0);
+        assert_eq!(snapshot.mapper_banks, [0, 1, 2]);
+        assert_eq!(worker.machine_time_ticks(), initial_ticks);
+
+        assert_eq!(worker.inspect_memory(0, 4).unwrap(), [0, 0, 0, 0]);
+        assert!(worker.inspect_memory(0, 257).is_err());
+        assert_eq!(worker.machine_time_ticks(), initial_ticks);
+    }
+
+    #[test]
+    fn cloneable_debug_handle_controls_the_same_worker_instance() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<SmsTemporalWorkerDebugHandle>();
+
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let handle = worker.debug_handle();
+
+        assert_eq!(
+            handle.debug_snapshot().unwrap(),
+            worker.debug_snapshot().unwrap()
+        );
+        handle.set_breakpoint(0x0000, true).unwrap();
+        handle.set_trace_enabled(true).unwrap();
+        assert!(handle.debug_snapshot().unwrap().trace_enabled);
+
+        handle.set_trace_enabled(false).unwrap();
+        assert!(!worker.debug_snapshot().unwrap().trace_enabled);
+    }
+
+    #[test]
+    fn trace_capture_is_opt_in_and_exposes_bounded_owned_events() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let initial = worker.debug_snapshot().unwrap();
+        assert!(!initial.trace_enabled);
+        assert!(initial.trace_events.is_empty());
+
+        worker.set_trace_enabled(true).unwrap();
+        worker.step_instruction().unwrap();
+        let captured = worker.debug_snapshot().unwrap();
+        assert!(captured.trace_enabled);
+        assert!(!captured.trace_events.is_empty());
+        assert_eq!(captured.trace_dropped, 0);
+
+        worker.set_trace_enabled(false).unwrap();
+        let disabled = worker.debug_snapshot().unwrap();
+        assert!(!disabled.trace_enabled);
+        assert!(disabled.trace_events.is_empty());
+        assert_eq!(disabled.trace_dropped, 0);
+    }
+
+    #[test]
+    fn trace_opt_in_does_not_change_machine_progression() {
+        let traced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let untraced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+
+        traced.set_trace_enabled(true).unwrap();
+        for _ in 0..32 {
+            traced.step_instruction().unwrap();
+            untraced.step_instruction().unwrap();
+        }
+
+        let traced_state = traced.debug_snapshot().unwrap();
+        let untraced_state = untraced.debug_snapshot().unwrap();
+        assert_eq!(traced_state.pc, untraced_state.pc);
+        assert_eq!(traced_state.sp, untraced_state.sp);
+        assert_eq!(traced_state.af, untraced_state.af);
+        assert_eq!(traced_state.bc, untraced_state.bc);
+        assert_eq!(traced_state.de, untraced_state.de);
+        assert_eq!(traced_state.hl, untraced_state.hl);
+        assert_eq!(
+            traced_state.machine_time_ticks,
+            untraced_state.machine_time_ticks
+        );
+        assert_eq!(traced_state.frame_number, untraced_state.frame_number);
+        assert!(traced_state.trace_enabled);
+        assert!(!untraced_state.trace_enabled);
+    }
+
+    #[test]
+    fn reset_and_load_rom_restore_power_on_machine_counters() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        worker.step_frame(100_000).unwrap();
+        assert_eq!(worker.frame_number(), 1);
+
+        worker.reset().unwrap();
+        assert_eq!(worker.frame_number(), 0);
+
+        worker.step_frame(100_000).unwrap();
+        worker.load_rom(SYNTHETIC_ROM.to_vec()).unwrap();
+        assert_eq!(worker.frame_number(), 0);
+    }
+
+    #[test]
+    fn controller_levels_do_not_advance_machine_time() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let initial = worker.frame_number();
+        worker
+            .set_controller(
+                1,
+                ControllerButtons {
+                    up: true,
+                    down: false,
+                    left: false,
+                    right: false,
+                    button_1: true,
+                    button_2: false,
+                },
+            )
+            .unwrap();
+        worker.request_nmi().unwrap();
+        assert_eq!(worker.frame_number(), initial);
+    }
+
+    #[test]
+    fn audio_factory_runs_on_worker_thread_and_isolates_host_errors() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let caller_thread = std::thread::current().id();
+        let observed_thread = Arc::new(Mutex::new(None));
+        let factory_thread = Arc::clone(&observed_thread);
+
+        let result = worker.configure_audio_output(move || {
+            *factory_thread
+                .lock()
+                .map_err(|_| "audio test lock poisoned".to_owned())? =
+                Some(std::thread::current().id());
+            Err("audio host unavailable".to_owned())
+        });
+
+        assert_eq!(result, Err("audio host unavailable".to_owned()));
+        assert_ne!(
+            observed_thread.lock().unwrap().as_ref(),
+            Some(&caller_thread)
+        );
+        assert_eq!(
+            worker.audio_output_error().as_deref(),
+            Some("audio host unavailable")
+        );
+        assert!(!worker.is_running());
+    }
+
+    #[test]
+    fn worker_serializes_audio_flush_resume_and_step_frame_boundaries() {
+        let worker = SmsTemporalWorker::new(av_test_rom(), "usa").unwrap();
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let factory_events = Arc::clone(&events);
+
+        worker
+            .configure_audio_output(move || -> Result<Box<dyn super::AudioSession>, String> {
+                let sink = ControlSink(Arc::clone(&factory_events));
+                let session = NativeAudioSession::new(
+                    SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+                    SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+                    100,
+                    sink,
+                )?;
+                Ok(Box::new(session))
+            })
+            .unwrap();
+        worker.start().unwrap();
+        worker.pause().unwrap();
+
+        let before_step = events.lock().unwrap().clone();
+        worker.step_frame(100_000).unwrap();
+        assert_eq!(
+            *events.lock().unwrap(),
+            before_step,
+            "StepFrame must not resume or flush the host endpoint"
+        );
+
+        worker.start().unwrap();
+        worker.reset().unwrap();
+        worker.load_rom(av_test_rom()).unwrap();
+
+        assert_eq!(
+            *events.lock().unwrap(),
+            ["flush", "resume", "flush", "resume", "flush", "flush"]
+        );
+        assert!(!worker.is_running());
+    }
+
+    #[test]
+    fn completed_frames_publish_rgb888_and_keep_sequence_monotonic_across_reset() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let mailbox = FrameMailbox::new();
+        worker.attach_video_mailbox(mailbox.clone()).unwrap();
+
+        worker.step_frame(100_000).unwrap();
+        let first = mailbox.take_latest().unwrap().unwrap();
+        assert_eq!(first.sequence(), 1);
+        assert_eq!(first.width(), 256);
+        assert_eq!(first.height(), 192);
+        assert_eq!(first.pixel_format(), PixelFormat::Rgb888);
+        assert_eq!(first.stride_bytes(), 256 * 3);
+        assert_eq!(first.pixels().len(), 256 * 192 * 3);
+
+        worker.reset().unwrap();
+        worker.step_frame(100_000).unwrap();
+        let second = mailbox.take_latest().unwrap().unwrap();
+        assert_eq!(second.sequence(), 2);
+        assert_eq!(worker.video_last_published_sequence(), 2);
+
+        worker.detach_video_mailbox().unwrap();
+        worker.step_frame(100_000).unwrap();
+        assert!(
+            mailbox.take_latest().unwrap().is_none(),
+            "detaching must stop frame publication"
+        );
+        assert!(
+            !mailbox.is_closed().unwrap(),
+            "detaching must not close the externally owned mailbox"
+        );
+    }
+
+    #[test]
+    fn replacement_worker_continues_existing_mailbox_sequence() {
+        let mailbox = FrameMailbox::new();
+
+        let first_worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        first_worker.attach_video_mailbox(mailbox.clone()).unwrap();
+        first_worker.step_frame(100_000).unwrap();
+        let first = mailbox.take_latest().unwrap().unwrap();
+        assert_eq!(first.sequence(), 1);
+        drop(first_worker);
+
+        let replacement_worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        replacement_worker
+            .attach_video_mailbox(mailbox.clone())
+            .unwrap();
+        replacement_worker.step_frame(100_000).unwrap();
+
+        let second = mailbox.take_latest().unwrap().unwrap();
+        assert_eq!(second.sequence(), 2);
+        assert_eq!(replacement_worker.video_last_published_sequence(), 2);
+        assert_eq!(replacement_worker.video_output_error(), None);
+    }
+
+    #[test]
+    fn worker_publishes_vdp_generated_non_black_pixels_to_video_mailbox() {
+        let worker = SmsTemporalWorker::new(av_test_rom(), "usa").unwrap();
+        let mailbox = FrameMailbox::new();
+        worker.set_video_mailbox(Some(mailbox.clone())).unwrap();
+
+        worker.step_frame(100_000).unwrap();
+
+        let frame = mailbox.take_latest().unwrap().unwrap();
+        assert_eq!(frame.width(), 256);
+        assert_eq!(frame.height(), 192);
+        assert_eq!(frame.pixel_format(), PixelFormat::Rgb888);
+        assert_eq!(
+            &frame.pixels()[32 * 256 * 3..32 * 256 * 3 + 3],
+            &[238, 238, 238],
+            "the worker must preserve the Mode 4 background pixel at line 32"
+        );
+        assert!(
+            frame
+                .pixels()
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .any(|pixel| pixel.iter().any(|channel| *channel != 0))
+        );
+    }
+
+    #[test]
+    fn debugger_step_frame_advances_machine_without_publishing_pcm() {
+        let mut machine = build_sms_temporal_machine(av_test_rom(), "usa").unwrap();
+        let sink = RecordingSink::default();
+        let captured_blocks = Arc::clone(&sink.0);
+        let session = NativeAudioSession::new(
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            100,
+            sink,
+        )
+        .unwrap();
+        let mut audio_session: Option<Box<dyn super::AudioSession>> = Some(Box::new(session));
+        let telemetry = WorkerTelemetry::default();
+        let mut video_mailbox = None;
+        let mut video_sequence = 0;
+
+        let (instructions, _, _) = execute_frame(
+            &mut machine,
+            &BreakpointSet::default(),
+            DEFAULT_MAX_FRAME_INSTRUCTIONS,
+            false,
+            &mut audio_session,
+            &mut video_mailbox,
+            &mut video_sequence,
+            &telemetry,
+        )
+        .unwrap();
+
+        assert!(instructions > 0);
+        assert_eq!(machine.frame_number(), 1);
+        assert!(
+            captured_blocks.lock().unwrap().is_empty(),
+            "debugger StepFrame must advance DSP but never submit PCM to the physical sink"
+        );
+    }
+
+    #[test]
+    fn worker_frame_submits_non_silent_pcm_to_native_audio_session_sink() {
+        let mut machine = build_sms_temporal_machine(av_test_rom(), "usa").unwrap();
+        let sink = RecordingSink::default();
+        let captured_blocks = Arc::clone(&sink.0);
+        let session = NativeAudioSession::new(
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            100,
+            sink,
+        )
+        .unwrap();
+        let mut audio_session: Option<Box<dyn super::AudioSession>> = Some(Box::new(session));
+        let telemetry = WorkerTelemetry::default();
+        let mut video_mailbox = None;
+        let mut video_sequence = 0;
+
+        let (instructions, _, _) = execute_frame(
+            &mut machine,
+            &BreakpointSet::default(),
+            DEFAULT_MAX_FRAME_INSTRUCTIONS,
+            true,
+            &mut audio_session,
+            &mut video_mailbox,
+            &mut video_sequence,
+            &telemetry,
+        )
+        .unwrap();
+
+        assert!(instructions > 0);
+        assert_eq!(telemetry.audio_underruns.load(Ordering::Acquire), 0);
+        assert_eq!(telemetry.audio_dropped_blocks.load(Ordering::Acquire), 0);
+
+        let blocks_before_close = captured_blocks.lock().unwrap();
+        assert!(
+            !blocks_before_close.is_empty(),
+            "process_samples must submit a PCM block before the session is flushed"
+        );
+        assert!(
+            blocks_before_close
+                .iter()
+                .flatten()
+                .any(|sample| *sample != 0.0),
+            "worker must submit non-silent PCM, not only initialize the sink"
+        );
+        drop(blocks_before_close);
+
+        audio_session.as_mut().unwrap().close();
+    }
+
+    #[test]
+    fn dropping_worker_does_not_close_externally_owned_video_mailbox() {
+        let mailbox = FrameMailbox::new();
+        {
+            let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+            worker.attach_video_mailbox(mailbox.clone()).unwrap();
+        }
+
+        assert!(
+            !mailbox.is_closed().unwrap(),
+            "the external host retains ownership of mailbox shutdown"
+        );
+    }
+
+    #[test]
+    fn closed_video_mailbox_does_not_stop_machine_execution() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let mailbox = FrameMailbox::new();
+        mailbox.close().unwrap();
+        worker.set_video_mailbox(Some(mailbox)).unwrap();
+
+        worker.step_frame(100_000).unwrap();
+
+        assert_eq!(worker.frame_number(), 1);
+        assert!(worker.video_output_error().is_some());
+        assert_eq!(worker.runtime_error(), None);
+    }
+
+    #[test]
+    fn frame_pacing_deadline_preserves_remaining_budget_across_commands() {
+        let frame_completed = Instant::now();
+        let mut pacing = FramePacingDeadline::default();
+        pacing.set(Some(frame_completed + Duration::from_millis(16)));
+
+        assert_eq!(
+            pacing.remaining(frame_completed),
+            Some(Duration::from_millis(16))
+        );
+
+        // A command wakes the worker 5 ms into the wait. Its 3 ms handler
+        // consumes time from the original budget; it must not restart 16 ms.
+        let command_received = frame_completed + Duration::from_millis(5);
+        assert_eq!(
+            pacing.remaining(command_received),
+            Some(Duration::from_millis(11))
+        );
+        let command_completed = command_received + Duration::from_millis(3);
+        assert_eq!(
+            pacing.remaining(command_completed),
+            Some(Duration::from_millis(8))
+        );
+
+        // A second queued command also consumes the same absolute budget.
+        let second_command_completed = command_completed + Duration::from_millis(2);
+        assert_eq!(
+            pacing.remaining(second_command_completed),
+            Some(Duration::from_millis(6))
+        );
+        assert_eq!(
+            pacing.remaining(frame_completed + Duration::from_millis(16)),
+            Some(Duration::ZERO)
+        );
+    }
+
+    #[test]
+    fn clearing_deadline_prevents_carryover_to_a_new_worker_epoch() {
+        let now = Instant::now();
+        let mut pacing = FramePacingDeadline::default();
+        pacing.set(Some(now + Duration::from_millis(16)));
+        assert!(pacing.remaining(now).is_some());
+
+        // Pause, stop, reset and successful ROM replacement leave the old epoch.
+        pacing.clear();
+        assert_eq!(pacing.remaining(now), None);
+
+        pacing.set(Some(now + Duration::from_millis(62)));
+        assert_eq!(
+            pacing.remaining(now + Duration::from_millis(50)),
+            Some(Duration::from_millis(12))
+        );
+    }
+
+    #[test]
+    fn machine_scheduler_ticks_define_frame_budget_independently_of_audio_samples() {
+        let duration = frame_duration_from_machine_ticks(1_000, 1_000_000).unwrap();
+        assert_eq!(duration, Duration::from_millis(1));
+        assert_eq!(frame_duration_from_machine_ticks(1_000, 0), None);
+    }
+
+    #[test]
+    fn phase_locked_deadlines_do_not_accumulate_late_wakeups() {
+        let epoch = Instant::now();
+        let frame_duration = Duration::from_micros(16_687);
+        let first = calculate_next_frame_deadline(epoch, frame_duration, None);
+
+        let wake_lateness = Duration::from_micros(449);
+        let second_frame_started = first + wake_lateness;
+        let second =
+            calculate_next_frame_deadline(second_frame_started, frame_duration, Some(first));
+        let third_frame_started = second + wake_lateness;
+        let third =
+            calculate_next_frame_deadline(third_frame_started, frame_duration, Some(second));
+
+        assert_eq!(second, first + frame_duration);
+        assert_eq!(third, second + frame_duration);
+        assert!(second < second_frame_started + frame_duration);
+        assert!(third < third_frame_started + frame_duration);
+    }
+
+    #[test]
+    fn phase_locked_deadlines_accumulate_fractional_frame_budgets() {
+        let epoch = Instant::now();
+        let first_duration = Duration::from_nanos(16_683_333);
+        let second_duration = Duration::from_nanos(16_683_334);
+        let first = calculate_next_frame_deadline(epoch, first_duration, None);
+        let second = calculate_next_frame_deadline(
+            first + Duration::from_micros(700),
+            second_duration,
+            Some(first),
+        );
+
+        assert_eq!(second, first + second_duration);
+        assert_eq!(second, epoch + first_duration + second_duration);
+    }
+
+    #[test]
+    fn phase_locked_deadline_starts_a_new_epoch_without_previous_target() {
+        let frame_started = Instant::now();
+        let duration = Duration::from_micros(16_687);
+        assert_eq!(
+            calculate_next_frame_deadline(frame_started, duration, None),
+            frame_started + duration
+        );
+    }
+
+    #[test]
+    fn expired_frame_deadline_has_no_remaining_wait() {
+        let now = Instant::now();
+        let mut pacing = FramePacingDeadline::default();
+        pacing.set(Some(now));
+        assert_eq!(pacing.remaining(now), Some(Duration::ZERO));
+    }
+
+    #[test]
+    fn frame_pacing_window_accumulates_wait_across_command_wakeups() {
+        let mut window = FramePacingWindow::default();
+        window.push(FramePacingSample::default());
+        window.record_actual_wait(Duration::from_millis(5));
+        window.record_actual_wait(Duration::from_millis(3));
+
+        assert_eq!(window.snapshot().pacing_wait_elapsed_p50_ns, 8_000_000);
+    }
+
+    #[test]
+    fn frame_pacing_window_records_actual_worker_wait_after_wakeup() {
+        let mut window = FramePacingWindow::default();
+        window.push(FramePacingSample::default());
+        window.record_actual_wait(Duration::from_millis(21));
+
+        assert_eq!(window.snapshot().pacing_wait_elapsed_p50_ns, 21_000_000);
+    }
+
+    #[test]
+    fn frame_pacing_window_records_command_handler_without_wait_wakeup() {
+        let mut window = FramePacingWindow::default();
+        window.push(FramePacingSample::default());
+        window.record_command_handler(Duration::from_micros(250));
+
+        let snapshot = window.snapshot();
+        assert_eq!(snapshot.command_handler_p95_ns, 250_000);
+        assert_eq!(snapshot.pacing_command_wakeups_total, 0);
+    }
+
+    #[test]
+    fn frame_pacing_window_records_deadline_wakeup_and_frame_budget_diagnostics() {
+        let mut window = FramePacingWindow::default();
+        for _ in 0..20 {
+            window.push(FramePacingSample {
+                frame_budget_ns: 20_000_000,
+                audio_samples: 960,
+                ..FramePacingSample::default()
+            });
+        }
+        window.push(FramePacingSample {
+            frame_budget_ns: 20_000_000,
+            audio_samples: 960,
+            ..FramePacingSample::default()
+        });
+        window.record_timeout_lateness(Duration::from_micros(750));
+        window.record_command_wakeup(Duration::from_millis(4));
+        window.record_command_handler(Duration::from_micros(250));
+
+        let metrics = window.snapshot();
+        assert_eq!(metrics.frame_budget_p50_ns, 20_000_000);
+        assert_eq!(metrics.audio_samples_p50, 960);
+        assert_eq!(metrics.pacing_timeout_lateness_p95_ns, 750_000);
+        assert_eq!(metrics.pacing_timeout_count_total, 1);
+        assert_eq!(metrics.pacing_command_wakeups_total, 1);
+        assert_eq!(metrics.pacing_command_remaining_p95_ns, 4_000_000);
+        assert_eq!(metrics.command_handler_p95_ns, 250_000);
+    }
+
+    #[test]
+    fn frame_pacing_window_is_bounded_and_reports_rolling_percentiles() {
+        let mut window = FramePacingWindow::default();
+        for value in 1..=(FRAME_PACING_WINDOW_CAPACITY as u64 + 1) {
+            window.push(FramePacingSample {
+                frame_interval_ns: value,
+                machine_ticks_per_frame: value,
+                step_frame_ns: value * 10,
+                ..FramePacingSample::default()
+            });
+        }
+
+        let metrics = window.snapshot();
+        assert_eq!(metrics.sample_count, FRAME_PACING_WINDOW_CAPACITY as u64);
+        assert_eq!(
+            metrics.total_samples,
+            FRAME_PACING_WINDOW_CAPACITY as u64 + 1
+        );
+        assert_eq!(metrics.frame_interval_p50_ns, 257);
+        assert_eq!(metrics.frame_interval_p95_ns, 488);
+        assert_eq!(metrics.frame_interval_p99_ns, 508);
+        assert_eq!(metrics.machine_ticks_per_frame_min, 2);
+        assert_eq!(metrics.machine_ticks_per_frame_max, 513);
+    }
+}

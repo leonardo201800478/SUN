@@ -1,119 +1,38 @@
-# Sega Emulator
+# Sega Emulator — Rust / Slint + WGPU + CPAL
 
-Emulador multi-sistema Sega com runtime de hardware em Rust e frontend Python/Qt. O objetivo é oferecer **fidelidade funcional e temporal próxima ao console original**, com execução eficiente e comportamento consistente em jogos e periféricos.
+Emulador Sega multissistema com runtime de hardware integralmente em Rust. A arquitetura desktop de destino é **Slint 1.18.x + WGPU 30.x + CPAL 0.18.2**, com Vulkan como backend gráfico inicial preferencial no Windows x64.
 
-O projeto não busca simulação elétrica integral, reprodução de transistores ou atualização de todos os pinos físicos. A precisão é aplicada onde influencia o comportamento observável do console. Consulte a [ADR-0016 — fidelidade observável](docs/architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
+**Baseline de arquitetura:** backend Rust determinístico; desktop Slint 1.18.x; apresentação WGPU 30.x com Vulkan inicial no Windows x64; saída de áudio CPAL 0.18.2; input SDL3 via `sega-input-runtime`. R1 está integrada; os gates físicos devem ser vinculados ao HEAD atual. R2 (frames SMS) e R3 (CPAL) estão integradas em software; frame pacing foi resolvido, mas os aceites físicos sustentados não estão comprovados no relatório histórico. R4: primeira integração SDL3/Slint integrada pela PR #867 (`f93cb777`), com CI #7512 verde; aceite físico com controles reais e recursos avançados permanecem pendentes.
 
-## Estado do projeto
+## Migração
 
-- **Plataformas prioritárias:** Master System e SG-1000; preservar regressões SG-1000 durante a consolidação do SMS.
-- **CPU:** núcleo Z80 compartilhado em Rust. Correção funcional de instruções, registradores, flags e interrupções é prioritária; detalhamento de ciclos e sinais só é exigido quando uma plataforma depender dele.
-- **Vídeo e áudio:** componentes específicos por console, com sincronização na granularidade necessária aos efeitos observáveis.
-- **Scheduler:** coordena o tempo da máquina e os eventos relevantes; não exige um evento por pino, tick ou pixel.
-- **Frontend:** Python/PySide6 para interface, launcher, biblioteca, configurações, logs e telemetria.
-- **Integração:** PyO3 coarse-grained, sem callbacks Python por instrução.
-- **Precisão elétrica/analógica:** fora do escopo.
+- **R1:** POC Slint/WGPU/Vulkan integrada e validada no CI Windows; inicialização física, seleção efetiva do Vulkan, resize/lifecycle e apresentação sustentada precisam de evidência no HEAD atual.
+- **R2:** frames SMS integrados via `SmsTemporalWorker` e `FrameMailbox`, preservando o `MachineScheduler`; frame pacing resolvido. Repetir e registrar gameplay/apresentação no HEAD atual.
+- **R3:** CPAL 0.18.2 e pipeline PCM integrados; testes automatizados Windows aprovados em SHAs anteriores. Reprodução física sustentada, hotplug, recuperação de endpoint e underruns ainda exigem aceite no HEAD atual.
+- **R4:** teclado SMS via Slint e primeira integração SDL3 conectada ao desktop Slint, integrada pela PR #867. CI Windows SDL3 e regressão de workspace/desktop passaram; mapeamento inicial P1/P2. Teste físico com controles, hotplug real, perfis persistentes e remapeamento ainda pendentes.
+- **R5:** consolidar launcher, biblioteca, configurações, HUD e telemetria; retirar hosts anteriores somente após paridade e regressão.
 
-O estado exato de cada componente e das PRs deve ser conferido na [main](https://github.com/leonardo201800478/sega-emulator) e em [Estado dos componentes](docs/component-status.md). Documentos históricos não prevalecem sobre o código integrado nem sobre a ADR-0016.
-
-## Política de precisão
-
-A semântica funcional é exata em todas as instruções e operações suportadas. A precisão temporal recebe prioridade nos caminhos de instrução e processos que influenciam gameplay — por exemplo, I/O, raster/VDP, áudio, mapper, interrupções e contenção real. Operações sem efeito intermediário observável usam execução atômica determinística, preservando duração nominal conhecida. Não se exige simulação elétrica nem precisão por pino. A [ADR-0016](docs/architecture/adr/0016-observable-fidelity-and-proportional-timing.md) define os critérios.
+Consulte o [roadmap](docs/project-roadmap.md), o [plano de corte dos hosts](docs/architecture/migrations/legacy-host-retirement.md), a [validação local Windows x64 Release (snapshot 118b96b)](docs/testing/windows-x64-release-validation-2026-11-14.md), a [auditoria histórica do caminho VDP SMS1 (mesmo snapshot)](docs/audits/sms1-vdp-runtime-path-audit-2026-11-14.md) e a [ADR 0011](docs/adr/0011-slint-wgpu-cpal-desktop-platform.md). Os dois relatórios são evidências documentais vinculadas explicitamente ao commit auditado; não devem ser interpretados como revalidação de cada commit posterior da `main`.
 
 ## Arquitetura
 
-| Camada | Responsabilidade |
-|---|---|
-| Rust | CPUs, ALUs, memória, barramentos, mappers, VDPs, áudio, interrupções, sincronização e Scheduler |
-| Python / PySide6 | GUI, launcher, biblioteca, configurações, logs, diagnóstico e automação |
-| PyO3 | Comandos de alto nível e telemetria; sem callbacks por instrução |
+**Runtime Rust preservado:** CPU Z80 compartilhada, memória, barramentos, mappers, VDP, PSG, interrupções, MachineScheduler, timing e estados. O Scheduler é a autoridade temporal. A GUI não executa instruções, avança clocks ou controla ciclos.
 
-Componentes são compartilhados quando representam hardware compatível. Diferenças reais de console, revisão, região ou periférico permanecem em perfis/adaptadores próprios.
+**Desktop alvo:** Slint 1.18.x para GUI; WGPU 30.x para renderização; Vulkan via WGPU no Windows x64; CPAL 0.18.2 para áudio; teclado via eventos nativos do Slint e SDL3 para gamepads após auditoria.
 
-A menor granularidade suficiente deve ser preferida: execução por instrução, transação, scanline, amostra ou evento, conforme o comportamento que precisa ser reproduzido. M-cycles, T-states, WAIT, arbitragem e sinais são modelados quando necessários ao hardware suportado, não como objetivos independentes.
+Estrutura de referência: native/sega_desktop, native/video_output_wgpu e native/audio_output. A estrutura real prevalece; não duplicar crates/componentes.
 
-## Requisitos de desenvolvimento
+A arquitetura anterior permanece apenas como caminho transitório durante a migração controlada. Inventário, dependências remanescentes e critérios de retirada estão em [plano de corte dos hosts anteriores](docs/architecture/migrations/legacy-host-retirement.md). Não confundir documentação histórica ou código ainda necessário ao host anterior com arquitetura-alvo.
 
-- Windows x64
-- Python 3.15 x64
-- Rust toolchain definida pelo projeto
-- Git for Windows e PowerShell
-- Visual Studio Build Tools com MSVC para compilar a extensão nativa no Windows
+## Build e validação
 
-## Instalação no PowerShell
+Builds do aplicativo e avaliações de desempenho devem usar Release. Não usar Debug como referência de desempenho. Conferir formatação, Clippy e testes direcionados antes de enviar ao workflow.
 
-Na raiz do repositório:
+Gates:
+- cargo fmt --all -- --check
+- cargo clippy --release --workspace --all-targets --locked -- -D warnings
+- cargo test --release --workspace --locked
 
-```powershell
-py -3.15 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,qt]"
-```
+Validar workspaces standalone e targets específicos separadamente. SKIPPED é NOT RUN, nunca PASS. Todo resultado deve corresponder ao SHA exato.
 
-## Executar
-
-```powershell
-.\.venv\Scripts\python.exe -m sega_emulator
-```
-
-A interface Qt abre sem ROM carregada. Use **Arquivo → Abrir ROM** para selecionar uma ROM local.
-
-Para iniciar diretamente uma ROM:
-
-```powershell
-.\.venv\Scripts\python.exe -m sega_emulator "C:\caminho\para\jogo.sms"
-```
-
-O carregador também aceita formatos suportados pelo console e arquivos ZIP. Se houver múltiplas ROMs compatíveis no ZIP, a seleção é explícita; o conteúdo não é extraído automaticamente.
-
-## Compilar e testar
-
-Compilação rápida Rust no Windows/PowerShell:
-
-```powershell
-.\scripts\compile-fast.ps1
-```
-
-Compilar e instalar a extensão PyO3 (a partir da raiz):
-
-```powershell
-python -m pip install maturin
-Push-Location native/z80_core
-maturin develop --release --features python-extension
-Pop-Location
-```
-
-Executar a interface com uma ROM local após instalar a extensão:
-
-```powershell
-.\scripts\test-rust-in-game.ps1 "C:\caminho\para\jogo.sms"
-```
-
-Gates de qualidade:
-
-```powershell
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-python -m pytest
-python -m ruff check .
-python -m ruff format --check .
-```
-
-Uma suíte ignorada ou não executada não conta como PASS. Resultados devem ser vinculados ao SHA exato.
-
-## Documentação normativa
-
-- [Roadmap mestre — fases e prioridades](docs/project-roadmap.md)
-- [Escopo e princípios arquiteturais](docs/project-scope.md)
-- [ADR-0016 — fidelidade observável e precisão proporcional](docs/architecture/adr/0016-observable-fidelity-and-proportional-timing.md)
-- [Estado dos componentes](docs/component-status.md)
-- [Índice de ADRs](docs/architecture/adr/README.md)
-- [Estado do VDP SMS](docs/architecture/sms-vdp.md)
-- [Perfis de hardware Z80](docs/hardware/z80-silicon-platform-profiles.md)
-
-## Segurança e licença
-
-Use somente ROMs e firmware que você tenha direito de executar. ROMs comerciais, BIOS proprietárias e dumps protegidos não devem ser versionados.
-
-O projeto é distribuído sob a licença MIT. Consulte [LICENSE](LICENSE). Sega e nomes de consoles/chips são marcas de seus respectivos titulares; o projeto é independente e não afiliado à SEGA.
+Não usar JIT, frame skipping, hacks temporais ou otimizações especulativas. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos. Projeto independente, sem afiliação à SEGA.

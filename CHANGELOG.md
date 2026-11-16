@@ -1,3 +1,39 @@
+## Renderer H2 experimental — 2026-11-12
+
+- Conecta o renderer H2 streaming ao `SmsTemporalWorker`, consumindo eventos limitados do mesmo SN76489 dirigido pelo Scheduler.
+- Mantém PSG como padrão e expõe seleção mutuamente exclusiva PSG/H2 no menu Slint, com preferência persistida.
+- Troca de renderer por comando do worker, sem reiniciar CPAL; aplica fade-in curto e fallback para PSG em overflow ou falha do H2.
+- Reinicializa o epoch H2 em Reset, Stop/power-off e Load ROM; mantém DSP analógico independente e posterior ao renderer.
+- Validação automatizada, benchmarks de tempo real e comparação física/auditiva permanecem pendentes até conclusão dos gates da PR #793.
+
+## Audio DSP controls — 2026-11-12
+
+- Adds optional post-mixer analog output processing to the Slint audio menu.
+- Adds an experimental SMS1-style preset (20 Hz HPF, 18 kHz LPF), independent HPF/LPF controls and persistent cutoff settings.
+- Keeps the digital output unchanged when the optional stage is disabled.
+- Routes live DSP changes through the SMS worker command queue; no CPAL restart, PSG, Scheduler, CPU, VDP or clock changes.
+- Labels the preset experimental because the available service documentation does not provide a calibrated board transfer function.
+
+## Menu de áudio Slint — 2026-11-12
+
+- Expõe volume mestre de 0 a 100% e mute no menu Áudio do desktop Slint.
+- Aplica o volume diretamente na sessão DSP/reamostrador já pertencente ao worker SMS, sem reiniciar CPAL, a máquina ou o Scheduler.
+- Persiste volume e mute em `%APPDATA%/Sega Emulator/slint_ui_settings.txt`; o volume padrão de uma instalação sem preferência passa a 70%.
+- Mantém equalização e filtros analógicos fora desta entrega: ainda exigem calibração e validação de resposta antes de serem apresentados como controles de fidelidade.
+
+## Atualização documental e validação do Scheduler — 2026-11-07
+
+- Registra a baseline consultada da main: `3ad1781f84b7824b5aa889a583ae6d4545987ec1`.
+- Consolida o estado das PRs #613 e #614 como integração SMS/viewport/áudio/input ainda aberta e empilhada; não declara essas funcionalidades como integradas.
+- Registra a PR #615 (SN76489: filtragem de saída e reset do ruído) e a PR #617 (clarificação Rust/egui-only) como merged.
+- Documenta a campanha longa do MachineScheduler no Windows local: 320.000 operações, 4.000.000 dispatches, 16 seeds, 2 testes PASS, 0 falhas, 405,68 s.
+- Compara os blobs de teste, manifesto e implementação do Scheduler entre o SHA executado `f118a4d3a2547b95c679c4133b94e22d2b3a03be` e a main; os três arquivos são idênticos.
+- Mantém separados os resultados do Scheduler, os gates de workspace, a validação física e a integração temporal sistêmica SMS.
+- Cria índice central da documentação e ledger de evidências; identifica documentos de fases Python/Qt como históricos, sem apagar registros técnicos úteis.
+- Mantém E7.7 do Z80 IN_PROGRESS e E8 BLOCKED.
+
+Registro detalhado: [status do projeto](docs/project-status-2026-11-07.md) e [evidência do Scheduler](docs/evidence/scheduler-stress-long-2026-11-07.md).
+
 ## Estado SMS — 2026-10-29
 - Publica fotografia técnica do SMS na base `b4a85c82b1d975a126f1dcbd3084dac51249b398`, após integração do runtime nativo Rust à aplicação Qt/PySide6.
 - Registra separadamente os subsistemas implementados e as lacunas de Z80, VDP raster, scheduler temporal, FM/YM2413 e validação Windows.
@@ -50,3 +86,11 @@ Limites: o pump ainda ocorre na fronteira de run_frame(); a execução do schedu
 - Validação automatizada adicionada para cabeçalho, temporização, intervalos longos, escrita de arquivo e ações do menu Qt.
 
 **Limitações:** ainda requer execução dos testes no CI e validação manual no Windows. A gravação VGM registra writes de PSG, não PCM renderizado nem temporização sub-T-state que o modelo atual não exponha.
+
+
+## 2026-11-12 — Replataforma desktop (R2)
+
+- Atualiza a documentação normativa para Slint 1.18, WGPU 30/Vulkan, CPAL 0.18.2 e SDL3 após auditoria.
+- Registra R1 e R2 como integradas e R3/R4/R5 como pendentes.
+- Marca decisões anteriores de apresentação/áudio como históricas/superseded sem apagar evidências.
+- Define critérios de corte dos hosts anteriores; implementações ainda consumidas não são removidas antes de CPAL (R3) e consolidação (R5).

@@ -1,8 +1,12 @@
 //! Windows SDL3 joystick/gamepad backend loaded through its stable C ABI.
 //!
 //! The frontend never calls SDL or Python controller APIs. This backend is
-//! caller-polled on the Qt thread and preserves raw HID-derived axes, buttons,
+//! caller-polled on the desktop host event thread and preserves raw HID-derived axes, buttons,
 //! hats, plus SDL's standardized gamepad mapping where available.
+
+/// Reserved indices that separate raw joystick controls from SDL Gamepad API values.
+pub const SDL3_RAW_BUTTON_OFFSET: usize = 32;
+pub const SDL3_RAW_AXIS_OFFSET: usize = 16;
 
 use crate::{BackendError, BackendKind, DeviceDescriptor, InputBackend, InputBuffers};
 
@@ -16,8 +20,10 @@ use crate::{
 mod windows {
     use super::*;
     use std::collections::{HashMap, HashSet};
-    use std::ffi::{CStr, CString, c_char, c_int, c_void};
+    use std::ffi::{CStr, CString, OsStr, c_char, c_int, c_void};
     use std::mem::transmute_copy;
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::{Path, PathBuf};
     use std::ptr;
     use std::time::{Duration, Instant};
 
@@ -27,15 +33,14 @@ mod windows {
     const SDL_INIT_JOYSTICK: u32 = 0x0000_0200;
     const SDL_INIT_GAMEPAD: u32 = 0x0000_2000;
     const SDL_INIT_EVENTS: u32 = 0x0000_4000;
-    const GAMEPAD_BUTTON_COUNT: usize = 21;
+    // SDL_GamepadButton includes the standardized MISC2..MISC6 controls (0..25).
+    const GAMEPAD_BUTTON_COUNT: usize = 26;
     const GAMEPAD_AXIS_COUNT: usize = 6;
-    const RAW_BUTTON_OFFSET: usize = 32;
-    const RAW_AXIS_OFFSET: usize = 16;
 
     #[link(name = "kernel32")]
     #[allow(non_snake_case)]
     unsafe extern "system" {
-        fn LoadLibraryW(name: *const u16) -> *mut c_void;
+        fn LoadLibraryExW(name: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
         fn GetProcAddress(module: *mut c_void, name: *const c_char) -> *mut c_void;
         fn FreeLibrary(module: *mut c_void) -> i32;
     }
@@ -67,6 +72,9 @@ mod windows {
     type UpdateGamepads = unsafe extern "C" fn();
     type Free = unsafe extern "C" fn(*mut c_void);
     type GetError = unsafe extern "C" fn() -> *const c_char;
+    type GetVersion = unsafe extern "C" fn() -> c_int;
+
+    const MINIMUM_SDL_VERSION: c_int = 3_004_020;
 
     struct SdlApi {
         handle: *mut c_void,
@@ -97,6 +105,56 @@ mod windows {
         update_gamepads: UpdateGamepads,
         free: Free,
         get_error: GetError,
+        get_version: GetVersion,
+    }
+
+    const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
+    const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x0000_1000;
+
+    /// Resolve SDL3 from the executable directory, the workspace tree or an explicit override.
+    /// Relative overrides are checked against the executable and current-directory ancestry.
+    pub(super) fn resolve_sdl3_dll_path(
+        configured: Option<&OsStr>,
+        executable: &Path,
+        current_dir: &Path,
+    ) -> Result<PathBuf, String> {
+        let requested = configured.unwrap_or_else(|| OsStr::new("SDL3.dll"));
+        let mut candidates = Vec::new();
+
+        if Path::new(requested).is_absolute() {
+            candidates.push(PathBuf::from(requested));
+        } else {
+            let mut bases = Vec::new();
+            if let Some(parent) = executable.parent() {
+                bases.extend(parent.ancestors().map(Path::to_path_buf));
+            }
+            bases.extend(current_dir.ancestors().map(Path::to_path_buf));
+            bases.dedup();
+
+            for base in bases {
+                let candidate = base.join(requested);
+                if !candidates.contains(&candidate) {
+                    candidates.push(candidate);
+                }
+            }
+        }
+
+        for candidate in &candidates {
+            if candidate.is_file()
+                && let Ok(absolute) = candidate.canonicalize()
+            {
+                return Ok(absolute);
+            }
+        }
+
+        let searched = candidates
+            .iter()
+            .map(|path| format!("  - {}", path.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Err(format!(
+            "SDL3.dll não foi encontrado. Caminhos pesquisados:\n{searched}\nColoque SDL3.dll junto ao executável ou na raiz do workspace; SEGA_EMULATOR_SDL3_DLL pode apontar para um caminho absoluto."
+        ))
     }
 
     impl SdlApi {
@@ -114,17 +172,20 @@ mod windows {
 
         fn load() -> Result<Self, String> {
             let configured = std::env::var_os("SEGA_EMULATOR_SDL3_DLL");
-            let path = configured.unwrap_or_else(|| "SDL3.dll".into());
-            let wide: Vec<u16> = path
-                .to_string_lossy()
-                .encode_utf16()
-                .chain(Some(0))
-                .collect();
-            let handle = unsafe { LoadLibraryW(wide.as_ptr()) };
+            let executable = std::env::current_exe()
+                .map_err(|error| format!("não foi possível localizar o executável: {error}"))?;
+            let current_dir = std::env::current_dir().map_err(|error| {
+                format!("não foi possível localizar o diretório atual: {error}")
+            })?;
+            let path = resolve_sdl3_dll_path(configured.as_deref(), &executable, &current_dir)?;
+            let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+            let flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS;
+            let handle = unsafe { LoadLibraryExW(wide.as_ptr(), ptr::null_mut(), flags) };
             if handle.is_null() {
                 return Err(format!(
-                    "SDL3.dll não foi encontrado (SEGA_EMULATOR_SDL3_DLL={})",
-                    path.to_string_lossy()
+                    "falha ao carregar SDL3 em '{}': {}",
+                    path.display(),
+                    std::io::Error::last_os_error()
                 ));
             }
 
@@ -169,6 +230,7 @@ mod windows {
                 update_gamepads: load!("SDL_UpdateGamepads", UpdateGamepads),
                 free: load!("SDL_free", Free),
                 get_error: load!("SDL_GetError", GetError),
+                get_version: load!("SDL_GetVersion", GetVersion),
             })
         }
 
@@ -262,6 +324,18 @@ mod windows {
                 backend: BackendKind::Sdl3,
                 message,
             })?;
+            let linked_version = unsafe { (api.get_version)() };
+            if linked_version < MINIMUM_SDL_VERSION {
+                let major = linked_version / 1_000_000;
+                let minor = (linked_version / 1_000) % 1_000;
+                let patch = linked_version % 1_000;
+                return Err(BackendError {
+                    backend: BackendKind::Sdl3,
+                    message: format!(
+                        "SDL3.dll 3.4.20 ou superior é obrigatório; encontrada {major}.{minor}.{patch}. Execute scripts/install_sdl3_runtime.ps1."
+                    ),
+                });
+            }
             let flags = SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD | SDL_INIT_EVENTS;
             if !unsafe { (api.init_subsystem)(flags) } {
                 return Err(BackendError {
@@ -426,13 +500,13 @@ mod windows {
                 }
             }
 
-            for button in 0..device.raw_buttons.min(MAX_BUTTONS - RAW_BUTTON_OFFSET) {
+            for button in 0..device.raw_buttons.min(MAX_BUTTONS - SDL3_RAW_BUTTON_OFFSET) {
                 let pressed = unsafe { (self.api.get_button)(device.joystick, button as c_int) };
-                let _ = state.buttons.set(RAW_BUTTON_OFFSET + button, pressed);
+                let _ = state.buttons.set(SDL3_RAW_BUTTON_OFFSET + button, pressed);
             }
-            for axis in 0..device.raw_axes.min(MAX_AXES - RAW_AXIS_OFFSET) {
+            for axis in 0..device.raw_axes.min(MAX_AXES - SDL3_RAW_AXIS_OFFSET) {
                 let value = unsafe { (self.api.get_axis)(device.joystick, axis as c_int) };
-                let _ = state.set_axis(RAW_AXIS_OFFSET + axis, value, AxisSemantic::Unknown);
+                let _ = state.set_axis(SDL3_RAW_AXIS_OFFSET + axis, value, AxisSemantic::Unknown);
                 if device.gamepad.is_null() && axis < 2 {
                     let semantic = if axis == 0 {
                         AxisSemantic::LeftStickX
@@ -556,4 +630,114 @@ impl InputBackend for Sdl3Backend {
     }
 
     fn shutdown(&mut self) {}
+}
+
+#[cfg(all(test, windows))]
+mod windows_smoke_tests {
+    use super::Sdl3Backend;
+    use crate::{InputBackend, InputBuffers};
+
+    #[test]
+    fn dll_resolver_finds_workspace_root_from_cargo_test_executable() {
+        use std::fs;
+
+        let root = std::env::temp_dir().join(format!(
+            "sega-sdl3-resolver-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let workspace = root.join("workspace");
+        let executable = workspace.join("target/release/deps/input_runtime_test.exe");
+        let current_dir = workspace.join("native/input_runtime");
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        fs::create_dir_all(&current_dir).unwrap();
+        fs::write(workspace.join("SDL3.dll"), b"test").unwrap();
+
+        let resolved =
+            super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir).unwrap();
+
+        assert_eq!(resolved, workspace.join("SDL3.dll").canonicalize().unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dll_resolver_honors_absolute_override_and_relative_executable_path() {
+        use std::fs;
+
+        let root = std::env::temp_dir().join(format!(
+            "sega-sdl3-override-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let executable_dir = root.join("bin");
+        let current_dir = root.join("working");
+        fs::create_dir_all(&executable_dir).unwrap();
+        fs::create_dir_all(&current_dir).unwrap();
+        fs::write(executable_dir.join("SDL3.dll"), b"exe").unwrap();
+        fs::write(current_dir.join("custom.dll"), b"override").unwrap();
+        let executable = executable_dir.join("sega-desktop.exe");
+
+        let beside_exe =
+            super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir).unwrap();
+        assert_eq!(
+            beside_exe,
+            executable_dir.join("SDL3.dll").canonicalize().unwrap()
+        );
+
+        let absolute = current_dir.join("custom.dll").canonicalize().unwrap();
+        let explicit = super::windows::resolve_sdl3_dll_path(
+            Some(absolute.as_os_str()),
+            &executable,
+            &current_dir,
+        )
+        .unwrap();
+        assert_eq!(explicit, absolute);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dll_resolver_reports_all_candidates_when_runtime_is_missing() {
+        let root = std::env::temp_dir().join(format!(
+            "sega-sdl3-missing-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let executable = root.join("target/release/sega-desktop.exe");
+        let current_dir = root.join("native/input_runtime");
+        let error =
+            super::windows::resolve_sdl3_dll_path(None, &executable, &current_dir).unwrap_err();
+        assert!(error.contains("Caminhos pesquisados"));
+        assert!(error.contains("SDL3.dll"));
+    }
+
+    #[test]
+    fn windows_sdl3_runtime_initializes_enumerates_and_polls_without_hardware() {
+        let mut backend =
+            Sdl3Backend::new().expect("the pinned SDL3 runtime must load and initialize");
+        let mut devices = Vec::new();
+        backend
+            .enumerate(&mut devices)
+            .expect("SDL3 device enumeration must succeed");
+
+        let mut buffers = InputBuffers::default();
+        backend
+            .poll_into(&mut buffers)
+            .expect("SDL3 polling must succeed without a physical controller");
+
+        assert!(
+            devices
+                .iter()
+                .all(|device| device.backend == crate::BackendKind::Sdl3)
+        );
+        backend.shutdown();
+    }
 }
