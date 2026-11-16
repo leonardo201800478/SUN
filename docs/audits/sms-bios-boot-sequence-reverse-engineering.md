@@ -303,3 +303,8 @@ Referências:
 - BIOS v1.3 8 KiB, SHA-256 de catálogo: 477617917a12a30f9f43844909dc2de6e6a617430f5c9a36306c86414a670d50
 
 Isso comprova o estado produzido por essa revisão de BIOS, não um estado universal de power-on para todos os SMS.
+
+
+## Atualização — verificação do código BIOS v1.3 (2026-11-15)
+
+A revisão 1.3 aceita apenas region code `$4` (SMS Export) no nibble alto do byte `$0F` do cabeçalho, depois valida checksum. A tabela `Port3E_Values` usa `$AB` para cartucho. O handoff faz `LD SP,$DFF0`, mantém `IM 1` e desabilita interrupções antes da transferência. A hipótese anterior de SP=$DFFF permanece não confirmada e não deve ser usada como valor BIOS v1.3.
