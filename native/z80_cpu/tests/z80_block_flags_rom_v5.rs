@@ -6,7 +6,7 @@
 //! This harness models a Spectrum 48K 50 Hz interrupt cadence and the ROM
 //! print entry points used only for presentation by the test program.
 
-use std::{env, fs};
+use std::{collections::VecDeque, env, fs};
 
 use sega_z80_cpu::{Z80, Z80AlternateRegisters, Z80ArchitecturalState, Z80Registers, bus::CpuBus};
 
@@ -18,6 +18,35 @@ const MAX_STEPS: u64 = 12_000_000;
 const LOG_AREA: usize = 0x8900;
 const B_LOOP_ITERATIONS: usize = 65;
 const B_LOOP_GROUPS: [[u8; 4]; 6] = [*b"OTIR", *b"OTIR", *b"OTDR", *b"OTDR", *b"INIR", *b"INDR"];
+
+#[derive(Clone, Copy, Debug)]
+struct RomStepTrace {
+    tstates: u64,
+    pc: u16,
+    opcode: [u8; 4],
+    a: u8,
+    f: u8,
+    bc: u16,
+    de: u16,
+    hl: u16,
+    sp: u16,
+    i: u8,
+    r: u8,
+    iff1: bool,
+    iff2: bool,
+    im: u8,
+    halted: bool,
+    int_pending: Option<u8>,
+}
+
+#[derive(Debug)]
+struct RomOutputProgress {
+    tstates: u64,
+    rom_entry: u16,
+    return_pc: u16,
+    output_len: usize,
+    output_tail: String,
+}
 
 struct Spectrum48Bus {
     memory: Box<[u8; 0x1_0000]>,
@@ -263,9 +292,15 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     let bytes = fs::read(&fixture).expect("pinned Z80 block-flags SNA is readable");
     let (mut cpu, mut bus, caller_return_pc, exit_sp) = load_sna(&bytes);
 
+    let initial_pc = cpu.registers.pc;
+    let initial_sp = cpu.registers.sp;
     let mut next_interrupt = FRAME_TSTATES;
     let mut pulse_end = None;
+    let mut interrupt_requests = 0_u64;
+    let mut interrupt_accepts = 0_u64;
     let mut completed = false;
+    let mut recent_steps = VecDeque::with_capacity(64);
+    let mut output_progress = VecDeque::with_capacity(8);
 
     for step_index in 0..MAX_STEPS {
         let now = cpu.total_tstates;
@@ -277,11 +312,29 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
 
         if pulse_end.is_none() && now >= next_interrupt {
             cpu.request_int(0xFF);
+            interrupt_requests += 1;
             pulse_end = Some(next_interrupt + INT_PULSE_TSTATES);
             next_interrupt = next_interrupt.saturating_add(FRAME_TSTATES);
         }
 
+        let rom_entry = cpu.registers.pc;
+        let output_len_before = bus.output.len();
         if handle_rom_entry(&mut cpu, &mut bus) {
+            if bus.output.len() > output_len_before {
+                if output_progress.len() == 8 {
+                    output_progress.pop_front();
+                }
+                output_progress.push_back(RomOutputProgress {
+                    tstates: now,
+                    rom_entry,
+                    return_pc: cpu.registers.pc,
+                    output_len: bus.output.len(),
+                    output_tail: String::from_utf8_lossy(
+                        &bus.output[bus.output.len().saturating_sub(120)..],
+                    )
+                    .into_owned(),
+                });
+            }
             continue;
         }
 
@@ -300,7 +353,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         );
         assert!(
             cpu.total_tstates <= MAX_TSTATES,
-            "Z80 block-flags ROM exceeded {MAX_TSTATES} T-states: PC={:04X} SP={:04X} AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} I={:02X} R={:02X} WZ={:04X} IFF1={} IFF2={} IM={} HALT={} INT={:?} next_int={} pulse_end={:?} code={:02X?} output_tail={}",
+            "Z80 block-flags ROM exceeded {MAX_TSTATES} T-states: PC={:04X} SP={:04X} AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} I={:02X} R={:02X} WZ={:04X} IFF1={} IFF2={} IM={} HALT={} INT={:?} caller={:04X} exit_sp={:04X} initial_pc={:04X} initial_sp={:04X} frames={} int_requests={} int_accepts={} output_bytes={} next_int={} pulse_end={:?} code={:02X?} output_tail={} output_progress={:?} recent_steps={:?}",
             cpu.registers.pc,
             cpu.registers.sp,
             cpu.registers.a,
@@ -319,13 +372,52 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             cpu.interrupt_mode,
             cpu.halted,
             cpu.int_pending,
+            caller_return_pc,
+            exit_sp,
+            initial_pc,
+            initial_sp,
+            cpu.total_tstates / FRAME_TSTATES,
+            interrupt_requests,
+            interrupt_accepts,
+            bus.output.len(),
             next_interrupt,
             pulse_end,
             (0..8)
                 .map(|offset| bus.memory[usize::from(cpu.registers.pc.wrapping_add(offset))])
                 .collect::<Vec<_>>(),
-            String::from_utf8_lossy(&bus.output[bus.output.len().saturating_sub(160)..])
+            String::from_utf8_lossy(&bus.output[bus.output.len().saturating_sub(160)..]),
+            output_progress,
+            recent_steps
         );
+
+        let pc_before = cpu.registers.pc;
+        let sp_before = cpu.registers.sp;
+        let iff1_before = cpu.iff1;
+        let int_pending_before = cpu.int_pending;
+        let trace = RomStepTrace {
+            tstates: cpu.total_tstates,
+            pc: pc_before,
+            opcode: std::array::from_fn(|offset| {
+                bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
+            }),
+            a: cpu.registers.a,
+            f: cpu.registers.f,
+            bc: cpu.registers.bc(),
+            de: cpu.registers.de(),
+            hl: cpu.registers.hl(),
+            sp: sp_before,
+            i: cpu.i,
+            r: cpu.r,
+            iff1: cpu.iff1,
+            iff2: cpu.iff2,
+            im: cpu.interrupt_mode,
+            halted: cpu.halted,
+            int_pending: cpu.int_pending,
+        };
+        if recent_steps.len() == 64 {
+            recent_steps.pop_front();
+        }
+        recent_steps.push_back(trace);
 
         cpu.step(&mut bus).unwrap_or_else(|error| {
             panic!(
@@ -333,11 +425,18 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                 cpu.registers.pc
             )
         });
+        if int_pending_before.is_some()
+            && iff1_before
+            && cpu.int_pending.is_none()
+            && cpu.registers.sp == sp_before.wrapping_sub(2)
+        {
+            interrupt_accepts += 1;
+        }
     }
 
     assert!(
         completed,
-        "Z80 block-flags ROM did not return after {MAX_STEPS} instructions / {MAX_TSTATES} T-states; PC={:04X}, SP={:04X}",
-        cpu.registers.pc, cpu.registers.sp
+        "Z80 block-flags ROM did not return after {MAX_STEPS} instructions / {MAX_TSTATES} T-states; PC={:04X}, SP={:04X}, caller={caller_return_pc:04X}, exit_sp={exit_sp:04X}, int_requests={interrupt_requests}, int_accepts={interrupt_accepts}, output_bytes={}, output_progress={output_progress:?}, recent_steps={recent_steps:?}",
+        cpu.registers.pc, cpu.registers.sp, bus.output.len()
     );
 }
