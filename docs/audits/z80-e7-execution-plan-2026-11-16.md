@@ -1,7 +1,7 @@
 # Plano de execução — fechamento E7 do Z80
 
 **Data da revisão:** 2026-11-16
-**Baseline remota main pós-PR #970:** `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental; sem alteração de runtime)
+**Baseline remota main pós-PR #972:** `1b16256358e3f17837a95cc071048c5ee5307f82` (merge de testes de integração SMS/Scheduler; sem alteração de produção Z80/Scheduler)
 **Estado global:** E7 `IN_PROGRESS`; E8/ZEXDOC/ZEXALL `BLOCKED`.
 
 Este documento organiza o trabalho subsequente a partir das evidências realmente observadas. Resultados de PR não são atribuídos à main até integração e validação no SHA pós-merge.
@@ -322,3 +322,8 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 ## Baseline pós-PR #970 — 16/11/2026
 
 Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem alteração de runtime). F-022 permanece IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS apenas como determinismo de software; E7 IN_PROGRESS; E8 BLOCKED. A lacuna da matriz de requests dos 167 Ignored foi resolvida por #950/#953; PR #971 documenta a reconciliação e PR #972 adiciona cobertura Scheduler IM2, ambas ainda não integradas. Ver [estado E7 consolidado](audits/z80-e7-current-status-2026-11-16.md) para SHAs, workflows e limites de evidência.
+
+
+## Baseline pós-PR #972 — 16/11/2026
+
+Main `1b16256358e3f17837a95cc071048c5ee5307f82` integra a cobertura Scheduler INT IM2/NMI durante repetição. Push CI #43933821228: Rust workspace PASS; Z80 focused e Scheduler stress SKIPPED. Push SMS Runtime #43933821198: Release format/Clippy/tests PASS; Windows debugger SKIPPED. PR #972 está MERGED, mas não existe review adversarial independente registrada. E7 continua IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.

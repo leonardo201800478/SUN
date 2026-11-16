@@ -146,7 +146,7 @@ A PR #964 adiciona assertions temporais WZ para as quatro formas repetitivas dur
 
 ## Estado final da rodada — pós-PR #969 — 16/11/2026
 
-**Main atual:** `08f633affdb7478b64b1ec2007ca1986c2a48978`.
+**Main na fotografia histórica pós-PR #969:** `08f633affdb7478b64b1ec2007ca1986c2a48978`.
 
 ### PRs integradas nesta rodada
 - #960 — documentação Scheduler stress; preservou evidências de determinismo/replay LONG.
@@ -221,3 +221,8 @@ Foi feita conferência read-only dos caminhos citados nas linhas da matriz. Os t
 A referência histórica `indexed_hl_memory_special_cases.rs` não corresponde a um arquivo independente na main. A cobertura existente está em `native/z80_cpu/tests/indexed_memory_e4a.rs`, especialmente `indexed_hl_register_loads_cover_signed_displacement_boundaries_and_snapshots`, além dos testes de load/store da mesma suíte. A matriz foi normalizada para apontar ao arquivo/símbolo efetivo.
 
 Nenhuma regra WZ/MEMPTR foi alterada nesta reconciliação. A classificação DOC/HW/COMP/INT permanece igual: somente RRD/RLD tem evidência hardware-derived específica para WZ=HL+1; as demais regras não foram promovidas de INT/COMP para HW.
+
+
+## Reconciliação atual pós-PR #972 — 16/11/2026
+
+Main: `1b16256358e3f17837a95cc071048c5ee5307f82`. A PR #972 integrou apenas testes de integração SMS/Scheduler para repetição INT IM2/NMI; não alterou as regras WZ/MEMPTR nem o código de produção Z80. O push CI #43933821228 marcou Z80 focused como SKIPPED/NOT RUN. A evidência Woodmass e as assertions WZ permanecem vinculadas aos seus SHAs originais; F-023 continua AUDIT_PARTIAL.

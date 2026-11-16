@@ -109,7 +109,7 @@ The CPU is complete for the selected Z80 silicon profile only when every encodin
 Separar os testes do SN76489 (estado digital, clocks, writes e vetores de amostras) da sessão host (resampling, fila, underruns e API Windows). O caminho Qt ativo encaminha amostras diretamente à sessão Rust; não usar o frontend como oráculo de síntese. WASAPI Shared é padrão e XAudio2 alternativa. Ver [Runtime de áudio nativo](native-audio-runtime.md).
 
 
-## Reconciliação de arquitetura pós-main 2d526ea — 16/11/2026
+## Reconciliação de arquitetura pós-main 1b162563 — 16/11/2026
 
 Esta seção atualiza a leitura do baseline e supersede somente as afirmações antigas incompatíveis com o código atual. O histórico do plano permanece preservado.
 
@@ -133,3 +133,6 @@ Esta seção atualiza a leitura do baseline e supersede somente as afirmações 
 7. Só depois expor API coarse-grained para o host/Slint: load, start, pause, stop, reset, step_frame e extração de frame/áudio. Nenhum ciclo/instrução deve atravessar a GUI.
 
 **Gate de entrada:** não iniciar alteração funcional do SG-1000 antes de E7 estar formalmente CLOSED. A preparação e auditoria acima não alteram o runtime. E8 continua bloqueada até o fechamento E7; o SG-1000 P2 reutilizará o Z80 compartilhado já validado e não exige reabrir E8.
+
+
+**Atualização de baseline — 16/11/2026:** main `1b16256358e3f17837a95cc071048c5ee5307f82` integra a PR #972, que altera somente testes de integração SMS/Scheduler. Nenhum código SG-1000, Z80 de produção, VDP, PSG ou I/O foi modificado por essa integração. O estado P2 descrito acima permanece válido; sua implementação funcional continua bloqueada até o fechamento formal de E7.

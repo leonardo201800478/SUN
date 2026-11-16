@@ -1,7 +1,7 @@
 # Checklist mestre de auditoria e fechamento do Z80
 
 **Documento operacional:** atualizar este checklist a cada etapa efetivamente concluída, sempre vinculando evidências ao SHA integrado na `main`.
-**Baseline remota reconciliada:** `main` = `2d526ea37c9cd65e82b54a330c52f54c07841400` (2026-11-16, pós-PR #970; integração documental). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
+**Baseline remota reconciliada:** `main` = `1b16256358e3f17837a95cc071048c5ee5307f82` (2026-11-16, pós-PR #972; integração de testes SMS/Scheduler, sem alteração de produção Z80). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
 **Baseline documental reconciliada:** scorecard, matriz DD/FD e checklist foram atualizados pelas PRs #687 e #688; baselines históricas permanecem preservadas e não representam a main corrente.
 **Núcleo canônico:** `native/z80_cpu` (`sega-z80-cpu`).
 **Perfil inicial de referência:** Zilog Z80 NMOS usado pelas plataformas Sega documentadas. Não generalizar automaticamente para Z80 CMOS, Z180, R800 ou clones.
@@ -889,3 +889,8 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 ## Baseline pós-PR #970 — 16/11/2026
 
 Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem alteração de runtime). F-022 permanece IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS apenas como determinismo de software; E7 IN_PROGRESS; E8 BLOCKED. A lacuna da matriz de requests dos 167 Ignored foi resolvida por #950/#953; PR #971 documenta a reconciliação e PR #972 adiciona cobertura Scheduler IM2, ambas ainda não integradas. Ver [estado E7 consolidado](audits/z80-e7-current-status-2026-11-16.md) para SHAs, workflows e limites de evidência.
+
+
+## Baseline supersedente pós-PR #972 — 16/11/2026
+
+Main: `1b16256358e3f17837a95cc071048c5ee5307f82`. PR #972 integrada; push CI #43933821228 Rust workspace PASS, Z80 focused e Scheduler stress SKIPPED/NOT RUN; push SMS Runtime #43933821198 Release format/Clippy/tests PASS, Windows debugger SKIPPED/NOT RUN. A integração adiciona testes SMS/Scheduler para INT IM2 e NMI durante repetição, sem alterar produção Z80. E7 IN_PROGRESS; E8 BLOCKED; revisão adversarial independente ainda pendente.

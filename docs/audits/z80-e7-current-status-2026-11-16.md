@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-16
 **Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
-**Main atual pós-PR #970:** `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental; sem alteração de runtime)
+**Main atual pós-PR #972:** `1b16256358e3f17837a95cc071048c5ee5307f82` (merge da PR #972; teste de integração SMS, sem alteração de CPU/Scheduler de produção)
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
@@ -448,8 +448,8 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 - **F-023:** a matriz por família permanece completa como inventário do modelo; DOC/HW/COMP/INT continuam separados. Somente RRD/RLD tem evidência hardware-derived específica para WZ=HL+1 na matriz atual. F-023 permanece AUDIT_PARTIAL por proveniência e revisão adversarial, não por ausência de implementação.
 - **F-028:** os 167 Ignored já possuem matriz de estado, requests/payloads, WAIT de fixture, snapshot/restore e PC condicional exato nas PRs #950/#953; 85 UsesIndex estão reconciliados; #968 corrigiu stream/data. A antiga afirmação de que faltava a matriz de requests está supersedida. Revisão adversarial/oráculos e limites semânticos permanecem pendentes.
 - **Scheduler:** LONG_PASS de software na campanha #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, 320.000 operações e 4.000.000 dispatches. Não comprova WAIT físico, DMA, safe points de todos os dispositivos ou TEMPORAL_PASS global.
-- **PR #971:** correção documental F-028, HEAD `26fd03345df702c18ff85fceaddb9f63b4a4a20a`; CI #43913347117 SUCCESS nos gates aplicáveis de documentação/qualidade. Draft/aberta, não integrada.
-- **PR #972:** teste Scheduler INT/NMI candidato, HEAD `ff922996e797b287e275fdbf1d1791314c61a749`; CI #43918490165 Rust workspace regression SUCCESS e #43918490096 SMS Debugger Runtime SUCCESS. O executável `snapshot_restore_e7_2e` registrou 13/13 testes PASS no workspace Release. Z80 focused e Scheduler deterministic stress foram SKIPPED, portanto NOT RUN. PR permanece Draft/aberta, não integrada.
+- **PR #971:** encerrada como supersedida; seu conteúdo documental F-028 foi consolidado na PR #973.
+- **PR #972:** MERGED na main `1b16256358e3f17837a95cc071048c5ee5307f82`; HEAD validado `ff922996e797b287e275fdbf1d1791314c61a749`; CI PR #43918490165 Rust workspace PASS (13/13 em `snapshot_restore_e7_2e`) e SMS Runtime #43918490096 PASS. Push pós-merge: CI #43933821228 Rust workspace PASS, Z80 focused e Scheduler stress SKIPPED; SMS Runtime #43933821198 Release format/Clippy/tests PASS, Windows debugger SKIPPED. Não há review independente registrada.
 
 ### Decisão
 
@@ -463,3 +463,8 @@ Não atribuir workflows de PR ao SHA da main. SKIPPED permanece NOT RUN. Nenhum 
 ## Matriz consolidada dos 12 critérios E7
 
 A avaliação agrupada solicitada foi formalizada em [z80-e7-12-criteria-matrix-2026-11-16.md](z80-e7-12-criteria-matrix-2026-11-16.md). Ela separa PASS de software, PARTIAL e NOT_VERIFIED físico; registra o HEAD #972 e os workflows exatos. A lista é uma consolidação derivada dos itens temporais da continuidade, não uma lista numerada preexistente no checklist mestre.
+
+
+## Reconciliação supersedente pós-PR #972 — 16/11/2026
+
+Main atual: `1b16256358e3f17837a95cc071048c5ee5307f82`, merge commit da PR #972. A alteração integrada é cobertura de integração SMS/Scheduler para INT IM2 e NMI durante repetição; não altera CPU, decoder ou Scheduler de produção. O push pós-merge confirmou Rust workspace e SMS Runtime Release; Z80 focused, Scheduler stress e Windows debugger ficaram SKIPPED/NOT RUN nesta execução. F-022 permanece IN_PROGRESS, F-023 AUDIT_PARTIAL, F-028 IN_PROGRESS, E7 IN_PROGRESS e E8/ZEXDOC/ZEXALL BLOCKED. A revisão adversarial independente continua sem registro auditável.

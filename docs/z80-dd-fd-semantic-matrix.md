@@ -1,6 +1,6 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Reconciliação atual:** `main` = `2d526ea37c9cd65e82b54a330c52f54c07841400` (2026-11-16, pós-PR #970; PR #970 documental, sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
+**Reconciliação atual:** `main` = `1b16256358e3f17837a95cc071048c5ee5307f82` (2026-11-16, pós-PR #972; PR #972 adicionou somente testes de integração SMS/Scheduler, sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
@@ -665,3 +665,8 @@ A integração #955 não substitui regressão integrada no HEAD final da main ne
 ## Baseline pós-PR #970 — 16/11/2026
 
 Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem alteração de runtime). F-022 permanece IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS apenas como determinismo de software; E7 IN_PROGRESS; E8 BLOCKED. A lacuna da matriz de requests dos 167 Ignored foi resolvida por #950/#953; PR #971 documenta a reconciliação e PR #972 adiciona cobertura Scheduler IM2, ambas ainda não integradas. Ver [estado E7 consolidado](audits/z80-e7-current-status-2026-11-16.md) para SHAs, workflows e limites de evidência.
+
+
+## Reconciliação pós-PR #972 — 16/11/2026
+
+A main `1b16256358e3f17837a95cc071048c5ee5307f82` recebeu testes de integração SMS/Scheduler para repetição INT IM2/NMI. Não houve alteração de produção Z80, decoder ou semântica DD/FD. O push CI #43933821228 marcou Z80 focused como SKIPPED/NOT RUN; portanto, esta integração não constitui nova execução dos vetores DD/FD na main. E7 permanece IN_PROGRESS e E8 BLOCKED.
