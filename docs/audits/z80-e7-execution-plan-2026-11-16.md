@@ -113,7 +113,7 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 - Nenhuma alteração de produção CPU/Scheduler/runtime nesta continuidade. A PR #944 altera somente testes em `native/z80_cpu/src/sequencer.rs`.
 - E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
 
- 
+
 ### F-028 — decomposição dos 167 Ignored
 - 167 bytes foram agrupados por decoder BASE x/y/z: x=0 = 46; x=1 = 26; x=2 = 40; x=3 = 55.
 - O próximo teste deve percorrer os 167 bytes implementados com fixtures específicos por formato: register-only, immediate, relative, indirect/absolute memory, stack, I/O e control flow.
