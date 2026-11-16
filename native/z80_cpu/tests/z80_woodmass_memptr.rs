@@ -169,6 +169,8 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
 
     let mut printed = PrintCapture::default();
     let mut halt_pc = None;
+    let mut cycles_by_pc = vec![0_u64; 0x1_0000];
+    let mut steps_by_pc = vec![0_u64; 0x1_0000];
 
     while !cpu.halted {
         let pc_before = cpu.registers.pc;
@@ -185,13 +187,15 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
         }
 
         bus.opcode_fetch_override = (pc_before == CHAN_OPEN).then_some(CHAN_OPEN);
-        cpu.step(&mut bus).unwrap_or_else(|error| {
+        let step_cycles = cpu.step(&mut bus).unwrap_or_else(|error| {
             panic!(
-                "Woodmass MEMPTR test hit unsupported opcode at PC={pc_before:04X},                  T={}, error={error:?}",
+                "Woodmass MEMPTR test hit unsupported opcode at PC={pc_before:04X}, T={}, error={error:?}",
                 cpu.total_tstates
             )
         });
         bus.opcode_fetch_override = None;
+        cycles_by_pc[usize::from(pc_before)] += u64::from(step_cycles);
+        steps_by_pc[usize::from(pc_before)] += 1;
 
         if pc_before == EXIT_ADDRESS {
             halt_pc = Some(pc_before);
@@ -199,7 +203,7 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
 
         assert!(
             cpu.total_tstates <= MAX_TSTATES,
-            "Woodmass test did not reach HALT within {MAX_TSTATES} T-states;              PC={:04X}, last output={:?}",
+            "Woodmass test did not reach HALT within {MAX_TSTATES} T-states; PC={:04X}, last output={:?}",
             cpu.registers.pc,
             String::from_utf8_lossy(&printed.output[printed.output.len().saturating_sub(256)..])
         );
@@ -207,31 +211,25 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
 
     printed.finish();
 
-    assert_eq!(
-        halt_pc,
-        Some(EXIT_ADDRESS),
-        "test must exit at its pinned HALT"
-    );
-    assert_eq!(
-        cpu.total_tstates, EXPECTED_TSTATES,
-        "hardware-reference T-states"
-    );
-    assert_eq!(
-        printed.fnv1, EXPECTED_FNV1,
-        "hardware-reference output hash"
-    );
-    assert_eq!(
-        printed.lines, EXPECTED_LINES,
-        "hardware-reference output lines"
-    );
-    assert_eq!(
-        printed.columns, EXPECTED_COLUMNS,
-        "hardware-reference output columns"
-    );
-    assert!(
-        !printed.bad_character,
-        "test printed an unsupported control character"
-    );
+    let mut hot_pcs: Vec<(u64, u16, u64, [u8; 4])> = (0..0x1_0000)
+        .filter(|&pc| cycles_by_pc[pc] != 0)
+        .map(|pc| {
+            let bytes = [
+                bus.memory[pc],
+                bus.memory[(pc + 1) & 0xFFFF],
+                bus.memory[(pc + 2) & 0xFFFF],
+                bus.memory[(pc + 3) & 0xFFFF],
+            ];
+            (
+                cycles_by_pc[pc],
+                pc as u16,
+                steps_by_pc[pc],
+                bytes,
+            )
+        })
+        .collect();
+    hot_pcs.sort_by_key(|entry| std::cmp::Reverse(entry.0));
+    hot_pcs.truncate(16);
 
     let allowed_rom_reads = BTreeSet::from([
         PRINT_VECTOR,
@@ -247,6 +245,37 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
         .collect();
     assert!(
         unexpected_rom_reads.is_empty(),
-        "the ROM-free harness unexpectedly depended on other ROM addresses:          {unexpected_rom_reads:?}"
+        "the ROM-free harness unexpectedly depended on other ROM addresses: {unexpected_rom_reads:?}"
+    );
+
+    assert_eq!(
+        halt_pc,
+        Some(EXIT_ADDRESS),
+        "test must exit at its pinned HALT"
+    );
+    assert_eq!(
+        printed.fnv1,
+        EXPECTED_FNV1,
+        "hardware-reference output hash; bytes={}, output:\n{}",
+        printed.output.len(),
+        String::from_utf8_lossy(&printed.output)
+    );
+    assert_eq!(
+        printed.lines, EXPECTED_LINES,
+        "hardware-reference output lines"
+    );
+    assert_eq!(
+        printed.columns, EXPECTED_COLUMNS,
+        "hardware-reference output columns"
+    );
+    assert!(
+        !printed.bad_character,
+        "test printed an unsupported control character"
+    );
+    assert_eq!(
+        cpu.total_tstates,
+        EXPECTED_TSTATES,
+        "hardware-reference T-states; output bytes={}, hot PCs={hot_pcs:?}",
+        printed.output.len()
     );
 }
