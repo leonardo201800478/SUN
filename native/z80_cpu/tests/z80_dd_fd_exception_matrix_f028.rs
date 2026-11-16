@@ -115,10 +115,7 @@ fn run_atomic(bytes: &[u8]) -> (Z80, u32) {
     run_atomic_with_state(bytes, initial_state())
 }
 
-fn run_atomic_with_state(
-    bytes: &[u8],
-    state: Z80ArchitecturalState,
-) -> (Z80, u32) {
+fn run_atomic_with_state(bytes: &[u8], state: Z80ArchitecturalState) -> (Z80, u32) {
     let mut bus = FlatBus::default();
     for (offset, byte) in bytes.iter().copied().enumerate() {
         let address = START_PC.wrapping_add(offset as u16);
@@ -225,13 +222,7 @@ fn assert_equal_except_prefix_count(
 
 fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
     let state = initial_state();
-    run_prefix_matrix_with_states(
-        opcode_bytes,
-        base_m1_count,
-        is_halt,
-        state.clone(),
-        state,
-    );
+    run_prefix_matrix_with_states(opcode_bytes, base_m1_count, is_halt, state.clone(), state);
 }
 
 fn run_prefix_matrix_with_states(
