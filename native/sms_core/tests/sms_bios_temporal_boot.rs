@@ -2,7 +2,10 @@
 //!
 //! The fixture is synthetic and contains no commercial BIOS or cartridge bytes.
 
-use sega_sms_core::{SmsTemporalMachine, SmsVdpProfile, Territory};
+use sega_sms_core::{
+    SmsTemporalBusError, SmsTemporalMachine, SmsTemporalMachineError, SmsVdpProfile,
+    SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
+};
 
 const PSG_CLOCK_HZ: u64 = 3_579_545;
 const SAMPLE_RATE_HZ: u64 = 44_100;
@@ -84,4 +87,29 @@ fn bios_executes_on_scheduler_and_establishes_real_cartridge_handoff_state() {
         .expect("first cartridge instruction should execute after BIOS handoff");
     assert_eq!(machine.cpu().registers.a, 0x42);
     assert_eq!(machine.cpu().registers.pc, 0x0002);
+}
+
+#[test]
+fn conventional_bios_rejects_sms2_asic_until_slot_arbitration_is_modeled() {
+    let sms2_profile = SmsVdpProfile::new(
+        SmsVdpRevision::Sega3155246,
+        VideoStandard::Ntsc,
+        SpriteLimitMode::HardwareLimit,
+    );
+    let result = SmsTemporalMachine::new_with_hardware_profile_and_bios(
+        vec![0x00; 0x4000],
+        vec![0xA5; BIOS_SIZE],
+        1,
+        PSG_CLOCK_HZ,
+        SAMPLE_RATE_HZ,
+        sms2_profile,
+        Territory::Export,
+    );
+
+    assert!(matches!(
+        result,
+        Err(SmsTemporalMachineError::Bus(
+            SmsTemporalBusError::UnsupportedBiosHardwareProfile
+        ))
+    ));
 }
