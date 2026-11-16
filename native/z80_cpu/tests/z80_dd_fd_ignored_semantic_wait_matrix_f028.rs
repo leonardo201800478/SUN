@@ -104,10 +104,12 @@ fn execute_one_instruction(
     initial_f: u8,
     initial_bc: u16,
     initial_pc: u16,
+    initial_wz: u16,
 ) -> Execution {
     let mut cpu = Z80MicroSequencer::default();
     cpu.registers.set_bc(initial_bc);
     cpu.registers.pc = initial_pc;
+    cpu.wz = initial_wz;
     cpu.registers.set_de(0x3456);
     cpu.registers.set_hl(0x4567);
     cpu.registers.sp = 0x5678;
@@ -376,8 +378,8 @@ fn data_read_at_current_pc_is_not_misclassified_as_instruction_stream() {
     // BASE has PC=1 at the data read; DD+opcode has PC=2. BC=2 therefore
     // collides with PC only in the prefixed execution. It is still a data
     // read, not an immediate operand fetch, and must not be address-normalized.
-    let base = execute_one_instruction(&[OPCODE], true, 0x00, 0x0002, 0);
-    let prefixed = execute_one_instruction(&[0xDD, OPCODE], true, 0x00, 0x0002, 0);
+    let base = execute_one_instruction(&[OPCODE], true, 0x00, 0x0002, 0, 0);
+    let prefixed = execute_one_instruction(&[0xDD, OPCODE], true, 0x00, 0x0002, 0, 0);
 
     let has_unclassified_data_read = |trace: &[TraceEvent]| {
         trace.iter().any(|event| {
@@ -414,7 +416,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
     );
 
     for opcode in ignored {
-        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345, 0);
+        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345, 0, 0);
         assert_eq!(base.fetch_addresses, vec![0], "BASE {opcode:02X}");
         assert_eq!(
             base.wait_count,
@@ -426,7 +428,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
         );
 
         for prefix in [0xDD, 0xFD] {
-            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345, 0);
+            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345, 0, 0);
             assert_eq!(
                 prefixed.fetch_addresses,
                 vec![0, 1],
@@ -462,11 +464,11 @@ fn all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc() {
     // DJNZ not taken. The first matrix already exercises the opposite DJNZ
     // path (B=0x23) and the complementary flag conditions.
     for opcode in ignored {
-        let base = execute_one_instruction(&[opcode], true, 0xFF, 0x0145, 0);
+        let base = execute_one_instruction(&[opcode], true, 0xFF, 0x0145, 0, 0);
         assert_eq!(base.fetch_addresses, vec![0], "BASE {opcode:02X}");
 
         for prefix in [0xDD, 0xFD] {
-            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0xFF, 0x0145, 0);
+            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0xFF, 0x0145, 0, 0);
             assert_eq!(
                 prefixed.fetch_addresses,
                 vec![0, 1],
@@ -495,7 +497,7 @@ fn ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address() {
     ];
 
     for (opcode, initial_pc) in cases {
-        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345, initial_pc);
+        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345, initial_pc, 0);
         assert_eq!(base.fetch_addresses, vec![initial_pc]);
 
         let base_stack_writes: Vec<_> = base
@@ -519,7 +521,7 @@ fn ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address() {
 
         for prefix in [0xDD, 0xFD] {
             let prefixed =
-                execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345, initial_pc);
+                execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345, initial_pc, 0);
             assert_eq!(
                 prefixed.fetch_addresses,
                 vec![initial_pc, initial_pc.wrapping_add(1)],
@@ -554,6 +556,95 @@ fn ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address() {
                 ),
                 base.trace,
                 "{prefix:02X} {opcode:02X}: full 16-bit stack return address and bus trace"
+            );
+        }
+    }
+}
+
+
+#[test]
+fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
+    const INITIAL_PC: u16 = 0x2000;
+    const INITIAL_WZ: u16 = 0xA328;
+    let cases = [
+        // opcode, F, BC, taken
+        (0x18_u8, 0x00_u8, 0x0145_u16, true),  // JR e
+        (0x10, 0x00, 0x0245, true),            // DJNZ taken
+        (0x10, 0x00, 0x0145, false),           // DJNZ not taken
+        (0x20, 0x00, 0x0145, true),            // JR NZ taken
+        (0x20, 0x40, 0x0145, false),           // JR NZ not taken
+        (0x28, 0x40, 0x0145, true),            // JR Z taken
+        (0x28, 0x00, 0x0145, false),           // JR Z not taken
+        (0x30, 0x00, 0x0145, true),            // JR NC taken
+        (0x30, 0x01, 0x0145, false),           // JR NC not taken
+        (0x38, 0x01, 0x0145, true),            // JR C taken
+        (0x38, 0x00, 0x0145, false),           // JR C not taken
+    ];
+
+    for (opcode, flags, bc, taken) in cases {
+        let base = execute_one_instruction(
+            &[opcode],
+            true,
+            flags,
+            bc,
+            INITIAL_PC,
+            INITIAL_WZ,
+        );
+        assert_eq!(base.fetch_addresses, vec![INITIAL_PC]);
+
+        for prefix in [0xDD, 0xFD] {
+            let prefixed = execute_one_instruction(
+                &[prefix, opcode],
+                true,
+                flags,
+                bc,
+                INITIAL_PC,
+                INITIAL_WZ,
+            );
+            assert_eq!(
+                prefixed.fetch_addresses,
+                vec![INITIAL_PC, INITIAL_PC.wrapping_add(1)],
+                "{prefix:02X} {opcode:02X}: prefix and terminal M1"
+            );
+            assert_eq!(
+                prefixed.state.registers.pc,
+                base.state.registers.pc.wrapping_add(1),
+                "{prefix:02X} {opcode:02X}: stream-relative PC shift"
+            );
+
+            if taken {
+                assert_eq!(
+                    base.state.wz,
+                    base.state.registers.pc,
+                    "BASE {opcode:02X}: taken relative branch WZ"
+                );
+                assert_eq!(
+                    prefixed.state.wz,
+                    base.state.wz.wrapping_add(1),
+                    "{prefix:02X} {opcode:02X}: WZ must follow the shifted target"
+                );
+            } else {
+                assert_eq!(
+                    base.state.wz,
+                    INITIAL_WZ,
+                    "BASE {opcode:02X}: not-taken branch preserves WZ"
+                );
+                assert_eq!(
+                    prefixed.state.wz,
+                    INITIAL_WZ,
+                    "{prefix:02X} {opcode:02X}: ignored prefix must preserve WZ when not taken"
+                );
+            }
+
+            assert_eq!(
+                remove_prefix_m1_and_normalize_stream_addresses(
+                    prefixed.trace,
+                    prefix,
+                    opcode,
+                    INITIAL_PC,
+                ),
+                base.trace,
+                "{prefix:02X} {opcode:02X}: normalized bus stream and timing"
             );
         }
     }
