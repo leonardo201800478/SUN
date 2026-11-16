@@ -380,7 +380,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             && iff1_before
             && cpu.ei_delay == 0
             && block_interrupts.len() < 8
-            && contains_bytes(&bus.output, b"HF vs B, binary log")
+            && &bus.memory[0x8900..0x8904] == b"OTIR"
         {
             let pc = cpu.registers.pc;
             let opcode = [
@@ -413,7 +413,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
         if block_instruction_steps.len() < 12
-            && contains_bytes(&bus.output, b"HF vs B, binary log")
+            && &bus.memory[0x8900..0x8904] == b"OTIR"
             && opcode[0] == 0xED
             && (opcode[1] == 0xB2 || opcode[1] == 0xBA || opcode[1] == 0xB3 || opcode[1] == 0xBB)
         {
