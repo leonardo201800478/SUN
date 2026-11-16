@@ -13839,7 +13839,11 @@ mod ed_block_transfer_repeat_interrupt_tests {
     fn assert_q_latches_match(atomic: &Z80, sequenced: &Z80MicroSequencer, context: &str) {
         let state = sequenced.export_architectural_state();
         assert_eq!(state.q, atomic.q, "{context}: Q");
-        assert_eq!(state.q_previous, atomic.q_previous, "{context}: previous-Q");
+        assert_eq!(
+            state.q_previous,
+            atomic.export_architectural_state().q_previous,
+            "{context}: previous-Q"
+        );
     }
 
     fn round_trip(cpu: &mut Z80MicroSequencer) {
@@ -14186,7 +14190,7 @@ mod ed_block_transfer_repeat_interrupt_tests {
                         );
                     }
                     assert_eq!(atomic.q, expected_flags, "atomic repeat Q");
-                    assert_eq!(atomic.q_previous, 0, "atomic repeat previous-Q");
+                    assert_eq!(atomic.export_architectural_state().q_previous, 0, "atomic repeat previous-Q");
                     let sequenced_latches = sequenced.export_architectural_state();
                     assert_eq!(sequenced_latches.q, expected_flags, "sequenced repeat Q");
                     assert_eq!(
@@ -14214,7 +14218,11 @@ mod ed_block_transfer_repeat_interrupt_tests {
                     // Starting the acknowledge response clears Q and transfers
                     // the previous flag-producing Q into previous-Q.
                     assert_eq!(atomic.q, 0, "Q after IM2 acknowledge");
-                    assert_eq!(atomic.q_previous, expected_flags, "previous-Q after IM2");
+                    assert_eq!(
+                        atomic.export_architectural_state().q_previous,
+                        expected_flags,
+                        "previous-Q after IM2"
+                    );
                     assert_q_latches_match(&atomic, &sequenced, "after IM2 acknowledge");
 
                     // PUSH AF, POP AF, EI and RETI must not make the two
