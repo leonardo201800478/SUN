@@ -343,13 +343,13 @@ jobs:
           source = pathlib.Path(sys.argv[1]).read_bytes()
           expected_blob = "626b8eb763b0964de3b1496f47647a154c1322cb"
           actual_blob = hashlib.sha1(
-              b"blob " + str(len(source)).encode("ascii") + b"\\0" + source
+              b"blob " + str(len(source)).encode("ascii") + b"\0" + source
           ).hexdigest()
           if actual_blob != expected_blob:
               raise SystemExit(f"Spectrum ROM source blob mismatch: {actual_blob}")
 
           match = re.search(
-              rb"unsigned char zx_spectrum_rom\\[16384\\] = \\{(.*?)\\};",
+              rb"unsigned char zx_spectrum_rom\[16384\] = \{(.*?)\};",
               source,
               re.DOTALL,
           )
