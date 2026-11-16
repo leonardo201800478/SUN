@@ -80,3 +80,8 @@ A árvore contém 285 Markdown; contagem estrutural não equivale a leitura inte
 - **#928 — permanece Draft:** boot por BIOS convencional; validação física pendente.
 
 Os fechamentos foram acompanhados de comentários explícitos. Nenhuma dessas PRs foi integrada por esta reconciliação.
+
+
+## 10. Substituição da PR documental — 2026-11-16
+
+A PR #979 foi fechada sem merge para evitar um histórico de 67 commits gerados por operações arquivo a arquivo. Seu Git tree documental foi preservado integralmente e reapresentado na PR #980, em branch limpa baseada diretamente na main `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`. A PR #980 é a candidata ativa; a #979 permanece fechada/supersedida. A PR #980 aguarda CI no seu próprio HEAD. Nenhuma PR foi integrada à main por esta reconciliação.
