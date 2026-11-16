@@ -206,7 +206,11 @@ fn validate_main_results(output: &[u8]) {
     );
 }
 
-fn validate_b_loop_log(memory: &[u8; 0x1_0000], block_interrupts: &[String]) {
+fn validate_b_loop_log(
+    memory: &[u8; 0x1_0000],
+    block_interrupts: &[String],
+    block_instruction_steps: &[String],
+) {
     let mut cursor = LOG_AREA;
 
     for group in B_LOOP_GROUPS {
@@ -225,7 +229,7 @@ fn validate_b_loop_log(memory: &[u8; 0x1_0000], block_interrupts: &[String]) {
 
             assert_eq!(
                 b_after, expected_b,
-                "B-loop B value at {cursor:04X}; first block-I/O INT accepts: {block_interrupts:#?}"
+                "B-loop B value at {cursor:04X}; first block-I/O instruction steps: {block_instruction_steps:#?}; first block-I/O INT accepts: {block_interrupts:#?}"
             );
             assert_eq!(
                 actual_flags,
@@ -280,6 +284,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     let mut recent_steps = VecDeque::with_capacity(64);
     let mut output_progress = VecDeque::with_capacity(8);
     let mut block_interrupts = Vec::with_capacity(8);
+    let mut block_instruction_steps = Vec::with_capacity(12);
 
     for step_index in 0..MAX_STEPS {
         let now = cpu.total_tstates;
@@ -317,7 +322,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
 
         if cpu.registers.pc == caller_return_pc && cpu.registers.sp == exit_sp {
             validate_main_results(&bus.output);
-            validate_b_loop_log(&bus.memory, &block_interrupts);
+            validate_b_loop_log(&bus.memory, &block_interrupts, &block_instruction_steps);
             completed = true;
             break;
         }
@@ -407,6 +412,33 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         let opcode: [u8; 4] = std::array::from_fn(|offset| {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
+        if block_instruction_steps.len() < 12
+            && contains_bytes(&bus.output, b"HF vs B, binary log")
+            && opcode[0] == 0xED
+            && (opcode[1] == 0xB2
+                || opcode[1] == 0xBA
+                || opcode[1] == 0xB3
+                || opcode[1] == 0xBB)
+        {
+            let frame_edge = pulse_end
+                .map(|end| end.saturating_sub(32))
+                .unwrap_or(next_interrupt);
+            block_instruction_steps.push(format!(
+                "t={} frame_edge={} delta={} pc={:04X} op={:02X?} BC={:04X} AF={:02X}{:02X} R={:02X} IFF1={} ei_delay={}",
+                cpu.total_tstates,
+                frame_edge,
+                frame_edge.saturating_sub(cpu.total_tstates),
+                pc_before,
+                opcode,
+                cpu.registers.bc(),
+                cpu.registers.a,
+                cpu.registers.f,
+                cpu.r,
+                cpu.iff1,
+                cpu.ei_delay
+            ));
+        }
+
         let trace = format!(
             "t={} pc={:04X} op={:02X?} AF={:02X}{:02X} BC={:04X} DE={:04X} HL={:04X} SP={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={} INT={:?}",
             cpu.total_tstates,
