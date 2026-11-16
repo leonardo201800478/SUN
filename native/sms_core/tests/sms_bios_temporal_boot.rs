@@ -92,8 +92,10 @@ fn bios_executes_on_scheduler_and_establishes_real_cartridge_handoff_state() {
 #[test]
 fn bios_image_and_mapping_latch_survive_temporal_save_state_roundtrip() {
     let bios = synthetic_boot_bios();
+    let mut rom = vec![0x00; 0x4000];
+    rom[..3].copy_from_slice(&[0x3E, 0x42, 0x76]);
     let mut machine = SmsTemporalMachine::new_with_hardware_profile_and_bios(
-        vec![0x00; 0x4000],
+        rom,
         bios.clone(),
         1,
         PSG_CLOCK_HZ,
