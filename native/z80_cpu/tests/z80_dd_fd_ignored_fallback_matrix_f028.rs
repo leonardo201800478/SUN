@@ -115,15 +115,9 @@ fn execute_one_instruction(opcode_stream: &[u8]) -> (u32, Vec<u16>, u8, Vec<Trac
                     stream.next().is_none(),
                     "instruction retired before consuming the complete opcode stream"
                 );
-                return (
-                    tstates,
-                    opcode_fetch_addresses,
-                    cpu.refresh & 0x7F,
-                    trace,
-                );
+                return (tstates, opcode_fetch_addresses, cpu.refresh & 0x7F, trace);
             }
-            Z80MicroStep::InterruptAcknowledge { .. }
-            | Z80MicroStep::InterruptServiced { .. } => {
+            Z80MicroStep::InterruptAcknowledge { .. } | Z80MicroStep::InterruptServiced { .. } => {
                 panic!("unexpected interrupt service in F-028 fallback matrix")
             }
         };
@@ -132,9 +126,7 @@ fn execute_one_instruction(opcode_stream: &[u8]) -> (u32, Vec<u16>, u8, Vec<Trac
     panic!("opcode stream {opcode_stream:?} did not retire within 128 micro-operations");
 }
 
-fn remove_prefix_m1_and_normalize_pc_stream_addresses(
-    trace: Vec<TraceEvent>,
-) -> Vec<TraceEvent> {
+fn remove_prefix_m1_and_normalize_pc_stream_addresses(trace: Vec<TraceEvent>) -> Vec<TraceEvent> {
     let mut events = trace.into_iter();
     assert_eq!(
         events.next(),
@@ -148,11 +140,7 @@ fn remove_prefix_m1_and_normalize_pc_stream_addresses(
 
     let mut normalized: Vec<_> = events.collect();
     for event in &mut normalized {
-        if let TraceEvent::Bus {
-            kind,
-            address,
-            ..
-        } = event
+        if let TraceEvent::Bus { kind, address, .. } = event
             && matches!(*kind, BusTraceKind::OpcodeFetch | BusTraceKind::MemoryRead)
             && *address < 0x0100
         {
