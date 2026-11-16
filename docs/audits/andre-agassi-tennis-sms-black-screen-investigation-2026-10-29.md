@@ -86,7 +86,7 @@ Para Codemasters, o mesmo par de endereços não é decodificado como registrado
 
 ### O que a documentação externa sustenta
 
-- SMS Power documenta que o software deve inicializar SP antes de usar CALL/RET/interrupções e recomenda comumente `$DFF0`, porque a área superior espelhada contém registradores de hardware (`$FFF0-$FFFF`). Isso é uma convenção de software, não prova do valor de SP deixado por todas as revisões do BIOS.
+- A documentação SMS Official Docs no SMS Power recomenda colocar a pilha em `$DFF8` para compatibilidade futura. O `SmsVdpTest` usa `$DFF0` em sua inicialização normal; `$DFFF` aparece em uma alegação de BIOS que o documento de engenharia reversa do projeto classifica como não confirmada. Esses valores não são intercambiáveis nem provam o SP físico no power-on. O manual Zilog não define SP no RESET.
 - A referência de portas documenta `$3F` como controle de direção/nível TH/TR e confirma estado input-only no startup.
 - A documentação de memória/mapper confirma `$FFFC-$FFFF` como registradores Sega e o espelhamento simultâneo na RAM.
 - Discussões comunitárias sobre o valor exato de SP na saída do BIOS divergem (`$DFFF` aparece como valor histórico reportado; `$DFF0` é a convenção recomendada para programas). Não fixar um desses valores como verdade de hardware sem BIOS disassembly ou trace independente.
