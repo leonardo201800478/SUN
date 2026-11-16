@@ -67,3 +67,17 @@ Os resultados acima são vinculados aos respectivos HEADs. Não se declara workf
 O fechamento significa que as famílias modeladas possuem regra, condição, wrap, observabilidade e teste rastreável, com proveniência classificada sem extrapolação. Não significa medição física individual de todas as regras internas nem conformidade universal de variantes/clones.
 
 **E7 global permanece IN_PROGRESS.** F-022 e F-028 ainda precisam de revisão adversarial final e reconciliação documental; os gates finais integrados no HEAD candidato também permanecem necessários. E8/ZEXDOC/ZEXALL continua BLOCKED.
+
+
+
+## Revalidação cruzada F-023/F-028 — PR #977 (16/11/2026)
+
+A PR #977 fechou a lacuna técnica de WZ para JR, DJNZ e JR NZ/Z/NC/C sob DD/FD Ignored, nos caminhos tomado/não tomado e com PC inicial `FFFD` para wrap do destino relativo. Também verifica PC, WZ, preservação quando não tomado, fetch M1 e trace normalizado.
+
+- HEAD validado: `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`.
+- CI #43939973117: SUCCESS; Z80 focused e Rust quality/unit PASS.
+- SMS Runtime #43939957730: SUCCESS; Release format/Clippy/tests PASS.
+- Scheduler deterministic stress: SKIPPED. Outros jobs não relacionados: SKIPPED.
+- Nenhuma alteração de produção; a alteração é teste-only.
+
+A cobertura interna F-023/F-028 está completa para esse limite. O estado continua **INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE**, pois ainda não existe review independente registrada no GitHub. Não declarar CLOSED nem integrar a documentação até satisfazer esse gate.
