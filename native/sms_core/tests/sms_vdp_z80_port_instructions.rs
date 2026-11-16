@@ -141,8 +141,8 @@ fn z80_vcounter_port_read_at_t15_observes_pre_latch_value() {
     // line value immediately after that same completion boundary.
     let mut program = vec![0x00; 58];
     program.extend_from_slice(&[
-        0xDB, 0x7E,             // IN A,($7E)
-        0x32, 0x00, 0xC0,       // LD ($C000),A
+        0xDB, 0x7E, // IN A,($7E)
+        0x32, 0x00, 0xC0, // LD ($C000),A
     ]);
     let mut machine = machine_with_program(&program);
     machine.set_trace_enabled(true);
