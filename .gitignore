@@ -27,3 +27,6 @@ Desktop.ini
 
 # Local SDL3 runtime used by the native Rust input backend
 SDL3.dll
+docs/roms/roms_sms_no_intro_inventory.csv
+docs/roms/roms_sms_no_intro_structural_review.csv
+docs/roms/roms_sms_no_intro_summary.md
