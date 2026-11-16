@@ -1,6 +1,8 @@
 use sega_sms_core::SmsTemporalMachine;
 use sega_temporal_core::MachineTime;
-use sega_z80_cpu::{Z80InterruptKind, Z80MicroSequencerState, Z80MicroStep};
+use sega_z80_cpu::{
+    Z80InterruptKind, Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep,
+};
 
 fn machine(rom: Vec<u8>) -> SmsTemporalMachine {
     SmsTemporalMachine::new(rom, 3).unwrap()
@@ -86,6 +88,87 @@ fn compare_runs(
     assert_eq!(
         resumed_trace, continuous_trace,
         "continuous and restored Scheduler traces must match"
+    );
+    assert_eq!(resumed.export_state(), continuous.export_state());
+    assert_eq!(resumed.now(), continuous.now());
+    actual
+}
+
+fn run_boundary_with_repeat_interrupt(
+    machine: &mut SmsTemporalMachine,
+    snapshot_each: bool,
+    waits: u32,
+) -> (
+    Z80MicroStep,
+    Vec<sega_sms_core::temporal_machine::SmsTemporalTraceEvent>,
+) {
+    let mut captured_trace = Vec::new();
+    let mut step = machine.begin_instruction().unwrap();
+    for _ in 0..128 {
+        step = match step {
+            Z80MicroStep::BusRequest(_) => {
+                machine.schedule_pending_bus(waits).unwrap();
+                if snapshot_each {
+                    captured_trace.extend(machine.take_trace());
+                    *machine = snapshot(machine);
+                }
+                machine.dispatch_next().unwrap()
+            }
+            Z80MicroStep::InternalCycle { tstates } => {
+                if matches!(
+                    machine.cpu().export_state().phase,
+                    Z80MicroSequencerPhase::EdBlockRepeatInternal {
+                        remaining_tstates: 1,
+                        ..
+                    } | Z80MicroSequencerPhase::EdBlockCompareRepeatInternal {
+                        remaining_tstates: 1,
+                        ..
+                    }
+                ) {
+                    // Assert level-sensitive INT immediately before the final
+                    // repeat T-state; the signal change itself consumes no time.
+                    machine.set_int_line(Some(0xFF));
+                }
+                machine.schedule_internal_cycle(tstates).unwrap();
+                if snapshot_each {
+                    captured_trace.extend(machine.take_trace());
+                    *machine = snapshot(machine);
+                }
+                machine.dispatch_next().unwrap()
+            }
+            Z80MicroStep::InterruptAcknowledge { .. } => {
+                if snapshot_each {
+                    captured_trace.extend(machine.take_trace());
+                    *machine = snapshot(machine);
+                }
+                machine.cpu_mut().begin_instruction().unwrap()
+            }
+            terminal @ (Z80MicroStep::InstructionRetired { .. }
+            | Z80MicroStep::InterruptServiced { .. }) => {
+                captured_trace.extend(machine.take_trace());
+                if snapshot_each {
+                    *machine = snapshot(machine);
+                }
+                return (terminal, captured_trace);
+            }
+        };
+    }
+    panic!("repeat/interrupt sequence did not reach a boundary");
+}
+
+fn compare_repeat_interrupt_runs(
+    continuous: &mut SmsTemporalMachine,
+    resumed: &mut SmsTemporalMachine,
+    waits: u32,
+) -> Z80MicroStep {
+    continuous.set_trace_enabled(true);
+    resumed.set_trace_enabled(true);
+    let (expected, continuous_trace) = run_boundary_with_repeat_interrupt(continuous, false, waits);
+    let (actual, resumed_trace) = run_boundary_with_repeat_interrupt(resumed, true, waits);
+    assert_eq!(actual, expected);
+    assert_eq!(
+        resumed_trace, continuous_trace,
+        "continuous and restored repeat/INT Scheduler traces must match"
     );
     assert_eq!(resumed.export_state(), continuous.export_state());
     assert_eq!(resumed.now(), continuous.now());
@@ -514,6 +597,128 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
             continuous.cpu().q,
             continuous.cpu().registers.f,
             "ED {opcode:02X}: final Q"
+        );
+        assert_eq!(continuous.export_state(), resumed.export_state());
+        assert_eq!(continuous.now(), resumed.now());
+    }
+}
+
+#[test]
+fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
+    // IM1 handler: RETI back to the rewound block instruction at PC=0000.
+    let cases = [
+        // opcode, initial HL, initial DE, initial F, expected HL, expected DE, final WZ
+        (
+            0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16, 0x0000_u16,
+        ),
+        (
+            0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16, 0x0000_u16,
+        ),
+        (
+            0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16, 0x0001_u16,
+        ),
+        (
+            0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16, 0xFFFF_u16,
+        ),
+    ];
+
+    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases
+    {
+        let mut rom = vec![0; 0x4000];
+        rom[0] = 0xED;
+        rom[1] = opcode;
+        rom[0x38] = 0xED;
+        rom[0x39] = 0x4D;
+        rom[0x0100] = 0x21;
+        rom[0x0101] = 0x22;
+
+        let mut continuous = machine(rom.clone());
+        let mut resumed = machine(rom);
+        for candidate in [&mut continuous, &mut resumed] {
+            let cpu = candidate.cpu_mut();
+            cpu.registers.set_hl(initial_hl);
+            cpu.registers.set_de(initial_de);
+            cpu.registers.set_bc(2);
+            cpu.registers.sp = 0xC100;
+            cpu.registers.a = 0x10;
+            cpu.registers.f = initial_f;
+            cpu.interrupt_mode = 1;
+            cpu.iff1 = true;
+            cpu.iff2 = true;
+            cpu.wz = 0xA55A;
+        }
+
+        // Repeat iteration retires with PC rewound; INT was asserted on its
+        // final internal T-state and is pending at the next boundary.
+        let first = compare_repeat_interrupt_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            first,
+            Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
+        ));
+        assert_eq!(
+            continuous.cpu().registers.pc,
+            0,
+            "ED {opcode:02X}: repeat PC"
+        );
+        assert_eq!(
+            continuous.cpu().registers.bc(),
+            1,
+            "ED {opcode:02X}: repeat BC"
+        );
+        assert_eq!(continuous.cpu().wz, 1, "ED {opcode:02X}: repeat WZ");
+        assert_eq!(
+            continuous.cpu().q,
+            continuous.cpu().registers.f,
+            "ED {opcode:02X}: repeat Q"
+        );
+        let repeat_q = continuous.cpu().q;
+
+        // The scheduler now accepts the pending INT in IM1. The stack captures
+        // the rewound PC=0000, and IM1 preserves the repeat's WZ.
+        assert_eq!(
+            compare_runs(&mut continuous, &mut resumed, 1),
+            Z80MicroStep::InterruptServiced {
+                kind: Z80InterruptKind::Int,
+                tstates: 16,
+            }
+        );
+        assert_eq!(continuous.cpu().registers.pc, 0x0038);
+        assert_eq!(continuous.cpu().registers.sp, 0xC0FE);
+        assert_eq!(continuous.cpu().wz, 1);
+        assert_eq!(continuous.cpu().q, 0);
+        assert_eq!(continuous.cpu().q_previous, repeat_q);
+        assert_eq!(continuous.memory().read(0xC0FF), 0x00);
+        assert_eq!(continuous.memory().read(0xC0FE), 0x00);
+
+        // Deassert the level before RETI, then return to the rewound block.
+        continuous.set_int_line(None);
+        resumed.set_int_line(None);
+        let reti = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(reti, Z80MicroStep::InstructionRetired { .. }));
+        assert_eq!(continuous.cpu().registers.pc, 0x0000);
+        assert_eq!(continuous.cpu().registers.sp, 0xC100);
+        assert_eq!(continuous.cpu().wz, 0x0000); // RETI loads WZ from popped PC
+
+        // The resumed final iteration terminates the block instruction.
+        let final_iteration = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            final_iteration,
+            Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
+        ));
+        assert_eq!(continuous.cpu().registers.pc, 2);
+        assert_eq!(continuous.cpu().registers.bc(), 0);
+        assert_eq!(continuous.cpu().registers.hl(), expected_hl);
+        assert_eq!(continuous.cpu().registers.de(), expected_de);
+        assert_eq!(continuous.cpu().wz, expected_wz);
+        assert_eq!(
+            continuous.cpu().q,
+            continuous.cpu().registers.f,
+            "ED {opcode:02X}: final Q"
+        );
+        assert_eq!(
+            continuous.cpu().q_previous,
+            0,
+            "ED {opcode:02X}: final previous-Q"
         );
         assert_eq!(continuous.export_state(), resumed.export_state());
         assert_eq!(continuous.now(), resumed.now());
