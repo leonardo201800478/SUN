@@ -79,34 +79,36 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 - Preservar E4A/E4B/E5/E6 e os demais fechamentos validados sem regressão concreta.
 - Hardware SMS direto e CMOS/clones permanecem `NOT RUN`/`NOT_VERIFIED`; não são gates universais automáticos do perfil NMOS delimitado.
 
-## 4. Baseline de PRs em 2026-11-16
+## 4. Baseline remota reconciliada — 2026-11-16
 
-| PR | Base | HEAD observado | CI relevante |
+**Main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`. As quatro PRs permanecem baseadas nesta SHA; não houve integração das candidatas.
+
+| PR | HEAD atual | Evidência de CI | Situação |
 |---|---|---|---|
-| #936 | `caa9a76a6f09d588155ea4e0cbc95f487f079143` | `306db2a91ff796b4c5f66eabc4ebd4c4baad903e` | #43852582196 e SMS Runtime #43852582229 SUCCESS |
-| #942 | `caa9a76a6f09d588155ea4e0cbc95f487f079143` | `15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021` | #43851550529 e SMS Runtime #43851550520 SUCCESS |
-| #943 | `caa9a76a6f09d588155ea4e0cbc95f487f079143` | `462ec750b9b4c20e4f89b4545e4161435bae6a13` | #43865677187 e SMS Runtime #43865677170 SUCCESS |
+| #936 | `c77759796349e02ee1f31449ce2a616b8a16d5d0` | CI #43873956181 SUCCESS; SMS Runtime #43873956227 SUCCESS | OPEN/DRAFT. O commit c777 reverteu uma matriz temporária para manter o microsequenciador isolado na #944; ROM v5.0 permanece nesta PR. |
+| #942 | `53aaf5c415eba3acc4704d1d2214a358755fad08` | CI #43871487677 SUCCESS; SMS Runtime #43871487582 SUCCESS | OPEN/DRAFT. As assertions por linha RLD/RRD foram validadas no código df015e8; o HEAD atual acrescenta documentação. |
+| #943 | `b95cb0ecd730cf8dbd3d34abb71716013d0b5ca0` | CI/SMS Runtime do HEAD atual aguardando consulta | OPEN/DRAFT. Documentação e ledger de reconciliação F-028, sem alteração de CPU/runtime. |
+| #944 | `ef22ddc871e9790eb2fd65b1d4a70a6795c24872` | CI #43873337726 SUCCESS; SMS Runtime #43873337682 SUCCESS | OPEN/DRAFT. Matriz IM2 do microsequenciador, somente testes em sequencer.rs. |
 
-Essas SHAs são fotografias da auditoria de 2026-11-16; sempre consultar o estado remoto antes de executar a próxima tarefa.
+### PR #944 — matriz IM2 e Q/previous-Q
 
+- 64 cenários: quatro opcodes × quatro padrões PC × dois valores BC iniciais × dois seeds Q.
+- INT é afirmado no último T-state do ciclo interno de repetição; handler IM2 observa F com PUSH AF/POP AF, EI e RETI.
+- Q/previous-Q verificados na aposentadoria, aceitação IM2, handler e retomada.
+- Snapshot encode/decode/restore exercitado nas fronteiras de barramento e T-state interno.
+- CI #43873337726 e SMS Runtime #43873337682 SUCCESS no HEAD ef22ddc.
+- Escopo: INT IM2. NMI e IM0/IM1 não foram validados por esta matriz.
 
-### PR #944 — matriz IM2 do microsequenciador
-- Branch: `test/z80-f022-repeat-microseq-matrix-20261116`
-- HEAD: `c88739b6f027e62dfc28f4379bbafc633bbab7ed`
-- Alteração: somente 164 linhas de testes dentro do módulo `ed_block_transfer_repeat_interrupt_tests` em `native/z80_cpu/src/sequencer.rs`.
-- CI #43872577766 SUCCESS; SMS Runtime #43872577771 SUCCESS.
-- 64 cenários: 4 opcodes × 4 padrões PC × 2 BC iniciais × 2 seeds Q; INT no último T-state do repeat, handler IM2, RETI/resume e snapshot/restore por fronteira.
-- F-022 permanece AUDIT_PARTIAL: a matriz amplia o microsequenciador, mas não prova WZ independente nem toda a evolução Q durante acknowledge/handler.
+### PR #943 — reconciliação F-028
 
- 
-### PR #944 — Q/previous-Q através de INT IM2
-- HEAD validado: `ef22ddc871e9790eb2fd65b1d4a70a6795c24872`.
-- CI #43873337726 SUCCESS; SMS Runtime #43873337682 SUCCESS.
-- As assertions de Q/previous-Q passaram na aposentadoria do repeat, aceitação IM2, PUSH AF, POP AF, EI, RETI e retomada.
-- Escopo: INT IM2 apenas; não afirmar cobertura NMI ou IM0/IM1.
+- Ledger: 256 bytes; 85 UsesIndex, 167 Ignored, 1 IndexedCB, 1 ED cancel e 2 prefix repeats.
+- Novo relatório: `docs/audits/z80-e7-f028-usesindex-reconciliation-2026-11-16.md`.
+- Os 85 UsesIndex foram reconciliados com E3A1/E3A2/E4A/E4B/E4C, F-036, PR #680 e F-037. O gap residual está nos 167 Ignored: fallback prefixado não foi provado byte/família por byte/família.
+- A matriz de classificação e os 108 casos dirigidos não fecham a semântica de todos os opcodes/estados.
 
- 
-### PR #944 — estado final observado após a extensão Q
-- PR #944 continua OPEN/DRAFT, base `caa9a76a6f09d588155ea4e0cbc95f487f079143`, HEAD `ef22ddc871e9790eb2fd65b1d4a70a6795c24872`.
-- CI #43873337726 SUCCESS; SMS Runtime #43873337682 SUCCESS.
-- A extensão de Q/previous-Q está validada para a sequência INT IM2 → PUSH AF → POP AF → EI → RETI → retomada; NMI e IM0/IM1 continuam fora do escopo.
+### Governança
+
+- Todas as PRs #936/#942/#943/#944 continuam OPEN/DRAFT; nenhuma review independente registrada.
+- Não fazer merge automático nem atribuir CI de PR à main.
+- Nenhuma alteração de produção CPU/Scheduler/runtime nesta continuidade. A PR #944 altera somente testes em `native/z80_cpu/src/sequencer.rs`.
+- E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
