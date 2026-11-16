@@ -47,12 +47,17 @@ impl CpuBus for FlatBus {
     }
 }
 
-fn expected_repeat_flags(opcode: u8, initial_f: u8, a: u8, value: u8, bc_after: u16, pc: u16) -> u8 {
+fn expected_repeat_flags(
+    opcode: u8,
+    initial_f: u8,
+    a: u8,
+    value: u8,
+    bc_after: u16,
+    pc: u16,
+) -> u8 {
     let pc_xy = ((pc >> 8) as u8) & FLAG_XY;
     if matches!(opcode, 0xB0 | 0xB8) {
-        (initial_f & (FLAG_S | FLAG_Z | FLAG_C))
-            | if bc_after != 0 { FLAG_PV } else { 0 }
-            | pc_xy
+        (initial_f & (FLAG_S | FLAG_Z | FLAG_C)) | if bc_after != 0 { FLAG_PV } else { 0 } | pc_xy
     } else {
         let result = a.wrapping_sub(value);
         let half_borrow = (a & 0x0F) < (value & 0x0F);
@@ -122,7 +127,10 @@ fn ldir_lddr_cpir_cpdr_flags_survive_im2_acceptance_after_repeat() {
                         0xE200_u16.wrapping_add_signed(direction),
                         "ED {opcode:02X}: DE"
                     );
-                    assert_eq!(bus.memory[0xE200], value, "ED {opcode:02X}: transferred byte");
+                    assert_eq!(
+                        bus.memory[0xE200], value,
+                        "ED {opcode:02X}: transferred byte"
+                    );
                 } else {
                     assert_eq!(cpu.registers.de(), 0xE200, "ED {opcode:02X}: DE preserved");
                 }
@@ -141,7 +149,10 @@ fn ldir_lddr_cpir_cpdr_flags_survive_im2_acceptance_after_repeat() {
                     (pc >> 8) as u8,
                     "ED {opcode:02X}: stacked PCH"
                 );
-                assert_eq!(cpu.registers.f, expected_f, "ED {opcode:02X}: ISR-visible F");
+                assert_eq!(
+                    cpu.registers.f, expected_f,
+                    "ED {opcode:02X}: ISR-visible F"
+                );
                 assert_eq!(cpu.q, expected_f, "ED {opcode:02X}: ISR-visible Q");
                 assert_eq!(cpu.r, 0x03, "ED {opcode:02X}: refresh");
                 assert!(!cpu.iff1);
