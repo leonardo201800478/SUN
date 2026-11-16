@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-16
 **Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
-**Main atual após PRs #955–#969:** `08f633affdb7478b64b1ec2007ca1986c2a48978`
+**Main atual pós-PR #970:** `1b16256358e3f17837a95cc071048c5ee5307f82` (PR #970 documental; sem alteração de runtime)
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
@@ -436,3 +436,30 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+## Reconciliação pós-PR #970 — baseline remota 16/11/2026
+
+**Main confirmada:** `1b16256358e3f17837a95cc071048c5ee5307f82`. A PR #970 integrou documentação consolidada; não alterou CPU, decoder, microsequenciador, Scheduler ou runtime. Esta seção supersede cabeçalhos que ainda apontavam para `08f633affdb7478b64b1ec2007ca1986c2a48978`.
+
+### Estado rastreável
+
+- **F-022:** LDI/LDD/CPI/CPD integradas ao SmsTemporalMachine/Scheduler pela #969; LDIR/LDDR/CPIR/CPDR integradas pela #957/#962; INT IM1 durante repetição, RETI e retomada pela #964. A matriz IM2 com PUSH AF/POP AF/EI/RETI já existia no microsequenciador (#944); PR #972 acrescenta integração Scheduler/SMS para INT IM2 e NMI durante repetição, com handlers PUSH AF/POP AF/EI/RETI e PUSH AF/POP AF/RETN.
+- **F-023:** a matriz por família permanece completa como inventário do modelo; DOC/HW/COMP/INT continuam separados. Somente RRD/RLD tem evidência hardware-derived específica para WZ=HL+1 na matriz atual. F-023 permanece AUDIT_PARTIAL por proveniência e revisão adversarial, não por ausência de implementação.
+- **F-028:** os 167 Ignored já possuem matriz de estado, requests/payloads, WAIT de fixture, snapshot/restore e PC condicional exato nas PRs #950/#953; 85 UsesIndex estão reconciliados; #968 corrigiu stream/data. A antiga afirmação de que faltava a matriz de requests está supersedida. Revisão adversarial/oráculos e limites semânticos permanecem pendentes.
+- **Scheduler:** LONG_PASS de software na campanha #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, 320.000 operações e 4.000.000 dispatches. Não comprova WAIT físico, DMA, safe points de todos os dispositivos ou TEMPORAL_PASS global.
+- **PR #971:** correção documental F-028, HEAD `26fd03345df702c18ff85fceaddb9f63b4a4a20a`; CI #43913347117 SUCCESS nos gates aplicáveis de documentação/qualidade. Draft/aberta, não integrada.
+- **PR #972:** teste Scheduler INT/NMI candidato, HEAD `ff922996e797b287e275fdbf1d1791314c61a749`; CI #43918490165 Rust workspace regression SUCCESS e #43918490096 SMS Debugger Runtime SUCCESS. O executável `snapshot_restore_e7_2e` registrou 13/13 testes PASS no workspace Release. Z80 focused e Scheduler deterministic stress foram SKIPPED, portanto NOT RUN. PR permanece Draft/aberta, não integrada.
+
+### Decisão
+
+F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS (software); E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+O checklist do repositório não define um conjunto separado e canônico de exatamente 12 critérios numerados E7. Os IDs formais estão distribuídos pelas famílias F-, estado S-, temporalidade T-, determinismo D-, validação V- e arquitetura C-. Qualquer resumo de 12 itens deve ser identificado como matriz consolidada derivada, não como uma lista preexistente do checklist.
+
+Não atribuir workflows de PR ao SHA da main. SKIPPED permanece NOT RUN. Nenhum critério pode ser CLOSED sem evidência exata e reproduzível.
+
+
+## Matriz consolidada dos 12 critérios E7
+
+A avaliação agrupada solicitada foi formalizada em [z80-e7-12-criteria-matrix-2026-11-16.md](z80-e7-12-criteria-matrix-2026-11-16.md). Ela separa PASS de software, PARTIAL e NOT_VERIFIED físico; registra o HEAD #972 e os workflows exatos. A lista é uma consolidação derivada dos itens temporais da continuidade, não uma lista numerada preexistente no checklist mestre.
