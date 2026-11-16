@@ -1,6 +1,6 @@
 # ADR 0011 — Replataforma desktop com Slint, WGPU e CPAL
 
-- **Status:** ACCEPTED; arquitetura-alvo normativa. Integração incremental em R2; R3/R4/R5 condicionadas aos respectivos gates.
+- **Status:** ACCEPTED; arquitetura-alvo normativa. R1/R2/R3 integradas em software; primeira fatia R4 SDL3/Slint integrada; R5 permanece em consolidação.
 - **Revisão:** 2026-11-11.
 - **Baseline:** main SHA 392a5c67e85a11a5a980d8f7055bcc8a12fe3784.
 - **Escopo:** substituir gradualmente GUI e adaptadores host; preservar runtime Rust.
@@ -17,7 +17,7 @@ A replataforma ocorre no repositório existente. Não criar outro repositório n
 | Backend inicial | Vulkan via WGPU, Windows x64 |
 | Saída física de áudio | CPAL 0.18.2 |
 | Teclado SMS | Eventos nativos Slint no host desktop |
-| Gamepads/hotplug | SDL3 após auditoria |
+| Gamepads/hotplug | SDL3 via sega-input-runtime (primeira fatia integrada) |
 | Runtime/hardware | Rust existente |
 
 WGPU é a única API gráfica do produto; Vulkan é backend WGPU, não API paralela. R1 deve selecionar e registrar Vulkan explicitamente, sem fallback silencioso. CPAL é a API de saída de áudio; WASAPI pode ser backend interno no Windows.
@@ -26,7 +26,7 @@ O caminho Slint/WGPU é o frontend desktop-alvo. CPAL é a única API de saída 
 
 ## 2. Fronteiras
 
-Slint cuida de janelas, menus, diálogos, biblioteca, configurações e eventos de teclado do host. WGPU cuida de device/queue/surface, texturas, composição e apresentação. CPAL cuida do stream físico. SDL3 será o backend de gamepads após auditoria.
+Slint cuida de janelas, menus, diálogos, biblioteca, configurações e eventos de teclado do host. WGPU cuida de device/queue/surface, texturas, composição e apresentação. CPAL cuida do stream físico. SDL3 é o backend de gamepads na primeira fatia integrada; hotplug físico, identidade persistente e remapeamento avançado continuam pendentes.
 
 Essas camadas não executam instruções, avançam clocks, implementam VDP/PSG, possuem estado mutável da máquina ou usam callbacks por instrução. O runtime permanece proprietário da máquina SMS, CPU, Scheduler, VDP, PSG e estado temporal. A UI usa comandos coarse-grained como load_rom, start, pause, stop, reset e step_frame.
 
@@ -108,3 +108,10 @@ Antes de distribuir binários, revisar licenças/notices de Slint, WGPU, CPAL e 
 - egui/eframe e hosts antigos continuam na baseline.
 
 Esta ADR autoriza a POC, não declara migração implementada. Conclusões exigem evidência no HEAD final da PR.
+
+
+## 10. Reconciliação de estado — 2026-11-16
+
+R2 (frames SMS) e R3 (CPAL 0.18.2) estão integradas em software. A primeira fatia R4 (SDL3/input runtime no desktop Slint) foi integrada pela PR #867. Esses estados não significam aceite físico completo: Vulkan/lifecycle, reprodução prolongada/hotplug/underruns e controles reais/remapeamento ainda exigem evidência no HEAD atual. R5 permanece parcial.
+
+O host anterior egui/D3D12 não é mais caminho ativo do produto. Código remanescente deve ser inventariado como legado e removido somente após verificar todos os consumidores e workspaces. Esta ADR não autoriza reativar nem desenvolver o host anterior.
