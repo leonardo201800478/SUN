@@ -687,3 +687,58 @@ Nenhum dos merges altera a classificação técnica parcial. A sequência corret
 | SMS Runtime #43882287458 | PASS; format, Clippy, testes e build Windows x64 |
 
 **Estado F-028: AUDIT_PARTIAL.** A matriz é estrutural, não um oracle semântico independente. Ainda falta verificar efeitos arquiteturais e requests/ordem/endereço por família, além de WAIT/snapshot por classe e integração temporal. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 51. F-028 — request-trace diferencial pós-merge — 2026-11-16
+
+**PR #948:** MERGED em `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`; HEAD testado `74715cbc777acc6625745489a4dfa495cde18ee9`.
+
+- [x] Percorrer os 167 bytes efetivos Ignored sob DD e FD (334 execuções prefixadas).
+- [x] Comparar tipo/ordem de request, endereço, base T-states e ciclos internos contra BASE.
+- [x] Confirmar M1 em PC 0/1, sem refetch, R +2 e custo BASE +4T.
+- [x] CI Z80 focused #43884118254 PASS e Rust quality/unit PASS.
+- [x] SMS Runtime #43884118298 PASS, incluindo build Windows x64.
+- [ ] Distinguir stream fetch de acesso de dados no normalizador de endereços; não ajustar toda leitura `< 0x0100` por suposição.
+- [ ] Registrar valores de leitura e payloads de escrita; comparar estado arquitetural final.
+- [ ] Aplicar WAIT e snapshot/restore a cada classe de request.
+- [ ] Obter review adversarial independente. GitHub não registra review submetido em #948; Codex review falhou por limite de uso.
+- [ ] Localizar e validar workflow push pós-merge. O status combinado do merge SHA está vazio e nenhum run pós-merge foi exposto; classificar como NOT VERIFIED, não PASS.
+
+A matriz continua estrutural e não fecha F-028. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 52. Gate de revisão adversarial dos merges E7 — 2026-11-16
+
+- [x] Reconciliar o estado remoto das PRs #936, #942, #943, #944, #945, #946, #947 e #948: todas MERGED.
+- [x] Confirmar que os diffs integrados deste conjunto são testes/documentação, sem alteração de CPU, decoder, Scheduler ou runtime de produção.
+- [x] Consultar reviews e review threads no GitHub: nenhuma submissão encontrada nas oito PRs.
+- [x] Confirmar que os reviews Codex em #946 e #948 falharam por limite de uso; não contar como review.
+- [ ] Obter revisão adversarial independente e registrada no GitHub para a matriz E7 integrada e suas limitações.
+
+A ausência de review no GitHub não prova que não houve inspeção fora do repositório; significa que não há evidência auditável. A gate permanece BLOCKED. E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+
+## Atualização de evidências — 16/11/2026
+
+- [x] PR #950 integrada: matriz BASE↔DD/FD para os 167 Ignored, WAIT, snapshot/restore e payloads; CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado.
+- [x] PR #951 integrada: previous-Q e WZ das formas simples LDI/LDD/CPI/CPD; CI #43890238681 e SMS Runtime #43890238056 PASS.
+- [x] PR #952 integrada: matriz WZ/MEMPTR por família e classificação de proveniência; Documentation patch hygiene e Rust quality PASS no CI #43890997152.
+- [x] PR #953: ambos os resultados condicionais e PC final exato para os 167 Ignored sob DD/FD; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
+- [x] PR #954: IN/OUT imediato, WZ de RETN/RETI/RST e preservação de WZ em IM0/IM1; CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS.
+- [ ] PR #955: asserção WZ para BASE EX (SP),HL; aguardar CI.
+- [x] Control flow WZ: condições tomadas/não tomadas e wrap em `z80_conditional_control_flow_coverage.rs`.
+- [x] IM2 WZ: PC vetorial observado em `snapshot_restore_e7_2e.rs`.
+- [x] Block repeat WZ: 64 cenários microsequenciados e quatro formas com snapshot/restore em cada fronteira.
+- [ ] Revalidar gates e documentação no HEAD final da main antes de declarar E7 CLOSED.
+
+## Reconciliação após PR #955 — 16/11/2026
+
+PR #955 foi integrada na main pelo commit `67f4149e1933d18ffa5201da66ca6ff46c598e32`. O diff é test-only: quatro linhas de assertion em `native/z80_cpu/src/cpu.rs`, teste `exchange_stack_hl_and_di_ei_update_state`, confirmando `cpu.wz == 0xABCD` após BASE `EX (SP),HL`. Nenhuma alteração de produção, decoder, microsequenciador, Scheduler, SMS ou SG-1000.
+
+Validação no HEAD exato da PR (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
+- CI #43897766618: PASS — Z80 focused, rustfmt, Clippy, testes Z80/SMS/SG-1000, SingleStepTests DD/FD, Z80 Block Instruction Flags v5.0, Woodmass MEMPTR e Rust quality/unit.
+- SMS Debugger Runtime #43897766471: PASS — format, Clippy Release, testes SMS Runtime e build Release Windows x64.
+- SMS debugger Windows Release validation: SKIPPED; não contar como PASS.
+- Workflow push pós-merge no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+A pendência específica de WZ para BASE `EX (SP),HL` está coberta. F-023 permanece AUDIT_PARTIAL até revisão integral da matriz e reconciliação da proveniência. F-028 e F-022 permanecem IN_PROGRESS. A validação integrada do Scheduler/determinismo e a revisão adversarial transversal ainda não fecham E7.
+
+E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanecem BLOCKED. Não converter SKIPPED/NOT_RUN em PASS nem promover testes internos comparativos a evidência física.
