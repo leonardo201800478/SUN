@@ -33,7 +33,7 @@ enum SmsBootPath {
 
 enum SmsResetOperation {
     ColdPowerOn,
-    ConsoleReset,
+    ConsoleResetButtonInput,
     ApplicationColdReset,
     RestoreSaveState,
 }
@@ -94,7 +94,7 @@ O perfil direto é útil para desenvolvimento e para emuladores sem BIOS, mas de
 - A BIOS deve ser executada pela CPU compartilhada, barramento temporal e MachineScheduler. Não executar rotinas BIOS atomicamente na GUI ou no host.
 - O suporte da PR #908 limita-se a BIOS convencional de 8 KiB no perfil SMS1. Não declarar SMS2 compatível sem modelar e validar a arbitragem correspondente.
 
-A documentação SMS Power descreve, em alto nível, execução inicial da BIOS em $0000, cópia de uma rotina para RAM em $C700, sondagem de slots e transferência para o cartucho. A sequência byte a byte deve vir do disassembly da BIOS identificada.
+A documentação SMS Power descreve, em alto nível, execução inicial da BIOS em $0000, cópia de uma rotina para RAM em $C700, sondagem de slots e transferência para o cartucho. O disassembly público da BIOS v1.3 confirma `DI`, `IM 1`, `SP=$DFF0`, inicialização VDP, mute/reset PSG, limpeza RAM, bumper/jingle e handoff por `$AB`/`$C000`. Esses efeitos são específicos dessa BIOS; a sequência byte a byte deve ser validada contra o hash da imagem executada.
 
 ### 4.3 Handoff da BIOS
 
@@ -110,11 +110,13 @@ O snapshot de handoff deve registrar timestamp, PC, SP, AF/BC/DE/HL, IX/IY, alte
 
 A BIOS v1.3 não inicializa os registradores de paginação antes da sondagem; o estado inicial do mapper deve, portanto, expor os dados esperados ao cabeçalho. Para o mapper Sega, o perfil atual [0,1,2] satisfaz o caso comum de slot 1/bank 1, mas a seleção deve ser sustentada pelo mapper efetivo.
 
-### 4.4 Reset
+### 4.4 Reset e botão físico
+
+**Botão RESET físico:** no Master System que possui esse botão, ele é uma entrada de software lida no port `$DD` (bit 4 ativo em nível baixo); não aciona diretamente o pino RESET do Z80. A baseline possui `SmsInputState::reset_pressed` e `SmsIo::read_dd()`, mas o perfil de I/O ainda não distingue modelos que não possuem botão físico. O BIOS/jogo consulta a entrada e decide como reagir. Não reconstruir a máquina ao pressionar esse bit.
 
 **RESET do Z80:** o manual Zilog especifica RESET ativo por pelo menos três ciclos completos de clock; reinicia PC, I, R e controle de interrupções/IM. Não define SP, registradores gerais ou IX/IY. O helper atual `SmsTemporalMachine::reset_cpu()` é atômico e não consome três T-states; não deve ser apresentado como pino RESET temporal.
 
-**Reset de console:** exige contrato próprio para cada modelo, incluindo quais periféricos recebem reset, quais memórias/latches são preservados e quando o Scheduler retoma. Não está implementado como sequência elétrica temporal independente na baseline.
+**Power cycle do console:** a energização inicial é o caminho que aciona a inicialização de hardware/BIOS. O botão RESET físico não é power cycle. Um desligamento e religamento completos devem ser modelados como novo power-on, com a policy de RAM/VRAM e SRAM correspondente ao modelo.
 
 **Reset da aplicação:** na baseline, `WorkerCommand::Reset` reconstrói a máquina inteira, preserva SRAM e deixa o worker pausado. Deve ser rotulado como reset frio da aplicação até que um reset de console real seja implementado.
 
@@ -147,9 +149,9 @@ A BIOS v1.3 não inicializa os registradores de paginação antes da sondagem; o
 | BIOS | Executável real, revisão e hash identificáveis | Executar instruções e writes pelo Scheduler |
 | Mapper | Sega/Codemasters têm protocolos conhecidos; BIOS não pagina antes da busca | `Known/Unknown/Ambiguous`; nunca inferir por nome/região/tamanho isolado |
 | Work RAM | 8 KiB espelhados; conteúdo de power-on não universalmente documentado; BIOS escreve/limpa | Separar conteúdo power-on de efeitos efetivamente escritos pela BIOS |
-| VDP | Contadores e timing documentados; estado de registradores/VRAM no power-on não estabelecido pelas fontes consultadas | Defaults atuais são policy até validação por hardware/BIOS |
+| VDP | BIOS v1.3 escreve R0-R10 = `36 A0 FF FF FF FF FB 00 00 00 FF`; isso é inicialização de firmware, não prova do reset físico do chip | Boot por BIOS deve executar as escritas; direct boot mantém policy explícita |
 | PSG | PSG integrado Sega inicia registradores de tom/ruído em zero e volumes em 1/silêncio; fase interna é menos documentada | Preservar valores de registradores; não alterar fase sem evidência |
-| I/O | Port $3F controla direção e níveis TH/TR; valor físico de power-on por modelo não confirmado | Modelar input/output e níveis como perfil, não universalizar $FF sem evidência |
+| I/O | Port $3F controla direção e níveis TH/TR; botão RESET é input no port $DD bit 4 em modelos equipados | Modelar botão como entrada de software; não resetar Z80 automaticamente |
 | Scheduler | Autoridade temporal do runtime | Boot/BIOS/reset/restore devem manter ordem causal e estado retomável |
 
 ## 6. Política de mapper
