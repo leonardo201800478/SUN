@@ -125,3 +125,12 @@ O parágrafo anterior sobre ausência de controle/extração de trace no worker 
 A captura ainda não é uma gravação completa e ilimitada do boot. PR #878 propõe aumentar a janela e adicionar arming explícito, mas permanece Draft e sua branch está 73 commits atrás da main; não integrar diretamente.
 
 A hipótese da colisão SP=0/mapper Sega continua classificada como mecanismo sintético confirmado, não como causa comprovada para Andre Agassi Tennis. A ROM local, mapper efetivo e primeiro CALL/PUSH ainda precisam de trace reproduzível.
+
+
+## Atualização de identidade de dump — 2026-11-15
+
+O DAT público No-Intro/libretro confirma a entrada **Andre Agassi Tennis (Europe, Brazil) (En)** com 262.144 bytes, CRC32 `F499034D`, MD5 `B60C4F89E95585A0A01B4FF99A962D8B` e SHA-1 `81DBACAD4739B98281C750D9AF21606275398FC8`. O MAME software list lista o mesmo tamanho/CRC/SHA-1, publisher TecMagik e serial `MK-27051-50, 025.420`, sob interface genérica `sms_cart`; não declara PCB/mapper explícito.
+
+Esses valores são referência de catálogo, não hash calculado do arquivo local. O SHA-256 local continua pendente, assim como cabeçalho efetivo, mapper e trace. O código atual seleciona Sega por fallback para ROMs que não correspondam à assinatura Codemasters; isso não é prova do mapper físico.
+
+A main atual `90036d8d` mantém boot temporal sem BIOS e possui captura bounded por `set_trace_enabled`/`debug_snapshot`; habilitar antes de `start()` para capturar desde o primeiro fetch. O teste sintético de stack/mapper continua sem comprovação de que esta ROM execute CALL/PUSH antes de definir SP.
