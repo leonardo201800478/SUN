@@ -79,14 +79,19 @@ fn increment_refresh(value: u8) -> u8 {
     (value & 0x80) | (value.wrapping_add(1) & 0x7F)
 }
 
-fn execute_one_instruction(opcode_stream: &[u8], wait_and_snapshot: bool) -> Execution {
+fn execute_one_instruction(
+    opcode_stream: &[u8],
+    wait_and_snapshot: bool,
+    initial_f: u8,
+    initial_bc: u16,
+) -> Execution {
     let mut cpu = Z80MicroSequencer::default();
-    cpu.registers.set_bc(0x2345);
+    cpu.registers.set_bc(initial_bc);
     cpu.registers.set_de(0x3456);
     cpu.registers.set_hl(0x4567);
     cpu.registers.sp = 0x5678;
     cpu.registers.a = 0xA5;
-    cpu.registers.f = 0x00;
+    cpu.registers.f = initial_f;
     cpu.ix = 0x6789;
     cpu.iy = 0x789A;
 
@@ -252,21 +257,51 @@ fn remove_prefix_m1_and_normalize_stream_addresses(
     normalized
 }
 
+fn condition_true(condition: u8, flags: u8) -> bool {
+    match condition & 0x07 {
+        0 => flags & 0x40 == 0, // NZ
+        1 => flags & 0x40 != 0, // Z
+        2 => flags & 0x01 == 0, // NC
+        3 => flags & 0x01 != 0, // C
+        4 => flags & 0x04 == 0, // PO
+        5 => flags & 0x04 != 0, // PE
+        6 => flags & 0x80 == 0, // P
+        7 => flags & 0x80 != 0, // M
+        _ => unreachable!(),
+    }
+}
+
+fn expected_pc_delta(opcode: u8, initial_f: u8) -> u16 {
+    if opcode & 0xC7 == 0xC0 || opcode & 0xC7 == 0xC2 || opcode & 0xC7 == 0xC4 {
+        if condition_true((opcode >> 3) & 0x07, initial_f) {
+            0
+        } else {
+            1
+        }
+    } else if matches!(opcode, 0xC3 | 0xC9 | 0xCD) || opcode & 0xC7 == 0xC7 {
+        0
+    } else {
+        // Relative branches shift their target by the prefix byte; ordinary
+        // instructions consume one extra byte. Both therefore differ by +1.
+        1
+    }
+}
+
 fn assert_architectural_fallback(
     base: &Z80ArchitecturalState,
     prefixed: &Z80ArchitecturalState,
     prefix: u8,
     opcode: u8,
+    initial_f: u8,
 ) {
     let mut expected = *base;
     expected.r = increment_refresh(base.r);
 
-    // Control-flow instructions may land at the same absolute target (delta 0)
-    // or at the correspondingly shifted stream-relative target (delta 1).
     let pc_delta = prefixed.registers.pc.wrapping_sub(base.registers.pc);
-    assert!(
-        pc_delta <= 1,
-        "{prefix:02X} {opcode:02X}: prefix may shift final PC by at most one byte, got {pc_delta}"
+    assert_eq!(
+        pc_delta,
+        expected_pc_delta(opcode, initial_f),
+        "{prefix:02X} {opcode:02X}: final PC must reflect the exact BASE control-flow outcome"
     );
 
     // WZ can follow a stream-relative branch target, so it is tracked by the
@@ -295,7 +330,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
     );
 
     for opcode in ignored {
-        let base = execute_one_instruction(&[opcode], true);
+        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345);
         assert_eq!(base.fetch_addresses, vec![0], "BASE {opcode:02X}");
         assert_eq!(
             base.wait_count,
@@ -307,7 +342,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
         );
 
         for prefix in [0xDD, 0xFD] {
-            let prefixed = execute_one_instruction(&[prefix, opcode], true);
+            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345);
             assert_eq!(
                 prefixed.fetch_addresses,
                 vec![0, 1],
@@ -323,11 +358,44 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
                 base.tstates + 5,
                 "{prefix:02X} {opcode:02X}: +4T prefix M1 plus its 1T WAIT"
             );
-            assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode);
+            assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0x00);
             assert_eq!(
                 remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode),
                 base.trace,
                 "{prefix:02X} {opcode:02X}: request type/order/address/payload/timing and internal cycles"
+            );
+        }
+    }
+}
+
+
+#[test]
+fn all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc() {
+    let ignored = ignored_opcodes_from_ledger();
+    assert_eq!(ignored.len(), EXPECTED_IGNORED_BYTES);
+
+    // All condition flags are set and B=1: this flips each conditional
+    // CALL/JP/RET/JR outcome relative to the zero-flag baseline and makes
+    // DJNZ not taken. The first matrix already exercises the opposite DJNZ
+    // path (B=0x23) and the complementary flag conditions.
+    for opcode in ignored {
+        let base = execute_one_instruction(&[opcode], true, 0xFF, 0x0145);
+        assert_eq!(base.fetch_addresses, vec![0], "BASE {opcode:02X}");
+
+        for prefix in [0xDD, 0xFD] {
+            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0xFF, 0x0145);
+            assert_eq!(
+                prefixed.fetch_addresses,
+                vec![0, 1],
+                "{prefix:02X} {opcode:02X}: prefix M1 and terminal M1 only"
+            );
+            assert_eq!(prefixed.wait_count, base.wait_count + 1);
+            assert_eq!(prefixed.tstates, base.tstates + 5);
+            assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0xFF);
+            assert_eq!(
+                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode),
+                base.trace,
+                "{prefix:02X} {opcode:02X}: alternate conditional path request trace"
             );
         }
     }
