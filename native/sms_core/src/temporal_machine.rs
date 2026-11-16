@@ -40,6 +40,12 @@ pub enum SmsTemporalTraceEvent {
         data: Option<u8>,
         cpu_pc_before: u16,
         cpu_pc_after: u16,
+        cpu_halted: bool,
+        cpu_int_line: Option<u8>,
+        cpu_iff1: bool,
+        cpu_ei_delay: u8,
+        cpu_halt_exit_int: bool,
+        cpu_halt_exit_nmi: bool,
     },
     InternalCycleCompleted {
         timestamp: MachineTime,
@@ -56,15 +62,6 @@ pub enum SmsTemporalTraceEvent {
         line: Option<u8>,
         vdp_irq: bool,
         external_irq: bool,
-    },
-    HaltInterruptSampled {
-        timestamp: MachineTime,
-        pc: u16,
-        int_line: Option<u8>,
-        iff1: bool,
-        ei_delay: u8,
-        accepted_int: bool,
-        accepted_nmi: bool,
     },
     ExternalThTransition {
         timestamp: MachineTime,
@@ -637,24 +634,6 @@ impl SmsTemporalMachine {
         // the interrupt sampler at this same edge.
         if next_cpu.halted {
             next_cpu.sample_halt_interrupts_at_t4()?;
-            if self.trace_enabled {
-                self.trace_events
-                    .push(SmsTemporalTraceEvent::HaltInterruptSampled {
-                        timestamp: self.bus.now(),
-                        pc: next_cpu.registers.pc,
-                        int_line: next_cpu.int_pending,
-                        iff1: next_cpu.iff1,
-                        ei_delay: next_cpu.ei_delay,
-                        accepted_int: matches!(
-                            next_cpu.halt_exit_pending,
-                            Some(sega_z80_cpu::Z80HaltExit::Int)
-                        ),
-                        accepted_nmi: matches!(
-                            next_cpu.halt_exit_pending,
-                            Some(sega_z80_cpu::Z80HaltExit::Nmi)
-                        ),
-                    });
-            }
         }
         self.cpu = next_cpu;
         self.m1 = None;
@@ -746,6 +725,18 @@ impl SmsTemporalMachine {
                         data: completion.data,
                         cpu_pc_before,
                         cpu_pc_after: self.cpu.registers.pc,
+                        cpu_halted: self.cpu.halted,
+                        cpu_int_line: self.cpu.int_pending,
+                        cpu_iff1: self.cpu.iff1,
+                        cpu_ei_delay: self.cpu.ei_delay,
+                        cpu_halt_exit_int: matches!(
+                            self.cpu.halt_exit_pending,
+                            Some(sega_z80_cpu::Z80HaltExit::Int)
+                        ),
+                        cpu_halt_exit_nmi: matches!(
+                            self.cpu.halt_exit_pending,
+                            Some(sega_z80_cpu::Z80HaltExit::Nmi)
+                        ),
                     });
                 }
                 Ok(step)
