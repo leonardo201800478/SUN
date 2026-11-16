@@ -449,7 +449,7 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 - **F-028:** os 167 Ignored já possuem matriz de estado, requests/payloads, WAIT de fixture, snapshot/restore e PC condicional exato nas PRs #950/#953; 85 UsesIndex estão reconciliados; #968 corrigiu stream/data. A antiga afirmação de que faltava a matriz de requests está supersedida. Revisão adversarial/oráculos e limites semânticos permanecem pendentes.
 - **Scheduler:** LONG_PASS de software na campanha #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, 320.000 operações e 4.000.000 dispatches. Não comprova WAIT físico, DMA, safe points de todos os dispositivos ou TEMPORAL_PASS global.
 - **PR #971:** correção documental F-028, HEAD `26fd03345df702c18ff85fceaddb9f63b4a4a20a`; CI #43913347117 SUCCESS nos gates aplicáveis de documentação/qualidade. Draft/aberta, não integrada.
-- **PR #972:** teste Scheduler IM2 candidato, HEAD `930bdac7bc27788ada80c0c86cf2060b227336e6`; CI #43915812826 e #43915812871 em execução. Não integrada.
+- **PR #972:** teste Scheduler IM2 candidato, HEAD `f3d6ad6c08a99ebe01813aef4c3feb3ca7170136`; CI #43916442132 Rust workspace regression SUCCESS e #43916442082 SMS Debugger Runtime SUCCESS. O executável `snapshot_restore_e7_2e` registrou 12/12 testes PASS no workspace Release. Z80 focused e Scheduler deterministic stress foram SKIPPED, portanto NOT RUN. PR permanece Draft/aberta, não integrada.
 
 ### Decisão
 
