@@ -93,16 +93,27 @@ fn round_trip(cpu: Z80MicroSequencer) -> Z80MicroSequencer {
     Z80MicroSequencer::restore_state(decoded).expect("snapshot restores")
 }
 
-fn run_case(
-    memory: &mut [u8; 0x1_0000],
+struct Case {
     opcode: u8,
     accumulator: u8,
     initial_f: u8,
     value: u8,
     initial_count: u16,
+}
+
+#[derive(Clone, Copy)]
+struct RunMode {
     add_waits: bool,
     snapshot_each_boundary: bool,
+}
+
+fn run_case(
+    memory: &mut [u8; 0x1_0000],
+    case: Case,
+    mode: RunMode,
 ) -> (Z80MicroSequencer, u32) {
+    let Case { opcode, accumulator, initial_f, value, initial_count } = case;
+    let RunMode { add_waits, snapshot_each_boundary } = mode;
     let source = 0xC000_u16;
     let destination = 0xC100_u16;
     memory[0x1000] = 0xED;
@@ -204,13 +215,17 @@ fn all_simple_block_transfer_and_compare_inputs_match_independent_flags() {
 
                     let (cpu, tstates) = run_case(
                         &mut memory,
-                        opcode,
-                        accumulator,
-                        initial_f,
-                        value,
-                        initial_count,
-                        false,
-                        false,
+                        Case {
+                            opcode,
+                            accumulator,
+                            initial_f,
+                            value,
+                            initial_count,
+                        },
+                        RunMode {
+                            add_waits: false,
+                            snapshot_each_boundary: false,
+                        },
                     );
                     let state = cpu.export_architectural_state();
                     let delta = direction(opcode);
@@ -260,13 +275,17 @@ fn simple_block_forms_preserve_waits_and_snapshot_restore_at_every_boundary() {
         let initial_f = 0xD7;
         let (cpu, tstates) = run_case(
             &mut memory,
-            opcode,
-            accumulator,
-            initial_f,
-            value,
-            2,
-            true,
-            true,
+            Case {
+                opcode,
+                accumulator,
+                initial_f,
+                value,
+                initial_count: 2,
+            },
+            RunMode {
+                add_waits: true,
+                snapshot_each_boundary: true,
+            },
         );
         let expected = expected_flags(opcode, initial_f, accumulator, value, 1);
         let expected_waits = if is_transfer(opcode) { 4 } else { 3 };
