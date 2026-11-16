@@ -2549,13 +2549,14 @@ fn handle_command(
             } else if state.format_version != SMS_WORKER_SAVE_STATE_VERSION
                 || state.region != region
                 || state.machine_state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
+                || state.machine_state.bus.memory.bios_bytes() != bios.as_deref()
                 || state.machine_state.bus.vdp.profile().revision
                     != machine.vdp().profile().revision
                 || state.machine_state.bus.vdp.profile().video_standard
                     != machine.vdp().profile().video_standard
             {
                 let _ = reply.send(Err(
-                    "save state version, ROM identity or hardware profile does not match the active machine"
+                    "save state version, ROM identity, BIOS identity or hardware profile does not match the active machine"
                         .to_owned(),
                 ));
             } else {
@@ -3194,6 +3195,24 @@ mod tests {
         worker.stop().unwrap();
         assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
         assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+    }
+
+    #[test]
+    fn worker_rejects_save_state_from_a_different_bios_image() {
+        let rom = SYNTHETIC_ROM.to_vec();
+        let first_bios = vec![0x00; 0x2000];
+        let second_bios = vec![0xFF; 0x2000];
+        let source = SmsTemporalWorker::new_with_bios(
+            rom.clone(),
+            first_bios,
+            "usa",
+        )
+        .unwrap();
+        let state = source.save_state().unwrap();
+
+        let target = SmsTemporalWorker::new_with_bios(rom, second_bios, "usa").unwrap();
+        let error = target.load_state(state).unwrap_err();
+        assert!(error.contains("BIOS identity"));
     }
 
     #[test]
