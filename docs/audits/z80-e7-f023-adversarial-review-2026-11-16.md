@@ -81,3 +81,9 @@ A PR #977 fechou a lacuna técnica de WZ para JR, DJNZ e JR NZ/Z/NC/C sob DD/FD 
 - Nenhuma alteração de produção; a alteração é teste-only.
 
 A cobertura interna F-023/F-028 está completa para esse limite. O estado continua **INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE**, pois ainda não existe review independente registrada no GitHub. Não declarar CLOSED nem integrar a documentação até satisfazer esse gate.
+
+
+
+## Confirmação final da interação F-023/F-028 — PR #977
+
+O HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d` passou Z80 focused/Rust quality no CI #43940980741 e SMS Runtime #43940971722. Além dos casos dirigidos, a matriz genérica dos 167 Ignored agora verifica WZ em todos os bytes: +1 somente para branches relativos tomados; preservação quando não tomados; igualdade com BASE nos demais fallbacks. PC inicial FFFD valida wrap do cálculo relativo. Scheduler stress SKIPPED. A auditoria técnica interna F-023 está completa, mas o status formal permanece candidate até review independente registrada.
