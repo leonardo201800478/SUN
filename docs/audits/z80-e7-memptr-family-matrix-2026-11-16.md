@@ -1,6 +1,6 @@
 # F-023 — Matriz de famílias WZ/MEMPTR
 
-**Baseline examinada:** `08f633affdb7478b64b1ec2007ca1986c2a48978` (main após PR #969).
+**Baseline examinada:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (main após PR #975). PRs #972 e #975 alteraram somente testes; os blobs de produção Z80 permanecem os mesmos da validação focada #968.
 **Perfil:** Zilog Z80 NMOS compartilhado; runtime temporal SMS; SG-1000 mantido como core de referência com execução em fronteiras de instrução.
 **Objetivo:** inventariar regras WZ/MEMPTR efetivamente implementadas, condições de atualização, wrap, observabilidade e proveniência dos testes. Esta matriz não atribui ao UM0080 regras que o fabricante não documenta.
 
@@ -25,15 +25,15 @@
 | `LD (nn),A` | WZ = `(A << 8) | ((nn + 1) & 00FF)` | Incrementa somente o byte baixo do endereço no resultado WZ | Estado WZ diretamente | F-003, fórmula `expected_wz` | INT + COMP; não atribuir a UM0080 |
 | BASE `LD (nn),HL` e ED `LD (nn),rr / LD rr,(nn)` | WZ = nn + 1 | Incremento de 16 bits; `FFFF → 0000` | Estado WZ e ordem little-endian de acessos | `base_register_pair_f004.rs`; `z80_base_absolute_word_transfer_boundaries.rs`; `z80_ed_absolute_word_wraparound.rs`; teste unitário `ed_absolute_word_loads_and_stores_cover_all_register_pairs` | INT; wrap coberto; WZ não é regra documentada por ZiLOG |
 | `ADD HL,rr`, `ADD IX/IY,rr`, `ADC/SBC HL,rr` | WZ = valor antigo do par de destino + 1 | `old_HL/IX/IY → old + 1`, wrap 16-bit | Estado WZ após operação | `indexed_16bit_e3a1.rs`; `z80_ed_16bit_arithmetic_boundaries.rs`; helper `adc_sbc_hl` | INT + comparação com modelo BASE; não é especificação UM0080 |
-| `JR e`, `DJNZ e` | Quando tomado, WZ recebe o PC de destino; quando não tomado, preserva WZ | Destino calculado após displacement; wrap 16-bit | WZ, PC, flags e ciclos nos dois caminhos | `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::conditional_jr_covers_taken_and_not_taken_paths`, `djnz_covers_taken_and_not_taken_paths_without_changing_flags`, `conditional_jr_wraparound_and_signed_displacement_boundaries` | INT; ambos os caminhos e limites assinados/wrap cobertos |
-| `JP nn`, `CALL nn` e condicionais | WZ recebe o alvo imediato, mesmo quando a condição de JP/CALL condicional não é tomada | WZ anterior → nn | WZ, PC, flags, stack writes e ciclos nos dois caminhos | `z80_conditional_control_flow_coverage.rs::conditional_jp_covers_all_conditions_without_changing_flags`, `conditional_call_covers_both_paths_and_stack_write_order`, `conditional_call_and_ret_wrap_stack_pointer_at_zero` | INT; oito condições, taken/not-taken e wrap do SP cobertos |
+| `JR e`, `DJNZ e` | Quando tomado, WZ recebe o PC de destino; quando não tomado, preserva WZ | Destino calculado após displacement; wrap 16-bit | WZ, PC, flags e ciclos nos dois caminhos | `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::conditional_jr_covers_taken_and_not_taken_paths`, `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::djnz_covers_taken_and_not_taken_paths_without_changing_flags`, `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::conditional_jr_wraparound_and_signed_displacement_boundaries` | INT; ambos os caminhos e limites assinados/wrap cobertos |
+| `JP nn`, `CALL nn` e condicionais | WZ recebe o alvo imediato, mesmo quando a condição de JP/CALL condicional não é tomada | WZ anterior → nn | WZ, PC, flags, stack writes e ciclos nos dois caminhos | `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::conditional_jp_covers_all_conditions_without_changing_flags`, `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::conditional_call_covers_both_paths_and_stack_write_order`, `native/sms_core/tests/z80_conditional_control_flow_coverage.rs::conditional_call_and_ret_wrap_stack_pointer_at_zero` | INT; oito condições, taken/not-taken e wrap do SP cobertos |
 | `RET cc` | Quando tomado, WZ recebe o PC desempilhado; quando não tomado, preserva WZ | WZ anterior → PC retornado ou permanece | WZ, PC, stack reads e wrap do SP | `z80_conditional_control_flow_coverage.rs::conditional_ret_covers_both_paths_and_stack_read_order`, `conditional_call_and_ret_wrap_stack_pointer_at_zero` | INT; ambas as condições e wrap cobertos |
 | `RET`, `RETN/RETI`, `RST` | WZ recebe o PC resultante do pop ou o vetor de restart | WZ anterior → PC/vetor; stack/PC com wrap | Estado WZ após retorno/restart | `cpu.rs::ed_retn_reti_aliases_restore_iff1_and_pop_return_address`; IM0 RST em `snapshot_restore_e7_2e.rs` | INT; PR #954 integrada: RETN/RETI WZ=PC retornado e IM0 RST WZ=vetor; CI #43893014345 e SMS Runtime #43893014300 PASS |
 | `OUT (n),A` | WZ = `(port & FF00) | ((port + 1) & 00FF)`, port = A:n | Byte baixo incrementa com wrap dentro da página | Estado WZ após I/O | `cpu.rs::tests::immediate_io_updates_wz_with_port_specific_wrap_rules` (PR #954), inclui D3 com n=FF e wrap dentro da página | INT; PR #954 CI #43893014345 PASS |
 | `IN A,(n)` | WZ = port + 1, port = A:n | Incremento de 16 bits; wrap `FFFF → 0000` | Estado WZ após I/O | `cpu.rs::tests::immediate_io_updates_wz_with_port_specific_wrap_rules` (PR #954), inclui DB com A:n=FFFF e wrap 16-bit | INT; PR #954 CI #43893014345 PASS |
 | ED `IN r,(C)` / `OUT (C),r` | WZ = BC + 1 | Incremento de 16 bits; wrap `FFFF → 0000` | Estado WZ após acesso à porta | `native/sms_core/tests/z80_ed_io_exhaustive_semantics.rs` | INT; varredura de dados/encodings e wrap; não cobre semântica física de todas as variantes |
 | `EX (SP),HL/IX/IY` | WZ recebe a palavra lida da pilha e trocada com HL/IX/IY | WZ anterior → palavra lida; endereço SP não é o valor final | Estado WZ e stack writes | BASE `cpu.rs::tests::exchange_stack_hl_and_di_ei_update_state` (asserção integrada pela #955); `indexed_exchange_stack_e3a2c.rs` para IX/IY | INT; CI #43897766618 e SMS Runtime #43897766471 PASS no HEAD da #955; debugger Windows Release SKIPPED |
-| `LD (IX/IY+d),r/n`, `LD r,(IX/IY+d)`, ALU e INC/DEC indexed | WZ = endereço efetivo IX/IY + displacement assinado | Soma 16-bit; wrap em `0000/FFFF` | WZ diretamente e, para BIT, flags X/Y derivados do byte alto | `indexed_memory_e4a.rs`; `indexed_alu_e4b.rs`; `indexed_incdec_e4c.rs`; `indexed_hl_memory_special_cases.rs` | INT; WAIT/snapshot cobertos nos caminhos microsequenciados pertinentes |
+| `LD (IX/IY+d),r/n`, `LD r,(IX/IY+d)`, ALU e INC/DEC indexed | WZ = endereço efetivo IX/IY + displacement assinado | Soma 16-bit; wrap em `0000/FFFF` | WZ diretamente e, para BIT, flags X/Y derivados do byte alto | `indexed_memory_e4a.rs`; `indexed_alu_e4b.rs`; `indexed_incdec_e4c.rs`; `native/z80_cpu/tests/indexed_memory_e4a.rs::indexed_hl_register_loads_cover_signed_displacement_boundaries_and_snapshots` | INT; WAIT/snapshot cobertos nos caminhos microsequenciados pertinentes |
 | DDCB/FDCB | WZ = endereço efetivo IX/IY+d | Soma 16-bit com wrap | WZ direto; BIT usa bits 5/3 do byte alto do endereço | `indexed_cb_e5.rs`; `z80_indexed_cb_reference_vectors.rs`; `z80_indexed_cb_bit_res_set_wz.rs` | INT + referências de software; não é prova física |
 | `LD (nn),IX/IY` / `LD IX/IY,(nn)` | WZ = nn + 1 | 16-bit; wrap | WZ direto e acessos little-endian | `indexed_absolute_transfer_e3a2a.rs` | INT |
 | `LD SP,IX/IY` e famílias BASE que preservam WZ | WZ permanece inalterado quando o handler não define nova regra | `WZ_old → WZ_old` | Estado WZ antes/depois | `ld_sp_f005.rs`; `base_load_f001.rs`; `base_register_pair_f004.rs` | INT |
@@ -212,3 +212,36 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+## Revisão adversarial F-023 — baseline pós-PR #975 (16/11/2026)
+
+**Escopo da revisão:** semântica WZ/MEMPTR do perfil Zilog Z80 NMOS usado por SMS/SG-1000. Foram confrontados os handlers ativos de `native/z80_cpu/src/cpu.rs` e `native/z80_cpu/src/sequencer.rs` com as regras, condições, wrap, observabilidade e testes listados nesta matriz. A revisão não altera produção.
+
+### Resultado por domínio
+
+- **Fluxo de dados e aritmética:** LD indireto/absoluto, transferências de pares, ADD/ADC/SBC e operações IX/IY atribuem WZ conforme o endereço ou valor anterior definido pela matriz; os limites de 16 bits estão cobertos pelos testes F-002/F-003/F-004/E3A1/E3A2.
+- **Fluxo de controle:** JR/DJNZ, JP/CALL condicionais, RET/RETN/RETI e RST têm regras separadas para caminho tomado/não tomado, endereço alvo, retorno e wrap; os testes de controle condicional verificam PC, WZ, stack e ciclos.
+- **I/O:** IN/OUT imediato, IN/OUT por C e operações de bloco distinguem o incremento dentro da página de `OUT (n),A`, o incremento de 16 bits de IN/OUT por C e as bases específicas de input/output block. F-021 permanece separado de F-022.
+- **Interrupções e trocas:** NMI, IM0/IM1/IM2 e EX (SP),HL/IX/IY têm transições WZ explícitas e assertions de estado/stack.
+- **CB/ED e indexadas:** BIT (HL) preserva WZ e deriva X/Y do byte alto; RRD/RLD atualiza WZ para HL+1; DDCB/FDCB e operações com displacement usam o endereço efetivo com wrap; as quatro formas simples/repetitivas de bloco têm regras distintas para repetição e término.
+- **Reset e instruções sem regra:** o reset limpa WZ; famílias ED sem regra específica preservam o valor. Não foi encontrado handler de produção sem classificação na matriz.
+
+### Evidência e limites
+
+- A regra WZ=HL+1 de RRD/RLD mantém evidência hardware-derived do Woodmass test 09, com as assinaturas RLD `117F` e RRD `34AE`; elas não são valores literais de WZ.
+- As demais regras continuam honestamente classificadas como INT e/ou COMP. O UM0080 não documenta WZ como registrador arquitetural. Não promovemos fórmulas internas para DOC ou HW.
+- A cobertura de RRD/RLD inclui 262.144 transformações, 16.384 sequências observáveis RRD/RLD→BIT (HL) e 240 cenários micro com WAIT/snapshot.
+- As quatro formas simples de bloco têm 786.432 cenários microsequenciados com fórmula independente de flags e WZ; as formas repetitivas têm matrizes de flags/PC/BC/Q e observação de interrupção. A integração SMS/Scheduler pós-#972 acrescenta INT IM2 e NMI durante repetição, handlers e retomada com snapshot/replay.
+- CMOS, NEC, R800, Z180, Z80N e clones não cobertos permanecem NOT_VERIFIED. Não são promovidos a parte do perfil NMOS delimitado.
+
+### Decisão
+
+**F-023: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE.** A revisão interna da matriz está concluída; a cobertura cruzada DD/FD JR/DJNZ da PR #977 passou no CI #43940980741; falta somente a revisão independente registrada. O fechamento significa que todas as famílias modeladas têm regra, condição, wrap, observabilidade e teste rastreável, com proveniência explicitamente classificada; não significa que cada regra interna tenha medição física própria, nem conformidade universal de clones.
+
+Nenhuma alteração de produção foi necessária. A validação temporal de WAIT físico/DMA continua fora desta conclusão e não é inferida dos fixtures. A PR #977 adiciona os casos WZ de JR/DJNZ sob DD/FD Ignored. E8 permanece bloqueada até F-028 e os gates globais E7 serem formalmente fechados.
+
+
+## Decisão de escopo supersedente — 2026-11-16
+
+E7 está `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e para as necessidades praticáveis dos sistemas SMS/SG-1000. Esta decisão do projeto não declara revisão externa, conformidade elétrica universal ou validação de hardware para os casos não executados. As evidências desta auditoria permanecem internas e vinculadas aos SHAs/workflows descritos em cada seção. CMOS/clones não caracterizados, WAIT físico, DMA e sincronização física global permanecem NOT_VERIFIED/NOT_RUN. E8/ZEXDOC/ZEXALL é validação complementar futura e não bloqueia o início do SG-1000. Reabrir E7 somente diante de defeito/regressão reproduzível ou evidência técnica concreta.
