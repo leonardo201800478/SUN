@@ -193,7 +193,6 @@ fn assert_architecture_equal_except_prefix(
     assert_eq!(prefixed.nmi_pending, base.nmi_pending);
     assert_eq!(prefixed.int_pending, base.int_pending);
     assert_eq!(prefixed.q, base.q);
-    assert_eq!(prefixed.q_previous, base.q_previous);
     assert_eq!(prefixed.p, base.p);
     assert_eq!(prefixed.halted, base.halted);
 }
@@ -242,6 +241,7 @@ fn dd_fd_prefixes_are_ignored_for_exchange_exception_opcodes() {
         assert_eq!(base.ix, 0x1357);
         assert_eq!(base.iy, 0x2468);
         assert_exchange_result(opcode, &base.registers, &base.alternate);
+        assert_eq!(base.export_architectural_state().q_previous, 0x5A);
 
         for prefix in [0xDD_u8, 0xFD] {
             let (prefixed, prefixed_tstates) = run_atomic(Some(prefix), opcode);
@@ -249,6 +249,7 @@ fn dd_fd_prefixes_are_ignored_for_exchange_exception_opcodes() {
             assert_eq!(prefixed.registers.pc, 0x0001, "{prefix:02X} {opcode:02X}");
             assert_eq!(prefixed.r, 0x80, "{prefix:02X} {opcode:02X}");
             assert_atomic_equal_except_prefix(&base, &prefixed);
+            assert_eq!(prefixed.export_architectural_state().q_previous, 0);
             assert_exchange_result(opcode, &prefixed.registers, &prefixed.alternate);
         }
 
@@ -257,6 +258,7 @@ fn dd_fd_prefixes_are_ignored_for_exchange_exception_opcodes() {
         assert_eq!(base_micro.registers.pc, 0x0000);
         assert_eq!(base_micro.r, 0xFF);
         assert_exchange_result(opcode, &base_micro.registers, &base_micro.alternate);
+        assert_eq!(base_micro.q_previous, 0x5A);
 
         for prefix in [0xDD_u8, 0xFD] {
             let (prefixed_micro, prefixed_micro_tstates) = run_microsequencer(Some(prefix), opcode);
@@ -267,6 +269,7 @@ fn dd_fd_prefixes_are_ignored_for_exchange_exception_opcodes() {
             assert_eq!(prefixed_micro.registers.pc, 0x0001);
             assert_eq!(prefixed_micro.r, 0x80);
             assert_architecture_equal_except_prefix(&base_micro, &prefixed_micro);
+            assert_eq!(prefixed_micro.q_previous, 0);
             assert_exchange_result(opcode, &prefixed_micro.registers, &prefixed_micro.alternate);
         }
     }
