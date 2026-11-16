@@ -421,20 +421,19 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
         if block_delay_summary.is_empty() && &bus.memory[0x8900..0x8904] == b"OTIR" {
-            if opcode[0] == 0xED && opcode[1] == 0xB0 && cpu.registers.bc() > 100 && block_delay_loop.is_none() {
+            if opcode[0] == 0xED
+                && opcode[1] == 0xB0
+                && cpu.registers.bc() > 100
+                && block_delay_loop.is_none()
+            {
                 let frame_edge = pulse_end
                     .map(|end| end.saturating_sub(32))
                     .unwrap_or(next_interrupt);
-                block_delay_loop = Some((
-                    pc_before,
-                    cpu.total_tstates,
-                    cpu.registers.bc(),
-                    frame_edge,
-                ));
+                block_delay_loop =
+                    Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge));
             } else if let Some((ldir_pc, start_t, start_bc, frame_edge)) = block_delay_loop {
                 if pc_before != ldir_pc {
-                    let expected_tstates =
-                        u64::from(start_bc.saturating_sub(1)) * 21 + 16;
+                    let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
                     block_delay_summary.push(format!(
                         "ldir_pc={:04X} start_t={} end_t={} elapsed={} expected={} start_bc={:04X} end_pc={:04X} end_bc={:04X} frame_edge={} end_to_edge={}",
                         ldir_pc,
