@@ -34,6 +34,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     machine.set_trace_enabled(true);
     let mut completed_at_frame = None;
     let mut hcounter_reference_reads = Vec::new();
+    let mut vcounter_reference_reads = Vec::new();
 
     for frame in 0..600 {
         if let Err(error) = machine.step_frame(100_000) {
@@ -42,10 +43,14 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
         for event in machine.take_trace() {
             match event {
                 SmsTemporalTraceEvent::BusCompleted {
+                    timestamp,
                     operation: Z80BusOperation::PortRead,
                     address,
+                    data,
                     ..
-                } if address & 0x00FF == 0x7E => {}
+                } if address & 0x00FF == 0x7E => {
+                    vcounter_reference_reads.push((timestamp.ticks(), data.unwrap_or(0)));
+                }
                 SmsTemporalTraceEvent::BusCompleted {
                     timestamp,
                     operation: Z80BusOperation::PortRead,
@@ -80,10 +85,12 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let all_results = (21u16..=34)
         .map(|test| (test, machine.inspect_memory(0xC900 + test - 1)))
         .collect::<Vec<_>>();
+    // SmsVdpTest defines TestScratch at $C880; RunTest25 stores its three
+    // VCounter samples at $C880-$C882 (not the unrelated $C9F0 page).
     let run_test25_samples = [
-        machine.inspect_memory(0xC9F0),
-        machine.inspect_memory(0xC9F1),
-        machine.inspect_memory(0xC9F2),
+        machine.inspect_memory(0xC880),
+        machine.inspect_memory(0xC881),
+        machine.inspect_memory(0xC882),
     ];
 
     assert!(
@@ -94,6 +101,6 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     assert_eq!(
         results,
         [(25, 0), (31, 0), (32, 0), (33, 0), (34, 0)],
-        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples={run_test25_samples:?}; HCounter reference reads={hcounter_reference_reads:?}"
+        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C880-$C882={run_test25_samples:?}; VCounter port reads={vcounter_reference_reads:?}; HCounter reference reads={hcounter_reference_reads:?}"
     );
 }
