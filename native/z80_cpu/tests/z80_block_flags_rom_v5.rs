@@ -367,6 +367,10 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             recent_steps
         );
 
+        let pc_before = cpu.registers.pc;
+        let sp_before = cpu.registers.sp;
+        let iff1_before = cpu.iff1;
+        let int_pending_before = cpu.int_pending;
         if int_pending_before.is_some()
             && iff1_before
             && cpu.ei_delay == 0
@@ -400,10 +404,6 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             }
         }
 
-        let pc_before = cpu.registers.pc;
-        let sp_before = cpu.registers.sp;
-        let iff1_before = cpu.iff1;
-        let int_pending_before = cpu.int_pending;
         let opcode: [u8; 4] = std::array::from_fn(|offset| {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
