@@ -14183,14 +14183,27 @@ mod ed_block_transfer_repeat_interrupt_tests {
                         assert_eq!(sequenced.registers.pc, 0x9000, "IM2 vector");
                         assert_eq!(sequenced.registers.sp, 0xCFFE, "IM2 stack");
                         assert_eq!(sequenced.registers.f, expected_f, "ISR-visible F");
+                        assert_eq!(sequenced.q, 0, "Q is cleared at INT acceptance");
+                        assert_eq!(
+                            sequenced.q_previous, expected_f,
+                            "previous Q captures repeat F at INT acceptance"
+                        );
 
                         assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 11);
+                        assert_eq!(sequenced.q, 0, "PUSH AF leaves Q clear");
+                        assert_eq!(sequenced.q_previous, 0, "PUSH AF captures cleared Q");
                         assert_eq!(bus.memory[0xCFFC], expected_f, "PUSH AF captured F");
                         assert_eq!(bus.memory[0xCFFD], accumulator, "PUSH AF captured A");
                         assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 10);
+                        assert_eq!(sequenced.q, 0, "POP AF does not set Q");
+                        assert_eq!(sequenced.q_previous, 0, "POP AF previous Q");
                         assert_eq!(sequenced.registers.f, expected_f, "POP AF restored F");
                         assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 4); // EI
+                        assert_eq!(sequenced.q, 0, "EI leaves Q clear");
+                        assert_eq!(sequenced.q_previous, 0, "EI previous Q");
                         assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 14); // RETI
+                        assert_eq!(sequenced.q, 0, "RETI leaves Q clear");
+                        assert_eq!(sequenced.q_previous, 0, "RETI previous Q");
                         assert_eq!(sequenced.registers.pc, pc, "RETI resumes ED prefix");
                         assert_eq!(sequenced.registers.sp, 0xD000, "RETI restores SP");
                         assert!(sequenced.iff1 && sequenced.iff2, "RETI restores IFFs");
@@ -14203,6 +14216,8 @@ mod ed_block_transfer_repeat_interrupt_tests {
                             "resumed ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}"
                         );
                         assert_eq!(sequenced.registers.bc(), bc_after_second, "resumed BC");
+                        assert_eq!(sequenced.q_previous, 0, "resumed instruction previous Q");
+                        assert_eq!(sequenced.q, sequenced.registers.f, "resumed instruction Q follows F");
                         assert_eq!(
                             sequenced.registers.pc,
                             if second_repeats {
