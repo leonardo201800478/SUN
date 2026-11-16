@@ -1,5 +1,7 @@
 # E7 — matriz consolidada dos 12 critérios temporais e de integração
 
+> **Estado operacional vigente — 2026-11-16:** E7 `CLOSED_WITH_LIMITATIONS` para o perfil NMOS delimitado SMS/SG-1000. Os estados `IN_PROGRESS`, `BLOCKED` e os gates de revisão independente que aparecem no corpo são fotografias históricas da rodada original; a decisão supersedente ao final deste documento é a autoridade atual. E8/ZEXDOC/ZEXALL é complementar e não bloqueia SG-1000.
+
 **Data:** 2026-11-16
 **Main de referência:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
 **HEAD de validação complementar:** PR #972, `ff922996e797b287e275fdbf1d1791314c61a749`; PR #975, `7574245338549fd8f37a7483ef41b7fbc306ffe5`
