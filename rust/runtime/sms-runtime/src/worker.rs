@@ -226,8 +226,9 @@ fn rebuild_sms_temporal_machine_preserving_sram(
 ) -> Result<SmsTemporalMachine, String> {
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
-    let mut rebuilt =
-        build_sms_temporal_machine_with_revision_bios_and_sram_size(rom, region, revision, bios, capacity)?;
+    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_and_sram_size(
+        rom, region, revision, bios, capacity,
+    )?;
     if let Some(contents) = sram {
         rebuilt
             .load_cartridge_sram(&contents)
