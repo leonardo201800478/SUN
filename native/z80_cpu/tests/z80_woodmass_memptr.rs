@@ -220,12 +220,7 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
                 bus.memory[(pc + 2) & 0xFFFF],
                 bus.memory[(pc + 3) & 0xFFFF],
             ];
-            (
-                cycles_by_pc[pc],
-                pc as u16,
-                steps_by_pc[pc],
-                bytes,
-            )
+            (cycles_by_pc[pc], pc as u16, steps_by_pc[pc], bytes)
         })
         .collect();
     hot_pcs.sort_by_key(|entry| std::cmp::Reverse(entry.0));
