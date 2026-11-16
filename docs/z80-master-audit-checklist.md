@@ -723,7 +723,8 @@ A ausência de review no GitHub não prova que não houve inspeção fora do rep
 - [x] PR #952 integrada: matriz WZ/MEMPTR por família e classificação de proveniência; Documentation patch hygiene e Rust quality PASS no CI #43890997152.
 - [x] PR #953: ambos os resultados condicionais e PC final exato para os 167 Ignored sob DD/FD; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
 - [x] PR #954: IN/OUT imediato, WZ de RETN/RETI/RST e preservação de WZ em IM0/IM1; CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS.
-- [ ] PR #955: asserção WZ para BASE EX (SP),HL; aguardar CI.
+- [x] PR #955: asserção WZ para BASE EX (SP),HL integrada em `67f4149e1933d18ffa5201da66ca6ff46c598e32`; CI push #43898370234 e SMS Runtime #43898370419 COMPLETED SUCCESS.
+- [ ] Review independente auditável para PR #955/#956 e matriz E7 integrada; ambas as PRs foram mescladas sem review submetida nem review thread.
 - [x] Control flow WZ: condições tomadas/não tomadas e wrap em `z80_conditional_control_flow_coverage.rs`.
 - [x] IM2 WZ: PC vetorial observado em `snapshot_restore_e7_2e.rs`.
 - [x] Block repeat WZ: 64 cenários microsequenciados e quatro formas com snapshot/restore em cada fronteira.
@@ -742,3 +743,13 @@ Validação no HEAD exato da PR (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
 A pendência específica de WZ para BASE `EX (SP),HL` está coberta. F-023 permanece AUDIT_PARTIAL até revisão integral da matriz e reconciliação da proveniência. F-028 e F-022 permanecem IN_PROGRESS. A validação integrada do Scheduler/determinismo e a revisão adversarial transversal ainda não fecham E7.
 
 E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanecem BLOCKED. Não converter SKIPPED/NOT_RUN em PASS nem promover testes internos comparativos a evidência física.
+
+
+### Correção pós-merge — PR #955/#956
+
+- [x] Confirmado tree idêntico entre o HEAD testado e o merge da PR #955.
+- [x] CI push #43898370234 e SMS Runtime #43898370419 SUCCESS no merge #955.
+- [x] PR #956 integrou a atualização documental em main `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`; CI push #43899020946 PASS em higiene documental/Rust quality; Z80/runtime SKIPPED por impacto.
+- [ ] Obter review adversarial independente registrada. A ausência de review GitHub não prova ausência de inspeção fora do repositório, mas não há trilha auditável.
+
+E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
