@@ -37,7 +37,7 @@ Inventariar os testes já existentes antes de acrescentar cobertura. Evitar dupl
 | ROM | Evidência existente | Estado atual |
 |---|---|---|
 | Andre Agassi Tennis (Europe, Brazil) | Auditoria estática anterior e teste sintético SP/mapper | **NOT RUN** nesta baseline; falta ROM local e trace |
-| Ace of Aces (Europe, Brazil) | Auditoria anterior centrada em região; ainda sem reprodução | **NOT RUN** nesta baseline; falta ROM local e trace |
+| Ace of Aces (Europe, Brazil) | DAT catalogado Europe; BIOS v1.3 aceita region code 4 e checksum; auditoria anterior centrada em região | **NOT RUN** nesta baseline; validar nibble local, SHA-256, mapper e trace |
 | Road Rash | Smoke positivo reportado; PR #913 registra stall separado na animação do título | Boot positivo; temporização da tela de título ainda requer regressão independente |
 | Schtroumpfs 2 | Smoke positivo reportado; PR #881 registra The Smurfs: Travel the World (Brazil) (CRC32 `E14C8A1C`, SHA-1 `15b882...`, SHA-256 `f3d493...`) inicializando até gameplay com defeito de ordem de sprites | **NOT RUN** nesta baseline; confirmar se é o mesmo dump antes de reutilizar a evidência |
 | SMS VDP Test v1.31 | Fonte identifica `ColdReset -> JP DumpAllRegisters`; a rotina salva CPU, lê I/R e IFF2, alterna $3F `$05->$FF`, lê HC e depois VC; PR #912 adiciona harness de ROM completa | Captura exata da fonte conhecida; validar hash/checksum $20F3 do binário e comparar em T-state equivalente |
