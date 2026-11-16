@@ -67,7 +67,10 @@ pub enum SmsTemporalTraceEvent {
     },
     M1FetchCompleted {
         timestamp: MachineTime,
+        /// Address from which the opcode byte was sampled during T3.
         address: u16,
+        /// Refresh address presented on the M1 T4 pins (I:R after increment).
+        refresh_address: u16,
         cpu_pc: u16,
         cpu_halted: bool,
         cpu_int_line: Option<u8>,
@@ -810,7 +813,8 @@ impl SmsTemporalMachine {
                         self.trace_events
                             .push(SmsTemporalTraceEvent::M1FetchCompleted {
                                 timestamp: completed_at,
-                                address: pins.address,
+                                address: m1_state.address,
+                                refresh_address: m1_state.refresh_address,
                                 cpu_pc: self.cpu.registers.pc,
                                 cpu_halted: self.cpu.halted,
                                 cpu_int_line: self.cpu.int_pending,
@@ -2265,6 +2269,9 @@ mod tests {
             trace[4],
             super::SmsTemporalTraceEvent::M1FetchCompleted {
                 timestamp,
+                address: 0,
+                refresh_address: 1,
+                cpu_pc: 1,
                 ..
             } if timestamp == MachineTime::from_ticks(12)
         ));
