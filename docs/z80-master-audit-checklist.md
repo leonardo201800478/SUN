@@ -714,3 +714,13 @@ A matriz continua estrutural e não fecha F-028. E7 IN_PROGRESS; E8 BLOCKED.
 - [ ] Obter revisão adversarial independente e registrada no GitHub para a matriz E7 integrada e suas limitações.
 
 A ausência de review no GitHub não prova que não houve inspeção fora do repositório; significa que não há evidência auditável. A gate permanece BLOCKED. E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+
+## Atualização de evidências — 16/11/2026
+
+- [x] PR #950 integrada: matriz BASE↔DD/FD para os 167 Ignored, WAIT, snapshot/restore e payloads; CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado.
+- [x] PR #951 integrada: previous-Q e WZ das formas simples LDI/LDD/CPI/CPD; CI #43890238681 e SMS Runtime #43890238056 PASS.
+- [x] PR #952 integrada: matriz WZ/MEMPTR por família e classificação de proveniência; Documentation patch hygiene e Rust quality PASS no CI #43890997152.
+- [ ] PR #953: validar ambos os resultados condicionais e PC final exato para os 167 Ignored sob DD/FD.
+- [ ] Fechar gaps F-023 em control flow, IN/OUT imediato, IM2 e retomada temporal de bloco.
+- [ ] Revalidar gates e documentação no HEAD final da main antes de declarar E7 CLOSED.
