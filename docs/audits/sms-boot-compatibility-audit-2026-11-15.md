@@ -179,9 +179,13 @@ A implementação de `Z80MicroSequencer::reset()` preserva os registradores gera
 
 ### 2.4 Instrumentação de boot já existente
 
-`SmsTemporalMachine::set_trace_enabled(true)` já permite capturar eventos de barramento reais com timestamp, operação, endereço, T-states base, WAITs e dado, e `take_trace()` permite drenar o buffer. Isso é útil para identificar o primeiro fetch/escrita divergente sem callback por instrução. Entretanto, o buffer cresce sem limite enquanto habilitado e o `SmsTemporalWorker` não expõe controle nem extração desse trace. O `port_write_trace` do barramento é circular e limitado a 64 escritas de I/O; não captura escritas de memória nem substitui o trace completo.
+`SmsTemporalMachine::set_trace_enabled(true)` captura `BusCompleted`, `InternalCycleCompleted`, fases M1 e transições TH com timestamp, operação/endereço, T-states base, WAITs e dado. A baseline também expõe `SmsTemporalWorker::set_trace_enabled(true)` e `debug_snapshot()`: o worker drena `take_trace()` após cada frame ou comando para um coletor FIFO limitado (fila de ingresso 512; histórico 2.048), com contador de eventos descartados. É possível habilitar a captura antes de chamar `start()` para incluir o primeiro fetch, sem callback por instrução. O histórico é limitado e pode descartar eventos em boots longos; o snapshot atual inclui CPU, tempo, VDP status/raster, bancos/controle do mapper, memory-control e framebuffer, mas não expõe todos os registradores VDP nem o estado interno do PSG.
+
+A PR #878 propõe aumentar a janela para 16.384 eventos, fila 4.096 e adicionar `arm_trace_on_next_start()`. É Draft e sua base está 73 commits atrás da main atual; não deve ser integrada diretamente. Usar como referência, não como dependência. O `port_write_trace` do barramento continua sendo apenas um buffer circular de 64 escritas de I/O e não substitui o trace de barramento.
 
 O smoke campaign existente (`docs/testing/sms-in-game-rom-smoke-campaign.md`) carrega ROMs locais via `SmsTemporalWorker`, avança 120 frames e verifica instruções e frame não-preto. É útil como primeiro gate de regressão, mas não comprova jogabilidade, estado correto, áudio, nem primeira divergência. A campanha exige ROMs externas ao Git e região explícita.
+
+PR #912 é um teste exploratório de HCounter/IRQ via Z80 e Scheduler com harness de ROM upstream. Os samples secundários de RunTest32/34 ainda divergem e permanecem ignorados; o PR é Draft e não altera hardware de produção. Reutilizar seu harness e evitar duplicar os testes. PR #913 documenta um problema separado de animação na tela de título de Road Rash: o jogo chega ao gameplay e foi jogável após o letreiro avançar, mas a animação inicial fica parada sem Pause. Assim, Road Rash continua sendo regressão positiva de boot/gameplay, porém não deve ser considerado PASS integral de temporização até essa questão separada ser resolvida.
 
 ## 5. SMS VDP Test v1.31 — interpretação correta dos valores
 
