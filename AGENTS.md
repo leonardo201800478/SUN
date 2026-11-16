@@ -1,46 +1,57 @@
 # Instruções para agentes de código — Sega Emulator
 
-Decisões vigentes: ADR 0010 (runtime/hardware), ADR 0011 (desktop/hosts) e ADR-0016 (fidelidade temporal). O roadmap mestre define sequência e gates. GitHub é a única fonte da verdade.
+A fonte da verdade é a `main` remota, seus commits, testes e workflows. Antes de cada tarefa, consulte o HEAD, PRs, branches, diffs e CI atuais. Não reutilize SHAs ou conclusões antigas sem revalidação.
 
-## Arquitetura
+## Arquitetura normativa
 
-- Backend/runtime 100% Rust: CPU, barramentos, memória, mappers, VDP, áudio, interrupções, Scheduler, timing e estados.
-- Desktop alvo: Slint 1.18.x + WGPU 30.x + CPAL 0.18.2; Vulkan inicial preferencial no Windows x64; SDL3 após auditoria.
-- Slint/WGPU 30/Vulkan é o caminho desktop-alvo; CPAL 0.18.2 é a saída física-alvo; SDL3 após auditoria. Não adicionar dependências ao host anterior. Preservar temporariamente módulos ainda consumidos até os gates R3/R5 e removê-los por inventário de referências, testes e CI. Ver docs/architecture/migrations/legacy-host-retirement.md.
-- Preservar SmsTemporalWorker, FrameMailbox, Scheduler, SMS, SG-1000 e componentes validados.
-- Não duplicar CPU, worker, máquina, PSG, VDP ou Scheduler.
-- GUI exclusivamente apresentação/integração OS. Sem hardware, instruções, clocks ou callbacks por instrução.
-- Comunicação coarse-grained: load_rom/start/pause/stop/reset/step_frame e snapshots/frames com ownership explícito.
-- Proibidos JIT, frame skipping, hacks temporais e otimizações especulativas.
+- **Runtime/hardware:** 100% Rust. CPU Z80 compartilhada, memória, barramentos, mappers, VDPs, PSG/FM, periféricos, interrupções, Scheduler, timing, estados e execução pertencem ao backend.
+- **GUI/host ativo:** Slint 1.18.x.
+- **Renderização:** WGPU 30.x; Vulkan como backend inicial no Windows x64.
+- **Áudio físico:** CPAL 0.18.2.
+- **Input:** eventos nativos Slint para teclado e `sega-input-runtime`/SDL3 para gamepads, respeitando o estado integrado atual.
+- O host gráfico anterior não é caminho ativo do produto. Código remanescente só pode ser tratado como legado/transitório até inventário de consumidores e remoção segura; não desenvolver novas funcionalidades nele.
 
-## R1–R5
+## Separação de responsabilidades
 
-1. R1: POC isolada Slint/WGPU/Vulkan; janela, device/queue compartilhados, textura externa atualizada e composição. Sem SMS real, menus, HUD, CPAL ou SDL3.
-2. R2: frames reais SMS, preservando worker e Scheduler.
-3. R3: CPAL 0.18.2, dispositivos, formatos, streams e underruns.
-4. R4: auditar/integrar SDL3.
-5. R5: frontend Slint completo e corte da baseline após paridade.
+A GUI cuida de janelas, menus, launcher, biblioteca, configurações, logs, telemetria e integração com o SO. É proibido implementar hardware, instruções, clocks, temporização ou callbacks por instrução na GUI.
 
-## Método
+A integração com runtime permanece coarse-grained: `load_rom()`, `start()`, `pause()`, `stop()`, `reset()`, `step_frame()`, snapshots e frames com ownership explícito. Preservar `SmsTemporalWorker`, `FrameMailbox`, `MachineScheduler` e componentes validados.
 
-Auditar SHA/main, PRs, branches e workflows; pesquisar documentação oficial e referências primárias; verificar versões, APIs e licenças; definir critérios; modelar estados/ownership/timing; implementar incrementos pequenos; executar fmt, Clippy e testes direcionados antes do workflow; regredir; auditar diff; documentar; publicar por PR.
+## Tempo e determinismo
 
-Para tarefas complexas, confrontar três frentes: engenharia reversa, documentação primária e arquitetura/modelagem. Não inventar resultados de agentes ou testes.
+- `MachineScheduler` é a autoridade única de clocks, eventos e ordem causal.
+- Preservar sincronização CPU/VDP/áudio/barramentos, WAIT states reais quando demonstrados, operações suspensíveis/retomáveis e estado necessário à retomada.
+- Execução contínua e em blocos deve ser equivalente nas dimensões testadas.
+- Save States/replays devem preservar determinismo.
+- Renderização, áudio físico e input não podem avançar nem corrigir clocks do hardware.
+- Não criar Scheduler, CPU, PSG, VDP, worker ou pipeline paralelo por conveniência.
 
-## Fidelidade e desempenho
+## Roadmap de plataformas
 
-MachineScheduler é a autoridade única dos clocks/eventos. Preservar ordem causal, determinismo, WAIT states e estado necessário à retomada. Execução contínua e em blocos deve ser equivalente. UI, renderização e áudio físico nunca controlam ciclos. Aplicativos e avaliações de desempenho somente Release.
+1. SMS1/SMS2.
+2. SG-1000, concluído na arquitetura temporal existente.
+3. Game Gear como sistema próprio.
+4. Expansões e acessórios 8-bit: YM2413/FM Sound Unit, Sega Card/My Card, Card Catcher (adaptador SG-1000), 3D Glasses, periféricos de controle e interfaces de expansão.
+5. Mega Drive/Genesis.
+6. Sega CD.
+7. 32X.
+8. Compatibilidade, consolidação e aceite final.
 
-## Gates
+Não iniciar 16-bit antes do fechamento dos sistemas 8-bit e da fase de acessórios. Não reescrever arquitetura nem criar implementações paralelas para SG-1000.
 
-- cargo fmt --all -- --check
-- cargo clippy --release --workspace --all-targets --locked -- -D warnings
-- cargo test --release --workspace --locked
+## Z80
 
-Validar workspaces/targets standalone separadamente. Classificar cada suíte PASS, FAIL, BLOCKED ou NOT RUN. SKIPPED nunca é PASS. Testes físicos não executados permanecem NOT RUN. CI verde só valida jobs executados no SHA correspondente.
+O Z80 compartilhado está encerrado no escopo praticável do perfil NMOS clássico utilizado pelos sistemas 8-bit suportados, com limitações explicitadas. E8/ZEXDOC/ZEXALL é validação complementar futura, não bloqueio artificial permanente. Não reabrir E7 sem bug, regressão ou evidência técnica concreta. CMOS/clones e precisão elétrica não cobertos continuam NOT_VERIFIED.
 
-## GitHub e privacidade
+## Método e gates
 
-Toda alteração em branch e PR. Proibidos commit direto na main, force-push e reset destrutivo. Não fazer merge sem CI aplicável verde no HEAD final e autorização explícita. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
+1. Auditar main/PR/CI no SHA exato.
+2. Consultar documentação primária, referências independentes e versões atuais das bibliotecas quando relevantes.
+3. Definir contratos, ownership, estados, timing e critérios de aceite antes de implementar.
+4. Implementar incrementos pequenos em branch/PR.
+5. Executar `cargo fmt --all -- --check`, Clippy e testes direcionados; depois workflows aplicáveis.
+6. Classificar PASS, FAIL, BLOCKED ou NOT RUN. SKIPPED nunca é PASS.
+7. Auditar diff e preservar evidências históricas; nunca atribuir teste a SHA diferente.
+8. Não fazer merge sem CI aplicável verde no HEAD final e autorização explícita.
 
-Ao receber "Prossiga", auditar main/PRs/CI, identificar a última tarefa concluída, resolver pendências e avançar até conclusão ou bloqueio real, sem duplicar trabalho.
+Não usar Python, Qt, PyO3 ou Maturin no runtime, frontend, CI ou tooling obrigatório. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
