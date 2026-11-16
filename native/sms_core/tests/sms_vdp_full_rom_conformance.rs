@@ -42,18 +42,7 @@ type CpuMemoryReadTrace = (
     bool,
     bool,
 );
-type CpuOpcodeFetchTrace = (
-    u128,
-    u16,
-    u16,
-    u16,
-    bool,
-    Option<u8>,
-    bool,
-    u8,
-    bool,
-    bool,
-);
+type CpuOpcodeFetchTrace = (u128, u16, u16, u16, bool, Option<u8>, bool, u8, bool, bool);
 type ThLatchReadPair = (u128, u16, bool, Option<u8>, u128, u8, u16, bool, Option<u8>);
 type IrqLineTrace = (u128, Option<u8>, bool, bool);
 type InternalCycleTrace = (
@@ -94,8 +83,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut diagnostic_memory_writes = Vec::new();
     let mut io_control_writes: Vec<IoControlWriteTrace> = Vec::new();
     let mut cpu_memory_read_trace: VecDeque<CpuMemoryReadTrace> = VecDeque::with_capacity(65_536);
-    let mut cpu_opcode_fetch_trace: VecDeque<CpuOpcodeFetchTrace> =
-        VecDeque::with_capacity(65_536);
+    let mut cpu_opcode_fetch_trace: VecDeque<CpuOpcodeFetchTrace> = VecDeque::with_capacity(65_536);
     let mut irq_line_changes: Vec<IrqLineTrace> = Vec::new();
     let mut cpu_internal_cycle_trace: VecDeque<InternalCycleTrace> =
         VecDeque::with_capacity(65_536);
