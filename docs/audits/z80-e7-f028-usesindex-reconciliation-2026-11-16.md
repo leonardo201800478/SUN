@@ -87,7 +87,7 @@ A partir do opcode terminal (sem DD/FD), os 167 bytes foram agrupados pela decom
 | x=2 | ALU A,r BASE sem H/L e (HL) | 40 |
 | **x=2 subtotal** | | **40** |
 | x=3,z=0 | RET cc | 8 |
-| x=3,z=1 | POP BC/DE/AF, RET, EXX, LD SP,HL (com IX/IY substituído em seu próprio grupo) | 5 |
+| x=3,z=1 | POP BC/DE/AF, RET e EXX | 5 |
 | x=3,z=2 | JP cc,nn | 8 |
 | x=3,z=3 | JP nn, IN/OUT (n), EX DE,HL, DI/EI | 6 |
 | x=3,z=4 | CALL cc | 8 |
