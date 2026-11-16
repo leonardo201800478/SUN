@@ -14051,4 +14051,192 @@ mod ed_block_transfer_repeat_interrupt_tests {
             assert_eq!(sequenced_bus.writes, atomic_bus.writes);
         }
     }
+
+    fn matrix_initial_state(
+        opcode: u8,
+        pc: u16,
+        initial_bc: u16,
+        q_seed: u8,
+    ) -> Z80ArchitecturalState {
+        let mut state = initial_state(opcode);
+        state.registers.pc = pc;
+        state.registers.set_bc(initial_bc);
+        state.q = q_seed;
+        // begin_instruction must move the live Q latch here and clear Q.
+        state.q_previous = 0x5A;
+        state
+    }
+
+    fn matrix_initial_bus(opcode: u8, pc: u16) -> TestBus {
+        let mut bus = initial_bus(opcode);
+        bus.memory[usize::from(pc)] = 0xED;
+        bus.memory[usize::from(pc.wrapping_add(1))] = opcode;
+        bus
+    }
+
+    fn expected_matrix_repeat_flags(
+        opcode: u8,
+        initial_f: u8,
+        accumulator: u8,
+        value: u8,
+        bc_after: u16,
+        pc: u16,
+    ) -> u8 {
+        const FLAG_C: u8 = 0x01;
+        const FLAG_N: u8 = 0x02;
+        const FLAG_PV: u8 = 0x04;
+        const FLAG_H: u8 = 0x10;
+        const FLAG_Z: u8 = 0x40;
+        const FLAG_S: u8 = 0x80;
+        const FLAG_XY: u8 = 0x28;
+
+        let pc_xy = ((pc >> 8) as u8) & FLAG_XY;
+        if matches!(opcode, 0xB0 | 0xB8) {
+            (initial_f & (FLAG_S | FLAG_Z | FLAG_C))
+                | (if bc_after != 0 { FLAG_PV } else { 0 })
+                | pc_xy
+        } else {
+            let result = accumulator.wrapping_sub(value);
+            let half_borrow = (accumulator & 0x0F) < (value & 0x0F);
+            (initial_f & FLAG_C)
+                | FLAG_N
+                | (result & FLAG_S)
+                | (if result == 0 { FLAG_Z } else { 0 })
+                | (if half_borrow { FLAG_H } else { 0 })
+                | (if bc_after != 0 { FLAG_PV } else { 0 })
+                | pc_xy
+        }
+    }
+
+    #[test]
+    fn repeat_im2_microsequencer_matrix_covers_all_pc_bc_and_q_boundaries() {
+        let pcs = [0x8002_u16, 0x8802, 0xA002, 0xA802];
+        let opcodes = [0xB0_u8, 0xB8, 0xB1, 0xB9];
+        let initial_counts = [0_u16, 2];
+        let q_seeds = [0_u8, 0xA5];
+
+        // 4 opcodes × 4 PC high-byte patterns × 2 BC seeds × 2 Q seeds.
+        // The 32 opcode/PC/BC combinations mirror the atomic PR #932 matrix;
+        // Q seeds add state diversity. This remains an internal microsequencer
+        // validation, not an independent silicon oracle.
+        for opcode in opcodes {
+            let compare = matches!(opcode, 0xB1 | 0xB9);
+            let decrement = matches!(opcode, 0xB8 | 0xB9);
+            let direction = if decrement { -1_i16 } else { 1_i16 };
+            let accumulator = 0x10;
+            let value = if compare { 0x21 } else { 0x22 };
+            let initial_f = if compare { 0x01 } else { 0xC1 };
+
+            for pc in pcs {
+                for initial_bc in initial_counts {
+                    let bc_after_first = initial_bc.wrapping_sub(1);
+                    let expected_f = expected_matrix_repeat_flags(
+                        opcode,
+                        initial_f,
+                        accumulator,
+                        value,
+                        bc_after_first,
+                        pc,
+                    );
+
+                    for q_seed in q_seeds {
+                        let state = matrix_initial_state(opcode, pc, initial_bc, q_seed);
+                        let mut sequenced = Z80MicroSequencer::default();
+                        sequenced.import_architectural_state(state).unwrap();
+                        let mut bus = matrix_initial_bus(opcode, pc);
+
+                        assert_eq!(
+                            run_block_until_repeat_interrupt(&mut sequenced, &mut bus),
+                            21,
+                            "repeat ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}, Q={q_seed:02X}"
+                        );
+                        assert_eq!(sequenced.registers.f, expected_f, "repeat F");
+                        assert_eq!(sequenced.q, expected_f, "repeat Q");
+                        assert_eq!(
+                            sequenced.q_previous, q_seed,
+                            "previous Q at repeat retirement"
+                        );
+                        assert_eq!(sequenced.registers.pc, pc, "repeat PC rewind");
+                        assert_eq!(sequenced.registers.bc(), bc_after_first, "repeat BC");
+                        assert_eq!(sequenced.wz, pc.wrapping_add(1), "repeat WZ");
+                        assert_eq!(
+                            sequenced.registers.hl(),
+                            0x4000_u16.wrapping_add_signed(direction),
+                            "first iteration HL"
+                        );
+                        if !compare {
+                            assert_eq!(
+                                sequenced.registers.de(),
+                                0x5000_u16.wrapping_add_signed(direction),
+                                "first iteration DE"
+                            );
+                            assert_eq!(bus.memory[0x5000], value, "first transfer destination");
+                        } else {
+                            assert_eq!(sequenced.registers.de(), 0x5000, "compare preserves DE");
+                        }
+
+                        assert_eq!(
+                            run_im2_interrupt(&mut sequenced, &mut bus),
+                            19,
+                            "IM2 ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}, Q={q_seed:02X}"
+                        );
+                        assert_eq!(sequenced.registers.pc, 0x9000, "IM2 vector");
+                        assert_eq!(sequenced.registers.sp, 0xCFFE, "IM2 stack");
+                        assert_eq!(sequenced.registers.f, expected_f, "ISR-visible F");
+                        assert_eq!(sequenced.q, 0, "Q is cleared at INT acceptance");
+                        assert_eq!(
+                            sequenced.q_previous, expected_f,
+                            "previous Q captures repeat F at INT acceptance"
+                        );
+
+                        assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 11);
+                        assert_eq!(sequenced.q, 0, "PUSH AF leaves Q clear");
+                        assert_eq!(sequenced.q_previous, 0, "PUSH AF captures cleared Q");
+                        assert_eq!(bus.memory[0xCFFC], expected_f, "PUSH AF captured F");
+                        assert_eq!(bus.memory[0xCFFD], accumulator, "PUSH AF captured A");
+                        assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 10);
+                        assert_eq!(sequenced.q, 0, "POP AF does not set Q");
+                        assert_eq!(sequenced.q_previous, 0, "POP AF previous Q");
+                        assert_eq!(sequenced.registers.f, expected_f, "POP AF restored F");
+                        assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 4); // EI
+                        assert_eq!(sequenced.q, 0, "EI leaves Q clear");
+                        assert_eq!(sequenced.q_previous, 0, "EI previous Q");
+                        assert_eq!(run_sequenced_instruction(&mut sequenced, &mut bus), 14); // RETI
+                        assert_eq!(sequenced.q, 0, "RETI leaves Q clear");
+                        assert_eq!(sequenced.q_previous, 0, "RETI previous Q");
+                        assert_eq!(sequenced.registers.pc, pc, "RETI resumes ED prefix");
+                        assert_eq!(sequenced.registers.sp, 0xD000, "RETI restores SP");
+                        assert!(sequenced.iff1 && sequenced.iff2, "RETI restores IFFs");
+
+                        let bc_after_second = bc_after_first.wrapping_sub(1);
+                        let second_repeats = bc_after_second != 0;
+                        assert_eq!(
+                            run_sequenced_instruction(&mut sequenced, &mut bus),
+                            if second_repeats { 21 } else { 16 },
+                            "resumed ED {opcode:02X}, PC={pc:04X}, BC={initial_bc:04X}"
+                        );
+                        assert_eq!(sequenced.registers.bc(), bc_after_second, "resumed BC");
+                        assert_eq!(sequenced.q_previous, 0, "resumed instruction previous Q");
+                        assert_eq!(
+                            sequenced.q, sequenced.registers.f,
+                            "resumed instruction Q follows F"
+                        );
+                        assert_eq!(
+                            sequenced.registers.pc,
+                            if second_repeats {
+                                pc
+                            } else {
+                                pc.wrapping_add(2)
+                            },
+                            "resumed PC"
+                        );
+                        if second_repeats {
+                            assert_eq!(sequenced.registers.f, expected_f, "second repeat F");
+                            assert_eq!(sequenced.wz, pc.wrapping_add(1), "second repeat WZ");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

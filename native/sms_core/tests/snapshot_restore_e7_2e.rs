@@ -138,6 +138,7 @@ fn e7_2e_im0_restores_acknowledge_and_injected_rst() {
         cpu.cpu_mut().iff2 = true;
         cpu.cpu_mut().registers.pc = 0x2345;
         cpu.cpu_mut().registers.sp = 0xC100;
+        cpu.cpu_mut().wz = 0xA55A;
         cpu.set_int_line(Some(0xC7));
     }
     // ZiLOG UM008011-0816, pp. 13 and 17: IM0 adds two automatic
@@ -151,6 +152,7 @@ fn e7_2e_im0_restores_acknowledge_and_injected_rst() {
         }
     );
     assert_eq!(resumed.cpu().registers.pc, 0x0000);
+    assert_eq!(resumed.cpu().wz, 0x0000); // injected RST vector
     assert_eq!(resumed.cpu().registers.sp, 0xC0FE);
     assert_eq!(resumed.memory().read(0xC0FF), 0x23);
     assert_eq!(resumed.memory().read(0xC0FE), 0x45);
@@ -166,6 +168,7 @@ fn e7_2e_im1_restores_dispatch_and_both_stack_writes() {
         cpu.cpu_mut().iff2 = true;
         cpu.cpu_mut().registers.pc = 0x4567;
         cpu.cpu_mut().registers.sp = 0xC100;
+        cpu.cpu_mut().wz = 0xA55A;
         cpu.set_int_line(Some(0xFF));
     }
     assert_eq!(
@@ -176,6 +179,7 @@ fn e7_2e_im1_restores_dispatch_and_both_stack_writes() {
         }
     );
     assert_eq!(resumed.cpu().registers.pc, 0x0038);
+    assert_eq!(resumed.cpu().wz, 0xA55A); // IM1 dispatch preserves prior WZ
     assert_eq!(resumed.cpu().registers.sp, 0xC0FE);
     assert_eq!(resumed.memory().read(0xC0FF), 0x45);
     assert_eq!(resumed.memory().read(0xC0FE), 0x67);
@@ -395,5 +399,100 @@ fn e7_2e_wait_matrix_covers_m1_memory_io_internal_and_interrupt_cycles() {
                 tstates: 19 + 5 * waits,
             }
         );
+    }
+}
+
+#[test]
+fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
+    // The same four repeat forms already have direct microsequencer coverage.
+    // This integration fixture exercises them through SmsTemporalMachine and
+    // MachineScheduler, with one WAIT on every bus request and a machine/CPU
+    // snapshot round-trip at every bus and internal-cycle safe point.
+    let cases = [
+        // opcode, initial HL, initial DE, initial F, expected HL, expected DE
+        (
+            0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16,
+        ),
+        (
+            0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16,
+        ),
+        (
+            0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16,
+        ),
+        (
+            0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16,
+        ),
+    ];
+
+    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de) in cases {
+        let mut rom = vec![0; 0x4000];
+        rom[0] = 0xED;
+        rom[1] = opcode;
+        rom[0x0100] = 0x21;
+        rom[0x0101] = 0x22;
+
+        let mut continuous = machine(rom.clone());
+        let mut resumed = machine(rom);
+        for candidate in [&mut continuous, &mut resumed] {
+            let cpu = candidate.cpu_mut();
+            cpu.registers.set_hl(initial_hl);
+            cpu.registers.set_de(initial_de);
+            cpu.registers.set_bc(2);
+            cpu.registers.a = 0x10;
+            cpu.registers.f = initial_f;
+            cpu.wz = 0xA55A;
+        }
+
+        // First iteration repeats: PC rewinds and BC remains non-zero.
+        let first = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            first,
+            Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
+        ));
+        assert_eq!(
+            continuous.cpu().registers.pc,
+            0,
+            "ED {opcode:02X}: repeat PC"
+        );
+        assert_eq!(
+            continuous.cpu().registers.bc(),
+            1,
+            "ED {opcode:02X}: first BC"
+        );
+        let direction = if matches!(opcode, 0xB8 | 0xB9) { -1 } else { 1 };
+        assert_eq!(
+            continuous.cpu().registers.hl(),
+            initial_hl.wrapping_add_signed(direction),
+            "ED {opcode:02X}: first HL"
+        );
+
+        // Second iteration terminates: PC advances past ED/opcode and BC reaches zero.
+        let second = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            second,
+            Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
+        ));
+        assert_eq!(
+            continuous.cpu().registers.pc,
+            2,
+            "ED {opcode:02X}: final PC"
+        );
+        assert_eq!(
+            continuous.cpu().registers.bc(),
+            0,
+            "ED {opcode:02X}: final BC"
+        );
+        assert_eq!(
+            continuous.cpu().registers.hl(),
+            expected_hl,
+            "ED {opcode:02X}: final HL"
+        );
+        assert_eq!(
+            continuous.cpu().registers.de(),
+            expected_de,
+            "ED {opcode:02X}: final DE"
+        );
+        assert_eq!(continuous.export_state(), resumed.export_state());
+        assert_eq!(continuous.now(), resumed.now());
     }
 }

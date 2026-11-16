@@ -30,6 +30,14 @@ fn direction(opcode: u8) -> i16 {
     if matches!(opcode, 0xA8 | 0xA9) { -1 } else { 1 }
 }
 
+fn expected_simple_wz(opcode: u8, initial_wz: u16) -> u16 {
+    if matches!(opcode, 0xA1 | 0xA9) {
+        initial_wz.wrapping_add_signed(direction(opcode))
+    } else {
+        initial_wz
+    }
+}
+
 /// Independent transcription of the documented simple block-instruction
 /// flag rules. It deliberately does not call production ALU/flag helpers.
 fn expected_flags(opcode: u8, initial_f: u8, accumulator: u8, value: u8, count: u16) -> u8 {
@@ -238,6 +246,12 @@ fn all_simple_block_transfer_and_compare_inputs_match_independent_flags() {
                     assert_eq!(state.registers.a, accumulator, "ED {opcode:02X}: A");
                     assert_eq!(state.registers.f, expected_f, "ED {opcode:02X}: F");
                     assert_eq!(state.q, expected_f, "ED {opcode:02X}: Q");
+                    assert_eq!(state.q_previous, 0x28, "ED {opcode:02X}: previous-Q");
+                    assert_eq!(
+                        state.wz,
+                        expected_simple_wz(opcode, 0xA55A),
+                        "ED {opcode:02X}: simple-form WZ rule"
+                    );
                     assert_eq!(state.registers.bc(), count, "ED {opcode:02X}: BC");
                     assert_eq!(
                         state.registers.hl(),
@@ -296,6 +310,16 @@ fn simple_block_forms_preserve_waits_and_snapshot_restore_at_every_boundary() {
         let expected_waits = if is_transfer(opcode) { 4 } else { 3 };
         assert_eq!(tstates, 16 + expected_waits, "ED {opcode:02X}");
         assert_eq!(cpu.registers.f, expected, "ED {opcode:02X}: F after resume");
+        assert_eq!(
+            cpu.export_architectural_state().q_previous,
+            0x28,
+            "ED {opcode:02X}: previous-Q after resume"
+        );
+        assert_eq!(
+            cpu.export_architectural_state().wz,
+            expected_simple_wz(opcode, 0xA55A),
+            "ED {opcode:02X}: WZ after WAIT and snapshot restore"
+        );
         assert_eq!(cpu.registers.pc, 0x1002, "ED {opcode:02X}: PC after resume");
         assert_eq!(cpu.registers.bc(), 1, "ED {opcode:02X}: BC after resume");
         assert!(cpu.pending_request().is_none(), "ED {opcode:02X}");
