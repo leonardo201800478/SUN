@@ -17,6 +17,9 @@ fn sms_temporal_nmi_asserted_during_halt_m1_is_sampled_at_t4_and_restores_exactl
     );
     assert!(machine.cpu().halted);
     assert_eq!(machine.cpu().registers.pc, 0x0001);
+    // Trace buffers are diagnostic host state, not part of the machine
+    // snapshot. Compare only events produced after the snapshot boundary.
+    machine.take_trace();
 
     // Start the repeated HALT M1 before asserting NMI. The request must be
     // latched at the effective T4 boundary, not retroactively before M1.
