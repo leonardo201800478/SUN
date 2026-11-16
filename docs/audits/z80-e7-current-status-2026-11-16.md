@@ -357,13 +357,13 @@ Validação no HEAD exato da PR #964 (`9d79cc25f5ca9e46266e91cfa21e907ffc88f827`
 
 ### F-028 — classificação de leitura do stream
 
-PR #959 não foi integrada: a tentativa de merge foi rejeitada pelo GitHub porque o required check `Rust quality and unit regression` estava EXPECTED na branch desatualizada, apesar dos resultados históricos do SHA anterior. Para não contornar proteção de branch, o mesmo patch foi reaplicado sobre a main atual na PR #967 (`test/z80-f028-stream-read-classification-post964-20261116`), SHA inicial `820ff19d34beba62b77b0378b71fde0c62af47c2`. Aguardam-se os checks do HEAD exato da #965; não declarar integrado até conclusão.
+PR #959 não foi integrada: a tentativa de merge foi rejeitada pelo GitHub porque o required check `Rust quality and unit regression` estava EXPECTED na branch desatualizada, apesar dos resultados históricos do SHA anterior. Para não contornar proteção de branch, o mesmo patch foi reaplicado sobre a main atual na PR #967 (`test/z80-f028-stream-read-classification-post964-20261116`), SHA inicial `820ff19d34beba62b77b0378b71fde0c62af47c2`. Aguardam-se os checks do HEAD exato da #967; não declarar integrado até conclusão.
 
 O teste substitui a heurística `MemoryRead.address == PC` por contagem explícita de operandos imediatos derivada do opcode BASE e adiciona o caso `LD A,(BC)` com BC=$0002, no qual o endereço de dados coincide com PC no caminho prefixado DD. O request deve permanecer classificado como leitura de dados e manter seu endereço real. Escopo test-only.
 
 ### Estado consolidado após #964
 - F-022: IN_PROGRESS — integração SMS/Scheduler das quatro formas com WAIT, snapshot/restore, Q/previous-Q e interrupção IM1/RETI; ainda faltam as quatro formas simples no mesmo tipo de integração temporal, revisão integral e proveniência/oracle independente.
 - F-023: AUDIT_PARTIAL — a #955 cobre BASE EX (SP),HL; #962 cobre WZ/Q/previous-Q das quatro formas repetitivas no Scheduler; #964 adiciona WZ em fronteiras INT/RETI. Revisão completa por família e proveniência continuam pendentes.
-- F-028: IN_PROGRESS — 167 Ignored e 85 UsesIndex reconciliados; #950/#953 requests, WAIT/snapshot e condições; #959/#965 endereçam a classificação stream/data. Aguardar #965 e revisão independente.
+- F-028: IN_PROGRESS — 167 Ignored e 85 UsesIndex reconciliados; #950/#953 requests, WAIT/snapshot e condições; #959/#967 endereçam a classificação stream/data. Aguardar #967 e revisão independente.
 - Temporalidade: LONG_PASS de Scheduler software na campanha #43901362527; integração temporal dirigida SMS #957/#962/#964 PASS nos respectivos HEADs. WAIT físico, DMA, safe points de todos os dispositivos e TEMPORAL_PASS global NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
