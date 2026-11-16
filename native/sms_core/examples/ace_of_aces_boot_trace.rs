@@ -119,6 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let before_sp = machine.cpu().registers.sp;
         let before_banks = machine.memory().selected_banks();
         let before_control = machine.memory().control_port();
+        let bios_enabled_before = machine.memory().bios_enabled();
 
         machine.step_complete_instruction()?;
 
@@ -127,6 +128,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let control = machine.memory().control_port();
         let mapper_changed = banks != before_banks;
         mapper_mutation_seen |= mapper_changed;
+
+        if bios_enabled_before && !machine.memory().bios_enabled() {
+            writeln!(
+                output,
+                "BIOS_MAPPING_DISABLED n={} t={:?} PC=0x{:04X} control=0x{:02X}",
+                index + 1,
+                machine.now(),
+                registers.pc,
+                control
+            )?;
+        }
 
         if bios_path.is_some()
             && !bios_handoff_seen
@@ -233,6 +245,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
             break;
         }
+    }
+
+    if bios_path.is_some() && !bios_handoff_seen {
+        writeln!(
+            output,
+            "BIOS_HANDOFF_NOT_OBSERVED max_instructions={} final_pc=0x{:04X} bios_mapped={}",
+            max_instructions,
+            machine.cpu().registers.pc,
+            machine.memory().bios_enabled()
+        )?;
     }
 
     output.flush()?;
