@@ -29,9 +29,9 @@ A integração com runtime permanece coarse-grained: `load_rom()`, `start()`, `p
 ## Roadmap de plataformas
 
 1. SMS1/SMS2.
-2. SG-1000, concluído na arquitetura temporal existente.
+2. SG-1000 — concluir a máquina temporal na arquitetura existente.
 3. Game Gear como sistema próprio.
-4. Expansões e acessórios 8-bit: YM2413/FM Sound Unit, Sega Card/My Card, Card Catcher (adaptador SG-1000), 3D Glasses, periféricos de controle e interfaces de expansão.
+4. Expansões e acessórios 8-bit após Game Gear: YM2413 integrado do Master System japonês (não o FM Sound Unit externo do Mark III); Sega Card/My Card como mídia; 3D Glasses/SegaScope; periféricos de controle e interfaces de expansão conforme compatibilidade documentada. Card Catcher C-1000 está fora do escopo de implementação.
 5. Mega Drive/Genesis.
 6. Sega CD.
 7. 32X.
