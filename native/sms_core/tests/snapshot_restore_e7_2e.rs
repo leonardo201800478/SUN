@@ -138,6 +138,7 @@ fn e7_2e_im0_restores_acknowledge_and_injected_rst() {
         cpu.cpu_mut().iff2 = true;
         cpu.cpu_mut().registers.pc = 0x2345;
         cpu.cpu_mut().registers.sp = 0xC100;
+        cpu.cpu_mut().wz = 0xA55A;
         cpu.set_int_line(Some(0xC7));
     }
     // ZiLOG UM008011-0816, pp. 13 and 17: IM0 adds two automatic
@@ -151,6 +152,7 @@ fn e7_2e_im0_restores_acknowledge_and_injected_rst() {
         }
     );
     assert_eq!(resumed.cpu().registers.pc, 0x0000);
+    assert_eq!(resumed.cpu().wz, 0x0000); // injected RST vector
     assert_eq!(resumed.cpu().registers.sp, 0xC0FE);
     assert_eq!(resumed.memory().read(0xC0FF), 0x23);
     assert_eq!(resumed.memory().read(0xC0FE), 0x45);
@@ -166,6 +168,7 @@ fn e7_2e_im1_restores_dispatch_and_both_stack_writes() {
         cpu.cpu_mut().iff2 = true;
         cpu.cpu_mut().registers.pc = 0x4567;
         cpu.cpu_mut().registers.sp = 0xC100;
+        cpu.cpu_mut().wz = 0xA55A;
         cpu.set_int_line(Some(0xFF));
     }
     assert_eq!(
@@ -176,6 +179,7 @@ fn e7_2e_im1_restores_dispatch_and_both_stack_writes() {
         }
     );
     assert_eq!(resumed.cpu().registers.pc, 0x0038);
+    assert_eq!(resumed.cpu().wz, 0xA55A); // IM1 dispatch preserves prior WZ
     assert_eq!(resumed.cpu().registers.sp, 0xC0FE);
     assert_eq!(resumed.memory().read(0xC0FF), 0x45);
     assert_eq!(resumed.memory().read(0xC0FE), 0x67);
