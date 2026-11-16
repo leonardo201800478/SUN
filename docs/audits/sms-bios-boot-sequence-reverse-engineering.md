@@ -292,3 +292,14 @@ Instrumentação recomendada: log determinístico de reset, valor inicial e escr
 5. ZiLOG, [Z80 CPU User Manual, UM008011-0816](https://www.zilog.com/docs/z80/um0080.pdf). Semântica da CPU; não substitui a documentação específica do circuito SMS.
 6. SMS Power!, [SDSC ROM Tag Specification](https://www.smspower.org/Development/SDSCROMTagSpecification). Referência histórica adicional; há diferenças de convenção/descrição de endianess em documentos relacionados, a confirmar contra os bytes de ROM e a rotina BIOS efetivamente usada.
 
+
+
+## Atualização confirmada pelo disassembly BIOS v1.3 — 2026-11-15
+
+A antiga hipótese de SP=$DFFF não deve ser tratada como fato. O disassembly público da BIOS SMS v1.3 (maxim-zhao/smsbioses/1.3/Bios13.asm) executa LD SP,$DFF0 e IM 1 no início do boot, depois DI antes da seleção/transferência do cartucho. Também escreve a tabela de inicialização R0-R10 do VDP, reseta/muta o PSG, limpa 8 KiB de RAM, apresenta o bumper/jingle e seleciona o cartucho com o valor $AB no port $3E, armazenado em $C000.
+
+Referências:
+- https://github.com/maxim-zhao/smsbioses/blob/master/1.3/Bios13.asm
+- BIOS v1.3 8 KiB, SHA-256 de catálogo: 477617917a12a30f9f43844909dc2de6e6a617430f5c9a36306c86414a670d50
+
+Isso comprova o estado produzido por essa revisão de BIOS, não um estado universal de power-on para todos os SMS.
