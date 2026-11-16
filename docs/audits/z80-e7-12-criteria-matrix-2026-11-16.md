@@ -70,9 +70,9 @@ Portanto, LONG #43901362527 é evidência válida para o mesmo código central d
 - Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #975 integrada por squash; alteração exclusivamente de teste F-028.
 - PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`: CI #43937118700 SUCCESS, Z80 focused e Rust quality/unit PASS; SMS Runtime #43937118785 SUCCESS. Scheduler deterministic stress ficou SKIPPED nesta PR.
 - Novo teste `ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address` cobre CALL iniciado em FFFC e RST em FFFE, para DD e FD, verificando os dois bytes empilhados, o PC, requests, WAIT e snapshot/restore. A normalização da matriz agora trata a palavra de retorno completa, incluindo borrow no byte alto.
-- F-023: INTERNAL_REVIEW_COMPLETE (candidate; PR #977 and independent review pending) no perfil de software NMOS delimitado, conforme revisão adversarial registrada em `z80-e7-f023-adversarial-review-2026-11-16.md`. A classe HW permanece restrita à evidência RRD/RLD; INT/COMP e variantes NOT_VERIFIED permanecem explícitos.
+- F-023: INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) no perfil de software NMOS delimitado, conforme revisão adversarial registrada em `z80-e7-f023-adversarial-review-2026-11-16.md`. A classe HW permanece restrita à evidência RRD/RLD; INT/COMP e variantes NOT_VERIFIED permanecem explícitos.
 - F-022: INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) no perfil NMOS de software delimitado, conforme revisão adversarial, 786.432 cenários simples, matrizes repetitivas e integração SMS/Scheduler documentados em `z80-e7-f022-adversarial-review-2026-11-16.md`.
-- F-028: IN_PROGRESS até revisão adversarial final da matriz completa; #975 elimina um limite específico, não constitui fechamento sozinho.
+- F-028: INTERNAL_REVIEW_COMPLETE (candidate; independent review pending); #975/#977 cobrem stack wrap e WZ/PC para 167 Ignored, branches relativos, exceções e snapshot/WAIT.
 - Critério 12: integração do Z80 compartilhado no SMS temporal está PASS nas dimensões cobertas; SG-1000 consome o mesmo núcleo compartilhado, enquanto a integração da máquina SG-1000 ao Scheduler pertence ao P2 e permanece DEFERRED, sem ser apresentada como concluída.
 - WAIT físico, DMA e TEMPORAL_PASS global permanecem NOT_VERIFIED e não são inferidos de fixtures nem do LONG_PASS do Scheduler.
 
