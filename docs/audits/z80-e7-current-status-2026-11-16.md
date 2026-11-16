@@ -202,3 +202,66 @@ O teste `native/z80_cpu/tests/z80_dd_fd_ignored_fallback_matrix_f028.rs` lê o i
 - Jobs não relacionados ao diff permaneceram SKIPPED/NOT RUN.
 
 **Limite da evidência:** esta matriz comprova dispatch para BASE, ausência de refetch e custo M1. Não compara integralmente efeitos arquiteturais, valores/endereço de todos os requests, WAIT/snapshot por classe, nem constitui oracle independente. A decomposição de requests por família (imediato, relativo, memória, stack, I/O e controle de fluxo) continua pendente. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+## 11. F-028 — diferencial estrutural de requests BASE/DD/FD — 2026-11-16
+
+**Main atual:** `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`. **PR #948:** MERGED por esse commit.
+**HEAD testado:** `74715cbc777acc6625745489a4dfa495cde18ee9`.
+**CI:** #43884118254 (Z80 focused + Rust quality/unit SUCCESS). **SMS Runtime:** #43884118298 (Release format, Clippy, testes e build Windows x64 SUCCESS). Jobs não relacionados foram SKIPPED por classificação de impacto; Windows debugger também foi SKIPPED.
+
+A matriz amplia o teste dos 167 bytes efetivos `Ignored / ExecuteBaseWithoutRefetch` sob DD e FD (334 execuções prefixadas). Além das asserções M1 em PC 0/1, ausência de refetch, R +2 e custo BASE +4T, compara a sequência de eventos `OpcodeFetch`, `MemoryRead/Write`, `PortRead/Write` e ciclos internos, verificando tipo, endereço, duração base e duração interna após remover o M1 do prefixo e normalizar o deslocamento do stream.
+
+**Limites que permanecem explícitos:**
+- A comparação é estrutural contra o próprio caminho BASE, não um oracle semântico independente.
+- O trace não registra valores lidos, payloads escritos nem o estado arquitetural final.
+- O harness retorna `0x5A` para leituras e não cobre WAIT/snapshot por classe de request.
+- O normalizador subtrai 1 de todo `MemoryRead` abaixo de `0x0100`, sem provar que cada leitura é fetch de operando no stream. Os registradores do fixture (BC/DE/HL/SP) e os operandos `0x5A` mantêm os acessos de dados esperados fora dessa página, mas o teste não afirma isso. Endurecer a regra registrando se o endereço coincide com PC no request e normalizando apenas fetches de stream; adicionar payloads e estado final na próxima matriz.
+- O resultado não fecha F-028 nem E7.
+
+**Auditoria de integração:** o merge commit é o HEAD atual da main e o diff desde a main anterior contém somente o teste. A consulta de status combinado do merge SHA não retornou status e a listagem disponível de Actions expõe apenas runs de PR; nenhum workflow push pós-merge foi localizado. Portanto, a validação pós-merge é **NOT VERIFIED/NOT RUN**, não PASS.
+
+**Gate de revisão:** GitHub não registra review independente submetido para #948; o Codex review falhou por limite de uso. A PR foi integrada, mas a gate de revisão adversarial continua pendente para fechamento de E7. A mudança é exclusivamente teste, sem alteração de CPU, decoder, Scheduler ou runtime.
+
+**Estado:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+### Auditoria formal de revisão dos merges E7 — 2026-11-16
+
+A consulta a `pull_request_reviews` e a `review_threads` retornou coleções vazias para as PRs integradas #936, #942, #943, #944, #945, #946, #947 e #948. Os comentários automáticos do Codex em #946 e #948 registram falha por limite de uso; não constituem review. Isso não prova ausência de revisão humana fora do GitHub, mas não há trilha independente auditável no repositório. Os merges permanecem integrados (todos os diffs deste conjunto são testes/documentação, sem alteração de CPU/Scheduler/runtime de produção), porém a revisão adversarial formal continua BLOCKED como gate de fechamento E7. Não converter F-022/F-023/F-028 para CLOSED nem iniciar E8 com base apenas nos checks verdes.
+
+
+## 2026-11-16 — atualização após PRs #950–#952
+
+Baseline remota atual após as integrações de teste e documentação: `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`.
+
+- **PR #950 — F-028:** integrada em `45b40755e46aef752d58f571de856ae25ff9e81c`. A matriz acrescenta 167 opcodes Ignored × DD/FD, comparação arquitetural BASE, payloads de leitura/escrita, transações, WAIT e snapshot/restore em fronteiras de barramento/ciclo interno. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado. A árvore do merge foi confirmada idêntica à árvore validada.
+- **PR #951 — F-022/F-023:** integrada em `b9d18f48466e3647aec73207f38c416bfef2b3dc`. Acrescenta assertions de previous-Q e WZ para LDI/LDD/CPI/CPD na matriz microsequenciada de 786.432 casos e nos ensaios dirigidos de WAIT/snapshot. CI #43890238681 e SMS Runtime #43890238056 PASS no HEAD validado. A regra é diferenciada: LDI/LDD preservam WZ; CPI/CPD atualizam WZ por ±1.
+- **PR #952 — F-023:** integrada em `564074366fdc9bad59895163c8501134e88cce99`. Adiciona matriz documental WZ/MEMPTR por família, separando DOC/HW/COMP/INT/GAP. CI #43890997152: Documentation patch hygiene PASS e Rust quality and unit regression PASS; os jobs de runtime foram SKIPPED por serem alterações documentais.
+- **PR #953 — F-028:** integrada em `a6cec0d744b8120c8c3e2d1d56abd1aa75fc1031`. Adiciona segundo fixture F=FF/B=1, complementa os resultados condicionais e verifica o delta exato de PC por opcode. CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado; árvore do merge idêntica à árvore testada.
+- **PR #954 — F-023:** integrada em `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`. Acrescenta WZ para D3/DB, RETN/RETI, IM0 RST e preservação em IM1. CI #43893014345 e SMS Runtime #43893014300 PASS no HEAD validado; workspace regression PASS; árvore do merge idêntica à árvore testada.
+- **PR #955 — F-023:** aberta, aguardando CI. Acrescenta asserção WZ para BASE EX (SP),HL, completando a família de troca com pilha.
+
+A matriz PR #950 é diferencial interno BASE↔DD/FD, não oracle independente de silício. O PC final exato por resultado condicional permanece pendente da PR #953. WZ é tratado na matriz F-023 e não é mascarado como equivalência universal.
+
+**Estado:** F-028 IN_PROGRESS (matrizes 167 Ignored, WAIT/snapshot e PC condicional integradas); F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL (asserção BASE EX (SP),HL pendente na PR #955); E7 IN_PROGRESS; E8 BLOCKED. Não iniciar ZEXDOC/ZEXALL.
+
+## Reconciliação após PR #955 — 16/11/2026
+
+A PR #955 foi integrada na main pelo commit `67f4149e1933d18ffa5201da66ca6ff46c598e32`. O diff é exclusivamente test-only: quatro linhas de assertion em `native/z80_cpu/src/cpu.rs`, no teste `exchange_stack_hl_and_di_ei_update_state`, verificando `cpu.wz == 0xABCD` após BASE `EX (SP),HL`. Não houve alteração de produção, decoder, microsequenciador, Scheduler, SMS ou SG-1000.
+
+Validação no HEAD exato da PR #955 (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
+- CI #43897766618: PASS — Z80 focused validation, incluindo rustfmt, Clippy, testes Z80/SMS/SG-1000, fixtures SingleStepTests DD/FD, Z80 Block Instruction Flags v5.0 e Woodmass MEMPTR; Rust quality/unit regression PASS.
+- SMS Debugger Runtime #43897766471: PASS — formatação, Clippy Release, testes SMS Runtime e build Release Windows x64.
+- SMS debugger Windows Release validation: SKIPPED. Não contar como PASS; o workflow concluiu SUCCESS porque esse job condicional não era aplicável ao diff.
+- Workflow push pós-merge no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`: não localizado na consulta de runs; classificar NOT_RUN/NOT_VERIFIED, não PASS.
+
+A matriz WZ/MEMPTR agora possui assertion dirigida para BASE `EX (SP),HL`, além das coberturas IX/IY já existentes. Isso fecha a pendência específica de teste dessa instrução, mas não declara F-023 CLOSED: permanecem a revisão de consistência da matriz completa, a proveniência das regras e a revisão adversarial transversal.
+
+Estado após a integração:
+- F-023: AUDIT_PARTIAL — lacuna específica BASE `EX (SP),HL` coberta; revisão integral e reconciliação ainda necessárias.
+- F-028: IN_PROGRESS — manter limites e lacunas documentados; não inferir fechamento a partir das matrizes.
+- F-022: IN_PROGRESS — manter separação de F-021 e validar integralmente as oito formas.
+- Temporalidade/Scheduler: NOT_VERIFIED como fechamento E7 até demonstração integrada de determinismo e equivalência contínua/em blocos.
+- E7: IN_PROGRESS.
+- E8/ZEXDOC/ZEXALL: BLOCKED.
+
+A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
