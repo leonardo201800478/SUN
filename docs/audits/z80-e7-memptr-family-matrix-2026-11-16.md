@@ -1,6 +1,6 @@
 # F-023 — Matriz de famílias WZ/MEMPTR
 
-**Baseline examinada:** `bb9e31bdf04099a4116d27836691f0b31ab8c8a8` (main após PRs #955–#962).
+**Baseline examinada:** `2607e45e4d35e52cd61d825d42a6514b789cfc30` (main após PR #964).
 **Perfil:** Zilog Z80 NMOS compartilhado; runtime temporal SMS; SG-1000 mantido como core de referência com execução em fronteiras de instrução.
 **Objetivo:** inventariar regras WZ/MEMPTR efetivamente implementadas, condições de atualização, wrap, observabilidade e proveniência dos testes. Esta matriz não atribui ao UM0080 regras que o fabricante não documenta.
 
@@ -138,3 +138,8 @@ Estado vigente:
 - F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
 - Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+
+## Evidência WZ pós-PR #964 — 16/11/2026
+
+A PR #964 adiciona assertions temporais WZ para as quatro formas repetitivas durante interrupção IM1/RETI no Scheduler. WZ é observado após a iteração repetitiva, após acknowledge IM1, após RETI e após a iteração terminal, incluindo wrap em CPIR/CPDR. CI #43903631872 e SMS Runtime #43903632358 passaram nos gates aplicáveis no HEAD exato; debugger Windows Release, Z80 focused e Scheduler stress foram SKIPPED. Trata-se de evidência interna do modelo, não de oracle físico. F-023 permanece AUDIT_PARTIAL até revisão integral da matriz/proveniência.
