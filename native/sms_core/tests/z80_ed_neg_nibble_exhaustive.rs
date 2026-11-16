@@ -155,7 +155,6 @@ fn rrd_and_rld_are_exhaustive_for_all_accumulator_memory_and_carry_values() {
     }
 }
 
-
 /// RRD/RLD set MEMPTR/WZ to HL+1. The value is architecturally observable
 /// through the undocumented X/Y flags of a following BIT n,(HL).
 ///
@@ -221,7 +220,11 @@ fn rrd_and_rld_memptr_is_observable_through_following_bit_hl_flags() {
                             expected_flags |= FLAG_Z | FLAG_PV;
                         }
 
-                        assert_eq!(cpu.step(&mut bus), Ok(12), "BIT 0,(HL) after ED {opcode:02X}");
+                        assert_eq!(
+                            cpu.step(&mut bus),
+                            Ok(12),
+                            "BIT 0,(HL) after ED {opcode:02X}"
+                        );
                         assert_eq!(
                             cpu.registers.f, expected_flags,
                             "ED {opcode:02X} then BIT 0,(HL), HL={hl:04X}, A={accumulator:02X}, M={memory_value:02X}, C={carry_in}"
