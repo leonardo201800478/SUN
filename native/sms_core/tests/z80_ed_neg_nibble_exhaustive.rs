@@ -185,6 +185,8 @@ fn rrd_and_rld_memptr_is_observable_through_following_bit_hl_flags() {
                     for carry_in in [false, true] {
                         bus.memory[usize::from(hl)] = memory_value;
                         cpu.registers.pc = pc;
+                        cpu.total_tstates = 0;
+                        cpu.r = 0;
                         cpu.registers.a = accumulator;
                         cpu.registers.f = if carry_in { FLAG_C } else { 0 };
                         cpu.registers.set_hl(hl);
