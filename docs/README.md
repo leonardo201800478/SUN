@@ -46,6 +46,11 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Auditoria ED](z80-ed-opcode-audit.md)
 - [Comportamentos não documentados](z80-undocumented-behavior-research.md)
 - [Estado consolidado E7](audits/z80-e7-current-status-2026-11-16.md)
+- [Matriz dos 12 critérios E7](audits/z80-e7-12-criteria-matrix-2026-11-16.md)
+- [Revisão interna F-022](audits/z80-e7-f022-adversarial-review-2026-11-16.md)
+- [Revisão interna F-023](audits/z80-e7-f023-adversarial-review-2026-11-16.md)
+- [Revisão interna F-028](audits/z80-e7-f028-adversarial-review-2026-11-16.md)
+- [Plano SG-1000 P2](audits/sg1000-p2-atomic-reference-reuse-2026-11-16.md)
 
 Z80 está encerrado com limitações explícitas no perfil NMOS delimitado. E8/ZEXDOC/ZEXALL é validação complementar futura, não gate permanente para iniciar SG-1000.
 
