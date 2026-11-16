@@ -25,7 +25,7 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 | P1 | SMS1/SMS2 | Perfis 315-5124/315-5246, runtime, BIOS/cartucho, VDP, PSG, I/O, mappers e regressões consolidados |
 | P2 | SG-1000 | Máquina temporal integrada ao Scheduler existente; Z80 compartilhado; VDP TMS9918A, PSG, memória, I/O e snapshots integrados |
 | P3 | Game Gear | Máquina própria com LCD 160×144, VDP/CRAM, áudio estéreo, memória/cartucho, portas e snapshots específicos |
-| P4 | Expansões e acessórios 8-bit | YM2413/FM Sound Unit; Sega Card/My Card; Card Catcher no SG-1000/SC-3000; 3D Glasses; Paddle, Sports Pad, Light Phaser, Rapid Fire e expansão conforme compatibilidade |
+| P4 | Expansões e acessórios 8-bit | YM2413 integrado do Master System japonês (opcional, independente de região); Sega Card/My Card como mídia; 3D Glasses/SegaScope com saídas 2D e estéreo; Paddle, Sports Pad, Light Phaser, Rapid Fire e expansões conforme compatibilidade |
 | P5 | Mega Drive / Genesis | M68k, VDP, áudio, barramentos, cartuchos e Scheduler próprios, reutilizando somente contratos realmente comuns |
 | P6 | Sega CD | Subsystem CD, CPUs/co-processadores e mídia conforme hardware documentado |
 | P7 | 32X | SH-2 e expansão 32X após Mega Drive/Sega CD |
@@ -36,10 +36,10 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 
 ### P4 — escopo inicial de acessórios
 
-1. **YM2413 / FM Sound Unit:** núcleo OPLL reutilizável, portas $F0/$F1/$F2, perfis japoneses integrados e Mark III com unidade externa, roteamento/mute e mistura com PSG conforme hardware.
+1. **YM2413:** emular o perfil de Master System japonês com YM2413 integrado e mistura simultânea com SN76489. Chip opcional por configuração Auto/On/Off, independente da região; sem emular Mark III FM Sound Unit como módulo externo.
 2. **Sega Card / My Card:** mídia de ROM, slot, seleção e arbitragem com cartucho via port $3E, respeitando diferenças Mark III/SMS.
-3. **Card Catcher:** adaptador de cartucho para uso de Sega My Cards no SG-1000/SC-3000; não é o slot nativo do SMS.
-4. **3D Glasses:** interface do adaptador no slot de expansão/card, escrita em $FFF8–$FFFB e temporização das obturações.
+3. **Sega Card/My Card:** manter carregamento da mídia e o slot nativo SMS/Mark III quando necessário. Excluir Card Catcher C-1000; o adaptador físico não é necessário para carregar software no core SG-1000.
+4. **SegaScope/3D Glasses:** protocolo $FFF8–$FFFB e obturadores sincronizados ao VDP; fornecer modo 2D por olho e composição lado a lado sem óculos, com anaglyph opcional (óculos coloridos necessários).
 5. **Periféricos DE-9:** Paddle, Sports Pad e Light Phaser, além de Rapid Fire quando suportado pelo perfil de hardware.
 6. **Expansões e interfaces:** auditar pinouts, sinais, arbitragem e compatibilidade por console/revisão antes de implementar.
 
