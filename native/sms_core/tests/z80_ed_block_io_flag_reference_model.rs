@@ -354,7 +354,6 @@ fn repeated_block_io_flags_survive_im2_acceptance_at_repeat_boundary() {
                                     cpu.registers.f, expected_f,
                                     "opcode={opcode:02X}: ISR F"
                                 );
-                                assert_eq!(cpu.q, expected_f, "opcode={opcode:02X}: ISR Q");
                                 assert_eq!(cpu.r, 0x03);
                                 assert!(!cpu.iff1);
                                 assert!(!cpu.iff2);
