@@ -287,7 +287,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     let mut output_progress = VecDeque::with_capacity(8);
     let mut block_interrupts = Vec::with_capacity(8);
     let mut block_instruction_steps = Vec::with_capacity(12);
-    let mut block_delay_loop: Option<(u16, u64, u16, u64)> = None;
+    let mut block_delay_loop: Option<(u16, u64, u16, u64, bool, bool)> = None;
     let mut block_delay_summary = Vec::with_capacity(8);
     let mut block_delay_step_samples = Vec::with_capacity(24);
 
@@ -424,29 +424,38 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
         if &bus.memory[0x8900..0x8904] == b"OTIR" {
-            if let Some((ldir_pc, start_t, start_bc, frame_edge)) = block_delay_loop
-                && pc_before != ldir_pc
-                && cpu.registers.bc() == 0
+            if let Some((ldir_pc, start_t, start_bc, frame_edge, saw_detour, saw_resume)) =
+                block_delay_loop
             {
-                // LDIR is interruptible: an INT/IM2 detour changes PC while BC
-                // remains nonzero. Keep measuring across the handler and RETI;
-                // only leaving the LDIR with BC=0 marks normal completion.
-                let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
-                block_delay_summary.push(format!(
-                    "ldir_pc={:04X} start_t={} end_t={} elapsed_including_interrupts={} nominal_without_interrupts={} start_bc={:04X} end_pc={:04X} end_bc={:04X} first_frame_edge={} end_to_first_edge={}",
-                    ldir_pc,
-                    start_t,
-                    cpu.total_tstates,
-                    cpu.total_tstates.saturating_sub(start_t),
-                    expected_tstates,
-                    start_bc,
-                    pc_before,
-                    cpu.registers.bc(),
-                    frame_edge,
-                    frame_edge.saturating_sub(cpu.total_tstates)
-                ));
-                block_delay_loop = None;
-            } else if block_delay_loop.is_none()
+                if pc_before == ldir_pc && saw_detour && !saw_resume {
+                    // RETI returned to the suspended LDIR instruction. A later
+                    // PC change with BC=0 can now mean its actual completion.
+                    block_delay_loop =
+                        Some((ldir_pc, start_t, start_bc, frame_edge, true, true));
+                } else if pc_before != ldir_pc && cpu.registers.bc() != 0 && !saw_detour {
+                    // First instruction outside LDIR while BC remains nonzero:
+                    // treat as an interrupt/service detour, not completion.
+                    block_delay_loop =
+                        Some((ldir_pc, start_t, start_bc, frame_edge, true, false));
+                } else if pc_before != ldir_pc && cpu.registers.bc() == 0 && saw_resume {
+                    let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
+                    block_delay_summary.push(format!(
+                        "ldir_pc={:04X} start_t={} end_t={} elapsed_including_interrupts={} nominal_without_interrupts={} start_bc={:04X} end_pc={:04X} end_bc={:04X} first_frame_edge={} end_to_first_edge={}",
+                        ldir_pc,
+                        start_t,
+                        cpu.total_tstates,
+                        cpu.total_tstates.saturating_sub(start_t),
+                        expected_tstates,
+                        start_bc,
+                        pc_before,
+                        cpu.registers.bc(),
+                        frame_edge,
+                        frame_edge.saturating_sub(cpu.total_tstates)
+                    ));
+                    block_delay_loop = None;
+                }
+            }
+            if block_delay_loop.is_none()
                 && opcode[0] == 0xED
                 && opcode[1] == 0xB0
                 && cpu.registers.bc() > 100
@@ -455,7 +464,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                     .map(|end| end.saturating_sub(32))
                     .unwrap_or(next_interrupt);
                 block_delay_loop =
-                    Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge));
+                    Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge, false, false));
             }
         }
 
@@ -515,7 +524,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                 cpu.registers.pc
             )
         });
-        if let Some((ldir_pc, _, _, _)) = block_delay_loop
+        if let Some((ldir_pc, _, _, _, _, _)) = block_delay_loop
             && pc_before == ldir_pc
             && opcode[0] == 0xED
             && opcode[1] == 0xB0
