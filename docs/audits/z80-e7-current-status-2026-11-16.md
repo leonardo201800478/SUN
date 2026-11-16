@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-16
 **Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
-**Main atual pós-PR #972:** `1b16256358e3f17837a95cc071048c5ee5307f82` (merge da PR #972; teste de integração SMS, sem alteração de CPU/Scheduler de produção)
+**Main atual pós-PR #975:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (merge da PR #972; teste de integração SMS, sem alteração de CPU/Scheduler de produção)
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
@@ -468,3 +468,8 @@ A avaliação agrupada solicitada foi formalizada em [z80-e7-12-criteria-matrix-
 ## Reconciliação supersedente pós-PR #972 — 16/11/2026
 
 Main atual: `1b16256358e3f17837a95cc071048c5ee5307f82`, merge commit da PR #972. A alteração integrada é cobertura de integração SMS/Scheduler para INT IM2 e NMI durante repetição; não altera CPU, decoder ou Scheduler de produção. O push pós-merge confirmou Rust workspace e SMS Runtime Release; Z80 focused, Scheduler stress e Windows debugger ficaram SKIPPED/NOT RUN nesta execução. F-022 permanece IN_PROGRESS, F-023 AUDIT_PARTIAL, F-028 IN_PROGRESS, E7 IN_PROGRESS e E8/ZEXDOC/ZEXALL BLOCKED. A revisão adversarial independente continua sem registro auditável.
+
+
+## Reconciliação supersedente pós-PR #975 — 16/11/2026
+
+Main atual: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`, merge SHA da PR #975. A PR adicionou somente testes F-028 para CALL/RST com wrap do endereço de retorno `FFFF→0000` sob DD/FD; não alterou produção Z80. Push CI [#43937688464](https://github.com/leonardo201800478/sega-emulator/actions/runs/43937688464): Z80 focused e Rust quality/unit PASS; demais jobs SKIPPED/NOT RUN. Push SMS Runtime [#43937688349](https://github.com/leonardo201800478/sega-emulator/actions/runs/43937688349): Release format/Clippy/tests PASS; Windows debugger SKIPPED. Não há review submetido nem review thread; Codex review falhou por limite de uso. Como o merge já ocorreu, não reverter sem risco demonstrado. F-028 e E7 permanecem IN_PROGRESS; revisão adversarial independente segue pendente.

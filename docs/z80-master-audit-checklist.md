@@ -1,7 +1,7 @@
 # Checklist mestre de auditoria e fechamento do Z80
 
 **Documento operacional:** atualizar este checklist a cada etapa efetivamente concluída, sempre vinculando evidências ao SHA integrado na `main`.
-**Baseline remota reconciliada:** `main` = `1b16256358e3f17837a95cc071048c5ee5307f82` (2026-11-16, pós-PR #972; integração de testes SMS/Scheduler, sem alteração de produção Z80). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
+**Baseline remota reconciliada:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, pós-PR #972; integração de testes SMS/Scheduler, sem alteração de produção Z80). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
 **Baseline documental reconciliada:** scorecard, matriz DD/FD e checklist foram atualizados pelas PRs #687 e #688; baselines históricas permanecem preservadas e não representam a main corrente.
 **Núcleo canônico:** `native/z80_cpu` (`sega-z80-cpu`).
 **Perfil inicial de referência:** Zilog Z80 NMOS usado pelas plataformas Sega documentadas. Não generalizar automaticamente para Z80 CMOS, Z180, R800 ou clones.
@@ -894,3 +894,8 @@ Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem altera
 ## Baseline supersedente pós-PR #972 — 16/11/2026
 
 Main: `1b16256358e3f17837a95cc071048c5ee5307f82`. PR #972 integrada; push CI #43933821228 Rust workspace PASS, Z80 focused e Scheduler stress SKIPPED/NOT RUN; push SMS Runtime #43933821198 Release format/Clippy/tests PASS, Windows debugger SKIPPED/NOT RUN. A integração adiciona testes SMS/Scheduler para INT IM2 e NMI durante repetição, sem alterar produção Z80. E7 IN_PROGRESS; E8 BLOCKED; revisão adversarial independente ainda pendente.
+
+
+## Baseline supersedente pós-PR #975 — 16/11/2026
+
+Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #975 integrou testes F-028 de wrap CALL/RST sob DD/FD. Push CI #43937688464: Z80 focused e Rust quality/unit PASS; demais jobs SKIPPED/NOT RUN. Push SMS Runtime #43937688349: Release format/Clippy/tests PASS; Windows debugger SKIPPED/NOT RUN. Sem review independente registrada; Codex review falhou por limite. F-028/E7 permanecem IN_PROGRESS; E8 BLOCKED.

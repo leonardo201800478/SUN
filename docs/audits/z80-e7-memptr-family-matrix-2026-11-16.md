@@ -225,4 +225,9 @@ Nenhuma regra WZ/MEMPTR foi alterada nesta reconciliação. A classificação DO
 
 ## Reconciliação atual pós-PR #972 — 16/11/2026
 
-Main: `1b16256358e3f17837a95cc071048c5ee5307f82`. A PR #972 integrou apenas testes de integração SMS/Scheduler para repetição INT IM2/NMI; não alterou as regras WZ/MEMPTR nem o código de produção Z80. O push CI #43933821228 marcou Z80 focused como SKIPPED/NOT RUN. A evidência Woodmass e as assertions WZ permanecem vinculadas aos seus SHAs originais; F-023 continua AUDIT_PARTIAL.
+Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. A PR #972 integrou apenas testes de integração SMS/Scheduler para repetição INT IM2/NMI; não alterou as regras WZ/MEMPTR nem o código de produção Z80. O push CI #43933821228 marcou Z80 focused como SKIPPED/NOT RUN. A evidência Woodmass e as assertions WZ permanecem vinculadas aos seus SHAs originais; F-023 continua AUDIT_PARTIAL.
+
+
+## Reconciliação atual pós-PR #975 — 16/11/2026
+
+Main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` recebeu somente novos testes F-028 de wrap CALL/RST; nenhuma regra WZ/MEMPTR ou código Z80 de produção foi alterado. Push CI #43937688464 marcou Z80 focused PASS. A evidência MEMPTR permanece nos SHAs e fixtures originais; F-023 continua AUDIT_PARTIAL.

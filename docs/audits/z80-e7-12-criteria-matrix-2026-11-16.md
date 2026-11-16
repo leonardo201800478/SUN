@@ -1,7 +1,7 @@
 # E7 — matriz consolidada dos 12 critérios temporais e de integração
 
 **Data:** 2026-11-16
-**Main de referência:** `1b16256358e3f17837a95cc071048c5ee5307f82`
+**Main de referência:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
 **HEAD de validação complementar:** PR #972, `ff922996e797b287e275fdbf1d1791314c61a749`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos consumidores Sega SMS/SG-1000.
 
@@ -71,3 +71,12 @@ Portanto, LONG #43901362527 é evidência válida para o mesmo código central d
 - CI push [#43933821228](https://github.com/leonardo201800478/sega-emulator/actions/runs/43933821228): Rust workspace regression PASS; Z80 focused e Scheduler deterministic stress SKIPPED (NOT RUN).
 - SMS Runtime push [#43933821198](https://github.com/leonardo201800478/sega-emulator/actions/runs/43933821198): Release format/Clippy/tests PASS; Windows debugger SKIPPED.
 - O resultado 13/13 do `snapshot_restore_e7_2e` permanece vinculado ao HEAD da PR #972 e à sua árvore integrada; não converte os gates SKIPPED em PASS nem fecha E7.
+
+
+## Pós-merge #975 — F-028 wrap do endereço de retorno
+
+- Main/merge SHA: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+- PR #975 acrescenta casos dirigidos CALL em PC `FFFC` e RST em `FFFE`, comparando BASE com DD/FD e verificando os dois bytes da pilha no wrap `FFFF→0000`.
+- Push CI [#43937688464](https://github.com/leonardo201800478/sega-emulator/actions/runs/43937688464): Z80 focused PASS e Rust quality/unit PASS; jobs não relacionados SKIPPED.
+- Push SMS Runtime [#43937688349](https://github.com/leonardo201800478/sega-emulator/actions/runs/43937688349): Release format/Clippy/tests PASS; Windows debugger SKIPPED.
+- A matriz continua sendo cobertura dirigida estrutural, não oracle independente de hardware. GitHub não registra review; Codex review falhou por limite de uso. F-028 permanece IN_PROGRESS.

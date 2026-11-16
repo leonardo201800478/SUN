@@ -174,3 +174,12 @@ A seção **8. Gap residual: os 167 Ignored** registra corretamente o estado ant
 5. A classificação dos 256 bytes e a cobertura dos 167 Ignored não provam, isoladamente, semântica independente de todos os opcodes BASE nem fecham F-028.
 
 **Estado vigente:** a lacuna de ausência da matriz de requests dos 167 Ignored está **RESOLVIDA pelas PRs #950/#953**. F-028 permanece **IN_PROGRESS** exclusivamente para revisão adversarial independente, proveniência/oráculos e limites semânticos ainda não demonstrados. Não reimplementar UsesIndex nem reproduzir a matriz já integrada.
+
+
+## Adendo pós-PR #975 — wrap de retorno CALL/RST — 16/11/2026
+
+- Merge SHA na main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+- Arquivo: `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_wait_matrix_f028.rs`.
+- Novos casos: CALL em PC `FFFC` e RST em `FFFE`; para DD e FD, verifica M1 de prefixo/opcode, wrap do endereço de retorno `FFFF→0000`, high/low byte gravados na pilha e normalização diferencial BASE↔prefixado.
+- Push CI #43937688464: Z80 focused PASS e Rust quality/unit PASS; jobs não relacionados SKIPPED. SMS Runtime #43937688349: Release format/Clippy/tests PASS; Windows debugger SKIPPED.
+- Limite: evidência estrutural interna do mesmo microsequenciador, não oracle independente de hardware. GitHub não registra review; Codex review falhou por limite de uso. F-028 permanece IN_PROGRESS.

@@ -1,6 +1,6 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Reconciliação atual:** `main` = `1b16256358e3f17837a95cc071048c5ee5307f82` (2026-11-16, pós-PR #972; PR #972 adicionou somente testes de integração SMS/Scheduler, sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
+**Reconciliação atual:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, pós-PR #972; PR #972 adicionou somente testes de integração SMS/Scheduler, sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
@@ -670,3 +670,8 @@ Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem altera
 ## Reconciliação pós-PR #972 — 16/11/2026
 
 A main `1b16256358e3f17837a95cc071048c5ee5307f82` recebeu testes de integração SMS/Scheduler para repetição INT IM2/NMI. Não houve alteração de produção Z80, decoder ou semântica DD/FD. O push CI #43933821228 marcou Z80 focused como SKIPPED/NOT RUN; portanto, esta integração não constitui nova execução dos vetores DD/FD na main. E7 permanece IN_PROGRESS e E8 BLOCKED.
+
+
+## Atualização F-028 pós-PR #975 — 16/11/2026
+
+A PR #975 adicionou ao arquivo `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_wait_matrix_f028.rs` dois limites dirigidos para CALL (`PC=FFFC`) e RST (`PC=FFFE`), comparando BASE↔DD/FD e os dois bytes da pilha após wrap `FFFF→0000`. A main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` foi validada por Z80 focused PASS no push CI #43937688464. A comparação permanece estrutural interna e não é oracle independente; review independente não registrada, F-028 IN_PROGRESS.

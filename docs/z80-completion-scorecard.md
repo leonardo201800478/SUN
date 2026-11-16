@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `1b16256358e3f17837a95cc071048c5ee5307f82` (2026-11-16, pós-PR #972; integração de testes SMS/Scheduler, sem alteração de produção Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, pós-PR #972; integração de testes SMS/Scheduler, sem alteração de produção Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -1062,3 +1062,8 @@ Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem altera
 ## Baseline supersedente pós-PR #972 — 16/11/2026
 
 Main: `1b16256358e3f17837a95cc071048c5ee5307f82`. A PR #972 integrou testes de repetição INT IM2/NMI no SMS Scheduler. Push CI #43933821228: Rust workspace PASS; Z80 focused e Scheduler stress SKIPPED/NOT RUN. Push SMS Runtime #43933821198: Release format/Clippy/tests PASS; Windows debugger SKIPPED/NOT RUN. F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; E7 IN_PROGRESS; E8 BLOCKED. Não há review adversarial independente auditável.
+
+
+## Baseline supersedente pós-PR #975 — 16/11/2026
+
+Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. F-028 recebeu testes dirigidos de wrap de endereço de retorno CALL/RST com DD/FD. Push CI #43937688464: Z80 focused PASS e Rust quality/unit PASS; outros jobs SKIPPED. Push SMS Runtime #43937688349: Release format/Clippy/tests PASS; Windows debugger SKIPPED. Ausência de review independente auditável mantém F-028/E7 IN_PROGRESS; E8 BLOCKED.
