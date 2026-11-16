@@ -78,3 +78,8 @@ Estado após a integração:
 - E8/ZEXDOC/ZEXALL: BLOCKED.
 
 A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+
+## Correção da validação pós-merge — PR #955
+
+A anotação anterior que classificava o push pós-merge como NOT_RUN/NOT_VERIFIED foi superada: CI push [#43898370234](https://github.com/leonardo201800478/sega-emulator/actions/runs/43898370234) e SMS Debugger Runtime [#43898370419](https://github.com/leonardo201800478/sega-emulator/actions/runs/43898370419) terminaram COMPLETED SUCCESS no merge `67f4149e1933d18ffa5201da66ca6ff46c598e32`. A árvore do merge é idêntica à do HEAD testado `cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`. A asserção BASE EX (SP),HL está integrada e validada; F-023 continua AUDIT_PARTIAL pelas lacunas WZ/X/Y/temporalidade e pela ausência de revisão independente auditável.
