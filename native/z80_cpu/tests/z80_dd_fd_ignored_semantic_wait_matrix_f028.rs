@@ -203,6 +203,7 @@ fn execute_one_instruction(opcode_stream: &[u8], wait_and_snapshot: bool) -> Exe
 fn remove_prefix_m1_and_normalize_stream_addresses(
     trace: Vec<TraceEvent>,
     prefix: u8,
+    opcode: u8,
 ) -> Vec<TraceEvent> {
     let mut events = trace.into_iter();
     assert_eq!(
@@ -225,12 +226,27 @@ fn remove_prefix_m1_and_normalize_stream_addresses(
             kind,
             address,
             stream,
+            write_value,
             ..
         } = event
-            && *stream
-            && matches!(*kind, BusTraceKind::OpcodeFetch | BusTraceKind::MemoryRead)
         {
-            *address = address.wrapping_sub(1);
+            if *stream && matches!(*kind, BusTraceKind::OpcodeFetch | BusTraceKind::MemoryRead) {
+                *address = address.wrapping_sub(1);
+            }
+
+            // CALL/conditional CALL/RST push the address after the complete
+            // instruction. The ignored prefix shifts that return address by
+            // one byte; normalize only its low-byte stack write (SP-2).
+            if *kind == BusTraceKind::MemoryWrite
+                && *address == 0x5676
+                && matches!(
+                    opcode,
+                    0xC4 | 0xCC | 0xD4 | 0xDC | 0xE4 | 0xEC | 0xF4 | 0xFC
+                        | 0xCD | 0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF
+                )
+            {
+                *write_value = write_value.map(|value| value.wrapping_sub(1));
+            }
         }
     }
     normalized
@@ -309,7 +325,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
             );
             assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode);
             assert_eq!(
-                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix),
+                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode),
                 base.trace,
                 "{prefix:02X} {opcode:02X}: request type/order/address/payload/timing and internal cycles"
             );
