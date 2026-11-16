@@ -680,3 +680,9 @@ A PR #975 adicionou ao arquivo `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_
 ## Reconciliação F-028 pós-PR #977 — 16/11/2026
 
 A PR #977 acrescenta cobertura explícita de WZ para JR/DJNZ sob DD/FD Ignored, inclusive PC `FFFD` com wrap do destino relativo. O teste verifica os caminhos tomado/não tomado, PC, WZ, M1 e trace normalizado. HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`; CI #43939973117 e SMS Runtime #43939957730 estavam em andamento na última consulta. O run cancelado após rustfmt não é PASS. F-028 permanece IN_PROGRESS até CI no HEAD exato e revisão independente registrada.
+
+
+
+## PR #977 — cobertura WZ relativa sob DD/FD Ignored
+
+HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724` passou CI #43939973117 (Z80 focused e Rust quality/unit SUCCESS) e SMS Runtime #43939957730 SUCCESS. Foram verificados JR, DJNZ e JR NZ/Z/NC/C, tomado/não tomado, DD/FD, PC/WZ e wrap com PC inicial FFFD. Scheduler stress SKIPPED. A matriz técnica está atualizada, mas a revisão independente formal de F-028 permanece pendente.
