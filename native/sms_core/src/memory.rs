@@ -804,10 +804,7 @@ mod tests {
         assert!(memory.bios_mapped());
 
         memory.write_control_port(0xA0);
-        assert!(
-            memory.bios_enabled(),
-            "BIOS-disable latch remains clear"
-        );
+        assert!(memory.bios_enabled(), "BIOS-disable latch remains clear");
         assert!(
             !memory.bios_mapped(),
             "cartridge slot has read priority over BIOS"
