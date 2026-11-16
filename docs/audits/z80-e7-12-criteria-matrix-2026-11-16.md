@@ -1,8 +1,8 @@
 # E7 — matriz consolidada dos 12 critérios temporais e de integração
 
-**Data:** 2026-11-16  
-**Main de referência:** `2d526ea37c9cd65e82b54a330c52f54c07841400`  
-**HEAD de validação complementar:** PR #972, `f3d6ad6c08a99ebe01813aef4c3feb3ca7170136`  
+**Data:** 2026-11-16
+**Main de referência:** `2d526ea37c9cd65e82b54a330c52f54c07841400`
+**HEAD de validação complementar:** PR #972, `f3d6ad6c08a99ebe01813aef4c3feb3ca7170136`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos consumidores Sega SMS/SG-1000.
 
 ## Escopo e regra de leitura
