@@ -893,7 +893,7 @@ Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
 
 | Família | Estado vigente | Evidência/pendência |
 |---|---|---|
-| F-022 — Block Instructions | IN_PROGRESS | Oito formas com integração SMS/Scheduler; #972 INT IM2/NMI durante repetição e snapshot/replay; revisão adversarial final/oráculos pendente |
+| F-022 — Block Instructions | CLOSED (perfil NMOS de software delimitado) | Oito formas; 786.432 cenários simples, matrizes micro/repetição, ROM hardware-derived limitada e integração SMS/Scheduler; relatório F-022 |
 | F-023 — WZ/MEMPTR | CLOSED (perfil NMOS de software delimitado) | Revisão adversarial dos handlers e matriz concluída; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
 | F-028 — DD/FD | IN_PROGRESS | 85 UsesIndex, 167 Ignored; #975 cobre wrap 16-bit de retorno CALL/RST em DD/FD; falta revisão adversarial integral de exceções/limites |
 
