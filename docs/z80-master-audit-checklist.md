@@ -723,8 +723,8 @@ A ausência de review no GitHub não prova que não houve inspeção fora do rep
 - [x] PR #952 integrada: matriz WZ/MEMPTR por família e classificação de proveniência; Documentation patch hygiene e Rust quality PASS no CI #43890997152.
 - [x] PR #953: ambos os resultados condicionais e PC final exato para os 167 Ignored sob DD/FD; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
 - [x] PR #954: IN/OUT imediato, WZ de RETN/RETI/RST e preservação de WZ em IM0/IM1; CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS.
-- [x] PR #955: asserção WZ BASE EX (SP),HL passou no HEAD `cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`; CI #43897766618 e SMS Runtime #43897766471 SUCCESS.
-- [ ] PR #955: review independente registrada e integração com validação pós-merge.
+- [x] PR #955: asserção WZ BASE EX (SP),HL integrada em `67f4149e1933d18ffa5201da66ca6ff46c598e32`; CI #43897766618/#43897766471 no HEAD testado e CI push #43898370234/SMS Runtime #43898370419 pós-merge SUCCESS.
+- [ ] PR #955: review independente registrada; a integração ocorreu sem review submetida nem review thread auditável. O gate transversal de revisão E7 permanece BLOCKED.
 - [x] Control flow WZ: condições tomadas/não tomadas e wrap em `z80_conditional_control_flow_coverage.rs`.
 - [x] IM2 WZ: PC vetorial observado em `snapshot_restore_e7_2e.rs`.
 - [x] Block repeat WZ: 64 cenários microsequenciados e quatro formas com snapshot/restore em cada fronteira.
