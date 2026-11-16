@@ -1,10 +1,10 @@
 # E7 — matriz dirigida de exceções DD/FD — F-028
 
-**Data:** 2026-11-16  
-**PR:** [#943](https://github.com/leonardo201800478/sega-emulator/pull/943) (Draft)  
-**Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`  
-**HEAD testado:** `cab4cc387818888dfac0b4f9e41b60cafeb843c3`  
-**CI:** [#43853516396](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516396)  
+**Data:** 2026-11-16
+**PR:** [#943](https://github.com/leonardo201800478/sega-emulator/pull/943) (Draft)
+**Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`
+**HEAD testado:** `cab4cc387818888dfac0b4f9e41b60cafeb843c3`
+**CI:** [#43853516396](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516396)
 **SMS Runtime:** [#43853516405](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516405)
 
 ## 1. Resultado
