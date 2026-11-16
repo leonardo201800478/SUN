@@ -13,7 +13,8 @@ const ROM_SIZE: usize = 0x40000;
 #[test]
 fn direct_boot_call_before_sp_initialization_mutates_sega_mapper_banks() {
     let mut rom = vec![0xFF; ROM_SIZE];
-    for (bank, contents) in rom.chunks_exact_mut(0x4000).enumerate() {
+    let (banks, _) = rom.as_mut_slice().as_chunks_mut::<0x4000>();
+    for (bank, contents) in banks.iter_mut().enumerate() {
         contents.fill(bank as u8);
     }
 
