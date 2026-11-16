@@ -85,7 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         machine.step_complete_instruction()?;
 
-        let registers = &machine.cpu().registers;
+        let registers = machine.cpu().registers.clone();
         let banks = machine.memory().selected_banks();
         let control = machine.memory().control_port();
         let mapper_changed = banks != before_banks;
