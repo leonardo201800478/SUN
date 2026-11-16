@@ -431,11 +431,12 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                     // RETI returned to the suspended LDIR instruction. A later
                     // PC change with BC=0 can now mean its actual completion.
                     block_delay_loop = Some((ldir_pc, start_t, start_bc, frame_edge, true, true));
-                } else if pc_before != ldir_pc && cpu.registers.bc() != 0 && !saw_detour {
-                    // First instruction outside LDIR while BC remains nonzero:
-                    // treat as an interrupt/service detour, not completion.
+                } else if pc_before != ldir_pc && cpu.registers.bc() != 0 {
+                    // Every instruction outside the LDIR while BC remains nonzero
+                    // is a detour. A subsequent interrupt must invalidate the
+                    // previous resume marker until RETI returns to ldir_pc again.
                     block_delay_loop = Some((ldir_pc, start_t, start_bc, frame_edge, true, false));
-                } else if pc_before != ldir_pc && cpu.registers.bc() == 0 && saw_resume {
+                } else if pc_before != ldir_pc && cpu.registers.bc() == 0 && !saw_detour {
                     let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
                     block_delay_summary.push(format!(
                         "ldir_pc={:04X} start_t={} end_t={} elapsed_including_interrupts={} nominal_without_interrupts={} start_bc={:04X} end_pc={:04X} end_bc={:04X} first_frame_edge={} end_to_first_edge={}",
@@ -532,7 +533,11 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             && pc_before == ldir_pc
             && opcode[0] == 0xED
             && opcode[1] == 0xB0
-            && block_delay_step_samples.len() < 24
+            && block_delay_step_samples
+                .iter()
+                .filter(|sample| sample.contains(&format!("pc={ldir_pc:04X} ")))
+                .count()
+                < 8
         {
             block_delay_step_samples.push(format!(
                 "pc={pc_before:04X} t_before={tstates_before_step} t_after={} returned_cycles={step_cycles} counter_delta={} BC_before={:04X} BC_after={:04X} PC_after={:04X}",
