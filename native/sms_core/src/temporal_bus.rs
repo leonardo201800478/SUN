@@ -360,11 +360,8 @@ impl SmsTemporalBus {
             "SMS temporal bus configuration selected"
         );
         let cartridge = CartridgeImage::new(rom)?;
-        let memory = SmsMemory::with_bios_and_sram_size(
-            cartridge,
-            Some(bios),
-            cartridge_sram_size,
-        )?;
+        let memory =
+            SmsMemory::with_bios_and_sram_size(cartridge, Some(bios), cartridge_sram_size)?;
         let coordinator = SmsTemporalCoordinator::new(master_ticks_per_tstate)?;
         let psg = ScheduledPsg::new(
             SMS_PSG_CLOCK_DOMAIN_ID,
