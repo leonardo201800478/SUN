@@ -753,3 +753,12 @@ E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanecem BLOCKED. Não converter SK
 - [ ] Obter review adversarial independente registrada. A ausência de review GitHub não prova ausência de inspeção fora do repositório, mas não há trilha auditável.
 
 E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
+
+### Evidência de integração temporal F-022 — PR #957
+
+- [x] PR #957 integrada em `2f72a6d94207cc78e5014363e72d16cf8806316a`: LDIR/LDDR/CPIR/CPDR através de SmsTemporalMachine/MachineScheduler, WAIT por request, snapshot/restore em safe points e comparação com execução contínua.
+- [x] CI #43899876697 e SMS Runtime #43899876806 SUCCESS no HEAD testado; CI push #43900377071 e SMS Runtime push #43900376933 SUCCESS no merge.
+- [ ] Não contar Scheduler deterministic stress/Z80 focused SKIPPED como PASS; executar gates integrados quando o diff os exigir.
+- [ ] Review independente auditável da PR #957 e da matriz E7 integrada; Codex review falhou por limite de uso.
+
+F-022 permanece IN_PROGRESS/AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
