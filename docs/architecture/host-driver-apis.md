@@ -1,3 +1,5 @@
+ > **HISTÓRICO / SUPERSEDED (2026-11-16):** este contrato descreve APIs do host Qt/PyO3 e caminhos próprios WASAPI/XAudio2/XInput anteriores. Não é arquitetura ativa. O host atual é Slint/WGPU/CPAL com SDL3 via `sega-input-runtime`; consulte [arquitetura atual](../architecture.md), [input runtime](native-input-runtime.md), [backend CPAL](../audio/cpal-output-backend.md) e [ADR 0011](../adr/0011-slint-wgpu-cpal-desktop-platform.md). Preservado apenas para rastreabilidade histórica.
+
 > **Áudio — atualização de 2026-11-12:** as decisões WASAPI/XAudio2 descritas abaixo são históricas e estão superseded pela arquitetura CPAL 0.18.2 candidata na [PR #770](https://github.com/leonardo201800478/sega-emulator/pull/770). No Windows, CPAL utiliza WASAPI internamente como backend do sistema; o projeto não mantém adaptador próprio WASAPI, XAudio2 nem bindings de áudio Win32. Consulte [saída física CPAL](../audio/cpal-output-backend.md).
 
 # Contrato global de drivers de entrada, áudio e vídeo
