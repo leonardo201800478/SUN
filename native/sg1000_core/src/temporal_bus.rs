@@ -10,14 +10,13 @@ use crate::{
     IoError, MemoryConfig, MemoryError, PsgError, Sg1000Io, Sg1000Memory,
     Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError,
     Sg1000TemporalCoordinatorState, Sg1000TemporalEvent, Sn76489, Tms9918A,
-    SG1000_PSG_CLOCK_DOMAIN_ID, SG1000_VDP_CLOCK_DOMAIN_ID,
+    DEFAULT_SG1000_CPU_CLOCK_HZ, SG1000_PSG_CLOCK_DOMAIN_ID, SG1000_VDP_CLOCK_DOMAIN_ID,
 };
 use sega_temporal_core::MachineTime;
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
 
 pub const SG1000_TEMPORAL_BUS_STATE_VERSION: u16 = 3;
 const DEFAULT_INTERRUPT_VECTOR: u8 = 0xFF;
-const DEFAULT_SG1000_PSG_CLOCK_HZ: u64 = 3_579_545;
 const DEFAULT_AUDIO_SAMPLE_RATE: u64 = 48_000;
 
 fn elapsed_tstates(
@@ -184,7 +183,8 @@ impl Sg1000TemporalBus {
             rom,
             memory_config,
             master_ticks_per_tstate,
-            DEFAULT_SG1000_PSG_CLOCK_HZ,
+            DEFAULT_SG1000_CPU_CLOCK_HZ,
+            DEFAULT_SG1000_CPU_CLOCK_HZ,
             DEFAULT_AUDIO_SAMPLE_RATE,
         )
     }
@@ -197,6 +197,7 @@ impl Sg1000TemporalBus {
         rom: impl Into<Vec<u8>>,
         memory_config: MemoryConfig,
         master_ticks_per_tstate: u64,
+        cpu_clock_hz: u64,
         psg_clock_hz: u64,
         sample_rate: u64,
     ) -> Result<Self, Sg1000TemporalBusError> {
@@ -205,7 +206,11 @@ impl Sg1000TemporalBus {
         let io = Sg1000Io::default();
         let vdp = Tms9918A::new();
         let psg = Sn76489::new(psg_clock_hz, sample_rate)?;
-        let coordinator = Sg1000TemporalCoordinator::new(master_ticks_per_tstate)?;
+        let coordinator = Sg1000TemporalCoordinator::new_with_clock_profile(
+            master_ticks_per_tstate,
+            cpu_clock_hz,
+            psg_clock_hz,
+        )?;
         Ok(Self {
             memory,
             io,
@@ -534,6 +539,9 @@ impl Sg1000TemporalBus {
             return Err(Sg1000TemporalBusError::InvalidState);
         }
         let coordinator = Sg1000TemporalCoordinator::restore_state(state.coordinator.clone())?;
+        if state.psg.clock_hz() != state.coordinator.psg_clock_hz {
+            return Err(Sg1000TemporalBusError::InvalidState);
+        }
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
         let scale = state.coordinator.master_ticks_per_tstate;
         let now = coordinator.now();
@@ -818,6 +826,33 @@ mod tests {
         );
         bus.acknowledge_internal_completion(7).unwrap();
         assert!(bus.dispatch_next().unwrap().is_none());
+    }
+
+    #[test]
+    fn configured_psg_clock_advances_by_its_exact_ratio() {
+        let mut bus = Sg1000TemporalBus::new_with_audio(
+            vec![0x00],
+            MemoryConfig::default(),
+            2,
+            1_000_000,
+            2_000_000,
+            48_000,
+        )
+        .unwrap();
+        bus.schedule_internal_cycle(90, 5).unwrap();
+        let Some(Sg1000TemporalDispatch::InternalCycleComplete(completion)) =
+            bus.dispatch_next().unwrap()
+        else {
+            panic!("expected internal-cycle completion");
+        };
+        assert_eq!(completion.completed_at, MachineTime::from_ticks(10));
+        assert_eq!(bus.psg().elapsed_clocks(), 10);
+        assert_eq!(bus.vdp().cycles_into_line(), 5);
+
+        let state = bus.export_state();
+        let mut restored = Sg1000TemporalBus::restore_state(state.clone()).unwrap();
+        assert_eq!(restored.export_state(), state);
+        assert_eq!(restored.psg().clock_hz(), 2_000_000);
     }
 
     #[test]
