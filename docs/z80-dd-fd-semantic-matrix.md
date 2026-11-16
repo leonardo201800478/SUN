@@ -531,3 +531,68 @@ Em cada execução, o log registra o comando explícito com `--ignored`, executa
 **Limite:** o CI da main documental `5f24e22...`, run [43831038791](https://github.com/leonardo201800478/sega-emulator/actions/runs/43831038791), marcou Z80 focused como SKIPPED. Para a main atual, a classificação é **NOT RUN**. Os resultados das PRs não são transferidos para essa SHA.
 
 F-028 permanece AUDIT_PARTIAL: os vetores cobrem o corpus validado, mas não substituem a auditoria integral de DD/FD, exceções, prefixos, HALT, PC/R, flags, Q/previous-Q e efeitos arquiteturais. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 31. F-028 — matriz dirigida de exceções DD/FD — PR #943 — 2026-11-16
+
+**Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`.
+**HEAD testado:** `cab4cc387818888dfac0b4f9e41b60cafeb843c3`.
+**CI:** [#43853516396](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516396), Z80 focused SUCCESS; Rust quality/unit SUCCESS.
+**SMS Runtime:** [#43853516405](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516405) SUCCESS.
+
+O novo teste `native/z80_cpu/tests/z80_dd_fd_exception_matrix_f028.rs` executa 45 combinações prefixadas em cada executor (45 atomic + 45 micro), mais cinco formas BASE em ambos:
+- EX AF,AF' (08), EXX (D9), EX DE,HL (EB);
+- HALT (76);
+- ED NEG (ED 44), demonstrando cancelamento do prefixo indexado antes do decoder ED.
+
+As nove cadeias DD/FD cobrem prefixo único, repetido e alternado, até quatro bytes. A comparação verifica PC com wrap em 0xFFFF, R por M1, Q/previous-Q, flags, WZ, IX/IY, bancos alternativos, IFF/IM, interrupções pendentes, estado HALT e limpeza do prefix_state. O caminho microsequenciado insere um WAIT por M1 e serializa/restaura o estado antes e depois de cada conclusão de barramento; os estados arquiteturais atomic e micro são comparados integralmente.
+
+A PR #935 já cobria os três opcodes de troca com um único DD ou FD. Esta matriz amplia a cobertura para cadeias repetidas/alternadas, HALT e ED NEG, mas continua sendo uma seleção dirigida, não todos os 256 opcodes DD/FD. A comparação atomic↔micro é consistência interna, não oracle independente de silício.
+
+**Classificação:** as exceções cobertas por esta matriz estão PASS no HEAD da PR #943 (Draft). F-028 permanece AUDIT_PARTIAL até fechar a matriz integral de exceções e interações DD/FD, sem reabrir E4A/E4B. E7 IN_PROGRESS; E8 BLOCKED. Nenhuma alteração de runtime/CPU.
+
+## 32. Fechamento dos testes focados F-022/F-023/F-028 — 2026-11-16
+
+Auditoria consolidada: [z80-e7-current-status-2026-11-16.md](audits/z80-e7-current-status-2026-11-16.md).
+
+- **F-022 / PR #936:** HEAD 306db2a91ff796b4c5f66eabc4ebd4c4baad903e; CI #43852582196 e SMS Runtime #43852582229 SUCCESS. ROM v5.0 1/1 PASS em 6,50 s; ≥60 comparações principais; 390 B-loop records em seis grupos; B = 0x0D + 3*i e flags exatas. SingleStepTests DD/FD: 34.000/34.000 PASS. A ROM é não exaustiva; F-022 AUDIT_PARTIAL.
+- **F-023 / PR #942:** código validado 7402ff138ced95da2d8b9e0008919c8cd22484f1; CI #43851550529 e SMS Runtime #43851550520 SUCCESS. Woodmass MEMPTR test 09: HALT 0x80E6, 50.904.931 T-states, FNV-1 F5AE5140, 61 linhas, 32 colunas. WZ/X/Y para outras famílias e timing restante ainda pendentes; F-023 AUDIT_PARTIAL.
+- **F-028 / PR #943:** HEAD de código validado 98c1cf41587f6af66c3d272e4b07a638d5da7919; CI #43859000666 e SMS Runtime #43859000676 SUCCESS. A matriz contém 108 combinações prefixadas por executor: nove cadeias DD/FD aplicadas a EX AF/EXX/EX DE-HL, HALT, ED NEG, NOP, DAA, CPL, SCF, CCF, DI e EI. Atomic/micro, WAIT e snapshot/restore; quatro testes PASS. O fixture SCF/CCF foi corrigido para controlar Q inicial (a CPU copia Q para previous-Q no início da instrução; o caminho indexado limpa previous-Q conforme NMOS). Nenhuma alteração de produção. Matriz não cobre todos os 256 opcodes; F-028 AUDIT_PARTIAL.
+
+E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. PRs #936/#942/#943 permanecem Draft e não foram mescladas nesta rodada.
+
+
+## 33. Inventário integral dos bytes posteriores a DD/FD — 2026-11-16
+
+**Baseline remota:** `main` = `caa9a76a6f09d588155ea4e0cbc95f487f079143`.
+**Fonte de classificação:** `native/z80_cpu/src/prefix.rs`, blob `177a52e55ed3d22ef34d6325222372240fffe960`.
+**Ledger enumerado:** [`audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv`](audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv).
+
+O ledger contém exatamente os 256 bytes possíveis após DD/FD. A classificação efetiva da FSM é:
+
+| Ação efetiva | Quantidade | Regra |
+|---|---:|---|
+| `UsesIndex` | 85 | A instrução consome IX/IY conforme sua forma |
+| `Ignored` | 167 | Mantém a semântica BASE, com o custo dos prefixos |
+| `IndexedCB` | 1 | CB entra no caminho DDCB/FDCB |
+| `ED cancel-index` | 1 | ED cancela a seleção IX/IY e transfere ao decoder ED |
+| `Repeat DD/FD` | 2 | O prefixo mais recente substitui o índice selecionado |
+| **Total** | **256** | Partição completa e sem sobreposição |
+
+**Distinção importante:** `classify_index_opcode()` é chamada somente depois de a FSM tratar DD, FD e ED. Por isso, a função auxiliar isolada retorna `Ignored` para esses três bytes; a transição efetiva da FSM os trata como repetição ou cancelamento. O ledger registra ambas as camadas para evitar confundir a classificação auxiliar com o comportamento real do decoder.
+
+**Exceções e limites registrados:**
+- `76` é HALT e permanece BASE/Ignored, não é instrução indexada.
+- `08`, `D9` e `EB` preservam EX AF,AF', EXX e EX DE,HL sob DD/FD.
+- `66`, `6E`, `74` e `75` usam o endereço indexado, mas o operando H/L continua sendo o par HL normal.
+- DD/FD repetidos ou alternados aplicam last-prefix-wins; cada byte de prefixo é M1 e incrementa R. Os testes existentes incluem cadeias de até 257 prefixos.
+- CB inicia DDCB/FDCB; displacement é leitura de memória e o subopcode final não é M1.
+- ED cancela a substituição IX/IY e encaminha o byte seguinte ao decoder ED.
+
+**Teste candidato adicionado à PR #943:** `native/z80_cpu/tests/index_prefix_classification_f028.rs` enumera todos os 256 bytes contra uma lista explícita de 85 opcodes UsesIndex e verifica as contagens 85/170/1 da função auxiliar. Os testes adicionais em `z80_dd_fd_exception_matrix_f028.rs` solicitam NMI ou INT entre DD e FD, fazem snapshot/restore nos M1 e verificam que o evento só é atendido na fronteira após o opcode terminal.
+
+**Validação dos novos testes:** PASS no HEAD `b3320ea79c6b951d2ad8b70e762589f14da597df`. CI [#43863265215](https://github.com/leonardo201800478/sega-emulator/actions/runs/43863265215): Z80 focused SUCCESS, Rust quality/unit SUCCESS e documentation patch hygiene SUCCESS; o teste de classificação passou 3/3 e a matriz F-028 passou 6/6. Os 34.000 SingleStepTests DD/FD também passaram neste SHA. SMS Runtime [#43863265197](https://github.com/leonardo201800478/sega-emulator/actions/runs/43863265197): Release format, Clippy, testes e build Windows x64 SUCCESS. O primeiro run #43862912238 falhou apenas em rustfmt; as correções foram aplicadas antes do HEAD validado. Os jobs não relacionados permaneceram SKIPPED. A classificação completa não equivale à validação semântica de cada opcode: os 85 UsesIndex continuam exigindo reconciliação com as famílias E3/E4/E5 e as exceções documentadas; os 167 Ignored exigem comprovação de fallback sem refetch e preservação do custo M1 nos caminhos aplicáveis.
+
+**Estado:** o inventário por byte foi materializado; validação dos novos testes e revisão independente permanecem pendentes. F-028 continua AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+
+**Cobertura preexistente relacionada:** os testes unitários de cpu.rs já percorrem todos os 256 bytes BASE/DD/FD/CB/ED e os 256 subopcodes DDCB/FDCB para garantir que o executor não retorna erro; isso é smoke/classification, não prova semântica. O teste indexed-CB exaustivo em sms_core percorre todos os valores/carry para rotate/shift; BIT/RES/SET e cópias para registrador têm matrizes específicas, mas não formam uma prova semântica combinatória de todos os estados para todos os 256 subopcodes. O ledger e o novo teste completam a classificação explícita UsesIndex/Ignored/IndexedCB, não essa prova semântica.
