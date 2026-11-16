@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-16
 **Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
-**Main atual após PRs #955, #956, #957, #960 e #962:** `bb9e31bdf04099a4116d27836691f0b31ab8c8a8`
+**Main atual após PRs #955–#964:** `2607e45e4d35e52cd61d825d42a6514b789cfc30`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
@@ -326,4 +326,44 @@ Estado vigente:
 - F-023: AUDIT_PARTIAL — BASE EX (SP),HL e WZ terminal das quatro formas de bloco possuem assertions integradas; falta revisão integral da matriz/proveniência.
 - F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
 - Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+
+## Reconciliação operacional pós-PR #964 — 16/11/2026
+
+**Main de referência:** `2607e45e4d35e52cd61d825d42a6514b789cfc30` (PRs #963 e #964 integradas).
+
+### Correção da proveniência pós-merge
+A consulta posterior às Actions confirmou os workflows push das PRs anteriores. Portanto, as notas históricas que diziam que os workflows pós-merge de #955/#956 não foram localizados ficam supersedidas:
+- #955, merge `67f4149e1933d18ffa5201da66ca6ff46c598e32`: CI push #43898370234 — Z80 focused e Rust quality/unit PASS; SMS Runtime #43898370419 — Release format/Clippy/testes PASS. SMS debugger Windows Release SKIPPED; workspace regression e Scheduler stress SKIPPED.
+- #956, merge `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`: CI push #43899020946 — Documentation patch hygiene e Rust quality/unit PASS; Z80 focused, workspace regression, Scheduler stress e runtimes SKIPPED por classificação documental. Não interpretar como validação do runtime.
+- #957, merge `2f72a6d94207cc78e5014363e72d16cf8806316a`: CI push #43900377071 — workspace regression e Rust quality/unit PASS; SMS Runtime #43900376933 — Release format/Clippy/testes PASS e build Windows x64 incluído no job. Z80 focused e Scheduler stress SKIPPED; debugger Windows Release SKIPPED.
+
+### F-022 — interrupção durante repetição integrada ao Scheduler
+
+**PR #964 MERGED:** `2607e45e4d35e52cd61d825d42a6514b789cfc30`. Alteração exclusivamente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`; nenhum código de produção foi modificado.
+
+O teste `e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler` cobre LDIR/LDDR/CPIR/CPDR com INT level-sensitive afirmada no último T-state da fase interna de repetição, atendimento em IM1, retorno por RETI e retomada da instrução recuada até a iteração terminal. Faz snapshot/restore em cada safe point do Scheduler, inclusive na fronteira de afirmação de INT; aplica WAIT de fixture a cada request de barramento; compara trace, estado completo e timestamp entre execução contínua e retomada.
+
+As assertions incluem PC/BC na repetição, HL/DE final, WZ antes/depois do acknowledge e após RETI, Q/previous-Q, endereço de retorno na pilha e estado final das quatro formas.
+
+Validação no HEAD exato da PR #964 (`9d79cc25f5ca9e46266e91cfa21e907ffc88f827`):
+- CI #43903631872: Rust workspace regression PASS e Rust quality/unit regression PASS; Scheduler deterministic stress e Z80 focused SKIPPED; demais gates não relacionados SKIPPED.
+- SMS Debugger Runtime #43903632358: Release format, Clippy, testes SMS Runtime e build Windows x64 PASS.
+- SMS debugger Windows Release SKIPPED.
+- Workflow push pós-merge no SHA `2607e45e4d35e52cd61d825d42a6514b789cfc30`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+**Limite:** a INT é aplicada por fixture na fronteira do Scheduler; WAIT é fixture e não medição elétrica. A integração não comprova hardware físico, DMA, todos os modos de interrupção nem todas as famílias de instruções.
+
+### F-028 — classificação de leitura do stream
+
+PR #959 não foi integrada: a tentativa de merge foi rejeitada pelo GitHub porque o required check `Rust quality and unit regression` estava EXPECTED na branch desatualizada, apesar dos resultados históricos do SHA anterior. Para não contornar proteção de branch, o mesmo patch foi reaplicado sobre a main atual na PR #965 (`test/z80-f028-stream-read-classification-main-20261116`), SHA inicial `90ed2d686b5447d49d106d8251d76d6bcd10fcc1`. Aguardam-se os checks do HEAD exato da #965; não declarar integrado até conclusão.
+
+O teste substitui a heurística `MemoryRead.address == PC` por contagem explícita de operandos imediatos derivada do opcode BASE e adiciona o caso `LD A,(BC)` com BC=$0002, no qual o endereço de dados coincide com PC no caminho prefixado DD. O request deve permanecer classificado como leitura de dados e manter seu endereço real. Escopo test-only.
+
+### Estado consolidado após #964
+- F-022: IN_PROGRESS — integração SMS/Scheduler das quatro formas com WAIT, snapshot/restore, Q/previous-Q e interrupção IM1/RETI; ainda faltam as quatro formas simples no mesmo tipo de integração temporal, revisão integral e proveniência/oracle independente.
+- F-023: AUDIT_PARTIAL — a #955 cobre BASE EX (SP),HL; #962 cobre WZ/Q/previous-Q das quatro formas repetitivas no Scheduler; #964 adiciona WZ em fronteiras INT/RETI. Revisão completa por família e proveniência continuam pendentes.
+- F-028: IN_PROGRESS — 167 Ignored e 85 UsesIndex reconciliados; #950/#953 requests, WAIT/snapshot e condições; #959/#965 endereçam a classificação stream/data. Aguardar #965 e revisão independente.
+- Temporalidade: LONG_PASS de Scheduler software na campanha #43901362527; integração temporal dirigida SMS #957/#962/#964 PASS nos respectivos HEADs. WAIT físico, DMA, safe points de todos os dispositivos e TEMPORAL_PASS global NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
