@@ -922,3 +922,7 @@ A integração #955 não substitui regressão integrada no HEAD final da main ne
 - PR #956: main `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`; CI push #43899020946 PASS em classificação de impacto, higiene documental e Rust quality/unit. Z80 focused/workspace/runtime SKIPPED por diff documental; não é PASS de runtime.
 - PR #955 e #956 não possuem review submetida nem review threads. O Codex review da #956 falhou por limite de uso; a revisão adversarial E7 continua BLOCKED.
 - F-023 permanece AUDIT_PARTIAL; F-022/F-028 permanecem IN_PROGRESS/AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+## Addendum F-022 — integração Scheduler/SMS pela PR #957 — 16/11/2026
+
+PR #957 integrada em `2f72a6d94207cc78e5014363e72d16cf8806316a`; árvore idêntica ao HEAD testado `8a6ef8bbf20c770479999f00675718a58349985e`. Testa LDIR/LDDR/CPIR/CPDR por SmsTemporalMachine/MachineScheduler, com WAIT em todo request, snapshot/restore em safe points e comparação contra execução contínua. CI #43899876697 e SMS Runtime #43899876806 SUCCESS; pós-merge CI #43900377071 e SMS Runtime #43900376933 SUCCESS. Scheduler deterministic stress e Z80 focused foram SKIPPED por impacto. PR #957 não tem review submetida/thread; Codex review falhou por limite de uso. F-022 permanece IN_PROGRESS/AUDIT_PARTIAL porque a cobertura é de quatro formas e a revisão adversarial ainda falta.
