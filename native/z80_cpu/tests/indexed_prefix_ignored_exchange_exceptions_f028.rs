@@ -237,6 +237,9 @@ fn assert_exchange_result(
             assert_eq!((registers.b, registers.c), (0x33, 0x44));
             assert_eq!((registers.d, registers.e), (0x55, 0x66));
             assert_eq!((registers.h, registers.l), (0x77, 0x88));
+            assert_eq!((alternate.b, alternate.c), (0xCC, 0xDD));
+            assert_eq!((alternate.d, alternate.e), (0xEE, 0xF0));
+            assert_eq!((alternate.h, alternate.l), (0x12, 0x34));
         }
         0xD9 => {
             assert_eq!((registers.a, registers.f), (0x11, 0x22));
@@ -246,8 +249,11 @@ fn assert_exchange_result(
             assert_eq!((alternate.b, alternate.c), (0x33, 0x44));
             assert_eq!((alternate.d, alternate.e), (0x55, 0x66));
             assert_eq!((alternate.h, alternate.l), (0x77, 0x88));
+            assert_eq!((alternate.a, alternate.f), (0xAA, 0xBB));
         }
         0xEB => {
+            assert_eq!((registers.a, registers.f), (0x11, 0x22));
+            assert_eq!((registers.b, registers.c), (0x33, 0x44));
             assert_eq!((registers.d, registers.e), (0x77, 0x88));
             assert_eq!((registers.h, registers.l), (0x55, 0x66));
             assert_eq!(alternate, &initial_alternate());
@@ -263,6 +269,10 @@ fn dd_fd_prefixes_are_ignored_for_exchange_exception_opcodes() {
         assert_eq!(base_tstates, 4, "base opcode {opcode:02X}");
         assert_eq!(base.registers.pc, 0x0000, "base PC wraps");
         assert_eq!(base.r, 0xFF, "base refresh wraps");
+        assert_eq!(base.wz, INITIAL_WZ);
+        assert_eq!(base.ix, 0x1357);
+        assert_eq!(base.iy, 0x2468);
+        assert_exchange_result(opcode, &base.registers, &base.alternate);
 
         for prefix in [0xDD_u8, 0xFD] {
             let (prefixed, prefixed_tstates) = run_atomic(Some(prefix), opcode);
