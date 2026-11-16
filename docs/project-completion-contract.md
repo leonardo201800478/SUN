@@ -1,9 +1,13 @@
 # Project completion contract — Sega Emulator
 
-**Status:** permanent Draft pull request; this contract must not be finalized before the entire project is complete.  
-**Normative roadmap:** [`docs/project-roadmap.md`](project-roadmap.md). This document does not create a second roadmap, phases, sprint plan, or competing priority order.  
-**Architecture and scope:** [`docs/project-scope.md`](project-scope.md).  
-**Fidelity policy:** [ADR-0016 — observable fidelity and proportional timing](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).  
+**Status:** permanent Draft pull request; this contract must not be finalized before the entire project is complete.
+
+**Normative roadmap:** [`docs/project-roadmap.md`](project-roadmap.md). This document does not create a second roadmap, phases, sprint plan, or competing priority order.
+
+**Architecture and scope:** [`docs/project-scope.md`](project-scope.md).
+
+**Fidelity policy:** [ADR-0016 — observable fidelity and proportional timing](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
+
 **Source of truth:** the latest integrated `main` SHA and its verified CI evidence.
 
 ## 1. Purpose and lifecycle
