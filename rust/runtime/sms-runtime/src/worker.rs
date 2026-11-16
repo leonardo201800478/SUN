@@ -1182,25 +1182,6 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Start the worker with BIOS firmware, VDP ASIC, regional timing and SRAM profile.
-    pub fn new_with_bios_and_hardware_profile_and_cartridge_sram_size(
-        rom: Vec<u8>,
-        bios: Vec<u8>,
-        region: &str,
-        vdp_revision: SmsVdpRevision,
-        cartridge_sram_size: Option<usize>,
-        initial_sram: Option<Vec<u8>>,
-    ) -> Result<Self, String> {
-        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
-            rom,
-            Some(bios),
-            region,
-            vdp_revision,
-            cartridge_sram_size,
-            initial_sram,
-        )
-    }
-
     /// Start the worker with an explicit cartridge SRAM capacity and optional persisted image.
     /// Capacity must come from a verified cartridge profile; save-file length never configures hardware.
     pub fn new_with_cartridge_sram_size(
