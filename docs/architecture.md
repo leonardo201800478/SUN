@@ -1,6 +1,6 @@
 # Arquitetura — Sega Emulator
 
-**Baseline:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16).  
+**Baseline:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16).
 **Decisões normativas:** ADR 0010 (runtime Rust), ADR 0011 (desktop Slint/WGPU/CPAL) e ADR-0016 (fidelidade observável).
 
 ## Produto e hosts ativos
