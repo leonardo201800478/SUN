@@ -8,8 +8,7 @@
 //! microsequencer, not an independent hardware semantic oracle.
 
 use sega_z80_cpu::{
-    Z80ArchitecturalState, Z80BusOperation, Z80MicroSequencer, Z80MicroSequencerState,
-    Z80MicroStep,
+    Z80ArchitecturalState, Z80BusOperation, Z80MicroSequencer, Z80MicroSequencerState, Z80MicroStep,
 };
 
 const DD_FD_LEDGER: &str =
@@ -126,14 +125,13 @@ fn execute_one_instruction(opcode_stream: &[u8], wait_and_snapshot: bool) -> Exe
                         (BusTraceKind::MemoryWrite, Some(value))
                     }
                     Z80BusOperation::PortRead => (BusTraceKind::PortRead, None),
-                    Z80BusOperation::PortWrite { value } => {
-                        (BusTraceKind::PortWrite, Some(value))
-                    }
+                    Z80BusOperation::PortWrite { value } => (BusTraceKind::PortWrite, Some(value)),
                     Z80BusOperation::InterruptAcknowledge => unreachable!(),
                 };
 
                 if wait_and_snapshot {
-                    cpu.insert_wait_tstate().expect("WAIT is accepted for every request class");
+                    cpu.insert_wait_tstate()
+                        .expect("WAIT is accepted for every request class");
                     cpu = round_trip(cpu);
                     assert_eq!(
                         cpu.pending_request().map(|pending| pending.id),
