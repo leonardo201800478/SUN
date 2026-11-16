@@ -138,15 +138,15 @@ O teste z80_dd_fd_exception_matrix_f028.rs recebeu dois casos: NMI e INT são so
 
 ### 8.4 Primeiro CI das extensões e correção
 
-- Código candidato inicial da extensão: 958585010fb47f30333cac9494bd45d90a03801b. CI #43862912238 e SMS Runtime #43862912321 falharam somente em cargo fmt --all -- --check. Os passos de Clippy, testes, SingleStepTests e build ficaram SKIPPED em consequência do gate de formatação; não houve execução semântica dos novos testes.
+- Código candidato inicial da extensão: 958585010fb47f30333cac9494bd45d90a03801b. CI #43862912238 e SMS Runtime #43862912321 falharam somente em cargo fmt --all -- --check. Os passos de Clippy, testes, SingleStepTests e build ficaram SKIPPED em consequência do gate de formatação; não houve execução semântica nesse primeiro run.
 - O log de rustfmt identificou apenas reordenação de imports, quebra de linhas e espaçamento nos dois arquivos de teste. As correções foram aplicadas em commits 0e29f164e2047bf206902de7d87b1a0c6efabe19 e dcfb74fae2d207126da59562eb8745fa0d733bd4.
-- O HEAD dcfb74f é o código de teste corrigido; o CI desse HEAD ainda precisa concluir. As atualizações documentais posteriores não modificam os testes.
+- As correções de rustfmt foram aplicadas em 0e29f164e2047bf206902de7d87b1a0c6efabe19 e dcfb74fae2d207126da59562eb8745fa0d733bd4. Validação final no HEAD b3320ea79c6b951d2ad8b70e762589f14da597df: CI #43863265215 SUCCESS (Z80 focused, Rust quality/unit, documentation hygiene); SMS Runtime #43863265197 SUCCESS (Release format, Clippy, testes e build Windows x64). O teste de classificação passou 3/3; a matriz F-028 passou 6/6; os 34.000 SingleStepTests DD/FD passaram no mesmo SHA. Jobs não relacionados ficaram SKIPPED. As atualizações documentais posteriores não modificam os testes.
 - A documentação patch hygiene do primeiro run passou. Não transferir esse resultado para testes Rust nem declarar PASS para o código corrigido.
 
 ### 8.5 Estado atualizado
 
 - F-022: AUDIT_PARTIAL; ROM v5.0 PASS no SHA 306db2a, sem cobertura exaustiva.
 - F-023: AUDIT_PARTIAL; Woodmass MEMPTR 09 PASS no SHA 7402ff1, sem tabela completa WZ/X/Y.
-- F-028: AUDIT_PARTIAL; matriz original 108 combinações PASS no SHA 98c1cf4; ledger completo de classificação e testes de INT/NMI adicionados, mas validação desses novos testes ainda pendente.
+- F-028: AUDIT_PARTIAL; matriz original 108 combinações PASS no SHA 98c1cf4; ledger de classificação de todos os 256 bytes e testes de INT/NMI entre DD/FD PASS no SHA b3320ea. A semântica completa por opcode/estado continua pendente.
 - Nenhuma alteração de produção da CPU, prefix FSM, microsequenciador, Scheduler ou runtime foi feita.
 - E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
