@@ -30,8 +30,9 @@ Perfis: Japanese SMS com chip integrado e controle $F2; Mark III com módulo ext
 - Modelar mídia, slot e adaptador como entidades distintas.
 - SMS/Mark III: ROM card, port $3E, enable lines e arbitragem BIOS/card/cartucho/expansão.
 - Respeitar prioridade: SMS dá prioridade ao card quando card e cartucho estão inseridos; Mark III dá prioridade ao cartucho.
-- SG-1000/SC-3000: Card Catcher no slot de cartucho para permitir My Cards.
-- Testar mapa de memória, seleção, prioridade, reset e coexistência com cartuchos por console.
+- SG-1000/SG-1000 II/SC-3000 e sistemas compatíveis sem card slot: Card Catcher C-1000 no slot de cartucho para permitir Sega My Cards.
+- A SEGA especifica que **My Card Mark III não funciona no Card Catcher**; manter identificador/formato de mídia separado.
+- Testar mapa de memória, seleção, prioridade, reset e coexistência com cartuchos por console/revisão.
 
 ## 3D Glasses
 
@@ -66,7 +67,9 @@ Para cada dispositivo: identificar console/revisão/conector/pinout; classificar
 - SMS Power Light Phaser: https://www.smspower.org/Development/LightPhaser
 - SMS Power Paddle: https://www.smspower.org/Development/Paddle
 - SMS Power Sports Pad Investigation (2025): https://www.smspower.org/forums/20657-SportsPadInvestigation
-- Sega official SG-1000 II accessories/Card Catcher: https://www.sega.jp/history/hard/sg1000-2/devices.html
+- Sega official SG-1000 II accessories (My Card, Card Catcher C-1000, SK-1100, controllers): https://www.sega.jp/history/hard/sg1000-2/devices.html
+- SMS Power Sports Pad Investigation (2025): https://www.smspower.org/forums/20657-SportsPadInvestigation
+- SMS Power Development index (Rapid Fire Unit, Pause/Reset, Handle Controller, GG accessories): https://www.smspower.org/Development/Index
 - YM2413 model: `docs/architecture/ym2413-fm-model.md`
 
 As fontes documentam interfaces; não provam implementação ou validação do emulador.
