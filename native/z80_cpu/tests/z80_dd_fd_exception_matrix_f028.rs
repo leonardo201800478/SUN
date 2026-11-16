@@ -46,7 +46,7 @@ impl CpuBus for FlatBus {
     }
 }
 
-fn initial_state() -> Z80ArchitecturalState {
+fn initial_state_with_q_previous(q_previous: u8) -> Z80ArchitecturalState {
     Z80ArchitecturalState {
         registers: Z80Registers {
             a: 0x11,
@@ -82,15 +82,19 @@ fn initial_state() -> Z80ArchitecturalState {
         nmi_pending: false,
         int_pending: None,
         q: 0x5A,
-        q_previous: 0xA5,
+        q_previous,
         p: true,
         halted: false,
     }
 }
 
-fn seed_atomic() -> Z80 {
+fn initial_state() -> Z80ArchitecturalState {
+    initial_state_with_q_previous(0xA5)
+}
+
+fn seed_atomic_with_state(state: Z80ArchitecturalState) -> Z80 {
     let mut cpu = Z80::default();
-    cpu.import_architectural_state(initial_state())
+    cpu.import_architectural_state(state)
         .expect("initial state imports");
     cpu.total_tstates = 0;
     cpu
@@ -108,13 +112,20 @@ fn increment_refresh_by(mut value: u8, count: usize) -> u8 {
 }
 
 fn run_atomic(bytes: &[u8]) -> (Z80, u32) {
+    run_atomic_with_state(bytes, initial_state())
+}
+
+fn run_atomic_with_state(
+    bytes: &[u8],
+    state: Z80ArchitecturalState,
+) -> (Z80, u32) {
     let mut bus = FlatBus::default();
     for (offset, byte) in bytes.iter().copied().enumerate() {
         let address = START_PC.wrapping_add(offset as u16);
         bus.memory[usize::from(address)] = byte;
     }
 
-    let mut cpu = seed_atomic();
+    let mut cpu = seed_atomic_with_state(state);
     let tstates = cpu.step(&mut bus).expect("instruction executes atomically");
     (cpu, tstates)
 }
@@ -126,8 +137,15 @@ fn round_trip(cpu: Z80MicroSequencer) -> Z80MicroSequencer {
 }
 
 fn run_micro(bytes: &[u8]) -> (Z80ArchitecturalState, u32) {
+    run_micro_with_state(bytes, initial_state())
+}
+
+fn run_micro_with_state(
+    bytes: &[u8],
+    state: Z80ArchitecturalState,
+) -> (Z80ArchitecturalState, u32) {
     let mut cpu = Z80MicroSequencer::default();
-    cpu.import_architectural_state(initial_state())
+    cpu.import_architectural_state(state)
         .expect("initial state imports");
     let mut step = cpu.begin_instruction().expect("instruction begins");
 
@@ -206,14 +224,33 @@ fn assert_equal_except_prefix_count(
 }
 
 fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
-    let (base_atomic, base_atomic_tstates) = run_atomic(opcode_bytes);
+    let state = initial_state();
+    run_prefix_matrix_with_states(
+        opcode_bytes,
+        base_m1_count,
+        is_halt,
+        state.clone(),
+        state,
+    );
+}
+
+fn run_prefix_matrix_with_states(
+    opcode_bytes: &[u8],
+    base_m1_count: usize,
+    is_halt: bool,
+    base_initial_state: Z80ArchitecturalState,
+    prefixed_initial_state: Z80ArchitecturalState,
+) {
+    let (base_atomic, base_atomic_tstates) =
+        run_atomic_with_state(opcode_bytes, base_initial_state.clone());
     let base_atomic_state = base_atomic.export_architectural_state();
     assert_eq!(
         base_atomic_state.halted, is_halt,
         "base instruction halt state"
     );
 
-    let (base_micro_state, base_micro_tstates) = run_micro(opcode_bytes);
+    let (base_micro_state, base_micro_tstates) =
+        run_micro_with_state(opcode_bytes, base_initial_state);
     assert_eq!(
         base_micro_state, base_atomic_state,
         "base atomic/micro state"
@@ -229,7 +266,8 @@ fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
         bytes.extend_from_slice(opcode_bytes);
         let prefix_count = prefixes.len();
 
-        let (prefixed_atomic, prefixed_atomic_tstates) = run_atomic(&bytes);
+        let (prefixed_atomic, prefixed_atomic_tstates) =
+            run_atomic_with_state(&bytes, prefixed_initial_state.clone());
         let prefixed_atomic_state = prefixed_atomic.export_architectural_state();
         assert_equal_except_prefix_count(&base_atomic_state, &prefixed_atomic_state, prefix_count);
         assert_eq!(
@@ -242,7 +280,8 @@ fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
             u64::from(prefixed_atomic_tstates)
         );
 
-        let (prefixed_micro_state, prefixed_micro_tstates) = run_micro(&bytes);
+        let (prefixed_micro_state, prefixed_micro_tstates) =
+            run_micro_with_state(&bytes, prefixed_initial_state.clone());
         assert_eq!(
             prefixed_micro_state, prefixed_atomic_state,
             "atomic/micro architectural state for {bytes:02X?}"
@@ -302,7 +341,20 @@ fn dd_fd_prefix_chains_cancel_before_ed_neg_in_both_executors() {
 fn ignored_flag_and_interrupt_opcodes_preserve_base_semantics_across_prefix_chains() {
     // NOP, DAA, CPL, SCF, CCF, DI and EI do not consume IX/IY.
     // SCF/CCF also exercise the Q/previous-Q boundary after multiple prefixes.
-    for opcode in [0x00_u8, 0x27, 0x2F, 0x37, 0x3F, 0xF3, 0xFB] {
+    for opcode in [0x00_u8, 0x27, 0x2F, 0xF3, 0xFB] {
         run_prefix_matrix(&[opcode], 1, false);
+    }
+
+    // SCF/CCF derive undocumented flags from previous-Q. Compare a prefixed
+    // instruction with the BASE oracle initialized with previous-Q already
+    // cleared, while the prefixed path starts with nonzero previous-Q.
+    for opcode in [0x37_u8, 0x3F] {
+        run_prefix_matrix_with_states(
+            &[opcode],
+            1,
+            false,
+            initial_state_with_q_previous(0),
+            initial_state_with_q_previous(0xA5),
+        );
     }
 }
