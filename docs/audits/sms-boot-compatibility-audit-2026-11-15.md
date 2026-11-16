@@ -115,6 +115,8 @@ Z80MicroSequencer::reset()
   -> não reinicializa memória, mapper, VDP, PSG, I/O ou tempo do Scheduler
 ```
 
+O helper `SmsTemporalMachine::reset_cpu()` é atômico no nível da API; ele não modela uma linha RESET mantida por três ciclos de clock. O manual Zilog UM008011-0816 exige RESET ativo por pelo menos três ciclos completos. Não confundir o helper com uma implementação temporal do pino RESET. O reset do worker, por sua vez, é reconstrução integral da máquina, não o pino RESET isolado.
+
 **Carregamento de outra ROM:**
 
 ```text
@@ -175,7 +177,7 @@ O Z80 User Manual UM008011-0816 especifica que o sinal RESET limpa o Program Cou
 
 A implementação de `Z80MicroSequencer::reset()` preserva os registradores gerais, alternativos, IX/IY e SP, e reinicia PC/I/R e o controle de interrupções. Isso é coerente com a distinção entre o pino RESET e o estado default de construção do emulador.
 
-**Não alterar o Z80 para forçar SP=$DFF0** nesta investigação. O valor é uma convenção de software comum e aparece no próprio caminho normal de inicialização do SmsVdpTest, mas não é especificado pelo trecho de RESET do manual.
+**Não alterar o Z80 para forçar SP=$DFF0** nesta investigação. Há valores diferentes em fontes de naturezas diferentes: SMS Official Docs recomenda SP=$DFF8 para compatibilidade; o caminho normal do SmsVdpTest executa `LD SP,$DFF0`; uma alegação de BIOS SP=$DFFF está marcada como não confirmada no documento de engenharia reversa do projeto; o Z80 RESET não define SP. Nenhum desses valores é prova de um valor universal de power-on. A stack deve ser inicializada pelo firmware/software quando necessário, e o perfil de boot deve preservar a incerteza em vez de inventar um estado físico.
 
 ### 2.4 Instrumentação de boot já existente
 
@@ -201,6 +203,10 @@ O README do teste descreve:
 O repositório público do teste não permitiu localizar, na fonte consultada, o corpo da rotina `DumpAllRegisters`. Assim, o instante exato das leituras e qualquer manipulação prévia de TH ainda precisam ser confirmados por disassembly da ROM binária exata. Não comparar VC/HC sem timestamp equivalente.
 
 As diferenças Gearsystem/Ares registradas anteriormente permanecem observações de execução. A hipótese de que o Ares apresenta resíduos da BIOS é plausível, mas não foi comprovada apenas pelos valores mostrados.
+
+### 5.1 O que os contadores realmente representam
+
+O port $7E fornece o VCounter, que acompanha a linha de raster e varia conforme padrão de vídeo e modo. O port $7F fornece HCounter; o valor só é efetivo após o pulso de clock/TH correspondente. Portanto, VC/HC na tela do teste são amostras temporais, não registradores estáticos de power-on. A diferença de fase observada em Gearsystem/Ares pode ser consequência do tempo gasto antes da captura e da transição TH que latched o HCounter. Sem disassembly da rotina de dump e timestamp do read, não há comparação válida.
 
 ## 6. ROMs-alvo — identidade pública versus arquivo local
 
@@ -228,7 +234,14 @@ O runtime atual classifica como Sega qualquer ROM que não satisfaça a assinatu
 
 Não há evidência que permita afirmar que Andre Agassi Tennis e Ace of Aces compartilham a mesma causa.
 
-## 8. PR #908 — avaliação inicial
+## 8. PRs e investigações relacionadas — evitar duplicação
+
+- **PR #908** — BIOS convencional no runtime temporal: Draft, 17 commits exclusivos e 20 commits atrás da main; sem integração do chamador desktop e com handoff sintético. Não fazer merge direto.
+- **PR #912** — teste exploratório de IRQ/HCounter com Z80/VDP/Scheduler e ROM upstream: Draft; amostras secundárias RunTest32/34 ainda divergem e estão ignoradas. Reutilizar o harness, sem duplicar nem alterar VDP por antecipação.
+- **PR #913** — Road Rash: registro de travamento da animação de título, embora o jogo chegue ao gameplay e tenha sido jogável após avanço manual. É uma regressão temporal separada do boot; não invalida o uso do título como teste de boot positivo.
+- **PR #878** — melhoria do trace: Draft e baseada em commit ancestral 73 commits atrás da main. A main já oferece captura bounded por `set_trace_enabled` e `debug_snapshot`; o PR propõe ampliar janela e `arm_trace_on_next_start`. Não integrar branch antiga diretamente.
+
+## 9. PR #908 — avaliação inicial
 
 PR #908 (`feat/sms-temporal-conventional-bios-8k`) adiciona `SmsTemporalMemoryOptions`, encaminha BIOS opcional para o barramento/máquina temporal, preserva bytes de BIOS nos caminhos de reset/stop/troca de ROM do worker e inclui testes sintéticos de fetch e handoff via `OUT ($3E)`.
 
@@ -242,14 +255,14 @@ Limitações observadas:
 
 Decisão: não fazer merge nem duplicar a implementação. A PR será usada como referência arquitetural; qualquer reaproveitamento exige portar/reconciliar com a main atual e completar integração/validação real.
 
-## 9. Regressões e preservação
+## 10. Regressões e preservação
 
 - Road Rash e Schtroumpfs 2 permanecem casos positivos obrigatórios.
 - Não alterar Z80 compartilhado. O scorecard mantém E7 IN_PROGRESS e E8 BLOCKED; ZEXDOC/ZEXALL não fazem parte desta frente.
 - Preservar estado serializado do Scheduler, transações suspensas, WAIT, memória, VDP, PSG e SRAM.
 - Não mudar versões de Save State sem análise explícita de compatibilidade.
 
-## 10. Plano de testes para B4–B6
+## 11. Plano de testes para B4–B6
 
 1. **CPU:** construir e capturar o estado de power-on do sequenciador; testar RESET isolado em instruction boundary; validar PC/I/R/IFF/IM e preservação de SP/GP/IX/IY; registrar primeiro fetch e instruções iniciais.
 2. **Memória:** testar BIOS ausente/presente, $3E=$AB/$E0, janelas $0000-$BFFF, RAM $C000-$FFFF, espelhamento e gating dos writes FFFC-FFFF pelo bit de cartucho.
@@ -261,7 +274,7 @@ Decisão: não fazer merge nem duplicar a implementação. A PR será usada como
 8. **Regressões:** Andre Agassi Tennis, Ace of Aces, Road Rash e Schtroumpfs 2; executar em baseline e perfis de boot comparáveis.
 9. **Determinismo:** contínuo versus blocos, WAIT, suspensão/retomada e Save State/restore.
 
-## 11. Arquivos candidatos a alteração — ainda não alterados
+## 12. Arquivos candidatos a alteração — ainda não alterados
 
 - `native/sms_core/src/memory.rs`: contrato de BIOS/latch e mapper; apenas após fechar evidência.
 - `native/sms_core/src/temporal_bus.rs`: opções de memória/BIOS no caminho temporal.
