@@ -214,7 +214,10 @@ fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
     );
 
     let (base_micro_state, base_micro_tstates) = run_micro(opcode_bytes);
-    assert_eq!(base_micro_state, base_atomic_state, "base atomic/micro state");
+    assert_eq!(
+        base_micro_state, base_atomic_state,
+        "base atomic/micro state"
+    );
     assert_eq!(
         base_micro_tstates,
         base_atomic_tstates + base_m1_count as u32,
@@ -228,11 +231,7 @@ fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
 
         let (prefixed_atomic, prefixed_atomic_tstates) = run_atomic(&bytes);
         let prefixed_atomic_state = prefixed_atomic.export_architectural_state();
-        assert_equal_except_prefix_count(
-            &base_atomic_state,
-            &prefixed_atomic_state,
-            prefix_count,
-        );
+        assert_equal_except_prefix_count(&base_atomic_state, &prefixed_atomic_state, prefix_count);
         assert_eq!(
             prefixed_atomic_tstates,
             base_atomic_tstates + 4 * prefix_count as u32,
