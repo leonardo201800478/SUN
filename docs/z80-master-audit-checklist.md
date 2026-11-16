@@ -1,7 +1,7 @@
 # Checklist mestre de auditoria e fechamento do Z80
 
 **Documento operacional:** atualizar este checklist a cada etapa efetivamente concluída, sempre vinculando evidências ao SHA integrado na `main`.
-**Baseline remota reconciliada:** `main` = `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09, após squash da PR #729 de reconciliação documental F-015). Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
+**Baseline remota reconciliada:** `main` = `2607e45e4d35e52cd61d825d42a6514b789cfc30` (2026-11-16, após PR #964). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
 **Baseline documental reconciliada:** scorecard, matriz DD/FD e checklist foram atualizados pelas PRs #687 e #688; baselines históricas permanecem preservadas e não representam a main corrente.
 **Núcleo canônico:** `native/z80_cpu` (`sega-z80-cpu`).
 **Perfil inicial de referência:** Zilog Z80 NMOS usado pelas plataformas Sega documentadas. Não generalizar automaticamente para Z80 CMOS, Z180, R800 ou clones.
@@ -803,3 +803,15 @@ Estado vigente:
 - F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
 - Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+
+## Atualização de checklist pós-PR #964 — 16/11/2026
+
+- [x] PR #964 integrada: INT no último T-state da repetição LDIR/LDDR/CPIR/CPDR pelo Scheduler, IM1/RETI e retomada com WAIT fixture e snapshot/restore em cada safe point.
+- [x] CI #43903631872: Rust workspace regression e Rust quality/unit PASS.
+- [x] SMS Runtime #43903632358: format, Clippy, testes e build Windows x64 PASS.
+- [ ] Não converter Scheduler stress, Z80 focused ou SMS debugger Windows Release SKIPPED em PASS; executar gates correspondentes quando aplicável.
+- [ ] PR #965: validar classificação stream/data DD/FD no HEAD atual; aguardar checks obrigatórios antes de integrar.
+- [ ] Obter revisão adversarial independente registrada para a matriz E7 integrada.
+
+E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
