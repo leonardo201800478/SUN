@@ -39,7 +39,7 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 1. **YM2413:** emular o perfil de Master System japonês com YM2413 integrado e mistura simultânea com SN76489. Chip opcional por configuração Auto/On/Off, independente da região; sem emular Mark III FM Sound Unit como módulo externo.
 2. **Sega Card/My Card:** mídia de software; preservar carregamento de cartões e slots nativos SMS/Mark III, com seleção/arbitragem via $3E conforme a geração. Não confundir mídia com adaptador.
 3. **Card Catcher C-1000:** adaptador físico histórico para SG-1000/SC-3000, excluído da implementação. Não transportar lógica do adaptador para o core SG-1000.
-4. **SegaScope/3D Glasses:** emular protocolo $FFF8–$FFFB e obturadores sincronizados ao VDP. A interface Video adotará o modelo simples do Gearsystem: `Both Eyes / OFF`, `Only Left Eye` e `Only Right Eye`. A seleção é de apresentação e não altera a temporização do hardware; modos adicionais não fazem parte do escopo inicial.
+4. **SegaScope/3D Glasses:** emular o protocolo $FFF8–$FFFB e os obturadores sincronizados ao VDP. A apresentação deve permitir jogar sem óculos em `Only Left Eye`, `Only Right Eye` ou `Side-by-Side`; `Both Eyes / OFF` permanece como saída 2D combinada. O modo `Anaglyph` (vermelho/ciano) é opcional e exige óculos coloridos. Essas opções são somente de apresentação: os obturadores seguem o tempo do VDP e não usam temporizadores da GUI.
 5. **Periféricos DE-9:** Paddle, Sports Pad e Light Phaser, além de Rapid Fire quando suportado pelo perfil de hardware.
 6. **Expansões e interfaces:** auditar pinouts, sinais, arbitragem e compatibilidade por console/revisão antes de implementar.
 
