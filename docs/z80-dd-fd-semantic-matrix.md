@@ -1,6 +1,6 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Reconciliação atual:** `main` = `bf7e7584df421000d040a3ee057799a75bfeb3eb` (2026-11-16, após PR #935; PRs #937/#938 não alteraram o Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
+**Reconciliação atual:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, pós-PR #972; PR #972 adicionou somente testes de integração SMS/Scheduler, sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
@@ -660,3 +660,23 @@ Estado após a integração:
 - E8/ZEXDOC/ZEXALL: BLOCKED.
 
 A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+
+## Baseline pós-PR #970 — 16/11/2026
+
+Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem alteração de runtime). F-022 permanece IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS apenas como determinismo de software; E7 IN_PROGRESS; E8 BLOCKED. A lacuna da matriz de requests dos 167 Ignored foi resolvida por #950/#953; PR #971 documenta a reconciliação e PR #972 adiciona cobertura Scheduler IM2, ambas ainda não integradas. Ver [estado E7 consolidado](audits/z80-e7-current-status-2026-11-16.md) para SHAs, workflows e limites de evidência.
+
+
+## Reconciliação pós-PR #972 — 16/11/2026
+
+A main `1b16256358e3f17837a95cc071048c5ee5307f82` recebeu testes de integração SMS/Scheduler para repetição INT IM2/NMI. Não houve alteração de produção Z80, decoder ou semântica DD/FD. O push CI #43933821228 marcou Z80 focused como SKIPPED/NOT RUN; portanto, esta integração não constitui nova execução dos vetores DD/FD na main. E7 permanece IN_PROGRESS e E8 BLOCKED.
+
+
+## Atualização F-028 pós-PR #975 — 16/11/2026
+
+A PR #975 adicionou ao arquivo `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_wait_matrix_f028.rs` dois limites dirigidos para CALL (`PC=FFFC`) e RST (`PC=FFFE`), comparando BASE↔DD/FD e os dois bytes da pilha após wrap `FFFF→0000`. A main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` foi validada por Z80 focused PASS no push CI #43937688464. A comparação permanece estrutural interna e não é oracle independente; review independente não registrada, F-028 IN_PROGRESS.
+
+
+## Reconciliação F-028 pós-PR #977 — 16/11/2026
+
+A PR #977 acrescenta cobertura explícita de WZ para JR/DJNZ sob DD/FD Ignored, inclusive PC `FFFD` com wrap do destino relativo. O teste verifica os caminhos tomado/não tomado, PC, WZ, M1 e trace normalizado. HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`; CI #43939973117 e SMS Runtime #43939957730 estavam em andamento na última consulta. O run cancelado após rustfmt não é PASS. F-028 permanece IN_PROGRESS até CI no HEAD exato e revisão independente registrada.
