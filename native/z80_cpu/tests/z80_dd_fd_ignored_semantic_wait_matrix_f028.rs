@@ -96,6 +96,7 @@ fn expected_stream_operand_bytes(opcode: u8) -> usize {
     } else {
         0
     }
+    }
 }
 
 fn execute_one_instruction(
@@ -563,7 +564,7 @@ fn ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address() {
 
 #[test]
 fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
-    const INITIAL_PC: u16 = 0x2000;
+    const INITIAL_PCS: [u16; 2] = [0x2000, 0xFFFD];
     const INITIAL_WZ: u16 = 0xA328;
     let cases = [
         // opcode, F, BC, taken
@@ -580,7 +581,8 @@ fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
         (0x38, 0x00, 0x0145, false),          // JR C not taken
     ];
 
-    for (opcode, flags, bc, taken) in cases {
+    for initial_pc in INITIAL_PCS {
+        for (opcode, flags, bc, taken) in cases {
         let base = execute_one_instruction(&[opcode], true, flags, bc, INITIAL_PC, INITIAL_WZ);
         assert_eq!(base.fetch_addresses, vec![INITIAL_PC]);
 
