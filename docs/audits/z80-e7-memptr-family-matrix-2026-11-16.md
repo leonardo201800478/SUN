@@ -1,6 +1,6 @@
 # F-023 — Matriz de famílias WZ/MEMPTR
 
-**Baseline examinada:** `1b16256358e3f17837a95cc071048c5ee5307f82` (main após PR #972). #972 alterou somente testes de integração SMS; os blobs de produção Z80 permanecem os mesmos da validação focada #968.
+**Baseline examinada:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (main após PR #975). PRs #972 e #975 alteraram somente testes; os blobs de produção Z80 permanecem os mesmos da validação focada #968.
 **Perfil:** Zilog Z80 NMOS compartilhado; runtime temporal SMS; SG-1000 mantido como core de referência com execução em fronteiras de instrução.
 **Objetivo:** inventariar regras WZ/MEMPTR efetivamente implementadas, condições de atualização, wrap, observabilidade e proveniência dos testes. Esta matriz não atribui ao UM0080 regras que o fabricante não documenta.
 
