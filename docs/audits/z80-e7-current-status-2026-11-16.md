@@ -26,7 +26,7 @@ Nenhuma PR altera CPU, decoder, microsequenciador, MachineScheduler ou runtime. 
 - CI #43852582196: Z80 focused SUCCESS; SMS Runtime #43852582229 SUCCESS.
 - ROM v5.0: 1 passed/0 failed em 6,50 s.
 - O log confirma pelo menos 60 comparações principais de instrução/PC e 390 registros B-loop em seis grupos (OTIR×2, OTDR×2, INIR, INDR), B observado conforme 0x0D + 3*i, flags exatas, calibração e retorno ao caller aprovados. Os seis grupos B-loop são operações de I/O block da família F-021; não os contabilizar como cobertura das oito formas de transferência/comparação de F-022. O mapeamento da stream principal para cada opcode F-022 ainda precisa ser reconciliado.
-- SingleStepTests DD/FD executados explicitamente com --ignored: 2.000 SCF/CCF/Q + 32.000 indexed ALU = 34.000/34.000 PASS.
+- O mesmo CI também executou 34.000 SingleStepTests DD/FD no SHA 306db2a, mas esse resultado é evidência separada de F-028; não é cobertura do ROM F-022.
 
 ### Diagnóstico preservado
 
@@ -84,9 +84,10 @@ No HEAD 98c1cf4, os quatro testes passaram: 4 passed/0 failed. Os 34.000 vetores
 
 | Item | Estado | Evidência | Lacuna |
 |---|---|---|---|
-| F-022 | AUDIT_PARTIAL | ROM v5.0 PASS; 34k vetores PASS | Suíte não exaustiva; casos adicionais de bloco/IRQ/Q/timing |
+| F-021 | AUDIT_PARTIAL | 390 B-loop records para OTIR/OTDR/INIR/INDR; B=0x0D+3*i e flags exatas | Outras formas I/O block, semântica completa e microsequenciador/WAIT |
+| F-022 | AUDIT_PARTIAL | ROM v5.0 PASS; ≥60 comparações principais de instrução/PC | Mapeamento por opcode das oito formas LDI/LDD/CPI/CPD; casos adicionais de bloco/IRQ/Q/timing |
 | F-023 | AUDIT_PARTIAL | Woodmass MEMPTR 09 PASS; checksum/ciclos/HALT/output exatos | WZ/X/Y em todas as famílias e limites temporais |
-| F-028 | AUDIT_PARTIAL | 34k vetores; PR #935; matriz ampliada #943 com 108 casos por executor | Ledger integral DD/FD, opcodes e estados |
+| F-028 | AUDIT_PARTIAL | 34k vetores DD/FD; PR #935; matriz #943 com 108 casos por executor; ledger 256 bytes e INT/NMI durante prefixo PASS no HEAD b3320ea | Semântica integral por opcode/estado e todas as interações de interrupção/WAIT |
 | E7 | IN_PROGRESS | Evidência ampliada; nenhuma alteração de produção nesta rodada | Reconciliação de todos os critérios e integração dos candidatos |
 | E8 | BLOCKED | Não iniciado | Só iniciar após fechamento formal de E7 |
 
