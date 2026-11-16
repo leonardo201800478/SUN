@@ -231,17 +231,19 @@ A consulta a `pull_request_reviews` e a `review_threads` retornou coleções vaz
 
 ## 2026-11-16 — atualização após PRs #950–#952
 
-Baseline remota atual após as integrações de teste e documentação: `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`.
+Baseline remota atual após a integração da PR #955: `67f4149e1933d18ffa5201da66ca6ff46c598e32`.
 
 - **PR #950 — F-028:** integrada em `45b40755e46aef752d58f571de856ae25ff9e81c`. A matriz acrescenta 167 opcodes Ignored × DD/FD, comparação arquitetural BASE, payloads de leitura/escrita, transações, WAIT e snapshot/restore em fronteiras de barramento/ciclo interno. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado. A árvore do merge foi confirmada idêntica à árvore validada.
 - **PR #951 — F-022/F-023:** integrada em `b9d18f48466e3647aec73207f38c416bfef2b3dc`. Acrescenta assertions de previous-Q e WZ para LDI/LDD/CPI/CPD na matriz microsequenciada de 786.432 casos e nos ensaios dirigidos de WAIT/snapshot. CI #43890238681 e SMS Runtime #43890238056 PASS no HEAD validado. A regra é diferenciada: LDI/LDD preservam WZ; CPI/CPD atualizam WZ por ±1.
 - **PR #952 — F-023:** integrada em `564074366fdc9bad59895163c8501134e88cce99`. Adiciona matriz documental WZ/MEMPTR por família, separando DOC/HW/COMP/INT/GAP. CI #43890997152: Documentation patch hygiene PASS e Rust quality and unit regression PASS; os jobs de runtime foram SKIPPED por serem alterações documentais.
 - **PR #953 — F-028:** integrada em `a6cec0d744b8120c8c3e2d1d56abd1aa75fc1031`. Adiciona segundo fixture F=FF/B=1, complementa os resultados condicionais e verifica o delta exato de PC por opcode. CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado; árvore do merge idêntica à árvore testada.
 - **PR #954 — F-023:** integrada em `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`. Acrescenta WZ para D3/DB, RETN/RETI, IM0 RST e preservação em IM1. CI #43893014345 e SMS Runtime #43893014300 PASS no HEAD validado; workspace regression PASS; árvore do merge idêntica à árvore testada.
-- **PR #955 — F-023:** aberta, HEAD validado `cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`. A asserção WZ para BASE EX (SP),HL passou no CI #43897766618 (Z80 focused) e SMS Runtime #43897766471 (format/Clippy/testes/build Windows x64) no SHA exato; a falha anterior era somente rustfmt e foi corrigida. Ainda não há review submetida nem review thread; não promover F-023 a CLOSED.
+- **PR #955 — F-023:** MERGED em `67f4149e1933d18ffa5201da66ca6ff46c598e32`. HEAD de código validado `cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`; CI #43897766618 e SMS Runtime #43897766471 SUCCESS. A árvore integrada é idêntica à árvore testada (`588cf96cfc59c438932899391fb58cb556912ee2`). A asserção BASE EX (SP),HL agora está integrada. Não há review submetida nem review thread para a PR; a ausência de trilha auditável mantém o gate transversal de revisão BLOCKED.
 
 - **Validação pós-merge da main:** CI push #43893511027 e SMS Runtime #43893510836 COMPLETED SUCCESS no SHA `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`; Z80 focused, Rust workspace regression e SMS Runtime Release passaram. Jobs não relacionados ficaram SKIPPED por classificação de impacto.
 
+- **Validação pós-merge da PR #955:** CI push #43898370234 e SMS Runtime #43898370419 COMPLETED SUCCESS no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`; a árvore do merge corresponde exatamente ao HEAD testado.
+
 A matriz PR #950 é diferencial interno BASE↔DD/FD, não oracle independente de silício. O PC final exato por resultado condicional permanece pendente da PR #953. WZ é tratado na matriz F-023 e não é mascarado como equivalência universal.
 
-**Estado:** F-028 IN_PROGRESS (matrizes 167 Ignored, WAIT/snapshot e PC condicional integradas); F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL (a asserção BASE EX (SP),HL passou na PR #955, mas a PR segue sem review independente e a matriz WZ/X/Y/temporalidade ainda tem lacunas); E7 IN_PROGRESS; E8 BLOCKED. Não iniciar ZEXDOC/ZEXALL.
+**Estado:** F-028 IN_PROGRESS (matrizes 167 Ignored, WAIT/snapshot e PC condicional integradas); F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL (BASE EX (SP),HL integrada; a matriz WZ/X/Y/temporalidade ainda tem lacunas e a revisão independente segue sem trilha auditável); E7 IN_PROGRESS; E8 BLOCKED. Não iniciar ZEXDOC/ZEXALL.
