@@ -225,11 +225,7 @@ fn assert_architecture_equal_except_prefix(
     assert_eq!(prefixed.halted, base.halted);
 }
 
-fn assert_exchange_result(
-    opcode: u8,
-    registers: &Z80Registers,
-    alternate: &Z80AlternateRegisters,
-) {
+fn assert_exchange_result(opcode: u8, registers: &Z80Registers, alternate: &Z80AlternateRegisters) {
     match opcode {
         0x08 => {
             assert_eq!((registers.a, registers.f), (0xAA, 0xBB));
@@ -290,8 +286,7 @@ fn dd_fd_prefixes_are_ignored_for_exchange_exception_opcodes() {
         assert_exchange_result(opcode, &base_micro.registers, &base_micro.alternate);
 
         for prefix in [0xDD_u8, 0xFD] {
-            let (prefixed_micro, prefixed_micro_tstates) =
-                run_microsequencer(Some(prefix), opcode);
+            let (prefixed_micro, prefixed_micro_tstates) = run_microsequencer(Some(prefix), opcode);
             assert_eq!(
                 prefixed_micro_tstates, 10,
                 "{prefix:02X} {opcode:02X}: two M1 WAITs"
@@ -299,11 +294,7 @@ fn dd_fd_prefixes_are_ignored_for_exchange_exception_opcodes() {
             assert_eq!(prefixed_micro.registers.pc, 0x0001);
             assert_eq!(prefixed_micro.r, 0x80);
             assert_architecture_equal_except_prefix(&base_micro, &prefixed_micro);
-            assert_exchange_result(
-                opcode,
-                &prefixed_micro.registers,
-                &prefixed_micro.alternate,
-            );
+            assert_exchange_result(opcode, &prefixed_micro.registers, &prefixed_micro.alternate);
         }
     }
 }
