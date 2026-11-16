@@ -343,6 +343,7 @@ fn assert_architectural_fallback(
     prefix: u8,
     opcode: u8,
     initial_f: u8,
+    initial_bc: u16,
 ) {
     let mut expected = *base;
     expected.r = increment_refresh(base.r);
@@ -354,10 +355,23 @@ fn assert_architectural_fallback(
         "{prefix:02X} {opcode:02X}: final PC must reflect the exact BASE control-flow outcome"
     );
 
-    // WZ can follow a stream-relative branch target, so it is tracked by the
-    // dedicated F-023 matrix rather than normalized as a generic fallback field.
+    // Relative branches compute WZ from the post-displacement PC. The
+    // ignored DD/FD byte shifts that target by one; all other BASE fallbacks
+    // retain the same WZ result.
+    let relative_branch_taken = match opcode {
+        0x10 => (initial_bc >> 8).wrapping_sub(1) != 0, // DJNZ
+        0x18 => true,                                  // JR e
+        0x20 | 0x28 | 0x30 | 0x38 => {
+            condition_true((opcode >> 3) & 0x03, initial_f)
+        }
+        _ => false,
+    };
     expected.registers.pc = prefixed.registers.pc;
-    expected.wz = prefixed.wz;
+    expected.wz = if relative_branch_taken {
+        base.wz.wrapping_add(1)
+    } else {
+        base.wz
+    };
     assert_eq!(
         prefixed.q_previous, 0,
         "{prefix:02X} {opcode:02X}: ignored prefix clears previous-Q"
@@ -444,7 +458,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
                 base.tstates + 5,
                 "{prefix:02X} {opcode:02X}: +4T prefix M1 plus its 1T WAIT"
             );
-            assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0x00);
+            assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0x00, 0x2345);
             assert_eq!(
                 remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode, 0),
                 base.trace,
@@ -476,7 +490,7 @@ fn all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc() {
             );
             assert_eq!(prefixed.wait_count, base.wait_count + 1);
             assert_eq!(prefixed.tstates, base.tstates + 5);
-            assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0xFF);
+            assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0xFF, 0x0145);
             assert_eq!(
                 remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode, 0),
                 base.trace,
