@@ -619,3 +619,44 @@ O teste `z80_dd_fd_ignored_fallback_matrix_f028.rs` usa o CSV de 256 bytes como 
 A matriz não valida integralmente efeitos arquiteturais, endereços/ordem de operandos nem os estados intermediários de WAIT/snapshot. O próximo recorte deve cobrir formatos de request por família: imediato, relativo, memória indireta/absoluta, stack, I/O e controle de fluxo, sem confundir cobertura estrutural com semântica independente.
 
 **Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+## 36. F-028 — comparação estrutural de requests Ignored — 2026-11-16
+
+PR #948 integrada em `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`; HEAD testado `74715cbc777acc6625745489a4dfa495cde18ee9`. CI Z80 focused #43884118254 e SMS Runtime #43884118298 passaram nos jobs aplicáveis.
+
+A matriz compara BASE com DD/FD para os 167 bytes efetivos Ignored, registrando tipo/ordem de request, endereço, base T-states e ciclos internos. Preserva as asserções de M1 em PC 0/1, ausência de refetch, R +2 e custo BASE +4T.
+
+**Não prova:** valores lidos, payloads escritos, estado arquitetural final, WAIT/snapshot por classe ou semântica independente. O normalizador desloca qualquer leitura de memória abaixo de `0x0100`; a próxima revisão deve distinguir explicitamente fetch do stream de acesso de dados, preferencialmente registrando PC no request. O fixture atual usa BC/DE/HL/SP altos e operandos `0x5A`, mas não contém uma asserção que proíba leitura de dados na página baixa.
+
+**Review/integração:** não há review independente submetido no GitHub para #948; o review Codex falhou por limite de uso. Nenhum workflow push pós-merge foi encontrado; SKIPPED e ausência de run não são PASS.
+
+**Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+
+## Addendum F-028 — validação integrada em 16/11/2026
+
+A PR #950 acrescenta a matriz `z80_dd_fd_ignored_semantic_wait_matrix_f028.rs`: 167 opcodes Ignored sob DD e FD, comparação com BASE, leitura/escrita com payload, tipo/ordem/endereço/duração de request, ciclos internos, WAIT e snapshot/restore. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado, com árvore idêntica ao merge `45b40755e46aef752d58f571de856ae25ff9e81c`.
+
+A normalização fica limitada a acessos de fluxo de instrução identificados por PC e ao byte baixo do endereço de retorno em CALL/RST. A matriz é uma comparação estrutural interna, não um oracle independente. A PR #953 integrou PC final exato e condições tomada/não tomada; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado. PRs #954/#955 tratam somente WZ fora do escopo de dispatch DD/FD.
+
+## Reconciliação após PR #955 — 16/11/2026
+
+A PR #955 foi integrada na main pelo commit `67f4149e1933d18ffa5201da66ca6ff46c598e32`. O diff é exclusivamente test-only: quatro linhas de assertion em `native/z80_cpu/src/cpu.rs`, no teste `exchange_stack_hl_and_di_ei_update_state`, verificando `cpu.wz == 0xABCD` após BASE `EX (SP),HL`. Não houve alteração de produção, decoder, microsequenciador, Scheduler, SMS ou SG-1000.
+
+Validação no HEAD exato da PR #955 (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
+- CI #43897766618: PASS — Z80 focused validation, incluindo rustfmt, Clippy, testes Z80/SMS/SG-1000, fixtures SingleStepTests DD/FD, Z80 Block Instruction Flags v5.0 e Woodmass MEMPTR; Rust quality/unit regression PASS.
+- SMS Debugger Runtime #43897766471: PASS — formatação, Clippy Release, testes SMS Runtime e build Release Windows x64.
+- SMS debugger Windows Release validation: SKIPPED. Não contar como PASS; o workflow concluiu SUCCESS porque esse job condicional não era aplicável ao diff.
+- Workflow push pós-merge no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`: não localizado na consulta de runs; classificar NOT_RUN/NOT_VERIFIED, não PASS.
+
+A matriz WZ/MEMPTR agora possui assertion dirigida para BASE `EX (SP),HL`, além das coberturas IX/IY já existentes. Isso fecha a pendência específica de teste dessa instrução, mas não declara F-023 CLOSED: permanecem a revisão de consistência da matriz completa, a proveniência das regras e a revisão adversarial transversal.
+
+Estado após a integração:
+- F-023: AUDIT_PARTIAL — lacuna específica BASE `EX (SP),HL` coberta; revisão integral e reconciliação ainda necessárias.
+- F-028: IN_PROGRESS — manter limites e lacunas documentados; não inferir fechamento a partir das matrizes.
+- F-022: IN_PROGRESS — manter separação de F-021 e validar integralmente as oito formas.
+- Temporalidade/Scheduler: NOT_VERIFIED como fechamento E7 até demonstração integrada de determinismo e equivalência contínua/em blocos.
+- E7: IN_PROGRESS.
+- E8/ZEXDOC/ZEXALL: BLOCKED.
+
+A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
