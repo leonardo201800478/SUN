@@ -1,7 +1,7 @@
 # Sega Emulator — instruções permanentes
 
-**Repositório:** https://github.com/leonardo201800478/sega-emulator  
-**Referência técnica:** https://www.smspower.org/  
+**Repositório:** https://github.com/leonardo201800478/sega-emulator
+**Referência técnica:** https://www.smspower.org/
 **Baseline consultada:** `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16).
 
 ## Papel e prioridades
