@@ -114,3 +114,39 @@ No HEAD 98c1cf4, os quatro testes passaram: 4 passed/0 failed. Os 34.000 vetores
 - Não iniciar E8.
 
 **Conclusão:** os testes focados atuais foram encerrados com PASS nos SHAs indicados. Nenhuma PR foi mesclada. E7 permanece IN_PROGRESS; E8 permanece BLOCKED.
+
+## 8. Extensão da auditoria DD/FD após a revisão remota — 2026-11-16
+
+### 8.1 Baseline e estado real das PRs
+
+- Main: caa9a76a6f09d588155ea4e0cbc95f487f079143. A comparação Git com a baseline de código Z80 bf7e7584df421000d040a3ee057799a75bfeb3eb mostra dois commits exclusivamente documentais até caa9; não houve mudança de runtime Z80 nesse intervalo.
+- PR #936: OPEN/DRAFT, head 306db2a91ff796b4c5f66eabc4ebd4c4baad903e, base caa9a76a6f09d588155ea4e0cbc95f487f079143, mergeable=true. CI #43852582196 e SMS Runtime #43852582229 SUCCESS no SHA exato.
+- PR #942: OPEN/DRAFT, head documental 15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021; código/harness 7402ff138ced95da2d8b9e0008919c8cd22484f1. CI do código #43850972785/#43850972708 SUCCESS; CI documental #43851550529/#43851550520 SUCCESS.
+- PR #943: OPEN/DRAFT, base caa9a76a6f09d588155ea4e0cbc95f487f079143, head atualizado pela extensão desta rodada. Nenhuma das três PRs tem revisão independente registrada ou reviewers solicitados; nenhuma foi integrada.
+
+### 8.2 Ledger dos 256 bytes após DD/FD
+
+Foi adicionado docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv com 256 linhas de dados, um por byte após DD/FD. A classificação efetiva da FSM é: 85 UsesIndex, 167 Ignored, 1 IndexedCB, 1 ED que cancela o index latch e 2 bytes de prefixo repetido (DD/FD).
+
+A função auxiliar classify_index_opcode() é consultada depois de a FSM tratar DD, FD e ED; por isso, em chamada direta, esses três bytes retornam Ignored. O ledger separa o resultado auxiliar da ação real da FSM. O teste index_prefix_classification_f028.rs percorre os 256 bytes contra uma lista explícita de 85 UsesIndex e espera 85 UsesIndex, 170 Ignored e 1 IndexedCB no classificador auxiliar.
+
+Exceções mantidas no ledger: HALT 76; EX AF,AF' 08; EXX D9; EX DE,HL EB; H/L convencionais em 66/6E/74/75; CB para DDCB/FDCB; ED para cancelamento; DD/FD repetidos com last-prefix-wins. A classificação não prova a semântica integral de cada opcode.
+
+### 8.3 Interrupções solicitadas durante a cadeia de prefixos
+
+O teste z80_dd_fd_exception_matrix_f028.rs recebeu dois casos: NMI e INT são solicitados após o M1 de DD e antes de FD, numa cadeia DD FD 00. O teste insere WAIT nos M1, faz snapshot encode/decode/restore e exige que NOP seja aposentado antes de a próxima fronteira aceitar NMI/INT. Esses testes exercitam o microsequenciador Z80 diretamente; não são um novo teste de integração Scheduler/VDP SMS.
+
+### 8.4 Primeiro CI das extensões e correção
+
+- Código candidato inicial da extensão: 958585010fb47f30333cac9494bd45d90a03801b. CI #43862912238 e SMS Runtime #43862912321 falharam somente em cargo fmt --all -- --check. Os passos de Clippy, testes, SingleStepTests e build ficaram SKIPPED em consequência do gate de formatação; não houve execução semântica dos novos testes.
+- O log de rustfmt identificou apenas reordenação de imports, quebra de linhas e espaçamento nos dois arquivos de teste. As correções foram aplicadas em commits 0e29f164e2047bf206902de7d87b1a0c6efabe19 e dcfb74fae2d207126da59562eb8745fa0d733bd4.
+- O HEAD dcfb74f é o código de teste corrigido; o CI desse HEAD ainda precisa concluir. As atualizações documentais posteriores não modificam os testes.
+- A documentação patch hygiene do primeiro run passou. Não transferir esse resultado para testes Rust nem declarar PASS para o código corrigido.
+
+### 8.5 Estado atualizado
+
+- F-022: AUDIT_PARTIAL; ROM v5.0 PASS no SHA 306db2a, sem cobertura exaustiva.
+- F-023: AUDIT_PARTIAL; Woodmass MEMPTR 09 PASS no SHA 7402ff1, sem tabela completa WZ/X/Y.
+- F-028: AUDIT_PARTIAL; matriz original 108 combinações PASS no SHA 98c1cf4; ledger completo de classificação e testes de INT/NMI adicionados, mas validação desses novos testes ainda pendente.
+- Nenhuma alteração de produção da CPU, prefix FSM, microsequenciador, Scheduler ou runtime foi feita.
+- E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
