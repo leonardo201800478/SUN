@@ -61,6 +61,11 @@ impl CpuBus for SpectrumTestBus {
             self.memory[usize::from(address)] = value;
         }
     }
+
+    fn read_port(&mut self, port: u16) -> u8 {
+        // Match redcode/Z80 test-Z80.c defaults: even ports 0xBF, odd ports 0xFF.
+        if port & 1 == 0 { 0xBF } else { 0xFF }
+    }
 }
 
 #[derive(Debug)]
