@@ -239,6 +239,11 @@ fn all_simple_block_transfer_and_compare_inputs_match_independent_flags() {
                     assert_eq!(state.registers.f, expected_f, "ED {opcode:02X}: F");
                     assert_eq!(state.q, expected_f, "ED {opcode:02X}: Q");
                     assert_eq!(state.q_previous, 0x28, "ED {opcode:02X}: previous-Q");
+                    assert_eq!(
+                        state.wz,
+                        0xA55A_u16.wrapping_add_signed(delta),
+                        "ED {opcode:02X}: simple-form WZ increment/decrement"
+                    );
                     assert_eq!(state.registers.bc(), count, "ED {opcode:02X}: BC");
                     assert_eq!(
                         state.registers.hl(),
@@ -301,6 +306,11 @@ fn simple_block_forms_preserve_waits_and_snapshot_restore_at_every_boundary() {
             cpu.export_architectural_state().q_previous,
             0x28,
             "ED {opcode:02X}: previous-Q after resume"
+        );
+        assert_eq!(
+            cpu.export_architectural_state().wz,
+            0xA55A_u16.wrapping_add_signed(direction(opcode)),
+            "ED {opcode:02X}: WZ after WAIT and snapshot restore"
         );
         assert_eq!(cpu.registers.pc, 0x1002, "ED {opcode:02X}: PC after resume");
         assert_eq!(cpu.registers.bc(), 1, "ED {opcode:02X}: BC after resume");
