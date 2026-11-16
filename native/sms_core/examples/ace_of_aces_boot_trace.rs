@@ -11,8 +11,8 @@ use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 
 use sega_sms_core::{
-    SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision,
-    SpriteLimitMode, Territory, VideoStandard,
+    SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
+    Territory, VideoStandard,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -140,12 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 writeln!(
                     output,
                     "BUS t={:?} op={:?} addr=${:04X} data={:?} base_tstates={} wait_tstates={}",
-                    timestamp,
-                    operation,
-                    address,
-                    data,
-                    base_tstates,
-                    wait_tstates
+                    timestamp, operation, address, data, base_tstates, wait_tstates
                 )?;
             }
         }
