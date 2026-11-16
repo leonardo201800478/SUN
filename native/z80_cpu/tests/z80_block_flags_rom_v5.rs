@@ -234,8 +234,6 @@ fn validate_b_loop_log(memory: &[u8; 0x1_0000]) {
 }
 
 #[test]
-#[ignore = "requires pinned Z80 Block Instruction Flags Test v5.0 SNA downloaded by CI"]
-#[test]
 fn rom_print_stub_matches_spectrum_pr_string_register_side_effects() {
     let mut cpu = Z80::default();
     let mut bus = Spectrum48Bus::default();
@@ -258,7 +256,8 @@ fn rom_print_stub_matches_spectrum_pr_string_register_side_effects() {
 }
 
 #[test]
-
+#[ignore = "requires pinned Z80 Block Instruction Flags Test v5.0 SNA downloaded by CI"]
+fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     let fixture = env::var("SEGA_Z80_BLOCK_FLAGS_SNA")
         .expect("CI must set SEGA_Z80_BLOCK_FLAGS_SNA to the pinned SNA fixture path");
     let bytes = fs::read(&fixture).expect("pinned Z80 block-flags SNA is readable");
