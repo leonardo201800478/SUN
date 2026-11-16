@@ -561,46 +561,32 @@ fn ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address() {
     }
 }
 
-
 #[test]
 fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
     const INITIAL_PC: u16 = 0x2000;
     const INITIAL_WZ: u16 = 0xA328;
     let cases = [
         // opcode, F, BC, taken
-        (0x18_u8, 0x00_u8, 0x0145_u16, true),  // JR e
-        (0x10, 0x00, 0x0245, true),            // DJNZ taken
-        (0x10, 0x00, 0x0145, false),           // DJNZ not taken
-        (0x20, 0x00, 0x0145, true),            // JR NZ taken
-        (0x20, 0x40, 0x0145, false),           // JR NZ not taken
-        (0x28, 0x40, 0x0145, true),            // JR Z taken
-        (0x28, 0x00, 0x0145, false),           // JR Z not taken
-        (0x30, 0x00, 0x0145, true),            // JR NC taken
-        (0x30, 0x01, 0x0145, false),           // JR NC not taken
-        (0x38, 0x01, 0x0145, true),            // JR C taken
-        (0x38, 0x00, 0x0145, false),           // JR C not taken
+        (0x18_u8, 0x00_u8, 0x0145_u16, true), // JR e
+        (0x10, 0x00, 0x0245, true),           // DJNZ taken
+        (0x10, 0x00, 0x0145, false),          // DJNZ not taken
+        (0x20, 0x00, 0x0145, true),           // JR NZ taken
+        (0x20, 0x40, 0x0145, false),          // JR NZ not taken
+        (0x28, 0x40, 0x0145, true),           // JR Z taken
+        (0x28, 0x00, 0x0145, false),          // JR Z not taken
+        (0x30, 0x00, 0x0145, true),           // JR NC taken
+        (0x30, 0x01, 0x0145, false),          // JR NC not taken
+        (0x38, 0x01, 0x0145, true),           // JR C taken
+        (0x38, 0x00, 0x0145, false),          // JR C not taken
     ];
 
     for (opcode, flags, bc, taken) in cases {
-        let base = execute_one_instruction(
-            &[opcode],
-            true,
-            flags,
-            bc,
-            INITIAL_PC,
-            INITIAL_WZ,
-        );
+        let base = execute_one_instruction(&[opcode], true, flags, bc, INITIAL_PC, INITIAL_WZ);
         assert_eq!(base.fetch_addresses, vec![INITIAL_PC]);
 
         for prefix in [0xDD, 0xFD] {
-            let prefixed = execute_one_instruction(
-                &[prefix, opcode],
-                true,
-                flags,
-                bc,
-                INITIAL_PC,
-                INITIAL_WZ,
-            );
+            let prefixed =
+                execute_one_instruction(&[prefix, opcode], true, flags, bc, INITIAL_PC, INITIAL_WZ);
             assert_eq!(
                 prefixed.fetch_addresses,
                 vec![INITIAL_PC, INITIAL_PC.wrapping_add(1)],
@@ -614,8 +600,7 @@ fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
 
             if taken {
                 assert_eq!(
-                    base.state.wz,
-                    base.state.registers.pc,
+                    base.state.wz, base.state.registers.pc,
                     "BASE {opcode:02X}: taken relative branch WZ"
                 );
                 assert_eq!(
@@ -625,13 +610,11 @@ fn ignored_prefix_relative_branch_wz_tracks_shifted_stream_pc() {
                 );
             } else {
                 assert_eq!(
-                    base.state.wz,
-                    INITIAL_WZ,
+                    base.state.wz, INITIAL_WZ,
                     "BASE {opcode:02X}: not-taken branch preserves WZ"
                 );
                 assert_eq!(
-                    prefixed.state.wz,
-                    INITIAL_WZ,
+                    prefixed.state.wz, INITIAL_WZ,
                     "{prefix:02X} {opcode:02X}: ignored prefix must preserve WZ when not taken"
                 );
             }
