@@ -158,8 +158,8 @@ F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
 
 - P0 recebeu a matriz #950 para payloads, estado arquitetural, WAIT e snapshot/restore nos 167 fallbacks. A PR #953 integrou as duas fixtures condicionais e o PC final exato; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
 - P1 recebeu as asserções previous-Q e WZ nas quatro formas simples de bloco pela #951. LDI/LDD preservam WZ; CPI/CPD alteram WZ em ±1.
-- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow, IM2, IN/OUT imediato, IM0/IM1, RETN/RETI e RST possuem testes WZ rastreáveis após a PR #954 (CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS). A única lacuna de teste identificada na matriz é a asserção BASE EX (SP),HL da PR #955.
-- Não reimplementar UsesIndex nem iniciar E8. Manter F-028/F-022/F-023 abertas até passar a PR #955 e concluir a revisão adversarial documentada.
+- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow, IM2, IN/OUT imediato, IM0/IM1, RETN/RETI e RST possuem testes WZ rastreáveis após a PR #954 (CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS). A asserção BASE EX (SP),HL da PR #955 foi integrada e validada no merge `67f4149e1933d18ffa5201da66ca6ff46c598e32`; CI push #43898370234 e SMS Runtime #43898370419 SUCCESS. As lacunas WZ/X/Y e temporalidade restantes e a revisão adversarial independente continuam pendentes.
+- Não reimplementar UsesIndex nem iniciar E8. PR #955 está integrada e validada pós-merge; não há review independente registrada. Manter F-028/F-022/F-023 em seus estados parciais até as lacunas restantes e o gate adversarial serem concluídos.
 
 ## Reconciliação após PR #955 — 16/11/2026
 
@@ -182,3 +182,8 @@ Estado após a integração:
 - E8/ZEXDOC/ZEXALL: BLOCKED.
 
 A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+
+## Correção de evidência pós-merge — 16/11/2026
+
+A PR #955 foi validada também na main: CI push #43898370234 e SMS Debugger Runtime #43898370419 COMPLETED SUCCESS no merge `67f4149e1933d18ffa5201da66ca6ff46c598e32`. A PR #956 atualizou os documentos no SHA `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`; seu CI push #43899020946 validou apenas higiene documental e Rust quality/unit, enquanto Z80/workspace/runtime foram SKIPPED. Não usar esse run como prova de runtime na main atual.
