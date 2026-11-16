@@ -152,3 +152,11 @@ O normalizador de memória abaixo de `0x0100` ainda não prova que o endereço p
 **Próximo recorte:** normalização stream/data robusta; payloads e efeitos arquiteturais por família; WAIT/snapshot por classe; oracle independente e revisão adversarial. Nenhuma alteração de CPU/decoder/FSM/microsequenciador de produção é autorizada por esta evidência.
 
 F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+
+## Atualização operacional — 16/11/2026 (pós #950–#952)
+
+- P0 recebeu a matriz adicional #950 para payloads, estado arquitetural, WAIT e snapshot/restore nos 167 fallbacks. O refinamento do PC final por condições tomada/não tomada está em #953 e aguarda CI.
+- P1 recebeu as asserções previous-Q e WZ nas quatro formas simples de bloco pela #951. LDI/LDD preservam WZ; CPI/CPD alteram WZ em ±1.
+- P2 recebeu a matriz por família WZ/MEMPTR na #952. Permanecem lacunas explícitas de control flow, IN/OUT imediato, INT IM2 e observabilidade temporal de bloco.
+- Não reimplementar UsesIndex nem iniciar E8. Manter F-028/F-022/F-023 abertas até cobrir as lacunas documentadas.
