@@ -1511,6 +1511,15 @@ mod windows_host {
                 self.underrun_frames as f64 * 100.0 / requested as f64
             }
         }
+
+        /// A first sample or reset epoch is not a valid measurement window.
+        fn zero_fill_percent_for_window(self, rate_valid: bool) -> f64 {
+            if rate_valid {
+                self.zero_fill_percent()
+            } else {
+                0.0
+            }
+        }
     }
 
     /// Bounded host-side measurements for mailbox consumption and WGPU upload.
@@ -1943,7 +1952,7 @@ mod windows_host {
                     delta.flushed_frames,
                     accepted_frames_per_second,
                     requested_frames_per_second,
-                    delta.zero_fill_percent(),
+                    delta.zero_fill_percent_for_window(rate_valid),
                     output_error,
                 );
             }
@@ -4274,6 +4283,18 @@ mod windows_host {
             assert_eq!(delta.underrun_frames, 4_000);
             assert_eq!(delta.requested_frames(), 49_000);
             assert!((delta.zero_fill_percent() - (4_000.0 / 49_000.0 * 100.0)).abs() < 0.0001);
+        }
+
+        #[test]
+        fn audio_output_delta_zero_fill_window_is_zero_until_rate_is_valid() {
+            let delta = AudioOutputDelta {
+                consumed_frames: 75,
+                underrun_frames: 25,
+                ..AudioOutputDelta::default()
+            };
+
+            assert_eq!(delta.zero_fill_percent_for_window(false), 0.0);
+            assert_eq!(delta.zero_fill_percent_for_window(true), 25.0);
         }
 
         #[test]
