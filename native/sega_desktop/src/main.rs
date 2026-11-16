@@ -2990,12 +2990,10 @@ mod windows_host {
                     resolve_sms_region(preference, rom, &cartridge_catalog).region
                 }
                 Err(error) => {
-                    eprintln!(
-                        "SMS_REGION preference=auto catalog_error={error}; fallback=usa"
-                    );
+                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
                     SmsRegion::Usa
                 }
-            }
+            },
         };
         let selected = match region {
             SmsRegion::Brazil => &settings.firmware_brazil_selected,
@@ -4664,7 +4662,8 @@ mod windows_host {
                 sms_system: "sms1".to_owned(),
                 firmware_directory: "unused-firmware-directory".to_owned(),
                 firmware_boot_enabled: true,
-                firmware_brazil_selected: "EuropeV20 — Master System Europe v2.0 (8 KiB)".to_owned(),
+                firmware_brazil_selected: "EuropeV20 — Master System Europe v2.0 (8 KiB)"
+                    .to_owned(),
                 firmware_usa_selected: String::new(),
                 firmware_europe_selected: String::new(),
                 firmware_japan_selected: String::new(),
