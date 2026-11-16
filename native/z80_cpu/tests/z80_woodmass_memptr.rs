@@ -25,7 +25,6 @@ const EXIT_ADDRESS: u16 = 0x80E6;
 const CHAN_OPEN: u16 = 0x1601;
 const CLS: u16 = 0x0D6B;
 const PRINT_VECTOR: u16 = 0x0010;
-const PRINT_HOOK: u16 = 0x70F2;
 
 const EXPECTED_TSTATES: u64 = 50_904_931;
 const MAX_TSTATES: u64 = EXPECTED_TSTATES + 2_000_000;
@@ -152,12 +151,10 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
     };
     bus.memory[LOAD_ADDRESS..LOAD_ADDRESS + TAP_CODE_SIZE].copy_from_slice(code);
 
-    // Spectrum ROM services installed by the upstream test runner.
-    bus.memory[usize::from(PRINT_VECTOR)] = 0xC3; // JP PRINT_HOOK
-    bus.memory[usize::from(PRINT_VECTOR) + 1] = PRINT_HOOK as u8;
-    bus.memory[usize::from(PRINT_VECTOR) + 2] = (PRINT_HOOK >> 8) as u8;
+    // Spectrum ROM services installed by the upstream test runner. RST 10h
+    // reaches the PRINT hook directly at 0x0010; the hook returns as RET.
+    bus.memory[usize::from(PRINT_VECTOR)] = 0xC9;
     bus.memory[usize::from(CLS)] = 0xC9; // RET
-    bus.memory[usize::from(PRINT_HOOK)] = 0xC9; // Hook returns as RET.
     bus.memory[usize::from(EXIT_ADDRESS)] = 0x76; // HALT, as in test-Z80.c.
 
     let mut cpu = Z80::default();
@@ -182,7 +179,7 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
             );
         }
 
-        if pc_before == PRINT_HOOK {
+        if pc_before == PRINT_VECTOR {
             printed.write_character(cpu.registers.a);
         }
 
@@ -226,13 +223,7 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
     hot_pcs.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     hot_pcs.truncate(16);
 
-    let allowed_rom_reads = BTreeSet::from([
-        PRINT_VECTOR,
-        PRINT_VECTOR + 1,
-        PRINT_VECTOR + 2,
-        CLS,
-        CHAN_OPEN,
-    ]);
+    let allowed_rom_reads = BTreeSet::from([PRINT_VECTOR, CLS, CHAN_OPEN]);
     let unexpected_rom_reads: Vec<u16> = bus
         .rom_reads
         .difference(&allowed_rom_reads)
