@@ -226,13 +226,8 @@ fn rebuild_sms_temporal_machine_preserving_sram(
 ) -> Result<SmsTemporalMachine, String> {
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
-    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_and_sram_size(
-        rom,
-        region,
-        revision,
-        bios,
-        capacity,
-    )?;
+    let mut rebuilt =
+        build_sms_temporal_machine_with_revision_bios_and_sram_size(rom, region, revision, bios, capacity)?;
     if let Some(contents) = sram {
         rebuilt
             .load_cartridge_sram(&contents)
@@ -1167,11 +1162,7 @@ impl SmsTemporalWorker {
     }
 
     /// Start the native worker with a user-supplied 8 KiB SMS BIOS.
-    pub fn new_with_bios(
-        rom: Vec<u8>,
-        bios: Vec<u8>,
-        region: &str,
-    ) -> Result<Self, String> {
+    pub fn new_with_bios(rom: Vec<u8>, bios: Vec<u8>, region: &str) -> Result<Self, String> {
         Self::new_with_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             bios,
@@ -3139,12 +3130,7 @@ mod tests {
         bios[..3].copy_from_slice(&[0x31, 0xF0, 0xDF]); // LD SP,$DFF0
         let rom = vec![0x76; 0x4000];
 
-        let worker = SmsTemporalWorker::new_with_bios(
-            rom,
-            bios.clone(),
-            "usa",
-        )
-        .unwrap();
+        let worker = SmsTemporalWorker::new_with_bios(rom, bios.clone(), "usa").unwrap();
 
         assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
         assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
