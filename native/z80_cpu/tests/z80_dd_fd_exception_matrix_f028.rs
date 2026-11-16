@@ -7,7 +7,7 @@
 
 use sega_z80_cpu::{
     Z80, Z80AlternateRegisters, Z80ArchitecturalState, Z80BusOperation, Z80MicroSequencer,
-    Z80MicroSequencerState, Z80MicroStep, Z80PrefixState, Z80Registers, bus::CpuBus,
+    Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep, Z80PrefixState, Z80Registers, bus::CpuBus,
 };
 
 const START_PC: u16 = 0xFFFF;
@@ -344,4 +344,114 @@ fn ignored_flag_and_interrupt_opcodes_preserve_base_semantics_across_prefix_chai
             initial_state_with_q(0x5A),
         );
     }
+}
+
+
+fn execute_prefixed_nop_with_interrupt_pending(nmi: bool) -> (Z80MicroSequencer, Z80MicroStep) {
+    let mut cpu = Z80MicroSequencer::default();
+    cpu.registers.pc = START_PC;
+    cpu.registers.sp = 0xC100;
+    cpu.iff1 = true;
+    cpu.iff2 = true;
+    cpu.interrupt_mode = 1;
+
+    let mut step = cpu.begin_instruction().expect("instruction begins");
+    for (offset, opcode) in [0xDD_u8, 0xFD, 0x00].into_iter().enumerate() {
+        let request = match step {
+            Z80MicroStep::BusRequest(request) => request,
+            other => panic!("expected prefix-chain M1 at byte {offset}, got {other:?}"),
+        };
+        assert_eq!(request.operation, Z80BusOperation::OpcodeFetch);
+        assert_eq!(
+            request.address,
+            START_PC.wrapping_add(offset as u16),
+            "M1 address for prefix-chain byte {offset}"
+        );
+        assert_eq!(request.base_tstates, 4);
+
+        cpu.insert_wait_tstate().expect("one M1 WAIT is accepted");
+        cpu = round_trip(cpu);
+        step = cpu
+            .complete_bus_cycle(request.id, Some(opcode))
+            .expect("prefix-chain M1 completes");
+        cpu = round_trip(cpu);
+
+        if offset == 0 {
+            if nmi {
+                cpu.request_nmi();
+            } else {
+                cpu.int_pending = Some(0xFF);
+            }
+            cpu = round_trip(cpu);
+            assert!(
+                cpu.instruction_active(),
+                "an interrupt edge during DD/FD must not split the prefix chain"
+            );
+        }
+    }
+
+    (cpu, step)
+}
+
+#[test]
+fn nmi_latched_between_dd_fd_prefixes_is_serviced_after_terminal_opcode() {
+    let (mut cpu, step) = execute_prefixed_nop_with_interrupt_pending(true);
+
+    assert_eq!(
+        step,
+        Z80MicroStep::InstructionRetired {
+            opcode: 0x00,
+            tstates: 15,
+        }
+    );
+    assert_eq!(cpu.registers.pc, START_PC.wrapping_add(3));
+    assert_eq!(cpu.r & 0x7F, increment_refresh_by(INITIAL_R, 3) & 0x7F);
+    assert!(cpu.nmi_pending, "NMI remains latched through the full prefix chain");
+    assert!(cpu.iff1, "NMI is not accepted in the middle of the instruction");
+
+    let response = match cpu.begin_instruction().expect("next boundary samples NMI") {
+        Z80MicroStep::BusRequest(request) => request,
+        other => panic!("expected NMI response M1 at the next boundary, got {other:?}"),
+    };
+    assert_eq!(response.operation, Z80BusOperation::OpcodeFetch);
+    assert_eq!(response.address, START_PC.wrapping_add(3));
+    assert_eq!(
+        cpu.export_state().phase,
+        Z80MicroSequencerPhase::NmiResponse
+    );
+    assert!(!cpu.nmi_pending);
+    assert!(!cpu.iff1);
+    assert!(cpu.iff2);
+}
+
+#[test]
+fn int_asserted_between_dd_fd_prefixes_is_acknowledged_after_terminal_opcode() {
+    let (mut cpu, step) = execute_prefixed_nop_with_interrupt_pending(false);
+
+    assert_eq!(
+        step,
+        Z80MicroStep::InstructionRetired {
+            opcode: 0x00,
+            tstates: 15,
+        }
+    );
+    assert_eq!(cpu.registers.pc, START_PC.wrapping_add(3));
+    assert_eq!(cpu.r & 0x7F, increment_refresh_by(INITIAL_R, 3) & 0x7F);
+    assert_eq!(cpu.int_pending, Some(0xFF));
+    assert!(cpu.iff1, "INT is not accepted in the middle of the instruction");
+
+    let acknowledge = match cpu
+        .begin_instruction()
+        .expect("next boundary samples maskable INT")
+    {
+        Z80MicroStep::BusRequest(request) => request,
+        other => panic!("expected INT acknowledge at the next boundary, got {other:?}"),
+    };
+    assert_eq!(acknowledge.operation, Z80BusOperation::InterruptAcknowledge);
+    assert_eq!(
+        cpu.export_state().phase,
+        Z80MicroSequencerPhase::InterruptAcknowledge
+    );
+    assert!(!cpu.iff1);
+    assert!(!cpu.iff2);
 }
