@@ -116,3 +116,12 @@ Para Codemasters, o mesmo par de endereços não é decodificado como registrado
 - Mapper real da ROM local: **UNKNOWN / NOT RUN**.
 - Handoff real do BIOS e valor SP específico: **NOT RUN**.
 - Reprodução do black screen/ruído e primeira divergência: **NOT RUN**.
+
+
+## Atualização de diagnóstico — main 90036d8d (2026-11-15)
+
+O parágrafo anterior sobre ausência de controle/extração de trace no worker ficou desatualizado. Na main atual, `SmsTemporalWorker` e `SmsTemporalWorkerDebugHandle` expõem `set_trace_enabled(true)` e `debug_snapshot()`. O worker drena os eventos de `SmsTemporalMachine::take_trace()` após cada frame ou comando para um coletor bounded (fila 512; histórico 2.048), incluindo eventos de barramento, WAIT, fases M1 e transições TH. Para capturar o primeiro fetch, a captura deve ser habilitada antes de `start()`; verificar `trace_dropped` para detectar perda. O snapshot também expõe CPU, tempo, status/raster VDP, bancos/controle do mapper e memory-control, mas não todos os registradores internos do VDP nem o estado interno do PSG.
+
+A captura ainda não é uma gravação completa e ilimitada do boot. PR #878 propõe aumentar a janela e adicionar arming explícito, mas permanece Draft e sua branch está 73 commits atrás da main; não integrar diretamente.
+
+A hipótese da colisão SP=0/mapper Sega continua classificada como mecanismo sintético confirmado, não como causa comprovada para Andre Agassi Tennis. A ROM local, mapper efetivo e primeiro CALL/PUSH ainda precisam de trace reproduzível.
