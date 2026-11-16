@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     writeln!(
         output,
-        "INITIAL t={:?} PC=\${:04X} SP=\${:04X} banks={:?} control=\${:02X} slot1_probe=\${:02X}",
+        "INITIAL t={:?} PC=${:04X} SP=${:04X} banks={:?} control=${:02X} slot1_probe=${:02X}",
         machine.now(),
         machine.cpu().registers.pc,
         machine.cpu().registers.sp,
@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         writeln!(
             output,
-            "STEP n={} t={:?} PC=\${:04X}->\${:04X} SP=\${:04X}->\${:04X} AF=\${:02X}{:02X} BC=\${:02X}{:02X} DE=\${:02X}{:02X} HL=\${:02X}{:02X} banks={:?} control=\${:02X} slot1_probe=\${:02X}",
+            "STEP n={} t={:?} PC=${:04X}->${:04X} SP=${:04X}->${:04X} AF=${:02X}{:02X} BC=${:02X}{:02X} DE=${:02X}{:02X} HL=${:02X}{:02X} banks={:?} control=${:02X} slot1_probe=${:02X}",
             index + 1,
             machine.now(),
             before_pc,
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if mapper_changed || control != before_control {
             writeln!(
                 output,
-                "MAPPER_OR_CONTROL_CHANGE n={} previous_banks={:?} banks={:?} previous_control=\${:02X} control=\${:02X} read_620A=\${:02X}",
+                "MAPPER_OR_CONTROL_CHANGE n={} previous_banks={:?} banks={:?} previous_control=${:02X} control=${:02X} read_620A=${:02X}",
                 index + 1,
                 before_banks,
                 banks,
@@ -139,7 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 writeln!(
                     output,
-                    "BUS t={:?} op={:?} addr=\${:04X} data={:?} base_tstates={} wait_tstates={}",
+                    "BUS t={:?} op={:?} addr=${:04X} data={:?} base_tstates={} wait_tstates={}",
                     timestamp,
                     operation,
                     address,
@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if mapper_mutation_seen && registers.pc == 0x0025 && registers.sp == 0xDFF0 {
             writeln!(
                 output,
-                "BOOT_CHECKPOINT_REACHED t={:?} PC=\${:04X} SP=\${:04X} banks={:?} slot1_probe=\${:02X}",
+                "BOOT_CHECKPOINT_REACHED t={:?} PC=${:04X} SP=${:04X} banks={:?} slot1_probe=${:02X}",
                 machine.now(),
                 registers.pc,
                 registers.sp,
@@ -169,7 +169,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     output.flush()?;
     println!("Trace written to {trace_path}");
     println!(
-        "Final PC=\${:04X} SP=\${:04X} banks={:?} control=\${:02X}",
+        "Final PC=${:04X} SP=${:04X} banks={:?} control=${:02X}",
         machine.cpu().registers.pc,
         machine.cpu().registers.sp,
         machine.memory().selected_banks(),
