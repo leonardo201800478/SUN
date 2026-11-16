@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-16
 **Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
-**Main atual após PRs #955–#964:** `2607e45e4d35e52cd61d825d42a6514b789cfc30`
+**Main atual após PRs #955–#969:** `08f633affdb7478b64b1ec2007ca1986c2a48978`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
@@ -367,3 +367,72 @@ O teste substitui a heurística `MemoryRead.address == PC` por contagem explíci
 - F-028: IN_PROGRESS — 167 Ignored e 85 UsesIndex reconciliados; #950/#953 requests, WAIT/snapshot e condições; #959/#965 endereçam a classificação stream/data. Aguardar #965 e revisão independente.
 - Temporalidade: LONG_PASS de Scheduler software na campanha #43901362527; integração temporal dirigida SMS #957/#962/#964 PASS nos respectivos HEADs. WAIT físico, DMA, safe points de todos os dispositivos e TEMPORAL_PASS global NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+## Estado final da rodada — pós-PR #969 — 16/11/2026
+
+**Main atual:** `08f633affdb7478b64b1ec2007ca1986c2a48978`.
+
+### PRs integradas nesta rodada
+- #960 — documentação Scheduler stress; preservou evidências de determinismo/replay LONG.
+- #962 — assertions WZ, Q e previous-Q nas quatro formas repetitivas através do Scheduler.
+- #963 — reconciliação de documentação E7.
+- #964 — INT no último T-state da repetição, IM1, RETI e retomada no Scheduler.
+- #966 — reconciliação documental e correção da proveniência histórica de workflows.
+- #968 — classificação explícita stream/data em fallback DD/FD.
+- #969 — integração Scheduler/SMS das quatro formas simples LDI/LDD/CPI/CPD.
+
+PRs #958, #959, #965 e #967 foram encerradas como supersedidas, preservando seus históricos e reaplicando as mudanças relevantes nas PRs atuais. Nenhuma alteração de produção foi descartada.
+
+### F-022 — flags de instruções de bloco
+
+A cobertura de integração temporal SMS agora abrange as oito formas:
+- Simples: LDI, LDD, CPI, CPD — PR #969, teste `e7_f022_simple_forms_match_scheduler_wait_snapshot_replay`.
+- Repetitivas: LDIR, LDDR, CPIR, CPDR — PRs #957/#962; assertions WZ/Q/previous-Q.
+- Interrupção durante repetição: quatro formas com INT level-sensitive no último T-state, serviço IM1, RETI e retomada — PR #964, teste `e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler`.
+
+As integrações aplicam WAIT de fixture em cada request de barramento, snapshot/restore em cada safe point e comparação de trace, estado completo e timestamp entre execução contínua e retomada. A cobertura simples verifica flags, Q/previous-Q, WZ, PC, BC, HL/DE e ausência de escrita para as formas compare. A cobertura repetitiva verifica também PC/BC/WZ e fronteiras de interrupção.
+
+Validação exata da PR #969, HEAD `e831f6c94aac89ad515af045133520ed6de7e986`:
+- CI #43906014092: Rust workspace regression PASS — workspace/lockfiles, rustfmt, Clippy, testes unitários e de integração, Clippy/testes do recurso observability PASS.
+- SMS Runtime #43906014526: format, Clippy Release, testes SMS Runtime e build Windows x64 PASS.
+- Z80 focused, Scheduler stress, demais hosts não relacionados e SMS debugger Windows Release: SKIPPED. Não classificar como PASS.
+- A tentativa anterior de #969 teve rustfmt FAIL e expectativa errada de F para CPI/CPD; o resultado observado `$3F` foi reconciliado com a fórmula independente (compare preserva somente C, não S/Z). O HEAD final corrigiu as expectativas e passou.
+- Workflow push pós-merge no SHA `08f633affdb7478b64b1ec2007ca1986c2a48978`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+F-022 avança para cobertura temporal integrada das oito formas, mas permanece IN_PROGRESS até revisão adversarial independente e revisão final das dimensões combinatórias/oráculos. A matriz ROM v5.0 permanece um conjunto não exaustivo, não prova universal.
+
+### F-028 — semântica DD/FD
+
+PR #968 integrada no SHA `96b21fc7568feb6f7232440eaf4620d0f584d6fe`. A correção substitui a heurística `MemoryRead.address == PC` por contagem explícita de operandos imediatos derivados do opcode BASE, impedindo que uma leitura de dados com endereço igual a PC seja classificada como leitura de stream. Regressão: DD + `LD A,(BC)`, BC=$0002.
+
+Validação exata da PR #968, HEAD `c39f79161e45cfcbf88b9367a3abc2ba136614cc`:
+- CI #43904788014: Z80 focused PASS, incluindo formatação, Clippy, testes Z80/SMS/SG-1000, Z80 Block Flags ROM v5.0, SingleStepTests DD/FD e Woodmass MEMPTR; Rust quality/unit PASS.
+- SMS Runtime #43904788006: Release format, Clippy, testes e build Windows x64 PASS.
+- Scheduler stress e SMS debugger Windows Release SKIPPED.
+- Workflow push pós-merge: NOT_RUN/NOT_VERIFIED.
+
+F-028 continua IN_PROGRESS até revisão adversarial integral da matriz e confirmação independente das exceções e limites DD/FD. As 85 UsesIndex reconciliadas não devem ser reimplementadas; os 167 Ignored permanecem separados dos casos UsesIndex.
+
+### F-023 — WZ/MEMPTR
+
+A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (SP),HL (#955), quatro formas simples de bloco com WZ/flags/Q/previous-Q em execução Scheduler (#969), e quatro formas repetitivas com WZ/flags/Q/previous-Q sob WAIT/snapshot e IM1/RETI (#962/#964).
+
+**F-023 permanece AUDIT_PARTIAL:** a matriz classifica regras INT/COMP/HW, mas somente a regra WZ=HL+1 de RRD/RLD possui evidência hardware-derived específica na matriz. As regras não documentadas não são apresentadas como garantia física universal. CMOS, NEC/R800/Z180, Z80N e clones fora do perfil delimitado continuam NOT_VERIFIED. Revisão adversarial e reconciliação integral da proveniência continuam pendentes.
+
+### Temporalidade e Scheduler
+
+- LONG_PASS de software Scheduler na campanha #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`: 16 seeds × 20.000 operações = 320.000 operações; 16 × 250.000 eventos = 4.000.000 dispatches; ambas as suítes passaram.
+- Integração SMS temporal/replay dirigida: PRs #957/#962/#964/#969, cada uma validada em seu HEAD exato.
+- WAIT usado nos testes de integração é fixture determinística; não representa medição elétrica ou validação de WAIT físico.
+- DMA, safe points de todos os dispositivos, sincronização física e TEMPORAL_PASS global permanecem NOT_VERIFIED.
+- A equivalência contínua/retomada está demonstrada nas dimensões cobertas pelos testes citados, não em todos os caminhos do hardware.
+
+### Decisão consolidada
+- F-022: IN_PROGRESS — oito formas integradas temporalmente; revisão adversarial independente pendente.
+- F-023: AUDIT_PARTIAL — famílias mapeadas e testes rastreáveis; proveniência HW limitada e revisão independente pendente.
+- F-028: IN_PROGRESS — matriz e classificação de stream/data corrigida; revisão adversarial independente pendente.
+- Temporalidade: Scheduler software LONG_PASS; integração dirigida PASS; WAIT físico/DMA e TEMPORAL_PASS global NOT_VERIFIED.
+- SMS/SG-1000: testes Z80/SMS/SG-1000 passaram no gate Z80 focused da #968; SMS Runtime Release passou nas #964/#968/#969. Gates SKIPPED permanecem SKIPPED.
+- **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
+
+Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
