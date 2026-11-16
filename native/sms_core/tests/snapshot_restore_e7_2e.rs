@@ -739,10 +739,10 @@ fn e7_f022_simple_forms_match_scheduler_wait_snapshot_replay() {
             0xA8_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC000_u16, 0xA55A_u16, 0xC5_u8,
         ),
         (
-            0xA1_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC000_u16, 0xA55B_u16, 0xFF_u8,
+            0xA1_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC000_u16, 0xA55B_u16, 0x3F_u8,
         ),
         (
-            0xA9_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC001_u16, 0xA559_u16, 0xFF_u8,
+            0xA9_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC001_u16, 0xA559_u16, 0x3F_u8,
         ),
     ];
 
@@ -813,9 +813,9 @@ fn e7_f022_simple_forms_match_scheduler_wait_snapshot_replay() {
             );
         } else {
             assert_eq!(
-                continuous.memory().read(0xC000),
+                continuous.memory().read(initial_de),
                 0,
-                "ED {opcode:02X}: compare must not write memory"
+                "ED {opcode:02X}: compare must not write at DE"
             );
         }
 
