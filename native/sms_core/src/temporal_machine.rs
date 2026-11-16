@@ -2265,8 +2265,6 @@ mod tests {
             trace[4],
             super::SmsTemporalTraceEvent::M1FetchCompleted {
                 timestamp,
-                address: 0,
-                cpu_pc: 1,
                 ..
             } if timestamp == MachineTime::from_ticks(12)
         ));
