@@ -2985,11 +2985,16 @@ mod windows_host {
         let preference = SmsRegionPreference::parse(&settings.region).map_err(str::to_owned)?;
         let region = match preference {
             SmsRegionPreference::Manual(region) => region,
-            SmsRegionPreference::Automatic => {
-                let cartridge_catalog = CartridgeCatalog::sms_default().map_err(|error| {
-                    format!("não foi possível resolver a região do cartucho: {error}")
-                })?;
-                resolve_sms_region(preference, rom, &cartridge_catalog).region
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(cartridge_catalog) => {
+                    resolve_sms_region(preference, rom, &cartridge_catalog).region
+                }
+                Err(error) => {
+                    eprintln!(
+                        "SMS_REGION preference=auto catalog_error={error}; fallback=usa"
+                    );
+                    SmsRegion::Usa
+                }
             }
         };
         let selected = match region {
