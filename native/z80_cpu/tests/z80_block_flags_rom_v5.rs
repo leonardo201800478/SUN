@@ -227,7 +227,11 @@ fn validate_b_loop_log(
             let b_after = memory[cursor];
             let expected_flags = memory[cursor + 1];
             let actual_flags = memory[cursor + 2];
-            let expected_b = 15_u8 + (iteration as u8) * 3;
+            // The ROM's calibrated delay leaves 54T before the frame INT:
+            // three 21T OTIR iterations complete before the next instruction
+            // boundary, so the initial B=16 is observed as B=13. The assembly
+            // then increments the next case's initial B by three each time.
+            let expected_b = 13_u8 + (iteration as u8) * 3;
 
             assert_eq!(
                 b_after, expected_b,
