@@ -1,13 +1,14 @@
 # Z80 E7 — fechamento da rodada de testes e estado consolidado
 
 **Data:** 2026-11-16
-**Main de referência:** caa9a76a6f09d588155ea4e0cbc95f487f079143
+**Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
+**Main atual após PR #955, #956 e #957:** `2f72a6d94207cc78e5014363e72d16cf8806316a`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
 ## 1. Resumo executivo
 
-A rodada encerrou os testes atuais de F-022, F-023 e F-028. As três PRs permanecem Draft, sem merge nesta rodada.
+A tabela abaixo preserva a fotografia histórica da rodada original. Desde então, #955 (WZ BASE EX (SP),HL), #956 (reconciliação documental) e #957 (integração Scheduler das quatro formas repetitivas F-022) foram integradas. O estado vigente e os limites atualizados estão registrados nos adendos finais deste documento.
 
 | Frente | PR | HEAD de código validado | CI Z80 focused | SMS Runtime | Estado |
 |---|---:|---|---|---|---|
