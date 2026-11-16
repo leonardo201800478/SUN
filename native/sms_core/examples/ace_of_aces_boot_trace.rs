@@ -91,7 +91,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "BOOT rom_bytes={} region={} boot_path={} bios_bytes={}",
         fs::metadata(rom_path)?.len(),
         region,
-        if bios_path.is_some() { "bios_then_cartridge" } else { "direct_without_bios" },
+        if bios_path.is_some() {
+            "bios_then_cartridge"
+        } else {
+            "direct_without_bios"
+        },
         if bios_path.is_some() { 0x2000 } else { 0 }
     )?;
     writeln!(
@@ -124,7 +128,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mapper_changed = banks != before_banks;
         mapper_mutation_seen |= mapper_changed;
 
-        if bios_path.is_some() && !bios_handoff_seen && !machine.memory().bios_enabled()
+        if bios_path.is_some()
+            && !bios_handoff_seen
+            && !machine.memory().bios_enabled()
             && registers.pc == 0x0000
         {
             bios_handoff_seen = true;
