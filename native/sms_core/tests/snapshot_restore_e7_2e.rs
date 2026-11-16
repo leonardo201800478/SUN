@@ -724,3 +724,99 @@ fn e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler() {
         assert_eq!(continuous.now(), resumed.now());
     }
 }
+
+#[test]
+fn e7_f022_simple_forms_match_scheduler_wait_snapshot_replay() {
+    // LDI/LDD/CPI/CPD are the four non-repeating forms. Exercise them through
+    // SmsTemporalMachine/MachineScheduler with WAIT on every bus request and
+    // a snapshot/restore round-trip at every scheduler-owned safe point.
+    let cases = [
+        // opcode, HL, DE, expected HL, expected DE, expected WZ, expected F
+        (0xA0_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC001_u16, 0xA55A_u16, 0xC5_u8),
+        (0xA8_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC000_u16, 0xA55A_u16, 0xC5_u8),
+        (0xA1_u8, 0x0100_u16, 0xC000_u16, 0x0101_u16, 0xC000_u16, 0xA55B_u16, 0xFF_u8),
+        (0xA9_u8, 0x0101_u16, 0xC001_u16, 0x0100_u16, 0xC001_u16, 0xA559_u16, 0xFF_u8),
+    ];
+
+    for (opcode, initial_hl, initial_de, expected_hl, expected_de, expected_wz, expected_f) in
+        cases
+    {
+        let mut rom = vec![0; 0x4000];
+        rom[0] = 0xED;
+        rom[1] = opcode;
+        rom[0x0100] = 0x01;
+        rom[0x0101] = 0x01;
+
+        let mut continuous = machine(rom.clone());
+        let mut resumed = machine(rom);
+        for candidate in [&mut continuous, &mut resumed] {
+            let cpu = candidate.cpu_mut();
+            cpu.registers.set_hl(initial_hl);
+            cpu.registers.set_de(initial_de);
+            cpu.registers.set_bc(2);
+            cpu.registers.a = 0x80;
+            cpu.registers.f = 0xD7;
+            cpu.wz = 0xA55A;
+            cpu.q = 0x28;
+            cpu.q_previous = 0x5A;
+        }
+
+        let retired = compare_runs(&mut continuous, &mut resumed, 1);
+        assert!(matches!(
+            retired,
+            Z80MicroStep::InstructionRetired { opcode: retired_opcode, .. }
+                if retired_opcode == opcode
+        ));
+        assert_eq!(continuous.cpu().registers.pc, 2, "ED {opcode:02X}: PC");
+        assert_eq!(continuous.cpu().registers.bc(), 1, "ED {opcode:02X}: BC");
+        assert_eq!(
+            continuous.cpu().registers.hl(),
+            expected_hl,
+            "ED {opcode:02X}: HL"
+        );
+        assert_eq!(
+            continuous.cpu().registers.de(),
+            expected_de,
+            "ED {opcode:02X}: DE"
+        );
+        assert_eq!(
+            continuous.cpu().registers.f,
+            expected_f,
+            "ED {opcode:02X}: F"
+        );
+        assert_eq!(
+            continuous.cpu().q,
+            expected_f,
+            "ED {opcode:02X}: Q must equal final F"
+        );
+        assert_eq!(
+            continuous.cpu().q_previous,
+            0x28,
+            "ED {opcode:02X}: previous-Q"
+        );
+        assert_eq!(
+            continuous.cpu().wz,
+            expected_wz,
+            "ED {opcode:02X}: WZ"
+        );
+        assert_eq!(continuous.cpu().registers.a, 0x80, "ED {opcode:02X}: A");
+
+        if matches!(opcode, 0xA0 | 0xA8) {
+            let destination = if opcode == 0xA0 { 0xC000 } else { 0xC001 };
+            assert_eq!(
+                continuous.memory().read(destination),
+                0x01,
+                "ED {opcode:02X}: transferred byte"
+            );
+        } else {
+            assert_eq!(
+                continuous.memory().read(0xC000),
+                0,
+                "ED {opcode:02X}: compare must not write memory"
+            );
+        }
+
+        assert_eq!(continuous.export_state(), resumed.export_state());
+        assert_eq!(continuous.now(), resumed.now());
+    }
+}
