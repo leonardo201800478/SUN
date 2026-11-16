@@ -3042,7 +3042,7 @@ mod windows_host {
             .find(|entry| {
                 entry.firmware_id == Some(id)
                     && matches!(
-                        entry.status,
+                        &entry.status,
                         SmsFirmwareScanStatus::Identified | SmsFirmwareScanStatus::DuplicateHash
                     )
             })
@@ -3490,7 +3490,7 @@ mod windows_host {
             };
             let open_settings = SmsWorkerSettings {
                 region,
-                sms_system: system,
+                sms_system: system.clone(),
                 firmware_directory,
                 firmware_boot_enabled,
                 firmware_brazil_selected,
@@ -4626,6 +4626,51 @@ mod windows_host {
         #[test]
         fn zip_rom_loader_rejects_invalid_archive_bytes() {
             assert!(extract_rom_from_zip(b"not a ZIP archive").is_err());
+        }
+
+        #[test]
+        fn conventional_bios_loader_rejects_builtin_game_firmware() {
+            let settings = SmsWorkerSettings {
+                region: "usa".to_owned(),
+                sms_system: "sms1".to_owned(),
+                firmware_directory: "unused-firmware-directory".to_owned(),
+                firmware_boot_enabled: true,
+                firmware_brazil_selected: String::new(),
+                firmware_usa_selected: "HangOnV34 — Hang On USA/Europe v3.4 (128 KiB)".to_owned(),
+                firmware_europe_selected: String::new(),
+                firmware_japan_selected: String::new(),
+                firmware_korea_selected: String::new(),
+                vdp_revision: SmsVdpRevision::Sega3155124,
+                audio_volume: 70,
+                dsp_config: AnalogOutputConfig::default(),
+                renderer_mode: "psg".to_owned(),
+            };
+
+            let error = load_selected_sms_bios(&[0; 0x4000], &settings).unwrap_err();
+            assert!(error.contains("não uma BIOS convencional de 8 KiB"));
+        }
+
+        #[test]
+        fn disabled_bios_preference_keeps_direct_cartridge_boot() {
+            let settings = SmsWorkerSettings {
+                region: "usa".to_owned(),
+                sms_system: "sms1".to_owned(),
+                firmware_directory: String::new(),
+                firmware_boot_enabled: false,
+                firmware_brazil_selected: String::new(),
+                firmware_usa_selected: String::new(),
+                firmware_europe_selected: String::new(),
+                firmware_japan_selected: String::new(),
+                firmware_korea_selected: String::new(),
+                vdp_revision: SmsVdpRevision::Sega3155124,
+                audio_volume: 70,
+                dsp_config: AnalogOutputConfig::default(),
+                renderer_mode: "psg".to_owned(),
+            };
+
+            assert!(load_selected_sms_bios(&[0; 0x4000], &settings)
+                .unwrap()
+                .is_none());
         }
 
         #[test]
