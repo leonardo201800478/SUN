@@ -60,9 +60,12 @@ Para cada dispositivo: identificar console/revisão/conector/pinout; classificar
 - SMS Power Card Slot: https://www.smspower.org/Development/CardSlot
 - SMS Power Audio Control Port: https://www.smspower.org/Development/AudioControlPort
 - SMS Power Peripheral Ports: https://www.smspower.org/Development/PeripheralPorts
+- SMS Power I/O Port Map: https://www.smspower.org/Development/IOPortMap
+- SMS Official Docs (port $3F, Sports Pad e I/O): https://www.smspower.org/Development/SMSOfficialDocs
 - SMS Power 3D Glasses: https://www.smspower.org/Development/3DGlasses
 - SMS Power Light Phaser: https://www.smspower.org/Development/LightPhaser
 - SMS Power Paddle: https://www.smspower.org/Development/Paddle
+- SMS Power Sports Pad Investigation (2025): https://www.smspower.org/forums/20657-SportsPadInvestigation
 - Sega official SG-1000 II accessories/Card Catcher: https://www.sega.jp/history/hard/sg1000-2/devices.html
 - YM2413 model: `docs/architecture/ym2413-fm-model.md`
 
