@@ -833,8 +833,7 @@ mod tests {
 
     #[test]
     fn card_and_expansion_slots_take_priority_over_bios_but_not_over_cartridge() {
-        let mut memory =
-            SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
+        let mut memory = SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
 
         memory.write_control_port(0xC0); // Card enabled; BIOS and cartridge latches remain enabled/disabled as selected.
         assert!(!memory.bios_mapped());
