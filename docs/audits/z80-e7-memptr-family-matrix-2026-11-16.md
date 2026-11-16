@@ -47,14 +47,12 @@
 
 ## Lacunas que permanecem explícitas
 
-1. **Immediate I/O:** D3/DB têm regra no executor; a asserção WZ específica para os dois opcodes e os dois tipos de wrap está proposta na PR #954 e aguarda CI.
-2. **Proveniência física:** somente RRD/RLD tem evidência hardware-derived específica nesta matriz. As outras regras não documentadas permanecem INT/COMP, não garantias físicas universais.
-3. **Perfil e variantes:** CMOS, NEC/R800/Z180, Z80N e clones fora do perfil Zilog NMOS delimitado permanecem NOT_VERIFIED, deliberadamente fora do critério de fechamento.
-4. **WZ de instruções não documentadas:** regras de MAME/Ares e valores do core não são promovidos a comportamento universal. Os quatro dígitos `117F` e `34AE` do Woodmass são assinaturas de resultado das linhas, não valores literais de WZ.
-5. **Hardware SMS e variantes:** teste Woodmass é hardware-derived no perfil coberto; hardware Master System não foi executado nesta auditoria. CMOS, NEC/R800/Z180, Z80N e clones fora do perfil continuam NOT_VERIFIED.
+1. **BASE EX (SP),HL:** a asserção WZ está proposta na PR #955 e aguarda CI; IX/IY já possuem cobertura em E3A2c.
+2. **Proveniência:** somente RRD/RLD possui evidência hardware-derived específica nesta matriz. As demais regras não documentadas são classificadas como INT/COMP; não são garantias físicas universais. Os dígitos `117F` e `34AE` do Woodmass são assinaturas de resultado das linhas, não valores literais de WZ.
+3. **Perfil e variantes:** CMOS, NEC/R800/Z180, Z80N e clones fora do perfil Zilog NMOS delimitado permanecem NOT_VERIFIED, deliberadamente fora do critério de fechamento. Não exigir hardware SMS físico nem universalidade de clones para fechar o perfil NMOS delimitado.
 
 ## Decisão F-023
 
-A regra RLD/RRD → HL+1 possui evidência hardware-derived rastreável. As demais famílias estão separadas entre regras internas testadas, compatibilidade comparativa e lacunas de teste. **F-023 permanece AUDIT_PARTIAL** até fechar os cinco gaps listados acima ou documentar, com fonte e justificativa, quais comportamentos são deliberadamente não verificáveis no escopo NMOS.
+As regras WZ/MEMPTR relevantes do perfil delimitado estão classificadas por família e possuem testes rastreáveis; as propriedades não comprovadas em hardware estão explicitamente classificadas como INT/COMP ou NOT_VERIFIED. **F-023 permanece AUDIT_PARTIAL somente até passar a asserção BASE EX (SP),HL da PR #955 e revisar a reconciliação documental.**
 
 Nenhuma alteração de produção é autorizada por esta matriz. Não iniciar E8/ZEXDOC/ZEXALL.
