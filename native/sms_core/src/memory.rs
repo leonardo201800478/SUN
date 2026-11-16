@@ -379,7 +379,7 @@ impl SmsMemory {
         // The upper window mirrors 8 KiB devices and exposes the lower 16 KiB page of 32 KiB devices.
         if address >= RAM_START
             && self.control_port & 0x10 != 0
-            && self.control_port & 0x40 == 0
+            && self.cartridge_slot_selected()
             && matches!(self.mapper, MapperKind::Sega | MapperKind::SegaExtended)
             && self.mapper_control & 0x10 != 0
             && let Some(sram) = self.cartridge_sram.as_mut()
@@ -828,6 +828,24 @@ mod tests {
             !memory.bios_mapped(),
             "cartridge slot has read priority over BIOS"
         );
+        assert_eq!(memory.read(0x0000), 0x00);
+    }
+
+    #[test]
+    fn card_and_expansion_slots_take_priority_over_bios_but_not_over_cartridge() {
+        let mut memory =
+            SmsMemory::with_bios(patterned_rom(1), Some(vec![0xA5; 0x2000])).unwrap();
+
+        memory.write_control_port(0xC0); // Card enabled; BIOS and cartridge latches remain enabled/disabled as selected.
+        assert!(!memory.bios_mapped());
+        assert_eq!(memory.read(0x0000), 0xFF);
+
+        memory.write_control_port(0x60); // Expansion enabled, no cartridge or card.
+        assert!(!memory.bios_mapped());
+        assert_eq!(memory.read(0x0000), 0xFF);
+
+        memory.write_control_port(0x20); // Cartridge and expansion enabled; cartridge wins.
+        assert!(!memory.bios_mapped());
         assert_eq!(memory.read(0x0000), 0x00);
     }
 
