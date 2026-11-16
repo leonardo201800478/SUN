@@ -437,7 +437,7 @@ fn int_asserted_between_dd_fd_prefixes_is_acknowledged_after_terminal_opcode() {
         }
     );
     assert_eq!(cpu.registers.pc, START_PC.wrapping_add(3));
-    assert_eq!(cpu.r & 0x7F, increment_refresh_by(INITIAL_R, 3) & 0x7F);
+    assert_eq!(cpu.refresh, increment_refresh_by(INITIAL_R, 3));
     assert_eq!(cpu.int_pending, Some(0xFF));
     assert!(cpu.iff1, "INT is not accepted in the middle of the instruction");
 
