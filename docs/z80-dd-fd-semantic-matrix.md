@@ -631,3 +631,10 @@ A matriz compara BASE com DD/FD para os 167 bytes efetivos Ignored, registrando 
 **Review/integração:** não há review independente submetido no GitHub para #948; o review Codex falhou por limite de uso. Nenhum workflow push pós-merge foi encontrado; SKIPPED e ausência de run não são PASS.
 
 **Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+
+## Addendum F-028 — validação integrada em 16/11/2026
+
+A PR #950 acrescenta a matriz `z80_dd_fd_ignored_semantic_wait_matrix_f028.rs`: 167 opcodes Ignored sob DD e FD, comparação com BASE, leitura/escrita com payload, tipo/ordem/endereço/duração de request, ciclos internos, WAIT e snapshot/restore. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado, com árvore idêntica ao merge `45b40755e46aef752d58f571de856ae25ff9e81c`.
+
+A normalização fica limitada a acessos de fluxo de instrução identificados por PC e ao byte baixo do endereço de retorno em CALL/RST. A matriz é uma comparação estrutural interna, não um oracle independente. A PR #953 complementa PC final exato e condições tomada/não tomada; permanece pendente.
