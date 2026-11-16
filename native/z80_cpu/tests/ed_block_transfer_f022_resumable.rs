@@ -27,11 +27,7 @@ fn is_transfer(opcode: u8) -> bool {
 }
 
 fn direction(opcode: u8) -> i16 {
-    if matches!(opcode, 0xA8 | 0xA9) {
-        -1
-    } else {
-        1
-    }
+    if matches!(opcode, 0xA8 | 0xA9) { -1 } else { 1 }
 }
 
 /// Independent transcription of the documented simple block-instruction
@@ -115,12 +111,8 @@ fn run_case(
     memory[usize::from(destination)] = 0xCC;
 
     let mut cpu = Z80MicroSequencer::default();
-    cpu.import_architectural_state(initial_state(
-        accumulator,
-        initial_f,
-        initial_count,
-    ))
-    .expect("initial architectural state is valid");
+    cpu.import_architectural_state(initial_state(accumulator, initial_f, initial_count))
+        .expect("initial architectural state is valid");
 
     let mut step = cpu.begin_instruction().expect("instruction begins");
     let mut request_index = 0_u8;
@@ -134,11 +126,7 @@ fn run_case(
                         (_, 0) => (Z80BusOperation::OpcodeFetch, 0x1000, 4),
                         (_, 1) => (Z80BusOperation::OpcodeFetch, 0x1001, 4),
                         (_, 2) => (Z80BusOperation::MemoryRead, source, 3),
-                        (true, 3) => (
-                            Z80BusOperation::MemoryWrite { value },
-                            destination,
-                            5,
-                        ),
+                        (true, 3) => (Z80BusOperation::MemoryWrite { value }, destination, 5),
                         _ => panic!("unexpected bus request {request:?} for ED {opcode:02X}"),
                     };
                 assert_eq!(request.operation, expected_operation, "ED {opcode:02X}");
@@ -212,8 +200,7 @@ fn all_simple_block_transfer_and_compare_inputs_match_independent_flags() {
                         | ((accumulator ^ value) & FLAG_C)
                         | ((accumulator ^ value) & (FLAG_H | FLAG_PV | FLAG_N));
                     let count = initial_count.wrapping_sub(1);
-                    let expected_f =
-                        expected_flags(opcode, initial_f, accumulator, value, count);
+                    let expected_f = expected_flags(opcode, initial_f, accumulator, value, count);
 
                     let (cpu, tstates) = run_case(
                         &mut memory,
@@ -250,7 +237,11 @@ fn all_simple_block_transfer_and_compare_inputs_match_independent_flags() {
                         );
                         assert_eq!(memory[0xC100], value, "ED {opcode:02X}: destination");
                     } else {
-                        assert_eq!(state.registers.de(), 0xC100, "ED {opcode:02X}: DE preserved");
+                        assert_eq!(
+                            state.registers.de(),
+                            0xC100,
+                            "ED {opcode:02X}: DE preserved"
+                        );
                         assert_eq!(memory[0xC100], 0xCC, "ED {opcode:02X}: no write-back");
                     }
                 }
