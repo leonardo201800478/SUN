@@ -443,10 +443,13 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
         ));
         assert_eq!(continuous.cpu().registers.pc, 0, "ED {opcode:02X}: repeat PC");
         assert_eq!(continuous.cpu().registers.bc(), 1, "ED {opcode:02X}: first BC");
-        assert_eq!(continuous.cpu().registers.hl(), initial_hl.wrapping_add_signed(
-            if matches!(opcode, 0xB8 | 0xB9) { -1 } else { 1 }
-        ));
-        
+        let direction = if matches!(opcode, 0xB8 | 0xB9) { -1 } else { 1 };
+        assert_eq!(
+            continuous.cpu().registers.hl(),
+            initial_hl.wrapping_add_signed(direction),
+            "ED {opcode:02X}: first HL"
+        );
+
         // Second iteration terminates: PC advances past ED/opcode and BC reaches zero.
         let second = compare_runs(&mut continuous, &mut resumed, 1);
         assert!(matches!(
@@ -455,8 +458,16 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
         ));
         assert_eq!(continuous.cpu().registers.pc, 2, "ED {opcode:02X}: final PC");
         assert_eq!(continuous.cpu().registers.bc(), 0, "ED {opcode:02X}: final BC");
-        assert_eq!(continuous.cpu().registers.hl(), expected_hl, "ED {opcode:02X}: final HL");
-        assert_eq!(continuous.cpu().registers.de(), expected_de, "ED {opcode:02X}: final DE");
+        assert_eq!(
+            continuous.cpu().registers.hl(),
+            expected_hl,
+            "ED {opcode:02X}: final HL"
+        );
+        assert_eq!(
+            continuous.cpu().registers.de(),
+            expected_de,
+            "ED {opcode:02X}: final DE"
+        );
         assert_eq!(continuous.export_state(), resumed.export_state());
         assert_eq!(continuous.now(), resumed.now());
     }
