@@ -165,8 +165,10 @@ fn compare_repeat_interrupt_runs(
 ) -> Z80MicroStep {
     continuous.set_trace_enabled(true);
     resumed.set_trace_enabled(true);
-    let (expected, continuous_trace) = run_boundary_with_repeat_interrupt(continuous, false, waits, interrupt_vector);
-    let (actual, resumed_trace) = run_boundary_with_repeat_interrupt(resumed, true, waits, interrupt_vector);
+    let (expected, continuous_trace) =
+        run_boundary_with_repeat_interrupt(continuous, false, waits, interrupt_vector);
+    let (actual, resumed_trace) =
+        run_boundary_with_repeat_interrupt(resumed, true, waits, interrupt_vector);
     assert_eq!(actual, expected);
     assert_eq!(
         resumed_trace, continuous_trace,
@@ -830,10 +832,18 @@ fn e7_f022_simple_forms_match_scheduler_wait_snapshot_replay() {
 #[test]
 fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
     let cases = [
-        (0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16, 0x0000_u16),
-        (0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16, 0x0000_u16),
-        (0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16, 0x0001_u16),
-        (0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16, 0xFFFF_u16),
+        (
+            0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16, 0x0000_u16,
+        ),
+        (
+            0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16, 0x0000_u16,
+        ),
+        (
+            0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16, 0x0001_u16,
+        ),
+        (
+            0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16, 0xFFFF_u16,
+        ),
     ];
 
     for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases
@@ -875,6 +885,7 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
         assert_eq!(continuous.cpu().bc(), 1, "ED {opcode:02X}: repeat BC");
         assert_eq!(continuous.cpu().wz, 1, "ED {opcode:02X}: repeat WZ");
         assert_eq!(continuous.cpu().q, continuous.cpu().registers.f);
+        assert_eq!(continuous.cpu().q_previous, 0xA5);
         let repeat_flags = continuous.cpu().registers.f;
         let repeat_q = continuous.cpu().q;
 
@@ -899,19 +910,28 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
         resumed.set_int_line(None);
 
         let push = compare_runs(&mut continuous, &mut resumed, 1);
-        assert!(matches!(push, Z80MicroStep::InstructionRetired { opcode: 0xF5, .. }));
+        assert!(matches!(
+            push,
+            Z80MicroStep::InstructionRetired { opcode: 0xF5, .. }
+        ));
         assert_eq!(continuous.cpu().registers.sp, 0xC0FC);
         assert_eq!(continuous.memory().read(0xC0FC), repeat_flags);
         assert_eq!(continuous.memory().read(0xC0FD), 0x10);
 
         let pop = compare_runs(&mut continuous, &mut resumed, 1);
-        assert!(matches!(pop, Z80MicroStep::InstructionRetired { opcode: 0xF1, .. }));
+        assert!(matches!(
+            pop,
+            Z80MicroStep::InstructionRetired { opcode: 0xF1, .. }
+        ));
         assert_eq!(continuous.cpu().registers.sp, 0xC0FE);
         assert_eq!(continuous.cpu().registers.f, repeat_flags);
         assert_eq!(continuous.cpu().registers.a, 0x10);
 
         let ei = compare_runs(&mut continuous, &mut resumed, 1);
-        assert!(matches!(ei, Z80MicroStep::InstructionRetired { opcode: 0xFB, .. }));
+        assert!(matches!(
+            ei,
+            Z80MicroStep::InstructionRetired { opcode: 0xFB, .. }
+        ));
         assert_eq!(continuous.cpu().ei_delay, 1);
 
         let reti = compare_runs(&mut continuous, &mut resumed, 1);
