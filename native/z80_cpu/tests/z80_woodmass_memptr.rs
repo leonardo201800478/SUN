@@ -223,6 +223,6 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
         .collect();
     assert!(
         unexpected_rom_reads.is_empty(),
-        "the ROM-free harness unexpectedly depended on other ROM addresses:          {unexpected_rom_reads:04X?}"
+        "the ROM-free harness unexpectedly depended on other ROM addresses:          {unexpected_rom_reads:?}"
     );
 }
