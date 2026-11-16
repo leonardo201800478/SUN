@@ -2177,7 +2177,7 @@ fn is_debugger_diagnostic_event(event: &SmsTemporalTraceEvent) -> bool {
         // simple instructions (e.g. NOP) remain observable without forwarding
         // every M1 T-state or internal cycle into the bounded host collector.
         SmsTemporalTraceEvent::M1TStateCompleted {
-            phase: sega_sms_core::Z80M1Phase::T3,
+            phase: Z80M1Phase::T3,
             ..
         } => true,
         SmsTemporalTraceEvent::InternalCycleCompleted { .. }
