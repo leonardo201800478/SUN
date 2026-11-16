@@ -2,20 +2,20 @@
 
 **Data:** 2026-11-16
 **Main de referência:** `2d526ea37c9cd65e82b54a330c52f54c07841400`
-**HEAD de validação complementar:** PR #972, `f3d6ad6c08a99ebe01813aef4c3feb3ca7170136`
+**HEAD de validação complementar:** PR #972, `ff922996e797b287e275fdbf1d1791314c61a749`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos consumidores Sega SMS/SG-1000.
 
 ## Escopo e regra de leitura
 
 Esta é a consolidação dos 12 critérios temporais e de integração solicitados na continuidade E7. O checklist mestre do repositório não contém uma lista autônoma numerada de exatamente 12 itens; seus requisitos estão distribuídos pelos grupos F-, S-, T-, D-, V- e C-. Esta matriz agrupa os itens temporais expressamente enumerados na continuidade, sem substituir o checklist mestre.
 
-**Workflow da validação complementar:** [CI #43916442132](https://github.com/leonardo201800478/sega-emulator/actions/runs/43916442132) — Rust workspace regression SUCCESS. O executável `snapshot_restore_e7_2e` registrou **12 passed, 0 failed**. [SMS Debugger Runtime #43916442082](https://github.com/leonardo201800478/sega-emulator/actions/runs/43916442082) — SUCCESS. Os jobs Z80 focused e Scheduler deterministic stress foram SKIPPED nessa execução e permanecem NOT RUN nela.
+**Workflow da validação complementar:** [CI #43918490165](https://github.com/leonardo201800478/sega-emulator/actions/runs/43916442132) — Rust workspace regression SUCCESS. O executável `snapshot_restore_e7_2e` registrou **13 passed, 0 failed**. [SMS Debugger Runtime #43918490096](https://github.com/leonardo201800478/sega-emulator/actions/runs/43916442082) — SUCCESS. Os jobs Z80 focused e Scheduler deterministic stress foram SKIPPED nessa execução e permanecem NOT RUN nela.
 
 | # | Critério | Arquivos/símbolos de evidência | Resultado de software | Limite / classificação |
 |---:|---|---|---|---|
 | 1 | HALT e ciclos M1 de retenção | `native/sms_core/tests/snapshot_restore_e7_2e.rs::e7_2e_halt_m1_hold_restores_each_tstate_and_ignores_data`; `native/z80_cpu/tests/halt_e7.rs` | PASS direcionado; incluído na suíte workspace do HEAD #972 | Não extrapolar para sinalização elétrica externa não modelada |
-| 2 | INT/NMI, amostragem e prioridade | `snapshot_restore_e7_2e.rs::e7_2e_nmi_restore_matches_trace_with_zero_and_multiple_wait_states`; `e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler`; `e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler` | PASS direcionado para os cenários testados; IM1/IM2 durante repetição cobertos no SMS Scheduler | Não significa cobertura de toda combinação possível de bordas/níveis ou todos os dispositivos |
-| 3 | Modos IM0/IM1/IM2 | `snapshot_restore_e7_2e.rs::e7_2e_im0_restores_acknowledge_and_injected_rst`; `e7_2e_im1_restores_dispatch_and_both_stack_writes`; `e7_2e_im2_restores_stack_and_both_vector_reads`; novo teste IM2 durante repetição | PASS direcionado para os vetores e handlers cobertos | Não é validação de variantes CMOS/R800/Z180 |
+| 2 | INT/NMI, amostragem e prioridade | `snapshot_restore_e7_2e.rs::e7_2e_nmi_restore_matches_trace_with_zero_and_multiple_wait_states`; `e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler`; `e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler`; `e7_f022_repeat_nmi_is_sampled_and_restored_by_sms_scheduler` | PASS direcionado para os cenários testados; INT IM1/IM2 e NMI durante repetição cobertos no SMS Scheduler | Não significa cobertura de toda combinação possível de bordas/níveis ou todos os dispositivos |
+| 3 | Modos IM0/IM1/IM2 | `snapshot_restore_e7_2e.rs::e7_2e_im0_restores_acknowledge_and_injected_rst`; `e7_2e_im1_restores_dispatch_and_both_stack_writes`; `e7_2e_im2_restores_stack_and_both_vector_reads`; novo teste IM2 e NMI durante repetição | PASS direcionado para os vetores e handlers cobertos | Não é validação de variantes CMOS/R800/Z180 |
 | 4 | EI delay e retorno RETI | `snapshot_restore_e7_2e.rs::e7_2e_ei_delay_survives_machine_snapshot_until_following_instruction`; handler IM2 da PR #972 | PASS direcionado: EI delay persiste por snapshot e RETI permite a retomada | Não generalizar para daisy-chain; SMS/SG-1000 não modelam periférico RETI daisy-chain |
 | 5 | Interrupt acknowledge | `snapshot_restore_e7_2e.rs::e7_2e_wait_matrix_covers_m1_memory_io_internal_and_interrupt_cycles`; testes IM0/IM1/IM2 | PASS no contrato de software testado | Vetor/acknowledge e tempos nominais não constituem medição de pinos |
 | 6 | WAIT | Matriz WAIT em `snapshot_restore_e7_2e.rs`; F-022 simple/repeat e IM1/IM2 com WAIT por request | PASS para WAIT determinístico de fixture | WAIT físico/externo: NOT_VERIFIED |
