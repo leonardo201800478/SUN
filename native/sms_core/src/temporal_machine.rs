@@ -813,8 +813,8 @@ impl SmsTemporalMachine {
                         self.trace_events
                             .push(SmsTemporalTraceEvent::M1FetchCompleted {
                                 timestamp: completed_at,
-                                address: m1_state.address,
-                                refresh_address: m1_state.refresh_address,
+                                address: m1_state.cycle.address,
+                                refresh_address: m1_state.cycle.refresh_address,
                                 cpu_pc: self.cpu.registers.pc,
                                 cpu_halted: self.cpu.halted,
                                 cpu_int_line: self.cpu.int_pending,
