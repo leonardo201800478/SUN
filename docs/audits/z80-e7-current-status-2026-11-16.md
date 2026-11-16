@@ -454,3 +454,8 @@ O critério SG-1000 nesta fase significa consumo do Z80 compartilhado. A integra
 
 
 **Nota de gate:** os relatórios adversariais F-022/F-023 nesta branch são registros de inspeção técnica, não reviews independentes submetidas no GitHub. Reviews e threads continuam vazias; Codex review falhou por limite de uso. Não promover F-022/F-023 a CLOSED até review adversarial independente registrada.
+
+
+## Interação WZ em branches relativas DD/FD — 16/11/2026
+
+A PR #977 adiciona comparação BASE↔DD/FD para JR, DJNZ e JR cc tomados/não tomados, com PC inicial `0x2000` e `0xFFFD` (wrap após o byte de displacement). HEAD observado `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`; CI #43939973117 e SMS Runtime #43939957730 estavam em andamento na última consulta. Sem review independente registrada. Até CI final e review independente, F-023 permanece AUDIT_PARTIAL; não transferir essa evidência para main nem fechar E7.
