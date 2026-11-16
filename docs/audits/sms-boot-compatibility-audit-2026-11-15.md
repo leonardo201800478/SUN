@@ -32,6 +32,8 @@ O construtor temporal do barramento cria `SmsMemory::with_cartridge_sram_size(..
 
 `scan_sms_firmware_directory` consulta `SmsFirmwareCatalog` para identificar e listar firmware; isso não encaminha bytes para a máquina. O factory `create_sms_worker` em `native/sega_desktop/src/main.rs` chama `SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size` com ROM, região, revisão do VDP e SRAM, sem BIOS. Portanto, o comportamento atual é intencionalmente boot direto; a preferência de firmware é preparatória e não é um toggle de boot funcional na baseline.
 
+Há uma divergência documental relevante: `docs/architecture/sms-bios-firmware-loading.md` ainda declara que o encaminhamento Qt/PyO3 e o boot pelo core Rust estão implementados. Esse documento descreve uma arquitetura anterior (Qt/PyO3/NativeSMSTemporalMachine) e não corresponde ao chamador Slint/Rust temporal atual. Para esta auditoria, o código efetivo de `native/sega_desktop/src/main.rs` e a mensagem explícita da UI prevalecem; o status IMPLEMENTED do documento antigo não comprova boot temporal funcional.
+
 - `Pause`: interrompe a execução e suspende/limpa a saída de áudio; preserva a máquina.
 - `Stop`: reconstrói a máquina inteira, preservando o conteúdo e a capacidade de SRAM; é tratado no código como power-off/cold reset.
 - `Reset`: também reconstrói a máquina inteira, preservando SRAM.
@@ -175,6 +177,12 @@ A implementação de `Z80MicroSequencer::reset()` preserva os registradores gera
 
 **Não alterar o Z80 para forçar SP=$DFF0** nesta investigação. O valor é uma convenção de software comum e aparece no próprio caminho normal de inicialização do SmsVdpTest, mas não é especificado pelo trecho de RESET do manual.
 
+### 2.4 Instrumentação de boot já existente
+
+`SmsTemporalMachine::set_trace_enabled(true)` já permite capturar eventos de barramento reais com timestamp, operação, endereço, T-states base, WAITs e dado, e `take_trace()` permite drenar o buffer. Isso é útil para identificar o primeiro fetch/escrita divergente sem callback por instrução. Entretanto, o buffer cresce sem limite enquanto habilitado e o `SmsTemporalWorker` não expõe controle nem extração desse trace. O `port_write_trace` do barramento é circular e limitado a 64 escritas de I/O; não captura escritas de memória nem substitui o trace completo.
+
+O smoke campaign existente (`docs/testing/sms-in-game-rom-smoke-campaign.md`) carrega ROMs locais via `SmsTemporalWorker`, avança 120 frames e verifica instruções e frame não-preto. É útil como primeiro gate de regressão, mas não comprova jogabilidade, estado correto, áudio, nem primeira divergência. A campanha exige ROMs externas ao Git e região explícita.
+
 ## 5. SMS VDP Test v1.31 — interpretação correta dos valores
 
 O código-fonte público do SmsVdpTest define em `ColdReset` um `JP DumpAllRegisters` de 10 ciclos. O caminho normal `WarmReset/main` só mais tarde executa `LD SP,$DFF0` e inicializa o VDP. Portanto, a tela de registradores não deve ser interpretada como uma fotografia abstrata dos valores universais do chip no instante físico t=0.
@@ -192,14 +200,14 @@ As diferenças Gearsystem/Ares registradas anteriormente permanecem observaçõe
 
 ## 6. ROMs-alvo — identidade pública versus arquivo local
 
-Os catálogos públicos consultados identificam:
+Os catálogos públicos No-Intro/libretro e MAME identificam:
 
 | Jogo | Tamanho catalogado | CRC32 catalogado | SHA-1 catalogado |
 |---|---:|---|---|
 | Andre Agassi Tennis (Europe, Brazil) | 262.144 bytes | `F499034D` | `81DBACAD4739B98281C750D9AF21606275398FC8` |
 | Ace of Aces (Europe) | 262.144 bytes | `887D9F6B` | `08A79905767B8E5AF8A9C9C232342E6C47588093` |
 
-Esses são identificadores de DAT público, não hashes calculados dos arquivos locais do usuário. O MAME software list não fornece PCB explícito nessas duas entradas. Sem as ROMs locais não é possível confirmar igualdade byte a byte, calcular SHA-256 local, inspecionar o cabeçalho real, registrar a sequência de instruções ou comprovar o mapper do arquivo testado.
+Esses são identificadores de DAT público, não hashes calculados dos arquivos locais do usuário. O MAME software list não fornece PCB explícito nessas duas entradas. Sem as ROMs locais não é possível confirmar igualdade byte a byte, calcular SHA-256 local, inspecionar o cabeçalho real, registrar a sequência de instruções ou comprovar o mapper do arquivo testado. As entradas MAME para os dois títulos não informam um campo PCB; portanto, o DAT confirma identidade do dump, mas não resolve por si só o mapper físico.
 
 O runtime atual classifica como Sega qualquer ROM que não satisfaça a assinatura Codemasters (exceto o perfil SegaExtended). Essa regra será confrontada com os bytes e traces de cada ROM; não será aceita como prova do mapper físico.
 
