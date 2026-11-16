@@ -120,8 +120,8 @@ No HEAD 98c1cf4, os quatro testes passaram: 4 passed/0 failed. Os 34.000 vetores
 ### 8.1 Baseline e estado real das PRs
 
 - Main: caa9a76a6f09d588155ea4e0cbc95f487f079143. A comparação Git com a baseline de código Z80 bf7e7584df421000d040a3ee057799a75bfeb3eb mostra dois commits exclusivamente documentais até caa9; não houve mudança de runtime Z80 nesse intervalo.
-- PR #936: OPEN/DRAFT, head 306db2a91ff796b4c5f66eabc4ebd4c4baad903e, base caa9a76a6f09d588155ea4e0cbc95f487f079143, mergeable=true. CI #43852582196 e SMS Runtime #43852582229 SUCCESS no SHA exato.
-- PR #942: OPEN/DRAFT, head documental 15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021; código/harness 7402ff138ced95da2d8b9e0008919c8cd22484f1. CI do código #43850972785/#43850972708 SUCCESS; CI documental #43851550529/#43851550520 SUCCESS.
+- PR #936: OPEN/DRAFT, head 306db2a91ff796b4c5f66eabc4ebd4c4baad903e, base caa9a76a6f09d588155ea4e0cbc95f487f079143, mergeable=true. CI #43852582196 e SMS Runtime #43852582229 SUCCESS no SHA exato. O harness da ROM v5.0 executa Z80::step (executor atômico) e Spectrum48Bus; não testa microsequenciador, WAIT ou Scheduler.
+- PR #942: OPEN/DRAFT, head documental 15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021; código/harness 7402ff138ced95da2d8b9e0008919c8cd22484f1. CI do código #43850972785/#43850972708 SUCCESS; CI documental #43851550529/#43851550520 SUCCESS. O harness Woodmass também usa Z80::step e T-states nominais, sem microsequenciador/WAIT/Scheduler.
 - PR #943: OPEN/DRAFT, base caa9a76a6f09d588155ea4e0cbc95f487f079143, head atualizado pela extensão desta rodada. Nenhuma das três PRs tem revisão independente registrada ou reviewers solicitados; nenhuma foi integrada.
 
 ### 8.2 Ledger dos 256 bytes após DD/FD
@@ -145,8 +145,8 @@ O teste z80_dd_fd_exception_matrix_f028.rs recebeu dois casos: NMI e INT são so
 
 ### 8.5 Estado atualizado
 
-- F-022: AUDIT_PARTIAL; ROM v5.0 PASS no SHA 306db2a, sem cobertura exaustiva.
-- F-023: AUDIT_PARTIAL; Woodmass MEMPTR 09 PASS no SHA 7402ff1, sem tabela completa WZ/X/Y.
+- F-022: AUDIT_PARTIAL; ROM v5.0 PASS no SHA 306db2a com executor atômico, sem microsequenciador/WAIT/Scheduler e sem cobertura exaustiva.
+- F-023: AUDIT_PARTIAL; Woodmass MEMPTR 09 PASS no SHA 7402ff1 com executor atômico e T-states nominais, sem tabela completa WZ/X/Y nem integração temporal.
 - F-028: AUDIT_PARTIAL; matriz original 108 combinações PASS no SHA 98c1cf4; ledger de classificação de todos os 256 bytes e testes de INT/NMI entre DD/FD PASS no SHA b3320ea. A semântica completa por opcode/estado continua pendente.
 - Nenhuma alteração de produção da CPU, prefix FSM, microsequenciador, Scheduler ou runtime foi feita.
 - E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
