@@ -444,12 +444,12 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 
 ### Estado rastreável
 
-- **F-022:** LDI/LDD/CPI/CPD integradas ao SmsTemporalMachine/Scheduler pela #969; LDIR/LDDR/CPIR/CPDR integradas pela #957/#962; INT IM1 durante repetição, RETI e retomada pela #964. A matriz IM2 com PUSH AF/POP AF/EI/RETI permanece evidência do microsequenciador (#944), separada da integração SMS. PR #972 tenta fechar essa última diferença com teste Scheduler/SMS; HEAD atual `930bdac7bc27788ada80c0c86cf2060b227336e6`, CI #43915812826/#43915812871 em execução nesta fotografia. Não atribuir PASS antes da conclusão.
+- **F-022:** LDI/LDD/CPI/CPD integradas ao SmsTemporalMachine/Scheduler pela #969; LDIR/LDDR/CPIR/CPDR integradas pela #957/#962; INT IM1 durante repetição, RETI e retomada pela #964. A matriz IM2 com PUSH AF/POP AF/EI/RETI já existia no microsequenciador (#944); PR #972 acrescenta integração Scheduler/SMS para INT IM2 e NMI durante repetição, com handlers PUSH AF/POP AF/EI/RETI e PUSH AF/POP AF/RETN.
 - **F-023:** a matriz por família permanece completa como inventário do modelo; DOC/HW/COMP/INT continuam separados. Somente RRD/RLD tem evidência hardware-derived específica para WZ=HL+1 na matriz atual. F-023 permanece AUDIT_PARTIAL por proveniência e revisão adversarial, não por ausência de implementação.
 - **F-028:** os 167 Ignored já possuem matriz de estado, requests/payloads, WAIT de fixture, snapshot/restore e PC condicional exato nas PRs #950/#953; 85 UsesIndex estão reconciliados; #968 corrigiu stream/data. A antiga afirmação de que faltava a matriz de requests está supersedida. Revisão adversarial/oráculos e limites semânticos permanecem pendentes.
 - **Scheduler:** LONG_PASS de software na campanha #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, 320.000 operações e 4.000.000 dispatches. Não comprova WAIT físico, DMA, safe points de todos os dispositivos ou TEMPORAL_PASS global.
 - **PR #971:** correção documental F-028, HEAD `26fd03345df702c18ff85fceaddb9f63b4a4a20a`; CI #43913347117 SUCCESS nos gates aplicáveis de documentação/qualidade. Draft/aberta, não integrada.
-- **PR #972:** teste Scheduler IM2 candidato, HEAD `f3d6ad6c08a99ebe01813aef4c3feb3ca7170136`; CI #43916442132 Rust workspace regression SUCCESS e #43916442082 SMS Debugger Runtime SUCCESS. O executável `snapshot_restore_e7_2e` registrou 12/12 testes PASS no workspace Release. Z80 focused e Scheduler deterministic stress foram SKIPPED, portanto NOT RUN. PR permanece Draft/aberta, não integrada.
+- **PR #972:** teste Scheduler INT/NMI candidato, HEAD `ff922996e797b287e275fdbf1d1791314c61a749`; CI #43918490165 Rust workspace regression SUCCESS e #43918490096 SMS Debugger Runtime SUCCESS. O executável `snapshot_restore_e7_2e` registrou 13/13 testes PASS no workspace Release. Z80 focused e Scheduler deterministic stress foram SKIPPED, portanto NOT RUN. PR permanece Draft/aberta, não integrada.
 
 ### Decisão
 
