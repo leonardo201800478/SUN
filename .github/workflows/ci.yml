@@ -334,6 +334,30 @@ jobs:
           echo "SEGA_Z80_BLOCK_FLAGS_SNA=$fixture" >> "$GITHUB_ENV"
       - name: Execute hardware-derived Z80 Block Instruction Flags Test v5.0
         run: cargo test --release --locked -p sega-z80-cpu --test z80_block_flags_rom_v5 -- --ignored --nocapture
+      - name: Fetch and verify Mark Woodmass Z80 MEMPTR TAP (GPL-2.0; CI-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="$RUNNER_TEMP/z80tests.tap"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            "https://zxe.io/depot/software/ZX%20Spectrum/Z80%20Test%20Suite%20%282008%29%28Woodmass%2C%20Mark%29%5B%21%5D.tap" \
+            --output "$fixture"
+          python - "$fixture" <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+
+          fixture = pathlib.Path(sys.argv[1])
+          data = fixture.read_bytes()
+          expected = "BB1DCE3187FBF5EA871FE41EB76AE7E0C94D08136FF4D8E756E2624DA589AAE69CAD074EB43CBFB9E2B9E0D2CC505343D9804EDCDE3CEA1FB1881DCBF5C865B0"
+          actual = hashlib.sha3_512(data).hexdigest().upper()
+          if len(data) != 5573 or actual != expected:
+              raise SystemExit(f"Woodmass TAP fixture mismatch: size={len(data)}, sha3-512={actual}")
+          print(f"Verified Woodmass TAP: size={len(data)}, sha3-512={actual}")
+          PY
+          echo "Z80_WOODMASS_TAP=$fixture" >> "$GITHUB_ENV"
+      - name: Execute Mark Woodmass hardware-derived MEMPTR test
+        run: cargo test --release --locked -p sega-z80-cpu --test z80_woodmass_memptr woodmass_memptr_tap_matches_hardware_reference -- --ignored --exact --nocapture
       - name: Run all pinned SingleStepTests DD/FD indexed ALU vectors
         env:
           SINGLESTEP_Z80_DIR: ${{ github.workspace }}/vendor/SingleStepTests-z80/v1
