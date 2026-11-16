@@ -154,3 +154,84 @@ fn rrd_and_rld_are_exhaustive_for_all_accumulator_memory_and_carry_values() {
         }
     }
 }
+
+
+/// RRD/RLD set MEMPTR/WZ to HL+1. The value is architecturally observable
+/// through the undocumented X/Y flags of a following BIT n,(HL).
+///
+/// The MEMPTR rule is independently described by the community hardware
+/// research and by the Mark Woodmass suite, which was compared against a
+/// NEC D780C-1 and additional Z80 clones. The upstream TAP itself is not
+/// executed by this test; this is a focused observable-state regression.
+/// Reference: https://github.com/redcode/Z80/wiki/MEMPTR
+#[test]
+fn rrd_and_rld_memptr_is_observable_through_following_bit_hl_flags() {
+    let pc = 0x0100_u16;
+    let hl_values = [0x07FF_u16, 0x1FFF, 0x27FF, 0xFFFF];
+    let accumulator_values = [0x00_u8, 0x01, 0x10, 0xFF];
+    let mut bus = FlatBus::default();
+    let mut cpu = Z80::default();
+
+    for opcode in [0x67_u8, 0x6F] {
+        bus.memory[usize::from(pc)] = 0xED;
+        bus.memory[usize::from(pc.wrapping_add(1))] = opcode;
+        bus.memory[usize::from(pc.wrapping_add(2))] = 0xCB;
+        bus.memory[usize::from(pc.wrapping_add(3))] = 0x46; // BIT 0,(HL)
+
+        for hl in hl_values {
+            let expected_wz = hl.wrapping_add(1);
+            for accumulator in accumulator_values {
+                for memory_value in u8::MIN..=u8::MAX {
+                    for carry_in in [false, true] {
+                        bus.memory[usize::from(hl)] = memory_value;
+                        cpu.registers.pc = pc;
+                        cpu.registers.a = accumulator;
+                        cpu.registers.f = if carry_in { FLAG_C } else { 0 };
+                        cpu.registers.set_hl(hl);
+                        cpu.wz = 0x4567;
+
+                        let (expected_accumulator, expected_memory) = if opcode == 0x67 {
+                            (
+                                (accumulator & 0xF0) | (memory_value & 0x0F),
+                                ((accumulator & 0x0F) << 4) | (memory_value >> 4),
+                            )
+                        } else {
+                            (
+                                (accumulator & 0xF0) | (memory_value >> 4),
+                                (memory_value << 4) | (accumulator & 0x0F),
+                            )
+                        };
+
+                        assert_eq!(cpu.step(&mut bus), Ok(18), "ED {opcode:02X}");
+                        assert_eq!(cpu.wz, expected_wz, "ED {opcode:02X}: WZ");
+                        assert_eq!(cpu.registers.a, expected_accumulator, "ED {opcode:02X}: A");
+                        assert_eq!(
+                            bus.memory[usize::from(hl)],
+                            expected_memory,
+                            "ED {opcode:02X}: memory"
+                        );
+
+                        let mut expected_flags = FLAG_H | (expected_wz >> 8) as u8 & FLAG_XY;
+                        if carry_in {
+                            expected_flags |= FLAG_C;
+                        }
+                        if expected_memory & 0x01 == 0 {
+                            expected_flags |= FLAG_Z | FLAG_PV;
+                        }
+
+                        assert_eq!(cpu.step(&mut bus), Ok(12), "BIT 0,(HL) after ED {opcode:02X}");
+                        assert_eq!(
+                            cpu.registers.f, expected_flags,
+                            "ED {opcode:02X} then BIT 0,(HL), HL={hl:04X}, A={accumulator:02X}, M={memory_value:02X}, C={carry_in}"
+                        );
+                        assert_eq!(cpu.q, expected_flags, "ED {opcode:02X}: Q after BIT");
+                        assert_eq!(cpu.wz, expected_wz, "ED {opcode:02X}: WZ after BIT");
+                        assert_eq!(cpu.registers.hl(), hl, "ED {opcode:02X}: HL preserved");
+                        assert_eq!(cpu.registers.pc, pc.wrapping_add(4), "ED {opcode:02X}: PC");
+                        assert_eq!(cpu.total_tstates, 30, "ED {opcode:02X}: total T-states");
+                    }
+                }
+            }
+        }
+    }
+}
