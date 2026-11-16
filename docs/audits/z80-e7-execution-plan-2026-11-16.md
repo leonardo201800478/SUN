@@ -30,7 +30,7 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 
 ### P0 — fechar a proveniência e a cobertura de F-022
 
-1. Reconciliar a contagem de cenários dos testes de repetição IM2 no código atual com a afirmação documental de 32 cenários. Identificar arquivos, testes, dimensões e número real de casos; corrigir scorecard/checklist se necessário.
+1. **Concluído nesta auditoria:** PR #932 adiciona `native/sms_core/tests/z80_ed_block_repeat_interrupt_observation.rs`, com exatamente 32 cenários = 4 opcodes (LDIR/LDDR/CPIR/CPDR) × 4 PCs ($8002/$8802/$A002/$A802) × 2 BC iniciais (0000/0002). Também há 4 cenários adicionais no teste `ed_block_transfer_repeat_interrupt_tests::block_transfer_and_compare_repeat_flags_are_observable_through_im2_and_resume`, no microsequenciador compartilhado, um por opcode, com snapshot/restore em cada fronteira e observação via PUSH AF/RETI. O scorecard de 32 casos está correto; manter as duas camadas de evidência separadas.
 2. Construir uma matriz por opcode (LDIR, LDDR, CPIR, CPDR) × direção × BC inicial/resultado × comparação igual/desigual × PC.11/PC.13 × ponto de aceitação de INT.
 3. Auditar Q/previous-Q antes da repetição, no limite final do ciclo de repetição, durante acknowledge e após RETI. Não extrapolar o valor de Q observado em um único ponto para toda a sequência.
 4. Separar resultados do executor atômico, microsequenciador, WAIT/snapshot e integração MachineScheduler. A comparação atomic↔micro é consistência interna, não oracle independente.
