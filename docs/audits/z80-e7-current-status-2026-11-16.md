@@ -436,3 +436,10 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+## Decisão de escopo — encerramento E7 com limitações (2026-11-16)
+
+A decisão atualiza o estado operacional das seções históricas: E7 passa a `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado utilizado por SMS/SG-1000 e para o escopo validável atualmente. A main `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` executou PASS no gate Z80 focused (#43945796678). As integrações #955–#969 e seus resultados permanecem associados aos SHAs de origem; não foram reexecutados nem transferidos para a main por esta decisão.
+
+Limitações: CMOS/NEC/R800/Z180/Z80N/clones não caracterizados; WAIT em fixture não prova WAIT físico; DMA e sincronização física global não comprovados; ROM v5.0/Woodmass possuem escopo específico; ZEXDOC/ZEXALL não executados. Não declarar TEMPORAL_PASS sistêmico. Revisão independente por outra IA, hardware físico e ZEXDOC/ZEXALL são complementares, não gates permanentes. Não reabrir sem bug/regressão reproduzível. SG-1000 pode prosseguir na arquitetura existente.
