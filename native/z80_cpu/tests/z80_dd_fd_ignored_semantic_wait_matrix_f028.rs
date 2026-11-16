@@ -103,9 +103,11 @@ fn execute_one_instruction(
     wait_and_snapshot: bool,
     initial_f: u8,
     initial_bc: u16,
+    initial_pc: u16,
 ) -> Execution {
     let mut cpu = Z80MicroSequencer::default();
     cpu.registers.set_bc(initial_bc);
+    cpu.registers.pc = initial_pc;
     cpu.registers.set_de(0x3456);
     cpu.registers.set_hl(0x4567);
     cpu.registers.sp = 0x5678;
@@ -243,13 +245,19 @@ fn remove_prefix_m1_and_normalize_stream_addresses(
     trace: Vec<TraceEvent>,
     prefix: u8,
     opcode: u8,
+    initial_pc: u16,
 ) -> Vec<TraceEvent> {
+    let prefixed_return_address = initial_pc.wrapping_add(if matches!(
+        opcode,
+        0xC4 | 0xCC | 0xD4 | 0xDC | 0xE4 | 0xEC | 0xF4 | 0xFC | 0xCD
+    ) { 4 } else { 2 });
+    let high_byte_wrap = prefixed_return_address & 0x00FF == 0;
     let mut events = trace.into_iter();
     assert_eq!(
         events.next(),
         Some(TraceEvent::Bus {
             kind: BusTraceKind::OpcodeFetch,
-            address: 0,
+            address: initial_pc,
             base_tstates: 4,
             stream: true,
             read_value: Some(prefix),
@@ -276,11 +284,15 @@ fn remove_prefix_m1_and_normalize_stream_addresses(
             // CALL/conditional CALL/RST push the address after the complete
             // instruction. The ignored prefix shifts that return address by
             // one byte; normalize only its low-byte stack write (SP-2).
-            if *kind == BusTraceKind::MemoryWrite
-                && *address == 0x5676
-                && CALL_RST_OPCODES.contains(&opcode)
-            {
-                *write_value = write_value.map(|value| value.wrapping_sub(1));
+            if *kind == BusTraceKind::MemoryWrite && CALL_RST_OPCODES.contains(&opcode) {
+                if *address == 0x5676 {
+                    *write_value = write_value.map(|value| value.wrapping_sub(1));
+                } else if *address == 0x5677 && high_byte_wrap {
+                    // The extra ignored-prefix byte can carry the pushed return
+                    // address across xxFF→(xx+1)00. Normalize the complete
+                    // 16-bit return address, not only its low byte.
+                    *write_value = write_value.map(|value| value.wrapping_sub(1));
+                }
             }
         }
     }
@@ -358,8 +370,8 @@ fn data_read_at_current_pc_is_not_misclassified_as_instruction_stream() {
     // BASE has PC=1 at the data read; DD+opcode has PC=2. BC=2 therefore
     // collides with PC only in the prefixed execution. It is still a data
     // read, not an immediate operand fetch, and must not be address-normalized.
-    let base = execute_one_instruction(&[OPCODE], true, 0x00, 0x0002);
-    let prefixed = execute_one_instruction(&[0xDD, OPCODE], true, 0x00, 0x0002);
+    let base = execute_one_instruction(&[OPCODE], true, 0x00, 0x0002, 0);
+    let prefixed = execute_one_instruction(&[0xDD, OPCODE], true, 0x00, 0x0002, 0);
 
     let has_unclassified_data_read = |trace: &[TraceEvent]| {
         trace.iter().any(|event| {
@@ -380,7 +392,7 @@ fn data_read_at_current_pc_is_not_misclassified_as_instruction_stream() {
         "prefixed data read must remain data even when address == PC"
     );
     assert_eq!(
-        remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, 0xDD, OPCODE),
+        remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, 0xDD, OPCODE, 0),
         base.trace,
         "data reads at the current PC must retain their actual address"
     );
@@ -396,7 +408,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
     );
 
     for opcode in ignored {
-        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345);
+        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345, 0);
         assert_eq!(base.fetch_addresses, vec![0], "BASE {opcode:02X}");
         assert_eq!(
             base.wait_count,
@@ -408,7 +420,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
         );
 
         for prefix in [0xDD, 0xFD] {
-            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345);
+            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345, 0);
             assert_eq!(
                 prefixed.fetch_addresses,
                 vec![0, 1],
@@ -426,7 +438,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
             );
             assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0x00);
             assert_eq!(
-                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode),
+                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode, 0),
                 base.trace,
                 "{prefix:02X} {opcode:02X}: request type/order/address/payload/timing and internal cycles"
             );
@@ -444,11 +456,11 @@ fn all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc() {
     // DJNZ not taken. The first matrix already exercises the opposite DJNZ
     // path (B=0x23) and the complementary flag conditions.
     for opcode in ignored {
-        let base = execute_one_instruction(&[opcode], true, 0xFF, 0x0145);
+        let base = execute_one_instruction(&[opcode], true, 0xFF, 0x0145, 0);
         assert_eq!(base.fetch_addresses, vec![0], "BASE {opcode:02X}");
 
         for prefix in [0xDD, 0xFD] {
-            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0xFF, 0x0145);
+            let prefixed = execute_one_instruction(&[prefix, opcode], true, 0xFF, 0x0145, 0);
             assert_eq!(
                 prefixed.fetch_addresses,
                 vec![0, 1],
@@ -458,9 +470,85 @@ fn all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc() {
             assert_eq!(prefixed.tstates, base.tstates + 5);
             assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode, 0xFF);
             assert_eq!(
-                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode),
+                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix, opcode, 0),
                 base.trace,
                 "{prefix:02X} {opcode:02X}: alternate conditional path request trace"
+            );
+        }
+    }
+}
+
+
+#[test]
+fn ignored_call_and_rst_prefix_preserve_wrapped_16_bit_return_address() {
+    let cases = [
+        // CALL consumes three bytes; the ignored prefix makes the return PC
+        // wrap from FFFF to 0000.
+        (0xCD_u8, 0xFFFC_u16),
+        // RST consumes one byte; DD/FD makes its return PC wrap likewise.
+        (0xC7_u8, 0xFFFE_u16),
+    ];
+
+    for (opcode, initial_pc) in cases {
+        let base = execute_one_instruction(&[opcode], true, 0x00, 0x2345, initial_pc);
+        assert_eq!(base.fetch_addresses, vec![initial_pc]);
+
+        let base_stack_writes: Vec<_> = base
+            .trace
+            .iter()
+            .filter_map(|event| match event {
+                TraceEvent::Bus {
+                    kind: BusTraceKind::MemoryWrite,
+                    address,
+                    write_value: Some(value),
+                    ..
+                } if matches!(*address, 0x5676 | 0x5677) => Some((*address, *value)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            base_stack_writes,
+            vec![(0x5677, 0xFF), (0x5676, 0xFF)],
+            "BASE {opcode:02X}: return address before wrap"
+        );
+
+        for prefix in [0xDD, 0xFD] {
+            let prefixed =
+                execute_one_instruction(&[prefix, opcode], true, 0x00, 0x2345, initial_pc);
+            assert_eq!(
+                prefixed.fetch_addresses,
+                vec![initial_pc, initial_pc.wrapping_add(1)],
+                "{prefix:02X} {opcode:02X}: exactly prefix M1 and terminal opcode M1"
+            );
+
+            let prefixed_stack_writes: Vec<_> = prefixed
+                .trace
+                .iter()
+                .filter_map(|event| match event {
+                    TraceEvent::Bus {
+                        kind: BusTraceKind::MemoryWrite,
+                        address,
+                        write_value: Some(value),
+                        ..
+                    } if matches!(*address, 0x5676 | 0x5677) => Some((*address, *value)),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                prefixed_stack_writes,
+                vec![(0x5677, 0x00), (0x5676, 0x00)],
+                "{prefix:02X} {opcode:02X}: prefixed return address after wrap"
+            );
+
+            assert_eq!(
+                remove_prefix_m1_and_normalize_stream_addresses(
+                    prefixed.trace,
+                    prefix,
+                    opcode,
+                    initial_pc,
+                ),
+                base.trace,
+                "{prefix:02X} {opcode:02X}: full 16-bit stack return address and bus trace"
             );
         }
     }
