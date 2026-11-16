@@ -2,15 +2,15 @@
 
 Emulador Sega multissistema com runtime de hardware integralmente em Rust. A arquitetura desktop ativa utiliza **Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2**, com SDL3/input runtime para gamepads.
 
-**Baseline remota consultada:** `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16).
+**Baseline remota consultada:** `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434` (2026-11-16).
 
 ## Estado resumido
 
 - SMS1/SMS2: runtime integrado; Road Rash e alinhamento de sprites reportados pelo usuário como resolvidos. BIOS boot ainda aguarda validação física.
 - Z80 compartilhado: encerrado com limitações explícitas no perfil NMOS praticável; E8/ZEXDOC/ZEXALL é complementar.
-- SG-1000: próxima prioridade de integração temporal na arquitetura existente.
+- SG-1000: P2 iniciada; a PR #981 é candidata P2.1 para PortRead/PortWrite no barramento temporal, ainda não integrada. Na main, Sg1000Machine continua usando cpu.step() e avançando VDP/PSG em fronteiras de instrução.
 - Game Gear: após SG-1000, como sistema próprio.
-- Após Game Gear: FM Sound Unit/YM2413, Sega Card/My Card, Card Catcher para SG-1000, 3D Glasses e demais periféricos compatíveis.
+- Após Game Gear: somente YM2413 integrado do Master System japonês; Sega Card/My Card como mídia; 3D Glasses/SegaScope e periféricos compatíveis. Mark III FM Sound Unit externo e Card Catcher C-1000 estão fora do escopo de implementação.
 - 16-bit: Mega Drive/Genesis → Sega CD → 32X, somente após a fase 8-bit.
 - Debugger: melhoria contínua e independente, sem bloquear hardware.
 - Host gráfico anterior: não está em uso ativo; remanescentes são legado a inventariar.
