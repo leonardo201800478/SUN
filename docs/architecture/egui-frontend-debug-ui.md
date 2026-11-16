@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** este contrato descreve o frontend egui/eframe anterior, fora de uso ativo. A GUI de produto é Slint 1.18.x com WGPU 30.x/Vulkan. Preservado apenas como histórico de organização de menus/diagnóstico; não desenvolver novas funcionalidades neste host.
+
 # egui Frontend Layout and Diagnostics Contract
 
 Status: initial UI consolidation for the SMS host.

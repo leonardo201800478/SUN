@@ -1,3 +1,5 @@
+> **HISTÓRICO DE HOST (2026-11-16):** este marco registra a primeira integração jogável no host Qt/PySide6 e contém comandos Python/Qt que não são caminhos ativos. O core SG-1000 Rust e os comportamentos/testes que continuam relevantes devem ser preservados como referência; a integração temporal atual está descrita em `docs/audits/sg1000-p2-atomic-reference-reuse-2026-11-16.md` e `docs/architecture/sg1000-z80-vdp-psg-audit.md`. A aplicação ativa é Slint/WGPU/CPAL/SDL3.
+
 > **Estado vigente (2026-10-27):** o hardware SG-1000 ativo é Rust-only. O frontend Pygame, o runner headless e o gerador Python de ROM sintética foram arquivados em `legacy/`; os comandos históricos não são executados pelo pacote ativo.
 
 # SG-1000 — marco do primeiro jogo executável

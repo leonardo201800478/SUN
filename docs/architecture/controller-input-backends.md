@@ -1,43 +1,36 @@
 # Controller Input Backends
 
-## Estado atual
+## Estado atual — Slint + SDL3
 
-O caminho de input físico ativo é nativo em Rust:
+O caminho ativo de input físico é Rust e está integrado em primeira fatia ao desktop Slint.
 
-1. Sdl3Backend carrega a ABI oficial SDL3 no Windows e enumera gamepads/joysticks.
-2. A Gamepad API fornece controles padronizados; a Joystick API preserva eixos, botões e hats brutos.
-3. NativeInputManager mantém handles, lê estados, processa hotplug, aplica perfis e produz ações semânticas.
-4. RustControllerInput é uma ponte fina entre Qt e PyO3. Não faz polling, descoberta nem mapeamento físico.
-5. Qt envia ações do teclado; Rust mescla teclado e controles físicos, aplica turbo e converte máscaras nos snapshots específicos de SG-1000/SMS.
+1. `Sdl3Backend` carrega a ABI oficial SDL3 no Windows.
+2. Gamepad API fornece controles padronizados; Joystick API preserva eixos, botões e hats brutos.
+3. `NativeInputManager` mantém handles, lê estados, processa hotplug e produz ações semânticas.
+4. O host Slint coleta teclado por eventos nativos e encaminha snapshots em fronteiras coarse-grained.
+5. O runtime SMS recebe atualizações via `SmsTemporalWorker::set_controller_at`; o Scheduler não faz polling de host.
 
-## Runtime SDL3
+## Integração e compatibilidade
 
-- Instale o runtime oficial usando scripts/install_sdl3_runtime.ps1.
-- O instalador fixa SDL 3.4.18 e valida o SHA-256 do ZIP oficial.
-- O arquivo SDL3.dll local é ignorado pelo Git.
-- Para outro local, defina SEGA_EMULATOR_SDL3_DLL com o caminho absoluto.
-- Sem SDL3, os controles físicos ficam indisponíveis; o teclado continua funcional.
-
-## Compatibilidade implementada e pendente
-
-Implementado nesta fatia:
-- Gamepads reconhecidos pelo mapeamento SDL3, com botões e eixos padronizados.
-- Joysticks genéricos com botões, eixos e hats brutos.
-- Hotplug/reconexão por enumeração periódica.
-- Deadzone, perfis físicos e captura de botão processados em Rust.
-- Leituras na fronteira de frame, sem polling dentro do core.
+Implementado:
+- Gamepads mapeados via SDL3 Gamepad API.
+- Joysticks genéricos via SDL3 Joystick API.
+- Polling no limite do host, sem callbacks por instrução.
+- Hotplug observado pelo backend.
+- Primeira atribuição P1/P2 por ordem da sessão.
+- Teclado nativo Slint.
 
 Pendente:
-- GameInput e deduplicação entre GameInput/SDL3.
-- Mais de um dispositivo por jogador e seleção manual de dispositivos.
-- Classificação detalhada de volantes, pedais, câmbios e flight sticks.
+- Testes físicos de controles, hotplug/reconexão e remoção de P1.
+- Identidade persistente (`physical_key` ainda não disponível em todos os descritores).
+- Seleção manual, múltiplos dispositivos por jogador e remapeamento persistente.
+- Calibração analógica e perfis por dispositivo.
+- Validação física de Start/NMI e Pause/NMI.
 - Rumble, force feedback, sensores e relatórios HID específicos.
-- Backend nativo para Linux/macOS.
-- Matriz física de compatibilidade e medições de latência.
+- Backends Linux/macOS e GameInput complementar.
 
 ## Fronteira arquitetural
 
-- Qt/PySide6 é frontend: menus, perfis persistidos, captura de teclado, configuração e diagnóstico. Envia somente máscaras lógicas de teclado ao runtime Rust.
-- Rust é responsável pela captura física, normalização, hotplug, mapeamento físico, mesclagem com teclado, turbo e conversão dos snapshots elétricos de cada core.
-- Os cores recebem somente snapshots/ações lógicas; não conhecem SDL, Windows, Qt ou dispositivos físicos.
-- Não há callbacks Python por instrução, memória, pixel ou amostra de áudio.
+A GUI não implementa protocolos elétricos, clocks ou registradores. O host coleta estado físico e o runtime adapta snapshots às portas do console. Não chamar APIs de host dentro de instruções, barramentos ou Scheduler. Não criar polling por instrução, runtime paralelo ou ponte Qt/PyO3.
+
+O comportamento de cada console (SMS, SG-1000, Game Gear e sistemas futuros) permanece em adaptadores Rust específicos, sem duplicar backend físico.

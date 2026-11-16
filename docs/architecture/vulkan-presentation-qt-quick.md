@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** a proposta Qt Quick/Vulkan já foi supersedida pela trilha D3D12 histórica e, posteriormente, pela arquitetura ativa Slint + WGPU 30/Vulkan. Não implementar nem reativar Qt Quick.
+
 > **SUPERSEDIDO — não implementar.** Esta proposta de apresentação via Qt Quick/Vulkan foi substituída pela [ADR-0012](decisions/ADR-0012-native-d3d12-video-runtime.md). Python/PySide6 não pode receber framebuffers nem apresentar vídeo. O caminho de pixels e a apresentação são exclusivamente Rust/D3D12. O arquivo permanece apenas como registro histórico.
 
 # Implementação Vulkan de apresentação de vídeo no Qt Quick
