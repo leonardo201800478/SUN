@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `bf7e7584df421000d040a3ee057799a75bfeb3eb` (2026-11-16, após PRs #929/#930/#932/#934/#935; #937/#938 não alteraram o Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `caa9a76a6f09d588155ea4e0cbc95f487f079143` (2026-11-16). **Baseline de código Z80:** `bf7e7584df421000d040a3ee057799a75bfeb3eb`; compare Git confirma que os dois commits posteriores até caa9 alteraram somente scorecard, matriz e checklist, sem mudanças no runtime Z80. **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -782,3 +782,32 @@ Relatório consolidado: [audits/z80-e7-current-status-2026-11-16.md](audits/z80-
 - F-028 / PR #943: HEAD testado 98c1cf41587f6af66c3d272e4b07a638d5da7919; CI #43859000666 + SMS Runtime #43859000676 SUCCESS. 108 casos prefixados por executor em 12 formas, quatro testes PASS, WAIT/snapshot. Fixture SCF/CCF corrigido pelo Q inicial, sem alteração de CPU. Matriz integral pendente; AUDIT_PARTIAL.
 - Nenhuma das PRs foi mesclada. Resultados pertencem aos HEADs indicados, não à main.
 - E7 IN_PROGRESS; E8 BLOCKED.
+
+## 50. Matriz integral de classificação DD/FD e fronteiras de interrupção — 2026-11-16
+
+**Baseline main:** caa9a76a6f09d588155ea4e0cbc95f487f079143.
+**Branch PR #943:** test/z80-f028-exception-matrix-20261116.
+**Código de teste após extensão:** dcfb74fae2d207126da59562eb8745fa0d733bd4.
+
+### Inventário completo dos bytes após DD/FD
+
+- Foi adicionado o CSV docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv, com 256 registros, um para cada byte 00–FF.
+- A ação efetiva da FSM particiona o espaço em 85 UsesIndex, 167 Ignored, 1 IndexedCB, 1 cancelamento de indexação por ED e 2 repetições DD/FD.
+- A função auxiliar classify_index_opcode() retorna Ignored para DD/FD/ED porque a FSM trata esses bytes antes de chamar o classificador. O ledger distingue a classificação auxiliar da transição efetiva para não mascarar essa precedência.
+- HALT 76 permanece BASE/Ignored; EX AF,AF' (08), EXX (D9) e EX DE,HL (EB) permanecem exceções ignoradas. As formas 66/6E/74/75 usam o endereço IX/IY+d, mas preservam H/L normais.
+- O ledger é uma fotografia da classificação implementada, não uma prova independente de semântica para os 256 opcodes.
+
+### Testes candidatos F-028
+
+- index_prefix_classification_f028.rs enumera os 256 bytes e compara o resultado com uma lista explícita de 85 UsesIndex; a contagem do classificador auxiliar esperada é 85 UsesIndex, 170 Ignored e 1 IndexedCB.
+- z80_dd_fd_exception_matrix_f028.rs recebeu dois testes adicionais: NMI e INT são solicitados após o M1 de DD, durante a cadeia DD FD 00; WAIT e snapshot/restore são aplicados nos M1; o teste exige que o opcode terminal seja aposentado antes de NMI/INT ser aceito na próxima fronteira.
+- Esses testes usam o microsequenciador Z80 diretamente; não são um teste adicional de integração do MachineScheduler SMS nem um oracle físico independente.
+- O primeiro CI do novo código, run #43862912238, falhou exclusivamente em cargo fmt --all -- --check. O SMS Runtime #43862912321 falhou no mesmo gate de formatação; Clippy, testes e build foram SKIPPED em consequência do gate anterior.
+- O diff de rustfmt foi aplicado aos dois arquivos de teste. A revisão desta atualização ainda aguarda o CI do HEAD atual; até conclusão, os novos testes são NOT RUN/NOT VALIDATED.
+
+### Estado
+
+- F-028 permanece AUDIT_PARTIAL: classificação por byte adicionada, semântica integral por opcode/estado e interações restantes ainda não demonstradas.
+- A extensão não alterou código de produção, CPU, decoder, microsequenciador, MachineScheduler ou runtime.
+- Não transferir o PASS anterior de #43859000666/#43859000676 ao código posterior.
+- E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
