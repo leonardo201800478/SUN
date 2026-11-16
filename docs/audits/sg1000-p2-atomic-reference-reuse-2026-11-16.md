@@ -1,7 +1,7 @@
 # SG-1000 P2 — reutilização do executor atômico e do core funcional legado
 
 **Data:** 2026-11-16
-**Baseline:** `main` em `1b16256358e3f17837a95cc071048c5ee5307f82`
+**Baseline histórica da auditoria:** `main` em `1b16256358e3f17837a95cc071048c5ee5307f82`; estado operacional atual reconciliado com `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`
 **Escopo:** auditoria documental, sem alteração de runtime.
 
 ## Decisão arquitetural
@@ -31,7 +31,7 @@ A comparação dessa branch com a baseline deste documento mostrou divergência 
 
 ## Sequência de implementação após fechamento E7
 
-1. **Gate E7:** manter E8/ZEXDOC/ZEXALL bloqueada até F-022, F-023, F-028 e revisão independente serem formalmente fechadas.
+1. **Gate de entrada:** E7 `CLOSED_WITH_LIMITATIONS` no perfil NMOS delimitado satisfaz a condição para P2. E8/ZEXDOC/ZEXALL e revisão independente são complementares, não bloqueios para SG-1000.
 2. **Inventário de regressões:** mapear os testes e casos do core legado para os módulos Rust atuais; eliminar duplicações e identificar lacunas reais.
 3. **Máquina temporal:** conduzir o Z80 compartilhado retomável por `Sg1000TemporalCoordinator` e `Sg1000TemporalBus`; não manter `cpu.step()` como executor da máquina temporal final.
 4. **I/O temporal:** suportar PortRead/PortWrite e aplicar side effects de controladores, TMS9918A e SN76489 no deadline agendado, sem callbacks por instrução na GUI.
@@ -46,7 +46,7 @@ Toda PR funcional SG-1000 deve explicitar impacto nos dois sistemas. Alteraçõe
 
 ## Estado nesta baseline
 
-- E7: IN_PROGRESS; E8: BLOCKED.
+- E7: `CLOSED_WITH_LIMITATIONS`; E8: validação complementar futura.
 - SG-1000: CPU compartilhada integrada; máquina temporal P2 ainda não integrada.
 - Nenhuma alteração funcional é introduzida por este documento.
 - O core legado é fonte de regressões e comportamento de referência, não uma autorização para reintroduzir uma CPU ou runtime duplicado.
