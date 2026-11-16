@@ -25,7 +25,7 @@ Nenhuma PR altera CPU, decoder, microsequenciador, MachineScheduler ou runtime. 
 - Upstream: MrKWatkins/ZXSpectrumNextTests, commit 8adcbc8384b2311fb6d36d424478aef583d5c307; fixture Tests/ZX48_ZX128/Z80BlockInstructionFlags/z80bltst.sna; Git blob SHA 41b7b0da0f5abfd5d2841fbae005f05291986f8b.
 - CI #43852582196: Z80 focused SUCCESS; SMS Runtime #43852582229 SUCCESS.
 - ROM v5.0: 1 passed/0 failed em 6,50 s.
-- O log confirma pelo menos 60 comparações principais de instrução/PC e 390 registros B-loop em seis grupos (OTIR×2, OTDR×2, INIR, INDR), B observado conforme 0x0D + 3*i, flags exatas, calibração e retorno ao caller aprovados. Os seis grupos B-loop são operações de I/O block da família F-021; não os contabilizar como cobertura das oito formas de transferência/comparação de F-022. O mapeamento da stream principal para cada opcode F-022 ainda precisa ser reconciliado.
+- O assembly upstream pinado contém 15 entradas i_meta, executadas em quatro endereços ($8002, $8802, $A002, $A802): 60 comparações principais. Quatro entradas são F-022 — LDIR, LDDR, CPIR e CPDR (16 comparações); onze são F-021 — OTIR×3, OTDR×3, INIR×3 e INDR×2 (44 comparações). Os 390 B-loop records adicionais são seis grupos de 65 (OTIR×2, OTDR×2, INIR, INDR), também F-021, sem dupla contagem. A fonte é z80_block_flags_test.asm no commit upstream 8adcbc8384b2311fb6d36d424478aef583d5c307.
 - O mesmo CI também executou 34.000 SingleStepTests DD/FD no SHA 306db2a, mas esse resultado é evidência separada de F-028; não é cobertura do ROM F-022.
 
 ### Diagnóstico preservado
