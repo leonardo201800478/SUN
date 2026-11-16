@@ -1,8 +1,14 @@
 //! F-022: exhaustive resumable-core coverage for simple LDI/LDD/CPI/CPD.
 //!
 //! Expected flags are computed from the instruction contract independently
-//! of the atomic executor. WZ/MEMPTR is intentionally not promoted here:
-//! its independent provenance remains an open E7 evidence item.
+//! of the atomic executor. Documented flags follow ZiLOG UM0080; X/Y follow
+//! Sean Young, The Undocumented Z80 Documented (v0.4), and remain a software
+//! reference rather than a new silicon measurement. WZ/MEMPTR is intentionally
+//! not promoted here: its independent provenance remains an open E7 evidence item.
+//!
+//! References:
+//! - https://www.zilog.com/docs/z80/um0080.pdf
+//! - https://datasheets.chipdb.org/Zilog/Z80/z80-documented_0.4.pdf
 
 use sega_z80_cpu::{
     Z80AlternateRegisters, Z80ArchitecturalState, Z80BusOperation, Z80MicroSequencer,
