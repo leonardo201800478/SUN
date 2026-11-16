@@ -223,7 +223,10 @@ fn validate_b_loop_log(memory: &[u8; 0x1_0000], block_interrupts: &[String]) {
             let actual_flags = memory[cursor + 2];
             let expected_b = 15_u8 + (iteration as u8) * 3;
 
-            assert_eq!(b_after, expected_b, "B-loop B value at {cursor:04X}; first block-I/O INT accepts: {block_interrupts:#?}");
+            assert_eq!(
+                b_after, expected_b,
+                "B-loop B value at {cursor:04X}; first block-I/O INT accepts: {block_interrupts:#?}"
+            );
             assert_eq!(
                 actual_flags,
                 expected_flags,
