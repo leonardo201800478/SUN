@@ -1,7 +1,7 @@
 # F-028 — reconciliação dos 256 bytes DD/FD com famílias de teste
 
-**Data:** 2026-11-16  
-**Baseline main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`  
+**Data:** 2026-11-16
+**Baseline main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`
 **Ledger:** `docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv` (256 registros).
 
 ## 1. Partição efetiva da FSM
