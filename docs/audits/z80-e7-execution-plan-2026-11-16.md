@@ -340,3 +340,9 @@ Main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` integra os casos F-028 de wrap C
 - F-022/F-023: auditorias internas concluídas, candidatas a fechamento; não há revisão independente registrada no GitHub.
 - F-023/F-028: PR #977 cobre WZ em JR/DJNZ e JR cc sob DD/FD Ignored, incluindo PC inicial `FFFD` para wrap do alvo relativo. HEAD corrigido `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`; CI #43939973117 em andamento; SMS Runtime #43939957730 em andamento na última consulta. O primeiro run após a edição foi cancelado durante a atualização e não conta como PASS.
 - E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Não iniciar P2 funcional SG-1000 antes de E7 CLOSED; a preparação documental não altera runtime.
+
+
+
+## Resultado confirmado PR #977 — 16/11/2026
+
+HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724` passou CI #43939973117 (Z80 focused e Rust quality/unit SUCCESS) e SMS Runtime #43939957730 (Release format/Clippy/tests SUCCESS). O teste cobre JR/DJNZ/JR cc, tomado/não tomado, DD/FD, WZ, PC e wrap relativo em PC=FFFD. Scheduler deterministic stress ficou SKIPPED. Nenhuma alteração de produção. Revisão independente registrada ainda pendente; E7 permanece IN_PROGRESS.
