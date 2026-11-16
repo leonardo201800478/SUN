@@ -430,13 +430,11 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                 if pc_before == ldir_pc && saw_detour && !saw_resume {
                     // RETI returned to the suspended LDIR instruction. A later
                     // PC change with BC=0 can now mean its actual completion.
-                    block_delay_loop =
-                        Some((ldir_pc, start_t, start_bc, frame_edge, true, true));
+                    block_delay_loop = Some((ldir_pc, start_t, start_bc, frame_edge, true, true));
                 } else if pc_before != ldir_pc && cpu.registers.bc() != 0 && !saw_detour {
                     // First instruction outside LDIR while BC remains nonzero:
                     // treat as an interrupt/service detour, not completion.
-                    block_delay_loop =
-                        Some((ldir_pc, start_t, start_bc, frame_edge, true, false));
+                    block_delay_loop = Some((ldir_pc, start_t, start_bc, frame_edge, true, false));
                 } else if pc_before != ldir_pc && cpu.registers.bc() == 0 && saw_resume {
                     let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
                     block_delay_summary.push(format!(
@@ -463,8 +461,14 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                 let frame_edge = pulse_end
                     .map(|end| end.saturating_sub(32))
                     .unwrap_or(next_interrupt);
-                block_delay_loop =
-                    Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge, false, false));
+                block_delay_loop = Some((
+                    pc_before,
+                    cpu.total_tstates,
+                    cpu.registers.bc(),
+                    frame_edge,
+                    false,
+                    false,
+                ));
             }
         }
 
