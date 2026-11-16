@@ -33,7 +33,7 @@ A GUI não implementa hardware, instruções, clocks, temporização ou callback
 7. **32X.**
 8. **Consolidação, compatibilidade, auditoria e aceite final.**
 
-A fase 4 é transversal aos consoles compatíveis. Sega Card/My Card permanece como formato de mídia para SMS/Mark III; Card Catcher C-1000 é excluído por ser adaptador físico redundante no emulador. O SC-3000 teve jogos SC/SG compatíveis e software de computador próprio; apenas os jogos compatíveis com SG-1000 entram no escopo atual. Não implementar computador SC-3000, SK-1100, BASIC ou cassette neste roadmap.
+A fase 4 é transversal apenas aos consoles Sega explicitamente incluídos neste roadmap. Sega Card/My Card permanece como formato de mídia para SMS/Mark III; Card Catcher C-1000 é excluído. **SC-3000 está integralmente fora do escopo do projeto como plataforma-alvo**: não haverá emulação do computador, de seus modos, software ou periféricos. Jogos SC/SG que sejam tecnicamente compatíveis com o SG-1000 podem ser carregados exclusivamente pelo perfil SG-1000; isso não constitui suporte ao SC-3000.
 
 ## Estado das trilhas transversais
 
