@@ -46,7 +46,7 @@ impl CpuBus for FlatBus {
     }
 }
 
-fn initial_state_with_q_previous(q_previous: u8) -> Z80ArchitecturalState {
+fn initial_state_with_q(q: u8) -> Z80ArchitecturalState {
     Z80ArchitecturalState {
         registers: Z80Registers {
             a: 0x11,
@@ -81,15 +81,15 @@ fn initial_state_with_q_previous(q_previous: u8) -> Z80ArchitecturalState {
         ei_delay: 0,
         nmi_pending: false,
         int_pending: None,
-        q: 0x5A,
-        q_previous,
+        q,
+        q_previous: 0xA5,
         p: true,
         halted: false,
     }
 }
 
 fn initial_state() -> Z80ArchitecturalState {
-    initial_state_with_q_previous(0xA5)
+    initial_state_with_q(0x5A)
 }
 
 fn seed_atomic_with_state(state: Z80ArchitecturalState) -> Z80 {
@@ -340,8 +340,8 @@ fn ignored_flag_and_interrupt_opcodes_preserve_base_semantics_across_prefix_chai
             &[opcode],
             1,
             false,
-            initial_state_with_q_previous(0),
-            initial_state_with_q_previous(0xA5),
+            initial_state_with_q(0),
+            initial_state_with_q(0x5A),
         );
     }
 }
