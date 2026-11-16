@@ -133,10 +133,6 @@ fn round_trip(cpu: Z80MicroSequencer) -> Z80MicroSequencer {
     Z80MicroSequencer::restore_state(decoded).expect("snapshot restores")
 }
 
-fn run_micro(bytes: &[u8]) -> (Z80ArchitecturalState, u32) {
-    run_micro_with_state(bytes, initial_state())
-}
-
 fn run_micro_with_state(
     bytes: &[u8],
     state: Z80ArchitecturalState,
@@ -222,7 +218,7 @@ fn assert_equal_except_prefix_count(
 
 fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
     let state = initial_state();
-    run_prefix_matrix_with_states(opcode_bytes, base_m1_count, is_halt, state.clone(), state);
+    run_prefix_matrix_with_states(opcode_bytes, base_m1_count, is_halt, state, state);
 }
 
 fn run_prefix_matrix_with_states(
@@ -233,7 +229,7 @@ fn run_prefix_matrix_with_states(
     prefixed_initial_state: Z80ArchitecturalState,
 ) {
     let (base_atomic, base_atomic_tstates) =
-        run_atomic_with_state(opcode_bytes, base_initial_state.clone());
+        run_atomic_with_state(opcode_bytes, base_initial_state);
     let base_atomic_state = base_atomic.export_architectural_state();
     assert_eq!(
         base_atomic_state.halted, is_halt,
@@ -258,7 +254,7 @@ fn run_prefix_matrix_with_states(
         let prefix_count = prefixes.len();
 
         let (prefixed_atomic, prefixed_atomic_tstates) =
-            run_atomic_with_state(&bytes, prefixed_initial_state.clone());
+            run_atomic_with_state(&bytes, prefixed_initial_state);
         let prefixed_atomic_state = prefixed_atomic.export_architectural_state();
         assert_equal_except_prefix_count(&base_atomic_state, &prefixed_atomic_state, prefix_count);
         assert_eq!(
