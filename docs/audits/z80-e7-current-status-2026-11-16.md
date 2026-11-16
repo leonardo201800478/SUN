@@ -265,3 +265,16 @@ Estado após a integração:
 - E8/ZEXDOC/ZEXALL: BLOCKED.
 
 A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+
+## Correção de validação pós-merge — 16/11/2026
+
+A nota anterior que classificava o workflow push da PR #955 como NOT_RUN/NOT_VERIFIED foi superada por uma consulta posterior às Actions. Os runs existem e terminaram com sucesso:
+
+- PR #955 foi integrada em `67f4149e1933d18ffa5201da66ca6ff46c598e32`; a árvore do merge é idêntica à árvore do HEAD testado `cbc75e9205db5f1c29726962ce3d3cdd312f4ba1` (`588cf96cfc59c438932899391fb58cb556912ee2`).
+- CI push pós-merge [#43898370234](https://github.com/leonardo201800478/sega-emulator/actions/runs/43898370234): COMPLETED SUCCESS.
+- SMS Debugger Runtime pós-merge [#43898370419](https://github.com/leonardo201800478/sega-emulator/actions/runs/43898370419): COMPLETED SUCCESS.
+- PR #956 integrou a reconciliação documental em `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`; a árvore integrada é idêntica à árvore testada da PR (`c9d0183cc31b24ff19e556dc764081850fe28a53`). CI push [#43899020946](https://github.com/leonardo201800478/sega-emulator/actions/runs/43899020946): Change impact classification, Documentation patch hygiene e Rust quality/unit regression PASS. Z80 focused, workspace regression e jobs de runtime ficaram SKIPPED por classificação documental; portanto, esse run não é validação de runtime na main `fd7692`.
+- PR #956 não possui review submetida nem review thread; o comentário Codex registra falha por limite de uso. PR #955 também não possui review auditável. A revisão adversarial independente permanece BLOCKED como gate transversal E7. PR #949 foi encerrada como supersedida pela #956.
+
+**Estado técnico não muda:** F-022 e F-028 permanecem IN_PROGRESS/AUDIT_PARTIAL nos limites já descritos; F-023 permanece AUDIT_PARTIAL apesar da asserção BASE EX (SP),HL integrada; E7 permanece IN_PROGRESS e E8/ZEXDOC/ZEXALL permanece BLOCKED. Não iniciar E8 nem converter SKIPPED em PASS.
