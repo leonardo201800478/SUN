@@ -24,7 +24,6 @@ const PREFIX_SEQUENCES: &[&[u8]] = &[
     &[0xDD, 0xFD, 0xDD, 0xFD],
 ];
 
-#[derive(Default)]
 struct FlatBus {
     memory: Vec<u8>,
 }
@@ -264,16 +263,38 @@ fn run_prefix_matrix(opcode_bytes: &[u8], base_m1_count: usize, is_halt: bool) {
 #[test]
 fn exchange_exceptions_cover_repeated_and_alternating_prefix_chains() {
     for opcode in [0x08_u8, 0xD9, 0xEB] {
+        let (base, _) = run_atomic(&[opcode]);
+        match opcode {
+            0x08 => {
+                assert_eq!((base.registers.a, base.registers.f), (0xAA, 0xBB));
+                assert_eq!((base.alternate.a, base.alternate.f), (0x11, 0x22));
+            }
+            0xD9 => {
+                assert_eq!((base.registers.b, base.registers.c), (0xCC, 0xDD));
+                assert_eq!((base.alternate.b, base.alternate.c), (0x33, 0x44));
+            }
+            0xEB => {
+                assert_eq!((base.registers.d, base.registers.e), (0x77, 0x88));
+                assert_eq!((base.registers.h, base.registers.l), (0x55, 0x66));
+            }
+            _ => unreachable!(),
+        }
         run_prefix_matrix(&[opcode], 1, false);
     }
 }
 
 #[test]
 fn halt_is_terminal_after_single_repeated_and_alternating_dd_fd_prefixes() {
+    let (base, _) = run_atomic(&[0x76]);
+    assert!(base.halted);
+    assert_eq!(base.registers.f, 0x22);
     run_prefix_matrix(&[0x76], 1, true);
 }
 
 #[test]
 fn dd_fd_prefix_chains_cancel_before_ed_neg_in_both_executors() {
+    let (base, _) = run_atomic(&[0xED, 0x44]);
+    assert_eq!(base.registers.a, 0xEF);
+    assert_ne!(base.registers.f, 0x22);
     run_prefix_matrix(&[0xED, 0x44], 2, false);
 }
