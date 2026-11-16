@@ -93,7 +93,18 @@ Host fornece bytes validados
 
 A PR #908 não deve ser tratada como caminho disponível na baseline. Ela é Draft, sua branch divergiu da main atual e seus testes de handoff usam firmware sintético; não comprovam o boot de BIOS comercial real nem a integração do frontend.
 
-**Reset do console solicitado pela aplicação:**
+**Botão RESET físico do SMS:**
+
+```text
+SmsInputState.reset_pressed
+  -> SmsIo::read_dd() / bit 4 ativo em nível baixo
+  -> BIOS/jogo consulta a entrada e decide o que fazer
+  -> não há reset automático do Z80 nem rebuild da máquina
+```
+
+A baseline implementa o bit de entrada em `SmsIo`, mas o perfil de I/O não identifica todos os modelos que não possuem botão físico (Mark III/Japão/SMS2). O botão não deve ser confundido com o comando Reset da aplicação.
+
+**Reset frio solicitado pela aplicação:**
 
 ```text
 WorkerCommand::Reset
@@ -115,7 +126,7 @@ Z80MicroSequencer::reset()
   -> não reinicializa memória, mapper, VDP, PSG, I/O ou tempo do Scheduler
 ```
 
-O helper `SmsTemporalMachine::reset_cpu()` é atômico no nível da API; ele não modela uma linha RESET mantida por três ciclos de clock. O manual Zilog UM008011-0816 exige RESET ativo por pelo menos três ciclos completos. Não confundir o helper com uma implementação temporal do pino RESET. O reset do worker, por sua vez, é reconstrução integral da máquina, não o pino RESET isolado.
+O helper `SmsTemporalMachine::reset_cpu()` é atômico no nível da API; ele não modela uma linha RESET mantida por três ciclos de clock. O manual Zilog exige RESET ativo por pelo menos três ciclos completos, mas o botão físico do SMS documentado no SMS Official Docs é uma entrada de software, não esse pino. O reset do worker é reconstrução integral da máquina, não o botão físico nem o pino RESET.
 
 **Carregamento de outra ROM:**
 
@@ -161,19 +172,31 @@ LoadState -> valida versão/ROM/região/perfil -> SmsTemporalMachine::restore_st
 
 ### 3.1 Memory Control $3E
 
-O projeto trata os bits do latch como ativos em nível baixo. `$AB` seleciona o perfil de cartucho sem BIOS: BIOS desabilitada, cartucho habilitado e RAM interna habilitada. `$E0` é o perfil escolhido no construtor de memória com BIOS: BIOS e RAM habilitadas, cartucho/card/expansão desabilitados.
+O projeto trata os bits do latch como ativos em nível baixo. `$AB` não é apenas uma escolha plausível: o disassembly da BIOS SMS v1.3 contém a tabela `Port3E_Values` com `$AB` para selecionar o slot de cartucho. Durante a detecção, a BIOS escreve `$EB` para desabilitar os slots e, depois de validar o cartucho, grava o valor selecionado em `$3E` e o salva em `$C000`. Portanto, `$AB` é o estado de handoff do BIOS v1.3 para um cartucho padrão, não o estado de power-on.
 
-O valor `$E0` aparece no código com referência a SMS Plus GX e notas de Charles MacDonald. Os bits conhecidos de slot/RAM/BIOS coincidem com a descrição de BIOS habilitada, RAM habilitada e slots externos desabilitados; os bits 1–0 são desconhecidos. Portanto, `$E0` é um perfil plausível, não prova do byte físico exato em todas as revisões. O valor `$AB` é o perfil de cartucho habilitado escolhido pelo emulador, não a execução do boot ROM.
+`$E0` é o perfil escolhido no construtor de memória com BIOS: BIOS e RAM habilitadas, cartucho/card/expansão desabilitados. Os bits 1–0 não são definidos nas fontes consultadas.
 
-A BIOS v1.3 documentada também grava o último valor escrito em `$3E` no primeiro byte da RAM (`$C000`). Na baseline sem BIOS, `work_ram` começa zerada e esse efeito não ocorre. Esse é mais um efeito pós-BIOS ausente no atalho de boot direto; não se deve copiar `$AB` para `$C000` sem uma política explícita ou execução real da BIOS.
+O valor `$E0` aparece no código com referência a SMS Plus GX e notas de Charles MacDonald. Os bits conhecidos de slot/RAM/BIOS coincidem com a descrição de BIOS habilitada, RAM habilitada e slots externos desabilitados; os bits 1–0 são desconhecidos. Portanto, `$E0` é um perfil plausível para expor a BIOS, não prova do byte físico exato em todas as revisões.
 
-### 3.2 PSG — o que é sustentado e o que continua em aberto
+Na baseline sem BIOS, `work_ram` começa zerada e `$C000` não recebe o valor final `$AB`. Esse efeito pós-BIOS está ausente no atalho de boot direto. Não se deve copiar `$AB` para `$C000` como correção isolada: o estado deve resultar da execução real da BIOS ou de uma policy de boot direto explicitamente documentada.
+
+### 3.2 Estado pós-BIOS v1.3 — evidência do disassembly
+
+O disassembly público de `maxim-zhao/smsbioses/1.3/Bios13.asm` confirma a sequência de BIOS: `DI`, `IM 1`, `LD SP,$DFF0`; escrita da tabela `VDP_ResetData` com R0–R10 = `36 A0 FF FF FF FF FB 00 00 00 FF`; reset/mute inicial do PSG; limpeza de 8 KiB de RAM; espera de aproximadamente 1,67 s enquanto apresenta o bumper/jingle; detecção do cartucho; seleção por `Port3E_Values`; armazenamento do latch em `$C000`; e salto para `$0000` do cartucho.
+
+Isso resolve a ambiguidade da tabela VDP do SMS Official Docs: os valores documentados são escritos pela BIOS v1.3 durante sua inicialização; não devem ser tratados como valores comprovados do reset elétrico do VDP. O construtor atual, que inicia registradores/VRAM/CRAM em zero, representa uma policy determinística de boot direto, não o estado pós-BIOS.
+
+No handoff v1.3, SP=$DFF0 e IM=1 são comprovados pelo código. A BIOS executa `DI` antes da seleção/transferência, portanto IFF2=0 é esperado. O valor final de AF/DE/HL e registradores alternativos depende da rotina de detecção/checksum e do cabeçalho da ROM; não deve ser copiado de um screenshot como valor universal.
+
+Fonte: [BIOS v1.3 disassembly](https://github.com/maxim-zhao/smsbioses/blob/master/1.3/Bios13.asm). A página SMS Power confirma o bumper/jingle, a ordem de slots e que a BIOS não inicializa os registradores de paginação; o mapper deve apresentar o cabeçalho em seu estado inicial. <Cite ref="turn872606search0" />
+
+### 3.3 PSG — o que é sustentado e o que continua em aberto
 
 A documentação SMS Power sobre SN76489 relata que versões integradas Sega iniciam registradores de tom/ruído em zero e registradores de volume em um (silêncio); chips discretos podem apresentar valores iniciais aleatórios. Os registradores `tone_periods=[0;3]`, `noise_control=0` e `attenuations=[15;4]` do core atual são coerentes com a variante integrada Sega. Isso não determina a fase exata dos contadores internos ou o estado de cada bit do LFSR no instante de power-on.
 
 Há uma divergência interna de especificação: o arquivo de especificação de áudio anexado descreve `tone_counters=[0;3]`, enquanto `Sn76489Core::reset_inner()` na main define `[1;3]`. A referência SMS Power consultada não resolve essa fase interna. Registrar como discrepância pendente; não alterar PSG nesta frente sem teste de hardware ou evidência temporal independente.
 
-### 3.3 Mapper — limite importante da detecção atual
+### 3.4 Mapper — limite importante da detecção atual
 
 `detect_mapper` reconhece Codemasters por uma assinatura estreita no cabeçalho em `$7FE0`. Reconhece o perfil SegaExtended para ROMs acima de 1 MiB com cabeçalho TMR SEGA; **qualquer outro caso cai para MapperKind::Sega**.
 
@@ -199,18 +222,23 @@ PR #912 é um teste exploratório de HCounter/IRQ via Z80 e Scheduler com harnes
 
 ## 5. SMS VDP Test v1.31 — interpretação correta dos valores
 
-O código-fonte público do SmsVdpTest define em `ColdReset` um `JP DumpAllRegisters` de 10 ciclos. O caminho normal `WarmReset/main` só mais tarde executa `LD SP,$DFF0` e inicializa o VDP. Portanto, a tela de registradores não deve ser interpretada como uma fotografia abstrata dos valores universais do chip no instante físico t=0.
+O código-fonte público do SmsVdpTest v1.31 define em `ColdReset` um `JP DumpAllRegisters` de 10 ciclos. A rotina `DumpAllRegisters` está presente no arquivo público. Ela salva SP e BC, preserva AF na pilha, lê R e I, captura IFF2 por `LD A,I`, e depois salva DE/HL/IX/IY e os bancos alternativos. O caminho normal `WarmReset` só mais tarde executa `DI`, `IM 1`, `LD SP,$DFF0` e inicializa o VDP. Portanto, a tela de registradores é uma captura feita depois do JP inicial e antes da inicialização normal, não uma fotografia abstrata dos valores universais do chip no instante físico t=0.
 
-O README do teste descreve:
-- VCounter como contador livre, legível em qualquer instante;
-- HCounter como valor latched por transição TH 0→1;
-- polling normal de HCounter retorna valor constante;
-- a linha TH pode ser alterada por software via port $3F;
-- a suíte depende de 228 ciclos Z80 por scanline.
+O corpo de `DumpAllRegisters` mostra a sequência exata de captura:
+- salva SP original antes de trocar SP para `$DFFE`;
+- salva BC e AF originais antes de reutilizar registradores;
+- executa `LD A,R` e `LD A,I`; portanto R inclui instruções da própria rotina de captura;
+- escreve `$05` e depois `$FF` no port `$3F`, produzindo a transição TH que captura o HCounter;
+- lê HCounter no port `$7F` e, aproximadamente 24 T-states depois, lê VCounter no port `$7E`;
+- captura IFF2 pelo bit P/V de `LD A,I`.
 
-O repositório público do teste não permitiu localizar, na fonte consultada, o corpo da rotina `DumpAllRegisters`. Assim, o instante exato das leituras e qualquer manipulação prévia de TH ainda precisam ser confirmados por disassembly da ROM binária exata. Não comparar VC/HC sem timestamp equivalente.
+Logo, HC e VC não são amostrados no mesmo instante. O HCounter é latched na transição TH; o VCounter é lido posteriormente. O README do teste descreve HCounter como latched e a suíte usa 228 ciclos Z80 por scanline. Não comparar VC/HC sem reproduzir a mesma sequência e fase temporal.
 
-As diferenças Gearsystem/Ares registradas anteriormente permanecem observações de execução. A hipótese de que o Ares apresenta resíduos da BIOS é plausível, mas não foi comprovada apenas pelos valores mostrados.
+A correspondência com Ares é forte: SP=$DFF0 coincide com a instrução da BIOS; AF=$AB42 é compatível com A=$AB (slot de cartucho) e flags da comparação de checksum; DE=$20F3/HL=$0000 é compatível com checksum do cabeçalho e resultado zero; IFF2=0 coincide com DI antes do handoff. O valor DE ainda depende de confirmar que o cabeçalho do binário exato contém $20F3. VC=$E9 é compatível com o tempo gasto no bumper da BIOS (~1,67 s). Isso torna **altamente provável** que a captura do Ares seja pós-BIOS v1.3.
+
+O Gearsystem 3.9.23 upstream inicializa em `Processor::Reset` PC=0, SP=$DFF0, IX/IY=$FFFF, AF=$0040, demais registradores zero, I/R zero, IFF desabilitado e IM0. O AF=$00D0 observado na tabela não corresponde a esse reset da fonte; requer confirmar se o screenshot usa outro caminho de boot/BIOS, outra revisão do ROM ou outra build/configuração. O valor IR=$0009 também é resultado da rotina de captura, não um R bruto de power-on.
+
+Fonte do teste: [SmsVdpTest v1.31 testmain.asm](https://github.com/FluBBaOfWard/SmsVdpTest/blob/main/testmain.asm). Fonte Gearsystem: [Processor.cpp no tag 3.9.23](https://github.com/drhelius/Gearsystem/blob/3.9.23/src/Processor.cpp). O arquivo binário local ainda é necessário para confirmar checksum $20F3 e garantir que corresponde ao fonte v1.31.
 
 ### 5.1 O que os contadores realmente representam
 
@@ -236,8 +264,8 @@ O runtime atual classifica como Sega qualquer ROM que não satisfaça a assinatu
 | H1 — caminho temporal combina CPU default com mapa de memória pós-BIOS | CPU default PC/SP zero; sem BIOS; latch $AB | **Alta — fato estrutural** | Comparar trace com boot real de BIOS e primeiro estado do cartucho |
 | H2 — CALL/PUSH antes de inicializar SP pode escrever em $FFFE/$FFFF e alterar bancos Sega | Teste sintético existente reproduz a colisão | **Alta para o mecanismo; baixa para os dois jogos** | Trace por ROM até primeira inicialização de SP e primeira escrita FFFC-FFFF |
 | H3 — mapper real dos jogos pode divergir do mapper assumido | Detecção atual faz fallback Sega; DAT não traz PCB explícito | **Média como risco, sem confirmação por ROM** | Hash local, cabeçalho, dump de escritas e referência do PCB |
-| H4 — diferenças do Registers Startup Values são efeito de BIOS/tempo de execução distinto | JP no vetor cold reset; SP é inicializado mais tarde; VC é livre e HC é latched por TH | **Média/alta para não equivalência de instante; baixa para atribuição a um emulador específico** | Disassembly da ROM e captura sincronizada em T-state conhecido |
-| H5 — estado inicial de VDP/PSG/I/O pode não reproduzir estado deixado por BIOS | Defaults zerados/atenuados e I/O $FF; caminho temporal não executa BIOS | **Média como diferença entre perfis; causalidade dos black screens não provada** | Boot com BIOS real, trace de escritas da BIOS e comparação de estado no handoff |
+| H4 — diferenças do Registers Startup Values são efeito de BIOS/tempo de execução distinto | Rotina de captura conhecida; BIOS v1.3 deixa SP DFF0/IM1/DI e $AB; Ares AF/DE/HL são compatíveis com o handoff e VC com bumper | **Alta para Ares pós-BIOS v1.3; média para o dump exato até confirmar checksum $20F3** | Hash da BIOS e ROM local; confirmar checksum e capturar no mesmo T-state |
+| H5 — estado inicial de VDP/PSG/I/O pode não reproduzir estado deixado por BIOS | BIOS v1.3 escreve R0-R10, reseta PSG, limpa RAM e executa jingle/bumper; baseline não executa BIOS | **Alta como diferença estrutural; causalidade dos black screens ainda não provada** | Boot com BIOS real, trace de escritas e comparação no handoff |
 | H6 — firmware catalogado ainda não é encaminhado ao worker temporal | UI persiste e escaneia firmware, mas informa explicitamente que boot ainda aguarda integração; `create_sms_worker` não passa BIOS | **Alta — limitação intencional e documentada** | Integrar bytes validados no host e testar caminho temporal completo antes de habilitar a opção |
 
 Não há evidência que permita afirmar que Andre Agassi Tennis e Ace of Aces compartilham a mesma causa.
@@ -310,6 +338,8 @@ Nenhum desses arquivos de runtime foi alterado nesta etapa. O próximo passo é 
 - SMS Power, *SN76489* — estado de registradores em variantes integradas/discretas: https://www.smspower.org/Development/SN76489
 - SMS Power, *HCounter* e *ScanlineCounter* — leitura latched e contadores dependentes de raster: https://www.smspower.org/Development/HCounter ; https://www.smspower.org/Development/ScanlineCounter
 - SmsVdpTest v1.31, fonte pública: https://github.com/FluBBaOfWard/SmsVdpTest/blob/main/testmain.asm
+- BIOS SMS v1.3, disassembly público: https://github.com/maxim-zhao/smsbioses/blob/master/1.3/Bios13.asm
+- Gearsystem 3.9.23, reset do processador: https://github.com/drhelius/Gearsystem/blob/3.9.23/src/Processor.cpp
 
 ### Identidade de ROM — catálogos, não arquivos locais
 
