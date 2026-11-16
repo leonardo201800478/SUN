@@ -251,3 +251,118 @@ fn all_ed_block_io_opcodes_match_nmos_flag_equations_at_boundaries() {
         }
     }
 }
+
+
+#[test]
+fn repeated_block_io_flags_survive_im2_acceptance_at_repeat_boundary() {
+    let opcodes = [0xB2_u8, 0xBA, 0xB3, 0xBB];
+    let b_values = [0x00_u8, 0x02, 0x80, 0xFF];
+    let c_values = [0x00_u8, 0xFF];
+    let hl_values = [0x12FF_u16, 0xE000];
+    let data_values = [0x00_u8, 0x7F, 0x80, 0xFF];
+    let pc_values = [0x8002_u16, 0x8802, 0xA002, 0xA802];
+
+    let mut bus = FlatBus::default();
+
+    for opcode in opcodes {
+        let input = matches!(opcode, 0xB2 | 0xBA);
+        let direction = if matches!(opcode, 0xBA | 0xBB) { -1 } else { 1 };
+
+        for initial_b in b_values {
+            let new_b = initial_b.wrapping_sub(1);
+            let repeat = new_b != 0;
+
+            for c in c_values {
+                let old_bc = u16::from_be_bytes([initial_b, c]);
+                let new_bc = u16::from_be_bytes([new_b, c]);
+
+                for hl in hl_values {
+                    let expected_hl = add_direction_u16(hl, direction);
+
+                    for value in data_values {
+                        for pc in pc_values {
+                            let expected_f = reference_flags(opcode, initial_b, c, hl, value, pc);
+                            bus.last_port_read = None;
+                            bus.last_port_write = None;
+                            bus.memory[usize::from(pc)] = 0xED;
+                            bus.memory[usize::from(pc.wrapping_add(1))] = opcode;
+                            bus.memory[usize::from(hl)] = if input { value ^ 0xFF } else { value };
+                            bus.memory[0xD0FF] = 0x00;
+                            bus.memory[0xD100] = 0xE0;
+                            bus.ports[usize::from(old_bc)] = value;
+
+                            let mut cpu = Z80::default();
+                            cpu.registers.pc = pc;
+                            cpu.registers.sp = 0xF000;
+                            cpu.registers.b = initial_b;
+                            cpu.registers.c = c;
+                            cpu.registers.h = (hl >> 8) as u8;
+                            cpu.registers.l = hl as u8;
+                            cpu.i = 0xD0;
+                            cpu.interrupt_mode = 2;
+                            cpu.iff1 = true;
+                            cpu.iff2 = true;
+
+                            let expected_wz = pc.wrapping_add(1);
+                            let expected_tstates = if repeat { 21 } else { 16 };
+                            assert_eq!(
+                                cpu.step(&mut bus),
+                                Ok(expected_tstates),
+                                "opcode={opcode:02X} B={initial_b:02X} C={c:02X} HL={hl:04X} data={value:02X} PC={pc:04X}: T-states"
+                            );
+                            assert_eq!(
+                                cpu.registers.f, expected_f,
+                                "opcode={opcode:02X} B={initial_b:02X} C={c:02X} HL={hl:04X} data={value:02X} PC={pc:04X}: repeat F"
+                            );
+                            assert_eq!(cpu.q, expected_f, "opcode={opcode:02X}: repeat Q");
+                            assert_eq!(cpu.registers.b, new_b, "opcode={opcode:02X}: B");
+                            assert_eq!(cpu.registers.hl(), expected_hl, "opcode={opcode:02X}: HL");
+                            assert_eq!(
+                                cpu.registers.pc,
+                                if repeat { pc } else { pc.wrapping_add(2) },
+                                "opcode={opcode:02X}: PC"
+                            );
+                            assert_eq!(
+                                cpu.wz,
+                                if repeat {
+                                    expected_wz
+                                } else if input {
+                                    add_direction_u16(old_bc, direction)
+                                } else {
+                                    add_direction_u16(new_bc, direction)
+                                },
+                                "opcode={opcode:02X}: WZ"
+                            );
+
+                            if input {
+                                assert_eq!(bus.last_port_read, Some(old_bc));
+                                assert_eq!(bus.memory[usize::from(hl)], value);
+                            } else {
+                                assert_eq!(bus.last_port_write, Some((new_bc, value)));
+                            }
+
+                            if repeat {
+                                // The hardware test's IM2 handler inspects F
+                                // after the repeat cycle, before the next ED fetch.
+                                cpu.request_int(0xFF);
+                                assert_eq!(cpu.step(&mut bus), Ok(19), "opcode={opcode:02X}: IM2");
+                                assert_eq!(cpu.registers.pc, 0xE000);
+                                assert_eq!(cpu.wz, 0xE000);
+                                assert_eq!(cpu.registers.sp, 0xEFFE);
+                                assert_eq!(bus.memory[0xEFFE], pc as u8);
+                                assert_eq!(bus.memory[0xEFFF], (pc >> 8) as u8);
+                                assert_eq!(cpu.registers.f, expected_f, "opcode={opcode:02X}: ISR F");
+                                assert_eq!(cpu.q, expected_f, "opcode={opcode:02X}: ISR Q");
+                                assert_eq!(cpu.r, 0x03);
+                                assert!(!cpu.iff1);
+                                assert!(!cpu.iff2);
+                                assert_eq!(cpu.int_pending, None);
+                                assert_eq!(cpu.total_tstates, 40);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
