@@ -656,3 +656,34 @@ A observação X/Y = bits 5/3 do novo A é testada como comportamento de referê
 - F-028: AUDIT_PARTIAL — auditoria residual de exceções DD/FD, Q/previous-Q e efeitos observáveis ainda pendente.
 - E7.7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED até o fechamento formal e demonstrável de E7.
 - Nenhuma alteração de implementação do Z80 ou do MachineScheduler foi necessária nas PRs #929 e #930.
+
+
+## 44. Observação de flags de repetição no acknowledge IM2 — 2026-11-16
+
+**Main auditada:** `f6ee8558b22f8fb9586287545d553db1642705cf`.
+
+### F-022 — flags visíveis ao handler após repetição de instruções de bloco
+
+- **PR #932:** integrada por squash no commit `f6ee8558b22f8fb9586287545d553db1642705cf`.
+- **HEAD validado:** `149b928e96cfebd7ca34089e0aec815d4a24339e`.
+- **CI da PR:** #43816894151 PASS; SMS Runtime #43816894091 PASS. Ambos executaram no HEAD exato da PR.
+- **Cobertura adicionada:**
+  - LDIR/LDDR/CPIR/CPDR: 32 cenários com quatro combinações de PC.13/PC.11, BC inicial 0/2 e interrupção IM2 aceita na fronteira após a repetição.
+  - INIR/INDR/OTIR/OTDR: 1.024 cenários variando B, C, HL, dados e PC, usando o modelo independente já existente para flags de bloco I/O.
+  - Verifica F observado pelo handler, WZ, retorno do PC ao endereço da instrução repetida, contador/ponteiros, efeitos de memória/I/O, pilha IM2, refresh e serviço de 19T.
+- **Falha encontrada e corrigida durante a validação:** a primeira versão do teste assumia que Q permanecia igual após o acknowledge. O log mostrou Q=0 na entrada da resposta de interrupção, pois o ciclo iniciado por `Z80::step` limpa Q antes de despachar a resposta. A asserção indevida de Q após INT foi removida; Q continua verificado no limite de repetição anterior ao acknowledge. Nenhuma alteração no runtime foi necessária.
+- **Limites:** o teste observa F após o aceite de INT no core; não executa o ROM v5.0 integral nem constitui medição física nova. O comportamento de Q especificamente durante/apos o acknowledge permanece separado e sem prova independente nesta etapa.
+
+### F-023 — investigação adicional de MEMPTR/WZ
+
+- Além da suíte raxoft/z80test registrada na seção 43, foi identificada a suíte de Mark Woodmass listada no README do projeto [redcode/Z80](https://github.com/redcode/Z80). O README descreve que ela verifica os documentos MEMPTR e compara resultados com um NEC D780C-1; também relata testes adicionais em outros clones.
+- O runner upstream registra entradas `TEST_FORMAT_WOODMASS` e CRCs/ciclos esperados para `Z80 Test Suite (2008)(Woodmass, Mark)[!].tap`.
+- O artefato TAP é referenciado pelo upstream via Wayback Machine; a recuperação do binário expirou por timeout nesta auditoria. Portanto, a suíte é apenas uma fonte candidata identificada, **não executada** no Sega Emulator e não fecha F-023.
+- F-023 permanece AUDIT_PARTIAL: WZ após RRD/RLD ainda precisa de execução independente no core e confronto verificável com um artefato hardware-derived. X/Y e variantes NMOS/CMOS também não são promovidos por inferência.
+
+### Estado após PR #932
+
+- F-022: AUDIT_PARTIAL — agora há matriz microsequenciada simples (PR #930) e observação de flags em repetição + acknowledge IM2 (PR #932); execução integral do ROM v5.0 e validação física continuam NOT RUN.
+- F-023: AUDIT_PARTIAL — suíte MEMPTR de Mark Woodmass identificada, mas artefato não recuperado/executado; WZ/X/Y ainda sem fechamento independente.
+- F-028: AUDIT_PARTIAL — Q/previous-Q em exceções e após acknowledge, precedência residual DD/FD e reconciliação semântica ainda pendentes.
+- E7.7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED até o fechamento formal de E7.
