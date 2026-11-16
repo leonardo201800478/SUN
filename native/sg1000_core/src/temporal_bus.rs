@@ -549,8 +549,7 @@ impl Sg1000TemporalBus {
         if state.psg.clock_hz() != state.coordinator.psg_clock_hz
             || state.psg.elapsed_clocks() as u128
                 != coordinator.psg_clock_snapshot()?.total_cycles as u128
-            || state.vdp.elapsed_tstates()
-                != coordinator.vdp_clock_snapshot()?.total_cycles as u128
+            || state.vdp.elapsed_tstates() != coordinator.vdp_clock_snapshot()?.total_cycles as u128
         {
             return Err(Sg1000TemporalBusError::InvalidState);
         }
