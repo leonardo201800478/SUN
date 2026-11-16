@@ -36,16 +36,14 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut hcounter_reference_reads = Vec::new();
 
     for frame in 0..600 {
-        machine
-            .step_frame(100_000)
+        if let Err(error) = machine.step_frame(100_000) {
             panic!("SmsVdpTest failed while advancing frame {frame}: {error}");
+        }
         for event in machine.take_trace() {
             match event {
                 SmsTemporalTraceEvent::BusCompleted {
-                    timestamp,
                     operation: Z80BusOperation::PortRead,
                     address,
-                    data,
                     ..
                 } if address & 0x00FF == 0x7E => {}
                 SmsTemporalTraceEvent::BusCompleted {
