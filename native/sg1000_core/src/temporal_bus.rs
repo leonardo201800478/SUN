@@ -293,7 +293,7 @@ impl Sg1000TemporalBus {
         Ok(deadline)
     }
 
-    /// Dispatch the next deadline and apply memory side effects exactly once.
+    /// Dispatch the next deadline and apply bus/peripheral side effects exactly once.
     pub fn dispatch_next(
         &mut self,
     ) -> Result<Option<Sg1000TemporalDispatch>, Sg1000TemporalBusError> {
@@ -519,7 +519,7 @@ impl Sg1000TemporalBus {
         self.memory.write(address, value);
     }
 
-    /// Export memory, Scheduler and all pending transaction state.
+    /// Export memory, I/O devices, Scheduler and all pending transaction state.
     pub fn export_state(&self) -> Sg1000TemporalBusState {
         Sg1000TemporalBusState {
             format_version: SG1000_TEMPORAL_BUS_STATE_VERSION,
@@ -540,13 +540,18 @@ impl Sg1000TemporalBus {
         }
     }
 
-    /// Restore only if the memory transaction and Scheduler event agree.
+    /// Restore only if device clocks, pending transactions and Scheduler events agree.
     pub fn restore_state(state: Sg1000TemporalBusState) -> Result<Self, Sg1000TemporalBusError> {
         if state.format_version != SG1000_TEMPORAL_BUS_STATE_VERSION {
             return Err(Sg1000TemporalBusError::InvalidState);
         }
         let coordinator = Sg1000TemporalCoordinator::restore_state(state.coordinator.clone())?;
-        if state.psg.clock_hz() != state.coordinator.psg_clock_hz {
+        if state.psg.clock_hz() != state.coordinator.psg_clock_hz
+            || state.psg.elapsed_clocks() as u128
+                != coordinator.psg_clock_snapshot()?.total_cycles as u128
+            || state.vdp.elapsed_tstates()
+                != coordinator.vdp_clock_snapshot()?.total_cycles as u128
+        {
             return Err(Sg1000TemporalBusError::InvalidState);
         }
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
@@ -860,6 +865,28 @@ mod tests {
         let restored = Sg1000TemporalBus::restore_state(state.clone()).unwrap();
         assert_eq!(restored.export_state(), state);
         assert_eq!(restored.psg().clock_hz(), 2_000_000);
+    }
+
+    #[test]
+    fn restore_rejects_device_clock_state_that_diverges_from_scheduler() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 1).unwrap();
+        bus.schedule_internal_cycle(29, 4).unwrap();
+        bus.dispatch_next().unwrap().unwrap();
+        let state = bus.export_state();
+
+        let mut psg_mismatch = state.clone();
+        psg_mismatch.psg.advance_clocks(1);
+        assert_eq!(
+            Sg1000TemporalBus::restore_state(psg_mismatch).err(),
+            Some(Sg1000TemporalBusError::InvalidState)
+        );
+
+        let mut vdp_mismatch = state;
+        vdp_mismatch.vdp.advance(1);
+        assert_eq!(
+            Sg1000TemporalBus::restore_state(vdp_mismatch).err(),
+            Some(Sg1000TemporalBusError::InvalidState)
+        );
     }
 
     #[test]

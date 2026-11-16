@@ -116,6 +116,15 @@ impl Tms9918A {
         self.frame_number
     }
 
+    /// Total TMS9918A timing units elapsed since reset.
+    pub fn elapsed_tstates(&self) -> u128 {
+        u128::from(self.frame_number)
+            * u128::from(LINES_PER_FRAME)
+            * u128::from(TSTATES_PER_LINE)
+            + u128::from(self.scanline) * u128::from(TSTATES_PER_LINE)
+            + u128::from(self.cycles_into_line)
+    }
+
     pub fn framebuffer(&self) -> &[u8] {
         &self.framebuffer
     }
