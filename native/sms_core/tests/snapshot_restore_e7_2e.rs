@@ -410,10 +410,18 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
     // snapshot round-trip at every bus and internal-cycle safe point.
     let cases = [
         // opcode, initial HL, initial DE, initial F, expected HL, expected DE
-        (0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16),
-        (0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16),
-        (0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16),
-        (0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16),
+        (
+            0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16,
+        ),
+        (
+            0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16,
+        ),
+        (
+            0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16,
+        ),
+        (
+            0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16,
+        ),
     ];
 
     for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de) in cases {
@@ -441,8 +449,16 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
             first,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
         ));
-        assert_eq!(continuous.cpu().registers.pc, 0, "ED {opcode:02X}: repeat PC");
-        assert_eq!(continuous.cpu().registers.bc(), 1, "ED {opcode:02X}: first BC");
+        assert_eq!(
+            continuous.cpu().registers.pc,
+            0,
+            "ED {opcode:02X}: repeat PC"
+        );
+        assert_eq!(
+            continuous.cpu().registers.bc(),
+            1,
+            "ED {opcode:02X}: first BC"
+        );
         let direction = if matches!(opcode, 0xB8 | 0xB9) { -1 } else { 1 };
         assert_eq!(
             continuous.cpu().registers.hl(),
@@ -456,8 +472,16 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
             second,
             Z80MicroStep::InstructionRetired { opcode: retired, .. } if retired == opcode
         ));
-        assert_eq!(continuous.cpu().registers.pc, 2, "ED {opcode:02X}: final PC");
-        assert_eq!(continuous.cpu().registers.bc(), 0, "ED {opcode:02X}: final BC");
+        assert_eq!(
+            continuous.cpu().registers.pc,
+            2,
+            "ED {opcode:02X}: final PC"
+        );
+        assert_eq!(
+            continuous.cpu().registers.bc(),
+            0,
+            "ED {opcode:02X}: final BC"
+        );
         assert_eq!(
             continuous.cpu().registers.hl(),
             expected_hl,
