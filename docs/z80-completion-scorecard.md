@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `bf7e7584df421000d040a3ee057799a75bfeb3eb` (2026-11-16, após PRs #929/#930/#932/#934/#935; #937/#938 não alteraram o Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `2f72a6d94207cc78e5014363e72d16cf8806316a` (2026-11-16, após PRs #955–#957). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
