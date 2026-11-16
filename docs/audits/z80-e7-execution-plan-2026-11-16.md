@@ -30,8 +30,8 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 
 ### P0 — fechar a proveniência e a cobertura de F-022
 
-1. **Concluído nesta auditoria:** PR #932 adiciona `native/sms_core/tests/z80_ed_block_repeat_interrupt_observation.rs`, com exatamente 32 cenários = 4 opcodes (LDIR/LDDR/CPIR/CPDR) × 4 PCs ($8002/$8802/$A002/$A802) × 2 BC iniciais (0000/0002). Também há 4 cenários adicionais no teste `ed_block_transfer_repeat_interrupt_tests::block_transfer_and_compare_repeat_flags_are_observable_through_im2_and_resume`, no microsequenciador compartilhado, um por opcode, com snapshot/restore em cada fronteira e observação via PUSH AF/RETI. O scorecard de 32 casos está correto; manter as duas camadas de evidência separadas.
-2. **Cobertura atual reconciliada:** a matriz atômica PR #932 contém 32 casos (4 opcodes × quatro PCs × BC inicial 0000/0002); o teste no microsequenciador compartilhado cobre quatro casos (um por opcode), com INT no último T-state do repeat internal cycle e snapshot/restore em cada fronteira. O próximo incremento de código será espelhar os 32 cenários no microsequenciador, mantendo o teste de quatro casos existente, e comparar o estado arquitetural/traço com o executor atômico sem promovê-lo a oracle independente.
+1. PR #932 mantém 32 cenários atômicos = 4 opcodes × 4 PCs × 2 BC iniciais. PR #944 acrescentou 64 cenários microsequenciados = 4 opcodes × 4 PCs × 2 BC × 2 seeds Q, além do teste dirigido de quatro opcodes com IM2, PUSH AF/POP AF/EI/RETI e snapshot/restore em cada fronteira. Manter as camadas atômica e microsequenciada separadas.
+2. **Cobertura atual reconciliada:** a matriz atômica tem 32 casos; a matriz microsequenciada tem 64 cenários. A PR #957 agora integra LDIR/LDDR/CPIR/CPDR pelo SmsTemporalMachine/MachineScheduler, com WAIT de fixture em cada request, snapshot/restore em cada safe point e comparação contínua↔retomada de trace, estado completo e timestamp. O próximo trabalho não é duplicar a matriz; é concluir a revisão adversarial e delimitar o que ainda não tem oracle independente.
 3. **Concluído para o caminho INT IM2 em PR #944:** a matriz varia Q inicial (00/A5), verifica Q=F e previous-Q=seed na aposentadoria do repeat; após aceitação IM2 verifica Q=0 e previous-Q=F; após PUSH AF, POP AF, EI e RETI verifica Q/previous-Q; após retomada verifica Q=F e previous-Q=0. CI #43873337726 e SMS Runtime #43873337682 SUCCESS no HEAD ef22ddc871e9790eb2fd65b1d4a70a6795c24872. Não extrapolar para NMI ou IM0/IM1, que não fazem parte desta matriz.
 4. Separar resultados do executor atômico, microsequenciador, WAIT/snapshot e integração MachineScheduler. A comparação atomic↔micro é consistência interna, não oracle independente.
 5. Reconciliar os 16 casos F-022 do ROM com a matriz interna e registrar explicitamente qualquer dimensão que o ROM não cobre.
@@ -52,7 +52,7 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 ### P2 — completar a reconciliação semântica F-028
 
 1. **Concluído documentalmente:** os 85 UsesIndex foram reconciliados byte a byte: E3A1=9, E3A2=5, E4A=15, E4B=8, E4C=2, F-036=24, PR #680 half-register INC/DEC/LD immediate=6 e F-037 half-register ALU=16. Soma=85; E3/E4/F-036/F-037 preservados. Detalhe em `docs/audits/z80-e7-f028-usesindex-reconciliation-2026-11-16.md`.
-2. **Concluído documentalmente:** os 167 Ignored efetivos foram agrupados por família BASE x/y/z: x=0:46, x=1:26, x=2:40, x=3:55. A lista exata permanece no ledger CSV e a decomposição está em `docs/audits/z80-e7-f028-usesindex-reconciliation-2026-11-16.md`. O gap de código permanece: `prefix_fallback_e6.rs` tem nove testes representativos; PR #943 cobre exceções de troca/HALT/ED/control em 108 combinações por executor, e `prefix_fsm.rs` cobre 257 prefixos/last-prefix-wins. Próximo passo: gerar fixtures por formato de request (register-only, immediate, relative, memory, stack, I/O, control flow) e validar fallback prefixado para cada opcode implementado, sem contar teste BASE sem prefixo como cobertura DD/FD.
+2. **Cobertura atual reconciliada:** os 167 Ignored estão agrupados no ledger e exercitados sob DD/FD pela matriz F-028. PRs #950/#953 cobrem estado arquitetural, requests/payloads, WAIT/snapshot e os dois resultados condicionais com PC final exato. Os 85 UsesIndex foram reconciliados e não devem ser reimplementados. O residual F-028 é revisão independente/proveniência e limites de equivalência interna, não ausência da matriz de requests.
 3. Manter separadas as transições especiais DD/FD repetidos, ED cancel-index e CB indexed-CB; o helper `classify_index_opcode` isolado não representa toda a FSM.
 4. Ampliar semântica por opcode/estado apenas onde houver lacuna real, sem duplicar E4/E5/E6 nem reabrir etapas validadas.
 5. Completar cenários de HALT, Q/previous-Q, interrupções, WAIT e snapshot nas fronteiras relevantes.
@@ -158,8 +158,8 @@ F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
 
 - P0 recebeu a matriz #950 para payloads, estado arquitetural, WAIT e snapshot/restore nos 167 fallbacks. A PR #953 integrou as duas fixtures condicionais e o PC final exato; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
 - P1 recebeu as asserções previous-Q e WZ nas quatro formas simples de bloco pela #951. LDI/LDD preservam WZ; CPI/CPD alteram WZ em ±1.
-- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow, IM2, IN/OUT imediato, IM0/IM1, RETN/RETI e RST possuem testes WZ rastreáveis após a PR #954 (CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS). A única lacuna de teste identificada na matriz é a asserção BASE EX (SP),HL da PR #955.
-- Não reimplementar UsesIndex nem iniciar E8. Manter F-028/F-022/F-023 abertas até passar a PR #955 e concluir a revisão adversarial documentada.
+- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow, IM2, IN/OUT imediato, IM0/IM1, RETN/RETI e RST possuem testes WZ rastreáveis após a PR #954. A assertion BASE EX (SP),HL da #955 foi integrada e validada no HEAD exato. A matriz permanece AUDIT_PARTIAL por revisão integral e proveniência, não por essa lacuna específica.
+- Não reimplementar UsesIndex nem iniciar E8. A pendência de teste BASE EX (SP),HL da #955 está resolvida; a PR #957 acrescentou execução das quatro formas repetitivas F-022 através do Scheduler com WAIT de fixture e snapshot/restore. Manter F-028/F-022/F-023 abertas até concluir revisão adversarial, proveniência e limites temporais ainda não demonstrados.
 
 ## Reconciliação após PR #955 — 16/11/2026
 
@@ -182,3 +182,26 @@ Estado após a integração:
 - E8/ZEXDOC/ZEXALL: BLOCKED.
 
 A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+## Atualização pós-merge PR #957 — 16/11/2026
+
+**Main:** `2f72a6d94207cc78e5014363e72d16cf8806316a`. **PR #957:** integrada; alteração somente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`.
+
+O teste `e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay` executa LDIR, LDDR, CPIR e CPDR pelo `SmsTemporalMachine`/MachineScheduler, cobrindo a iteração repetitiva e a final. Insere um WAIT de fixture em cada request de barramento; a execução retomada faz snapshot/restore em cada safe point de request/ciclo interno. A execução contínua e a retomada são comparadas por trace de dispatch, estado completo da máquina e timestamp final.
+
+Validação no HEAD exato `8a6ef8bbf20c770479999f00675718a58349985e`:
+- CI #43899876697: Rust workspace regression PASS.
+- SMS Debugger Runtime #43899876806: rustfmt PASS, Clippy Release PASS, SMS Runtime tests PASS e build Release Windows x64 PASS.
+- Scheduler deterministic stress e Z80 focused foram SKIPPED por classificação de impacto; não contar como PASS.
+- SMS debugger Windows Release foi SKIPPED; não contar como PASS.
+- A execução anterior #43899664243 falhou somente em rustfmt; a formatação foi corrigida antes do HEAD final e não se atribui PASS ao run anterior.
+- Workflow push pós-merge no SHA `2f72a6d94207cc78e5014363e72d16cf8806316a`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+Esta integração fecha a lacuna específica de execução das quatro formas repetitivas através do Scheduler com WAIT de fixture e snapshot/restore. Não demonstra WAIT físico, interrupção injetada no meio da repetição dentro da mesma máquina temporal, nem oracle independente de silício. A cobertura IM2/flags/Q/previous-Q permanece demonstrada separadamente no microsequenciador; não somar essas duas camadas como se fossem uma única prova integrada.
+
+Estado atualizado:
+- F-022: IN_PROGRESS — agora possui integração Scheduler/replay para as quatro formas; permanecem revisão adversarial, reconciliação final das oito formas e proveniência independente dos efeitos não documentados.
+- F-023: AUDIT_PARTIAL — BASE EX (SP),HL já possui assertion integrada pela #955; permanecem revisão integral da matriz/proveniência e limitações de hardware.
+- F-028: IN_PROGRESS — 167 Ignored com estado/requests/WAIT/snapshot e caminhos condicionais; permanece a revisão adversarial e a validação independente de limites semânticos.
+- Temporalidade: evidência integrada SMS ampliada; WAIT físico/DMA permanecem fora da fatia temporal atual.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
