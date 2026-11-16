@@ -431,24 +431,24 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                     .unwrap_or(next_interrupt);
                 block_delay_loop =
                     Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge));
-            } else if let Some((ldir_pc, start_t, start_bc, frame_edge)) = block_delay_loop {
-                if pc_before != ldir_pc {
-                    let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
-                    block_delay_summary.push(format!(
-                        "ldir_pc={:04X} start_t={} end_t={} elapsed={} expected={} start_bc={:04X} end_pc={:04X} end_bc={:04X} frame_edge={} end_to_edge={}",
-                        ldir_pc,
-                        start_t,
-                        cpu.total_tstates,
-                        cpu.total_tstates.saturating_sub(start_t),
-                        expected_tstates,
-                        start_bc,
-                        pc_before,
-                        cpu.registers.bc(),
-                        frame_edge,
-                        frame_edge.saturating_sub(cpu.total_tstates)
-                    ));
-                    block_delay_loop = None;
-                }
+            } else if let Some((ldir_pc, start_t, start_bc, frame_edge)) = block_delay_loop
+                && pc_before != ldir_pc
+            {
+                let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
+                block_delay_summary.push(format!(
+                    "ldir_pc={:04X} start_t={} end_t={} elapsed={} expected={} start_bc={:04X} end_pc={:04X} end_bc={:04X} frame_edge={} end_to_edge={}",
+                    ldir_pc,
+                    start_t,
+                    cpu.total_tstates,
+                    cpu.total_tstates.saturating_sub(start_t),
+                    expected_tstates,
+                    start_bc,
+                    pc_before,
+                    cpu.registers.bc(),
+                    frame_edge,
+                    frame_edge.saturating_sub(cpu.total_tstates)
+                ));
+                block_delay_loop = None;
             }
         }
 
