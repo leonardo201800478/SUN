@@ -39,7 +39,7 @@ Inventariar os testes já existentes antes de acrescentar cobertura. Evitar dupl
 | Andre Agassi Tennis (Europe, Brazil) | Auditoria estática anterior e teste sintético SP/mapper | **NOT RUN** nesta baseline; falta ROM local e trace |
 | Ace of Aces (Europe, Brazil) | Auditoria anterior centrada em região; ainda sem reprodução | **NOT RUN** nesta baseline; falta ROM local e trace |
 | Road Rash | Smoke positivo reportado; PR #913 registra stall separado na animação do título | Boot positivo; temporização da tela de título ainda requer regressão independente |
-| Schtroumpfs 2 | Smoke positivo reportado | **NOT RUN** nesta baseline; manter como regressão positiva |
+| Schtroumpfs 2 | Smoke positivo reportado; PR #881 registra The Smurfs: Travel the World (Brazil) (CRC32 `E14C8A1C`, SHA-1 `15b882...`, SHA-256 `f3d493...`) inicializando até gameplay com defeito de ordem de sprites | **NOT RUN** nesta baseline; confirmar se é o mesmo dump antes de reutilizar a evidência |
 | SMS VDP Test v1.31 | Relatório comparativo Gearsystem/Ares e testes temporais HCounter/VCounter; PR #912 adiciona harness de ROM completa | Valores de tela não equivalem a power-on universal; instante de captura ainda precisa ser fixado |
 
 ## 4. Testes novos realmente necessários
@@ -50,7 +50,7 @@ Não duplicar os testes listados na matriz. A cobertura adicional deve concentra
 2. **Mapper fail-closed:** introduzir `Unknown/Ambiguous` somente após desenhar a API de identidade; testes com cabeçalhos/assinaturas ausentes, conflitantes e ROMs reais identificadas.
 3. **BIOS real:** executar pelo menos uma BIOS SMS1 identificada por hash; capturar primeiro fetch, writes de $3E, efeitos em $C000, inicialização VDP/PSG/I/O e handoff. Não substituir por fixture sintética para declarar compatibilidade.
 4. **Trace de ROM:** harness opt-in com caminho de ROM local, tamanho/CRC32/SHA-256, região/modelo, captura bounded antes do primeiro start, checkpoints por blocos de instruções e logs sem versionar ROM.
-5. **Games:** reproduzir Andre Agassi e Ace of Aces separadamente; verificar o primeiro CALL/PUSH, inicialização de SP, mapper efetivo, primeira leitura de banco divergente e primeiro write VDP/PSG. Executar Road Rash e Schtroumpfs 2 como regressões.
+5. **Games:** reproduzir Andre Agassi e Ace of Aces separadamente; verificar o primeiro CALL/PUSH, inicialização de SP, mapper efetivo, primeira leitura de banco divergente e primeiro write VDP/PSG. Executar Road Rash e Schtroumpfs 2 como regressões; antes de aproveitar PR #881, confirmar se o hash do arquivo local corresponde a The Smurfs: Travel the World (Brazil).
 6. **VDP startup screen:** identificar no binário exato do SmsVdpTest a rotina `DumpAllRegisters`, a sequência de TH e os instantes de leitura dos ports $7E/$7F. Comparar apenas no mesmo T-state e perfil PAL/NTSC.
 
 ## 5. Gates
