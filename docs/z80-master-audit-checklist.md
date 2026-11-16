@@ -893,10 +893,13 @@ Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
 
 | Família | Estado vigente | Evidência/pendência |
 |---|---|---|
-| F-022 — Block Instructions | CLOSED (perfil NMOS de software delimitado) | Oito formas; 786.432 cenários simples, matrizes micro/repetição, ROM hardware-derived limitada e integração SMS/Scheduler; relatório F-022 |
-| F-023 — WZ/MEMPTR | CLOSED (perfil NMOS de software delimitado) | Revisão adversarial dos handlers e matriz concluída; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
+| F-022 — Block Instructions | IN_PROGRESS | Oito formas; 786.432 cenários simples, matrizes micro/repetição, ROM hardware-derived limitada e integração SMS/Scheduler; revisão independente auditável ainda não registrada |
+| F-023 — WZ/MEMPTR | AUDIT_PARTIAL | Matriz e inspeção interna concluídas; review independente ausente e interação WZ JR/DJNZ sob DD/FD em validação na #977; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
 | F-028 — DD/FD | IN_PROGRESS | 85 UsesIndex, 167 Ignored; #975 cobre wrap 16-bit de retorno CALL/RST em DD/FD; falta revisão adversarial integral de exceções/limites |
 
 PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`: CI #43937118700 Z80 focused e Rust quality/unit PASS; SMS Runtime #43937118785 PASS; Scheduler stress SKIPPED. Merge squash: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
 
 WAIT dos testes é fixture, não WAIT físico. LONG_PASS do Scheduler não significa TEMPORAL_PASS global. E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. A integração da máquina SG-1000 ao Scheduler permanece P2/DEFERRED.
+
+
+**Gate de revisão:** os relatórios adversariais são documentação de inspeção interna e não substituem review independente registrada. Reviews e threads GitHub permanecem vazias; Codex review falhou por limite de uso. F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; E7 IN_PROGRESS; E8 BLOCKED.

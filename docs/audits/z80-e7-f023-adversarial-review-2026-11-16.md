@@ -3,7 +3,7 @@
 **Data:** 2026-11-16
 **Main após PR #975:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
 **Perfil:** Zilog Z80 NMOS clássico, limitado aos consumidores Sega SMS/SG-1000.
-**Resultado:** F-023 CLOSED no escopo de semântica de software do perfil delimitado.
+**Resultado:** inspeção técnica interna concluída; F-023 permanece AUDIT_PARTIAL até revisão adversarial independente registrada e conclusão da interação DD/FD relativa.
 
 ## 1. Escopo e método
 
@@ -58,12 +58,17 @@ A matriz foi corrigida para referências explícitas e para a baseline atual. N�
 | Integração INT IM2/NMI durante repetição | PR #972 HEAD `ff922996e797b287e275fdbf1d1791314c61a749`, run #43918490165 | Rust workspace regression SUCCESS; `snapshot_restore_e7_2e`: 13 passed, 0 failed; Z80 focused e Scheduler stress SKIPPED |
 | Merge da PR #975 | `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` | Integrado; alteração exclusivamente de teste |
 
-Os resultados acima são vinculados aos respectivos HEADs. Não se declara workflow push pós-merge no SHA 22c489e como executado. Scheduler deterministic stress não foi executado na PR #975.
+Os resultados acima são vinculados aos respectivos HEADs. Push pós-merge #43937688464 no SHA `22c489e...`: Z80 focused e Rust quality/unit PASS; SMS Runtime #43937688349 Release format/Clippy/tests PASS. Jobs não relacionados e Scheduler stress foram SKIPPED/NOT RUN.
 
 ## 5. Decisão
 
-**F-023: CLOSED — semântica de software WZ/MEMPTR do perfil Zilog Z80 NMOS delimitado.**
+**F-023: AUDIT_PARTIAL — a inspeção interna não substitui revisão independente; a interação WZ de JR/DJNZ sob DD/FD está em validação na PR #977 e ainda não integrada.**
 
 O fechamento significa que as famílias modeladas possuem regra, condição, wrap, observabilidade e teste rastreável, com proveniência classificada sem extrapolação. Não significa medição física individual de todas as regras internas nem conformidade universal de variantes/clones.
 
 **E7 global permanece IN_PROGRESS.** F-022 e F-028 ainda precisam de revisão adversarial final e reconciliação documental; os gates finais integrados no HEAD candidato também permanecem necessários. E8/ZEXDOC/ZEXALL continua BLOCKED.
+
+
+## Limite de independência da revisão
+
+Este arquivo registra uma inspeção técnica interna da matriz e dos handlers. Não identifica revisor independente nem corresponde a review submetida no GitHub. Reviews e threads das PRs relacionadas permanecem vazias; o Codex review falhou por limite de uso. A conclusão de software é candidata, mas F-023 permanece AUDIT_PARTIAL até revisão independente registrada e fechamento das interações DD/FD relevantes.

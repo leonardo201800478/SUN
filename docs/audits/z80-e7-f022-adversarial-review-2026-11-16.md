@@ -3,7 +3,7 @@
 **Data:** 2026-11-16
 **Main de referência:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
 **Perfil:** Zilog Z80 NMOS clássico, escopo SMS/SG-1000.
-**Resultado:** F-022 CLOSED no escopo de semântica de software do perfil delimitado.
+**Resultado:** inspeção técnica interna concluída; F-022 permanece IN_PROGRESS até revisão adversarial independente registrada.
 
 ## 1. Escopo
 
@@ -73,8 +73,13 @@ A separação correta é:
 
 ## 6. Decisão
 
-**F-022: CLOSED — semântica de software das oito instruções de transferência/comparação do perfil Zilog Z80 NMOS delimitado.**
+**F-022: IN_PROGRESS — cobertura de software e inspeção interna documentadas; não declarar CLOSED sem revisão independente registrada e gates finais no HEAD candidato.**
 
 O fechamento é sustentado por fórmula independente nas formas simples, matrizes microsequenciadas, observação hardware-derived limitada às formas repetitivas, integração SMS/Scheduler e retomada determinística. Não significa medição física individual de todos os estados ou WAIT elétrico, nem conformidade universal de clones.
 
-F-023 está CLOSED em relatório próprio. **F-028 e o gate global E7 permanecem IN_PROGRESS. E8/ZEXDOC/ZEXALL permanece BLOCKED.**
+F-023 permanece AUDIT_PARTIAL. **F-028 e o gate global E7 permanecem IN_PROGRESS. E8/ZEXDOC/ZEXALL permanece BLOCKED.**
+
+
+## Limite de independência da revisão
+
+Este arquivo documenta uma inspeção técnica adversarial interna e seus cenários; não registra identidade de revisor independente nem submissão de review no GitHub. As listas de reviews e threads das PRs relacionadas permanecem vazias e o Codex review falhou por limite de uso. Portanto, o relatório não satisfaz sozinho o gate de revisão independente e não autoriza marcar F-022 CLOSED.

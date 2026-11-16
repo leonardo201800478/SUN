@@ -1056,10 +1056,13 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 
 **Main:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #972 e PR #975 são alterações test-only sobre o núcleo Z80; os blobs de produção `cpu.rs`, `sequencer.rs` e `prefix.rs` permanecem os mesmos do HEAD #968 validado pelo Z80 focused.
 
-- **F-022 — CLOSED:** semântica de software das oito formas LDI/LDD/LDIR/LDDR/CPI/CPD/CPIR/CPDR do perfil NMOS delimitado; revisão adversarial, 786.432 cenários simples, matrizes repetitivas, ROM hardware-derived limitada e integração SMS/Scheduler documentadas.
-- **F-023 — CLOSED:** semântica de software WZ/MEMPTR do perfil Zilog NMOS delimitado. Revisão adversarial dos handlers e matriz por família concluída; HW limitado à evidência RRD/RLD, demais regras INT/COMP, variantes fora do perfil NOT_VERIFIED. Ver relatório de revisão adversarial.
+- **F-022 — IN_PROGRESS:** cobertura das oito formas, 786.432 cenários simples, matrizes repetitivas, ROM hardware-derived limitada e integração SMS/Scheduler documentadas; revisão independente auditável ainda não registrada.
+- **F-023 — AUDIT_PARTIAL:** matriz e inspeção interna WZ/MEMPTR documentadas; review independente ausente e interação WZ em JR/DJNZ sob DD/FD ainda em validação na PR #977. HW limitado à evidência RRD/RLD; demais regras INT/COMP; variantes fora do perfil NOT_VERIFIED.
 - **F-028 — IN_PROGRESS:** 167 Ignored e 85 UsesIndex permanecem reconciliados; #975 acrescenta CALL/RST com wrap 16-bit de retorno em DD/FD e snapshot/WAIT. Falta revisão adversarial final integral das exceções e limites.
 - **Scheduler:** LONG_PASS é determinismo/replay de software nas dimensões da campanha; não comprova WAIT físico, DMA ou TEMPORAL_PASS global.
 - **CI #975:** Z80 focused e Rust quality/unit PASS em #43937118700; SMS Runtime PASS em #43937118785; Scheduler stress SKIPPED.
 
 **E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.** Não iniciar E8 até F-022, F-028 e os gates finais E7 estarem formalmente fechados no candidato final. O milestone de integração temporal completa da máquina SG-1000 permanece P2, separado do fechamento do Z80 compartilhado.
+
+
+**Gate de revisão:** os relatórios F-022/F-023 são inspeções internas, não reviews independentes submetidas no GitHub. Reviews/threads vazias; Codex review falhou por limite de uso. F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
