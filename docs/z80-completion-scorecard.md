@@ -850,3 +850,11 @@ PRs #936 (F-022), #942 (F-023), #943 (F-028) e #944 (cenários microsequenciados
 - **#944 — evidência parcial complementar:** 64 cenários microsequenciados de repetição/INT IM2 permanecem integrados; não cobrem NMI nem IM0/IM1.
 
 Os estados F-022/F-023/F-028 não são promovidos a CLOSED. E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED. Não reabrir famílias já fechadas sem regressão reproduzível.
+
+## 52. F-028 — fallback estrutural dos 167 bytes Ignored — 2026-11-16
+
+**PR #946 integrada:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`. HEAD testado `162772ad8fba7249f8f4c7b8fb67b9816202cc80`; tree SHA `77840465f65a3d6f4f522ea475e9f1d7a9f2c320` é idêntico ao tree integrado.
+
+O teste `z80_dd_fd_ignored_fallback_matrix_f028.rs` percorre 167 bytes × DD/FD, 334 execuções prefixadas. Verifica fetches M1 em PC 0 e 1, nenhum refetch, R incrementado por dois e `T_prefixed = T_BASE + 4`. O teste passou 1/1 no CI #43882287467. Rust quality/unit também SUCCESS; SMS Runtime Release format, Clippy, testes e build Windows x64 SUCCESS no #43882287458.
+
+**F-028 permanece AUDIT_PARTIAL.** A matriz não prova todos os efeitos arquiteturais nem requests/endereço/ordem de operandos por família; WAIT/snapshot por classe e oracle independente continuam pendentes. Não promover a CLOSED com base em cobertura estrutural. E7 IN_PROGRESS; E8 BLOCKED.

@@ -188,3 +188,17 @@ As sincronizações preservaram as alterações concorrentes nos documentos comp
 **Status técnico não muda com o merge:** F-022, F-023 e F-028 permanecem AUDIT_PARTIAL. O merge integra evidências e harnesses, não converte cobertura parcial em fechamento semântico. F-021 continua separado de F-022: os 390 B-loop records da ROM v5.0 são evidência de OTIR/OTDR/INIR/INDR e não devem ser atribuídos às oito formas LDI/LDD/CPI/CPD.
 
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. A próxima etapa é reconciliar, no checklist mestre, cada lacuna residual e sua prova independente exigida antes de implementar novos testes ou tocar no runtime.
+
+## 10. F-028 — matriz estrutural dos 167 fallbacks Ignored integrada — 2026-11-16
+
+**Main:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`. **PR #946:** MERGED pelo commit `3acf24c67d6e573120134b5b29ebbbf2a2893940`.
+**HEAD testado:** `162772ad8fba7249f8f4c7b8fb67b9816202cc80`; tree integrado/testado `77840465f65a3d6f4f522ea475e9f1d7a9f2c320`.
+
+O teste `native/z80_cpu/tests/z80_dd_fd_ignored_fallback_matrix_f028.rs` lê o inventário efetivo do CSV de 256 bytes e executa todos os 167 bytes classificados como `Ignored / ExecuteBaseWithoutRefetch` sob DD e FD. Resultado: 334 execuções prefixadas, além das execuções BASE de referência; um teste de matriz PASS. Para cada caso, exige M1 em PC 0 e PC 1, ausência de fetch adicional, incremento de R para dois M1 e custo total igual à execução BASE + 4 T-states.
+
+- CI #43882287467: Z80 focused validation e Rust quality/unit SUCCESS; o teste `all_167_effective_ignored_bytes_fall_back_without_refetch_for_dd_and_fd` passou 1/1.
+- SMS Runtime #43882287458: Release format, Clippy, testes e build Windows x64 SUCCESS.
+- O primeiro run #43882092547 falhou somente no rustfmt; a formatação foi corrigida antes dos runs aprovados.
+- Jobs não relacionados ao diff permaneceram SKIPPED/NOT RUN.
+
+**Limite da evidência:** esta matriz comprova dispatch para BASE, ausência de refetch e custo M1. Não compara integralmente efeitos arquiteturais, valores/endereço de todos os requests, WAIT/snapshot por classe, nem constitui oracle independente. A decomposição de requests por família (imediato, relativo, memória, stack, I/O e controle de fluxo) continua pendente. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.

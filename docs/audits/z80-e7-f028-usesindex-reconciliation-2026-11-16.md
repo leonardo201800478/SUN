@@ -100,3 +100,13 @@ A partir do opcode terminal (sem DD/FD), os 167 bytes foram agrupados pela decom
 A contagem confirma que a lacuna não é “mais 167 variantes de IX/IY”: são opcodes BASE agrupáveis por famílias de execução. O plano de teste deve cobrir os diferentes formatos de request (sem operandos, imediato, relativo, memória indireta/absoluta, stack, I/O e controle de fluxo), e não apenas um representante genérico sem WAIT.
 
 **Observação:** os subtotais x/z descrevem o decoder BASE e não substituem o ledger nem provam a semântica. As exceções especiais DD/FD/ED, IndexedCB e os bytes UsesIndex continuam fora deste conjunto efetivo de 167.
+
+## 7. Pós-merge — cobertura estrutural integral do conjunto Ignored — 2026-11-16
+
+**Main:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`. PR #946 MERGED. O HEAD validado `162772ad8fba7249f8f4c7b8fb67b9816202cc80` tem o mesmo tree SHA integrado `77840465f65a3d6f4f522ea475e9f1d7a9f2c320`.
+
+O novo teste `native/z80_cpu/tests/z80_dd_fd_ignored_fallback_matrix_f028.rs` lê o ledger e percorre os 167 registros efetivos Ignored sob DD e FD (334 execuções). Exige dois M1 em sequência, opcode terminal em PC 1 sem refetch, R +2 e custo total BASE +4T. Resultado PASS 1/1 no CI Z80 focused #43882287467; Rust quality/unit SUCCESS; SMS Runtime #43882287458 SUCCESS em format, Clippy, testes e build Windows x64.
+
+A primeira execução CI/SMS (#43882092547) parou no rustfmt; a correção de formatação foi aplicada antes do HEAD validado. Não atribuir PASS à execução inicial.
+
+**Limite:** o teste é uma prova estrutural de dispatch e custo M1, não prova independente de semântica, efeitos arquiteturais ou requests de barramento por família. WAIT/snapshot por tipo de request e comparação de endereços/ordem continuam pendentes. F-028 permanece AUDIT_PARTIAL.
