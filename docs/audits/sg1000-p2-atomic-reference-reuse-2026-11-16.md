@@ -50,3 +50,17 @@ Toda PR funcional SG-1000 deve explicitar impacto nos dois sistemas. Alteraçõe
 - SG-1000: CPU compartilhada integrada; máquina temporal P2 ainda não integrada.
 - Nenhuma alteração funcional é introduzida por este documento.
 - O core legado é fonte de regressões e comportamento de referência, não uma autorização para reintroduzir uma CPU ou runtime duplicado.
+
+
+## Integração obrigatória com a interface desktop atual
+
+A implementação SG-1000 final deve permanecer integralmente dentro da arquitetura já montada e integrada para SMS 1/2. Não criar um frontend, launcher, janela, pipeline de vídeo, backend de áudio ou sistema de entrada paralelo para SG-1000.
+
+- **GUI:** reutilizar a aplicação Slint existente, menus, biblioteca, ciclo de vida e integração coarse-grained do runtime. A seleção do sistema/cartridge deve encaminhar para a máquina correspondente sem duplicar a aplicação desktop.
+- **Vídeo:** reutilizar o pipeline WGPU 30 já funcional, o contrato de frame/mailbox, upload de textura e composição Slint. O SG-1000 fornece frames no formato/contrato esperado pelo host; dimensões e modos próprios devem ser tratados no runtime/adaptador de vídeo, sem contaminar o timing da máquina.
+- **Áudio:** reutilizar integralmente `sega-audio-output` / CPAL 0.18.2 e o pipeline de áudio existente. O core SG-1000 entrega amostras/blocos no contrato do runtime de áudio; não criar dispositivo, stream CPAL ou callback de áudio alternativo. O perfil PSG SG-1000 configura a geração sonora, não a saída física.
+- **Inputs:** reutilizar o mesmo esquema de entrada SMS já existente no host (SDL3/input runtime, teclado, gamepads, bindings, snapshots e combinação de fontes). Adaptar o snapshot lógico aos controles SG-1000 e à codificação ativa-baixa/portas físicas no limite do core; não criar polling ou mapeamento de host independente.
+- **Runtime:** a interface só controla operações coarse-grained. A execução SG-1000 permanece no backend Rust e no Scheduler; callbacks de GUI, áudio e renderização não podem executar instruções nem controlar ciclos.
+- **Compatibilidade:** os fluxos atuais SMS 1 e SMS 2, áudio, vídeo, inputs, preferências e ciclo de vida devem permanecer intactos. Toda PR que tocar no host compartilhado deve executar regressão SMS nos dois modos e demonstrar que não houve regressão.
+
+A regra de aceitação é uma única aplicação desktop e uma única infraestrutura de host para SMS 1, SMS 2 e SG-1000, com diferenças de hardware confinadas aos runtimes/adaptadores específicos. Python não faz parte do build, runtime, ferramentas obrigatórias nem caminho de implementação do SG-1000.
