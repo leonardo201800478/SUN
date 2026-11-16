@@ -357,7 +357,7 @@ Validação no HEAD exato da PR #964 (`9d79cc25f5ca9e46266e91cfa21e907ffc88f827`
 
 ### F-028 — classificação de leitura do stream
 
-PR #959 não foi integrada: a tentativa de merge foi rejeitada pelo GitHub porque o required check `Rust quality and unit regression` estava EXPECTED na branch desatualizada, apesar dos resultados históricos do SHA anterior. Para não contornar proteção de branch, o mesmo patch foi reaplicado sobre a main atual na PR #965 (`test/z80-f028-stream-read-classification-main-20261116`), SHA inicial `90ed2d686b5447d49d106d8251d76d6bcd10fcc1`. Aguardam-se os checks do HEAD exato da #965; não declarar integrado até conclusão.
+PR #959 não foi integrada: a tentativa de merge foi rejeitada pelo GitHub porque o required check `Rust quality and unit regression` estava EXPECTED na branch desatualizada, apesar dos resultados históricos do SHA anterior. Para não contornar proteção de branch, o mesmo patch foi reaplicado sobre a main atual na PR #967 (`test/z80-f028-stream-read-classification-post964-20261116`), SHA inicial `820ff19d34beba62b77b0378b71fde0c62af47c2`. Aguardam-se os checks do HEAD exato da #965; não declarar integrado até conclusão.
 
 O teste substitui a heurística `MemoryRead.address == PC` por contagem explícita de operandos imediatos derivada do opcode BASE e adiciona o caso `LD A,(BC)` com BC=$0002, no qual o endereço de dados coincide com PC no caminho prefixado DD. O request deve permanecer classificado como leitura de dados e manter seu endereço real. Escopo test-only.
 
