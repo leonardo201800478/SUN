@@ -132,13 +132,13 @@ Esta seção atualiza a leitura do baseline e supersede somente as afirmações 
 6. Validar ROMs e vetores independentes de boot, memória/mirrors, I/O, VDP e PSG; classificar DOC/HW/COMP/INT e manter limites de oráculo explícitos.
 7. Só depois expor API coarse-grained para o host/Slint: load, start, pause, stop, reset, step_frame e extração de frame/áudio. Nenhum ciclo/instrução deve atravessar a GUI.
 
-**Gate de entrada:** não iniciar alteração funcional do SG-1000 antes de E7 estar formalmente CLOSED ou CLOSED_WITH_LIMITATIONS. A preparação e auditoria acima não alteram o runtime. E8 continua bloqueada até o fechamento E7; o SG-1000 P2 reutilizará o Z80 compartilhado já validado e não exige reabrir E8.
+**Gate de entrada:** não iniciar alteração funcional do SG-1000 antes de E7 estar formalmente CLOSED ou CLOSED_WITH_LIMITATIONS. A preparação e auditoria acima não alteram o runtime. E8/ZEXDOC/ZEXALL é validação complementar futura; o SG-1000 P2 reutiliza o Z80 compartilhado e não exige reabrir E7.
 
 
 **Atualização de baseline — 16/11/2026:** main `1b16256358e3f17837a95cc071048c5ee5307f82` integra a PR #972, que altera somente testes de integração SMS/Scheduler. Nenhum código SG-1000, Z80 de produção, VDP, PSG ou I/O foi modificado por essa integração. O estado P2 descrito acima permanece válido; sua implementação funcional pode prosseguir após o encerramento de E7 com limitações.
 
 
-**Atualização de baseline — pós-PR #975:** main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` recebeu somente testes DD/FD Ignored no crate Z80; nenhuma implementação SG-1000/VDP/PSG/I/O foi alterada. O estado P2 acima permanece inalterado e segue bloqueado até E7 CLOSED.
+**Atualização de baseline — pós-PR #975:** main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` recebeu somente testes DD/FD Ignored no crate Z80; nenhuma implementação SG-1000/VDP/PSG/I/O foi alterada. O estado P2 acima permanece inalterado; a implementação pode prosseguir sob E7 `CLOSED_WITH_LIMITATIONS`.
 
 
 ## Decisão de continuidade — SG-1000 autorizado a avançar (2026-11-16)
