@@ -1166,6 +1166,41 @@ impl SmsTemporalWorker {
         Self::new_with_cartridge_sram_size(rom, region, None, None)
     }
 
+    /// Start the native worker with a user-supplied 8 KiB SMS BIOS.
+    pub fn new_with_bios(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+    ) -> Result<Self, String> {
+        Self::new_with_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            bios,
+            region,
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+        )
+    }
+
+    /// Start the worker with BIOS firmware, VDP ASIC, regional timing and SRAM profile.
+    pub fn new_with_bios_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            Some(bios),
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
     /// Start the worker with an explicit cartridge SRAM capacity and optional persisted image.
     /// Capacity must come from a verified cartridge profile; save-file length never configures hardware.
     pub fn new_with_cartridge_sram_size(
@@ -3113,6 +3148,42 @@ mod tests {
 
         worker.stop().unwrap();
         assert_eq!(worker.export_cartridge_sram().unwrap(), Some(initial));
+    }
+
+    #[test]
+    fn worker_executes_and_preserves_bios_across_reset_power_off_and_rom_replacement() {
+        let mut bios = vec![0x00; 0x2000];
+        bios[..3].copy_from_slice(&[0x31, 0xF0, 0xDF]); // LD SP,$DFF0
+        let rom = vec![0x76; 0x4000];
+
+        let worker = SmsTemporalWorker::new_with_bios(
+            rom,
+            bios.clone(),
+            "usa",
+        )
+        .unwrap();
+
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+        worker.step_instruction().unwrap();
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0xDFF0);
+
+        let saved = worker.save_state().unwrap();
+        worker.reset().unwrap();
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+
+        worker.step_instruction().unwrap();
+        worker.load_state(saved).unwrap();
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0xDFF0);
+
+        worker.load_rom(vec![0x76; 0x4000]).unwrap();
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+
+        worker.stop().unwrap();
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
     }
 
     #[test]
