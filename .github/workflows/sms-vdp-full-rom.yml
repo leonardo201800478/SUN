@@ -1,5 +1,7 @@
 name: SMS VDP full ROM conformance
 
+# PR validation must check the exact head SHA, never a stale or merge-ref snapshot.
+
 on:
   pull_request:
     paths:
