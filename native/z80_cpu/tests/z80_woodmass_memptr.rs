@@ -13,7 +13,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 
-use sega_z80_cpu::{bus::CpuBus, Z80};
+use sega_z80_cpu::{Z80, bus::CpuBus};
 
 const TAP_SIZE: usize = 5_573;
 const TAP_CODE_OFFSET: usize = 120;
@@ -202,12 +202,31 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
 
     printed.finish();
 
-    assert_eq!(halt_pc, Some(EXIT_ADDRESS), "test must exit at its pinned HALT");
-    assert_eq!(cpu.total_tstates, EXPECTED_TSTATES, "hardware-reference T-states");
-    assert_eq!(printed.fnv1, EXPECTED_FNV1, "hardware-reference output hash");
-    assert_eq!(printed.lines, EXPECTED_LINES, "hardware-reference output lines");
-    assert_eq!(printed.columns, EXPECTED_COLUMNS, "hardware-reference output columns");
-    assert!(!printed.bad_character, "test printed an unsupported control character");
+    assert_eq!(
+        halt_pc,
+        Some(EXIT_ADDRESS),
+        "test must exit at its pinned HALT"
+    );
+    assert_eq!(
+        cpu.total_tstates, EXPECTED_TSTATES,
+        "hardware-reference T-states"
+    );
+    assert_eq!(
+        printed.fnv1, EXPECTED_FNV1,
+        "hardware-reference output hash"
+    );
+    assert_eq!(
+        printed.lines, EXPECTED_LINES,
+        "hardware-reference output lines"
+    );
+    assert_eq!(
+        printed.columns, EXPECTED_COLUMNS,
+        "hardware-reference output columns"
+    );
+    assert!(
+        !printed.bad_character,
+        "test printed an unsupported control character"
+    );
 
     let allowed_rom_reads = BTreeSet::from([
         PRINT_VECTOR,
