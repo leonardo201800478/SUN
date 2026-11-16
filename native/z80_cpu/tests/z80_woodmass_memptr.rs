@@ -1,16 +1,15 @@
 //! F-023 independent MEMPTR observation using Mark Woodmass' 2008 ZX Spectrum suite.
 //!
-//! The TAP fixture is GPL-2.0 and is fetched by CI only (not committed). Its
-//! SHA3-512, size, load offset, and expected run metadata are pinned below.
+//! The TAP fixture is GPL-2.0 and is fetched by CI only (not committed). The
+//! original 16K Spectrum 48K ROM is also fetched by CI only from a pinned source
+//! blob; its Amstrad copyright notice and redistribution permission are retained.
 //! Expected result metadata is cross-checked against redcode/Z80
 //! sources/test-Z80.c at commit 266f460fea6b07096404c8e8170b65581dfe6eca.
 //!
-//! The test uses only the Spectrum ROM entry points stubbed by that runner:
-//! CHAN_OPEN (opcode-fetch override at 0x1601), CLS (RET at 0x0D6B), and PRINT
-//! (RST 10h hook at 0x0010). Other ROM code execution is rejected. The zero-filled
-//! ROM data reads are recorded and the output oracle determines whether these stubs suffice.
+//! The test reproduces the upstream runner's Spectrum hooks: CHAN_OPEN
+//! (opcode-fetch override at 0x1601), CLS (RET at 0x0D6B), and PRINT (RST 10h
+//! hook at 0x0010). ROM writes are ignored, and the original ROM supplies reads.
 
-use std::collections::BTreeSet;
 use std::fs;
 
 use sega_z80_cpu::{Z80, bus::CpuBus};
@@ -38,15 +37,10 @@ const FLAG_PRINTABLE_MAX: u8 = 126;
 struct SpectrumTestBus {
     memory: Box<[u8; 0x1_0000]>,
     opcode_fetch_override: Option<u16>,
-    rom_reads: BTreeSet<u16>,
 }
 
 impl CpuBus for SpectrumTestBus {
     fn read_memory(&mut self, address: u16) -> u8 {
-        if address < 0x4000 {
-            self.rom_reads.insert(address);
-        }
-
         if self.opcode_fetch_override == Some(address) {
             return 0xC9; // RET, matching the upstream fetch_opcode hook.
         }
@@ -144,11 +138,16 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
         .get(TAP_CODE_OFFSET..code_end)
         .expect("the pinned machine-code range exists in the TAP");
 
+    let rom_path = std::env::var_os("Z80_SPECTRUM_ROM")
+        .expect("CI must set Z80_SPECTRUM_ROM to the verified original 48K ROM");
+    let rom = fs::read(rom_path).expect("the verified Spectrum 48K ROM is readable");
+    assert_eq!(rom.len(), 0x4000, "original Spectrum 48K ROM size");
+
     let mut bus = SpectrumTestBus {
         memory: Box::new([0; 0x1_0000]),
         opcode_fetch_override: None,
-        rom_reads: BTreeSet::new(),
     };
+    bus.memory[..0x4000].copy_from_slice(&rom);
     bus.memory[LOAD_ADDRESS..LOAD_ADDRESS + TAP_CODE_SIZE].copy_from_slice(code);
 
     // Spectrum ROM services installed by the upstream test runner. RST 10h
@@ -171,13 +170,6 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
 
     while !cpu.halted {
         let pc_before = cpu.registers.pc;
-
-        if pc_before < 0x4000 && !matches!(pc_before, PRINT_VECTOR | CLS | CHAN_OPEN) {
-            panic!(
-                "unexpected Spectrum ROM execution at PC={pc_before:04X}, T={}",
-                cpu.total_tstates
-            );
-        }
 
         if pc_before == PRINT_VECTOR {
             printed.write_character(cpu.registers.a);
@@ -231,9 +223,8 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
     assert_eq!(
         printed.fnv1,
         EXPECTED_FNV1,
-        "hardware-reference output hash; bytes={}, ROM reads={:?}, output:\n{}",
+        "hardware-reference output hash; bytes={}, output:\n{}",
         printed.output.len(),
-        bus.rom_reads,
         String::from_utf8_lossy(&printed.output)
     );
     assert_eq!(
@@ -251,8 +242,7 @@ fn woodmass_memptr_tap_matches_hardware_reference() {
     assert_eq!(
         cpu.total_tstates,
         EXPECTED_TSTATES,
-        "hardware-reference T-states; output bytes={}, ROM reads={:?}, hot PCs={hot_pcs:?}",
-        printed.output.len(),
-        bus.rom_reads
+        "hardware-reference T-states; output bytes={}, hot PCs={hot_pcs:?}",
+        printed.output.len()
     );
 }
