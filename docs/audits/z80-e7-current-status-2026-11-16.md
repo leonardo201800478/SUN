@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-16
 **Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
-**Main atual após PRs #955–#969:** `08f633affdb7478b64b1ec2007ca1986c2a48978`
+**Main vigente pós-PR #975:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 
@@ -436,3 +436,21 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Baseline vigente pós-PR #975 — 16/11/2026
+
+**Main:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #975 foi integrada por squash e alterou somente o teste F-028; PR #972 permanece integrada por `1b16256358e3f17837a95cc071048c5ee5307f82`, também test-only.
+
+- **F-022: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE; revisão independente pendente.** para semântica de software das oito instruções de transferência/comparação do perfil NMOS delimitado. A revisão interna, as 786.432 combinações simples, as matrizes repetitivas e a integração SMS/Scheduler estão registradas em `z80-e7-f022-adversarial-review-2026-11-16.md`.
+- **F-023: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE; PR #977 e revisão independente pendentes.** para semântica de software WZ/MEMPTR do perfil Zilog Z80 NMOS delimitado. A revisão interna confrontou handlers atômicos/microsequenciados e a matriz por família. HW permanece restrito à evidência RRD/RLD; outras regras continuam INT/COMP. A PR #977 cobre WZ em JR/DJNZ sob DD/FD Ignored. Variantes/clones fora do perfil NOT_VERIFIED. Ver `z80-e7-f023-adversarial-review-2026-11-16.md`.
+- **F-028: IN_PROGRESS.** PR #975 adicionou CALL nn em PC=FFFC e RST em PC=FFFE, DD/FD, verificando wrap do retorno 16-bit, os dois bytes da pilha, requests, WAIT e snapshot/restore. A revisão adversarial integral dos 167 Ignored, 85 UsesIndex e exceções continua em andamento.
+- **Scheduler:** LONG_PASS de software permanece vinculado ao SHA LONG documentado; não é TEMPORAL_PASS global. WAIT nos testes é fixture. WAIT físico, DMA e safe points de todos os dispositivos permanecem NOT_VERIFIED.
+- **Validação PR #975:** CI #43937118700 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43937118785 SUCCESS. Scheduler stress SKIPPED. Não há afirmação de workflow push pós-merge no SHA 22c489e.
+- **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
+
+O critério SG-1000 nesta fase significa consumo do Z80 compartilhado. A integração da máquina SG-1000 ao Scheduler pertence ao P2 e permanece DEFERRED; não deve ser usada para afirmar conclusão do P2 nem para reabrir a semântica já validada do Z80.
+
+
+**Gate formal:** os relatórios internos não substituem uma revisão independente registrada no GitHub. F-022/F-023 permanecem candidatas a fechamento até esse gate. PR #977 deve passar no HEAD exato antes de atualizar F-023/F-028. E7 IN_PROGRESS; E8 BLOCKED.
