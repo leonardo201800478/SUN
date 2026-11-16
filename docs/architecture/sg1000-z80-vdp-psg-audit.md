@@ -107,3 +107,40 @@ The CPU is complete for the selected Z80 silicon profile only when every encodin
 ## Saída host e pipeline de áudio
 
 Separar os testes do SN76489 (estado digital, clocks, writes e vetores de amostras) da sessão host (resampling, fila, underruns e API Windows). O caminho Qt ativo encaminha amostras diretamente à sessão Rust; não usar o frontend como oráculo de síntese. WASAPI Shared é padrão e XAudio2 alternativa. Ver [Runtime de áudio nativo](native-audio-runtime.md).
+
+
+## Reconciliação de arquitetura pós-main 22c489e03 — 16/11/2026
+
+Esta seção atualiza a leitura do baseline e supersede somente as afirmações antigas incompatíveis com o código atual. O histórico do plano permanece preservado.
+
+### Estado efetivo observado na main
+
+- `native/sg1000_core/src/cpu.rs` agora é uma fachada de compatibilidade: `pub use sega_z80_cpu::cpu::*;`. O SG-1000 já aponta para o executor Z80 compartilhado; a afirmação histórica de que o arquivo ainda contém um subconjunto local do decoder não descreve mais o código atual.
+- `native/sg1000_core/src/machine.rs` ainda expõe `Sg1000Machine::step()` e `run_instructions()` com execução por instrução. O próprio módulo declara que o timing é instruction-boundary based, não cycle-exact.
+- `native/sg1000_core/src/temporal.rs` fornece `Sg1000TemporalCoordinator` e um domínio Z80; `native/sg1000_core/src/temporal_bus.rs` fornece transações de memória/acknowledge e ciclos internos agendados.
+- Esses dois componentes temporais ainda não estão conectados ao `Sg1000Machine`. A máquina de produção/referência continua avançando VDP e PSG em torno de instruções completas.
+- `Sg1000TemporalBus::is_supported_bus_operation` aceita OpcodeFetch, MemoryRead, MemoryWrite e InterruptAcknowledge. PortRead/PortWrite são explicitamente rejeitados; logo, VDP/PSG I/O ainda não percorrem o caminho temporal.
+- `native/sg1000_core/src/lib.rs` descreve o crate como temporary Rust reference core durante a migração SMS-first, não como runtime autônomo ativo do produto. A existência do crate no workspace e de testes unitários não fecha o milestone standalone.
+
+### Sequência P2 após o fechamento E7
+
+1. Criar a máquina temporal SG-1000 que conduza o `sega-z80-cpu` retomável pelo `Sg1000TemporalCoordinator`, sem um segundo decoder e sem alterar a semântica compartilhada.
+2. Completar o adaptador de barramento para portas de I/O: leituras do TMS9918A/controladores e writes do SN76489, com side effects no deadline agendado. Não encaminhar I/O por callbacks da GUI.
+3. Integrar VDP, PSG e I/O ao scheduler com razões de clock explícitas e documentadas. Não assumir que a constante atual de 3.579.545 Hz prova a frequência/divisor de cada periférico ou variante de placa.
+4. Definir snapshot versionado do estado composto: CPU/microsequenciador, scheduler, transação pendente, memória, VDP, PSG, I/O/controladores e restos de conversão de clock/amostras.
+5. Provar execução contínua versus execução em blocos, restore em cada safe point, ordem causal e que writes/reads não são repetidos após restore.
+6. Validar ROMs e vetores independentes de boot, memória/mirrors, I/O, VDP e PSG; classificar DOC/HW/COMP/INT e manter limites de oráculo explícitos.
+7. Só depois expor API coarse-grained para o host/Slint: load, start, pause, stop, reset, step_frame e extração de frame/áudio. Nenhum ciclo/instrução deve atravessar a GUI.
+
+**Gate de entrada:** não iniciar alteração funcional do SG-1000 antes de E7 estar formalmente CLOSED ou CLOSED_WITH_LIMITATIONS. A preparação e auditoria acima não alteram o runtime. E8 continua bloqueada até o fechamento E7; o SG-1000 P2 reutilizará o Z80 compartilhado já validado e não exige reabrir E8.
+
+
+**Atualização de baseline — 16/11/2026:** main `1b16256358e3f17837a95cc071048c5ee5307f82` integra a PR #972, que altera somente testes de integração SMS/Scheduler. Nenhum código SG-1000, Z80 de produção, VDP, PSG ou I/O foi modificado por essa integração. O estado P2 descrito acima permanece válido; sua implementação funcional pode prosseguir após o encerramento de E7 com limitações.
+
+
+**Atualização de baseline — pós-PR #975:** main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` recebeu somente testes DD/FD Ignored no crate Z80; nenhuma implementação SG-1000/VDP/PSG/I/O foi alterada. O estado P2 acima permanece inalterado e segue bloqueado até E7 CLOSED.
+
+
+## Decisão de continuidade — SG-1000 autorizado a avançar (2026-11-16)
+
+E7 foi encerrada como `CLOSED_WITH_LIMITATIONS` no perfil NMOS delimitado. A condição de entrada P2 está satisfeita no escopo praticável; não aguardar E8/ZEXDOC/ZEXALL nem revisão por outra IA. Integrar a máquina existente ao coordenador/barramento temporal, Z80 compartilhado, VDP, PSG, memória e I/O. Não criar CPU, Scheduler, host, pipeline ou aplicação paralelos. Limitações físicas de WAIT/DMA permanecem explícitas.
