@@ -214,7 +214,7 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
 
 
-## Revisão adversarial F-023 — baseline pós-PR #972 (16/11/2026)
+## Revisão adversarial F-023 — baseline pós-PR #975 (16/11/2026)
 
 **Escopo da revisão:** semântica WZ/MEMPTR do perfil Zilog Z80 NMOS usado por SMS/SG-1000. Foram confrontados os handlers ativos de `native/z80_cpu/src/cpu.rs` e `native/z80_cpu/src/sequencer.rs` com as regras, condições, wrap, observabilidade e testes listados nesta matriz. A revisão não altera produção.
 
