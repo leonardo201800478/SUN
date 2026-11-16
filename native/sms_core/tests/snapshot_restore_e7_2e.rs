@@ -885,7 +885,11 @@ fn e7_f022_repeat_im2_handler_observes_flags_and_restores_through_scheduler() {
             0,
             "ED {opcode:02X}: repeat PC"
         );
-        assert_eq!(continuous.cpu().registers.bc(), 1, "ED {opcode:02X}: repeat BC");
+        assert_eq!(
+            continuous.cpu().registers.bc(),
+            1,
+            "ED {opcode:02X}: repeat BC"
+        );
         assert_eq!(continuous.cpu().wz, 1, "ED {opcode:02X}: repeat WZ");
         assert_eq!(continuous.cpu().q, continuous.cpu().registers.f);
         assert_eq!(continuous.cpu().q_previous, 0xA5);
