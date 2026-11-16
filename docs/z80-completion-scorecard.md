@@ -884,3 +884,11 @@ O trace não compara valores de leitura, payloads de escrita nem estado arquitet
 ### Gate transversal de revisão independente — 2026-11-16
 
 Auditoria GitHub: #936/#942/#943/#944/#945/#946/#947/#948 não possuem review submetido nem review threads. #946 e #948 têm comentários Codex de falha por limite de uso. Não há evidência auditável de revisão independente desses merges no repositório. Os merges são testes/documentação e não alteram produção, mas a revisão adversarial continua um gate BLOCKED para E7; nenhum F-022/F-023/F-028 pode ser promovido a CLOSED e E8 permanece BLOCKED.
+
+
+## Addendum — 16/11/2026, PRs #950–#952
+
+- **F-028:** PR #950 integrada em `45b40755e46aef752d58f571de856ae25ff9e81c`; CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD com árvore idêntica ao merge. Cobertura adicional de 167 Ignored × DD/FD com estado, payloads, WAIT e snapshot/restore. PC final exato por condições complementares segue pendente na PR #953.
+- **F-022:** PR #951 integrada em `b9d18f48466e3647aec73207f38c416bfef2b3dc`; CI #43890238681 e SMS Runtime #43890238056 PASS. previous-Q e WZ explicitamente assertados para LDI/LDD/CPI/CPD.
+- **F-023:** PR #952 integrada em `564074366fdc9bad59895163c8501134e88cce99`; matriz WZ/MEMPTR por família documentada em `docs/audits/z80-e7-memptr-family-matrix-2026-11-16.md`. As lacunas de evidência independente e temporal permanecem.
+- **E7: IN_PROGRESS. E8: BLOCKED.** Não marcar as frentes como CLOSED.
