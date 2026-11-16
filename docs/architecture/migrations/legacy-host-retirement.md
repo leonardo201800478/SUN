@@ -108,3 +108,12 @@ Os checks antigos podem continuar aparecendo como SKIPPED por exigência de prot
 - R2 permanece em aceite parcial: issues #755 (P0 frame pacing) e #756 (viewport/ZIP/sprite-limit/menu/resume/fullscreen) continuam abertas.
 - PR #757 (viewport), #758 (preservar sprite policy no reset) e #746 (mailbox portátil) precisam ser revalidadas/portadas para a main atual; não usar seus históricos divergentes como merge integral.
 - Ver [Auditoria geral e plano de continuidade 2026-11-12](../../project-status-2026-11-12.md) para inventário de todas as PRs/issues abertas e sequência priorizada.
+
+
+## Reconciliação — host gráfico anterior fora de uso ativo (2026-11-16)
+
+O usuário confirmou que o host gráfico anterior não está mais em uso. A arquitetura ativa é Slint/WGPU/Vulkan. Referências a D3D12/egui e ao shell antigo são código legado, histórico, tooling de compatibilidade ou consumidores remanescentes — nunca host ativo.
+
+A PR #769 não é requisito para manter o caminho Slint/WGPU ativo. Antes de remover `native/sega_app`, `native/video_runtime` ou features remanescentes, inventariar referências e consumidores e validar todos os workspaces/targets. Não manter uma segunda aplicação como destino de produto.
+
+R3 CPAL 0.18.2 está integrada em software pela PR #770. R4 possui primeira integração SDL3/Slint pela PR #867. R5 continua sendo consolidação de biblioteca/configurações/HUD/telemetria e limpeza segura do legado; isso não reativa o host anterior.

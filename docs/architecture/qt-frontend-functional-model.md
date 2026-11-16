@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** requisitos de produto e ideias de interação podem servir como referência, mas a implementação Qt/PySide6/PyO3 não é o host ativo. O destino é Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3. Revalidar cada requisito contra o roadmap atual antes de reaproveitar.
+
 > **RECONCILIATION REQUIRED (2026-11-05):** este documento continua sendo referência de requisitos de produto, mas a decisão de preservar a Qt antiga foi revogada. A implementação nova deve seguir [ADR — Reconstrução Qt Temporal e fechamento vertical do Master System](ADR-sms-temporal-machine-qt-rebuild.md); recursos dependentes do runtime antigo só podem reaparecer quando houver contrato Temporal equivalente.
 
 # Modelo funcional do frontend Qt

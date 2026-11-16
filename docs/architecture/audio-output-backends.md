@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** este documento descreve Qt/WASAPI/XAudio2 e não representa o host ativo. CPAL 0.18.2 está integrada em software; consulte [backend CPAL](../audio/cpal-output-backend.md), [arquitetura atual](../architecture.md) e [status dos componentes](../component-status.md). Preservado para rastreabilidade.
+
 > **Estado vigente (2026-10-27):** hardware SG-1000 ativo exclusivamente em Rust (`native/sg1000_core`). A aplicação Qt usa uma fachada Python fina para PyO3 e carregadores de ROM/perfil. Implementações de hardware Python, ferramentas e testes que dependiam delas foram arquivados sob `legacy/` e não são executados pelo projeto ativo. Descrições de estados anteriores neste documento são históricas, não instruções atuais.
 
 # Contrato de configuração para saída de áudio

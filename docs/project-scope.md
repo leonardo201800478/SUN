@@ -1,47 +1,56 @@
 # Escopo do projeto — Sega Emulator
 
-**Baseline auditada:** main SHA 392a5c67e85a11a5a980d8f7055bcc8a12fe3784 (2026-11-10).
-**Arquitetura desktop alvo:** ADR 0011 — Slint + WGPU + CPAL.
-**Runtime:** ADR 0010 e ADR-0016 permanecem vigentes.
+**Revisão:** 2026-11-16
+**Baseline remota consultada:** `main` SHA `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
+**Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + input SDL3 integrado em fatias.
+**Runtime:** Rust; MachineScheduler como autoridade temporal.
 
 ## Objetivo
 
-Construir um emulador Sega multissistema em Rust, modular, determinístico e temporalmente fiel. A replataforma desktop substitui gradualmente GUI e adaptadores host, preservando runtime e componentes de hardware validados.
+Construir um emulador Sega multissistema modular, determinístico e fiel ao hardware, preservando componentes validados e evoluindo os sistemas 8-bit antes de iniciar a família 16-bit.
 
-## Arquitetura
+## Arquitetura obrigatória
 
-| Camada | Tecnologia/responsabilidade |
+| Camada | Responsabilidade |
 |---|---|
-| Runtime | Rust: CPU, memória, barramentos, mappers, VDP, áudio, interrupções, Scheduler, timing e estados |
-| GUI alvo | Slint 1.18.x |
-| Renderização | WGPU 30.x; Vulkan preferencial no Windows x64 |
-| Saída física | CPAL 0.18.2 |
-| Input futuro | SDL3 após auditoria |
-| Estado de migração | Slint/WGPU R2 integrado; CPAL R3, SDL3 R4 e consolidação R5 pendentes |
+| Runtime | Rust: CPU, memória, barramentos, mappers, VDP, PSG/FM, periféricos, interrupções, Scheduler, timing e estados |
+| GUI | Slint 1.18.x: janelas, menus, launcher, biblioteca, configurações, logs e telemetria |
+| Vídeo | WGPU 30.x; Vulkan inicial no Windows x64 |
+| Áudio físico | CPAL 0.18.2 |
+| Input | Slint para teclado; `sega-input-runtime`/SDL3 para gamepads |
+| Host legado | Não é caminho ativo. Código remanescente deve ser inventariado e removido somente sem quebrar contratos ainda consumidos |
 
-Estrutura de referência: native/sega_desktop, native/video_output_wgpu e native/audio_output. A estrutura real do repositório prevalece.
+A GUI não implementa hardware, instruções, clocks, temporização ou callbacks por instrução. A integração com o runtime é coarse-grained. Não duplicar CPU, VDP, PSG, Scheduler, worker, mailbox ou pipeline.
 
-## Escopo ativo
+## Roadmap normativo
 
-- Preservar Z80 compartilhado, MachineScheduler, runtime SMS e SG-1000, VDPs, áudio, barramentos, memórias, mappers e testes.
-- Construir POC isolada Slint/WGPU/Vulkan.
-- Manter integração coarse-grained.
-- Transferir frames/áudio sem conceder à GUI propriedade sobre hardware.
-- Validar nova stack em Release e Windows x64.
-- Manter ADRs, roadmap, sprint e evidências sincronizados.
+1. **SMS1/SMS2:** consolidar os perfis 315-5124/315-5246, boot, vídeo, áudio, I/O, mappers, BIOS e validação. Road Rash e alinhamento de sprites foram reportados pelo usuário como resolvidos; não reabrir sem regressão. BIOS boot permanece com validação física pendente.
+2. **SG-1000:** concluir a máquina temporal e a integração dos componentes existentes, usando o Z80 compartilhado e preservando VDP/PSG/I/O. Não redesenhar a arquitetura nem criar CPU, GUI ou pipeline paralelo.
+3. **Game Gear:** implementar como sistema próprio, com diferenças de VDP/LCD, CRAM, áudio estéreo, portas, memória, cartucho, snapshots e input. Não tratar como SMS com resolução reduzida.
+4. **Expansões e acessórios 8-bit:** após Game Gear, implementar YM2413/FM Sound Unit e suporte a mídias/periféricos documentados: Sega Card/My Card, Card Catcher (adaptador para SG-1000/SC-3000), 3D Glasses, Paddle, Sports Pad, Light Phaser, Rapid Fire e interfaces de expansão, conforme compatibilidade real de cada console/modelo.
+5. **Mega Drive/Genesis.**
+6. **Sega CD.**
+7. **32X.**
+8. **Consolidação, compatibilidade, auditoria e aceite final.**
 
-## Fora do escopo da R1
+A fase 4 é transversal aos consoles compatíveis: Card Catcher pertence ao ecossistema SG-1000/SC-3000, enquanto o SMS/Mark III possui slot nativo Sega Card/My Card. Não confundir adaptador, mídia e periférico.
 
-Não integrar SmsTemporalWorker, FrameMailbox ou ROM real. Não alterar CPU, VDP, PSG, barramento, Scheduler ou timing. Não implementar menus completos, HUD, debugger, biblioteca, CPAL, SDL3, HDR ou VRR. Não remover egui/eframe nem hosts antigos. Não ampliar a POC para antecipar fases.
+## Estado das trilhas transversais
 
-## Trilha de replataforma
+- **Z80:** `CLOSED_WITH_LIMITATIONS` no perfil NMOS delimitado e nas possibilidades atuais de validação. E8/ZEXDOC/ZEXALL permanece complementar, não bloqueio artificial. Variantes CMOS/clones e validações não executadas continuam explicitamente não verificadas.
+- **Debugger:** funcionalidade parcial; manter evolução independente, sem bloquear o fechamento de hardware.
+- **BIOS boot:** implementação candidata em PR #928; validação física com BIOS real permanece pendente.
+- **R2 vídeo:** frames SMS integrados ao desktop Slint/WGPU.
+- **R3 áudio:** CPAL 0.18.2 integrado em software; validação física prolongada, hotplug e recuperação continuam gates separados.
+- **R4 input:** primeira fatia SDL3/Slint integrada; controles físicos, hotplug real e configuração avançada permanecem pendentes.
+- **R5 desktop:** launcher/biblioteca/configurações/HUD/telemetria e retirada de código legado ainda exigem consolidação.
 
-- **R1:** janela Slint, WGPU 30, Vulkan explícito, device/queue compartilhados, textura externa animada e composição na mesma janela.
-- **R2:** frames SMS reais, preservando SmsTemporalWorker, FrameMailbox e Scheduler.
-- **R3:** CPAL 0.18.2, dispositivos, formatos, streams, reprodução e underruns.
-- **R4:** auditar/integrar SDL3 para teclado e gamepads.
-- **R5:** consolidar launcher, biblioteca, configurações, menus, HUD, logs e telemetria; remover baseline somente após paridade e validação.
+## Invariantes temporais
 
-Uma janela que abre não comprova device/queue compartilhados; compilação não comprova execução Vulkan; textura de teste não comprova integração SMS. UI, renderização e áudio físico não podem alterar clocks ou ordem causal do runtime.
+MachineScheduler é a autoridade única de tempo. Preservar ordem causal, clocks, WAIT states comprovados, suspensão/retomada, snapshots e equivalência contínua/em blocos. Renderização, áudio físico e input nunca controlam ciclos.
 
-Não usar JIT, frame skipping, hacks temporais ou otimizações especulativas. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
+## Evidência e aceite
+
+Estados permitidos: `VALIDATED`, `INTERNAL_REVIEW`, `NOT_VERIFIED`, `CLOSED_WITH_LIMITATIONS`. Diferenciar evidência documental, comparativa, interna e física. `SKIPPED` e `NOT RUN` nunca são PASS. Não exigir console físico ou revisor independente como bloqueio permanente quando o escopo praticável está coberto; declarar explicitamente o que não foi validado.
+
+Não iniciar 16-bit antes de SMS1/SMS2, SG-1000, Game Gear e a fase de expansões/acessórios 8-bit.

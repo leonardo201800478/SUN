@@ -1,38 +1,43 @@
 # Documentação do Sega Emulator
 
-Este diretório reúne decisões normativas, contratos arquiteturais, roadmap, sprints, estado operacional, auditorias e evidências.
+Este diretório reúne decisões normativas, escopo, roadmap, status, arquitetura, auditorias, evidências e documentos históricos.
 
 ## Precedência
 
-1. ADRs vigentes: ADR 0010 (runtime/hardware), ADR 0011 (desktop/hosts) e ADR-0016 (fidelidade temporal).
-2. Escopo, roadmap e políticas permanentes.
-3. Código/testes integrados na main.
-4. Status datados vinculados a SHA.
-5. PRs não integradas e documentos históricos.
+1. ADRs normativas vigentes: runtime/ownership, desktop Slint/WGPU/CPAL e fidelidade temporal.
+2. `project-scope.md` e `project-roadmap.md` para escopo e ordem de plataformas.
+3. `component-status.md` para fotografia de status na baseline identificada.
+4. Código/testes integrados na main e workflows executados no SHA correspondente.
+5. Auditorias datadas, PRs não integradas e documentos históricos.
 
-PR Draft, branch, documentação ou CI parcial não alteram o estado integrado da main.
+PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o estado integrado da main.
 
-## Documentos principais
+## Documentos de controle
 
-- [README do projeto](../README.md)
-- [Escopo](project-scope.md)
+- [Escopo do projeto](project-scope.md)
 - [Roadmap mestre](project-roadmap.md)
-- [Sprint R1](sprints/2026-11-r1-slint-wgpu-vulkan-poc.md)
+- [Status dos componentes](component-status.md)
+- [Reorganização e reconciliação 2026-11-16](project-reconciliation-2026-11-16.md)
 - [Política de CI e validação](ci-validation-policy.md)
-- [Auditoria geral e plano de continuidade 2026-11-12](project-status-2026-11-12.md)
-- [Status histórico 2026-11-11](project-status-2026-11-11.md)
-- [Instruções permanentes](project-instructions-prompt.md)
-- [ADR 0011 — Slint/WGPU/CPAL](adr/0011-slint-wgpu-cpal-desktop-platform.md)
+- [Instruções para agentes](../AGENTS.md)
 - [ADRs normativas](adr/README.md)
 - [Arquitetura geral](architecture.md)
+- [Índice de hosts/documentos históricos](architecture/legacy-document-index.md)
 - [Scheduler](architecture/scheduler/README.md)
-- [Fidelidade temporal](architecture/adr/0016-observable-fidelity-and-proportional-timing.md)
+
+## Sistemas e hardware
+
+- [SMS1 × SMS2 — diferenças](hardware/sms1-sms2-hardware-difference-matrix-2026-11-15.md)
+- [SMS expansion and accessories roadmap](hardware/sms-expansion-accessories-roadmap.md)
+- [SG-1000](hardware/sg1000.md)
+- [YM2413/FM model](architecture/ym2413-fm-model.md)
+- [SMS firmware/BIOS](architecture/sms-bios-firmware-loading.md)
 
 ## Áudio
 
 - [Plano Modern Hi-Fi — SMS e SG-1000](audio/modern-hifi-audio-roadmap.md)
-- [Estudo de reconstrução PSG H2](audio/psg-h2-reconstruction-study.md)
-- [Checkpoint de continuidade H2](audio/modern-hifi-h2-continuity-checkpoint.md)
+- [Estudo PSG H2](audio/psg-h2-reconstruction-study.md)
+- [Scorecard de confiabilidade](audio/audio-reliability-scorecard.md)
 
 ## Z80
 
@@ -41,11 +46,22 @@ PR Draft, branch, documentação ou CI parcial não alteram o estado integrado d
 - [Matriz DD/FD](z80-dd-fd-semantic-matrix.md)
 - [Auditoria ED](z80-ed-opcode-audit.md)
 - [Comportamentos não documentados](z80-undocumented-behavior-research.md)
+- [Estado consolidado E7](audits/z80-e7-current-status-2026-11-16.md)
+- [Matriz dos 12 critérios E7](audits/z80-e7-12-criteria-matrix-2026-11-16.md)
+- [Revisão interna F-022](audits/z80-e7-f022-adversarial-review-2026-11-16.md)
+- [Revisão interna F-023](audits/z80-e7-f023-adversarial-review-2026-11-16.md)
+- [Revisão interna F-028](audits/z80-e7-f028-adversarial-review-2026-11-16.md)
+- [Plano SG-1000 P2](audits/sg1000-p2-atomic-reference-reuse-2026-11-16.md)
 
-E7 deve estar demonstravelmente fechado antes de E8/ZEXDOC/ZEXALL.
+Z80 está encerrado com limitações explícitas no perfil NMOS delimitado. E8/ZEXDOC/ZEXALL é validação complementar futura, não gate permanente para iniciar SG-1000.
 
 ## Evidências e histórico
 
-evidence/ contém resultados reproduzíveis; audits/ investigações; hardware/ referências; milestones/ marcos históricos; releases/ notas; sprints/ objetivos e critérios temporários.
+- `evidence/`: resultados reproduzíveis vinculados a SHA.
+- `audits/`: investigações técnicas e limitações.
+- `hardware/`: referências de hardware e pinouts.
+- `milestones/`: marcos históricos.
+- `releases/`: notas de release.
+- `sprints/`: objetivos temporários.
 
-Documentos de implementações anteriores permanecem como evidência histórica auditável. Não os tratar como arquitetura-alvo quando conflitarem com ADR 0011. A retirada do código transitório exige R3/R5, inventário de consumidores e CI verde; não apagar evidências históricas nem reescrever resultados passados.
+Preservar histórico. Classificar documentos como vigente, histórico, substituído ou obsoleto; não apagar resultados nem atribuir validação de um SHA a outro.
