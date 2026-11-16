@@ -80,7 +80,7 @@ O boot por BIOS convencional de 8 KiB está em implementação candidata na PR #
 - Alinhamento de sprites SMS: usuário reportou corrigido; não manter como defeito aberto sem regressão.
 - BIOS boot: validação física pendente.
 - Host gráfico anterior: não está em uso ativo.
-- SG-1000: a main ainda não integra a máquina ao Scheduler. O coordenador registra apenas Z80; o barramento rejeita PortRead/PortWrite; Sg1000Machine ainda usa cpu.step() e avança VDP/PSG em fronteiras de instrução. PR #981 (HEAD `2f35c334d57dd381ea271f44067684348303eb94`, 13/0) é candidata P2.1 não integrada; CI #43969683876 passou nos jobs aplicáveis. Próxima fatia: P2.2, integrar Z80MicroSequencer/M1/T4 no próprio Sg1000Machine, com snapshot composto e replay contínuo/em blocos.
+- SG-1000: a main ainda não integra a máquina ao Scheduler. O coordenador registra apenas Z80; o barramento rejeita PortRead/PortWrite; Sg1000Machine ainda usa cpu.step() e avança VDP/PSG em fronteiras de instrução. PR #981 (HEAD `a69312cafad08d855709ea44841dc0fb1705e2b1`, 15/0) é candidata P2.1 não integrada; CI #43977932262 passou em Change impact, workspace, SMS1 VDP, Z80 focused, Scheduler stress, documentação e Rust quality/unit. Os jobs não aplicáveis foram SKIPPED. Próxima fatia: P2.2, integrar Z80MicroSequencer/M1/T4 no próprio Sg1000Machine, com snapshot composto e replay contínuo/em blocos.
 
 ## 6. Método, evidência e gates
 
