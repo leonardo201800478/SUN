@@ -149,3 +149,59 @@ A classificação efetiva dos 167 bytes Ignored indica fallback para BASE sem re
 Isso não prova fallback de todos os 167 bytes. O próximo trabalho deve agrupar os bytes por famílias BASE e identificar quais já têm cobertura com DD/FD prefixado, quais têm apenas testes BASE sem prefixo e quais permanecem não implementados/reservados. Um teste de igualdade atomic↔micro é consistência interna, não oracle independente.
 
 **Decisão:** a partição 85/167/1/1/2 está reconciliada; F-028 continua AUDIT_PARTIAL até a semântica prefixada dos 167 Ignored e as demais interações relevantes estarem demonstradas. Nenhuma alteração de produção nesta extensão documental.
+
+
+## Addendum supersedente — cobertura dos 167 Ignored após PRs #950/#953 — 16/11/2026
+
+A seção **8. Gap residual: os 167 Ignored** registra corretamente o estado anterior às PRs #950 e #953, mas não representa mais a pendência atual. Seu diagnóstico de que faltava a matriz de requests dos 167 bytes foi supersedido pelas integrações abaixo. Esta atualização preserva a seção histórica e corrige somente sua interpretação vigente.
+
+### Evidência integrada
+
+- **PR #950 — merge:** `45b40755e46aef752d58f571de856ae25ff9e81c`.
+- **Validação #950:** CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado; a árvore do merge foi confirmada idêntica à árvore testada.
+- **Arquivo:** `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_wait_matrix_f028.rs`.
+- **Cobertura #950:** os 167 opcodes efetivamente classificados como Ignored são executados sem prefixo e com DD/FD. A matriz compara estado arquitetural BASE↔prefixado, fetches M1, refresh R, requests e payloads de leitura/escrita, tipo/ordem/endereço/duração das transações, ciclos internos, WAIT de fixture e snapshot encode/decode/restore nas fronteiras de barramento e ciclos internos.
+- **PR #953 — merge:** `a6cec0d744b8120c8c3e2d1d56abd1aa75fc1031`.
+- **Validação #953:** CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado; a árvore do merge foi confirmada idêntica à árvore testada.
+- **Teste complementar:** `all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc`. A segunda fixture usa F=$FF e B=1 para complementar a primeira fixture (F=$00 e B=$23), verificar resultados condicionais opostos e exigir o delta exato de PC por opcode, mantendo a comparação de requests e o round-trip de snapshot/WAIT.
+
+### Limites que permanecem
+
+1. BASE↔DD/FD é uma comparação estrutural dentro do mesmo microsequenciador; não é oracle independente de silício.
+2. As fixtures cobrem dois conjuntos dirigidos de flags/registradores, não o espaço combinatório de todos os dados e estados de cada instrução BASE.
+3. WAIT é inserido como fixture determinística. Isso valida a suspensão/retomada do microsequenciador sob o contrato testado, não WAIT elétrico/físico.
+4. Essas matrizes F-028 são testes do microsequenciador Z80; não devem ser descritas como integração MachineScheduler/SMS.
+5. A classificação dos 256 bytes e a cobertura dos 167 Ignored não provam, isoladamente, semântica independente de todos os opcodes BASE nem fecham F-028.
+
+**Estado vigente:** a lacuna de ausência da matriz de requests dos 167 Ignored está **RESOLVIDA pelas PRs #950/#953**. F-028 permanece **IN_PROGRESS** exclusivamente para revisão adversarial independente, proveniência/oráculos e limites semânticos ainda não demonstrados. Não reimplementar UsesIndex nem reproduzir a matriz já integrada.
+
+
+## Adendo pós-PR #975 — wrap de retorno CALL/RST — 16/11/2026
+
+- Merge SHA na main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+- Arquivo: `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_wait_matrix_f028.rs`.
+- Novos casos: CALL em PC `FFFC` e RST em `FFFE`; para DD e FD, verifica M1 de prefixo/opcode, wrap do endereço de retorno `FFFF→0000`, high/low byte gravados na pilha e normalização diferencial BASE↔prefixado.
+- Push CI #43937688464: Z80 focused PASS e Rust quality/unit PASS; jobs não relacionados SKIPPED. SMS Runtime #43937688349: Release format/Clippy/tests PASS; Windows debugger SKIPPED.
+- Limite: evidência estrutural interna do mesmo microsequenciador, não oracle independente de hardware. GitHub não registra review; Codex review falhou por limite de uso. F-028 permanece IN_PROGRESS.
+
+
+## Adendo PR #977 — WZ em saltos relativos com DD/FD Ignored
+
+A PR #977 amplia a auditoria F-028/F-023 com JR, DJNZ e JR NZ/Z/NC/C, caminhos tomado/não tomado, prefixos DD/FD e PCs iniciais `2000` e `FFFD`. Verifica o deslocamento de PC/WZ, preservação de WZ quando não tomado, fetch M1 e trace normalizado. HEAD após correção rustfmt: `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`; CI #43939973117 em andamento na última consulta. Não declarar PASS antes do resultado final. F-028 permanece IN_PROGRESS e a revisão independente continua pendente.
+
+
+
+## Resultado CI PR #977 — 16/11/2026
+
+HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: CI #43939973117 SUCCESS, incluindo Z80 focused e Rust quality/unit; SMS Runtime #43939957730 SUCCESS. O teste cobre WZ para JR/DJNZ/JR cc sob DD/FD Ignored, ambos os resultados condicionais e PC=FFFD. Scheduler stress SKIPPED. A cobertura técnica adicional passou, mas F-028 permanece IN_PROGRESS até review independente integral registrada.
+
+
+
+## Resultado final PR #977 — 16/11/2026
+
+HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: CI #43940980741 SUCCESS (Z80 focused e Rust quality/unit); SMS Runtime #43940971722 SUCCESS; Scheduler stress SKIPPED. A matriz dos 167 Ignored agora verifica WZ em todos os opcodes, com +1 para JR/DJNZ/JR cc tomados e preservação quando não tomados. Casos dirigidos verificam PC=2000/FFFD, CALL/RST stack wrap, DD e FD. F-028: auditoria interna completa/candidata; review independente pendente.
+
+
+## Decisão de escopo supersedente — 2026-11-16
+
+E7 está `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e para as necessidades praticáveis dos sistemas SMS/SG-1000. Esta decisão do projeto não declara revisão externa, conformidade elétrica universal ou validação de hardware para os casos não executados. As evidências desta auditoria permanecem internas e vinculadas aos SHAs/workflows descritos em cada seção. CMOS/clones não caracterizados, WAIT físico, DMA e sincronização física global permanecem NOT_VERIFIED/NOT_RUN. E8/ZEXDOC/ZEXALL é validação complementar futura e não bloqueia o início do SG-1000. Reabrir E7 somente diante de defeito/regressão reproduzível ou evidência técnica concreta.
