@@ -1,98 +1,60 @@
-# Prompt permanente de continuidade — YM2413 / OPLL no Sega Emulator
+# Prompt de continuidade — YM2413 / FM Sound Unit no Sega Emulator
 
-Atue como Arquiteto de Software, Engenheiro de Emulação e Desenvolvedor Principal do projeto Sega Emulator — Emulação de Alta Precisão.
+## Fase e autoridade
 
-## Repositório e autoridade
 - Repositório: https://github.com/leonardo201800478/sega-emulator
-- PR relacionada: https://github.com/leonardo201800478/sega-emulator/pull/615
-- A única fonte da verdade para o estado do código é o GitHub remoto.
-- Antes de cada continuação, audite SHA atual da main, branch da PR, diff, commits, workflows, status checks, reviews e comentários recentes.
-- Nunca presuma que SHAs, branches ou resultados de CI de conversas anteriores continuam atuais.
-- Não faça commit direto na main, force-push, reset destrutivo ou merge sem autorização explícita. Toda alteração deve ocorrer em branch e PR. Merge exige CI 100% verde no HEAD exato e autorização explícita.
+- Fase P4: iniciar somente após SMS1/SMS2, SG-1000 e Game Gear.
+- Runtime 100% Rust; GUI Slint 1.18.x; vídeo WGPU 30.x/Vulkan; áudio físico CPAL 0.18.2; SDL3/input runtime.
+- Não usar Python, Qt, PyO3 ou Maturin no runtime, tooling obrigatório, CI ou frontend.
+- GitHub main/commits/testes/workflows são a fonte da verdade. Toda alteração em branch/PR. Sem commit direto, force-push ou merge sem autorização explícita.
 
 ## Objetivo
-Modelar, implementar e validar um núcleo Yamaha YM2413 (OPLL) reutilizável, de alta fidelidade temporal, em Rust, integrando-o ao Master System japonês sem impedir a operação simultânea do SN76489.
 
-## Documentação obrigatória
-Leia integralmente antes de qualquer alteração:
+Implementar o Yamaha YM2413 (OPLL) como expansão FM do Mark III/Master System, preservando SN76489 e integrando ambos ao MachineScheduler, barramento SMS, mixer, resampler e Save States existentes.
+
+## Leitura obrigatória
+
 - `docs/architecture/ym2413-fm-model.md`
-- `docs/architecture/ym2413-continuity-prompt.md`
+- `docs/hardware/sms-expansion-accessories-roadmap.md`
+- `docs/architecture/master-system-code-model.md`
+- `docs/audio/modern-hifi-audio-roadmap.md`
 - `docs/z80-completion-scorecard.md`
 - `docs/z80-dd-fd-semantic-matrix.md`
-- `docs/architecture/master-system-code-model.md`
-- A descrição e os comentários atualizados da PR #615.
 
-Se algum caminho não existir, procure o arquivo correto no repositório; não invente seu conteúdo. Consulte também os manuais Yamaha, SMS Power e notas de medição de andete. Separe sempre DOCUMENTADO, MEDIDO, INFERIDO e PENDENTE.
+A especificação atual contém hipóteses, divergências e itens pendentes. Separar DOCUMENTADO, MEDIDO, INFERIDO e NOT_VERIFIED. Consultar manual Yamaha, SMS Power e referências independentes pinadas por commit/licença.
 
-## Arquitetura obrigatória
-- Hardware, clocks, barramentos, chips, Scheduler, mixer e resampling ficam em Rust.
-- Python/PySide6 permanece exclusivamente GUI, launcher, biblioteca, configuração, logs e telemetria.
-- Não duplicar chips por console. O YM2413 deve residir em módulo/crate de áudio compartilhado e independente do SMS.
-- O MachineScheduler existente é o único dono do tempo. Não criar Scheduler FM paralelo.
-- Sem JIT, frame skipping, hacks de timing, callbacks por instrução ou dependência do host para avanço de hardware.
-- Preservar SG-1000 e o SN76489 sem regressões.
-- Save State deve incluir todo estado interno relevante do chip, adaptador, Scheduler, barramento, mixer e resampler.
+## Arquitetura
 
-## Modelo físico obrigatório
-- Clock de entrada de referência: 3.579.545 Hz.
-- 18 slots sequenciais, quatro clocks por slot e 72 clocks por período de saída.
-- Um engine de operador reutilizado sequencialmente, com estágios PG/EG/OP defasados no pipeline entre slots; não calcular os 18 operadores como engines físicos paralelos.
-- 9 canais melódicos, 2 operadores por canal, 15 presets + patch de usuário.
-- Implementar PG, EG, Log-Sine/EXP, feedback, AM, PM e Rhythm Mode com aritmética e transições discretas verificadas.
-- Saídas MO/RO e resolução DAC devem ser representadas de acordo com o manual.
-- Não transformar aproximações em especificações. Não fixar fórmulas, tabelas, seeds ou shifts sem evidência e vetores de teste.
+- Hardware, portas, clocks, síntese, mixer e resampler em Rust.
+- MachineScheduler existente é autoridade temporal única. Não criar Scheduler/domínio FM paralelo quando a razão de clock for compartilhada.
+- Não duplicar CPU, barramento, PSG, worker, mixer ou pipeline.
+- Preservar estado interno de PSG e FM mesmo quando uma fonte estiver silenciada, salvo evidência física contrária.
+- Misturar fontes PSG/FM alinhadas numa única operação por lote.
+- GUI não implementa chip, portas, ciclos ou timing.
+- Save State inclui registradores, fases, contadores, slots, operadores, envelopes, LFOs, pipeline, latch, roteamento e fase do mixer/resampler.
 
-## Perfis SMS e controle de áudio
-- Japanese Master System com YM2413 integrado: PSG e FM podem ser habilitados simultaneamente por $F2.
-- Mark III + FM Unit: seleção PSG/FM mutuamente exclusiva.
-- SMS exportação e Tec Toy: não presumir presença do chip; exigir evidência por modelo/revisão.
-- Separar capacidade física, estado interno de síntese e roteamento/mute.
-- Implementar $F0 (latch), $F1 (data) e $F2 (controle/detecção) no barramento no timestamp de conclusão da transação.
-- Preservar estados internos independentes de PSG e FM. No perfil em que ambos recebem 3.579.545 Hz com a mesma razão temporal, ambos consomem o mesmo ClockAdvance do domínio PSG existente (ID 1); não criar domínio FM adicional nem avançar o Scheduler duas vezes.
-- O mixer genérico aceita múltiplas fontes, mas a sessão atual processa uma fonte por chamada. Criar uma operação de sessão que misture blocos alinhados numa única chamada; nunca chamar process_samples separadamente para PSG e FM esperando soma.
-- Definir uma taxa comum de mistura e conversão determinística: PSG atual gera blocos na taxa configurada (44.100 Hz no caminho padrão), YM2413 gera uma amostra por 72 clocks (~49.716,04 Hz), e o PcmResampler atual assume entrada de 44.100 Hz. Preservar fase/latência dos conversores em Save State.
-- Não interromper a síntese interna só porque a saída está silenciada, a menos que o comportamento físico medido demonstre isso.
+## Perfis de hardware
 
-## Método obrigatório — três frentes
-1. Engenharia reversa: comparar medições de hardware e implementações independentes (emu2413, Nuked-OPLL, ymfm, ares). Fixar versões/commits e licenças. Produzir evidência por comportamento.
-2. Documentação: consultar manual Yamaha e SMS Power; produzir matriz de conformidade com referências, nível de confiança e divergências.
-3. Arquitetura: converter evidências em máquinas de estado, fases, ciclos, interfaces, snapshots e testes. Nenhuma hipótese vira regra sem classificação explícita.
+1. Japanese Master System: YM2413 integrado; $F2 controla FM/PSG e pode permitir ambos simultaneamente.
+2. Mark III + FM Sound Unit externo: perfil próprio; roteamento/controle difere e FM/PSG podem ser mutuamente exclusivos.
+3. SMS exportação/TecToy: não presumir FM de fábrica.
+4. Mods de terceiros: perfis separados, nunca comportamento universal.
 
-## Sequência de trabalho
-1. Auditar SHA/main, PR #615, branch, CI e diff.
-2. Ler a documentação obrigatória e o estado real dos módulos.
-3. Fechar os itens PENDENTES da especificação antes de iniciar o core de síntese.
-4. Definir critérios de aceitação e vetores de referência.
-5. Implementar incrementos pequenos e compiláveis.
-6. Executar testes unitários, diferenciais, temporais e snapshot/restore.
-7. Validar invariância: execução contínua deve equivaler à execução em blocos, inclusive com escritas entre slots.
-8. Integrar Scheduler, barramento, mixer e resampler.
-9. Executar regressão SMS/SG-1000.
-10. Executar gates completos, auditar diff, documentar e abrir/atualizar PR.
-11. Não declarar conclusão por gerar um tom, compilar ou mostrar áudio plausível.
+Portas: $F0 latch/endereço; $F1 dados; $F2 detecção/controle dependente do perfil.
 
-## Gates obrigatórios
-Rust:
-- `cargo fmt --all -- --check`
-- `cargo clippy --workspace --all-targets --locked -- -D warnings`
-- `cargo test --workspace --locked`
+## Síntese e integração
 
-Python:
-- `python -m pytest`
-- `python -m ruff check .`
-- `python -m ruff format --check .`
+O modelo `ym2413-fm-model.md` define PG, EG, Log-Sine/EXP, feedback, AM/PM, instrumentos, Rhythm Mode, slots e pipeline. Não inventar tabelas, seeds, shifts, truncamentos ou aproximações para substituir medições.
 
-Classifique cada suíte PASS, FAIL, BLOCKED ou NOT RUN. SKIPPED nunca equivale a PASS. Nenhuma integração com warnings ou falhas nos gates.
+- Auditar clock do PSG e avanços do Scheduler.
+- Aplicar escritas FM no timestamp de conclusão da transação Z80.
+- Reconciliar taxa YM2413 (~49.716 Hz nominal com clock 3.579.545/72) com PSG/resampler.
+- Determinar taxa comum, fase e latência determinísticas.
+- Reconciliar MO/RO e circuito de soma/ganho do perfil SMS japonês; não transplantar circuitos de outro sistema.
+- $F2 não deve suspender síntese interna sem evidência.
 
-## Estado inicial e regra de continuidade
-A especificação atual é arquitetural, não prova que o YM2413 está implementado. A PR #615 pode conter somente alterações PSG; confira sempre o diff real. Workflows cancelados, reviews incompletos ou limites de uso não contam como aprovação.
+## Aceite
 
-Ao receber “Prossiga”:
-- audite novamente o GitHub remoto;
-- retome do último estado comprovado;
-- resolva bloqueios da PR/CI antes de avançar;
-- não repita trabalho validado;
-- siga a próxima pendência real da especificação;
-- pare em bloqueio técnico real e descreva evidências, sem inventar conclusão.
+Vetores diferenciais de síntese/envelope/instrumentos/ritmo/slots; testes $F0/$F1/$F2 por perfil; reset; snapshots/restore; mistura PSG/FM alinhada; equivalência contínua/em blocos; regressão SMS1/SMS2, SG-1000 e Game Gear; CI aplicável verde no HEAD exato. SKIPPED nunca é PASS.
 
-**Regra máxima:** fidelidade de hardware e determinismo têm prioridade sobre conveniência, velocidade ou aparência funcional.
+Não declarar conclusão por gerar tom plausível, compilar ou tocar uma ROM. Auditar main, especificação, fontes e módulos reais antes de implementar.
