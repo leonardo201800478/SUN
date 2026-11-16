@@ -3111,6 +3111,14 @@ mod windows_host {
         let save_store = cartridge_save_store()?;
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
+            sms_system: preferences.sms_system.clone(),
+            firmware_directory: preferences.firmware_directory.clone(),
+            firmware_boot_enabled: preferences.firmware_boot_enabled,
+            firmware_brazil_selected: preferences.firmware_brazil_selected.clone(),
+            firmware_usa_selected: preferences.firmware_usa_selected.clone(),
+            firmware_europe_selected: preferences.firmware_europe_selected.clone(),
+            firmware_japan_selected: preferences.firmware_japan_selected.clone(),
+            firmware_korea_selected: preferences.firmware_korea_selected.clone(),
             vdp_revision: sms_vdp_revision_for_system(&preferences.sms_system)?,
             audio_volume: effective_audio_volume(preferences.audio_volume, preferences.audio_muted),
             dsp_config: audio_dsp_config(
@@ -3412,14 +3420,27 @@ mod windows_host {
                 return;
             }
 
-            let (region, system, sprite_limit_enabled, audio_volume, dsp_config, renderer_mode) =
-                open_app
-                    .upgrade()
-                    .map(|app| {
-                        (
-                            app.get_selected_region().to_string(),
-                            app.get_selected_system().to_string(),
-                            app.get_sprite_limit_enabled(),
+            let (
+                region,
+                system,
+                sprite_limit_enabled,
+                audio_volume,
+                dsp_config,
+                renderer_mode,
+                firmware_directory,
+                firmware_boot_enabled,
+                firmware_brazil_selected,
+                firmware_usa_selected,
+                firmware_europe_selected,
+                firmware_japan_selected,
+                firmware_korea_selected,
+            ) = open_app
+                .upgrade()
+                .map(|app| {
+                    (
+                        app.get_selected_region().to_string(),
+                        app.get_selected_system().to_string(),
+                        app.get_sprite_limit_enabled(),
                             effective_audio_volume(
                                 app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
                                 app.get_audio_muted(),
@@ -3431,19 +3452,33 @@ mod windows_host {
                                 app.get_audio_lpf_enabled(),
                                 f64::from(app.get_audio_lpf_cutoff().round() as u16),
                             ),
-                            app.get_audio_renderer_mode().to_string(),
-                        )
-                    })
-                    .unwrap_or_else(|| {
-                        (
-                            "usa".to_owned(),
-                            "sms1".to_owned(),
-                            true,
-                            70,
-                            AnalogOutputConfig::default(),
-                            "psg".to_owned(),
-                        )
-                    });
+                        app.get_audio_renderer_mode().to_string(),
+                        app.get_firmware_directory().to_string(),
+                        app.get_firmware_boot_enabled(),
+                        app.get_firmware_brazil_selected().to_string(),
+                        app.get_firmware_usa_selected().to_string(),
+                        app.get_firmware_europe_selected().to_string(),
+                        app.get_firmware_japan_selected().to_string(),
+                        app.get_firmware_korea_selected().to_string(),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    (
+                        "usa".to_owned(),
+                        "sms1".to_owned(),
+                        true,
+                        70,
+                        AnalogOutputConfig::default(),
+                        "psg".to_owned(),
+                        String::new(),
+                        false,
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                    )
+                });
             let vdp_revision = match sms_vdp_revision_for_system(&system) {
                 Ok(revision) => revision,
                 Err(error) => {
@@ -3455,6 +3490,14 @@ mod windows_host {
             };
             let open_settings = SmsWorkerSettings {
                 region,
+                sms_system: system,
+                firmware_directory,
+                firmware_boot_enabled,
+                firmware_brazil_selected,
+                firmware_usa_selected,
+                firmware_europe_selected,
+                firmware_japan_selected,
+                firmware_korea_selected,
                 vdp_revision,
                 audio_volume,
                 dsp_config,
