@@ -1,6 +1,6 @@
 # F-023 — Matriz de famílias WZ/MEMPTR
 
-**Baseline examinada:** `2f72a6d94207cc78e5014363e72d16cf8806316a` (main após PRs #955–#957).
+**Baseline examinada:** `bb9e31bdf04099a4116d27836691f0b31ab8c8a8` (main após PRs #955–#962).
 **Perfil:** Zilog Z80 NMOS compartilhado; runtime temporal SMS; SG-1000 mantido como core de referência com execução em fronteiras de instrução.
 **Objetivo:** inventariar regras WZ/MEMPTR efetivamente implementadas, condições de atualização, wrap, observabilidade e proveniência dos testes. Esta matriz não atribui ao UM0080 regras que o fabricante não documenta.
 
@@ -40,8 +40,8 @@
 | BIT `(HL)` | WZ não é atualizado pelo CB register/memory handler; X/Y vêm do byte alto do WZ existente | WZ anterior permanece | Flags X/Y são a observação indireta | `z80_cb_exhaustive_semantics.rs` | INT; o valor auxiliar não é observável como registrador em hardware |
 | RRD/RLD | WZ = HL + 1 | Incremento de 16 bits; `FFFF → 0000` | WZ direto e subsequente BIT 0,(HL) observa X/Y | 262.144 vetores em `cpu.rs::ed_rrd_rld_exhaustive_nibble_transform_and_flag_contract`; 16.384 cenários observáveis RRD/RLD→BIT 0,(HL) (PR #934); 240 cenários micro com WAIT/snapshot em `ed_nibble_rotate_f023_observable.rs`; Woodmass test 09, linhas RLD `117F` e RRD `34AE` | HW para regra WZ=HL+1 no escopo do teste 09; INT para transformação/WAIT/snapshot; X/Y ainda COMP |
 | LDI/LDD/CPI/CPD simples | LDI/LDD preservam WZ; CPI/CPD atualizam WZ = WZ anterior ± 1 conforme direção | LDI/LDD: `WZ_old → WZ_old`; CPI/CPD: incrementa/decrementa WZ anterior com wrap 16-bit | Estado WZ diretamente | `cpu.rs::ed_block_simple_forms_exhaustively_preserve_flags_and_track_wz` (524.288 casos); PR #951 acrescenta WZ e previous-Q à matriz micro de 786.432 casos | INT; sem oracle físico independente para esta regra |
-| LDIR/LDDR/CPIR/CPDR quando repetem | WZ = PC após recuo + 1 | PC recua 2 bytes; WZ = PC+1 | WZ, flags/Q/previous-Q, IM2, PUSH AF/POP AF/EI/RETI e retomada | `z80_ed_block_repeat_interrupt_observation.rs` (32 casos atômicos); `sequencer.rs::repeat_im2_microsequencer_matrix_covers_all_pc_bc_and_q_boundaries` (64 cenários micro); `ed_block_transfer_repeat_interrupt_tests::block_transfer_and_compare_repeat_flags_are_observable_through_im2_and_resume` (4 formas com snapshot/restore em cada fronteira) | COMP + INT; matriz micro não é oracle independente, mas cobertura temporal/snapshot já existe |
-| LDIR/LDDR/CPIR/CPDR quando terminam | LDIR/LDDR preservam WZ; CPIR/CPDR atualizam WZ = WZ anterior ± 1 conforme direção | Transferências: `WZ_old → WZ_old`; comparações: incrementa/decrementa WZ anterior com wrap 16-bit | Estado WZ diretamente | `z80_ed_block_transfer_compare_boundaries.rs`; testes unitários em `cpu.rs`; integração Scheduler/replay das quatro formas em `snapshot_restore_e7_2e.rs` (PR #957) | INT; #957 comprova continuidade/restauração temporal, não oracle independente nem valor físico de WZ |
+| LDIR/LDDR/CPIR/CPDR quando repetem | WZ = PC após recuo + 1 | PC recua 2 bytes; WZ = PC+1 | WZ, flags/Q/previous-Q, IM2, PUSH AF/POP AF/EI/RETI e retomada | `z80_ed_block_repeat_interrupt_observation.rs` (32 casos atômicos); `sequencer.rs::repeat_im2_microsequencer_matrix_covers_all_pc_bc_and_q_boundaries` (64 cenários micro); `ed_block_transfer_repeat_interrupt_tests::block_transfer_and_compare_repeat_flags_are_observable_through_im2_and_resume` (4 formas com snapshot/restore em cada fronteira); `snapshot_restore_e7_2e.rs` (PR #962: WZ, Q/previous-Q, WAIT e replay no Scheduler) | COMP + INT; matriz micro não é oracle independente, mas cobertura temporal/snapshot já existe |
+| LDIR/LDDR/CPIR/CPDR quando terminam | LDIR/LDDR preservam WZ; CPIR/CPDR atualizam WZ = WZ anterior ± 1 conforme direção | Transferências: `WZ_old → WZ_old`; comparações: incrementa/decrementa WZ anterior com wrap 16-bit | Estado WZ diretamente | `z80_ed_block_transfer_compare_boundaries.rs`; testes unitários em `cpu.rs`; integração Scheduler/replay com assertions WZ/Q/previous-Q das quatro formas em `snapshot_restore_e7_2e.rs` (PR #962) | INT; #962 verifica WZ/Q/previous-Q na integração temporal, sem constituir oracle independente ou evidência física |
 | INI/IND/INIR/INDR/OUTI/OUTD/OTIR/OTDR | Repetindo: WZ = PC+1. Não repetindo: base é BC antigo para input e BC novo para output; WZ = base ± 1 | Wrap 16-bit; direção conforme IN/OUT e incremento/decremento | Estado WZ, portas e memória | `cpu.rs::execute_block_io`; `z80_ed_block_io_reference_vectors.rs`; relatório F-021 (390 B-loop records) | COMP: SingleStepTests é traduzido do Ares; não é oráculo físico. Manter F-021 separado de F-022 |
 | ED NEG, LD I/R, IM e ED reservados | WZ é preservado nos handlers que não o atualizam | `WZ_old → WZ_old` | Estado WZ após instrução | `z80_ed_neg_nibble_exhaustive.rs`; `z80_ed_special_registers_exhaustive.rs`; `ed_reserved_f033.rs` | INT; não generalizar codificações reservadas a CMOS/clones |
 
@@ -99,4 +99,42 @@ Estado atualizado:
 - F-023: AUDIT_PARTIAL — BASE EX (SP),HL já possui assertion integrada pela #955; permanecem revisão integral da matriz/proveniência e limitações de hardware.
 - F-028: IN_PROGRESS — 167 Ignored com estado/requests/WAIT/snapshot e caminhos condicionais; permanece a revisão adversarial e a validação independente de limites semânticos.
 - Temporalidade: evidência integrada SMS ampliada; WAIT físico/DMA permanecem fora da fatia temporal atual.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+## Atualização pós-merge PR #962 — 16/11/2026
+
+**Main de referência:** `bb9e31bdf04099a4116d27836691f0b31ab8c8a8`. PR #962 integrada; alteração somente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`.
+
+O teste `e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay` agora verifica, nas quatro formas LDIR/LDDR/CPIR/CPDR executadas pelo `SmsTemporalMachine`/MachineScheduler:
+- WZ=PC+1 na iteração repetitiva;
+- WZ preservado em LDIR/LDDR e atualizado em CPIR/CPDR na iteração terminal;
+- Q=F nas duas fronteiras de aposentadoria;
+- previous-Q carrega o Q da iteração repetitiva para a iteração final;
+- WAIT de fixture em cada request de barramento e snapshot/restore em cada safe point;
+- equivalência entre execução contínua e retomada por trace, estado completo e timestamp.
+
+Validação no HEAD exato da PR #962 (`316dba3ce1c435a96997f1d26ca98e88680fb0c5`):
+- CI #43901912692: Rust workspace regression PASS — validação de workspaces/lockfiles, rustfmt, Clippy, testes de workspace e feature runtime de observabilidade PASS.
+- SMS Debugger Runtime #43901912772: format, Clippy Release, testes SMS Runtime e build Release Windows x64 PASS.
+- Scheduler deterministic stress, Z80 focused e SMS debugger Windows Release: SKIPPED; não contar como PASS.
+- A tentativa anterior PR #961 falhou somente em rustfmt e foi encerrada como supersedida; a correção foi aplicada na PR #962 antes da validação final.
+- Workflow push pós-merge no SHA `bb9e31bdf04099a4116d27836691f0b31ab8c8a8`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+### Evidência Scheduler LONG no código atual
+
+A campanha opt-in LONG foi executada no workflow CI #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, branch da PR #960 baseada na main `f6ce78c8646964c9e0ff828587066c70a7165cbb`. A PR #960 era documental; o código de `machine_scheduler` era idêntico à base main e não foi alterado pela PR #962.
+- 16 seeds × 20.000 operações = 320.000 operações verificadas.
+- 16 seeds × 250.000 eventos = 4.000.000 dispatches verificados.
+- `fixed_seed_operation_sequences_match_across_codec_restores`: PASS.
+- `fixed_seed_stress_replay_survives_repeated_restores`: PASS.
+- Scheduler deterministic stress: LONG_PASS; Documentation patch hygiene e Rust quality/unit regression: PASS.
+- Os gates de Z80 focused, SMS, SDL3, CPAL, Slint/WGPU/Vulkan e demais caminhos não afetados foram SKIPPED nessa execução.
+
+Esse resultado é prova de determinismo/replay do Scheduler como software no código atual; não comprova sub-tick dispatch, safe points físicos de dispositivos, WAIT físico, DMA ou TEMPORAL_PASS.
+
+Estado vigente:
+- F-022: IN_PROGRESS — quatro formas repetitivas integradas ao Scheduler com WZ, Q/previous-Q, WAIT de fixture e snapshot/replay; falta a revisão adversarial e a combinação de interrupção durante repetição dentro da mesma máquina temporal.
+- F-023: AUDIT_PARTIAL — BASE EX (SP),HL e WZ terminal das quatro formas de bloco possuem assertions integradas; falta revisão integral da matriz/proveniência.
+- F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
+- Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.

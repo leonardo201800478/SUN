@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `2f72a6d94207cc78e5014363e72d16cf8806316a` (2026-11-16, após PRs #955–#957). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `bb9e31bdf04099a4116d27836691f0b31ab8c8a8` (2026-11-16, após PRs #955–#962). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -936,4 +936,42 @@ Estado atualizado:
 - F-023: AUDIT_PARTIAL — BASE EX (SP),HL já possui assertion integrada pela #955; permanecem revisão integral da matriz/proveniência e limitações de hardware.
 - F-028: IN_PROGRESS — 167 Ignored com estado/requests/WAIT/snapshot e caminhos condicionais; permanece a revisão adversarial e a validação independente de limites semânticos.
 - Temporalidade: evidência integrada SMS ampliada; WAIT físico/DMA permanecem fora da fatia temporal atual.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+## Atualização pós-merge PR #962 — 16/11/2026
+
+**Main de referência:** `bb9e31bdf04099a4116d27836691f0b31ab8c8a8`. PR #962 integrada; alteração somente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`.
+
+O teste `e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay` agora verifica, nas quatro formas LDIR/LDDR/CPIR/CPDR executadas pelo `SmsTemporalMachine`/MachineScheduler:
+- WZ=PC+1 na iteração repetitiva;
+- WZ preservado em LDIR/LDDR e atualizado em CPIR/CPDR na iteração terminal;
+- Q=F nas duas fronteiras de aposentadoria;
+- previous-Q carrega o Q da iteração repetitiva para a iteração final;
+- WAIT de fixture em cada request de barramento e snapshot/restore em cada safe point;
+- equivalência entre execução contínua e retomada por trace, estado completo e timestamp.
+
+Validação no HEAD exato da PR #962 (`316dba3ce1c435a96997f1d26ca98e88680fb0c5`):
+- CI #43901912692: Rust workspace regression PASS — validação de workspaces/lockfiles, rustfmt, Clippy, testes de workspace e feature runtime de observabilidade PASS.
+- SMS Debugger Runtime #43901912772: format, Clippy Release, testes SMS Runtime e build Release Windows x64 PASS.
+- Scheduler deterministic stress, Z80 focused e SMS debugger Windows Release: SKIPPED; não contar como PASS.
+- A tentativa anterior PR #961 falhou somente em rustfmt e foi encerrada como supersedida; a correção foi aplicada na PR #962 antes da validação final.
+- Workflow push pós-merge no SHA `bb9e31bdf04099a4116d27836691f0b31ab8c8a8`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+### Evidência Scheduler LONG no código atual
+
+A campanha opt-in LONG foi executada no workflow CI #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, branch da PR #960 baseada na main `f6ce78c8646964c9e0ff828587066c70a7165cbb`. A PR #960 era documental; o código de `machine_scheduler` era idêntico à base main e não foi alterado pela PR #962.
+- 16 seeds × 20.000 operações = 320.000 operações verificadas.
+- 16 seeds × 250.000 eventos = 4.000.000 dispatches verificados.
+- `fixed_seed_operation_sequences_match_across_codec_restores`: PASS.
+- `fixed_seed_stress_replay_survives_repeated_restores`: PASS.
+- Scheduler deterministic stress: LONG_PASS; Documentation patch hygiene e Rust quality/unit regression: PASS.
+- Os gates de Z80 focused, SMS, SDL3, CPAL, Slint/WGPU/Vulkan e demais caminhos não afetados foram SKIPPED nessa execução.
+
+Esse resultado é prova de determinismo/replay do Scheduler como software no código atual; não comprova sub-tick dispatch, safe points físicos de dispositivos, WAIT físico, DMA ou TEMPORAL_PASS.
+
+Estado vigente:
+- F-022: IN_PROGRESS — quatro formas repetitivas integradas ao Scheduler com WZ, Q/previous-Q, WAIT de fixture e snapshot/replay; falta a revisão adversarial e a combinação de interrupção durante repetição dentro da mesma máquina temporal.
+- F-023: AUDIT_PARTIAL — BASE EX (SP),HL e WZ terminal das quatro formas de bloco possuem assertions integradas; falta revisão integral da matriz/proveniência.
+- F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
+- Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
 - E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
