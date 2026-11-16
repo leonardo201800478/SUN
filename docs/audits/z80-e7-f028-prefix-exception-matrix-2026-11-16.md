@@ -1,5 +1,7 @@
 # E7 — matriz dirigida de exceções DD/FD — F-028
 
+> **Estado operacional vigente — 2026-11-16:** E7 `CLOSED_WITH_LIMITATIONS` para o perfil NMOS delimitado SMS/SG-1000. Os estados `IN_PROGRESS`, `BLOCKED` e os gates de revisão independente que aparecem no corpo são fotografias históricas da rodada original; a decisão supersedente ao final deste documento é a autoridade atual. E8/ZEXDOC/ZEXALL é complementar e não bloqueia SG-1000.
+
 **Data:** 2026-11-16
 **PR:** [#943](https://github.com/leonardo201800478/sega-emulator/pull/943) (Draft)
 **Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`
