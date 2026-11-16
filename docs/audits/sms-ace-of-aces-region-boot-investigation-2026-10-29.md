@@ -122,3 +122,12 @@ O DAT público No-Intro/libretro identifica **Ace of Aces (Europe, Brazil) (En)*
 O DAT reforça que a região de catálogo é Europe, mas não prova por si só o nibble do cabeçalho, a temporização exigida pelo dump local ou o motivo da tela preta. A hipótese regional permanece em aberto e deve ser testada isoladamente (Europe/PAL versus outros perfis), sem alterar simultaneamente mapper/boot.
 
 Esses dados são de catálogo, não hash local. O SHA-256 local, inspeção de cabeçalho, mapper efetivo e trace dos primeiros T-states continuam pendentes. A baseline `90036d8d` constrói a máquina temporal sem BIOS; a preferência de firmware do frontend ainda não executa BIOS. O próximo teste deve usar o mesmo dump em todas as configurações e registrar o perfil efetivamente entregue ao core.
+
+
+## Atualização — BIOS v1.3 e região do cabeçalho (2026-11-15)
+
+O disassembly público da BIOS US/Europe v1.3 confirma que o código `CheckRegion` extrai o nibble alto do byte `$0F` do cabeçalho TMR SEGA e aceita apenas `$40` (região 4 / SMS Export); em seguida compara o checksum. O DAT público classifica Ace of Aces (Europe, Brazil) como Europe, o que é compatível com essa exigência, mas não substitui a leitura do nibble do arquivo local.
+
+Assim, a hipótese de rejeição regional pela BIOS v1.3 não é a principal se o arquivo local corresponder ao DAT e tiver cabeçalho válido. Ainda é necessário calcular SHA-256 local, ler o cabeçalho em `$7FF0`, confirmar o mapper e reproduzir o boot. A baseline temporal atual não executa BIOS e, portanto, não aplica essa validação regional.
+
+Fonte do disassembly: https://github.com/maxim-zhao/smsbioses/blob/master/1.3/Bios13.asm
