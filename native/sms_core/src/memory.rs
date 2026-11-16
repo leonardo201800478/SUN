@@ -887,7 +887,7 @@ mod tests {
     fn memory_control_port_can_disable_and_reenable_work_ram() {
         let mut memory = SmsMemory::new(patterned_rom(1)).unwrap();
         memory.write(0xC000, 0x5A);
-        memory.write_control_port(0x18);
+        memory.write_control_port(0x98);
         assert_eq!(memory.read(0xC000), 0xFF);
         memory.write(0xC000, 0xA5);
         memory.write_control_port(0x08);
@@ -959,9 +959,9 @@ mod tests {
             SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_16K))
                 .unwrap();
 
-        // Port $3E bit 4 disables internal work RAM; bit 6 remains clear
-        // so the cartridge is connected.
-        memory.write_control_port(0x18);
+        // Port $3E bit 4 disables internal RAM; bits 7 and 5 keep
+        // expansion/card slots disabled while bit 6 selects the cartridge.
+        memory.write_control_port(0x98);
         memory.write(0xFFFC, 0x10);
         memory.write(0xC000, 0xA5);
         memory.write(0xDFFF, 0x5A);
@@ -983,7 +983,7 @@ mod tests {
     fn mapper_bit_four_high_window_mirrors_eight_kib_and_uses_lower_page_of_32k() {
         let mut eight_k =
             SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_8K)).unwrap();
-        eight_k.write_control_port(0x18);
+        eight_k.write_control_port(0x98);
         eight_k.write(0xFFFC, 0x10);
         eight_k.write(0xC123, 0x61);
         assert_eq!(eight_k.read(0xE123), 0x61);
@@ -991,7 +991,7 @@ mod tests {
         let mut thirty_two_k =
             SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_32K))
                 .unwrap();
-        thirty_two_k.write_control_port(0x18);
+        thirty_two_k.write_control_port(0x98);
         thirty_two_k.write(0xFFFC, 0x1C);
         thirty_two_k.write(0xC000, 0x11);
         thirty_two_k.write(0x8000, 0x22);
@@ -1011,7 +1011,7 @@ mod tests {
         let mut memory =
             SmsMemory::with_cartridge_sram_size(patterned_rom(4), Some(CARTRIDGE_SRAM_16K))
                 .unwrap();
-        memory.write_control_port(0x18);
+        memory.write_control_port(0x98);
 
         memory.write(0xFFFC, 0x10);
         memory.write(0xFFFD, 0x23);
@@ -1040,7 +1040,7 @@ mod tests {
             "enabled internal RAM has priority"
         );
 
-        memory.write_control_port(0x58);
+        memory.write_control_port(0xD8);
         assert_eq!(
             memory.read(0xC000),
             0xFF,
