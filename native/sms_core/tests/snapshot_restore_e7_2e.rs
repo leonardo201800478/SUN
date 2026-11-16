@@ -132,7 +132,7 @@ fn run_boundary_with_repeat_interrupt(
                         ..
                     }
                 ) {
-                    // Assert level-sensitive INT immediately before the final
+                    // Latch the selected interrupt immediately before the final
                     // repeat T-state; the signal change itself consumes no time.
                     match interrupt {
                         RepeatInterruptSignal::Int(vector) => machine.set_int_line(Some(vector)),
