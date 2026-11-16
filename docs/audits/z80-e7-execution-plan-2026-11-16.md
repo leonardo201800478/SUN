@@ -187,3 +187,7 @@ A integração #955 não substitui regressão integrada no HEAD final da main ne
 ## Correção de evidência pós-merge — 16/11/2026
 
 A PR #955 foi validada também na main: CI push #43898370234 e SMS Debugger Runtime #43898370419 COMPLETED SUCCESS no merge `67f4149e1933d18ffa5201da66ca6ff46c598e32`. A PR #956 atualizou os documentos no SHA `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`; seu CI push #43899020946 validou apenas higiene documental e Rust quality/unit, enquanto Z80/workspace/runtime foram SKIPPED. Não usar esse run como prova de runtime na main atual.
+
+## Addendum de integração temporal F-022 — PR #957
+
+PR #957 integrada em `2f72a6d94207cc78e5014363e72d16cf8806316a`: LDIR/LDDR/CPIR/CPDR executados via SmsTemporalMachine/MachineScheduler com WAIT em cada request, snapshot/restore em safe points de barramento e ciclo interno, e comparação de estado/tempo/trace com execução contínua. CI #43899876697 e SMS Runtime #43899876806 SUCCESS no HEAD testado; pós-merge CI #43900377071 e SMS Runtime #43900376933 SUCCESS. Scheduler deterministic stress e Z80 focused SKIPPED por classificação, não PASS. A evidência cobre quatro formas, não todas as oito; F-022 permanece IN_PROGRESS e a revisão independente continua pendente.
