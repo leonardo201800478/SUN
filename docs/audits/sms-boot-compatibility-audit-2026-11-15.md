@@ -155,7 +155,7 @@ LoadState -> valida versão/ROM/região/perfil -> SmsTemporalMachine::restore_st
 | VDP status/address/latches | zero; controle sem primeiro byte pendente | Inicialização do código |
 | VDP raster | scanline 0, T-state 0, frame 0; IRQ pendente false | Inicialização do código |
 | VDP VC/H latch | latch VC = 0; latch HC = 0 | Estado inicial interno, não medida após execução |
-| PSG | tone periods `[0,0,0]`; attenuation `[15,15,15,15]`; noise control/latch zero; SMS LFSR seed `$8000`; contadores/fases zerados (noise counter resetado para `$10`) | Inicialização do core PSG |
+| PSG | tone periods `[0,0,0]`; attenuation `[15,15,15,15]`; noise control/latch zero; SMS LFSR seed `$8000`; tone counters `[1,1,1]`; outputs `[1,1,1]`; noise counter resetado para `$10` | Inicialização do core PSG; registradores iniciais coincidem com a observação de Sega integrated PSG, fase interna parcialmente não documentada |
 | I/O | control `$FF`; TH externos altos; entradas padrão | Inicialização do código |
 | Scheduler | tempo inicial zero; domínios Z80/PSG/VDP registrados | Inicialização do código |
 
@@ -163,9 +163,17 @@ LoadState -> valida versão/ROM/região/perfil -> SmsTemporalMachine::restore_st
 
 O projeto trata os bits do latch como ativos em nível baixo. `$AB` seleciona o perfil de cartucho sem BIOS: BIOS desabilitada, cartucho habilitado e RAM interna habilitada. `$E0` é o perfil escolhido no construtor de memória com BIOS: BIOS e RAM habilitadas, cartucho/card/expansão desabilitados.
 
-O valor `$E0` aparece no código com referência a SMS Plus GX e notas de Charles MacDonald. Não deve ser promovido a valor universal de todo modelo SMS sem validação adicional.
+O valor `$E0` aparece no código com referência a SMS Plus GX e notas de Charles MacDonald. Os bits conhecidos de slot/RAM/BIOS coincidem com a descrição de BIOS habilitada, RAM habilitada e slots externos desabilitados; os bits 1–0 são desconhecidos. Portanto, `$E0` é um perfil plausível, não prova do byte físico exato em todas as revisões. O valor `$AB` é o perfil de cartucho habilitado escolhido pelo emulador, não a execução do boot ROM.
 
-### 3.2 Mapper — limite importante da detecção atual
+A BIOS v1.3 documentada também grava o último valor escrito em `$3E` no primeiro byte da RAM (`$C000`). Na baseline sem BIOS, `work_ram` começa zerada e esse efeito não ocorre. Esse é mais um efeito pós-BIOS ausente no atalho de boot direto; não se deve copiar `$AB` para `$C000` sem uma política explícita ou execução real da BIOS.
+
+### 3.2 PSG — o que é sustentado e o que continua em aberto
+
+A documentação SMS Power sobre SN76489 relata que versões integradas Sega iniciam registradores de tom/ruído em zero e registradores de volume em um (silêncio); chips discretos podem apresentar valores iniciais aleatórios. Os registradores `tone_periods=[0;3]`, `noise_control=0` e `attenuations=[15;4]` do core atual são coerentes com a variante integrada Sega. Isso não determina a fase exata dos contadores internos ou o estado de cada bit do LFSR no instante de power-on.
+
+Há uma divergência interna de especificação: o arquivo de especificação de áudio anexado descreve `tone_counters=[0;3]`, enquanto `Sn76489Core::reset_inner()` na main define `[1;3]`. A referência SMS Power consultada não resolve essa fase interna. Registrar como discrepância pendente; não alterar PSG nesta frente sem teste de hardware ou evidência temporal independente.
+
+### 3.3 Mapper — limite importante da detecção atual
 
 `detect_mapper` reconhece Codemasters por uma assinatura estreita no cabeçalho em `$7FE0`. Reconhece o perfil SegaExtended para ROMs acima de 1 MiB com cabeçalho TMR SEGA; **qualquer outro caso cai para MapperKind::Sega**.
 
