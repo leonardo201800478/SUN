@@ -89,7 +89,7 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 
 Essas SHAs são fotografias da auditoria de 2026-11-16; sempre consultar o estado remoto antes de executar a próxima tarefa.
 
- 
+
 ### PR #944 — matriz IM2 do microsequenciador
 - Branch: `test/z80-f022-repeat-microseq-matrix-20261116`
 - HEAD: `c88739b6f027e62dfc28f4379bbafc633bbab7ed`
