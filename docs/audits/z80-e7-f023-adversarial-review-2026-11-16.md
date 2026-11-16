@@ -62,7 +62,7 @@ Os resultados acima são vinculados aos respectivos HEADs. Não se declara workf
 
 ## 5. Decisão
 
-**F-023: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE.** A revisão interna da matriz está concluída; o fechamento formal depende da validação da PR #977 e de revisão independente registrada.
+**F-023: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE.** A revisão interna da matriz está concluída; o fechamento formal depende de revisão independente registrada; a cobertura técnica PR #977 passou no HEAD 35a9028.
 
 O fechamento significa que as famílias modeladas possuem regra, condição, wrap, observabilidade e teste rastreável, com proveniência classificada sem extrapolação. Não significa medição física individual de todas as regras internas nem conformidade universal de variantes/clones.
 
