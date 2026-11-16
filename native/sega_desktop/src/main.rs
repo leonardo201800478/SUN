@@ -2982,13 +2982,13 @@ mod windows_host {
             );
         }
 
-        let preference =
-            SmsRegionPreference::parse(&settings.region).map_err(str::to_owned)?;
+        let preference = SmsRegionPreference::parse(&settings.region).map_err(str::to_owned)?;
         let region = match preference {
             SmsRegionPreference::Manual(region) => region,
             SmsRegionPreference::Automatic => {
-                let cartridge_catalog = CartridgeCatalog::sms_default()
-                    .map_err(|error| format!("não foi possível resolver a região do cartucho: {error}"))?;
+                let cartridge_catalog = CartridgeCatalog::sms_default().map_err(|error| {
+                    format!("não foi possível resolver a região do cartucho: {error}")
+                })?;
                 resolve_sms_region(preference, rom, &cartridge_catalog).region
             }
         };
@@ -3036,7 +3036,9 @@ mod windows_host {
 
         let entries = catalog
             .scan_directory(&settings.firmware_directory)
-            .map_err(|error| format!("não foi possível revalidar o diretório de firmware: {error}"))?;
+            .map_err(|error| {
+                format!("não foi possível revalidar o diretório de firmware: {error}")
+            })?;
         let entry = entries
             .iter()
             .find(|entry| {
@@ -3441,17 +3443,17 @@ mod windows_host {
                         app.get_selected_region().to_string(),
                         app.get_selected_system().to_string(),
                         app.get_sprite_limit_enabled(),
-                            effective_audio_volume(
-                                app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
-                                app.get_audio_muted(),
-                            ),
-                            audio_dsp_config(
-                                app.get_audio_dsp_preset(),
-                                app.get_audio_hpf_enabled(),
-                                f64::from(app.get_audio_hpf_cutoff().round() as u16),
-                                app.get_audio_lpf_enabled(),
-                                f64::from(app.get_audio_lpf_cutoff().round() as u16),
-                            ),
+                        effective_audio_volume(
+                            app.get_audio_volume().round().clamp(0.0, 100.0) as u8,
+                            app.get_audio_muted(),
+                        ),
+                        audio_dsp_config(
+                            app.get_audio_dsp_preset(),
+                            app.get_audio_hpf_enabled(),
+                            f64::from(app.get_audio_hpf_cutoff().round() as u16),
+                            app.get_audio_lpf_enabled(),
+                            f64::from(app.get_audio_lpf_cutoff().round() as u16),
+                        ),
                         app.get_audio_renderer_mode().to_string(),
                         app.get_firmware_directory().to_string(),
                         app.get_firmware_boot_enabled(),
@@ -4668,9 +4670,11 @@ mod windows_host {
                 renderer_mode: "psg".to_owned(),
             };
 
-            assert!(load_selected_sms_bios(&[0; 0x4000], &settings)
-                .unwrap()
-                .is_none());
+            assert!(
+                load_selected_sms_bios(&[0; 0x4000], &settings)
+                    .unwrap()
+                    .is_none()
+            );
         }
 
         #[test]
