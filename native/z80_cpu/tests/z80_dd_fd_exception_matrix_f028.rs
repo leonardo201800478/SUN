@@ -351,6 +351,7 @@ fn execute_prefixed_nop_with_interrupt_pending(nmi: bool) -> (Z80MicroSequencer,
     let mut cpu = Z80MicroSequencer::default();
     cpu.registers.pc = START_PC;
     cpu.registers.sp = 0xC100;
+    cpu.refresh = INITIAL_R;
     cpu.iff1 = true;
     cpu.iff2 = true;
     cpu.interrupt_mode = 1;
@@ -405,7 +406,7 @@ fn nmi_latched_between_dd_fd_prefixes_is_serviced_after_terminal_opcode() {
         }
     );
     assert_eq!(cpu.registers.pc, START_PC.wrapping_add(3));
-    assert_eq!(cpu.r & 0x7F, increment_refresh_by(INITIAL_R, 3) & 0x7F);
+    assert_eq!(cpu.refresh, increment_refresh_by(INITIAL_R, 3));
     assert!(cpu.nmi_pending, "NMI remains latched through the full prefix chain");
     assert!(cpu.iff1, "NMI is not accepted in the middle of the instruction");
 
