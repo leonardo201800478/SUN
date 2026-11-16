@@ -41,8 +41,8 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 
 ### P1 — consolidar F-023 (RRD/RLD e WZ/MEMPTR)
 
-1. Inspecionar o resultado textual do Woodmass test 09 e localizar as linhas/células que correspondem a RLD e RRD.
-2. Confirmar se o harness atual compara esses resultados individualmente ou apenas por FNV-1 global, dimensões de tela e T-states. Se apenas agregado, adicionar parsing/assertions específicos sem enfraquecer a verificação global.
+1. **Concluído:** output do Woodmass test 09 extraído do CI #43870800175; linhas identificadas: RLD = `117F passed`, RRD = `34AE passed`. Esses quatro dígitos são assinaturas de resultado da suíte, não valores literais de WZ.
+2. **Concluído no código candidato:** o harness agora exige individualmente as duas linhas, incluindo os bytes de controle TAB/INK/PAPER, preservando FNV-1, dimensões, HALT e T-states. O teste explícito passou 1/1 no CI #43871236879, HEAD `df015e8c39e23d7d36da7076ef544e1892cff6a8`. O job SMS Runtime deste HEAD ainda estava em execução no momento da atualização.
 3. Construir uma matriz de RRD/RLD por A, (HL), carry, WZ inicial, wrap de HL, e fronteiras WAIT/snapshot; manter a matriz atômica de 262.144 casos e os 240 casos microsequenciados existentes.
 4. Separar UM0080 (flags documentadas e timing), Woodmass/NEC hardware-derived (MEMPTR), e referências MAME/ares (comparação de implementação). Não transformar X/Y não documentados em requisitos primários sem fonte adequada.
 5. **Fonte complementar identificada:** Patrik Rak, raxoft/z80test, commit `c490c0ca94f1021509f8bd656b413861bd7cfb41`. O README afirma que os programas comparam resultados com um ZX Spectrum 48K real com Zilog Z80; a variante `z80memptr` executa BIT N,(HL) após cada instrução e o arquivo `src/tests.asm` inclui explicitamente RLD e RRD. O próprio autor alerta que os vetores atuais não foram desenhados especificamente para estressar MEMPTR e podem deixar muitos defeitos sem detecção. Tratar como evidência hardware-derived complementar, não como oracle específico suficiente. Antes de integrar, validar versão/artefato TAP, licença, hash e extrair o resultado por instrução.
