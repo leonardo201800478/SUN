@@ -421,7 +421,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
         if block_delay_summary.is_empty() && &bus.memory[0x8900..0x8904] == b"OTIR" {
-            if opcode[0] == 0xED && opcode[1] == 0xB0 && block_delay_loop.is_none() {
+            if opcode[0] == 0xED && opcode[1] == 0xB0 && cpu.registers.bc() > 100 && block_delay_loop.is_none() {
                 let frame_edge = pulse_end
                     .map(|end| end.saturating_sub(32))
                     .unwrap_or(next_interrupt);
