@@ -550,3 +550,13 @@ As nove cadeias DD/FD cobrem prefixo único, repetido e alternado, até quatro b
 A PR #935 já cobria os três opcodes de troca com um único DD ou FD. Esta matriz amplia a cobertura para cadeias repetidas/alternadas, HALT e ED NEG, mas continua sendo uma seleção dirigida, não todos os 256 opcodes DD/FD. A comparação atomic↔micro é consistência interna, não oracle independente de silício.
 
 **Classificação:** as exceções cobertas por esta matriz estão PASS no HEAD da PR #943 (Draft). F-028 permanece AUDIT_PARTIAL até fechar a matriz integral de exceções e interações DD/FD, sem reabrir E4A/E4B. E7 IN_PROGRESS; E8 BLOCKED. Nenhuma alteração de runtime/CPU.
+
+## 32. Fechamento dos testes focados F-022/F-023/F-028 — 2026-11-16
+
+Auditoria consolidada: [z80-e7-current-status-2026-11-16.md](audits/z80-e7-current-status-2026-11-16.md).
+
+- **F-022 / PR #936:** HEAD 306db2a91ff796b4c5f66eabc4ebd4c4baad903e; CI #43852582196 e SMS Runtime #43852582229 SUCCESS. ROM v5.0 1/1 PASS em 6,50 s; ≥60 comparações principais; 390 B-loop records em seis grupos; B = 0x0D + 3*i e flags exatas. SingleStepTests DD/FD: 34.000/34.000 PASS. A ROM é não exaustiva; F-022 AUDIT_PARTIAL.
+- **F-023 / PR #942:** código validado 7402ff138ced95da2d8b9e0008919c8cd22484f1; CI #43851550529 e SMS Runtime #43851550520 SUCCESS. Woodmass MEMPTR test 09: HALT 0x80E6, 50.904.931 T-states, FNV-1 F5AE5140, 61 linhas, 32 colunas. WZ/X/Y para outras famílias e timing restante ainda pendentes; F-023 AUDIT_PARTIAL.
+- **F-028 / PR #943:** HEAD de código validado 98c1cf41587f6af66c3d272e4b07a638d5da7919; CI #43859000666 e SMS Runtime #43859000676 SUCCESS. A matriz contém 108 combinações prefixadas por executor: nove cadeias DD/FD aplicadas a EX AF/EXX/EX DE-HL, HALT, ED NEG, NOP, DAA, CPL, SCF, CCF, DI e EI. Atomic/micro, WAIT e snapshot/restore; quatro testes PASS. O fixture SCF/CCF foi corrigido para controlar Q inicial (a CPU copia Q para previous-Q no início da instrução; o caminho indexado limpa previous-Q conforme NMOS). Nenhuma alteração de produção. Matriz não cobre todos os 256 opcodes; F-028 AUDIT_PARTIAL.
+
+E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. PRs #936/#942/#943 permanecem Draft e não foram mescladas nesta rodada.
