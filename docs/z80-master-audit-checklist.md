@@ -723,5 +723,8 @@ A ausência de review no GitHub não prova que não houve inspeção fora do rep
 - [x] PR #952 integrada: matriz WZ/MEMPTR por família e classificação de proveniência; Documentation patch hygiene e Rust quality PASS no CI #43890997152.
 - [x] PR #953: ambos os resultados condicionais e PC final exato para os 167 Ignored sob DD/FD; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
 - [ ] PR #954: WZ de IN/OUT imediato, RETN/RETI, IM0 RST e preservação IM1; aguardar CI e revisar a proveniência.
-- [ ] Fechar gaps F-023 em control flow, IN/OUT imediato, IM2 e retomada temporal de bloco.
+- [ ] PR #954: IN/OUT imediato, WZ de RETN/RETI/RST e preservação de WZ em IM0/IM1; aguardar CI.
+- [x] Control flow WZ: condições tomadas/não tomadas e wrap em `z80_conditional_control_flow_coverage.rs`.
+- [x] IM2 WZ: PC vetorial observado em `snapshot_restore_e7_2e.rs`.
+- [x] Block repeat WZ: 64 cenários microsequenciados e quatro formas com snapshot/restore em cada fronteira.
 - [ ] Revalidar gates e documentação no HEAD final da main antes de declarar E7 CLOSED.
