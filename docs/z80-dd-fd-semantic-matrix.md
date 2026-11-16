@@ -508,6 +508,26 @@ Main `f0cfc7b9df1834ae8ad418c6241702e9003f072e`. A PR #718 fechou F-025 (RETN/RE
 - CI no HEAD exato: [43819970660](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819970660) PASS; SMS Runtime [43819971679](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819971679) PASS.
 - A PR alterou somente testes. Não modificou decoder, handlers, microsequenciador ou runtime.
 
-**Classificação:** três exceções de troca ficam cobertas por regressão direcionada; F-028 permanece AUDIT_PARTIAL até a reconciliação de todas as exceções, prefixos, HALT, PC/R, flags e efeitos arquiteturais. Os 34.000 vetores SingleStepTests DD/FD permanecem comprovados somente no HEAD da PR #692 e não foram reexecutados no baseline `bf7e7584`.
+**Classificação:** três exceções de troca ficam cobertas por regressão direcionada; F-028 permanece AUDIT_PARTIAL até a reconciliação de todas as exceções, prefixos, HALT, PC/R, flags e efeitos arquiteturais. Esta nota descreve o estado documental anterior às execuções posteriores das PRs #930/#934/#935. A proveniência atualizada consta na seção 30.
 
 PR #934 acrescentou testes MEMPTR para RRD/RLD, mas não altera esta matriz DD/FD; consulte a seção 45 do scorecard Z80. E7 permanece IN_PROGRESS e E8 permanece BLOCKED.
+
+
+## 30. Proveniência atualizada dos vetores SingleStepTests DD/FD — 2026-11-16
+
+**Main documental consultada:** `5f24e22f2c49512ea43fa24ea25f836464d70f61`.
+**Baseline de código Z80:** `bf7e7584df421000d040a3ee057799a75bfeb3eb`; a PR #939 alterou somente scorecard e esta matriz.
+
+Os 34.000 vetores foram executados e aprovados em workflows posteriores à PR #692:
+
+| PR | HEAD validado | Run / job Z80 focused | Resultado |
+|---|---|---|---|
+| #930 | `c96d39f2a7c3f53a44a44c425f3d34b459eb0a81` | [43815302707](https://github.com/leonardo201800478/sega-emulator/actions/runs/43815302707) / 133125928882 | PASS |
+| #934 | `75f897c1fb8270bcc22ea1ff0274bc7dc11c0d58` | [43818081949](https://github.com/leonardo201800478/sega-emulator/actions/runs/43818081949) / 133134775584 | PASS |
+| #935 | `6e665fe08fa1a32f4b45b42ab78224881b53734a` | [43819970660](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819970660) / 133140618874 | PASS |
+
+Em cada execução, o log registra o comando explícito com `--ignored`, executando os dois testes do corpus SingleStepTests pinado. Assim, o último HEAD de código Z80 com 34.000/34.000 comprovados é o HEAD validado da PR #935.
+
+**Limite:** o CI da main documental `5f24e22...`, run [43831038791](https://github.com/leonardo201800478/sega-emulator/actions/runs/43831038791), marcou Z80 focused como SKIPPED. Para a main atual, a classificação é **NOT RUN**. Os resultados das PRs não são transferidos para essa SHA.
+
+F-028 permanece AUDIT_PARTIAL: os vetores cobrem o corpus validado, mas não substituem a auditoria integral de DD/FD, exceções, prefixos, HALT, PC/R, flags, Q/previous-Q e efeitos arquiteturais. E7 IN_PROGRESS; E8 BLOCKED.

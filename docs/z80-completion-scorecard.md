@@ -726,3 +726,48 @@ As seções 43 e 44 preservam a evidência já registrada para PR #929 (NMI dura
 - Os 34.000 vetores SingleStepTests DD/FD continuam vinculados somente ao HEAD validado da PR #692; não foram reexecutados no baseline atual.
 - PRs #937 (áudio) e #938 (catálogo de ROMs) não alteraram o núcleo Z80. O CI pós-merge da main `bf7e7584` passou em [43822939548](https://github.com/leonardo201800478/sega-emulator/actions/runs/43822939548), mas os jobs Z80 não foram executados por classificação de impacto.
 - **E8/ZEXDOC/ZEXALL permanece BLOCKED.** Não iniciar E8 antes do fechamento demonstrável de E7.
+
+
+## 46. Reconciliação de baseline, SingleStepTests e diagnóstico ROM v5.0 — 2026-11-16
+
+**Main documental consultada:** `5f24e22f2c49512ea43fa24ea25f836464d70f61`.
+
+**Baseline de código Z80:** `bf7e7584df421000d040a3ee057799a75bfeb3eb`. A comparação entre essas SHAs mostra somente alterações em `docs/z80-completion-scorecard.md` e `docs/z80-dd-fd-semantic-matrix.md`; a PR #939 foi documental e não alterou o código Z80. Portanto, a baseline documental atual e a baseline de código validado devem ser registradas separadamente.
+
+### SingleStepTests Z80 DD/FD — proveniência corrigida
+
+Os 34.000 vetores externos não foram comprovados exclusivamente na PR #692. A execução explícita do harness com o checkout fixado `vendor/SingleStepTests-z80/v1` foi repetida em HEADs posteriores:
+
+| PR | HEAD validado | Run CI / job Z80 focused | Resultado |
+|---|---|---|---|
+| #930 | `c96d39f2a7c3f53a44a44c425f3d34b459eb0a81` | [43815302707](https://github.com/leonardo201800478/sega-emulator/actions/runs/43815302707) / 133125928882 | PASS |
+| #934 | `75f897c1fb8270bcc22ea1ff0274bc7dc11c0d58` | [43818081949](https://github.com/leonardo201800478/sega-emulator/actions/runs/43818081949) / 133134775584 | PASS |
+| #935 | `6e665fe08fa1a32f4b45b42ab78224881b53734a` | [43819970660](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819970660) / 133140618874 | PASS |
+
+Os logs de cada job mostram a invocação explícita de `cargo test --release --locked -p sega-z80-cpu --test singlestep_indexed_alu -- --ignored`, com os dois testes de corpus executados e aprovados. O último HEAD de código Z80 com a evidência de 34.000/34.000 é o HEAD validado da PR #935, `6e665fe...`; isso não transfere PASS para a main documental `5f24e22...`.
+
+No CI da main [43831038791](https://github.com/leonardo201800478/sega-emulator/actions/runs/43831038791), o job Z80 focused (job 133176280039) ficou **SKIPPED**. Classificação para a main atual: **NOT RUN**, não PASS. As regressões de workspace também ficaram SKIPPED nesse run.
+
+### F-022 — execução ROM v5.0 e diagnóstico temporal
+
+A tentativa inicial registrada na seção 45 excedeu 50.000.000 T-states durante LDIR, sem retornar ao chamador. Essa execução foi FAIL/timeout e não pode ser promovida a aprovação.
+
+Uma revisão instrumentada posterior, HEAD `adaa349366ccda210faacecb0ce9a93031bc0c78`, executou a ROM até o B-loop e falhou na asserção: B obtido 13, esperado 15. CI [43839665389](https://github.com/leonardo201800478/sega-emulator/actions/runs/43839665389), job Z80 focused 133205064133. O trace válido dessa execução registrou:
+- início do OTIR em T-state 11.112.138, PC=800E, BC=10FE;
+- borda de INT em T-state 11.112.192, delta de 54T em relação ao início;
+- iterações OTIR subsequentes em intervalos de 21T;
+- aceite de INT em T-state 11.112.201, PC=800E, BC=0DFE, após três decrementos de B.
+
+O resultado confirma uma divergência de fase observável no harness/execução da ROM, mas não isola sua causa. Não conclui se o orçamento de preparação LDIR, o overhead da rotina, a fase do pulso INT/IM2 ou o accounting do executor é responsável. Não aplicar compensação fixa de 42T nem alterar a CPU sem medir o caminho de preparação completo.
+
+Uma instrumentação adicional do LDIR de calibração foi adicionada em `e0c4cadd443c5fd61717cfda07c386a4bcc4be0d`; esse HEAD falhou antes da execução por `clippy::collapsible_if`. A correção mínima foi aplicada em `4ca567c13f1ca95d84a8ff3a8143775a53a3f6c7`, cujo teste executou, mas o primeiro trace encerrou incorretamente na entrada do handler IM2: PC mudou enquanto BC ainda era `33CD`, logo o LDIR estava suspenso e não concluído. A amostra parcial foi `start_t=10627312`, `end_t=10692893`, `elapsed=65581`, `start_bc=3FFF`, `end_bc=33CD`, com borda de frame em `10692864`. A lógica foi corrigida em `bdc7eb73f1a03e5d5a59e0cfce99e2fe6a404e1c` para continuar através do handler/RETI. O novo trace registrou `elapsed=65871`, `BC=3FFF→0000`, `PC=8051→8595`, nominal calculado 344.038T. A amostra ainda era inválida: `PC=8051 / BC=3FFF` identifica o LDIR principal de preenchimento, mas `PC=8595 / BC=0000` corresponde ao LDIR curto executado dentro do próprio handler IM2 (`push AF,HL,DE,BC; ... LDIR; pop BC,DE,HL,AF; EI; RET`). O trace confundiu a saída do handler com a conclusão do LDIR interrompido. Portanto, não há medição válida da duração total do LDIR nem evidência de undercount do core. O HEAD `a0f50a28c4615c779cca0407126115b56d3b3931` adicionou amostras por instrução; a correção seguinte `5081a293f1cc664f4fef0bb330a904990995e4d7` exige observar o retorno ao PC do LDIR após o desvio e só então aceitar sua saída com BC=0. CI pendente. O limite atual de 80M T-states já estava presente no harness antes desta reconciliação; não foi aumentado nesta investigação e não é considerado correção do problema.
+
+### Estado E7 e escopo de hardware
+
+- F-022: **AUDIT_PARTIAL** — matriz microsequenciada de 786.432 casos registrada na seção 43; execução ROM v5.0 tentada, com timeout inicial e falha funcional posterior instrumentada; causa-raiz temporal ainda aberta.
+- F-023: **AUDIT_PARTIAL** — os 16.384 cenários atômicos e 240 microsequenciados não substituem a suíte independente MEMPTR/WZ; o TAP de Mark Woodmass não foi recuperado/executado.
+- F-028: **AUDIT_PARTIAL** — 34.000 vetores DD/FD PASS em três HEADs de PR posteriores, mas sem reexecução na main atual e sem fechamento das exceções/interações residuais.
+- O checklist mestre deve classificar individualmente cada requisito como CLOSED, NOT_APPLICABLE com justificativa ou pendente; SKIPPED permanece NOT RUN.
+- O escopo de fechamento de software permanece o perfil Zilog NMOS clássico SMS/SG-1000 declarado no projeto. Validação física de silício, variantes CMOS e clones não são gates universais automáticos; devem permanecer explicitamente NOT_VERIFIED quando não executados.
+
+**Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Esta reconciliação documental não altera o runtime nem fecha F-022/F-023/F-028.
