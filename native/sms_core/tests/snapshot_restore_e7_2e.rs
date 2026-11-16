@@ -409,22 +409,23 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
     // MachineScheduler, with one WAIT on every bus request and a machine/CPU
     // snapshot round-trip at every bus and internal-cycle safe point.
     let cases = [
-        // opcode, initial HL, initial DE, initial F, expected HL, expected DE
+        // opcode, initial HL, initial DE, initial F, expected HL, expected DE, final WZ
         (
-            0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16,
+            0xB0_u8, 0x0100_u16, 0xC000_u16, 0xC1_u8, 0x0102_u16, 0xC002_u16, 0x0001_u16,
         ),
         (
-            0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16,
+            0xB8_u8, 0x0101_u16, 0xC001_u16, 0xC1_u8, 0x00FF_u16, 0xBFFF_u16, 0x0001_u16,
         ),
         (
-            0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16,
+            0xB1_u8, 0x0100_u16, 0xC000_u16, 0x01_u8, 0x0102_u16, 0xC000_u16, 0x0002_u16,
         ),
         (
-            0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16,
+            0xB9_u8, 0x0101_u16, 0xC001_u16, 0x01_u8, 0x00FF_u16, 0xC001_u16, 0x0000_u16,
         ),
     ];
 
-    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de) in cases {
+    for (opcode, initial_hl, initial_de, initial_f, expected_hl, expected_de, expected_wz) in cases
+    {
         let mut rom = vec![0; 0x4000];
         rom[0] = 0xED;
         rom[1] = opcode;
@@ -459,6 +460,13 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
             1,
             "ED {opcode:02X}: first BC"
         );
+        assert_eq!(continuous.cpu().wz, 1, "ED {opcode:02X}: repeat WZ");
+        assert_eq!(
+            continuous.cpu().q,
+            continuous.cpu().registers.f,
+            "ED {opcode:02X}: repeat Q"
+        );
+        let repeat_q = continuous.cpu().q;
         let direction = if matches!(opcode, 0xB8 | 0xB9) { -1 } else { 1 };
         assert_eq!(
             continuous.cpu().registers.hl(),
@@ -491,6 +499,21 @@ fn e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay() {
             continuous.cpu().registers.de(),
             expected_de,
             "ED {opcode:02X}: final DE"
+        );
+        assert_eq!(
+            continuous.cpu().wz,
+            expected_wz,
+            "ED {opcode:02X}: final WZ"
+        );
+        assert_eq!(
+            continuous.cpu().q_previous,
+            repeat_q,
+            "ED {opcode:02X}: previous-Q after resumed iteration"
+        );
+        assert_eq!(
+            continuous.cpu().q,
+            continuous.cpu().registers.f,
+            "ED {opcode:02X}: final Q"
         );
         assert_eq!(continuous.export_state(), resumed.export_state());
         assert_eq!(continuous.now(), resumed.now());
