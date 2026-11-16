@@ -1,5 +1,7 @@
 # Z80 E7 — revisão adversarial F-022 (Block Transfer/Compare)
 
+> **Estado operacional vigente — 2026-11-16:** E7 `CLOSED_WITH_LIMITATIONS` para o perfil NMOS delimitado SMS/SG-1000. Os estados `IN_PROGRESS`, `BLOCKED` e os gates de revisão independente que aparecem no corpo são fotografias históricas da rodada original; a decisão supersedente ao final deste documento é a autoridade atual. E8/ZEXDOC/ZEXALL é complementar e não bloqueia SG-1000.
+
 **Data:** 2026-11-16
 **Main de referência:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
 **Perfil:** Zilog Z80 NMOS clássico, escopo SMS/SG-1000.
