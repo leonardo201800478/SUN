@@ -245,7 +245,7 @@ impl SmsMemory {
 
     #[inline]
     fn cartridge_slot_selected(&self) -> bool {
-        // Card has priority over cartridge on BIOS-using SMS hardware.
+        // Card has priority over cartridge on BIOS-using SMS1 hardware.
         self.control_port & 0x20 != 0 && self.control_port & 0x40 == 0
     }
 
@@ -284,7 +284,7 @@ impl SmsMemory {
     #[inline]
     pub fn read(&self, address: u16) -> u8 {
         if address <= 0xBFFF {
-            // The card slot is checked before the cartridge on BIOS-using SMS
+            // The card slot is checked before the cartridge on BIOS-using SMS1
             // hardware. Card and expansion devices are not implemented here,
             // so an enabled unsupported slot reads as open bus.
             if self.control_port & 0x20 == 0 {
