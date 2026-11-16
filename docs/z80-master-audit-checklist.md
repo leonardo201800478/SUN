@@ -811,7 +811,7 @@ Estado vigente:
 - [x] CI #43903631872: Rust workspace regression e Rust quality/unit PASS.
 - [x] SMS Runtime #43903632358: format, Clippy, testes e build Windows x64 PASS.
 - [ ] Não converter Scheduler stress, Z80 focused ou SMS debugger Windows Release SKIPPED em PASS; executar gates correspondentes quando aplicável.
-- [ ] PR #965: validar classificação stream/data DD/FD no HEAD atual; aguardar checks obrigatórios antes de integrar.
+- [ ] PR #967: validar classificação stream/data DD/FD no HEAD atual; aguardar checks obrigatórios antes de integrar.
 - [ ] Obter revisão adversarial independente registrada para a matriz E7 integrada.
 
 E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
