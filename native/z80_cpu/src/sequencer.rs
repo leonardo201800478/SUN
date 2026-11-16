@@ -14217,7 +14217,10 @@ mod ed_block_transfer_repeat_interrupt_tests {
                         );
                         assert_eq!(sequenced.registers.bc(), bc_after_second, "resumed BC");
                         assert_eq!(sequenced.q_previous, 0, "resumed instruction previous Q");
-                        assert_eq!(sequenced.q, sequenced.registers.f, "resumed instruction Q follows F");
+                        assert_eq!(
+                            sequenced.q, sequenced.registers.f,
+                            "resumed instruction Q follows F"
+                        );
                         assert_eq!(
                             sequenced.registers.pc,
                             if second_repeats {
