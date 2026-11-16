@@ -14,6 +14,10 @@ use sega_z80_cpu::{
 const DD_FD_LEDGER: &str =
     include_str!("../../../docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv");
 const EXPECTED_IGNORED_BYTES: usize = 167;
+const CALL_RST_OPCODES: [u8; 17] = [
+    0xC4, 0xCC, 0xD4, 0xDC, 0xE4, 0xEC, 0xF4, 0xFC, 0xCD, 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF,
+    0xF7, 0xFF,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BusTraceKind {
@@ -239,11 +243,7 @@ fn remove_prefix_m1_and_normalize_stream_addresses(
             // one byte; normalize only its low-byte stack write (SP-2).
             if *kind == BusTraceKind::MemoryWrite
                 && *address == 0x5676
-                && matches!(
-                    opcode,
-                    0xC4 | 0xCC | 0xD4 | 0xDC | 0xE4 | 0xEC | 0xF4 | 0xFC
-                        | 0xCD | 0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF
-                )
+                && CALL_RST_OPCODES.contains(&opcode)
             {
                 *write_value = write_value.map(|value| value.wrapping_sub(1));
             }
