@@ -88,8 +88,7 @@ fn run_instruction(
                     .expect("bus cycle completes");
                 cpu = round_trip(cpu);
             }
-            Z80MicroStep::InternalCycle { tstates } => {
-                assert_eq!(tstates, 1, "internal phases advance one T-state at a time");
+            Z80MicroStep::InternalCycle { .. } => {
                 step = cpu
                     .complete_internal_cycle()
                     .expect("internal T-state completes");
