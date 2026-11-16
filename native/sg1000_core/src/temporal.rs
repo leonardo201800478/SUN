@@ -13,8 +13,12 @@ use sega_temporal_core::{
     ClockDomainSnapshot, ClockRatio, HardwarePhase, MachineTime, PlatformPriority,
 };
 
-pub const SG1000_TEMPORAL_COORDINATOR_STATE_VERSION: u16 = 1;
+pub const SG1000_TEMPORAL_COORDINATOR_STATE_VERSION: u16 = 2;
 pub const SG1000_Z80_CLOCK_DOMAIN_ID: ClockDomainId = ClockDomainId(0);
+/// SG-1000 PSG input-clock domain; its ratio is supplied by the machine profile.
+pub const SG1000_PSG_CLOCK_DOMAIN_ID: ClockDomainId = ClockDomainId(1);
+/// SG-1000 TMS9918A clock domain, currently expressed in Z80 T-state units.
+pub const SG1000_VDP_CLOCK_DOMAIN_ID: ClockDomainId = ClockDomainId(2);
 
 /// Typed boundaries consumed by the SG-1000 machine adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,11 +81,11 @@ impl Sg1000TemporalCoordinator {
             return Err(Sg1000TemporalCoordinatorError::ZeroTStateScale);
         }
         let mut scheduler = MachineScheduler::new();
-        scheduler.register_clock_domain(
-            SG1000_Z80_CLOCK_DOMAIN_ID,
-            ClockRatio::new(1, master_ticks_per_tstate)
-                .map_err(|_| Sg1000TemporalCoordinatorError::InvalidState)?,
-        )?;
+        let profile_ratio = ClockRatio::new(1, master_ticks_per_tstate)
+            .map_err(|_| Sg1000TemporalCoordinatorError::InvalidState)?;
+        scheduler.register_clock_domain(SG1000_Z80_CLOCK_DOMAIN_ID, profile_ratio)?;
+        scheduler.register_clock_domain(SG1000_PSG_CLOCK_DOMAIN_ID, profile_ratio)?;
+        scheduler.register_clock_domain(SG1000_VDP_CLOCK_DOMAIN_ID, profile_ratio)?;
         Ok(Self {
             scheduler,
             master_ticks_per_tstate,
@@ -107,7 +111,25 @@ impl Sg1000TemporalCoordinator {
             .map_err(Into::into)
     }
 
-    /// Schedule a memory-bus completion after nominal T-states plus fixture WAIT.
+    /// Read-only PSG input-clock domain snapshot.
+    pub fn psg_clock_snapshot(
+        &self,
+    ) -> Result<ClockDomainSnapshot, Sg1000TemporalCoordinatorError> {
+        self.scheduler
+            .clock_snapshot(SG1000_PSG_CLOCK_DOMAIN_ID)
+            .map_err(Into::into)
+    }
+
+    /// Read-only VDP clock-domain snapshot.
+    pub fn vdp_clock_snapshot(
+        &self,
+    ) -> Result<ClockDomainSnapshot, Sg1000TemporalCoordinatorError> {
+        self.scheduler
+            .clock_snapshot(SG1000_VDP_CLOCK_DOMAIN_ID)
+            .map_err(Into::into)
+    }
+
+    /// Schedule a bus completion after nominal T-states plus fixture WAIT.
     pub fn schedule_bus_completion(
         &mut self,
         request_id: u64,
@@ -196,13 +218,41 @@ impl Sg1000TemporalCoordinator {
         {
             return Err(Sg1000TemporalCoordinatorError::InvalidState);
         }
-        let domain = state
+        let z80_domain = state
             .scheduler
             .clock_domains
             .iter()
             .find(|domain| domain.id == SG1000_Z80_CLOCK_DOMAIN_ID)
             .ok_or(Sg1000TemporalCoordinatorError::InvalidState)?;
-        if domain.ratio_numerator != 1 || domain.ratio_denominator != state.master_ticks_per_tstate
+        let psg_domain = state
+            .scheduler
+            .clock_domains
+            .iter()
+            .find(|domain| domain.id == SG1000_PSG_CLOCK_DOMAIN_ID)
+            .ok_or(Sg1000TemporalCoordinatorError::InvalidState)?;
+        let vdp_domain = state
+            .scheduler
+            .clock_domains
+            .iter()
+            .find(|domain| domain.id == SG1000_VDP_CLOCK_DOMAIN_ID)
+            .ok_or(Sg1000TemporalCoordinatorError::InvalidState)?;
+        if state.scheduler.clock_domains.len() != 3
+            || z80_domain.ratio_numerator != 1
+            || z80_domain.ratio_denominator != state.master_ticks_per_tstate
+            || psg_domain.ratio_numerator != 1
+            || psg_domain.ratio_denominator != state.master_ticks_per_tstate
+            || vdp_domain.ratio_numerator != 1
+            || vdp_domain.ratio_denominator != state.master_ticks_per_tstate
+            || z80_domain.current_time != psg_domain.current_time
+            || z80_domain.total_cycles != psg_domain.total_cycles
+            || z80_domain.phase != psg_domain.phase
+            || z80_domain.registration_start != psg_domain.registration_start
+            || z80_domain.initial_phase != psg_domain.initial_phase
+            || z80_domain.current_time != vdp_domain.current_time
+            || z80_domain.total_cycles != vdp_domain.total_cycles
+            || z80_domain.phase != vdp_domain.phase
+            || z80_domain.registration_start != vdp_domain.registration_start
+            || z80_domain.initial_phase != vdp_domain.initial_phase
         {
             return Err(Sg1000TemporalCoordinatorError::InvalidState);
         }
@@ -217,13 +267,13 @@ impl Sg1000TemporalCoordinator {
 #[cfg(test)]
 mod tests {
     use super::{
-        SG1000_Z80_CLOCK_DOMAIN_ID, Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError,
-        Sg1000TemporalEvent,
+        SG1000_PSG_CLOCK_DOMAIN_ID, SG1000_VDP_CLOCK_DOMAIN_ID, SG1000_Z80_CLOCK_DOMAIN_ID,
+        Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError, Sg1000TemporalEvent,
     };
     use sega_temporal_core::MachineTime;
 
     #[test]
-    fn scheduled_memory_boundary_advances_only_the_registered_z80_domain() {
+    fn scheduled_boundary_advances_cpu_vdp_and_psg_clock_domains_together() {
         let mut timeline = Sg1000TemporalCoordinator::new(2).unwrap();
         let deadline = timeline.schedule_bus_completion(7, 3, 2).unwrap();
         assert_eq!(deadline, MachineTime::from_ticks(10));
@@ -236,13 +286,22 @@ mod tests {
             Sg1000TemporalEvent::BusCompletion { request_id: 7 }
         );
         assert_eq!(timeline.now(), deadline);
-        assert_eq!(dispatch.clock_advances.len(), 1);
-        assert_eq!(
-            dispatch.clock_advances[0].domain,
-            SG1000_Z80_CLOCK_DOMAIN_ID
-        );
-        assert_eq!(dispatch.clock_advances[0].elapsed_cycles, 5);
+        assert_eq!(dispatch.clock_advances.len(), 3);
+        for domain in [
+            SG1000_Z80_CLOCK_DOMAIN_ID,
+            SG1000_PSG_CLOCK_DOMAIN_ID,
+            SG1000_VDP_CLOCK_DOMAIN_ID,
+        ] {
+            let advance = dispatch
+                .clock_advances
+                .iter()
+                .find(|advance| advance.domain == domain)
+                .unwrap();
+            assert_eq!(advance.elapsed_cycles, 5);
+        }
         assert_eq!(timeline.z80_clock_snapshot().unwrap().total_cycles, 5);
+        assert_eq!(timeline.psg_clock_snapshot().unwrap().total_cycles, 5);
+        assert_eq!(timeline.vdp_clock_snapshot().unwrap().total_cycles, 5);
     }
 
     #[test]
