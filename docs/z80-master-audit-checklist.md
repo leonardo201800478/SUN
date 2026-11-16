@@ -556,3 +556,23 @@ A escolha da próxima implementação depende de auditoria do código/testes atu
 - **F-022 / PR #736:** merge SHA `55585bf2425f1c4eaf61c4a3a3ad42f9499c4797`; HEAD validado `1520cc77e2801d985401a5518eec9da712b89e3`; CI #6166 / run `42698792012` SUCCESS. A matriz atômica de LDI/LDD/CPI/CPD executa 524.288 casos, cobrindo flags documentadas, X/Y conforme fonte secundária e WZ/MEMPTR. Os cenários microsequenciados existentes verificam WZ, WAIT e snapshot/restore. PR test-only, sem alteração de runtime. F-022 continua AUDIT_PARTIAL.
 - **Integração temporal / PR #843:** merge SHA `23c77a21ae427feecfb70fa6e78692e588f72416`; HEAD validado `0f2415f9382887c94d9214abe06cb6c295ed2154`; CI #7389 / run `43568659312` e SMS Debugger Runtime #857 / run `43568659270` SUCCESS. VDP core/machine, Z80 focused, workspace regression, input integration e Scheduler deterministic stress passaram. Testes cobrem VINT T13/T16 com snapshot/restore e chunk invariance, HINT R10 no limite T14 e chegada da linha INT ao Z80. É evidência de integração temporal, não fechamento global do Z80.
 - **Estado global:** E7 IN_PROGRESS; E8 BLOCKED. Nenhum resultado foi transferido de um SHA para outro. Os 34.000 vetores DD/FD continuam vinculados ao HEAD validado da PR #692, sem nova execução atribuída à main atual.
+
+
+## 41. Reconciliação de evidências E7 e estado dos gates — 2026-11-16
+
+**Main documental:** `5f24e22f2c49512ea43fa24ea25f836464d70f61`.
+**Baseline de código Z80:** `bf7e7584df421000d040a3ee057799a75bfeb3eb`. A PR #939 foi documental; a comparação das SHAs mostra somente alterações no scorecard e na matriz DD/FD.
+
+Esta seção prevalece sobre afirmações históricas anteriores que, na data em que foram escritas, indicavam ausência de execução posterior à PR #692 ou ausência de tentativa integral do ROM v5.0.
+
+### Evidências corrigidas
+
+1. **F-022 / microsequenciador:** a PR #930 integrou a matriz microsequenciada de 786.432 execuções (4 opcodes × 256 A × 256 memória × BC inicial 0/1/2), com WAIT e snapshot/restore nas fronteiras cobertas. O CI #43815302707 validou o HEAD exato da PR. Essa matriz não equivale à execução integral do ROM v5.0.
+2. **F-022 / ROM v5.0:** a tentativa inicial excedeu 50.000.000 T-states durante LDIR e terminou FAIL/timeout. A tentativa instrumentada posterior no HEAD `adaa349366ccda210faacecb0ce9a93031bc0c78`, CI #43839665389, chegou ao B-loop e falhou B=13 vs 15. O trace observou OTIR em PC=800E iniciado 54T antes da borda de INT, com intervalos de 21T e aceite após três decrementos de B. Isso é evidência de desalinhamento, não causa-raiz concluída.
+3. **Instrumentação LDIR:** o HEAD `e0c4cadd443c5fd61717cfda07c386a4bcc4be0d` falhou Clippy (`collapsible_if`) antes da execução da ROM. A correção está no HEAD `4ca567c13f1ca95d84a8ff3a8143775a53a3f6c7`; o CI exato ainda precisa ser observado. A medição de duração do LDIR permanece NOT RUN.
+4. **F-023 / MEMPTR:** os 16.384 cenários atômicos e 240 microsequenciados são regressões internas derivadas de documentação. O TAP de Mark Woodmass não foi recuperado/executado; MAME/ares não são oráculo independente de hardware. F-023 permanece AUDIT_PARTIAL.
+5. **F-028 / SingleStepTests:** os 34.000 vetores foram executados explicitamente com o corpus pinado em três HEADs posteriores à PR #692: #930 (`c96d39f2...`, run #43815302707), #934 (`75f897c1...`, run #43818081949) e #935 (`6e665fe0...`, run #43819970660). Os três jobs Z80 focused passaram. O CI da main `5f24e22...` (#43831038791) marcou Z80 focused SKIPPED; portanto, para a main atual, NOT RUN.
+6. **Checklist residual:** inventário funcional, efeitos observáveis, Q durante/depois de acknowledge, interrupções, WAIT/barramento, determinismo, HALT e interações DD/FD devem continuar com estado próprio e evidência rastreável. Não converter comparações atômico↔micro ou MAME↔ares em prova independente.
+7. **Escopo:** o fechamento de software deve explicitar o perfil Zilog NMOS clássico SMS/SG-1000. Validação física em silício, CMOS e clones podem permanecer NOT_VERIFIED com justificativa, sem se tornarem bloqueios universais não previstos no escopo.
+
+**Classificação atual:** F-022 AUDIT_PARTIAL; F-023 AUDIT_PARTIAL; F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED. Nenhum resultado de workflow foi transferido para SHA diferente daquela em que executou.
