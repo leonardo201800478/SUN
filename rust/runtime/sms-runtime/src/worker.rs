@@ -3202,12 +3202,7 @@ mod tests {
         let rom = SYNTHETIC_ROM.to_vec();
         let first_bios = vec![0x00; 0x2000];
         let second_bios = vec![0xFF; 0x2000];
-        let source = SmsTemporalWorker::new_with_bios(
-            rom.clone(),
-            first_bios,
-            "usa",
-        )
-        .unwrap();
+        let source = SmsTemporalWorker::new_with_bios(rom.clone(), first_bios, "usa").unwrap();
         let state = source.save_state().unwrap();
 
         let target = SmsTemporalWorker::new_with_bios(rom, second_bios, "usa").unwrap();
