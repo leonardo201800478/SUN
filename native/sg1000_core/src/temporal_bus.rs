@@ -9,8 +9,8 @@ use core::fmt;
 use crate::{
     DEFAULT_SG1000_CPU_CLOCK_HZ, IoError, MemoryConfig, MemoryError, PsgError,
     SG1000_PSG_CLOCK_DOMAIN_ID, SG1000_VDP_CLOCK_DOMAIN_ID, Sg1000Io, Sg1000Memory,
-    Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError,
-    Sg1000TemporalCoordinatorState, Sg1000TemporalEvent, Sn76489, Tms9918A,
+    Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError, Sg1000TemporalCoordinatorState,
+    Sg1000TemporalEvent, Sn76489, Tms9918A,
 };
 use sega_temporal_core::MachineTime;
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
@@ -821,7 +821,9 @@ mod tests {
     fn internal_cycle_is_latched_and_acknowledged_once() {
         let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
         let deadline = bus.schedule_internal_cycle(7, 1).unwrap();
-        let Some(Sg1000TemporalDispatch::InternalCycleComplete(completion)) = bus.dispatch_next().unwrap() else {
+        let Some(Sg1000TemporalDispatch::InternalCycleComplete(completion)) =
+            bus.dispatch_next().unwrap()
+        else {
             panic!("expected internal cycle completion");
         };
         assert_eq!(completion.completed_at, deadline);
@@ -845,7 +847,9 @@ mod tests {
         )
         .unwrap();
         bus.schedule_internal_cycle(90, 5).unwrap();
-        let Some(Sg1000TemporalDispatch::InternalCycleComplete(completion)) = bus.dispatch_next().unwrap() else {
+        let Some(Sg1000TemporalDispatch::InternalCycleComplete(completion)) =
+            bus.dispatch_next().unwrap()
+        else {
             panic!("expected internal-cycle completion");
         };
         assert_eq!(completion.completed_at, MachineTime::from_ticks(10));
@@ -866,7 +870,8 @@ mod tests {
             .begin_request(request(10, Z80BusOperation::PortRead, 0x00DC, 4), 1)
             .unwrap();
 
-        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap() else {
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
             panic!("expected controller port-read completion");
         };
         assert_eq!(completion.data, Some(0xFE));
@@ -897,7 +902,8 @@ mod tests {
             .unwrap();
         assert_eq!(bus.psg().tone_periods()[0], 0);
 
-        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap() else {
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
             panic!("expected PSG port-write completion");
         };
         assert_eq!(completion.completed_at, deadline);
@@ -931,7 +937,9 @@ mod tests {
                     0,
                 )
                 .unwrap();
-            let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap() else {
+            let Some(Sg1000TemporalDispatch::BusCompletion(completion)) =
+                bus.dispatch_next().unwrap()
+            else {
                 panic!("expected VDP port-write completion");
             };
             assert_eq!(completion.completed_at, deadline);

@@ -359,8 +359,7 @@ mod tests {
     #[test]
     fn psg_clock_domain_uses_exact_configured_frequency_ratio() {
         let mut timeline =
-            Sg1000TemporalCoordinator::new_with_clock_profile(2, 1_000_000, 2_000_000)
-                .unwrap();
+            Sg1000TemporalCoordinator::new_with_clock_profile(2, 1_000_000, 2_000_000).unwrap();
         timeline.schedule_internal_cycle(91, 5).unwrap();
         let dispatch = timeline.dispatch_next().unwrap().unwrap();
         assert_eq!(dispatch.clock_advances.len(), 3);
