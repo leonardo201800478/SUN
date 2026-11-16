@@ -206,7 +206,7 @@ fn validate_main_results(output: &[u8]) {
     );
 }
 
-fn validate_b_loop_log(memory: &[u8; 0x1_0000]) {
+fn validate_b_loop_log(memory: &[u8; 0x1_0000], block_interrupts: &[String]) {
     let mut cursor = LOG_AREA;
 
     for group in B_LOOP_GROUPS {
@@ -223,7 +223,7 @@ fn validate_b_loop_log(memory: &[u8; 0x1_0000]) {
             let actual_flags = memory[cursor + 2];
             let expected_b = 15_u8 + (iteration as u8) * 3;
 
-            assert_eq!(b_after, expected_b, "B-loop B value at {cursor:04X}");
+            assert_eq!(b_after, expected_b, "B-loop B value at {cursor:04X}; first block-I/O INT accepts: {block_interrupts:#?}");
             assert_eq!(
                 actual_flags,
                 expected_flags,
@@ -276,6 +276,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     let mut completed = false;
     let mut recent_steps = VecDeque::with_capacity(64);
     let mut output_progress = VecDeque::with_capacity(8);
+    let mut block_interrupts = Vec::with_capacity(8);
 
     for step_index in 0..MAX_STEPS {
         let now = cpu.total_tstates;
@@ -313,7 +314,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
 
         if cpu.registers.pc == caller_return_pc && cpu.registers.sp == exit_sp {
             validate_main_results(&bus.output);
-            validate_b_loop_log(&bus.memory);
+            validate_b_loop_log(&bus.memory, &block_interrupts);
             completed = true;
             break;
         }
@@ -362,6 +363,39 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             output_progress,
             recent_steps
         );
+
+        if int_pending_before.is_some()
+            && iff1_before
+            && cpu.ei_delay == 0
+            && block_interrupts.len() < 8
+            && contains_bytes(&bus.output, b"HF vs B, binary log")
+        {
+            let pc = cpu.registers.pc;
+            let opcode = [
+                bus.memory[usize::from(pc)],
+                bus.memory[usize::from(pc.wrapping_add(1))],
+            ];
+            if opcode == [0xED, 0xB2]
+                || opcode == [0xED, 0xBA]
+                || opcode == [0xED, 0xB3]
+                || opcode == [0xED, 0xBB]
+            {
+                block_interrupts.push(format!(
+                    "t={} next_int={} pulse_end={:?} pc={:04X} op={:02X?} AF={:02X}{:02X} BC={:04X} DE={:04X} HL={:04X} R={:02X}",
+                    cpu.total_tstates,
+                    next_interrupt,
+                    pulse_end,
+                    pc,
+                    opcode,
+                    cpu.registers.a,
+                    cpu.registers.f,
+                    cpu.registers.bc(),
+                    cpu.registers.de(),
+                    cpu.registers.hl(),
+                    cpu.r
+                ));
+            }
+        }
 
         let pc_before = cpu.registers.pc;
         let sp_before = cpu.registers.sp;
