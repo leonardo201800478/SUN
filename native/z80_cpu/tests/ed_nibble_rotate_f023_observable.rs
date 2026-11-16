@@ -125,9 +125,8 @@ fn rrd_rld_memptr_observation_survives_wait_and_snapshot_restore() {
                 for memory_value in memory_values {
                     for carry_in in [false, true] {
                         memory[usize::from(hl)] = memory_value;
-                        let cpu = Z80MicroSequencer::default();
-                        let cpu = cpu
-                            .import_architectural_state(initial_state(accumulator, carry_in, hl))
+                        let mut cpu = Z80MicroSequencer::default();
+                        cpu.import_architectural_state(initial_state(accumulator, carry_in, hl))
                             .expect("initial state imports");
 
                         let (cpu, rrd_rld_tstates) = run_instruction(cpu, &mut memory, true);
