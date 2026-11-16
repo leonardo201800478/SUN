@@ -1,9 +1,9 @@
 # Checklist mestre de auditoria e fechamento do Z80
 
-> **Atualização normativa 2026-11-16:** o gate de revisão independente obrigatória deixa de ser condição permanente. E7 está `CLOSED_WITH_LIMITATIONS` no perfil NMOS delimitado e no escopo praticável SMS/SG-1000. CMOS/clones, WAIT físico, DMA, TEMPORAL_PASS sistêmico e validação elétrica continuam NOT_VERIFIED/NOT_RUN quando não executados. E8/ZEXDOC/ZEXALL é complementar e não bloqueia SG-1000. Não reabrir E7 sem defeito/regressão concreto. As seções históricas permanecem fotografias dos SHAs originais.
+> **Estado vigente 2026-11-16:** E7 `CLOSED_WITH_LIMITATIONS` no perfil NMOS delimitado. Revisão externa não é gate permanente; preservar limites e estados NOT_VERIFIED/NOT_RUN.
 
 **Documento operacional:** atualizar este checklist a cada etapa efetivamente concluída, sempre vinculando evidências ao SHA integrado na `main`.
-**Baseline remota reconciliada:** `main` = `08f633affdb7478b64b1ec2007ca1986c2a48978` (2026-11-16, após PR #969). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
+**Baseline remota reconciliada:** `main` = `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` (2026-11-16, após PR #975). Histórico anterior preservado abaixo. Baseline de runtime/validação DD/FD histórica: PR #702, HEAD `34e85637eaac8ed2777ecc5cb9cd2e91ba137235`, com 34.000/34.000 vetores externos PASS; não atribuir esses resultados ao HEAD atual.
 **Baseline documental reconciliada:** scorecard, matriz DD/FD e checklist foram atualizados pelas PRs #687 e #688; baselines históricas permanecem preservadas e não representam a main corrente.
 **Núcleo canônico:** `native/z80_cpu` (`sega-z80-cpu`).
 **Perfil inicial de referência:** Zilog Z80 NMOS usado pelas plataformas Sega documentadas. Não generalizar automaticamente para Z80 CMOS, Z180, R800 ou clones.
@@ -886,3 +886,39 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Atualização operacional — main pós-PR #975 (16/11/2026)
+
+Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+
+| Família | Estado vigente | Evidência/pendência |
+|---|---|---|
+| F-022 — Block Instructions | INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) | Oito formas; 786.432 cenários simples, matrizes micro/repetição, ROM hardware-derived limitada e integração SMS/Scheduler; auditoria interna completa, review independente pendente |
+| F-023 — WZ/MEMPTR | INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) | Revisão interna concluída; PR #977 passou Z80 focused/SMS Runtime e cobre JR/DJNZ WZ sob DD/FD; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
+| F-028 — DD/FD | INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) | 85 UsesIndex, 167 Ignored; #975 cobre CALL/RST stack wrap; #977 valida WZ/PC nos 167 Ignored, branches relativos e exceções; review independente pendente |
+
+PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`: CI #43937118700 Z80 focused e Rust quality/unit PASS; SMS Runtime #43937118785 PASS; Scheduler stress SKIPPED. Merge squash: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
+
+WAIT dos testes é fixture, não WAIT físico. LONG_PASS do Scheduler não significa TEMPORAL_PASS global. E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. A integração da máquina SG-1000 ao Scheduler permanece P2/DEFERRED.
+
+
+**Regra de aceitação:** os estados acima são auditorias internas/candidatos, não fechamentos formais. A revisão independente registrada no GitHub e a validação PR #977 no HEAD exato são gates obrigatórios antes de fechar E7.
+
+
+
+## Revalidação PR #977
+
+HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: Z80 focused/Rust quality CI #43939973117 SUCCESS; SMS Runtime #43939957730 SUCCESS; Scheduler stress SKIPPED. WZ/PC de JR/DJNZ/JR cc sob DD/FD Ignored e wrap PC=FFFD passaram. Revisão independente registrada ainda pendente para F-022/F-023/F-028. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+
+## Atualização F-028 — PR #977
+
+HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: Z80 focused/Rust quality CI #43940980741 SUCCESS; SMS Runtime #43940971722 SUCCESS; Scheduler stress SKIPPED. A matriz de 167 Ignored agora valida WZ, PC, bus trace, WAIT/snapshot, CALL/RST stack wrap e branches relativos DD/FD. F-028 é INTERNAL_REVIEW_COMPLETE/candidate, mas depende de review independente registrada. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+## Decisão de escopo supersedente — 2026-11-16
+
+E7 está `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e para as necessidades praticáveis dos sistemas SMS/SG-1000. Esta decisão não declara revisão externa, conformidade elétrica universal ou validação de hardware para casos não executados. As evidências permanecem internas e vinculadas aos SHAs/workflows descritos. CMOS/clones não caracterizados, WAIT físico, DMA e sincronização física global permanecem NOT_VERIFIED/NOT_RUN. E8/ZEXDOC/ZEXALL é validação complementar futura e não bloqueia o início do SG-1000. Reabrir E7 somente diante de defeito/regressão reproduzível ou evidência técnica concreta.
