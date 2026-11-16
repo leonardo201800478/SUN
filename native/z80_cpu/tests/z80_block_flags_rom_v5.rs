@@ -8,9 +8,7 @@
 
 use std::{env, fs};
 
-use sega_z80_cpu::{
-    Z80, Z80AlternateRegisters, Z80ArchitecturalState, Z80Registers, bus::CpuBus,
-};
+use sega_z80_cpu::{Z80, Z80AlternateRegisters, Z80ArchitecturalState, Z80Registers, bus::CpuBus};
 
 const SNA_SIZE: usize = 49_179;
 const FRAME_TSTATES: u64 = 69_888;
@@ -155,8 +153,8 @@ fn handle_rom_entry(cpu: &mut Z80, bus: &mut Spectrum48Bus) -> bool {
         0x203C => {
             // ROM_PRINT is used only to print the four-byte instruction name.
             let mut address = (u16::from(cpu.registers.d) << 8) | u16::from(cpu.registers.e);
-            let count = (((u16::from(cpu.registers.b) << 8) | u16::from(cpu.registers.c))
-                .min(32)) as usize;
+            let count =
+                (((u16::from(cpu.registers.b) << 8) | u16::from(cpu.registers.c)).min(32)) as usize;
             for _ in 0..count {
                 let character = bus.memory[usize::from(address)];
                 if character == 0xFF {
@@ -173,7 +171,9 @@ fn handle_rom_entry(cpu: &mut Z80, bus: &mut Spectrum48Bus) -> bool {
 }
 
 fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
-    haystack.windows(needle.len()).any(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
 }
 
 fn validate_main_results(output: &[u8]) {
@@ -217,7 +217,8 @@ fn validate_b_loop_log(memory: &[u8; 0x1_0000]) {
 
             assert_eq!(b_after, expected_b, "B-loop B value at {cursor:04X}");
             assert_eq!(
-                actual_flags, expected_flags,
+                actual_flags,
+                expected_flags,
                 "B-loop flags for {} at B={b_after}",
                 String::from_utf8_lossy(&group)
             );
@@ -290,7 +291,6 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     assert!(
         completed,
         "Z80 block-flags ROM did not return after {MAX_STEPS} instructions / {MAX_TSTATES} T-states; PC={:04X}, SP={:04X}",
-        cpu.registers.pc,
-        cpu.registers.sp
+        cpu.registers.pc, cpu.registers.sp
     );
 }
