@@ -36,6 +36,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut hcounter_reference_reads = Vec::new();
     let mut vcounter_reference_reads = Vec::new();
     let mut diagnostic_memory_writes = Vec::new();
+    let mut io_control_writes = Vec::new();
 
     for frame in 0..600 {
         if let Err(error) = machine.step_frame(100_000) {
@@ -73,10 +74,13 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     hcounter_reference_reads.push((timestamp.ticks(), data.unwrap_or(0)));
                 }
                 SmsTemporalTraceEvent::BusCompleted {
-                    operation: Z80BusOperation::PortWrite { .. },
+                    timestamp,
+                    operation: Z80BusOperation::PortWrite { value },
                     address,
                     ..
-                } if address & 0x00FF == 0x3F => {}
+                } if address & 0x00FF == 0x3F => {
+                    io_control_writes.push((timestamp.ticks(), address, value));
+                }
                 _ => {}
             }
         }
@@ -141,6 +145,40 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     };
     let run_test32_hcounter_reads = irq_hcounter_reads(0xC91F);
     let run_test34_hcounter_reads = irq_hcounter_reads(0xC921);
+    let irq_io_control_writes = |result_address: u16| {
+        diagnostic_memory_writes
+            .iter()
+            .find(|(_, address, _)| *address == result_address)
+            .map(|(result_time, _, _)| {
+                io_control_writes
+                    .iter()
+                    .filter(|(timestamp, _, _)| {
+                        *timestamp >= (*result_time).saturating_sub(150_000)
+                            && *timestamp <= *result_time
+                    })
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+    let run_test32_io_control_writes = irq_io_control_writes(0xC91F);
+    let run_test34_io_control_writes = irq_io_control_writes(0xC921);
+    let hcounter_reads_after_th_rise = |writes: &[(u128, u16, u8)]| {
+        writes
+            .iter()
+            .filter(|(_, _, value)| *value == 0xFF)
+            .filter_map(|(write_time, _, _)| {
+                hcounter_reference_reads
+                    .iter()
+                    .find(|(timestamp, _)| {
+                        *timestamp >= *write_time && *timestamp <= write_time.saturating_add(32)
+                    })
+                    .map(|(timestamp, value)| (*write_time, *timestamp, *value))
+            })
+            .collect::<Vec<_>>()
+    };
+    let run_test32_th_latches = hcounter_reads_after_th_rise(&run_test32_io_control_writes);
+    let run_test34_th_latches = hcounter_reads_after_th_rise(&run_test34_io_control_writes);
 
     assert!(
         completed_at_frame.is_some(),
@@ -150,6 +188,6 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     assert_eq!(
         results,
         [(25, 0), (31, 0), (32, 0), (33, 0), (34, 0)],
-        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}"
+        "upstream SmsVdpTest v1.31 failures; all test results={all_results:?}; RunTest25 VCounter samples at $C9F0-$C9F2={run_test25_samples:?}; sample writes={run_test25_write_times:?}; VCounter reads in sample window={run_test25_vcounter_reads:?}; RunTest32 HCounter reads before result={run_test32_hcounter_reads:?}; RunTest34 HCounter reads before result={run_test34_hcounter_reads:?}; RunTest32 IO control writes={run_test32_io_control_writes:?}; RunTest32 TH-rise/read pairs={run_test32_th_latches:?}; RunTest34 IO control writes={run_test34_io_control_writes:?}; RunTest34 TH-rise/read pairs={run_test34_th_latches:?}"
     );
 }
