@@ -26,9 +26,11 @@ O construtor temporal do barramento cria `SmsMemory::with_cartridge_sram_size(..
 
 **Resultado confirmado:** no SHA auditado, o caminho temporal público não recebe BIOS. O suporte opcional a BIOS existe em `SmsMemory::with_bios`, mas não é usado pelo construtor temporal da baseline.
 
-### 2.2 Worker/runtime
+### 2.2 Worker/runtime e firmware no frontend
 
-`SmsTemporalWorker::new` e os construtores de perfil chamam o builder temporal sem BIOS.
+`SmsTemporalWorker::new` e os construtores de perfil chamam o builder temporal sem BIOS. A auditoria do host Slint confirmou que a UI já persiste `firmware_directory`, seleções regionais e `firmware_boot_enabled`, mas o valor padrão é `false`. O próprio texto da tela informa que a varredura identifica arquivos, porém não comprova boot, e que a inicialização via BIOS só será habilitada após integrar o dispositivo interno e seu mapa específico ao runtime temporal.
+
+`scan_sms_firmware_directory` consulta `SmsFirmwareCatalog` para identificar e listar firmware; isso não encaminha bytes para a máquina. O factory `create_sms_worker` em `native/sega_desktop/src/main.rs` chama `SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size` com ROM, região, revisão do VDP e SRAM, sem BIOS. Portanto, o comportamento atual é intencionalmente boot direto; a preferência de firmware é preparatória e não é um toggle de boot funcional na baseline.
 
 - `Pause`: interrompe a execução e suspende/limpa a saída de áudio; preserva a máquina.
 - `Stop`: reconstrói a máquina inteira, preservando o conteúdo e a capacidade de SRAM; é tratado no código como power-off/cold reset.
@@ -221,7 +223,7 @@ PR #908 (`feat/sms-temporal-conventional-bios-8k`) adiciona `SmsTemporalMemoryOp
 Limitações observadas:
 - PR em Draft;
 - branch baseada em ancestral anterior à main auditada e divergente (17 commits exclusivos da PR e 20 commits da main desde a base reportada);
-- não integra o chamador host/desktop que seleciona e fornece a BIOS ao novo construtor;
+- não integra o chamador host/desktop que seleciona e fornece a BIOS ao novo construtor; a UI atual mantém a opção de boot desabilitada por padrão e informa explicitamente que o boot real ainda não está integrado;
 - testes de handoff usam uma BIOS sintética, não os binários comerciais reais;
 - restringe BIOS convencional ao perfil SMS1; SMS2 exige modelagem de arbitragem própria;
 - checks principais de Rust/runtime, Scheduler e SMS1 VDP passaram no SHA da PR, mas vários jobs Windows/perfis estavam skipped.
