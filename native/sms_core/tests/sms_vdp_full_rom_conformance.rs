@@ -14,6 +14,35 @@ const PSG_CLOCK_HZ: u64 = 3_579_545;
 const SAMPLE_RATE_HZ: u64 = 44_100;
 const COMPLETION_MARKER: u16 = 0xC9FF;
 
+type HCounterReadTrace = (u128, u8, u16, u16, bool, Option<u8>, bool, u8, bool, bool);
+type IoControlWriteTrace = (
+    u128,
+    u16,
+    u8,
+    u16,
+    u16,
+    bool,
+    Option<u8>,
+    bool,
+    u8,
+    bool,
+    bool,
+);
+type OpcodeFetchTrace = (
+    u128,
+    u16,
+    u16,
+    u16,
+    bool,
+    Option<u8>,
+    bool,
+    u8,
+    bool,
+    bool,
+);
+type ThLatchReadPair = (u128, u16, bool, Option<u8>, u128, u8, u16, bool, Option<u8>);
+type IrqLineTrace = (u128, Option<u8>, bool, bool);
+
 #[test]
 #[ignore = "run by the dedicated SMS VDP full-ROM conformance workflow"]
 fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
@@ -33,12 +62,12 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
 
     machine.set_trace_enabled(true);
     let mut completed_at_frame = None;
-    let mut hcounter_reference_reads = Vec::new();
+    let mut hcounter_reference_reads: Vec<HCounterReadTrace> = Vec::new();
     let mut vcounter_reference_reads = Vec::new();
     let mut diagnostic_memory_writes = Vec::new();
-    let mut io_control_writes = Vec::new();
-    let mut cpu_m1_bus_trace = Vec::new();
-    let mut irq_line_changes = Vec::new();
+    let mut io_control_writes: Vec<IoControlWriteTrace> = Vec::new();
+    let mut cpu_m1_bus_trace: Vec<OpcodeFetchTrace> = Vec::new();
+    let mut irq_line_changes: Vec<IrqLineTrace> = Vec::new();
 
     for frame in 0..600 {
         if let Err(error) = machine.step_frame(100_000) {
@@ -253,19 +282,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     };
     let run_test32_io_control_writes = irq_io_control_writes(0xC91F);
     let run_test34_io_control_writes = irq_io_control_writes(0xC921);
-    let hcounter_reads_after_th_rise = |writes: &[(
-        u128,
-        u16,
-        u8,
-        u16,
-        u16,
-        bool,
-        Option<u8>,
-        bool,
-        u8,
-        bool,
-        bool,
-    )]| {
+    let hcounter_reads_after_th_rise = |writes: &[IoControlWriteTrace]| -> Vec<ThLatchReadPair> {
         let mut pairs = writes
             .iter()
             .filter(|(_, _, value, _, _, _, _, _, _, _, _)| *value == 0xFF)
