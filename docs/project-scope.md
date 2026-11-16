@@ -1,8 +1,8 @@
 # Escopo do projeto — Sega Emulator
 
-**Revisão:** 2026-11-16  
-**Baseline remota consultada:** `main` SHA `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.  
-**Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + input SDL3 integrado em fatias.  
+**Revisão:** 2026-11-16
+**Baseline remota consultada:** `main` SHA `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
+**Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + input SDL3 integrado em fatias.
 **Runtime:** Rust; MachineScheduler como autoridade temporal.
 
 ## Objetivo
