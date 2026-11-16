@@ -1,7 +1,7 @@
 # Plano de execução — fechamento E7 do Z80
 
-**Data da revisão:** 2026-11-16  
-**Baseline remota main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`  
+**Data da revisão:** 2026-11-16
+**Baseline remota main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`
 **Estado global:** E7 `IN_PROGRESS`; E8/ZEXDOC/ZEXALL `BLOCKED`.
 
 Este documento organiza o trabalho subsequente a partir das evidências realmente observadas. Resultados de PR não são atribuídos à main até integração e validação no SHA pós-merge.
