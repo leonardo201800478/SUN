@@ -1072,3 +1072,9 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 ## Atualização pós-PR #977
 
 HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: Z80 focused/Rust quality CI #43939973117 SUCCESS; SMS Runtime #43939957730 SUCCESS; Scheduler stress SKIPPED. O limite WZ em JR/DJNZ/JR cc sob DD/FD Ignored, inclusive wrap PC=FFFD, passou. F-022/F-023 continuam candidatas a fechamento, pendentes de review independente; F-028 permanece IN_PROGRESS até revisão independente integral. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+
+## Atualização F-028 — PR #977 validada
+
+HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: CI #43940980741 SUCCESS (Z80 focused/Rust quality/unit); SMS Runtime #43940971722 SUCCESS; Scheduler stress SKIPPED. A matriz dos 167 Ignored compara WZ para todos os opcodes e aplica a regra relativa somente a branches tomados. Casos dirigidos incluem wrap de PC, CALL/RST e DD/FD. F-028: auditoria interna completa, candidata a fechamento; review independente registrado pendente. E7 IN_PROGRESS; E8 BLOCKED. Ver relatório F-028.
