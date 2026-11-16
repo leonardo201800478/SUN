@@ -2,9 +2,9 @@
 
 **Data:** 2026-11-16
 **Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
-**Main vigente pós-PR #975:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`
+**Main vigente pós-PR #977:** `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`
 **Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
-**Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+**Estado global vigente:** E7 `CLOSED_WITH_LIMITATIONS`; E8/ZEXDOC/ZEXALL complementar futura.
 
 ## 1. Resumo executivo
 
