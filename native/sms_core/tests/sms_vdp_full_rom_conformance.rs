@@ -70,7 +70,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     address,
                     data,
                     ..
-                } if address & 0x00FF == 0x7F && (0x80..=0x8F).contains(&data.unwrap_or(0)) => {
+                } if address & 0x00FF == 0x7F => {
                     hcounter_reference_reads.push((timestamp.ticks(), data.unwrap_or(0)));
                 }
                 SmsTemporalTraceEvent::BusCompleted {
@@ -132,14 +132,18 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
             .iter()
             .find(|(_, address, _)| *address == result_address)
             .map(|(result_time, _, _)| {
-                hcounter_reference_reads
+                let mut reads = hcounter_reference_reads
                     .iter()
                     .filter(|(timestamp, _)| {
                         *timestamp >= (*result_time).saturating_sub(150_000)
                             && *timestamp <= *result_time
                     })
                     .copied()
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+                if reads.len() > 32 {
+                    reads.drain(..reads.len() - 32);
+                }
+                reads
             })
             .unwrap_or_default()
     };
@@ -150,21 +154,25 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
             .iter()
             .find(|(_, address, _)| *address == result_address)
             .map(|(result_time, _, _)| {
-                io_control_writes
+                let mut writes = io_control_writes
                     .iter()
                     .filter(|(timestamp, _, _)| {
                         *timestamp >= (*result_time).saturating_sub(150_000)
                             && *timestamp <= *result_time
                     })
                     .copied()
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+                if writes.len() > 24 {
+                    writes.drain(..writes.len() - 24);
+                }
+                writes
             })
             .unwrap_or_default()
     };
     let run_test32_io_control_writes = irq_io_control_writes(0xC91F);
     let run_test34_io_control_writes = irq_io_control_writes(0xC921);
     let hcounter_reads_after_th_rise = |writes: &[(u128, u16, u8)]| {
-        writes
+        let mut pairs = writes
             .iter()
             .filter(|(_, _, value)| *value == 0xFF)
             .filter_map(|(write_time, _, _)| {
@@ -175,7 +183,11 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     })
                     .map(|(timestamp, value)| (*write_time, *timestamp, *value))
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        if pairs.len() > 12 {
+            pairs.drain(..pairs.len() - 12);
+        }
+        pairs
     };
     let run_test32_th_latches = hcounter_reads_after_th_rise(&run_test32_io_control_writes);
     let run_test34_th_latches = hcounter_reads_after_th_rise(&run_test34_io_control_writes);
