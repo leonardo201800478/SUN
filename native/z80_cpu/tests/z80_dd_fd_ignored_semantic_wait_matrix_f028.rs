@@ -202,7 +202,10 @@ fn execute_one_instruction(opcode_stream: &[u8], wait_and_snapshot: bool) -> Exe
     panic!("opcode stream {opcode_stream:?} did not retire within 128 micro-operations");
 }
 
-fn remove_prefix_m1_and_normalize_stream_addresses(trace: Vec<TraceEvent>) -> Vec<TraceEvent> {
+fn remove_prefix_m1_and_normalize_stream_addresses(
+    trace: Vec<TraceEvent>,
+    prefix: u8,
+) -> Vec<TraceEvent> {
     let mut events = trace.into_iter();
     assert_eq!(
         events.next(),
@@ -211,15 +214,9 @@ fn remove_prefix_m1_and_normalize_stream_addresses(trace: Vec<TraceEvent>) -> Ve
             address: 0,
             base_tstates: 4,
             stream: true,
-            read_value: Some(0xDD).or(Some(0xFD)),
+            read_value: Some(prefix),
             write_value: None,
             wait_tstates: 1,
-        })
-        .map(|mut event| {
-            if let TraceEvent::Bus { read_value, .. } = &mut event {
-                *read_value = None;
-            }
-            event
         }),
         "the first prefixed event must be the DD/FD M1"
     );
@@ -314,7 +311,7 @@ fn all_167_ignored_fallbacks_preserve_architecture_requests_wait_and_snapshot() 
             );
             assert_architectural_fallback(&base.state, &prefixed.state, prefix, opcode);
             assert_eq!(
-                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace),
+                remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, prefix),
                 base.trace,
                 "{prefix:02X} {opcode:02X}: request type/order/address/payload/timing and internal cycles"
             );
