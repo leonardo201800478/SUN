@@ -58,22 +58,23 @@ type InternalCycleTrace = (
     bool,
     bool,
 );
-type BusTrace = (
-    u128,
-    Z80BusOperation,
-    u16,
-    u8,
-    u32,
-    Option<u8>,
-    u16,
-    u16,
-    bool,
-    Option<u8>,
-    bool,
-    u8,
-    bool,
-    bool,
-);
+#[derive(Debug)]
+struct BusTrace {
+    timestamp: u128,
+    operation: Z80BusOperation,
+    address: u16,
+    base_tstates: u8,
+    wait_tstates: u32,
+    data: Option<u8>,
+    cpu_pc_before: u16,
+    cpu_pc_after: u16,
+    cpu_halted: bool,
+    cpu_int_line: Option<u8>,
+    cpu_iff1: bool,
+    cpu_ei_delay: u8,
+    cpu_halt_exit_int: bool,
+    cpu_halt_exit_nmi: bool,
+}
 
 #[test]
 #[ignore = "run by the dedicated SMS VDP full-ROM conformance workflow"]
@@ -133,8 +134,8 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                 if bus_dispatch_trace.len() == 65_536 {
                     bus_dispatch_trace.pop_front();
                 }
-                bus_dispatch_trace.push_back((
-                    timestamp.ticks(),
+                bus_dispatch_trace.push_back(BusTrace {
+                    timestamp: timestamp.ticks(),
                     operation,
                     address,
                     base_tstates,
@@ -148,7 +149,7 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     cpu_ei_delay,
                     cpu_halt_exit_int,
                     cpu_halt_exit_nmi,
-                ));
+                });
             }
             match event {
                 SmsTemporalTraceEvent::M1FetchCompleted {
@@ -548,7 +549,9 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                         let window_end = irq_time.saturating_add(96);
                         let bus = bus_dispatch_trace
                             .iter()
-                            .filter(|event| event.0 >= window_start && event.0 <= window_end)
+                            .filter(|event| {
+                                event.timestamp >= window_start && event.timestamp <= window_end
+                            })
                             .copied()
                             .collect::<Vec<_>>();
                         let m1 = cpu_m1_fetch_trace
