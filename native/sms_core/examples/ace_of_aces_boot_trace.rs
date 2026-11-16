@@ -67,12 +67,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     writeln!(
         output,
-        "INITIAL t={:?} PC=${:04X} SP=${:04X} banks={:?} control=${:02X} slot1_probe=${:02X}",
+        "INITIAL t={:?} PC=${:04X} SP=${:04X} banks={:?} control=${:02X} c000=${:02X} bios_mapped={} slot1_probe=${:02X}",
         machine.now(),
         machine.cpu().registers.pc,
         machine.cpu().registers.sp,
         machine.memory().selected_banks(),
         machine.memory().control_port(),
+        machine.memory().read(0xC000),
+        machine.memory().bios_enabled(),
         machine.memory().read(0x4000)
     )?;
 
@@ -110,6 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             registers.l,
             banks,
             control,
+            machine.memory().read(0xC000),
             machine.memory().read(0x4000)
         )?;
 
