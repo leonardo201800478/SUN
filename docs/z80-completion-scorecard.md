@@ -766,7 +766,7 @@ Uma instrumentação adicional do LDIR de calibração foi adicionada em `e0c4ca
 
 - F-022: **AUDIT_PARTIAL** — matriz microsequenciada de 786.432 casos registrada na seção 43; execução ROM v5.0 tentada, com timeout inicial e falha funcional posterior instrumentada; causa-raiz temporal ainda aberta.
 - F-023: **AUDIT_PARTIAL** — os 16.384 cenários atômicos e 240 microsequenciados não substituem a suíte independente MEMPTR/WZ; o TAP de Mark Woodmass não foi recuperado/executado.
-- F-028: **AUDIT_PARTIAL** — 34.000 vetores DD/FD PASS em três HEADs de PR posteriores, mas sem reexecução na main atual e sem fechamento das exceções/interações residuais.
+- F-028: **AUDIT_PARTIAL** — 34.000 vetores DD/FD PASS em três HEADs de PR posteriores (último corpus validado na PR #935, não reexecutado na main atual); PR #943 (Draft) acrescenta 45 cadeias prefixadas por executor para EX AF, EXX, EX DE/HL, HALT e ED NEG, com PC/R/Q/flags/WZ e atomic↔micro PASS. A matriz integral das exceções/interações DD/FD ainda não está fechada.
 - O checklist mestre deve classificar individualmente cada requisito como CLOSED, NOT_APPLICABLE com justificativa ou pendente; SKIPPED permanece NOT RUN.
 - O escopo de fechamento de software permanece o perfil Zilog NMOS clássico SMS/SG-1000 declarado no projeto. Validação física de silício, variantes CMOS e clones não são gates universais automáticos; devem permanecer explicitamente NOT_VERIFIED quando não executados.
 
