@@ -149,3 +149,28 @@ A classificação efetiva dos 167 bytes Ignored indica fallback para BASE sem re
 Isso não prova fallback de todos os 167 bytes. O próximo trabalho deve agrupar os bytes por famílias BASE e identificar quais já têm cobertura com DD/FD prefixado, quais têm apenas testes BASE sem prefixo e quais permanecem não implementados/reservados. Um teste de igualdade atomic↔micro é consistência interna, não oracle independente.
 
 **Decisão:** a partição 85/167/1/1/2 está reconciliada; F-028 continua AUDIT_PARTIAL até a semântica prefixada dos 167 Ignored e as demais interações relevantes estarem demonstradas. Nenhuma alteração de produção nesta extensão documental.
+
+
+## Addendum supersedente — cobertura dos 167 Ignored após PRs #950/#953 — 16/11/2026
+
+A seção **8. Gap residual: os 167 Ignored** registra corretamente o estado anterior às PRs #950 e #953, mas não representa mais a pendência atual. Seu diagnóstico de que faltava a matriz de requests dos 167 bytes foi supersedido pelas integrações abaixo. Esta atualização preserva a seção histórica e corrige somente sua interpretação vigente.
+
+### Evidência integrada
+
+- **PR #950 — merge:** `45b40755e46aef752d58f571de856ae25ff9e81c`.
+- **Validação #950:** CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado; a árvore do merge foi confirmada idêntica à árvore testada.
+- **Arquivo:** `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_wait_matrix_f028.rs`.
+- **Cobertura #950:** os 167 opcodes efetivamente classificados como Ignored são executados sem prefixo e com DD/FD. A matriz compara estado arquitetural BASE↔prefixado, fetches M1, refresh R, requests e payloads de leitura/escrita, tipo/ordem/endereço/duração das transações, ciclos internos, WAIT de fixture e snapshot encode/decode/restore nas fronteiras de barramento e ciclos internos.
+- **PR #953 — merge:** `a6cec0d744b8120c8c3e2d1d56abd1aa75fc1031`.
+- **Validação #953:** CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado; a árvore do merge foi confirmada idêntica à árvore testada.
+- **Teste complementar:** `all_167_ignored_fallbacks_preserve_both_conditional_outcomes_and_exact_pc`. A segunda fixture usa F=$FF e B=1 para complementar a primeira fixture (F=$00 e B=$23), verificar resultados condicionais opostos e exigir o delta exato de PC por opcode, mantendo a comparação de requests e o round-trip de snapshot/WAIT.
+
+### Limites que permanecem
+
+1. BASE↔DD/FD é uma comparação estrutural dentro do mesmo microsequenciador; não é oracle independente de silício.
+2. As fixtures cobrem dois conjuntos dirigidos de flags/registradores, não o espaço combinatório de todos os dados e estados de cada instrução BASE.
+3. WAIT é inserido como fixture determinística. Isso valida a suspensão/retomada do microsequenciador sob o contrato testado, não WAIT elétrico/físico.
+4. Essas matrizes F-028 são testes do microsequenciador Z80; não devem ser descritas como integração MachineScheduler/SMS.
+5. A classificação dos 256 bytes e a cobertura dos 167 Ignored não provam, isoladamente, semântica independente de todos os opcodes BASE nem fecham F-028.
+
+**Estado vigente:** a lacuna de ausência da matriz de requests dos 167 Ignored está **RESOLVIDA pelas PRs #950/#953**. F-028 permanece **IN_PROGRESS** exclusivamente para revisão adversarial independente, proveniência/oráculos e limites semânticos ainda não demonstrados. Não reimplementar UsesIndex nem reproduzir a matriz já integrada.
