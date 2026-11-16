@@ -771,3 +771,16 @@ Uma instrumentação adicional do LDIR de calibração foi adicionada em `e0c4ca
 - O escopo de fechamento de software permanece o perfil Zilog NMOS clássico SMS/SG-1000 declarado no projeto. Validação física de silício, variantes CMOS e clones não são gates universais automáticos; devem permanecer explicitamente NOT_VERIFIED quando não executados.
 
 **Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Esta reconciliação documental não altera o runtime nem fecha F-022/F-023/F-028.
+
+
+## 47. F-023 — execução da suíte MEMPTR de Mark Woodmass — 2026-11-16
+
+**PR candidata:** #942 (Draft). **HEAD exato testado:** `7402ff138ced95da2d8b9e0008919c8cd22484f1`.
+
+- A suíte MEMPTR de Mark Woodmass (2008), descrita pelo upstream como comparada com NEC D780C-1 e outros clones, foi executada no core compartilhado. A referência MEMPTR documenta RLD/RRD com WZ=HL+1.
+- TAP GPL-2.0 e ROM Spectrum 48K são obtidos somente no CI e verificados por SHA3-512/Git blob SHA; nenhum binário foi adicionado ao repositório.
+- CI [#43850972785](https://github.com/leonardo201800478/sega-emulator/actions/runs/43850972785) PASS no job Z80 focused. Teste 09: 50.904.931 T-states, FNV-1 `F5AE5140`, 61 linhas, 32 colunas e HALT em 0x80E6; 1 passed/0 failed.
+- SMS Runtime [#43850972708](https://github.com/leonardo201800478/sega-emulator/actions/runs/43850972708) PASS; SingleStepTests DD/FD 34.000/34.000 e regressões Z80/SMS/SG-1000 PASS no mesmo HEAD.
+- Esta evidência valida a saída agregada da suíte MEMPTR hardware-derived, não uma captura física local nem todos os bits não documentados. X/Y, matriz temporal completa e validação física SMS permanecem pendentes; CMOS/clones NOT_VERIFIED.
+
+**Estado:** WZ/MEMPTR agora possui uma referência externa executada e aprovada; F-023 continua AUDIT_PARTIAL. A PR #942 ainda não foi integrada. E7 IN_PROGRESS; E8 BLOCKED.
