@@ -158,8 +158,8 @@ F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
 
 - P0 recebeu a matriz #950 para payloads, estado arquitetural, WAIT e snapshot/restore nos 167 fallbacks. A PR #953 integrou as duas fixtures condicionais e o PC final exato; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado.
 - P1 recebeu as asserções previous-Q e WZ nas quatro formas simples de bloco pela #951. LDI/LDD preservam WZ; CPI/CPD alteram WZ em ±1.
-- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow, IM2, IN/OUT imediato, IM0/IM1, RETN/RETI e RST possuem testes WZ rastreáveis após a PR #954 (CI #43893014345, workspace regression e SMS Runtime #43893014300 PASS). A única lacuna de teste identificada na matriz é a asserção BASE EX (SP),HL da PR #955.
-- Não reimplementar UsesIndex nem iniciar E8. Manter F-028/F-022/F-023 abertas até passar a PR #955 e concluir a revisão adversarial documentada.
+- P2 recebeu a matriz por família WZ/MEMPTR na #952. Control flow, IM2, IN/OUT imediato, IM0/IM1, RETN/RETI e RST possuem testes WZ rastreáveis após a PR #954. A assertion BASE EX (SP),HL da #955 foi integrada e validada no HEAD exato. A matriz permanece AUDIT_PARTIAL por revisão integral e proveniência, não por essa lacuna específica.
+- Não reimplementar UsesIndex nem iniciar E8. A pendência de teste BASE EX (SP),HL da #955 está resolvida; a PR #957 acrescentou execução das quatro formas repetitivas F-022 através do Scheduler com WAIT de fixture e snapshot/restore. Manter F-028/F-022/F-023 abertas até concluir revisão adversarial, proveniência e limites temporais ainda não demonstrados.
 
 ## Reconciliação após PR #955 — 16/11/2026
 
