@@ -182,26 +182,11 @@ fn assert_registers_equal_except_pc(base: &Z80Registers, prefixed: &Z80Registers
 }
 
 fn assert_atomic_equal_except_prefix(base: &Z80, prefixed: &Z80) {
-    assert_registers_equal_except_pc(&base.registers, &prefixed.registers);
-    assert_eq!(prefixed.alternate, base.alternate);
-    assert_eq!(prefixed.ix, base.ix);
-    assert_eq!(prefixed.iy, base.iy);
-    assert_eq!(prefixed.i, base.i);
-    assert_eq!(prefixed.r, base.r.wrapping_add(1));
-    assert_eq!(prefixed.iff1, base.iff1);
-    assert_eq!(prefixed.iff2, base.iff2);
-    assert_eq!(prefixed.interrupt_mode, base.interrupt_mode);
-    assert_eq!(prefixed.wz, base.wz);
-    assert_eq!(prefixed.ei_delay, base.ei_delay);
-    assert_eq!(prefixed.nmi_pending, base.nmi_pending);
-    assert_eq!(prefixed.int_pending, base.int_pending);
-    assert_eq!(prefixed.q, base.q);
-    assert_eq!(prefixed.q_previous, base.q_previous);
-    assert_eq!(prefixed.p, base.p);
-    assert_eq!(prefixed.halted, base.halted);
+    let base_state = base.export_architectural_state();
+    let prefixed_state = prefixed.export_architectural_state();
+    assert_architecture_equal_except_prefix(&base_state, &prefixed_state);
     assert_eq!(prefixed.total_tstates, base.total_tstates + 4);
 }
-
 fn assert_architecture_equal_except_prefix(
     base: &Z80ArchitecturalState,
     prefixed: &Z80ArchitecturalState,
