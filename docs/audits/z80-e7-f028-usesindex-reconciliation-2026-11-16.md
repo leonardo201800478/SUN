@@ -65,3 +65,38 @@ Os 167 bytes efetivos Ignored são instruções BASE cujo prefixo DD/FD não alt
 - Os 167 Ignored ainda não têm validação prefixada por opcode/família completa.
 - F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
 - Nenhuma alteração de produção CPU/Scheduler/runtime é justificada por esta reconciliação.
+
+
+## 6. Partição dos 167 Ignored por campos x/z do opcode BASE
+
+A partir do opcode terminal (sem DD/FD), os 167 bytes foram agrupados pela decomposição Z80 x/y/z. A tabela registra quantidades por grupo; a lista exata de bytes continua no CSV ledger.
+
+| Grupo | Família BASE | Quantidade Ignored |
+|---|---|---:|
+| x=0,z=0 | NOP, EX AF,AF', DJNZ, JR e JR cc | 8 |
+| x=0,z=1 | LD BC/DE/SP,nn (HL→IX/IY já está em UsesIndex) | 3 |
+| x=0,z=2 | transferências indiretas BC/DE e absolutas de A | 6 |
+| x=0,z=3 | INC/DEC BC/DE/SP | 6 |
+| x=0,z=4 | INC B/C/D/E/A | 5 |
+| x=0,z=5 | DEC B/C/D/E/A | 5 |
+| x=0,z=6 | LD B/C/D/E/A,n | 5 |
+| x=0,z=7 | RLCA/RRCA/RLA/RRA/DAA/CPL/SCF/CCF | 8 |
+| **x=0 subtotal** | | **46** |
+| x=1 | LD r,r' BASE sem H/L e HALT | 26 |
+| **x=1 subtotal** | | **26** |
+| x=2 | ALU A,r BASE sem H/L e (HL) | 40 |
+| **x=2 subtotal** | | **40** |
+| x=3,z=0 | RET cc | 8 |
+| x=3,z=1 | POP BC/DE/AF, RET, EXX, LD SP,HL (com IX/IY substituído em seu próprio grupo) | 5 |
+| x=3,z=2 | JP cc,nn | 8 |
+| x=3,z=3 | JP nn, IN/OUT (n), EX DE,HL, DI/EI | 6 |
+| x=3,z=4 | CALL cc | 8 |
+| x=3,z=5 | PUSH BC/DE/AF e CALL nn | 4 |
+| x=3,z=6 | ALU A,n | 8 |
+| x=3,z=7 | RST | 8 |
+| **x=3 subtotal** | | **55** |
+| **Total efetivo Ignored** | | **167** |
+
+A contagem confirma que a lacuna não é “mais 167 variantes de IX/IY”: são opcodes BASE agrupáveis por famílias de execução. O plano de teste deve cobrir os diferentes formatos de request (sem operandos, imediato, relativo, memória indireta/absoluta, stack, I/O e controle de fluxo), e não apenas um representante genérico sem WAIT.
+
+**Observação:** os subtotais x/z descrevem o decoder BASE e não substituem o ledger nem provam a semântica. As exceções especiais DD/FD/ED, IndexedCB e os bytes UsesIndex continuam fora deste conjunto efetivo de 167.
