@@ -297,3 +297,12 @@ fn dd_fd_prefix_chains_cancel_before_ed_neg_in_both_executors() {
     assert_ne!(base.registers.f, 0x22);
     run_prefix_matrix(&[0xED, 0x44], 2, false);
 }
+
+#[test]
+fn ignored_flag_and_interrupt_opcodes_preserve_base_semantics_across_prefix_chains() {
+    // NOP, DAA, CPL, SCF, CCF, DI and EI do not consume IX/IY.
+    // SCF/CCF also exercise the Q/previous-Q boundary after multiple prefixes.
+    for opcode in [0x00_u8, 0x27, 0x2F, 0x37, 0x3F, 0xF3, 0xFB] {
+        run_prefix_matrix(&[opcode], 1, false);
+    }
+}
