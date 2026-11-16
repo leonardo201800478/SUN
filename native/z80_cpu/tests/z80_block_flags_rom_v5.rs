@@ -433,10 +433,14 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                     Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge));
             } else if let Some((ldir_pc, start_t, start_bc, frame_edge)) = block_delay_loop
                 && pc_before != ldir_pc
+                && cpu.registers.bc() == 0
             {
+                // LDIR is interruptible: an INT/IM2 detour changes PC while BC
+                // remains nonzero. Keep measuring across the handler and RETI;
+                // only leaving the LDIR with BC=0 marks normal completion.
                 let expected_tstates = u64::from(start_bc.saturating_sub(1)) * 21 + 16;
                 block_delay_summary.push(format!(
-                    "ldir_pc={:04X} start_t={} end_t={} elapsed={} expected={} start_bc={:04X} end_pc={:04X} end_bc={:04X} frame_edge={} end_to_edge={}",
+                    "ldir_pc={:04X} start_t={} end_t={} elapsed_including_interrupts={} nominal_without_interrupts={} start_bc={:04X} end_pc={:04X} end_bc={:04X} first_frame_edge={} end_to_first_edge={}",
                     ldir_pc,
                     start_t,
                     cpu.total_tstates,
