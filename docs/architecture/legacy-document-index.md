@@ -1,6 +1,6 @@
 # Índice de documentação histórica e hosts aposentados
 
-**Revisão:** 2026-11-16.  
+**Revisão:** 2026-11-16.
 **Host de produto ativo:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
 Este índice evita que documentos históricos sejam confundidos com contratos de implementação atuais. A presença de código ou documentação antiga não significa que o host correspondente esteja ativo.
