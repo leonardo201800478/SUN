@@ -63,3 +63,20 @@ A tabela não declara merge nem fechamento. Ações no GitHub exigem estado remo
 ## 8. Inventário documental
 
 A árvore contém 285 Markdown; contagem estrutural não equivale a leitura integral. Próxima etapa: agrupar por autoridade/sistema/componente/data; classificar vigente/histórico/substituído/obsoleto; reconciliar índices e links; mapear documento → módulo/símbolo → teste → workflow → SHA. Preservar histórico e não apagar evidência por idade.
+
+
+## 9. Estado das PRs após a reconciliação — 2026-11-16
+
+- **#979 — aberta em Draft:** consolidação documental, portabilidade das evidências E7 e novo escopo de acessórios. Base `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`; HEAD documental atual a consultar no GitHub. Sem alteração de produção.
+- **#978 — fechada sem merge:** conteúdo documental E7 portado seletivamente para #979.
+- **#974 — fechada sem merge:** plano SG-1000 P2 portado e atualizado em #979.
+- **#769 — fechada sem merge:** isolamento do D3D12 supersedido; host anterior fora de uso ativo. Código legado não foi removido.
+- **#881 — fechada sem merge:** desalinhamento de sprites reportado pelo usuário como corrigido. Investigações VDP independentes permanecem separadas.
+- **#913 — fechada sem merge:** Road Rash reportado pelo usuário como testado fisicamente e OK.
+- **#533 — permanece Draft:** contrato de conclusão final; requer reconciliação posterior com o roadmap novo.
+- **#921 — permanece Draft:** correção VCounter; sua própria evidência full-ROM ainda registra falhas RunTest32/34. Não integrar sem nova validação.
+- **#878 — permanece Draft:** evolução do debugger; captura/exportação/snapshots ainda incompletos.
+- **#863 — permanece Draft:** otimização Scheduler; aguarda validação aplicável e não precede SG-1000 por padrão.
+- **#928 — permanece Draft:** boot por BIOS convencional; validação física pendente.
+
+Os fechamentos foram acompanhados de comentários explícitos. Nenhuma dessas PRs foi integrada por esta reconciliação.
