@@ -34,7 +34,7 @@ type CpuMemoryReadTrace = (
     u16,
     u16,
     u8,
-    u8,
+    u32,
     bool,
     Option<u8>,
     bool,
