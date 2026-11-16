@@ -857,7 +857,7 @@ mod tests {
         assert_eq!(bus.vdp().cycles_into_line(), 5);
 
         let state = bus.export_state();
-        let mut restored = Sg1000TemporalBus::restore_state(state.clone()).unwrap();
+        let restored = Sg1000TemporalBus::restore_state(state.clone()).unwrap();
         assert_eq!(restored.export_state(), state);
         assert_eq!(restored.psg().clock_hz(), 2_000_000);
     }
@@ -911,7 +911,7 @@ mod tests {
         assert_eq!(bus.psg().tone_periods()[0], 5);
 
         let snapshot = bus.export_state();
-        let restored = Sg1000TemporalBus::restore_state(snapshot.clone()).unwrap();
+        let mut restored = Sg1000TemporalBus::restore_state(snapshot.clone()).unwrap();
         assert_eq!(
             restored.dispatch_next().unwrap(),
             Some(Sg1000TemporalDispatch::BusCompletion(completion))
