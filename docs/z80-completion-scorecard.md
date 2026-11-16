@@ -1,6 +1,6 @@
 # Z80 compartilhado — scorecard de conclusão
 
-**Reconciliação atual:** `main` = `08f633affdb7478b64b1ec2007ca1986c2a48978` (2026-11-16, após PRs #955–#969). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
+**Reconciliação atual:** `main` = `2d526ea37c9cd65e82b54a330c52f54c07841400` (2026-11-16, pós-PR #970; integração documental). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). As seções anteriores preservam evidências vinculadas aos respectivos SHAs; esta fotografia atualiza o estado sem reatribuir resultados de testes a commits não executados.
 **Reconciliação:** PR #672 integrou GUI/D3D12; PR #673 adicionou teste ED; PR #674 reconciliou evidências; PR #675 adicionou o B-loop de flags; PRs #677/#678 adicionaram observação IM2, handler PUSH/POP AF, EI/RETI e retomada do bloco. Nenhuma alterou a semântica de runtime do Z80.
 **Nota de reconciliação:** as PRs #615 (filtro/reset SN76489) e #617 (clarificação documental Rust/egui) não alteraram o núcleo Z80, decoder DD/FD ou suas evidências. O conteúdo técnico e as conclusões semânticas abaixo permanecem conforme as auditorias de Z80 registradas.
 **Política vigente:** [ADR-0016 — fidelidade observável](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
@@ -1049,3 +1049,25 @@ A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (
 - **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
 
 Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+## Reconciliação pós-PR #970 — baseline remota 16/11/2026
+
+**Main confirmada:** `2d526ea37c9cd65e82b54a330c52f54c07841400`. A PR #970 integrou documentação consolidada; não alterou CPU, decoder, microsequenciador, Scheduler ou runtime. Esta seção supersede cabeçalhos que ainda apontavam para `08f633affdb7478b64b1ec2007ca1986c2a48978`.
+
+### Estado rastreável
+
+- **F-022:** LDI/LDD/CPI/CPD integradas ao SmsTemporalMachine/Scheduler pela #969; LDIR/LDDR/CPIR/CPDR integradas pela #957/#962; INT IM1 durante repetição, RETI e retomada pela #964. A matriz IM2 com PUSH AF/POP AF/EI/RETI permanece evidência do microsequenciador (#944), separada da integração SMS. PR #972 tenta fechar essa última diferença com teste Scheduler/SMS; HEAD atual `930bdac7bc27788ada80c0c86cf2060b227336e6`, CI #43915812826/#43915812871 em execução nesta fotografia. Não atribuir PASS antes da conclusão.
+- **F-023:** a matriz por família permanece completa como inventário do modelo; DOC/HW/COMP/INT continuam separados. Somente RRD/RLD tem evidência hardware-derived específica para WZ=HL+1 na matriz atual. F-023 permanece AUDIT_PARTIAL por proveniência e revisão adversarial, não por ausência de implementação.
+- **F-028:** os 167 Ignored já possuem matriz de estado, requests/payloads, WAIT de fixture, snapshot/restore e PC condicional exato nas PRs #950/#953; 85 UsesIndex estão reconciliados; #968 corrigiu stream/data. A antiga afirmação de que faltava a matriz de requests está supersedida. Revisão adversarial/oráculos e limites semânticos permanecem pendentes.
+- **Scheduler:** LONG_PASS de software na campanha #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, 320.000 operações e 4.000.000 dispatches. Não comprova WAIT físico, DMA, safe points de todos os dispositivos ou TEMPORAL_PASS global.
+- **PR #971:** correção documental F-028, HEAD `26fd03345df702c18ff85fceaddb9f63b4a4a20a`; CI #43913347117 SUCCESS nos gates aplicáveis de documentação/qualidade. Draft/aberta, não integrada.
+- **PR #972:** teste Scheduler IM2 candidato, HEAD `930bdac7bc27788ada80c0c86cf2060b227336e6`; CI #43915812826 e #43915812871 em execução. Não integrada.
+
+### Decisão
+
+F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS (software); E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+O checklist do repositório não define um conjunto separado e canônico de exatamente 12 critérios numerados E7. Os IDs formais estão distribuídos pelas famílias F-, estado S-, temporalidade T-, determinismo D-, validação V- e arquitetura C-. Qualquer resumo de 12 itens deve ser identificado como matriz consolidada derivada, não como uma lista preexistente do checklist.
+
+Não atribuir workflows de PR ao SHA da main. SKIPPED permanece NOT RUN. Nenhum critério pode ser CLOSED sem evidência exata e reproduzível.
