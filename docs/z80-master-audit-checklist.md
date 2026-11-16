@@ -894,8 +894,8 @@ Main: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
 | Família | Estado vigente | Evidência/pendência |
 |---|---|---|
 | F-022 — Block Instructions | INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) | Oito formas; 786.432 cenários simples, matrizes micro/repetição, ROM hardware-derived limitada e integração SMS/Scheduler; auditoria interna completa, review independente pendente |
-| F-023 — WZ/MEMPTR | INTERNAL_REVIEW_COMPLETE (candidate; PR #977 and independent review pending) | Revisão interna dos handlers e matriz concluída; PR #977 cobre JR/DJNZ WZ sob DD/FD; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
-| F-028 — DD/FD | IN_PROGRESS | 85 UsesIndex, 167 Ignored; #975 cobre wrap 16-bit de retorno CALL/RST em DD/FD; falta revisão adversarial integral de exceções/limites |
+| F-023 — WZ/MEMPTR | INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) | Revisão interna concluída; PR #977 passou Z80 focused/SMS Runtime e cobre JR/DJNZ WZ sob DD/FD; HW somente RRD/RLD, INT/COMP explícitos, clones NOT_VERIFIED |
+| F-028 — DD/FD | INTERNAL_REVIEW_COMPLETE (candidate; independent review pending) | 85 UsesIndex, 167 Ignored; #975 cobre CALL/RST stack wrap; #977 valida WZ/PC nos 167 Ignored, branches relativos e exceções; review independente pendente |
 
 PR #975 HEAD `7574245338549fd8f37a7483ef41b7fbc306ffe5`: CI #43937118700 Z80 focused e Rust quality/unit PASS; SMS Runtime #43937118785 PASS; Scheduler stress SKIPPED. Merge squash: `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`.
 
