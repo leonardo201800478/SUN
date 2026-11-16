@@ -119,3 +119,33 @@ Foram adicionados dois testes em z80_dd_fd_exception_matrix_f028.rs. Eles solici
 O ledger e o teste completam a classificação explícita de cada byte após DD/FD, mas não constituem validação semântica integral dos 256 opcodes em todos os estados. O repositório já possui smoke tests de 256 encodings DD/FD e DDCB/FDCB; eles demonstram dispatch sem erro. A suíte indexed-CB SMS exaustiva cobre rotate/shift para todos os valores/carry, e outras famílias têm testes dirigidos; isso não equivale a uma prova combinatória de BIT/RES/SET e todas as interações de estado/barramento. Atomic↔micro continua sendo consistência interna, não oracle independente.
 
 **Classificação:** a classificação de todos os 256 bytes e os novos casos de INT/NMI estão PASS no HEAD b3320ea. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Nenhuma alteração de produção CPU, decoder, microsequenciador, Scheduler ou runtime.
+
+## 7. Reconciliação dos 85 UsesIndex com as famílias existentes
+
+A extração do ledger CSV foi agrupada por família, sem sobreposição. O resultado soma exatamente 85 bytes:
+
+| Família | Qtde | Bytes após DD/FD |
+|---|---:|---|
+| E3A1 | 9 | 09, 19, 21, 23, 29, 2B, 39, E9, F9 |
+| E3A2 | 5 | 22, 2A, E1, E3, E5 |
+| E4A | 15 | 36, 46, 4E, 56, 5E, 66, 6E, 70, 71, 72, 73, 74, 75, 77, 7E |
+| E4B | 8 | 86, 8E, 96, 9E, A6, AE, B6, BE |
+| E4C | 2 | 34, 35 |
+| F-036 | 24 | 44, 45, 4C, 4D, 54, 55, 5C, 5D, 60, 61, 62, 63, 64, 65, 67, 68, 69, 6A, 6B, 6C, 6D, 6F, 7C, 7D |
+| PR #680 — INC/DEC/LD imediato half-register | 6 | 24, 25, 26, 2C, 2D, 2E |
+| F-037 — ALU half-register | 16 | 84, 85, 8C, 8D, 94, 95, 9C, 9D, A4, A5, AC, AD, B4, B5, BC, BD |
+| **Total** | **85** | |
+
+**Implicação:** os 85 UsesIndex têm família e testes preexistentes. F-036 e F-037 permanecem CLOSED; E3A1/E3A2/E4A/E4B/E4C permanecem preservadas; PR #680 já está integrada. Não duplicar essas implementações para fechar F-028.
+
+## 8. Gap residual: os 167 Ignored
+
+A classificação efetiva dos 167 bytes Ignored indica fallback para BASE sem refetch, mas a validação prefixada existente é representativa:
+- `prefix_fallback_e6.rs`: nove testes para opcode já buscado, M1/WAIT/snapshot, immediate, ALU immediate, relative branch, memória read/write e ED.
+- PR #943: 108 combinações por executor para nove cadeias e 12 formas, incluindo EX AF/EXX/EX DE-HL, HALT, NEG, NOP, DAA, CPL, SCF, CCF, DI e EI.
+- `prefix_fsm.rs`: last-prefix-wins, ED cancel e cadeia de 257 prefixos.
+- INT/NMI entre DD e FD são aceitos após o opcode terminal em cenário NOP.
+
+Isso não prova fallback de todos os 167 bytes. O próximo trabalho deve agrupar os bytes por famílias BASE e identificar quais já têm cobertura com DD/FD prefixado, quais têm apenas testes BASE sem prefixo e quais permanecem não implementados/reservados. Um teste de igualdade atomic↔micro é consistência interna, não oracle independente.
+
+**Decisão:** a partição 85/167/1/1/2 está reconciliada; F-028 continua AUDIT_PARTIAL até a semântica prefixada dos 167 Ignored e as demais interações relevantes estarem demonstradas. Nenhuma alteração de produção nesta extensão documental.
