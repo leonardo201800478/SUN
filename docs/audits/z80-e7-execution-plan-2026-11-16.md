@@ -52,7 +52,7 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 ### P2 — completar a reconciliação semântica F-028
 
 1. **Concluído documentalmente:** os 85 UsesIndex foram reconciliados byte a byte: E3A1=9, E3A2=5, E4A=15, E4B=8, E4C=2, F-036=24, PR #680 half-register INC/DEC/LD immediate=6 e F-037 half-register ALU=16. Soma=85; E3/E4/F-036/F-037 preservados. Detalhe em `docs/audits/z80-e7-f028-usesindex-reconciliation-2026-11-16.md`.
-2. **Próximo gap real:** os 167 Ignored efetivos ainda não têm fallback sem refetch provado byte/família por byte/família. `prefix_fallback_e6.rs` tem nove testes representativos; PR #943 cobre exceções de troca/HALT/ED/control em 108 combinações por executor, e `prefix_fsm.rs` cobre 257 prefixos/last-prefix-wins. Gerar uma matriz das 167 entradas por família BASE e distinguir cobertura prefixada de cobertura BASE sem prefixo.
+2. **Concluído documentalmente:** os 167 Ignored efetivos foram agrupados por família BASE x/y/z: x=0:46, x=1:26, x=2:40, x=3:55. A lista exata permanece no ledger CSV e a decomposição está em `docs/audits/z80-e7-f028-usesindex-reconciliation-2026-11-16.md`. O gap de código permanece: `prefix_fallback_e6.rs` tem nove testes representativos; PR #943 cobre exceções de troca/HALT/ED/control em 108 combinações por executor, e `prefix_fsm.rs` cobre 257 prefixos/last-prefix-wins. Próximo passo: gerar fixtures por formato de request (register-only, immediate, relative, memory, stack, I/O, control flow) e validar fallback prefixado para cada opcode implementado, sem contar teste BASE sem prefixo como cobertura DD/FD.
 3. Manter separadas as transições especiais DD/FD repetidos, ED cancel-index e CB indexed-CB; o helper `classify_index_opcode` isolado não representa toda a FSM.
 4. Ampliar semântica por opcode/estado apenas onde houver lacuna real, sem duplicar E4/E5/E6 nem reabrir etapas validadas.
 5. Completar cenários de HALT, Q/previous-Q, interrupções, WAIT e snapshot nas fronteiras relevantes.
@@ -112,3 +112,11 @@ O teste não contém LDI/LDD/CPI/CPD simples. Essas quatro formas têm matriz mi
 - Não fazer merge automático nem atribuir CI de PR à main.
 - Nenhuma alteração de produção CPU/Scheduler/runtime nesta continuidade. A PR #944 altera somente testes em `native/z80_cpu/src/sequencer.rs`.
 - E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
+
+ 
+### F-028 — decomposição dos 167 Ignored
+- 167 bytes foram agrupados por decoder BASE x/y/z: x=0 = 46; x=1 = 26; x=2 = 40; x=3 = 55.
+- O próximo teste deve percorrer os 167 bytes implementados com fixtures específicos por formato: register-only, immediate, relative, indirect/absolute memory, stack, I/O e control flow.
+- Assertions estruturais mínimas: prefix M1 e R incrementados, exatamente um fetch M1 do opcode terminal, ausência de refetch, PC/R corretos, custo 4T do prefixo e requests/ordem de operandos preservados.
+- WAIT/snapshot devem ser cobertos por classe de request. Instruções BASE sem implementação e codificações reservadas devem ser marcadas NOT_IMPLEMENTED/NOT_APPLICABLE, nunca PASS por mera classificação.
+- Nenhuma alteração de CPU de produção é autorizada sem falha reproduzível no fallback.
