@@ -30,6 +30,14 @@ fn direction(opcode: u8) -> i16 {
     if matches!(opcode, 0xA8 | 0xA9) { -1 } else { 1 }
 }
 
+fn expected_simple_wz(opcode: u8, initial_wz: u16) -> u16 {
+    if matches!(opcode, 0xA1 | 0xA9) {
+        initial_wz.wrapping_add_signed(direction(opcode))
+    } else {
+        initial_wz
+    }
+}
+
 /// Independent transcription of the documented simple block-instruction
 /// flag rules. It deliberately does not call production ALU/flag helpers.
 fn expected_flags(opcode: u8, initial_f: u8, accumulator: u8, value: u8, count: u16) -> u8 {
@@ -241,8 +249,8 @@ fn all_simple_block_transfer_and_compare_inputs_match_independent_flags() {
                     assert_eq!(state.q_previous, 0x28, "ED {opcode:02X}: previous-Q");
                     assert_eq!(
                         state.wz,
-                        0xA55A_u16.wrapping_add_signed(delta),
-                        "ED {opcode:02X}: simple-form WZ increment/decrement"
+                        expected_simple_wz(opcode, 0xA55A),
+                        "ED {opcode:02X}: simple-form WZ rule"
                     );
                     assert_eq!(state.registers.bc(), count, "ED {opcode:02X}: BC");
                     assert_eq!(
@@ -309,7 +317,7 @@ fn simple_block_forms_preserve_waits_and_snapshot_restore_at_every_boundary() {
         );
         assert_eq!(
             cpu.export_architectural_state().wz,
-            0xA55A_u16.wrapping_add_signed(direction(opcode)),
+            expected_simple_wz(opcode, 0xA55A),
             "ED {opcode:02X}: WZ after WAIT and snapshot restore"
         );
         assert_eq!(cpu.registers.pc, 0x1002, "ED {opcode:02X}: PC after resume");
