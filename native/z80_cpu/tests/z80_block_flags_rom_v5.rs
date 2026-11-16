@@ -211,6 +211,7 @@ fn validate_b_loop_log(
     block_interrupts: &[String],
     block_instruction_steps: &[String],
     block_delay_summary: &[String],
+    block_delay_step_samples: &[String],
 ) {
     let mut cursor = LOG_AREA;
 
@@ -230,7 +231,7 @@ fn validate_b_loop_log(
 
             assert_eq!(
                 b_after, expected_b,
-                "B-loop B value at {cursor:04X}; delay-loop timing: {block_delay_summary:#?}; first block-I/O instruction steps: {block_instruction_steps:#?}; first block-I/O INT accepts: {block_interrupts:#?}"
+                "B-loop B value at {cursor:04X}; LDIR candidates: {block_delay_summary:#?}; LDIR step samples: {block_delay_step_samples:#?}; first block-I/O instruction steps: {block_instruction_steps:#?}; first block-I/O INT accepts: {block_interrupts:#?}"
             );
             assert_eq!(
                 actual_flags,
@@ -287,7 +288,8 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
     let mut block_interrupts = Vec::with_capacity(8);
     let mut block_instruction_steps = Vec::with_capacity(12);
     let mut block_delay_loop: Option<(u16, u64, u16, u64)> = None;
-    let mut block_delay_summary = Vec::with_capacity(1);
+    let mut block_delay_summary = Vec::with_capacity(8);
+    let mut block_delay_step_samples = Vec::with_capacity(24);
 
     for step_index in 0..MAX_STEPS {
         let now = cpu.total_tstates;
@@ -330,6 +332,7 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                 &block_interrupts,
                 &block_instruction_steps,
                 &block_delay_summary,
+                &block_delay_step_samples,
             );
             completed = true;
             break;
@@ -420,18 +423,8 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         let opcode: [u8; 4] = std::array::from_fn(|offset| {
             bus.memory[usize::from(pc_before.wrapping_add(offset as u16))]
         });
-        if block_delay_summary.is_empty() && &bus.memory[0x8900..0x8904] == b"OTIR" {
-            if opcode[0] == 0xED
-                && opcode[1] == 0xB0
-                && cpu.registers.bc() > 100
-                && block_delay_loop.is_none()
-            {
-                let frame_edge = pulse_end
-                    .map(|end| end.saturating_sub(32))
-                    .unwrap_or(next_interrupt);
-                block_delay_loop =
-                    Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge));
-            } else if let Some((ldir_pc, start_t, start_bc, frame_edge)) = block_delay_loop
+        if &bus.memory[0x8900..0x8904] == b"OTIR" {
+            if let Some((ldir_pc, start_t, start_bc, frame_edge)) = block_delay_loop
                 && pc_before != ldir_pc
                 && cpu.registers.bc() == 0
             {
@@ -453,6 +446,16 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
                     frame_edge.saturating_sub(cpu.total_tstates)
                 ));
                 block_delay_loop = None;
+            } else if block_delay_loop.is_none()
+                && opcode[0] == 0xED
+                && opcode[1] == 0xB0
+                && cpu.registers.bc() > 100
+            {
+                let frame_edge = pulse_end
+                    .map(|end| end.saturating_sub(32))
+                    .unwrap_or(next_interrupt);
+                block_delay_loop =
+                    Some((pc_before, cpu.total_tstates, cpu.registers.bc(), frame_edge));
             }
         }
 
@@ -504,12 +507,29 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
         }
         recent_steps.push_back(trace);
 
-        cpu.step(&mut bus).unwrap_or_else(|error| {
+        let tstates_before_step = cpu.total_tstates;
+        let bc_before_step = cpu.registers.bc();
+        let step_cycles = cpu.step(&mut bus).unwrap_or_else(|error| {
             panic!(
                 "Z80 block-flags ROM execution failed at PC={:04X}: {error:?}",
                 cpu.registers.pc
             )
         });
+        if let Some((ldir_pc, _, _, _)) = block_delay_loop
+            && pc_before == ldir_pc
+            && opcode[0] == 0xED
+            && opcode[1] == 0xB0
+            && block_delay_step_samples.len() < 24
+        {
+            block_delay_step_samples.push(format!(
+                "pc={pc_before:04X} t_before={tstates_before_step} t_after={} returned_cycles={step_cycles} counter_delta={} BC_before={:04X} BC_after={:04X} PC_after={:04X}",
+                cpu.total_tstates,
+                cpu.total_tstates.saturating_sub(tstates_before_step),
+                bc_before_step,
+                cpu.registers.bc(),
+                cpu.registers.pc
+            ));
+        }
         if int_pending_before.is_some()
             && iff1_before
             && cpu.int_pending.is_none()
