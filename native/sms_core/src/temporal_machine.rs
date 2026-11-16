@@ -807,23 +807,24 @@ impl SmsTemporalMachine {
                 if next_phase == Z80M1Phase::Complete {
                     let step = self.finish_m1_fetch()?;
                     if self.trace_enabled {
-                        self.trace_events.push(SmsTemporalTraceEvent::M1FetchCompleted {
-                            timestamp: completed_at,
-                            address: pins.address,
-                            cpu_pc: self.cpu.registers.pc,
-                            cpu_halted: self.cpu.halted,
-                            cpu_int_line: self.cpu.int_pending,
-                            cpu_iff1: self.cpu.iff1,
-                            cpu_ei_delay: self.cpu.ei_delay,
-                            cpu_halt_exit_int: matches!(
-                                self.cpu.halt_exit_pending,
-                                Some(sega_z80_cpu::Z80HaltExit::Int)
-                            ),
-                            cpu_halt_exit_nmi: matches!(
-                                self.cpu.halt_exit_pending,
-                                Some(sega_z80_cpu::Z80HaltExit::Nmi)
-                            ),
-                        });
+                        self.trace_events
+                            .push(SmsTemporalTraceEvent::M1FetchCompleted {
+                                timestamp: completed_at,
+                                address: pins.address,
+                                cpu_pc: self.cpu.registers.pc,
+                                cpu_halted: self.cpu.halted,
+                                cpu_int_line: self.cpu.int_pending,
+                                cpu_iff1: self.cpu.iff1,
+                                cpu_ei_delay: self.cpu.ei_delay,
+                                cpu_halt_exit_int: matches!(
+                                    self.cpu.halt_exit_pending,
+                                    Some(sega_z80_cpu::Z80HaltExit::Int)
+                                ),
+                                cpu_halt_exit_nmi: matches!(
+                                    self.cpu.halt_exit_pending,
+                                    Some(sega_z80_cpu::Z80HaltExit::Nmi)
+                                ),
+                            });
                     }
                     Ok(step)
                 } else {
