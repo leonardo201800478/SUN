@@ -237,6 +237,6 @@ Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento 
 
 ### Decisão
 
-**F-023: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE.** A revisão interna da matriz está concluída; falta a cobertura cruzada DD/FD JR/DJNZ da PR #977 e a revisão independente registrada. O fechamento significa que todas as famílias modeladas têm regra, condição, wrap, observabilidade e teste rastreável, com proveniência explicitamente classificada; não significa que cada regra interna tenha medição física própria, nem conformidade universal de clones.
+**F-023: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE.** A revisão interna da matriz está concluída; a cobertura cruzada DD/FD JR/DJNZ da PR #977 passou no CI #43940980741; falta somente a revisão independente registrada. O fechamento significa que todas as famílias modeladas têm regra, condição, wrap, observabilidade e teste rastreável, com proveniência explicitamente classificada; não significa que cada regra interna tenha medição física própria, nem conformidade universal de clones.
 
 Nenhuma alteração de produção foi necessária. A validação temporal de WAIT físico/DMA continua fora desta conclusão e não é inferida dos fixtures. A PR #977 adiciona os casos WZ de JR/DJNZ sob DD/FD Ignored. E8 permanece bloqueada até F-028 e os gates globais E7 serem formalmente fechados.
