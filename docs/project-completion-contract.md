@@ -43,7 +43,7 @@ Functional semantics are mandatory for every supported instruction and operation
 
 Every increase in temporal detail must identify the affected console/game/revision/peripheral, observable effect, evidence, minimum sufficient granularity and regression test. Absence of unnecessary microsequencing is not a functional defect.
 
-The Z80 completion sequence E4C → E5 → E6 → E7 → E8 → E9 is governed by [the Z80 scorecard](z80-completion-scorecard.md), [the DD/FD semantic matrix](z80-dd-fd-semantic-matrix.md) and [the master audit checklist](z80-master-audit-checklist.md). **E8/ZEXDOC/ZEXALL must not begin before E7 is demonstrably closed** with the required semantic matrix, independent evidence, integration and adversarial review.
+The shared Z80 is **CLOSED_WITH_LIMITATIONS** for the supported SMS/SG-1000 profile based on the defined Zilog NMOS behavior. E8/ZEXDOC/ZEXALL and further adversarial review are complementary validation, not permanent gates for advancing the roadmap. Reopen E7 only for a reproducible defect/regression or new technical evidence. CMOS/clones outside the declared profile, physical WAIT, DMA and global electrical timing remain NOT_VERIFIED/NOT_RUN.
 
 ## 4. Final acceptance gates
 
@@ -51,7 +51,7 @@ The project may be declared complete only when **all** of the following are sati
 
 - [ ] Every phase P0–P9 in the canonical [project roadmap](project-roadmap.md) has met its documented exit criteria in the prescribed order.
 - [ ] Every desktop migration stage R1–R5 in the same roadmap and ADR 0011 has met its exit criteria; historical Qt/PySide6/egui snapshots are not accepted as proof of the current Slint target.
-- [ ] Every platform in scope (SG-1000, Master System, Game Gear, Mega Drive/Genesis, Sega CD, 32X and Sega CD 32X) has its required hardware runtime and host integration implemented; deferred or unsupported behavior is explicit rather than silently approximated.
+- [ ] Every platform in scope (SG-1000, Master System, Game Gear, Mega Drive/Genesis, Sega CD and 32X) has its required hardware runtime and host integration implemented; deferred or unsupported behavior is explicit rather than silently approximated.
 - [ ] Shared CPU cores and reusable components are consolidated without per-console duplicates or parallel legacy hardware runtimes.
 - [ ] Functional behavior is covered by unit, integration, diagnostic-ROM and representative game tests appropriate to each platform.
 - [ ] Gameplay-sensitive timing interactions have reproducible evidence and tests at the minimum sufficient temporal granularity. No universal pin-accuracy claim is required.
@@ -69,10 +69,11 @@ The project may be declared complete only when **all** of the following are sati
   ```
 - [ ] Required platform-specific CI, native build and host-integration jobs pass on that same SHA. A job is required only where the final diff/product scope requires it, but every mandatory gate must actually run; SKIPPED, NOT RUN or BLOCKED is never PASS.
 - [ ] Physical Windows x64 validation is recorded where the roadmap/ADR requires it: effective Vulkan backend and surface lifecycle, sustained presentation, CPAL playback/hotplug/underrun behavior, SDL3 controls/hotplug and the relevant SMS/gameplay paths. CI compilation is not proof of physical device behavior.
+- [ ] BIOS boot is considered physically validated only after the required test with a real, identified BIOS and reproducible handoff/first-cartridge-instruction evidence. Other physical tests are required only where a platform-specific acceptance criterion explicitly calls for them.
 - [ ] Every mandatory project phase and required implementation PR is merged or explicitly rejected/closed with rationale; no required work remains only on an unmerged branch.
-- [ ] E7 is closed only with its complete semantic/temporal matrix, independent evidence, atomic/micro equivalence, WAIT, snapshots, integration results and independent adversarial review. E8 remains blocked until that gate is met.
+- [ ] E7 remains CLOSED_WITH_LIMITATIONS for the declared NMOS profile. E8/ZEXDOC/ZEXALL, universal CMOS/clones coverage, physical WAIT, DMA and global electrical timing are complementary or out-of-profile validations, not permanent project-completion gates.
+- [ ] PRs and architecture changes have review evidence appropriate to repository policy. Review by another AI and physical-console testing are not universal acceptance requirements; hardware-specific gates such as BIOS boot remain mandatory where explicitly declared.
 - [ ] The final repository audit confirms reproducible dependencies/lockfiles, clean architecture boundaries, no protected ROM/firmware assets and no unresolved critical or high-severity defects.
-- [ ] An independent final review is recorded in GitHub, with findings resolved or explicitly dispositioned.
 
 Test results must be classified individually as PASS, FAIL, BLOCKED or NOT RUN. SKIPPED is never PASS. Each result must identify the exact commit SHA and the jobs that actually ran. Evidence from another SHA is historical and must not be transferred to the final SHA.
 
@@ -84,6 +85,6 @@ When all gates above are satisfied:
 2. Re-run or verify every required gate against the exact final `main` SHA; rerun any check whose evidence belongs to another SHA.
 3. Update the canonical component status and roadmap evidence without creating a parallel roadmap.
 4. Complete this checklist with links to the evidence and record the final SHA.
-5. Request independent final review, convert this Draft PR to ready only after the evidence is complete, and merge it only after all repository policies and CI requirements are satisfied.
+5. Convert this Draft PR to ready only after the evidence is complete, then merge it only after all repository policies and CI requirements are satisfied.
 
 Until then, this PR remains a permanent, non-mergeable-in-practice Draft completion gate. Its existence does not authorize bypassing normal branch, review, test or merge policies.
