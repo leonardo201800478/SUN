@@ -713,11 +713,11 @@ As seções 43 e 44 preservam a evidência já registrada para PR #929 (NMI dura
 
 ### F-022 — tentativa de execução integral do Z80 Block Instruction Flags Test v5.0
 
-- **PR #936**, HEAD observado `3097b53c20916d99f9d0cff6cbeb28aedaf25ee9`, adiciona o harness `z80_block_flags_rom_v5_passes_on_spectrum48_timing`.
-- CI [43820909081](https://github.com/leonardo201800478/sega-emulator/actions/runs/43820909081): **FAIL** no job Z80 focused `133143570353`. O teste excedeu o limite de 50.000.000 T-states sem retornar ao caller.
-- Último estado capturado: PC=`819F`, BC=`0763`, DE=HL=`D89D`, IM2, IFF1/IFF2 ativos; opcode no PC inicia com `ED B0` (LDIR). O ROM ainda estava em uma transferência repetitiva quando o orçamento expirou.
-- SMS Runtime [43820909070](https://github.com/leonardo201800478/sega-emulator/actions/runs/43820909070) PASS no mesmo HEAD.
-- **Classificação:** a execução integral do ROM v5.0 continua NOT_RUN/NOT_PASS. A causa ainda não está isolada entre orçamento do harness, cadência de INT/IM2, interceptação de rotinas ROM e semântica de repetição do core. Não aumentar o limite nem alterar a CPU sem trace discriminante.
+- **PR #936**, HEAD atual observado `6cf3c45c2812d5e96f086630b4218209284a929f`, adiciona o harness `z80_block_flags_rom_v5_passes_on_spectrum48_timing`.
+- CI [43823701736](https://github.com/leonardo201800478/sega-emulator/actions/runs/43823701736): **FAIL** no job Z80 focused `133152525181`, na etapa de execução do ROM. O teste excedeu o limite de 50.000.000 T-states sem retornar ao caller.
+- Último estado capturado nesse run: PC=`819F`, SP=`87FA`, AF=`0184`, BC=`0763`, DE=HL=`D89D`, I=`86`, R=`66`, IM2, IFF1/IFF2 ativos, sem HALT/INT pendente; opcode no PC inicia com `ED B0` (LDIR). O ROM ainda estava em uma transferência repetitiva quando o orçamento expirou.
+- SMS Runtime [43823701761](https://github.com/leonardo201800478/sega-emulator/actions/runs/43823701761) PASS no mesmo HEAD.
+- **Classificação:** a execução integral do ROM v5.0 foi tentada e terminou em FAIL/timeout; não é PASS nem NOT_RUN. O log não discrimina ainda entre orçamento do harness, cadência de INT/IM2, stubs das rotinas de apresentação e semântica de repetição do core. Não aumentar o limite nem alterar a CPU sem trace discriminante.
 
 ### Estado global no baseline `bf7e7584`
 
