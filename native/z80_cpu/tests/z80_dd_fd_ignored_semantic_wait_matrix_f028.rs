@@ -79,6 +79,25 @@ fn increment_refresh(value: u8) -> u8 {
     (value & 0x80) | (value.wrapping_add(1) & 0x7F)
 }
 
+fn expected_stream_operand_bytes(opcode: u8) -> usize {
+    if matches!(
+        opcode,
+        0x10 | 0x18 | 0x20 | 0x28 | 0x30 | 0x38 | 0xD3 | 0xDB
+    ) || (opcode & 0xC7) == 0x06
+        || (opcode & 0xC7) == 0xC6
+    {
+        1
+    } else if matches!(opcode, 0x22 | 0x2A | 0x32 | 0x3A | 0xC3 | 0xCD)
+        || (opcode & 0xCF) == 0x01
+        || (opcode & 0xC7) == 0xC2
+        || (opcode & 0xC7) == 0xC4
+    {
+        2
+    } else {
+        0
+    }
+}
+
 fn execute_one_instruction(
     opcode_stream: &[u8],
     wait_and_snapshot: bool,
@@ -96,6 +115,8 @@ fn execute_one_instruction(
     cpu.iy = 0x789A;
 
     let mut stream = opcode_stream.iter().copied();
+    let terminal_opcode = *opcode_stream.last().expect("opcode stream is non-empty");
+    let mut stream_reads_remaining = expected_stream_operand_bytes(terminal_opcode);
     let mut fetch_addresses = Vec::new();
     let mut trace = Vec::new();
     let mut wait_count = 0usize;
@@ -124,7 +145,15 @@ fn execute_one_instruction(
 
                 let stream_access = match request.operation {
                     Z80BusOperation::OpcodeFetch => true,
-                    Z80BusOperation::MemoryRead => request.address == cpu.registers.pc,
+                    Z80BusOperation::MemoryRead if stream_reads_remaining > 0 => {
+                        assert_eq!(
+                            request.address, cpu.registers.pc,
+                            "{opcode_stream:?}: immediate operand read must use the current PC"
+                        );
+                        stream_reads_remaining -= 1;
+                        true
+                    }
+                    Z80BusOperation::MemoryRead => false,
                     _ => false,
                 };
                 let (kind, write_value) = match request.operation {
@@ -182,9 +211,10 @@ fn execute_one_instruction(
                 next
             }
             Z80MicroStep::InstructionRetired { opcode, tstates } => {
+                assert_eq!(opcode, terminal_opcode);
                 assert_eq!(
-                    opcode,
-                    *opcode_stream.last().expect("opcode stream is non-empty")
+                    stream_reads_remaining, 0,
+                    "{opcode_stream:?}: all expected immediate operand reads must be consumed"
                 );
                 assert!(
                     stream.next().is_none(),
@@ -317,6 +347,42 @@ fn assert_architectural_fallback(
     assert_eq!(
         *prefixed, expected,
         "{prefix:02X} {opcode:02X}: BASE architectural effects must be preserved"
+    );
+}
+
+#[test]
+fn data_read_at_current_pc_is_not_misclassified_as_instruction_stream() {
+    const OPCODE: u8 = 0x0A; // LD A,(BC), an effective DD/FD Ignored fallback.
+    assert!(ignored_opcodes_from_ledger().contains(&OPCODE));
+
+    // BASE has PC=1 at the data read; DD+opcode has PC=2. BC=2 therefore
+    // collides with PC only in the prefixed execution. It is still a data
+    // read, not an immediate operand fetch, and must not be address-normalized.
+    let base = execute_one_instruction(&[OPCODE], true, 0x00, 0x0002);
+    let prefixed = execute_one_instruction(&[0xDD, OPCODE], true, 0x00, 0x0002);
+
+    let has_unclassified_data_read = |trace: &[TraceEvent]| {
+        trace.iter().any(|event| {
+            matches!(
+                event,
+                TraceEvent::Bus {
+                    kind: BusTraceKind::MemoryRead,
+                    address: 0x0002,
+                    stream: false,
+                    ..
+                }
+            )
+        })
+    };
+    assert!(has_unclassified_data_read(&base.trace), "BASE data read");
+    assert!(
+        has_unclassified_data_read(&prefixed.trace),
+        "prefixed data read must remain data even when address == PC"
+    );
+    assert_eq!(
+        remove_prefix_m1_and_normalize_stream_addresses(prefixed.trace, 0xDD, OPCODE),
+        base.trace,
+        "data reads at the current PC must retain their actual address"
     );
 }
 
