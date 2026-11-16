@@ -1,6 +1,7 @@
 //! Execute the hardware-derived Z80 Block Instruction Flags Test v5.0.
 //!
-//! Fixture provenance: Kevin Watkins, ZXSpectrumNextTests, MIT License.
+//! Fixture provenance: Peter Helcmanovsky's Z80 Block Flags Test, hosted in
+//! MrKWatkins/ZXSpectrumNextTests (MIT License).
 //! The SNA is fetched by CI from pinned commit 8adcbc8384b2311fb6d36d424478aef583d5c307
 //! and verified against its Git blob SHA before this ignored test is run.
 //! This harness models a Spectrum 48K 50 Hz interrupt cadence and the ROM
