@@ -110,3 +110,5 @@ O novo teste `native/z80_cpu/tests/z80_dd_fd_ignored_fallback_matrix_f028.rs` l�
 A primeira execução CI/SMS (#43882092547) parou no rustfmt; a correção de formatação foi aplicada antes do HEAD validado. Não atribuir PASS à execução inicial.
 
 **Limite:** o teste é uma prova estrutural de dispatch e custo M1, não prova independente de semântica, efeitos arquiteturais ou requests de barramento por família. WAIT/snapshot por tipo de request e comparação de endereços/ordem continuam pendentes. F-028 permanece AUDIT_PARTIAL.
+
+undefined

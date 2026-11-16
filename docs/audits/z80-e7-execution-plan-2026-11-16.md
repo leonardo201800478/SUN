@@ -140,3 +140,15 @@ A matriz estrutural não fecha a semântica. Próximo trabalho deve decompor os 
 Para cada família, comparar explicitamente o caminho BASE com DD e FD: opcode terminal consumido uma vez, endereços e ordem dos requests, valores transferidos, efeitos arquiteturais e custo adicional de 4T. WAIT e snapshot/restore devem ser aplicados em cada classe de request, não apenas no M1. Se um opcode não for coberto pelo executor ou se o comportamento não tiver referência independente, registrar NOT_IMPLEMENTED/NOT_VERIFIED; não inferir PASS pela classificação do ledger.
 
 Não alterar CPU/decoder/FSM/microsequenciador de produção sem uma falha reproduzível. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+## Atualização pós-merge — PR #948 request-trace diferencial — 2026-11-16
+
+**Main:** `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`. **HEAD testado:** `74715cbc777acc6625745489a4dfa495cde18ee9`. CI Z80 focused #43884118254 e SMS Runtime #43884118298 SUCCESS nos jobs aplicáveis.
+
+A nova matriz compara a sequência de requests BASE × DD/FD para os 167 bytes efetivos Ignored: tipo, endereço, duração base e ciclos internos, além de M1/refetch, R e custo +4T. Ela não compara payloads, valores lidos ou estado final; leituras são sintéticas, e WAIT/snapshot por classe continuam ausentes.
+
+O normalizador de memória abaixo de `0x0100` ainda não prova que o endereço pertence ao stream. O fixture atual mantém os endereços de dados esperados acima dessa página, mas a hipótese deve virar asserção ou ser substituída por classificação explícita via PC no request.
+
+**Próximo recorte:** normalização stream/data robusta; payloads e efeitos arquiteturais por família; WAIT/snapshot por classe; oracle independente e revisão adversarial. Nenhuma alteração de CPU/decoder/FSM/microsequenciador de produção é autorizada por esta evidência.
+
+F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.

@@ -858,3 +858,29 @@ Os estados F-022/F-023/F-028 não são promovidos a CLOSED. E7 permanece IN_PROG
 O teste `z80_dd_fd_ignored_fallback_matrix_f028.rs` percorre 167 bytes × DD/FD, 334 execuções prefixadas. Verifica fetches M1 em PC 0 e 1, nenhum refetch, R incrementado por dois e `T_prefixed = T_BASE + 4`. O teste passou 1/1 no CI #43882287467. Rust quality/unit também SUCCESS; SMS Runtime Release format, Clippy, testes e build Windows x64 SUCCESS no #43882287458.
 
 **F-028 permanece AUDIT_PARTIAL.** A matriz não prova todos os efeitos arquiteturais nem requests/endereço/ordem de operandos por família; WAIT/snapshot por classe e oracle independente continuam pendentes. Não promover a CLOSED com base em cobertura estrutural. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 53. F-028 — diferencial de requests dos 167 bytes Ignored — 2026-11-16
+
+**PR #948 MERGED:** `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`. **HEAD validado:** `74715cbc777acc6625745489a4dfa495cde18ee9`.
+
+| Verificação | Resultado |
+|---|---|
+| Inventário | 167 bytes efetivos Ignored |
+| DD + FD | 334 execuções prefixadas |
+| Trace BASE × prefixado | Tipo/ordem de request, endereço, base T-states e ciclos internos |
+| M1/refetch | Prefixo em PC 0, terminal em PC 1, sem refetch |
+| R/custo | R +2; BASE +4T |
+| CI Z80 focused #43884118254 | PASS |
+| Rust quality/unit no mesmo run | PASS |
+| SMS Runtime #43884118298 | PASS; inclui build Windows x64 |
+| Jobs não relacionados | SKIPPED; não contar como PASS |
+| Workflow push pós-merge | NOT VERIFIED/NOT RUN |
+| Review independente GitHub | Não registrado |
+
+O trace não compara valores de leitura, payloads de escrita nem estado arquitetural final; usa leituras sintéticas `0x5A`, não aplica WAIT/snapshot por classe e compara contra o próprio caminho BASE. O normalizador de endereços ainda trata todo `MemoryRead < 0x0100` como stream sem provar essa classificação. A matriz é evidência estrutural, não oracle semântico independente.
+
+**F-028 permanece AUDIT_PARTIAL.** Endurecer a classificação stream/data, comparar payloads/estado final, cobrir WAIT/snapshot por família e obter revisão adversarial independente. E7 IN_PROGRESS; E8 BLOCKED.
+
+### Gate transversal de revisão independente — 2026-11-16
+
+Auditoria GitHub: #936/#942/#943/#944/#945/#946/#947/#948 não possuem review submetido nem review threads. #946 e #948 têm comentários Codex de falha por limite de uso. Não há evidência auditável de revisão independente desses merges no repositório. Os merges são testes/documentação e não alteram produção, mas a revisão adversarial continua um gate BLOCKED para E7; nenhum F-022/F-023/F-028 pode ser promovido a CLOSED e E8 permanece BLOCKED.

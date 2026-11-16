@@ -619,3 +619,15 @@ O teste `z80_dd_fd_ignored_fallback_matrix_f028.rs` usa o CSV de 256 bytes como 
 A matriz não valida integralmente efeitos arquiteturais, endereços/ordem de operandos nem os estados intermediários de WAIT/snapshot. O próximo recorte deve cobrir formatos de request por família: imediato, relativo, memória indireta/absoluta, stack, I/O e controle de fluxo, sem confundir cobertura estrutural com semântica independente.
 
 **Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+## 36. F-028 — comparação estrutural de requests Ignored — 2026-11-16
+
+PR #948 integrada em `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`; HEAD testado `74715cbc777acc6625745489a4dfa495cde18ee9`. CI Z80 focused #43884118254 e SMS Runtime #43884118298 passaram nos jobs aplicáveis.
+
+A matriz compara BASE com DD/FD para os 167 bytes efetivos Ignored, registrando tipo/ordem de request, endereço, base T-states e ciclos internos. Preserva as asserções de M1 em PC 0/1, ausência de refetch, R +2 e custo BASE +4T.
+
+**Não prova:** valores lidos, payloads escritos, estado arquitetural final, WAIT/snapshot por classe ou semântica independente. O normalizador desloca qualquer leitura de memória abaixo de `0x0100`; a próxima revisão deve distinguir explicitamente fetch do stream de acesso de dados, preferencialmente registrando PC no request. O fixture atual usa BC/DE/HL/SP altos e operandos `0x5A`, mas não contém uma asserção que proíba leitura de dados na página baixa.
+
+**Review/integração:** não há review independente submetido no GitHub para #948; o review Codex falhou por limite de uso. Nenhum workflow push pós-merge foi encontrado; SKIPPED e ausência de run não são PASS.
+
+**Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
