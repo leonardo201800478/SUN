@@ -5,7 +5,7 @@
 //! ordinary workspace suite so the external assembler is not a normal build
 //! dependency.
 
-use std::{env, fs};
+use std::{collections::VecDeque, env, fs};
 
 use sega_sms_core::{SmsTemporalMachine, SmsTemporalTraceEvent, SmsVdpProfile, Territory};
 use sega_z80_cpu::Z80BusOperation;
@@ -81,9 +81,9 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
     let mut vcounter_reference_reads = Vec::new();
     let mut diagnostic_memory_writes = Vec::new();
     let mut io_control_writes: Vec<IoControlWriteTrace> = Vec::new();
-    let mut cpu_memory_read_trace: Vec<CpuMemoryReadTrace> = Vec::new();
+    let mut cpu_memory_read_trace: VecDeque<CpuMemoryReadTrace> = VecDeque::with_capacity(65_536);
     let mut irq_line_changes: Vec<IrqLineTrace> = Vec::new();
-    let mut cpu_internal_cycle_trace: Vec<InternalCycleTrace> = Vec::new();
+    let mut cpu_internal_cycle_trace: VecDeque<InternalCycleTrace> = VecDeque::with_capacity(65_536);
 
     for frame in 0..600 {
         if let Err(error) = machine.step_frame(100_000) {
@@ -105,9 +105,9 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     cpu_halt_exit_nmi,
                 } => {
                     if cpu_internal_cycle_trace.len() == 65_536 {
-                        cpu_internal_cycle_trace.remove(0);
+                        cpu_internal_cycle_trace.pop_front();
                     }
-                    cpu_internal_cycle_trace.push((
+                    cpu_internal_cycle_trace.push_back((
                         timestamp.ticks(),
                         continuation_id,
                         tstates,
@@ -149,9 +149,9 @@ fn smsvdptest_v131_full_rom_passes_vcounter_and_irq_hcount_tests() {
                     ..
                 } => {
                     if cpu_memory_read_trace.len() == 65_536 {
-                        cpu_memory_read_trace.remove(0);
+                        cpu_memory_read_trace.pop_front();
                     }
-                    cpu_memory_read_trace.push((
+                    cpu_memory_read_trace.push_back((
                         timestamp.ticks(),
                         address,
                         cpu_pc_before,
