@@ -1,6 +1,6 @@
 # Status dos componentes — revisão 2026-11-16
 
-**Baseline:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.  
+**Baseline:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
 **Regra:** estado integrado na main separado de PRs, testes físicos e relatos manuais.
 
 | Área | Estado na baseline | Pendência real |
