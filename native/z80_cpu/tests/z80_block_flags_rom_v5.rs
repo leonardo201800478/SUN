@@ -295,7 +295,9 @@ fn z80_block_instruction_flags_test_v5_passes_on_spectrum48_timing() {
             cpu.int_pending,
             next_interrupt,
             pulse_end,
-            (0..8).map(|offset| bus.memory[usize::from(cpu.registers.pc.wrapping_add(offset))]).collect::<Vec<_>>(),
+            (0..8)
+                .map(|offset| bus.memory[usize::from(cpu.registers.pc.wrapping_add(offset))])
+                .collect::<Vec<_>>(),
             String::from_utf8_lossy(&bus.output[bus.output.len().saturating_sub(160)..])
         );
 
