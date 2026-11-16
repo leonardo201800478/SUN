@@ -51,7 +51,7 @@ Não duplicar os testes listados na matriz. A cobertura adicional deve concentra
 3. **BIOS real:** executar pelo menos uma BIOS SMS1 identificada por hash; capturar primeiro fetch, writes de $3E, efeitos em $C000, inicialização VDP/PSG/I/O e handoff. Não substituir por fixture sintética para declarar compatibilidade.
 4. **Trace de ROM:** harness opt-in com caminho de ROM local, tamanho/CRC32/SHA-256, região/modelo, captura bounded antes do primeiro start, checkpoints por blocos de instruções e logs sem versionar ROM.
 5. **Games:** reproduzir Andre Agassi e Ace of Aces separadamente; verificar o primeiro CALL/PUSH, inicialização de SP, mapper efetivo, primeira leitura de banco divergente e primeiro write VDP/PSG. Executar Road Rash e Schtroumpfs 2 como regressões; antes de aproveitar PR #881, confirmar se o hash do arquivo local corresponde a The Smurfs: Travel the World (Brazil).
-6. **VDP startup screen:** confirmar que o binário local corresponde ao fonte v1.31, validar checksum de cabeçalho $20F3 e comparar o read de HC após a transição TH com o read de VC aproximadamente 24 T-states depois, no mesmo perfil PAL/NTSC.
+6. **VDP startup screen:** confirmar que o binário local corresponde ao fonte v1.31, validar checksum de cabeçalho $20F3 e comparar o read de HC após a transição TH com o read de VC aproximadamente 24 T-states depois, no mesmo perfil PAL/NTSC. Fixar também o SHA-256 da BIOS se a execução de Ares/Gearsystem for repetida.
 
 ## 5. Gates
 
