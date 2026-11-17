@@ -4777,7 +4777,7 @@ mod windows_host {
 
         #[test]
         fn keyboard_key_labels_hide_unicode_private_use_codes_for_special_keys() {
-            for key in ['\\u{E000}', '\\u{F700}', '\\u{F0000}', '\\u{100000}'] {
+            for key in ['\u{E000}', '\u{F700}', '\u{F0000}', '\u{100000}'] {
                 assert_eq!(keyboard_key_label(&key.to_string()), "Tecla especial");
             }
         }
