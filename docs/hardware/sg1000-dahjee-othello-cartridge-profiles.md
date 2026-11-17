@@ -48,6 +48,17 @@ The English-logo Bomberman Special variant is additionally identified by the doc
 
 Reference: https://github.com/ekeeke/Genesis-Plus-GX/blob/master/core/cart_hw/sms_cart.c
 
+### SG-1000 II clone 2 KiB internal RAM
+
+Genesis Plus GX also catalogs three titles requiring 2 KiB of internal RAM on SG-1000 II clone hardware. This is distinct from the Type-A/Type-B expansion adapters and is modeled as a 2 KiB internal RAM window mirrored across C000h–FFFFh.
+
+| ROM | CRC32 | Profile |
+|---|---:|---|
+| Circus Charlie (Korea) | 7f7f009d | SG-1000 II clone 2 KiB internal RAM |
+| Q*Bert | 77db4704 | SG-1000 II clone 2 KiB internal RAM |
+| Othello Multivision BIOS | c5a67b95 | SG-1000 II clone 2 KiB internal RAM |
+
+
 ### Othello
 
 Othello uses a different 2 KiB RAM mapper. The Genesis Plus GX game list labels the Japanese and Taiwan CRCs as MAPPER_RAM_2K; its implementation maps that RAM mirrored across 8000h–BFFFh.
@@ -64,6 +75,7 @@ The Othello map remains a separate implementation profile; its successful manual
 - The Rust runtime (`rust/runtime/sg1000-runtime/src/cartridge.rs`) selects known profiles by CRC32 and the documented Bomberman English-logo SHA-256; ROM size/title are never used as heuristics.
 - DahJee/Jumbo Type A: 8 KiB cartridge/adapter RAM at 2000h–3FFFh; internal RAM remains 1 KiB at C000h–FFFFh.
 - SG-1000 II Type-B: 8 KiB internal RAM at C000h–FFFFh, selected by five CRC32 entries or the documented Bomberman English-logo SHA-256.
+- SG-1000 II clone hardware: 2 KiB internal RAM at C000h–FFFFh for three catalogued CRC32 entries; this is a distinct clone-hardware profile, not the Type-B adapter.
 - Desktop SG-1000 sessions use `Sg1000TemporalWorker::new_for_cartridge`; unknown ROMs retain the standard 1 KiB map.
 - Othello: 2 KiB cartridge RAM mirrored across 8000h–BFFFh.
 - The Castle (Japan) remains a separate 8 KiB cartridge-RAM profile at 8000h–BFFFh.
@@ -78,7 +90,7 @@ The Othello map remains a separate implementation profile; its successful manual
 
 ## Validation status
 
-- [x] Rust profile resolver tests cover all catalogued Type-A, Type-B, Othello and The Castle CRCs, the Bomberman English-logo SHA-256 exception, and conservative fallback for unknown ROMs.
+- [x] Rust profile resolver tests cover all catalogued Type-A, Type-B, SG-1000 II clone 2 KiB, Othello and The Castle CRCs, the Bomberman English-logo SHA-256 exception, and conservative fallback for unknown ROMs.
 - [ ] End-to-end desktop/in-game validation of every expanded-RAM profile: PENDING.
 - [x] Native Rust memory test covers Type-A RAM writes, boundaries, ROM-window separation, and unchanged 1 KiB internal RAM.
 - [x] Othello has a synthetic test for its 2 KiB mirrored window.
