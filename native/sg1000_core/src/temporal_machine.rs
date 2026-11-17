@@ -1069,6 +1069,53 @@ mod tests {
     }
 
     #[test]
+    fn temporal_machine_matches_the_legacy_atomic_reference_on_a_basic_rom_trace() {
+        use crate::machine::Sg1000Machine as AtomicReferenceMachine;
+
+        let rom = [
+            0x3E, 0x42, // LD A,42
+            0x32, 0x00, 0xC0, // LD (C000),A
+            0x3A, 0x00, 0xC0, // LD A,(C000)
+            0x3C, // INC A
+            0x32, 0x01, 0xC0, // LD (C001),A
+            0x3E, 0x80, // LD A,80
+            0xD3, 0x7F, // OUT (7F),A
+            0x76, // HALT
+        ];
+        let mut reference =
+            AtomicReferenceMachine::new(&rom, MemoryConfig::default()).unwrap();
+        let mut temporal = Sg1000Machine::new(&rom, MemoryConfig::default()).unwrap();
+
+        for instruction in 0..8 {
+            let reference_tstates = reference.step().unwrap();
+            let temporal_tstates = temporal.step().unwrap();
+            assert_eq!(
+                temporal_tstates, reference_tstates,
+                "instruction {instruction} T-state count diverged"
+            );
+            assert_eq!(
+                temporal.cpu().registers,
+                reference.cpu.registers,
+                "instruction {instruction} Z80 architectural state diverged"
+            );
+            assert_eq!(
+                temporal.total_tstates(),
+                reference.cpu.total_tstates,
+                "instruction {instruction} machine timeline diverged"
+            );
+            assert_eq!(temporal.inspect_memory(0xC000), reference.read_memory(0xC000));
+            assert_eq!(temporal.inspect_memory(0xC001), reference.read_memory(0xC001));
+        }
+
+        assert_eq!(
+            temporal.drain_psg_write_events(),
+            reference.drain_psg_write_events()
+        );
+        assert!(temporal.cpu().halted);
+        assert!(reference.cpu.halted);
+    }
+
+    #[test]
     fn restore_rejects_a_cpu_and_bus_request_mismatch() {
         let mut machine = Sg1000Machine::new(&[0x3E, 0x12], MemoryConfig::default()).unwrap();
         let _ = machine.begin_instruction().unwrap();
