@@ -44,7 +44,7 @@ impl fmt::Display for Sg1000TemporalMachineError {
             Self::InvalidState => f.write_str("SG-1000 temporal machine state is inconsistent"),
             Self::NoScheduledEvent => {
                 f.write_str("SG-1000 temporal machine has no event to dispatch")
-            },
+            }
             Self::FrameStepLimitReached => f.write_str(
                 "SG-1000 did not complete a frame within the configured instruction limit",
             ),
@@ -428,15 +428,15 @@ impl Sg1000Machine {
         self.bus.drain_audio_samples(max_samples)
     }
 
+    /// Set the external byte driven during an INT acknowledge cycle.
+    /// This changes the data-bus input without asserting the INT line.
     pub fn set_interrupt_vector(&mut self, vector: u8) {
-        self.external_int_line = Some(vector);
         self.bus.set_interrupt_vector(vector);
-        self.sync_vdp_interrupt_line();
     }
 
+    /// Drive the level-sensitive INT input. None deasserts the external source.
     pub fn set_int_line(&mut self, vector: Option<u8>) {
         self.external_int_line = vector;
-        self.bus.set_interrupt_vector(vector.unwrap_or(0xFF));
         self.sync_vdp_interrupt_line();
     }
 
@@ -445,10 +445,12 @@ impl Sg1000Machine {
     }
 
     fn sync_vdp_interrupt_line(&mut self) {
-        let vector = self
+        let effective_line = self
             .external_int_line
             .or_else(|| self.bus.vdp().interrupt_pending().then_some(0xFF));
-        self.cpu.set_int_line(vector);
+        self.bus
+            .set_interrupt_vector(effective_line.unwrap_or(0xFF));
+        self.cpu.set_int_line(effective_line);
     }
 
     pub fn begin_instruction(&mut self) -> Result<Z80MicroStep, MachineError> {
@@ -558,7 +560,20 @@ impl Sg1000Machine {
             .filter(|request| request.operation == Z80BusOperation::OpcodeFetch)
             .ok_or(MachineError::InvalidState)?;
         let mut next_cpu = self.cpu.clone();
-        let step = next_cpu.complete_bus_cycle(request.id, Some(opcode))?;
+        let step = match next_cpu.complete_bus_cycle(request.id, Some(opcode)) {
+            Ok(step) => step,
+            Err(error @ Z80MicroSequencerError::UnsupportedOpcode { .. }) => {
+                // Unsupported decode is terminal and explicit. Commit the
+                // sequencer's consumed-fetch rejection so the machine is not
+                // left with an M1 cycle that can never be resumed.
+                self.cpu = next_cpu;
+                self.m1 = None;
+                self.m1_fixture_wait_tstates = None;
+                self.instruction_started_at = None;
+                return Err(error.into());
+            }
+            Err(error) => return Err(error.into()),
+        };
         if next_cpu.halted {
             next_cpu.sample_halt_interrupts_at_t4()?;
         }
@@ -638,13 +653,15 @@ impl Sg1000Machine {
                         .ok_or(MachineError::InvalidState)?;
                     let mut next_cpu = self.cpu.clone();
                     let step = next_cpu.complete_internal_cycle()?;
-                    self.bus.acknowledge_internal_completion(completion.continuation_id)?;
+                    self.bus
+                        .acknowledge_internal_completion(completion.continuation_id)?;
                     self.cpu = next_cpu;
                     self.pending_internal_cycle_id = None;
                     self.pending_internal_tstates = None;
                     if matches!(
                         step,
-                        Z80MicroStep::InstructionRetired { .. } | Z80MicroStep::InterruptServiced { .. }
+                        Z80MicroStep::InstructionRetired { .. }
+                            | Z80MicroStep::InterruptServiced { .. }
                     ) {
                         self.instruction_started_at = None;
                     }
@@ -673,7 +690,7 @@ impl Sg1000Machine {
                 retired @ Z80MicroStep::InstructionRetired { .. } => return Ok(retired),
                 acknowledged @ Z80MicroStep::InterruptAcknowledge { .. } => {
                     return Ok(acknowledged);
-                },
+                }
                 serviced @ Z80MicroStep::InterruptServiced { .. } => return Ok(serviced),
             };
         }
@@ -722,7 +739,9 @@ impl Sg1000Machine {
                     self.dispatch_next()?
                 }
                 retired @ Z80MicroStep::InstructionRetired { .. } => return Ok(retired),
-                acknowledged @ Z80MicroStep::InterruptAcknowledge { .. } => return Ok(acknowledged),
+                acknowledged @ Z80MicroStep::InterruptAcknowledge { .. } => {
+                    return Ok(acknowledged);
+                }
                 serviced @ Z80MicroStep::InterruptServiced { .. } => return Ok(serviced),
             };
         }
