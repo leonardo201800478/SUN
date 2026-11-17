@@ -614,7 +614,7 @@ mod windows_host {
                     background: #111722; border-radius: 14px;
                     VerticalLayout {
                         padding: 28px; spacing: 18px;
-                        Text { text: "SEGA EMULATOR"; color: #8EABFF; font-size: 13px; font-weight: 700; }
+                        Text { text: "SEGA EMULATOR"; color: rgb(142, 171, 255); font-size: 13px; font-weight: 700; }
                         Text { text: "Sua biblioteca começa aqui"; color: #F1F5FA; font-size: 30px; font-weight: 700; }
                         Text { text: "Carregue uma ROM compatível para iniciar uma sessão de emulação."; color: #B4C0D0; font-size: 14px; }
                         HorizontalLayout {
@@ -674,7 +674,7 @@ mod windows_host {
                                     text: root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
                                     color: #F1F5FA; font-size: 14px; font-weight: 600;
                                 }
-                                Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: #8EABFF; font-size: 11px; }
+                                Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: rgb(142, 171, 255); font-size: 11px; }
                             }
                         }
                         Text { text: root.rom-status; color: #B4C0D0; font-size: 11px; wrap: word-wrap; }
@@ -714,7 +714,7 @@ mod windows_host {
                                 height: 164px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Modelo de hardware"; color: #F1F5FA; }
-                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: #8EABFF; }
+                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
                                     FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
                                         CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                                         CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
@@ -981,12 +981,12 @@ mod windows_host {
                                             Text { text: "Tecla atual"; color: #B4C0D0; }
                                             Text { text: "Atribuir"; color: #B4C0D0; }
                                         }
-                                        Row { Text { text: "Cima"; color: #F1F5FA; } Text { text: root.keyboard-up-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "up" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "up"; root.keyboard-capture-status = "Pressione a tecla para Cima..."; } } }
-                                        Row { Text { text: "Baixo"; color: #F1F5FA; } Text { text: root.keyboard-down-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "down" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "down"; root.keyboard-capture-status = "Pressione a tecla para Baixo..."; } } }
-                                        Row { Text { text: "Esquerda"; color: #F1F5FA; } Text { text: root.keyboard-left-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "left" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "left"; root.keyboard-capture-status = "Pressione a tecla para Esquerda..."; } } }
-                                        Row { Text { text: "Direita"; color: #F1F5FA; } Text { text: root.keyboard-right-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "right" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "right"; root.keyboard-capture-status = "Pressione a tecla para Direita..."; } } }
-                                        Row { Text { text: "Botão 1"; color: #F1F5FA; } Text { text: root.keyboard-button1-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "button1" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button1"; root.keyboard-capture-status = "Pressione a tecla para Botão 1..."; } } }
-                                        Row { Text { text: "Botão 2"; color: #F1F5FA; } Text { text: root.keyboard-button2-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "button2" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button2"; root.keyboard-capture-status = "Pressione a tecla para Botão 2..."; } } }
+                                        Row { Text { text: "Cima"; color: #F1F5FA; } Text { text: root.keyboard-up-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "up" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "up"; root.keyboard-capture-status = "Pressione a tecla para Cima..."; } } }
+                                        Row { Text { text: "Baixo"; color: #F1F5FA; } Text { text: root.keyboard-down-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "down" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "down"; root.keyboard-capture-status = "Pressione a tecla para Baixo..."; } } }
+                                        Row { Text { text: "Esquerda"; color: #F1F5FA; } Text { text: root.keyboard-left-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "left" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "left"; root.keyboard-capture-status = "Pressione a tecla para Esquerda..."; } } }
+                                        Row { Text { text: "Direita"; color: #F1F5FA; } Text { text: root.keyboard-right-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "right" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "right"; root.keyboard-capture-status = "Pressione a tecla para Direita..."; } } }
+                                        Row { Text { text: "Botão 1"; color: #F1F5FA; } Text { text: root.keyboard-button1-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "button1" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button1"; root.keyboard-capture-status = "Pressione a tecla para Botão 1..."; } } }
+                                        Row { Text { text: "Botão 2"; color: #F1F5FA; } Text { text: root.keyboard-button2-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "button2" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button2"; root.keyboard-capture-status = "Pressione a tecla para Botão 2..."; } } }
                                     }
                                     HorizontalLayout {
                                         spacing: 8px;
@@ -1001,7 +1001,7 @@ mod windows_host {
                                             root.preferences-changed();
                                         } }
                                     }
-                                    Text { font-size: 11px; text: root.keyboard-capture-status; color: #8EABFF; wrap: word-wrap; }
+                                    Text { font-size: 11px; text: root.keyboard-capture-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                 }
                             }
                             Rectangle {
@@ -1021,7 +1021,7 @@ mod windows_host {
                                 VerticalLayout {
                                     padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Gamepads e joysticks · P1 / P2"; color: #F1F5FA; }
-                                    Text { font-size: 11px; text: root.input-status; color: #8EABFF; wrap: word-wrap; }
+                                    Text { font-size: 11px; text: root.input-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                     Text { font-size: 11px; text: "Atribuição atual: os dois primeiros dispositivos compatíveis da sessão são associados a P1 e P2. D-pad/analógico esquerdo, South/East e Start usam o perfil padrão SDL3."; color: #B4C0D0; wrap: word-wrap; }
                                     Text { font-size: 11px; text: "Perfis independentes por dispositivo, captura de botões/eixos/hats e hotkeys por combinação exigem identidade persistente e editor de perfil; não são apresentados como ativos nesta etapa."; color: #D6B879; wrap: word-wrap; }
                                 }
@@ -1077,7 +1077,7 @@ mod windows_host {
                                         CompactButton { text: "Selecionar pasta"; clicked => { root.browse-firmware-directory-requested(); } }
                                         CompactButton { text: "Escanear"; enabled: root.firmware-directory != ""; clicked => { root.scan-firmware-directory-requested(root.firmware-directory); } }
                                     }
-                                    Text { font-size: 11px; text: root.firmware-scan-status; color: #8EABFF; wrap: word-wrap; }
+                                    Text { font-size: 11px; text: root.firmware-scan-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                     Text { font-size: 10px; text: root.firmware-scan-results; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
@@ -1144,7 +1144,7 @@ mod windows_host {
                                     CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
                                     CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
                                     CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
-                                    Text { font-size: 11px; text: root.debug-status; color: #8EABFF; wrap: word-wrap; }
+                                    Text { font-size: 11px; text: root.debug-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                     Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
@@ -4437,6 +4437,12 @@ mod windows_host {
             audio_hpf_cutoff_hz: app.get_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
             audio_lpf_enabled: app.get_audio_lpf_enabled(),
             audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
+            keyboard_up_key: app.get_keyboard_up_key().to_string(),
+            keyboard_down_key: app.get_keyboard_down_key().to_string(),
+            keyboard_left_key: app.get_keyboard_left_key().to_string(),
+            keyboard_right_key: app.get_keyboard_right_key().to_string(),
+            keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
+            keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
         };
         let _ = save_desktop_preferences(&final_preferences);
         let _ = save_recent_roms(&recent_roms.borrow());
