@@ -157,7 +157,8 @@ fn instruction_timeline_is_valid(state: &Sg1000MachineState) -> bool {
             return false;
         };
         let pending_id = m1_state.pending_continuation_id;
-        if pending_id != state.pending_internal_cycle_id
+        if m1_state.next_continuation_id != state.next_internal_cycle_id
+            || pending_id != state.pending_internal_cycle_id
             || pending_id.is_some() != m1_state.pending_deadline.is_some()
             || (pending_id.is_some() && state.pending_internal_tstates != Some(1))
         {
@@ -483,6 +484,7 @@ impl Sg1000Machine {
                 }
                 let deadline = m1.schedule_next_tstate(&mut self.bus)?;
                 let state = m1.export_state();
+                self.next_internal_cycle_id = state.next_continuation_id;
                 self.pending_internal_cycle_id = state.pending_continuation_id;
                 self.pending_internal_tstates = state.pending_continuation_id.map(|_| 1);
                 return Ok(deadline);
@@ -490,9 +492,15 @@ impl Sg1000Machine {
 
             let mut next_cpu = self.cpu.clone();
             next_cpu.insert_wait_tstates(fixture_wait_tstates)?;
-            let mut m1 = Sg1000TemporalM1::new(request.address, next_cpu.i, next_cpu.refresh);
+            let mut m1 = Sg1000TemporalM1::new_with_continuation_id(
+                request.address,
+                next_cpu.i,
+                next_cpu.refresh,
+                self.next_internal_cycle_id,
+            );
             let deadline = m1.schedule_next_tstate(&mut self.bus)?;
             let m1_state = m1.export_state();
+            self.next_internal_cycle_id = m1_state.next_continuation_id;
             self.cpu = next_cpu;
             self.m1 = Some(m1);
             self.m1_fixture_wait_tstates = Some(fixture_wait_tstates);
@@ -857,7 +865,8 @@ impl Sg1000Machine {
             return Err(MachineError::InvalidState);
         }
         if let Some(m1_state) = state.m1 {
-            if m1_state.pending_continuation_id != state.pending_internal_cycle_id
+            if m1_state.next_continuation_id != state.next_internal_cycle_id
+                || m1_state.pending_continuation_id != state.pending_internal_cycle_id
                 || cpu
                     .pending_request()
                     .is_none_or(|request| request.operation != Z80BusOperation::OpcodeFetch)
