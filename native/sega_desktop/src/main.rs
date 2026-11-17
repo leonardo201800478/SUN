@@ -559,7 +559,7 @@ mod windows_host {
                     CompactButton { text: ""; icon: root.step-frame-icon; icon-size: 24px; colorize-icon: true; width: 44px; height: 38px; accessible-role: button; accessible-label: "Avançar um quadro"; enabled: root.has-rom; clicked => { root.emulation-paused = true; root.pause-requested(); root.step-frame-requested(); } }
                     Text { text: root.rom-status; color: #b9c5ce; font-size: 12px; vertical-alignment: center; }
                 }
-                Rectangle {
+                if root.has-rom: Rectangle {
                     horizontal-stretch: 1; vertical-stretch: 1;
                     min-width: 256px; min-height: 192px;
                     background: #05080b;
@@ -576,12 +576,74 @@ mod windows_host {
                         clicked => { root.video-area-clicked(); }
                     }
                     if root.immersive-fullscreen: Text {
-                        x: 12px;
-                        y: 12px;
-                        z: 20;
+                        x: 12px; y: 12px; z: 20;
                         text: root.fps-status;
                         color: #8bd5ca;
                         font-size: root.fps-font-size;
+                    }
+                }
+                if !root.has-rom: Rectangle {
+                    horizontal-stretch: 1; vertical-stretch: 1;
+                    min-width: 256px; min-height: 192px;
+                    background: #111722; border-radius: 14px;
+                    VerticalLayout {
+                        padding: 28px; spacing: 18px;
+                        Text { text: "SEGA EMULATOR"; color: #8EABFF; font-size: 13px; font-weight: 700; }
+                        Text { text: "Sua biblioteca começa aqui"; color: #F1F5FA; font-size: 30px; font-weight: 700; }
+                        Text { text: "Carregue uma ROM compatível para iniciar uma sessão de emulação."; color: #B4C0D0; font-size: 14px; }
+                        HorizontalLayout {
+                            spacing: 12px;
+                            CompactButton {
+                                text: "Abrir ROM";
+                                height: 42px;
+                                clicked => { root.browse-rom-requested(); }
+                            }
+                            CompactButton {
+                                text: "Configurar firmware";
+                                height: 42px;
+                                clicked => {
+                                    root.active-menu = "firmware";
+                                    if (root.firmware-directory != "") {
+                                        root.scan-firmware-directory-requested(root.firmware-directory);
+                                    }
+                                }
+                            }
+                            CompactButton {
+                                text: "Configurações de vídeo";
+                                height: 42px;
+                                clicked => { root.active-menu = "video"; }
+                            }
+                        }
+                        Rectangle {
+                            background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                            height: 170px;
+                            VerticalLayout {
+                                padding: 16px; spacing: 8px;
+                                Text { text: "ROMs recentes"; color: #F1F5FA; font-size: 17px; font-weight: 600; }
+                                if root.recent-roms.length == 0: Text {
+                                    text: "Nenhuma ROM recente. Use “Abrir ROM” para selecionar um arquivo .sms, .bin ou .zip.";
+                                    color: #B4C0D0; font-size: 12px; wrap: word-wrap;
+                                }
+                                for rom in root.recent-roms: RecentRomEntry {
+                                    rom-path: rom;
+                                    activated => { root.load-rom-requested(rom); root.active-menu = "none"; }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                            height: 92px;
+                            VerticalLayout {
+                                padding: 14px; spacing: 5px;
+                                Text { text: "Sistema selecionado"; color: #B4C0D0; font-size: 11px; }
+                                Text {
+                                    text: root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
+                                    color: #F1F5FA; font-size: 14px; font-weight: 600;
+                                }
+                                Text { text: "Região: " + root.selected-region; color: #8EABFF; font-size: 11px; }
+                            }
+                        }
+                        Text { text: root.rom-status; color: #B4C0D0; font-size: 11px; wrap: word-wrap; }
                     }
                 }
                 if !root.immersive-fullscreen && root.show-fps: Text { text: root.fps-status; color: #8bd5ca; font-size: root.fps-font-size; }
@@ -594,17 +656,17 @@ mod windows_host {
             clicked => { root.active-menu = "none"; }
         }
         if !root.immersive-fullscreen && root.active-menu != "none": Rectangle {
-            x: root.active-menu == "firmware" ? (parent.width - self.width) / 2 : min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
+            x: (root.active-menu == "firmware" || root.active-menu == "video") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
             y: 88px;
-            width: min(parent.width - 16px, root.active-menu == "firmware" ? 760px : root.active-menu == "file" ? 560px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "firmware" ? 680px : root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
+            width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "file" ? 560px : 480px);
+            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
-            border-color: #405365; min-height: 120px; max-height: 680px; max-width: 760px;
+            border-color: #344154; min-height: 120px; max-height: 680px; max-width: 1048px;
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
@@ -657,16 +719,82 @@ mod windows_host {
                             }
                         }
                         if root.active-menu == "video": VerticalLayout {
-                            Text { font-size: 12px; text: "Proporção da imagem"; color: #b9c5ce; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-aspect == "4:3" ? "✓ Original (4:3)" : "Original (4:3)"; clicked => { root.selected-aspect = "4:3"; root.video-width = 768px; root.video-height = 576px; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-aspect == "1:1" ? "✓ 1:1" : "1:1"; clicked => { root.selected-aspect = "1:1"; root.video-width = 576px; root.video-height = 576px; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-aspect == "16:9" ? "✓ 16:9" : "16:9"; clicked => { root.selected-aspect = "16:9"; root.video-width = 768px; root.video-height = 432px; root.preferences-changed(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Vídeo"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Apresentação da imagem e recursos visuais do sistema."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 148px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Janela e escala"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Proporção da imagem"; color: #B4C0D0; }
+                                    FlexboxLayout {
+                                        flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-aspect == "4:3" ? "✓ Original (4:3)" : "Original (4:3)"; clicked => { root.selected-aspect = "4:3"; root.video-width = 768px; root.video-height = 576px; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-aspect == "1:1" ? "✓ 1:1" : "1:1"; clicked => { root.selected-aspect = "1:1"; root.video-width = 576px; root.video-height = 576px; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-aspect == "16:9" ? "✓ 16:9" : "16:9"; clicked => { root.selected-aspect = "16:9"; root.video-width = 768px; root.video-height = 432px; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: "A escala altera somente a área de apresentação; o frame publicado pelo VDP permanece em sua resolução nativa."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            CompactButton { text: root.sprite-limit-enabled ? "✓ Limite de sprites ativo" : "Desativar limite de sprites por linha"; clicked => { root.sprite-limit-enabled = !root.sprite-limit-enabled; root.sprite-limit-toggle-requested(root.sprite-limit-enabled); root.preferences-changed(); } }
-                            Text { font-size: 12px; text: "O modo sem limite é uma opção de compatibilidade; overflow e temporização do VDP permanecem no hardware emulado."; color: #9baab6; }
-                            Text { font-size: 12px; text: "Ajuste aplicado na área de apresentação; o frame original do VDP permanece 256×192."; color: #9baab6; }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Rectangle {
+                                    horizontal-stretch: 1; height: 170px; background: #192231; border-radius: 10px;
+                                    border-width: 1px; border-color: #344154;
+                                    VerticalLayout {
+                                        padding: 14px; spacing: 8px;
+                                        Text { font-size: 16px; text: "Compatibilidade do VDP"; color: #F1F5FA; }
+                                        CheckBox {
+                                            text: "Limite de sprites por linha";
+                                            checked: root.sprite-limit-enabled;
+                                            toggled => { root.sprite-limit-enabled = self.checked; root.sprite-limit-toggle-requested(self.checked); root.preferences-changed(); }
+                                        }
+                                        Text { font-size: 10px; text: "Desativar o limite é um modo de compatibilidade. Overflow e temporização continuam pertencendo ao VDP emulado."; color: #B4C0D0; wrap: word-wrap; }
+                                    }
+                                }
+                                Rectangle {
+                                    horizontal-stretch: 1; height: 170px; background: #192231; border-radius: 10px;
+                                    border-width: 1px; border-color: #344154;
+                                    VerticalLayout {
+                                        padding: 14px; spacing: 8px;
+                                        Text { font-size: 16px; text: "Sincronização e telemetria"; color: #F1F5FA; }
+                                        CheckBox { text: "Exibir FPS"; checked: root.show-fps; toggled => { root.show-fps = self.checked; root.preferences-changed(); } }
+                                        CheckBox { text: "Exibir diagnóstico no rodapé"; checked: root.show-status-footer; toggled => { root.show-status-footer = self.checked; root.preferences-changed(); } }
+                                        Text { font-size: 10px; text: "FPS e diagnóstico são métricas do host; não controlam o relógio do MachineScheduler."; color: #B4C0D0; wrap: word-wrap; }
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                height: 220px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Recursos de apresentação"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "As opções abaixo pertencem ao desenho aprovado, mas dependem de integração e validação do backend gráfico."; color: #B4C0D0; wrap: word-wrap; }
+                                    HorizontalLayout {
+                                        Text { text: "VSync / Mailbox / VRR"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Indisponível neste host"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "Overscan e corte regional"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Não integrado"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "Shaders / CRT / NTSC"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Não integrado"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "HDR / paper white"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Não validado"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "SegaScope / 3D glasses"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Somente sistemas compatíveis"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                }
+                            }
                         }
                         if root.active-menu == "audio": VerticalLayout {
                             spacing: 10px;
