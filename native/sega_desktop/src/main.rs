@@ -677,7 +677,7 @@ mod windows_host {
                                 padding: 14px; spacing: 5px;
                                 Text { text: "Sistema selecionado"; color: #B4C0D0; font-size: 11px; }
                                 Text {
-                                    text: root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
+                                    text: root.selected-system == "sg1000" ? "Sega SG-1000 · TMS9918A" : root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
                                     color: #F1F5FA; font-size: 14px; font-weight: 600;
                                 }
                                 Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: rgb(142, 171, 255); font-size: 11px; }
@@ -720,10 +720,11 @@ mod windows_host {
                                 height: 164px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Modelo de hardware"; color: #F1F5FA; }
-                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
+                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sg1000" ? "Em execução: SG-1000 · TMS9918A" : root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sg1000" ? "Selecionado: SG-1000 · TMS9918A" : root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
                                     FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
                                         CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                                         CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                        CompactButton { text: root.selected-system == "sg1000" ? "✓ SG-1000" : "SG-1000"; enabled: !root.has-rom; clicked => { root.selected-system = "sg1000"; root.preferences-changed(); } }
                                     }
                                     Text { font-size: 10px; text: root.has-rom ? "A ROM atual mantém o hardware já construído; a seleção vale para a próxima ROM." : "O hardware selecionado será construído ao carregar a ROM."; color: #B4C0D0; wrap: word-wrap; }
                                 }
@@ -749,7 +750,7 @@ mod windows_host {
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Firmware e outros sistemas"; color: #F1F5FA; }
                                     CompactButton { text: "Gerenciar firmware SMS"; clicked => { root.active-menu = "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                    Text { font-size: 10px; text: "SG-1000, Game Gear, Mega Drive, Sega CD e 32X ainda não estão disponíveis neste runtime."; color: #D6B879; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "Game Gear, Mega Drive, Sega CD e 32X ainda não estão disponíveis neste runtime."; color: #D6B879; wrap: word-wrap; }
                                 }
                             }
                         }
@@ -3580,7 +3581,9 @@ mod windows_host {
             firmware_europe_selected: preferences.firmware_europe_selected.clone(),
             firmware_japan_selected: preferences.firmware_japan_selected.clone(),
             firmware_korea_selected: preferences.firmware_korea_selected.clone(),
-            vdp_revision: sms_vdp_revision_for_system(&preferences.selected_system)?,
+            // SG-1000 never consumes the SMS-only VDP field in SmsWorkerSettings.
+            vdp_revision: sms_vdp_revision_for_system(&preferences.selected_system)
+                .unwrap_or(SmsVdpRevision::Sega3155124),
             audio_volume: effective_audio_volume(preferences.audio_volume, preferences.audio_muted),
             dsp_config: audio_dsp_config(
                 preferences.audio_dsp_preset,
@@ -4060,8 +4063,21 @@ mod windows_host {
                         String::new(),
                     )
                 });
-            let vdp_revision = match sms_vdp_revision_for_system(&system) {
-                Ok(revision) => revision,
+            let vdp_revision = match DesktopSystem::from_id(&system) {
+                Ok(DesktopSystem::Sg1000) => SmsVdpRevision::Sega3155124,
+                Ok(DesktopSystem::Sms1 | DesktopSystem::Sms2) => {
+                    match sms_vdp_revision_for_system(&system) {
+                        Ok(revision) => revision,
+                        Err(error) => {
+                            if let Some(app) = open_app.upgrade() {
+                                app.set_rom_status(
+                                    format!("Sistema selecionado inválido: {error}").into(),
+                                );
+                            }
+                            return;
+                        }
+                    }
+                }
                 Err(error) => {
                     if let Some(app) = open_app.upgrade() {
                         app.set_rom_status(format!("Sistema selecionado inválido: {error}").into());
