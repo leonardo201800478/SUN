@@ -9,7 +9,7 @@ pub use dsp::{
     OnePoleLowPass,
 };
 pub use psg::{PsgClockError, ScheduledPsg};
-pub use session::{AudioOutputMetrics, NativeAudioSession, PcmSink};
+pub use session::{AudioOutputMetrics, AudioSession, NativeAudioSession, PcmSink};
 
 /// Canonical internal PCM source rate, independent of any host audio endpoint.
 pub const DEFAULT_PCM_SOURCE_RATE_HZ: u32 = 48_000;
