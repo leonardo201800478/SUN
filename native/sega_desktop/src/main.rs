@@ -512,6 +512,9 @@ mod windows_host {
                         if (event.text == Key.Escape) {
                             root.keyboard-capture-action = "";
                             root.keyboard-capture-status = "Remapeamento cancelado."; accept
+                        } else if (event.text == Key.P || event.text == Key.F5 || event.text == Key.F6 || event.text == Key.F7 || event.text == Key.F8 || event.text == Key.F9 || event.text == Key.F11 || event.text == Key.Return) {
+                            root.keyboard-capture-action = "";
+                            root.keyboard-capture-status = "Tecla reservada para atalhos do emulador."; accept
                         } else { root.keyboard-key-captured(root.keyboard-capture-action, event.text); accept }
                     }
                     else if (event.text == root.keyboard-up-key) { root.keyboard-key-pressed("up"); accept }
@@ -975,6 +978,19 @@ mod windows_host {
                                         Text { text: "Botão 2"; color: #F1F5FA; }
                                         Text { text: root.keyboard-button2-label; color: #8EABFF; }
                                         CompactButton { text: root.keyboard-capture-action == "button2" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button2"; root.keyboard-capture-status = "Pressione a tecla para Botão 2..."; } }
+                                    }
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        CompactButton { text: "Restaurar padrão"; clicked => {
+                                            root.keyboard-up-key = Key.UpArrow; root.keyboard-down-key = Key.DownArrow;
+                                            root.keyboard-left-key = Key.LeftArrow; root.keyboard-right-key = Key.RightArrow;
+                                            root.keyboard-button1-key = Key.Z; root.keyboard-button2-key = Key.X;
+                                            root.keyboard-up-label = "↑"; root.keyboard-down-label = "↓";
+                                            root.keyboard-left-label = "←"; root.keyboard-right-label = "→";
+                                            root.keyboard-button1-label = "Z"; root.keyboard-button2-label = "X";
+                                            root.keyboard-capture-action = ""; root.keyboard-capture-status = "Mapeamento padrão restaurado.";
+                                            root.preferences-changed();
+                                        } }
                                     }
                                     Text { font-size: 11px; text: root.keyboard-capture-status; color: #8EABFF; wrap: word-wrap; }
                                 }
