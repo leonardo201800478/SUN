@@ -3008,7 +3008,8 @@ mod windows_host {
         }
         if candidates.len() != 1 {
             return Err(
-                "ZIP contém múltiplas ROMs; mantenha somente uma entrada .sms, .sg ou .bin.".to_owned(),
+                "ZIP contém múltiplas ROMs; mantenha somente uma entrada .sms, .sg ou .bin."
+                    .to_owned(),
             );
         }
 
