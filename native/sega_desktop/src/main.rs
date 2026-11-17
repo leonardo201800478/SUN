@@ -1356,12 +1356,29 @@ mod windows_host {
                         preferences.audio_lpf_cutoff_hz = value;
                     }
                 }
-                "keyboard_up_key" => preferences.keyboard_up_key = decode_key_token(value.trim()).unwrap_or_default(),
-                "keyboard_down_key" => preferences.keyboard_down_key = decode_key_token(value.trim()).unwrap_or_default(),
-                "keyboard_left_key" => preferences.keyboard_left_key = decode_key_token(value.trim()).unwrap_or_default(),
-                "keyboard_right_key" => preferences.keyboard_right_key = decode_key_token(value.trim()).unwrap_or_default(),
-                "keyboard_button1_key" => preferences.keyboard_button1_key = decode_key_token(value.trim()).unwrap_or_default(),
-                "keyboard_button2_key" => preferences.keyboard_button2_key = decode_key_token(value.trim()).unwrap_or_default(),
+                "keyboard_up_key" => {
+                    preferences.keyboard_up_key = decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_down_key" => {
+                    preferences.keyboard_down_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_left_key" => {
+                    preferences.keyboard_left_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_right_key" => {
+                    preferences.keyboard_right_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_button1_key" => {
+                    preferences.keyboard_button1_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_button2_key" => {
+                    preferences.keyboard_button2_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
                 _ => {}
             }
         }
@@ -1410,20 +1427,33 @@ mod windows_host {
 
     /// Encodes each key character as a hexadecimal Unicode code point for safe text-file persistence.
     fn encode_key_token(value: &str) -> String {
-        value.chars().map(|character| format!("{:X}", character as u32)).collect::<Vec<_>>().join(",")
+        value
+            .chars()
+            .map(|character| format!("{:X}", character as u32))
+            .collect::<Vec<_>>()
+            .join(",")
     }
 
     /// Decodes a persisted key token, rejecting invalid Unicode values and empty entries.
     fn decode_key_token(value: &str) -> Option<String> {
-        let decoded = value.split(',').map(|part| u32::from_str_radix(part, 16).ok().and_then(char::from_u32)).collect::<Option<String>>()?;
+        let decoded = value
+            .split(',')
+            .map(|part| u32::from_str_radix(part, 16).ok().and_then(char::from_u32))
+            .collect::<Option<String>>()?;
         (!decoded.is_empty()).then_some(decoded)
     }
 
     /// Returns a readable key label without exposing control characters.
     fn keyboard_key_label(value: &str) -> String {
         let mut chars = value.chars();
-        let Some(character) = chars.next() else { return "Não atribuída".to_owned(); };
-        if chars.next().is_some() || character.is_control() { "Tecla especial".to_owned() } else { character.to_uppercase().collect() }
+        let Some(character) = chars.next() else {
+            return "Não atribuída".to_owned();
+        };
+        if chars.next().is_some() || character.is_control() {
+            "Tecla especial".to_owned()
+        } else {
+            character.to_uppercase().collect()
+        }
     }
 
     /// Carrega até dez ROMs recentes, removendo entradas duplicadas e vazias.
@@ -3367,19 +3397,40 @@ mod windows_host {
         app.set_firmware_japan_selected(preferences.firmware_japan_selected.clone().into());
         app.set_firmware_korea_selected(preferences.firmware_korea_selected.clone().into());
         for (key, setter) in [
-            (&preferences.keyboard_up_key, 0_u8), (&preferences.keyboard_down_key, 1),
-            (&preferences.keyboard_left_key, 2), (&preferences.keyboard_right_key, 3),
-            (&preferences.keyboard_button1_key, 4), (&preferences.keyboard_button2_key, 5),
+            (&preferences.keyboard_up_key, 0_u8),
+            (&preferences.keyboard_down_key, 1),
+            (&preferences.keyboard_left_key, 2),
+            (&preferences.keyboard_right_key, 3),
+            (&preferences.keyboard_button1_key, 4),
+            (&preferences.keyboard_button2_key, 5),
         ] {
             if !key.is_empty() {
                 let value: slint::SharedString = key.clone().into();
                 match setter {
-                    0 => { app.set_keyboard_up_key(value); app.set_keyboard_up_label(keyboard_key_label(key).into()); }
-                    1 => { app.set_keyboard_down_key(value); app.set_keyboard_down_label(keyboard_key_label(key).into()); }
-                    2 => { app.set_keyboard_left_key(value); app.set_keyboard_left_label(keyboard_key_label(key).into()); }
-                    3 => { app.set_keyboard_right_key(value); app.set_keyboard_right_label(keyboard_key_label(key).into()); }
-                    4 => { app.set_keyboard_button1_key(value); app.set_keyboard_button1_label(keyboard_key_label(key).into()); }
-                    5 => { app.set_keyboard_button2_key(value); app.set_keyboard_button2_label(keyboard_key_label(key).into()); }
+                    0 => {
+                        app.set_keyboard_up_key(value);
+                        app.set_keyboard_up_label(keyboard_key_label(key).into());
+                    }
+                    1 => {
+                        app.set_keyboard_down_key(value);
+                        app.set_keyboard_down_label(keyboard_key_label(key).into());
+                    }
+                    2 => {
+                        app.set_keyboard_left_key(value);
+                        app.set_keyboard_left_label(keyboard_key_label(key).into());
+                    }
+                    3 => {
+                        app.set_keyboard_right_key(value);
+                        app.set_keyboard_right_label(keyboard_key_label(key).into());
+                    }
+                    4 => {
+                        app.set_keyboard_button1_key(value);
+                        app.set_keyboard_button1_label(keyboard_key_label(key).into());
+                    }
+                    5 => {
+                        app.set_keyboard_button2_key(value);
+                        app.set_keyboard_button2_label(keyboard_key_label(key).into());
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -3525,8 +3576,11 @@ mod windows_host {
         let gamepad_state = Rc::new(RefCell::new([ControllerButtons::default(); 2]));
 
         let keyboard_capture_app = app.as_weak();
-        app.on_keyboard_key_captured(move |action: slint::SharedString, key: slint::SharedString| {
-            let Some(app) = keyboard_capture_app.upgrade() else { return; };
+        app.on_keyboard_key_captured(
+            move |action: slint::SharedString, key: slint::SharedString| {
+                let Some(app) = keyboard_capture_app.upgrade() else {
+                    return;
+                };
             let key = key.to_string();
             if key.is_empty() || key.chars().any(char::is_control) {
                 app.set_keyboard_capture_status("Tecla inválida. Tente outra tecla.".into());
@@ -4048,12 +4102,12 @@ mod windows_host {
                     audio_lpf_enabled: app.get_audio_lpf_enabled(),
                     audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                         as u16,
-                keyboard_up_key: app.get_keyboard_up_key().to_string(),
-                keyboard_down_key: app.get_keyboard_down_key().to_string(),
-                keyboard_left_key: app.get_keyboard_left_key().to_string(),
-                keyboard_right_key: app.get_keyboard_right_key().to_string(),
-                keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
-                keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
+                    keyboard_up_key: app.get_keyboard_up_key().to_string(),
+                    keyboard_down_key: app.get_keyboard_down_key().to_string(),
+                    keyboard_left_key: app.get_keyboard_left_key().to_string(),
+                    keyboard_right_key: app.get_keyboard_right_key().to_string(),
+                    keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
+                    keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
                 };
                 let _ = save_desktop_preferences(&prefs);
                 let _ = app.window().hide();
