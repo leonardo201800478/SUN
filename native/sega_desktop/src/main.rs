@@ -690,9 +690,9 @@ mod windows_host {
             clicked => { root.active-menu = "none"; }
         }
         if !root.immersive-fullscreen && root.active-menu != "none": Rectangle {
-            x: (root.active-menu == "firmware" || root.active-menu == "video") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
+            x: (root.active-menu == "firmware" || root.active-menu == "video" || root.active-menu == "controls" || root.active-menu == "system" || root.active-menu == "file" || root.active-menu == "options" || root.active-menu == "debug") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "audio" ? 207px : 8px, 8px), parent.width - self.width - 8px);
             y: 88px;
-            width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "file" ? 560px : 480px);
+            width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "controls" ? 680px : root.active-menu == "system" ? 760px : root.active-menu == "file" ? 720px : root.active-menu == "options" || root.active-menu == "debug" ? 640px : 480px);
             height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 560px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 360px : root.active-menu == "system" ? 660px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
@@ -4467,6 +4467,23 @@ mod windows_host {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn keyboard_key_token_round_trips_unicode() {
+            for key in ["w", "Z", "↑"] {
+                let encoded = encode_key_token(key);
+                assert_eq!(decode_key_token(&encoded).as_deref(), Some(key));
+            }
+            assert_eq!(decode_key_token("not-hex"), None);
+            assert_eq!(decode_key_token(""), None);
+        }
+
+        #[test]
+        fn keyboard_key_labels_are_readable_for_printable_keys() {
+            assert_eq!(keyboard_key_label("w"), "W");
+            assert_eq!(keyboard_key_label("z"), "Z");
+            assert_eq!(keyboard_key_label(""), "Não atribuída");
+        }
 
         #[test]
         fn diagnostic_sram_capacity_accepts_only_supported_volatile_sizes() {
