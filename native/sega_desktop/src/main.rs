@@ -690,7 +690,7 @@ mod windows_host {
             x: (root.active-menu == "firmware" || root.active-menu == "video") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
             y: 88px;
             width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "file" ? 560px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
+            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
             border-color: #344154; min-height: 120px; max-height: 680px; max-width: 1048px;
@@ -935,17 +935,72 @@ mod windows_host {
                             }
                         }
                         if root.active-menu == "controls": VerticalLayout {
-                            Text { font-size: 12px; text: "Teclado — ativo"; color: #8bd5ca; }
-                            Text { font-size: 12px; text: "Setas: mover | Z: Botão 1 | X: Botão 2"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: "P: solicitar NMI (borda de pressionamento)"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "F5: iniciar | F6: pausar | F7: desligar"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "F8: resetar | F9: avançar quadro | F11: tela cheia com menus"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Alt+Enter: tela cheia imersiva (somente FPS)"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: root.input-status; color: #8bd5ca; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Padrão inicial: D-pad/analógico esquerdo; South/East = Botão 1/2; Start = Pause/NMI. Os dois primeiros gamepads/joysticks compatíveis ocupam P1/P2."; color: #b9c5ce; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Perfis persistentes por dispositivo e remapeamento visual serão tratados na próxima fatia R4."; color: #9baab6; wrap: word-wrap; }
-                            CompactButton { text: "Remapear teclado"; enabled: false; }
-                            CompactButton { text: "Remapear controle"; enabled: false; }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Controles"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Configure teclado, jogadores e atalhos sem interferir no relógio do emulador."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 286px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Remapeamento do teclado · P1"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Selecione uma ação e pressione a nova tecla. Esc cancela a captura."; color: #B4C0D0; wrap: word-wrap; }
+                                    GridLayout {
+                                        spacing: 6px;
+                                        Row { }
+                                        Text { text: "Ação"; color: #B4C0D0; }
+                                        Text { text: "Tecla atual"; color: #B4C0D0; }
+                                        Text { text: "Atribuir"; color: #B4C0D0; }
+                                        Row { }
+                                        Text { text: "Cima"; color: #F1F5FA; }
+                                        Text { text: root.keyboard-up-label; color: #8EABFF; }
+                                        CompactButton { text: root.keyboard-capture-action == "up" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "up"; root.keyboard-capture-status = "Pressione a tecla para Cima..."; } }
+                                        Row { }
+                                        Text { text: "Baixo"; color: #F1F5FA; }
+                                        Text { text: root.keyboard-down-label; color: #8EABFF; }
+                                        CompactButton { text: root.keyboard-capture-action == "down" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "down"; root.keyboard-capture-status = "Pressione a tecla para Baixo..."; } }
+                                        Row { }
+                                        Text { text: "Esquerda"; color: #F1F5FA; }
+                                        Text { text: root.keyboard-left-label; color: #8EABFF; }
+                                        CompactButton { text: root.keyboard-capture-action == "left" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "left"; root.keyboard-capture-status = "Pressione a tecla para Esquerda..."; } }
+                                        Row { }
+                                        Text { text: "Direita"; color: #F1F5FA; }
+                                        Text { text: root.keyboard-right-label; color: #8EABFF; }
+                                        CompactButton { text: root.keyboard-capture-action == "right" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "right"; root.keyboard-capture-status = "Pressione a tecla para Direita..."; } }
+                                        Row { }
+                                        Text { text: "Botão 1"; color: #F1F5FA; }
+                                        Text { text: root.keyboard-button1-label; color: #8EABFF; }
+                                        CompactButton { text: root.keyboard-capture-action == "button1" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button1"; root.keyboard-capture-status = "Pressione a tecla para Botão 1..."; } }
+                                        Row { }
+                                        Text { text: "Botão 2"; color: #F1F5FA; }
+                                        Text { text: root.keyboard-button2-label; color: #8EABFF; }
+                                        CompactButton { text: root.keyboard-capture-action == "button2" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button2"; root.keyboard-capture-status = "Pressione a tecla para Botão 2..."; } }
+                                    }
+                                    Text { font-size: 11px; text: root.keyboard-capture-status; color: #8EABFF; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 160px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Atalhos do emulador"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "F5 iniciar · F6 pausar · F7 parar · F8 resetar · F9 avançar quadro"; color: #B4C0D0; }
+                                    Text { font-size: 11px; text: "F11 tela cheia com menus · Alt+Enter tela cheia imersiva · Esc fecha o menu"; color: #B4C0D0; }
+                                    Text { font-size: 11px; text: "P solicita NMI por borda. No Master System, Pause é uma NMI de hardware; não é o comando Pausar do host."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 170px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Gamepads e joysticks · P1 / P2"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: root.input-status; color: #8EABFF; wrap: word-wrap; }
+                                    Text { font-size: 11px; text: "Atribuição atual: os dois primeiros dispositivos compatíveis da sessão são associados a P1 e P2. D-pad/analógico esquerdo, South/East e Start usam o perfil padrão SDL3."; color: #B4C0D0; wrap: word-wrap; }
+                                    Text { font-size: 11px; text: "Perfis independentes por dispositivo, captura de botões/eixos/hats e hotkeys por combinação exigem identidade persistente e editor de perfil; não são apresentados como ativos nesta etapa."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
                         }
                         if root.active-menu == "options": VerticalLayout {
                             Text { font-size: 12px; text: "Overlay de FPS"; color: #f2f5f7; }
