@@ -199,7 +199,10 @@ mod tests {
 
     #[test]
     fn frame_latches_into_logical_and_physical_controller_reads() {
-        let mut machine = Sg1000Machine::new(&[0x76], MemoryConfig::default()).unwrap();
+        // IN A,(n) exercises the real scheduled I/O path. Each read is
+        // completed by the MachineScheduler rather than a diagnostic bypass.
+        let rom = [0xDB, 0x00, 0xDB, 0x01, 0xDB, 0xDC, 0xDB, 0xDD, 0x76];
+        let mut machine = Sg1000Machine::new(&rom, MemoryConfig::default()).unwrap();
         let frame = ControllerFrame {
             player_1: ControllerButtons {
                 left: true,
@@ -213,9 +216,9 @@ mod tests {
 
         frame.apply_to(&mut machine).unwrap();
 
-        assert_eq!(machine.read_port(0x00), 0xFB);
-        assert_eq!(machine.read_port(0x01), 0xDF);
-        assert_eq!(machine.read_port(0xDC), 0xFB);
-        assert_eq!(machine.read_port(0xDD), 0xF7);
+        for expected in [0xFB, 0xDF, 0xFB, 0xF7] {
+            machine.step().unwrap();
+            assert_eq!(machine.cpu().registers.a, expected);
+        }
     }
 }
