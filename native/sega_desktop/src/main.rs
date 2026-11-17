@@ -3280,7 +3280,7 @@ mod windows_host {
         let system = DesktopSystem::from_id(&settings.sms_system)?;
         match system {
             DesktopSystem::Sg1000 => {
-                let worker = Sg1000TemporalWorker::new(rom)?;
+                let worker = Sg1000TemporalWorker::new_for_cartridge(rom)?;
                 configure_sg1000_audio(&worker, settings.audio_volume, settings.dsp_config);
                 Ok((DesktopSession::Sg1000(worker), None))
             }
