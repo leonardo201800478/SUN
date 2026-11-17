@@ -1042,6 +1042,16 @@ mod tests {
     }
 
     #[test]
+    fn frame_step_publishes_vdp_frame_and_scheduler_driven_audio() {
+        let mut machine = Sg1000Machine::new(&[0x76], MemoryConfig::default()).unwrap();
+        let instructions = machine.step_frame(20_000).unwrap();
+        assert!(instructions > 0);
+        assert_eq!(machine.frame_number(), 1);
+        assert_eq!(machine.framebuffer().len(), 256 * 192 * 3);
+        assert!(!machine.drain_audio_samples(None).is_empty());
+    }
+
+    #[test]
     fn external_interrupt_vector_and_int_line_are_independent_inputs() {
         let mut machine = Sg1000Machine::new(&[0x00], MemoryConfig::default()).unwrap();
         machine.set_interrupt_vector(0xCF);
