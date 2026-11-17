@@ -3070,7 +3070,7 @@ mod windows_host {
         } else {
             AudioRendererMode::Psg
         };
-        if let Err(error) = worker.set_sms_audio_renderer(renderer) {
+        if let Err(error) = worker.set_audio_renderer(renderer) {
             eprintln!("R3_AUDIO renderer selection failed; PSG remains the fallback: {error}");
         }
         if video_only_capture_enabled() {
@@ -3533,16 +3533,18 @@ mod windows_host {
         };
         let mut initial_save_context = None;
         let worker = if let Some(path) = rom_path.as_ref() {
-            let (worker, context) = create_sms_worker(
+            let (sms_worker, context) = create_sms_worker(
                 read_rom_image(path)?,
                 &worker_settings,
                 Arc::clone(&save_store),
             )?;
             initial_save_context = context;
+            let worker = DesktopSession::Sms {
+                worker: sms_worker,
+                system: DesktopSystem::from_id(&worker_settings.sms_system)?,
+            };
             worker.attach_video_mailbox(mailbox.clone())?;
-            if !preferences.sprite_limit_enabled {
-                worker.set_sprite_limit_mode(SpriteLimitMode::UnlockedCompatibility)?;
-            }
+            worker.set_sprite_limit_enabled(preferences.sprite_limit_enabled)?;
             Some(worker)
         } else {
             None
