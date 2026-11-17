@@ -48,16 +48,16 @@ impl DesktopSystem {
 /// Owns exactly one machine worker, selected explicitly by the host.
 pub enum DesktopSession {
     /// Existing SMS runtime and all of its SMS-only capabilities.
-    Sms(SmsTemporalWorker),
+    Sms { worker: SmsTemporalWorker, system: DesktopSystem },
     /// Native temporal SG-1000 runtime.
     Sg1000(Sg1000TemporalWorker),
 }
 
 impl DesktopSession {
-    /// Identify the runtime currently owned by this session.
+    /// Identify the runtime currently owned by this session.\n    /// The SMS hardware variant is retained explicitly for SMS1/SMS2 identity.
     pub const fn system(&self) -> DesktopSystem {
         match self {
-            Self::Sms(_) => DesktopSystem::Sms1,
+            Self::Sms { system, .. } => *system,
             Self::Sg1000(_) => DesktopSystem::Sg1000,
         }
     }
@@ -65,7 +65,7 @@ impl DesktopSession {
     /// Whether continuous emulation is active.
     pub fn is_running(&self) -> bool {
         match self {
-            Self::Sms(worker) => worker.is_running(),
+            Self::Sms { worker, .. } => worker.is_running(),
             Self::Sg1000(worker) => worker.is_running(),
         }
     }
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn session_dispatches_lifecycle_to_the_selected_runtime() {
-        let sms = DesktopSession::Sms(SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap());
+        let sms = DesktopSession::Sms {\n            worker: SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap(),\n            system: DesktopSystem::Sms1,\n        };
         let sg1000 = DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
 
         for session in [&sms, &sg1000] {
