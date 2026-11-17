@@ -9,6 +9,8 @@ name = "sega_sg1000_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+crc32fast = "1.5.5"
+sha2 = "0.11.1"
 sega-audio-runtime = { path = "../../../native/audio_runtime" }
 sega-sg1000-core = { path = "../../../native/sg1000_core" }
 sega-video-runtime = { path = "../../../native/video_runtime" }
