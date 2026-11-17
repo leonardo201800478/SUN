@@ -82,3 +82,17 @@ A telemetria de pacing e o trace atuais são SMS-específicos. Para SG-1000, usa
 Esta etapa é uma auditoria de arquitetura e contratos, não uma declaração de integração funcional. Nenhuma alteração de hardware, Z80, MachineScheduler, VDP, PSG ou temporização é necessária para a primeira fatia P2.4. O Z80 compartilhado e o Scheduler permanecem intocados.
 
 A seleção de sistema deve ser explícita e persistida. Uma ROM `.bin` não contém necessariamente informação suficiente para identificar o console sem catálogo/hash confiável; portanto, a extensão isolada não deve sobrepor a escolha do usuário nem servir como prova de compatibilidade.
+
+## 7. Seleção automática de RAM expandida no desktop
+
+A integração SG-1000 da P2.4 agora resolve o perfil de memória no backend Rust, antes de iniciar o worker:
+
+- `Sg1000CartridgeProfile` e `identify_cartridge_profile` em `rust/runtime/sg1000-runtime/src/cartridge.rs` identificam os perfis conhecidos por CRC-32; a variante Bomberman Special English Logo usa o SHA-256 documentado.
+- `Sg1000TemporalWorker::new_for_cartridge` converte o perfil em `MemoryConfig` e inicializa a máquina com o mapa correspondente.
+- Type-A: 8 KiB externos em `2000h–3FFFh`, preservando 1 KiB interno.
+- Type-B: 8 KiB internos em `C000h–FFFFh`.
+- Othello: 2 KiB externos espelhados em `8000h–BFFFh`.
+- The Castle (Japan): 8 KiB externos espelhados em `8000h–BFFFh`.
+- ROMs sem hash catalogado permanecem no mapa padrão; tamanho e extensão não ativam expansão.
+
+Os testes unitários do resolver cobrem os hashes catalogados, os quatro mapas e o fallback conservador. Ainda não há evidência de execução in-game desses títulos na build desktop. Essa validação permanece gate funcional da P2.4.
