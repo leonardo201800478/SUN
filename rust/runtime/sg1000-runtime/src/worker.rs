@@ -667,6 +667,14 @@ impl Sg1000TemporalWorker {
         Self::new_with_memory_config(rom, MemoryConfig::default())
     }
 
+    /// Start a paused worker using the known ROM-hash cartridge RAM profile.
+    ///
+    /// Unknown ROMs conservatively use the standard 1 KiB internal RAM map.
+    pub fn new_for_cartridge(rom: Vec<u8>) -> Result<Self, String> {
+        let memory_config = crate::memory_config_for_rom(&rom);
+        Self::new_with_memory_config(rom, memory_config)
+    }
+
     /// Start a paused worker with an explicit cartridge/internal RAM profile.
     pub fn new_with_memory_config(
         rom: Vec<u8>,
