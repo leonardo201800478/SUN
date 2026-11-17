@@ -49,9 +49,9 @@ The shared Z80 is **CLOSED_WITH_LIMITATIONS** for the supported SMS/SG-1000 prof
 
 The project may be declared complete only when **all** of the following are satisfied on the final integrated `main`:
 
-- [ ] Every phase P0–P9 in the canonical [project roadmap](project-roadmap.md) has met its documented exit criteria in the prescribed order.
+- [ ] Every platform phase P1–P7 in the canonical [project roadmap](project-roadmap.md) has met its documented exit criteria in the prescribed order.
 - [ ] Every desktop migration stage R1–R5 in the same roadmap and ADR 0011 has met its exit criteria; historical Qt/PySide6/egui snapshots are not accepted as proof of the current Slint target.
-- [ ] Every platform in scope (SG-1000, Master System, Game Gear, Mega Drive/Genesis, Sega CD and 32X) has its required hardware runtime and host integration implemented; deferred or unsupported behavior is explicit rather than silently approximated.
+- [ ] Every platform and accessory phase in scope (SMS1/SMS2, SG-1000, Game Gear, 8-bit expansions/accessories, Mega Drive/Genesis, Sega CD and 32X) has its required hardware runtime and host integration implemented; deferred or unsupported behavior is explicit rather than silently approximated.
 - [ ] Shared CPU cores and reusable components are consolidated without per-console duplicates or parallel legacy hardware runtimes.
 - [ ] Functional behavior is covered by unit, integration, diagnostic-ROM and representative game tests appropriate to each platform.
 - [ ] Gameplay-sensitive timing interactions have reproducible evidence and tests at the minimum sufficient temporal granularity. No universal pin-accuracy claim is required.
