@@ -49,9 +49,18 @@ pub struct Sg1000TemporalM1 {
 
 impl Sg1000TemporalM1 {
     pub fn new(address: u16, i: u8, refresh: u8) -> Self {
+        Self::new_with_continuation_id(address, i, refresh, 0)
+    }
+
+    pub fn new_with_continuation_id(
+        address: u16,
+        i: u8,
+        refresh: u8,
+        next_continuation_id: u64,
+    ) -> Self {
         Self {
             cycle: Z80M1Cycle::new(address, i, refresh),
-            next_continuation_id: 0,
+            next_continuation_id,
             pending_continuation_id: None,
             pending_deadline: None,
         }
