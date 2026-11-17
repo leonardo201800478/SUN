@@ -1,9 +1,9 @@
 # YM2413 / OPLL — Especificação arquitetural e modelo FM
 
-**Projeto:** Sega Emulator — Emulação de Alta Precisão  
-**Escopo:** núcleo compartilhado Rust e integração futura no Master System japonês  
-**Estado:** especificação arquitetural inicial (M0); **não autoriza declarar o chip implementado**  
-**Branch de documentação:** `fix/sn76489-psg-fidelity-20261107`  
+**Projeto:** Sega Emulator — Emulação de Alta Precisão
+**Escopo:** núcleo compartilhado Rust e integração futura no Master System japonês
+**Estado:** especificação arquitetural inicial (M0); **não autoriza declarar o chip implementado**
+**Branch de documentação:** `fix/sn76489-psg-fidelity-20261107`
 **PR relacionada:** [#615](https://github.com/leonardo201800478/sega-emulator/pull/615)
 
 > Convenção de evidência usada neste documento:
@@ -326,7 +326,7 @@ O contador é incrementado por pulsos C-Sync que chegam ao 315-5297. O código S
 O mapa de I/O de referência MAME para o Japanese SMS decodifica os endereços exatos $F0 (escrita do latch), $F1 (escrita de dados) e $F2 (leitura/escrita de controle). O write do latch mascara o endereço para seis bits (`data & 0x3F`). Não adicionar espelhos de porta sem evidência específica.
 
 **Fontes desta decisão:** SMS Power — Audio Control Port; MAME `smsj_io`, `smsj_set_audio_control`, `smsj_audio_control_r` e `smsj_ym2413_register_port_w` no commit `d628cdddd4a7e9aca1712f06ae1e8206c0d85b54`. MAME é referência de implementação, não prova elétrica independente.
- 
+
 ### 7.4 PSG e FM simultâneos
 
 O PSG e o YM2413:
@@ -349,7 +349,7 @@ No perfil Japanese SMS NTSC considerado, o YM2413 e o SN76489 recebem clock de e
 As escritas devem ser aplicadas no timestamp de conclusão da transação Z80, depois que os dispositivos tenham avançado até esse deadline. O intervalo de 12 clocks entre endereço e dados e de 84 clocks depois de uma escrita de dados é requisito de temporização do barramento do YM2413 documentado no manual; não o converter automaticamente em WAIT físico do Z80.
 
 Como o conjunto de domínios permanece inalterado, a integração não exige mudar o esquema do `SmsTemporalCoordinatorState` apenas para registrar FM. O `SmsTemporalBusState` e o `SmsTemporalMachineState`, entretanto, precisam incluir o latch/controle e todo o estado do chip, com versionamento e validação cruzada próprios. Não permitir que um restore aceite fase do chip incompatível com o timestamp do Scheduler.
- 
+
 ## 9. Save State
 
 Serializar, no mínimo:
@@ -434,7 +434,7 @@ Antes de reutilizar código, tabelas ou dados, verificar licença, versão/commi
 - Scheduler único, sem callbacks por instrução.
 - Operador processado sequencialmente em 18 slots.
 - PSG + FM simultâneos no perfil Japanese SMS.
-- Mark III FM Unit com comportamento exclusivo próprio.
+- Mark III FM Sound Unit externo fora do escopo de implementação; manter somente como referência histórica de topologia.
 - Não presumir FM em SMS exportação ou Tec Toy sem evidência.
 - Não iniciar síntese de produção antes de fechar os itens PENDENTES.
 - Nenhuma mudança de hardware é considerada concluída sem testes diferenciais, temporais, de snapshot e regressão.
@@ -597,6 +597,8 @@ A implementação Rust de referência `emu198x_yamaha_ym2413` documenta seguir o
 
 ### 14.10 Auditoria histórica de integração SMS/áudio (`main` em SHA `c65594cf840090bad6036810a0df98f22b9d1484`)
 
+> Snapshot histórico. A auditoria atual está em 14.11; em particular, a taxa de entrada de 44.100 Hz descrita nesta seção foi substituída por 48.000 Hz no main atual.
+
 A leitura dos fontes ativos confirmou os seguintes limites concretos:
 
 1. **Domínio de clock compartilhável.** O coordenador SMS registra exatamente três domínios: Z80 (ID 0), PSG (ID 1) e VDP (ID 2). O restore exige exatamente três domínios. O PSG recebe 3.579.545 Hz; o YM2413 também recebe 3.579.545 Hz. Como ambos compartilham a mesma fonte/razão de clock no perfil SMS NTSC considerado, o adapter FM deve consumir o mesmo `ClockAdvance` do domínio 1, sem registrar um quarto domínio nem avançar o Scheduler duas vezes. O estado interno de fase/divisor de cada chip continua independente.
@@ -655,7 +657,7 @@ Fontes de código auditadas:
 
 ### Evidência externa e licença
 
-- **DOCUMENTADO:** o Yamaha YM2413 Application Manual especifica clock de entrada nominal de 3.579.545 Hz, interface A0 para endereço/dados e intervalos de escrita de 12 clocks (endereço→dados) e 84 clocks após dados. O manual também documenta as saídas MO/RO; a rede analógica do SMS japonês precisa ser tratada separadamente.
+- **DOCUMENTADO:** o Yamaha YM2413 Application Manual especifica clock de entrada nominal de 3.579.545 Hz, interface A0 para endereço/dados, intervalos de escrita de 12 clocks (endereço→dados) e 84 clocks após dados, limpeza dos registradores na inicialização e largura mínima de 80 ciclos para o pulso externo de reset. O manual também documenta as saídas MO/RO; a rede analógica do SMS japonês precisa ser tratada separadamente. O reset lógico do core não substitui a temporização do pulso físico, que pertence ao adaptador.
 - **DERIVADO:** 18 slots × 4 clocks = 72 clocks por rotação completa; a taxa de 49.716,04 Hz é cálculo a partir do clock nominal, não taxa de host.
 - **REFERÊNCIA DE IMPLEMENTAÇÃO:** MAME no commit `d628cdddd4a7e9aca1712f06ae1e8206c0d85b54` mapeia $F0/$F1/$F2, máscara de endereço $3F, tabela de modo $F2, readback C-Sync e reset $00. Isso orienta testes, mas não substitui validação elétrica independente.
 - **DIFERENCIAL COM LICENÇA COMPATÍVEL:** `emu2413` é MIT; referência fixada em `a1d5120903b75f93d3eb7690e34a29c0b4add903`. É uma referência sample-oriented, não um oráculo de temporização clock-a-clock.
