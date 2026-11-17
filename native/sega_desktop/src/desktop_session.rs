@@ -432,8 +432,7 @@ mod tests {
             worker: SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap(),
             system: DesktopSystem::Sms1,
         };
-        let sg1000 =
-            DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
+        let sg1000 = DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
 
         for session in [&sms, &sg1000] {
             let mailbox = sega_video_runtime::FrameMailbox::new();
