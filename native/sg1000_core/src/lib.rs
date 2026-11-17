@@ -33,8 +33,9 @@ pub use machine::{MachineError, Sg1000Machine};
 pub use memory::{MemoryConfig, MemoryError, Sg1000Memory};
 pub use psg::{PsgError, Sn76489};
 pub use temporal::{
-    Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError, Sg1000TemporalCoordinatorState,
-    Sg1000TemporalEvent,
+    DEFAULT_SG1000_CPU_CLOCK_HZ, SG1000_PSG_CLOCK_DOMAIN_ID, SG1000_VDP_CLOCK_DOMAIN_ID,
+    SG1000_Z80_CLOCK_DOMAIN_ID, Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError,
+    Sg1000TemporalCoordinatorState, Sg1000TemporalEvent,
 };
 pub use temporal_bus::{
     Sg1000BusCompletion, Sg1000InternalCycleCompletion, Sg1000TemporalBus, Sg1000TemporalBusError,
