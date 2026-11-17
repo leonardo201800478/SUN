@@ -453,6 +453,20 @@ mod windows_host {
             in-out property <bool> audio-muted: false;
             in-out property <string> audio-status: "Aguardando configuração da saída de áudio.";
             in-out property <string> input-status: "Inicializando SDL3...";
+            in-out property <string> keyboard-up-key: Key.UpArrow;
+            in-out property <string> keyboard-down-key: Key.DownArrow;
+            in-out property <string> keyboard-left-key: Key.LeftArrow;
+            in-out property <string> keyboard-right-key: Key.RightArrow;
+            in-out property <string> keyboard-button1-key: Key.Z;
+            in-out property <string> keyboard-button2-key: Key.X;
+            in-out property <string> keyboard-up-label: "↑";
+            in-out property <string> keyboard-down-label: "↓";
+            in-out property <string> keyboard-left-label: "←";
+            in-out property <string> keyboard-right-label: "→";
+            in-out property <string> keyboard-button1-label: "Z";
+            in-out property <string> keyboard-button2-label: "X";
+            in-out property <string> keyboard-capture-action: "";
+            in-out property <string> keyboard-capture-status: "Selecione uma ação para alterar sua tecla.";
             in-out property <string> audio-renderer-mode: "psg";
             in-out property <bool> audio-dsp-preset: false;
             in-out property <bool> audio-hpf-enabled: false;
@@ -491,15 +505,25 @@ mod windows_host {
             callback keyboard-key-pressed(string);
             callback keyboard-key-released(string);
             callback keyboard-focus-lost();
+            callback keyboard-key-captured(string, string);
             keyboard-focus := FocusScope {
                 width: 100%; height: 100%;
                 key-pressed(event) => {
-                    if (event.text == Key.UpArrow) { root.keyboard-key-pressed("up"); accept }
-                    else if (event.text == Key.DownArrow) { root.keyboard-key-pressed("down"); accept }
-                    else if (event.text == Key.LeftArrow) { root.keyboard-key-pressed("left"); accept }
-                    else if (event.text == Key.RightArrow) { root.keyboard-key-pressed("right"); accept }
-                    else if (event.text == Key.Z) { root.keyboard-key-pressed("button1"); accept }
-                    else if (event.text == Key.X) { root.keyboard-key-pressed("button2"); accept }
+                    if (root.keyboard-capture-action != "") {
+                        if (event.text == Key.Escape) {
+                            root.keyboard-capture-action = "";
+                            root.keyboard-capture-status = "Remapeamento cancelado."; accept
+                        } else if (event.text == Key.P || event.text == Key.F5 || event.text == Key.F6 || event.text == Key.F7 || event.text == Key.F8 || event.text == Key.F9 || event.text == Key.F11 || event.text == Key.Return) {
+                            root.keyboard-capture-action = "";
+                            root.keyboard-capture-status = "Tecla reservada para atalhos do emulador."; accept
+                        } else { root.keyboard-key-captured(root.keyboard-capture-action, event.text); accept }
+                    }
+                    else if (event.text == root.keyboard-up-key) { root.keyboard-key-pressed("up"); accept }
+                    else if (event.text == root.keyboard-down-key) { root.keyboard-key-pressed("down"); accept }
+                    else if (event.text == root.keyboard-left-key) { root.keyboard-key-pressed("left"); accept }
+                    else if (event.text == root.keyboard-right-key) { root.keyboard-key-pressed("right"); accept }
+                    else if (event.text == root.keyboard-button1-key) { root.keyboard-key-pressed("button1"); accept }
+                    else if (event.text == root.keyboard-button2-key) { root.keyboard-key-pressed("button2"); accept }
                     else if (event.text == Key.P) { root.keyboard-key-pressed("nmi"); accept }
                     else if (event.text == Key.F5) { root.keyboard-key-pressed("start"); accept }
                     else if (event.text == Key.F6) { root.keyboard-key-pressed("pause"); accept }
@@ -509,12 +533,13 @@ mod windows_host {
                     else { reject }
                 }
                 key-released(event) => {
-                    if (event.text == Key.UpArrow) { root.keyboard-key-released("up"); accept }
-                    else if (event.text == Key.DownArrow) { root.keyboard-key-released("down"); accept }
-                    else if (event.text == Key.LeftArrow) { root.keyboard-key-released("left"); accept }
-                    else if (event.text == Key.RightArrow) { root.keyboard-key-released("right"); accept }
-                    else if (event.text == Key.Z) { root.keyboard-key-released("button1"); accept }
-                    else if (event.text == Key.X) { root.keyboard-key-released("button2"); accept }
+                    if (root.keyboard-capture-action != "") { accept }
+                    else if (event.text == root.keyboard-up-key) { root.keyboard-key-released("up"); accept }
+                    else if (event.text == root.keyboard-down-key) { root.keyboard-key-released("down"); accept }
+                    else if (event.text == root.keyboard-left-key) { root.keyboard-key-released("left"); accept }
+                    else if (event.text == root.keyboard-right-key) { root.keyboard-key-released("right"); accept }
+                    else if (event.text == root.keyboard-button1-key) { root.keyboard-key-released("button1"); accept }
+                    else if (event.text == root.keyboard-button2-key) { root.keyboard-key-released("button2"); accept }
                     else if (event.text == Key.P) { root.keyboard-key-released("nmi"); accept }
                     else if (event.text == Key.F5) { root.keyboard-key-released("start"); accept }
                     else if (event.text == Key.F6) { root.keyboard-key-released("pause"); accept }
@@ -545,6 +570,7 @@ mod windows_host {
                     z: 95;
                     CompactButton { text: "Sistema"; width: 66px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "system" ? "none" : "system"; } }
                     CompactButton { text: "Arquivo"; width: 62px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "file" ? "none" : "file"; } }
+                    CompactButton { text: "Firmware"; width: 72px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "firmware" ? "none" : "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                     CompactButton { text: "Vídeo"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "video" ? "none" : "video"; } }
                     CompactButton { text: "Áudio"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "audio" ? "none" : "audio"; } }
                     CompactButton { text: "Controles"; width: 76px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "controls" ? "none" : "controls"; } }
@@ -560,7 +586,7 @@ mod windows_host {
                     CompactButton { text: ""; icon: root.step-frame-icon; icon-size: 24px; colorize-icon: true; width: 44px; height: 38px; accessible-role: button; accessible-label: "Avançar um quadro"; enabled: root.has-rom; clicked => { root.emulation-paused = true; root.pause-requested(); root.step-frame-requested(); } }
                     Text { text: root.rom-status; color: #b9c5ce; font-size: 12px; vertical-alignment: center; }
                 }
-                Rectangle {
+                if root.has-rom: Rectangle {
                     horizontal-stretch: 1; vertical-stretch: 1;
                     min-width: 256px; min-height: 192px;
                     background: #05080b;
@@ -577,12 +603,82 @@ mod windows_host {
                         clicked => { root.video-area-clicked(); }
                     }
                     if root.immersive-fullscreen: Text {
-                        x: 12px;
-                        y: 12px;
-                        z: 20;
+                        x: 12px; y: 12px; z: 20;
                         text: root.fps-status;
                         color: #8bd5ca;
                         font-size: root.fps-font-size;
+                    }
+                }
+                if !root.has-rom: Rectangle {
+                    horizontal-stretch: 1; vertical-stretch: 1;
+                    min-width: 256px; min-height: 192px;
+                    background: #111722; border-radius: 14px;
+                    VerticalLayout {
+                        padding: 28px; spacing: 18px;
+                        Text { text: "SEGA EMULATOR"; color: rgb(142, 171, 255); font-size: 13px; font-weight: 700; }
+                        Text { text: "Sua biblioteca começa aqui"; color: #F1F5FA; font-size: 30px; font-weight: 700; }
+                        Text { text: "Carregue uma ROM compatível para iniciar uma sessão de emulação."; color: #B4C0D0; font-size: 14px; }
+                        HorizontalLayout {
+                            spacing: 12px;
+                            CompactButton {
+                                text: "Abrir ROM";
+                                height: 42px;
+                                clicked => { root.browse-rom-requested(); }
+                            }
+                            CompactButton {
+                                text: "Configurar firmware";
+                                height: 42px;
+                                clicked => {
+                                    root.active-menu = "firmware";
+                                    if (root.firmware-directory != "") {
+                                        root.scan-firmware-directory-requested(root.firmware-directory);
+                                    }
+                                }
+                            }
+                            CompactButton {
+                                text: "Configurações de vídeo";
+                                height: 42px;
+                                clicked => { root.active-menu = "video"; }
+                            }
+                        }
+                        Rectangle {
+                            background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                            height: 170px;
+                            VerticalLayout {
+                                padding: 16px; spacing: 8px;
+                                Text { text: "ROMs recentes"; color: #F1F5FA; font-size: 17px; font-weight: 600; }
+                                if root.recent-roms.length == 0: Text {
+                                    text: "Nenhuma ROM recente. Use “Abrir ROM” para selecionar um arquivo .sms, .bin ou .zip.";
+                                    color: #B4C0D0; font-size: 12px; wrap: word-wrap;
+                                }
+                                if root.recent-roms.length > 0: ScrollView {
+                                    height: 112px; width: 100%;
+                                    content-width: self.width;
+                                    content-height: root.recent-roms.length * 42px;
+                                    VerticalLayout {
+                                        width: 100%; spacing: 4px;
+                                        for rom in root.recent-roms: RecentRomEntry {
+                                            rom-path: rom;
+                                            activated => { root.load-rom-requested(rom); root.active-menu = "none"; }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                            height: 92px;
+                            VerticalLayout {
+                                padding: 14px; spacing: 5px;
+                                Text { text: "Sistema selecionado"; color: #B4C0D0; font-size: 11px; }
+                                Text {
+                                    text: root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
+                                    color: #F1F5FA; font-size: 14px; font-weight: 600;
+                                }
+                                Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: rgb(142, 171, 255); font-size: 11px; }
+                            }
+                        }
+                        Text { text: root.rom-status; color: #B4C0D0; font-size: 11px; wrap: word-wrap; }
                     }
                 }
                 if !root.immersive-fullscreen && root.show-fps: Text { text: root.fps-status; color: #8bd5ca; font-size: root.fps-font-size; }
@@ -595,281 +691,469 @@ mod windows_host {
             clicked => { root.active-menu = "none"; }
         }
         if !root.immersive-fullscreen && root.active-menu != "none": Rectangle {
-            x: root.active-menu == "firmware" ? (parent.width - self.width) / 2 : min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
+            x: (root.active-menu == "firmware" || root.active-menu == "video" || root.active-menu == "controls" || root.active-menu == "system" || root.active-menu == "file" || root.active-menu == "options" || root.active-menu == "debug") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "audio" ? 207px : 8px, 8px), parent.width - self.width - 8px);
             y: 88px;
-            width: min(parent.width - 16px, root.active-menu == "firmware" ? 760px : root.active-menu == "file" ? 560px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "firmware" ? 680px : root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 300px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
+            width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "controls" ? 680px : root.active-menu == "system" ? 760px : root.active-menu == "file" ? 720px : root.active-menu == "options" || root.active-menu == "debug" ? 640px : 480px);
+            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 560px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 400px : root.active-menu == "system" ? 660px : root.active-menu == "debug" ? 400px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
-            border-color: #405365; min-height: 120px; max-height: 680px; max-width: 760px;
+            border-color: #344154; min-height: 120px; max-height: 680px; max-width: 1048px;
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
-                            Text { font-size: 12px; text: "Modelo de hardware para a próxima ROM"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II — VDP 315-5246" : "Em execução: Master System — VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II — VDP 315-5246" : "Selecionado: Master System — VDP 315-5124"); color: #8bd5ca; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Sistema"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Modelo do console e região utilizados na próxima sessão."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 164px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Modelo de hardware"; color: #F1F5FA; }
+                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                        CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                    }
+                                    Text { font-size: 10px; text: root.has-rom ? "A ROM atual mantém o hardware já construído; a seleção vale para a próxima ROM." : "O hardware selecionado será construído ao carregar a ROM."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 11px; text: root.has-rom ? (root.selected-system == "sms2" ? "Próxima ROM: SMS2 / 315-5246. A ROM atual mantém o hardware já construído." : "Próxima ROM: SMS1 / 315-5124. A ROM atual mantém o hardware já construído.") : "O hardware selecionado será construído ao carregar a ROM."; color: #b9c5ce; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Região e frequência são configurações independentes do ASIC selecionado."; color: #b9c5ce; wrap: word-wrap; }
-                            Text { font-size: 12px; text: "Região / padrão de vídeo"; color: #b9c5ce; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-region == "auto" ? "✓ Automático" : "Automático"; clicked => { root.selected-region = "auto"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "brazil" ? "✓ Brasil / PAL-M" : "Brasil / PAL-M"; clicked => { root.selected-region = "brazil"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "europe" ? "✓ Europa / PAL" : "Europa / PAL"; clicked => { root.selected-region = "europe"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "korea" ? "✓ Coreia / NTSC" : "Coreia / NTSC"; clicked => { root.selected-region = "korea"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
+                            Rectangle {
+                                height: 212px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Região e frequência"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Região e frequência são independentes do ASIC selecionado."; color: #B4C0D0; }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-region == "auto" ? "✓ Automático" : "Automático"; clicked => { root.selected-region = "auto"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "brazil" ? "✓ Brasil / PAL-M" : "Brasil / PAL-M"; clicked => { root.selected-region = "brazil"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "europe" ? "✓ Europa / PAL" : "Europa / PAL"; clicked => { root.selected-region = "europe"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "korea" ? "✓ Coreia / NTSC" : "Coreia / NTSC"; clicked => { root.selected-region = "korea"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: root.selected-region == "auto" ? "Automático: World → USA; múltiplas regiões: Brasil → USA → Europa → Japão → Coreia; sem evidência confiável: USA." : "A preferência regional será aplicada ao carregar a próxima ROM."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 11px; text: root.selected-region == "auto" ? "Automático: World → USA; múltiplas regiões: Brasil → USA → Europa → Japão → Coreia; sem evidência confiável: USA." : "A preferência regional será aplicada ao carregar a próxima ROM; a sessão atual mantém o clock já construído."; color: #b9c5ce; wrap: word-wrap; }
-                            CompactButton { text: "Gerenciar firmware SMS..."; clicked => { root.active-menu = "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                            Text { font-size: 12px; text: "Outros sistemas ainda indisponíveis neste runtime"; color: #b9c5ce; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: "SG-1000 — TMS9918"; enabled: false; }
-                                CompactButton { text: "Game Gear — 315-5378"; enabled: false; }
-                                CompactButton { text: "Mega Drive / Genesis"; enabled: false; }
-                                CompactButton { text: "Sega CD"; enabled: false; }
-                                CompactButton { text: "32X"; enabled: false; }
+                            Rectangle {
+                                height: 150px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Firmware e outros sistemas"; color: #F1F5FA; }
+                                    CompactButton { text: "Gerenciar firmware SMS"; clicked => { root.active-menu = "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                    Text { font-size: 10px; text: "SG-1000, Game Gear, Mega Drive, Sega CD e 32X ainda não estão disponíveis neste runtime."; color: #D6B879; wrap: word-wrap; }
+                                }
                             }
                         }
                         if root.active-menu == "file": VerticalLayout {
-                            LineEdit { text <=> root.rom-path-input; placeholder-text: "C:\\ROMs\\game.sms"; }
-                            HorizontalLayout {
-                                CompactButton { text: "Procurar..."; clicked => { root.browse-rom-requested(); } }
-                                CompactButton { text: "Carregar ROM"; clicked => { root.load-rom-requested(root.rom-path-input); root.active-menu = "none"; } }
-                                CompactButton { text: "Sair"; clicked => { root.exit-requested(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Arquivo"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Abra uma ROM compatível ou retome um título recente."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 132px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Carregar ROM"; color: #F1F5FA; }
+                                    LineEdit { text <=> root.rom-path-input; placeholder-text: "C:\\ROMs\\game.sms"; }
+                                    HorizontalLayout { spacing: 8px;
+                                        CompactButton { text: "Procurar..."; clicked => { root.browse-rom-requested(); } }
+                                        CompactButton { text: "Carregar ROM"; clicked => { root.load-rom-requested(root.rom-path-input); root.active-menu = "none"; } }
+                                        CompactButton { text: "Sair"; clicked => { root.exit-requested(); } }
+                                    }
+                                }
                             }
-                            Text { font-size: 12px; text: "Recentes"; color: #b9c5ce; }
-                            if root.recent-roms.length == 0: Text { font-size: 12px; text: "Nenhuma ROM recente."; color: #9baab6; }
-                            for rom in root.recent-roms: RecentRomEntry {
-                                rom-path: rom;
-                                activated => { root.load-rom-requested(rom); root.active-menu = "none"; }
+                            Rectangle {
+                                height: 360px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "ROMs recentes"; color: #F1F5FA; }
+                                    if root.recent-roms.length == 0: Text { font-size: 12px; text: "Nenhuma ROM recente."; color: #B4C0D0; }
+                                    if root.recent-roms.length > 0: ScrollView {
+                                        height: 300px; width: 100%; content-width: self.width;
+                                        content-height: root.recent-roms.length * 42px;
+                                        VerticalLayout { width: 100%; spacing: 4px;
+                                            for rom in root.recent-roms: RecentRomEntry { rom-path: rom; activated => { root.load-rom-requested(rom); root.active-menu = "none"; } }
+                                        }
+                                    }
+                                }
                             }
                         }
                         if root.active-menu == "video": VerticalLayout {
-                            Text { font-size: 12px; text: "Proporção da imagem"; color: #b9c5ce; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-aspect == "4:3" ? "✓ Original (4:3)" : "Original (4:3)"; clicked => { root.selected-aspect = "4:3"; root.video-width = 768px; root.video-height = 576px; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-aspect == "1:1" ? "✓ 1:1" : "1:1"; clicked => { root.selected-aspect = "1:1"; root.video-width = 576px; root.video-height = 576px; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-aspect == "16:9" ? "✓ 16:9" : "16:9"; clicked => { root.selected-aspect = "16:9"; root.video-width = 768px; root.video-height = 432px; root.preferences-changed(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Vídeo"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Apresentação da imagem e recursos visuais do sistema."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 148px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Janela e escala"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Proporção da imagem"; color: #B4C0D0; }
+                                    FlexboxLayout {
+                                        flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-aspect == "4:3" ? "✓ Original (4:3)" : "Original (4:3)"; clicked => { root.selected-aspect = "4:3"; root.video-width = 768px; root.video-height = 576px; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-aspect == "1:1" ? "✓ 1:1" : "1:1"; clicked => { root.selected-aspect = "1:1"; root.video-width = 576px; root.video-height = 576px; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-aspect == "16:9" ? "✓ 16:9" : "16:9"; clicked => { root.selected-aspect = "16:9"; root.video-width = 768px; root.video-height = 432px; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: "A escala altera somente a área de apresentação; o frame publicado pelo VDP permanece em sua resolução nativa."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            CompactButton { text: root.sprite-limit-enabled ? "✓ Limite de sprites ativo" : "Desativar limite de sprites por linha"; clicked => { root.sprite-limit-enabled = !root.sprite-limit-enabled; root.sprite-limit-toggle-requested(root.sprite-limit-enabled); root.preferences-changed(); } }
-                            Text { font-size: 12px; text: "O modo sem limite é uma opção de compatibilidade; overflow e temporização do VDP permanecem no hardware emulado."; color: #9baab6; }
-                            Text { font-size: 12px; text: "Ajuste aplicado na área de apresentação; o frame original do VDP permanece 256×192."; color: #9baab6; }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Rectangle {
+                                    horizontal-stretch: 1; height: 170px; background: #192231; border-radius: 10px;
+                                    border-width: 1px; border-color: #344154;
+                                    VerticalLayout {
+                                        padding: 14px; spacing: 8px;
+                                        Text { font-size: 16px; text: "Compatibilidade do VDP"; color: #F1F5FA; }
+                                        CheckBox {
+                                            text: "Limite de sprites por linha";
+                                            checked: root.sprite-limit-enabled;
+                                            toggled => { root.sprite-limit-enabled = self.checked; root.sprite-limit-toggle-requested(self.checked); root.preferences-changed(); }
+                                        }
+                                        Text { font-size: 10px; text: "Desativar o limite é um modo de compatibilidade. Overflow e temporização continuam pertencendo ao VDP emulado."; color: #B4C0D0; wrap: word-wrap; }
+                                    }
+                                }
+                                Rectangle {
+                                    horizontal-stretch: 1; height: 170px; background: #192231; border-radius: 10px;
+                                    border-width: 1px; border-color: #344154;
+                                    VerticalLayout {
+                                        padding: 14px; spacing: 8px;
+                                        Text { font-size: 16px; text: "Sincronização e telemetria"; color: #F1F5FA; }
+                                        CheckBox { text: "Exibir FPS"; checked: root.show-fps; toggled => { root.show-fps = self.checked; root.preferences-changed(); } }
+                                        CheckBox { text: "Exibir diagnóstico no rodapé"; checked: root.show-status-footer; toggled => { root.show-status-footer = self.checked; root.preferences-changed(); } }
+                                        Text { font-size: 10px; text: "FPS e diagnóstico são métricas do host; não controlam o relógio do MachineScheduler."; color: #B4C0D0; wrap: word-wrap; }
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                height: 220px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Recursos de apresentação"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "As opções abaixo pertencem ao desenho aprovado, mas dependem de integração e validação do backend gráfico."; color: #B4C0D0; wrap: word-wrap; }
+                                    HorizontalLayout {
+                                        Text { text: "VSync / Mailbox / VRR"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Indisponível neste host"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "Overscan e corte regional"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Não integrado"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "Shaders / CRT / NTSC"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Não integrado"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "HDR / paper white"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Não validado"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    HorizontalLayout {
+                                        Text { text: "SegaScope / 3D glasses"; color: #B4C0D0; vertical-alignment: center; }
+                                        Text { text: "Somente sistemas compatíveis"; color: #D6B879; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                }
+                            }
                         }
                         if root.active-menu == "audio": VerticalLayout {
-                            Text { font-size: 14px; text: "Saída de áudio"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: "Backend: CPAL 0.18.2 | dispositivo padrão do Windows"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Volume mestre: \\{round(root.audio-volume)}%"; color: #f2f5f7; }
-                            Slider { minimum: 0; maximum: 100; step: 1; value <=> root.audio-volume; released(value) => { root.audio-volume-changed(value); } }
-                            HorizontalLayout {
-                                spacing: 5px;
-                                CompactButton { text: root.audio-muted ? "Ativar áudio" : "Silenciar"; clicked => { root.audio-muted = !root.audio-muted; root.audio-mute-changed(root.audio-muted); } }
-                                CompactButton { text: "Volume 50%"; clicked => { root.audio-volume = 50; root.audio-volume-changed(50); } }
-                                CompactButton { text: "Volume 70%"; clicked => { root.audio-volume = 70; root.audio-volume-changed(70); } }
-                            }
-                            Text { font-size: 14px; text: "Reconstrução digital do PSG"; color: #f2f5f7; }
-                            HorizontalLayout {
-                                spacing: 5px;
-                                CompactButton {
-                                    text: root.audio-renderer-mode == "psg" ? "PSG — padrão ✓" : "PSG — padrão";
-                                    clicked => {
-                                        root.audio-renderer-mode = "psg";
-                                        root.audio-renderer-changed("psg");
+                            spacing: 10px;
+                            Text { font-size: 18px; text: "Áudio"; color: #f2f5f7; }
+                            Text { font-size: 11px; text: "Configurações de áudio do sistema emulado"; color: #9baab6; }
+                            Rectangle {
+                                height: 132px; background: #243443; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 10px; spacing: 7px;
+                                    Text { font-size: 14px; text: "VOLUME GERAL"; color: #8bd5ca; }
+                                    HorizontalLayout {
+                                        Text { font-size: 12px; text: "Volume mestre"; color: #f2f5f7; }
+                                        Text { font-size: 12px; text: "\\{round(root.audio-volume)}%"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
                                     }
-                                }
-                                CompactButton {
-                                    text: root.audio-renderer-mode == "h2-experimental" ? "H2 — experimental ✓" : "H2 — experimental";
-                                    clicked => {
-                                        root.audio-renderer-mode = "h2-experimental";
-                                        root.audio-renderer-changed("h2-experimental");
+                                    Slider { minimum: 0; maximum: 100; step: 1; value <=> root.audio-volume; released(value) => { root.audio-volume-changed(value); } }
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        CompactButton { text: root.audio-muted ? "Ativar áudio" : "Silenciar"; clicked => { root.audio-muted = !root.audio-muted; root.audio-mute-changed(root.audio-muted); } }
+                                        CompactButton { text: "50%"; clicked => { root.audio-volume = 50; root.audio-volume-changed(50); } }
+                                        CompactButton { text: "70%"; clicked => { root.audio-volume = 70; root.audio-volume-changed(70); } }
                                     }
                                 }
                             }
-                            Text {
-                                font-size: 11px;
-                                text: root.audio-renderer-mode == "h2-experimental"
-                                    ? "H2 reconstrói transições do mesmo SN76489. Recurso experimental; em caso de falha o worker retorna ao PSG."
-                                    : "PSG usa o renderer SN76489 validado e permanece como opção padrão.";
-                                color: #d6b879; wrap: word-wrap;
-                            }
-                            Text { font-size: 14px; text: "Processamento DSP"; color: #f2f5f7; }
-                            CheckBox {
-                                text: "Preset SMS1 — experimental";
-                                checked <=> root.audio-dsp-preset;
-                                toggled => {
-                                    if (self.checked) {
-                                        root.audio-hpf-enabled = true; root.audio-hpf-cutoff = 20;
-                                        root.audio-lpf-enabled = true; root.audio-lpf-cutoff = 18000;
-                                    } else {
-                                        root.audio-hpf-enabled = false; root.audio-lpf-enabled = false;
+                            Rectangle {
+                                height: 150px; background: #243443; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 10px; spacing: 7px;
+                                    Text { font-size: 14px; text: "RENDERIZAÇÃO PSG"; color: #8bd5ca; }
+                                    Text { font-size: 11px; text: "Selecione o renderer digital do SN76489."; color: #b9c5ce; }
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        CompactButton {
+                                            text: root.audio-renderer-mode == "psg" ? "✓ PSG padrão" : "PSG padrão";
+                                            clicked => { root.audio-renderer-mode = "psg"; root.audio-renderer-changed("psg"); }
+                                        }
+                                        CompactButton {
+                                            text: root.audio-renderer-mode == "h2-experimental" ? "✓ H2 experimental" : "H2 experimental";
+                                            clicked => { root.audio-renderer-mode = "h2-experimental"; root.audio-renderer-changed("h2-experimental"); }
+                                        }
                                     }
-                                    root.audio-dsp-changed(self.checked, root.audio-hpf-enabled, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff);
+                                    Text {
+                                        font-size: 11px;
+                                        text: root.audio-renderer-mode == "h2-experimental"
+                                            ? "H2 reconstrói transições do mesmo SN76489. Experimental; em caso de falha o worker retorna ao PSG."
+                                            : "PSG utiliza o renderer SN76489 validado e permanece como padrão.";
+                                        color: #d6b879; wrap: word-wrap;
+                                    }
                                 }
                             }
-                            Text { font-size: 11px; text: "Aproximação ajustável do estágio analógico de saída; não é uma reprodução elétrica calibrada de uma revisão específica da placa."; color: #d6b879; wrap: word-wrap; }
-                            CheckBox {
-                                text: "Filtro passa-altas / acoplamento AC";
-                                checked <=> root.audio-hpf-enabled;
-                                toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, self.checked, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                            Rectangle {
+                                height: 340px; background: #243443; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 10px; spacing: 7px;
+                                    Text { font-size: 14px; text: "DSP / ESTÁGIO ANALÓGICO"; color: #8bd5ca; }
+                                    CheckBox {
+                                        text: "Preset SMS1 — experimental"; checked <=> root.audio-dsp-preset;
+                                        toggled => {
+                                            if (self.checked) {
+                                                root.audio-hpf-enabled = true; root.audio-hpf-cutoff = 20;
+                                                root.audio-lpf-enabled = true; root.audio-lpf-cutoff = 18000;
+                                            } else { root.audio-hpf-enabled = false; root.audio-lpf-enabled = false; }
+                                            root.audio-dsp-changed(self.checked, root.audio-hpf-enabled, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff);
+                                        }
+                                    }
+                                    Text { font-size: 10px; text: "Aproximação ajustável; não representa calibração elétrica de uma revisão específica da placa."; color: #d6b879; wrap: word-wrap; }
+                                    CheckBox {
+                                        text: "Passa-altas / acoplamento AC"; checked <=> root.audio-hpf-enabled;
+                                        toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, self.checked, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                                    }
+                                    HorizontalLayout {
+                                        Text { font-size: 11px; text: "Corte HPF"; color: #b9c5ce; }
+                                        Text { font-size: 11px; text: "\\{round(root.audio-hpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    Slider {
+                                        minimum: 5; maximum: 500; step: 5; value <=> root.audio-hpf-cutoff; enabled: root.audio-hpf-enabled;
+                                        released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, value, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                                    }
+                                    CheckBox {
+                                        text: "Passa-baixas"; checked <=> root.audio-lpf-enabled;
+                                        toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-hpf-cutoff, self.checked, root.audio-lpf-cutoff); }
+                                    }
+                                    HorizontalLayout {
+                                        Text { font-size: 11px; text: "Corte LPF"; color: #b9c5ce; }
+                                        Text { font-size: 11px; text: "\\{round(root.audio-lpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    Slider {
+                                        minimum: 4000; maximum: 20000; step: 250; value <=> root.audio-lpf-cutoff; enabled: root.audio-lpf-enabled;
+                                        released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-hpf-cutoff, root.audio-lpf-enabled, value); }
+                                    }
+                                    CompactButton {
+                                        text: "Desativar todos os filtros";
+                                        clicked => { root.audio-dsp-preset = false; root.audio-hpf-enabled = false; root.audio-lpf-enabled = false; root.audio-dsp-changed(false, false, root.audio-hpf-cutoff, false, root.audio-lpf-cutoff); }
+                                    }
+                                }
                             }
-                            Text { font-size: 11px; text: "Corte HPF: \\{round(root.audio-hpf-cutoff)} Hz"; color: #b9c5ce; }
-                            Slider {
-                                minimum: 5; maximum: 500; step: 5; value <=> root.audio-hpf-cutoff;
-                                enabled: root.audio-hpf-enabled;
-                                released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, value, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                            Rectangle {
+                                height: 62px; background: #1d2b37; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 8px; spacing: 4px;
+                                    Text { font-size: 11px; text: root.audio-status; color: #8bd5ca; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "Filtros no worker, após o mixer e antes do reamostrador. Estado contínuo entre blocos; sem alteração no PSG, Scheduler ou clocks."; color: #9baab6; wrap: word-wrap; }
+                                }
                             }
-                            CheckBox {
-                                text: "Filtro passa-baixas";
-                                checked <=> root.audio-lpf-enabled;
-                                toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-hpf-cutoff, self.checked, root.audio-lpf-cutoff); }
-                            }
-                            Text { font-size: 11px; text: "Corte LPF: \\{round(root.audio-lpf-cutoff)} Hz"; color: #b9c5ce; }
-                            Slider {
-                                minimum: 4000; maximum: 20000; step: 250; value <=> root.audio-lpf-cutoff;
-                                enabled: root.audio-lpf-enabled;
-                                released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-hpf-cutoff, root.audio-lpf-enabled, value); }
-                            }
-                            CompactButton {
-                                text: "Desativar todos os filtros";
-                                clicked => { root.audio-dsp-preset = false; root.audio-hpf-enabled = false; root.audio-lpf-enabled = false; root.audio-dsp-changed(false, false, root.audio-hpf-cutoff, false, root.audio-lpf-cutoff); }
-                            }
-                            Text { font-size: 12px; text: root.audio-status; color: #8bd5ca; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Filtros no worker, após o mixer e antes do reamostrador. Estado contínuo entre blocos; sem alteração no PSG, Scheduler ou clocks."; color: #9baab6; wrap: word-wrap; }
                         }
                         if root.active-menu == "controls": VerticalLayout {
-                            Text { font-size: 12px; text: "Teclado — ativo"; color: #8bd5ca; }
-                            Text { font-size: 12px; text: "Setas: mover | Z: Botão 1 | X: Botão 2"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: "P: solicitar NMI (borda de pressionamento)"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "F5: iniciar | F6: pausar | F7: desligar"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "F8: resetar | F9: avançar quadro | F11: tela cheia com menus"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Alt+Enter: tela cheia imersiva (somente FPS)"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: root.input-status; color: #8bd5ca; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Padrão inicial: D-pad/analógico esquerdo; South/East = Botão 1/2; Start = Pause/NMI. Os dois primeiros gamepads/joysticks compatíveis ocupam P1/P2."; color: #b9c5ce; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Perfis persistentes por dispositivo e remapeamento visual serão tratados na próxima fatia R4."; color: #9baab6; wrap: word-wrap; }
-                            CompactButton { text: "Remapear teclado"; enabled: false; }
-                            CompactButton { text: "Remapear controle"; enabled: false; }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Controles"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Configure teclado, jogadores e atalhos sem interferir no relógio do emulador."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 370px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Remapeamento do teclado · P1"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Selecione uma ação e pressione a nova tecla. Esc cancela a captura."; color: #B4C0D0; wrap: word-wrap; }
+                                    GridLayout {
+                                        spacing: 6px;
+                                        Row {
+                                            Text { text: "Ação"; color: #B4C0D0; }
+                                            Text { text: "Tecla atual"; color: #B4C0D0; }
+                                            Text { text: "Atribuir"; color: #B4C0D0; }
+                                        }
+                                        Row { Text { text: "Cima"; color: #F1F5FA; } Text { text: root.keyboard-up-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "up" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "up"; root.keyboard-capture-status = "Pressione a tecla para Cima..."; } } }
+                                        Row { Text { text: "Baixo"; color: #F1F5FA; } Text { text: root.keyboard-down-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "down" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "down"; root.keyboard-capture-status = "Pressione a tecla para Baixo..."; } } }
+                                        Row { Text { text: "Esquerda"; color: #F1F5FA; } Text { text: root.keyboard-left-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "left" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "left"; root.keyboard-capture-status = "Pressione a tecla para Esquerda..."; } } }
+                                        Row { Text { text: "Direita"; color: #F1F5FA; } Text { text: root.keyboard-right-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "right" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "right"; root.keyboard-capture-status = "Pressione a tecla para Direita..."; } } }
+                                        Row { Text { text: "Botão 1"; color: #F1F5FA; } Text { text: root.keyboard-button1-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "button1" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button1"; root.keyboard-capture-status = "Pressione a tecla para Botão 1..."; } } }
+                                        Row { Text { text: "Botão 2"; color: #F1F5FA; } Text { text: root.keyboard-button2-label; color: rgb(142, 171, 255); } CompactButton { text: root.keyboard-capture-action == "button2" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button2"; root.keyboard-capture-status = "Pressione a tecla para Botão 2..."; } } }
+                                    }
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        CompactButton { text: "Restaurar padrão"; clicked => {
+                                            root.keyboard-up-key = Key.UpArrow; root.keyboard-down-key = Key.DownArrow;
+                                            root.keyboard-left-key = Key.LeftArrow; root.keyboard-right-key = Key.RightArrow;
+                                            root.keyboard-button1-key = Key.Z; root.keyboard-button2-key = Key.X;
+                                            root.keyboard-up-label = "↑"; root.keyboard-down-label = "↓";
+                                            root.keyboard-left-label = "←"; root.keyboard-right-label = "→";
+                                            root.keyboard-button1-label = "Z"; root.keyboard-button2-label = "X";
+                                            root.keyboard-capture-action = ""; root.keyboard-capture-status = "Mapeamento padrão restaurado.";
+                                            root.preferences-changed();
+                                        } }
+                                    }
+                                    Text { font-size: 11px; text: root.keyboard-capture-status; color: rgb(142, 171, 255); wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 160px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Atalhos do emulador"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "F5 iniciar · F6 pausar · F7 parar · F8 resetar · F9 avançar quadro"; color: #B4C0D0; }
+                                    Text { font-size: 11px; text: "F11 tela cheia com menus · Alt+Enter tela cheia imersiva · Esc fecha o menu"; color: #B4C0D0; }
+                                    Text { font-size: 11px; text: "P solicita NMI por borda. No Master System, Pause é uma NMI de hardware; não é o comando Pausar do host."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 170px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Gamepads e joysticks · P1 / P2"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: root.input-status; color: rgb(142, 171, 255); wrap: word-wrap; }
+                                    Text { font-size: 11px; text: "Atribuição atual: os dois primeiros dispositivos compatíveis da sessão são associados a P1 e P2. D-pad/analógico esquerdo, South/East e Start usam o perfil padrão SDL3."; color: #B4C0D0; wrap: word-wrap; }
+                                    Text { font-size: 11px; text: "Perfis independentes por dispositivo, captura de botões/eixos/hats e hotkeys por combinação exigem identidade persistente e editor de perfil; não são apresentados como ativos nesta etapa."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
                         }
                         if root.active-menu == "options": VerticalLayout {
-                            Text { font-size: 12px; text: "Overlay de FPS"; color: #f2f5f7; }
-                            CompactButton { text: root.show-fps ? "✓ Exibir HUD de FPS" : "Exibir HUD de FPS"; clicked => { root.show-fps = !root.show-fps; root.preferences-changed(); } }
-                            CompactButton { text: root.show-status-footer ? "✓ Exibir status no rodapé" : "Exibir status no rodapé"; clicked => { root.show-status-footer = !root.show-status-footer; root.preferences-changed(); } }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.fps-size == "small" ? "✓ Pequeno" : "Pequeno"; clicked => { root.fps-size = "small"; root.fps-font-size = 13px; root.preferences-changed(); } }
-                                CompactButton { text: root.fps-size == "medium" ? "✓ Médio" : "Médio"; clicked => { root.fps-size = "medium"; root.fps-font-size = 18px; root.preferences-changed(); } }
-                                CompactButton { text: root.fps-size == "large" ? "✓ Grande" : "Grande"; clicked => { root.fps-size = "large"; root.fps-font-size = 24px; root.preferences-changed(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Opções"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Elementos de interface e apresentação do host."; color: #B4C0D0; }
+                            Rectangle { height: 176px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "HUD e telemetria"; color: #F1F5FA; }
+                                    CheckBox { text: "Exibir FPS"; checked: root.show-fps; toggled => { root.show-fps = self.checked; root.preferences-changed(); } }
+                                    CheckBox { text: "Exibir status no rodapé"; checked: root.show-status-footer; toggled => { root.show-status-footer = self.checked; root.preferences-changed(); } }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.fps-size == "small" ? "✓ Pequeno" : "Pequeno"; clicked => { root.fps-size = "small"; root.fps-font-size = 13px; root.preferences-changed(); } }
+                                        CompactButton { text: root.fps-size == "medium" ? "✓ Médio" : "Médio"; clicked => { root.fps-size = "medium"; root.fps-font-size = 18px; root.preferences-changed(); } }
+                                        CompactButton { text: root.fps-size == "large" ? "✓ Grande" : "Grande"; clicked => { root.fps-size = "large"; root.fps-font-size = 24px; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: "FPS mede uploads de textura bem-sucedidos; não representa apresentação física do monitor."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 12px; text: "Posição do HUD: inferior (posição em cantos será concluída após validar o overlay."; color: #9baab6; }
-                            CompactButton { text: root.fullscreen-enabled && !root.immersive-fullscreen ? "✓ Tela cheia com menus" : "Tela cheia com menus (F11)"; clicked => { root.display-mode-toggle-requested("f11"); } }
-                            CompactButton { text: root.immersive-fullscreen ? "✓ Tela cheia imersiva" : "Tela cheia imersiva (Alt+Enter)"; clicked => { root.display-mode-toggle-requested("alt-enter"); } }
+                            Rectangle { height: 128px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Modo de exibição"; color: #F1F5FA; }
+                                    HorizontalLayout { spacing: 8px;
+                                        CompactButton { text: root.fullscreen-enabled && !root.immersive-fullscreen ? "✓ Tela cheia com menus" : "Tela cheia com menus (F11)"; clicked => { root.display-mode-toggle-requested("f11"); } }
+                                        CompactButton { text: root.immersive-fullscreen ? "✓ Tela cheia imersiva" : "Tela cheia imersiva (Alt+Enter)"; clicked => { root.display-mode-toggle-requested("alt-enter"); } }
+                                    }
+                                    Text { font-size: 10px; text: "A posição do HUD permanece inferior nesta versão."; color: #B4C0D0; }
+                                }
+                            }
                         }
                         if root.active-menu == "firmware": VerticalLayout {
-                            spacing: 10px;
-                            Text { font-size: 20px; text: "Gerenciamento de firmware — Sega Master System"; color: #f2f5f7; height: self.preferred-height; }
-                            Text { font-size: 12px; text: root.selected-system == "sms2" ? "Console selecionado: Master System II. Somente imagens catalogadas para SMS2/Samsung SMS2 ficam disponíveis para seleção." : "Console selecionado: Master System I. Somente imagens catalogadas para SMS1 ficam disponíveis para seleção."; color: #8bd5ca; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 12px; text: "1. Diretório das BIOS e firmwares"; color: #f2f5f7; }
-                            HorizontalLayout {
-                                spacing: 6px;
-                                LineEdit { text <=> root.firmware-directory; placeholder-text: "Selecione a pasta que contém os arquivos de firmware"; }
-                                CompactButton { text: "Selecionar pasta..."; clicked => { root.browse-firmware-directory-requested(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Firmware"; color: #F1F5FA; }
+                            Text {
+                                font-size: 12px;
+                                text: root.selected-system == "sms2"
+                                    ? "Gerencie imagens catalogadas para Master System II / Samsung SMS2."
+                                    : "Gerencie imagens catalogadas para Master System I / SMS1.";
+                                color: #B4C0D0; wrap: word-wrap;
                             }
-                            CompactButton { text: "Escanear diretório"; enabled: root.firmware-directory != ""; clicked => { root.scan-firmware-directory-requested(root.firmware-directory); } }
-                            Text { font-size: 11px; text: root.firmware-scan-status; color: #8bd5ca; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 11px; text: root.firmware-scan-results; color: #b9c5ce; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 12px; text: "2. Firmware selecionado por região"; color: #f2f5f7; }
-                            Text { font-size: 11px; text: "Cada região mantém uma seleção independente. Opções indisponíveis ou incompatíveis com o modelo do console permanecem desativadas."; color: #b9c5ce; wrap: word-wrap; height: self.preferred-height; }
-                            VerticalLayout {
-                                spacing: 6px;
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Brasil"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-brazil-options;
-                                        current-value: root.firmware-brazil-selected;
-                                        enabled: root.firmware-brazil-options.length > 0;
-                                        selected(value) => { root.firmware-brazil-selected = value; root.firmware-selection-changed("brazil", value); root.preferences-changed(); }
+                            Rectangle {
+                                height: 164px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "1. Diretório de firmware"; color: #F1F5FA; }
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        LineEdit { horizontal-stretch: 1; text <=> root.firmware-directory; placeholder-text: "Pasta que contém BIOS e firmwares"; }
+                                        CompactButton { text: "Selecionar pasta"; clicked => { root.browse-firmware-directory-requested(); } }
+                                        CompactButton { text: "Escanear"; enabled: root.firmware-directory != ""; clicked => { root.scan-firmware-directory-requested(root.firmware-directory); } }
                                     }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "USA"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-usa-options;
-                                        current-value: root.firmware-usa-selected;
-                                        enabled: root.firmware-usa-options.length > 0;
-                                        selected(value) => { root.firmware-usa-selected = value; root.firmware-selection-changed("usa", value); root.preferences-changed(); }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Europa"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-europe-options;
-                                        current-value: root.firmware-europe-selected;
-                                        enabled: root.firmware-europe-options.length > 0;
-                                        selected(value) => { root.firmware-europe-selected = value; root.firmware-selection-changed("europe", value); root.preferences-changed(); }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Japão"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-japan-options;
-                                        current-value: root.firmware-japan-selected;
-                                        enabled: root.firmware-japan-options.length > 0;
-                                        selected(value) => { root.firmware-japan-selected = value; root.firmware-selection-changed("japan", value); root.preferences-changed(); }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Coreia"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-korea-options;
-                                        current-value: root.firmware-korea-selected;
-                                        enabled: root.firmware-korea-options.length > 0;
-                                        selected(value) => { root.firmware-korea-selected = value; root.firmware-selection-changed("korea", value); root.preferences-changed(); }
-                                    }
+                                    Text { font-size: 11px; text: root.firmware-scan-status; color: rgb(142, 171, 255); wrap: word-wrap; }
+                                    Text { font-size: 10px; text: root.firmware-scan-results; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
-                            if root.firmware-brazil-options.length == 0: Text { font-size: 10px; text: "Brasil: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-usa-options.length == 0: Text { font-size: 10px; text: "USA: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-europe-options.length == 0: Text { font-size: 10px; text: "Europa: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-japan-options.length == 0: Text { font-size: 10px; text: "Japão: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-korea-options.length == 0: Text { font-size: 10px; text: "Coreia: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            Text { font-size: 11px; text: "O firmware Samsung Gam*Boy II é uma variante própria de SMS2. Identificação e seleção não significam que seu boot esteja validado."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 12px; text: "3. Inicialização"; color: #f2f5f7; }
-                            CheckBox {
-                                text: "Habilitar boot pela BIOS / firmware";
-                                checked <=> root.firmware-boot-enabled;
-                                toggled => { root.firmware-boot-toggle-requested(self.checked); root.preferences-changed(); }
+                            Rectangle {
+                                height: 420px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "2. Seleção regional"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Cada região mantém uma seleção independente. Somente imagens válidas e compatíveis com o modelo selecionado ficam disponíveis."; color: #B4C0D0; wrap: word-wrap; }
+                                    VerticalLayout {
+                                        spacing: 6px;
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Brasil"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-brazil-options; current-value: root.firmware-brazil-selected; enabled: root.firmware-brazil-options.length > 0; selected(value) => { root.firmware-brazil-selected = value; root.firmware-selection-changed("brazil", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "USA"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-usa-options; current-value: root.firmware-usa-selected; enabled: root.firmware-usa-options.length > 0; selected(value) => { root.firmware-usa-selected = value; root.firmware-selection-changed("usa", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Europa"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-europe-options; current-value: root.firmware-europe-selected; enabled: root.firmware-europe-options.length > 0; selected(value) => { root.firmware-europe-selected = value; root.firmware-selection-changed("europe", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Japão"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-japan-options; current-value: root.firmware-japan-selected; enabled: root.firmware-japan-options.length > 0; selected(value) => { root.firmware-japan-selected = value; root.firmware-selection-changed("japan", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Coreia"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-korea-options; current-value: root.firmware-korea-selected; enabled: root.firmware-korea-options.length > 0; selected(value) => { root.firmware-korea-selected = value; root.firmware-selection-changed("korea", value); root.preferences-changed(); } }
+                                        }
+                                    }
+                                    Text { font-size: 10px; text: "Samsung Gam*Boy II é uma variante própria de SMS2. Identificação e seleção não comprovam o boot em hardware."; color: #D6B879; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 11px; text: "Com cartucho, somente BIOS convencional de 8 KiB identificada e revalidada será executada antes da ROM. Firmwares com jogo interno e boot sem cartucho continuam pendentes de seus mapas específicos no runtime."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
+                            Rectangle {
+                                height: 150px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "3. Inicialização"; color: #F1F5FA; }
+                                    CheckBox {
+                                        text: "Habilitar boot pela BIOS / firmware";
+                                        checked <=> root.firmware-boot-enabled;
+                                        toggled => { root.firmware-boot-toggle-requested(self.checked); root.preferences-changed(); }
+                                    }
+                                    Text { font-size: 10px; text: "Com cartucho, somente BIOS convencional de 8 KiB identificada e revalidada será executada antes da ROM. Firmwares com jogo interno e boot sem cartucho continuam pendentes de seus mapas específicos no runtime."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
                         }
                         if root.active-menu == "debug": VerticalLayout {
-                            Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
-                            CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
-                            CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
-                            CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
-                            Text { font-size: 12px; text: root.debug-status; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Debugger com registradores, breakpoints e memória será migrado em etapa própria; a GUI não executa instruções."; color: #9baab6; }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Diagnóstico"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Ferramentas de inspeção do runtime SMS."; color: #B4C0D0; }
+                            Rectangle { height: 220px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Runtime e CPU"; color: #F1F5FA; }
+                                    CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
+                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
+                                    Text { font-size: 11px; text: root.debug-status; color: rgb(142, 171, 255); wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle { height: 84px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 6px;
+                                    Text { font-size: 12px; text: "Breakpoints, inspeção de memória e depuração interativa ainda não foram integrados."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
                         }
                     }
                 }
@@ -903,6 +1187,12 @@ mod windows_host {
         audio_hpf_cutoff_hz: u16,
         audio_lpf_enabled: bool,
         audio_lpf_cutoff_hz: u16,
+        keyboard_up_key: String,
+        keyboard_down_key: String,
+        keyboard_left_key: String,
+        keyboard_right_key: String,
+        keyboard_button1_key: String,
+        keyboard_button2_key: String,
     }
 
     impl Default for DesktopPreferences {
@@ -930,6 +1220,12 @@ mod windows_host {
                 audio_hpf_cutoff_hz: 20,
                 audio_lpf_enabled: false,
                 audio_lpf_cutoff_hz: 18_000,
+                keyboard_up_key: String::new(),
+                keyboard_down_key: String::new(),
+                keyboard_left_key: String::new(),
+                keyboard_right_key: String::new(),
+                keyboard_button1_key: String::new(),
+                keyboard_button2_key: String::new(),
             }
         }
     }
@@ -1061,6 +1357,29 @@ mod windows_host {
                         preferences.audio_lpf_cutoff_hz = value;
                     }
                 }
+                "keyboard_up_key" => {
+                    preferences.keyboard_up_key = decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_down_key" => {
+                    preferences.keyboard_down_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_left_key" => {
+                    preferences.keyboard_left_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_right_key" => {
+                    preferences.keyboard_right_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_button1_key" => {
+                    preferences.keyboard_button1_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
+                "keyboard_button2_key" => {
+                    preferences.keyboard_button2_key =
+                        decode_key_token(value.trim()).unwrap_or_default()
+                }
                 _ => {}
             }
         }
@@ -1073,7 +1392,7 @@ mod windows_host {
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
         let contents = format!(
-            "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\n",
+            "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
             preferences.sms_system,
             preferences.firmware_directory,
@@ -1095,10 +1414,47 @@ mod windows_host {
             preferences.audio_hpf_enabled,
             preferences.audio_hpf_cutoff_hz,
             preferences.audio_lpf_enabled,
-            preferences.audio_lpf_cutoff_hz
+            preferences.audio_lpf_cutoff_hz,
+            encode_key_token(&preferences.keyboard_up_key),
+            encode_key_token(&preferences.keyboard_down_key),
+            encode_key_token(&preferences.keyboard_left_key),
+            encode_key_token(&preferences.keyboard_right_key),
+            encode_key_token(&preferences.keyboard_button1_key),
+            encode_key_token(&preferences.keyboard_button2_key)
         );
         fs::write(directory.join("slint_ui_settings.txt"), contents)
             .map_err(|error| error.to_string())
+    }
+
+    /// Encodes each key character as a hexadecimal Unicode code point for safe text-file persistence.
+    fn encode_key_token(value: &str) -> String {
+        value
+            .chars()
+            .map(|character| format!("{:X}", character as u32))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    /// Decodes a persisted key token, rejecting invalid Unicode values and empty entries.
+    fn decode_key_token(value: &str) -> Option<String> {
+        let decoded = value
+            .split(',')
+            .map(|part| u32::from_str_radix(part, 16).ok().and_then(char::from_u32))
+            .collect::<Option<String>>()?;
+        (!decoded.is_empty()).then_some(decoded)
+    }
+
+    /// Returns a readable key label without exposing control characters.
+    fn keyboard_key_label(value: &str) -> String {
+        let mut chars = value.chars();
+        let Some(character) = chars.next() else {
+            return "Não atribuída".to_owned();
+        };
+        if chars.next().is_some() || character.is_control() {
+            "Tecla especial".to_owned()
+        } else {
+            character.to_uppercase().collect()
+        }
     }
 
     /// Carrega até dez ROMs recentes, removendo entradas duplicadas e vazias.
@@ -3186,6 +3542,45 @@ mod windows_host {
         app.set_firmware_europe_selected(preferences.firmware_europe_selected.clone().into());
         app.set_firmware_japan_selected(preferences.firmware_japan_selected.clone().into());
         app.set_firmware_korea_selected(preferences.firmware_korea_selected.clone().into());
+        for (key, setter) in [
+            (&preferences.keyboard_up_key, 0_u8),
+            (&preferences.keyboard_down_key, 1),
+            (&preferences.keyboard_left_key, 2),
+            (&preferences.keyboard_right_key, 3),
+            (&preferences.keyboard_button1_key, 4),
+            (&preferences.keyboard_button2_key, 5),
+        ] {
+            if !key.is_empty() {
+                let value: slint::SharedString = key.clone().into();
+                match setter {
+                    0 => {
+                        app.set_keyboard_up_key(value);
+                        app.set_keyboard_up_label(keyboard_key_label(key).into());
+                    }
+                    1 => {
+                        app.set_keyboard_down_key(value);
+                        app.set_keyboard_down_label(keyboard_key_label(key).into());
+                    }
+                    2 => {
+                        app.set_keyboard_left_key(value);
+                        app.set_keyboard_left_label(keyboard_key_label(key).into());
+                    }
+                    3 => {
+                        app.set_keyboard_right_key(value);
+                        app.set_keyboard_right_label(keyboard_key_label(key).into());
+                    }
+                    4 => {
+                        app.set_keyboard_button1_key(value);
+                        app.set_keyboard_button1_label(keyboard_key_label(key).into());
+                    }
+                    5 => {
+                        app.set_keyboard_button2_key(value);
+                        app.set_keyboard_button2_label(keyboard_key_label(key).into());
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
         if rom_path.is_some() {
             app.set_active_system(preferences.sms_system.clone().into());
         }
@@ -3325,6 +3720,48 @@ mod windows_host {
 
         let keyboard_state = Rc::new(RefCell::new(KeyboardInputState::default()));
         let gamepad_state = Rc::new(RefCell::new([ControllerButtons::default(); 2]));
+
+        let keyboard_capture_app = app.as_weak();
+        app.on_keyboard_key_captured(
+            move |action: slint::SharedString, key: slint::SharedString| {
+                    let Some(app) = keyboard_capture_app.upgrade() else {
+                        return;
+                    };
+                let key = key.to_string();
+                if key.is_empty() || key.chars().any(char::is_control) {
+                    app.set_keyboard_capture_status("Tecla inválida. Tente outra tecla.".into());
+                    app.set_keyboard_capture_action("".into());
+                    return;
+                }
+                let current = [
+                    app.get_keyboard_up_key().to_string(), app.get_keyboard_down_key().to_string(),
+                    app.get_keyboard_left_key().to_string(), app.get_keyboard_right_key().to_string(),
+                    app.get_keyboard_button1_key().to_string(), app.get_keyboard_button2_key().to_string(),
+                ];
+                let action_index = match action.as_str() {
+                    "up" => 0, "down" => 1, "left" => 2, "right" => 3, "button1" => 4, "button2" => 5,
+                    _ => 6,
+                };
+                if action_index == 6 || current.iter().enumerate().any(|(index, assigned)| index != action_index && assigned == &key) {
+                    app.set_keyboard_capture_status("Tecla já atribuída ou ação inválida.".into());
+                    app.set_keyboard_capture_action("".into());
+                    return;
+                }
+                let label = keyboard_key_label(&key);
+                let shared: slint::SharedString = key.into();
+                match action.as_str() {
+                    "up" => { app.set_keyboard_up_key(shared); app.set_keyboard_up_label(label.into()); }
+                    "down" => { app.set_keyboard_down_key(shared); app.set_keyboard_down_label(label.into()); }
+                    "left" => { app.set_keyboard_left_key(shared); app.set_keyboard_left_label(label.into()); }
+                    "right" => { app.set_keyboard_right_key(shared); app.set_keyboard_right_label(label.into()); }
+                    "button1" => { app.set_keyboard_button1_key(shared); app.set_keyboard_button1_label(label.into()); }
+                    "button2" => { app.set_keyboard_button2_key(shared); app.set_keyboard_button2_label(label.into()); }
+                    _ => { app.set_keyboard_capture_status("Ação de remapeamento desconhecida.".into()); app.set_keyboard_capture_action("".into()); return; }
+                }
+                app.set_keyboard_capture_action("".into());
+                app.set_keyboard_capture_status("Tecla atualizada; preferências persistidas.".into());
+                app.invoke_preferences_changed();
+        });
 
         let keyboard_press_state = Rc::clone(&keyboard_state);
         let keyboard_press_worker = Rc::clone(&worker);
@@ -3846,6 +4283,12 @@ mod windows_host {
                     audio_lpf_enabled: app.get_audio_lpf_enabled(),
                     audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                         as u16,
+                    keyboard_up_key: app.get_keyboard_up_key().to_string(),
+                    keyboard_down_key: app.get_keyboard_down_key().to_string(),
+                    keyboard_left_key: app.get_keyboard_left_key().to_string(),
+                    keyboard_right_key: app.get_keyboard_right_key().to_string(),
+                    keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
+                    keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
                 };
                 let _ = save_desktop_preferences(&prefs);
                 let _ = app.window().hide();
@@ -3958,6 +4401,12 @@ mod windows_host {
                 audio_lpf_enabled: app.get_audio_lpf_enabled(),
                 audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                     as u16,
+                keyboard_up_key: app.get_keyboard_up_key().to_string(),
+                keyboard_down_key: app.get_keyboard_down_key().to_string(),
+                keyboard_left_key: app.get_keyboard_left_key().to_string(),
+                keyboard_right_key: app.get_keyboard_right_key().to_string(),
+                keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
+                keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
             };
             if let Err(error) = save_desktop_preferences(&prefs) {
                 eprintln!("R2_PREFERENCES save_failed error={error}");
@@ -4223,6 +4672,12 @@ mod windows_host {
             audio_hpf_cutoff_hz: app.get_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
             audio_lpf_enabled: app.get_audio_lpf_enabled(),
             audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
+            keyboard_up_key: app.get_keyboard_up_key().to_string(),
+            keyboard_down_key: app.get_keyboard_down_key().to_string(),
+            keyboard_left_key: app.get_keyboard_left_key().to_string(),
+            keyboard_right_key: app.get_keyboard_right_key().to_string(),
+            keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
+            keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
         };
         let _ = save_desktop_preferences(&final_preferences);
         let _ = save_recent_roms(&recent_roms.borrow());
@@ -4253,6 +4708,23 @@ mod windows_host {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn keyboard_key_token_round_trips_unicode() {
+            for key in ["w", "Z", "↑"] {
+                let encoded = encode_key_token(key);
+                assert_eq!(decode_key_token(&encoded).as_deref(), Some(key));
+            }
+            assert_eq!(decode_key_token("not-hex"), None);
+            assert_eq!(decode_key_token(""), None);
+        }
+
+        #[test]
+        fn keyboard_key_labels_are_readable_for_printable_keys() {
+            assert_eq!(keyboard_key_label("w"), "W");
+            assert_eq!(keyboard_key_label("z"), "Z");
+            assert_eq!(keyboard_key_label(""), "Não atribuída");
+        }
 
         #[test]
         fn diagnostic_sram_capacity_accepts_only_supported_volatile_sizes() {
