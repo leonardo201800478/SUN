@@ -973,7 +973,7 @@ mod tests {
         use std::thread;
 
         use sega_audio_runtime::{
-            AudioOutputMetrics, AudioSession, NativeAudioSession, DEFAULT_PCM_SOURCE_RATE_HZ,
+            AudioOutputMetrics, AudioSession, DEFAULT_PCM_SOURCE_RATE_HZ, NativeAudioSession,
         };
 
         let caller_thread = thread::current().id();
@@ -1006,14 +1006,10 @@ mod tests {
             assert!(!worker.is_running());
         }
 
-        assert_ne!(
-            factory_thread.lock().unwrap().unwrap(),
-            caller_thread
-        );
+        assert_ne!(factory_thread.lock().unwrap().unwrap(), caller_thread);
         let state = sink_state.lock().unwrap();
         assert!(state.suspend_count >= 2);
         assert!(state.resume_count >= 1);
         assert!(state.closed);
     }
-
 }
