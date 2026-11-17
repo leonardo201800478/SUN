@@ -3726,7 +3726,7 @@ mod windows_host {
         } else if worker.borrow().is_some() {
             "Saída CPAL indisponível; consulte R3_AUDIO nos logs.".into()
         } else {
-            "Carregue uma ROM SMS para inicializar a saída CPAL.".into()
+            "Carregue uma ROM para inicializar a saída CPAL.".into()
         });
         if let Some(path) = rom_path.as_ref() {
             app.set_rom_status(format!("ROM: {} | região: {region}", path.display()).into());
@@ -4407,7 +4407,7 @@ mod windows_host {
             if let Some(app) = exit_prefs_app.upgrade() {
                 let prefs = DesktopPreferences {
                     region: app.get_selected_region().to_string(),
-                    sms_system: app.get_selected_system().to_string(),
+                    selected_system: app.get_selected_system().to_string(),
                     firmware_directory: app.get_firmware_directory().to_string(),
                     firmware_boot_enabled: app.get_firmware_boot_enabled(),
                     firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -4516,7 +4516,7 @@ mod windows_host {
             };
             let prefs = DesktopPreferences {
                 region: app.get_selected_region().to_string(),
-                sms_system: app.get_selected_system().to_string(),
+                selected_system: app.get_selected_system().to_string(),
                 firmware_directory: app.get_firmware_directory().to_string(),
                 firmware_boot_enabled: app.get_firmware_boot_enabled(),
                 firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -4602,7 +4602,7 @@ mod windows_host {
                     app.set_audio_status(format!("Falha ao alterar áudio: {error}").into())
                 }
                 None => app.set_audio_status(
-                    "Preferência salva; será aplicada ao carregar uma ROM SMS.".into(),
+                    "Preferência salva; será aplicada ao carregar uma ROM.".into(),
                 ),
             }
             app.invoke_preferences_changed();
@@ -4636,7 +4636,7 @@ mod windows_host {
                         app.set_audio_status(format!("Falha ao aplicar DSP: {error}").into())
                     }
                     None => app.set_audio_status(
-                        "Preferências DSP salvas; serão aplicadas ao carregar uma ROM SMS.".into(),
+                        "Preferências DSP salvas; serão aplicadas ao carregar uma ROM.".into(),
                     ),
                 }
                 app.invoke_preferences_changed();
@@ -4668,7 +4668,7 @@ mod windows_host {
                     app.set_audio_status(format!("H2 indisponível; PSG preservado: {error}").into());
                 }
                 None => app.set_audio_status(
-                    "Preferência do renderer salva; será aplicada ao iniciar uma ROM SMS.".into(),
+                    "Preferência do renderer salva; será aplicada ao iniciar uma ROM.".into(),
                 ),
             }
             app.invoke_preferences_changed();
@@ -4788,7 +4788,7 @@ mod windows_host {
         let run_result = app.run();
         let final_preferences = DesktopPreferences {
             region: app.get_selected_region().to_string(),
-            sms_system: app.get_selected_system().to_string(),
+            selected_system: app.get_selected_system().to_string(),
             firmware_directory: app.get_firmware_directory().to_string(),
             firmware_boot_enabled: app.get_firmware_boot_enabled(),
             firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
