@@ -1444,13 +1444,22 @@ mod windows_host {
         (!decoded.is_empty()).then_some(decoded)
     }
 
-    /// Returns a readable key label without exposing control characters.
+    /// Returns whether a character belongs to a Unicode private-use area.
+    /// Slint uses private-use code points to represent non-printable keys.
+    fn is_private_use_character(character: char) -> bool {
+        matches!(
+            character as u32,
+            0xE000..=0xF8FF | 0xF0000..=0xFFFFD | 0x100000..=0x10FFFD
+        )
+    }
+
+    /// Returns a readable key label without exposing control or private-use characters.
     fn keyboard_key_label(value: &str) -> String {
         let mut chars = value.chars();
         let Some(character) = chars.next() else {
             return "Não atribuída".to_owned();
         };
-        if chars.next().is_some() || character.is_control() {
+        if chars.next().is_some() || character.is_control() || is_private_use_character(character) {
             "Tecla especial".to_owned()
         } else {
             character.to_uppercase().collect()
@@ -4764,6 +4773,13 @@ mod windows_host {
             assert_eq!(keyboard_key_label("w"), "W");
             assert_eq!(keyboard_key_label("z"), "Z");
             assert_eq!(keyboard_key_label(""), "Não atribuída");
+        }
+
+        #[test]
+        fn keyboard_key_labels_hide_unicode_private_use_codes_for_special_keys() {
+            for key in ['\\u{E000}', '\\u{F700}', '\\u{F0000}', '\\u{100000}'] {
+                assert_eq!(keyboard_key_label(&key.to_string()), "Tecla especial");
+            }
         }
 
         #[test]
