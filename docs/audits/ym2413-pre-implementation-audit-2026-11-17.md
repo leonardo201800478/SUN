@@ -1,9 +1,9 @@
 # YM2413 — auditoria pré-implementação no main
 
-**Data:** 2026-11-17  
-**Baseline remoto:** `main` = `b82e0df4c9840b2cd59f090278b907cbb321869f`  
-**Estado:** M0 concluída — auditoria documental e arquitetural; nenhum código de chip foi implementado.  
-**Escopo:** YM2413 integrado do perfil Japanese Master System; não inclui o FM Sound Unit externo do Mark III.
+- **Data:** 2026-11-17
+- **Baseline remoto:** `main` = `b82e0df4c9840b2cd59f090278b907cbb321869f`
+- **Estado:** M0 concluída — auditoria documental e arquitetural; nenhum código de chip foi implementado.
+- **Escopo:** YM2413 integrado do perfil Japanese Master System; não inclui o FM Sound Unit externo do Mark III.
 
 ## 1. Gate de entrada — PR #992
 
