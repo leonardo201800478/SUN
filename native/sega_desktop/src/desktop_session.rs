@@ -297,6 +297,38 @@ impl DesktopSession {
         }
     }
 
+    /// Capture a concise system-neutral debugger summary from the selected worker.
+    pub fn debug_summary(&self) -> Result<String, String> {
+        match self {
+            Self::Sms { worker, .. } => worker.debug_snapshot().map(|snapshot| {
+                format!(
+                    "PC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} | frame={} ticks={} T-states={}",
+                    snapshot.pc,
+                    snapshot.sp,
+                    snapshot.af,
+                    snapshot.bc,
+                    snapshot.de,
+                    snapshot.hl,
+                    snapshot.frame_number,
+                    snapshot.machine_time_ticks,
+                    snapshot.instruction_tstates
+                )
+            }),
+            Self::Sg1000(worker) => worker.debug_snapshot().map(|snapshot| {
+                format!(
+                    "PC={:04X} A={:02X} F={:02X} R={:02X} HALT={} | frame={} T-states={}",
+                    snapshot.pc,
+                    snapshot.a,
+                    snapshot.f,
+                    snapshot.refresh,
+                    snapshot.halted,
+                    snapshot.frame_number,
+                    snapshot.total_tstates
+                )
+            }),
+        }
+    }
+
     /// Configure the SMS-only PSG reconstruction mode.
     ///
     /// SG-1000 deliberately rejects this operation rather than silently
