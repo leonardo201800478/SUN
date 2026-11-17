@@ -220,6 +220,25 @@ mod tests {
     }
 
     #[test]
+    fn maps_type_b_expansion_as_8k_internal_ram_mirrored_across_c000_to_ffff() {
+        let config = MemoryConfig {
+            internal_ram_size: 0x2000,
+            ..MemoryConfig::default()
+        };
+        let mut memory = Sg1000Memory::new(&[0x55], config).unwrap();
+
+        memory.write(0xC000, 0xA7);
+        memory.write(0xDFFF, 0x5C);
+
+        assert_eq!(memory.read(0xC000), 0xA7);
+        assert_eq!(memory.read(0xE000), 0xA7);
+        assert_eq!(memory.read(0xDFFF), 0x5C);
+        assert_eq!(memory.read(0xFFFF), 0x5C);
+        assert_eq!(memory.internal_ram().len(), 0x2000);
+        assert!(memory.cartridge_ram().is_empty());
+    }
+
+    #[test]
     fn maps_2k_omv_ram_with_mirroring() {
         let config = MemoryConfig {
             cartridge_ram_size: 0x0800,
