@@ -3315,6 +3315,24 @@ mod windows_host {
         app.set_firmware_europe_selected(preferences.firmware_europe_selected.clone().into());
         app.set_firmware_japan_selected(preferences.firmware_japan_selected.clone().into());
         app.set_firmware_korea_selected(preferences.firmware_korea_selected.clone().into());
+        for (key, setter) in [
+            (&preferences.keyboard_up_key, 0_u8), (&preferences.keyboard_down_key, 1),
+            (&preferences.keyboard_left_key, 2), (&preferences.keyboard_right_key, 3),
+            (&preferences.keyboard_button1_key, 4), (&preferences.keyboard_button2_key, 5),
+        ] {
+            if !key.is_empty() {
+                let value: slint::SharedString = key.clone().into();
+                match setter {
+                    0 => { app.set_keyboard_up_key(value); app.set_keyboard_up_label(keyboard_key_label(key).into()); }
+                    1 => { app.set_keyboard_down_key(value); app.set_keyboard_down_label(keyboard_key_label(key).into()); }
+                    2 => { app.set_keyboard_left_key(value); app.set_keyboard_left_label(keyboard_key_label(key).into()); }
+                    3 => { app.set_keyboard_right_key(value); app.set_keyboard_right_label(keyboard_key_label(key).into()); }
+                    4 => { app.set_keyboard_button1_key(value); app.set_keyboard_button1_label(keyboard_key_label(key).into()); }
+                    5 => { app.set_keyboard_button2_key(value); app.set_keyboard_button2_label(keyboard_key_label(key).into()); }
+                    _ => unreachable!(),
+                }
+            }
+        }
         if rom_path.is_some() {
             app.set_active_system(preferences.sms_system.clone().into());
         }
@@ -3454,6 +3472,41 @@ mod windows_host {
 
         let keyboard_state = Rc::new(RefCell::new(KeyboardInputState::default()));
         let gamepad_state = Rc::new(RefCell::new([ControllerButtons::default(); 2]));
+
+        let keyboard_capture_app = app.as_weak();
+        app.on_keyboard_key_captured(move |action: slint::SharedString, key: slint::SharedString| {
+            let Some(app) = keyboard_capture_app.upgrade() else { return; };
+            let key = key.to_string();
+            if key.is_empty() || key.chars().any(char::is_control) {
+                app.set_keyboard_capture_status("Tecla inválida. Tente outra tecla.".into());
+                app.set_keyboard_capture_action("".into());
+                return;
+            }
+            let current = [
+                app.get_keyboard_up_key().to_string(), app.get_keyboard_down_key().to_string(),
+                app.get_keyboard_left_key().to_string(), app.get_keyboard_right_key().to_string(),
+                app.get_keyboard_button1_key().to_string(), app.get_keyboard_button2_key().to_string(),
+            ];
+            if current.iter().any(|assigned| assigned == &key) {
+                app.set_keyboard_capture_status("Esta tecla já está atribuída a outra ação.".into());
+                app.set_keyboard_capture_action("".into());
+                return;
+            }
+            let label = keyboard_key_label(&key);
+            let shared: slint::SharedString = key.into();
+            match action.as_str() {
+                "up" => { app.set_keyboard_up_key(shared); app.set_keyboard_up_label(label.into()); }
+                "down" => { app.set_keyboard_down_key(shared); app.set_keyboard_down_label(label.into()); }
+                "left" => { app.set_keyboard_left_key(shared); app.set_keyboard_left_label(label.into()); }
+                "right" => { app.set_keyboard_right_key(shared); app.set_keyboard_right_label(label.into()); }
+                "button1" => { app.set_keyboard_button1_key(shared); app.set_keyboard_button1_label(label.into()); }
+                "button2" => { app.set_keyboard_button2_key(shared); app.set_keyboard_button2_label(label.into()); }
+                _ => { app.set_keyboard_capture_status("Ação de remapeamento desconhecida.".into()); app.set_keyboard_capture_action("".into()); return; }
+            }
+            app.set_keyboard_capture_action("".into());
+            app.set_keyboard_capture_status("Tecla atualizada e salva nas preferências.".into());
+            app.invoke_preferences_changed();
+        });
 
         let keyboard_press_state = Rc::clone(&keyboard_state);
         let keyboard_press_worker = Rc::clone(&worker);
@@ -3940,6 +3993,12 @@ mod windows_host {
                     audio_lpf_enabled: app.get_audio_lpf_enabled(),
                     audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                         as u16,
+                keyboard_up_key: app.get_keyboard_up_key().to_string(),
+                keyboard_down_key: app.get_keyboard_down_key().to_string(),
+                keyboard_left_key: app.get_keyboard_left_key().to_string(),
+                keyboard_right_key: app.get_keyboard_right_key().to_string(),
+                keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
+                keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
                 };
                 let _ = save_desktop_preferences(&prefs);
                 let _ = app.window().hide();
@@ -4052,6 +4111,12 @@ mod windows_host {
                 audio_lpf_enabled: app.get_audio_lpf_enabled(),
                 audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                     as u16,
+                keyboard_up_key: app.get_keyboard_up_key().to_string(),
+                keyboard_down_key: app.get_keyboard_down_key().to_string(),
+                keyboard_left_key: app.get_keyboard_left_key().to_string(),
+                keyboard_right_key: app.get_keyboard_right_key().to_string(),
+                keyboard_button1_key: app.get_keyboard_button1_key().to_string(),
+                keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
             };
             if let Err(error) = save_desktop_preferences(&prefs) {
                 eprintln!("R2_PREFERENCES save_failed error={error}");
