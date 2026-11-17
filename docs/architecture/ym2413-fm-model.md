@@ -674,4 +674,3 @@ Fontes de código auditadas:
 - catálogo confiável de títulos/revisões com driver/dados FM.
 
 **Primeira etapa segura:** a PR de fundação adiciona somente latch de endereço, banco de registradores e fase/slot de clock com invariância de blocos e snapshot/restore. Ela não gera áudio, não altera o barramento SMS, não cria domínio Scheduler e não ativa FM em nenhuma ROM. Sua validação CI permanece PENDING até o workflow do HEAD da PR.
-
