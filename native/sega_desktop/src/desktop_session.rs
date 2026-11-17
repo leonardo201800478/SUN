@@ -54,7 +54,8 @@ pub enum DesktopSession {
 }
 
 impl DesktopSession {
-    /// Identify the runtime currently owned by this session.\n    /// The SMS hardware variant is retained explicitly for SMS1/SMS2 identity.
+    /// Identify the runtime currently owned by this session.
+    /// The SMS hardware variant is retained explicitly for SMS1/SMS2 identity.
     pub const fn system(&self) -> DesktopSystem {
         match self {
             Self::Sms { system, .. } => *system,
@@ -285,7 +286,10 @@ mod tests {
 
     #[test]
     fn session_dispatches_lifecycle_to_the_selected_runtime() {
-        let sms = DesktopSession::Sms {\n            worker: SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap(),\n            system: DesktopSystem::Sms1,\n        };
+        let sms = DesktopSession::Sms {
+            worker: SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap(),
+            system: DesktopSystem::Sms1,
+        };
         let sg1000 = DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
 
         for session in [&sms, &sg1000] {
