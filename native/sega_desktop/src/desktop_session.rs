@@ -261,10 +261,7 @@ impl DesktopSession {
     pub fn audio_output_metrics(&self) -> AudioOutputMetrics {
         match self {
             Self::Sms { worker, .. } => worker.audio_output_metrics(),
-            Self::Sg1000(worker) => worker
-                .debug_snapshot()
-                .map(|snapshot| snapshot.audio_output)
-                .unwrap_or_default(),
+            Self::Sg1000(worker) => worker.audio_output_metrics(),
         }
     }
 
@@ -279,10 +276,7 @@ impl DesktopSession {
     pub fn audio_output_error(&self) -> Option<String> {
         match self {
             Self::Sms { worker, .. } => worker.audio_output_error(),
-            Self::Sg1000(worker) => worker
-                .debug_snapshot()
-                .ok()
-                .and_then(|snapshot| snapshot.audio_error),
+            Self::Sg1000(worker) => worker.audio_output_error(),
         }
     }
 
@@ -290,10 +284,7 @@ impl DesktopSession {
     pub fn runtime_error(&self) -> Option<String> {
         match self {
             Self::Sms { worker, .. } => worker.runtime_error(),
-            Self::Sg1000(worker) => worker
-                .debug_snapshot()
-                .ok()
-                .and_then(|snapshot| snapshot.runtime_error),
+            Self::Sg1000(worker) => worker.runtime_error(),
         }
     }
 
