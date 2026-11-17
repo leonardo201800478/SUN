@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** composição egui/D3D12 não é o host ativo. O produto utiliza Slint/WGPU/Vulkan. Código legado só pode ser removido após inventário de consumidores e regressão; este documento não autoriza reativar D3D12.
+
 # Composição da GUI nativa — egui/eframe + D3D12
 
 ## Objetivo

@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** este guia descreve configuração de input na GUI Qt. O host ativo é Slint; teclado usa eventos Slint e gamepads usam `sega-input-runtime`/SDL3. Consulte `native-input-runtime.md` e `controller-input-backends.md`.
+
 # Qt SMS input configuration and visual guide
 
 The controller configuration dialog now includes a **Master System / Light Phaser**

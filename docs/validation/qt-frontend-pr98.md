@@ -1,3 +1,5 @@
+> **HISTÓRICO / SUPERSEDED (2026-11-16):** esta validação pertence à PR #98 e ao frontend Qt/PySide6. Não comprova a arquitetura Slint/WGPU atual nem deve ser usada como evidência de aceite presente.
+
 > **Atualização de estado (2026-10-27):** o hardware SG-1000 ativo é Rust-only. A implementação Python antiga e ferramentas/testes que dependiam dela estão em `legacy/python_reference/`; não fazem parte do runtime e os comandos históricos abaixo não são caminhos de execução ativos.
 
 # Qt frontend: implementação e relatório de validação da PR #98

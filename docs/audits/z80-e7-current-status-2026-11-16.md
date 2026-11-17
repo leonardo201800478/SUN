@@ -1,0 +1,473 @@
+# Z80 E7 — fechamento da rodada de testes e estado consolidado
+
+**Data:** 2026-11-16
+**Baseline histórica da rodada original:** caa9a76a6f09d588155ea4e0cbc95f487f079143
+**Main vigente pós-PR #977:** `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`
+**Perfil:** Zilog Z80 NMOS clássico delimitado aos sistemas SMS/SG-1000 suportados. Não generalizar automaticamente para CMOS, Z180, R800 ou clones.
+**Estado global vigente:** E7 `CLOSED_WITH_LIMITATIONS`; E8/ZEXDOC/ZEXALL complementar futura.
+
+## 1. Resumo executivo
+
+A tabela abaixo preserva a fotografia histórica da rodada original. Desde então, #955 (WZ BASE EX (SP),HL), #956 (reconciliação documental) e #957 (integração Scheduler das quatro formas repetitivas F-022) foram integradas. O estado vigente e os limites atualizados estão registrados nos adendos finais deste documento.
+
+| Frente | PR | HEAD de código validado | CI Z80 focused | SMS Runtime | Estado |
+|---|---:|---|---|---|---|
+| F-021 — I/O block B-loop | [#936](https://github.com/leonardo201800478/sega-emulator/pull/936) | 306db2a91ff796b4c5f66eabc4ebd4c4baad903e | [#43852582196](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582196) SUCCESS | [#43852582229](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582229) SUCCESS | AUDIT_PARTIAL |\n| F-022 — Block Instruction Flags ROM v5.0 | [#936](https://github.com/leonardo201800478/sega-emulator/pull/936) | 306db2a91ff796b4c5f66eabc4ebd4c4baad903e | [#43852582196](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582196) SUCCESS | [#43852582229](https://github.com/leonardo201800478/sega-emulator/actions/runs/43852582229) SUCCESS | AUDIT_PARTIAL |
+| F-023 — Woodmass MEMPTR | [#942](https://github.com/leonardo201800478/sega-emulator/pull/942) | 7402ff138ced95da2d8b9e0008919c8cd22484f1; HEAD documental da PR 15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021 | [#43851550529](https://github.com/leonardo201800478/sega-emulator/actions/runs/43851550529) SUCCESS | [#43851550520](https://github.com/leonardo201800478/sega-emulator/actions/runs/43851550520) SUCCESS | AUDIT_PARTIAL |
+| F-028 — exceções DD/FD | [#943](https://github.com/leonardo201800478/sega-emulator/pull/943) | 98c1cf41587f6af66c3d272e4b07a638d5da7919 | [#43859000666](https://github.com/leonardo201800478/sega-emulator/actions/runs/43859000666) SUCCESS | [#43859000676](https://github.com/leonardo201800478/sega-emulator/actions/runs/43859000676) SUCCESS | AUDIT_PARTIAL |
+
+Os SHAs foram conferidos com o campo head_sha dos respectivos Actions runs. Jobs SKIPPED não são PASS. Os jobs não relacionados aos diffs foram ignorados pela classificação de impacto; isso não valida o workspace integral, os hosts ou o MachineScheduler.
+
+Nenhuma PR altera CPU, decoder, microsequenciador, MachineScheduler ou runtime. As mudanças são harnesses/testes, CI e documentação.
+
+## 2. F-022 — Z80 Block Instruction Flags Test v5.0
+
+- PR #936, Draft; HEAD validado 306db2a91ff796b4c5f66eabc4ebd4c4baad903e.
+- Upstream: MrKWatkins/ZXSpectrumNextTests, commit 8adcbc8384b2311fb6d36d424478aef583d5c307; fixture Tests/ZX48_ZX128/Z80BlockInstructionFlags/z80bltst.sna; Git blob SHA 41b7b0da0f5abfd5d2841fbae005f05291986f8b.
+- CI #43852582196: Z80 focused SUCCESS; SMS Runtime #43852582229 SUCCESS.
+- ROM v5.0: 1 passed/0 failed em 6,50 s.
+- O assembly upstream pinado contém 15 entradas i_meta, executadas em quatro endereços ($8002, $8802, $A002, $A802): 60 comparações principais. Quatro entradas são F-022 — LDIR, LDDR, CPIR e CPDR (16 comparações); onze são F-021 — OTIR×3, OTDR×3, INIR×3 e INDR×2 (44 comparações). Os 390 B-loop records adicionais são seis grupos de 65 (OTIR×2, OTDR×2, INIR, INDR), também F-021, sem dupla contagem. A fonte é z80_block_flags_test.asm no commit upstream 8adcbc8384b2311fb6d36d424478aef583d5c307.
+- O mesmo CI também executou 34.000 SingleStepTests DD/FD no SHA 306db2a, mas esse resultado é evidência separada de F-028; não é cobertura do ROM F-022.
+
+### Diagnóstico preservado
+
+A primeira execução limitada a 50M T-states expirou durante LDIR. A instrumentação confirmou:
+- LDIR de calibração em PC 819F, BC 0CE5→0000, consumindo 69.316 T-states nominais;
+- término 100T antes da borda INT; preparação até OTIR de 46T, deixando 54T;
+- OTIR a 21T por iteração; três iterações completam antes do boundary seguinte;
+- assembly upstream captura B real no ISR e o usa no cálculo de flags; não exige B=15;
+- harness diferencia o LDIR principal suspenso do LDIR curto executado dentro do handler IM2.
+
+O limite de 80M T-states já existia no harness e não foi aumentado nesta investigação. O PASS é específico para a ROM no modelo Spectrum 48K do teste; não prova todas as operações de bloco nem hardware SMS.
+
+**Escopo do harness:** o ROM é executado pelo executor atômico Z80::step com Spectrum48Bus; não exercita o microsequenciador, WAIT, snapshot de transação ou MachineScheduler. **Limite:** a suíte upstream é declarada não exaustiva. Casos adicionais de iteração simples, flags/Q/IRQ e integração temporal continuam pendentes. F-022 permanece AUDIT_PARTIAL.
+
+## 3. F-023 — Mark Woodmass MEMPTR/WZ
+
+- PR #942, Draft. Código/harness testado em 7402ff138ced95da2d8b9e0008919c8cd22484f1; HEAD documental atual 15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021.
+- CI #43851550529 e SMS Runtime #43851550520: SUCCESS.
+- Suíte: Z80 Test Suite (2008), Mark Woodmass, caso MEMPTR 09.
+- Resultado exato: HALT em 0x80E6; 50.904.931 T-states; FNV-1 F5AE5140; 61 linhas; largura máxima 32 colunas.
+- TAP original obtido no runner, tamanho e SHA3-512 verificados; ROM Spectrum 48K reconstruída no runner e Git blob SHA verificado. Artefatos não são commitados.
+
+O caso fornece evidência externa hardware-derived para MEMPTR, incluindo a regra RLD/RRD → HL+1 documentada pela suíte. O harness usa executor atômico Z80::step e T-states nominais; não exercita microsequenciador, WAIT, snapshot de transação ou MachineScheduler. Não fecha X/Y não documentados em todas as famílias, toda a tabela de WZ, todos os limites temporais ou validação física SMS. F-023 permanece AUDIT_PARTIAL.
+
+## 4. F-028 — matriz de exceções DD/FD
+
+- PR #943, Draft; HEAD de código/harness validado 98c1cf41587f6af66c3d272e4b07a638d5da7919.
+- CI #43859000666: Z80 focused SUCCESS, Rust quality/unit SUCCESS, documentation hygiene SUCCESS.
+- SMS Runtime #43859000676: SUCCESS; Release format, Clippy, testes e build Windows x64 concluídos.
+- Teste: native/z80_cpu/tests/z80_dd_fd_exception_matrix_f028.rs.
+
+Nove cadeias: DD, FD, DD DD, DD FD, FD DD, FD FD, DD FD DD, FD DD FD e DD FD DD FD.
+
+Quatro testes cobrem:
+1. EX AF,AF' (08), EXX (D9), EX DE,HL (EB);
+2. HALT (76);
+3. ED NEG (ED 44), cancelando substituição indexada antes do decoder ED;
+4. NOP, DAA, CPL, SCF, CCF, DI e EI como instruções que ignoram substituição IX/IY.
+
+Total: 108 combinações prefixadas por executor (45 nas cinco formas principais e 63 nas sete formas adicionais). Atomic e microsequenciador são comparados. O microsequenciador recebe um WAIT por M1 e executa snapshot encode/decode/restore antes e depois de cada conclusão de barramento.
+
+Verificações: PC com wrap em 0xFFFF, R por M1, Q/previous-Q, flags, WZ, IX/IY, bancos alternativos, IFF/IM, interrupções pendentes, HALT, limpeza de prefix_state, ciclos e equivalência arquitetural entre executores.
+
+### Falha de fixture corrigida
+
+A primeira versão falhou em SCF/CCF porque o fixture tentava igualar q_previous diretamente. Isso não modelava o ciclo: no início de cada instrução, Z80::step executa q_previous = q; q = 0; no caminho indexado, execute_indexed também limpa q_previous, conforme a regra NMOS de DD/FD como instrução anterior não modificadora de flags.
+
+A correção foi somente no fixture: parametrizar q inicial, não q_previous. O caso BASE inicia com Q=0; o caso prefixado comprova a limpeza feita pelo caminho DD/FD. Nenhum código de produção da CPU foi alterado.
+
+No HEAD 98c1cf4, os quatro testes passaram: 4 passed/0 failed. Os 34.000 vetores SingleStepTests DD/FD também passaram explicitamente nesse mesmo HEAD. SMS Runtime e build Windows x64 passaram.
+
+**Limite:** não é uma varredura de todos os 256 opcodes DD/FD nem de todas as combinações de estados, interrupções e WAIT. Atomic↔micro é consistência interna, não oracle independente de silício. F-028 permanece AUDIT_PARTIAL até fechar o ledger integral de substituições/exceções, HALT e prefixos.
+
+## 5. Estado consolidado
+
+| Item | Estado | Evidência | Lacuna |
+|---|---|---|---|
+| F-021 | AUDIT_PARTIAL | 390 B-loop records para OTIR/OTDR/INIR/INDR; B=0x0D+3*i e flags exatas | Outras formas I/O block, semântica completa e microsequenciador/WAIT |
+| F-022 | AUDIT_PARTIAL | ROM v5.0 PASS; ≥60 comparações principais de instrução/PC | Mapeamento por opcode das oito formas LDI/LDD/CPI/CPD; casos adicionais de bloco/IRQ/Q/timing |
+| F-023 | AUDIT_PARTIAL | Woodmass MEMPTR 09 PASS; checksum/ciclos/HALT/output exatos | WZ/X/Y em todas as famílias e limites temporais |
+| F-028 | AUDIT_PARTIAL | 34k vetores DD/FD; PR #935; matriz #943 com 108 casos por executor; ledger 256 bytes e INT/NMI durante prefixo PASS no HEAD b3320ea | Semântica integral por opcode/estado e todas as interações de interrupção/WAIT |
+| E7 | IN_PROGRESS | Evidência ampliada; nenhuma alteração de produção nesta rodada | Reconciliação de todos os critérios e integração dos candidatos |
+| E8 | BLOCKED | Não iniciado | Só iniciar após fechamento formal de E7 |
+
+## 6. Próximas ações obrigatórias
+
+1. Atualizar cada branch candidata contra a main vigente sem descartar diffs nem reescrever runtime.
+2. Revisar os diffs de #936, #942 e #943 e confirmar que só adicionam harness/testes, workflow e documentação.
+3. Obter revisão independente por PR; manter Draft até a revisão.
+4. Reconciliar F-022/F-023/F-028 com cada linha do checklist mestre, marcando coberto, não coberto ou NOT RUN.
+5. Completar a auditoria DD/FD: tabela de todos os bytes 00–FF, classificação UsesIndex/Ignored/IndexedCB, exceções, prefixos repetidos/alternados, HALT, CB/ED e interações com IRQ/WAIT.
+6. Completar F-022 nos casos de bloco não cobertos pela ROM e na observação de flags/Q em fronteiras de interrupção. Não alterar CPU sem reprodução e trace discriminante.
+7. Completar mapa F-023 de WZ/MEMPTR por família, separando fonte documental, vetor externo, teste interno e evidência física ausente.
+8. Após revisão e gates, decidir merges; repetir os testes necessários no SHA resultante da main.
+9. Atualizar scorecard, matriz e checklist após cada integração; SKIPPED continua NOT RUN.
+10. Manter E8 bloqueado.
+
+## 7. Restrições de continuidade
+
+- Não modificar Z80, Scheduler ou runtime para “fazer passar” teste sem trace e causa-raiz.
+- Não elevar limites temporais sem demonstrar que o limite, e não a semântica/timing, é o problema.
+- Não promover atomic↔micro a oracle externo.
+- Não atribuir PASS ao SHA da main a partir de resultados de PR.
+- Não exigir hardware físico ou universalidade CMOS/clones como gate automático do perfil NMOS definido.
+- Preservar E4A/E4B/E5/E6 já validados; não reabrir sem regressão concreta.
+- Não iniciar E8.
+
+**Conclusão:** os testes focados atuais foram encerrados com PASS nos SHAs indicados. Nenhuma PR foi mesclada. E7 permanece IN_PROGRESS; E8 permanece BLOCKED.
+
+## 8. Extensão da auditoria DD/FD após a revisão remota — 2026-11-16
+
+### 8.1 Baseline e estado real das PRs
+
+- Main: caa9a76a6f09d588155ea4e0cbc95f487f079143. A comparação Git com a baseline de código Z80 bf7e7584df421000d040a3ee057799a75bfeb3eb mostra dois commits exclusivamente documentais até caa9; não houve mudança de runtime Z80 nesse intervalo.
+- PR #936: OPEN/DRAFT, head 306db2a91ff796b4c5f66eabc4ebd4c4baad903e, base caa9a76a6f09d588155ea4e0cbc95f487f079143, mergeable=true. CI #43852582196 e SMS Runtime #43852582229 SUCCESS no SHA exato. O harness da ROM v5.0 executa Z80::step (executor atômico) e Spectrum48Bus; não testa microsequenciador, WAIT ou Scheduler.
+- PR #942: OPEN/DRAFT, head documental 15a8f1c1fe7b4b10f1526e6310b9308fdfcaf021; código/harness 7402ff138ced95da2d8b9e0008919c8cd22484f1. CI do código #43850972785/#43850972708 SUCCESS; CI documental #43851550529/#43851550520 SUCCESS. O harness Woodmass também usa Z80::step e T-states nominais, sem microsequenciador/WAIT/Scheduler.
+- PR #943: OPEN/DRAFT, base caa9a76a6f09d588155ea4e0cbc95f487f079143, head atualizado pela extensão desta rodada. Nenhuma das três PRs tem revisão independente registrada ou reviewers solicitados; nenhuma foi integrada.
+
+### 8.2 Ledger dos 256 bytes após DD/FD
+
+Foi adicionado docs/audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv com 256 linhas de dados, um por byte após DD/FD. A classificação efetiva da FSM é: 85 UsesIndex, 167 Ignored, 1 IndexedCB, 1 ED que cancela o index latch e 2 bytes de prefixo repetido (DD/FD).
+
+A função auxiliar classify_index_opcode() é consultada depois de a FSM tratar DD, FD e ED; por isso, em chamada direta, esses três bytes retornam Ignored. O ledger separa o resultado auxiliar da ação real da FSM. O teste index_prefix_classification_f028.rs percorre os 256 bytes contra uma lista explícita de 85 UsesIndex e espera 85 UsesIndex, 170 Ignored e 1 IndexedCB no classificador auxiliar.
+
+Exceções mantidas no ledger: HALT 76; EX AF,AF' 08; EXX D9; EX DE,HL EB; H/L convencionais em 66/6E/74/75; CB para DDCB/FDCB; ED para cancelamento; DD/FD repetidos com last-prefix-wins. A classificação não prova a semântica integral de cada opcode.
+
+### 8.3 Interrupções solicitadas durante a cadeia de prefixos
+
+O teste z80_dd_fd_exception_matrix_f028.rs recebeu dois casos: NMI e INT são solicitados após o M1 de DD e antes de FD, numa cadeia DD FD 00. O teste insere WAIT nos M1, faz snapshot encode/decode/restore e exige que NOP seja aposentado antes de a próxima fronteira aceitar NMI/INT. Esses testes exercitam o microsequenciador Z80 diretamente; não são um novo teste de integração Scheduler/VDP SMS.
+
+### 8.4 Primeiro CI das extensões e correção
+
+- Código candidato inicial da extensão: 958585010fb47f30333cac9494bd45d90a03801b. CI #43862912238 e SMS Runtime #43862912321 falharam somente em cargo fmt --all -- --check. Os passos de Clippy, testes, SingleStepTests e build ficaram SKIPPED em consequência do gate de formatação; não houve execução semântica nesse primeiro run.
+- O log de rustfmt identificou apenas reordenação de imports, quebra de linhas e espaçamento nos dois arquivos de teste. As correções foram aplicadas em commits 0e29f164e2047bf206902de7d87b1a0c6efabe19 e dcfb74fae2d207126da59562eb8745fa0d733bd4.
+- As correções de rustfmt foram aplicadas em 0e29f164e2047bf206902de7d87b1a0c6efabe19 e dcfb74fae2d207126da59562eb8745fa0d733bd4. Validação final no HEAD b3320ea79c6b951d2ad8b70e762589f14da597df: CI #43863265215 SUCCESS (Z80 focused, Rust quality/unit, documentation hygiene); SMS Runtime #43863265197 SUCCESS (Release format, Clippy, testes e build Windows x64). O teste de classificação passou 3/3; a matriz F-028 passou 6/6; os 34.000 SingleStepTests DD/FD passaram no mesmo SHA. Jobs não relacionados ficaram SKIPPED. As atualizações documentais posteriores não modificam os testes.
+- A documentação patch hygiene do primeiro run passou. Não transferir esse resultado para testes Rust nem declarar PASS para o código corrigido.
+
+### 8.5 Estado atualizado
+
+- F-021: AUDIT_PARTIAL; 390 B-loop records da ROM v5.0 para OTIR/OTDR/INIR/INDR (seis grupos), B=0x0D+3*i e flags exatas, no SHA 306db2a; executor atômico, sem microsequenciador/WAIT/Scheduler.
+- F-023: AUDIT_PARTIAL; Woodmass MEMPTR 09 PASS no SHA 7402ff1 com executor atômico e T-states nominais, sem tabela completa WZ/X/Y nem integração temporal.
+- F-028: AUDIT_PARTIAL; matriz original 108 combinações PASS no SHA 98c1cf4; ledger de classificação de todos os 256 bytes e testes de INT/NMI entre DD/FD PASS no SHA b3320ea. A semântica completa por opcode/estado continua pendente.
+- Nenhuma alteração de produção da CPU, prefix FSM, microsequenciador, Scheduler ou runtime foi feita.
+- E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL permanece BLOCKED.
+
+## 8. Atualização de continuidade — após a auditoria de cobertura
+
+**Main permanece em** `caa9a76a6f09d588155ea4e0cbc95f487f079143`. As alterações abaixo estão em PRs Draft e não são atribuídas à main.
+
+| PR | HEAD observado | CI | SMS Runtime | Escopo |
+|---|---|---|---|---|
+| #936 | `c77759796349e02ee1f31449ce2a616b8a16d5d0` | #43873956181 SUCCESS | #43873956227 SUCCESS | ROM v5.0 e atribuição F-021/F-022; matriz temporária microsequenciada foi removida desta branch e isolada na #944 |
+| #942 | `53aaf5c415eba3acc4704d1d2214a358755fad08` | #43871487677 SUCCESS | #43871487582 SUCCESS | Woodmass test 09 com assertions específicas RLD 117F e RRD 34AE, além do hash global |
+| #943 | `f6254bb56d861cc3ce3da08d08ebab032841b7e7` | A consultar no HEAD atual | A consultar no HEAD atual | Documentação, plano de execução e reconciliação 85 UsesIndex/167 Ignored |
+| #944 | `ef22ddc871e9790eb2fd65b1d4a70a6795c24872` | #43873337726 SUCCESS | #43873337682 SUCCESS | 64 cenários microsequenciados de repetição/IM2, incluindo Q/previous-Q até retomada |
+
+### Evidências novas consolidadas
+
+- **F-022:** PR #944 adiciona 64 cenários no microsequenciador: quatro opcodes × quatro padrões PC × dois BC × dois seeds Q. Verifica flags, Q/previous-Q na aposentadoria, aceitação IM2, PUSH AF/POP AF, EI/RETI e retomada. Snapshot/restore é exercitado nas fronteiras de barramento e T-state interno. O escopo é INT IM2; NMI e IM0/IM1 não foram cobertos.
+- **F-023:** o output Woodmass extraído no CI #43870800175 contém RLD `117F passed` e RRD `34AE passed`. O harness exige ambas as linhas individualmente e preserva o FNV-1 `F5AE5140`, 61×32, HALT 0x80E6 e 50.904.931 T-states. Os quatro dígitos são assinaturas da suíte, não valores literais de WZ.
+- **F-028:** os 85 bytes UsesIndex foram reconciliados: E3A1=9, E3A2=5, E4A=15, E4B=8, E4C=2, F-036=24, PR #680=6 e F-037=16. O gap residual está nos 167 Ignored: os testes E6 atuais são representativos e não provam fallback prefixado de todas as famílias BASE.
+
+Nenhuma dessas alterações altera CPU de produção, MachineScheduler ou runtime. Todas as PRs permanecem Draft e sem revisão independente. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 9. Reconciliação pós-merge das PRs #936, #942, #943 e #944 — 2026-11-16
+
+**Baseline integrada:** `main` = `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`.
+
+As quatro PRs desta rodada estão fechadas e integradas:
+- #944 — merge commit `a3cc1edc0f94ca5da1850996d3bf164b0839a2e9`.
+- #936 — merge commit `3b85be47d1f07b7eaa25ea65299a0608e68761d4`.
+- #942 — merge commit `1a6f032861cebf3bf23867edec81ca08db97b064`.
+- #943 — merge commit `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`.
+
+A #943 foi validada nos workflows CI #43880197594 e SMS Debugger Runtime #43880197552, ambos SUCCESS no HEAD `81d6f2fe955867dc16c5e80061524ea713c99c28`. O merge commit final tem exatamente a mesma árvore Git do HEAD testado (`9b13446b005b908d80607b8a258d87008db82433`); portanto, o conteúdo integrado corresponde ao conteúdo validado. Jobs não relacionados foram SKIPPED e continuam NOT RUN.
+
+As sincronizações preservaram as alterações concorrentes nos documentos compartilhados. Não houve alteração de CPU, decoder, prefix FSM, microsequenciador de produção, MachineScheduler ou runtime nesta reconciliação.
+
+**Status técnico não muda com o merge:** F-022, F-023 e F-028 permanecem AUDIT_PARTIAL. O merge integra evidências e harnesses, não converte cobertura parcial em fechamento semântico. F-021 continua separado de F-022: os 390 B-loop records da ROM v5.0 são evidência de OTIR/OTDR/INIR/INDR e não devem ser atribuídos às oito formas LDI/LDD/CPI/CPD.
+
+**Estado global:** E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. A próxima etapa é reconciliar, no checklist mestre, cada lacuna residual e sua prova independente exigida antes de implementar novos testes ou tocar no runtime.
+
+## 10. F-028 — matriz estrutural dos 167 fallbacks Ignored integrada — 2026-11-16
+
+**Main:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`. **PR #946:** MERGED pelo commit `3acf24c67d6e573120134b5b29ebbbf2a2893940`.
+**HEAD testado:** `162772ad8fba7249f8f4c7b8fb67b9816202cc80`; tree integrado/testado `77840465f65a3d6f4f522ea475e9f1d7a9f2c320`.
+
+O teste `native/z80_cpu/tests/z80_dd_fd_ignored_fallback_matrix_f028.rs` lê o inventário efetivo do CSV de 256 bytes e executa todos os 167 bytes classificados como `Ignored / ExecuteBaseWithoutRefetch` sob DD e FD. Resultado: 334 execuções prefixadas, além das execuções BASE de referência; um teste de matriz PASS. Para cada caso, exige M1 em PC 0 e PC 1, ausência de fetch adicional, incremento de R para dois M1 e custo total igual à execução BASE + 4 T-states.
+
+- CI #43882287467: Z80 focused validation e Rust quality/unit SUCCESS; o teste `all_167_effective_ignored_bytes_fall_back_without_refetch_for_dd_and_fd` passou 1/1.
+- SMS Runtime #43882287458: Release format, Clippy, testes e build Windows x64 SUCCESS.
+- O primeiro run #43882092547 falhou somente no rustfmt; a formatação foi corrigida antes dos runs aprovados.
+- Jobs não relacionados ao diff permaneceram SKIPPED/NOT RUN.
+
+**Limite da evidência:** esta matriz comprova dispatch para BASE, ausência de refetch e custo M1. Não compara integralmente efeitos arquiteturais, valores/endereço de todos os requests, WAIT/snapshot por classe, nem constitui oracle independente. A decomposição de requests por família (imediato, relativo, memória, stack, I/O e controle de fluxo) continua pendente. F-028 permanece AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+## 11. F-028 — diferencial estrutural de requests BASE/DD/FD — 2026-11-16
+
+**Main atual:** `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`. **PR #948:** MERGED por esse commit.
+**HEAD testado:** `74715cbc777acc6625745489a4dfa495cde18ee9`.
+**CI:** #43884118254 (Z80 focused + Rust quality/unit SUCCESS). **SMS Runtime:** #43884118298 (Release format, Clippy, testes e build Windows x64 SUCCESS). Jobs não relacionados foram SKIPPED por classificação de impacto; Windows debugger também foi SKIPPED.
+
+A matriz amplia o teste dos 167 bytes efetivos `Ignored / ExecuteBaseWithoutRefetch` sob DD e FD (334 execuções prefixadas). Além das asserções M1 em PC 0/1, ausência de refetch, R +2 e custo BASE +4T, compara a sequência de eventos `OpcodeFetch`, `MemoryRead/Write`, `PortRead/Write` e ciclos internos, verificando tipo, endereço, duração base e duração interna após remover o M1 do prefixo e normalizar o deslocamento do stream.
+
+**Limites que permanecem explícitos:**
+- A comparação é estrutural contra o próprio caminho BASE, não um oracle semântico independente.
+- O trace não registra valores lidos, payloads escritos nem o estado arquitetural final.
+- O harness retorna `0x5A` para leituras e não cobre WAIT/snapshot por classe de request.
+- O normalizador subtrai 1 de todo `MemoryRead` abaixo de `0x0100`, sem provar que cada leitura é fetch de operando no stream. Os registradores do fixture (BC/DE/HL/SP) e os operandos `0x5A` mantêm os acessos de dados esperados fora dessa página, mas o teste não afirma isso. Endurecer a regra registrando se o endereço coincide com PC no request e normalizando apenas fetches de stream; adicionar payloads e estado final na próxima matriz.
+- O resultado não fecha F-028 nem E7.
+
+**Auditoria de integração:** o merge commit é o HEAD atual da main e o diff desde a main anterior contém somente o teste. A consulta de status combinado do merge SHA não retornou status e a listagem disponível de Actions expõe apenas runs de PR; nenhum workflow push pós-merge foi localizado. Portanto, a validação pós-merge é **NOT VERIFIED/NOT RUN**, não PASS.
+
+**Gate de revisão:** GitHub não registra review independente submetido para #948; o Codex review falhou por limite de uso. A PR foi integrada, mas a gate de revisão adversarial continua pendente para fechamento de E7. A mudança é exclusivamente teste, sem alteração de CPU, decoder, Scheduler ou runtime.
+
+**Estado:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+### Auditoria formal de revisão dos merges E7 — 2026-11-16
+
+A consulta a `pull_request_reviews` e a `review_threads` retornou coleções vazias para as PRs integradas #936, #942, #943, #944, #945, #946, #947 e #948. Os comentários automáticos do Codex em #946 e #948 registram falha por limite de uso; não constituem review. Isso não prova ausência de revisão humana fora do GitHub, mas não há trilha independente auditável no repositório. Os merges permanecem integrados (todos os diffs deste conjunto são testes/documentação, sem alteração de CPU/Scheduler/runtime de produção), porém a revisão adversarial formal continua BLOCKED como gate de fechamento E7. Não converter F-022/F-023/F-028 para CLOSED nem iniciar E8 com base apenas nos checks verdes.
+
+
+## 2026-11-16 — atualização após PRs #950–#952
+
+Baseline remota atual após as integrações de teste e documentação: `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`.
+
+- **PR #950 — F-028:** integrada em `45b40755e46aef752d58f571de856ae25ff9e81c`. A matriz acrescenta 167 opcodes Ignored × DD/FD, comparação arquitetural BASE, payloads de leitura/escrita, transações, WAIT e snapshot/restore em fronteiras de barramento/ciclo interno. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado. A árvore do merge foi confirmada idêntica à árvore validada.
+- **PR #951 — F-022/F-023:** integrada em `b9d18f48466e3647aec73207f38c416bfef2b3dc`. Acrescenta assertions de previous-Q e WZ para LDI/LDD/CPI/CPD na matriz microsequenciada de 786.432 casos e nos ensaios dirigidos de WAIT/snapshot. CI #43890238681 e SMS Runtime #43890238056 PASS no HEAD validado. A regra é diferenciada: LDI/LDD preservam WZ; CPI/CPD atualizam WZ por ±1.
+- **PR #952 — F-023:** integrada em `564074366fdc9bad59895163c8501134e88cce99`. Adiciona matriz documental WZ/MEMPTR por família, separando DOC/HW/COMP/INT/GAP. CI #43890997152: Documentation patch hygiene PASS e Rust quality and unit regression PASS; os jobs de runtime foram SKIPPED por serem alterações documentais.
+- **PR #953 — F-028:** integrada em `a6cec0d744b8120c8c3e2d1d56abd1aa75fc1031`. Adiciona segundo fixture F=FF/B=1, complementa os resultados condicionais e verifica o delta exato de PC por opcode. CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado; árvore do merge idêntica à árvore testada.
+- **PR #954 — F-023:** integrada em `bdbe950ba86a78eee2875e29f184d0b07c6eeeaa`. Acrescenta WZ para D3/DB, RETN/RETI, IM0 RST e preservação em IM1. CI #43893014345 e SMS Runtime #43893014300 PASS no HEAD validado; workspace regression PASS; árvore do merge idêntica à árvore testada.
+- **PR #955 — F-023:** aberta, aguardando CI. Acrescenta asserção WZ para BASE EX (SP),HL, completando a família de troca com pilha.
+
+A matriz PR #950 é diferencial interno BASE↔DD/FD, não oracle independente de silício. O PC final exato por resultado condicional permanece pendente da PR #953. WZ é tratado na matriz F-023 e não é mascarado como equivalência universal.
+
+**Estado:** F-028 IN_PROGRESS (matrizes 167 Ignored, WAIT/snapshot e PC condicional integradas); F-022 IN_PROGRESS; F-023 AUDIT_PARTIAL (asserção BASE EX (SP),HL pendente na PR #955); E7 IN_PROGRESS; E8 BLOCKED. Não iniciar ZEXDOC/ZEXALL.
+
+## Reconciliação após PR #955 — 16/11/2026
+
+A PR #955 foi integrada na main pelo commit `67f4149e1933d18ffa5201da66ca6ff46c598e32`. O diff é exclusivamente test-only: quatro linhas de assertion em `native/z80_cpu/src/cpu.rs`, no teste `exchange_stack_hl_and_di_ei_update_state`, verificando `cpu.wz == 0xABCD` após BASE `EX (SP),HL`. Não houve alteração de produção, decoder, microsequenciador, Scheduler, SMS ou SG-1000.
+
+Validação no HEAD exato da PR #955 (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
+- CI #43897766618: PASS — Z80 focused validation, incluindo rustfmt, Clippy, testes Z80/SMS/SG-1000, fixtures SingleStepTests DD/FD, Z80 Block Instruction Flags v5.0 e Woodmass MEMPTR; Rust quality/unit regression PASS.
+- SMS Debugger Runtime #43897766471: PASS — formatação, Clippy Release, testes SMS Runtime e build Release Windows x64.
+- SMS debugger Windows Release validation: SKIPPED. Não contar como PASS; o workflow concluiu SUCCESS porque esse job condicional não era aplicável ao diff.
+- Workflow push pós-merge no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`: não localizado na consulta de runs; classificar NOT_RUN/NOT_VERIFIED, não PASS.
+
+A matriz WZ/MEMPTR agora possui assertion dirigida para BASE `EX (SP),HL`, além das coberturas IX/IY já existentes. Isso fecha a pendência específica de teste dessa instrução, mas não declara F-023 CLOSED: permanecem a revisão de consistência da matriz completa, a proveniência das regras e a revisão adversarial transversal.
+
+Estado após a integração:
+- F-023: AUDIT_PARTIAL — lacuna específica BASE `EX (SP),HL` coberta; revisão integral e reconciliação ainda necessárias.
+- F-028: IN_PROGRESS — manter limites e lacunas documentados; não inferir fechamento a partir das matrizes.
+- F-022: IN_PROGRESS — manter separação de F-021 e validar integralmente as oito formas.
+- Temporalidade/Scheduler: NOT_VERIFIED como fechamento E7 até demonstração integrada de determinismo e equivalência contínua/em blocos.
+- E7: IN_PROGRESS.
+- E8/ZEXDOC/ZEXALL: BLOCKED.
+
+A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+## Atualização pós-merge PR #957 — 16/11/2026
+
+**Main:** `2f72a6d94207cc78e5014363e72d16cf8806316a`. **PR #957:** integrada; alteração somente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`.
+
+O teste `e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay` executa LDIR, LDDR, CPIR e CPDR pelo `SmsTemporalMachine`/MachineScheduler, cobrindo a iteração repetitiva e a final. Insere um WAIT de fixture em cada request de barramento; a execução retomada faz snapshot/restore em cada safe point de request/ciclo interno. A execução contínua e a retomada são comparadas por trace de dispatch, estado completo da máquina e timestamp final.
+
+Validação no HEAD exato `8a6ef8bbf20c770479999f00675718a58349985e`:
+- CI #43899876697: Rust workspace regression PASS.
+- SMS Debugger Runtime #43899876806: rustfmt PASS, Clippy Release PASS, SMS Runtime tests PASS e build Release Windows x64 PASS.
+- Scheduler deterministic stress e Z80 focused foram SKIPPED por classificação de impacto; não contar como PASS.
+- SMS debugger Windows Release foi SKIPPED; não contar como PASS.
+- A execução anterior #43899664243 falhou somente em rustfmt; a formatação foi corrigida antes do HEAD final e não se atribui PASS ao run anterior.
+- Workflow push pós-merge no SHA `2f72a6d94207cc78e5014363e72d16cf8806316a`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+Esta integração fecha a lacuna específica de execução das quatro formas repetitivas através do Scheduler com WAIT de fixture e snapshot/restore. Não demonstra WAIT físico, interrupção injetada no meio da repetição dentro da mesma máquina temporal, nem oracle independente de silício. A cobertura IM2/flags/Q/previous-Q permanece demonstrada separadamente no microsequenciador; não somar essas duas camadas como se fossem uma única prova integrada.
+
+Estado atualizado:
+- F-022: IN_PROGRESS — agora possui integração Scheduler/replay para as quatro formas; permanecem revisão adversarial, reconciliação final das oito formas e proveniência independente dos efeitos não documentados.
+- F-023: AUDIT_PARTIAL — BASE EX (SP),HL já possui assertion integrada pela #955; permanecem revisão integral da matriz/proveniência e limitações de hardware.
+- F-028: IN_PROGRESS — 167 Ignored com estado/requests/WAIT/snapshot e caminhos condicionais; permanece a revisão adversarial e a validação independente de limites semânticos.
+- Temporalidade: evidência integrada SMS ampliada; WAIT físico/DMA permanecem fora da fatia temporal atual.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+## Atualização pós-merge PR #962 — 16/11/2026
+
+**Main de referência:** `bb9e31bdf04099a4116d27836691f0b31ab8c8a8`. PR #962 integrada; alteração somente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`.
+
+O teste `e7_f022_repeat_forms_match_scheduler_wait_snapshot_replay` agora verifica, nas quatro formas LDIR/LDDR/CPIR/CPDR executadas pelo `SmsTemporalMachine`/MachineScheduler:
+- WZ=PC+1 na iteração repetitiva;
+- WZ preservado em LDIR/LDDR e atualizado em CPIR/CPDR na iteração terminal;
+- Q=F nas duas fronteiras de aposentadoria;
+- previous-Q carrega o Q da iteração repetitiva para a iteração final;
+- WAIT de fixture em cada request de barramento e snapshot/restore em cada safe point;
+- equivalência entre execução contínua e retomada por trace, estado completo e timestamp.
+
+Validação no HEAD exato da PR #962 (`316dba3ce1c435a96997f1d26ca98e88680fb0c5`):
+- CI #43901912692: Rust workspace regression PASS — validação de workspaces/lockfiles, rustfmt, Clippy, testes de workspace e feature runtime de observabilidade PASS.
+- SMS Debugger Runtime #43901912772: format, Clippy Release, testes SMS Runtime e build Release Windows x64 PASS.
+- Scheduler deterministic stress, Z80 focused e SMS debugger Windows Release: SKIPPED; não contar como PASS.
+- A tentativa anterior PR #961 falhou somente em rustfmt e foi encerrada como supersedida; a correção foi aplicada na PR #962 antes da validação final.
+- Workflow push pós-merge no SHA `bb9e31bdf04099a4116d27836691f0b31ab8c8a8`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+### Evidência Scheduler LONG no código atual
+
+A campanha opt-in LONG foi executada no workflow CI #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`, branch da PR #960 baseada na main `f6ce78c8646964c9e0ff828587066c70a7165cbb`. A PR #960 era documental; o código de `machine_scheduler` era idêntico à base main e não foi alterado pela PR #962.
+- 16 seeds × 20.000 operações = 320.000 operações verificadas.
+- 16 seeds × 250.000 eventos = 4.000.000 dispatches verificados.
+- `fixed_seed_operation_sequences_match_across_codec_restores`: PASS.
+- `fixed_seed_stress_replay_survives_repeated_restores`: PASS.
+- Scheduler deterministic stress: LONG_PASS; Documentation patch hygiene e Rust quality/unit regression: PASS.
+- Os gates de Z80 focused, SMS, SDL3, CPAL, Slint/WGPU/Vulkan e demais caminhos não afetados foram SKIPPED nessa execução.
+
+Esse resultado é prova de determinismo/replay do Scheduler como software no código atual; não comprova sub-tick dispatch, safe points físicos de dispositivos, WAIT físico, DMA ou TEMPORAL_PASS.
+
+Estado vigente:
+- F-022: IN_PROGRESS — quatro formas repetitivas integradas ao Scheduler com WZ, Q/previous-Q, WAIT de fixture e snapshot/replay; falta a revisão adversarial e a combinação de interrupção durante repetição dentro da mesma máquina temporal.
+- F-023: AUDIT_PARTIAL — BASE EX (SP),HL e WZ terminal das quatro formas de bloco possuem assertions integradas; falta revisão integral da matriz/proveniência.
+- F-028: IN_PROGRESS — 167 Ignored, 85 UsesIndex e exceções DD/FD reconciliados/testados; falta revisão adversarial independente dos limites semânticos.
+- Temporalidade: Scheduler LONG_PASS e equivalência contínua/retomada demonstrados nas dimensões cobertas; WAIT físico/DMA e safe points de dispositivos permanecem NOT_VERIFIED.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+
+## Reconciliação operacional pós-PR #964 — 16/11/2026
+
+**Main de referência:** `2607e45e4d35e52cd61d825d42a6514b789cfc30` (PRs #963 e #964 integradas).
+
+### Correção da proveniência pós-merge
+A consulta posterior às Actions confirmou os workflows push das PRs anteriores. Portanto, as notas históricas que diziam que os workflows pós-merge de #955/#956 não foram localizados ficam supersedidas:
+- #955, merge `67f4149e1933d18ffa5201da66ca6ff46c598e32`: CI push #43898370234 — Z80 focused e Rust quality/unit PASS; SMS Runtime #43898370419 — Release format/Clippy/testes PASS. SMS debugger Windows Release SKIPPED; workspace regression e Scheduler stress SKIPPED.
+- #956, merge `fd7692cb8156eea7ff6ad907fe959bc507fec3a7`: CI push #43899020946 — Documentation patch hygiene e Rust quality/unit PASS; Z80 focused, workspace regression, Scheduler stress e runtimes SKIPPED por classificação documental. Não interpretar como validação do runtime.
+- #957, merge `2f72a6d94207cc78e5014363e72d16cf8806316a`: CI push #43900377071 — workspace regression e Rust quality/unit PASS; SMS Runtime #43900376933 — Release format/Clippy/testes PASS e build Windows x64 incluído no job. Z80 focused e Scheduler stress SKIPPED; debugger Windows Release SKIPPED.
+
+### F-022 — interrupção durante repetição integrada ao Scheduler
+
+**PR #964 MERGED:** `2607e45e4d35e52cd61d825d42a6514b789cfc30`. Alteração exclusivamente de teste em `native/sms_core/tests/snapshot_restore_e7_2e.rs`; nenhum código de produção foi modificado.
+
+O teste `e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler` cobre LDIR/LDDR/CPIR/CPDR com INT level-sensitive afirmada no último T-state da fase interna de repetição, atendimento em IM1, retorno por RETI e retomada da instrução recuada até a iteração terminal. Faz snapshot/restore em cada safe point do Scheduler, inclusive na fronteira de afirmação de INT; aplica WAIT de fixture a cada request de barramento; compara trace, estado completo e timestamp entre execução contínua e retomada.
+
+As assertions incluem PC/BC na repetição, HL/DE final, WZ antes/depois do acknowledge e após RETI, Q/previous-Q, endereço de retorno na pilha e estado final das quatro formas.
+
+Validação no HEAD exato da PR #964 (`9d79cc25f5ca9e46266e91cfa21e907ffc88f827`):
+- CI #43903631872: Rust workspace regression PASS e Rust quality/unit regression PASS; Scheduler deterministic stress e Z80 focused SKIPPED; demais gates não relacionados SKIPPED.
+- SMS Debugger Runtime #43903632358: Release format, Clippy, testes SMS Runtime e build Windows x64 PASS.
+- SMS debugger Windows Release SKIPPED.
+- Workflow push pós-merge no SHA `2607e45e4d35e52cd61d825d42a6514b789cfc30`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+**Limite:** a INT é aplicada por fixture na fronteira do Scheduler; WAIT é fixture e não medição elétrica. A integração não comprova hardware físico, DMA, todos os modos de interrupção nem todas as famílias de instruções.
+
+### F-028 — classificação de leitura do stream
+
+PR #959 não foi integrada: a tentativa de merge foi rejeitada pelo GitHub porque o required check `Rust quality and unit regression` estava EXPECTED na branch desatualizada, apesar dos resultados históricos do SHA anterior. Para não contornar proteção de branch, o mesmo patch foi reaplicado sobre a main atual na PR #967 (`test/z80-f028-stream-read-classification-post964-20261116`), SHA inicial `820ff19d34beba62b77b0378b71fde0c62af47c2`. Aguardam-se os checks do HEAD exato da #965; não declarar integrado até conclusão.
+
+O teste substitui a heurística `MemoryRead.address == PC` por contagem explícita de operandos imediatos derivada do opcode BASE e adiciona o caso `LD A,(BC)` com BC=$0002, no qual o endereço de dados coincide com PC no caminho prefixado DD. O request deve permanecer classificado como leitura de dados e manter seu endereço real. Escopo test-only.
+
+### Estado consolidado após #964
+- F-022: IN_PROGRESS — integração SMS/Scheduler das quatro formas com WAIT, snapshot/restore, Q/previous-Q e interrupção IM1/RETI; ainda faltam as quatro formas simples no mesmo tipo de integração temporal, revisão integral e proveniência/oracle independente.
+- F-023: AUDIT_PARTIAL — a #955 cobre BASE EX (SP),HL; #962 cobre WZ/Q/previous-Q das quatro formas repetitivas no Scheduler; #964 adiciona WZ em fronteiras INT/RETI. Revisão completa por família e proveniência continuam pendentes.
+- F-028: IN_PROGRESS — 167 Ignored e 85 UsesIndex reconciliados; #950/#953 requests, WAIT/snapshot e condições; #959/#965 endereçam a classificação stream/data. Aguardar #965 e revisão independente.
+- Temporalidade: LONG_PASS de Scheduler software na campanha #43901362527; integração temporal dirigida SMS #957/#962/#964 PASS nos respectivos HEADs. WAIT físico, DMA, safe points de todos os dispositivos e TEMPORAL_PASS global NOT_VERIFIED.
+- E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.
+
+## Estado final da rodada — pós-PR #969 — 16/11/2026
+
+**Main atual:** `08f633affdb7478b64b1ec2007ca1986c2a48978`.
+
+### PRs integradas nesta rodada
+- #960 — documentação Scheduler stress; preservou evidências de determinismo/replay LONG.
+- #962 — assertions WZ, Q e previous-Q nas quatro formas repetitivas através do Scheduler.
+- #963 — reconciliação de documentação E7.
+- #964 — INT no último T-state da repetição, IM1, RETI e retomada no Scheduler.
+- #966 — reconciliação documental e correção da proveniência histórica de workflows.
+- #968 — classificação explícita stream/data em fallback DD/FD.
+- #969 — integração Scheduler/SMS das quatro formas simples LDI/LDD/CPI/CPD.
+
+PRs #958, #959, #965 e #967 foram encerradas como supersedidas, preservando seus históricos e reaplicando as mudanças relevantes nas PRs atuais. Nenhuma alteração de produção foi descartada.
+
+### F-022 — flags de instruções de bloco
+
+A cobertura de integração temporal SMS agora abrange as oito formas:
+- Simples: LDI, LDD, CPI, CPD — PR #969, teste `e7_f022_simple_forms_match_scheduler_wait_snapshot_replay`.
+- Repetitivas: LDIR, LDDR, CPIR, CPDR — PRs #957/#962; assertions WZ/Q/previous-Q.
+- Interrupção durante repetição: quatro formas com INT level-sensitive no último T-state, serviço IM1, RETI e retomada — PR #964, teste `e7_f022_repeat_interrupt_is_sampled_and_restored_by_sms_scheduler`.
+
+As integrações aplicam WAIT de fixture em cada request de barramento, snapshot/restore em cada safe point e comparação de trace, estado completo e timestamp entre execução contínua e retomada. A cobertura simples verifica flags, Q/previous-Q, WZ, PC, BC, HL/DE e ausência de escrita para as formas compare. A cobertura repetitiva verifica também PC/BC/WZ e fronteiras de interrupção.
+
+Validação exata da PR #969, HEAD `e831f6c94aac89ad515af045133520ed6de7e986`:
+- CI #43906014092: Rust workspace regression PASS — workspace/lockfiles, rustfmt, Clippy, testes unitários e de integração, Clippy/testes do recurso observability PASS.
+- SMS Runtime #43906014526: format, Clippy Release, testes SMS Runtime e build Windows x64 PASS.
+- Z80 focused, Scheduler stress, demais hosts não relacionados e SMS debugger Windows Release: SKIPPED. Não classificar como PASS.
+- A tentativa anterior de #969 teve rustfmt FAIL e expectativa errada de F para CPI/CPD; o resultado observado `$3F` foi reconciliado com a fórmula independente (compare preserva somente C, não S/Z). O HEAD final corrigiu as expectativas e passou.
+- Workflow push pós-merge no SHA `08f633affdb7478b64b1ec2007ca1986c2a48978`: não localizado; NOT_RUN/NOT_VERIFIED.
+
+F-022 avança para cobertura temporal integrada das oito formas, mas permanece IN_PROGRESS até revisão adversarial independente e revisão final das dimensões combinatórias/oráculos. A matriz ROM v5.0 permanece um conjunto não exaustivo, não prova universal.
+
+### F-028 — semântica DD/FD
+
+PR #968 integrada no SHA `96b21fc7568feb6f7232440eaf4620d0f584d6fe`. A correção substitui a heurística `MemoryRead.address == PC` por contagem explícita de operandos imediatos derivados do opcode BASE, impedindo que uma leitura de dados com endereço igual a PC seja classificada como leitura de stream. Regressão: DD + `LD A,(BC)`, BC=$0002.
+
+Validação exata da PR #968, HEAD `c39f79161e45cfcbf88b9367a3abc2ba136614cc`:
+- CI #43904788014: Z80 focused PASS, incluindo formatação, Clippy, testes Z80/SMS/SG-1000, Z80 Block Flags ROM v5.0, SingleStepTests DD/FD e Woodmass MEMPTR; Rust quality/unit PASS.
+- SMS Runtime #43904788006: Release format, Clippy, testes e build Windows x64 PASS.
+- Scheduler stress e SMS debugger Windows Release SKIPPED.
+- Workflow push pós-merge: NOT_RUN/NOT_VERIFIED.
+
+F-028 continua IN_PROGRESS até revisão adversarial integral da matriz e confirmação independente das exceções e limites DD/FD. As 85 UsesIndex reconciliadas não devem ser reimplementadas; os 167 Ignored permanecem separados dos casos UsesIndex.
+
+### F-023 — WZ/MEMPTR
+
+A matriz de famílias permanece rastreável. Evidências agora incluem BASE EX (SP),HL (#955), quatro formas simples de bloco com WZ/flags/Q/previous-Q em execução Scheduler (#969), e quatro formas repetitivas com WZ/flags/Q/previous-Q sob WAIT/snapshot e IM1/RETI (#962/#964).
+
+**F-023 permanece AUDIT_PARTIAL:** a matriz classifica regras INT/COMP/HW, mas somente a regra WZ=HL+1 de RRD/RLD possui evidência hardware-derived específica na matriz. As regras não documentadas não são apresentadas como garantia física universal. CMOS, NEC/R800/Z180, Z80N e clones fora do perfil delimitado continuam NOT_VERIFIED. Revisão adversarial e reconciliação integral da proveniência continuam pendentes.
+
+### Temporalidade e Scheduler
+
+- LONG_PASS de software Scheduler na campanha #43901362527, SHA `b60f08eeab7b848727661e64a6c7eed671c2fcfe`: 16 seeds × 20.000 operações = 320.000 operações; 16 × 250.000 eventos = 4.000.000 dispatches; ambas as suítes passaram.
+- Integração SMS temporal/replay dirigida: PRs #957/#962/#964/#969, cada uma validada em seu HEAD exato.
+- WAIT usado nos testes de integração é fixture determinística; não representa medição elétrica ou validação de WAIT físico.
+- DMA, safe points de todos os dispositivos, sincronização física e TEMPORAL_PASS global permanecem NOT_VERIFIED.
+- A equivalência contínua/retomada está demonstrada nas dimensões cobertas pelos testes citados, não em todos os caminhos do hardware.
+
+### Decisão consolidada
+- F-022: IN_PROGRESS — oito formas integradas temporalmente; revisão adversarial independente pendente.
+- F-023: AUDIT_PARTIAL — famílias mapeadas e testes rastreáveis; proveniência HW limitada e revisão independente pendente.
+- F-028: IN_PROGRESS — matriz e classificação de stream/data corrigida; revisão adversarial independente pendente.
+- Temporalidade: Scheduler software LONG_PASS; integração dirigida PASS; WAIT físico/DMA e TEMPORAL_PASS global NOT_VERIFIED.
+- SMS/SG-1000: testes Z80/SMS/SG-1000 passaram no gate Z80 focused da #968; SMS Runtime Release passou nas #964/#968/#969. Gates SKIPPED permanecem SKIPPED.
+- **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
+
+Nenhuma etapa E8 deve iniciar até revisão independente registrada, fechamento formal das três frentes e aprovação de todos os critérios temporais e de regressão exigidos pelo contrato E7.
+
+
+
+## Baseline vigente pós-PR #975 — 16/11/2026
+
+**Main:** `22c489e03aaed440bbb150ee9a4b7b70c74b1b84`. PR #975 foi integrada por squash e alterou somente o teste F-028; PR #972 permanece integrada por `1b16256358e3f17837a95cc071048c5ee5307f82`, também test-only.
+
+- **F-022: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE; revisão independente pendente.** para semântica de software das oito instruções de transferência/comparação do perfil NMOS delimitado. A revisão interna, as 786.432 combinações simples, as matrizes repetitivas e a integração SMS/Scheduler estão registradas em `z80-e7-f022-adversarial-review-2026-11-16.md`.
+- **F-023: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE; revisão independente pendente.** para semântica de software WZ/MEMPTR do perfil Zilog Z80 NMOS delimitado. A revisão interna confrontou handlers atômicos/microsequenciados e a matriz por família. HW permanece restrito à evidência RRD/RLD; outras regras continuam INT/COMP. A PR #977 cobre WZ em JR/DJNZ sob DD/FD Ignored. Variantes/clones fora do perfil NOT_VERIFIED. Ver `z80-e7-f023-adversarial-review-2026-11-16.md`.
+- **F-028: INTERNAL_REVIEW_COMPLETE — CANDIDATE FOR CLOSURE; revisão independente pendente.** PR #977 passou Z80 focused e SMS Runtime; os 167 Ignored agora verificam WZ, PC, bus trace, WAIT/snapshot, CALL/RST stack wrap e branches relativos DD/FD. Ver relatório F-028.
+- **Scheduler:** LONG_PASS de software permanece vinculado ao SHA LONG documentado; não é TEMPORAL_PASS global. WAIT nos testes é fixture. WAIT físico, DMA e safe points de todos os dispositivos permanecem NOT_VERIFIED.
+- **Validação PR #975:** CI #43937118700 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43937118785 SUCCESS. Scheduler stress SKIPPED. Não há afirmação de workflow push pós-merge no SHA 22c489e.
+- **E7: IN_PROGRESS. E8/ZEXDOC/ZEXALL: BLOCKED.**
+
+O critério SG-1000 nesta fase significa consumo do Z80 compartilhado. A integração da máquina SG-1000 ao Scheduler pertence ao P2 e permanece DEFERRED; não deve ser usada para afirmar conclusão do P2 nem para reabrir a semântica já validada do Z80.
+
+
+**Gate formal:** os relatórios internos não substituem uma revisão independente registrada no GitHub. F-022/F-023 permanecem candidatas a fechamento até esse gate. PR #977 deve passar no HEAD exato antes de atualizar F-023/F-028. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+
+## Atualização de validação — PR #977
+
+PR #977 HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`: CI #43939973117 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43939957730 SUCCESS. A nova cobertura JR/DJNZ/JR cc sob DD/FD Ignored verifica WZ/PC, tomado/não tomado e wrap em PC=FFFD. Scheduler deterministic stress SKIPPED. F-022/F-023 seguem auditorias internas candidatas; F-028 segue IN_PROGRESS até revisão independente registrada. E7 IN_PROGRESS; E8 BLOCKED.
+
+
+
+## Atualização F-028 — HEAD validado da PR #977
+
+PR #977 HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: CI #43940980741 SUCCESS (Z80 focused e Rust quality/unit PASS); SMS Runtime #43940971722 SUCCESS. A matriz dos 167 Ignored agora compara WZ, aplicando +1 somente para JR/DJNZ/JR cc tomados; casos dirigidos cobrem PC=2000/FFFD, CALL/RST stack wrap, DD e FD. Scheduler deterministic stress SKIPPED. F-028 tem auditoria interna completa e é candidata a fechamento, pendente de review independente registrada. F-022/F-023 também permanecem candidatas; E7 IN_PROGRESS; E8 BLOCKED.
+
+
+## Decisão de escopo supersedente — 2026-11-16
+
+E7 está `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e para as necessidades praticáveis dos sistemas SMS/SG-1000. Esta decisão não declara revisão externa, conformidade elétrica universal ou validação de hardware para casos não executados. As evidências permanecem internas e vinculadas aos SHAs/workflows descritos. CMOS/clones não caracterizados, WAIT físico, DMA e sincronização física global permanecem NOT_VERIFIED/NOT_RUN. E8/ZEXDOC/ZEXALL é validação complementar futura e não bloqueia o início do SG-1000. Reabrir E7 somente diante de defeito/regressão reproduzível ou evidência técnica concreta.

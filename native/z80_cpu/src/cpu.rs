@@ -2236,6 +2236,27 @@ mod tests {
     }
 
     #[test]
+    fn immediate_io_updates_wz_with_port_specific_wrap_rules() {
+        let mut out_bus = TestIoBus::default();
+        out_bus.memory[..2].copy_from_slice(&[0xD3, 0xFF]); // OUT (FF),A
+        let mut out_cpu = Z80::default();
+        out_cpu.registers.a = 0x12;
+        assert_eq!(out_cpu.step(&mut out_bus), Ok(11));
+        assert_eq!(out_bus.port_writes, [(0x12FF, 0x12)]);
+        assert_eq!(out_cpu.wz, 0x1200); // low-byte increment wraps within A page
+
+        let mut in_bus = TestIoBus::default();
+        in_bus.memory[..2].copy_from_slice(&[0xDB, 0xFF]); // IN A,(FF)
+        in_bus.port_value = 0x5A;
+        let mut in_cpu = Z80::default();
+        in_cpu.registers.a = 0xFF;
+        assert_eq!(in_cpu.step(&mut in_bus), Ok(11));
+        assert_eq!(in_bus.port_reads, [0xFFFF]);
+        assert_eq!(in_cpu.registers.a, 0x5A);
+        assert_eq!(in_cpu.wz, 0x0000); // full 16-bit port+1 wraps
+    }
+
+    #[test]
     fn accumulator_rotate_and_flag_control_opcodes_are_supported() {
         let mut bus = TestBus([0; 0x10000]);
         bus.0[..6].copy_from_slice(&[0x3E, 0x81, 0x07, 0x2F, 0x37, 0x3F]);
@@ -2837,6 +2858,10 @@ mod tests {
 
         assert_eq!(cpu.step(&mut bus), Ok(19));
         assert_eq!(cpu.registers.hl(), 0xABCD);
+        assert_eq!(
+            cpu.wz, 0xABCD,
+            "EX (SP),HL loads WZ from the exchanged word"
+        );
         assert_eq!((bus.0[0xC000], bus.0[0xC001]), (0x34, 0x12));
         assert_eq!(cpu.step(&mut bus), Ok(4));
         assert!(!cpu.iff1 && !cpu.iff2);
@@ -3293,6 +3318,7 @@ mod tests {
 
                     assert_eq!(cpu.step(&mut bus), Ok(14), "ED {opcode:02X}");
                     assert_eq!(cpu.registers.pc, return_address, "ED {opcode:02X}");
+                    assert_eq!(cpu.wz, return_address, "ED {opcode:02X}: WZ <- return PC");
                     assert_eq!(cpu.registers.sp, sp.wrapping_add(2), "ED {opcode:02X}");
                     assert_eq!(cpu.iff1, iff2, "ED {opcode:02X}: IFF1 <- IFF2");
                     assert_eq!(cpu.iff2, iff2, "ED {opcode:02X}: IFF2 unchanged");

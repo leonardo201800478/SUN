@@ -1,6 +1,8 @@
 # Matriz semântica DD/FD do Z80 — reconciliação após PR #680
 
-**Reconciliação atual:** `main` = `bf7e7584df421000d040a3ee057799a75bfeb3eb` (2026-11-16, após PR #935; PRs #937/#938 não alteraram o Z80). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
+> **Estado vigente 2026-11-16:** a matriz F-028 e suas extensões foram reconciliadas; E7 `CLOSED_WITH_LIMITATIONS` para o perfil NMOS delimitado. Main `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`. Não generalizar para CMOS/clones, WAIT físico ou equivalência elétrica global.
+
+**Reconciliação atual:** `main` = `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16, pós-PR #977; testes F-028 integrados sem alteração de decoder/microsequenciador). **Baseline histórica:** `c2dae949d24b6a41899b0335ae2dd7f35b89ef26` (2026-11-09). A matriz permanece específica ao decoder/famílias DD/FD; a atualização abaixo confirma que as mudanças posteriores examinadas não alteraram esses handlers.
 
 **Data:** 2026-11-09
 **Baseline histórica após PR #687 documental:** `main` — `4d8a862f254097e9dd1d0d1640edcd74f40ab12c`. A mudança #687 não alterou runtime Z80 nem a matriz de opcodes; não representa a main corrente.
@@ -508,6 +510,192 @@ Main `f0cfc7b9df1834ae8ad418c6241702e9003f072e`. A PR #718 fechou F-025 (RETN/RE
 - CI no HEAD exato: [43819970660](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819970660) PASS; SMS Runtime [43819971679](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819971679) PASS.
 - A PR alterou somente testes. Não modificou decoder, handlers, microsequenciador ou runtime.
 
-**Classificação:** três exceções de troca ficam cobertas por regressão direcionada; F-028 permanece AUDIT_PARTIAL até a reconciliação de todas as exceções, prefixos, HALT, PC/R, flags e efeitos arquiteturais. Os 34.000 vetores SingleStepTests DD/FD permanecem comprovados somente no HEAD da PR #692 e não foram reexecutados no baseline `bf7e7584`.
+**Classificação:** três exceções de troca ficam cobertas por regressão direcionada; F-028 permanece AUDIT_PARTIAL até a reconciliação de todas as exceções, prefixos, HALT, PC/R, flags e efeitos arquiteturais. Esta nota descreve o estado documental anterior às execuções posteriores das PRs #930/#934/#935. A proveniência atualizada consta na seção 30.
 
 PR #934 acrescentou testes MEMPTR para RRD/RLD, mas não altera esta matriz DD/FD; consulte a seção 45 do scorecard Z80. E7 permanece IN_PROGRESS e E8 permanece BLOCKED.
+
+
+## 30. Proveniência atualizada dos vetores SingleStepTests DD/FD — 2026-11-16
+
+**Main documental consultada:** `5f24e22f2c49512ea43fa24ea25f836464d70f61`.
+**Baseline de código Z80:** `bf7e7584df421000d040a3ee057799a75bfeb3eb`; a PR #939 alterou somente scorecard e esta matriz.
+
+Os 34.000 vetores foram executados e aprovados em workflows posteriores à PR #692:
+
+| PR | HEAD validado | Run / job Z80 focused | Resultado |
+|---|---|---|---|
+| #930 | `c96d39f2a7c3f53a44a44c425f3d34b459eb0a81` | [43815302707](https://github.com/leonardo201800478/sega-emulator/actions/runs/43815302707) / 133125928882 | PASS |
+| #934 | `75f897c1fb8270bcc22ea1ff0274bc7dc11c0d58` | [43818081949](https://github.com/leonardo201800478/sega-emulator/actions/runs/43818081949) / 133134775584 | PASS |
+| #935 | `6e665fe08fa1a32f4b45b42ab78224881b53734a` | [43819970660](https://github.com/leonardo201800478/sega-emulator/actions/runs/43819970660) / 133140618874 | PASS |
+
+Em cada execução, o log registra o comando explícito com `--ignored`, executando os dois testes do corpus SingleStepTests pinado. Assim, o último HEAD de código Z80 com 34.000/34.000 comprovados é o HEAD validado da PR #935.
+
+**Limite:** o CI da main documental `5f24e22...`, run [43831038791](https://github.com/leonardo201800478/sega-emulator/actions/runs/43831038791), marcou Z80 focused como SKIPPED. Para a main atual, a classificação é **NOT RUN**. Os resultados das PRs não são transferidos para essa SHA.
+
+F-028 permanece AUDIT_PARTIAL: os vetores cobrem o corpus validado, mas não substituem a auditoria integral de DD/FD, exceções, prefixos, HALT, PC/R, flags, Q/previous-Q e efeitos arquiteturais. E7 IN_PROGRESS; E8 BLOCKED.
+
+## 31. F-028 — matriz dirigida de exceções DD/FD — PR #943 — 2026-11-16
+
+**Base main:** `caa9a76a6f09d588155ea4e0cbc95f487f079143`.
+**HEAD testado:** `cab4cc387818888dfac0b4f9e41b60cafeb843c3`.
+**CI:** [#43853516396](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516396), Z80 focused SUCCESS; Rust quality/unit SUCCESS.
+**SMS Runtime:** [#43853516405](https://github.com/leonardo201800478/sega-emulator/actions/runs/43853516405) SUCCESS.
+
+O novo teste `native/z80_cpu/tests/z80_dd_fd_exception_matrix_f028.rs` executa 45 combinações prefixadas em cada executor (45 atomic + 45 micro), mais cinco formas BASE em ambos:
+- EX AF,AF' (08), EXX (D9), EX DE,HL (EB);
+- HALT (76);
+- ED NEG (ED 44), demonstrando cancelamento do prefixo indexado antes do decoder ED.
+
+As nove cadeias DD/FD cobrem prefixo único, repetido e alternado, até quatro bytes. A comparação verifica PC com wrap em 0xFFFF, R por M1, Q/previous-Q, flags, WZ, IX/IY, bancos alternativos, IFF/IM, interrupções pendentes, estado HALT e limpeza do prefix_state. O caminho microsequenciado insere um WAIT por M1 e serializa/restaura o estado antes e depois de cada conclusão de barramento; os estados arquiteturais atomic e micro são comparados integralmente.
+
+A PR #935 já cobria os três opcodes de troca com um único DD ou FD. Esta matriz amplia a cobertura para cadeias repetidas/alternadas, HALT e ED NEG, mas continua sendo uma seleção dirigida, não todos os 256 opcodes DD/FD. A comparação atomic↔micro é consistência interna, não oracle independente de silício.
+
+**Classificação:** as exceções cobertas por esta matriz estão PASS no HEAD da PR #943 (Draft). F-028 permanece AUDIT_PARTIAL até fechar a matriz integral de exceções e interações DD/FD, sem reabrir E4A/E4B. E7 IN_PROGRESS; E8 BLOCKED. Nenhuma alteração de runtime/CPU.
+
+## 32. Fechamento dos testes focados F-022/F-023/F-028 — 2026-11-16
+
+Auditoria consolidada: [z80-e7-current-status-2026-11-16.md](audits/z80-e7-current-status-2026-11-16.md).
+
+- **F-022 / PR #936:** HEAD 306db2a91ff796b4c5f66eabc4ebd4c4baad903e; CI #43852582196 e SMS Runtime #43852582229 SUCCESS. ROM v5.0 1/1 PASS em 6,50 s; ≥60 comparações principais; 390 B-loop records em seis grupos; B = 0x0D + 3*i e flags exatas. SingleStepTests DD/FD: 34.000/34.000 PASS. A ROM é não exaustiva; F-022 AUDIT_PARTIAL.
+- **F-023 / PR #942:** código validado 7402ff138ced95da2d8b9e0008919c8cd22484f1; CI #43851550529 e SMS Runtime #43851550520 SUCCESS. Woodmass MEMPTR test 09: HALT 0x80E6, 50.904.931 T-states, FNV-1 F5AE5140, 61 linhas, 32 colunas. WZ/X/Y para outras famílias e timing restante ainda pendentes; F-023 AUDIT_PARTIAL.
+- **F-028 / PR #943:** HEAD de código validado 98c1cf41587f6af66c3d272e4b07a638d5da7919; CI #43859000666 e SMS Runtime #43859000676 SUCCESS. A matriz contém 108 combinações prefixadas por executor: nove cadeias DD/FD aplicadas a EX AF/EXX/EX DE-HL, HALT, ED NEG, NOP, DAA, CPL, SCF, CCF, DI e EI. Atomic/micro, WAIT e snapshot/restore; quatro testes PASS. O fixture SCF/CCF foi corrigido para controlar Q inicial (a CPU copia Q para previous-Q no início da instrução; o caminho indexado limpa previous-Q conforme NMOS). Nenhuma alteração de produção. Matriz não cobre todos os 256 opcodes; F-028 AUDIT_PARTIAL.
+
+E7 permanece IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. PRs #936/#942/#943 permanecem Draft e não foram mescladas nesta rodada.
+
+
+## 33. Inventário integral dos bytes posteriores a DD/FD — 2026-11-16
+
+**Baseline remota:** `main` = `caa9a76a6f09d588155ea4e0cbc95f487f079143`.
+**Fonte de classificação:** `native/z80_cpu/src/prefix.rs`, blob `177a52e55ed3d22ef34d6325222372240fffe960`.
+**Ledger enumerado:** [`audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv`](audits/z80-dd-fd-post-prefix-byte-ledger-2026-11-16.csv).
+
+O ledger contém exatamente os 256 bytes possíveis após DD/FD. A classificação efetiva da FSM é:
+
+| Ação efetiva | Quantidade | Regra |
+|---|---:|---|
+| `UsesIndex` | 85 | A instrução consome IX/IY conforme sua forma |
+| `Ignored` | 167 | Mantém a semântica BASE, com o custo dos prefixos |
+| `IndexedCB` | 1 | CB entra no caminho DDCB/FDCB |
+| `ED cancel-index` | 1 | ED cancela a seleção IX/IY e transfere ao decoder ED |
+| `Repeat DD/FD` | 2 | O prefixo mais recente substitui o índice selecionado |
+| **Total** | **256** | Partição completa e sem sobreposição |
+
+**Distinção importante:** `classify_index_opcode()` é chamada somente depois de a FSM tratar DD, FD e ED. Por isso, a função auxiliar isolada retorna `Ignored` para esses três bytes; a transição efetiva da FSM os trata como repetição ou cancelamento. O ledger registra ambas as camadas para evitar confundir a classificação auxiliar com o comportamento real do decoder.
+
+**Exceções e limites registrados:**
+- `76` é HALT e permanece BASE/Ignored, não é instrução indexada.
+- `08`, `D9` e `EB` preservam EX AF,AF', EXX e EX DE,HL sob DD/FD.
+- `66`, `6E`, `74` e `75` usam o endereço indexado, mas o operando H/L continua sendo o par HL normal.
+- DD/FD repetidos ou alternados aplicam last-prefix-wins; cada byte de prefixo é M1 e incrementa R. Os testes existentes incluem cadeias de até 257 prefixos.
+- CB inicia DDCB/FDCB; displacement é leitura de memória e o subopcode final não é M1.
+- ED cancela a substituição IX/IY e encaminha o byte seguinte ao decoder ED.
+
+**Teste candidato adicionado à PR #943:** `native/z80_cpu/tests/index_prefix_classification_f028.rs` enumera todos os 256 bytes contra uma lista explícita de 85 opcodes UsesIndex e verifica as contagens 85/170/1 da função auxiliar. Os testes adicionais em `z80_dd_fd_exception_matrix_f028.rs` solicitam NMI ou INT entre DD e FD, fazem snapshot/restore nos M1 e verificam que o evento só é atendido na fronteira após o opcode terminal.
+
+**Validação dos novos testes:** PASS no HEAD `b3320ea79c6b951d2ad8b70e762589f14da597df`. CI [#43863265215](https://github.com/leonardo201800478/sega-emulator/actions/runs/43863265215): Z80 focused SUCCESS, Rust quality/unit SUCCESS e documentation patch hygiene SUCCESS; o teste de classificação passou 3/3 e a matriz F-028 passou 6/6. Os 34.000 SingleStepTests DD/FD também passaram neste SHA. SMS Runtime [#43863265197](https://github.com/leonardo201800478/sega-emulator/actions/runs/43863265197): Release format, Clippy, testes e build Windows x64 SUCCESS. O primeiro run #43862912238 falhou apenas em rustfmt; as correções foram aplicadas antes do HEAD validado. Os jobs não relacionados permaneceram SKIPPED. A classificação completa não equivale à validação semântica de cada opcode: os 85 UsesIndex continuam exigindo reconciliação com as famílias E3/E4/E5 e as exceções documentadas; os 167 Ignored exigem comprovação de fallback sem refetch e preservação do custo M1 nos caminhos aplicáveis.
+
+**Estado:** o inventário por byte foi materializado; validação dos novos testes e revisão independente permanecem pendentes. F-028 continua AUDIT_PARTIAL; E7 IN_PROGRESS; E8 BLOCKED.
+
+
+**Cobertura preexistente relacionada:** os testes unitários de cpu.rs já percorrem todos os 256 bytes BASE/DD/FD/CB/ED e os 256 subopcodes DDCB/FDCB para garantir que o executor não retorna erro; isso é smoke/classification, não prova semântica. O teste indexed-CB exaustivo em sms_core percorre todos os valores/carry para rotate/shift; BIT/RES/SET e cópias para registrador têm matrizes específicas, mas não formam uma prova semântica combinatória de todos os estados para todos os 256 subopcodes. O ledger e o novo teste completam a classificação explícita UsesIndex/Ignored/IndexedCB, não essa prova semântica.
+
+## 34. Estado pós-merge da matriz DD/FD — 2026-11-16
+
+**Main integrada:** `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`. PR #943 está MERGED pelo commit `fbd70c4d668902d1869d7cfbdfde5c880c9b3857`. CI #43880197594 e SMS Debugger Runtime #43880197552 terminaram SUCCESS no HEAD `81d6f2fe955867dc16c5e80061524ea713c99c28`; o tree SHA é idêntico ao da main integrada (`9b13446b005b908d80607b8a258d87008db82433`).
+
+O ledger integral de 256 bytes e os testes de classificação e de fronteira INT/NMI DD/FD agora fazem parte da main. Isso fecha a enumeração da classificação efetiva, mas **não** fecha a semântica integral dos opcodes nem o comportamento temporal de todas as famílias.
+
+- 85 UsesIndex: reconciliados com E3A1/E3A2/E4A/E4B/E4C/F-036/#680/F-037, mas ainda exigem prova semântica por forma e estado.
+- 167 Ignored: exigem demonstração de fallback BASE sem refetch indevido, preservando os M1 e o custo dos prefixos.
+- IndexedCB, ED cancel-index e repetição DD/FD permanecem tratados pela FSM conforme o ledger; o ledger não é oracle externo.
+- Os testes NMI/INT, WAIT e snapshot/restore exercitam o microsequenciador Z80 diretamente; não substituem a integração temporal com MachineScheduler nem evidência independente de hardware.
+
+**Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED. Não reabrir E4A/E4B nem alterar CPU de produção sem falha reproduzível.
+
+## 35. Matriz estrutural dos 167 bytes Ignored — 2026-11-16
+
+**PR #946 MERGED:** `3acf24c67d6e573120134b5b29ebbbf2a2893940`; HEAD validado `162772ad8fba7249f8f4c7b8fb67b9816202cc80`; tree integrado/testado `77840465f65a3d6f4f522ea475e9f1d7a9f2c320`.
+
+O teste `z80_dd_fd_ignored_fallback_matrix_f028.rs` usa o CSV de 256 bytes como inventário e percorre os 167 registros com ação efetiva `ExecuteBaseWithoutRefetch`. Para cada byte executa BASE, DD+opcode e FD+opcode. O CI confirmou 334 execuções prefixadas, com exatamente dois M1 (endereços 0 e 1), nenhum refetch, R incrementado em dois e `T_prefixed = T_BASE + 4`. CI Z80 focused #43882287467 PASS; SMS Runtime #43882287458 PASS (format, Clippy, testes e build).
+
+A matriz não valida integralmente efeitos arquiteturais, endereços/ordem de operandos nem os estados intermediários de WAIT/snapshot. O próximo recorte deve cobrir formatos de request por família: imediato, relativo, memória indireta/absoluta, stack, I/O e controle de fluxo, sem confundir cobertura estrutural com semântica independente.
+
+**Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+## 36. F-028 — comparação estrutural de requests Ignored — 2026-11-16
+
+PR #948 integrada em `9c1fc19fa382a3272e3ffe04cc6beb01411319b7`; HEAD testado `74715cbc777acc6625745489a4dfa495cde18ee9`. CI Z80 focused #43884118254 e SMS Runtime #43884118298 passaram nos jobs aplicáveis.
+
+A matriz compara BASE com DD/FD para os 167 bytes efetivos Ignored, registrando tipo/ordem de request, endereço, base T-states e ciclos internos. Preserva as asserções de M1 em PC 0/1, ausência de refetch, R +2 e custo BASE +4T.
+
+**Não prova:** valores lidos, payloads escritos, estado arquitetural final, WAIT/snapshot por classe ou semântica independente. O normalizador desloca qualquer leitura de memória abaixo de `0x0100`; a próxima revisão deve distinguir explicitamente fetch do stream de acesso de dados, preferencialmente registrando PC no request. O fixture atual usa BC/DE/HL/SP altos e operandos `0x5A`, mas não contém uma asserção que proíba leitura de dados na página baixa.
+
+**Review/integração:** não há review independente submetido no GitHub para #948; o review Codex falhou por limite de uso. Nenhum workflow push pós-merge foi encontrado; SKIPPED e ausência de run não são PASS.
+
+**Decisão:** F-028 AUDIT_PARTIAL; E7 IN_PROGRESS; E8/ZEXDOC/ZEXALL BLOCKED.
+
+
+## Addendum F-028 — validação integrada em 16/11/2026
+
+A PR #950 acrescenta a matriz `z80_dd_fd_ignored_semantic_wait_matrix_f028.rs`: 167 opcodes Ignored sob DD e FD, comparação com BASE, leitura/escrita com payload, tipo/ordem/endereço/duração de request, ciclos internos, WAIT e snapshot/restore. CI #43888693825 e SMS Runtime #43888693845 PASS no HEAD validado, com árvore idêntica ao merge `45b40755e46aef752d58f571de856ae25ff9e81c`.
+
+A normalização fica limitada a acessos de fluxo de instrução identificados por PC e ao byte baixo do endereço de retorno em CALL/RST. A matriz é uma comparação estrutural interna, não um oracle independente. A PR #953 integrou PC final exato e condições tomada/não tomada; CI #43891989147 e SMS Runtime #43891989127 PASS no HEAD validado. PRs #954/#955 tratam somente WZ fora do escopo de dispatch DD/FD.
+
+## Reconciliação após PR #955 — 16/11/2026
+
+A PR #955 foi integrada na main pelo commit `67f4149e1933d18ffa5201da66ca6ff46c598e32`. O diff é exclusivamente test-only: quatro linhas de assertion em `native/z80_cpu/src/cpu.rs`, no teste `exchange_stack_hl_and_di_ei_update_state`, verificando `cpu.wz == 0xABCD` após BASE `EX (SP),HL`. Não houve alteração de produção, decoder, microsequenciador, Scheduler, SMS ou SG-1000.
+
+Validação no HEAD exato da PR #955 (`cbc75e9205db5f1c29726962ce3d3cdd312f4ba1`):
+- CI #43897766618: PASS — Z80 focused validation, incluindo rustfmt, Clippy, testes Z80/SMS/SG-1000, fixtures SingleStepTests DD/FD, Z80 Block Instruction Flags v5.0 e Woodmass MEMPTR; Rust quality/unit regression PASS.
+- SMS Debugger Runtime #43897766471: PASS — formatação, Clippy Release, testes SMS Runtime e build Release Windows x64.
+- SMS debugger Windows Release validation: SKIPPED. Não contar como PASS; o workflow concluiu SUCCESS porque esse job condicional não era aplicável ao diff.
+- Workflow push pós-merge no SHA `67f4149e1933d18ffa5201da66ca6ff46c598e32`: não localizado na consulta de runs; classificar NOT_RUN/NOT_VERIFIED, não PASS.
+
+A matriz WZ/MEMPTR agora possui assertion dirigida para BASE `EX (SP),HL`, além das coberturas IX/IY já existentes. Isso fecha a pendência específica de teste dessa instrução, mas não declara F-023 CLOSED: permanecem a revisão de consistência da matriz completa, a proveniência das regras e a revisão adversarial transversal.
+
+Estado após a integração:
+- F-023: AUDIT_PARTIAL — lacuna específica BASE `EX (SP),HL` coberta; revisão integral e reconciliação ainda necessárias.
+- F-028: IN_PROGRESS — manter limites e lacunas documentados; não inferir fechamento a partir das matrizes.
+- F-022: IN_PROGRESS — manter separação de F-021 e validar integralmente as oito formas.
+- Temporalidade/Scheduler: NOT_VERIFIED como fechamento E7 até demonstração integrada de determinismo e equivalência contínua/em blocos.
+- E7: IN_PROGRESS.
+- E8/ZEXDOC/ZEXALL: BLOCKED.
+
+A integração #955 não substitui regressão integrada no HEAD final da main nem revisão adversarial independente. Não promover SKIPPED, NOT_RUN ou evidência interna comparativa a PASS de hardware.
+
+
+## Baseline pós-PR #970 — 16/11/2026
+
+Main: `2d526ea37c9cd65e82b54a330c52f54c07841400` (PR #970 documental, sem alteração de runtime). F-022 permanece IN_PROGRESS; F-023 AUDIT_PARTIAL; F-028 IN_PROGRESS; Scheduler LONG_PASS apenas como determinismo de software; E7 IN_PROGRESS; E8 BLOCKED. A lacuna da matriz de requests dos 167 Ignored foi resolvida por #950/#953; PR #971 documenta a reconciliação e PR #972 adiciona cobertura Scheduler IM2, ambas ainda não integradas. Ver [estado E7 consolidado](audits/z80-e7-current-status-2026-11-16.md) para SHAs, workflows e limites de evidência.
+
+
+## Reconciliação pós-PR #972 — 16/11/2026
+
+A main `1b16256358e3f17837a95cc071048c5ee5307f82` recebeu testes de integração SMS/Scheduler para repetição INT IM2/NMI. Não houve alteração de produção Z80, decoder ou semântica DD/FD. O push CI #43933821228 marcou Z80 focused como SKIPPED/NOT RUN; portanto, esta integração não constitui nova execução dos vetores DD/FD na main. E7 permanece IN_PROGRESS e E8 BLOCKED.
+
+
+## Atualização F-028 pós-PR #975 — 16/11/2026
+
+A PR #975 adicionou ao arquivo `native/z80_cpu/tests/z80_dd_fd_ignored_semantic_wait_matrix_f028.rs` dois limites dirigidos para CALL (`PC=FFFC`) e RST (`PC=FFFE`), comparando BASE↔DD/FD e os dois bytes da pilha após wrap `FFFF→0000`. A main `22c489e03aaed440bbb150ee9a4b7b70c74b1b84` foi validada por Z80 focused PASS no push CI #43937688464. A comparação permanece estrutural interna e não é oracle independente; review independente não registrada, F-028 IN_PROGRESS.
+
+
+## Reconciliação F-028 pós-PR #977 — 16/11/2026
+
+A PR #977 acrescenta cobertura explícita de WZ para JR/DJNZ sob DD/FD Ignored, inclusive PC `FFFD` com wrap do destino relativo. O teste verifica os caminhos tomado/não tomado, PC, WZ, M1 e trace normalizado. HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724`; CI #43939973117 e SMS Runtime #43939957730 estavam em andamento na última consulta. O run cancelado após rustfmt não é PASS. F-028 permanece IN_PROGRESS até CI no HEAD exato e revisão independente registrada.
+
+
+
+## PR #977 — cobertura WZ relativa sob DD/FD Ignored
+
+HEAD `a783a3c231b5de1678ffc71eb8b1e8dcda42c724` passou CI #43939973117 (Z80 focused e Rust quality/unit SUCCESS) e SMS Runtime #43939957730 SUCCESS. Foram verificados JR, DJNZ e JR NZ/Z/NC/C, tomado/não tomado, DD/FD, PC/WZ e wrap com PC inicial FFFD. Scheduler stress SKIPPED. A matriz técnica está atualizada, mas a revisão independente formal de F-028 permanece pendente.
+
+
+
+## F-028 — revalidação final PR #977
+
+HEAD `35a9028971a7a5f7140a8cbf097c63255214ab9d`: CI #43940980741 SUCCESS (Z80 focused e Rust quality/unit), SMS Runtime #43940971722 SUCCESS; Scheduler stress SKIPPED. A matriz dos 167 Ignored compara WZ para todos os bytes, tratando JR/DJNZ/JR cc tomados com deslocamento +1 e preservação quando não tomados. Testes dirigidos cobrem PC wrap, CALL/RST stack wrap, DD/FD e trace/WAIT/snapshot. A revisão interna está completa; review independente formal ainda pendente.
+
+
+## Decisão de escopo supersedente — 2026-11-16
+
+E7 está `CLOSED_WITH_LIMITATIONS` para o perfil Zilog NMOS delimitado e para as necessidades praticáveis dos sistemas SMS/SG-1000. Esta decisão do projeto não declara revisão externa, conformidade elétrica universal ou validação de hardware para os casos não executados. As evidências desta auditoria permanecem internas e vinculadas aos SHAs/workflows descritos em cada seção. CMOS/clones não caracterizados, WAIT físico, DMA e sincronização física global permanecem NOT_VERIFIED/NOT_RUN. E8/ZEXDOC/ZEXALL é validação complementar futura e não bloqueia o início do SG-1000. Reabrir E7 somente diante de defeito/regressão reproduzível ou evidência técnica concreta.
