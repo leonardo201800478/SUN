@@ -8,9 +8,9 @@
 use core::fmt;
 
 use crate::{
-    DEFAULT_SG1000_CPU_CLOCK_HZ, MemoryConfig, PsgWriteEvent,
-    Sg1000TemporalBus, Sg1000TemporalBusError, Sg1000TemporalBusState, Sg1000TemporalDispatch,
-    Sg1000TemporalM1, Sg1000TemporalM1Error, Sg1000TemporalM1State,
+    DEFAULT_SG1000_CPU_CLOCK_HZ, MemoryConfig, PsgWriteEvent, Sg1000TemporalBus,
+    Sg1000TemporalBusError, Sg1000TemporalBusState, Sg1000TemporalDispatch, Sg1000TemporalM1,
+    Sg1000TemporalM1Error, Sg1000TemporalM1State,
 };
 use sega_temporal_core::MachineTime;
 use sega_z80_cpu::{
