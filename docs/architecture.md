@@ -1,6 +1,6 @@
 # Arquitetura — Sega Emulator
 
-**Baseline:** `main` `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808` (2026-11-16).
+**Baseline:** `main` `be883792025de3db7eaf4e7b8243293ea90b7e06` (2026-11-17).
 **Decisões normativas:** ADR 0010 (runtime Rust), ADR 0011 (desktop Slint/WGPU/CPAL) e ADR-0016 (fidelidade observável).
 
 ## Produto e hosts ativos
@@ -23,6 +23,8 @@ O runtime de hardware é 100% Rust. O host de produto ativo é Slint 1.18.x, com
 
 - R1: POC Slint/WGPU/Vulkan integrada em software; revalidar execução física Vulkan, resize/lifecycle e apresentação sustentada no HEAD atual.
 - R2: frames SMS integrados por `SmsTemporalWorker`/`FrameMailbox`, preservando Scheduler.
+- SG-1000 P2.2: máquina temporal integrada ao Z80 compartilhado e MachineScheduler, com TMS9918A, PSG, I/O e snapshots compostos (PR #988).
+- SG-1000 P2.3: worker Rust dedicado, publicação FrameMailbox, input snapshot e AudioSession compartilhada em validação; host Slint/WGPU/CPAL ainda não seleciona SG-1000.
 - R3: CPAL 0.18.2 integrado em software; validação física prolongada, hotplug e underruns permanecem gates separados.
 - R4: primeira fatia SDL3/Slint integrada; identidade persistente, hotplug físico e remapeamento avançado permanecem pendentes.
 - R5: launcher, biblioteca, configurações, HUD, telemetria e limpeza segura do legado ainda parciais.

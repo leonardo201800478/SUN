@@ -22,6 +22,7 @@ members = [
     "native/debugger_core",
     "native/sega_desktop",
     "rust/runtime/sms-runtime",
+    "rust/runtime/sg1000-runtime",
 ]
 default-members = [
     "native/sg1000_core",
@@ -40,6 +41,7 @@ default-members = [
     "native/observability",
     "native/sega_desktop",
     "rust/runtime/sms-runtime",
+    "rust/runtime/sg1000-runtime",
 ]
 
 [workspace.dependencies]

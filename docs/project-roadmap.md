@@ -1,7 +1,7 @@
 # Roadmap mestre — Sega Emulator
 
-**Revisão:** 2026-11-16
-**Baseline consultada:** `main` `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
+**Revisão:** 2026-11-17
+**Baseline consultada:** `main` `be883792025de3db7eaf4e7b8243293ea90b7e06`.
 **Autoridade temporal:** MachineScheduler.
 **Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
@@ -23,7 +23,7 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 |---|---|---|
 | P0 | Fundação Rust, toolchain, CI, contratos e hosts | Workspaces e boundaries reproduzíveis; host Slint/WGPU ativo |
 | P1 | SMS1/SMS2 | Perfis 315-5124/315-5246, runtime, BIOS/cartucho, VDP, PSG, I/O, mappers e regressões consolidados |
-| P2 | SG-1000 | Máquina temporal integrada ao Scheduler existente; Z80 compartilhado; VDP TMS9918A, PSG, memória, I/O e snapshots integrados |
+| P2 | SG-1000 | Máquina temporal + worker Rust, Z80 compartilhado, MachineScheduler, TMS9918A, PSG, I/O, snapshots, FrameMailbox e áudio host integrados |
 | P3 | Game Gear | Máquina própria com LCD 160×144, VDP/CRAM, áudio estéreo, memória/cartucho, portas e snapshots específicos |
 | P4 | Expansões e acessórios 8-bit | YM2413 integrado do Master System japonês (opcional, independente de região); Sega Card/My Card como mídia; 3D Glasses/SegaScope com saídas 2D e estéreo; Paddle, Sports Pad, Light Phaser, Rapid Fire e expansões conforme compatibilidade |
 | P5 | Mega Drive / Genesis | M68k, VDP, áudio, barramentos, cartuchos e Scheduler próprios, reutilizando somente contratos realmente comuns |
@@ -73,14 +73,14 @@ O boot por BIOS convencional de 8 KiB está em implementação candidata na PR #
 
 ## 5. Estado operacional da baseline
 
-- Main SHA: `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
+- Main SHA da baseline desta revisão: `be883792025de3db7eaf4e7b8243293ea90b7e06`.
 - CI push pós-merge da baseline: run [#43962737265](https://github.com/leonardo201800478/sega-emulator/actions/runs/43962737265). Change impact, Documentation patch hygiene e Rust quality/unit PASS; workspace, Z80, Scheduler, SMS1 VDP, CPAL, SDL3, Slint/WGPU/Vulkan e demais jobs de runtime foram SKIPPED. Não há validação de runtime pós-merge nesta execução.
 - Árvore atual: 285 documentos Markdown sob `docs/`; inventário estrutural anterior não equivale à leitura e reconciliação semântica integral dos 285 arquivos.
 - Road Rash: usuário reportou teste físico OK; retirar da lista de defeitos abertos, sem inventar SHA/relatório.
 - Alinhamento de sprites SMS: usuário reportou corrigido; não manter como defeito aberto sem regressão.
 - BIOS boot: validação física pendente.
 - Host gráfico anterior: não está em uso ativo.
-- SG-1000: a main ainda não integra a máquina ao Scheduler. O coordenador registra apenas Z80; o barramento rejeita PortRead/PortWrite; Sg1000Machine ainda usa cpu.step() e avança VDP/PSG em fronteiras de instrução. PR #981 (HEAD `a69312cafad08d855709ea44841dc0fb1705e2b1`, 15/0) é candidata P2.1 não integrada; CI #43977932262 passou em Change impact, workspace, SMS1 VDP, Z80 focused, Scheduler stress, documentação e Rust quality/unit. Os jobs não aplicáveis foram SKIPPED. Próxima fatia: P2.2, integrar Z80MicroSequencer/M1/T4 no próprio Sg1000Machine, com snapshot composto e replay contínuo/em blocos.
+- SG-1000 P2.2: integrado na main pela PR #988, merge commit `be883792025de3db7eaf4e7b8243293ea90b7e06`. `Sg1000Machine` usa `Z80MicroSequencer` compartilhado, M1/WAIT por eventos do MachineScheduler, TMS9918A, PSG, I/O temporal e snapshots compostos. CI pós-merge #8459 (run `44090848768`) concluiu com sucesso os gates aplicáveis: Z80 focused, SMS1 VDP, input, SDL3, workspace, Scheduler stress e Rust quality/unit. O caminho atomic antigo está limitado a `cfg(test)` como oracle funcional. SG-1000 P2.3: worker Rust dedicado com FrameMailbox, áudio compartilhado, input snapshots e save states em desenvolvimento na branch `feat/sg1000-runtime-worker-p23-20261117`. P2.4 ainda deve integrar seleção SG-1000 na GUI Slint, carregamento de ROM e handoff WGPU/CPAL. Não declarar o SG-1000 disponível no desktop antes desses gates.
 
 ## 6. Método, evidência e gates
 

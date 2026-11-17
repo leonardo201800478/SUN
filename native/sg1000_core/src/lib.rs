@@ -1,9 +1,8 @@
-//! Temporary Rust SG-1000 reference core retained during the SMS-first migration.
+//! Native Rust SG-1000 machine core.
 //!
-//! This instruction-boundary implementation is not an active product runtime.
-//! It remains in the workspace temporarily for regression/reference purposes
-//! and will be retired after the SMS runtime is executable and validated. The
-//! future SG-1000 implementation will reuse the shared Z80 and temporal devices.
+//! The active machine uses the shared Z80 micro-sequencer and MachineScheduler.
+//! The former atomic CPU/ALU/bus/machine path is compiled only under cfg(test)
+//! as a functional regression oracle; it is not part of the product runtime.
 //!
 //! Host controller APIs are normalized at the application boundary; the core
 //! accepts deterministic active-low snapshots without polling SDL or Windows.
@@ -11,9 +10,10 @@
 /// Size of the Z80's logical address space.
 pub const SG1000_CPU_ADDRESS_SPACE_SIZE: usize = 0x1_0000;
 
-pub mod alu;
-pub mod bus;
-pub mod cpu;
+#[cfg(test)]
+mod bus;
+#[cfg(test)]
+mod cpu;
 pub mod input;
 pub mod io;
 // Keep the old instruction-boundary implementation only as a regression oracle.
@@ -28,7 +28,9 @@ pub mod temporal_m1;
 pub mod temporal_machine;
 pub mod vdp;
 
+#[cfg(test)]
 pub use bus::CpuBus;
+#[cfg(test)]
 pub use cpu::{CpuError, Z80};
 pub use input::{
     ControllerBackend, ControllerBackendPreference, ControllerButtons, ControllerFrame,
