@@ -63,6 +63,11 @@ impl Sg1000CartridgeProfile {
 /// Bomberman English-logo SHA-256 exception. ROM size/title are never heuristics.
 pub fn identify_cartridge_profile(rom: &[u8]) -> Sg1000CartridgeProfile {
     let crc = crc32fast::hash(rom);
+    let digest: [u8; 32] = Sha256::digest(rom).into();
+    profile_for_hashes(crc, &digest)
+}
+
+fn profile_for_hashes(crc: u32, sha256: &[u8; 32]) -> Sg1000CartridgeProfile {
     match crc {
         // DahJee/Jumbo Type-A 8 KiB RAM adapter (Genesis Plus GX game list).
         0x16F2_40D3 | 0xCE56_48C3 | 0x2233_97A1 | 0x281D_2888
@@ -77,25 +82,19 @@ pub fn identify_cartridge_profile(rom: &[u8]) -> Sg1000CartridgeProfile {
 
         0xAF4F_14BC | 0x1D1A_0CA3 => Sg1000CartridgeProfile::OthelloExternalRam2K,
         0x092F_29D6 => Sg1000CartridgeProfile::TheCastleExternalRam8K,
-        _ => {
-            // The English-logo Bomberman Special dump is documented by SHA-256
-            // because it is a distinct variant from the CRC catalog entry.
-            const BOMBERMAN_ENGLISH_SHA256: [u8; 32] = [
-                0x3e, 0xff, 0x3d, 0x6f, 0x1f, 0x74, 0x04, 0x1f,
-                0x7b, 0x73, 0x72, 0x45, 0x79, 0x90, 0x97, 0x8a,
-                0xb4, 0x97, 0x24, 0x55, 0x2f, 0xf2, 0x98, 0x5f,
-                0x34, 0xb7, 0x64, 0x78, 0xcd, 0x91, 0x72, 0x1a,
-            ];
-            let digest = Sha256::digest(rom);
-            if digest.as_slice() == BOMBERMAN_ENGLISH_SHA256 {
-                Sg1000CartridgeProfile::TypeBInternalRam8K
-            } else {
-                Sg1000CartridgeProfile::Standard
-            }
+        _ if *sha256 == BOMBERMAN_ENGLISH_SHA256 => {
+            Sg1000CartridgeProfile::TypeBInternalRam8K
         }
+        _ => Sg1000CartridgeProfile::Standard,
     }
 }
 
+const BOMBERMAN_ENGLISH_SHA256: [u8; 32] = [
+    0x3e, 0xff, 0x3d, 0x6f, 0x1f, 0x74, 0x04, 0x1f,
+    0x7b, 0x73, 0x72, 0x45, 0x79, 0x90, 0x97, 0x8a,
+    0xb4, 0x97, 0x24, 0x55, 0x2f, 0xf2, 0x98, 0x5f,
+    0x34, 0xb7, 0x64, 0x78, 0xcd, 0x91, 0x72, 0x1a,
+];
 /// Resolve the memory configuration for a ROM without mutating it.
 pub fn memory_config_for_rom(rom: &[u8]) -> MemoryConfig {
     identify_cartridge_profile(rom).memory_config()
@@ -103,19 +102,59 @@ pub fn memory_config_for_rom(rom: &[u8]) -> MemoryConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{Sg1000CartridgeProfile, identify_cartridge_profile};
+    use super::{
+        BOMBERMAN_ENGLISH_SHA256, Sg1000CartridgeProfile, identify_cartridge_profile,
+        profile_for_hashes,
+    };
 
-    fn rom_with_crc(target_crc: u32) -> Vec<u8> {
-        // The CRC database is exercised by exact catalog dumps in integration
-        // tests; these unit tests verify that an unknown image is conservative.
-        let _ = target_crc;
-        vec![0x00; 32]
+    #[test]
+    fn identifies_every_catalogued_ram_expansion_family() {
+        let type_a = [
+            0x16F2_40D3, 0xCE56_48C3, 0x2233_97A1, 0x281D_2888,
+            0x306D_5F78, 0x29E0_47CC, 0x5CBD_1163, 0x4041_4556,
+            0x2E71_66D5, 0xC550_B4F0, 0xFC87_463C, 0xDF7C_BFA5,
+            0xE081_6BB7, 0x7C55_057C,
+        ];
+        for crc in type_a {
+            assert_eq!(
+                profile_for_hashes(crc, &[0; 32]),
+                Sg1000CartridgeProfile::TypeAExternalRam8K,
+                "Type-A CRC {crc:08X}"
+            );
+        }
+
+        for crc in [0x69FC_1494, 0xFFC4_EE3F, 0x2E36_6CCF, 0xAAAC_12CF, 0xD2ED_D329] {
+            assert_eq!(
+                profile_for_hashes(crc, &[0; 32]),
+                Sg1000CartridgeProfile::TypeBInternalRam8K,
+                "Type-B CRC {crc:08X}"
+            );
+        }
+
+        for crc in [0xAF4F_14BC, 0x1D1A_0CA3] {
+            assert_eq!(
+                profile_for_hashes(crc, &[0; 32]),
+                Sg1000CartridgeProfile::OthelloExternalRam2K
+            );
+        }
+        assert_eq!(
+            profile_for_hashes(0x092F_29D6, &[0; 32]),
+            Sg1000CartridgeProfile::TheCastleExternalRam8K
+        );
+    }
+
+    #[test]
+    fn identifies_bomberman_english_logo_by_documented_sha256() {
+        assert_eq!(
+            profile_for_hashes(0, &BOMBERMAN_ENGLISH_SHA256),
+            Sg1000CartridgeProfile::TypeBInternalRam8K
+        );
     }
 
     #[test]
     fn unknown_roms_keep_the_standard_ram_map() {
         assert_eq!(
-            identify_cartridge_profile(&rom_with_crc(0)),
+            identify_cartridge_profile(&[0x00; 32]),
             Sg1000CartridgeProfile::Standard
         );
         assert_eq!(
