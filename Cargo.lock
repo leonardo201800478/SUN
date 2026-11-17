@@ -3809,6 +3809,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sega-sg1000-runtime"
+version = "0.1.0"
+dependencies = [
+ "sega-audio-runtime",
+ "sega-sg1000-core",
+ "sega-video-runtime",
+]
+
+[[package]]
 name = "sega-sms-runtime"
 version = "0.1.0"
 dependencies = [
