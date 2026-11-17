@@ -700,7 +700,7 @@ mod windows_host {
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 660px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
@@ -3538,8 +3538,12 @@ mod windows_host {
                 app.get_keyboard_left_key().to_string(), app.get_keyboard_right_key().to_string(),
                 app.get_keyboard_button1_key().to_string(), app.get_keyboard_button2_key().to_string(),
             ];
-            if current.iter().any(|assigned| assigned == &key) {
-                app.set_keyboard_capture_status("Esta tecla já está atribuída a outra ação.".into());
+            let action_index = match action.as_str() {
+                "up" => 0, "down" => 1, "left" => 2, "right" => 3, "button1" => 4, "button2" => 5,
+                _ => 6,
+            };
+            if action_index == 6 || current.iter().enumerate().any(|(index, assigned)| index != action_index && assigned == &key) {
+                app.set_keyboard_capture_status("Tecla já atribuída ou ação inválida.".into());
                 app.set_keyboard_capture_action("".into());
                 return;
             }
