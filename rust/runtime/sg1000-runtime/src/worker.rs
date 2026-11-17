@@ -1004,7 +1004,10 @@ mod tests {
         }
 
         fn metrics(&self) -> AudioOutputMetrics {
-            AudioOutputMetrics::default()
+            AudioOutputMetrics {
+                sample_rate_hz: sega_audio_runtime::DEFAULT_PCM_SOURCE_RATE_HZ,
+                ..AudioOutputMetrics::default()
+            }
         }
 
         fn close(&mut self) {
