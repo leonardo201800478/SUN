@@ -4542,9 +4542,15 @@ mod windows_host {
                     audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                         as u16,
                     sg1000_audio_hpf_enabled: app.get_sg1000_audio_hpf_enabled(),
-                    sg1000_audio_hpf_cutoff_hz: app.get_sg1000_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
+                    sg1000_audio_hpf_cutoff_hz: app
+                        .get_sg1000_audio_hpf_cutoff()
+                        .round()
+                        .clamp(5.0, 500.0) as u16,
                     sg1000_audio_lpf_enabled: app.get_sg1000_audio_lpf_enabled(),
-                    sg1000_audio_lpf_cutoff_hz: app.get_sg1000_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
+                    sg1000_audio_lpf_cutoff_hz: app
+                        .get_sg1000_audio_lpf_cutoff()
+                        .round()
+                        .clamp(4_000.0, 20_000.0) as u16,
                     keyboard_up_key: app.get_keyboard_up_key().to_string(),
                     keyboard_down_key: app.get_keyboard_down_key().to_string(),
                     keyboard_left_key: app.get_keyboard_left_key().to_string(),
@@ -4654,9 +4660,15 @@ mod windows_host {
                 audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                     as u16,
                 sg1000_audio_hpf_enabled: app.get_sg1000_audio_hpf_enabled(),
-                sg1000_audio_hpf_cutoff_hz: app.get_sg1000_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
+                sg1000_audio_hpf_cutoff_hz: app
+                    .get_sg1000_audio_hpf_cutoff()
+                    .round()
+                    .clamp(5.0, 500.0) as u16,
                 sg1000_audio_lpf_enabled: app.get_sg1000_audio_lpf_enabled(),
-                sg1000_audio_lpf_cutoff_hz: app.get_sg1000_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
+                sg1000_audio_lpf_cutoff_hz: app
+                    .get_sg1000_audio_lpf_cutoff()
+                    .round()
+                    .clamp(4_000.0, 20_000.0) as u16,
                 keyboard_up_key: app.get_keyboard_up_key().to_string(),
                 keyboard_down_key: app.get_keyboard_down_key().to_string(),
                 keyboard_left_key: app.get_keyboard_left_key().to_string(),
@@ -4764,38 +4776,37 @@ mod windows_host {
 
         let sg1000_audio_dsp_worker = Rc::clone(&worker);
         let sg1000_audio_dsp_app = app.as_weak();
-        app.on_sg1000_audio_dsp_changed(
-            move |hpf_enabled, hpf_cutoff, lpf_enabled, lpf_cutoff| {
-                let Some(app) = sg1000_audio_dsp_app.upgrade() else {
-                    return;
-                };
-                let config = audio_dsp_config(
-                    false,
-                    hpf_enabled,
-                    f64::from(hpf_cutoff.round() as u16),
-                    lpf_enabled,
-                    f64::from(lpf_cutoff.round() as u16),
-                );
-                let result = sg1000_audio_dsp_worker
-                    .borrow()
-                    .as_ref()
-                    .map(|session| session.set_audio_dsp_config(config));
-                match result {
-                    Some(Ok(())) => app.set_audio_status(if config.enabled {
-                        "DSP experimental aplicado à saída do SG-1000.".into()
-                    } else {
-                        "DSP adicional do SG-1000 desativado; caminho digital preservado.".into()
-                    }),
-                    Some(Err(error)) => {
-                        app.set_audio_status(format!("Falha ao aplicar DSP SG-1000: {error}").into())
-                    }
-                    None => app.set_audio_status(
-                        "Preferências DSP do SG-1000 salvas; serão aplicadas ao carregar uma ROM.".into(),
-                    ),
+        app.on_sg1000_audio_dsp_changed(move |hpf_enabled, hpf_cutoff, lpf_enabled, lpf_cutoff| {
+            let Some(app) = sg1000_audio_dsp_app.upgrade() else {
+                return;
+            };
+            let config = audio_dsp_config(
+                false,
+                hpf_enabled,
+                f64::from(hpf_cutoff.round() as u16),
+                lpf_enabled,
+                f64::from(lpf_cutoff.round() as u16),
+            );
+            let result = sg1000_audio_dsp_worker
+                .borrow()
+                .as_ref()
+                .map(|session| session.set_audio_dsp_config(config));
+            match result {
+                Some(Ok(())) => app.set_audio_status(if config.enabled {
+                    "DSP experimental aplicado à saída do SG-1000.".into()
+                } else {
+                    "DSP adicional do SG-1000 desativado; caminho digital preservado.".into()
+                }),
+                Some(Err(error)) => {
+                    app.set_audio_status(format!("Falha ao aplicar DSP SG-1000: {error}").into())
                 }
-                app.invoke_preferences_changed();
-            },
-        );
+                None => app.set_audio_status(
+                    "Preferências DSP do SG-1000 salvas; serão aplicadas ao carregar uma ROM."
+                        .into(),
+                ),
+            }
+            app.invoke_preferences_changed();
+        });
 
         let audio_renderer_worker = Rc::clone(&worker);
         let audio_renderer_app = app.as_weak();
@@ -4959,9 +4970,13 @@ mod windows_host {
             audio_lpf_enabled: app.get_audio_lpf_enabled(),
             audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
             sg1000_audio_hpf_enabled: app.get_sg1000_audio_hpf_enabled(),
-            sg1000_audio_hpf_cutoff_hz: app.get_sg1000_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
+            sg1000_audio_hpf_cutoff_hz: app.get_sg1000_audio_hpf_cutoff().round().clamp(5.0, 500.0)
+                as u16,
             sg1000_audio_lpf_enabled: app.get_sg1000_audio_lpf_enabled(),
-            sg1000_audio_lpf_cutoff_hz: app.get_sg1000_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
+            sg1000_audio_lpf_cutoff_hz: app
+                .get_sg1000_audio_lpf_cutoff()
+                .round()
+                .clamp(4_000.0, 20_000.0) as u16,
             keyboard_up_key: app.get_keyboard_up_key().to_string(),
             keyboard_down_key: app.get_keyboard_down_key().to_string(),
             keyboard_left_key: app.get_keyboard_left_key().to_string(),
