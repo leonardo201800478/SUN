@@ -49,6 +49,7 @@ pub struct Sg1000DebugSnapshot {
     pub f: u8,
     pub refresh: u8,
     pub halted: bool,
+    pub last_frame_instructions: u64,
     pub audio_output: AudioOutputMetrics,
     pub runtime_error: Option<String>,
     pub audio_error: Option<String>,
@@ -162,6 +163,9 @@ impl WorkerState {
             f: cpu.registers.f,
             refresh: cpu.refresh,
             halted: cpu.halted,
+            last_frame_instructions: telemetry
+                .last_frame_instructions
+                .load(Ordering::Acquire),
             audio_output: self
                 .audio_session
                 .as_ref()
@@ -206,15 +210,14 @@ impl WorkerState {
         // currently running machine or its emulated state.
         let next_machine = build_machine(&next_rom, self.memory_config)?;
         let was_running = preserve_running && self.running;
+        self.running = false;
+        telemetry.running.store(false, Ordering::Release);
+        self.next_frame_deadline = None;
 
         if let Some(session) = self.audio_session.as_mut() {
             session.suspend_and_flush()?;
             session.reset_dsp();
         }
-
-        self.running = false;
-        telemetry.running.store(false, Ordering::Release);
-        self.next_frame_deadline = None;
         self.machine = next_machine;
         self.rom = next_rom;
         self.controller_frame = ControllerFrame::default();
@@ -399,9 +402,7 @@ fn handle_command(
             let _ = reply.send(state.pause(telemetry));
         }
         WorkerCommand::Stop(reply) => {
-            let result = state.pause(telemetry).and_then(|()| {
-                state.rebuild_machine(state.rom.clone(), false, telemetry)
-            });
+            let result = state.rebuild_machine(state.rom.clone(), false, telemetry);
             let _ = reply.send(result);
         }
         WorkerCommand::Reset(reply) => {
