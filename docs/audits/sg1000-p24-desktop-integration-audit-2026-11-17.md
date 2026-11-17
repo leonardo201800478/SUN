@@ -1,8 +1,8 @@
 # SG-1000 P2.4 — Auditoria da integração desktop
 
-**Data:** 2026-11-17  
-**Baseline:** `main` após merge da PR #989  
-**Baseline SHA:** `a728c448bb656f19650e88e214a9a723bbcc2713`  
+**Data:** 2026-11-17
+**Baseline:** `main` após merge da PR #989
+**Baseline SHA:** `a728c448bb656f19650e88e214a9a723bbcc2713`
 **Branch de trabalho:** `feat/sg1000-desktop-integration-p24-20261117`
 
 ## 1. Estado remoto confirmado
