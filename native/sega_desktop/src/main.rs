@@ -704,7 +704,7 @@ mod windows_host {
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 660px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             spacing: 12px;
@@ -968,7 +968,7 @@ mod windows_host {
                             Text { font-size: 24px; text: "Controles"; color: #F1F5FA; }
                             Text { font-size: 12px; text: "Configure teclado, jogadores e atalhos sem interferir no relógio do emulador."; color: #B4C0D0; }
                             Rectangle {
-                                height: 286px; background: #192231; border-radius: 10px;
+                                height: 370px; background: #192231; border-radius: 10px;
                                 border-width: 1px; border-color: #344154;
                                 VerticalLayout {
                                     padding: 14px; spacing: 8px;
