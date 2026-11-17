@@ -1,7 +1,7 @@
 # SG-1000 P2 — reconciliação pós P2.4
 
-**Data:** 2026-11-17  
-**Baseline:** `main` `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`  
+**Data:** 2026-11-17
+**Baseline:** `main` `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`
 **Escopo:** reconciliação direcionada do runtime SG-1000, worker, integração desktop, documentação normativa e CI. Não representa auditoria integral dos 285 documentos Markdown.
 
 ## 1. Resultado executivo
@@ -86,4 +86,3 @@ Nenhum log de falha nova foi aberto: as falhas conhecidas de #921 e #863 pertenc
 4. Acrescentar replay de log determinístico somente se definido como requisito separado; não confundir com save-state/restore.
 5. Manter SMS1/SMS2 como regressão compartilhada e não alterar Z80/VDP/Scheduler por hipótese. Só corrigir após primeira divergência reproduzível.
 6. Não iniciar Game Gear/P3 até que os gates funcionais e físicos de P2 estejam classificados e aceitos.
-
