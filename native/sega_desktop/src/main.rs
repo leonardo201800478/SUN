@@ -544,6 +544,7 @@ mod windows_host {
                     z: 95;
                     CompactButton { text: "Sistema"; width: 66px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "system" ? "none" : "system"; } }
                     CompactButton { text: "Arquivo"; width: 62px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "file" ? "none" : "file"; } }
+                    CompactButton { text: "Firmware"; width: 72px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "firmware" ? "none" : "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                     CompactButton { text: "Vídeo"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "video" ? "none" : "video"; } }
                     CompactButton { text: "Áudio"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "audio" ? "none" : "audio"; } }
                     CompactButton { text: "Controles"; width: 76px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "controls" ? "none" : "controls"; } }
@@ -624,9 +625,17 @@ mod windows_host {
                                     text: "Nenhuma ROM recente. Use “Abrir ROM” para selecionar um arquivo .sms, .bin ou .zip.";
                                     color: #B4C0D0; font-size: 12px; wrap: word-wrap;
                                 }
-                                for rom in root.recent-roms: RecentRomEntry {
-                                    rom-path: rom;
-                                    activated => { root.load-rom-requested(rom); root.active-menu = "none"; }
+                                if root.recent-roms.length > 0: ScrollView {
+                                    height: 112px; width: 100%;
+                                    content-width: self.width;
+                                    content-height: root.recent-roms.length * 42px;
+                                    VerticalLayout {
+                                        width: 100%; spacing: 4px;
+                                        for rom in root.recent-roms: RecentRomEntry {
+                                            rom-path: rom;
+                                            activated => { root.load-rom-requested(rom); root.active-menu = "none"; }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -640,7 +649,7 @@ mod windows_host {
                                     text: root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
                                     color: #F1F5FA; font-size: 14px; font-weight: 600;
                                 }
-                                Text { text: "Região: " + root.selected-region; color: #8EABFF; font-size: 11px; }
+                                Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: #8EABFF; font-size: 11px; }
                             }
                         }
                         Text { text: root.rom-status; color: #B4C0D0; font-size: 11px; wrap: word-wrap; }
@@ -670,7 +679,7 @@ mod windows_host {
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             Text { font-size: 12px; text: "Modelo de hardware para a próxima ROM"; color: #f2f5f7; }
@@ -931,91 +940,83 @@ mod windows_host {
                             CompactButton { text: root.immersive-fullscreen ? "✓ Tela cheia imersiva" : "Tela cheia imersiva (Alt+Enter)"; clicked => { root.display-mode-toggle-requested("alt-enter"); } }
                         }
                         if root.active-menu == "firmware": VerticalLayout {
-                            spacing: 10px;
-                            Text { font-size: 20px; text: "Gerenciamento de firmware — Sega Master System"; color: #f2f5f7; height: self.preferred-height; }
-                            Text { font-size: 12px; text: root.selected-system == "sms2" ? "Console selecionado: Master System II. Somente imagens catalogadas para SMS2/Samsung SMS2 ficam disponíveis para seleção." : "Console selecionado: Master System I. Somente imagens catalogadas para SMS1 ficam disponíveis para seleção."; color: #8bd5ca; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 12px; text: "1. Diretório das BIOS e firmwares"; color: #f2f5f7; }
-                            HorizontalLayout {
-                                spacing: 6px;
-                                LineEdit { text <=> root.firmware-directory; placeholder-text: "Selecione a pasta que contém os arquivos de firmware"; }
-                                CompactButton { text: "Selecionar pasta..."; clicked => { root.browse-firmware-directory-requested(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Firmware"; color: #F1F5FA; }
+                            Text {
+                                font-size: 12px;
+                                text: root.selected-system == "sms2"
+                                    ? "Gerencie imagens catalogadas para Master System II / Samsung SMS2."
+                                    : "Gerencie imagens catalogadas para Master System I / SMS1.";
+                                color: #B4C0D0; wrap: word-wrap;
                             }
-                            CompactButton { text: "Escanear diretório"; enabled: root.firmware-directory != ""; clicked => { root.scan-firmware-directory-requested(root.firmware-directory); } }
-                            Text { font-size: 11px; text: root.firmware-scan-status; color: #8bd5ca; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 11px; text: root.firmware-scan-results; color: #b9c5ce; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 12px; text: "2. Firmware selecionado por região"; color: #f2f5f7; }
-                            Text { font-size: 11px; text: "Cada região mantém uma seleção independente. Opções indisponíveis ou incompatíveis com o modelo do console permanecem desativadas."; color: #b9c5ce; wrap: word-wrap; height: self.preferred-height; }
-                            VerticalLayout {
-                                spacing: 6px;
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Brasil"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-brazil-options;
-                                        current-value: root.firmware-brazil-selected;
-                                        enabled: root.firmware-brazil-options.length > 0;
-                                        selected(value) => { root.firmware-brazil-selected = value; root.firmware-selection-changed("brazil", value); root.preferences-changed(); }
+                            Rectangle {
+                                height: 164px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "1. Diretório de firmware"; color: #F1F5FA; }
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        LineEdit { horizontal-stretch: 1; text <=> root.firmware-directory; placeholder-text: "Pasta que contém BIOS e firmwares"; }
+                                        CompactButton { text: "Selecionar pasta"; clicked => { root.browse-firmware-directory-requested(); } }
+                                        CompactButton { text: "Escanear"; enabled: root.firmware-directory != ""; clicked => { root.scan-firmware-directory-requested(root.firmware-directory); } }
                                     }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "USA"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-usa-options;
-                                        current-value: root.firmware-usa-selected;
-                                        enabled: root.firmware-usa-options.length > 0;
-                                        selected(value) => { root.firmware-usa-selected = value; root.firmware-selection-changed("usa", value); root.preferences-changed(); }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Europa"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-europe-options;
-                                        current-value: root.firmware-europe-selected;
-                                        enabled: root.firmware-europe-options.length > 0;
-                                        selected(value) => { root.firmware-europe-selected = value; root.firmware-selection-changed("europe", value); root.preferences-changed(); }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Japão"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-japan-options;
-                                        current-value: root.firmware-japan-selected;
-                                        enabled: root.firmware-japan-options.length > 0;
-                                        selected(value) => { root.firmware-japan-selected = value; root.firmware-selection-changed("japan", value); root.preferences-changed(); }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text { width: 100px; text: "Coreia"; color: #f2f5f7; vertical-alignment: center; }
-                                    ComboBox {
-                                        horizontal-stretch: 1;
-                                        model: root.firmware-korea-options;
-                                        current-value: root.firmware-korea-selected;
-                                        enabled: root.firmware-korea-options.length > 0;
-                                        selected(value) => { root.firmware-korea-selected = value; root.firmware-selection-changed("korea", value); root.preferences-changed(); }
-                                    }
+                                    Text { font-size: 11px; text: root.firmware-scan-status; color: #8EABFF; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: root.firmware-scan-results; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
-                            if root.firmware-brazil-options.length == 0: Text { font-size: 10px; text: "Brasil: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-usa-options.length == 0: Text { font-size: 10px; text: "USA: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-europe-options.length == 0: Text { font-size: 10px; text: "Europa: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-japan-options.length == 0: Text { font-size: 10px; text: "Japão: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            if root.firmware-korea-options.length == 0: Text { font-size: 10px; text: "Coreia: nenhum firmware catalogado para esta variante de console."; color: #9baab6; }
-                            Text { font-size: 11px; text: "O firmware Samsung Gam*Boy II é uma variante própria de SMS2. Identificação e seleção não significam que seu boot esteja validado."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
-                            Text { font-size: 12px; text: "3. Inicialização"; color: #f2f5f7; }
-                            CheckBox {
-                                text: "Habilitar boot pela BIOS / firmware";
-                                checked <=> root.firmware-boot-enabled;
-                                toggled => { root.firmware-boot-toggle-requested(self.checked); root.preferences-changed(); }
+                            Rectangle {
+                                height: 420px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "2. Seleção regional"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Cada região mantém uma seleção independente. Somente imagens válidas e compatíveis com o modelo selecionado ficam disponíveis."; color: #B4C0D0; wrap: word-wrap; }
+                                    VerticalLayout {
+                                        spacing: 6px;
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Brasil"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-brazil-options; current-value: root.firmware-brazil-selected; enabled: root.firmware-brazil-options.length > 0; selected(value) => { root.firmware-brazil-selected = value; root.firmware-selection-changed("brazil", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "USA"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-usa-options; current-value: root.firmware-usa-selected; enabled: root.firmware-usa-options.length > 0; selected(value) => { root.firmware-usa-selected = value; root.firmware-selection-changed("usa", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Europa"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-europe-options; current-value: root.firmware-europe-selected; enabled: root.firmware-europe-options.length > 0; selected(value) => { root.firmware-europe-selected = value; root.firmware-selection-changed("europe", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Japão"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-japan-options; current-value: root.firmware-japan-selected; enabled: root.firmware-japan-options.length > 0; selected(value) => { root.firmware-japan-selected = value; root.firmware-selection-changed("japan", value); root.preferences-changed(); } }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text { width: 100px; text: "Coreia"; color: #F1F5FA; vertical-alignment: center; }
+                                            ComboBox { horizontal-stretch: 1; model: root.firmware-korea-options; current-value: root.firmware-korea-selected; enabled: root.firmware-korea-options.length > 0; selected(value) => { root.firmware-korea-selected = value; root.firmware-selection-changed("korea", value); root.preferences-changed(); } }
+                                        }
+                                    }
+                                    Text { font-size: 10px; text: "Samsung Gam*Boy II é uma variante própria de SMS2. Identificação e seleção não comprovam o boot em hardware."; color: #D6B879; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 11px; text: "O scan identifica arquivos, mas não comprova o boot. A inicialização sem cartucho será habilitada somente quando o dispositivo interno e o mapa específico da variante estiverem integrados e validados no runtime temporal."; color: #d6b879; wrap: word-wrap; height: self.preferred-height; }
+                            Rectangle {
+                                height: 150px; background: #192231; border-radius: 10px;
+                                border-width: 1px; border-color: #344154;
+                                VerticalLayout {
+                                    padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "3. Inicialização"; color: #F1F5FA; }
+                                    CheckBox {
+                                        text: "Habilitar boot pela BIOS / firmware";
+                                        checked <=> root.firmware-boot-enabled;
+                                        toggled => { root.firmware-boot-toggle-requested(self.checked); root.preferences-changed(); }
+                                    }
+                                    Text { font-size: 10px; text: "A varredura identifica e valida arquivos, mas não comprova o boot. Inicialização sem cartucho permanece condicionada à integração do dispositivo interno e do mapa específico no runtime temporal."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
                         }
                         if root.active-menu == "debug": VerticalLayout {
                             Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
