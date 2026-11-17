@@ -1135,6 +1135,12 @@ mod windows_host {
         audio_hpf_cutoff_hz: u16,
         audio_lpf_enabled: bool,
         audio_lpf_cutoff_hz: u16,
+        keyboard_up_key: String,
+        keyboard_down_key: String,
+        keyboard_left_key: String,
+        keyboard_right_key: String,
+        keyboard_button1_key: String,
+        keyboard_button2_key: String,
     }
 
     impl Default for DesktopPreferences {
@@ -1162,6 +1168,12 @@ mod windows_host {
                 audio_hpf_cutoff_hz: 20,
                 audio_lpf_enabled: false,
                 audio_lpf_cutoff_hz: 18_000,
+                keyboard_up_key: String::new(),
+                keyboard_down_key: String::new(),
+                keyboard_left_key: String::new(),
+                keyboard_right_key: String::new(),
+                keyboard_button1_key: String::new(),
+                keyboard_button2_key: String::new(),
             }
         }
     }
@@ -1293,6 +1305,12 @@ mod windows_host {
                         preferences.audio_lpf_cutoff_hz = value;
                     }
                 }
+                "keyboard_up_key" => preferences.keyboard_up_key = decode_key_token(value.trim()).unwrap_or_default(),
+                "keyboard_down_key" => preferences.keyboard_down_key = decode_key_token(value.trim()).unwrap_or_default(),
+                "keyboard_left_key" => preferences.keyboard_left_key = decode_key_token(value.trim()).unwrap_or_default(),
+                "keyboard_right_key" => preferences.keyboard_right_key = decode_key_token(value.trim()).unwrap_or_default(),
+                "keyboard_button1_key" => preferences.keyboard_button1_key = decode_key_token(value.trim()).unwrap_or_default(),
+                "keyboard_button2_key" => preferences.keyboard_button2_key = decode_key_token(value.trim()).unwrap_or_default(),
                 _ => {}
             }
         }
@@ -1305,7 +1323,7 @@ mod windows_host {
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
         let contents = format!(
-            "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\n",
+            "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
             preferences.sms_system,
             preferences.firmware_directory,
@@ -1327,10 +1345,34 @@ mod windows_host {
             preferences.audio_hpf_enabled,
             preferences.audio_hpf_cutoff_hz,
             preferences.audio_lpf_enabled,
-            preferences.audio_lpf_cutoff_hz
+            preferences.audio_lpf_cutoff_hz,
+            encode_key_token(&preferences.keyboard_up_key),
+            encode_key_token(&preferences.keyboard_down_key),
+            encode_key_token(&preferences.keyboard_left_key),
+            encode_key_token(&preferences.keyboard_right_key),
+            encode_key_token(&preferences.keyboard_button1_key),
+            encode_key_token(&preferences.keyboard_button2_key)
         );
         fs::write(directory.join("slint_ui_settings.txt"), contents)
             .map_err(|error| error.to_string())
+    }
+
+    /// Encodes each key character as a hexadecimal Unicode code point for safe text-file persistence.
+    fn encode_key_token(value: &str) -> String {
+        value.chars().map(|character| format!("{:X}", character as u32)).collect::<Vec<_>>().join(",")
+    }
+
+    /// Decodes a persisted key token, rejecting invalid Unicode values and empty entries.
+    fn decode_key_token(value: &str) -> Option<String> {
+        let decoded = value.split(',').map(|part| u32::from_str_radix(part, 16).ok().and_then(char::from_u32)).collect::<Option<String>>()?;
+        (!decoded.is_empty()).then_some(decoded)
+    }
+
+    /// Returns a readable key label without exposing control characters.
+    fn keyboard_key_label(value: &str) -> String {
+        let mut chars = value.chars();
+        let Some(character) = chars.next() else { return "Não atribuída".to_owned(); };
+        if chars.next().is_some() || character.is_control() { "Tecla especial".to_owned() } else { character.to_uppercase().collect() }
     }
 
     /// Carrega até dez ROMs recentes, removendo entradas duplicadas e vazias.
