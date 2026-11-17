@@ -1400,7 +1400,7 @@ mod windows_host {
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
         let contents = format!(
-            "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
+            "region={}\nselected_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
             preferences.selected_system,
             preferences.firmware_directory,
