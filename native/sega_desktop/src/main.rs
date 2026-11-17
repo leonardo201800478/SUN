@@ -897,10 +897,12 @@ mod windows_host {
                                         spacing: 6px;
                                         CompactButton {
                                             text: root.audio-renderer-mode == "psg" ? "✓ PSG padrão" : "PSG padrão";
+                                            enabled: (root.has-rom ? root.active-system : root.selected-system) != "sg1000";
                                             clicked => { root.audio-renderer-mode = "psg"; root.audio-renderer-changed("psg"); }
                                         }
                                         CompactButton {
                                             text: root.audio-renderer-mode == "h2-experimental" ? "✓ H2 experimental" : "H2 experimental";
+                                            enabled: (root.has-rom ? root.active-system : root.selected-system) != "sg1000";
                                             clicked => { root.audio-renderer-mode = "h2-experimental"; root.audio-renderer-changed("h2-experimental"); }
                                         }
                                     }
@@ -5255,6 +5257,12 @@ mod windows_host {
             let bytes = zip_archive(&[("games/sonic.sms", b"SMS-ROM")]);
             assert_eq!(extract_rom_from_zip(&bytes).unwrap(), b"SMS-ROM");
         }
+        #[test]
+        fn zip_rom_loader_accepts_sg1000_entry() {
+            let bytes = zip_archive(&[("games/space-mountain.sg", b"SG1000-ROM")]);
+            assert_eq!(extract_rom_from_zip(&bytes).unwrap(), b"SG1000-ROM");
+        }
+
         #[test]
         fn zip_rom_loader_rejects_archives_without_roms_or_with_multiple_roms() {
             let no_rom = zip_archive(&[("readme.txt", b"not a rom")]);
