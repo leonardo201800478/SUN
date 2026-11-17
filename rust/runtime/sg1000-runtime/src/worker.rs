@@ -143,6 +143,7 @@ struct WorkerState {
     machine: Sg1000Machine,
     rom: Vec<u8>,
     memory_config: MemoryConfig,
+    auto_profile_cartridge: bool,
     controller_frame: ControllerFrame,
     running: bool,
     audio_session: Option<Box<dyn AudioSession>>,
@@ -152,12 +153,17 @@ struct WorkerState {
 }
 
 impl WorkerState {
-    fn new(rom: Vec<u8>, memory_config: MemoryConfig) -> Result<Self, String> {
+    fn new(
+        rom: Vec<u8>,
+        memory_config: MemoryConfig,
+        auto_profile_cartridge: bool,
+    ) -> Result<Self, String> {
         let machine = build_machine(&rom, memory_config)?;
         Ok(Self {
             machine,
             rom,
             memory_config,
+            auto_profile_cartridge,
             controller_frame: ControllerFrame::default(),
             running: false,
             audio_session: None,
@@ -216,8 +222,14 @@ impl WorkerState {
         telemetry: &WorkerTelemetry,
     ) -> Result<(), String> {
         // Construct first: an invalid replacement ROM must not destroy the
-        // currently running machine or its emulated state.
-        let next_machine = build_machine(&next_rom, self.memory_config)?;
+        // currently running machine or its emulated state. Cartridge-auto
+        // sessions resolve the replacement ROM's RAM profile before commit.
+        let next_memory_config = if self.auto_profile_cartridge {
+            crate::memory_config_for_rom(&next_rom)
+        } else {
+            self.memory_config
+        };
+        let next_machine = build_machine(&next_rom, next_memory_config)?;
         let was_running = preserve_running && self.running;
         self.running = false;
         telemetry.running.store(false, Ordering::Release);
@@ -229,6 +241,7 @@ impl WorkerState {
         }
         self.machine = next_machine;
         self.rom = next_rom;
+        self.memory_config = next_memory_config;
         self.controller_frame = ControllerFrame::default();
         self.controller_frame
             .apply_to(&mut self.machine)
@@ -672,13 +685,21 @@ impl Sg1000TemporalWorker {
     /// Unknown ROMs conservatively use the standard 1 KiB internal RAM map.
     pub fn new_for_cartridge(rom: Vec<u8>) -> Result<Self, String> {
         let memory_config = crate::memory_config_for_rom(&rom);
-        Self::new_with_memory_config(rom, memory_config)
+        Self::new_with_memory_config_and_policy(rom, memory_config, true)
     }
 
     /// Start a paused worker with an explicit cartridge/internal RAM profile.
     pub fn new_with_memory_config(
         rom: Vec<u8>,
         memory_config: MemoryConfig,
+    ) -> Result<Self, String> {
+        Self::new_with_memory_config_and_policy(rom, memory_config, false)
+    }
+
+    fn new_with_memory_config_and_policy(
+        rom: Vec<u8>,
+        memory_config: MemoryConfig,
+        auto_profile_cartridge: bool,
     ) -> Result<Self, String> {
         let (commands, receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
         let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
@@ -690,7 +711,7 @@ impl Sg1000TemporalWorker {
                 // Construct the machine and its non-Send host audio slot on the
                 // owning thread. Only ROM/configuration and channel handles
                 // cross the thread boundary.
-                match WorkerState::new(rom, memory_config) {
+                match WorkerState::new(rom, memory_config, auto_profile_cartridge) {
                     Ok(state) => {
                         worker_telemetry.update_machine(&state.machine, 0);
                         let _ = ready_sender.send(Ok(()));
