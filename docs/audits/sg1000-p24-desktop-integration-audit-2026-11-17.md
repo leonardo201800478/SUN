@@ -91,8 +91,9 @@ A integração SG-1000 da P2.4 agora resolve o perfil de memória no backend Rus
 - `Sg1000TemporalWorker::new_for_cartridge` converte o perfil em `MemoryConfig` e inicializa a máquina com o mapa correspondente.
 - Type-A: 8 KiB externos em `2000h–3FFFh`, preservando 1 KiB interno.
 - Type-B: 8 KiB internos em `C000h–FFFFh`.
+- Clones SG-1000 II catalogados: 2 KiB internos em `C000h–FFFFh` (perfil separado do Type-B).
 - Othello: 2 KiB externos espelhados em `8000h–BFFFh`.
 - The Castle (Japan): 8 KiB externos espelhados em `8000h–BFFFh`.
 - ROMs sem hash catalogado permanecem no mapa padrão; tamanho e extensão não ativam expansão.
 
-Os testes unitários do resolver cobrem os hashes catalogados, os quatro mapas e o fallback conservador. Ainda não há evidência de execução in-game desses títulos na build desktop. Essa validação permanece gate funcional da P2.4.
+Os testes unitários do resolver cobrem os hashes catalogados, os mapas Type-A, Type-B, clone 2 KiB, Othello e The Castle, além do fallback conservador. Ainda não há evidência de execução in-game desses títulos na build desktop. Essa validação permanece gate funcional da P2.4.
