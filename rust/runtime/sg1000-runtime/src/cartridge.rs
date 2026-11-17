@@ -15,6 +15,8 @@ pub enum Sg1000CartridgeProfile {
     TypeAExternalRam8K,
     /// SG-1000 II Type-B adapter: 8 KiB internal RAM at C000h–FFFFh.
     TypeBInternalRam8K,
+    /// SG-1000 II clone hardware: 2 KiB internal RAM mirrored at C000h–FFFFh.
+    Sg1000IiCloneInternalRam2K,
     /// Othello: 2 KiB external RAM mirrored at 8000h–BFFFh.
     OthelloExternalRam2K,
     /// The Castle (Japan): 8 KiB external RAM mirrored at 8000h–BFFFh.
@@ -36,6 +38,12 @@ impl Sg1000CartridgeProfile {
                 cartridge_ram_size: 0x2000,
                 cartridge_ram_start: 0x2000,
                 cartridge_ram_end: 0x3FFF,
+            },
+            Self::Sg1000IiCloneInternalRam2K => MemoryConfig {
+                internal_ram_size: 0x0800,
+                cartridge_ram_size: 0,
+                cartridge_ram_start: 0,
+                cartridge_ram_end: 0,
             },
             Self::TypeBInternalRam8K => MemoryConfig {
                 internal_ram_size: 0x2000,
@@ -79,6 +87,9 @@ fn profile_for_hashes(crc: u32, sha256: &[u8; 32]) -> Sg1000CartridgeProfile {
             Sg1000CartridgeProfile::TypeBInternalRam8K
         }
 
+        0x7F7F_009D | 0x77DB_4704 | 0xC5A6_7B95 => {
+            Sg1000CartridgeProfile::Sg1000IiCloneInternalRam2K
+        }
         0xAF4F_14BC | 0x1D1A_0CA3 => Sg1000CartridgeProfile::OthelloExternalRam2K,
         0x092F_29D6 => Sg1000CartridgeProfile::TheCastleExternalRam8K,
         _ if *sha256 == BOMBERMAN_ENGLISH_SHA256 => Sg1000CartridgeProfile::TypeBInternalRam8K,
@@ -143,6 +154,14 @@ mod tests {
             );
         }
 
+        for crc in [0x7F7F_009D, 0x77DB_4704, 0xC5A6_7B95] {
+            assert_eq!(
+                profile_for_hashes(crc, &[0; 32]),
+                Sg1000CartridgeProfile::Sg1000IiCloneInternalRam2K,
+                "SG-1000 II clone CRC {crc:08X}"
+            );
+        }
+
         for crc in [0xAF4F_14BC, 0x1D1A_0CA3] {
             assert_eq!(
                 profile_for_hashes(crc, &[0; 32]),
@@ -184,6 +203,10 @@ mod tests {
         assert_eq!(type_a.cartridge_ram_size, 0x2000);
         assert_eq!(type_a.cartridge_ram_start, 0x2000);
         assert_eq!(type_a.cartridge_ram_end, 0x3FFF);
+
+        let clone = Sg1000CartridgeProfile::Sg1000IiCloneInternalRam2K.memory_config();
+        assert_eq!(clone.internal_ram_size, 0x0800);
+        assert_eq!(clone.cartridge_ram_size, 0);
 
         let type_b = Sg1000CartridgeProfile::TypeBInternalRam8K.memory_config();
         assert_eq!(type_b.internal_ram_size, 0x2000);
