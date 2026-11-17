@@ -168,23 +168,52 @@ fn build_sms_temporal_machine(rom: Vec<u8>, region: &str) -> Result<SmsTemporalM
     )
 }
 
+#[cfg(test)]
 fn build_sms_temporal_machine_with_revision_and_sram_size(
     rom: Vec<u8>,
     region: &str,
     revision: SmsVdpRevision,
     cartridge_sram_size: Option<usize>,
 ) -> Result<SmsTemporalMachine, String> {
-    let (territory, vdp_profile, psg_clock_hz) =
-        sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
-    SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
+    build_sms_temporal_machine_with_revision_bios_and_sram_size(
         rom,
-        SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
-        psg_clock_hz,
-        SMS_INTERNAL_AUDIO_SAMPLE_RATE,
-        vdp_profile,
-        territory,
+        region,
+        revision,
+        None,
         cartridge_sram_size,
     )
+}
+
+fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
+    rom: Vec<u8>,
+    region: &str,
+    revision: SmsVdpRevision,
+    bios: Option<Vec<u8>>,
+    cartridge_sram_size: Option<usize>,
+) -> Result<SmsTemporalMachine, String> {
+    let (territory, vdp_profile, psg_clock_hz) =
+        sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
+    match bios {
+        Some(bios) => SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+            psg_clock_hz,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        ),
+        None => SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
+            rom,
+            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+            psg_clock_hz,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        ),
+    }
     .map_err(|error| error.to_string())
 }
 
@@ -194,11 +223,13 @@ fn rebuild_sms_temporal_machine_preserving_sram(
     rom: Vec<u8>,
     region: &str,
     revision: SmsVdpRevision,
+    bios: Option<Vec<u8>>,
 ) -> Result<SmsTemporalMachine, String> {
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
-    let mut rebuilt =
-        build_sms_temporal_machine_with_revision_and_sram_size(rom, region, revision, capacity)?;
+    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_and_sram_size(
+        rom, region, revision, bios, capacity,
+    )?;
     if let Some(contents) = sram {
         rebuilt
             .load_cartridge_sram(&contents)
@@ -1132,6 +1163,18 @@ impl SmsTemporalWorker {
         Self::new_with_cartridge_sram_size(rom, region, None, None)
     }
 
+    /// Start the native worker with a user-supplied 8 KiB SMS BIOS.
+    pub fn new_with_bios(rom: Vec<u8>, bios: Vec<u8>, region: &str) -> Result<Self, String> {
+        Self::new_with_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            bios,
+            region,
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+        )
+    }
+
     /// Start the worker with an explicit cartridge SRAM capacity and optional persisted image.
     /// Capacity must come from a verified cartridge profile; save-file length never configures hardware.
     pub fn new_with_cartridge_sram_size(
@@ -1188,9 +1231,86 @@ impl SmsTemporalWorker {
         )
     }
 
+    /// Resolve the same deterministic region policy as direct boot, then start with BIOS.
+    pub fn new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    eprintln!(
+                        "SMS_REGION preference=auto resolved={} source={:?} dat_title={}",
+                        resolution.region.key(),
+                        resolution.source,
+                        resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    "usa".to_owned()
+                }
+            },
+        };
+
+        Self::new_with_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            bios,
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
     /// Start the worker with an explicit VDP ASIC, regional timing, and cartridge SRAM profile.
     pub fn new_with_hardware_profile_and_cartridge_sram_size(
         rom: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            None,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    /// Start the worker with a verified 8 KiB BIOS and explicit hardware profile.
+    pub fn new_with_bios_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            Some(bios),
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+        )
+    }
+
+    fn new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Option<Vec<u8>>,
         region: &str,
         vdp_revision: SmsVdpRevision,
         cartridge_sram_size: Option<usize>,
@@ -1232,10 +1352,11 @@ impl SmsTemporalWorker {
         let worker = thread::Builder::new()
             .name("sms-temporal-machine".to_owned())
             .spawn(move || {
-                let machine = match build_sms_temporal_machine_with_revision_and_sram_size(
+                let machine = match build_sms_temporal_machine_with_revision_bios_and_sram_size(
                     rom.clone(),
                     &worker_region,
                     worker_vdp_revision,
+                    bios.clone(),
                     cartridge_sram_size,
                 )
                 .and_then(|mut machine| {
@@ -1258,6 +1379,7 @@ impl SmsTemporalWorker {
                 worker_loop(
                     machine,
                     rom,
+                    bios,
                     worker_region,
                     worker_vdp_revision,
                     receiver,
@@ -2025,6 +2147,7 @@ fn execute_frame_with_renderer(
 fn worker_loop(
     mut machine: SmsTemporalMachine,
     mut rom: Vec<u8>,
+    bios: Option<Vec<u8>>,
     region: String,
     vdp_revision: SmsVdpRevision,
     commands: Receiver<WorkerCommand>,
@@ -2104,6 +2227,7 @@ fn worker_loop(
                 &mut machine,
                 &mut breakpoints,
                 &mut rom,
+                &bios,
                 &region,
                 vdp_revision,
                 &mut running,
@@ -2216,6 +2340,7 @@ fn handle_command(
     machine: &mut SmsTemporalMachine,
     breakpoints: &mut BreakpointSet,
     rom: &mut Vec<u8>,
+    bios: &Option<Vec<u8>>,
     region: &str,
     vdp_revision: SmsVdpRevision,
     running: &mut bool,
@@ -2274,6 +2399,7 @@ fn handle_command(
                 rom.clone(),
                 region,
                 vdp_revision,
+                bios.clone(),
             )
             .and_then(|powered_off| {
                 audio_session
@@ -2303,6 +2429,7 @@ fn handle_command(
                 rom.clone(),
                 region,
                 vdp_revision,
+                bios.clone(),
             ) {
                 Ok(reset_machine) => {
                     *running = false;
@@ -2341,10 +2468,11 @@ fn handle_command(
                     "cannot replace a cartridge with SRAM through load_rom; persist it and create a new worker".to_owned(),
                 ));
             } else {
-                match build_sms_temporal_machine_with_revision_and_sram_size(
+                match build_sms_temporal_machine_with_revision_bios_and_sram_size(
                     new_rom.clone(),
                     region,
                     vdp_revision,
+                    bios.clone(),
                     None,
                 ) {
                     Ok(new_machine) => {
@@ -2422,13 +2550,14 @@ fn handle_command(
             } else if state.format_version != SMS_WORKER_SAVE_STATE_VERSION
                 || state.region != region
                 || state.machine_state.bus.memory.rom_bytes() != machine.memory().rom_bytes()
+                || state.machine_state.bus.memory.bios_bytes() != bios.as_deref()
                 || state.machine_state.bus.vdp.profile().revision
                     != machine.vdp().profile().revision
                 || state.machine_state.bus.vdp.profile().video_standard
                     != machine.vdp().profile().video_standard
             {
                 let _ = reply.send(Err(
-                    "save state version, ROM identity or hardware profile does not match the active machine"
+                    "save state version, ROM identity, BIOS identity or hardware profile does not match the active machine"
                         .to_owned(),
                 ));
             } else {
@@ -3036,6 +3165,50 @@ mod tests {
 
         worker.stop().unwrap();
         assert_eq!(worker.export_cartridge_sram().unwrap(), Some(initial));
+    }
+
+    #[test]
+    fn worker_executes_and_preserves_bios_across_reset_power_off_and_rom_replacement() {
+        let mut bios = vec![0x00; 0x2000];
+        bios[..3].copy_from_slice(&[0x31, 0xF0, 0xDF]); // LD SP,$DFF0
+        let rom = vec![0x76; 0x4000];
+
+        let worker = SmsTemporalWorker::new_with_bios(rom, bios.clone(), "usa").unwrap();
+
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+        worker.step_instruction().unwrap();
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0xDFF0);
+
+        let saved = worker.save_state().unwrap();
+        worker.reset().unwrap();
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+
+        worker.step_instruction().unwrap();
+        worker.load_state(saved).unwrap();
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0xDFF0);
+
+        worker.load_rom(vec![0x76; 0x4000]).unwrap();
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+
+        worker.stop().unwrap();
+        assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
+        assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
+    }
+
+    #[test]
+    fn worker_rejects_save_state_from_a_different_bios_image() {
+        let rom = SYNTHETIC_ROM.to_vec();
+        let first_bios = vec![0x00; 0x2000];
+        let second_bios = vec![0xFF; 0x2000];
+        let source = SmsTemporalWorker::new_with_bios(rom.clone(), first_bios, "usa").unwrap();
+        let state = source.save_state().unwrap();
+
+        let target = SmsTemporalWorker::new_with_bios(rom, second_bios, "usa").unwrap();
+        let error = target.load_state(state).unwrap_err();
+        assert!(error.contains("BIOS identity"));
     }
 
     #[test]

@@ -133,6 +133,7 @@ pub enum SmsTemporalBusError {
     NoPendingRequest,
     WrongRequestId { expected: u64, received: u64 },
     UnsupportedOperation,
+    UnsupportedBiosHardwareProfile,
     InvalidState,
 }
 
@@ -154,6 +155,9 @@ impl fmt::Display for SmsTemporalBusError {
             ),
             Self::UnsupportedOperation => f.write_str(
                 "this temporal bus operation is not implemented by the SMS temporal slice",
+            ),
+            Self::UnsupportedBiosHardwareProfile => f.write_str(
+                "the conventional 8 KiB BIOS mapping is currently validated only for SMS1 hardware",
             ),
             Self::InvalidState => f.write_str("SMS temporal bus snapshot is inconsistent"),
         }
@@ -283,10 +287,91 @@ impl SmsTemporalBus {
             sample_rate,
             vdp_profile = ?vdp_profile,
             territory = ?territory,
+            bios_present = false,
             "SMS temporal bus configuration selected"
         );
         let cartridge = CartridgeImage::new(rom)?;
         let memory = SmsMemory::with_cartridge_sram_size(cartridge, cartridge_sram_size)?;
+        let coordinator = SmsTemporalCoordinator::new(master_ticks_per_tstate)?;
+        let psg = ScheduledPsg::new(
+            SMS_PSG_CLOCK_DOMAIN_ID,
+            PsgProfile::Sms,
+            psg_clock_hz,
+            sample_rate,
+        )?;
+        Ok(Self {
+            memory,
+            io: SmsIo::new(territory),
+            psg,
+            vdp: SmsVdp::new_with_profile(vdp_profile),
+            port_write_trace: Vec::new(),
+            coordinator,
+            pending_request: None,
+            request_started_at: None,
+            completion: None,
+            pending_internal_cycle: None,
+            internal_cycle_started_at: None,
+            internal_completion: None,
+            interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
+        })
+    }
+
+    /// Construct the temporal bus with an actual 8 KiB SMS BIOS image.
+    ///
+    /// The CPU still starts at its hardware reset vector. The BIOS executes on
+    /// the shared Scheduler and establishes the cartridge handoff state through
+    /// ordinary hardware accesses.
+    pub fn new_with_hardware_profile_and_bios(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalBusError> {
+        Self::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            None,
+        )
+    }
+
+    /// Construct the temporal bus with BIOS firmware and explicit cartridge SRAM hardware.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_hardware_profile_and_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalBusError> {
+        // SmsMemory currently models SMS1 slot priority. SMS2 has distinct
+        // wired-AND arbitration, so reject BIOS mapping under a 315-5246 profile.
+        if vdp_profile.revision.asic_number() != 3_155_124 {
+            return Err(SmsTemporalBusError::UnsupportedBiosHardwareProfile);
+        }
+        sega_observability::tracing::info!(
+            target: "sega::machine",
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile = ?vdp_profile,
+            territory = ?territory,
+            bios_present = true,
+            "SMS temporal bus configuration selected"
+        );
+        let cartridge = CartridgeImage::new(rom)?;
+        let memory =
+            SmsMemory::with_bios_and_sram_size(cartridge, Some(bios), cartridge_sram_size)?;
         let coordinator = SmsTemporalCoordinator::new(master_ticks_per_tstate)?;
         let psg = ScheduledPsg::new(
             SMS_PSG_CLOCK_DOMAIN_ID,

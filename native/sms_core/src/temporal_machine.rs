@@ -384,6 +384,67 @@ impl SmsTemporalMachine {
         })
     }
 
+    /// Construct an SMS temporal machine that boots through a supplied 8 KiB BIOS.
+    ///
+    /// The BIOS runs as ordinary Z80 code on the MachineScheduler. Its actual
+    /// hardware writes establish the state handed to the cartridge.
+    pub fn new_with_hardware_profile_and_bios(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalMachineError> {
+        Self::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            None,
+        )
+    }
+
+    /// Construct an SMS temporal machine with BIOS firmware and explicit cartridge SRAM.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_hardware_profile_and_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalMachineError> {
+        Ok(Self {
+            cpu: Z80MicroSequencer::default(),
+            bus: SmsTemporalBus::new_with_hardware_profile_and_bios_and_sram_size(
+                rom,
+                bios,
+                master_ticks_per_tstate,
+                psg_clock_hz,
+                sample_rate,
+                vdp_profile,
+                territory,
+                cartridge_sram_size,
+            )?,
+            external_int_line: None,
+            instruction_started_at: None,
+            next_internal_cycle_id: 0,
+            pending_internal_cycle_id: None,
+            pending_internal_tstates: None,
+            m1: None,
+            m1_fixture_wait_tstates: None,
+            trace_enabled: false,
+            trace_events: Vec::new(),
+        })
+    }
+
     /// Queue a timestamped external TH transition on the shared machine timeline.
     pub fn schedule_external_th_transition(
         &mut self,
