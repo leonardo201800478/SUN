@@ -16,6 +16,8 @@ pub mod bus;
 pub mod cpu;
 pub mod input;
 pub mod io;
+// Keep the old instruction-boundary implementation only as a regression oracle.
+#[allow(dead_code)]
 #[cfg(test)]
 mod machine;
 pub mod memory;
