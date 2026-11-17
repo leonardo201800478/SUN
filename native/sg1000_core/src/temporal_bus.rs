@@ -473,11 +473,11 @@ impl Sg1000TemporalBus {
         self.vdp.set_sprite_limit_enabled(enabled);
     }
 
-    pub const fn sprite_limit_enabled(&self) -> bool {
+    pub fn sprite_limit_enabled(&self) -> bool {
         self.vdp.sprite_limit_enabled()
     }
 
-    pub const fn frame_number(&self) -> u64 {
+    pub fn frame_number(&self) -> u64 {
         self.vdp.frame_number()
     }
 
