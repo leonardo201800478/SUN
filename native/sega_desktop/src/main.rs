@@ -34,11 +34,11 @@ mod windows_host {
         SmsRegionPreference, resolve_sms_region,
     };
     use sega_save_runtime::SaveRamStore;
+    use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_sms_core::ControllerButtons;
     use sega_sms_runtime::{
-        AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SmsVdpRevision, SpriteLimitMode,
+        AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SmsVdpRevision,
     };
-    use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
     use std::os::windows::process::CommandExt;
     use zip::ZipArchive;
@@ -3239,9 +3239,7 @@ mod windows_host {
         dsp_config: AnalogOutputConfig,
     ) {
         if video_only_capture_enabled() {
-            eprintln!(
-                "R3_AUDIO skipped for SG-1000: SEGA_EMULATOR_VIDEO_ONLY enabled"
-            );
+            eprintln!("R3_AUDIO skipped for SG-1000: SEGA_EMULATOR_VIDEO_ONLY enabled");
             return;
         }
         const BUFFER_FRAMES: u32 = 512;
@@ -3263,7 +3261,9 @@ mod windows_host {
             },
         );
         if let Err(error) = result {
-            eprintln!("R3_AUDIO SG-1000 CPAL unavailable; continuing without physical audio: {error}");
+            eprintln!(
+                "R3_AUDIO SG-1000 CPAL unavailable; continuing without physical audio: {error}"
+            );
         }
     }
 
@@ -3283,10 +3283,7 @@ mod windows_host {
             }
             DesktopSystem::Sms1 | DesktopSystem::Sms2 => {
                 let (worker, save_context) = create_sms_worker(rom, settings, save_store)?;
-                Ok((
-                    DesktopSession::Sms { worker, system },
-                    save_context,
-                ))
+                Ok((DesktopSession::Sms { worker, system }, save_context))
             }
         }
     }
@@ -4113,11 +4110,6 @@ mod windows_host {
             ) {
                 Ok(()) => {
                     *open_gamepad_state.borrow_mut() = [ControllerButtons::default(); 2];
-                    let sprite_mode = if sprite_limit_enabled {
-                        SpriteLimitMode::HardwareLimit
-                    } else {
-                        SpriteLimitMode::UnlockedCompatibility
-                    };
                     let start_result = open_worker.borrow().as_ref().map(|worker| {
                         worker
                             .set_sprite_limit_enabled(sprite_limit_enabled)
@@ -4724,11 +4716,6 @@ mod windows_host {
         let sprite_worker = Rc::clone(&worker);
         let sprite_app = app.as_weak();
         app.on_sprite_limit_toggle_requested(move |enabled| {
-            let mode = if enabled {
-                SpriteLimitMode::HardwareLimit
-            } else {
-                SpriteLimitMode::UnlockedCompatibility
-            };
             if let Some(worker) = sprite_worker.borrow().as_ref()
                 && let Err(error) = worker.set_sprite_limit_enabled(enabled)
             {
@@ -4826,7 +4813,8 @@ mod windows_host {
             if let Err(error) = active_worker.pause() {
                 eprintln!("SRAM_SAVE pause_before_exit_failed error={error}");
             }
-            if let Err(error) = persist_desktop_session_sram(&active_worker, save_context.borrow().as_ref())
+            if let Err(error) =
+                persist_desktop_session_sram(&active_worker, save_context.borrow().as_ref())
             {
                 final_save_error = Some(error);
             }
