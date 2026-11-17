@@ -4122,6 +4122,9 @@ mod windows_host {
                 return;
             };
             let path = PathBuf::from(directory.as_str());
+            // Every request supersedes older scans, including an invalid directory request.
+            let generation = firmware_scan_generation.fetch_add(1, Ordering::AcqRel) + 1;
+            let generation_state = Arc::clone(&firmware_scan_generation);
             if !path.is_dir() {
                 app.set_firmware_scan_status(
                     "O diretório informado não existe ou não está acessível.".into(),
@@ -4129,8 +4132,6 @@ mod windows_host {
                 return;
             }
             let system = app.get_selected_system().to_string();
-            let generation = firmware_scan_generation.fetch_add(1, Ordering::AcqRel) + 1;
-            let generation_state = Arc::clone(&firmware_scan_generation);
             let selected = [
                 app.get_firmware_brazil_selected().to_string(),
                 app.get_firmware_usa_selected().to_string(),
