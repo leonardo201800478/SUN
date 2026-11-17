@@ -604,11 +604,11 @@ mod windows_host {
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 720px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 260px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 230px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 720px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             Text { font-size: 12px; text: "Modelo de hardware para a próxima ROM"; color: #f2f5f7; }
@@ -669,84 +669,111 @@ mod windows_host {
                             Text { font-size: 12px; text: "Ajuste aplicado na área de apresentação; o frame original do VDP permanece 256×192."; color: #9baab6; }
                         }
                         if root.active-menu == "audio": VerticalLayout {
-                            Text { font-size: 14px; text: "Saída de áudio"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: "Backend: CPAL 0.18.2 | dispositivo padrão do Windows"; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Volume mestre: \\{round(root.audio-volume)}%"; color: #f2f5f7; }
-                            Slider { minimum: 0; maximum: 100; step: 1; value <=> root.audio-volume; released(value) => { root.audio-volume-changed(value); } }
-                            HorizontalLayout {
-                                spacing: 5px;
-                                CompactButton { text: root.audio-muted ? "Ativar áudio" : "Silenciar"; clicked => { root.audio-muted = !root.audio-muted; root.audio-mute-changed(root.audio-muted); } }
-                                CompactButton { text: "Volume 50%"; clicked => { root.audio-volume = 50; root.audio-volume-changed(50); } }
-                                CompactButton { text: "Volume 70%"; clicked => { root.audio-volume = 70; root.audio-volume-changed(70); } }
-                            }
-                            Text { font-size: 14px; text: "Reconstrução digital do PSG"; color: #f2f5f7; }
-                            HorizontalLayout {
-                                spacing: 5px;
-                                CompactButton {
-                                    text: root.audio-renderer-mode == "psg" ? "PSG — padrão ✓" : "PSG — padrão";
-                                    clicked => {
-                                        root.audio-renderer-mode = "psg";
-                                        root.audio-renderer-changed("psg");
+                            spacing: 10px;
+                            Text { font-size: 18px; text: "Áudio"; color: #f2f5f7; }
+                            Text { font-size: 11px; text: "Configurações de áudio do sistema emulado"; color: #9baab6; }
+                            Rectangle {
+                                height: 132px; background: #243443; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 10px; spacing: 7px;
+                                    Text { font-size: 14px; text: "VOLUME GERAL"; color: #8bd5ca; }
+                                    HorizontalLayout {
+                                        Text { font-size: 12px; text: "Volume mestre"; color: #f2f5f7; }
+                                        Text { font-size: 12px; text: "\\{round(root.audio-volume)}%"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
                                     }
-                                }
-                                CompactButton {
-                                    text: root.audio-renderer-mode == "h2-experimental" ? "H2 — experimental ✓" : "H2 — experimental";
-                                    clicked => {
-                                        root.audio-renderer-mode = "h2-experimental";
-                                        root.audio-renderer-changed("h2-experimental");
+                                    Slider { minimum: 0; maximum: 100; step: 1; value <=> root.audio-volume; released(value) => { root.audio-volume-changed(value); } }
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        CompactButton { text: root.audio-muted ? "Ativar áudio" : "Silenciar"; clicked => { root.audio-muted = !root.audio-muted; root.audio-mute-changed(root.audio-muted); } }
+                                        CompactButton { text: "50%"; clicked => { root.audio-volume = 50; root.audio-volume-changed(50); } }
+                                        CompactButton { text: "70%"; clicked => { root.audio-volume = 70; root.audio-volume-changed(70); } }
                                     }
                                 }
                             }
-                            Text {
-                                font-size: 11px;
-                                text: root.audio-renderer-mode == "h2-experimental"
-                                    ? "H2 reconstrói transições do mesmo SN76489. Recurso experimental; em caso de falha o worker retorna ao PSG."
-                                    : "PSG usa o renderer SN76489 validado e permanece como opção padrão.";
-                                color: #d6b879; wrap: word-wrap;
-                            }
-                            Text { font-size: 14px; text: "Processamento DSP"; color: #f2f5f7; }
-                            CheckBox {
-                                text: "Preset SMS1 — experimental";
-                                checked <=> root.audio-dsp-preset;
-                                toggled => {
-                                    if (self.checked) {
-                                        root.audio-hpf-enabled = true; root.audio-hpf-cutoff = 20;
-                                        root.audio-lpf-enabled = true; root.audio-lpf-cutoff = 18000;
-                                    } else {
-                                        root.audio-hpf-enabled = false; root.audio-lpf-enabled = false;
+                            Rectangle {
+                                height: 150px; background: #243443; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 10px; spacing: 7px;
+                                    Text { font-size: 14px; text: "RENDERIZAÇÃO PSG"; color: #8bd5ca; }
+                                    Text { font-size: 11px; text: "Selecione o renderer digital do SN76489."; color: #b9c5ce; }
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        CompactButton {
+                                            text: root.audio-renderer-mode == "psg" ? "✓ PSG padrão" : "PSG padrão";
+                                            clicked => { root.audio-renderer-mode = "psg"; root.audio-renderer-changed("psg"); }
+                                        }
+                                        CompactButton {
+                                            text: root.audio-renderer-mode == "h2-experimental" ? "✓ H2 experimental" : "H2 experimental";
+                                            clicked => { root.audio-renderer-mode = "h2-experimental"; root.audio-renderer-changed("h2-experimental"); }
+                                        }
                                     }
-                                    root.audio-dsp-changed(self.checked, root.audio-hpf-enabled, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff);
+                                    Text {
+                                        font-size: 11px;
+                                        text: root.audio-renderer-mode == "h2-experimental"
+                                            ? "H2 reconstrói transições do mesmo SN76489. Experimental; em caso de falha o worker retorna ao PSG."
+                                            : "PSG utiliza o renderer SN76489 validado e permanece como padrão.";
+                                        color: #d6b879; wrap: word-wrap;
+                                    }
                                 }
                             }
-                            Text { font-size: 11px; text: "Aproximação ajustável do estágio analógico de saída; não é uma reprodução elétrica calibrada de uma revisão específica da placa."; color: #d6b879; wrap: word-wrap; }
-                            CheckBox {
-                                text: "Filtro passa-altas / acoplamento AC";
-                                checked <=> root.audio-hpf-enabled;
-                                toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, self.checked, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                            Rectangle {
+                                height: 340px; background: #243443; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 10px; spacing: 7px;
+                                    Text { font-size: 14px; text: "DSP / ESTÁGIO ANALÓGICO"; color: #8bd5ca; }
+                                    CheckBox {
+                                        text: "Preset SMS1 — experimental"; checked <=> root.audio-dsp-preset;
+                                        toggled => {
+                                            if (self.checked) {
+                                                root.audio-hpf-enabled = true; root.audio-hpf-cutoff = 20;
+                                                root.audio-lpf-enabled = true; root.audio-lpf-cutoff = 18000;
+                                            } else { root.audio-hpf-enabled = false; root.audio-lpf-enabled = false; }
+                                            root.audio-dsp-changed(self.checked, root.audio-hpf-enabled, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff);
+                                        }
+                                    }
+                                    Text { font-size: 10px; text: "Aproximação ajustável; não representa calibração elétrica de uma revisão específica da placa."; color: #d6b879; wrap: word-wrap; }
+                                    CheckBox {
+                                        text: "Passa-altas / acoplamento AC"; checked <=> root.audio-hpf-enabled;
+                                        toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, self.checked, root.audio-hpf-cutoff, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                                    }
+                                    HorizontalLayout {
+                                        Text { font-size: 11px; text: "Corte HPF"; color: #b9c5ce; }
+                                        Text { font-size: 11px; text: "\\{round(root.audio-hpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    Slider {
+                                        minimum: 5; maximum: 500; step: 5; value <=> root.audio-hpf-cutoff; enabled: root.audio-hpf-enabled;
+                                        released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, value, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                                    }
+                                    CheckBox {
+                                        text: "Passa-baixas"; checked <=> root.audio-lpf-enabled;
+                                        toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-hpf-cutoff, self.checked, root.audio-lpf-cutoff); }
+                                    }
+                                    HorizontalLayout {
+                                        Text { font-size: 11px; text: "Corte LPF"; color: #b9c5ce; }
+                                        Text { font-size: 11px; text: "\\{round(root.audio-lpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    Slider {
+                                        minimum: 4000; maximum: 20000; step: 250; value <=> root.audio-lpf-cutoff; enabled: root.audio-lpf-enabled;
+                                        released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                                    }
+                                    CompactButton {
+                                        text: "Desativar todos os filtros";
+                                        clicked => { root.audio-dsp-preset = false; root.audio-hpf-enabled = false; root.audio-lpf-enabled = false; root.audio-dsp-changed(false, false, root.audio-hpf-cutoff, false, root.audio-lpf-cutoff); }
+                                    }
+                                }
                             }
-                            Text { font-size: 11px; text: "Corte HPF: \\{round(root.audio-hpf-cutoff)} Hz"; color: #b9c5ce; }
-                            Slider {
-                                minimum: 5; maximum: 500; step: 5; value <=> root.audio-hpf-cutoff;
-                                enabled: root.audio-hpf-enabled;
-                                released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, value, root.audio-lpf-enabled, root.audio-lpf-cutoff); }
+                            Rectangle {
+                                height: 62px; background: #1d2b37; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 8px; spacing: 4px;
+                                    Text { font-size: 11px; text: root.audio-status; color: #8bd5ca; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "Filtros no worker, após o mixer e antes do reamostrador. Estado contínuo entre blocos; sem alteração no PSG, Scheduler ou clocks."; color: #9baab6; wrap: word-wrap; }
+                                }
                             }
-                            CheckBox {
-                                text: "Filtro passa-baixas";
-                                checked <=> root.audio-lpf-enabled;
-                                toggled => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-hpf-cutoff, self.checked, root.audio-lpf-cutoff); }
-                            }
-                            Text { font-size: 11px; text: "Corte LPF: \\{round(root.audio-lpf-cutoff)} Hz"; color: #b9c5ce; }
-                            Slider {
-                                minimum: 4000; maximum: 20000; step: 250; value <=> root.audio-lpf-cutoff;
-                                enabled: root.audio-lpf-enabled;
-                                released(value) => { root.audio-dsp-preset = false; root.audio-dsp-changed(false, root.audio-hpf-enabled, root.audio-hpf-cutoff, root.audio-lpf-enabled, value); }
-                            }
-                            CompactButton {
-                                text: "Desativar todos os filtros";
-                                clicked => { root.audio-dsp-preset = false; root.audio-hpf-enabled = false; root.audio-lpf-enabled = false; root.audio-dsp-changed(false, false, root.audio-hpf-cutoff, false, root.audio-lpf-cutoff); }
-                            }
-                            Text { font-size: 12px; text: root.audio-status; color: #8bd5ca; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Filtros no worker, após o mixer e antes do reamostrador. Estado contínuo entre blocos; sem alteração no PSG, Scheduler ou clocks."; color: #9baab6; wrap: word-wrap; }
                         }
                         if root.active-menu == "controls": VerticalLayout {
                             Text { font-size: 12px; text: "Teclado — ativo"; color: #8bd5ca; }
