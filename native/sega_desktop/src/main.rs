@@ -3257,6 +3257,20 @@ mod windows_host {
         Ok(())
     }
 
+    /// Persists SRAM only for an SMS session; SG-1000 has no SMS cartridge SRAM contract.
+    fn persist_desktop_session_sram(
+        session: &DesktopSession,
+        context: Option<&CartridgeSaveContext>,
+    ) -> Result<(), String> {
+        match session {
+            DesktopSession::Sms { worker, .. } => persist_worker_sram(worker, context),
+            DesktopSession::Sg1000(_) if context.is_none() => Ok(()),
+            DesktopSession::Sg1000(_) => {
+                Err("SG-1000 session cannot own an SMS SRAM persistence context".to_owned())
+            }
+        }
+    }
+
     /// Substitui a máquina sem permitir dois produtores simultâneos no FrameMailbox.
     fn replace_sms_worker(
         path: &PathBuf,
@@ -3267,7 +3281,11 @@ mod windows_host {
         settings: &SmsWorkerSettings,
     ) -> Result<(), String> {
         let rom = read_rom_image(path)?;
-        let (next, next_save_context) = create_sms_worker(rom, settings, save_store)?;
+        let (next_worker, next_save_context) = create_sms_worker(rom, settings, save_store)?;
+        let next = DesktopSession::Sms {
+            worker: next_worker,
+            system: DesktopSystem::from_id(&settings.sms_system)?,
+        };
 
         let previous = worker_slot.borrow_mut().take();
         if let Some(previous) = previous {
@@ -3277,7 +3295,7 @@ mod windows_host {
                 return Err(error);
             }
             let previous_context = save_context_slot.borrow().clone();
-            if let Err(error) = persist_worker_sram(&previous, previous_context.as_ref()) {
+            if let Err(error) = persist_desktop_session_sram(&previous, previous_context.as_ref()) {
                 if was_running {
                     let _ = previous.start();
                 }
@@ -4251,7 +4269,7 @@ mod windows_host {
                     return;
                 }
                 if let Err(error) =
-                    persist_worker_sram(&previous, close_save_context.borrow().as_ref())
+                    persist_desktop_session_sram(&previous, close_save_context.borrow().as_ref())
                 {
                     if was_running {
                         let _ = previous.start();
@@ -4297,7 +4315,7 @@ mod windows_host {
                     return;
                 }
                 if let Err(error) =
-                    persist_worker_sram(active_worker, exit_save_context.borrow().as_ref())
+                    persist_desktop_session_sram(active_worker, exit_save_context.borrow().as_ref())
                 {
                     if was_running {
                         let _ = active_worker.start();
@@ -4741,7 +4759,7 @@ mod windows_host {
             if let Err(error) = active_worker.pause() {
                 eprintln!("SRAM_SAVE pause_before_exit_failed error={error}");
             }
-            if let Err(error) = persist_worker_sram(&active_worker, save_context.borrow().as_ref())
+            if let Err(error) = persist_desktop_session_sram(&active_worker, save_context.borrow().as_ref())
             {
                 final_save_error = Some(error);
             }
