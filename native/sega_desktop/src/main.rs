@@ -5076,8 +5076,13 @@ mod windows_host {
         }
 
         #[test]
-        fn sg1000_dsp_configuration_does_not_inherit_sms1_experimental_preset() {
-            let preferences = DesktopPreferences::default();
+        fn sg1000_dsp_configuration_is_independent_from_sms1_experimental_preset() {
+            let mut preferences = DesktopPreferences::default();
+            preferences.sg1000_audio_hpf_enabled = true;
+            preferences.sg1000_audio_hpf_cutoff_hz = 35;
+            preferences.sg1000_audio_lpf_enabled = true;
+            preferences.sg1000_audio_lpf_cutoff_hz = 12_000;
+
             let config = audio_dsp_config(
                 false,
                 preferences.sg1000_audio_hpf_enabled,
@@ -5086,9 +5091,12 @@ mod windows_host {
                 f64::from(preferences.sg1000_audio_lpf_cutoff_hz),
             );
 
-            assert!(!config.enabled);
-            assert_eq!(config.high_pass_hz, None);
-            assert_eq!(config.low_pass_hz, None);
+            assert!(config.enabled);
+            assert_eq!(config.high_pass_hz, Some(35.0));
+            assert_eq!(config.low_pass_hz, Some(12_000.0));
+            assert!(!preferences.audio_dsp_preset);
+            assert!(!preferences.audio_hpf_enabled);
+            assert!(!preferences.audio_lpf_enabled);
         }
 
         #[test]
