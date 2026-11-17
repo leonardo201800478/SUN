@@ -624,19 +624,19 @@ Fontes de código auditadas:
 
 ### 15. Errata M2 — reconciliação com o main de 2026-11-17
 
-A seção 14.10 permanece preservada como snapshot histórico do SHA \`c65594cf840090bad6036810a0df98f22b9d1484\`. Ela **não deve ser usada isoladamente como decisão de implementação**. A auditoria atual, baseada no main \`b82e0df4c9840b2cd59f090278b907cbb321869f\`, está em [\`docs/audits/ym2413-pre-implementation-audit-2026-11-17.md\`](../audits/ym2413-pre-implementation-audit-2026-11-17.md) e corrige os pontos abaixo:
+A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf840090bad6036810a0df98f22b9d1484`. Ela **não deve ser usada isoladamente como decisão de implementação**. A auditoria atual, baseada no main `b82e0df4c9840b2cd59f090278b907cbb321869f`, está em [`docs/audits/ym2413-pre-implementation-audit-2026-11-17.md`](../audits/ym2413-pre-implementation-audit-2026-11-17.md) e corrige os pontos abaixo:
 
-1. **Clock compartilhado: decisão suspensa.** O worker SMS ativo usa \`SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE = 1\`; o tick lógico é um T-state Z80, não um tick de 10,738635 MHz. O domínio PSG tem razão 1/1 nessa linha do tempo. O manual Yamaha especifica um oscilador de 3,579545 MHz em XIN/XOUT; MAME modela o YM2413 japonês com XTAL(10,738,635)/3. Isso corrobora frequência nominal, mas não prova fonte elétrica/fase comum em todas as placas. A decisão de consumir o mesmo \`ClockAdvance\` do PSG só será fechada após FM-A01.
+1. **Clock compartilhado: decisão suspensa.** O worker SMS ativo usa `SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE = 1`; o tick lógico é um T-state Z80, não um tick de 10,738635 MHz. O domínio PSG tem razão 1/1 nessa linha do tempo. O manual Yamaha especifica um oscilador de 3,579545 MHz em XIN/XOUT; MAME modela o YM2413 japonês com XTAL(10,738,635)/3. Isso corrobora frequência nominal, mas não prova fonte elétrica/fase comum em todas as placas. A decisão de consumir o mesmo `ClockAdvance` do PSG só será fechada após FM-A01.
 
-2. **Taxa do resampler: correção.** O caminho ativo não está fixado em 44.100 Hz. \`DEFAULT_PCM_SOURCE_RATE_HZ\` é 48.000 Hz e \`PcmResampler::new\` recebe taxas explícitas de entrada e saída. O worker SMS usa 48 kHz como taxa PCM interna; a saída host é negociada separadamente.
+2. **Taxa do resampler: correção.** O caminho ativo não está fixado em 44.100 Hz. `DEFAULT_PCM_SOURCE_RATE_HZ` é 48.000 Hz e `PcmResampler::new` recebe taxas explícitas de entrada e saída. O worker SMS usa 48 kHz como taxa PCM interna; a saída host é negociada separadamente.
 
-3. **Mixer e sessão: estado atual.** \`AudioMixer\` suporta múltiplas \`MixSource\` alinhadas, mas \`AudioSession\`/\`NativeAudioSession\` continuam expondo uma única fonte mono por chamada. O FM exige uma API multi-source na sessão ou uma abstração equivalente; duas chamadas separadas não misturam PSG e FM.
+3. **Mixer e sessão: estado atual.** `AudioMixer` suporta múltiplas `MixSource` alinhadas, mas `AudioSession`/`NativeAudioSession` continuam expondo uma única fonte mono por chamada. O FM exige uma API multi-source na sessão ou uma abstração equivalente; duas chamadas separadas não misturam PSG e FM.
 
-4. **Portas japonesas: ausentes no runtime.** $F0/$F1/$F2 não são implementados em \`SmsTemporalBus\`/\`SmsIo\`; $F2 atualmente retorna o valor genérico $FF. O contador C-Sync necessário ao readback de $F2 também não foi localizado como evento no VDP/runtime.
+4. **Portas japonesas: ausentes no runtime.** $F0/$F1/$F2 não são implementados em `SmsTemporalBus`/`SmsIo`; $F2 atualmente retorna o valor genérico $FF. O contador C-Sync necessário ao readback de $F2 também não foi localizado como evento no VDP/runtime.
 
 5. **Decode de $3E/$3F: perfil específico necessário.** O caminho SMS atual aceita espelhamento de controle por paridade no intervalo baixo. As medições de Japanese SMS consultadas indicam mapeamento somente nos endereços exatos $3E/$3F. O perfil japonês precisa de decode próprio, sem alterar regressivamente SMS1/SMS2 export.
 
-6. **Perfil de placa e compatibilidade: ausentes.** \`Territory\` e revisão de VDP não identificam por si sós a presença do YM2413. \`DesktopSystem\` não possui variante Japanese SMS integrada com FM; as preferências não possuem \`FmMode\` e não há catálogo por título/revisão/hash no runtime.
+6. **Perfil de placa e compatibilidade: ausentes.** `Territory` e revisão de VDP não identificam por si sós a presença do YM2413. `DesktopSystem` não possui variante Japanese SMS integrada com FM; as preferências não possuem `FmMode` e não há catálogo por título/revisão/hash no runtime.
 
 7. **Saída e taxa de amostragem.** A taxa aproximada de 49,716 kHz deriva de 72 clocks por rotação. A saída MO/RO é multiplexada e o valor de cada canal permanece ativo por uma janela curta antes de retornar ao neutro; o modelo deve preservar as duas saídas e não tratá-las como uma fonte mono já normalizada. A rede analógica da placa SMS continua pendente.
 
