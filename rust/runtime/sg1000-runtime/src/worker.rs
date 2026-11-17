@@ -1037,6 +1037,13 @@ mod tests {
                 })
                 .unwrap();
 
+            assert_eq!(
+                worker.audio_output_metrics().sample_rate_hz,
+                DEFAULT_PCM_SOURCE_RATE_HZ
+            );
+            assert!(worker.audio_output_error().is_none());
+            assert!(worker.runtime_error().is_none());
+
             // A debugger frame step advances the same DSP path but must not
             // submit PCM to the suspended physical sink.
             worker.step_frame(20_000).unwrap();
@@ -1045,6 +1052,8 @@ mod tests {
             worker.start().unwrap();
             worker.pause().unwrap();
             assert!(!worker.is_running());
+            worker.close_audio_output().unwrap();
+            assert_eq!(worker.audio_output_metrics(), AudioOutputMetrics::default());
         }
 
         assert_ne!(factory_thread.lock().unwrap().unwrap(), caller_thread);
