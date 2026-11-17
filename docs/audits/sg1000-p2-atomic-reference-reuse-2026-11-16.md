@@ -101,3 +101,31 @@ No HEAD de código `17dd9ca`, os jobs **Change impact classification**, **Rust w
 ### Próxima fatia P2.2
 
 Integrar o próprio `Sg1000Machine` ao barramento e coordenador acima, usando o `Z80MicroSequencer` compartilhado e a continuação M1 reutilizável do Z80. Remover a execução atômica por instrução do caminho temporal final sem descartar o core funcional legado como oráculo seletivo. A integração deve tratar BusRequest, PortRead/PortWrite, ciclos internos, acknowledge, HALT/INT/NMI e a linha de interrupção do VDP, além de preservar a API de host necessária ao desktop atual. O snapshot de máquina deverá compor CPU, M1/continuação, Scheduler, memória, IO, VDP e PSG. Nenhuma GUI, CPU, Scheduler, worker ou pipeline paralelo deve ser criado.
+
+
+## Reconciliação live após a integração documental #982 — 2026-11-16
+
+**Main atual:** `bceda909d21f7805c33ae5c4f1a24fc1cdd73b1e`, merge da PR #982 (somente documentação), cujo pai é `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
+
+**PR #981 atual:** HEAD `a69312cafad08d855709ea44841dc0fb1705e2b1`; base registrada `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`; compare atualizado `main...HEAD`: 15 commits à frente / 1 atrás, merge-base `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`. GitHub informa `mergeable=true`, mas `mergeable_state=behind`. A branch ainda precisa incorporar a atualização documental #982 e receber nova validação no estado reconciliado. O CI abaixo é evidência do HEAD exato, mas foi executado antes de #982 avançar a main.
+
+### CI do HEAD atual da PR
+
+Workflow [#43977932262](https://github.com/leonardo201800478/sega-emulator/actions/runs/43977932262), evento `pull_request`, SHA `a69312cafad08d855709ea44841dc0fb1705e2b1`, conclusão SUCCESS.
+
+**PASS:** Change impact classification; Documentation patch hygiene; SMS1 VDP core and machine integration validation; Rust workspace regression; Z80 focused validation; Scheduler deterministic stress; Rust quality and unit regression.
+
+**SKIPPED / NOT RUN:** Windows Slint/WGPU/Vulkan; lockfile artifact; PSG standalone; SMS frame-pacing ROM; workflow validation; CPAL; Input standalone; PowerShell; SDL3. Não houve job SMS2 separado; a evidência SMS2 nesta fatia é a regressão do workspace. Os jobs SKIPPED não são PASS.
+
+A main pós-#982 teve workflow push [#43979603717](https://github.com/leonardo201800478/sega-emulator/actions/runs/43979603717): change impact, documentação e Rust quality/unit PASS; runtime, Z80, Scheduler, SMS1, PSG, CPAL, SDL3 e demais jobs de código SKIPPED. Esse push não substitui a revalidação da PR #981 sobre a base atualizada.
+
+### Estado de revisão e limites
+
+- Reviews submetidas e review threads na PR #981: nenhuma.
+- O candidato amplia `Sg1000TemporalCoordinator` e `Sg1000TemporalBus`, mas não integra o `Z80MicroSequencer` ao `Sg1000Machine`. A máquina principal continua executando `cpu.step()` e avançando VDP/PSG nas fronteiras de instrução.
+- O perfil padrão CPU/PSG é provisório; o domínio VDP está expresso em T-states do modelo TMS9918A. Não são evidência de clock físico de placa, fetch/pixel timing ou WAIT físico.
+- O snapshot do barramento valida coerência dos clocks e transações; ainda é necessário demonstrar restore/replay de PortRead e PortWrite pendentes antes do deadline, side effects exatamente uma vez após restore e equivalência contínua/em blocos com I/O.
+
+### Próxima fatia P2.2 — critério de aceite
+
+Evoluir o próprio `Sg1000Machine`, sem criar outra máquina/runtime: consumir o `Z80MicroSequencer` compartilhado; agendar M1 T1/T2/WAIT/T3/T4 e ciclos internos; consumir BusRequest/PortRead/PortWrite/acknowledge no deadline; sincronizar IRQ do TMS9918A em cada evento; preservar HALT/INT/NMI e retomada; compor snapshot CPU + continuação + Scheduler + memória + I/O + VDP + PSG; testar restore em safe points e replay; comparar execução contínua/em blocos; preservar o core legado como oráculo seletivo. Revalidar SMS1/SMS2, SG-1000, Z80 e Scheduler no mesmo SHA. Somente executar gates desktop/CPAL/SDL3 quando o diff tocar seus contratos compartilhados.
