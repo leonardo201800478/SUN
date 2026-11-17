@@ -645,20 +645,44 @@ impl Sg1000TemporalWorker {
         rom: Vec<u8>,
         memory_config: MemoryConfig,
     ) -> Result<Self, String> {
-        let state = WorkerState::new(rom, memory_config)?;
         let (commands, receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
+        let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
         let telemetry = Arc::new(WorkerTelemetry::default());
         let worker_telemetry = Arc::clone(&telemetry);
         let worker = thread::Builder::new()
             .name("sg1000-temporal-worker".to_owned())
-            .spawn(move || worker_loop(state, receiver, worker_telemetry))
+            .spawn(move || {
+                // Construct the machine and its non-Send host audio slot on the
+                // owning thread. Only ROM/configuration and channel handles
+                // cross the thread boundary.
+                match WorkerState::new(rom, memory_config) {
+                    Ok(state) => {
+                        worker_telemetry.update_machine(&state.machine, 0);
+                        let _ = ready_sender.send(Ok(()));
+                        worker_loop(state, receiver, worker_telemetry);
+                    }
+                    Err(error) => {
+                        let _ = ready_sender.send(Err(error));
+                    }
+                }
+            })
             .map_err(|error| format!("could not start SG-1000 worker thread: {error}"))?;
 
-        Ok(Self {
-            commands,
-            worker: Some(worker),
-            telemetry,
-        })
+        match receive_reply(
+            ready_receiver,
+            "initializing the SG-1000 machine",
+            WORKER_REPLY_TIMEOUT,
+        )? {
+            Ok(()) => Ok(Self {
+                commands,
+                worker: Some(worker),
+                telemetry,
+            }),
+            Err(error) => {
+                let _ = worker.join();
+                Err(error)
+            }
+        }
     }
 
     fn request_unit(
