@@ -693,7 +693,7 @@ mod windows_host {
             x: (root.active-menu == "firmware" || root.active-menu == "video" || root.active-menu == "controls" || root.active-menu == "system" || root.active-menu == "file" || root.active-menu == "options" || root.active-menu == "debug") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "audio" ? 207px : 8px, 8px), parent.width - self.width - 8px);
             y: 88px;
             width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "controls" ? 680px : root.active-menu == "system" ? 760px : root.active-menu == "file" ? 720px : root.active-menu == "options" || root.active-menu == "debug" ? 640px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 560px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 360px : root.active-menu == "system" ? 660px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 480px : 180px);
+            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 560px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 400px : root.active-menu == "system" ? 660px : root.active-menu == "debug" ? 400px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
             border-color: #344154; min-height: 120px; max-height: 680px; max-width: 1048px;
@@ -3559,7 +3559,7 @@ mod windows_host {
                 _ => { app.set_keyboard_capture_status("Ação de remapeamento desconhecida.".into()); app.set_keyboard_capture_action("".into()); return; }
             }
             app.set_keyboard_capture_action("".into());
-            app.set_keyboard_capture_status("Tecla atualizada e salva nas preferências.".into());
+            app.set_keyboard_capture_status("Tecla atualizada; preferências persistidas.".into());
             app.invoke_preferences_changed();
         });
 
