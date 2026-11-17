@@ -1,9 +1,8 @@
-//! Temporary Rust SG-1000 reference core retained during the SMS-first migration.
+//! Native Rust SG-1000 machine core.
 //!
-//! This instruction-boundary implementation is not an active product runtime.
-//! It remains in the workspace temporarily for regression/reference purposes
-//! and will be retired after the SMS runtime is executable and validated. The
-//! future SG-1000 implementation will reuse the shared Z80 and temporal devices.
+//! The active machine uses the shared Z80 micro-sequencer and MachineScheduler.
+//! The former atomic CPU/ALU/bus/machine path is compiled only under cfg(test)
+//! as a functional regression oracle; it is not part of the product runtime.
 //!
 //! Host controller APIs are normalized at the application boundary; the core
 //! accepts deterministic active-low snapshots without polling SDL or Windows.
