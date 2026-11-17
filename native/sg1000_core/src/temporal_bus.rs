@@ -7,14 +7,17 @@
 use core::fmt;
 
 use crate::{
-    MemoryConfig, MemoryError, Sg1000Memory, Sg1000TemporalCoordinator,
-    Sg1000TemporalCoordinatorError, Sg1000TemporalCoordinatorState, Sg1000TemporalEvent,
+    DEFAULT_SG1000_CPU_CLOCK_HZ, IoError, MemoryConfig, MemoryError, PsgError,
+    SG1000_PSG_CLOCK_DOMAIN_ID, SG1000_VDP_CLOCK_DOMAIN_ID, Sg1000Io, Sg1000Memory,
+    Sg1000TemporalCoordinator, Sg1000TemporalCoordinatorError, Sg1000TemporalCoordinatorState,
+    Sg1000TemporalEvent, Sn76489, Tms9918A,
 };
 use sega_temporal_core::MachineTime;
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
 
-pub const SG1000_TEMPORAL_BUS_STATE_VERSION: u16 = 2;
+pub const SG1000_TEMPORAL_BUS_STATE_VERSION: u16 = 3;
 const DEFAULT_INTERRUPT_VECTOR: u8 = 0xFF;
+const DEFAULT_AUDIO_SAMPLE_RATE: u64 = 48_000;
 
 fn elapsed_tstates(
     started_at: MachineTime,
@@ -57,6 +60,8 @@ fn is_supported_bus_operation(operation: Z80BusOperation) -> bool {
         Z80BusOperation::OpcodeFetch
             | Z80BusOperation::MemoryRead
             | Z80BusOperation::MemoryWrite { .. }
+            | Z80BusOperation::PortRead
+            | Z80BusOperation::PortWrite { .. }
             | Z80BusOperation::InterruptAcknowledge
     )
 }
@@ -84,11 +89,14 @@ pub enum Sg1000TemporalDispatch {
 }
 
 /// Complete in-memory continuation of the temporal memory bus.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Sg1000TemporalBusState {
     pub format_version: u16,
     pub interrupt_vector: u8,
     pub memory: Sg1000Memory,
+    pub io: Sg1000Io,
+    pub vdp: Tms9918A,
+    pub psg: Sn76489,
     pub coordinator: Sg1000TemporalCoordinatorState,
     pub pending_request: Option<Z80BusRequest>,
     pub request_started_at: Option<MachineTime>,
@@ -104,6 +112,7 @@ pub struct Sg1000TemporalBusState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Sg1000TemporalBusError {
     Memory(MemoryError),
+    Audio(PsgError),
     Coordinator(Sg1000TemporalCoordinatorError),
     Busy,
     NoPendingRequest,
@@ -116,6 +125,7 @@ impl fmt::Display for Sg1000TemporalBusError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Memory(error) => write!(f, "SG-1000 memory initialization failed: {error}"),
+            Self::Audio(error) => write!(f, "SG-1000 PSG initialization failed: {error}"),
             Self::Coordinator(error) => write!(f, "SG-1000 temporal coordinator failed: {error}"),
             Self::Busy => f.write_str("SG-1000 temporal bus already owns an unacknowledged event"),
             Self::NoPendingRequest => f.write_str("SG-1000 temporal bus has no pending request"),
@@ -123,9 +133,7 @@ impl fmt::Display for Sg1000TemporalBusError {
                 f,
                 "SG-1000 temporal bus expected request {expected}, received {received}"
             ),
-            Self::UnsupportedOperation => {
-                f.write_str("this SG-1000 temporal bus slice supports memory cycles only")
-            }
+            Self::UnsupportedOperation => f.write_str("unsupported SG-1000 temporal bus operation"),
             Self::InvalidState => f.write_str("SG-1000 temporal bus snapshot is inconsistent"),
         }
     }
@@ -139,6 +147,12 @@ impl From<MemoryError> for Sg1000TemporalBusError {
     }
 }
 
+impl From<PsgError> for Sg1000TemporalBusError {
+    fn from(error: PsgError) -> Self {
+        Self::Audio(error)
+    }
+}
+
 impl From<Sg1000TemporalCoordinatorError> for Sg1000TemporalBusError {
     fn from(error: Sg1000TemporalCoordinatorError) -> Self {
         Self::Coordinator(error)
@@ -149,6 +163,9 @@ impl From<Sg1000TemporalCoordinatorError> for Sg1000TemporalBusError {
 #[derive(Debug, Clone)]
 pub struct Sg1000TemporalBus {
     memory: Sg1000Memory,
+    io: Sg1000Io,
+    vdp: Tms9918A,
+    psg: Sn76489,
     coordinator: Sg1000TemporalCoordinator,
     pending_request: Option<Z80BusRequest>,
     request_started_at: Option<MachineTime>,
@@ -162,17 +179,50 @@ pub struct Sg1000TemporalBus {
 }
 
 impl Sg1000TemporalBus {
-    /// Construct the memory bus with an explicit profile and time scale.
+    /// Construct the temporal bus with the provisional default SG-1000 PSG profile.
     pub fn new(
         rom: impl Into<Vec<u8>>,
         memory_config: MemoryConfig,
         master_ticks_per_tstate: u64,
     ) -> Result<Self, Sg1000TemporalBusError> {
+        Self::new_with_audio(
+            rom,
+            memory_config,
+            master_ticks_per_tstate,
+            DEFAULT_SG1000_CPU_CLOCK_HZ,
+            DEFAULT_SG1000_CPU_CLOCK_HZ,
+            DEFAULT_AUDIO_SAMPLE_RATE,
+        )
+    }
+
+    /// Construct the temporal bus with explicit CPU/PSG oscillator frequencies and PCM rate.
+    ///
+    /// The oscillator values are configuration inputs. The default profile is provisional
+    /// and is not a claim of board-level clock fidelity. PSG progression uses the exact
+    /// rational PSG/CPU ratio registered with the MachineScheduler.
+    pub fn new_with_audio(
+        rom: impl Into<Vec<u8>>,
+        memory_config: MemoryConfig,
+        master_ticks_per_tstate: u64,
+        cpu_clock_hz: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+    ) -> Result<Self, Sg1000TemporalBusError> {
         let rom = rom.into();
         let memory = Sg1000Memory::new(&rom, memory_config)?;
-        let coordinator = Sg1000TemporalCoordinator::new(master_ticks_per_tstate)?;
+        let io = Sg1000Io::default();
+        let vdp = Tms9918A::new();
+        let psg = Sn76489::new(psg_clock_hz, sample_rate)?;
+        let coordinator = Sg1000TemporalCoordinator::new_with_clock_profile(
+            master_ticks_per_tstate,
+            cpu_clock_hz,
+            psg_clock_hz,
+        )?;
         Ok(Self {
             memory,
+            io,
+            vdp,
+            psg,
             coordinator,
             pending_request: None,
             request_started_at: None,
@@ -243,7 +293,7 @@ impl Sg1000TemporalBus {
         Ok(deadline)
     }
 
-    /// Dispatch the next deadline and apply memory side effects exactly once.
+    /// Dispatch the next deadline and apply bus/peripheral side effects exactly once.
     pub fn dispatch_next(
         &mut self,
     ) -> Result<Option<Sg1000TemporalDispatch>, Sg1000TemporalBusError> {
@@ -258,6 +308,27 @@ impl Sg1000TemporalBus {
         let Some(dispatch) = self.coordinator.dispatch_next()? else {
             return Ok(None);
         };
+        if dispatch.clock_advances.len() != 3 {
+            return Err(Sg1000TemporalBusError::InvalidState);
+        }
+        let psg_advance = dispatch
+            .clock_advances
+            .iter()
+            .find(|advance| advance.domain == SG1000_PSG_CLOCK_DOMAIN_ID)
+            .ok_or(Sg1000TemporalBusError::InvalidState)?;
+        self.psg.advance_clocks(
+            u64::try_from(psg_advance.elapsed_cycles)
+                .map_err(|_| Sg1000TemporalBusError::InvalidState)?,
+        );
+        let vdp_advance = dispatch
+            .clock_advances
+            .iter()
+            .find(|advance| advance.domain == SG1000_VDP_CLOCK_DOMAIN_ID)
+            .ok_or(Sg1000TemporalBusError::InvalidState)?;
+        self.vdp.advance(
+            u64::try_from(vdp_advance.elapsed_cycles)
+                .map_err(|_| Sg1000TemporalBusError::InvalidState)?,
+        );
         match dispatch.event.payload {
             Sg1000TemporalEvent::BusCompletion { request_id } => {
                 let request = self
@@ -282,8 +353,10 @@ impl Sg1000TemporalBus {
                         }
                         None
                     }
-                    Z80BusOperation::PortRead | Z80BusOperation::PortWrite { .. } => {
-                        return Err(Sg1000TemporalBusError::UnsupportedOperation);
+                    Z80BusOperation::PortRead => Some(self.read_port(request.address)),
+                    Z80BusOperation::PortWrite { value } => {
+                        self.write_port(request.address, value, dispatch.event.timestamp)?;
+                        None
                     }
                 };
                 let completion = Sg1000BusCompletion {
@@ -383,6 +456,76 @@ impl Sg1000TemporalBus {
         &self.memory
     }
 
+    pub const fn io(&self) -> &Sg1000Io {
+        &self.io
+    }
+
+    pub const fn vdp(&self) -> &Tms9918A {
+        &self.vdp
+    }
+
+    pub const fn psg(&self) -> &Sn76489 {
+        &self.psg
+    }
+
+    /// Configure the TMS9918A sprite-per-line diagnostic limit.
+    pub fn set_sprite_limit_enabled(&mut self, enabled: bool) {
+        self.vdp.set_sprite_limit_enabled(enabled);
+    }
+
+    pub fn sprite_limit_enabled(&self) -> bool {
+        self.vdp.sprite_limit_enabled()
+    }
+
+    pub fn frame_number(&self) -> u64 {
+        self.vdp.frame_number()
+    }
+
+    pub fn framebuffer(&self) -> &[u8] {
+        self.vdp.framebuffer()
+    }
+
+    /// Update the logical active-low controller snapshot without advancing time.
+    pub fn set_joystick(&mut self, player: u8, value: u8) -> Result<(), IoError> {
+        self.io.set_joystick(player, value)
+    }
+
+    pub fn drain_psg_write_events(&mut self) -> Vec<crate::PsgWriteEvent> {
+        self.io.drain_psg_write_events()
+    }
+
+    pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+        self.psg.drain_samples(max_samples)
+    }
+
+    fn read_port(&mut self, port: u16) -> u8 {
+        match (port as u8) & 0xC1 {
+            0x80 | 0x81 => self.vdp.read_port(port),
+            _ => self.io.read_port(port),
+        }
+    }
+
+    fn write_port(
+        &mut self,
+        port: u16,
+        value: u8,
+        completed_at: MachineTime,
+    ) -> Result<(), Sg1000TemporalBusError> {
+        let tstate = u64::try_from(
+            completed_at.ticks() / u128::from(self.coordinator.master_ticks_per_tstate()),
+        )
+        .map_err(|_| Sg1000TemporalBusError::InvalidState)?;
+        match (port as u8) & 0xC1 {
+            0x80 | 0x81 => self.vdp.write_port(port, value),
+            _ if (0x40..=0x7F).contains(&(port as u8)) => {
+                self.io.write_port_at(port, value, tstate);
+                self.psg.write(value);
+            }
+            _ => self.io.write_port_at(port, value, tstate),
+        }
+        Ok(())
+    }
+
     #[cfg(test)]
     pub const fn write_dispatch_count_for_test(&self) -> u64 {
         self.write_dispatch_count
@@ -393,12 +536,15 @@ impl Sg1000TemporalBus {
         self.memory.write(address, value);
     }
 
-    /// Export memory, Scheduler and all pending transaction state.
+    /// Export memory, I/O devices, Scheduler and all pending transaction state.
     pub fn export_state(&self) -> Sg1000TemporalBusState {
         Sg1000TemporalBusState {
             format_version: SG1000_TEMPORAL_BUS_STATE_VERSION,
             interrupt_vector: self.interrupt_vector,
             memory: self.memory.clone(),
+            io: self.io.clone(),
+            vdp: self.vdp.clone(),
+            psg: self.psg.clone(),
             coordinator: self.coordinator.export_state(),
             pending_request: self.pending_request,
             request_started_at: self.request_started_at,
@@ -411,12 +557,18 @@ impl Sg1000TemporalBus {
         }
     }
 
-    /// Restore only if the memory transaction and Scheduler event agree.
+    /// Restore only if device clocks, pending transactions and Scheduler events agree.
     pub fn restore_state(state: Sg1000TemporalBusState) -> Result<Self, Sg1000TemporalBusError> {
         if state.format_version != SG1000_TEMPORAL_BUS_STATE_VERSION {
             return Err(Sg1000TemporalBusError::InvalidState);
         }
         let coordinator = Sg1000TemporalCoordinator::restore_state(state.coordinator.clone())?;
+        if state.psg.clock_hz() != state.coordinator.psg_clock_hz
+            || state.psg.elapsed_clocks() as u128 != coordinator.psg_clock_snapshot()?.total_cycles
+            || state.vdp.elapsed_tstates() != coordinator.vdp_clock_snapshot()?.total_cycles
+        {
+            return Err(Sg1000TemporalBusError::InvalidState);
+        }
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
         let scale = state.coordinator.master_ticks_per_tstate;
         let now = coordinator.now();
@@ -486,6 +638,9 @@ impl Sg1000TemporalBus {
 
         Ok(Self {
             memory: state.memory,
+            io: state.io,
+            vdp: state.vdp,
+            psg: state.psg,
             coordinator,
             pending_request: state.pending_request,
             request_started_at: state.request_started_at,
@@ -701,27 +856,182 @@ mod tests {
     }
 
     #[test]
-    fn port_requests_are_rejected_without_scheduling() {
-        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
-        let before = bus.export_state();
-        assert_eq!(
-            bus.begin_request(request(10, Z80BusOperation::PortRead, 0x00DC, 4), 0),
-            Err(Sg1000TemporalBusError::UnsupportedOperation)
-        );
-        assert_eq!(bus.export_state(), before);
+    fn configured_psg_clock_advances_by_its_exact_ratio() {
+        let mut bus = Sg1000TemporalBus::new_with_audio(
+            vec![0x00],
+            MemoryConfig::default(),
+            2,
+            1_000_000,
+            2_000_000,
+            48_000,
+        )
+        .unwrap();
+        bus.schedule_internal_cycle(90, 5).unwrap();
+        let Some(Sg1000TemporalDispatch::InternalCycleComplete(completion)) =
+            bus.dispatch_next().unwrap()
+        else {
+            panic!("expected internal-cycle completion");
+        };
+        assert_eq!(completion.completed_at, MachineTime::from_ticks(10));
+        assert_eq!(bus.psg().elapsed_clocks(), 10);
+        assert_eq!(bus.vdp().cycles_into_line(), 5);
+
+        let state = bus.export_state();
+        let restored = Sg1000TemporalBus::restore_state(state.clone()).unwrap();
+        assert_eq!(restored.export_state(), state);
+        assert_eq!(restored.psg().clock_hz(), 2_000_000);
     }
 
     #[test]
-    fn restore_rejects_a_port_operation_in_a_memory_transaction_snapshot() {
-        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
-        bus.begin_request(request(11, Z80BusOperation::MemoryRead, 0x0000, 4), 0)
-            .unwrap();
-        let mut state = bus.export_state();
-        state.pending_request.as_mut().unwrap().operation = Z80BusOperation::PortRead;
+    fn restore_rejects_device_clock_state_that_diverges_from_scheduler() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 1).unwrap();
+        bus.schedule_internal_cycle(29, 4).unwrap();
+        bus.dispatch_next().unwrap().unwrap();
+        let state = bus.export_state();
+
+        let mut psg_mismatch = state.clone();
+        psg_mismatch.psg.advance_clocks(1);
         assert_eq!(
-            Sg1000TemporalBus::restore_state(state).err(),
+            Sg1000TemporalBus::restore_state(psg_mismatch).err(),
             Some(Sg1000TemporalBusError::InvalidState)
         );
+
+        let mut vdp_mismatch = state;
+        vdp_mismatch.vdp.advance(1);
+        assert_eq!(
+            Sg1000TemporalBus::restore_state(vdp_mismatch).err(),
+            Some(Sg1000TemporalBusError::InvalidState)
+        );
+    }
+
+    #[test]
+    fn port_read_samples_controller_at_deadline_and_advances_all_device_domains() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
+        bus.set_joystick(1, 0xFE).unwrap();
+        let deadline = bus
+            .begin_request(request(10, Z80BusOperation::PortRead, 0x00DC, 4), 1)
+            .unwrap();
+
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected controller port-read completion");
+        };
+        assert_eq!(completion.data, Some(0xFE));
+        assert_eq!(completion.completed_at, deadline);
+
+        let state = bus.export_state();
+        assert_eq!(state.coordinator.scheduler.clock_domains.len(), 3);
+        assert!(
+            state
+                .coordinator
+                .scheduler
+                .clock_domains
+                .iter()
+                .all(|domain| domain.total_cycles == 5)
+        );
+        assert_eq!(state.vdp.cycles_into_line(), 5);
+        assert_eq!(state.psg.elapsed_clocks(), 5);
+    }
+
+    #[test]
+    fn port_read_samples_controller_after_request_start_at_completion() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
+        bus.set_joystick(1, 0xFE).unwrap();
+        bus.begin_request(request(11, Z80BusOperation::PortRead, 0x00DC, 4), 0)
+            .unwrap();
+
+        // Input is sampled when the scheduled transaction completes, not when
+        // the request is first queued.
+        bus.set_joystick(1, 0xFD).unwrap();
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected controller port-read completion");
+        };
+        assert_eq!(completion.data, Some(0xFD));
+        bus.acknowledge_completion(11).unwrap();
+    }
+
+    #[test]
+    fn vdp_status_port_read_observes_vblank_at_completion_deadline() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 1).unwrap();
+        let before_vblank = 228_u32 * 192 - 2;
+        bus.schedule_internal_cycle(99, before_vblank).unwrap();
+        let Some(Sg1000TemporalDispatch::InternalCycleComplete(_)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected pre-vblank internal-cycle completion");
+        };
+        bus.acknowledge_internal_completion(99).unwrap();
+        assert_eq!(bus.vdp().status() & 0x80, 0);
+
+        bus.begin_request(request(100, Z80BusOperation::PortRead, 0x0081, 4), 0)
+            .unwrap();
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected VDP status port-read completion");
+        };
+        // The VDP crosses into VBlank during the I/O cycle. The status read
+        // must observe and clear that event at the transaction deadline.
+        assert_eq!(completion.data.map(|status| status & 0x80), Some(0x80));
+        assert_eq!(bus.vdp().status() & 0x80, 0);
+        bus.acknowledge_completion(100).unwrap();
+    }
+
+    #[test]
+    fn psg_port_write_is_committed_once_and_survives_completion_restore() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 2).unwrap();
+        let deadline = bus
+            .begin_request(
+                request(20, Z80BusOperation::PortWrite { value: 0x85 }, 0x0040, 3),
+                0,
+            )
+            .unwrap();
+        assert_eq!(bus.psg().tone_periods()[0], 0);
+
+        let Some(Sg1000TemporalDispatch::BusCompletion(completion)) = bus.dispatch_next().unwrap()
+        else {
+            panic!("expected PSG port-write completion");
+        };
+        assert_eq!(completion.completed_at, deadline);
+        assert_eq!(completion.data, None);
+        assert_eq!(bus.psg().tone_periods()[0], 5);
+
+        let snapshot = bus.export_state();
+        let mut restored = Sg1000TemporalBus::restore_state(snapshot.clone()).unwrap();
+        assert_eq!(
+            restored.dispatch_next().unwrap(),
+            Some(Sg1000TemporalDispatch::BusCompletion(completion))
+        );
+        assert_eq!(restored.export_state(), snapshot);
+        assert_eq!(
+            restored.drain_psg_write_events(),
+            vec![crate::PsgWriteEvent {
+                tstate: 3,
+                value: 0x85,
+            }]
+        );
+        assert!(restored.drain_psg_write_events().is_empty());
+    }
+
+    #[test]
+    fn vdp_port_writes_apply_at_their_scheduled_completion_boundaries() {
+        let mut bus = Sg1000TemporalBus::new(vec![0x00], MemoryConfig::default(), 1).unwrap();
+        for (id, port, value) in [(30, 0x81, 0x00), (31, 0x81, 0x40), (32, 0x80, 0xA5)] {
+            let deadline = bus
+                .begin_request(
+                    request(id, Z80BusOperation::PortWrite { value }, port, 3),
+                    0,
+                )
+                .unwrap();
+            let Some(Sg1000TemporalDispatch::BusCompletion(completion)) =
+                bus.dispatch_next().unwrap()
+            else {
+                panic!("expected VDP port-write completion");
+            };
+            assert_eq!(completion.completed_at, deadline);
+            assert_eq!(completion.data, None);
+            bus.acknowledge_completion(id).unwrap();
+        }
+        assert_eq!(bus.vdp().vram()[0], 0xA5);
     }
 
     #[test]
