@@ -1,0 +1,15 @@
+[package]
+name = "sega-sg1000-runtime"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "sega_sg1000_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+sega-audio-runtime = { path = "../../../native/audio_runtime" }
+sega-observability.workspace = true
+sega-sg1000-core = { path = "../../../native/sg1000_core" }
+sega-video-runtime = { path = "../../../native/video_runtime" }
