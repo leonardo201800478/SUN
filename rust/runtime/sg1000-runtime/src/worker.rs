@@ -163,9 +163,7 @@ impl WorkerState {
             f: cpu.registers.f,
             refresh: cpu.refresh,
             halted: cpu.halted,
-            last_frame_instructions: telemetry
-                .last_frame_instructions
-                .load(Ordering::Acquire),
+            last_frame_instructions: telemetry.last_frame_instructions.load(Ordering::Acquire),
             audio_output: self
                 .audio_session
                 .as_ref()
@@ -267,11 +265,8 @@ impl WorkerState {
                 pixels,
             )
             .map_err(|error| error.to_string());
-            let publish_result = frame.and_then(|frame| {
-                mailbox
-                    .publish(frame)
-                    .map_err(|error| error.to_string())
-            });
+            let publish_result =
+                frame.and_then(|frame| mailbox.publish(frame).map_err(|error| error.to_string()));
             match publish_result {
                 Ok(()) => {
                     self.video_sequence = next_sequence;
@@ -378,7 +373,11 @@ fn enqueue_worker_command(
     }
 }
 
-fn receive_reply<T>(receiver: Receiver<T>, operation: &str, timeout: Duration) -> Result<T, String> {
+fn receive_reply<T>(
+    receiver: Receiver<T>,
+    operation: &str,
+    timeout: Duration,
+) -> Result<T, String> {
     receiver.recv_timeout(timeout).map_err(|error| match error {
         RecvTimeoutError::Timeout => {
             format!("SG-1000 worker timed out while {operation}")
@@ -707,10 +706,7 @@ impl Sg1000TemporalWorker {
 
     /// Replace the cartridge ROM at a safe worker boundary.
     pub fn load_rom(&self, rom: Vec<u8>) -> Result<(), String> {
-        self.request_unit(
-            |reply| WorkerCommand::LoadRom(rom, reply),
-            "loading a ROM",
-        )
+        self.request_unit(|reply| WorkerCommand::LoadRom(rom, reply), "loading a ROM")
     }
 
     /// Execute one complete VDP frame while paused.
@@ -728,11 +724,7 @@ impl Sg1000TemporalWorker {
     }
 
     /// Apply one normalized controller snapshot without host polling in the worker.
-    pub fn set_controller(
-        &self,
-        player: u8,
-        buttons: ControllerButtons,
-    ) -> Result<(), String> {
+    pub fn set_controller(&self, player: u8, buttons: ControllerButtons) -> Result<(), String> {
         self.request_unit(
             |reply| WorkerCommand::SetController(player, buttons, reply),
             "updating controller input",
@@ -753,18 +745,23 @@ impl Sg1000TemporalWorker {
 
     pub fn debug_snapshot(&self) -> Result<Sg1000DebugSnapshot, String> {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
-        enqueue_worker_command(
-            &self.commands,
-            WorkerCommand::DebugSnapshot(reply_sender),
-        )?;
-        receive_reply(reply_receiver, "capturing a machine snapshot", WORKER_REPLY_TIMEOUT)?
+        enqueue_worker_command(&self.commands, WorkerCommand::DebugSnapshot(reply_sender))?;
+        receive_reply(
+            reply_receiver,
+            "capturing a machine snapshot",
+            WORKER_REPLY_TIMEOUT,
+        )?
     }
 
     /// Capture a complete in-memory state at a worker-safe command boundary.
     pub fn save_state(&self) -> Result<Sg1000WorkerSaveState, String> {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
         enqueue_worker_command(&self.commands, WorkerCommand::SaveState(reply_sender))?;
-        receive_reply(reply_receiver, "capturing a save state", WORKER_REPLY_TIMEOUT)?
+        receive_reply(
+            reply_receiver,
+            "capturing a save state",
+            WORKER_REPLY_TIMEOUT,
+        )?
     }
 
     /// Restore a state only when its ROM and memory profile match this worker.
@@ -813,7 +810,11 @@ impl Sg1000TemporalWorker {
             &self.commands,
             WorkerCommand::SetVideoMailbox(mailbox, reply_sender),
         )?;
-        receive_reply(reply_receiver, "configuring video output", WORKER_REPLY_TIMEOUT)?
+        receive_reply(
+            reply_receiver,
+            "configuring video output",
+            WORKER_REPLY_TIMEOUT,
+        )?
     }
 
     /// Attach an externally owned frame mailbox; graphics objects stay in the host.
@@ -838,7 +839,7 @@ impl Drop for Sg1000TemporalWorker {
 
 #[cfg(test)]
 mod tests {
-    use super::{Sg1000TemporalWorker, SG1000_WORKER_SAVE_STATE_VERSION};
+    use super::{SG1000_WORKER_SAVE_STATE_VERSION, Sg1000TemporalWorker};
     use sega_sg1000_core::ControllerButtons;
     use sega_video_runtime::{FrameMailbox, PixelFormat};
 
