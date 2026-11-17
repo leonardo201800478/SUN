@@ -5093,11 +5093,13 @@ mod windows_host {
 
         #[test]
         fn sg1000_dsp_configuration_is_independent_from_sms1_experimental_preset() {
-            let mut preferences = DesktopPreferences::default();
-            preferences.sg1000_audio_hpf_enabled = true;
-            preferences.sg1000_audio_hpf_cutoff_hz = 35;
-            preferences.sg1000_audio_lpf_enabled = true;
-            preferences.sg1000_audio_lpf_cutoff_hz = 12_000;
+            let preferences = DesktopPreferences {
+                sg1000_audio_hpf_enabled: true,
+                sg1000_audio_hpf_cutoff_hz: 35,
+                sg1000_audio_lpf_enabled: true,
+                sg1000_audio_lpf_cutoff_hz: 12_000,
+                ..DesktopPreferences::default()
+            };
 
             let config = audio_dsp_config(
                 false,
