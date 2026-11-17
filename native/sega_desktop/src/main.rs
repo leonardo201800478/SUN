@@ -575,7 +575,7 @@ mod windows_host {
                     z: 95;
                     CompactButton { text: "Sistema"; width: 66px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "system" ? "none" : "system"; } }
                     CompactButton { text: "Arquivo"; width: 62px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "file" ? "none" : "file"; } }
-                    CompactButton { text: "Firmware"; width: 72px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "firmware" ? "none" : "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                    CompactButton { text: "Firmware"; width: 72px; enabled: root.selected-system != "sg1000"; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "firmware" ? "none" : "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                     CompactButton { text: "Vídeo"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "video" ? "none" : "video"; } }
                     CompactButton { text: "Áudio"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "audio" ? "none" : "audio"; } }
                     CompactButton { text: "Controles"; width: 76px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "controls" ? "none" : "controls"; } }
@@ -1144,13 +1144,13 @@ mod windows_host {
                         if root.active-menu == "debug": VerticalLayout {
                             spacing: 12px;
                             Text { font-size: 24px; text: "Diagnóstico"; color: #F1F5FA; }
-                            Text { font-size: 12px; text: "Ferramentas de inspeção do runtime SMS."; color: #B4C0D0; }
+                            Text { font-size: 12px; text: "Snapshots de CPU e ferramentas de diagnóstico do runtime ativo."; color: #B4C0D0; }
                             Rectangle { height: 220px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Runtime e CPU"; color: #F1F5FA; }
-                                    CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
-                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
-                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
+                                    CompactButton { text: "Capturar snapshot da CPU"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
+                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom && root.active-system != "sg1000"; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
                                     Text { font-size: 11px; text: root.debug-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                     Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
                                 }
@@ -2616,8 +2616,8 @@ mod windows_host {
             Add-Type -AssemblyName System.Windows.Forms
             [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
             $dialog = New-Object System.Windows.Forms.OpenFileDialog
-            $dialog.Title = 'Selecionar ROM do Sega Master System'
-            $dialog.Filter = 'ROM Sega 8-bit (*.sms;*.bin;*.zip)|*.sms;*.bin;*.zip|Todos os arquivos (*.*)|*.*'
+            $dialog.Title = 'Selecionar ROM Sega 8-bit'
+            $dialog.Filter = 'ROM Sega 8-bit (*.sms;*.sg;*.bin;*.zip)|*.sms;*.sg;*.bin;*.zip|Todos os arquivos (*.*)|*.*'
             $dialog.Multiselect = $false
             $dialog.CheckFileExists = $true
             if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
@@ -2931,7 +2931,7 @@ mod windows_host {
         }
     }
 
-    /// Read a raw SMS ROM or a ZIP containing exactly one supported ROM entry.
+    /// Read a raw Sega 8-bit ROM or a ZIP containing exactly one supported ROM entry.
     ///
     /// ZIP data is decompressed in memory only. No archive path is ever written to disk,
     /// and entry count, archive size and uncompressed ROM size are bounded.
@@ -3006,7 +3006,7 @@ mod windows_host {
         }
         if candidates.len() != 1 {
             return Err(
-                "ZIP contém múltiplas ROMs; mantenha somente uma entrada .sms ou .bin.".to_owned(),
+                "ZIP contém múltiplas ROMs; mantenha somente uma entrada .sms, .sg ou .bin.".to_owned(),
             );
         }
 
@@ -4213,6 +4213,16 @@ mod windows_host {
                 return;
             };
             let path = PathBuf::from(directory.as_str());
+            let system = app.get_selected_system().to_string();
+            if system == "sg1000" {
+                app.set_firmware_scan_status(
+                    "O SG-1000 não utiliza a BIOS convencional do Master System.".into(),
+                );
+                app.set_firmware_scan_results(
+                    "Selecione SMS1 ou SMS2 para consultar o catálogo de firmware.".into(),
+                );
+                return;
+            }
             // Every request supersedes older scans, including an invalid directory request.
             let generation = firmware_scan_generation.fetch_add(1, Ordering::AcqRel) + 1;
             let generation_state = Arc::clone(&firmware_scan_generation);
@@ -4222,7 +4232,6 @@ mod windows_host {
                 );
                 return;
             }
-            let system = app.get_selected_system().to_string();
             let selected = [
                 app.get_firmware_brazil_selected().to_string(),
                 app.get_firmware_usa_selected().to_string(),
