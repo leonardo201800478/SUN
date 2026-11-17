@@ -17,6 +17,10 @@ pub use catalog::{
 };
 pub use dat::{DatGameEntry, DatParseError, DatRomEntry, NoIntroDat, SMS_DAT_VERSION};
 pub use identity::CartridgeIdentity;
+pub use sg1000_profile::{
+    Sg1000MemoryProfile, Sg1000MemoryProfileId, Sg1000ProfileMatch,
+    resolve_sg1000_memory_profile, resolve_sg1000_memory_profile_from_rom,
+};
 pub use profile::{
     CartridgeCompatibilityMetadata, CartridgeHardwareProfile, CartridgeMapper, CartridgeRamKind,
     CartridgeRamMapping, CartridgeRamProfile, CartridgeSystem, ProfileStatus,
