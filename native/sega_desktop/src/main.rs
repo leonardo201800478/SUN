@@ -478,6 +478,10 @@ mod windows_host {
             in-out property <float> audio-hpf-cutoff: 20;
             in-out property <bool> audio-lpf-enabled: false;
             in-out property <float> audio-lpf-cutoff: 18000;
+            in-out property <bool> sg1000-audio-hpf-enabled: false;
+            in-out property <float> sg1000-audio-hpf-cutoff: 20;
+            in-out property <bool> sg1000-audio-lpf-enabled: false;
+            in-out property <float> sg1000-audio-lpf-cutoff: 18000;
             in-out property <bool> fullscreen-enabled: false;
             in-out property <bool> immersive-fullscreen: false;
             in-out property <string> fps-status: "FPS: --";
@@ -507,6 +511,7 @@ mod windows_host {
             callback audio-mute-changed(bool);
             callback audio-renderer-changed(string);
             callback audio-dsp-changed(bool, bool, float, bool, float);
+            callback sg1000-audio-dsp-changed(bool, float, bool, float);
             callback keyboard-key-pressed(string);
             callback keyboard-key-released(string);
             callback keyboard-focus-lost();
@@ -886,7 +891,7 @@ mod windows_host {
                                     }
                                 }
                             }
-                            Rectangle {
+                            if (root.has-rom ? root.active-system : root.selected-system) != "sg1000": Rectangle {
                                 height: 150px; background: #243443; border-radius: 7px;
                                 border-width: 1px; border-color: #405365;
                                 VerticalLayout {
@@ -915,7 +920,49 @@ mod windows_host {
                                     }
                                 }
                             }
-                            Rectangle {
+                            if (root.has-rom ? root.active-system : root.selected-system) == "sg1000": Rectangle {
+                                height: 340px; background: #243443; border-radius: 7px;
+                                border-width: 1px; border-color: #405365;
+                                VerticalLayout {
+                                    padding: 10px; spacing: 7px;
+                                    Text { font-size: 14px; text: "DSP DE SAÍDA — SG-1000"; color: #8bd5ca; }
+                                    Text { font-size: 10px; text: "Filtros pós-mixer opcionais. Desligados, o caminho digital permanece sem processamento analógico adicional."; color: #d6b879; wrap: word-wrap; }
+                                    CheckBox {
+                                        text: "Passa-altas / acoplamento AC"; checked <=> root.sg1000-audio-hpf-enabled;
+                                        toggled => { root.sg1000-audio-dsp-changed(self.checked, root.sg1000-audio-hpf-cutoff, root.sg1000-audio-lpf-enabled, root.sg1000-audio-lpf-cutoff); }
+                                    }
+                                    HorizontalLayout {
+                                        Text { font-size: 11px; text: "Corte HPF"; color: #b9c5ce; }
+                                        Text { font-size: 11px; text: "\{round(root.sg1000-audio-hpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    Slider {
+                                        minimum: 5; maximum: 500; step: 5; value <=> root.sg1000-audio-hpf-cutoff; enabled: root.sg1000-audio-hpf-enabled;
+                                        released(value) => { root.sg1000-audio-dsp-changed(root.sg1000-audio-hpf-enabled, value, root.sg1000-audio-lpf-enabled, root.sg1000-audio-lpf-cutoff); }
+                                    }
+                                    CheckBox {
+                                        text: "Passa-baixas"; checked <=> root.sg1000-audio-lpf-enabled;
+                                        toggled => { root.sg1000-audio-dsp-changed(root.sg1000-audio-hpf-enabled, root.sg1000-audio-hpf-cutoff, self.checked, root.sg1000-audio-lpf-cutoff); }
+                                    }
+                                    HorizontalLayout {
+                                        Text { font-size: 11px; text: "Corte LPF"; color: #b9c5ce; }
+                                        Text { font-size: 11px; text: "\{round(root.sg1000-audio-lpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                    }
+                                    Slider {
+                                        minimum: 4000; maximum: 20000; step: 250; value <=> root.sg1000-audio-lpf-cutoff; enabled: root.sg1000-audio-lpf-enabled;
+                                        released(value) => { root.sg1000-audio-dsp-changed(root.sg1000-audio-hpf-enabled, root.sg1000-audio-hpf-cutoff, root.sg1000-audio-lpf-enabled, value); }
+                                    }
+                                    CompactButton {
+                                        text: "Desativar todos os filtros";
+                                        clicked => {
+                                            root.sg1000-audio-hpf-enabled = false;
+                                            root.sg1000-audio-lpf-enabled = false;
+                                            root.sg1000-audio-dsp-changed(false, root.sg1000-audio-hpf-cutoff, false, root.sg1000-audio-lpf-cutoff);
+                                        }
+                                    }
+                                    Text { font-size: 10px; text: "Experimental: não há esquema/captura elétrica SG-1000 suficiente para afirmar uma resposta analógica específica da placa. Não altera PSG, Scheduler ou clocks."; color: #d6b879; wrap: word-wrap; }
+                                }
+                            }
+                            if (root.has-rom ? root.active-system : root.selected-system) != "sg1000": Rectangle {
                                 height: 340px; background: #243443; border-radius: 7px;
                                 border-width: 1px; border-color: #405365;
                                 VerticalLayout {
@@ -1195,6 +1242,10 @@ mod windows_host {
         audio_hpf_cutoff_hz: u16,
         audio_lpf_enabled: bool,
         audio_lpf_cutoff_hz: u16,
+        sg1000_audio_hpf_enabled: bool,
+        sg1000_audio_hpf_cutoff_hz: u16,
+        sg1000_audio_lpf_enabled: bool,
+        sg1000_audio_lpf_cutoff_hz: u16,
         keyboard_up_key: String,
         keyboard_down_key: String,
         keyboard_left_key: String,
@@ -1228,6 +1279,10 @@ mod windows_host {
                 audio_hpf_cutoff_hz: 20,
                 audio_lpf_enabled: false,
                 audio_lpf_cutoff_hz: 18_000,
+                sg1000_audio_hpf_enabled: false,
+                sg1000_audio_hpf_cutoff_hz: 20,
+                sg1000_audio_lpf_enabled: false,
+                sg1000_audio_lpf_cutoff_hz: 18_000,
                 keyboard_up_key: String::new(),
                 keyboard_down_key: String::new(),
                 keyboard_left_key: String::new(),
@@ -1369,6 +1424,30 @@ mod windows_host {
                         preferences.audio_lpf_cutoff_hz = value;
                     }
                 }
+                "sg1000_audio_hpf_enabled" => {
+                    if let Ok(value) = value.trim().parse() {
+                        preferences.sg1000_audio_hpf_enabled = value;
+                    }
+                }
+                "sg1000_audio_hpf_cutoff_hz" => {
+                    if let Ok(value) = value.trim().parse::<u16>()
+                        && (5..=500).contains(&value)
+                    {
+                        preferences.sg1000_audio_hpf_cutoff_hz = value;
+                    }
+                }
+                "sg1000_audio_lpf_enabled" => {
+                    if let Ok(value) = value.trim().parse() {
+                        preferences.sg1000_audio_lpf_enabled = value;
+                    }
+                }
+                "sg1000_audio_lpf_cutoff_hz" => {
+                    if let Ok(value) = value.trim().parse::<u16>()
+                        && (4_000..=20_000).contains(&value)
+                    {
+                        preferences.sg1000_audio_lpf_cutoff_hz = value;
+                    }
+                }
                 "keyboard_up_key" => {
                     preferences.keyboard_up_key = decode_key_token(value.trim()).unwrap_or_default()
                 }
@@ -1404,7 +1483,7 @@ mod windows_host {
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
         let contents = format!(
-            "region={}\nselected_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
+            "region={}\nselected_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nsg1000_audio_hpf_enabled={}\nsg1000_audio_hpf_cutoff_hz={}\nsg1000_audio_lpf_enabled={}\nsg1000_audio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
             preferences.selected_system,
             preferences.firmware_directory,
@@ -1427,6 +1506,10 @@ mod windows_host {
             preferences.audio_hpf_cutoff_hz,
             preferences.audio_lpf_enabled,
             preferences.audio_lpf_cutoff_hz,
+            preferences.sg1000_audio_hpf_enabled,
+            preferences.sg1000_audio_hpf_cutoff_hz,
+            preferences.sg1000_audio_lpf_enabled,
+            preferences.sg1000_audio_lpf_cutoff_hz,
             encode_key_token(&preferences.keyboard_up_key),
             encode_key_token(&preferences.keyboard_down_key),
             encode_key_token(&preferences.keyboard_left_key),
@@ -3281,7 +3364,7 @@ mod windows_host {
         match system {
             DesktopSystem::Sg1000 => {
                 let worker = Sg1000TemporalWorker::new_for_cartridge(rom)?;
-                configure_sg1000_audio(&worker, settings.audio_volume, settings.dsp_config);
+                configure_sg1000_audio(&worker, settings.audio_volume, settings.sg1000_dsp_config);
                 Ok((DesktopSession::Sg1000(worker), None))
             }
             DesktopSystem::Sms1 | DesktopSystem::Sms2 => {
@@ -3422,6 +3505,7 @@ mod windows_host {
         vdp_revision: SmsVdpRevision,
         audio_volume: u8,
         dsp_config: AnalogOutputConfig,
+        sg1000_dsp_config: AnalogOutputConfig,
         renderer_mode: String,
     }
 
@@ -3594,6 +3678,13 @@ mod windows_host {
                 preferences.audio_lpf_enabled,
                 f64::from(preferences.audio_lpf_cutoff_hz),
             ),
+            sg1000_dsp_config: audio_dsp_config(
+                false,
+                preferences.sg1000_audio_hpf_enabled,
+                f64::from(preferences.sg1000_audio_hpf_cutoff_hz),
+                preferences.sg1000_audio_lpf_enabled,
+                f64::from(preferences.sg1000_audio_lpf_cutoff_hz),
+            ),
             renderer_mode: preferences.audio_renderer_mode.clone(),
         };
         let mut initial_save_context = None;
@@ -3690,6 +3781,10 @@ mod windows_host {
         app.set_audio_hpf_cutoff(f32::from(preferences.audio_hpf_cutoff_hz));
         app.set_audio_lpf_enabled(preferences.audio_lpf_enabled);
         app.set_audio_lpf_cutoff(f32::from(preferences.audio_lpf_cutoff_hz));
+        app.set_sg1000_audio_hpf_enabled(preferences.sg1000_audio_hpf_enabled);
+        app.set_sg1000_audio_hpf_cutoff(f32::from(preferences.sg1000_audio_hpf_cutoff_hz));
+        app.set_sg1000_audio_lpf_enabled(preferences.sg1000_audio_lpf_enabled);
+        app.set_sg1000_audio_lpf_cutoff(f32::from(preferences.sg1000_audio_lpf_cutoff_hz));
         app.set_fps_size(preferences.fps_size.clone().into());
         app.set_fps_font_size(match preferences.fps_size.as_str() {
             "small" => 13.0,
@@ -4012,6 +4107,7 @@ mod windows_host {
                 sprite_limit_enabled,
                 audio_volume,
                 dsp_config,
+                sg1000_dsp_config,
                 renderer_mode,
                 firmware_directory,
                 firmware_boot_enabled,
@@ -4038,6 +4134,13 @@ mod windows_host {
                             app.get_audio_lpf_enabled(),
                             f64::from(app.get_audio_lpf_cutoff().round() as u16),
                         ),
+                        audio_dsp_config(
+                            false,
+                            app.get_sg1000_audio_hpf_enabled(),
+                            f64::from(app.get_sg1000_audio_hpf_cutoff().round() as u16),
+                            app.get_sg1000_audio_lpf_enabled(),
+                            f64::from(app.get_sg1000_audio_lpf_cutoff().round() as u16),
+                        ),
                         app.get_audio_renderer_mode().to_string(),
                         app.get_firmware_directory().to_string(),
                         app.get_firmware_boot_enabled(),
@@ -4054,6 +4157,7 @@ mod windows_host {
                         "sms1".to_owned(),
                         true,
                         70,
+                        AnalogOutputConfig::default(),
                         AnalogOutputConfig::default(),
                         "psg".to_owned(),
                         String::new(),
@@ -4100,6 +4204,7 @@ mod windows_host {
                 vdp_revision,
                 audio_volume,
                 dsp_config,
+                sg1000_dsp_config,
                 renderer_mode,
             };
 
@@ -4436,6 +4541,10 @@ mod windows_host {
                     audio_lpf_enabled: app.get_audio_lpf_enabled(),
                     audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                         as u16,
+                    sg1000_audio_hpf_enabled: app.get_sg1000_audio_hpf_enabled(),
+                    sg1000_audio_hpf_cutoff_hz: app.get_sg1000_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
+                    sg1000_audio_lpf_enabled: app.get_sg1000_audio_lpf_enabled(),
+                    sg1000_audio_lpf_cutoff_hz: app.get_sg1000_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
                     keyboard_up_key: app.get_keyboard_up_key().to_string(),
                     keyboard_down_key: app.get_keyboard_down_key().to_string(),
                     keyboard_left_key: app.get_keyboard_left_key().to_string(),
@@ -4544,6 +4653,10 @@ mod windows_host {
                 audio_lpf_enabled: app.get_audio_lpf_enabled(),
                 audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0)
                     as u16,
+                    sg1000_audio_hpf_enabled: app.get_sg1000_audio_hpf_enabled(),
+                    sg1000_audio_hpf_cutoff_hz: app.get_sg1000_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
+                    sg1000_audio_lpf_enabled: app.get_sg1000_audio_lpf_enabled(),
+                    sg1000_audio_lpf_cutoff_hz: app.get_sg1000_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
                 keyboard_up_key: app.get_keyboard_up_key().to_string(),
                 keyboard_down_key: app.get_keyboard_down_key().to_string(),
                 keyboard_left_key: app.get_keyboard_left_key().to_string(),
@@ -4643,6 +4756,41 @@ mod windows_host {
                     }
                     None => app.set_audio_status(
                         "Preferências DSP salvas; serão aplicadas ao carregar uma ROM.".into(),
+                    ),
+                }
+                app.invoke_preferences_changed();
+            },
+        );
+
+        let sg1000_audio_dsp_worker = Rc::clone(&worker);
+        let sg1000_audio_dsp_app = app.as_weak();
+        app.on_sg1000_audio_dsp_changed(
+            move |hpf_enabled, hpf_cutoff, lpf_enabled, lpf_cutoff| {
+                let Some(app) = sg1000_audio_dsp_app.upgrade() else {
+                    return;
+                };
+                let config = audio_dsp_config(
+                    false,
+                    hpf_enabled,
+                    f64::from(hpf_cutoff.round() as u16),
+                    lpf_enabled,
+                    f64::from(lpf_cutoff.round() as u16),
+                );
+                let result = sg1000_audio_dsp_worker
+                    .borrow()
+                    .as_ref()
+                    .map(|session| session.set_audio_dsp_config(config));
+                match result {
+                    Some(Ok(())) => app.set_audio_status(if config.enabled {
+                        "DSP experimental aplicado à saída do SG-1000.".into()
+                    } else {
+                        "DSP adicional do SG-1000 desativado; caminho digital preservado.".into()
+                    }),
+                    Some(Err(error)) => {
+                        app.set_audio_status(format!("Falha ao aplicar DSP SG-1000: {error}").into())
+                    }
+                    None => app.set_audio_status(
+                        "Preferências DSP do SG-1000 salvas; serão aplicadas ao carregar uma ROM.".into(),
                     ),
                 }
                 app.invoke_preferences_changed();
@@ -4810,6 +4958,10 @@ mod windows_host {
             audio_hpf_cutoff_hz: app.get_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
             audio_lpf_enabled: app.get_audio_lpf_enabled(),
             audio_lpf_cutoff_hz: app.get_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
+                    sg1000_audio_hpf_enabled: app.get_sg1000_audio_hpf_enabled(),
+                    sg1000_audio_hpf_cutoff_hz: app.get_sg1000_audio_hpf_cutoff().round().clamp(5.0, 500.0) as u16,
+                    sg1000_audio_lpf_enabled: app.get_sg1000_audio_lpf_enabled(),
+                    sg1000_audio_lpf_cutoff_hz: app.get_sg1000_audio_lpf_cutoff().round().clamp(4_000.0, 20_000.0) as u16,
             keyboard_up_key: app.get_keyboard_up_key().to_string(),
             keyboard_down_key: app.get_keyboard_down_key().to_string(),
             keyboard_left_key: app.get_keyboard_left_key().to_string(),
@@ -4905,6 +5057,38 @@ mod windows_host {
             let preferences = DesktopPreferences::default();
             assert_eq!(preferences.audio_volume, 70);
             assert!(!preferences.audio_muted);
+        }
+
+        #[test]
+        fn sg1000_audio_dsp_preferences_default_to_unfiltered_digital_output() {
+            let preferences = DesktopPreferences::default();
+            let config = audio_dsp_config(
+                false,
+                preferences.sg1000_audio_hpf_enabled,
+                f64::from(preferences.sg1000_audio_hpf_cutoff_hz),
+                preferences.sg1000_audio_lpf_enabled,
+                f64::from(preferences.sg1000_audio_lpf_cutoff_hz),
+            );
+
+            assert!(!config.enabled);
+            assert_eq!(config.high_pass_hz, None);
+            assert_eq!(config.low_pass_hz, None);
+        }
+
+        #[test]
+        fn sg1000_dsp_configuration_does_not_inherit_sms1_experimental_preset() {
+            let preferences = DesktopPreferences::default();
+            let config = audio_dsp_config(
+                false,
+                preferences.sg1000_audio_hpf_enabled,
+                f64::from(preferences.sg1000_audio_hpf_cutoff_hz),
+                preferences.sg1000_audio_lpf_enabled,
+                f64::from(preferences.sg1000_audio_lpf_cutoff_hz),
+            );
+
+            assert!(!config.enabled);
+            assert_eq!(config.high_pass_hz, None);
+            assert_eq!(config.low_pass_hz, None);
         }
 
         #[test]
@@ -5293,6 +5477,7 @@ mod windows_host {
                 vdp_revision: SmsVdpRevision::Sega3155124,
                 audio_volume: 70,
                 dsp_config: AnalogOutputConfig::default(),
+                sg1000_dsp_config: AnalogOutputConfig::default(),
                 renderer_mode: "psg".to_owned(),
             };
 
@@ -5316,6 +5501,7 @@ mod windows_host {
                 vdp_revision: SmsVdpRevision::Sega3155124,
                 audio_volume: 70,
                 dsp_config: AnalogOutputConfig::default(),
+                sg1000_dsp_config: AnalogOutputConfig::default(),
                 renderer_mode: "psg".to_owned(),
             };
 
@@ -5347,6 +5533,7 @@ mod windows_host {
                 vdp_revision: SmsVdpRevision::Sega3155124,
                 audio_volume: 70,
                 dsp_config: AnalogOutputConfig::default(),
+                sg1000_dsp_config: AnalogOutputConfig::default(),
                 renderer_mode: "psg".to_owned(),
             };
 
