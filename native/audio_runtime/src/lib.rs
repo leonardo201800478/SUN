@@ -3,6 +3,7 @@
 mod dsp;
 mod psg;
 mod session;
+mod ym2413;
 
 pub use dsp::{
     AnalogOutputConfig, AnalogOutputProcessor, AudioMixer, DspError, MixSource, OnePoleHighPass,
@@ -10,6 +11,10 @@ pub use dsp::{
 };
 pub use psg::{PsgClockError, ScheduledPsg};
 pub use session::{AudioOutputMetrics, AudioSession, NativeAudioSession, PcmSink};
+pub use ym2413::{
+    Ym2413Core, Ym2413Error, Ym2413State, YM2413_ADDRESS_MASK, YM2413_INPUT_CLOCKS_PER_ROTATION,
+    YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_REGISTER_COUNT, YM2413_SLOTS_PER_ROTATION,
+};
 
 /// Canonical internal PCM source rate, independent of any host audio endpoint.
 pub const DEFAULT_PCM_SOURCE_RATE_HZ: u32 = 48_000;
