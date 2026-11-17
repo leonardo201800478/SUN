@@ -707,49 +707,75 @@ mod windows_host {
                     height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
-                            Text { font-size: 12px; text: "Modelo de hardware para a próxima ROM"; color: #f2f5f7; }
-                            Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II — VDP 315-5246" : "Em execução: Master System — VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II — VDP 315-5246" : "Selecionado: Master System — VDP 315-5124"); color: #8bd5ca; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Sistema"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Modelo do console e região utilizados na próxima sessão."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 164px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Modelo de hardware"; color: #F1F5FA; }
+                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: #8EABFF; }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                        CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                    }
+                                    Text { font-size: 10px; text: root.has-rom ? "A ROM atual mantém o hardware já construído; a seleção vale para a próxima ROM." : "O hardware selecionado será construído ao carregar a ROM."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 11px; text: root.has-rom ? (root.selected-system == "sms2" ? "Próxima ROM: SMS2 / 315-5246. A ROM atual mantém o hardware já construído." : "Próxima ROM: SMS1 / 315-5124. A ROM atual mantém o hardware já construído.") : "O hardware selecionado será construído ao carregar a ROM."; color: #b9c5ce; wrap: word-wrap; }
-                            Text { font-size: 11px; text: "Região e frequência são configurações independentes do ASIC selecionado."; color: #b9c5ce; wrap: word-wrap; }
-                            Text { font-size: 12px; text: "Região / padrão de vídeo"; color: #b9c5ce; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.selected-region == "auto" ? "✓ Automático" : "Automático"; clicked => { root.selected-region = "auto"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "brazil" ? "✓ Brasil / PAL-M" : "Brasil / PAL-M"; clicked => { root.selected-region = "brazil"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "europe" ? "✓ Europa / PAL" : "Europa / PAL"; clicked => { root.selected-region = "europe"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "korea" ? "✓ Coreia / NTSC" : "Coreia / NTSC"; clicked => { root.selected-region = "korea"; root.preferences-changed(); } }
-                                CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
+                            Rectangle {
+                                height: 212px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Região e frequência"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "Região e frequência são independentes do ASIC selecionado."; color: #B4C0D0; }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-region == "auto" ? "✓ Automático" : "Automático"; clicked => { root.selected-region = "auto"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "brazil" ? "✓ Brasil / PAL-M" : "Brasil / PAL-M"; clicked => { root.selected-region = "brazil"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "europe" ? "✓ Europa / PAL" : "Europa / PAL"; clicked => { root.selected-region = "europe"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "japan" ? "✓ Japão / NTSC" : "Japão / NTSC"; clicked => { root.selected-region = "japan"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "korea" ? "✓ Coreia / NTSC" : "Coreia / NTSC"; clicked => { root.selected-region = "korea"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: root.selected-region == "auto" ? "Automático: World → USA; múltiplas regiões: Brasil → USA → Europa → Japão → Coreia; sem evidência confiável: USA." : "A preferência regional será aplicada ao carregar a próxima ROM."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 11px; text: root.selected-region == "auto" ? "Automático: World → USA; múltiplas regiões: Brasil → USA → Europa → Japão → Coreia; sem evidência confiável: USA." : "A preferência regional será aplicada ao carregar a próxima ROM; a sessão atual mantém o clock já construído."; color: #b9c5ce; wrap: word-wrap; }
-                            CompactButton { text: "Gerenciar firmware SMS..."; clicked => { root.active-menu = "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                            Text { font-size: 12px; text: "Outros sistemas ainda indisponíveis neste runtime"; color: #b9c5ce; }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: "SG-1000 — TMS9918"; enabled: false; }
-                                CompactButton { text: "Game Gear — 315-5378"; enabled: false; }
-                                CompactButton { text: "Mega Drive / Genesis"; enabled: false; }
-                                CompactButton { text: "Sega CD"; enabled: false; }
-                                CompactButton { text: "32X"; enabled: false; }
+                            Rectangle {
+                                height: 150px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Firmware e outros sistemas"; color: #F1F5FA; }
+                                    CompactButton { text: "Gerenciar firmware SMS"; clicked => { root.active-menu = "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                    Text { font-size: 10px; text: "SG-1000, Game Gear, Mega Drive, Sega CD e 32X ainda não estão disponíveis neste runtime."; color: #D6B879; wrap: word-wrap; }
+                                }
                             }
                         }
                         if root.active-menu == "file": VerticalLayout {
-                            LineEdit { text <=> root.rom-path-input; placeholder-text: "C:\\ROMs\\game.sms"; }
-                            HorizontalLayout {
-                                CompactButton { text: "Procurar..."; clicked => { root.browse-rom-requested(); } }
-                                CompactButton { text: "Carregar ROM"; clicked => { root.load-rom-requested(root.rom-path-input); root.active-menu = "none"; } }
-                                CompactButton { text: "Sair"; clicked => { root.exit-requested(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Arquivo"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Abra uma ROM compatível ou retome um título recente."; color: #B4C0D0; }
+                            Rectangle {
+                                height: 132px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Carregar ROM"; color: #F1F5FA; }
+                                    LineEdit { text <=> root.rom-path-input; placeholder-text: "C:\\ROMs\\game.sms"; }
+                                    HorizontalLayout { spacing: 8px;
+                                        CompactButton { text: "Procurar..."; clicked => { root.browse-rom-requested(); } }
+                                        CompactButton { text: "Carregar ROM"; clicked => { root.load-rom-requested(root.rom-path-input); root.active-menu = "none"; } }
+                                        CompactButton { text: "Sair"; clicked => { root.exit-requested(); } }
+                                    }
+                                }
                             }
-                            Text { font-size: 12px; text: "Recentes"; color: #b9c5ce; }
-                            if root.recent-roms.length == 0: Text { font-size: 12px; text: "Nenhuma ROM recente."; color: #9baab6; }
-                            for rom in root.recent-roms: RecentRomEntry {
-                                rom-path: rom;
-                                activated => { root.load-rom-requested(rom); root.active-menu = "none"; }
+                            Rectangle {
+                                height: 360px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "ROMs recentes"; color: #F1F5FA; }
+                                    if root.recent-roms.length == 0: Text { font-size: 12px; text: "Nenhuma ROM recente."; color: #B4C0D0; }
+                                    if root.recent-roms.length > 0: ScrollView {
+                                        height: 300px; width: 100%; content-width: self.width;
+                                        content-height: root.recent-roms.length * 42px;
+                                        VerticalLayout { width: 100%; spacing: 4px;
+                                            for rom in root.recent-roms: RecentRomEntry { rom-path: rom; activated => { root.load-rom-requested(rom); root.active-menu = "none"; } }
+                                        }
+                                    }
+                                }
                             }
                         }
                         if root.active-menu == "video": VerticalLayout {
@@ -1019,18 +1045,32 @@ mod windows_host {
                             }
                         }
                         if root.active-menu == "options": VerticalLayout {
-                            Text { font-size: 12px; text: "Overlay de FPS"; color: #f2f5f7; }
-                            CompactButton { text: root.show-fps ? "✓ Exibir HUD de FPS" : "Exibir HUD de FPS"; clicked => { root.show-fps = !root.show-fps; root.preferences-changed(); } }
-                            CompactButton { text: root.show-status-footer ? "✓ Exibir status no rodapé" : "Exibir status no rodapé"; clicked => { root.show-status-footer = !root.show-status-footer; root.preferences-changed(); } }
-                            FlexboxLayout {
-                                flex-direction: row; flex-wrap: wrap; spacing: 4px;
-                                CompactButton { text: root.fps-size == "small" ? "✓ Pequeno" : "Pequeno"; clicked => { root.fps-size = "small"; root.fps-font-size = 13px; root.preferences-changed(); } }
-                                CompactButton { text: root.fps-size == "medium" ? "✓ Médio" : "Médio"; clicked => { root.fps-size = "medium"; root.fps-font-size = 18px; root.preferences-changed(); } }
-                                CompactButton { text: root.fps-size == "large" ? "✓ Grande" : "Grande"; clicked => { root.fps-size = "large"; root.fps-font-size = 24px; root.preferences-changed(); } }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Opções"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Elementos de interface e apresentação do host."; color: #B4C0D0; }
+                            Rectangle { height: 176px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "HUD e telemetria"; color: #F1F5FA; }
+                                    CheckBox { text: "Exibir FPS"; checked: root.show-fps; toggled => { root.show-fps = self.checked; root.preferences-changed(); } }
+                                    CheckBox { text: "Exibir status no rodapé"; checked: root.show-status-footer; toggled => { root.show-status-footer = self.checked; root.preferences-changed(); } }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.fps-size == "small" ? "✓ Pequeno" : "Pequeno"; clicked => { root.fps-size = "small"; root.fps-font-size = 13px; root.preferences-changed(); } }
+                                        CompactButton { text: root.fps-size == "medium" ? "✓ Médio" : "Médio"; clicked => { root.fps-size = "medium"; root.fps-font-size = 18px; root.preferences-changed(); } }
+                                        CompactButton { text: root.fps-size == "large" ? "✓ Grande" : "Grande"; clicked => { root.fps-size = "large"; root.fps-font-size = 24px; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: "FPS mede uploads de textura bem-sucedidos; não representa apresentação física do monitor."; color: #B4C0D0; wrap: word-wrap; }
+                                }
                             }
-                            Text { font-size: 12px; text: "Posição do HUD: inferior (posição em cantos será concluída após validar o overlay."; color: #9baab6; }
-                            CompactButton { text: root.fullscreen-enabled && !root.immersive-fullscreen ? "✓ Tela cheia com menus" : "Tela cheia com menus (F11)"; clicked => { root.display-mode-toggle-requested("f11"); } }
-                            CompactButton { text: root.immersive-fullscreen ? "✓ Tela cheia imersiva" : "Tela cheia imersiva (Alt+Enter)"; clicked => { root.display-mode-toggle-requested("alt-enter"); } }
+                            Rectangle { height: 128px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Modo de exibição"; color: #F1F5FA; }
+                                    HorizontalLayout { spacing: 8px;
+                                        CompactButton { text: root.fullscreen-enabled && !root.immersive-fullscreen ? "✓ Tela cheia com menus" : "Tela cheia com menus (F11)"; clicked => { root.display-mode-toggle-requested("f11"); } }
+                                        CompactButton { text: root.immersive-fullscreen ? "✓ Tela cheia imersiva" : "Tela cheia imersiva (Alt+Enter)"; clicked => { root.display-mode-toggle-requested("alt-enter"); } }
+                                    }
+                                    Text { font-size: 10px; text: "A posição do HUD permanece inferior nesta versão."; color: #B4C0D0; }
+                                }
+                            }
                         }
                         if root.active-menu == "firmware": VerticalLayout {
                             spacing: 12px;
@@ -1112,12 +1152,24 @@ mod windows_host {
                             }
                         }
                         if root.active-menu == "debug": VerticalLayout {
-                            Text { font-size: 12px; text: "Diagnóstico do runtime SMS"; color: #f2f5f7; }
-                            CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
-                            CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
-                            CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
-                            Text { font-size: 12px; text: root.debug-status; color: #b9c5ce; }
-                            Text { font-size: 12px; text: "Debugger com registradores, breakpoints e memória será migrado em etapa própria; a GUI não executa instruções."; color: #9baab6; }
+                            spacing: 12px;
+                            Text { font-size: 24px; text: "Diagnóstico"; color: #F1F5FA; }
+                            Text { font-size: 12px; text: "Ferramentas de inspeção do runtime SMS."; color: #B4C0D0; }
+                            Rectangle { height: 220px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Runtime e CPU"; color: #F1F5FA; }
+                                    CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
+                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
+                                    Text { font-size: 11px; text: root.debug-status; color: #8EABFF; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle { height: 84px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 6px;
+                                    Text { font-size: 12px; text: "Breakpoints, inspeção de memória e depuração interativa ainda não foram integrados."; color: #D6B879; wrap: word-wrap; }
+                                }
+                            }
                         }
                     }
                 }
