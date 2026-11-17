@@ -8,14 +8,14 @@
 use core::fmt;
 
 use crate::{
-    DEFAULT_SG1000_CPU_CLOCK_HZ, MemoryConfig, PsgWriteEvent, Sg1000BusCompletion,
+    DEFAULT_SG1000_CPU_CLOCK_HZ, MemoryConfig, PsgWriteEvent,
     Sg1000InternalCycleCompletion, Sg1000TemporalBus, Sg1000TemporalBusError,
     Sg1000TemporalBusState, Sg1000TemporalDispatch, Sg1000TemporalM1,
     Sg1000TemporalM1Error, Sg1000TemporalM1State,
 };
 use sega_temporal_core::MachineTime;
 use sega_z80_cpu::{
-    Z80BusOperation, Z80HaltExit, Z80MicroSequencer, Z80MicroSequencerError,
+    Z80BusOperation, Z80MicroSequencer, Z80MicroSequencerError,
     Z80MicroSequencerPhase, Z80MicroSequencerState, Z80M1Phase, Z80MicroStep,
 };
 
@@ -239,6 +239,16 @@ fn instruction_timeline_is_valid(state: &Sg1000MachineState) -> bool {
     if bus.pending_request.is_some() || bus.request_started_at.is_some() || bus.completion.is_some()
     {
         return false;
+    }
+
+    // The CPU may have exposed its next request while the machine loop has not
+    // yet scheduled it. This is a valid instruction-boundary safe point.
+    if cpu.handshake.pending_request.is_some() {
+        return state.pending_internal_cycle_id.is_none()
+            && state.pending_internal_tstates.is_none()
+            && bus.pending_internal_cycle.is_none()
+            && bus.internal_completion.is_none()
+            && elapsed_tstates(started_at, now, scale) == Some(cpu.instruction_tstates);
     }
 
     if let (Some(continuation_id), Some(cycle_started_at)) =
@@ -767,7 +777,11 @@ impl Sg1000Machine {
         let cpu = Z80MicroSequencer::restore_state(state.cpu.clone())?;
         let bus = Sg1000TemporalBus::restore_state(state.bus.clone())?;
         let m1 = state.m1.map(Sg1000TemporalM1::restore_state).transpose()?;
-        let expected_bus_request = if m1.is_some() { None } else { cpu.pending_request() };
+        let expected_bus_request = if m1.is_some() || state.bus.pending_request.is_none() {
+            None
+        } else {
+            cpu.pending_request()
+        };
         let expected_int_line = state
             .external_int_line
             .or_else(|| bus.vdp().interrupt_pending().then_some(0xFF));
@@ -879,7 +893,7 @@ mod tests {
         let _ = machine.begin_instruction().unwrap();
         machine.schedule_pending_bus(0).unwrap();
         let mut snapshot = machine.export_state();
-        snapshot.bus.pending_request = None;
+        snapshot.bus.pending_internal_cycle = None;
         assert_eq!(
             Sg1000Machine::restore_state(snapshot).err(),
             Some(Sg1000TemporalMachineError::InvalidState)
