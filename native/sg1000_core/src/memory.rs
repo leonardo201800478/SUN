@@ -280,12 +280,12 @@ mod tests {
             MemoryError::InvalidRomSize(0)
         );
         let config = MemoryConfig {
-            internal_ram_size: 2048,
+            internal_ram_size: 4096,
             ..MemoryConfig::default()
         };
         assert_eq!(
             Sg1000Memory::new(&[0], config).unwrap_err(),
-            MemoryError::InvalidInternalRamSize(2048)
+            MemoryError::InvalidInternalRamSize(4096)
         );
     }
 
