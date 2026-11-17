@@ -4376,20 +4376,7 @@ mod windows_host {
             let Some(worker) = worker_guard.as_ref() else {
                 return;
             };
-            let result = worker.debug_snapshot().map(|snapshot| {
-                format!(
-                    "PC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} | frame={} ticks={} T-states={}",
-                    snapshot.pc,
-                    snapshot.sp,
-                    snapshot.af,
-                    snapshot.bc,
-                    snapshot.de,
-                    snapshot.hl,
-                    snapshot.frame_number,
-                    snapshot.machine_time_ticks,
-                    snapshot.instruction_tstates
-                )
-            });
+            let result = worker.debug_summary();
             if let Some(app) = debug_app.upgrade() {
                 app.set_debug_status(
                     result
@@ -4405,9 +4392,12 @@ mod windows_host {
             let result = (|| -> Result<Option<PathBuf>, String> {
                 let snapshot = {
                     let worker_guard = trace_export_worker.borrow();
-                    let worker = worker_guard
+                    let session = worker_guard
                         .as_ref()
-                        .ok_or_else(|| "SMS worker indisponível".to_owned())?;
+                        .ok_or_else(|| "Nenhuma sessão ativa".to_owned())?;
+                    let DesktopSession::Sms { worker, .. } = session else {
+                        return Err("Exportação de trace está disponível somente no Master System.".to_owned());
+                    };
                     worker.debug_snapshot()?
                 };
                 if !snapshot.trace_enabled {
