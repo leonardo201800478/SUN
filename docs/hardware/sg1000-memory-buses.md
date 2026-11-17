@@ -2,6 +2,9 @@
 
 # SG-1000 — memória, portas e integração inicial
 
+> **Atualização P2.4 (2026-11-17):** a resolução automática dos perfis de RAM por CRC-32/SHA-256 foi portada para Rust em `rust/runtime/sg1000-runtime/src/cartridge.rs`. O desktop usa `Sg1000TemporalWorker::new_for_cartridge`, cobrindo Type-A (8 KiB em `2000h–3FFFh`), Type-B (8 KiB em `C000h–FFFFh`), clones SG-1000 II com 2 KiB internos em `C000h–FFFFh`, Othello (2 KiB em `8000h–BFFFh`) e The Castle (8 KiB em `8000h–BFFFh`). Dumps desconhecidos mantêm 1 KiB interno. Os testes automatizados do resolver foram adicionados; a execução in-game ainda está pendente e não deve ser inferida desses testes.
+
+
 ## Escopo
 
 Este documento descreve a arquitetura que está efetivamente presente na primeira

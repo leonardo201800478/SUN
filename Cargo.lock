@@ -3731,6 +3731,7 @@ dependencies = [
  "sega-input-runtime",
  "sega-media",
  "sega-save-runtime",
+ "sega-sg1000-runtime",
  "sega-sms-core",
  "sega-sms-runtime",
  "sega-video-runtime",
@@ -3812,9 +3813,11 @@ dependencies = [
 name = "sega-sg1000-runtime"
 version = "0.1.0"
 dependencies = [
+ "crc32fast",
  "sega-audio-runtime",
  "sega-sg1000-core",
  "sega-video-runtime",
+ "sha2",
 ]
 
 [[package]]

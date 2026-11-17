@@ -4,6 +4,9 @@
 pub mod input_host;
 
 #[cfg(windows)]
+pub mod desktop_session;
+
+#[cfg(windows)]
 mod windows_host {
     use std::{
         cell::{Cell, RefCell},
@@ -22,6 +25,7 @@ mod windows_host {
         time::{Duration, Instant},
     };
 
+    use crate::desktop_session::{DesktopSession, DesktopSystem};
     use crate::input_host::Sdl3InputHost;
     use sega_media::{
         CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity, SmsConsoleVariant,
@@ -30,9 +34,10 @@ mod windows_host {
         SmsRegionPreference, resolve_sms_region,
     };
     use sega_save_runtime::SaveRamStore;
+    use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_sms_core::ControllerButtons;
     use sega_sms_runtime::{
-        AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SmsVdpRevision, SpriteLimitMode,
+        AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SmsVdpRevision,
     };
     use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
     use std::os::windows::process::CommandExt;
@@ -232,7 +237,7 @@ mod windows_host {
     /// The 2 ms cadence is a host sampling target, not a hardware-clock guarantee.
     fn start_sdl3_input_polling(
         app: &MainWindow,
-        worker_slot: Rc<RefCell<Option<SmsTemporalWorker>>>,
+        worker_slot: Rc<RefCell<Option<DesktopSession>>>,
         keyboard_state: Rc<RefCell<KeyboardInputState>>,
         gamepad_state: Rc<RefCell<[ControllerButtons; 2]>>,
     ) -> Sdl3InputPolling {
@@ -570,7 +575,7 @@ mod windows_host {
                     z: 95;
                     CompactButton { text: "Sistema"; width: 66px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "system" ? "none" : "system"; } }
                     CompactButton { text: "Arquivo"; width: 62px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "file" ? "none" : "file"; } }
-                    CompactButton { text: "Firmware"; width: 72px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "firmware" ? "none" : "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                    CompactButton { text: "Firmware"; width: 72px; enabled: root.selected-system != "sg1000"; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "firmware" ? "none" : "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                     CompactButton { text: "Vídeo"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "video" ? "none" : "video"; } }
                     CompactButton { text: "Áudio"; width: 58px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "audio" ? "none" : "audio"; } }
                     CompactButton { text: "Controles"; width: 76px; clicked => { root.keyboard-focus-lost(); root.active-menu = root.active-menu == "controls" ? "none" : "controls"; } }
@@ -672,7 +677,7 @@ mod windows_host {
                                 padding: 14px; spacing: 5px;
                                 Text { text: "Sistema selecionado"; color: #B4C0D0; font-size: 11px; }
                                 Text {
-                                    text: root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
+                                    text: root.selected-system == "sg1000" ? "Sega SG-1000 · TMS9918A" : root.selected-system == "sms2" ? "Sega Master System II · VDP 315-5246" : "Sega Master System · VDP 315-5124";
                                     color: #F1F5FA; font-size: 14px; font-weight: 600;
                                 }
                                 Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: rgb(142, 171, 255); font-size: 11px; }
@@ -715,10 +720,11 @@ mod windows_host {
                                 height: 164px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Modelo de hardware"; color: #F1F5FA; }
-                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
+                                    Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sg1000" ? "Em execução: SG-1000 · TMS9918A" : root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sg1000" ? "Selecionado: SG-1000 · TMS9918A" : root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
                                     FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
                                         CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
                                         CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                        CompactButton { text: root.selected-system == "sg1000" ? "✓ SG-1000" : "SG-1000"; enabled: !root.has-rom; clicked => { root.selected-system = "sg1000"; root.preferences-changed(); } }
                                     }
                                     Text { font-size: 10px; text: root.has-rom ? "A ROM atual mantém o hardware já construído; a seleção vale para a próxima ROM." : "O hardware selecionado será construído ao carregar a ROM."; color: #B4C0D0; wrap: word-wrap; }
                                 }
@@ -744,7 +750,7 @@ mod windows_host {
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Firmware e outros sistemas"; color: #F1F5FA; }
                                     CompactButton { text: "Gerenciar firmware SMS"; clicked => { root.active-menu = "firmware"; if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                    Text { font-size: 10px; text: "SG-1000, Game Gear, Mega Drive, Sega CD e 32X ainda não estão disponíveis neste runtime."; color: #D6B879; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "Game Gear, Mega Drive, Sega CD e 32X ainda não estão disponíveis neste runtime."; color: #D6B879; wrap: word-wrap; }
                                 }
                             }
                         }
@@ -891,10 +897,12 @@ mod windows_host {
                                         spacing: 6px;
                                         CompactButton {
                                             text: root.audio-renderer-mode == "psg" ? "✓ PSG padrão" : "PSG padrão";
+                                            enabled: (root.has-rom ? root.active-system : root.selected-system) != "sg1000";
                                             clicked => { root.audio-renderer-mode = "psg"; root.audio-renderer-changed("psg"); }
                                         }
                                         CompactButton {
                                             text: root.audio-renderer-mode == "h2-experimental" ? "✓ H2 experimental" : "H2 experimental";
+                                            enabled: (root.has-rom ? root.active-system : root.selected-system) != "sg1000";
                                             clicked => { root.audio-renderer-mode = "h2-experimental"; root.audio-renderer-changed("h2-experimental"); }
                                         }
                                     }
@@ -1138,13 +1146,13 @@ mod windows_host {
                         if root.active-menu == "debug": VerticalLayout {
                             spacing: 12px;
                             Text { font-size: 24px; text: "Diagnóstico"; color: #F1F5FA; }
-                            Text { font-size: 12px; text: "Ferramentas de inspeção do runtime SMS."; color: #B4C0D0; }
+                            Text { font-size: 12px; text: "Snapshots de CPU e ferramentas de diagnóstico do runtime ativo."; color: #B4C0D0; }
                             Rectangle { height: 220px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Runtime e CPU"; color: #F1F5FA; }
-                                    CompactButton { text: "Capturar snapshot do Z80"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
-                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
-                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled; clicked => { root.trace-export-requested(); } }
+                                    CompactButton { text: "Capturar snapshot da CPU"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
+                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom && root.active-system != "sg1000"; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
                                     Text { font-size: 11px; text: root.debug-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                     Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
                                 }
@@ -1166,7 +1174,7 @@ mod windows_host {
     #[derive(Debug, Clone)]
     struct DesktopPreferences {
         region: String,
-        sms_system: String,
+        selected_system: String,
         firmware_directory: String,
         firmware_boot_enabled: bool,
         firmware_brazil_selected: String,
@@ -1199,7 +1207,7 @@ mod windows_host {
         fn default() -> Self {
             Self {
                 region: "auto".to_owned(),
-                sms_system: "sms1".to_owned(),
+                selected_system: "sms1".to_owned(),
                 firmware_directory: String::new(),
                 firmware_boot_enabled: false,
                 firmware_brazil_selected: String::new(),
@@ -1266,8 +1274,12 @@ mod windows_host {
                 {
                     preferences.region = value.trim().to_owned();
                 }
+                "selected_system" if ["sms1", "sms2", "sg1000"].contains(&value.trim()) => {
+                    preferences.selected_system = value.trim().to_owned();
+                }
+                // Backward compatibility with settings written before multi-system selection.
                 "sms_system" if ["sms1", "sms2"].contains(&value.trim()) => {
-                    preferences.sms_system = value.trim().to_owned();
+                    preferences.selected_system = value.trim().to_owned();
                 }
                 "firmware_directory" => {
                     preferences.firmware_directory = value.trim().to_owned();
@@ -1392,9 +1404,9 @@ mod windows_host {
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
         let contents = format!(
-            "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
+            "region={}\nselected_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
-            preferences.sms_system,
+            preferences.selected_system,
             preferences.firmware_directory,
             preferences.firmware_boot_enabled,
             preferences.firmware_brazil_selected,
@@ -2079,7 +2091,7 @@ mod windows_host {
             self.mailbox_take_distribution.push(nanos);
         }
 
-        fn report_if_due(&mut self, worker_slot: &Rc<RefCell<Option<SmsTemporalWorker>>>) {
+        fn report_if_due(&mut self, worker_slot: &Rc<RefCell<Option<DesktopSession>>>) {
             let elapsed = self.started.elapsed();
             if elapsed < Duration::from_secs(1) {
                 return;
@@ -2091,7 +2103,7 @@ mod windows_host {
                     (sega_sms_runtime::SmsFramePacingMetrics::default(), 0, 0),
                     |worker| {
                         (
-                            worker.frame_pacing_metrics(),
+                            worker.sms_frame_pacing_metrics(),
                             worker.video_replaced_frames(),
                             worker.machine_clock_hz(),
                         )
@@ -2568,7 +2580,7 @@ mod windows_host {
     fn start_frame_diagnostics(
         app: &MainWindow,
         host_pacing: Arc<Mutex<HostFramePacingWindow>>,
-        worker_slot: Rc<RefCell<Option<SmsTemporalWorker>>>,
+        worker_slot: Rc<RefCell<Option<DesktopSession>>>,
     ) -> Timer {
         let timer = Timer::default();
         let app_weak = app.as_weak();
@@ -2606,8 +2618,8 @@ mod windows_host {
             Add-Type -AssemblyName System.Windows.Forms
             [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
             $dialog = New-Object System.Windows.Forms.OpenFileDialog
-            $dialog.Title = 'Selecionar ROM do Sega Master System'
-            $dialog.Filter = 'ROM Sega 8-bit (*.sms;*.bin;*.zip)|*.sms;*.bin;*.zip|Todos os arquivos (*.*)|*.*'
+            $dialog.Title = 'Selecionar ROM Sega 8-bit'
+            $dialog.Filter = 'ROM Sega 8-bit (*.sms;*.sg;*.bin;*.zip)|*.sms;*.sg;*.bin;*.zip|Todos os arquivos (*.*)|*.*'
             $dialog.Multiselect = $false
             $dialog.CheckFileExists = $true
             if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
@@ -2921,7 +2933,7 @@ mod windows_host {
         }
     }
 
-    /// Read a raw SMS ROM or a ZIP containing exactly one supported ROM entry.
+    /// Read a raw Sega 8-bit ROM or a ZIP containing exactly one supported ROM entry.
     ///
     /// ZIP data is decompressed in memory only. No archive path is ever written to disk,
     /// and entry count, archive size and uncompressed ROM size are bounded.
@@ -2950,7 +2962,7 @@ mod windows_host {
         }
     }
 
-    /// Extract a single .sms/.bin entry without writing archive-controlled paths.
+    /// Extract a single .sms/.sg/.bin entry without writing archive-controlled paths.
     fn extract_rom_from_zip(bytes: &[u8]) -> Result<Vec<u8>, String> {
         if bytes.len() > MAX_ROM_ARCHIVE_BYTES {
             return Err(format!(
@@ -2982,7 +2994,9 @@ mod windows_host {
                 .extension()
                 .and_then(|extension| extension.to_str())
                 .is_some_and(|extension| {
-                    extension.eq_ignore_ascii_case("sms") || extension.eq_ignore_ascii_case("bin")
+                    extension.eq_ignore_ascii_case("sms")
+                        || extension.eq_ignore_ascii_case("sg")
+                        || extension.eq_ignore_ascii_case("bin")
                 });
             if is_rom {
                 candidates.push((index, name, entry.size()));
@@ -2990,11 +3004,12 @@ mod windows_host {
         }
 
         if candidates.is_empty() {
-            return Err("ZIP não contém uma ROM .sms ou .bin.".to_owned());
+            return Err("ZIP não contém uma ROM .sms, .sg ou .bin.".to_owned());
         }
         if candidates.len() != 1 {
             return Err(
-                "ZIP contém múltiplas ROMs; mantenha somente uma entrada .sms ou .bin.".to_owned(),
+                "ZIP contém múltiplas ROMs; mantenha somente uma entrada .sms, .sg ou .bin."
+                    .to_owned(),
             );
         }
 
@@ -3220,6 +3235,62 @@ mod windows_host {
         Ok((worker, prepared.save_context))
     }
 
+    /// Configure the shared CPAL/PCM pipeline on the SG-1000 machine-owning thread.
+    fn configure_sg1000_audio(
+        worker: &Sg1000TemporalWorker,
+        volume: u8,
+        dsp_config: AnalogOutputConfig,
+    ) {
+        if video_only_capture_enabled() {
+            eprintln!("R3_AUDIO skipped for SG-1000: SEGA_EMULATOR_VIDEO_ONLY enabled");
+            return;
+        }
+        const BUFFER_FRAMES: u32 = 512;
+        const QUEUE_BLOCKS: usize = 8;
+        let result = worker.configure_audio_output(
+            move || -> Result<Box<dyn sega_sms_runtime::AudioSession>, String> {
+                let sink = sega_audio_output::NativeCpalOutput::new(BUFFER_FRAMES, QUEUE_BLOCKS)?;
+                eprintln!(
+                    "R3_AUDIO SG-1000 CPAL output opened: sample_rate={} Hz, channels={}, format={:?}, default_config_fallback={}, queue_capacity={} frames",
+                    sink.sample_rate_hz(),
+                    sink.channels(),
+                    sink.sample_format(),
+                    sink.used_default_config_fallback(),
+                    BUFFER_FRAMES as usize * QUEUE_BLOCKS
+                );
+                let mut session = sink.into_audio_session(volume)?;
+                session.set_analog_output_config(dsp_config)?;
+                Ok(Box::new(session))
+            },
+        );
+        if let Err(error) = result {
+            eprintln!(
+                "R3_AUDIO SG-1000 CPAL unavailable; continuing without physical audio: {error}"
+            );
+        }
+    }
+
+    /// Build exactly the runtime selected by the persisted/explicit desktop system id.
+    /// SMS cartridge catalog/SRAM/BIOS preparation is never applied to SG-1000.
+    fn create_desktop_session(
+        rom: Vec<u8>,
+        settings: &SmsWorkerSettings,
+        save_store: Arc<SaveRamStore>,
+    ) -> Result<(DesktopSession, Option<CartridgeSaveContext>), String> {
+        let system = DesktopSystem::from_id(&settings.sms_system)?;
+        match system {
+            DesktopSystem::Sg1000 => {
+                let worker = Sg1000TemporalWorker::new_for_cartridge(rom)?;
+                configure_sg1000_audio(&worker, settings.audio_volume, settings.dsp_config);
+                Ok((DesktopSession::Sg1000(worker), None))
+            }
+            DesktopSystem::Sms1 | DesktopSystem::Sms2 => {
+                let (worker, save_context) = create_sms_worker(rom, settings, save_store)?;
+                Ok((DesktopSession::Sms { worker, system }, save_context))
+            }
+        }
+    }
+
     /// Persistência executada no host, após snapshot imutável obtido no worker.
     /// O Scheduler e o caminho da CPU nunca executam operações de filesystem.
     fn persist_worker_sram(
@@ -3253,17 +3324,31 @@ mod windows_host {
         Ok(())
     }
 
+    /// Persists SRAM only for an SMS session; SG-1000 has no SMS cartridge SRAM contract.
+    fn persist_desktop_session_sram(
+        session: &DesktopSession,
+        context: Option<&CartridgeSaveContext>,
+    ) -> Result<(), String> {
+        match session {
+            DesktopSession::Sms { worker, .. } => persist_worker_sram(worker, context),
+            DesktopSession::Sg1000(_) if context.is_none() => Ok(()),
+            DesktopSession::Sg1000(_) => {
+                Err("SG-1000 session cannot own an SMS SRAM persistence context".to_owned())
+            }
+        }
+    }
+
     /// Substitui a máquina sem permitir dois produtores simultâneos no FrameMailbox.
-    fn replace_sms_worker(
+    fn replace_desktop_session(
         path: &PathBuf,
-        worker_slot: &Rc<RefCell<Option<SmsTemporalWorker>>>,
+        worker_slot: &Rc<RefCell<Option<DesktopSession>>>,
         save_context_slot: &Rc<RefCell<Option<CartridgeSaveContext>>>,
         save_store: Arc<SaveRamStore>,
         mailbox: &FrameMailbox,
         settings: &SmsWorkerSettings,
     ) -> Result<(), String> {
         let rom = read_rom_image(path)?;
-        let (next, next_save_context) = create_sms_worker(rom, settings, save_store)?;
+        let (next, next_save_context) = create_desktop_session(rom, settings, save_store)?;
 
         let previous = worker_slot.borrow_mut().take();
         if let Some(previous) = previous {
@@ -3273,7 +3358,7 @@ mod windows_host {
                 return Err(error);
             }
             let previous_context = save_context_slot.borrow().clone();
-            if let Err(error) = persist_worker_sram(&previous, previous_context.as_ref()) {
+            if let Err(error) = persist_desktop_session_sram(&previous, previous_context.as_ref()) {
                 if was_running {
                     let _ = previous.start();
                 }
@@ -3490,7 +3575,7 @@ mod windows_host {
         let save_store = cartridge_save_store()?;
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
-            sms_system: preferences.sms_system.clone(),
+            sms_system: preferences.selected_system.clone(),
             firmware_directory: preferences.firmware_directory.clone(),
             firmware_boot_enabled: preferences.firmware_boot_enabled,
             firmware_brazil_selected: preferences.firmware_brazil_selected.clone(),
@@ -3498,7 +3583,9 @@ mod windows_host {
             firmware_europe_selected: preferences.firmware_europe_selected.clone(),
             firmware_japan_selected: preferences.firmware_japan_selected.clone(),
             firmware_korea_selected: preferences.firmware_korea_selected.clone(),
-            vdp_revision: sms_vdp_revision_for_system(&preferences.sms_system)?,
+            // SG-1000 never consumes the SMS-only VDP field in SmsWorkerSettings.
+            vdp_revision: sms_vdp_revision_for_system(&preferences.selected_system)
+                .unwrap_or(SmsVdpRevision::Sega3155124),
             audio_volume: effective_audio_volume(preferences.audio_volume, preferences.audio_muted),
             dsp_config: audio_dsp_config(
                 preferences.audio_dsp_preset,
@@ -3511,16 +3598,15 @@ mod windows_host {
         };
         let mut initial_save_context = None;
         let worker = if let Some(path) = rom_path.as_ref() {
-            let (worker, context) = create_sms_worker(
+            let (sms_worker, context) = create_desktop_session(
                 read_rom_image(path)?,
                 &worker_settings,
                 Arc::clone(&save_store),
             )?;
             initial_save_context = context;
+            let worker = sms_worker;
             worker.attach_video_mailbox(mailbox.clone())?;
-            if !preferences.sprite_limit_enabled {
-                worker.set_sprite_limit_mode(SpriteLimitMode::UnlockedCompatibility)?;
-            }
+            worker.set_sprite_limit_enabled(preferences.sprite_limit_enabled)?;
             Some(worker)
         } else {
             None
@@ -3543,7 +3629,7 @@ mod windows_host {
         app.set_frame_status("Aguardando o primeiro frame completo do VDP.".into());
         app.set_lifecycle_status("Renderer setup: 0 | teardown: 0".into());
         app.set_selected_region(region.clone().into());
-        app.set_selected_system(preferences.sms_system.clone().into());
+        app.set_selected_system(preferences.selected_system.clone().into());
         app.set_firmware_directory(preferences.firmware_directory.clone().into());
         app.set_firmware_boot_enabled(preferences.firmware_boot_enabled);
         app.set_firmware_brazil_selected(preferences.firmware_brazil_selected.clone().into());
@@ -3591,7 +3677,7 @@ mod windows_host {
             }
         }
         if rom_path.is_some() {
-            app.set_active_system(preferences.sms_system.clone().into());
+            app.set_active_system(preferences.selected_system.clone().into());
         }
         app.set_show_fps(preferences.show_fps);
         app.set_show_status_footer(preferences.show_status_footer);
@@ -3642,7 +3728,7 @@ mod windows_host {
         } else if worker.borrow().is_some() {
             "Saída CPAL indisponível; consulte R3_AUDIO nos logs.".into()
         } else {
-            "Carregue uma ROM SMS para inicializar a saída CPAL.".into()
+            "Carregue uma ROM para inicializar a saída CPAL.".into()
         });
         if let Some(path) = rom_path.as_ref() {
             app.set_rom_status(format!("ROM: {} | região: {region}", path.display()).into());
@@ -3914,7 +4000,7 @@ mod windows_host {
             if path.as_os_str().is_empty() {
                 if let Some(app) = open_app.upgrade() {
                     app.set_rom_status(
-                        "Informe o caminho completo da ROM (.sms, .bin ou .zip).".into(),
+                        "Informe o caminho completo da ROM (.sms, .sg, .bin ou .zip).".into(),
                     );
                 }
                 return;
@@ -3979,8 +4065,21 @@ mod windows_host {
                         String::new(),
                     )
                 });
-            let vdp_revision = match sms_vdp_revision_for_system(&system) {
-                Ok(revision) => revision,
+            let vdp_revision = match DesktopSystem::from_id(&system) {
+                Ok(DesktopSystem::Sg1000) => SmsVdpRevision::Sega3155124,
+                Ok(DesktopSystem::Sms1 | DesktopSystem::Sms2) => {
+                    match sms_vdp_revision_for_system(&system) {
+                        Ok(revision) => revision,
+                        Err(error) => {
+                            if let Some(app) = open_app.upgrade() {
+                                app.set_rom_status(
+                                    format!("Sistema selecionado inválido: {error}").into(),
+                                );
+                            }
+                            return;
+                        }
+                    }
+                }
                 Err(error) => {
                     if let Some(app) = open_app.upgrade() {
                         app.set_rom_status(format!("Sistema selecionado inválido: {error}").into());
@@ -4004,7 +4103,7 @@ mod windows_host {
                 renderer_mode,
             };
 
-            match replace_sms_worker(
+            match replace_desktop_session(
                 &path,
                 &open_worker,
                 &open_save_context,
@@ -4014,14 +4113,9 @@ mod windows_host {
             ) {
                 Ok(()) => {
                     *open_gamepad_state.borrow_mut() = [ControllerButtons::default(); 2];
-                    let sprite_mode = if sprite_limit_enabled {
-                        SpriteLimitMode::HardwareLimit
-                    } else {
-                        SpriteLimitMode::UnlockedCompatibility
-                    };
                     let start_result = open_worker.borrow().as_ref().map(|worker| {
                         worker
-                            .set_sprite_limit_mode(sprite_mode)
+                            .set_sprite_limit_enabled(sprite_limit_enabled)
                             .and_then(|()| worker.reset())
                             .and_then(|()| worker.start())
                     });
@@ -4122,6 +4216,16 @@ mod windows_host {
                 return;
             };
             let path = PathBuf::from(directory.as_str());
+            let system = app.get_selected_system().to_string();
+            if system == "sg1000" {
+                app.set_firmware_scan_status(
+                    "O SG-1000 não utiliza a BIOS convencional do Master System.".into(),
+                );
+                app.set_firmware_scan_results(
+                    "Selecione SMS1 ou SMS2 para consultar o catálogo de firmware.".into(),
+                );
+                return;
+            }
             // Every request supersedes older scans, including an invalid directory request.
             let generation = firmware_scan_generation.fetch_add(1, Ordering::AcqRel) + 1;
             let generation_state = Arc::clone(&firmware_scan_generation);
@@ -4131,7 +4235,6 @@ mod windows_host {
                 );
                 return;
             }
-            let system = app.get_selected_system().to_string();
             let selected = [
                 app.get_firmware_brazil_selected().to_string(),
                 app.get_firmware_usa_selected().to_string(),
@@ -4247,7 +4350,7 @@ mod windows_host {
                     return;
                 }
                 if let Err(error) =
-                    persist_worker_sram(&previous, close_save_context.borrow().as_ref())
+                    persist_desktop_session_sram(&previous, close_save_context.borrow().as_ref())
                 {
                     if was_running {
                         let _ = previous.start();
@@ -4293,7 +4396,7 @@ mod windows_host {
                     return;
                 }
                 if let Err(error) =
-                    persist_worker_sram(active_worker, exit_save_context.borrow().as_ref())
+                    persist_desktop_session_sram(active_worker, exit_save_context.borrow().as_ref())
                 {
                     if was_running {
                         let _ = active_worker.start();
@@ -4310,7 +4413,7 @@ mod windows_host {
             if let Some(app) = exit_prefs_app.upgrade() {
                 let prefs = DesktopPreferences {
                     region: app.get_selected_region().to_string(),
-                    sms_system: app.get_selected_system().to_string(),
+                    selected_system: app.get_selected_system().to_string(),
                     firmware_directory: app.get_firmware_directory().to_string(),
                     firmware_boot_enabled: app.get_firmware_boot_enabled(),
                     firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -4352,20 +4455,7 @@ mod windows_host {
             let Some(worker) = worker_guard.as_ref() else {
                 return;
             };
-            let result = worker.debug_snapshot().map(|snapshot| {
-                format!(
-                    "PC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} | frame={} ticks={} T-states={}",
-                    snapshot.pc,
-                    snapshot.sp,
-                    snapshot.af,
-                    snapshot.bc,
-                    snapshot.de,
-                    snapshot.hl,
-                    snapshot.frame_number,
-                    snapshot.machine_time_ticks,
-                    snapshot.instruction_tstates
-                )
-            });
+            let result = worker.debug_summary();
             if let Some(app) = debug_app.upgrade() {
                 app.set_debug_status(
                     result
@@ -4381,9 +4471,12 @@ mod windows_host {
             let result = (|| -> Result<Option<PathBuf>, String> {
                 let snapshot = {
                     let worker_guard = trace_export_worker.borrow();
-                    let worker = worker_guard
+                    let session = worker_guard
                         .as_ref()
-                        .ok_or_else(|| "SMS worker indisponível".to_owned())?;
+                        .ok_or_else(|| "Nenhuma sessão ativa".to_owned())?;
+                    let DesktopSession::Sms { worker, .. } = session else {
+                        return Err("Exportação de trace está disponível somente no Master System.".to_owned());
+                    };
                     worker.debug_snapshot()?
                 };
                 if !snapshot.trace_enabled {
@@ -4429,7 +4522,7 @@ mod windows_host {
             };
             let prefs = DesktopPreferences {
                 region: app.get_selected_region().to_string(),
-                sms_system: app.get_selected_system().to_string(),
+                selected_system: app.get_selected_system().to_string(),
                 firmware_directory: app.get_firmware_directory().to_string(),
                 firmware_boot_enabled: app.get_firmware_boot_enabled(),
                 firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -4515,7 +4608,7 @@ mod windows_host {
                     app.set_audio_status(format!("Falha ao alterar áudio: {error}").into())
                 }
                 None => app.set_audio_status(
-                    "Preferência salva; será aplicada ao carregar uma ROM SMS.".into(),
+                    "Preferência salva; será aplicada ao carregar uma ROM.".into(),
                 ),
             }
             app.invoke_preferences_changed();
@@ -4549,7 +4642,7 @@ mod windows_host {
                         app.set_audio_status(format!("Falha ao aplicar DSP: {error}").into())
                     }
                     None => app.set_audio_status(
-                        "Preferências DSP salvas; serão aplicadas ao carregar uma ROM SMS.".into(),
+                        "Preferências DSP salvas; serão aplicadas ao carregar uma ROM.".into(),
                     ),
                 }
                 app.invoke_preferences_changed();
@@ -4570,7 +4663,7 @@ mod windows_host {
             let result = audio_renderer_worker
                 .borrow()
                 .as_ref()
-                .map(|worker| worker.set_audio_renderer(mode));
+                .map(|worker| worker.set_sms_audio_renderer(mode));
             match result {
                 Some(Ok(())) => app.set_audio_status(match mode {
                     AudioRendererMode::Psg => "Renderer PSG selecionado.".into(),
@@ -4581,7 +4674,7 @@ mod windows_host {
                     app.set_audio_status(format!("H2 indisponível; PSG preservado: {error}").into());
                 }
                 None => app.set_audio_status(
-                    "Preferência do renderer salva; será aplicada ao iniciar uma ROM SMS.".into(),
+                    "Preferência do renderer salva; será aplicada ao iniciar uma ROM.".into(),
                 ),
             }
             app.invoke_preferences_changed();
@@ -4635,13 +4728,8 @@ mod windows_host {
         let sprite_worker = Rc::clone(&worker);
         let sprite_app = app.as_weak();
         app.on_sprite_limit_toggle_requested(move |enabled| {
-            let mode = if enabled {
-                SpriteLimitMode::HardwareLimit
-            } else {
-                SpriteLimitMode::UnlockedCompatibility
-            };
             if let Some(worker) = sprite_worker.borrow().as_ref()
-                && let Err(error) = worker.set_sprite_limit_mode(mode)
+                && let Err(error) = worker.set_sprite_limit_enabled(enabled)
             {
                 eprintln!("R2_VIDEO action=sprite_limit_toggle error={error}");
                 if let Some(app) = sprite_app.upgrade() {
@@ -4659,8 +4747,8 @@ mod windows_host {
             let result = trace_worker.borrow().as_ref().map_or_else(
                 || Err("SMS worker indisponível".to_owned()),
                 |worker| {
-                    worker.set_trace_enabled(enabled)?;
-                    worker.set_diagnostics_enabled(enabled);
+                    worker.set_sms_trace_enabled(enabled)?;
+                    worker.set_sms_diagnostics_enabled(enabled);
                     Ok(())
                 },
             );
@@ -4701,7 +4789,7 @@ mod windows_host {
         let run_result = app.run();
         let final_preferences = DesktopPreferences {
             region: app.get_selected_region().to_string(),
-            sms_system: app.get_selected_system().to_string(),
+            selected_system: app.get_selected_system().to_string(),
             firmware_directory: app.get_firmware_directory().to_string(),
             firmware_boot_enabled: app.get_firmware_boot_enabled(),
             firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -4737,7 +4825,8 @@ mod windows_host {
             if let Err(error) = active_worker.pause() {
                 eprintln!("SRAM_SAVE pause_before_exit_failed error={error}");
             }
-            if let Err(error) = persist_worker_sram(&active_worker, save_context.borrow().as_ref())
+            if let Err(error) =
+                persist_desktop_session_sram(&active_worker, save_context.borrow().as_ref())
             {
                 final_save_error = Some(error);
             }
@@ -5169,6 +5258,12 @@ mod windows_host {
             let bytes = zip_archive(&[("games/sonic.sms", b"SMS-ROM")]);
             assert_eq!(extract_rom_from_zip(&bytes).unwrap(), b"SMS-ROM");
         }
+        #[test]
+        fn zip_rom_loader_accepts_sg1000_entry() {
+            let bytes = zip_archive(&[("games/space-mountain.sg", b"SG1000-ROM")]);
+            assert_eq!(extract_rom_from_zip(&bytes).unwrap(), b"SG1000-ROM");
+        }
+
         #[test]
         fn zip_rom_loader_rejects_archives_without_roms_or_with_multiple_roms() {
             let no_rom = zip_archive(&[("readme.txt", b"not a rom")]);

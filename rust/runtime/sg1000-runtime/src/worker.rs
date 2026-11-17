@@ -64,6 +64,7 @@ struct WorkerTelemetry {
     last_frame_instructions: AtomicU64,
     runtime_error: Mutex<Option<String>>,
     audio_error: Mutex<Option<String>>,
+    audio_output_metrics: Mutex<AudioOutputMetrics>,
     video_error: Mutex<Option<String>>,
 }
 
@@ -89,6 +90,19 @@ impl WorkerTelemetry {
         if let Ok(mut slot) = self.audio_error.lock() {
             *slot = error;
         }
+    }
+
+    fn set_audio_output_metrics(&self, metrics: AudioOutputMetrics) {
+        if let Ok(mut slot) = self.audio_output_metrics.lock() {
+            *slot = metrics;
+        }
+    }
+
+    fn audio_output_metrics(&self) -> AudioOutputMetrics {
+        self.audio_output_metrics
+            .lock()
+            .map(|metrics| *metrics)
+            .unwrap_or_default()
     }
 
     fn set_video_error(&self, error: Option<String>) {
@@ -129,6 +143,7 @@ struct WorkerState {
     machine: Sg1000Machine,
     rom: Vec<u8>,
     memory_config: MemoryConfig,
+    auto_profile_cartridge: bool,
     controller_frame: ControllerFrame,
     running: bool,
     audio_session: Option<Box<dyn AudioSession>>,
@@ -138,12 +153,17 @@ struct WorkerState {
 }
 
 impl WorkerState {
-    fn new(rom: Vec<u8>, memory_config: MemoryConfig) -> Result<Self, String> {
+    fn new(
+        rom: Vec<u8>,
+        memory_config: MemoryConfig,
+        auto_profile_cartridge: bool,
+    ) -> Result<Self, String> {
         let machine = build_machine(&rom, memory_config)?;
         Ok(Self {
             machine,
             rom,
             memory_config,
+            auto_profile_cartridge,
             controller_frame: ControllerFrame::default(),
             running: false,
             audio_session: None,
@@ -164,10 +184,7 @@ impl WorkerState {
             refresh: cpu.refresh,
             halted: cpu.halted,
             last_frame_instructions: telemetry.last_frame_instructions.load(Ordering::Acquire),
-            audio_output: self
-                .audio_session
-                .as_ref()
-                .map_or_else(AudioOutputMetrics::default, |session| session.metrics()),
+            audio_output: telemetry.audio_output_metrics(),
             runtime_error: WorkerTelemetry::clone_error(&telemetry.runtime_error),
             audio_error: WorkerTelemetry::clone_error(&telemetry.audio_error),
             video_error: WorkerTelemetry::clone_error(&telemetry.video_error),
@@ -205,8 +222,14 @@ impl WorkerState {
         telemetry: &WorkerTelemetry,
     ) -> Result<(), String> {
         // Construct first: an invalid replacement ROM must not destroy the
-        // currently running machine or its emulated state.
-        let next_machine = build_machine(&next_rom, self.memory_config)?;
+        // currently running machine or its emulated state. Cartridge-auto
+        // sessions resolve the replacement ROM's RAM profile before commit.
+        let next_memory_config = if self.auto_profile_cartridge {
+            crate::memory_config_for_rom(&next_rom)
+        } else {
+            self.memory_config
+        };
+        let next_machine = build_machine(&next_rom, next_memory_config)?;
         let was_running = preserve_running && self.running;
         self.running = false;
         telemetry.running.store(false, Ordering::Release);
@@ -218,6 +241,7 @@ impl WorkerState {
         }
         self.machine = next_machine;
         self.rom = next_rom;
+        self.memory_config = next_memory_config;
         self.controller_frame = ControllerFrame::default();
         self.controller_frame
             .apply_to(&mut self.machine)
@@ -290,8 +314,10 @@ impl WorkerState {
                 session.close();
                 self.audio_session = None;
                 telemetry.set_audio_error(Some(error));
+                telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
             } else {
                 telemetry.set_audio_error(None);
+                telemetry.set_audio_output_metrics(session.metrics());
             }
         }
 
@@ -470,6 +496,7 @@ fn handle_command(
                     if let Some(mut previous) = state.audio_session.take() {
                         previous.close();
                     }
+                    telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
                     session.close();
                     telemetry.set_audio_error(Some(error.clone()));
                     let _ = reply.send(Err(error));
@@ -486,10 +513,19 @@ fn handle_command(
                         Ok(()) => {
                             state.audio_session = Some(session);
                             telemetry.set_audio_error(None);
+                            telemetry.set_audio_output_metrics(
+                                state
+                                    .audio_session
+                                    .as_ref()
+                                    .map_or_else(AudioOutputMetrics::default, |session| {
+                                        session.metrics()
+                                    }),
+                            );
                             let _ = reply.send(Ok(()));
                         }
                         Err(error) => {
                             session.close();
+                            telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
                             telemetry.set_audio_error(Some(error.clone()));
                             let _ = reply.send(Err(error));
                         }
@@ -497,6 +533,7 @@ fn handle_command(
                 }
             }
             Err(error) => {
+                telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
                 telemetry.set_audio_error(Some(error.clone()));
                 let _ = reply.send(Err(error));
             }
@@ -523,6 +560,7 @@ fn handle_command(
             } else {
                 Ok(())
             };
+            telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
             telemetry.set_audio_error(result.as_ref().err().cloned());
             let _ = reply.send(result);
         }
@@ -551,6 +589,7 @@ fn handle_command(
                 let _ = session.suspend_and_flush();
                 session.close();
             }
+            telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
             // The FrameMailbox is externally owned and is never closed here.
             return true;
         }
@@ -624,6 +663,7 @@ fn worker_loop(
         let _ = session.suspend_and_flush();
         session.close();
     }
+    telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
     telemetry.running.store(false, Ordering::Release);
 }
 
@@ -640,10 +680,26 @@ impl Sg1000TemporalWorker {
         Self::new_with_memory_config(rom, MemoryConfig::default())
     }
 
+    /// Start a paused worker using the known ROM-hash cartridge RAM profile.
+    ///
+    /// Unknown ROMs conservatively use the standard 1 KiB internal RAM map.
+    pub fn new_for_cartridge(rom: Vec<u8>) -> Result<Self, String> {
+        let memory_config = crate::memory_config_for_rom(&rom);
+        Self::new_with_memory_config_and_policy(rom, memory_config, true)
+    }
+
     /// Start a paused worker with an explicit cartridge/internal RAM profile.
     pub fn new_with_memory_config(
         rom: Vec<u8>,
         memory_config: MemoryConfig,
+    ) -> Result<Self, String> {
+        Self::new_with_memory_config_and_policy(rom, memory_config, false)
+    }
+
+    fn new_with_memory_config_and_policy(
+        rom: Vec<u8>,
+        memory_config: MemoryConfig,
+        auto_profile_cartridge: bool,
     ) -> Result<Self, String> {
         let (commands, receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
         let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
@@ -655,7 +711,7 @@ impl Sg1000TemporalWorker {
                 // Construct the machine and its non-Send host audio slot on the
                 // owning thread. Only ROM/configuration and channel handles
                 // cross the thread boundary.
-                match WorkerState::new(rom, memory_config) {
+                match WorkerState::new(rom, memory_config, auto_profile_cartridge) {
                     Ok(state) => {
                         worker_telemetry.update_machine(&state.machine, 0);
                         let _ = ready_sender.send(Ok(()));
@@ -828,6 +884,24 @@ impl Sg1000TemporalWorker {
         self.request_unit(WorkerCommand::CloseAudio, "closing audio output")
     }
 
+    /// Read the latest non-blocking PCM output metrics snapshot.
+    ///
+    /// Metrics are copied from worker telemetry and never query the non-Send
+    /// audio session or wait for a worker command from the GUI thread.
+    pub fn audio_output_metrics(&self) -> AudioOutputMetrics {
+        self.telemetry.audio_output_metrics()
+    }
+
+    /// Return the latest audio backend error without issuing a worker command.
+    pub fn audio_output_error(&self) -> Option<String> {
+        WorkerTelemetry::clone_error(&self.telemetry.audio_error)
+    }
+
+    /// Return the latest machine execution error without issuing a worker command.
+    pub fn runtime_error(&self) -> Option<String> {
+        WorkerTelemetry::clone_error(&self.telemetry.runtime_error)
+    }
+
     fn set_video_mailbox(&self, mailbox: Option<FrameMailbox>) -> Result<(), String> {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
         enqueue_worker_command(
@@ -959,7 +1033,10 @@ mod tests {
         }
 
         fn metrics(&self) -> AudioOutputMetrics {
-            AudioOutputMetrics::default()
+            AudioOutputMetrics {
+                sample_rate_hz: sega_audio_runtime::DEFAULT_PCM_SOURCE_RATE_HZ,
+                ..AudioOutputMetrics::default()
+            }
         }
 
         fn close(&mut self) {
@@ -994,6 +1071,13 @@ mod tests {
                 })
                 .unwrap();
 
+            assert_eq!(
+                worker.audio_output_metrics().sample_rate_hz,
+                DEFAULT_PCM_SOURCE_RATE_HZ
+            );
+            assert!(worker.audio_output_error().is_none());
+            assert!(worker.runtime_error().is_none());
+
             // A debugger frame step advances the same DSP path but must not
             // submit PCM to the suspended physical sink.
             worker.step_frame(20_000).unwrap();
@@ -1002,6 +1086,8 @@ mod tests {
             worker.start().unwrap();
             worker.pause().unwrap();
             assert!(!worker.is_running());
+            worker.close_audio_output().unwrap();
+            assert_eq!(worker.audio_output_metrics(), AudioOutputMetrics::default());
         }
 
         assert_ne!(factory_thread.lock().unwrap().unwrap(), caller_thread);

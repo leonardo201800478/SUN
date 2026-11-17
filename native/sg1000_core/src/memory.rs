@@ -44,7 +44,7 @@ impl fmt::Display for MemoryError {
                 "ROM size must be between 1 and {ROM_WINDOW_SIZE} bytes, got {size}"
             ),
             Self::InvalidInternalRamSize(size) => {
-                write!(f, "internal RAM must be 1 KiB or 8 KiB, got {size}")
+                write!(f, "internal RAM must be 1 KiB, 2 KiB, or 8 KiB, got {size}")
             }
             Self::InvalidCartridgeRamSize(size) => write!(
                 f,
@@ -77,7 +77,7 @@ impl Sg1000Memory {
         if rom.is_empty() || rom.len() > ROM_WINDOW_SIZE {
             return Err(MemoryError::InvalidRomSize(rom.len()));
         }
-        if !matches!(config.internal_ram_size, INTERNAL_RAM_1K | RAM_8K) {
+        if !matches!(config.internal_ram_size, INTERNAL_RAM_1K | RAM_2K | RAM_8K) {
             return Err(MemoryError::InvalidInternalRamSize(
                 config.internal_ram_size,
             ));
@@ -161,7 +161,7 @@ impl Sg1000Memory {
 
 #[cfg(test)]
 mod tests {
-    use super::{MemoryConfig, MemoryError, Sg1000Memory};
+    use super::{MemoryConfig, MemoryError, RAM_2K, Sg1000Memory};
 
     #[test]
     fn mirrors_small_rom_across_cartridge_window() {
@@ -220,6 +220,43 @@ mod tests {
     }
 
     #[test]
+    fn maps_sg1000_ii_clone_2k_internal_ram_with_mirroring() {
+        let config = MemoryConfig {
+            internal_ram_size: RAM_2K,
+            ..MemoryConfig::default()
+        };
+        let mut memory = Sg1000Memory::new(&[0x55], config).unwrap();
+
+        memory.write(0xC000, 0xA7);
+        memory.write(0xC7FF, 0x5C);
+
+        assert_eq!(memory.read(0xC000), 0xA7);
+        assert_eq!(memory.read(0xC800), 0xA7);
+        assert_eq!(memory.read(0xC7FF), 0x5C);
+        assert_eq!(memory.read(0xCFFF), 0x5C);
+        assert_eq!(memory.internal_ram().len(), RAM_2K);
+    }
+
+    #[test]
+    fn maps_type_b_expansion_as_8k_internal_ram_mirrored_across_c000_to_ffff() {
+        let config = MemoryConfig {
+            internal_ram_size: 0x2000,
+            ..MemoryConfig::default()
+        };
+        let mut memory = Sg1000Memory::new(&[0x55], config).unwrap();
+
+        memory.write(0xC000, 0xA7);
+        memory.write(0xDFFF, 0x5C);
+
+        assert_eq!(memory.read(0xC000), 0xA7);
+        assert_eq!(memory.read(0xE000), 0xA7);
+        assert_eq!(memory.read(0xDFFF), 0x5C);
+        assert_eq!(memory.read(0xFFFF), 0x5C);
+        assert_eq!(memory.internal_ram().len(), 0x2000);
+        assert!(memory.cartridge_ram().is_empty());
+    }
+
+    #[test]
     fn maps_2k_omv_ram_with_mirroring() {
         let config = MemoryConfig {
             cartridge_ram_size: 0x0800,
@@ -243,12 +280,12 @@ mod tests {
             MemoryError::InvalidRomSize(0)
         );
         let config = MemoryConfig {
-            internal_ram_size: 2048,
+            internal_ram_size: 4096,
             ..MemoryConfig::default()
         };
         assert_eq!(
             Sg1000Memory::new(&[0], config).unwrap_err(),
-            MemoryError::InvalidInternalRamSize(2048)
+            MemoryError::InvalidInternalRamSize(4096)
         );
     }
 
