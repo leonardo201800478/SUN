@@ -863,7 +863,7 @@ impl Drop for Sg1000TemporalWorker {
 
 #[cfg(test)]
 mod tests {
-    use super::{SG1000_WORKER_SAVE_STATE_VERSION, Sg1000TemporalWorker};
+    use super::{AudioOutputMetrics, SG1000_WORKER_SAVE_STATE_VERSION, Sg1000TemporalWorker};
     use sega_sg1000_core::ControllerButtons;
     use sega_video_runtime::{FrameMailbox, PixelFormat};
 
@@ -973,7 +973,7 @@ mod tests {
         use std::thread;
 
         use sega_audio_runtime::{
-            AudioOutputMetrics, AudioSession, DEFAULT_PCM_SOURCE_RATE_HZ, NativeAudioSession,
+            AudioSession, DEFAULT_PCM_SOURCE_RATE_HZ, NativeAudioSession,
         };
 
         let caller_thread = thread::current().id();
