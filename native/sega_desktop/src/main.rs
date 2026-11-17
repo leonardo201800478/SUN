@@ -4,6 +4,9 @@
 pub mod input_host;
 
 #[cfg(windows)]
+pub mod desktop_session;
+
+#[cfg(windows)]
 mod windows_host {
     use std::{
         cell::{Cell, RefCell},
