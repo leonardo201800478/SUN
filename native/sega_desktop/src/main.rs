@@ -693,18 +693,18 @@ mod windows_host {
             x: (root.active-menu == "firmware" || root.active-menu == "video") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "system" ? 12px : root.active-menu == "file" ? 81px : root.active-menu == "video" ? 146px : root.active-menu == "audio" ? 207px : root.active-menu == "controls" ? 268px : root.active-menu == "options" ? 347px : 416px, 8px), parent.width - self.width - 8px);
             y: 88px;
             width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "file" ? 560px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 480px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 230px : root.active-menu == "system" ? 340px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 480px : 180px);
+            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 560px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 360px : root.active-menu == "system" ? 660px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
             border-color: #344154; min-height: 120px; max-height: 680px; max-width: 1048px;
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 660px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 300px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 160px + root.recent-roms.length * 80px : root.active-menu == "controls" ? 660px : root.active-menu == "system" ? 340px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 230px : root.active-menu == "debug" ? 210px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             spacing: 12px;
@@ -976,34 +976,17 @@ mod windows_host {
                                     Text { font-size: 11px; text: "Selecione uma ação e pressione a nova tecla. Esc cancela a captura."; color: #B4C0D0; wrap: word-wrap; }
                                     GridLayout {
                                         spacing: 6px;
-                                        Row { }
-                                        Text { text: "Ação"; color: #B4C0D0; }
-                                        Text { text: "Tecla atual"; color: #B4C0D0; }
-                                        Text { text: "Atribuir"; color: #B4C0D0; }
-                                        Row { }
-                                        Text { text: "Cima"; color: #F1F5FA; }
-                                        Text { text: root.keyboard-up-label; color: #8EABFF; }
-                                        CompactButton { text: root.keyboard-capture-action == "up" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "up"; root.keyboard-capture-status = "Pressione a tecla para Cima..."; } }
-                                        Row { }
-                                        Text { text: "Baixo"; color: #F1F5FA; }
-                                        Text { text: root.keyboard-down-label; color: #8EABFF; }
-                                        CompactButton { text: root.keyboard-capture-action == "down" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "down"; root.keyboard-capture-status = "Pressione a tecla para Baixo..."; } }
-                                        Row { }
-                                        Text { text: "Esquerda"; color: #F1F5FA; }
-                                        Text { text: root.keyboard-left-label; color: #8EABFF; }
-                                        CompactButton { text: root.keyboard-capture-action == "left" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "left"; root.keyboard-capture-status = "Pressione a tecla para Esquerda..."; } }
-                                        Row { }
-                                        Text { text: "Direita"; color: #F1F5FA; }
-                                        Text { text: root.keyboard-right-label; color: #8EABFF; }
-                                        CompactButton { text: root.keyboard-capture-action == "right" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "right"; root.keyboard-capture-status = "Pressione a tecla para Direita..."; } }
-                                        Row { }
-                                        Text { text: "Botão 1"; color: #F1F5FA; }
-                                        Text { text: root.keyboard-button1-label; color: #8EABFF; }
-                                        CompactButton { text: root.keyboard-capture-action == "button1" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button1"; root.keyboard-capture-status = "Pressione a tecla para Botão 1..."; } }
-                                        Row { }
-                                        Text { text: "Botão 2"; color: #F1F5FA; }
-                                        Text { text: root.keyboard-button2-label; color: #8EABFF; }
-                                        CompactButton { text: root.keyboard-capture-action == "button2" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button2"; root.keyboard-capture-status = "Pressione a tecla para Botão 2..."; } }
+                                        Row {
+                                            Text { text: "Ação"; color: #B4C0D0; }
+                                            Text { text: "Tecla atual"; color: #B4C0D0; }
+                                            Text { text: "Atribuir"; color: #B4C0D0; }
+                                        }
+                                        Row { Text { text: "Cima"; color: #F1F5FA; } Text { text: root.keyboard-up-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "up" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "up"; root.keyboard-capture-status = "Pressione a tecla para Cima..."; } } }
+                                        Row { Text { text: "Baixo"; color: #F1F5FA; } Text { text: root.keyboard-down-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "down" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "down"; root.keyboard-capture-status = "Pressione a tecla para Baixo..."; } } }
+                                        Row { Text { text: "Esquerda"; color: #F1F5FA; } Text { text: root.keyboard-left-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "left" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "left"; root.keyboard-capture-status = "Pressione a tecla para Esquerda..."; } } }
+                                        Row { Text { text: "Direita"; color: #F1F5FA; } Text { text: root.keyboard-right-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "right" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "right"; root.keyboard-capture-status = "Pressione a tecla para Direita..."; } } }
+                                        Row { Text { text: "Botão 1"; color: #F1F5FA; } Text { text: root.keyboard-button1-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "button1" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button1"; root.keyboard-capture-status = "Pressione a tecla para Botão 1..."; } } }
+                                        Row { Text { text: "Botão 2"; color: #F1F5FA; } Text { text: root.keyboard-button2-label; color: #8EABFF; } CompactButton { text: root.keyboard-capture-action == "button2" ? "Pressione..." : "Alterar"; clicked => { root.keyboard-capture-action = "button2"; root.keyboard-capture-status = "Pressione a tecla para Botão 2..."; } } }
                                     }
                                     HorizontalLayout {
                                         spacing: 8px;
