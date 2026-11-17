@@ -23,7 +23,7 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 |---|---|---|
 | P0 | Fundação Rust, toolchain, CI, contratos e hosts | Workspaces e boundaries reproduzíveis; host Slint/WGPU ativo |
 | P1 | SMS1/SMS2 | Perfis 315-5124/315-5246, runtime, BIOS/cartucho, VDP, PSG, I/O, mappers e regressões consolidados |
-| P2 | SG-1000 | Máquina temporal, worker Rust e sessão desktop integrados sobre Z80 compartilhado, MachineScheduler, TMS9918A, SN76489, I/O, snapshots, FrameMailbox e AudioSession | Gameplay dos perfis de cartucho, lifecycle completo e validação física do host Windows (vídeo/áudio/input) |
+| P2 | SG-1000 | Máquina temporal, worker Rust e sessão desktop integrados sobre Z80 compartilhado, MachineScheduler, TMS9918A, SN76489, I/O, snapshots, FrameMailbox e AudioSession; saída exige gameplay dos perfis de cartucho, lifecycle completo e validação física do host Windows (vídeo/áudio/input) |
 | P3 | Game Gear | Máquina própria com LCD 160×144, VDP/CRAM, áudio estéreo, memória/cartucho, portas e snapshots específicos |
 | P4 | Expansões e acessórios 8-bit | YM2413 integrado do Master System japonês (opcional, independente de região); Sega Card/My Card como mídia; 3D Glasses/SegaScope com saídas 2D e estéreo; Paddle, Sports Pad, Light Phaser, Rapid Fire e expansões conforme compatibilidade |
 | P5 | Mega Drive / Genesis | M68k, VDP, áudio, barramentos, cartuchos e Scheduler próprios, reutilizando somente contratos realmente comuns |
