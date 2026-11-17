@@ -1,8 +1,8 @@
 # SG-1000 — registro de jogabilidade (smoke test manual)
 
-**Data do relato:** 2026-11-17  
-**Projeto:** Sega Emulator  
-**Baseline remota atual no início da tarefa:** `main @ 0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`  
+**Data do relato:** 2026-11-17
+**Projeto:** Sega Emulator
+**Baseline remota atual no início da tarefa:** `main @ 0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`
 **Tipo de evidência:** teste manual reportado pelo usuário no desktop local
 
 ## Resultado
@@ -36,4 +36,3 @@ O registro não autoriza mudanças no núcleo SN76489, Z80, MachineScheduler, VD
 ## Próximo refinamento de áudio
 
 A interface deverá expor para SG-1000 apenas HPF/LPF opcionais de saída, com preferências independentes das opções SMS. O bypass digital permanece padrão. Como não há esquema/captura elétrica SG-1000 suficiente para caracterizar a resposta da placa, esses filtros devem ser identificados como DSP experimental, nunca como perfil analógico calibrado.
-
