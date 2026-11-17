@@ -7,6 +7,9 @@ pub mod input_host;
 pub mod desktop_session;
 
 #[cfg(windows)]
+pub mod desktop_session;
+
+#[cfg(windows)]
 mod windows_host {
     use std::{
         cell::{Cell, RefCell},
@@ -25,6 +28,7 @@ mod windows_host {
         time::{Duration, Instant},
     };
 
+    use crate::desktop_session::{DesktopSession, DesktopSystem};
     use crate::input_host::Sdl3InputHost;
     use sega_media::{
         CartridgeCatalog, CartridgeHardwareProfile, CartridgeIdentity, SmsConsoleVariant,
@@ -235,7 +239,7 @@ mod windows_host {
     /// The 2 ms cadence is a host sampling target, not a hardware-clock guarantee.
     fn start_sdl3_input_polling(
         app: &MainWindow,
-        worker_slot: Rc<RefCell<Option<SmsTemporalWorker>>>,
+        worker_slot: Rc<RefCell<Option<DesktopSession>>>,
         keyboard_state: Rc<RefCell<KeyboardInputState>>,
         gamepad_state: Rc<RefCell<[ControllerButtons; 2]>>,
     ) -> Sdl3InputPolling {
@@ -2082,7 +2086,7 @@ mod windows_host {
             self.mailbox_take_distribution.push(nanos);
         }
 
-        fn report_if_due(&mut self, worker_slot: &Rc<RefCell<Option<SmsTemporalWorker>>>) {
+        fn report_if_due(&mut self, worker_slot: &Rc<RefCell<Option<DesktopSession>>>) {
             let elapsed = self.started.elapsed();
             if elapsed < Duration::from_secs(1) {
                 return;
@@ -2094,7 +2098,7 @@ mod windows_host {
                     (sega_sms_runtime::SmsFramePacingMetrics::default(), 0, 0),
                     |worker| {
                         (
-                            worker.frame_pacing_metrics(),
+                            worker.sms_frame_pacing_metrics(),
                             worker.video_replaced_frames(),
                             worker.machine_clock_hz(),
                         )
@@ -2571,7 +2575,7 @@ mod windows_host {
     fn start_frame_diagnostics(
         app: &MainWindow,
         host_pacing: Arc<Mutex<HostFramePacingWindow>>,
-        worker_slot: Rc<RefCell<Option<SmsTemporalWorker>>>,
+        worker_slot: Rc<RefCell<Option<DesktopSession>>>,
     ) -> Timer {
         let timer = Timer::default();
         let app_weak = app.as_weak();
@@ -3069,7 +3073,7 @@ mod windows_host {
         } else {
             AudioRendererMode::Psg
         };
-        if let Err(error) = worker.set_audio_renderer(renderer) {
+        if let Err(error) = worker.set_sms_audio_renderer(renderer) {
             eprintln!("R3_AUDIO renderer selection failed; PSG remains the fallback: {error}");
         }
         if video_only_capture_enabled() {
@@ -3259,7 +3263,7 @@ mod windows_host {
     /// Substitui a máquina sem permitir dois produtores simultâneos no FrameMailbox.
     fn replace_sms_worker(
         path: &PathBuf,
-        worker_slot: &Rc<RefCell<Option<SmsTemporalWorker>>>,
+        worker_slot: &Rc<RefCell<Option<DesktopSession>>>,
         save_context_slot: &Rc<RefCell<Option<CartridgeSaveContext>>>,
         save_store: Arc<SaveRamStore>,
         mailbox: &FrameMailbox,
@@ -4644,7 +4648,7 @@ mod windows_host {
                 SpriteLimitMode::UnlockedCompatibility
             };
             if let Some(worker) = sprite_worker.borrow().as_ref()
-                && let Err(error) = worker.set_sprite_limit_mode(mode)
+                && let Err(error) = worker.set_sprite_limit_enabled(enabled)
             {
                 eprintln!("R2_VIDEO action=sprite_limit_toggle error={error}");
                 if let Some(app) = sprite_app.upgrade() {
@@ -4662,8 +4666,8 @@ mod windows_host {
             let result = trace_worker.borrow().as_ref().map_or_else(
                 || Err("SMS worker indisponível".to_owned()),
                 |worker| {
-                    worker.set_trace_enabled(enabled)?;
-                    worker.set_diagnostics_enabled(enabled);
+                    worker.set_sms_trace_enabled(enabled)?;
+                    worker.set_sms_diagnostics_enabled(enabled);
                     Ok(())
                 },
             );
