@@ -468,6 +468,23 @@ impl Sg1000TemporalBus {
         &self.psg
     }
 
+    /// Configure the TMS9918A sprite-per-line diagnostic limit.
+    pub fn set_sprite_limit_enabled(&mut self, enabled: bool) {
+        self.vdp.set_sprite_limit_enabled(enabled);
+    }
+
+    pub const fn sprite_limit_enabled(&self) -> bool {
+        self.vdp.sprite_limit_enabled()
+    }
+
+    pub const fn frame_number(&self) -> u64 {
+        self.vdp.frame_number()
+    }
+
+    pub fn framebuffer(&self) -> &[u8] {
+        self.vdp.framebuffer()
+    }
+
     /// Update the logical active-low controller snapshot without advancing time.
     pub fn set_joystick(&mut self, player: u8, value: u8) -> Result<(), IoError> {
         self.io.set_joystick(player, value)
