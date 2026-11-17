@@ -100,7 +100,9 @@ impl Ym2413Core {
         }
     }
 
-    /// Reset the register image, address latch, and sequential clock phase.
+    /// Reset the logical register image, address latch, and sequential clock phase.
+    ///
+    /// The machine adapter remains responsible for the documented external reset-pulse timing.
     pub fn reset(&mut self) {
         *self = Self::new();
     }
@@ -123,7 +125,7 @@ impl Ym2413Core {
         self.address_latch
     }
 
-    /// Return the next sequential operator slot index (0..18).
+    /// Return the next sequential operator slot index (0..17).
     pub const fn slot_index(&self) -> u8 {
         self.slot_index
     }
