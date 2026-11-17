@@ -3724,9 +3724,9 @@ mod windows_host {
         let keyboard_capture_app = app.as_weak();
         app.on_keyboard_key_captured(
             move |action: slint::SharedString, key: slint::SharedString| {
-                    let Some(app) = keyboard_capture_app.upgrade() else {
-                        return;
-                    };
+                let Some(app) = keyboard_capture_app.upgrade() else {
+                    return;
+                };
                 let key = key.to_string();
                 if key.is_empty() || key.chars().any(char::is_control) {
                     app.set_keyboard_capture_status("Tecla inválida. Tente outra tecla.".into());
@@ -3734,15 +3734,28 @@ mod windows_host {
                     return;
                 }
                 let current = [
-                    app.get_keyboard_up_key().to_string(), app.get_keyboard_down_key().to_string(),
-                    app.get_keyboard_left_key().to_string(), app.get_keyboard_right_key().to_string(),
-                    app.get_keyboard_button1_key().to_string(), app.get_keyboard_button2_key().to_string(),
+                    app.get_keyboard_up_key().to_string(),
+                    app.get_keyboard_down_key().to_string(),
+                    app.get_keyboard_left_key().to_string(),
+                    app.get_keyboard_right_key().to_string(),
+                    app.get_keyboard_button1_key().to_string(),
+                    app.get_keyboard_button2_key().to_string(),
                 ];
                 let action_index = match action.as_str() {
-                    "up" => 0, "down" => 1, "left" => 2, "right" => 3, "button1" => 4, "button2" => 5,
+                    "up" => 0,
+                    "down" => 1,
+                    "left" => 2,
+                    "right" => 3,
+                    "button1" => 4,
+                    "button2" => 5,
                     _ => 6,
                 };
-                if action_index == 6 || current.iter().enumerate().any(|(index, assigned)| index != action_index && assigned == &key) {
+                if action_index == 6
+                    || current
+                        .iter()
+                        .enumerate()
+                        .any(|(index, assigned)| index != action_index && assigned == &key)
+                {
                     app.set_keyboard_capture_status("Tecla já atribuída ou ação inválida.".into());
                     app.set_keyboard_capture_action("".into());
                     return;
@@ -3750,18 +3763,45 @@ mod windows_host {
                 let label = keyboard_key_label(&key);
                 let shared: slint::SharedString = key.into();
                 match action.as_str() {
-                    "up" => { app.set_keyboard_up_key(shared); app.set_keyboard_up_label(label.into()); }
-                    "down" => { app.set_keyboard_down_key(shared); app.set_keyboard_down_label(label.into()); }
-                    "left" => { app.set_keyboard_left_key(shared); app.set_keyboard_left_label(label.into()); }
-                    "right" => { app.set_keyboard_right_key(shared); app.set_keyboard_right_label(label.into()); }
-                    "button1" => { app.set_keyboard_button1_key(shared); app.set_keyboard_button1_label(label.into()); }
-                    "button2" => { app.set_keyboard_button2_key(shared); app.set_keyboard_button2_label(label.into()); }
-                    _ => { app.set_keyboard_capture_status("Ação de remapeamento desconhecida.".into()); app.set_keyboard_capture_action("".into()); return; }
+                    "up" => {
+                        app.set_keyboard_up_key(shared);
+                        app.set_keyboard_up_label(label.into());
+                    }
+                    "down" => {
+                        app.set_keyboard_down_key(shared);
+                        app.set_keyboard_down_label(label.into());
+                    }
+                    "left" => {
+                        app.set_keyboard_left_key(shared);
+                        app.set_keyboard_left_label(label.into());
+                    }
+                    "right" => {
+                        app.set_keyboard_right_key(shared);
+                        app.set_keyboard_right_label(label.into());
+                    }
+                    "button1" => {
+                        app.set_keyboard_button1_key(shared);
+                        app.set_keyboard_button1_label(label.into());
+                    }
+                    "button2" => {
+                        app.set_keyboard_button2_key(shared);
+                        app.set_keyboard_button2_label(label.into());
+                    }
+                    _ => {
+                        app.set_keyboard_capture_status(
+                            "Ação de remapeamento desconhecida.".into(),
+                        );
+                        app.set_keyboard_capture_action("".into());
+                        return;
+                    }
                 }
                 app.set_keyboard_capture_action("".into());
-                app.set_keyboard_capture_status("Tecla atualizada; preferências persistidas.".into());
+                app.set_keyboard_capture_status(
+                    "Tecla atualizada; preferências persistidas.".into(),
+                );
                 app.invoke_preferences_changed();
-        });
+            },
+        );
 
         let keyboard_press_state = Rc::clone(&keyboard_state);
         let keyboard_press_worker = Rc::clone(&worker);
