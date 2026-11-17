@@ -2960,7 +2960,7 @@ mod windows_host {
         }
     }
 
-    /// Extract a single .sms/.bin entry without writing archive-controlled paths.
+    /// Extract a single .sms/.sg/.bin entry without writing archive-controlled paths.
     fn extract_rom_from_zip(bytes: &[u8]) -> Result<Vec<u8>, String> {
         if bytes.len() > MAX_ROM_ARCHIVE_BYTES {
             return Err(format!(
@@ -3998,7 +3998,7 @@ mod windows_host {
             if path.as_os_str().is_empty() {
                 if let Some(app) = open_app.upgrade() {
                     app.set_rom_status(
-                        "Informe o caminho completo da ROM (.sms, .bin ou .zip).".into(),
+                        "Informe o caminho completo da ROM (.sms, .sg, .bin ou .zip).".into(),
                     );
                 }
                 return;
