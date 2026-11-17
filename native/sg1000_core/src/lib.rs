@@ -16,7 +16,10 @@ pub mod bus;
 pub mod cpu;
 pub mod input;
 pub mod io;
-pub mod machine;
+#[cfg(test)]
+mod machine;
+pub mod temporal_m1;
+pub mod temporal_machine;
 pub mod memory;
 pub mod psg;
 pub mod temporal;
@@ -29,7 +32,8 @@ pub use input::{
     ControllerBackend, ControllerBackendPreference, ControllerButtons, ControllerFrame,
 };
 pub use io::{IoError, PsgWriteEvent, Sg1000Io};
-pub use machine::{MachineError, Sg1000Machine};
+pub use temporal_m1::{Sg1000TemporalM1, Sg1000TemporalM1Error, Sg1000TemporalM1State};
+pub use temporal_machine::{MachineError, Sg1000Machine, Sg1000MachineState, Sg1000TemporalMachineError};
 pub use memory::{MemoryConfig, MemoryError, Sg1000Memory};
 pub use psg::{PsgError, Sn76489};
 pub use temporal::{
