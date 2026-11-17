@@ -310,6 +310,68 @@ mod tests {
     }
 
     #[test]
+    fn sms_hardware_variant_is_preserved_by_the_session_adapter() {
+        let sms2 = DesktopSession::Sms {
+            worker: SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap(),
+            system: DesktopSystem::Sms2,
+        };
+
+        assert_eq!(sms2.system(), DesktopSystem::Sms2);
+    }
+
+    #[test]
+    fn controller_snapshot_is_translated_at_the_sg1000_host_boundary() {
+        use std::time::Instant;
+
+        use sega_sms_core::ControllerButtons;
+
+        let sg1000 =
+            DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0xDB, 0xDC, 0x76]).unwrap());
+        sg1000
+            .set_controller_at(
+                1,
+                ControllerButtons {
+                    up: true,
+                    ..ControllerButtons::default()
+                },
+                Instant::now(),
+            )
+            .unwrap();
+        sg1000.step_frame(20_000).unwrap();
+
+        let DesktopSession::Sg1000(worker) = &sg1000 else {
+            unreachable!("test constructed an SG-1000 session");
+        };
+        assert_eq!(worker.debug_snapshot().unwrap().a, 0xFE);
+    }
+
+    #[test]
+    fn both_runtimes_publish_native_frames_through_the_shared_mailbox_contract() {
+        use sega_video_runtime::PixelFormat;
+
+        let sms = DesktopSession::Sms {
+            worker: SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap(),
+            system: DesktopSystem::Sms1,
+        };
+        let sg1000 =
+            DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
+
+        for session in [&sms, &sg1000] {
+            let mailbox = sega_video_runtime::FrameMailbox::new();
+            session.attach_video_mailbox(mailbox.clone()).unwrap();
+            session.step_frame(100_000).unwrap();
+            let frame = mailbox.take_latest().unwrap().unwrap();
+
+            assert_eq!(frame.width(), 256);
+            assert_eq!(frame.height(), 192);
+            assert_eq!(frame.pixel_format(), PixelFormat::Rgb888);
+            assert_eq!(frame.pixels().len(), 256 * 192 * 3);
+
+            session.detach_video_mailbox().unwrap();
+        }
+    }
+
+    #[test]
     fn sms_only_operations_fail_explicitly_for_sg1000() {
         let sg1000 = DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
 
