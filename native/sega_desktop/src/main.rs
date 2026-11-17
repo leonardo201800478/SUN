@@ -2992,7 +2992,9 @@ mod windows_host {
                 .extension()
                 .and_then(|extension| extension.to_str())
                 .is_some_and(|extension| {
-                    extension.eq_ignore_ascii_case("sms") || extension.eq_ignore_ascii_case("bin")
+                    extension.eq_ignore_ascii_case("sms")
+                        || extension.eq_ignore_ascii_case("sg")
+                        || extension.eq_ignore_ascii_case("bin")
                 });
             if is_rom {
                 candidates.push((index, name, entry.size()));
@@ -3000,7 +3002,7 @@ mod windows_host {
         }
 
         if candidates.is_empty() {
-            return Err("ZIP não contém uma ROM .sms ou .bin.".to_owned());
+            return Err("ZIP não contém uma ROM .sms, .sg ou .bin.".to_owned());
         }
         if candidates.len() != 1 {
             return Err(
