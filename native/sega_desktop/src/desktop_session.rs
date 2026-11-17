@@ -6,11 +6,11 @@
 
 use std::time::Instant;
 
-use sega_sms_runtime::AudioSession;
-use sega_sms_core::ControllerButtons as SmsControllerButtons;
-use sega_sms_runtime::{AnalogOutputConfig, SmsTemporalWorker, SpriteLimitMode};
 use sega_sg1000_runtime::ControllerButtons as Sg1000ControllerButtons;
 use sega_sg1000_runtime::Sg1000TemporalWorker;
+use sega_sms_core::ControllerButtons as SmsControllerButtons;
+use sega_sms_runtime::AudioSession;
+use sega_sms_runtime::{AnalogOutputConfig, SmsTemporalWorker, SpriteLimitMode};
 use sega_video_runtime::FrameMailbox;
 
 /// Explicit system selection used by the desktop ROM-routing boundary.
