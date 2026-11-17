@@ -16,7 +16,7 @@ pub struct Sg1000TemporalM1State {
     pub pending_deadline: Option<MachineTime>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Sg1000TemporalM1Error {
     Bus(Sg1000TemporalBusError),
     Cycle(Z80M1Error),
