@@ -1,6 +1,6 @@
-# Status dos componentes — revisão 2026-11-16
+# Status dos componentes — revisão 2026-11-17
 
-**Baseline:** `main` `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`.
+**Baseline:** `main` `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`.
 **Regra:** estado integrado na main separado de PRs, testes físicos e relatos manuais.
 
 | Área | Estado na baseline | Pendência real |
@@ -15,8 +15,8 @@
 | SMS1/SMS2 | Runtime integrado; correções recentes presentes | BIOS boot aguarda validação física; VDP/HCounter e raster só reabrir com evidência atual |
 | SMS sprites | Alinhamento reportado pelo usuário como corrigido | Sem defeito aberto conhecido; reabrir somente por regressão reproduzível |
 | Road Rash | Testado fisicamente pelo usuário e reportado OK | Removido do backlog de defeitos; sem SHA/relatório técnico atribuído |
-| BIOS SMS | Implementação candidata na PR #928 | Teste físico com BIOS real, handoff e início do cartucho pendentes |
-| SG-1000 | Core funcional legado e coordenador/barramento temporal inicial | Na main, coordenador registra apenas Z80; barramento rejeita PortRead/PortWrite; Sg1000Machine ainda usa cpu.step() e avança VDP/PSG em fronteiras de instrução. PR #981 é candidata P2.1, ainda não integrada; P2.2 deve conectar Z80MicroSequencer/M1 ao próprio Sg1000Machine |
+| BIOS SMS | Implementação integrada pela PR #928 | Validação física com BIOS real, handoff e início do cartucho permanecem pendentes |
+| SG-1000 | P2.2/P2.3/P2.4 integradas na main pelas PRs #988/#989/#990. `Sg1000Machine` usa `Z80MicroSequencer`; `Sg1000TemporalBus` aceita memória, PortRead e PortWrite; CPU/VDP/PSG avançam no mesmo MachineScheduler; worker Rust e `DesktopSession` reutilizam o host Slint/WGPU/CPAL/SDL3. A máquina atômica antiga está limitada a `cfg(test)` como oracle | P2 não está fechado: gameplay real dos perfis Type-A/Type-B/2 KiB/Othello/The Castle, validação física Windows de vídeo/áudio/input, hotplug/underruns/lifecycle e replay dedicado de eventos ainda não demonstrados |
 | Game Gear | Scaffold/planejamento inicial | Auditoria independente e especificação própria após SG-1000 |
 | YM2413 | Modelo arquitetural e documentação existentes | Após Game Gear, implementar somente YM2413 integrado do Master System japonês; FM Sound Unit externo do Mark III excluído |
 | Sega Card/My Card | Mídia de software documentada | Preservar carregamento e slots nativos SMS/Mark III; modelar seleção/arbitragem conforme geração após Game Gear |
@@ -34,6 +34,16 @@
 - Evidência física fornecida pelo usuário deve ser registrada como relato de teste físico, sem inventar SHA, log ou ambiente.
 - `SKIPPED` e `NOT RUN` nunca são PASS.
 
+## SG-1000 P2 — rastreabilidade
+
+- P2.2: PR #988, merge `be883792025de3db7eaf4e7b8243293ea90b7e06`; máquina temporal, M1/WAIT, portas e snapshots compostos.
+- P2.3: PR #989, merge `a728c448bb656f19650e88e214a9a723bbcc2713`; worker Rust, FrameMailbox, AudioSession e save-state.
+- P2.4: PR #990, merge/main `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`; DesktopSession, seleção/roteamento multi-sistema e perfis de RAM por hash.
+- Auditoria detalhada: [sg1000-p2-post-p24-reconciliation-2026-11-17.md](audits/sg1000-p2-post-p24-reconciliation-2026-11-17.md).
+- P2 permanece aberto até validação in-game dos perfis de cartucho e validação física do host. Não iniciar P3/Game Gear antes dos gates de saída.
+
 ## CI da baseline
 
-Main `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`: workflow push pós-merge #43962737265. Change impact classification, Documentation patch hygiene e Rust quality/unit PASS. Workspace, Z80, Scheduler, SMS1 VDP, CPAL, SDL3, Slint/WGPU/Vulkan e demais jobs de código/runtime foram SKIPPED; portanto, não há nova validação de runtime pós-merge. A PR #980 foi validada em seu HEAD `c83d459ba710785a86ae28632b2c0bcc98e3a05f` pelo run #43959831347: impact, documentation hygiene e Rust quality/unit PASS; demais jobs SKIPPED.
+Main `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`: push run [#44135959914](https://github.com/leonardo201800478/sega-emulator/actions/runs/44135959914). Change impact, Rust quality/unit, Rust workspace, Slint/WGPU/Vulkan POC, SDL3 input, PowerShell tooling e documentation hygiene PASS. CPAL output, PSG, Scheduler stress, Z80 focused, SMS1 VDP e outros jobs foram SKIPPED; portanto, não há aceite físico de áudio nem validação in-game dos perfis expandidos neste SHA.
+
+A PR #980 foi integrada em `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`; seu CI de PR [#43959831347](https://github.com/leonardo201800478/sega-emulator/actions/runs/43959831347) e push pós-merge [#43962737265](https://github.com/leonardo201800478/sega-emulator/actions/runs/43962737265) passaram em change impact, documentação e Rust quality/unit. Os demais jobs foram SKIPPED. Esta atualização não declara auditoria integral dos 285 documentos.
