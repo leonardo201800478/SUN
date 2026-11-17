@@ -449,8 +449,9 @@ impl Sg1000Machine {
         let effective_line = self
             .external_int_line
             .or_else(|| self.bus.vdp().interrupt_pending().then_some(0xFF));
-        self.bus
-            .set_interrupt_vector(effective_line.unwrap_or(0xFF));
+        if let Some(vector) = effective_line {
+            self.bus.set_interrupt_vector(vector);
+        }
         self.cpu.set_int_line(effective_line);
     }
 
@@ -852,8 +853,15 @@ impl Sg1000Machine {
         let expected_int_line = state
             .external_int_line
             .or_else(|| bus.vdp().interrupt_pending().then_some(0xFF));
+        let interrupt_vector_is_valid = if let Some(vector) = state.external_int_line {
+            state.bus.interrupt_vector == vector
+        } else if bus.vdp().interrupt_pending() {
+            state.bus.interrupt_vector == 0xFF
+        } else {
+            true
+        };
         if cpu.export_state().int_pending != expected_int_line
-            || state.bus.interrupt_vector != state.external_int_line.unwrap_or(0xFF)
+            || !interrupt_vector_is_valid
             || expected_bus_request != state.bus.pending_request
             || state.pending_internal_cycle_id != state.bus.pending_internal_cycle
             || state.pending_internal_cycle_id.is_some() != state.pending_internal_tstates.is_some()
@@ -961,6 +969,93 @@ mod tests {
             chunked.run_instructions(10).unwrap();
         }
         assert_eq!(continuous.export_state(), chunked.export_state());
+    }
+
+    #[test]
+    fn m1_wait_states_are_scheduled_as_tw_and_counted_once() {
+        let mut machine = Sg1000Machine::new(&[0x00], MemoryConfig::default()).unwrap();
+        let step = machine.step_instruction(2).unwrap();
+        assert!(matches!(step, Z80MicroStep::InstructionRetired { .. }));
+        assert_eq!(machine.total_tstates(), 6);
+        assert_eq!(machine.cpu().refresh & 0x7F, 1);
+    }
+
+    #[test]
+    fn snapshot_restores_mid_m1_wait_without_losing_wait_phase() {
+        let mut machine = Sg1000Machine::new(&[0x00], MemoryConfig::default()).unwrap();
+        let _ = machine.begin_instruction().unwrap();
+        machine.schedule_pending_bus(2).unwrap();
+        let _ = machine.dispatch_next().unwrap(); // T1 -> T2
+        machine.schedule_pending_bus(2).unwrap();
+        let _ = machine.dispatch_next().unwrap(); // T2 -> first Tw
+        let snapshot = machine.export_state();
+        let mut restored = Sg1000Machine::restore_state(snapshot.clone()).unwrap();
+        assert_eq!(restored.export_state(), snapshot);
+
+        while !matches!(
+            restored.cpu().export_state().phase,
+            Z80MicroSequencerPhase::Ready
+        ) {
+            if restored.cpu().pending_request().is_some() {
+                restored.schedule_pending_bus(2).unwrap();
+            } else if restored.cpu().export_state().phase.is_internal_cycle() {
+                restored.schedule_internal_cycle(1).unwrap();
+            }
+            let _ = restored.dispatch_next().unwrap();
+        }
+        assert_eq!(restored.total_tstates(), 6);
+        assert_eq!(restored.cpu().refresh & 0x7F, 1);
+    }
+
+    #[test]
+    fn sg1000_vdp_ports_be_bf_are_decoded_through_the_scheduler() {
+        let rom = [
+            0x3E, 0x00, // LD A,00
+            0xD3, 0xBF, // OUT (BF),A - first control byte
+            0x3E, 0x40, // LD A,40 - VRAM write command
+            0xD3, 0xBF, // OUT (BF),A - second control byte
+            0x3E, 0x5A, // LD A,5A
+            0xD3, 0xBE, // OUT (BE),A - VRAM data
+            0x3E, 0x00, // LD A,00 - VRAM read address low
+            0xD3, 0xBF, // OUT (BF),A
+            0xD3, 0xBF, // OUT (BF),A - read command
+            0xDB, 0xBE, // IN A,(BE)
+            0x76, // HALT
+        ];
+        let mut machine = Sg1000Machine::new(&rom, MemoryConfig::default()).unwrap();
+        machine.run_instructions(10).unwrap();
+        assert_eq!(machine.cpu().registers.a, 0x5A);
+    }
+
+    #[test]
+    fn psg_port_write_is_committed_at_the_scheduler_deadline() {
+        let rom = [0x3E, 0x90, 0xD3, 0x7F, 0x76];
+        let mut machine = Sg1000Machine::new(&rom, MemoryConfig::default()).unwrap();
+        assert_eq!(machine.run_instructions(2), Ok(18));
+        assert_eq!(
+            machine.drain_psg_write_events(),
+            vec![PsgWriteEvent {
+                tstate: 18,
+                value: 0x90,
+            }]
+        );
+    }
+
+    #[test]
+    fn external_interrupt_vector_and_int_line_are_independent_inputs() {
+        let mut machine = Sg1000Machine::new(&[0x00], MemoryConfig::default()).unwrap();
+        machine.set_interrupt_vector(0xCF);
+        let snapshot = machine.export_state();
+        assert_eq!(snapshot.bus.interrupt_vector, 0xCF);
+        let restored = Sg1000Machine::restore_state(snapshot).unwrap();
+        assert_eq!(restored.export_state().bus.interrupt_vector, 0xCF);
+        assert_eq!(restored.cpu().export_state().int_pending, None);
+
+        machine.set_int_line(Some(0x38));
+        assert_eq!(machine.cpu().export_state().int_pending, Some(0x38));
+        assert_eq!(machine.export_state().bus.interrupt_vector, 0x38);
+        machine.set_int_line(None);
+        assert_eq!(machine.cpu().export_state().int_pending, None);
     }
 
     #[test]
