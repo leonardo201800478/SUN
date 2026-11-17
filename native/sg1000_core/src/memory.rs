@@ -161,7 +161,7 @@ impl Sg1000Memory {
 
 #[cfg(test)]
 mod tests {
-    use super::{MemoryConfig, MemoryError, Sg1000Memory};
+    use super::{MemoryConfig, MemoryError, RAM_2K, Sg1000Memory};
 
     #[test]
     fn mirrors_small_rom_across_cartridge_window() {
