@@ -972,7 +972,9 @@ mod tests {
         use std::sync::{Arc, Mutex};
         use std::thread;
 
-        use sega_audio_runtime::{AudioSession, NativeAudioSession};
+        use sega_audio_runtime::{
+            AudioOutputMetrics, AudioSession, NativeAudioSession, DEFAULT_PCM_SOURCE_RATE_HZ,
+        };
 
         let caller_thread = thread::current().id();
         let factory_thread = Arc::new(Mutex::new(None));
