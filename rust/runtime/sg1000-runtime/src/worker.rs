@@ -628,6 +628,13 @@ fn worker_loop(
     telemetry.running.store(false, Ordering::Release);
 }
 
+/// Handle to the dedicated thread that exclusively owns the SG-1000 machine.
+pub struct Sg1000TemporalWorker {
+    commands: SyncSender<WorkerCommand>,
+    worker: Option<JoinHandle<()>>,
+    telemetry: Arc<WorkerTelemetry>,
+}
+
 impl Sg1000TemporalWorker {
     /// Start a paused worker using the baseline SG-1000 memory profile.
     pub fn new(rom: Vec<u8>) -> Result<Self, String> {
