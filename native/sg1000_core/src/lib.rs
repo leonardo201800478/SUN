@@ -18,12 +18,12 @@ pub mod input;
 pub mod io;
 #[cfg(test)]
 mod machine;
-pub mod temporal_m1;
-pub mod temporal_machine;
 pub mod memory;
 pub mod psg;
 pub mod temporal;
 pub mod temporal_bus;
+pub mod temporal_m1;
+pub mod temporal_machine;
 pub mod vdp;
 
 pub use bus::CpuBus;
@@ -32,8 +32,6 @@ pub use input::{
     ControllerBackend, ControllerBackendPreference, ControllerButtons, ControllerFrame,
 };
 pub use io::{IoError, PsgWriteEvent, Sg1000Io};
-pub use temporal_m1::{Sg1000TemporalM1, Sg1000TemporalM1Error, Sg1000TemporalM1State};
-pub use temporal_machine::{MachineError, Sg1000Machine, Sg1000MachineState, Sg1000TemporalMachineError};
 pub use memory::{MemoryConfig, MemoryError, Sg1000Memory};
 pub use psg::{PsgError, Sn76489};
 pub use temporal::{
@@ -44,5 +42,9 @@ pub use temporal::{
 pub use temporal_bus::{
     Sg1000BusCompletion, Sg1000InternalCycleCompletion, Sg1000TemporalBus, Sg1000TemporalBusError,
     Sg1000TemporalBusState, Sg1000TemporalDispatch,
+};
+pub use temporal_m1::{Sg1000TemporalM1, Sg1000TemporalM1Error, Sg1000TemporalM1State};
+pub use temporal_machine::{
+    MachineError, Sg1000Machine, Sg1000MachineState, Sg1000TemporalMachineError,
 };
 pub use vdp::Tms9918A;
