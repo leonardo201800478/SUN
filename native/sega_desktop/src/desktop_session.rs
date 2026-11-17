@@ -6,11 +6,14 @@
 
 use std::time::Instant;
 
+use sega_sg1000_runtime::AudioOutputMetrics;
 use sega_sg1000_runtime::ControllerButtons as Sg1000ControllerButtons;
 use sega_sg1000_runtime::Sg1000TemporalWorker;
 use sega_sms_core::ControllerButtons as SmsControllerButtons;
 use sega_sms_runtime::AudioSession;
-use sega_sms_runtime::{AnalogOutputConfig, SmsTemporalWorker, SpriteLimitMode};
+use sega_sms_runtime::{
+    AnalogOutputConfig, SmsFramePacingMetrics, SmsTemporalWorker, SpriteLimitMode,
+};
 use sega_video_runtime::FrameMailbox;
 
 /// Explicit system selection used by the desktop ROM-routing boundary.
@@ -225,6 +228,50 @@ impl DesktopSession {
                 SpriteLimitMode::UnlockedCompatibility
             }),
             Self::Sg1000(worker) => worker.set_sprite_limit_enabled(enabled),
+        }
+    }
+
+    /// Return SMS frame-pacing telemetry when supported by the selected runtime.
+    ///
+    /// SG-1000 does not currently publish the SMS-specific pacing structure.
+    pub fn sms_frame_pacing_metrics(&self) -> SmsFramePacingMetrics {
+        match self {
+            Self::Sms { worker, .. } => worker.frame_pacing_metrics(),
+            Self::Sg1000(_) => SmsFramePacingMetrics::default(),
+        }
+    }
+
+    /// Return the number of presentation frames replaced before host consumption.
+    pub fn video_replaced_frames(&self) -> u64 {
+        match self {
+            Self::Sms { worker, .. } => worker.video_replaced_frames(),
+            Self::Sg1000(_) => 0,
+        }
+    }
+
+    /// Return the configured machine clock when exposed by the selected runtime.
+    pub fn machine_clock_hz(&self) -> u64 {
+        match self {
+            Self::Sms { worker, .. } => worker.machine_clock_hz(),
+            Self::Sg1000(_) => 0,
+        }
+    }
+
+    /// Return physical audio queue metrics from the selected worker.
+    pub fn audio_output_metrics(&self) -> AudioOutputMetrics {
+        match self {
+            Self::Sms { worker, .. } => worker.audio_output_metrics(),
+            Self::Sg1000(worker) => worker
+                .debug_snapshot()
+                .map(|snapshot| snapshot.audio_output)
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Enable/disable detailed SMS diagnostics without inventing SG-1000 trace support.
+    pub fn set_sms_diagnostics_enabled(&self, enabled: bool) {
+        if let Self::Sms { worker, .. } = self {
+            worker.set_diagnostics_enabled(enabled);
         }
     }
 
