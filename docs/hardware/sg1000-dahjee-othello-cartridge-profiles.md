@@ -6,7 +6,7 @@ This document records distinct RAM maps for SG-1000 cartridge hardware. CRC32 id
 
 ### DahJee/Jumbo Type A
 
-The Genesis Plus GX source (core/cart_hw/sms_cart.c) explicitly lists the seven CRCs below as MAPPER_RAM_8K_EXT1 and maps the adapter's 8 KiB external RAM at **2000h–3FFFh**. This is a cartridge/adapter RAM window that overlays the normal ROM read map; it is not the SG-1000's internal RAM at C000h–FFFFh.
+The Genesis Plus GX source (core/cart_hw/sms_cart.c) explicitly lists the fourteen CRCs below as MAPPER_RAM_8K_EXT1 and maps the adapter's 8 KiB external RAM at **2000h–3FFFh**. This is a cartridge/adapter RAM window that overlays the normal ROM read map; it is not the SG-1000's internal RAM at C000h–FFFFh.
 
 Reference implementation (used for independent behavioral study, not copied): https://github.com/ekeeke/Genesis-Plus-GX/blob/master/core/cart_hw/sms_cart.c
 
@@ -27,7 +27,7 @@ Reference implementation (used for independent behavioral study, not copied): ht
 | Star Soldier [DahJee] (Taiwan) | e0816bb7 | DahJee/Jumbo Type A |
 | Zanac [DahJee] (Taiwan) | 7c55057c | DahJee/Jumbo Type A |
 
-The MAME software list identifies these titles with slot dahjee_typea and reports a 9,216-byte RAM data area for the listed conversions. The 9,216-byte metadata is not modeled as a single contiguous 9 KiB window: the Type-A mapper behavior above describes an 8 KiB external window, while the baseline 1 KiB internal RAM remains mapped separately.
+The MAME software list identifies several of these titles with slot dahjee_typea and reports a 9,216-byte RAM data area for those conversions. The 9,216-byte metadata is not modeled as a single contiguous 9 KiB window: the Type-A mapper behavior above describes an 8 KiB external window, while the baseline 1 KiB internal RAM remains mapped separately.
 
 MAME metadata: https://github.com/mamedev/mame/blob/master/hash/sg1000.xml
 
