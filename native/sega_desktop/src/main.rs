@@ -38,6 +38,7 @@ mod windows_host {
     use sega_sms_runtime::{
         AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SmsVdpRevision, SpriteLimitMode,
     };
+    use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
     use std::os::windows::process::CommandExt;
     use zip::ZipArchive;
@@ -3228,6 +3229,65 @@ mod windows_host {
         Ok((worker, prepared.save_context))
     }
 
+    /// Configure the shared CPAL/PCM pipeline on the SG-1000 machine-owning thread.
+    fn configure_sg1000_audio(
+        worker: &Sg1000TemporalWorker,
+        volume: u8,
+        dsp_config: AnalogOutputConfig,
+    ) {
+        if video_only_capture_enabled() {
+            eprintln!(
+                "R3_AUDIO skipped for SG-1000: SEGA_EMULATOR_VIDEO_ONLY enabled"
+            );
+            return;
+        }
+        const BUFFER_FRAMES: u32 = 512;
+        const QUEUE_BLOCKS: usize = 8;
+        let result = worker.configure_audio_output(
+            move || -> Result<Box<dyn sega_sms_runtime::AudioSession>, String> {
+                let sink = sega_audio_output::NativeCpalOutput::new(BUFFER_FRAMES, QUEUE_BLOCKS)?;
+                eprintln!(
+                    "R3_AUDIO SG-1000 CPAL output opened: sample_rate={} Hz, channels={}, format={:?}, default_config_fallback={}, queue_capacity={} frames",
+                    sink.sample_rate_hz(),
+                    sink.channels(),
+                    sink.sample_format(),
+                    sink.used_default_config_fallback(),
+                    BUFFER_FRAMES as usize * QUEUE_BLOCKS
+                );
+                let mut session = sink.into_audio_session(volume)?;
+                session.set_analog_output_config(dsp_config)?;
+                Ok(Box::new(session))
+            },
+        );
+        if let Err(error) = result {
+            eprintln!("R3_AUDIO SG-1000 CPAL unavailable; continuing without physical audio: {error}");
+        }
+    }
+
+    /// Build exactly the runtime selected by the persisted/explicit desktop system id.
+    /// SMS cartridge catalog/SRAM/BIOS preparation is never applied to SG-1000.
+    fn create_desktop_session(
+        rom: Vec<u8>,
+        settings: &SmsWorkerSettings,
+        save_store: Arc<SaveRamStore>,
+    ) -> Result<(DesktopSession, Option<CartridgeSaveContext>), String> {
+        let system = DesktopSystem::from_id(&settings.sms_system)?;
+        match system {
+            DesktopSystem::Sg1000 => {
+                let worker = Sg1000TemporalWorker::new(rom)?;
+                configure_sg1000_audio(&worker, settings.audio_volume, settings.dsp_config);
+                Ok((DesktopSession::Sg1000(worker), None))
+            }
+            DesktopSystem::Sms1 | DesktopSystem::Sms2 => {
+                let (worker, save_context) = create_sms_worker(rom, settings, save_store)?;
+                Ok((
+                    DesktopSession::Sms { worker, system },
+                    save_context,
+                ))
+            }
+        }
+    }
+
     /// Persistência executada no host, após snapshot imutável obtido no worker.
     /// O Scheduler e o caminho da CPU nunca executam operações de filesystem.
     fn persist_worker_sram(
@@ -3276,7 +3336,7 @@ mod windows_host {
     }
 
     /// Substitui a máquina sem permitir dois produtores simultâneos no FrameMailbox.
-    fn replace_sms_worker(
+    fn replace_desktop_session(
         path: &PathBuf,
         worker_slot: &Rc<RefCell<Option<DesktopSession>>>,
         save_context_slot: &Rc<RefCell<Option<CartridgeSaveContext>>>,
@@ -3285,11 +3345,7 @@ mod windows_host {
         settings: &SmsWorkerSettings,
     ) -> Result<(), String> {
         let rom = read_rom_image(path)?;
-        let (next_worker, next_save_context) = create_sms_worker(rom, settings, save_store)?;
-        let next = DesktopSession::Sms {
-            worker: next_worker,
-            system: DesktopSystem::from_id(&settings.sms_system)?,
-        };
+        let (next, next_save_context) = create_desktop_session(rom, settings, save_store)?;
 
         let previous = worker_slot.borrow_mut().take();
         if let Some(previous) = previous {
@@ -3537,16 +3593,13 @@ mod windows_host {
         };
         let mut initial_save_context = None;
         let worker = if let Some(path) = rom_path.as_ref() {
-            let (sms_worker, context) = create_sms_worker(
+            let (sms_worker, context) = create_desktop_session(
                 read_rom_image(path)?,
                 &worker_settings,
                 Arc::clone(&save_store),
             )?;
             initial_save_context = context;
-            let worker = DesktopSession::Sms {
-                worker: sms_worker,
-                system: DesktopSystem::from_id(&worker_settings.sms_system)?,
-            };
+            let worker = sms_worker;
             worker.attach_video_mailbox(mailbox.clone())?;
             worker.set_sprite_limit_enabled(preferences.sprite_limit_enabled)?;
             Some(worker)
@@ -4032,7 +4085,7 @@ mod windows_host {
                 renderer_mode,
             };
 
-            match replace_sms_worker(
+            match replace_desktop_session(
                 &path,
                 &open_worker,
                 &open_save_context,
