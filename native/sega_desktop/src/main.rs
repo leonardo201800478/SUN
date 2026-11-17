@@ -4550,7 +4550,8 @@ mod windows_host {
                     sg1000_audio_lpf_cutoff_hz: app
                         .get_sg1000_audio_lpf_cutoff()
                         .round()
-                        .clamp(4_000.0, 20_000.0) as u16,
+                        .clamp(4_000.0, 20_000.0)
+                        as u16,
                     keyboard_up_key: app.get_keyboard_up_key().to_string(),
                     keyboard_down_key: app.get_keyboard_down_key().to_string(),
                     keyboard_left_key: app.get_keyboard_left_key().to_string(),
