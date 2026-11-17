@@ -452,6 +452,20 @@ mod windows_host {
             in-out property <bool> audio-muted: false;
             in-out property <string> audio-status: "Aguardando configuração da saída de áudio.";
             in-out property <string> input-status: "Inicializando SDL3...";
+            in-out property <string> keyboard-up-key: Key.UpArrow;
+            in-out property <string> keyboard-down-key: Key.DownArrow;
+            in-out property <string> keyboard-left-key: Key.LeftArrow;
+            in-out property <string> keyboard-right-key: Key.RightArrow;
+            in-out property <string> keyboard-button1-key: Key.Z;
+            in-out property <string> keyboard-button2-key: Key.X;
+            in-out property <string> keyboard-up-label: "↑";
+            in-out property <string> keyboard-down-label: "↓";
+            in-out property <string> keyboard-left-label: "←";
+            in-out property <string> keyboard-right-label: "→";
+            in-out property <string> keyboard-button1-label: "Z";
+            in-out property <string> keyboard-button2-label: "X";
+            in-out property <string> keyboard-capture-action: "";
+            in-out property <string> keyboard-capture-status: "Selecione uma ação para alterar sua tecla.";
             in-out property <string> audio-renderer-mode: "psg";
             in-out property <bool> audio-dsp-preset: false;
             in-out property <bool> audio-hpf-enabled: false;
@@ -490,15 +504,22 @@ mod windows_host {
             callback keyboard-key-pressed(string);
             callback keyboard-key-released(string);
             callback keyboard-focus-lost();
+            callback keyboard-key-captured(string, string);
             keyboard-focus := FocusScope {
                 width: 100%; height: 100%;
                 key-pressed(event) => {
-                    if (event.text == Key.UpArrow) { root.keyboard-key-pressed("up"); accept }
-                    else if (event.text == Key.DownArrow) { root.keyboard-key-pressed("down"); accept }
-                    else if (event.text == Key.LeftArrow) { root.keyboard-key-pressed("left"); accept }
-                    else if (event.text == Key.RightArrow) { root.keyboard-key-pressed("right"); accept }
-                    else if (event.text == Key.Z) { root.keyboard-key-pressed("button1"); accept }
-                    else if (event.text == Key.X) { root.keyboard-key-pressed("button2"); accept }
+                    if (root.keyboard-capture-action != "") {
+                        if (event.text == Key.Escape) {
+                            root.keyboard-capture-action = "";
+                            root.keyboard-capture-status = "Remapeamento cancelado."; accept
+                        } else { root.keyboard-key-captured(root.keyboard-capture-action, event.text); accept }
+                    }
+                    else if (event.text == root.keyboard-up-key) { root.keyboard-key-pressed("up"); accept }
+                    else if (event.text == root.keyboard-down-key) { root.keyboard-key-pressed("down"); accept }
+                    else if (event.text == root.keyboard-left-key) { root.keyboard-key-pressed("left"); accept }
+                    else if (event.text == root.keyboard-right-key) { root.keyboard-key-pressed("right"); accept }
+                    else if (event.text == root.keyboard-button1-key) { root.keyboard-key-pressed("button1"); accept }
+                    else if (event.text == root.keyboard-button2-key) { root.keyboard-key-pressed("button2"); accept }
                     else if (event.text == Key.P) { root.keyboard-key-pressed("nmi"); accept }
                     else if (event.text == Key.F5) { root.keyboard-key-pressed("start"); accept }
                     else if (event.text == Key.F6) { root.keyboard-key-pressed("pause"); accept }
@@ -508,12 +529,13 @@ mod windows_host {
                     else { reject }
                 }
                 key-released(event) => {
-                    if (event.text == Key.UpArrow) { root.keyboard-key-released("up"); accept }
-                    else if (event.text == Key.DownArrow) { root.keyboard-key-released("down"); accept }
-                    else if (event.text == Key.LeftArrow) { root.keyboard-key-released("left"); accept }
-                    else if (event.text == Key.RightArrow) { root.keyboard-key-released("right"); accept }
-                    else if (event.text == Key.Z) { root.keyboard-key-released("button1"); accept }
-                    else if (event.text == Key.X) { root.keyboard-key-released("button2"); accept }
+                    if (root.keyboard-capture-action != "") { accept }
+                    else if (event.text == root.keyboard-up-key) { root.keyboard-key-released("up"); accept }
+                    else if (event.text == root.keyboard-down-key) { root.keyboard-key-released("down"); accept }
+                    else if (event.text == root.keyboard-left-key) { root.keyboard-key-released("left"); accept }
+                    else if (event.text == root.keyboard-right-key) { root.keyboard-key-released("right"); accept }
+                    else if (event.text == root.keyboard-button1-key) { root.keyboard-key-released("button1"); accept }
+                    else if (event.text == root.keyboard-button2-key) { root.keyboard-key-released("button2"); accept }
                     else if (event.text == Key.P) { root.keyboard-key-released("nmi"); accept }
                     else if (event.text == Key.F5) { root.keyboard-key-released("start"); accept }
                     else if (event.text == Key.F6) { root.keyboard-key-released("pause"); accept }
