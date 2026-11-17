@@ -404,9 +404,7 @@ impl Sg1000Machine {
     }
 
     pub fn set_joystick(&mut self, player: u8, value: u8) -> Result<(), crate::IoError> {
-        self.bus.set_joystick(player, value).map_err(|error| match error {
-            error => crate::IoError::InvalidPlayer(player).into(),
-        })
+        self.bus.set_joystick(player, value)
     }
 
     pub fn drain_psg_write_events(&mut self) -> Vec<PsgWriteEvent> {
