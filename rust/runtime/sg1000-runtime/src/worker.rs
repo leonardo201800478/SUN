@@ -504,7 +504,9 @@ fn handle_command(
                                 state
                                     .audio_session
                                     .as_ref()
-                                    .map_or_else(AudioOutputMetrics::default, |session| session.metrics()),
+                                    .map_or_else(AudioOutputMetrics::default, |session| {
+                                        session.metrics()
+                                    }),
                             );
                             let _ = reply.send(Ok(()));
                         }
