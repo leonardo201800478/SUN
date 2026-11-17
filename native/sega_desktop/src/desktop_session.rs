@@ -48,7 +48,10 @@ impl DesktopSystem {
 /// Owns exactly one machine worker, selected explicitly by the host.
 pub enum DesktopSession {
     /// Existing SMS runtime and all of its SMS-only capabilities.
-    Sms { worker: SmsTemporalWorker, system: DesktopSystem },
+    Sms {
+        worker: SmsTemporalWorker,
+        system: DesktopSystem,
+    },
     /// Native temporal SG-1000 runtime.
     Sg1000(Sg1000TemporalWorker),
 }
@@ -257,7 +260,9 @@ impl DesktopSession {
     ) -> Result<(), String> {
         match self {
             Self::Sms { worker, .. } => worker.set_audio_renderer(mode),
-            Self::Sg1000(_) => Err("SMS audio renderer settings are unavailable for SG-1000".to_owned()),
+            Self::Sg1000(_) => {
+                Err("SMS audio renderer settings are unavailable for SG-1000".to_owned())
+            }
         }
     }
 
@@ -273,8 +278,8 @@ impl DesktopSession {
 #[cfg(test)]
 mod tests {
     use super::{DesktopSession, DesktopSystem};
-    use sega_sms_runtime::SmsTemporalWorker;
     use sega_sg1000_runtime::Sg1000TemporalWorker;
+    use sega_sms_runtime::SmsTemporalWorker;
 
     #[test]
     fn system_identifiers_are_explicit_and_unknown_values_do_not_fall_back() {
@@ -306,8 +311,7 @@ mod tests {
 
     #[test]
     fn sms_only_operations_fail_explicitly_for_sg1000() {
-        let sg1000 =
-            DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
+        let sg1000 = DesktopSession::Sg1000(Sg1000TemporalWorker::new(vec![0x76]).unwrap());
 
         assert!(
             sg1000
