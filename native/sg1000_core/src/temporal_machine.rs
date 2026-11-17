@@ -8,15 +8,14 @@
 use core::fmt;
 
 use crate::{
-    DEFAULT_SG1000_CPU_CLOCK_HZ, MemoryConfig, PsgWriteEvent,
-    Sg1000InternalCycleCompletion, Sg1000TemporalBus, Sg1000TemporalBusError,
-    Sg1000TemporalBusState, Sg1000TemporalDispatch, Sg1000TemporalM1,
-    Sg1000TemporalM1Error, Sg1000TemporalM1State,
+    DEFAULT_SG1000_CPU_CLOCK_HZ, MemoryConfig, PsgWriteEvent, Sg1000InternalCycleCompletion,
+    Sg1000TemporalBus, Sg1000TemporalBusError, Sg1000TemporalBusState, Sg1000TemporalDispatch,
+    Sg1000TemporalM1, Sg1000TemporalM1Error, Sg1000TemporalM1State,
 };
 use sega_temporal_core::MachineTime;
 use sega_z80_cpu::{
-    Z80BusOperation, Z80MicroSequencer, Z80MicroSequencerError,
-    Z80MicroSequencerPhase, Z80MicroSequencerState, Z80M1Phase, Z80MicroStep,
+    Z80BusOperation, Z80M1Phase, Z80MicroSequencer, Z80MicroSequencerError, Z80MicroSequencerPhase,
+    Z80MicroSequencerState, Z80MicroStep,
 };
 
 pub const SG1000_TEMPORAL_MACHINE_STATE_VERSION: u16 = 1;
@@ -43,7 +42,9 @@ impl fmt::Display for Sg1000TemporalMachineError {
             Self::Cpu(error) => write!(f, "SG-1000 shared Z80 sequencer failed: {error:?}"),
             Self::M1(error) => write!(f, "SG-1000 Z80 M1 continuation failed: {error:?}"),
             Self::InvalidState => f.write_str("SG-1000 temporal machine state is inconsistent"),
-            Self::NoScheduledEvent => f.write_str("SG-1000 temporal machine has no event to dispatch"),
+            Self::NoScheduledEvent => {
+                f.write_str("SG-1000 temporal machine has no event to dispatch")
+            },
             Self::FrameStepLimitReached => f.write_str(
                 "SG-1000 did not complete a frame within the configured instruction limit",
             ),
@@ -132,7 +133,9 @@ fn instruction_timeline_is_valid(state: &Sg1000MachineState) -> bool {
     if state.pending_internal_cycle_id != bus.pending_internal_cycle
         || state.pending_internal_cycle_id.is_some() != state.pending_internal_tstates.is_some()
         || state.pending_internal_tstates == Some(0)
-        || state.pending_internal_cycle_id.is_some_and(|id| id >= state.next_internal_cycle_id)
+        || state
+            .pending_internal_cycle_id
+            .is_some_and(|id| id >= state.next_internal_cycle_id)
     {
         return false;
     }
@@ -191,20 +194,20 @@ fn instruction_timeline_is_valid(state: &Sg1000MachineState) -> bool {
             Z80M1Phase::T4 => 3_u32.saturating_add(m1_state.cycle.wait_tstates),
             Z80M1Phase::Complete => return false,
         };
-        let elapsed_m1 = current_m1_tstates
-            .checked_add(u32::from(bus.internal_completion.is_some()));
-        let expected = cpu.instruction_tstates.checked_add(elapsed_m1.unwrap_or(u32::MAX));
-        return expected.is_some_and(|expected| {
-            elapsed_tstates(started_at, now, scale) == Some(expected)
-        });
+        let elapsed_m1 =
+            current_m1_tstates.checked_add(u32::from(bus.internal_completion.is_some()));
+        let expected = cpu
+            .instruction_tstates
+            .checked_add(elapsed_m1.unwrap_or(u32::MAX));
+        return expected
+            .is_some_and(|expected| elapsed_tstates(started_at, now, scale) == Some(expected));
     }
 
     if state.m1_fixture_wait_tstates.is_some() {
         return false;
     }
 
-    if let (Some(request), Some(request_started_at)) =
-        (bus.pending_request, bus.request_started_at)
+    if let (Some(request), Some(request_started_at)) = (bus.pending_request, bus.request_started_at)
     {
         if state.pending_internal_cycle_id.is_some()
             || bus.pending_internal_cycle.is_some()
@@ -455,8 +458,14 @@ impl Sg1000Machine {
         Ok(step)
     }
 
-    pub fn schedule_pending_bus(&mut self, fixture_wait_tstates: u32) -> Result<MachineTime, MachineError> {
-        let request = self.cpu.pending_request().ok_or(MachineError::InvalidState)?;
+    pub fn schedule_pending_bus(
+        &mut self,
+        fixture_wait_tstates: u32,
+    ) -> Result<MachineTime, MachineError> {
+        let request = self
+            .cpu
+            .pending_request()
+            .ok_or(MachineError::InvalidState)?;
         if request.operation == Z80BusOperation::OpcodeFetch {
             if self.bus.pending_request().is_some()
                 || self.bus.completion().is_some()
@@ -519,13 +528,17 @@ impl Sg1000Machine {
             return Err(MachineError::InvalidState);
         }
         if cpu_state.instruction_tstates == u32::MAX {
-            return Err(MachineError::Cpu(Z80MicroSequencerError::InstructionTStateOverflow));
+            return Err(MachineError::Cpu(
+                Z80MicroSequencerError::InstructionTStateOverflow,
+            ));
         }
         if cpu_state.handshake.next_request_id == u64::MAX {
             return Err(MachineError::InvalidState);
         }
         let continuation_id = self.next_internal_cycle_id;
-        let next_id = continuation_id.checked_add(1).ok_or(MachineError::InternalCycleIdExhausted)?;
+        let next_id = continuation_id
+            .checked_add(1)
+            .ok_or(MachineError::InternalCycleIdExhausted)?;
         let deadline = self.bus.schedule_internal_cycle(continuation_id, tstates)?;
         self.next_internal_cycle_id = next_id;
         self.pending_internal_cycle_id = Some(continuation_id);
@@ -563,7 +576,10 @@ impl Sg1000Machine {
 
     /// Dispatch one Scheduler event and commit exactly one matching CPU continuation.
     pub fn dispatch_next(&mut self) -> Result<Z80MicroStep, MachineError> {
-        let dispatch = self.bus.dispatch_next()?.ok_or(MachineError::NoScheduledEvent)?;
+        let dispatch = self
+            .bus
+            .dispatch_next()?
+            .ok_or(MachineError::NoScheduledEvent)?;
         self.sync_vdp_interrupt_line();
         match dispatch {
             Sg1000TemporalDispatch::BusCompletion(completion) => {
@@ -573,7 +589,8 @@ impl Sg1000Machine {
                 self.cpu = next_cpu;
                 if matches!(
                     step,
-                    Z80MicroStep::InstructionRetired { .. } | Z80MicroStep::InterruptServiced { .. }
+                    Z80MicroStep::InstructionRetired { .. }
+                        | Z80MicroStep::InterruptServiced { .. }
                 ) {
                     self.instruction_started_at = None;
                 }
@@ -586,7 +603,9 @@ impl Sg1000Machine {
                 if let Some(mut m1) = self.m1 {
                     let phase_before = m1.phase();
                     let pins = m1.pins();
-                    let total_waits = self.m1_fixture_wait_tstates.ok_or(MachineError::InvalidState)?;
+                    let total_waits = self
+                        .m1_fixture_wait_tstates
+                        .ok_or(MachineError::InvalidState)?;
                     let wait_asserted = match phase_before {
                         Z80M1Phase::T2 => total_waits > 0,
                         Z80M1Phase::Wait => {
@@ -599,18 +618,24 @@ impl Sg1000Machine {
                         m1.sample_opcode(opcode)?;
                     }
                     let next_phase = m1.complete_tstate(completion, wait_asserted)?;
-                    self.bus.acknowledge_internal_completion(completion.continuation_id)?;
+                    self.bus
+                        .acknowledge_internal_completion(completion.continuation_id)?;
                     self.pending_internal_cycle_id = None;
                     self.pending_internal_tstates = None;
                     self.m1 = Some(m1);
                     if next_phase == Z80M1Phase::Complete {
                         self.finish_m1_fetch()
                     } else {
-                        let request = self.cpu.pending_request().ok_or(MachineError::InvalidState)?;
+                        let request = self
+                            .cpu
+                            .pending_request()
+                            .ok_or(MachineError::InvalidState)?;
                         Ok(Z80MicroStep::BusRequest(request))
                     }
                 } else {
-                    let tstates = self.pending_internal_tstates.ok_or(MachineError::InvalidState)?;
+                    let tstates = self
+                        .pending_internal_tstates
+                        .ok_or(MachineError::InvalidState)?;
                     let mut next_cpu = self.cpu.clone();
                     let step = next_cpu.complete_internal_cycle()?;
                     self.bus.acknowledge_internal_completion(completion.continuation_id)?;
@@ -630,7 +655,10 @@ impl Sg1000Machine {
         }
     }
 
-    pub fn step_instruction(&mut self, fixture_wait_tstates: u32) -> Result<Z80MicroStep, MachineError> {
+    pub fn step_instruction(
+        &mut self,
+        fixture_wait_tstates: u32,
+    ) -> Result<Z80MicroStep, MachineError> {
         let mut step = self.begin_instruction()?;
         loop {
             step = match step {
@@ -643,13 +671,18 @@ impl Sg1000Machine {
                     self.dispatch_next()?
                 }
                 retired @ Z80MicroStep::InstructionRetired { .. } => return Ok(retired),
-                acknowledged @ Z80MicroStep::InterruptAcknowledge { .. } => return Ok(acknowledged),
+                acknowledged @ Z80MicroStep::InterruptAcknowledge { .. } => {
+                    return Ok(acknowledged);
+                },
                 serviced @ Z80MicroStep::InterruptServiced { .. } => return Ok(serviced),
             };
         }
     }
 
-    pub fn resume_instruction(&mut self, fixture_wait_tstates: u32) -> Result<Z80MicroStep, MachineError> {
+    pub fn resume_instruction(
+        &mut self,
+        fixture_wait_tstates: u32,
+    ) -> Result<Z80MicroStep, MachineError> {
         let mut step = if matches!(
             self.cpu.export_state().phase,
             Z80MicroSequencerPhase::InterruptAcknowledgeComplete { .. }
@@ -661,12 +694,19 @@ impl Sg1000Machine {
         loop {
             step = match step {
                 Z80MicroStep::BusRequest(_) => {
-                    if self.m1.as_ref().is_some_and(|m1| m1.phase() == Z80M1Phase::Complete) {
+                    if self
+                        .m1
+                        .as_ref()
+                        .is_some_and(|m1| m1.phase() == Z80M1Phase::Complete)
+                    {
                         self.finish_m1_fetch()?
                     } else {
                         if self.m1.is_some() {
-                            if self.m1.as_ref().is_some_and(|m1| m1.export_state().pending_continuation_id.is_none()) {
-                                let waits = self.m1_fixture_wait_tstates.unwrap_or(fixture_wait_tstates);
+                            if self.m1.as_ref().is_some_and(|m1| {
+                                m1.export_state().pending_continuation_id.is_none()
+                            }) {
+                                let waits =
+                                    self.m1_fixture_wait_tstates.unwrap_or(fixture_wait_tstates);
                                 self.schedule_pending_bus(waits)?;
                             }
                         } else if self.bus.pending_request().is_none() {
@@ -790,18 +830,23 @@ impl Sg1000Machine {
             || expected_bus_request != state.bus.pending_request
             || state.pending_internal_cycle_id != state.bus.pending_internal_cycle
             || state.pending_internal_cycle_id.is_some() != state.pending_internal_tstates.is_some()
-            || state.pending_internal_cycle_id.is_some_and(|id| id >= state.next_internal_cycle_id)
+            || state
+                .pending_internal_cycle_id
+                .is_some_and(|id| id >= state.next_internal_cycle_id)
             || m1.is_some() != state.m1_fixture_wait_tstates.is_some()
         {
             return Err(MachineError::InvalidState);
         }
         if let Some(m1_state) = state.m1 {
             if m1_state.pending_continuation_id != state.pending_internal_cycle_id
-                || cpu.pending_request().is_none_or(|request| request.operation != Z80BusOperation::OpcodeFetch)
+                || cpu
+                    .pending_request()
+                    .is_none_or(|request| request.operation != Z80BusOperation::OpcodeFetch)
             {
                 return Err(MachineError::InvalidState);
             }
-        } else if state.pending_internal_cycle_id.is_some() && !state.cpu.phase.is_internal_cycle() {
+        } else if state.pending_internal_cycle_id.is_some() && !state.cpu.phase.is_internal_cycle()
+        {
             return Err(MachineError::InvalidState);
         }
         Ok(Self {
@@ -822,7 +867,7 @@ impl Sg1000Machine {
 mod tests {
     use super::{Sg1000Machine, Sg1000TemporalMachineError};
     use crate::MemoryConfig;
-    use sega_z80_cpu::{Z80MicroStep, Z80MicroSequencerPhase};
+    use sega_z80_cpu::{Z80MicroSequencerPhase, Z80MicroStep};
 
     #[test]
     fn nop_runs_on_the_scheduler_timeline_for_four_tstates() {
@@ -862,7 +907,10 @@ mod tests {
         assert_eq!(restored.export_state(), snapshot);
         let step = restored.dispatch_next().unwrap();
         assert!(matches!(step, Z80MicroStep::BusRequest(_)));
-        while !matches!(restored.cpu().export_state().phase, Z80MicroSequencerPhase::Ready) {
+        while !matches!(
+            restored.cpu().export_state().phase,
+            Z80MicroSequencerPhase::Ready
+        ) {
             let pending = restored.cpu().pending_request();
             if pending.is_some() {
                 restored.schedule_pending_bus(0).unwrap();
