@@ -902,7 +902,7 @@ impl Sg1000Machine {
 #[cfg(test)]
 mod tests {
     use super::{Sg1000Machine, Sg1000TemporalMachineError};
-    use crate::MemoryConfig;
+    use crate::{MemoryConfig, PsgWriteEvent};
     use sega_z80_cpu::{Z80MicroSequencerPhase, Z80MicroStep};
 
     #[test]
