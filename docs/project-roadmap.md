@@ -1,7 +1,7 @@
 # Roadmap mestre — Sega Emulator
 
 **Revisão:** 2026-11-17
-**Baseline consultada:** `main` `be883792025de3db7eaf4e7b8243293ea90b7e06`.
+**Baseline consultada:** `main` `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`.
 **Autoridade temporal:** MachineScheduler.
 **Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
@@ -23,7 +23,7 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 |---|---|---|
 | P0 | Fundação Rust, toolchain, CI, contratos e hosts | Workspaces e boundaries reproduzíveis; host Slint/WGPU ativo |
 | P1 | SMS1/SMS2 | Perfis 315-5124/315-5246, runtime, BIOS/cartucho, VDP, PSG, I/O, mappers e regressões consolidados |
-| P2 | SG-1000 | Máquina temporal + worker Rust, Z80 compartilhado, MachineScheduler, TMS9918A, PSG, I/O, snapshots, FrameMailbox e áudio host integrados |
+| P2 | SG-1000 | Máquina temporal, worker Rust e sessão desktop integrados sobre Z80 compartilhado, MachineScheduler, TMS9918A, SN76489, I/O, snapshots, FrameMailbox e AudioSession | Gameplay dos perfis de cartucho, lifecycle completo e validação física do host Windows (vídeo/áudio/input) |
 | P3 | Game Gear | Máquina própria com LCD 160×144, VDP/CRAM, áudio estéreo, memória/cartucho, portas e snapshots específicos |
 | P4 | Expansões e acessórios 8-bit | YM2413 integrado do Master System japonês (opcional, independente de região); Sega Card/My Card como mídia; 3D Glasses/SegaScope com saídas 2D e estéreo; Paddle, Sports Pad, Light Phaser, Rapid Fire e expansões conforme compatibilidade |
 | P5 | Mega Drive / Genesis | M68k, VDP, áudio, barramentos, cartuchos e Scheduler próprios, reutilizando somente contratos realmente comuns |
@@ -69,18 +69,25 @@ Implementado parcialmente e em evolução. Melhorar captura, retenção/exporta�
 
 ### BIOS
 
-O boot por BIOS convencional de 8 KiB está em implementação candidata na PR #928. Validação física com firmware real, handoff e primeiro código do cartucho permanece pendente. Não declarar boot físico validado.
+O boot por BIOS convencional de 8 KiB foi integrado pela PR #928. Validação física com firmware real, handoff e primeiro código do cartucho permanece pendente. Não declarar boot físico validado.
 
 ## 5. Estado operacional da baseline
 
-- Main SHA da baseline desta revisão: `be883792025de3db7eaf4e7b8243293ea90b7e06`.
-- CI push pós-merge da baseline: run [#43962737265](https://github.com/leonardo201800478/sega-emulator/actions/runs/43962737265). Change impact, Documentation patch hygiene e Rust quality/unit PASS; workspace, Z80, Scheduler, SMS1 VDP, CPAL, SDL3, Slint/WGPU/Vulkan e demais jobs de runtime foram SKIPPED. Não há validação de runtime pós-merge nesta execução.
-- Árvore atual: 285 documentos Markdown sob `docs/`; inventário estrutural anterior não equivale à leitura e reconciliação semântica integral dos 285 arquivos.
-- Road Rash: usuário reportou teste físico OK; retirar da lista de defeitos abertos, sem inventar SHA/relatório.
-- Alinhamento de sprites SMS: usuário reportou corrigido; não manter como defeito aberto sem regressão.
-- BIOS boot: validação física pendente.
-- Host gráfico anterior: não está em uso ativo.
-- SG-1000 P2.2: integrado na main pela PR #988, merge commit `be883792025de3db7eaf4e7b8243293ea90b7e06`. `Sg1000Machine` usa `Z80MicroSequencer` compartilhado, M1/WAIT por eventos do MachineScheduler, TMS9918A, PSG, I/O temporal e snapshots compostos. CI pós-merge #8459 (run `44090848768`) concluiu com sucesso os gates aplicáveis: Z80 focused, SMS1 VDP, input, SDL3, workspace, Scheduler stress e Rust quality/unit. O caminho atomic antigo está limitado a `cfg(test)` como oracle funcional. SG-1000 P2.3: worker Rust dedicado com FrameMailbox, áudio compartilhado, input snapshots e save states em desenvolvimento na branch `feat/sg1000-runtime-worker-p23-20261117`. P2.4 ainda deve integrar seleção SG-1000 na GUI Slint, carregamento de ROM e handoff WGPU/CPAL. Não declarar o SG-1000 disponível no desktop antes desses gates.
+- **Main SHA:** `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315` (17/11/2026). A main está 6 commits à frente e 0 atrás do merge documental #980 (`f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`).
+- **CI atual da main:** push run [#44135959914](https://github.com/leonardo201800478/sega-emulator/actions/runs/44135959914), no SHA exato acima. PASS: Change impact classification, Rust quality and unit regression, Rust workspace regression, Windows x64 Slint/WGPU 30/Vulkan POC, Windows SDL3 input validation, Windows PowerShell tooling syntax e Documentation patch hygiene. SKIPPED: CPAL output, PSG, Scheduler stress, Z80 focused, SMS1 VDP, input core e demais jobs não selecionados pelo classificador. SKIPPED não é PASS; este run não comprova saída física de áudio nem gameplay.
+- **Reconciliação documental #980:** merged em `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434`; compare da branch: 12 commits ahead / 0 behind; 40 arquivos, todos documentação/README/AGENTS. CI no HEAD da PR [#43959831347](https://github.com/leonardo201800478/sega-emulator/actions/runs/43959831347) e no merge commit [#43962737265](https://github.com/leonardo201800478/sega-emulator/actions/runs/43962737265): Change impact, Documentation patch hygiene e Rust quality/unit PASS; jobs de runtime SKIPPED. Não houve review submetida nem review thread; comentários do Codex registram limite de uso, não uma review.
+- **SG-1000 P2.2 — PR #988:** merged em `be883792025de3db7eaf4e7b8243293ea90b7e06`. A máquina ativa usa `Z80MicroSequencer`, M1/WAIT retomável, transações de memória/portas e domínios CPU/VDP/PSG no mesmo MachineScheduler. CI PR [#44090848768](https://github.com/leonardo201800478/sega-emulator/actions/runs/44090848768) e push pós-merge [#44091248478](https://github.com/leonardo201800478/sega-emulator/actions/runs/44091248478) concluíram SUCCESS; os gates aplicáveis de Scheduler, Z80, SMS1 VDP, input, SDL3, workspace e Rust quality passaram. Os demais jobs foram SKIPPED.
+- **SG-1000 P2.3 — PR #989:** merged em `a728c448bb656f19650e88e214a9a723bbcc2713`. O `Sg1000TemporalWorker` possui a máquina em thread Rust dedicada, publica frames via FrameMailbox, encaminha PCM por AudioSession e oferece save-state vinculado à ROM/perfil. CI PR [#44096800272](https://github.com/leonardo201800478/sega-emulator/actions/runs/44096800272) passou em workspace, CPAL output, Slint/WGPU/Vulkan, SDL3, PowerShell, docs hygiene e Rust quality; os jobs de hardware não impactados foram SKIPPED. Os pushes pós-merge [#44103751036](https://github.com/leonardo201800478/sega-emulator/actions/runs/44103751036) e [#44103751135](https://github.com/leonardo201800478/sega-emulator/actions/runs/44103751135) concluíram SUCCESS.
+- **SG-1000 P2.4 — PR #990:** merged no SHA atual `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`. `DesktopSession` unifica SMS/SG-1000; seleção de sistema é explícita; ROM/ZIP é roteada ao runtime selecionado; FrameMailbox/WGPU, AudioSession/CPAL e snapshots SDL3 são reutilizados. A identificação de cartuchos aplica hashes conhecidos aos perfis Type-A, Type-B, clone SG-1000 II 2 KiB, Othello 2 KiB e The Castle 8 KiB; ROM desconhecida conserva o mapa padrão. CI da PR [#44114863234](https://github.com/leonardo201800478/sega-emulator/actions/runs/44114863234) e push da main [#44135959914](https://github.com/leonardo201800478/sega-emulator/actions/runs/44135959914) concluíram SUCCESS. No SHA final, CPAL output, PSG, Scheduler, Z80 e SMS1 VDP foram SKIPPED.
+- **Estado P2:** P2.2, P2.3 e P2.4 estão integradas em software, mas P2 ainda NÃO está fechado. Faltam execução in-game dos perfis de RAM expandidos, campanha com ROMs legais/homebrew identificadas por hash e validação física da sessão Windows (vídeo, áudio CPAL, controles SDL3, hotplug, underruns e lifecycle). A auditoria P2.4 já registra que não há evidência in-game dos cartuchos expandidos.
+- **Limites temporais:** o perfil padrão CPU/PSG permanece nominal/provisório; a razão racional do PSG evita arredondamento, mas não prova o oscilador físico da placa. O domínio VDP usa T-states do modelo TMS9918A, não uma medição física de fetch/pixel. WAIT é fixture de software, não WAIT físico. Save/restore e equivalência contínua/em blocos têm testes; não foi localizado um harness dedicado de replay de log de eventos/inputs.
+- **PR #981:** fechada sem merge; o trabalho de portas/I/O temporal foi incorporado à sequência P2.2 pela PR #988. Não reabrir nem cherry-pickar a branch antiga.
+- **Road Rash:** usuário reportou teste físico OK; não reabrir sem regressão. **Alinhamento de sprites SMS:** reportado corrigido; não reabrir sem regressão.
+- **BIOS SMS:** implementação da PR #928 integrada; validação física com BIOS real e handoff permanece pendente.
+- **Host gráfico anterior:** fora de uso ativo; inventariar consumidores antes de remover código legado.
+- **Documentação:** esta reconciliação cobre os artefatos P2 relevantes; não representa leitura integral dos 285 documentos Markdown.
+
+A rastreabilidade detalhada documento → módulo/símbolo → teste → workflow → SHA está em [SG-1000 P2 — reconciliação pós P2.4](audits/sg1000-p2-post-p24-reconciliation-2026-11-17.md).
 
 ## 6. Método, evidência e gates
 
