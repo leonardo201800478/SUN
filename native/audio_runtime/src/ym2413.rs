@@ -157,13 +157,11 @@ impl Ym2413Core {
             .checked_add(clocks)
             .ok_or(Ym2413Error::ClockOverflow)?;
 
-        let total_slot_clocks =
-            u128::from(self.input_clock_phase) + u128::from(clocks);
+        let total_slot_clocks = u128::from(self.input_clock_phase) + u128::from(clocks);
         let completed_slots = total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
-        let next_clock_phase = u8::try_from(
-            total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT),
-        )
-        .map_err(|_| Ym2413Error::InvalidState)?;
+        let next_clock_phase =
+            u8::try_from(total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT))
+                .map_err(|_| Ym2413Error::InvalidState)?;
 
         let total_slots = u128::from(self.slot_index) + completed_slots;
         let rotations = u64::try_from(total_slots / u128::from(YM2413_SLOTS_PER_ROTATION))
@@ -232,7 +230,7 @@ impl Ym2413Core {
 
 #[cfg(test)]
 mod tests {
-    use super::{Ym2413Core, Ym2413Error, Ym2413State, YM2413_INPUT_CLOCKS_PER_ROTATION};
+    use super::{YM2413_INPUT_CLOCKS_PER_ROTATION, Ym2413Core, Ym2413Error, Ym2413State};
 
     #[test]
     fn address_latch_masks_to_six_bits() {
@@ -262,7 +260,10 @@ mod tests {
     fn one_complete_rotation_requires_seventy_two_input_clocks() {
         let mut core = Ym2413Core::new();
 
-        assert_eq!(core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_ROTATION - 1), Ok(0));
+        assert_eq!(
+            core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_ROTATION - 1),
+            Ok(0)
+        );
         assert_eq!(core.completed_rotations(), 0);
         assert_eq!(core.advance_input_clocks(1), Ok(1));
         assert_eq!(core.completed_rotations(), 1);
