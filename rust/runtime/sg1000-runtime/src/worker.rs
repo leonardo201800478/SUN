@@ -932,4 +932,86 @@ mod tests {
         worker.step_frame(20_000).unwrap();
         assert_eq!(worker.frame_number(), 1);
     }
+    #[derive(Default)]
+    struct RecordingSinkState {
+        writes: usize,
+        suspend_count: usize,
+        resume_count: usize,
+        closed: bool,
+    }
+
+    struct RecordingSink(std::sync::Arc<std::sync::Mutex<RecordingSinkState>>);
+
+    impl sega_audio_runtime::PcmSink for RecordingSink {
+        fn write_samples(&mut self, samples: Vec<f64>) -> Result<(), String> {
+            self.0.lock().unwrap().writes += samples.len();
+            Ok(())
+        }
+
+        fn suspend_and_flush(&mut self) -> Result<(), String> {
+            self.0.lock().unwrap().suspend_count += 1;
+            Ok(())
+        }
+
+        fn resume(&mut self) -> Result<(), String> {
+            self.0.lock().unwrap().resume_count += 1;
+            Ok(())
+        }
+
+        fn metrics(&self) -> AudioOutputMetrics {
+            AudioOutputMetrics::default()
+        }
+
+        fn close(&mut self) {
+            self.0.lock().unwrap().closed = true;
+        }
+    }
+
+    #[test]
+    fn audio_factory_and_session_lifecycle_stay_on_the_machine_worker_thread() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        use sega_audio_runtime::{AudioSession, NativeAudioSession};
+
+        let caller_thread = thread::current().id();
+        let factory_thread = Arc::new(Mutex::new(None));
+        let sink_state = Arc::new(Mutex::new(RecordingSinkState::default()));
+        {
+            let worker = Sg1000TemporalWorker::new(vec![0x76]).unwrap();
+            let factory_thread_for_worker = Arc::clone(&factory_thread);
+            let sink_state_for_worker = Arc::clone(&sink_state);
+            worker
+                .configure_audio_output(move || {
+                    *factory_thread_for_worker.lock().unwrap() = Some(thread::current().id());
+                    let session = NativeAudioSession::new(
+                        DEFAULT_PCM_SOURCE_RATE_HZ,
+                        DEFAULT_PCM_SOURCE_RATE_HZ,
+                        100,
+                        RecordingSink(sink_state_for_worker),
+                    )?;
+                    Ok(Box::new(session) as Box<dyn AudioSession>)
+                })
+                .unwrap();
+
+            // A debugger frame step advances the same DSP path but must not
+            // submit PCM to the suspended physical sink.
+            worker.step_frame(20_000).unwrap();
+            assert_eq!(sink_state.lock().unwrap().writes, 0);
+
+            worker.start().unwrap();
+            worker.pause().unwrap();
+            assert!(!worker.is_running());
+        }
+
+        assert_ne!(
+            factory_thread.lock().unwrap().unwrap(),
+            caller_thread
+        );
+        let state = sink_state.lock().unwrap();
+        assert!(state.suspend_count >= 2);
+        assert!(state.resume_count >= 1);
+        assert!(state.closed);
+    }
+
 }
