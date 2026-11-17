@@ -64,6 +64,7 @@ struct WorkerTelemetry {
     last_frame_instructions: AtomicU64,
     runtime_error: Mutex<Option<String>>,
     audio_error: Mutex<Option<String>>,
+    audio_output_metrics: Mutex<AudioOutputMetrics>,
     video_error: Mutex<Option<String>>,
 }
 
@@ -89,6 +90,19 @@ impl WorkerTelemetry {
         if let Ok(mut slot) = self.audio_error.lock() {
             *slot = error;
         }
+    }
+
+    fn set_audio_output_metrics(&self, metrics: AudioOutputMetrics) {
+        if let Ok(mut slot) = self.audio_output_metrics.lock() {
+            *slot = metrics;
+        }
+    }
+
+    fn audio_output_metrics(&self) -> AudioOutputMetrics {
+        self.audio_output_metrics
+            .lock()
+            .map(|metrics| *metrics)
+            .unwrap_or_default()
     }
 
     fn set_video_error(&self, error: Option<String>) {
@@ -164,10 +178,7 @@ impl WorkerState {
             refresh: cpu.refresh,
             halted: cpu.halted,
             last_frame_instructions: telemetry.last_frame_instructions.load(Ordering::Acquire),
-            audio_output: self
-                .audio_session
-                .as_ref()
-                .map_or_else(AudioOutputMetrics::default, |session| session.metrics()),
+            audio_output: telemetry.audio_output_metrics(),
             runtime_error: WorkerTelemetry::clone_error(&telemetry.runtime_error),
             audio_error: WorkerTelemetry::clone_error(&telemetry.audio_error),
             video_error: WorkerTelemetry::clone_error(&telemetry.video_error),
@@ -290,8 +301,10 @@ impl WorkerState {
                 session.close();
                 self.audio_session = None;
                 telemetry.set_audio_error(Some(error));
+                telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
             } else {
                 telemetry.set_audio_error(None);
+                telemetry.set_audio_output_metrics(session.metrics());
             }
         }
 
@@ -470,6 +483,7 @@ fn handle_command(
                     if let Some(mut previous) = state.audio_session.take() {
                         previous.close();
                     }
+                    telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
                     session.close();
                     telemetry.set_audio_error(Some(error.clone()));
                     let _ = reply.send(Err(error));
@@ -486,10 +500,17 @@ fn handle_command(
                         Ok(()) => {
                             state.audio_session = Some(session);
                             telemetry.set_audio_error(None);
+                            telemetry.set_audio_output_metrics(
+                                state
+                                    .audio_session
+                                    .as_ref()
+                                    .map_or_else(AudioOutputMetrics::default, |session| session.metrics()),
+                            );
                             let _ = reply.send(Ok(()));
                         }
                         Err(error) => {
                             session.close();
+                            telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
                             telemetry.set_audio_error(Some(error.clone()));
                             let _ = reply.send(Err(error));
                         }
@@ -497,6 +518,7 @@ fn handle_command(
                 }
             }
             Err(error) => {
+                telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
                 telemetry.set_audio_error(Some(error.clone()));
                 let _ = reply.send(Err(error));
             }
@@ -523,6 +545,7 @@ fn handle_command(
             } else {
                 Ok(())
             };
+            telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
             telemetry.set_audio_error(result.as_ref().err().cloned());
             let _ = reply.send(result);
         }
@@ -551,6 +574,7 @@ fn handle_command(
                 let _ = session.suspend_and_flush();
                 session.close();
             }
+            telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
             // The FrameMailbox is externally owned and is never closed here.
             return true;
         }
@@ -624,6 +648,7 @@ fn worker_loop(
         let _ = session.suspend_and_flush();
         session.close();
     }
+    telemetry.set_audio_output_metrics(AudioOutputMetrics::default());
     telemetry.running.store(false, Ordering::Release);
 }
 
@@ -826,6 +851,24 @@ impl Sg1000TemporalWorker {
 
     pub fn close_audio_output(&self) -> Result<(), String> {
         self.request_unit(WorkerCommand::CloseAudio, "closing audio output")
+    }
+
+    /// Read the latest non-blocking PCM output metrics snapshot.
+    ///
+    /// Metrics are copied from worker telemetry and never query the non-Send
+    /// audio session or wait for a worker command from the GUI thread.
+    pub fn audio_output_metrics(&self) -> AudioOutputMetrics {
+        self.telemetry.audio_output_metrics()
+    }
+
+    /// Return the latest audio backend error without issuing a worker command.
+    pub fn audio_output_error(&self) -> Option<String> {
+        WorkerTelemetry::clone_error(&self.telemetry.audio_error)
+    }
+
+    /// Return the latest machine execution error without issuing a worker command.
+    pub fn runtime_error(&self) -> Option<String> {
+        WorkerTelemetry::clone_error(&self.telemetry.runtime_error)
     }
 
     fn set_video_mailbox(&self, mailbox: Option<FrameMailbox>) -> Result<(), String> {
