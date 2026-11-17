@@ -83,7 +83,8 @@ impl Sg1000TemporalM1 {
         if self.pending_continuation_id.is_some() {
             return Err(Sg1000TemporalM1Error::EventAlreadyPending);
         }
-        let next_id = self.next_continuation_id
+        let next_id = self
+            .next_continuation_id
             .checked_add(1)
             .ok_or(Sg1000TemporalM1Error::ContinuationIdExhausted)?;
         let deadline = bus.schedule_internal_cycle(self.next_continuation_id, 1)?;
@@ -127,9 +128,12 @@ impl Sg1000TemporalM1 {
     }
 
     pub fn restore_state(state: Sg1000TemporalM1State) -> Result<Self, Sg1000TemporalM1Error> {
-        if state.pending_continuation_id.is_some_and(|id| id >= state.next_continuation_id)
+        if state
+            .pending_continuation_id
+            .is_some_and(|id| id >= state.next_continuation_id)
             || state.pending_continuation_id.is_some() != state.pending_deadline.is_some()
-            || (state.pending_continuation_id.is_some() && state.cycle.phase == Z80M1Phase::Complete)
+            || (state.pending_continuation_id.is_some()
+                && state.cycle.phase == Z80M1Phase::Complete)
         {
             return Err(Sg1000TemporalM1Error::EventMismatch);
         }
