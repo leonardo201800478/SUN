@@ -144,3 +144,38 @@ Esta seção atualiza a leitura do baseline e supersede somente as afirmações 
 ## Decisão de continuidade — SG-1000 autorizado a avançar (2026-11-16)
 
 E7 foi encerrada como `CLOSED_WITH_LIMITATIONS` no perfil NMOS delimitado. A condição de entrada P2 está satisfeita no escopo praticável; não aguardar E8/ZEXDOC/ZEXALL nem revisão por outra IA. Integrar a máquina existente ao coordenador/barramento temporal, Z80 compartilhado, VDP, PSG, memória e I/O. Não criar CPU, Scheduler, host, pipeline ou aplicação paralelos. Limitações físicas de WAIT/DMA permanecem explícitas.
+
+
+## Reconciliação temporal pós P2.2/P2.3/P2.4 — 2026-11-17
+
+**Baseline:** `main` `0a7b24fe014d11ec7adbc13c1e7ca79a68d0a315`.
+
+Esta seção atualiza as afirmações de estado operacional anteriores sem apagar o histórico. Os trechos que descrevem `cpu.step()` como caminho ativo, rejeição de PortRead/PortWrite ou coordenador desconectado pertencem à baseline anterior às PRs #988/#989/#990 e não descrevem a main atual.
+
+### Estado de implementação observado
+
+- `native/sg1000_core/src/lib.rs` exporta `temporal_machine`, `temporal_bus`, `temporal_m1` e `temporal`. O módulo `machine` legado é compilado somente sob `cfg(test)` como oracle funcional.
+- `native/sg1000_core/src/temporal_machine.rs`: `Sg1000Machine` conduz o `Z80MicroSequencer` compartilhado; `begin_instruction`, `schedule_pending_bus`, `schedule_internal_cycle`, `dispatch_next`, `step_instruction`, `step_frame`, `export_state` e `restore_state` pertencem à máquina temporal ativa. O fetch M1 é retomável por T-state e o opcode é amostrado em T3.
+- `native/sg1000_core/src/temporal_bus.rs`: `is_supported_bus_operation` aceita OpcodeFetch, MemoryRead/Write, PortRead/Write e InterruptAcknowledge. `dispatch_next` avança os domínios VDP/PSG e aplica leituras/escritas no timestamp de conclusão; não há callback de GUI no caminho de hardware.
+- `native/sg1000_core/src/temporal.rs`: o único `MachineScheduler` registra domínios Z80, VDP e PSG. O PSG usa razão racional exata derivada do perfil de frequência; o perfil padrão continua nominal/provisório, não medição física.
+- `Sg1000MachineState` compõe sequenciador CPU, INT externo, timestamp de instrução, estado do barramento/Scheduler/dispositivos, M1 e continuações internas. O restore valida coerência entre CPU, request pendente, M1, deadline e clocks.
+- `rust/runtime/sg1000-runtime/src/worker.rs`: `Sg1000TemporalWorker` possui a máquina em thread dedicada, oferece lifecycle, snapshots/save-state, input por snapshot, FrameMailbox e AudioSession.
+- `native/sega_desktop/src/desktop_session.rs`: `DesktopSession` seleciona e despacha SMS ou SG-1000 para os runtimes correspondentes, reutilizando mailbox, áudio e input do host.
+
+### Regressões presentes no código
+
+- Máquina temporal: NOP no Scheduler, memória via transações, leitura de controlador no deadline, restore de M1 pendente, WAIT/Tw, restore no meio de WAIT, equivalência contínua/em blocos, portas VDP BE/BF, commit PSG no deadline, frame/áudio, INT externo, comparação básica com oracle atômico e rejeição de snapshot inconsistente.
+- Barramento: leitura de memória no deadline, PortRead de controlador antes/depois do início da transação, leitura de status VBlank no deadline, PortWrite PSG único e restaurável, writes VDP no deadline e rejeição de eventos/request inconsistentes.
+- Coordenador: avanço simultâneo dos domínios, razão racional PSG e restore de deadline/fase.
+- Worker: frame/mailbox, input antes da leitura agendada, save-state roundtrip vinculado a ROM/perfil, rejeição de ROM inválida preservando máquina e ownership/lifecycle da sessão de áudio na thread do worker.
+- Desktop/cartridge: seleção explícita sem fallback, dispatch de lifecycle, tradução de controles, mailbox compartilhado e identificação de perfis por hash com fallback conservador para RAM padrão.
+
+### Limites que permanecem abertos
+
+- A equivalência contínua/em blocos e o restore de safe points têm testes; não foi localizado um harness separado de replay de log de eventos/inputs.
+- O default CPU/PSG é perfil nominal; o domínio VDP usa T-states do modelo atual. Não alegar sincronismo físico de oscilador, fetch/pixel ou arbitragem de placa.
+- WAIT continua sendo fixture de software, não WAIT físico.
+- A seleção por hash e os mapas de RAM têm testes unitários, mas ainda não há evidência de gameplay in-game para os perfis Type-A, Type-B, clone 2 KiB, Othello e The Castle.
+- A integração de software Slint/WGPU/CPAL/SDL3 está na main, mas o CI pós-merge #990 SKIPPED CPAL output e PSG. Não declarar validação física de vídeo/áudio/input nem ausência de underruns/hotplug.
+
+A próxima etapa é a aceitação funcional P2 por ROM/perfil e a validação física do host Windows, registrada em [`docs/audits/sg1000-p2-post-p24-reconciliation-2026-11-17.md`](../audits/sg1000-p2-post-p24-reconciliation-2026-11-17.md). Game Gear/P3 não deve começar antes do fechamento desses gates.
