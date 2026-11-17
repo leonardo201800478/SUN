@@ -933,7 +933,7 @@ mod windows_host {
                                     }
                                     HorizontalLayout {
                                         Text { font-size: 11px; text: "Corte HPF"; color: #b9c5ce; }
-                                        Text { font-size: 11px; text: "\{round(root.sg1000-audio-hpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                        Text { font-size: 11px; text: "\\{round(root.sg1000-audio-hpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
                                     }
                                     Slider {
                                         minimum: 5; maximum: 500; step: 5; value <=> root.sg1000-audio-hpf-cutoff; enabled: root.sg1000-audio-hpf-enabled;
@@ -945,7 +945,7 @@ mod windows_host {
                                     }
                                     HorizontalLayout {
                                         Text { font-size: 11px; text: "Corte LPF"; color: #b9c5ce; }
-                                        Text { font-size: 11px; text: "\{round(root.sg1000-audio-lpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
+                                        Text { font-size: 11px; text: "\\{round(root.sg1000-audio-lpf-cutoff)} Hz"; color: #f2f5f7; horizontal-stretch: 1; horizontal-alignment: right; }
                                     }
                                     Slider {
                                         minimum: 4000; maximum: 20000; step: 250; value <=> root.sg1000-audio-lpf-cutoff; enabled: root.sg1000-audio-lpf-enabled;
