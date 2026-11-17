@@ -1082,8 +1082,7 @@ mod tests {
             0xD3, 0x7F, // OUT (7F),A
             0x76, // HALT
         ];
-        let mut reference =
-            AtomicReferenceMachine::new(&rom, MemoryConfig::default()).unwrap();
+        let mut reference = AtomicReferenceMachine::new(&rom, MemoryConfig::default()).unwrap();
         let mut temporal = Sg1000Machine::new(&rom, MemoryConfig::default()).unwrap();
 
         for instruction in 0..8 {
@@ -1103,8 +1102,14 @@ mod tests {
                 reference.cpu.total_tstates,
                 "instruction {instruction} machine timeline diverged"
             );
-            assert_eq!(temporal.inspect_memory(0xC000), reference.read_memory(0xC000));
-            assert_eq!(temporal.inspect_memory(0xC001), reference.read_memory(0xC001));
+            assert_eq!(
+                temporal.inspect_memory(0xC000),
+                reference.read_memory(0xC000)
+            );
+            assert_eq!(
+                temporal.inspect_memory(0xC001),
+                reference.read_memory(0xC001)
+            );
         }
 
         assert_eq!(
