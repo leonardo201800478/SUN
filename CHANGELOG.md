@@ -1,3 +1,11 @@
+## SG-1000 jogável e DSP de saída isolado — 2026-11-17
+
+- Registra teste manual reportado pelo usuário: jogos SG-1000 executam em velocidade normal, vídeo e áudio funcionam, controles respondem e ROMs testadas com expansão de RAM permanecem jogáveis.
+- Registra o estado como validação prática inicial, não como certificação exaustiva de todos os cartuchos, perfis de RAM ou revisões de placa. A lista nominal de ROMs não foi fornecida.
+- Separa as preferências de DSP de saída do SG-1000 das preferências SMS; o SG-1000 recebe controles próprios de HPF/LPF, ambos desativados por padrão.
+- Oculta no SG-1000 os controles SMS-only de renderer H2 e preset SMS1. O DSP SG-1000 permanece explicitamente experimental, sem alegar resposta analógica calibrada da placa.
+- Registra que o refinamento visual da interface foi adiado para uma etapa posterior; não altera o runtime de hardware, Scheduler, CPU, VDP ou clocks.
+
 ## Renderer H2 experimental — 2026-11-12
 
 - Conecta o renderer H2 streaming ao `SmsTemporalWorker`, consumindo eventos limitados do mesmo SN76489 dirigido pelo Scheduler.
