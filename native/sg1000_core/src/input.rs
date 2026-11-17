@@ -94,7 +94,7 @@ impl ControllerFrame {
     /// physical DC/DD port layout when the CPU reads those ports.
     pub fn apply_to(
         self,
-        machine: &mut crate::machine::Sg1000Machine,
+        machine: &mut crate::Sg1000Machine,
     ) -> Result<(), crate::io::IoError> {
         machine.set_joystick(1, self.port_1())?;
         machine.set_joystick(2, self.port_2())
