@@ -1170,7 +1170,7 @@ mod windows_host {
     #[derive(Debug, Clone)]
     struct DesktopPreferences {
         region: String,
-        sms_system: String,
+        selected_system: String,
         firmware_directory: String,
         firmware_boot_enabled: bool,
         firmware_brazil_selected: String,
@@ -1203,7 +1203,7 @@ mod windows_host {
         fn default() -> Self {
             Self {
                 region: "auto".to_owned(),
-                sms_system: "sms1".to_owned(),
+                selected_system: "sms1".to_owned(),
                 firmware_directory: String::new(),
                 firmware_boot_enabled: false,
                 firmware_brazil_selected: String::new(),
@@ -1270,8 +1270,12 @@ mod windows_host {
                 {
                     preferences.region = value.trim().to_owned();
                 }
+                "selected_system" if ["sms1", "sms2", "sg1000"].contains(&value.trim()) => {
+                    preferences.selected_system = value.trim().to_owned();
+                }
+                // Backward compatibility with settings written before multi-system selection.
                 "sms_system" if ["sms1", "sms2"].contains(&value.trim()) => {
-                    preferences.sms_system = value.trim().to_owned();
+                    preferences.selected_system = value.trim().to_owned();
                 }
                 "firmware_directory" => {
                     preferences.firmware_directory = value.trim().to_owned();
@@ -1398,7 +1402,7 @@ mod windows_host {
         let contents = format!(
             "region={}\nsms_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
-            preferences.sms_system,
+            preferences.selected_system,
             preferences.firmware_directory,
             preferences.firmware_boot_enabled,
             preferences.firmware_brazil_selected,
@@ -3512,7 +3516,7 @@ mod windows_host {
         let save_store = cartridge_save_store()?;
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
-            sms_system: preferences.sms_system.clone(),
+            sms_system: preferences.selected_system.clone(),
             firmware_directory: preferences.firmware_directory.clone(),
             firmware_boot_enabled: preferences.firmware_boot_enabled,
             firmware_brazil_selected: preferences.firmware_brazil_selected.clone(),
@@ -3520,7 +3524,7 @@ mod windows_host {
             firmware_europe_selected: preferences.firmware_europe_selected.clone(),
             firmware_japan_selected: preferences.firmware_japan_selected.clone(),
             firmware_korea_selected: preferences.firmware_korea_selected.clone(),
-            vdp_revision: sms_vdp_revision_for_system(&preferences.sms_system)?,
+            vdp_revision: sms_vdp_revision_for_system(&preferences.selected_system)?,
             audio_volume: effective_audio_volume(preferences.audio_volume, preferences.audio_muted),
             dsp_config: audio_dsp_config(
                 preferences.audio_dsp_preset,
@@ -3567,7 +3571,7 @@ mod windows_host {
         app.set_frame_status("Aguardando o primeiro frame completo do VDP.".into());
         app.set_lifecycle_status("Renderer setup: 0 | teardown: 0".into());
         app.set_selected_region(region.clone().into());
-        app.set_selected_system(preferences.sms_system.clone().into());
+        app.set_selected_system(preferences.selected_system.clone().into());
         app.set_firmware_directory(preferences.firmware_directory.clone().into());
         app.set_firmware_boot_enabled(preferences.firmware_boot_enabled);
         app.set_firmware_brazil_selected(preferences.firmware_brazil_selected.clone().into());
@@ -3615,7 +3619,7 @@ mod windows_host {
             }
         }
         if rom_path.is_some() {
-            app.set_active_system(preferences.sms_system.clone().into());
+            app.set_active_system(preferences.selected_system.clone().into());
         }
         app.set_show_fps(preferences.show_fps);
         app.set_show_status_footer(preferences.show_status_footer);
