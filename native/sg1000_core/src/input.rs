@@ -92,10 +92,7 @@ impl ControllerFrame {
     /// This is an explicit snapshot transfer: it performs no host polling and
     /// does not invoke callbacks during CPU execution. Sg1000Io composes the
     /// physical DC/DD port layout when the CPU reads those ports.
-    pub fn apply_to(
-        self,
-        machine: &mut crate::Sg1000Machine,
-    ) -> Result<(), crate::io::IoError> {
+    pub fn apply_to(self, machine: &mut crate::Sg1000Machine) -> Result<(), crate::io::IoError> {
         machine.set_joystick(1, self.port_1())?;
         machine.set_joystick(2, self.port_2())
     }
