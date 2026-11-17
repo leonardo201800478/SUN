@@ -4045,7 +4045,7 @@ mod windows_host {
                     };
                     let start_result = open_worker.borrow().as_ref().map(|worker| {
                         worker
-                            .set_sprite_limit_mode(sprite_mode)
+                            .set_sprite_limit_enabled(sprite_limit_enabled)
                             .and_then(|()| worker.reset())
                             .and_then(|()| worker.start())
                     });
@@ -4594,7 +4594,7 @@ mod windows_host {
             let result = audio_renderer_worker
                 .borrow()
                 .as_ref()
-                .map(|worker| worker.set_audio_renderer(mode));
+                .map(|worker| worker.set_sms_audio_renderer(mode));
             match result {
                 Some(Ok(())) => app.set_audio_status(match mode {
                     AudioRendererMode::Psg => "Renderer PSG selecionado.".into(),
