@@ -8,7 +8,7 @@
 
 pub const YM2413_EG_LEVELS: u8 = 128;
 pub const YM2413_EG_MAX_LEVEL: u8 = YM2413_EG_LEVELS - 1;
-pub const YM2413_EG_STATE_VERSION: u16 = 1;
+pub const YM2413_EG_STATE_VERSION: u16 = 2;
 
 /// The four envelope phases described by the reverse-engineering model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +18,62 @@ pub enum EnvelopeStage {
     Attack = 1,
     Decay = 2,
     Sustain = 3,
+}
+
+/// Candidate policy for the unresolved DAMP -> ATTACK boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DampTransitionCoordination {
+    /// Each operator evaluates its own DAMP completion boundary.
+    IndependentPerOperator,
+    /// The carrier transition is propagated to the modulator by the caller.
+    CarrierDrivesBoth,
+}
+
+/// Candidate behavior when AR=15 at the DAMP completion boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttackRate15Transition {
+    /// Follow the andete software model: skip ATTACK and enter DECAY.
+    SkipAttackToDecay,
+    /// Enter ATTACK; the rate-15 attack sequencer itself remains separately modeled.
+    EnterAttack,
+}
+
+/// Explicitly selected DAMP transition candidate; no threshold is assumed by default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DampTransitionConfig {
+    threshold: u8,
+    coordination: DampTransitionCoordination,
+    attack_rate_15: AttackRate15Transition,
+}
+
+impl DampTransitionConfig {
+    /// Construct a candidate threshold/coordination model.
+    pub const fn new(
+        threshold: u8,
+        coordination: DampTransitionCoordination,
+        attack_rate_15: AttackRate15Transition,
+    ) -> Result<Self, EnvelopeGeneratorError> {
+        if threshold > YM2413_EG_MAX_LEVEL {
+            return Err(EnvelopeGeneratorError::InvalidDampConfiguration);
+        }
+        Ok(Self {
+            threshold,
+            coordination,
+            attack_rate_15,
+        })
+    }
+
+    pub const fn threshold(self) -> u8 {
+        self.threshold
+    }
+
+    pub const fn coordination(self) -> DampTransitionCoordination {
+        self.coordination
+    }
+
+    pub const fn attack_rate_15(self) -> AttackRate15Transition {
+        self.attack_rate_15
+    }
 }
 
 /// Register-derived operator and channel fields consumed by one EG.
@@ -65,12 +121,14 @@ pub struct EnvelopeGeneratorState {
     pub level: u8,
     pub stage: EnvelopeStage,
     pub key_on: bool,
+    pub damp_config: DampTransitionConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EnvelopeGeneratorError {
     InvalidParameters,
     InvalidState,
+    InvalidDampConfiguration,
 }
 
 /// One operator EG. The caller supplies the shared global sample counter.
@@ -79,18 +137,26 @@ pub struct EnvelopeGenerator {
     level: u8,
     stage: EnvelopeStage,
     key_on: bool,
+    damp_config: DampTransitionConfig,
 }
 
 impl EnvelopeGenerator {
-    /// Construct from an explicit initial attenuation level.
-    pub const fn with_level(level: u8) -> Result<Self, EnvelopeGeneratorError> {
+    /// Construct from an explicit initial level and explicit DAMP candidate.
+    pub const fn with_level(
+        level: u8,
+        damp_config: DampTransitionConfig,
+    ) -> Result<Self, EnvelopeGeneratorError> {
         if level > YM2413_EG_MAX_LEVEL {
             return Err(EnvelopeGeneratorError::InvalidState);
+        }
+        if damp_config.threshold > YM2413_EG_MAX_LEVEL {
+            return Err(EnvelopeGeneratorError::InvalidDampConfiguration);
         }
         Ok(Self {
             level,
             stage: EnvelopeStage::Damp,
             key_on: false,
+            damp_config,
         })
     }
 
@@ -104,10 +170,34 @@ impl EnvelopeGenerator {
         self.stage
     }
 
+    /// Return the explicitly selected DAMP candidate.
+    pub const fn damp_config(&self) -> DampTransitionConfig {
+        self.damp_config
+    }
+
+    fn owns_damp_transition(&self, is_carrier: bool) -> bool {
+        match self.damp_config.coordination {
+            DampTransitionCoordination::IndependentPerOperator => true,
+            DampTransitionCoordination::CarrierDrivesBoth => is_carrier,
+        }
+    }
+
+    fn complete_damp(&mut self, attack_rate: u8) {
+        if attack_rate == 15
+            && self.damp_config.attack_rate_15 == AttackRate15Transition::SkipAttackToDecay
+        {
+            self.level = 0;
+            self.stage = EnvelopeStage::Decay;
+        } else {
+            self.stage = EnvelopeStage::Attack;
+        }
+    }
+
     /// Advance one operator update using the externally owned counter value.
     ///
-    /// The carrier receives the measured key-off release override. Modulator
-    /// key-off handling remains an explicit limitation of this first model.
+    /// The carrier receives the measured second-release override. The
+    /// modulator retains its first-release/sustain path. DAMP coordination and
+    /// the AR=15 boundary behavior are explicit candidate configuration.
     pub fn tick(
         &mut self,
         global_counter: u32,
@@ -136,25 +226,20 @@ impl EnvelopeGenerator {
             return Ok(self.level);
         }
 
-        if is_carrier && self.stage == EnvelopeStage::Damp && self.level >= 124 {
-            if parameters.attack_rate == 15 {
-                self.level = 0;
-                self.stage = EnvelopeStage::Decay;
-            } else {
-                self.stage = EnvelopeStage::Attack;
-            }
+        if self.owns_damp_transition(is_carrier)
+            && self.stage == EnvelopeStage::Damp
+            && self.level >= self.damp_config.threshold
+        {
+            self.complete_damp(parameters.attack_rate);
         }
 
         match self.stage {
             EnvelopeStage::Damp => {
                 self.advance_decay(global_counter, parameters.effective_rate(12));
-                if is_carrier && self.level >= 124 {
-                    if parameters.attack_rate == 15 {
-                        self.level = 0;
-                        self.stage = EnvelopeStage::Decay;
-                    } else {
-                        self.stage = EnvelopeStage::Attack;
-                    }
+                if self.owns_damp_transition(is_carrier)
+                    && self.level >= self.damp_config.threshold
+                {
+                    self.complete_damp(parameters.attack_rate);
                 }
             }
             EnvelopeStage::Attack => {
@@ -199,15 +284,16 @@ impl EnvelopeGenerator {
         Ok(self.level)
     }
 
-    /// Synchronize the modulator's DAMP transition to the carrier.
+    /// Apply the carrier's DAMP transition under the CarrierDrivesBoth candidate.
     ///
-    /// The measured model changes the modulator phase when the carrier leaves
-    /// DAMP, rather than letting the two operators independently choose their
-    /// transition boundary. Call this after the carrier update for that
-    /// sample; the owning operator pipeline is responsible for resetting both
-    /// PG phase accumulators at the corresponding boundary.
+    /// This is not called automatically: the exact modulator/carrier transition
+    /// offset is unresolved. Call after the carrier update only when the owning
+    /// model explicitly selects CarrierDrivesBoth. PG phase reset remains external.
     pub fn synchronize_damp_transition(&mut self, carrier: &Self) {
-        if self.stage == EnvelopeStage::Damp && carrier.stage != EnvelopeStage::Damp {
+        if self.damp_config.coordination == DampTransitionCoordination::CarrierDrivesBoth
+            && self.stage == EnvelopeStage::Damp
+            && carrier.stage != EnvelopeStage::Damp
+        {
             self.stage = carrier.stage;
         }
     }
@@ -219,6 +305,7 @@ impl EnvelopeGenerator {
             level: self.level,
             stage: self.stage,
             key_on: self.key_on,
+            damp_config: self.damp_config,
         }
     }
 
@@ -233,6 +320,7 @@ impl EnvelopeGenerator {
             level: state.level,
             stage: state.stage,
             key_on: state.key_on,
+            damp_config: state.damp_config,
         })
     }
 
@@ -268,7 +356,7 @@ impl EnvelopeGenerator {
     }
 
     fn advance_attack(&mut self, counter: u32, rate: u8) {
-        if rate < 4 || rate >= 60 {
+        if !(4..60).contains(&rate) {
             return;
         }
 
