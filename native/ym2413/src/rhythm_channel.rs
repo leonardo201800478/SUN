@@ -240,7 +240,7 @@ mod tests {
         registers[0x10 + 6] = 0x55;
         registers[0x20 + 6] = 0x35;
         registers[0x10 + 7] = 0xaa;
-        registers[0x20 + 7] = 0x07;
+        registers[0x20 + 7] = 0x26;
         registers[0x10 + 8] = 0x33;
         registers[0x20 + 8] = 0x3b;
         registers[0x36] = 0xa3;
@@ -309,7 +309,7 @@ mod tests {
         assert!(bd.channel_frequency.sustain_on);
         assert_eq!(hh.channel_frequency.fnum, 0x0aa);
         assert!(!hh.channel_frequency.melodic_key_on);
-        assert!(!hh.channel_frequency.sustain_on);
+        assert!(hh.channel_frequency.sustain_on);
         assert_eq!(tom.channel_frequency.fnum, 0x133);
         assert!(tom.channel_frequency.melodic_key_on);
         assert!(tom.channel_frequency.sustain_on);
