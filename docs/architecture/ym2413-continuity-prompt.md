@@ -33,14 +33,14 @@ Consultar manual Yamaha, SMS Power e referências independentes pinadas por comm
 
 ## Arquitetura auditada em main
 
-- `SmsTemporalCoordinator` registra Z80 (ID 0), PSG (ID 1) e VDP (ID 2). No perfil Japanese SMS de 3.579.545 Hz, YM2413 deve consumir o mesmo `ClockAdvance` do domínio PSG; não criar domínio paralelo.
-- `SmsTemporalBus` aplica efeitos de `PortRead`/`PortWrite` no deadline de conclusão. $F0/$F1/$F2 ainda não têm decode FM; atualmente caem no I/O genérico.
+- `SmsTemporalCoordinator` registra Z80 (ID 0), PSG (ID 1) e VDP (ID 2). O worker SMS usa `SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE = 1`; esse tick lógico é um T-state Z80. O manual Yamaha especifica XIN de 3.579.545 Hz e o MAME modela o YM2413 japonês com XTAL(10.738.635)/3, mas isso não prova fonte elétrica/fase comum em todas as placas. A escolha entre reutilizar o `ClockAdvance` do PSG ou registrar um domínio FM separado permanece **PENDENTE** até evidência do perfil físico. Manter um único `MachineScheduler`.
+- `SmsTemporalBus` aplica efeitos de `PortRead`/`PortWrite` no deadline de conclusão. $F0/$F1/$F2 ainda não têm decode FM. A leitura atual de $F2 cai no `SmsIo::read_port` e é tratada como leitura do controle DC (`read_dc`) pelo intervalo genérico $C0–$FE; não é readback YM2413/C-Sync. A escrita em $F2 é ignorada pelo caminho genérico.
 - O SN76489 divide clock de entrada por 16 e produz PCM na taxa interna configurada de 48 kHz.
 - YM2413 completa 18 slots × 4 clocks = 72 clocks por rotação; 3.579.545/72 ≈ 49.716,04 Hz é taxa interna derivada, não taxa de host.
 - `AudioMixer` aceita múltiplas fontes alinhadas; `NativeAudioSession::process_samples` atualmente envia uma única fonte por chamada. Não chamar separadamente para PSG e FM: isso concatena blocos, não mistura.
 - A sessão de áudio usa uma taxa de entrada única de 48 kHz. Será necessário alinhar/resamplear FM deterministicamente para a taxa comum, preservando fase e latência.
 - `DesktopPreferences` ainda não possui modo FM. Preferências futuras devem ser aplicadas por comando coarse-grained ao worker; nunca implementar hardware/timing na GUI.
-- Snapshot atual não contém estado FM. Versionar estado do bus/machine ao integrar; não alterar o esquema do coordenador se o conjunto de domínios permanecer 0/1/2.
+- Snapshot atual não contém estado FM. Versionar estado do bus/machine ao integrar. Só manter o esquema do coordenador se a decisão de clock permitir reutilizar um domínio existente; um domínio FM próprio exigirá versionar e validar o snapshot do coordenador.
 
 ## Contratos técnicos confirmados
 
