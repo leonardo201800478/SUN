@@ -8,16 +8,16 @@
 //! represented by Ym2413RhythmSlotNoiseLfsr. Neither model assumes a reset seed
 //! or advances itself from the MachineScheduler.
 
-/// Number of state bits in the measured YM2413 rhythm noise LFSR.
+/// Number of state bits in the measured decimated rhythm-noise sequence.
 pub const YM2413_RHYTHM_NOISE_LFSR_BITS: u32 = 23;
 
-/// Mask for the 23-bit noise register.
+/// Mask for the 23-bit decimated-sequence reference register.
 pub const YM2413_RHYTHM_NOISE_LFSR_MASK: u32 = 0x7f_ffff;
 
-/// Galois feedback mask for x^23 + x^9 + x^8 + x + 1.
+/// Galois feedback mask for the sequence observed when the slot-rate LFSR is decimated by 18.
 pub const YM2413_RHYTHM_NOISE_LFSR_TAPS: u32 = 0x40_0181;
 
-/// Maximal period of a non-zero 23-bit LFSR with the documented polynomial.
+/// Maximal period of the non-zero 23-bit decimated-sequence reference.
 pub const YM2413_RHYTHM_NOISE_LFSR_PERIOD: u32 = YM2413_RHYTHM_NOISE_LFSR_MASK;
 
 /// Version of the serializable rhythm-noise state.
@@ -188,10 +188,10 @@ pub struct Ym2413RhythmNoiseState {
     pub register: u32,
 }
 
-/// Explicitly seeded YM2413 rhythm-noise LFSR.
+/// Explicitly seeded reference LFSR for the decimated 72-clock noise sequence.
 ///
-/// No default seed is provided because the reset contents of the physical
-/// YM2413 shift register have not been established by the available evidence.
+/// This is not the physical slot-rate recurrence. No default seed is provided
+/// because the reset contents of the physical YM2413 shift register are unknown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413RhythmNoiseLfsr {
     register: u32,
