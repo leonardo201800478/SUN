@@ -754,3 +754,27 @@ O teste `pm_sequence_matches_published_ym2413_measurement_vector` reproduz essa 
 - Não declarar síntese PCM, fidelidade cycle-accurate ou integração SMS concluída.
 
 Fonte do modelo e vetor: [andete — YM2413 Reverse Engineering Notes 2015-12-01](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01). A tabela e as fórmulas foram transcritas a partir da especificação documental do projeto; nenhum código da implementação C emu2413 ou da implementação GPL Nuked-OPLL foi incorporado.
+
+
+## 18. Snapshot de validação após merge da fundação e PG-1 — 2026-11-18
+
+**Base estável:** `main` em `55206fd9ae87bb3fc76608330d6d7db77f3c8985`, merge da PR #996.
+
+| Subsistema / gate | Estado | Evidência e limite |
+|---|---|---|
+| Fundação YM2413 — latch, registradores, 18×4 clocks, snapshot | PASS | PR #996 integrada em main; CI pós-merge #8569 e SMS Runtime #1533 concluíram SUCCESS no SHA da main |
+| Isolamento do crate e dependência unidirecional | PASS | `sega-audio-runtime → sega-ym2413`; crate sem dependências externas |
+| PG candidato — acumulador 19-bit, MUL/ML e PM 8×8 | IMPLEMENTED / CI PENDING | PR #997; implementação candidata isolada, ainda sem aprovação do CI no HEAD final |
+| Vetor PM publicado de oito incrementos | PASS (reprodução do vetor publicado) | Teste reproduz o exemplo de andete; não equivale a validação física independente |
+| PG contra hardware YM2413 original | NOT RUN | Sem captura física ou oráculo independente do projeto |
+| Alinhamento do LFO PM, reset e offsets de slot | PENDENTE | Chamador fornece posição PM; contador global e pipeline ainda não foram implementados |
+| EG, AM, feedback, Log-Sine/EXP, operadores, instrumentos e Rhythm | NOT RUN | Não fazem parte da PR #997 |
+| Scheduler/clock/fase PSG-FM | BLOCKED | FM-A01 permanece pendente de evidência física |
+| Portas SMS $F0/$F1/$F2 e C-Sync | NOT RUN / BLOCKED | Adaptador SMS ausente; FM-A03 depende de C-Sync real |
+| MO/RO e circuito analógico SMS | BLOCKED | FM-A02; preservar saídas separadas |
+| Mixer multi-source e alinhamento FM→48 kHz | BLOCKED | FM-A07; não integrar PCM FM à sessão atual |
+| Perfil físico, catálogo Auto e save state integrado | NOT RUN | Fora do escopo desta fatia |
+
+**CI da PR #997:** execução #44222022308 foi criada para o SHA `f691915c9780dfa95e5f147607645519c74eb359`, mas ainda estava QUEUED no momento deste snapshot. Como a revisão documental deste snapshot altera o HEAD, somente uma execução no novo SHA poderá validar a versão final da PR.
+
+**Política:** estados IMPLEMENTED descrevem código presente, não fidelidade comprovada. Vetor publicado, CI, teste unitário e teste físico são evidências distintas. SKIPPED, pending, cancelled, ausente e NOT RUN nunca são PASS.
