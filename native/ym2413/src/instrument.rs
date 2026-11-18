@@ -6,10 +6,8 @@
 //! not a verified physical ROM dump; andete reported that reverse-engineered
 //! settings were close but not always identical to real YM2413 instruments.
 
-pub const YM2413_PRESET_PATCH_SOURCE: &str =
-    "https://github.com/digital-sound-antiques/emu2413/blob/cef17c32f67a88df381e08168e5820984de7e936/emu2413.c";
-pub const YM2413_PRESET_PATCH_SOURCE_COMMIT: &str =
-    "cef17c32f67a88df381e08168e5820984de7e936";
+pub const YM2413_PRESET_PATCH_SOURCE: &str = "https://github.com/digital-sound-antiques/emu2413/blob/cef17c32f67a88df381e08168e5820984de7e936/emu2413.c";
+pub const YM2413_PRESET_PATCH_SOURCE_COMMIT: &str = "cef17c32f67a88df381e08168e5820984de7e936";
 pub const YM2413_PRESET_PATCH_LICENSE: &str = "MIT";
 pub const YM2413_PRESET_PATCHES_HARDWARE_VERIFIED: bool = false;
 
@@ -215,16 +213,14 @@ pub const fn rhythm_mode_enabled(registers: &[u8; 64]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
+        InstrumentError, YM2413_PRESET_NAMES, YM2413_PRESET_PATCHES_CANDIDATE,
         decode_channel_registers, decode_patch_registers, decode_user_patch, preset_name,
-        preset_patch, resolve_instrument, rhythm_mode_enabled, InstrumentError,
-        YM2413_PRESET_NAMES, YM2413_PRESET_PATCHES_CANDIDATE,
+        preset_patch, resolve_instrument, rhythm_mode_enabled,
     };
 
     #[test]
     fn user_patch_registers_decode_operator_fields() {
-        let patch = decode_patch_registers([
-            0xf2, 0xb5, 0xaf, 0xdb, 0xa5, 0x3c, 0x6d, 0xf2,
-        ]);
+        let patch = decode_patch_registers([0xf2, 0xb5, 0xaf, 0xdb, 0xa5, 0x3c, 0x6d, 0xf2]);
 
         assert!(patch.modulator.am_enabled);
         assert!(patch.modulator.vibrato_enabled);
@@ -258,9 +254,10 @@ mod tests {
     fn user_patch_reads_the_first_eight_registers() {
         let mut registers = [0; 64];
         registers[..8].copy_from_slice(&[0x71, 0x61, 0x1e, 0x17, 0xd0, 0x78, 0, 0x17]);
-        assert_eq!(decode_user_patch(&registers), decode_patch_registers([
-            0x71, 0x61, 0x1e, 0x17, 0xd0, 0x78, 0, 0x17,
-        ]));
+        assert_eq!(
+            decode_user_patch(&registers),
+            decode_patch_registers([0x71, 0x61, 0x1e, 0x17, 0xd0, 0x78, 0, 0x17,])
+        );
     }
 
     #[test]
@@ -282,10 +279,7 @@ mod tests {
     #[test]
     fn invalid_instrument_codes_are_rejected() {
         let user = decode_patch_registers([0; 8]);
-        assert_eq!(
-            preset_patch(0),
-            Err(InstrumentError::InvalidPreset(0))
-        );
+        assert_eq!(preset_patch(0), Err(InstrumentError::InvalidPreset(0)));
         assert_eq!(
             resolve_instrument(16, user),
             Err(InstrumentError::InvalidPreset(16))
