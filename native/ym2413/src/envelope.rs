@@ -238,7 +238,8 @@ impl EnvelopeGenerator {
         match self.stage {
             EnvelopeStage::Damp => {
                 self.advance_decay(global_counter, parameters.effective_rate(12));
-                if self.owns_damp_transition(is_carrier) && self.level >= self.damp_config.threshold {
+                if self.owns_damp_transition(is_carrier) && self.level >= self.damp_config.threshold
+                {
                     self.complete_damp(parameters.attack_rate);
                 }
             }
