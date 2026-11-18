@@ -147,7 +147,7 @@ A investigação de andete mediu que cada som de percussão é emitido duas veze
 | SD | 16 | SD2 | 6 |
 | TCY | 17 | TCY2 | 7 |
 
-O relatório identifica no die shot um banco de nove shift registers de comprimento cinco, próximo ao DAC, compatível com o armazenamento dos cinco valores de saída de nove bits. Isso sustenta a hipótese de atraso/reutilização da amostra, mas a implementação do buffer e sua posição exata no pipeline ainda dependem da integração com o contrato de slots.
+O relatório identifica em um die shot um banco de nove shift registers de comprimento cinco, próximo ao DAC, compatível com o armazenamento dos cinco valores de saída de nove bits. Há uma ressalva importante: o SMS Power informa que os die shots disponíveis são de um FHB013, derivado do YM2413 com conjunto de instrumentos diferente, e não de um YM2413 real. Portanto, a posição física do banco de registradores é inferência estrutural comparativa, não confirmação do layout do YM2413. A duplicação e as posições de saída, por outro lado, foram medidas diretamente nas saídas MO/RO de um YM2413 real.
 
 ## 5.7 Limites das referências comparativas [C/U]
 
@@ -218,6 +218,8 @@ O fechamento funcional de software pode preceder a comparação com hardware, ma
 
 ### Reverse engineering / medição
 - andete, YM2413 Reverse Engineering Notes 2018-05-13: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2018-05-13
+- andete, Rhythm Mode waveform captures and reverse-engineering analysis: https://github.com/andete/ym2413/blob/master/results/rhythm/rhythm.md
+- andete, LFSR measurements and 2020 slot-rate update: https://github.com/andete/ym2413/blob/master/results/lfsr/lfsr.txt
 - Repositório de resultados de captura indicado pelo autor: https://github.com/andete/ym2413/tree/master/results
 
 ### Comparação não normativa
