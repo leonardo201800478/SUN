@@ -392,4 +392,18 @@ mod tests {
         assert_eq!(state.elapsed_input_clocks, 0);
         assert_eq!(state.completed_rotations, 0);
     }
+
+    #[test]
+    fn next_slot_descriptor_tracks_the_serial_clock_and_wraps_after_eighteen_slots() {
+        let mut core = Ym2413Core::new();
+
+        for expected_slot in 0..18_u8 {
+            let descriptor = core.next_slot_descriptor().unwrap();
+            assert_eq!(descriptor.slot_number, expected_slot + 1);
+            core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT).unwrap();
+        }
+
+        assert_eq!(core.slot_index(), 0);
+        assert_eq!(core.next_slot_descriptor().unwrap().slot_number, 1);
+    }
 }
