@@ -719,3 +719,38 @@ Uma releitura da página SMS Power — Audio Control Port identificou uma corre�
 | Testes físicos de placa e saída | NOT RUN | Nenhuma medição física executada nesta trilha |
 
 **SKIPPED no CI até o snapshot (não são PASS):** SMS1 VDP, input core, geração manual de lockfiles, workflow validation, Scheduler stress, SMS frame-pacing ROM build, Z80 focused validation, PSG core e SMS debugger Windows Release validation.
+
+## 17. Implementação candidata PG-1 — 2026-11-18
+
+A branch `feat/ym2413-phase-generator-candidate` adiciona `native/ym2413/src/phase.rs`, um gerador de fase isolado por operador. Esta fatia implementa o modelo matemático M1 publicado por andete, sem importar código ou tabelas de terceiros.
+
+### Escopo implementado
+
+- Acumulador de fase de 19 bits em ponto fixo 10.9; os 10 bits superiores são expostos como índice da tabela de seno.
+- Tabela MUL → ML com 16 entradas.
+- Incremento base: `((FNUM * ML[MUL]) << BLOCK) >> 1`.
+- PM opcional com a tabela medida 8×8 e a expressão `(((2 * FNUM + PM) * ML[MUL]) << BLOCK) >> 2`.
+- Wrap modular de 19 bits.
+- Snapshot/restore versionado por acumulador.
+- Validação dos limites FNUM (9 bits), BLOCK (3 bits), MUL (4 bits) e posição PM (0..7).
+
+### Fronteiras deliberadas
+
+O PG não possui contador global de amostras nem avança o LFO. O chamador deve fornecer a posição PM correspondente ao instante exato da atualização do operador. Essa decisão evita fixar prematuramente o alinhamento de reset, a cadência de 1024 amostras, a ordem PG/EG/OP e os offsets dos 18 slots. O PG também não decodifica registradores, não produz seno/PCM e não escolhe quando cada operador é visitado.
+
+### Vetor diferencial incluído
+
+O exemplo publicado por andete para FNUM=`0x1c0`, BLOCK=6 e ML=2 produz os oito incrementos:
+`28672, 28768, 28896, 28768, 28672, 28576, 28448, 28576`.
+O teste `pm_sequence_matches_published_ym2413_measurement_vector` reproduz essa sequência. É um vetor publicado de engenharia reversa, não uma medição independente executada pelo projeto.
+
+### Estado de validação
+
+- Código e testes adicionados: implementação candidata.
+- CI no SHA da branch: PENDENTE até execução no HEAD final da PR.
+- Comparação independente contra hardware YM2413 original: NOT RUN.
+- Alinhamento PM/reset/slot e pipeline cycle-accurate: PENDENTE.
+- Integração de PG ao core de 18 slots, EG, operador, DAC e saídas MO/RO: NOT RUN.
+- Não declarar síntese PCM, fidelidade cycle-accurate ou integração SMS concluída.
+
+Fonte do modelo e vetor: [andete — YM2413 Reverse Engineering Notes 2015-12-01](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01). A tabela e as fórmulas foram transcritas a partir da especificação documental do projeto; nenhum código da implementação C emu2413 ou da implementação GPL Nuked-OPLL foi incorporado.
