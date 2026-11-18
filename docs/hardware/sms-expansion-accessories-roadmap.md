@@ -1,6 +1,6 @@
 # Expansões e acessórios Sega 8-bit — escopo P4
 
-**Status:** planejado; não declara implementação. **Ordem:** após SMS1/SMS2, SG-1000 e Game Gear. Hardware em Rust, MachineScheduler existente; sem host ou pipeline paralelo.
+**Status:** acessórios gerais P4 planejados; a trilha do YM2413 integrado foi antecipada como característica do perfil SMS, em branch/PR própria, após a PR #992. **Ordem:** acessórios gerais P4 continuam após SMS1/SMS2, SG-1000 e Game Gear. Esta exceção não altera a ordem das plataformas. Hardware em Rust, MachineScheduler existente; sem host ou pipeline paralelo.
 
 ## Terminologia e compatibilidade
 
@@ -14,7 +14,7 @@ A nomenclatura técnica encontrada é **Sega Card / My Card** (mídia) e **Card 
 
 ## YM2413 — FM integrado do Master System japonês
 
-**Decisão de escopo:** implementar somente o comportamento do Master System japonês com YM2413 integrado. Não emular o Mark III FM Sound Unit como módulo físico/adaptável nem seu roteamento externo, que não oferece a mesma mistura simultânea do PSG.
+**Decisão de escopo:** implementar somente o comportamento do Master System japonês com YM2413 integrado. A trilha SMS-FM foi autorizada após a PR #992 e não aguarda Game Gear, pois não é uma nova plataforma nem a fase geral de acessórios. O primeiro estágio é somente a fundação de registradores/clock; ainda não há síntese nem integração de portas. Não emular o Mark III FM Sound Unit como módulo físico/adaptável nem seu roteamento externo.
 
 - O YM2413 é um dispositivo opcional do perfil de hardware emulado, selecionável independentemente da região do console.
 - Quando presente, o YM2413 opera em conjunto com o SN76489/PSG. O port $F2 deve reproduzir o controle do SMS japonês: $00 FM off/PSG on; $01 FM on/PSG off; $02 ambos off; $03 ambos on. A capacidade de silenciar o PSG por esse controle é específica do SMS japonês.
