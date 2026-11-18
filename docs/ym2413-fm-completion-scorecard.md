@@ -505,3 +505,20 @@ O limiar 124 continua parametrizado e não é promovido a constante física. A c
 **Estado:** alteração de código e vetores adicionados. O primeiro CI da branch (`44398643769`) detectou erro de inferência de tipo no teste da matriz FNUM (`0..=1` inferido como `i32`); corrigido na branch por tipagem explícita `0_u8..=1`. O CI do novo HEAD ainda precisa ser executado e aprovado. FM-1 permanece PARCIAL. Nenhuma alteração de runtime, Scheduler, PCM, portas SMS ou dependências.
 
 **Caderno de evidências:** [YM2413 — saída, EG e Rhythm Mode](ym2413-research-ledger-2026-11-18.md), com pinagem MO/RO, ressalvas sobre circuitos analógicos, classificação das hipóteses de ritmo e critérios para validação ciclo-a-ciclo.
+
+---
+
+## FM-7 — período máximo do LFSR slot-rate (em validação)
+
+**Branch:** `test/ym2413-slot-rate-lfsr-full-period`
+
+Foi adicionado um teste exaustivo do período da recorrência slot-rate candidata (x^{23}+x^9+1), iniciando em uma semente explícita não nula:
+
+- Executa os (2^{23}-1) passos da recorrência.
+- Confirma que o estado não retorna à semente após (47) passos.
+- Confirma que o estado não retorna à semente após (178481) passos.
+- Confirma o retorno à semente após (2^{23}-1) passos.
+
+Como (2^{23}-1=47\times178481), e ambos são fatores primos, as verificações excluem os períodos próprios obtidos pela divisão por cada fator primo. O teste valida a propriedade algébrica da recorrência implementada e sua representação de estado.
+
+**Limites:** não certifica o seed físico, alinhamento de reset, polaridade observada no pino, nem a cadência/instante de consumo do bit no YM2413. Não transforma o LFSR candidato em comportamento físico integralmente validado. Nenhuma lógica de runtime, slot sequencer, PG/EG, Scheduler, PCM ou barramento foi alterada.
