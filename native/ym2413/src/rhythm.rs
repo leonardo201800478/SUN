@@ -350,8 +350,10 @@ impl Ym2413RhythmSlotNoiseLfsr {
 #[cfg(test)]
 mod tests {
     use super::{
-        YM2413_RHYTHM_NOISE_LFSR_MASK, YM2413_RHYTHM_NOISE_LFSR_PERIOD, Ym2413RhythmNoiseError,
-        Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState,
+        YM2413_RHYTHM_NOISE_LFSR_MASK, YM2413_RHYTHM_NOISE_LFSR_PERIOD,
+        YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION, Ym2413RhythmNoiseError,
+        Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr,
+        Ym2413RhythmSlotNoiseState,
     };
 
     #[test]
@@ -614,5 +616,71 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn slot_rate_lfsr_uses_the_measured_x23_x9_plus_one_recurrence() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(1).unwrap();
+
+        assert_eq!(lfsr.output_bit(), 1);
+        assert_eq!(lfsr.clock(), 1);
+        assert_eq!(lfsr.register(), 0x40_0000);
+    }
+
+    #[test]
+    fn every_eighteenth_slot_rate_bit_obeys_the_decimated_noise_polynomial() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(1).unwrap();
+        let mut sampled = Vec::with_capacity(128);
+
+        for _ in 0..128 {
+            sampled.push(lfsr.output_bit());
+            lfsr.advance(18);
+        }
+
+        for index in 23..sampled.len() {
+            let expected =
+                sampled[index - 1] ^ sampled[index - 8] ^ sampled[index - 9] ^ sampled[index - 23];
+            assert_eq!(sampled[index], expected, "decimated bit index {index}");
+        }
+    }
+
+    #[test]
+    fn slot_rate_lfsr_supports_three_slot_hh_to_sd_spacing() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(0x12_3456).unwrap();
+        let hh_bit = lfsr.output_bit();
+        lfsr.advance(3);
+        let sd_bit = lfsr.output_bit();
+
+        let mut expected = Ym2413RhythmSlotNoiseLfsr::with_seed(0x12_3456).unwrap();
+        assert_eq!(hh_bit, expected.output_bit());
+        for _ in 0..3 {
+            let _ = expected.clock();
+        }
+        assert_eq!(sd_bit, expected.output_bit());
+    }
+
+    #[test]
+    fn slot_rate_lfsr_snapshot_restore_and_chunked_advance_are_equivalent() {
+        let mut continuous = Ym2413RhythmSlotNoiseLfsr::with_seed(0x5a_1234).unwrap();
+        let mut chunked = continuous;
+
+        continuous.advance(100_003);
+        for steps in [1, 7, 64, 3_001, 17, 65_536, 31_377] {
+            chunked.advance(steps);
+        }
+        assert_eq!(continuous.export_state(), chunked.export_state());
+
+        let snapshot = continuous.export_state();
+        assert_eq!(Ym2413RhythmSlotNoiseLfsr::restore_state(snapshot), Ok(continuous));
+        assert_eq!(
+            Ym2413RhythmSlotNoiseLfsr::restore_state(Ym2413RhythmSlotNoiseState {
+                format_version: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION + 1,
+                register: 1,
+            }),
+            Err(Ym2413RhythmNoiseError::StateVersionMismatch {
+                expected: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION,
+                actual: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION + 1,
+            })
+        );
     }
 }
