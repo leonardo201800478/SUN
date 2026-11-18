@@ -303,6 +303,21 @@ Só após P1 e SMS-FM-05:
 
 ---
 
+## 6.1 Resultado da investigação P1 — pipeline de 18 slots
+
+A investigação documental inicial foi detalhada em [YM2413 — Investigação P1 do pipeline de 18 slots](ym2413-slot-pipeline-investigation-2026-11-18.md).
+
+Conclusões adicionais:
+
+- O manual confirma a reutilização de uma célula de operador em 18 slots e sua ordem; medições independentes confirmam 72 clocks de entrada por rotação.
+- Quatro clocks por slot é a divisão aritmética do período de 72 clocks pelos 18 slots e é compatível com o contrato atual do crate. A função interna de cada um dos quatro clocks **não está documentada**.
+- O PG de 19 bits, com 9 bits fracionários e 10 bits de endereço da tabela SIN, possui suporte em medições de fase publicadas. A fórmula de incremento está documentada no relatório P1.
+- O modelo de EG usa um contador global compartilhado e avalia taxas em unidades de rotação/amostra; a fase absoluta após reset e o offset interno no slot permanecem desconhecidos.
+- O feedback com os dois outputs anteriores do modulator reproduz medições publicadas após sincronização; condições iniciais diferentes explicam discrepâncias no início.
+- A captura publicada de MO/RO identifica 3 clocks ativos por canal em um quadro de 72 clocks, mas não fecha todos os detalhes de latch do DAC.
+
+**Decisão P1:** nenhuma ordem de subfase PG/EG/OP, latência M→C ou ponto de commit de registrador foi promovido a contrato. A implementação do pipeline permanece bloqueada até obter vetores de captura com resolução por input clock ou evidência primária equivalente.
+
 ## 7. Matriz mínima de validação
 
 Todos os testes ainda não executados devem permanecer explicitamente como **NOT RUN**, **BLOCKED** ou **CANDIDATE**. A existência de testes unitários de componentes não significa validação do chip completo.
