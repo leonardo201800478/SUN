@@ -1,7 +1,7 @@
 # YM2413 — Caderno de evidências de saída, EG e Rhythm Mode
 
-**Data:** 2026-11-18  
-**Escopo:** consolidar pesquisas recentes e definir fronteiras de evidência para a implementação YM2413.  
+**Data:** 2026-11-18
+**Escopo:** consolidar pesquisas recentes e definir fronteiras de evidência para a implementação YM2413.
 **Status:** documento de engenharia; não representa conclusão de FM-1/FM-5/FM-6 e não altera o runtime.
 
 ## 1. Regras de leitura das evidências
