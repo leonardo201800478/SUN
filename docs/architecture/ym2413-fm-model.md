@@ -813,3 +813,54 @@ A medição registra que o alinhamento inicial do contador global com o início 
 - Não conectar ao SMS, Scheduler, mixer ou áudio host.
 
 Fonte: [andete — YM2413 Reverse Engineering Notes 2015-12-01](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01). A implementação é uma tradução independente da descrição matemática, sem copiar código de emuladores.
+
+
+## 20. Auditoria de alinhamento temporal do PM LFO — 2026-11-18
+
+### Evidências públicas reavaliadas
+
+**MEDIDO — andete, 2015-12-01**
+- A posição PM muda a cada 1.024 amostras YM2413 e a sequência repete a cada 8.192 amostras.
+- A amostragem do experimento corresponde a uma amostra por período de 72 clocks.
+- Ao alinhar uma senoide de referência à captura real, somente trechos de aproximadamente 1.024 amostras coincidiram; o modelo reproduziu as regiões ao aplicar as correções PM.
+- O autor declara que o contador global de 13 bits provavelmente não estava sincronizado ao início da senoide; na simulação, ele estava sincronizado. A comparação completa permaneceu aproximada, também por a captura conter modulator + carrier e a simulação usar um único operador.
+
+**MEDIDO / HIPÓTESE — andete, 2015-12-03**
+- Repetições da mesma nota produziram formas de onda visualmente idênticas após sincronização do experimento pelo evento de key-on.
+- O autor sugere, sem confirmar, que os phase counters dos operadores poderiam ser zerados no início da fase ATTACK.
+- A inspeção ampliada sugere que modulator e carrier podem estar separados por um sample; a própria nota apresenta isso como explicação possível, não como contrato fechado.
+- O início do sinal ainda apresenta discrepância associada à transição DAMP/ATTACK; o autor não a considera resolvida.
+
+### Decisões arquiteturais
+
+1. **Não inicializar automaticamente o contador PM global em zero no reset IC.** As fontes consultadas não demonstram que o reset de hardware determine essa fase.
+2. **Não reiniciar o PM LFO em KEY-ON.** A hipótese de reset dos phase counters individuais no começo de ATTACK não prova reset do contador global PM.
+3. **Manter separados três estados:** contador global PM, acumulador PG de cada operador e sincronização modulator/carrier. Não inferir que compartilham reset ou borda de atualização.
+4. **Preservar a API explícita de fase inicial** de `PhaseModulationLfo::new(initial_counter)`. Não substituir por zero default nem acoplar ao `PhaseGenerator::reset()`.
+5. A cadência de 1.024/8.192 amostras é evidência MEDIDA publicada; o alinhamento absoluto e o offset em relação a reset, KEY-ON, slot e saída continuam **PENDENTES**.
+
+### Experimento necessário para fechar o contrato
+
+Uma validação física independente deve capturar a saída de um YM2413 original com clock e escritas controlados, preservando timestamps em clocks mestres:
+
+- executar reset IC e aguardar período conhecido antes de configurar a nota;
+- capturar pelo menos 16.384 amostras (duas voltas PM) a uma amostra por 72 clocks;
+- repetir a captura após reset IC, após KEY-OFF/KEY-ON e após reprogramação sem reset;
+- comparar capturas entre si para localizar se a fase global PM reinicia, continua ou depende de outro evento;
+- executar variantes com PM desabilitado/habilitado e com modulator/carrier configurados para frequências iguais e diferentes, para separar fase PG de posição PM;
+- registrar o deslocamento em amostras e, quando possível, em clocks dentro do período de 72 clocks; não arredondar a observação para fronteiras de sample;
+- repetir as medições para excluir ruído e efeitos de captura.
+
+Sem acesso à placa YM2413 e sem uma captura sincronizada, esse experimento não pode ser substituído por comparação com emuladores. A documentação pública consultada não fornece o offset absoluto nem a relação completa entre reset, PM, PG e slots.
+
+### Estado após PR #998
+
+- Contador PM global candidato de 13 bits: **IMPLEMENTED**; PR #998 integrada na `main`, commit `fc383defbe035e699f33b07e7a525cfdb5b7fa5a`.
+- Cadência e decode 8 × 1.024 / 8.192: **MEDIDO (fonte externa)** e coberto por testes de unidade do candidato.
+- Fase inicial após reset IC: **PENDENTE**.
+- Comportamento do contador global em KEY-ON/KEY-OFF: **PENDENTE**.
+- Offset temporal modulator/carrier: **PENDENTE**.
+- Offset dentro do ciclo de 72 clocks e instante exato de atualização PM/PG: **PENDENTE**.
+- Integração ao `Ym2413Core`/Scheduler: **BLOQUEADA** até definir o contrato de atualização sem inventar alinhamento.
+
+**Fontes:** [andete — notas 2015-12-01](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01), especialmente a discussão do contador global e das medições; [andete — notas 2015-12-03](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-03), especialmente as observações de sincronização de operadores, key-on e offset modulator/carrier. As hipóteses do autor foram mantidas como hipóteses, não como especificação.
