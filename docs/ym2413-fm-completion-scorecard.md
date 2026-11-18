@@ -217,3 +217,63 @@ Foi iniciado native/ym2413/src/synthesis.rs, que agrega:
 - Proteção contra resolver canais de ritmo como canais melódicos.
 
 **Estado:** FM-5 PARCIAL. A agregação de estado não equivale à implementação da sequência física de 18 slots nem à geração de PCM FM.
+
+
+---
+
+## Atualização FM-6 — atribuição serial dos 18 slots
+
+**Branch:** feat/ym2413-slot-sequencer-map
+
+Foi adicionada a tabela constante YM2413_SLOT_MAP, baseada na Tabela II-3 do Yamaha YM2413 Application Manual. O índice do slot do core (0..17) agora pode ser consultado como descritor de canal, operador e atribuição opcional de voz rítmica.
+
+### Ordem documentada
+
+| Slots físicos | Canal | Operadores |
+|---|---:|---|
+| 1, 4 | 1 | Modulator, Carrier |
+| 2, 5 | 2 | Modulator, Carrier |
+| 3, 6 | 3 | Modulator, Carrier |
+| 7, 10 | 4 | Modulator, Carrier |
+| 8, 11 | 5 | Modulator, Carrier |
+| 9, 12 | 6 | Modulator, Carrier |
+| 13, 16 | 7 | Modulator, Carrier |
+| 14, 17 | 8 | Modulator, Carrier |
+| 15, 18 | 9 | Modulator, Carrier |
+
+A ordem serial completa é M1, M2, M3, C1, C2, C3, M4, M5, M6, C4, C5, C6, M7, M8, M9, C7, C8, C9.
+
+### Reatribuição em Rhythm Mode
+
+- Slot 13 + 16: Bass Drum.
+- Slot 14: Hi-Hat.
+- Slot 15: Tom-Tom.
+- Slot 17: Snare Drum.
+- Slot 18: Top Cymbal.
+
+O descritor de ritmo não implementa geração de percussão; preserva a atribuição física na camada de mapeamento.
+
+### Integração no core
+
+- Ym2413Core::next_slot_descriptor() expõe a atribuição do próximo slot sem avançar o tempo.
+- O índice é o mesmo que já é avançado pela fundação de clock, com 4 input clocks por slot e 18 slots por rotação.
+- Testes verificam a ordem, a reatribuição de seis slots rítmicos, rejeição de índices inválidos e o wrap após uma rotação.
+
+### Limite técnico mantido
+
+Esta entrega fecha apenas a tabela de atribuição serial. Ainda não implementa nem certifica:
+- offsets entre as etapas PG, EG e operador;
+- deslocamentos dos registradores internos de fase e envelope;
+- pipeline de feedback e latência modulator → carrier;
+- contador EG global e sua relação com os slots;
+- eventos MO/RO, DAC e soma de saída;
+- ritmo, noise LFSR e PCM FM final.
+
+A documentação do chip confirma a reutilização da célula FM em 18 slots e a tabela de atribuição. A descrição de uma implementação Rust recente relata quatro input clocks por slot, pipeline PG/EG/OP com offsets e uma amostra por 18 clocks internos; isso é uma referência de arquitetura, não substitui a validação independente do nosso pipeline. O projeto não copia código GPL de Nuked-OPLL nem adiciona essa dependência.
+
+**Referências externas:**
+- Yamaha YM2413 Application Manual, II-5 Channels and Slots, IV-1 Clock Generation: https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf
+- SMS Power — YM2413 reverse engineering: https://www.smspower.org/Development/YM2413
+- Descrição técnica de pipeline e clock (documentação Rust): https://docs.rs/emu198x-yamaha-ym2413/latest/emu198x_yamaha_ym2413/
+
+**Estado:** FM-6 PARCIAL. O mapeamento serial está implementado e testado por CI pendente; o pipeline de estágios continua aberto.
