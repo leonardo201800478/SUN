@@ -4,13 +4,20 @@
 //! synthesize PCM or participate in the 18-slot operator pipeline.
 
 pub mod envelope;
+pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
+pub mod synthesis_tables;
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
     YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
 };
+pub use operator::{
+    exponential_lookup, log_sine_lookup, OperatorPair, OperatorPairError, OperatorPairParameters,
+    OperatorPairSample, OperatorPairState, YM2413_OPERATOR_PAIR_STATE_VERSION,
+};
+pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 pub use phase::{
     PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
     YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
