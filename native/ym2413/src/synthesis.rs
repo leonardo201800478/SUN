@@ -711,7 +711,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn all_single_operator_rhythm_voices_use_explicit_phase_inputs_and_physical_eg_state() {
         use crate::rhythm_phase::{
             hi_hat_phase_candidate, snare_drum_phase_candidate, top_cymbal_phase_candidate,
@@ -762,6 +761,28 @@ mod tests {
             .unwrap();
         assert_eq!(sample.voice, Ym2413RhythmVoice::BassDrum);
         assert_ne!(bank.feedback_history(6).unwrap(), before);
+    }
+
+    #[test]
+    fn rhythm_voice_evaluation_requires_phase_only_for_single_operator_voices() {
+        let config = rhythm_configuration();
+        let mut bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        assert_eq!(
+            bank.evaluate_rhythm_voice(&config, Ym2413RhythmVoice::HiHat, None),
+            Err(Ym2413SynthesisError::RhythmVoice(
+                crate::rhythm_channel::RhythmVoiceSynthesisError::MissingPhaseInput {
+                    voice: Ym2413RhythmVoice::HiHat,
+                }
+            ))
+        );
+        assert_eq!(
+            bank.evaluate_rhythm_voice(&config, Ym2413RhythmVoice::BassDrum, Some(0)),
+            Err(Ym2413SynthesisError::RhythmVoice(
+                crate::rhythm_channel::RhythmVoiceSynthesisError::UnexpectedPhaseInput {
+                    voice: Ym2413RhythmVoice::BassDrum,
+                }
+            ))
+        );
     }
 
     #[test]
