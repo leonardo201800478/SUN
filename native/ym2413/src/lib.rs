@@ -63,15 +63,15 @@ pub use rhythm::{
     Ym2413RhythmSlotNoiseSequencerState, Ym2413RhythmSlotNoiseState, Ym2413RhythmVoiceConfig,
     decode_rhythm_registers,
 };
+pub use rhythm_channel::{
+    RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
+    RhythmVoiceSynthesisError, Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
+};
 pub use rhythm_phase::{
     RhythmNoisePhaseInputs, RhythmPhaseCandidateError, RhythmPhaseSource,
     YM2413_RHYTHM_PHASE_CANDIDATE_SOURCE, YM2413_TOP_CYMBAL_EQUIVALENT_PHASE_VARIANTS,
     hi_hat_phase_candidate, rhythm_noise_phase_candidate, rhythm_phase_mix_bit_candidate,
     snare_drum_phase_candidate, top_cymbal_phase_candidate,
-};
-pub use rhythm_channel::{
-    RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
-    RhythmVoiceSynthesisError, Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
 };
 pub use slot::{
     YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,
