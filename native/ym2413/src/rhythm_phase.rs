@@ -263,6 +263,49 @@ mod tests {
     }
 
     #[test]
+    fn published_andete_truth_table_is_preserved_for_all_five_phase_inputs() {
+        // Fixed 32-row fixture transcribed from the final Boolean expression
+        // in andete's YM2413 rhythm investigation:
+        // https://github.com/andete/ym2413/blob/master/results/rhythm/rhythm.md
+        //
+        // Input index bits, least-significant first:
+        // m72, m77, m73, c85, c83.
+        // This is a behavioral regression fixture, not a reset-phase proof.
+        const EXPECTED_MIX: [bool; 32] = [
+            false, true, true, false, true, true, true, true, true, true, true, true, true, true,
+            true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+            false, true, true, false,
+        ];
+
+        for (input, expected) in EXPECTED_MIX.into_iter().enumerate() {
+            let input = input as u16;
+            let mod_phase =
+                ((input & 0x01) << 2) | (((input >> 1) & 1) << 7) | (((input >> 2) & 1) << 3);
+            let carrier_phase = (((input >> 3) & 1) << 5) | (((input >> 4) & 1) << 3);
+
+            assert_eq!(
+                rhythm_phase_mix_bit_candidate(mod_phase, carrier_phase),
+                Ok(expected),
+                "phase input vector {input:05b}"
+            );
+            assert_eq!(
+                top_cymbal_phase_candidate(mod_phase, carrier_phase),
+                Ok((u16::from(expected) << 9) | 0x100),
+                "Top Cymbal phase input vector {input:05b}"
+            );
+
+            for noise_bit in [false, true] {
+                let low_phase = if expected ^ noise_bit { 0x0d0 } else { 0x034 };
+                assert_eq!(
+                    hi_hat_phase_candidate(mod_phase, carrier_phase, noise_bit),
+                    Ok((u16::from(expected) << 9) | low_phase),
+                    "Hi-Hat phase input vector {input:05b}, noise={noise_bit}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn rhythm_phase_mix_candidate_exhaustively_covers_the_five_relevant_bits() {
         for mod_bits in 0..8_u16 {
             let mod_phase =
