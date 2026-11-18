@@ -338,8 +338,8 @@ const fn wrap_phase(phase: i32) -> u16 {
 mod tests {
     use super::{
         OperatorPair, OperatorPairError, OperatorPairParameters, OperatorPairState,
-        SingleOperatorCarrierParameters, evaluate_single_operator_as_carrier,
-        exponential_lookup, log_sine_lookup,
+        SingleOperatorCarrierParameters, evaluate_single_operator_as_carrier, exponential_lookup,
+        log_sine_lookup,
     };
 
     fn parameters() -> OperatorPairParameters {
