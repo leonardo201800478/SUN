@@ -167,6 +167,8 @@ pub enum Ym2413RhythmNoiseError {
     InvalidRegister(u32),
     /// The snapshot format is not supported.
     StateVersionMismatch { expected: u16, actual: u16 },
+    /// The supplied zero-based slot index is outside the 18-slot rotation.
+    InvalidSlotIndex(u8),
 }
 
 impl core::fmt::Display for Ym2413RhythmNoiseError {
@@ -179,6 +181,9 @@ impl core::fmt::Display for Ym2413RhythmNoiseError {
                 f,
                 "YM2413 rhythm-noise state version {actual} is unsupported (expected {expected})"
             ),
+            Self::InvalidSlotIndex(slot) => {
+                write!(f, "invalid YM2413 rhythm-noise slot index: {slot}")
+            }
         }
     }
 }
@@ -351,12 +356,139 @@ impl Ym2413RhythmSlotNoiseLfsr {
     }
 }
 
+/// Number of slots in one YM2413 rhythm-noise rotation.
+pub const YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION: u8 = 18;
+/// Zero-based slot index at which Hi-Hat samples the current noise bit.
+pub const YM2413_RHYTHM_HIHAT_NOISE_SLOT_INDEX: u8 = 13;
+/// Zero-based slot index at which Snare Drum samples the current noise bit.
+pub const YM2413_RHYTHM_SNARE_NOISE_SLOT_INDEX: u8 = 16;
+/// Version of the combined slot-position/LFSR sequencer snapshot.
+pub const YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION: u16 = 1;
+
+/// Noise sample exposed when a slot consumes the rhythm LFSR output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmNoiseSlotSample {
+    /// Zero-based slot index within the current 18-slot rotation.
+    pub slot_index: u8,
+    /// Rhythm voice that consumes the sampled noise bit.
+    pub voice: crate::slot::Ym2413RhythmVoice,
+    /// LFSR output bit sampled before this slot advances the generator.
+    pub noise_bit: bool,
+}
+
+/// Complete snapshot of the explicit rhythm LFSR and its current slot position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmSlotNoiseSequencerState {
+    pub format_version: u16,
+    pub slot_index: u8,
+    pub lfsr: Ym2413RhythmSlotNoiseState,
+}
+
+/// Caller-clocked sequencer for the measured rhythm-noise sampling slots.
+///
+/// Start position and LFSR seed are explicit because hardware reset alignment
+/// and seed remain unknown. Each call to `advance_slot` samples the current bit
+/// for HH at slot 13 or SD at slot 16, then clocks the LFSR once and advances
+/// the zero-based slot position. It does not own input clocks or a scheduler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmSlotNoiseSequencer {
+    slot_index: u8,
+    lfsr: Ym2413RhythmSlotNoiseLfsr,
+}
+
+impl Ym2413RhythmSlotNoiseSequencer {
+    /// Construct from an explicit non-zero LFSR seed and slot index (0..=17).
+    pub const fn with_seed_at_slot(
+        seed: u32,
+        slot_index: u8,
+    ) -> Result<Self, Ym2413RhythmNoiseError> {
+        if slot_index >= YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION {
+            return Err(Ym2413RhythmNoiseError::InvalidSlotIndex(slot_index));
+        }
+        Ok(Self {
+            slot_index,
+            lfsr: match Ym2413RhythmSlotNoiseLfsr::with_seed(seed) {
+                Ok(lfsr) => lfsr,
+                Err(error) => return Err(error),
+            },
+        })
+    }
+
+    /// Return the zero-based slot that the next call will service.
+    pub const fn slot_index(&self) -> u8 {
+        self.slot_index
+    }
+
+    /// Return the current LFSR output bit without advancing either state.
+    pub const fn noise_bit(&self) -> bool {
+        self.lfsr.output_bit() != 0
+    }
+
+    /// Service exactly one slot and optionally return its sampled noise bit.
+    ///
+    /// The bit is observed before the slot's LFSR clock. Consequently HH at
+    /// slot 13 and SD at slot 16 observe states separated by exactly three
+    /// slot-rate LFSR steps.
+    pub fn advance_slot(&mut self) -> Option<Ym2413RhythmNoiseSlotSample> {
+        let sample = match self.slot_index {
+            YM2413_RHYTHM_HIHAT_NOISE_SLOT_INDEX => Some(Ym2413RhythmNoiseSlotSample {
+                slot_index: self.slot_index,
+                voice: crate::slot::Ym2413RhythmVoice::HiHat,
+                noise_bit: self.noise_bit(),
+            }),
+            YM2413_RHYTHM_SNARE_NOISE_SLOT_INDEX => Some(Ym2413RhythmNoiseSlotSample {
+                slot_index: self.slot_index,
+                voice: crate::slot::Ym2413RhythmVoice::SnareDrum,
+                noise_bit: self.noise_bit(),
+            }),
+            _ => None,
+        };
+        let _ = self.lfsr.clock();
+        self.slot_index = (self.slot_index + 1) % YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION;
+        sample
+    }
+
+    /// Export slot position and LFSR state without normalizing either value.
+    pub const fn export_state(&self) -> Ym2413RhythmSlotNoiseSequencerState {
+        Ym2413RhythmSlotNoiseSequencerState {
+            format_version: YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION,
+            slot_index: self.slot_index,
+            lfsr: self.lfsr.export_state(),
+        }
+    }
+
+    /// Restore the explicit slot/LFSR state after validating both components.
+    pub const fn restore_state(
+        state: Ym2413RhythmSlotNoiseSequencerState,
+    ) -> Result<Self, Ym2413RhythmNoiseError> {
+        if state.format_version != YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION {
+            return Err(Ym2413RhythmNoiseError::StateVersionMismatch {
+                expected: YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION,
+                actual: state.format_version,
+            });
+        }
+        if state.slot_index >= YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION {
+            return Err(Ym2413RhythmNoiseError::InvalidSlotIndex(state.slot_index));
+        }
+        let lfsr = match Ym2413RhythmSlotNoiseLfsr::restore_state(state.lfsr) {
+            Ok(lfsr) => lfsr,
+            Err(error) => return Err(error),
+        };
+        Ok(Self {
+            slot_index: state.slot_index,
+            lfsr,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         YM2413_RHYTHM_NOISE_LFSR_MASK, YM2413_RHYTHM_NOISE_LFSR_PERIOD,
-        YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION, Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr,
-        Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr, Ym2413RhythmSlotNoiseState,
+        YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION, YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION,
+        Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseSlotSample,
+        Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr, Ym2413RhythmSlotNoiseSequencer,
+        Ym2413RhythmSlotNoiseSequencerState, Ym2413RhythmSlotNoiseState,
     };
 
     #[test]
@@ -463,6 +595,85 @@ mod tests {
         assert_ne!(after_47, Some(seed));
         assert_ne!(after_178_481, Some(seed));
         assert_eq!(lfsr.register(), seed);
+    }
+
+    #[test]
+    fn slot_sequencer_samples_hihat_and_snare_three_lfsr_steps_apart() {
+        let seed = 0x5a_1234;
+        let mut sequencer = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(seed, 13).unwrap();
+        let mut reference = Ym2413RhythmSlotNoiseLfsr::with_seed(seed).unwrap();
+        let expected_hihat = reference.output_bit() != 0;
+        assert_eq!(
+            sequencer.advance_slot(),
+            Some(Ym2413RhythmNoiseSlotSample {
+                slot_index: 13,
+                voice: crate::slot::Ym2413RhythmVoice::HiHat,
+                noise_bit: expected_hihat,
+            })
+        );
+        reference.advance(3);
+        assert_eq!(sequencer.advance_slot(), None);
+        assert_eq!(sequencer.advance_slot(), None);
+        let expected_snare = reference.output_bit() != 0;
+        assert_eq!(
+            sequencer.advance_slot(),
+            Some(Ym2413RhythmNoiseSlotSample {
+                slot_index: 16,
+                voice: crate::slot::Ym2413RhythmVoice::SnareDrum,
+                noise_bit: expected_snare,
+            })
+        );
+        reference.advance(1);
+        assert_eq!(sequencer.lfsr.register(), reference.register());
+    }
+
+    #[test]
+    fn slot_sequencer_wraps_and_restores_exact_position_and_noise_state() {
+        let mut sequencer =
+            Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(0x12_3456, 17).unwrap();
+        assert_eq!(sequencer.advance_slot(), None);
+        assert_eq!(sequencer.slot_index(), 0);
+        let snapshot = sequencer.export_state();
+        let mut restored = Ym2413RhythmSlotNoiseSequencer::restore_state(snapshot).unwrap();
+        for _ in 0..54 {
+            assert_eq!(sequencer.advance_slot(), restored.advance_slot());
+        }
+        assert_eq!(sequencer.export_state(), restored.export_state());
+    }
+
+    #[test]
+    fn slot_sequencer_rejects_invalid_seed_slot_and_snapshot() {
+        assert_eq!(
+            Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(0, 0),
+            Err(Ym2413RhythmNoiseError::InvalidRegister(0))
+        );
+        assert_eq!(
+            Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(1, 18),
+            Err(Ym2413RhythmNoiseError::InvalidSlotIndex(18))
+        );
+        assert_eq!(
+            Ym2413RhythmSlotNoiseSequencer::restore_state(Ym2413RhythmSlotNoiseSequencerState {
+                format_version: 0,
+                slot_index: 0,
+                lfsr: Ym2413RhythmSlotNoiseLfsr::with_seed(1)
+                    .unwrap()
+                    .export_state(),
+            }),
+            Err(Ym2413RhythmNoiseError::StateVersionMismatch {
+                expected: YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION,
+                actual: 0,
+            })
+        );
+        assert_eq!(
+            Ym2413RhythmSlotNoiseSequencer::restore_state(Ym2413RhythmSlotNoiseSequencerState {
+                format_version: YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION,
+                slot_index: 18,
+                lfsr: Ym2413RhythmSlotNoiseLfsr::with_seed(1)
+                    .unwrap()
+                    .export_state(),
+            }),
+            Err(Ym2413RhythmNoiseError::InvalidSlotIndex(18))
+        );
     }
 
     #[test]
