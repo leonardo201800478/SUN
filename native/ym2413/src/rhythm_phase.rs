@@ -143,9 +143,7 @@ pub enum RhythmNoisePhaseInputs {
         channel8_carrier_phase: u16,
     },
     /// Snare Drum combines channel 7 modulator phase and the sampled noise bit.
-    SnareDrum {
-        channel7_modulator_phase: u16,
-    },
+    SnareDrum { channel7_modulator_phase: u16 },
 }
 
 /// Convert a sequencer event into the corresponding candidate phase-table address.
@@ -178,10 +176,9 @@ pub fn rhythm_noise_phase_candidate(
                 channel7_modulator_phase,
             },
         ) => snare_drum_phase_candidate(channel7_modulator_phase, sample.noise_bit),
-        (voice, slot_index, _) => Err(RhythmPhaseCandidateError::UnexpectedNoiseSample {
-            voice,
-            slot_index,
-        }),
+        (voice, slot_index, _) => {
+            Err(RhythmPhaseCandidateError::UnexpectedNoiseSample { voice, slot_index })
+        }
     }
 }
 
