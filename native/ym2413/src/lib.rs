@@ -11,6 +11,7 @@ pub mod key_scale;
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
+pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
 pub use am_lfo::{
@@ -52,6 +53,10 @@ pub use synthesis::{
     YM2413_MELODIC_CHANNELS, YM2413_OPERATORS_PER_CHANNEL, YM2413_SYNTHESIS_STATE_VERSION,
     Ym2413ChannelInitialState, Ym2413ChannelSynthesisState, Ym2413SynthesisBank,
     Ym2413SynthesisBankState, Ym2413SynthesisError, Ym2413SynthesisInitialState,
+};
+pub use slot::{
+    Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor, YM2413_SLOT_COUNT,
+    YM2413_SLOT_MAP, slot_descriptor,
 };
 pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 
@@ -178,6 +183,15 @@ impl Ym2413Core {
     /// Return the next sequential operator slot index (0..17).
     pub const fn slot_index(&self) -> u8 {
         self.slot_index
+    }
+
+    /// Describe the next serial operator slot without advancing the clock.
+    ///
+    /// The returned descriptor follows the Yamaha Table II-3 ordering. It
+    /// identifies channel/operator ownership only; PG, EG and operator stage
+    /// offsets are not inferred by this accessor.
+    pub const fn next_slot_descriptor(&self) -> Option<Ym2413SlotDescriptor> {
+        slot_descriptor(self.slot_index)
     }
 
     /// Return input clocks accumulated within the current four-clock slot.
