@@ -354,6 +354,25 @@ mod tests {
     }
 
     #[test]
+    fn unexpected_sample_is_rejected_without_changing_retention_or_cursor() {
+        let mut delay =
+            Ym2413RhythmOutputDelay::with_initial_state(initial_state(0)).unwrap();
+        let before = delay.export_state();
+
+        assert_eq!(
+            delay.process_slot(0, Some(code(77))),
+            Err(Ym2413RhythmOutputError::UnexpectedOriginalSample { slot_index: 0 })
+        );
+        assert_eq!(delay.export_state(), before);
+
+        assert_eq!(
+            delay.process_slot(18, None),
+            Err(Ym2413RhythmOutputError::InvalidSlotIndex(18))
+        );
+        assert_eq!(delay.export_state(), before);
+    }
+
+    #[test]
     fn snapshot_restore_preserves_retained_codes_and_slot_cursor() {
         let mut delay =
             Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
