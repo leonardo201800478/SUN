@@ -1,16 +1,12 @@
 //! YM2413 rhythm noise generator (candidate digital component).
 //!
-//! The reverse-engineering measurements by andete identify a 23-bit maximal
-//! length LFSR with polynomial x^23 + x^9 + x^8 + x + 1. The published
-//! Galois recurrence is implemented here directly:
-//!
-//! 1. Emit state bit 0.
-//! 2. Shift the register right by one.
-//! 3. If the emitted bit was 1, XOR the shifted state with 0x400181.
-//!
-//! The physical reset seed and the exact hardware clock-enable cadence remain
-//! unknown. Consequently construction and reset require an explicit non-zero
-//! seed, and this module never advances itself from YM2413 clocks or samples.
+//! The 2018 capture analysis identified the decimated 23-bit sequence
+//! x^23 + x^9 + x^8 + x + 1. Its 2020 update explains that the physical rhythm
+//! generator advances every operator slot using x^23 + x^9 + 1: 18 fast steps
+//! occur during one 18-slot/72-input-clock rotation. The older recurrence is
+//! retained below as a decimated-sequence reference; the slot-rate model is
+//! represented by Ym2413RhythmSlotNoiseLfsr. Neither model assumes a reset seed
+//! or advances itself from the MachineScheduler.
 
 /// Number of state bits in the measured YM2413 rhythm noise LFSR.
 pub const YM2413_RHYTHM_NOISE_LFSR_BITS: u32 = 23;
@@ -263,6 +259,87 @@ impl Ym2413RhythmNoiseLfsr {
         if state.format_version != YM2413_RHYTHM_NOISE_STATE_VERSION {
             return Err(Ym2413RhythmNoiseError::StateVersionMismatch {
                 expected: YM2413_RHYTHM_NOISE_STATE_VERSION,
+                actual: state.format_version,
+            });
+        }
+        Self::with_seed(state.register)
+    }
+}
+
+/// Version of the serializable slot-rate rhythm-noise state.
+pub const YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION: u16 = 1;
+
+/// Snapshot of the fast 23-bit rhythm LFSR that advances once per operator slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmSlotNoiseState {
+    pub format_version: u16,
+    pub register: u32,
+}
+
+/// Slot-rate rhythm LFSR candidate using x^23 + x^9 + 1.
+///
+/// The reverse-engineering update from 2020 describes one update after every
+/// operator slot (one update per four YM2413 input clocks). HH reads the bit at
+/// slot 13; SD reads the bit three LFSR steps later at slot 16. The caller owns
+/// those sample/advance boundaries. The physical reset seed remains unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmSlotNoiseLfsr {
+    register: u32,
+}
+
+impl Ym2413RhythmSlotNoiseLfsr {
+    /// Construct from an explicit non-zero 23-bit seed.
+    pub const fn with_seed(seed: u32) -> Result<Self, Ym2413RhythmNoiseError> {
+        if seed == 0 || seed & !YM2413_RHYTHM_NOISE_LFSR_MASK != 0 {
+            return Err(Ym2413RhythmNoiseError::InvalidRegister(seed));
+        }
+        Ok(Self { register: seed })
+    }
+
+    /// Return the current 23-bit register.
+    pub const fn register(&self) -> u32 {
+        self.register
+    }
+
+    /// Return the current output bit without advancing the generator.
+    pub const fn output_bit(&self) -> u8 {
+        (self.register & 1) as u8
+    }
+
+    /// Emit the current LSB and advance one slot-rate LFSR step.
+    ///
+    /// The recurrence is: feedback = bit0 XOR bit14; shift right and insert
+    /// feedback at bit22. This method is one explicit LFSR step, not an input
+    /// clock; the owner must call it at the researched four-clock slot boundary.
+    pub fn clock(&mut self) -> u8 {
+        let output = self.output_bit();
+        let feedback = (self.register ^ (self.register >> 14)) & 1;
+        self.register = (self.register >> 1) | (feedback << 22);
+        output
+    }
+
+    /// Advance an explicit number of operator-slot LFSR steps.
+    pub fn advance(&mut self, steps: u64) {
+        for _ in 0..steps {
+            let _ = self.clock();
+        }
+    }
+
+    /// Export the complete slot-rate LFSR state.
+    pub const fn export_state(&self) -> Ym2413RhythmSlotNoiseState {
+        Ym2413RhythmSlotNoiseState {
+            format_version: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION,
+            register: self.register,
+        }
+    }
+
+    /// Restore the slot-rate LFSR after validating version and register contents.
+    pub const fn restore_state(
+        state: Ym2413RhythmSlotNoiseState,
+    ) -> Result<Self, Ym2413RhythmNoiseError> {
+        if state.format_version != YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION {
+            return Err(Ym2413RhythmNoiseError::StateVersionMismatch {
+                expected: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION,
                 actual: state.format_version,
             });
         }
