@@ -530,3 +530,20 @@ O teste também verifica as fases de saída de Top Cymbal e Hi-Hat para os dois 
 **Limites:** o fixture é uma regressão comportamental da expressão publicada; não determina os offsets absolutos dos PGs, o seed/reset físico do LFSR ou o instante de amostragem no pipeline. A origem permanece referência de engenharia reversa, não especificação primária nem captura produzida pelo projeto.
 
 FM-5 permanece PARCIAL. Não foram alterados PG/EG, slots, Scheduler, PCM, barramento SMS ou dependências.
+
+---
+
+## FM-7 — período máximo do LFSR slot-rate (em validação)
+
+**Branch:** `test/ym2413-slot-rate-lfsr-full-period-v2`
+
+Foi adicionado um teste exaustivo do período da recorrência slot-rate candidata (x^23 + x^9 + 1), iniciando em uma semente explícita não nula:
+
+- Executa os 2^23-1 passos da recorrência.
+- Confirma que o estado não retorna à semente após 47 passos.
+- Confirma que o estado não retorna à semente após 178481 passos.
+- Confirma o retorno à semente após 2^23-1 passos.
+
+Como 2^23-1 = 47 × 178481, e ambos são fatores primos, as verificações excluem os períodos próprios obtidos pela divisão por cada fator primo. O teste valida a propriedade algébrica da recorrência implementada e sua representação de estado.
+
+**Limites:** não certifica o seed físico, alinhamento de reset, polaridade observada no pino, nem a cadência/instante de consumo do bit no YM2413. Não transforma o LFSR candidato em comportamento físico integralmente validado. Nenhuma lógica de runtime, slot sequencer, PG/EG, Scheduler, PCM ou barramento foi alterada.
