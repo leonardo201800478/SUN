@@ -103,6 +103,12 @@ impl EnvelopeParameters {
 
     /// Compute RATE = 4 * R + Rks, clipped to the six-bit range.
     pub const fn effective_rate(self, base_rate: u8) -> u8 {
+        // A programmed rate of zero disables the EG increment regardless
+        // of KSR. The KSR offset is applied only to non-zero base rates.
+        if base_rate == 0 {
+            return 0;
+        }
+
         let key_code = (self.block << 1) | ((self.fnum >> 8) as u8);
         let rks = if self.key_scale_rate {
             key_code
@@ -457,6 +463,104 @@ mod tests {
         assert_eq!(p.effective_rate(3), 14);
         p.key_scale_rate = true;
         assert_eq!(p.effective_rate(3), 23);
+    }
+
+    #[test]
+    fn zero_programmed_rate_disables_ksr_for_every_key_code() {
+        let mut p = params();
+        for key_scale_rate in [false, true] {
+            p.key_scale_rate = key_scale_rate;
+            for block in 0..=7 {
+                p.block = block;
+                for fnum_msb in 0..=1 {
+                    p.fnum = u16::from(fnum_msb) << 8;
+                    assert_eq!(
+                        p.effective_rate(0),
+                        0,
+                        "KSR={key_scale_rate}, BLOCK={block}, FNUM8={fnum_msb}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ksr_offset_matches_the_complete_block_and_fnum_msb_matrix() {
+        let mut p = params();
+        for block in 0..=7 {
+            p.block = block;
+            for fnum_msb in 0..=1 {
+                p.fnum = u16::from(fnum_msb) << 8;
+                let key_code = (block << 1) | fnum_msb;
+                p.key_scale_rate = false;
+                assert_eq!(p.effective_rate(3), 12 + (key_code >> 2));
+                p.key_scale_rate = true;
+                assert_eq!(p.effective_rate(3), 12 + key_code);
+            }
+        }
+    }
+
+    #[test]
+    fn sustained_tone_sustain_level_holds_even_with_ksr_enabled() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            32,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.key_scale_rate = true;
+        p.fnum = 0x100;
+        p.block = 7;
+        p.release_rate = 15;
+        p.sustain_level = 4;
+        p.sustained_tone = true;
+
+        for counter in 0..=4_096 {
+            generator.tick(counter, true, true, p).unwrap();
+        }
+
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn measured_damp_ramp_reaches_candidate_threshold_in_about_ten_ms() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            0,
+            EnvelopeStage::Damp,
+            false,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.attack_rate = 10;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+        p.sustain_level = 15;
+
+        let mut transition_counter = None;
+        for counter in 0..=494 {
+            generator.tick(counter, true, true, p).unwrap();
+            if generator.stage() != EnvelopeStage::Damp {
+                transition_counter = Some(counter);
+                break;
+            }
+        }
+
+        // The candidate threshold 124 is reached on counter 494:
+        // 494 / (3_579_545 / 72) ~= 9.94 ms.
+        assert_eq!(transition_counter, Some(494));
+        assert_eq!(generator.level(), 124);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
     #[test]
