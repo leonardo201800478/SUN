@@ -424,3 +424,14 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 - Testes cobrem seleção do caminho carrier, AM enable, validação de níveis, avaliação equivalente ao helper compartilhado e parâmetros BD.
 
 **Estado:** ponte digital pura concluída; a origem/cadência de fase e EG por slot, integração do LFSR e pipeline de áudio continuam pendentes.
+
+
+## FM-7 — avaliação das vozes sobre o banco PG/EG compartilhado (2026-11-18)
+
+- `Ym2413SynthesisBank` agora oferece wrappers de serviço por operador físico (`advance_rhythm_operator_phase` e `tick_rhythm_operator_envelope`). Eles reutilizam os 18 PGs/EGs já existentes e recebem o instante/counter/key state do chamador; não criam scheduler nem cadence.
+- `evaluate_rhythm_voice` consome os estados atuais do banco. HH/TOM usam o PG/EG do operador físico modulator; SD/TCY usam o operador físico carrier; os quatro passam pelo caminho de amplitude carrier.
+- BD usa o `OperatorPair` existente do canal 7, preservando e atualizando o histórico de feedback desse par, com os parâmetros de patch e volume específicos de BD.
+- O bit de trigger não é interpretado como mute gate na avaliação; o estado EG fornecido é que determina o nível atual e pode representar release tail. A origem do KEY-ON permanece explicitamente sob controle do chamador.
+- Testes verificam o mapeamento físico PG/EG, equivalência dos wrappers com as APIs existentes, avaliação das quatro vozes simples sem mutação de estado, feedback BD e rejeição de Rhythm Mode desabilitado.
+
+**Estado:** ponte para avaliação digital sobre o banco compartilhado concluída quando CI passar. Não representa execução serial de slots, repetição de saída, LFSR integrado, mistura MO/RO, PCM ou precisão temporal validada.
