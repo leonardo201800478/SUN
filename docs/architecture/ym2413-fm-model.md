@@ -969,3 +969,24 @@ A linha BLOCK=7 da tabela-base foi comparada com a medição publicada por andet
 **Limite da evidência:** as medições de andete são amostragens esparsas para KSL=1/2/3, e a tabela completa é a tradução da tabela do manual para unidades EG. Isso não substitui uma varredura física completa realizada pelo projeto.
 
 **Fontes:** [Yamaha YM2413 Application Manual, KSL/TL, Table III-4/III-5](https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf), [andete — KSL measurements, 2015-12-16](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16).
+
+
+## 24. AM LFO — FM-3 candidato
+
+O AM LFO foi implementado em `native/ym2413/src/am_lfo.rs` como um oscilador compartilhado pelo chip, avançado em unidades de amostra YM2413.
+
+- 210 posições de tabela.
+- Cada posição permanece por 64 amostras.
+- Período: 13.440 amostras.
+- Saída: 14 níveis inteiros, 0..13.
+- Forma triangular obtida do contador 0..26 com descarte do bit menos significativo.
+- Atenuação aplicada ao operador pelo modelo: `16 * AM`.
+- Snapshot versionado e fase inicial explícita.
+
+A frequência calculada é `(3.579545 MHz / 72) / 13440 ≈ 3.699 Hz`, coerente com os 3,7 Hz do manual Yamaha. As notas de andete registram medições em silício do período, da forma triangular, dos 14 níveis e da profundidade próxima de 4,8 dB.
+
+A API não avança clocks próprios: o Scheduler deverá avançar o LFO uma vez por amostra YM2413. A fase absoluta após reset IC e o alinhamento com PG/PM continuam explícitos e não são inicializados automaticamente em zero.
+
+**Estado da integração:** o LFO e seu snapshot existem, mas ainda não estão ligados aos bits AM dos instrumentos nem aos 18 operadores. `OperatorPairParameters` continua recebendo AM por operador como entrada externa.
+
+**Fontes:** [Yamaha YM2413 Application Manual — AM 3.7 Hz](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual), [andete — AM measurements, 2015-11-28](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-11-28).
