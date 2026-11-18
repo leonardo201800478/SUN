@@ -12,7 +12,9 @@ pub const YM2413_KSL1_TABLE: [[u8; 16]; 8] = [
     [0, 0, 4, 6, 8, 9, 10, 11, 12, 13, 13, 14, 14, 15, 15, 16],
     [0, 4, 8, 10, 12, 13, 14, 15, 16, 17, 17, 18, 18, 19, 19, 20],
     [0, 8, 12, 14, 16, 17, 18, 19, 20, 21, 21, 22, 22, 23, 23, 24],
-    [0, 12, 16, 18, 20, 21, 22, 23, 24, 25, 25, 26, 26, 27, 27, 28],
+    [
+        0, 12, 16, 18, 20, 21, 22, 23, 24, 25, 25, 26, 26, 27, 27, 28,
+    ],
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,11 +28,7 @@ pub enum KeyScaleError {
 ///
 /// The FNUM index is its four most-significant bits, (FNUM >> 5) & 0x0f.
 /// KSL codes map to 0, 1, 2, and 4 times the KSL=1 (1.5 dB/octave) table.
-pub const fn key_scale_attenuation(
-    block: u8,
-    fnum: u16,
-    ksl: u8,
-) -> Result<u8, KeyScaleError> {
+pub const fn key_scale_attenuation(block: u8, fnum: u16, ksl: u8) -> Result<u8, KeyScaleError> {
     if block > 7 {
         return Err(KeyScaleError::InvalidBlock(block));
     }
@@ -54,16 +52,13 @@ pub const fn key_scale_attenuation(
 
 #[cfg(test)]
 mod tests {
-    use super::{key_scale_attenuation, KeyScaleError, YM2413_KSL1_TABLE};
+    use super::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
 
     #[test]
     fn ksl_zero_disables_key_scaling() {
         for block in 0..=7 {
             for fnum_index in 0..=15 {
-                assert_eq!(
-                    key_scale_attenuation(block, fnum_index * 0x20, 0),
-                    Ok(0)
-                );
+                assert_eq!(key_scale_attenuation(block, fnum_index * 0x20, 0), Ok(0));
             }
         }
     }
