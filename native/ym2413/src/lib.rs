@@ -80,8 +80,7 @@ pub use slot::{
 pub use synthesis::{
     YM2413_MELODIC_CHANNELS, YM2413_OPERATORS_PER_CHANNEL, YM2413_SYNTHESIS_STATE_VERSION,
     Ym2413ChannelInitialState, Ym2413ChannelSynthesisState, Ym2413RhythmVoicePhases,
-    Ym2413RhythmVoiceSample, Ym2413SynthesisBank, Ym2413SynthesisBankState,
-    Ym2413SynthesisError,
+    Ym2413RhythmVoiceSample, Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
     Ym2413SynthesisInitialState,
 };
 pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
