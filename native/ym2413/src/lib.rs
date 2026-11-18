@@ -3,6 +3,7 @@
 //! The phase generator is a standalone candidate model. It does not yet
 //! synthesize PCM or participate in the 18-slot operator pipeline.
 
+pub mod channel;
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
