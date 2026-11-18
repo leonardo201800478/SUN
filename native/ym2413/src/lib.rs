@@ -11,6 +11,7 @@ pub mod key_scale;
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
+pub mod rhythm;
 pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
@@ -48,6 +49,12 @@ pub use pm_lfo::{
     PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState,
     YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
     YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
+};
+pub use rhythm::{
+    YM2413_RHYTHM_NOISE_LFSR_BITS, YM2413_RHYTHM_NOISE_LFSR_MASK,
+    YM2413_RHYTHM_NOISE_LFSR_PERIOD, YM2413_RHYTHM_NOISE_LFSR_TAPS,
+    YM2413_RHYTHM_NOISE_STATE_VERSION, Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr,
+    Ym2413RhythmNoiseState,
 };
 pub use slot::{
     YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,
