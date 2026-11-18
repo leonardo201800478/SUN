@@ -53,9 +53,8 @@ pub use pm_lfo::{
 pub use rhythm::{
     YM2413_RHYTHM_MODE_BIT, YM2413_RHYTHM_NOISE_LFSR_BITS, YM2413_RHYTHM_NOISE_LFSR_MASK,
     YM2413_RHYTHM_NOISE_LFSR_PERIOD, YM2413_RHYTHM_NOISE_LFSR_TAPS,
-    YM2413_RHYTHM_NOISE_STATE_VERSION, YM2413_RHYTHM_TRIGGER_MASK,
-    Ym2413RhythmChannelFrequency, Ym2413RhythmConfig, Ym2413RhythmNoiseError,
-    Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState,
+    YM2413_RHYTHM_NOISE_STATE_VERSION, YM2413_RHYTHM_TRIGGER_MASK, Ym2413RhythmChannelFrequency,
+    Ym2413RhythmConfig, Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState,
     Ym2413RhythmVoiceConfig, decode_rhythm_registers,
 };
 pub use slot::{
