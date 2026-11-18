@@ -235,7 +235,7 @@ pub fn decode_rhythm_synthesis(
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_rhythm_synthesis, RhythmVoiceSynthesisConfig};
+    use super::{RhythmVoiceSynthesisConfig, decode_rhythm_synthesis};
     use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
 
     fn configured_registers() -> [u8; 64] {
@@ -299,8 +299,14 @@ mod tests {
         let config = decode_rhythm_synthesis(&configured_registers()).unwrap();
         let [bd, hh, sd, tom, tcy] = config.voices;
         assert!(config.rhythm_mode_enabled);
-        assert_eq!([bd.trigger, hh.trigger, sd.trigger, tom.trigger, tcy.trigger], [true; 5]);
-        assert_eq!([bd.volume, hh.volume, sd.volume, tom.volume, tcy.volume], [3, 5, 12, 14, 7]);
+        assert_eq!(
+            [bd.trigger, hh.trigger, sd.trigger, tom.trigger, tcy.trigger],
+            [true; 5]
+        );
+        assert_eq!(
+            [bd.volume, hh.volume, sd.volume, tom.volume, tcy.volume],
+            [3, 5, 12, 14, 7]
+        );
     }
 
     #[test]
@@ -344,7 +350,9 @@ mod tests {
         let mut registers = configured_registers();
         registers[0x27] &= !0x20;
         let config = decode_rhythm_synthesis(&registers).unwrap();
-        let RhythmVoiceSynthesisConfig { modulator, carrier, .. } = config.voices[1];
+        let RhythmVoiceSynthesisConfig {
+            modulator, carrier, ..
+        } = config.voices[1];
         assert!(!modulator.unwrap().envelope.sustain_on);
         assert!(!config.voices[2].carrier.unwrap().envelope.sustain_on);
         assert!(config.voices[0].modulator.unwrap().envelope.sustain_on);
