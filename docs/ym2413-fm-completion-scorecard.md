@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-18
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main após FM-2 parcial:** `c9285d2fc2d8e3987197d5186478dae784da1570`
+**Main após FM-3 parcial:** `daf950d0e0bf3242dfb213d5e9e50a24db19a70e`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -23,6 +23,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Auditoria de alinhamento PM | Integrada | PR #999; merge commit `1ce082a950ce2940b3f3de4c56dc7dbf37c536f9` |
 | EG candidato | Integrado | PR #1001; merge commit `995dce7025b189ba25ce82a2dbf665d9cce9fb14` |
 | Operadores FM e KSL | Integrados como candidatos isolados | PR #1003; merge commit `c9285d2fc2d8e3987197d5186478dae784da1570` |
+| AM LFO | Integrado como candidato sample-clocked | PR #1005; merge commit `daf950d0e0bf3242dfb213d5e9e50a24db19a70e` |
 
 ## Scorecard por etapa
 
@@ -106,6 +107,16 @@ Não iniciar a integração SMS ou mixer como substituto da síntese FM ainda in
 - Workflow #44246095781: SUCCESS nos gates aplicáveis.
 - Rust workspace regression, Rustfmt, Clippy, observability feature tests, Scheduler deterministic stress e documentation hygiene: SUCCESS.
 - Validações de hardware/console/desktop não relacionadas: SKIPPED.
+
+
+
+### PR #1005 — AM LFO
+
+- HEAD validado: `5b929574bef91d3145c6dc818c0455a8883001a9`
+- Merge commit: `daf950d0e0bf3242dfb213d5e9e50a24db19a70e`
+- Workflow #44247005132: SUCCESS nos gates aplicáveis.
+- Rustfmt, Clippy, workspace unit/integration tests, observability feature tests, Scheduler deterministic stress e documentation hygiene: SUCCESS.
+- Validações de console/desktop não relacionadas: SKIPPED.
 
 ## Capacidade de execução multiagente
 
