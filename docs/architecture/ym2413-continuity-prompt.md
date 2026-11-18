@@ -3,7 +3,7 @@
 ## Fase e autoridade
 
 - Repositório: https://github.com/leonardo201800478/sega-emulator
-- A trilha SMS-FM começa após a PR #992 estar MERGED e o workflow pós-merge no SHA de `main` concluir SUCCESS. Baseline confirmado: `main` em `b82e0df4c9840b2cd59f090278b907cbb321869f`; workflow pós-merge `44186646679`.
+- A trilha SMS-FM começou após a PR #992 estar MERGED e o workflow pós-merge concluir SUCCESS. A auditoria M0/M2 foi originalmente baseada no `main` `b82e0df4c9840b2cd59f090278b907cbb321869f`; a reconciliação documental foi integrada pelo commit `faecfc7fc6a869884bf5aaad063473ca5002be0d`. Sempre verificar o HEAD remoto atual antes de implementar.
 - YM2413 integrado é uma característica do perfil de hardware Master System japonês, não uma nova plataforma e não a FM Sound Unit externa do Mark III. Esta trilha SMS pode ocorrer antes do Game Gear sem alterar a ordem das plataformas. A fase geral de acessórios P4 continua após Game Gear.
 - Runtime 100% Rust; GUI Slint 1.18.x; vídeo WGPU 30.x/Vulkan; áudio físico CPAL 0.18.2; SDL3/input runtime.
 - Toda alteração em branch/PR própria. Não fazer commit direto na main, force-push, reset destrutivo ou merge sem nova autorização explícita do usuário.
@@ -58,7 +58,7 @@ Consultar manual Yamaha, SMS Power e referências independentes pinadas por comm
 3. Núcleo de síntese Rust: PG, EG, Log-Sine/EXP, feedback, AM/PM e pipeline sequencial.
 4. Presets originais, patch de usuário e Rhythm Mode; vetores determinísticos.
 5. Diferenciais sample-level com emu2413 MIT e vetores independentes; sem alegar precisão cycle-accurate sem evidência.
-6. Adaptador temporal e portas SMS no deadline; reutilizar domínio PSG.
+6. Adaptador temporal e portas SMS no deadline; reutilizar o domínio PSG somente se FM-A01 comprovar a fonte e a relação de fase. Caso contrário, registrar domínio FM próprio dentro do mesmo `MachineScheduler`, com snapshot versionado.
 7. $F2 e contador C-Sync por perfil físico, com testes de reset/readback.
 8. Alinhamento de fontes, mixer comum, resampling e latência.
 9. Auto/On/Off, catálogo título/revisão, override e persistência.
