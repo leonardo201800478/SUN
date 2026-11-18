@@ -264,3 +264,8 @@ A camada `Ym2413SynthesisBank` expõe agora um wrapper direcionado para o tick E
 ### Contrato de fase explícita na avaliação integrada
 
 O avaliador integrado do banco não tenta derivar automaticamente a fase de HH, SD ou TCY a partir do PG associado ao operador que fornece o envelope. O chamador passa o índice de fase resultante de `hi_hat_phase_candidate`, `snare_drum_phase_candidate` ou `top_cymbal_phase_candidate`, com o bit de ruído amostrado no boundary correto. Para TOM, o chamador passa a fase normal do PG tonal. BD não recebe override e usa os dois PGs do par FM. Assim, a camada de amplitude lê o EG do slot físico correto, enquanto a origem da fase permanece explícita e separada. A API rejeita fase ausente nas quatro vozes simples e fase adicional em BD.
+
+
+## Sequenciador explícito do ruído por slot (2026-11-18)
+
+Foi adicionado `Ym2413RhythmSlotNoiseSequencer`, com seed e posição inicial explícitos. A cada chamada `advance_slot`, ele observa o LSB atual nos slots de consumo e depois avança o LFSR uma vez, avançando o índice de slot em módulo 18. O slot 13 emite um evento Hi-Hat; o slot 16 emite um evento Snare Drum. Como o bit é observado antes do clock do slot, os valores consumidos por HH e SD ficam separados por três clocks internos, conforme a medição de andete. O estado serializa o índice e o estado versionado do LFSR. Não há chamada por input-clock, não há integração com MachineScheduler e o seed físico permanece desconhecido.
