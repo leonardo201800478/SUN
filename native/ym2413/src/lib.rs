@@ -14,12 +14,11 @@ pub use envelope::{
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
     YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
 };
-pub use key_scale::{key_scale_attenuation, KeyScaleError, YM2413_KSL1_TABLE};
+pub use key_scale::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
 pub use operator::{
-    exponential_lookup, log_sine_lookup, OperatorPair, OperatorPairError, OperatorPairParameters,
-    OperatorPairSample, OperatorPairState, YM2413_OPERATOR_PAIR_STATE_VERSION,
+    OperatorPair, OperatorPairError, OperatorPairParameters, OperatorPairSample, OperatorPairState,
+    YM2413_OPERATOR_PAIR_STATE_VERSION, exponential_lookup, log_sine_lookup,
 };
-pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 pub use phase::{
     PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
     YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
@@ -30,6 +29,7 @@ pub use pm_lfo::{
     YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
     YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
 };
+pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 
 use core::fmt;
 
