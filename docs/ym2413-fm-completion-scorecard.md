@@ -328,7 +328,7 @@ Foi adicionada a decodificação pura do estado dos cinco instrumentos de percus
 - `$38.D7..D4`: volume de Tom-Tom; `$38.D3..D0`: volume de Top Cymbal.
 - FNUM, BLOCK, KEY-ON e SUS brutos dos canais 7–9 (índices 6–8), preservados separadamente dos registradores de volume de ritmo.
 
-A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** trigger correspondente. Os bits KEY-ON melódicos de `$26–$28` são reportados sem serem reescritos: o manual orienta mantê-los em zero durante Rhythm Mode, mas o decoder não altera o estado de registradores do chamador.
+O método `is_active` representa somente o gate de registrador: Rhythm Mode habilitado **e** trigger correspondente em `$0E`. Não é um predicado completo de atividade do silício quando KEY-ON de `$26–$28` está setado. O manual manda limpar esses bits; as notas de andete sugerem uma possível combinação OR entre KEY-ON e triggers, ainda sem caracterização suficiente. O decoder preserva os bits crus e não altera os registradores do chamador.
 
 ### Testes adicionados
 
@@ -341,8 +341,8 @@ A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** 
 
 - Nenhuma forma de onda ou envelope de percussão é sintetizado.
 - O Bass Drum ainda não percorre o par FM de slots 13/16.
-- As fases não-BD derivadas de ruído branco + frequências dos canais 8/9 não estão implementadas.
-- A tabela ROM de envelopes de ritmo, a duplicação de saída descrita pelo manual, a cadência do LFSR e o roteamento MO/RO permanecem pendentes.
+- As funções candidatas de fase para HH/SD/TCY, o LFSR slot-rate e os parâmetros de operadores por voz foram adicionados depois desta etapa estática; ainda não estão conectados ao banco agregado de síntese.
+- A ROM física completa de ritmo não foi dumpada. O mapa de repetição de saída foi registrado, mas o buffer não foi implementado; o roteamento MO/RO continua pendente.
 - Não há alteração no Scheduler, no banco agregado FM, no mixer ou no runtime SMS.
 
 **Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes direcionados, incluindo os cinco casos one-hot, e o CI #44297715529 passaram no HEAD da PR #1015 antes do merge squash. Os gates não aplicáveis foram SKIPPED. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
