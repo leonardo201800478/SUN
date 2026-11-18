@@ -472,7 +472,7 @@ mod tests {
             p.key_scale_rate = key_scale_rate;
             for block in 0..=7 {
                 p.block = block;
-                for fnum_msb in 0..=1 {
+                for fnum_msb in 0_u8..=1 {
                     p.fnum = u16::from(fnum_msb) << 8;
                     assert_eq!(
                         p.effective_rate(0),
