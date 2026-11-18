@@ -541,7 +541,7 @@ mod tests {
 
     #[test]
     fn invalid_channel_and_initial_phase_are_rejected() {
-        let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
+        let bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
         assert_eq!(
             bank.phase_index(9, false),
             Err(Ym2413SynthesisError::InvalidChannel(9))
