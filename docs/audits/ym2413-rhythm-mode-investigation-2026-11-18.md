@@ -1,8 +1,8 @@
 
 # YM2413 Rhythm Mode — evidence and implementation plan
 
-**Data:** 2026-11-18  
-**Escopo:** FM-7 — cinco vozes de percussão  
+**Data:** 2026-11-18
+**Escopo:** FM-7 — cinco vozes de percussão
 **Estado:** investigação documental; nenhuma síntese rítmica implementada por este documento.
 
 ## 1. Objetivo e classificação
