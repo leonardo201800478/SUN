@@ -125,6 +125,7 @@ const fn rhythm_channel_frequency(
 /// caller-owned register state.
 pub const fn decode_rhythm_registers(registers: &[u8; 64]) -> Ym2413RhythmConfig {
     let control = registers[0x0e];
+    let triggers = control & YM2413_RHYTHM_TRIGGER_MASK;
     let rhythm_vol_36 = registers[0x36];
     let rhythm_vol_37 = registers[0x37];
     let rhythm_vol_38 = registers[0x38];
@@ -132,23 +133,23 @@ pub const fn decode_rhythm_registers(registers: &[u8; 64]) -> Ym2413RhythmConfig
     Ym2413RhythmConfig {
         rhythm_mode_enabled: control & YM2413_RHYTHM_MODE_BIT != 0,
         bass_drum: Ym2413RhythmVoiceConfig {
-            key_on: control & 0x10 != 0,
+            key_on: triggers & 0x10 != 0,
             volume: rhythm_vol_36 & 0x0f,
         },
         snare_drum: Ym2413RhythmVoiceConfig {
-            key_on: control & 0x08 != 0,
+            key_on: triggers & 0x08 != 0,
             volume: rhythm_vol_37 & 0x0f,
         },
         tom_tom: Ym2413RhythmVoiceConfig {
-            key_on: control & 0x04 != 0,
+            key_on: triggers & 0x04 != 0,
             volume: rhythm_vol_38 >> 4,
         },
         top_cymbal: Ym2413RhythmVoiceConfig {
-            key_on: control & 0x02 != 0,
+            key_on: triggers & 0x02 != 0,
             volume: rhythm_vol_38 & 0x0f,
         },
         hi_hat: Ym2413RhythmVoiceConfig {
-            key_on: control & 0x01 != 0,
+            key_on: triggers & 0x01 != 0,
             volume: rhythm_vol_37 >> 4,
         },
         channel_frequencies: [
@@ -472,7 +473,7 @@ mod tests {
             config.channel_frequencies[1],
             super::Ym2413RhythmChannelFrequency {
                 channel: 7,
-                fnum: 0x042,
+                fnum: 0x142,
                 block: 5,
                 melodic_key_on: false,
                 sustain_on: false,
