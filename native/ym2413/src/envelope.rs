@@ -708,4 +708,163 @@ mod tests {
         );
         assert_eq!(eg, before);
     }
+
+    fn measured_decay_transition_counters(
+        effective_rate: u8,
+        start_counter: u32,
+        transition_count: usize,
+    ) -> Vec<u32> {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            0,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.decay_rate = effective_rate / 4;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = (effective_rate % 4) * 2;
+        p.sustain_level = 15;
+        assert_eq!(p.effective_rate(p.decay_rate), effective_rate);
+
+        let mut transitions = Vec::with_capacity(transition_count);
+        let mut previous_level = generator.level();
+        for counter in start_counter..start_counter + 32_768 {
+            generator.tick(counter, true, true, p).unwrap();
+            if generator.level() != previous_level {
+                transitions.push(counter);
+                previous_level = generator.level();
+                if transitions.len() == transition_count {
+                    break;
+                }
+            }
+        }
+        transitions
+    }
+
+    #[test]
+    fn measured_decay_rate_four_matches_8192_sample_spacing() {
+        // andete measured RATE=4 as one EG increment every 8192 samples.
+        // Start at selector column 1 so the first transition is observable.
+        assert_eq!(
+            measured_decay_transition_counters(4, 4_096, 3),
+            [4_096, 12_288, 20_480]
+        );
+    }
+
+    #[test]
+    fn measured_decay_rate_nine_matches_published_long_short_pattern() {
+        // Published RATE=9 sequence: 4096, 4096, 4096, 2048, 2048 samples.
+        // Start at selector column 5 to make that measured phase visible.
+        assert_eq!(
+            measured_decay_transition_counters(9, 10_240, 6),
+            [10_240, 14_336, 18_432, 22_528, 24_576, 26_624]
+        );
+    }
+
+    #[test]
+    fn measured_decay_rate_fourteen_matches_2048_1024_1024_pattern() {
+        // Published RATE=14 sequence, with the shared counter phase selected
+        // at selector column 3: the first transition is immediate, then the
+        // measured intervals are 2048, 1024, 1024 samples.
+        assert_eq!(
+            measured_decay_transition_counters(14, 3_072, 5),
+            [3_072, 5_120, 6_144, 7_168, 9_216]
+        );
+    }
+
+    #[test]
+    fn measured_decay_rate_nineteen_matches_1024_then_six_512_intervals() {
+        // Published RATE=19 sequence; start at selector column 7 to expose
+        // the long wrap interval followed by the six short intervals.
+        assert_eq!(
+            measured_decay_transition_counters(19, 3_584, 7),
+            [3_584, 4_608, 5_120, 5_632, 6_144, 6_656, 7_168]
+        );
+    }
+
+    #[test]
+    fn carrier_release_uses_the_measured_decay_rate_selector() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            0,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.release_rate = 3;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 4;
+        p.sustain_level = 15;
+        assert_eq!(p.effective_rate(p.release_rate), 14);
+
+        let mut transitions = Vec::new();
+        let mut previous_level = generator.level();
+        for counter in 3_072..=9_216 {
+            generator.tick(counter, false, true, p).unwrap();
+            if generator.level() != previous_level {
+                transitions.push(counter);
+                previous_level = generator.level();
+            }
+        }
+
+        assert_eq!(transitions, [3_072, 5_120, 6_144, 7_168, 9_216]);
+    }
+
+    #[test]
+    fn measured_attack_rate_four_uses_the_shared_counter_selector() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            127,
+            EnvelopeStage::Attack,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.attack_rate = 1;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+        assert_eq!(p.effective_rate(p.attack_rate), 4);
+
+        let mut transitions = Vec::new();
+        let mut previous_level = generator.level();
+        for counter in 4_096..=20_480 {
+            generator.tick(counter, true, true, p).unwrap();
+            if generator.level() != previous_level {
+                transitions.push((counter, generator.level()));
+                previous_level = generator.level();
+                if transitions.len() == 8 {
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(
+            transitions,
+            [
+                (4_096, 119),
+                (4_097, 111),
+                (4_098, 104),
+                (4_099, 97),
+                (12_288, 90),
+                (12_289, 84),
+                (12_290, 78),
+                (12_291, 73),
+            ]
+        );
+    }
 }
