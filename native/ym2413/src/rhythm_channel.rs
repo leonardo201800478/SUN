@@ -105,9 +105,7 @@ impl RhythmVoiceSynthesisConfig {
         let operator = match (self.modulator, self.carrier) {
             (Some(operator), None) | (None, Some(operator)) => operator,
             _ => {
-                return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout {
-                    voice: self.voice,
-                });
+                return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
             }
         };
         let parameters = SingleOperatorCarrierParameters {
@@ -154,14 +152,10 @@ impl RhythmVoiceSynthesisConfig {
         am_level: u8,
     ) -> Result<OperatorPairParameters, RhythmVoiceSynthesisError> {
         if self.voice != Ym2413RhythmVoice::BassDrum {
-            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout {
-                voice: self.voice,
-            });
+            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
         }
         let (Some(modulator), Some(carrier)) = (self.modulator, self.carrier) else {
-            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout {
-                voice: self.voice,
-            });
+            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
         };
         let parameters = OperatorPairParameters {
             feedback: self.feedback,
