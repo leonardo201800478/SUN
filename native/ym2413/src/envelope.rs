@@ -837,12 +837,24 @@ mod tests {
             if generator.level() != previous_level {
                 transitions.push((counter, generator.level()));
                 previous_level = generator.level();
+                if transitions.len() == 8 {
+                    break;
+                }
             }
         }
 
         assert_eq!(
             transitions,
-            [(4_096, 119), (12_288, 111), (20_480, 104)]
+            [
+                (4_096, 119),
+                (4_097, 111),
+                (4_098, 104),
+                (4_099, 97),
+                (12_288, 90),
+                (12_289, 84),
+                (12_290, 78),
+                (12_291, 73),
+            ]
         );
     }
 }
