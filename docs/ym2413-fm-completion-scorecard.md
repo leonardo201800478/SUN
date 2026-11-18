@@ -378,14 +378,16 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 **Referência de investigação:** audits/ym2413-rhythm-mode-investigation-2026-11-18.md.
 
 
-## FM-7 — avanço isolado do Top Cymbal (2026-11-18)
+## FM-7 — avanço a partir das capturas de Rhythm Mode (2026-11-18)
 
 - PR #1015 integrada por squash; CI #44297715529 passou em Rust workspace regression, Rust quality/unit regression, Documentation patch hygiene e Change impact classification. Os demais gates foram SKIPPED.
 - Main após merge: `1f0cfe37a5531c8e802ee9ba5f558eaa10b23797`.
-- Foi criada uma função combinacional candidata para Top Cymbal em `native/ym2413/src/rhythm_phase.rs`. Entradas explícitas: índice de fase do modulador do canal físico 8 e do carrier do canal físico 9. Saída: endereço de fase candidato 0x100/0x300.
-- Os testes cobrem a tabela booleana interna e os limites de entrada; não provam correção do silício, offset temporal ou seleção de fase no pipeline.
-- Genesis Plus GX identifica Top Cymbal como verificado em YM2413, mas não publica vetores de medição junto à rotina. Status permanece **CANDIDATE IMPLEMENTED**, não VALIDATED.
-- A ROM de ritmo permanece sem dump primário. Os três patches rítmicos encontrados no `default_inst` do emu2413 são comentados como provenientes do VRC7; não foram incorporados como ROM YM2413.
-- A redação do manual sobre a razão ótima `f7CH = 3 × f8CH` é ambígua em relação à frase que cita os canais 8 e 9 como fontes. O relatório mantém a discrepância em aberto.
+- A investigação de andete em `results/rhythm/rhythm.md` e a atualização de LFSR em `results/lfsr/lfsr.txt` acrescentam capturas físicas e esclarecem a fase das vozes e a cadência interna do ruído.
+- A primeira função Top Cymbal derivada do Genesis Plus GX foi descartada: usava os operadores/canais errados em relação às medições de andete. A branch #1016 foi corrigida para o candidato baseado em mod7 + car8 e na forma OR confirmada na atualização de Nuke.YKT. O relatório mantém explícitas as 16 variantes equivalentes por offsets PG iniciais desconhecidos.
+- `rhythm_phase.rs` agora contém candidatos combinacionais de Top Cymbal, Hi-Hat e Snare Drum. As entradas de ruído permanecem explícitas; nenhum relógio é avançado dentro das funções.
+- `rhythm.rs` preserva o LFSR decimado `x^23+x^9+x^8+x+1` e adiciona o LFSR slot-rate `x^23+x^9+1`, com um passo por slot de quatro clocks. O contrato medido é 18 passos por rotação de 72 clocks; HH no slot 13 e SD no slot 16, separados por três passos. Seed físico continua desconhecido.
+- `instrument.rs` contém cinco conjuntos candidatos de parâmetros por operador derivados das capturas: BD, HH, SD, TOM e TCY. BD ainda apresenta diferença residual de alinhamento de uma amostra e pico; os bytes não são declarados como dump da ROM física.
+- Testes adicionados cobrem a lógica combinacional, a relação de decimação do LFSR, o espaçamento HH→SD, limites de fase, parâmetros candidatos e snapshot/restore. São testes internos do modelo, não comparação física independente.
+- A repetição medida de cada voz foi mapeada aos slots 0–2 e 6–7, além dos slots originais 13–17. O buffer de atraso ainda não foi implementado.
 
-A sequência de FM-7 continua: resolver contrato e parâmetros; BD com patch/EG ROM fundamentados; fase das demais vozes; envelopes/volumes; saídas e validação. Não há integração no banco de síntese, no Scheduler ou no áudio runtime.
+**Estado:** FM-7 segue PARCIAL. Os blocos de fase, ruído e parâmetros de operador estão implementados como candidatos isolados, mas não há integração de cinco vozes ao banco de síntese, buffer de duplicação, roteamento MO/RO, PCM, Scheduler ou validação contínua/blocos. A fase inicial dos operadores e o seed do LFSR permanecem desconhecidos.
