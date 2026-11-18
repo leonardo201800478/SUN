@@ -470,6 +470,7 @@ O avaliador do banco não deduz fase de HH/SD/TCY a partir do PG do operador de 
 Foram adicionados testes de regressão para confrontar o seletor de taxas do EG com sequências temporais publicadas por Andete:
 
 - RATE=4: transições espaçadas por 8192 amostras.
+- RATE=9: padrão 4096, 4096, 4096, 2048, 2048.
 - RATE=14: padrão de intervalos 2048, 1024, 1024, com fase inicial do contador global explicitada.
 - RATE=19: intervalo inicial de 1024 seguido por seis intervalos de 512 amostras.
 - Carrier RELEASE: reutiliza o seletor temporal medido de DECAY com os parâmetros de release.
