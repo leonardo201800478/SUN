@@ -1,9 +1,9 @@
 # YM2413 / OPLL — Especificação arquitetural e modelo FM
 
-**Projeto:** Sega Emulator — Emulação de Alta Precisão  
-**Escopo:** núcleo compartilhado Rust e integração futura no Master System japonês  
-**Estado:** especificação arquitetural inicial (M0); **não autoriza declarar o chip implementado**  
-**Branch de documentação:** `fix/sn76489-psg-fidelity-20261107`  
+**Projeto:** Sega Emulator — Emulação de Alta Precisão
+**Escopo:** núcleo compartilhado Rust e integração futura no Master System japonês
+**Estado:** especificação arquitetural inicial (M0); **não autoriza declarar o chip implementado**
+**Branch de documentação:** `fix/sn76489-psg-fidelity-20261107`
 **PR relacionada:** [#615](https://github.com/leonardo201800478/sega-emulator/pull/615)
 
 > Convenção de evidência usada neste documento:
