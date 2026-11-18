@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn retains_channel_frequency_and_raw_melodic_key_and_sustain_bits() {
         let config = decode_rhythm_synthesis(&configured_registers()).unwrap();
-        let [bd, hh, sd, tom, tcy] = config.voices;
+        let [bd, hh, _, tom, _] = config.voices;
         assert_eq!(bd.channel_frequency.fnum, 0x155);
         assert_eq!(bd.channel_frequency.block, 2);
         assert!(bd.channel_frequency.melodic_key_on);
