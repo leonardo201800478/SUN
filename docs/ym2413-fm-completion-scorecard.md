@@ -348,3 +348,31 @@ A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** 
 **Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
 
 **Referência primária:** Yamaha YM2413 Application Manual, III-1-7 (Rhythm), III-1-8 (Instrument/Volume) e V-4 (Percussion Sound Synthesis): https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf. A alocação dos bits do registrador $0E também foi comparada com as notas de reverse engineering de andete: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16.
+
+---
+## Correção de estado — 2026-11-18 / PR #1014 integrada
+
+**Main:** 5242b0b5ee6a3372d2c10ae23d02f2161d5d8bcf.
+
+- PR #1014 foi integrada por squash. O commit de merge é o HEAD confirmado da main.
+- Workflow CI #44292422118, executado no HEAD da PR b2a0b054b1fe6a5d18724dd83ff9f020e36629bc: Change impact classification, Documentation patch hygiene, Rust workspace regression e Rust quality/unit regression concluíram com SUCCESS.
+- Os gates não relacionados foram SKIPPED e não são considerados validação do YM2413 em hardware.
+- A decodificação estática de RHY/BD/SD/TOM/TOP-CY/HH, volumes e campos de frequência dos canais 7–9 está integrada em native/ym2413/src/rhythm.rs.
+- FM-7 continua PARCIAL: não existe síntese das cinco vozes, ROM de envelopes de percussão validada, integração temporal do LFSR, PCM ou validação física.
+
+### Reorganização da sequência de fechamento
+
+A sequência de trabalho atual, definida para esta retomada, é:
+
+1. **FM-7 — Rhythm Mode:** implementar e validar separadamente as cinco vozes, sem inventar cadência de LFSR ou fases temporais.
+2. **FM-8 — Pipeline temporal:** fechar PG/EG/operadores/feedback/M→C/registradores/slots/DAC/MO-RO com contrato sustentado por evidências.
+3. **FM-9 — Integração de áudio:** auditar native/audio_runtime e integrar somente após o contrato temporal estar validado.
+4. **FM-10 — Validação independente:** vetores diferenciais, determinismo, snapshots, continuidade por blocos e comparação de hardware quando disponível.
+
+Esta sequência substitui a numeração antiga de FM-5 a FM-8 acima, que refletia o roadmap anterior. Não altera o significado dos componentes já implementados nem promove estados de validação.
+
+### Correção de validação da PR #1014
+
+A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final” fica superada pelo registro acima. O CI passou no HEAD da PR antes do merge; não foi executado um workflow adicional no commit de merge, e isso não deve ser alegado.
+
+**Referência de investigação:** audits/ym2413-rhythm-mode-investigation-2026-11-18.md.
