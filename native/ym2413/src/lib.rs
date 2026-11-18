@@ -1,7 +1,7 @@
-//! YM2413 register, clock, and candidate phase-generator foundation.
+//! YM2413 register, clock, PG, EG, and operator-synthesis candidate components.
 //!
-//! The phase generator is a standalone candidate model. It does not yet
-//! synthesize PCM or participate in the 18-slot operator pipeline.
+//! These components are independently testable and do not yet form a complete
+//! 18-slot FM pipeline or emit integrated YM2413 PCM.
 
 pub mod envelope;
 pub mod operator;
