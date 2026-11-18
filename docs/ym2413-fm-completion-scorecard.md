@@ -428,10 +428,10 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 
 ## FM-7 — avaliação das vozes sobre o banco PG/EG compartilhado (2026-11-18)
 
-- `Ym2413SynthesisBank` oferece `tick_rhythm_operator_envelope`, que mapeia o operador físico do slot para um dos 18 EGs existentes e recebe KEY-ON/counter do chamador; não cria scheduler nem cadence.
+- `Ym2413SynthesisBank` oferece `tick_rhythm_operator_envelope`, que mapeia o operador físico do slot para um dos 18 EGs existentes e recebe KEY-ON, política de release carrier e counter do chamador; não cria scheduler nem cadence.
 - `evaluate_rhythm_voice` lê o EG do operador físico e usa a saída carrier para HH/TOM/SD/TCY. A fase é sempre explícita: HH/SD/TCY recebem o resultado dos combinadores candidatos e TOM recebe o índice do PG tonal. BD usa os dois PGs do canal 7 e o par FM existente.
 - BD usa o `OperatorPair` existente do canal 7, preservando e atualizando o histórico de feedback desse par, com os parâmetros de patch e volume específicos de BD.
-- O bit de trigger não é interpretado como mute gate na avaliação; o estado EG fornecido é que determina o nível atual e pode representar release tail. A origem do KEY-ON permanece explicitamente sob controle do chamador.
+- O bit de trigger não é interpretado como mute gate na avaliação; o estado EG fornecido é que determina o nível atual e pode representar release tail. A origem do KEY-ON e a seleção da semântica de release do EG permanecem explicitamente sob controle do chamador.
 - Testes verificam o mapeamento físico EG, equivalência do wrapper com a API existente, avaliação das quatro vozes simples com fases explícitas sem mutação de estado, feedback BD e rejeição de Rhythm Mode desabilitado.
 
 **Estado:** ponte para avaliação digital sobre o banco compartilhado concluída quando CI passar. Não representa execução serial de slots, repetição de saída, LFSR integrado, mistura MO/RO, PCM ou precisão temporal validada.
