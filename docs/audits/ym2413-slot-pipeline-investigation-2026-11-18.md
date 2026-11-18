@@ -217,11 +217,11 @@ Nenhuma dessas questões deve ser fechada com base exclusiva em uma implementaç
 5. Andete, [ADSR transitions (2015-12-31)](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31): transições KEY/SUS/EG-TYP/DAMP.
 6. MSX Resource Center, [YM2413 reverse engineering progress](https://www.msx.org/photoshoots/ym2413-reverse-engineering-progress): medição de multiplexação MO/RO em 72 clocks e pulso ativo de três clocks por canal.
 7. [emu198x-yamaha-ym2413 documentation](https://docs.rs/emu198x-yamaha-ym2413/latest/emu198x_yamaha_ym2413/): descrição de pipeline com offsets e relação explícita com Nuked-OPLL 1.0.2. Referência secundária, não prova primária; não copiar código.
-8. [SMS Power YM2413 index](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes): índice cronológico das medições e das limitações do die shot FHB013.\n9. [Silicon Prawn — YM2413 test data notes](https://siliconprawn.org/archive/doku.php?id=vendor:yamaha:opl2): hipótese de formato D0/D1 em test mode, explicitamente não verificada em hardware.
+8. [SMS Power YM2413 index](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes): índice cronológico das medições e das limitações do die shot FHB013.
+9. [Silicon Prawn — YM2413 test data notes](https://siliconprawn.org/archive/doku.php?id=vendor:yamaha:opl2): hipótese de formato D0/D1 em test mode, explicitamente não verificada em hardware.
 
 ## 9. Resultado desta etapa
 
 - **Confirmado:** 18 slots seriais, ordem de atribuição, 72 input clocks por rotação, 4 clocks por slot como derivação, 19-bit PG, EG por operador e contador global por rotação como modelo medido, feedback com dois valores históricos, multiplexação MO/RO.
 - **Ainda não confirmado:** offsets PG/EG/OP por subfase, fase de reset, transferência M→C em clocks exatos, commit temporal de registradores, latch DAC exato e alinhamento de fase com a placa SMS.
 - **Decisão:** não iniciar ainda o pipeline executável nem integrar Scheduler. A próxima entrega precisa ser um conjunto de vetores de captura ou uma fonte primária adicional que resolva as questões P1-01 a P1-08.
-
