@@ -45,6 +45,12 @@ Volumes independentes:
 
 A PR #1014 integrou o decoder desses campos em native/ym2413/src/rhythm.rs. Ele preserva os triggers brutos, o gate RHYTHM e FNUM/BLOCK/KEY/SUS dos canais 7–9. Não sintetiza áudio nem altera os registradores de entrada.
 
+### 2.1 Interação com KEY-ON melódico [D/M/U]
+
+O manual orienta manter em zero os bits KEY-ON dos canais físicos 7–9 enquanto Rhythm Mode está ativo. As capturas/notas de andete acrescentam uma observação ainda marcada como TODO: os bits de trigger em $0E e os bits KEY-ON de $26–$28 parecem ser considerados conjuntamente, como se fossem combinados por OR. Não há caracterização suficiente no material consultado para definir transições, prioridade ou comportamento em mudanças de modo.
+
+Por isso, `Ym2413RhythmVoiceConfig::is_active` representa apenas o gate lógico do registrador $0E (RHY + trigger), não uma decisão completa de atividade do silício quando KEY-ON melódico está setado. O decoder preserva os bits KEY-ON/SUS crus dos canais 7–9. Não normalizar nem apagar esses bits.
+
 ## 3. Síntese das vozes segundo o manual [D]
 
 ### 3.1 Bass Drum
@@ -151,7 +157,7 @@ O relatório identifica em um die shot um banco de nove shift registers de compr
 
 ## 5.7 Limites das referências comparativas [C/U]
 
-Genesis Plus GX contém rotinas de percussão que identificam HH/SD/TOM como verificadas em YM3812 e Top Cymbal como verificado em YM2413. A fórmula antiga de Top Cymbal dessa implementação não reproduz a análise de capturas de andete e não é usada no crate. As equações atuais são derivadas das notas experimentais de andete e das correções documentadas de Nuke.YKT.
+Genesis Plus GX contém rotinas de percussão que identificam HH/SD/TOM como verificadas em YM3812 e Top Cymbal como verificado em YM2413. Sua fórmula Top Cymbal usa fontes de fase diferentes das identificadas na análise de capturas de andete; por isso não foi adotada como contrato do crate. As equações atuais são derivadas das notas experimentais de andete e das correções documentadas de Nuke.YKT.
 
 A tabela de patches de ritmo de `emu2413` é comentada como originária do VRC7; ela não foi usada como fonte dos bytes YM2413. Os valores incluídos no crate vêm das tabelas experimentais de andete, com as limitações descritas acima.
 
