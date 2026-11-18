@@ -12,13 +12,13 @@ pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
 pub mod synthesis_tables;
-pub use channel::{
-    ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
-    decode_channel_synthesis,
-};
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
+};
+pub use channel::{
+    ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
+    decode_channel_synthesis,
 };
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
