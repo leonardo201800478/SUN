@@ -877,17 +877,17 @@ O crate `sega-ym2413` passa a conter `native/ym2413/src/envelope.rs`, exportado 
 - Cálculo de RATE com KSR: `RATE = 4 * R + Rks`, saturado em 63.
 - Cadência discreta de DECAY/RELEASE para rates 0..63, incluindo os grupos rápidos 52..63.
 - Curva ATTACK por fórmulas inteiras `f_m(x) = x - (x >> m) - 1`, incluindo o modelo medido para rates 12:0..14:3.
-- DAMP com base-rate 12, transição observada no intervalo de nível 124..127 e atalho de AR=15 na fronteira DAMP/ATTACK.
+- DAMP com base-rate 12. O limiar de saída, a coordenação entre operadores e o comportamento de AR=15 são parâmetros explícitos de candidatos, não constantes declaradas como hardware: a nota de 2015 descreve o fim de DAMP como próximo de -45 dB e ainda sujeito a investigação, enquanto o modelo de software de andete usa o comparador de quatro bits superiores (nível 124..127) e o atalho AR=15.
 - SL comparado pela metade superior do nível (`level >> 3`), incluindo o comportamento SL=0.
 - Release do carrier: RR para EG-TYPE sustentado; taxas fixas 5/7 selecionadas por SUS-ON/OFF para EG-TYPE percussivo.
-- Snapshot local versionado, validação de largura dos campos e testes determinísticos.
+- Snapshot local versionado (formato 2, incluindo a configuração candidata), validação de largura dos campos e testes determinísticos.
 - Nível inicial explícito por `EnvelopeGenerator::with_level`; não há valor default de reset declarado porque as fontes consultadas não comprovam o nível EG após reset IC.
 
 ### Contrato temporal deliberado
 
 `EnvelopeGenerator::tick(global_counter, key_on, is_carrier, parameters)` recebe o valor do contador global no limite de atualização do operador. O EG não incrementa contador, não escolhe fase inicial e não avança relógio.
 
-A transição DAMP do modulator não é independente: o carrier determina a saída de DAMP. O chamador deve executar `synchronize_damp_transition(&carrier)` após a atualização do carrier. O reset dos dois acumuladores PG na fronteira correspondente continua sob responsabilidade do pipeline de operadores e não foi conectado nesta PR.
+A transição DAMP do modulator permanece uma questão em aberto. `DampTransitionConfig` exige que o chamador selecione explicitamente o limiar, a coordenação (`IndependentPerOperator` ou `CarrierDrivesBoth`) e o comportamento de AR=15 (`SkipAttackToDecay` ou `EnterAttack`). `synchronize_damp_transition(&carrier)` só atua no candidato `CarrierDrivesBoth`; não é chamado automaticamente. O reset dos acumuladores PG na fronteira correspondente continua sob responsabilidade do pipeline de operadores e não foi conectado nesta PR.
 
 ### Evidência e limites
 
