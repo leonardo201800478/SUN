@@ -758,6 +758,16 @@ mod tests {
     }
 
     #[test]
+    fn measured_decay_rate_nine_matches_published_long_short_pattern() {
+        // Published RATE=9 sequence: 4096, 4096, 4096, 2048, 2048 samples.
+        // Start at selector column 5 to make that measured phase visible.
+        assert_eq!(
+            measured_decay_transition_counters(9, 10_240, 6),
+            [10_240, 14_336, 18_432, 22_528, 24_576, 26_624]
+        );
+    }
+
+    #[test]
     fn measured_decay_rate_fourteen_matches_2048_1024_1024_pattern() {
         // Published RATE=14 sequence, with the shared counter phase selected
         // at selector column 3: the first transition is immediate, then the
