@@ -864,3 +864,41 @@ Sem acesso à placa YM2413 e sem uma captura sincronizada, esse experimento não
 - Integração ao `Ym2413Core`/Scheduler: **BLOQUEADA** até definir o contrato de atualização sem inventar alinhamento.
 
 **Fontes:** [andete — notas 2015-12-01](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01), especialmente a discussão do contador global e das medições; [andete — notas 2015-12-03](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-03), especialmente as observações de sincronização de operadores, key-on e offset modulator/carrier. As hipóteses do autor foram mantidas como hipóteses, não como especificação.
+
+
+## 21. Envelope Generator candidato — 2026-11-18
+
+### Escopo implementado em PR #1001
+
+O crate `sega-ym2413` passa a conter `native/ym2413/src/envelope.rs`, exportado pela raiz do crate. O componente é um modelo de EG por operador, dirigido pelo contador global fornecido pelo chamador.
+
+- Nível de atenuação de 7 bits: 0..127, com 128 níveis e resolução medida de 0,375 dB.
+- Estados DAMP, ATTACK, DECAY e SUSTAIN.
+- Cálculo de RATE com KSR: `RATE = 4 * R + Rks`, saturado em 63.
+- Cadência discreta de DECAY/RELEASE para rates 0..63, incluindo os grupos rápidos 52..63.
+- Curva ATTACK por fórmulas inteiras `f_m(x) = x - (x >> m) - 1`, incluindo o modelo medido para rates 12:0..14:3.
+- DAMP com base-rate 12, transição observada no intervalo de nível 124..127 e atalho de AR=15 na fronteira DAMP/ATTACK.
+- SL comparado pela metade superior do nível (`level >> 3`), incluindo o comportamento SL=0.
+- Release do carrier: RR para EG-TYPE sustentado; taxas fixas 5/7 selecionadas por SUS-ON/OFF para EG-TYPE percussivo.
+- Snapshot local versionado, validação de largura dos campos e testes determinísticos.
+
+### Contrato temporal deliberado
+
+`EnvelopeGenerator::tick(global_counter, key_on, is_carrier, parameters)` recebe o valor do contador global no limite de atualização do operador. O EG não incrementa contador, não escolhe fase inicial e não avança relógio.
+
+A transição DAMP do modulator não é independente: o carrier determina a saída de DAMP. O chamador deve executar `synchronize_damp_transition(&carrier)` após a atualização do carrier. O reset dos dois acumuladores PG na fronteira correspondente continua sob responsabilidade do pipeline de operadores e não foi conectado nesta PR.
+
+### Evidência e limites
+
+- **MEDIDO — andete, 2015-03-20:** níveis de envelope, cadência de decay e tabelas de avanço.
+- **DOCUMENTADO / MEDIDO — andete, 2015-12-24:** KSR, fórmula de RATE e níveis SL.
+- **MEDIDO — andete, 2015-12-31:** transições DAMP/ATTACK/DECAY/SUSTAIN, EG-TYPE, SUS-ON/OFF e taxas fixas DP/RR'/RS.
+- **MEDIDO / MODELO CANDIDATO — andete, 2017-01-26:** fórmulas e sequência de ataque para taxas lentas e rápidas. O próprio autor registra que o modelo ainda precisava de verificação adicional.
+
+Este componente é uma tradução independente das relações matemáticas descritas nas fontes; não incorpora código-fonte ou tabelas de outro emulador.
+
+**Não implementado nesta fatia:** integração dos 18 EGs ao scheduler de slots; ordenação exata modulator/carrier; alinhamento do contador global com reset/KEY-ON; pipeline PG/EG por slot; integração no snapshot agregado `Ym2413State`; síntese PCM; validação diferencial de PCM; integração SMS, mixer e PSG.
+
+**Validação:** PR #1001, HEAD `1164b033f411f3fe4c2fc0a101a7de4a34e5e3bb`. Os testes unitários do EG foram adicionados, mas a aprovação do CI desse SHA ainda está pendente. Nenhum teste local de workspace é declarado.
+
+**Fontes:** [andete — 2015-03-20](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-20), [2015-12-24](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-24), [2015-12-31](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31), [2017-01-26](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2017-01-26).
