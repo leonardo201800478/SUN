@@ -27,7 +27,6 @@ pub const YM2413_RHYTHM_NOISE_LFSR_PERIOD: u32 = YM2413_RHYTHM_NOISE_LFSR_MASK;
 /// Version of the serializable rhythm-noise state.
 pub const YM2413_RHYTHM_NOISE_STATE_VERSION: u16 = 1;
 
-
 /// Register bit controlling the YM2413's six-channel melody/five-voice rhythm mode.
 pub const YM2413_RHYTHM_MODE_BIT: u8 = 0x20;
 
@@ -42,7 +41,9 @@ pub const YM2413_RHYTHM_TRIGGER_MASK: u8 = 0x1f;
 /// by this register decoder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413RhythmVoiceConfig {
+    /// Raw trigger bit from register $0E.
     pub key_on: bool,
+    /// Raw four-bit volume/attenuation field from registers $36-$38.
     pub volume: u8,
 }
 
@@ -60,10 +61,15 @@ impl Ym2413RhythmVoiceConfig {
 /// because those locations become rhythm attenuation registers in Rhythm Mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413RhythmChannelFrequency {
+    /// Zero-based channel index (6..=8).
     pub channel: u8,
+    /// Nine-bit frequency number.
     pub fnum: u16,
+    /// Three-bit octave/block field.
     pub block: u8,
+    /// Raw melodic KEY-ON bit from the channel register.
     pub melodic_key_on: bool,
+    /// Raw SUS bit from the channel register.
     pub sustain_on: bool,
 }
 
@@ -73,11 +79,17 @@ pub struct Ym2413RhythmChannelFrequency {
 /// PCM, or decide when the rhythm LFSR advances.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413RhythmConfig {
+    /// Global RHY bit from register $0E.
     pub rhythm_mode_enabled: bool,
+    /// Bass Drum trigger and volume.
     pub bass_drum: Ym2413RhythmVoiceConfig,
+    /// Snare Drum trigger and volume.
     pub snare_drum: Ym2413RhythmVoiceConfig,
+    /// Tom-Tom trigger and volume.
     pub tom_tom: Ym2413RhythmVoiceConfig,
+    /// Top Cymbal trigger and volume.
     pub top_cymbal: Ym2413RhythmVoiceConfig,
+    /// Hi-Hat trigger and volume.
     pub hi_hat: Ym2413RhythmVoiceConfig,
     /// Channel indices 6, 7 and 8 (hardware channels 7, 8 and 9).
     pub channel_frequencies: [Ym2413RhythmChannelFrequency; 3],
@@ -381,11 +393,41 @@ mod tests {
         let config = super::decode_rhythm_registers(&registers);
 
         assert!(config.rhythm_mode_enabled);
-        assert_eq!(config.bass_drum, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 5 });
-        assert_eq!(config.snare_drum, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 4 });
-        assert_eq!(config.tom_tom, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 7 });
-        assert_eq!(config.top_cymbal, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 14 });
-        assert_eq!(config.hi_hat, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 12 });
+        assert_eq!(
+            config.bass_drum,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 5,
+            }
+        );
+        assert_eq!(
+            config.snare_drum,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 4,
+            }
+        );
+        assert_eq!(
+            config.tom_tom,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 7,
+            }
+        );
+        assert_eq!(
+            config.top_cymbal,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 14,
+            }
+        );
+        assert_eq!(
+            config.hi_hat,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 12,
+            }
+        );
     }
 
     #[test]
@@ -416,15 +458,36 @@ mod tests {
 
         let config = super::decode_rhythm_registers(&registers);
 
-        assert_eq!(config.channel_frequencies[0], super::Ym2413RhythmChannelFrequency {
-            channel: 6, fnum: 0x1a5, block: 2, melodic_key_on: true, sustain_on: true
-        });
-        assert_eq!(config.channel_frequencies[1], super::Ym2413RhythmChannelFrequency {
-            channel: 7, fnum: 0x042, block: 5, melodic_key_on: false, sustain_on: false
-        });
-        assert_eq!(config.channel_frequencies[2], super::Ym2413RhythmChannelFrequency {
-            channel: 8, fnum: 0x0fe, block: 7, melodic_key_on: true, sustain_on: false
-        });
+        assert_eq!(
+            config.channel_frequencies[0],
+            super::Ym2413RhythmChannelFrequency {
+                channel: 6,
+                fnum: 0x1a5,
+                block: 2,
+                melodic_key_on: true,
+                sustain_on: true,
+            }
+        );
+        assert_eq!(
+            config.channel_frequencies[1],
+            super::Ym2413RhythmChannelFrequency {
+                channel: 7,
+                fnum: 0x042,
+                block: 5,
+                melodic_key_on: false,
+                sustain_on: false,
+            }
+        );
+        assert_eq!(
+            config.channel_frequencies[2],
+            super::Ym2413RhythmChannelFrequency {
+                channel: 8,
+                fnum: 0x0fe,
+                block: 7,
+                melodic_key_on: true,
+                sustain_on: false,
+            }
+        );
     }
 
     #[test]
