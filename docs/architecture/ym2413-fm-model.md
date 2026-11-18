@@ -747,7 +747,7 @@ O teste `pm_sequence_matches_published_ym2413_measurement_vector` reproduz essa 
 ### Estado de validação
 
 - Código e testes adicionados: implementação candidata.
-- CI no SHA da branch: PENDENTE até execução no HEAD final da PR.
+- CI no SHA final `224f2c3b215f9e6accf613d385e90ca7db931cc5`: SUCCESS (run #44223435767); formatação, Clippy, testes do workspace e higiene documental concluídos.
 - Comparação independente contra hardware YM2413 original: NOT RUN.
 - Alinhamento PM/reset/slot e pipeline cycle-accurate: PENDENTE.
 - Integração de PG ao core de 18 slots, EG, operador, DAC e saídas MO/RO: NOT RUN.
@@ -764,7 +764,7 @@ Fonte do modelo e vetor: [andete — YM2413 Reverse Engineering Notes 2015-12-01
 |---|---|---|
 | Fundação YM2413 — latch, registradores, 18×4 clocks, snapshot | PASS | PR #996 integrada em main; CI pós-merge #8569 e SMS Runtime #1533 concluíram SUCCESS no SHA da main |
 | Isolamento do crate e dependência unidirecional | PASS | `sega-audio-runtime → sega-ym2413`; crate sem dependências externas |
-| PG candidato — acumulador 19-bit, MUL/ML e PM 8×8 | IMPLEMENTED / CI PENDING | PR #997; implementação candidata isolada, ainda sem aprovação do CI no HEAD final |
+| PG candidato — acumulador 19-bit, MUL/ML e PM 8×8 | IMPLEMENTED / CI PASS | PR #997; CI #44223435767 SUCCESS no HEAD `224f2c3b215f9e6accf613d385e90ca7db931cc5` |
 | Vetor PM publicado de oito incrementos | PASS (reprodução do vetor publicado) | Teste reproduz o exemplo de andete; não equivale a validação física independente |
 | PG contra hardware YM2413 original | NOT RUN | Sem captura física ou oráculo independente do projeto |
 | Alinhamento do LFO PM, reset e offsets de slot | PENDENTE | Chamador fornece posição PM; contador global e pipeline ainda não foram implementados |
@@ -775,6 +775,6 @@ Fonte do modelo e vetor: [andete — YM2413 Reverse Engineering Notes 2015-12-01
 | Mixer multi-source e alinhamento FM→48 kHz | BLOCKED | FM-A07; não integrar PCM FM à sessão atual |
 | Perfil físico, catálogo Auto e save state integrado | NOT RUN | Fora do escopo desta fatia |
 
-**CI da PR #997:** execução #44222022308 foi criada para o SHA `f691915c9780dfa95e5f147607645519c74eb359`, mas ainda estava QUEUED no momento deste snapshot. Como a revisão documental deste snapshot altera o HEAD, somente uma execução no novo SHA poderá validar a versão final da PR.
+**CI da PR #997:** execução #44223435767 concluiu SUCCESS no HEAD `224f2c3b215f9e6accf613d385e90ca7db931cc5`. Jobs executados: classificação de impacto, regressão do workspace Rust (format, Clippy, testes e observability runtime), higiene documental e gate agregado de qualidade. Jobs específicos de VDP, PSG, Z80, Scheduler, Slint/WGPU, CPAL, SDL3, ROM build e tooling Windows foram SKIPPED por não serem aplicáveis aos caminhos alterados; SKIPPED não é PASS. A comparação da PR indica 11 commits ahead, 0 behind, sem conflito de merge no snapshot consultado. Reviews e review threads: nenhuma.
 
 **Política:** estados IMPLEMENTED descrevem código presente, não fidelidade comprovada. Vetor publicado, CI, teste unitário e teste físico são evidências distintas. SKIPPED, pending, cancelled, ausente e NOT RUN nunca são PASS.
