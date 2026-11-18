@@ -141,9 +141,11 @@ pub struct EnvelopeGenerator {
 }
 
 impl EnvelopeGenerator {
-    /// Construct from an explicit initial level and explicit DAMP candidate.
-    pub const fn with_level(
+    /// Construct from explicit initial hardware state and a DAMP candidate.
+    pub const fn with_initial_state(
         level: u8,
+        stage: EnvelopeStage,
+        key_on: bool,
         damp_config: DampTransitionConfig,
     ) -> Result<Self, EnvelopeGeneratorError> {
         if level > YM2413_EG_MAX_LEVEL {
@@ -154,8 +156,8 @@ impl EnvelopeGenerator {
         }
         Ok(Self {
             level,
-            stage: EnvelopeStage::Damp,
-            key_on: false,
+            stage,
+            key_on,
             damp_config,
         })
     }
@@ -291,6 +293,7 @@ impl EnvelopeGenerator {
     /// model explicitly selects CarrierDrivesBoth. PG phase reset remains external.
     pub fn synchronize_damp_transition(&mut self, carrier: &Self) {
         if self.damp_config.coordination == DampTransitionCoordination::CarrierDrivesBoth
+            && self.damp_config == carrier.damp_config
             && self.stage == EnvelopeStage::Damp
             && carrier.stage != EnvelopeStage::Damp
         {
@@ -412,8 +415,10 @@ mod tests {
     }
 
     fn eg(level: u8) -> EnvelopeGenerator {
-        EnvelopeGenerator::with_level(
+        EnvelopeGenerator::with_initial_state(
             level,
+            EnvelopeStage::Damp,
+            false,
             damp_config(
                 DampTransitionCoordination::IndependentPerOperator,
                 AttackRate15Transition::SkipAttackToDecay,
@@ -503,8 +508,8 @@ mod tests {
             DampTransitionCoordination::CarrierDrivesBoth,
             AttackRate15Transition::SkipAttackToDecay,
         );
-        let mut modulator = EnvelopeGenerator::with_level(127, config).unwrap();
-        let mut carrier = EnvelopeGenerator::with_level(127, config).unwrap();
+        let mut modulator = EnvelopeGenerator::with_initial_state(127, EnvelopeStage::Damp, false, config).unwrap();
+        let mut carrier = EnvelopeGenerator::with_initial_state(127, EnvelopeStage::Damp, false, config).unwrap();
         let mut p = params();
         p.attack_rate = 10;
 
@@ -534,7 +539,7 @@ mod tests {
             AttackRate15Transition::SkipAttackToDecay,
         )
         .unwrap();
-        let mut generator = EnvelopeGenerator::with_level(120, config).unwrap();
+        let mut generator = EnvelopeGenerator::with_initial_state(120, EnvelopeStage::Damp, false, config).unwrap();
         let mut p = params();
         p.attack_rate = 10;
         generator.tick(0, true, false, p).unwrap();
@@ -547,7 +552,7 @@ mod tests {
             DampTransitionCoordination::IndependentPerOperator,
             AttackRate15Transition::EnterAttack,
         );
-        let mut generator = EnvelopeGenerator::with_level(124, config).unwrap();
+        let mut generator = EnvelopeGenerator::with_initial_state(124, EnvelopeStage::Damp, false, config).unwrap();
         let mut p = params();
         p.attack_rate = 15;
         generator.tick(0, true, true, p).unwrap();
