@@ -441,7 +441,7 @@ mod tests {
     fn initial_state() -> Ym2413SynthesisInitialState {
         Ym2413SynthesisInitialState {
             channels: std::array::from_fn(|channel| Ym2413ChannelInitialState {
-                phase: [channel as u32 * 17, channel as u32 * 29],
+                phase: [channel as u32 * 0x1000, channel as u32 * 0x1800],
                 envelope_level: [127, 127],
                 envelope_stage: [EnvelopeStage::Damp; 2],
                 envelope_key_on: [false; 2],
@@ -474,11 +474,11 @@ mod tests {
         for channel in 0..9 {
             assert_eq!(
                 bank.phase_index(channel, false).unwrap(),
-                ((channel as u32 * 17) >> 9) as u16
+                ((channel as u32 * 0x1000) >> 9) as u16
             );
             assert_eq!(
                 bank.phase_index(channel, true).unwrap(),
-                ((channel as u32 * 29) >> 9) as u16
+                ((channel as u32 * 0x1800) >> 9) as u16
             );
             assert_eq!(bank.envelope_level(channel, false).unwrap(), 127);
             assert_eq!(bank.envelope_level(channel, true).unwrap(), 127);
@@ -495,9 +495,10 @@ mod tests {
         bank.tick_operator_envelope(0, false, true, 0, config.modulator_envelope).unwrap();
         bank.tick_operator_envelope(0, true, true, 0, config.carrier_envelope).unwrap();
 
-        let first = bank.evaluate_channel(&config).unwrap();
         let snapshot = bank.export_state();
         let mut restored = Ym2413SynthesisBank::restore_state(snapshot).unwrap();
+        let mut uninterrupted = bank.clone();
+        let first = uninterrupted.evaluate_channel(&config).unwrap();
         let second = restored.evaluate_channel(&config).unwrap();
         assert_eq!(first, second);
         assert_eq!(bank.export_state(), restored.export_state());
