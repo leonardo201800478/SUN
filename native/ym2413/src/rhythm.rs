@@ -27,6 +27,126 @@ pub const YM2413_RHYTHM_NOISE_LFSR_PERIOD: u32 = YM2413_RHYTHM_NOISE_LFSR_MASK;
 /// Version of the serializable rhythm-noise state.
 pub const YM2413_RHYTHM_NOISE_STATE_VERSION: u16 = 1;
 
+
+/// Register bit controlling the YM2413's six-channel melody/five-voice rhythm mode.
+pub const YM2413_RHYTHM_MODE_BIT: u8 = 0x20;
+
+/// Register bits that trigger bass drum, snare, tom-tom, top cymbal and hi-hat.
+pub const YM2413_RHYTHM_TRIGGER_MASK: u8 = 0x1f;
+
+/// Decoded trigger and attenuation fields for one rhythm voice.
+///
+/// `key_on` is the raw trigger bit from register $0E. It becomes active only
+/// while Rhythm Mode is enabled. `volume` is the raw four-bit attenuation
+/// field from registers $36-$38; its physical dB transfer curve is not modeled
+/// by this register decoder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmVoiceConfig {
+    pub key_on: bool,
+    pub volume: u8,
+}
+
+impl Ym2413RhythmVoiceConfig {
+    /// Return whether the voice is logically triggered in the current mode.
+    pub const fn is_active(self, rhythm_mode_enabled: bool) -> bool {
+        rhythm_mode_enabled && self.key_on
+    }
+}
+
+/// Frequency-related register fields for one of channels 7, 8 or 9.
+///
+/// Channel numbering in this type is zero-based, matching the crate's channel
+/// APIs. This deliberately excludes the $30-$38 instrument/volume field,
+/// because those locations become rhythm attenuation registers in Rhythm Mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmChannelFrequency {
+    pub channel: u8,
+    pub fnum: u16,
+    pub block: u8,
+    pub melodic_key_on: bool,
+    pub sustain_on: bool,
+}
+
+/// Static register-derived state for the five YM2413 percussion voices.
+///
+/// This is a decoder only: it does not synthesize percussion phases, envelopes,
+/// PCM, or decide when the rhythm LFSR advances.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmConfig {
+    pub rhythm_mode_enabled: bool,
+    pub bass_drum: Ym2413RhythmVoiceConfig,
+    pub snare_drum: Ym2413RhythmVoiceConfig,
+    pub tom_tom: Ym2413RhythmVoiceConfig,
+    pub top_cymbal: Ym2413RhythmVoiceConfig,
+    pub hi_hat: Ym2413RhythmVoiceConfig,
+    /// Channel indices 6, 7 and 8 (hardware channels 7, 8 and 9).
+    pub channel_frequencies: [Ym2413RhythmChannelFrequency; 3],
+}
+
+const fn rhythm_channel_frequency(
+    registers: &[u8; 64],
+    channel: u8,
+) -> Ym2413RhythmChannelFrequency {
+    let index = channel as usize;
+    let fnum_low = registers[0x10 + index];
+    let fnum_high = registers[0x20 + index];
+    Ym2413RhythmChannelFrequency {
+        channel,
+        fnum: fnum_low as u16 | (((fnum_high & 0x01) as u16) << 8),
+        block: (fnum_high >> 1) & 0x07,
+        melodic_key_on: fnum_high & 0x10 != 0,
+        sustain_on: fnum_high & 0x20 != 0,
+    }
+}
+
+/// Decode Rhythm Mode control, per-voice trigger/volume fields and channels 7-9.
+///
+/// Register mapping follows the Yamaha YM2413 Application Manual:
+/// - $0E: RHY (D5), BD (D4), SD (D3), TOM (D2), TOP-CY (D1), HH (D0).
+/// - $36: BD volume in the low nibble.
+/// - $37: HH volume in the high nibble, SD volume in the low nibble.
+/// - $38: TOM volume in the high nibble, TOP-CY volume in the low nibble.
+///
+/// The frequency inputs for channels 7-9 are retained separately. The manual
+/// requires the melodic KEY-ON bits $26-$28 to be cleared when using Rhythm
+/// Mode; this decoder reports those raw bits rather than silently rewriting
+/// caller-owned register state.
+pub const fn decode_rhythm_registers(registers: &[u8; 64]) -> Ym2413RhythmConfig {
+    let control = registers[0x0e];
+    let rhythm_vol_36 = registers[0x36];
+    let rhythm_vol_37 = registers[0x37];
+    let rhythm_vol_38 = registers[0x38];
+
+    Ym2413RhythmConfig {
+        rhythm_mode_enabled: control & YM2413_RHYTHM_MODE_BIT != 0,
+        bass_drum: Ym2413RhythmVoiceConfig {
+            key_on: control & 0x10 != 0,
+            volume: rhythm_vol_36 & 0x0f,
+        },
+        snare_drum: Ym2413RhythmVoiceConfig {
+            key_on: control & 0x08 != 0,
+            volume: rhythm_vol_37 & 0x0f,
+        },
+        tom_tom: Ym2413RhythmVoiceConfig {
+            key_on: control & 0x04 != 0,
+            volume: rhythm_vol_38 >> 4,
+        },
+        top_cymbal: Ym2413RhythmVoiceConfig {
+            key_on: control & 0x02 != 0,
+            volume: rhythm_vol_38 & 0x0f,
+        },
+        hi_hat: Ym2413RhythmVoiceConfig {
+            key_on: control & 0x01 != 0,
+            volume: rhythm_vol_37 >> 4,
+        },
+        channel_frequencies: [
+            rhythm_channel_frequency(registers, 6),
+            rhythm_channel_frequency(registers, 7),
+            rhythm_channel_frequency(registers, 8),
+        ],
+    }
+}
+
 /// Errors returned by the rhythm-noise generator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413RhythmNoiseError {
@@ -248,5 +368,78 @@ mod tests {
         assert_ne!(after_47, Some(seed));
         assert_ne!(after_178_481, Some(seed));
         assert_eq!(lfsr.register(), seed);
+    }
+
+    #[test]
+    fn rhythm_register_decoder_maps_all_trigger_bits_and_volume_nibbles() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        registers[0x36] = 0xa5;
+        registers[0x37] = 0xc4;
+        registers[0x38] = 0x7e;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert!(config.rhythm_mode_enabled);
+        assert_eq!(config.bass_drum, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 5 });
+        assert_eq!(config.snare_drum, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 4 });
+        assert_eq!(config.tom_tom, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 7 });
+        assert_eq!(config.top_cymbal, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 14 });
+        assert_eq!(config.hi_hat, super::Ym2413RhythmVoiceConfig { key_on: true, volume: 12 });
+    }
+
+    #[test]
+    fn rhythm_voice_activation_is_gated_by_rhythm_mode_not_raw_trigger_bits() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x1f;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert!(!config.rhythm_mode_enabled);
+        assert!(config.bass_drum.key_on);
+        assert!(!config.bass_drum.is_active(config.rhythm_mode_enabled));
+
+        registers[0x0e] |= super::YM2413_RHYTHM_MODE_BIT;
+        let enabled = super::decode_rhythm_registers(&registers);
+        assert!(enabled.bass_drum.is_active(enabled.rhythm_mode_enabled));
+    }
+
+    #[test]
+    fn rhythm_decoder_preserves_channels_seven_to_nine_frequency_and_key_fields() {
+        let mut registers = [0; 64];
+        registers[0x16] = 0xa5;
+        registers[0x26] = 0x35;
+        registers[0x17] = 0x42;
+        registers[0x27] = 0x0b;
+        registers[0x18] = 0xfe;
+        registers[0x28] = 0x1e;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.channel_frequencies[0], super::Ym2413RhythmChannelFrequency {
+            channel: 6, fnum: 0x1a5, block: 2, melodic_key_on: true, sustain_on: true
+        });
+        assert_eq!(config.channel_frequencies[1], super::Ym2413RhythmChannelFrequency {
+            channel: 7, fnum: 0x042, block: 5, melodic_key_on: false, sustain_on: false
+        });
+        assert_eq!(config.channel_frequencies[2], super::Ym2413RhythmChannelFrequency {
+            channel: 8, fnum: 0x0fe, block: 7, melodic_key_on: true, sustain_on: false
+        });
+    }
+
+    #[test]
+    fn rhythm_volume_registers_are_not_decoded_as_melodic_instruments() {
+        let mut registers = [0; 64];
+        registers[0x36] = 0xf3;
+        registers[0x37] = 0xa6;
+        registers[0x38] = 0x5c;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.bass_drum.volume, 3);
+        assert_eq!(config.hi_hat.volume, 10);
+        assert_eq!(config.snare_drum.volume, 6);
+        assert_eq!(config.tom_tom.volume, 5);
+        assert_eq!(config.top_cymbal.volume, 12);
     }
 }
