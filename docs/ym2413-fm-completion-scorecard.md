@@ -461,3 +461,22 @@ O avaliador do banco não deduz fase de HH/SD/TCY a partir do PG do operador de 
 - Testes conectam o sequenciador aos candidatos existentes de HH/SD e cobrem a rejeição de eventos incompatíveis.
 
 **Limites:** as equações permanecem candidatas de reverse engineering; offsets absolutos PG/reset não foram comprovados. O chamador ainda fornece fases PG na fronteira correta e encaminha o resultado ao avaliador de amplitude. Não há integração com o banco de slots, MachineScheduler, saída duplicada, DAC, MO/RO ou PCM. Nenhum contrato temporal novo é declarado.
+
+
+## P2 — primeiros vetores temporais publicados do EG (2026-11-18)
+
+**Branch:** `test/ym2413-eg-measured-rate-vectors`
+
+Foram adicionados testes de regressão para confrontar o seletor de taxas do EG com sequências temporais publicadas por Andete:
+
+- RATE=4: transições espaçadas por 8192 amostras.
+- RATE=14: padrão de intervalos 2048, 1024, 1024, com fase inicial do contador global explicitada.
+- RATE=19: intervalo inicial de 1024 seguido por seis intervalos de 512 amostras.
+- Carrier RELEASE: reutiliza o seletor temporal medido de DECAY com os parâmetros de release.
+- ATTACK RATE=4: valida a mesma seleção de contador global e os níveis 127→119→111→104 nos instantes amostrados.
+
+Os testes usam o contador global como entrada explícita; a fase inicial é escolhida para reproduzir o segmento publicado e **não** representa alinhamento de reset do YM2413. Os casos validam a implementação do seletor/curva dentro das condições medidas, não o instante físico em que cada operador recebe o tick.
+
+**Fonte experimental:** Andete, *YM2413 Reverse Engineering Notes 2015-03-20* (decay/release) e *2015-03-27* (attack): https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-20 e https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-27.
+
+**Estado:** testes adicionados; CI da PR pendente. FM-1 permanece PARCIAL e T06 continua CANDIDATE até cobrir integralmente DAMP, AR=15, SL/SUS, KSR, modulator/carrier e vetores independentes adicionais. Nenhuma subfase do slot ou cadência física foi inferida.
