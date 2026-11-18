@@ -318,6 +318,29 @@ Conclusões adicionais:
 
 **Decisão P1:** nenhuma ordem de subfase PG/EG/OP, latência M→C ou ponto de commit de registrador foi promovido a contrato. A implementação do pipeline permanece bloqueada até obter vetores de captura com resolução por input clock ou evidência primária equivalente.
 
+## 6.2 Decodificação estática de Rhythm Mode — FM-7
+
+O crate agora expõe `decode_rhythm_registers(&[u8; 64])`, que produz uma configuração estática e sem efeitos colaterais:
+
+- RHYTHM em `$0E.D5`;
+- triggers BD/SD/TOM/TOP-CY/HH em `$0E.D4..D0`;
+- volumes de quatro bits distribuídos em `$36`, `$37` e `$38`;
+- FNUM/BLOCK/KEY-ON/SUS dos canais 7, 8 e 9, sem interpretar os campos `$36–$38` como instrumentos melódicos.
+
+A configuração preserva separadamente o bit de trigger e a habilitação global. Uma voz é considerada ativa somente quando ambos estão ligados. Os KEY-ON melódicos dos canais 7–9 são expostos como dados brutos; o decoder não os limpa automaticamente, embora o manual oriente que `$26–$28` permaneçam com KEY-ON=0 em Rhythm Mode.
+
+**Evidência primária:** Yamaha YM2413 Application Manual, III-1-7, III-1-8 e V-4. O manual descreve cinco vozes, os seis slots usados, os registradores de volume e a geração das fases de quatro instrumentos a partir de ruído branco combinado com as frequências dos canais 8 e 9. O Bass Drum utiliza dois slots para FM. O manual também informa que as saídas de percussão são emitidas duas vezes; o significado temporal exato dessa duplicação ainda não foi integrado ao modelo.
+
+**Corroboração de reverse engineering:** as notas de andete de 2015-12-16 identificam os bits de RHY/BD/SD/TOM/CYM/HH em `$0E`, mas registram que o comportamento de ritmo ainda não havia sido investigado naquela etapa. A captura de 2018-05-13 demonstra a necessidade de amostrar os canais e saídas MO/RO em resolução 72 vezes maior para isolar as vozes rítmicas. Essas notas não substituem o manual nem fecham o pipeline.
+
+**Limites preservados:** a entrega não implementa ROM de timbres rítmicos, EG por voz, phase-combining, ruído aplicado às quatro vozes não-BD, duplicação temporal da saída, cadência do LFSR, mixagem ou PCM. O decoder é apenas uma ponte de registradores e não altera o Scheduler ou o banco agregado.
+
+Referências:
+1. Yamaha YM2413 Application Manual: https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf (III-1-7, III-1-8, V-4).
+2. Andete, YM2413 Reverse Engineering Notes 2015-12-16: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16.
+3. Andete, YM2413 Reverse Engineering Notes 2018-05-13: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2018-05-13.
+
+
 ## 7. Matriz mínima de validação
 
 Todos os testes ainda não executados devem permanecer explicitamente como **NOT RUN**, **BLOCKED** ou **CANDIDATE**. A existência de testes unitários de componentes não significa validação do chip completo.

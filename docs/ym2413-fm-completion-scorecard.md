@@ -310,3 +310,41 @@ Documento complementar: [YM2413 — Investigação P1 do pipeline de 18 slots](a
 - PG de 19 bits, feedback com dois valores históricos, EG com contador global e saída MO/RO multiplexada foram mapeados às evidências disponíveis.
 - Offsets de PG/EG/OP, latência M→C, commit de registradores e latch exato do DAC continuam pendentes.
 - **FM-6 permanece pendente.** Esta investigação é documentação; não implementa nem valida o pipeline executável.
+
+---
+
+## FM-7 — decodificação estática dos registradores de Rhythm Mode
+
+**Branch:** feat/ym2413-rhythm-register-decode
+
+Foi adicionada a decodificação pura do estado dos cinco instrumentos de percussão, no módulo `native/ym2413/src/rhythm.rs`.
+
+### Campos cobertos
+
+- `$0E.D5`: habilitação de Rhythm Mode.
+- `$0E.D4..D0`: triggers de Bass Drum, Snare Drum, Tom-Tom, Top Cymbal e Hi-Hat.
+- `$36.D3..D0`: volume de Bass Drum.
+- `$37.D7..D4`: volume de Hi-Hat; `$37.D3..D0`: volume de Snare Drum.
+- `$38.D7..D4`: volume de Tom-Tom; `$38.D3..D0`: volume de Top Cymbal.
+- FNUM, BLOCK, KEY-ON e SUS brutos dos canais 7–9 (índices 6–8), preservados separadamente dos registradores de volume de ritmo.
+
+A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** trigger correspondente. Os bits KEY-ON melódicos de `$26–$28` são reportados sem serem reescritos: o manual orienta mantê-los em zero durante Rhythm Mode, mas o decoder não altera o estado de registradores do chamador.
+
+### Testes adicionados
+
+- Mapeamento dos cinco triggers e dos cinco nibbles de volume.
+- Gate de ativação por Rhythm Mode, sem descartar o trigger bruto.
+- Decodificação de FNUM/BLOCK/KEY/SUS dos canais 7–9.
+- Garantia de que `$36–$38` são tratados como volumes de percussão, não como seleção melódica.
+
+### Limites
+
+- Nenhuma forma de onda ou envelope de percussão é sintetizado.
+- O Bass Drum ainda não percorre o par FM de slots 13/16.
+- As fases não-BD derivadas de ruído branco + frequências dos canais 8/9 não estão implementadas.
+- A tabela ROM de envelopes de ritmo, a duplicação de saída descrita pelo manual, a cadência do LFSR e o roteamento MO/RO permanecem pendentes.
+- Não há alteração no Scheduler, no banco agregado FM, no mixer ou no runtime SMS.
+
+**Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
+
+**Referência primária:** Yamaha YM2413 Application Manual, III-1-7 (Rhythm), III-1-8 (Instrument/Volume) e V-4 (Percussion Sound Synthesis): https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf. A alocação dos bits do registrador $0E também foi comparada com as notas de reverse engineering de andete: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16.
