@@ -96,6 +96,19 @@ pub struct Ym2413RhythmVoiceSample {
     pub output: i16,
 }
 
+/// Explicit phase-table addresses for one complete Rhythm Mode evaluation.
+///
+/// Phase generation remains caller-owned: HH, SD and TCY require the
+/// candidate phase combiners, while TOM uses its channel-9 modulator PG.
+/// Bass Drum derives both operator phases from the shared channel-7 pair.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmVoicePhases {
+    pub hi_hat: u16,
+    pub snare_drum: u16,
+    pub tom_tom: u16,
+    pub top_cymbal: u16,
+}
+
 /// Explicit startup state for one melodic channel's two operators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413ChannelInitialState {
@@ -426,6 +439,56 @@ impl Ym2413SynthesisBank {
         };
 
         Ok(Ym2413RhythmVoiceSample { voice, output })
+    }
+
+    /// Evaluate all five Rhythm Mode voices as one logical output batch.
+    ///
+    /// The four single-operator voices are evaluated first because they are
+    /// pure reads of the current PG/EG state. Bass Drum is evaluated last
+    /// because its two-operator path advances channel-7 feedback history.
+    /// The returned array uses stable logical order BD, HH, SD, TOM, TCY;
+    /// this order is not a claim about physical slot execution or DAC timing.
+    ///
+    /// No PG, EG, LFO, LFSR, slot, or chip-clock state advances here. The
+    /// caller must provide phase addresses and service every state machine
+    /// at independently established hardware boundaries.
+    pub fn evaluate_rhythm_voices(
+        &mut self,
+        configuration: &Ym2413RhythmSynthesisConfig,
+        phases: Ym2413RhythmVoicePhases,
+    ) -> Result<[Ym2413RhythmVoiceSample; 5], Ym2413SynthesisError> {
+        if !configuration.rhythm_mode_enabled {
+            return Err(Ym2413SynthesisError::RhythmModeDisabled);
+        }
+
+        let hi_hat = self.evaluate_rhythm_voice(
+            configuration,
+            Ym2413RhythmVoice::HiHat,
+            Some(phases.hi_hat),
+        )?;
+        let snare_drum = self.evaluate_rhythm_voice(
+            configuration,
+            Ym2413RhythmVoice::SnareDrum,
+            Some(phases.snare_drum),
+        )?;
+        let tom_tom = self.evaluate_rhythm_voice(
+            configuration,
+            Ym2413RhythmVoice::TomTom,
+            Some(phases.tom_tom),
+        )?;
+        let top_cymbal = self.evaluate_rhythm_voice(
+            configuration,
+            Ym2413RhythmVoice::TopCymbal,
+            Some(phases.top_cymbal),
+        )?;
+
+        // Bass Drum is the only evaluator in this batch that mutates state.
+        // Keep it last so a rejected phase/layout in another voice cannot
+        // leave the channel-7 feedback pipeline partially advanced.
+        let bass_drum =
+            self.evaluate_rhythm_voice(configuration, Ym2413RhythmVoice::BassDrum, None)?;
+
+        Ok([bass_drum, hi_hat, snare_drum, tom_tom, top_cymbal])
     }
 
     /// Apply the explicit CarrierDrivesBoth DAMP candidate after a carrier tick.
@@ -807,6 +870,87 @@ mod tests {
             .unwrap();
         assert_eq!(sample.voice, Ym2413RhythmVoice::BassDrum);
         assert_ne!(bank.feedback_history(6).unwrap(), before);
+    }
+
+    #[test]
+    fn rhythm_batch_returns_all_five_voices_in_stable_order_and_updates_bd_feedback_once() {
+        let config = rhythm_configuration();
+        let phases = super::Ym2413RhythmVoicePhases {
+            hi_hat: 0x134,
+            snare_drum: 0x200,
+            tom_tom: 0x2a1,
+            top_cymbal: 0x300,
+        };
+        let mut batch_bank =
+            Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        let mut direct_bank = batch_bank.clone();
+
+        let batch = batch_bank.evaluate_rhythm_voices(&config, phases).unwrap();
+        let direct = [
+            direct_bank
+                .evaluate_rhythm_voice(&config, Ym2413RhythmVoice::BassDrum, None)
+                .unwrap(),
+            direct_bank
+                .evaluate_rhythm_voice(
+                    &config,
+                    Ym2413RhythmVoice::HiHat,
+                    Some(phases.hi_hat),
+                )
+                .unwrap(),
+            direct_bank
+                .evaluate_rhythm_voice(
+                    &config,
+                    Ym2413RhythmVoice::SnareDrum,
+                    Some(phases.snare_drum),
+                )
+                .unwrap(),
+            direct_bank
+                .evaluate_rhythm_voice(
+                    &config,
+                    Ym2413RhythmVoice::TomTom,
+                    Some(phases.tom_tom),
+                )
+                .unwrap(),
+            direct_bank
+                .evaluate_rhythm_voice(
+                    &config,
+                    Ym2413RhythmVoice::TopCymbal,
+                    Some(phases.top_cymbal),
+                )
+                .unwrap(),
+        ];
+
+        assert_eq!(batch, direct);
+        assert_eq!(
+            batch.map(|sample| sample.voice),
+            [
+                Ym2413RhythmVoice::BassDrum,
+                Ym2413RhythmVoice::HiHat,
+                Ym2413RhythmVoice::SnareDrum,
+                Ym2413RhythmVoice::TomTom,
+                Ym2413RhythmVoice::TopCymbal,
+            ]
+        );
+        assert_eq!(batch_bank.export_state(), direct_bank.export_state());
+    }
+
+    #[test]
+    fn rhythm_batch_rejects_invalid_single_voice_phase_before_mutating_bd_feedback() {
+        let config = rhythm_configuration();
+        let phases = super::Ym2413RhythmVoicePhases {
+            hi_hat: 0x0400,
+            snare_drum: 0,
+            tom_tom: 0,
+            top_cymbal: 0,
+        };
+        let mut bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        let before = bank.export_state();
+
+        assert!(matches!(
+            bank.evaluate_rhythm_voices(&config, phases),
+            Err(Ym2413SynthesisError::RhythmVoice(_))
+        ));
+        assert_eq!(bank.export_state(), before);
     }
 
     #[test]
