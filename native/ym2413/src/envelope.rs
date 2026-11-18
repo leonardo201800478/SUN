@@ -332,8 +332,9 @@ impl EnvelopeGenerator {
             return;
         }
 
-        let increment = match rate / 4 {
-            0..=12 => {
+        let increment = match rate {
+            0..=3 => return,
+            4..=51 => {
                 let shift = 13 - (rate / 4);
                 let mask = (1_u32 << shift) - 1;
                 if counter & mask != 0 {
@@ -342,15 +343,8 @@ impl EnvelopeGenerator {
                 let column = ((counter >> shift) & 7) as usize;
                 EG_STEP_TABLE[(rate & 3) as usize][column]
             }
-            13 => {
-                let column = (((counter & 0x0c) >> 1) | (counter & 1)) as usize;
-                EG_STEP_TABLE[(rate & 3) as usize][column]
-            }
-            14 => {
-                let column = ((counter & 0x0c) >> 1) as usize;
-                EG_STEP_TABLE[(rate & 3) as usize][column] + 1
-            }
-            _ => 2,
+            52..=59 => EG_FAST_DECAY_TABLE[(rate - 52) as usize][(counter & 0x0f) as usize],
+            60..=63 => 2,
         };
         self.level = self
             .level
@@ -391,7 +385,21 @@ impl EnvelopeGenerator {
     }
 }
 
-/// Measured eight-step rate selector for attack and decay timing.
+/// Measured 16-step decay selectors for effective rates 52..59.
+/// These reproduce the measured level-step sequences; they do not imply that
+/// the physical chip contains literal ROM tables.
+const EG_FAST_DECAY_TABLE: [[u8; 16]; 8] = [
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1],
+    [0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1],
+    [0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1],
+    [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1],
+];
+
+/// Measured eight-step rate selector for slow attack and decay timing.
 const EG_STEP_TABLE: [[u8; 8]; 4] = [
     [0, 1, 0, 1, 0, 1, 0, 1],
     [0, 1, 0, 1, 1, 1, 0, 1],
@@ -489,6 +497,40 @@ mod tests {
         p.attack_rate = 15;
         eg.tick(0, true, true, p).unwrap();
         assert_eq!(eg.level(), 64);
+    }
+
+    #[test]
+    fn fast_decay_rates_52_to_59_match_measured_sixteen_step_sequences() {
+        const EXPECTED: [[u8; 16]; 8] = [
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1],
+            [0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1],
+            [0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1],
+            [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1],
+        ];
+
+        for (offset, expected) in EXPECTED.iter().enumerate() {
+            let rate = 52 + offset as u8;
+            let mut generator = eg(0);
+            generator.stage = EnvelopeStage::Decay;
+            generator.key_on = true;
+            let mut p = params();
+            p.decay_rate = rate / 4;
+            p.block = (rate % 4) * 2;
+            p.fnum = 0;
+            for (counter, expected_increment) in expected.iter().enumerate() {
+                let before = generator.level();
+                generator.tick(counter as u32, true, true, p).unwrap();
+                assert_eq!(
+                    generator.level() - before,
+                    *expected_increment,
+                    "effective rate {rate}, counter {counter}"
+                );
+            }
+        }
     }
 
     #[test]
