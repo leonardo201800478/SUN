@@ -61,7 +61,7 @@ pub use rhythm::{
 };
 pub use rhythm_channel::{
     RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
-    Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
+    RhythmVoiceSynthesisError, Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
 };
 pub use slot::{
     YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,

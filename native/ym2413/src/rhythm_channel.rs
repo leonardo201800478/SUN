@@ -11,6 +11,10 @@ use crate::instrument::{
     InstrumentPatch, OperatorPatch, Ym2413RhythmInstrument, rhythm_patch_candidate,
 };
 use crate::key_scale::{KeyScaleError, key_scale_attenuation};
+use crate::operator::{
+    OperatorPairError, OperatorPairParameters, SingleOperatorCarrierParameters,
+    evaluate_single_operator_as_carrier,
+};
 use crate::rhythm::{Ym2413RhythmChannelFrequency, Ym2413RhythmConfig, decode_rhythm_registers};
 use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
 
@@ -66,6 +70,117 @@ pub struct RhythmVoiceSynthesisConfig {
     pub single_operator_uses_carrier_path: bool,
     /// Candidate feedback setting (meaningful for the two-operator BD voice).
     pub feedback: u8,
+}
+
+/// Errors raised while evaluating the current operator inputs of one rhythm voice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RhythmVoiceSynthesisError {
+    /// The requested evaluator does not match this voice's physical operator layout.
+    InvalidOperatorLayout { voice: Ym2413RhythmVoice },
+    /// The existing digital operator evaluator rejected one of its inputs.
+    Operator(OperatorPairError),
+}
+
+impl From<OperatorPairError> for RhythmVoiceSynthesisError {
+    fn from(value: OperatorPairError) -> Self {
+        Self::Operator(value)
+    }
+}
+
+impl RhythmVoiceSynthesisConfig {
+    /// Build the carrier-path inputs for a one-operator rhythm voice.
+    ///
+    /// The physical operator may occupy either the modulator or carrier slot;
+    /// its amplitude is nevertheless evaluated through the carrier path.
+    /// Envelope level and AM level are current dynamic values supplied by the
+    /// caller. This method does not advance either generator.
+    pub fn single_operator_parameters(
+        &self,
+        envelope_level: u8,
+        am_level: u8,
+    ) -> Result<SingleOperatorCarrierParameters, RhythmVoiceSynthesisError> {
+        if !self.single_operator_uses_carrier_path {
+            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
+        }
+        let operator = match (self.modulator, self.carrier) {
+            (Some(operator), None) | (None, Some(operator)) => operator,
+            _ => {
+                return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
+            }
+        };
+        let parameters = SingleOperatorCarrierParameters {
+            volume: self.volume,
+            ksl: operator.ksl,
+            envelope: envelope_level,
+            am: if operator.patch.am_enabled {
+                am_level
+            } else {
+                0
+            },
+            half_wave: operator.patch.half_wave,
+        };
+        parameters.validate()?;
+        Ok(parameters)
+    }
+
+    /// Evaluate one single-operator rhythm voice at a caller-supplied PG phase.
+    ///
+    /// The phase index and EG/AM values must already represent the correct
+    /// hardware slot boundary. No PG, EG, LFSR, feedback or chip time advances.
+    pub fn evaluate_single_operator(
+        &self,
+        phase_index: u16,
+        envelope_level: u8,
+        am_level: u8,
+    ) -> Result<i16, RhythmVoiceSynthesisError> {
+        let parameters = self.single_operator_parameters(envelope_level, am_level)?;
+        Ok(evaluate_single_operator_as_carrier(
+            phase_index,
+            parameters,
+        )?)
+    }
+
+    /// Build the normal two-operator FM inputs for the Bass Drum voice.
+    ///
+    /// The caller supplies the current EG levels and AM-LFO value. The returned
+    /// parameters can be passed to the existing stateful OperatorPair; this
+    /// builder itself does not mutate feedback history or advance chip time.
+    pub fn bass_drum_operator_pair_parameters(
+        &self,
+        modulator_envelope: u8,
+        carrier_envelope: u8,
+        am_level: u8,
+    ) -> Result<OperatorPairParameters, RhythmVoiceSynthesisError> {
+        if self.voice != Ym2413RhythmVoice::BassDrum {
+            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
+        }
+        let (Some(modulator), Some(carrier)) = (self.modulator, self.carrier) else {
+            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
+        };
+        let parameters = OperatorPairParameters {
+            feedback: self.feedback,
+            modulator_total_level: modulator.patch.total_level,
+            modulator_ksl: modulator.ksl,
+            modulator_envelope,
+            modulator_am: if modulator.patch.am_enabled {
+                am_level
+            } else {
+                0
+            },
+            modulator_half_wave: modulator.patch.half_wave,
+            carrier_volume: self.volume,
+            carrier_ksl: carrier.ksl,
+            carrier_envelope,
+            carrier_am: if carrier.patch.am_enabled {
+                am_level
+            } else {
+                0
+            },
+            carrier_half_wave: carrier.patch.half_wave,
+        };
+        parameters.validate()?;
+        Ok(parameters)
+    }
 }
 
 /// Static configuration of all five Rhythm Mode voices.
@@ -343,6 +458,86 @@ mod tests {
         assert_eq!(sd.carrier.unwrap().patch.multiplier, 1);
         assert_eq!(tom.modulator.unwrap().patch.multiplier, 5);
         assert_eq!(tcy.carrier.unwrap().patch.multiplier, 1);
+    }
+
+    #[test]
+    fn single_operator_parameter_builder_uses_voice_volume_and_carrier_scaling() {
+        let config = decode_rhythm_synthesis(&configured_registers()).unwrap();
+        let hh = config.voices[1];
+        let operator = hh.modulator.unwrap();
+        let parameters = hh.single_operator_parameters(37, 13).unwrap();
+        assert_eq!(parameters.volume, hh.volume);
+        assert_eq!(parameters.ksl, operator.ksl);
+        assert_eq!(parameters.envelope, 37);
+        assert_eq!(parameters.am, 0);
+        assert_eq!(parameters.half_wave, operator.patch.half_wave);
+
+        let mut am_enabled = hh;
+        let mut physical_operator = operator;
+        physical_operator.patch.am_enabled = true;
+        am_enabled.modulator = Some(physical_operator);
+        assert_eq!(
+            am_enabled.single_operator_parameters(37, 11).unwrap().am,
+            11
+        );
+    }
+
+    #[test]
+    fn single_operator_evaluator_reuses_the_shared_carrier_path() {
+        use crate::operator::evaluate_single_operator_as_carrier;
+
+        let config = decode_rhythm_synthesis(&configured_registers()).unwrap();
+        let voice = config.voices[3];
+        let parameters = voice.single_operator_parameters(29, 7).unwrap();
+        assert_eq!(
+            voice.evaluate_single_operator(0x155, 29, 7),
+            evaluate_single_operator_as_carrier(0x155, parameters)
+                .map_err(super::RhythmVoiceSynthesisError::from)
+        );
+        assert_eq!(
+            voice.single_operator_parameters(128, 0),
+            Err(super::RhythmVoiceSynthesisError::Operator(
+                crate::operator::OperatorPairError::InvalidEnvelope(128)
+            ))
+        );
+    }
+
+    #[test]
+    fn bass_drum_builder_produces_normal_two_operator_fm_parameters() {
+        let config = decode_rhythm_synthesis(&configured_registers()).unwrap();
+        let bd = config.voices[0];
+        let modulator = bd.modulator.unwrap();
+        let carrier = bd.carrier.unwrap();
+        let parameters = bd.bass_drum_operator_pair_parameters(23, 41, 9).unwrap();
+        assert_eq!(parameters.feedback, bd.feedback);
+        assert_eq!(
+            parameters.modulator_total_level,
+            modulator.patch.total_level
+        );
+        assert_eq!(parameters.modulator_ksl, modulator.ksl);
+        assert_eq!(parameters.modulator_envelope, 23);
+        assert_eq!(parameters.modulator_am, 0);
+        assert_eq!(parameters.carrier_volume, bd.volume);
+        assert_eq!(parameters.carrier_ksl, carrier.ksl);
+        assert_eq!(parameters.carrier_envelope, 41);
+        assert_eq!(parameters.carrier_am, 0);
+    }
+
+    #[test]
+    fn rhythm_voice_evaluators_reject_incompatible_operator_layouts() {
+        let config = decode_rhythm_synthesis(&configured_registers()).unwrap();
+        assert_eq!(
+            config.voices[0].single_operator_parameters(10, 0),
+            Err(super::RhythmVoiceSynthesisError::InvalidOperatorLayout {
+                voice: Ym2413RhythmVoice::BassDrum,
+            })
+        );
+        assert_eq!(
+            config.voices[1].bass_drum_operator_pair_parameters(10, 10, 0),
+            Err(super::RhythmVoiceSynthesisError::InvalidOperatorLayout {
+                voice: Ym2413RhythmVoice::HiHat,
+            })
+        );
     }
 
     #[test]

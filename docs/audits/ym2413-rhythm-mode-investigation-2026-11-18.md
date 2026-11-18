@@ -249,3 +249,8 @@ Nenhum código GPL foi copiado. As referências de software acima servem somente
 O módulo `rhythm_channel` passa a compor os dados já decodificados em `rhythm.rs` com os patches candidatos e a tabela de slots. A configuração resultante identifica os operadores físicos: BD (canal 7, slots 13/16), HH (canal 8, slot 14), TOM (canal 9, slot 15), SD (canal 8, slot 17) e TCY (canal 9, slot 18). Os quatro sons de operador único usam o avaliador de saída carrier por contrato explícito, ainda que HH/TOM ocupem slots fisicamente classificados como modulator.
 
 O decoder conserva os bits KEY-ON melódicos e SUS sem tentar resolver a divergência entre o manual e as notas de captura sobre a combinação dos KEY-ON com triggers $0E. Os patches continuam candidatos não verificados. Esta etapa não executa PG/EG, não avança o LFSR e não sintetiza áudio.
+
+
+## Ponte de avaliação dos operadores rítmicos (2026-11-18)
+
+As configurações estáticas agora podem montar os parâmetros dinâmicos do avaliador carrier para HH/SD/TOM/TCY e os parâmetros normais do par FM para BD. Fase, EG e AM continuam sendo valores de entrada fornecidos pelo chamador; nenhum estado PG/EG/LFSR ou feedback é avançado por esses builders. O par BD ainda deve ser avaliado pelo `OperatorPair` com seu estado de feedback preservado. Esta ponte valida composição aritmética, não timing, pipeline serial ou PCM.
