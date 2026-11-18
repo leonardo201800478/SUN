@@ -8,7 +8,7 @@
 use crate::envelope::EnvelopeParameters;
 use crate::instrument::{
     ChannelRegisterState, InstrumentError, InstrumentPatch, OperatorPatch,
-    decode_channel_registers, decode_user_patch, resolve_instrument,
+    decode_channel_registers, decode_user_patch, resolve_instrument, rhythm_mode_enabled,
 };
 use crate::key_scale::{KeyScaleError, key_scale_attenuation};
 use crate::operator::{OperatorPairError, OperatorPairParameters};
@@ -21,6 +21,8 @@ pub enum ChannelSynthesisError {
     Instrument(InstrumentError),
     /// The decoded BLOCK/FNUM/KSL tuple could not be represented.
     KeyScale(KeyScaleError),
+    /// Rhythm Mode owns channels 7–9; they are not melodic channels in this mode.
+    RhythmModeActive { channel: u8 },
 }
 
 impl From<InstrumentError> for ChannelSynthesisError {
@@ -165,13 +167,16 @@ fn phase_parameters(
 ///
 /// Instrument code 0 selects the live user patch in registers $00-$07.
 /// Codes 1..15 select the repository's explicitly candidate preset bank.
-/// This function does not interpret Rhythm Mode; channels 7..9 must not be
-/// routed through this melodic path while Rhythm Mode is active.
+/// Channels 7..9 are rejected while Rhythm Mode is active because those
+/// channel resources are assigned to rhythm voices rather than melodic FM.
 pub fn decode_channel_synthesis(
     registers: &[u8; 64],
     channel: u8,
 ) -> Result<ChannelSynthesisConfig, ChannelSynthesisError> {
     let channel_registers = decode_channel_registers(registers, channel)?;
+    if channel >= 6 && rhythm_mode_enabled(registers) {
+        return Err(ChannelSynthesisError::RhythmModeActive { channel });
+    }
     let user_patch = decode_user_patch(registers);
     let patch = resolve_instrument(channel_registers.instrument, user_patch)?;
 
@@ -273,6 +278,19 @@ mod tests {
             resolve_instrument(16, user_patch),
             Err(InstrumentError::InvalidPreset(16))
         );
+    }
+
+    #[test]
+    fn rhythm_mode_rejects_melodic_resolution_for_channels_seven_to_nine() {
+        let mut registers = registers_for_channel(6, 1);
+        registers[0x0e] = 0x20;
+        for channel in 6..=8 {
+            assert_eq!(
+                decode_channel_synthesis(&registers, channel),
+                Err(ChannelSynthesisError::RhythmModeActive { channel })
+            );
+        }
+        assert!(decode_channel_synthesis(&registers, 5).is_ok());
     }
 
     #[test]

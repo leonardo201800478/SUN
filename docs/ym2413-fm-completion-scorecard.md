@@ -170,3 +170,50 @@ Foi adicionado `native/ym2413/src/channel.rs`, uma camada pura de resolução en
 - Seleção de MULTI e PM no cálculo de incremento de fase.
 
 **Estado:** FM-4 permanece PARCIAL. Esta entrega fecha somente a ponte estática de parâmetros; o próximo marco funcional é o pipeline agregado dos 18 slots, ainda sem declarar temporização física fechada.
+
+
+---
+
+## Atualização FM-4 — PR #1008 integrada
+
+- PR #1008: feat(ym2413): connect channel patches to synthesis parameters
+- Merge commit: c1b0ce50d1219bd97197901d2617b4f49f75b88e
+- CI #44276258963: SUCCESS.
+- Formatação, Clippy, testes unitários/integração do workspace e feature observability: SUCCESS.
+- Gates de Scheduler, PSG, CPAL, SMS, SDL3, Z80 e desktop: SKIPPED por não serem afetados.
+- A resolução melódica rejeita canais 7–9 quando RHYTHM está ativo.
+
+A ponte de parâmetros está integrada, mas FM-4 continua PARCIAL: presets candidatos não foram validados em hardware e os parâmetros ainda precisam ser exercitados pelo pipeline agregado.
+
+## Atualização FM-5 — banco agregado digital (em validação)
+
+**Branch:** feat/ym2413-aggregate-synthesis-bank
+
+Foi iniciado native/ym2413/src/synthesis.rs, que agrega:
+
+- 18 acumuladores PG independentes;
+- 18 geradores EG independentes;
+- nove históricos de feedback modulator/carrier;
+- um contador PM LFO e uma fase AM LFO globais;
+- snapshot agregado versionado de todos os estados acima.
+
+### Contrato preservado
+
+- Fases PG, níveis/estágios/key states EG, feedback e fases iniciais dos LFOs são parâmetros explícitos; nenhum reset físico é inventado.
+- A atualização PG e EG é feita por operador, permitindo que o futuro adaptador forneça a ordem de slots pesquisada.
+- O contador global do EG continua externo e é fornecido em cada tick.
+- A coordenação DAMP CarrierDrivesBoth permanece uma operação explícita, não automática.
+- A avaliação modulator/carrier consome os estados PG/EG já atualizados e não avança clocks.
+- O banco não implementa rotação de slots, PCM contínuo, mixer, portas SMS ou Scheduler.
+- O avanço dos LFOs é explícito e recebe amostras concluídas externamente.
+
+### Testes adicionados — aguardando CI
+
+- Retenção dos 18 PGs e 18 EGs a partir de condições iniciais explícitas.
+- Atualizações individuais PG/EG e avaliação de canal determinística.
+- Avanço compartilhado dos LFOs independente da partição em blocos.
+- Snapshot/restore de todos os estados locais e globais.
+- Rejeição de versão/counter LFO inválidos e PG fora da faixa.
+- Proteção contra resolver canais de ritmo como canais melódicos.
+
+**Estado:** FM-5 PARCIAL. A agregação de estado não equivale à implementação da sequência física de 18 slots nem à geração de PCM FM.

@@ -11,6 +11,7 @@ pub mod key_scale;
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
+pub mod synthesis;
 pub mod synthesis_tables;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
@@ -46,6 +47,11 @@ pub use pm_lfo::{
     PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState,
     YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
     YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
+};
+pub use synthesis::{
+    YM2413_MELODIC_CHANNELS, YM2413_OPERATORS_PER_CHANNEL, YM2413_SYNTHESIS_STATE_VERSION,
+    Ym2413ChannelInitialState, Ym2413ChannelSynthesisState, Ym2413SynthesisBank,
+    Ym2413SynthesisBankState, Ym2413SynthesisError, Ym2413SynthesisInitialState,
 };
 pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 
