@@ -165,7 +165,12 @@ pub fn resolve_instrument(
 
 /// Return the candidate preset patch for instrument code 1..15.
 pub fn preset_patch(instrument: u8) -> Result<InstrumentPatch, InstrumentError> {
-    resolve_instrument(instrument, decode_patch_registers([0; 8]))
+    if instrument == 0 || instrument > 15 {
+        return Err(InstrumentError::InvalidPreset(instrument));
+    }
+    Ok(decode_patch_registers(
+        YM2413_PRESET_PATCHES_CANDIDATE[(instrument - 1) as usize],
+    ))
 }
 
 /// Return the human-readable name for instrument code 1..15.
