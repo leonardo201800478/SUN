@@ -361,8 +361,8 @@ impl Ym2413SynthesisBank {
         let voice_config = match voice {
             Ym2413RhythmVoice::BassDrum => &configuration.voices[0],
             Ym2413RhythmVoice::HiHat => &configuration.voices[1],
-            Ym2413RhythmVoice::TomTom => &configuration.voices[2],
-            Ym2413RhythmVoice::SnareDrum => &configuration.voices[3],
+            Ym2413RhythmVoice::SnareDrum => &configuration.voices[2],
+            Ym2413RhythmVoice::TomTom => &configuration.voices[3],
             Ym2413RhythmVoice::TopCymbal => &configuration.voices[4],
         };
         if voice_config.voice != voice {
@@ -770,8 +770,8 @@ mod tests {
         for (voice, phase_index) in phases {
             let index = match voice {
                 Ym2413RhythmVoice::HiHat => 1,
-                Ym2413RhythmVoice::TomTom => 2,
-                Ym2413RhythmVoice::SnareDrum => 3,
+                Ym2413RhythmVoice::TomTom => 3,
+                Ym2413RhythmVoice::SnareDrum => 2,
                 Ym2413RhythmVoice::TopCymbal => 4,
                 Ym2413RhythmVoice::BassDrum => unreachable!(),
             };
