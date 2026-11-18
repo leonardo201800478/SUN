@@ -364,6 +364,9 @@ impl Ym2413SynthesisBank {
             Ym2413RhythmVoice::SnareDrum => &configuration.voices[3],
             Ym2413RhythmVoice::TopCymbal => &configuration.voices[4],
         };
+        if voice_config.voice != voice {
+            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
+        }
         let am_level = self.am_lfo.current_value();
 
         let output = if voice == Ym2413RhythmVoice::BassDrum {
@@ -375,7 +378,8 @@ impl Ym2413SynthesisBank {
             else {
                 return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
             };
-            if modulator.physical_role != Ym2413Operator::Modulator
+            if voice_config.single_operator_uses_carrier_path
+                || modulator.physical_role != Ym2413Operator::Modulator
                 || carrier.physical_role != Ym2413Operator::Carrier
                 || modulator.physical_channel != carrier.physical_channel
             {
@@ -399,14 +403,18 @@ impl Ym2413SynthesisBank {
             let phase_index = phase_index.ok_or(
                 RhythmVoiceSynthesisError::MissingPhaseInput { voice },
             )?;
-            let operator = match (voice_config.modulator, voice_config.carrier) {
-                (Some(operator), None) | (None, Some(operator)) => operator,
+            let (operator, expected_role) = match (voice_config.modulator, voice_config.carrier) {
+                (Some(operator), None) => (operator, Ym2413Operator::Modulator),
+                (None, Some(operator)) => (operator, Ym2413Operator::Carrier),
                 _ => {
                     return Err(
                         RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into()
                     );
                 }
             };
+            if operator.physical_role != expected_role { 
+                return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
+            }
             if !voice_config.single_operator_uses_carrier_path {
                 return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
             }
@@ -708,6 +716,28 @@ mod tests {
             initial.channels[channel].envelope_key_on = [true; 2];
         }
         initial
+    }
+
+    #[test]
+    fn rhythm_envelope_helper_maps_the_physical_slot_to_shared_eg_state() {
+        let config = rhythm_configuration();
+        let operator = config.voices[1].modulator.unwrap();
+        let mut helper_bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        let mut direct_bank = helper_bank.clone();
+        let helper_level = helper_bank
+            .tick_rhythm_operator_envelope(&operator, true, 17)
+            .unwrap();
+        let direct_level = direct_bank
+            .tick_operator_envelope(
+                operator.physical_channel,
+                false,
+                true,
+                17,
+                operator.envelope,
+            )
+            .unwrap();
+        assert_eq!(helper_level, direct_level);
+        assert_eq!(helper_bank.export_state(), direct_bank.export_state());
     }
 
     #[test]
