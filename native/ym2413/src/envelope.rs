@@ -164,12 +164,24 @@ impl EnvelopeGenerator {
                 }
             }
             EnvelopeStage::Decay => {
-                self.advance_decay(
-                    global_counter,
-                    parameters.effective_rate(parameters.decay_rate),
-                );
+                // Evaluate the measured SL comparator before the next EG
+                // increment; SL=0 must stop at level zero.
                 if (self.level >> 3) == parameters.sustain_level {
                     self.stage = EnvelopeStage::Sustain;
+                    let base_rate = if parameters.sustained_tone {
+                        0
+                    } else {
+                        parameters.release_rate
+                    };
+                    self.advance_decay(global_counter, parameters.effective_rate(base_rate));
+                } else {
+                    self.advance_decay(
+                        global_counter,
+                        parameters.effective_rate(parameters.decay_rate),
+                    );
+                    if (self.level >> 3) == parameters.sustain_level {
+                        self.stage = EnvelopeStage::Sustain;
+                    }
                 }
             }
             EnvelopeStage::Sustain => {
@@ -351,6 +363,18 @@ mod tests {
         p.sustain_level = 4;
         eg.tick(0, true, true, p).unwrap();
         assert_eq!(eg.level(), 33);
+        assert_eq!(eg.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn sustain_level_zero_does_not_decay_past_zero() {
+        let mut eg = EnvelopeGenerator::with_level(0).unwrap();
+        eg.stage = EnvelopeStage::Decay;
+        let mut p = params();
+        p.decay_rate = 15;
+        p.sustain_level = 0;
+        eg.tick(0, true, true, p).unwrap();
+        assert_eq!(eg.level(), 0);
         assert_eq!(eg.stage(), EnvelopeStage::Sustain);
     }
 
