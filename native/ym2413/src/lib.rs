@@ -11,6 +11,7 @@ pub mod key_scale;
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
+pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
 pub use am_lfo::{
@@ -47,6 +48,10 @@ pub use pm_lfo::{
     PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState,
     YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
     YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
+};
+pub use slot::{
+    YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,
+    slot_descriptor,
 };
 pub use synthesis::{
     YM2413_MELODIC_CHANNELS, YM2413_OPERATORS_PER_CHANNEL, YM2413_SYNTHESIS_STATE_VERSION,
@@ -180,6 +185,15 @@ impl Ym2413Core {
         self.slot_index
     }
 
+    /// Describe the next serial operator slot without advancing the clock.
+    ///
+    /// The returned descriptor follows the Yamaha Table II-3 ordering. It
+    /// identifies channel/operator ownership only; PG, EG and operator stage
+    /// offsets are not inferred by this accessor.
+    pub const fn next_slot_descriptor(&self) -> Option<Ym2413SlotDescriptor> {
+        slot_descriptor(self.slot_index)
+    }
+
     /// Return input clocks accumulated within the current four-clock slot.
     pub const fn input_clock_phase(&self) -> u8 {
         self.input_clock_phase
@@ -280,7 +294,10 @@ impl Ym2413Core {
 
 #[cfg(test)]
 mod tests {
-    use super::{YM2413_INPUT_CLOCKS_PER_ROTATION, Ym2413Core, Ym2413Error, Ym2413State};
+    use super::{
+        YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413Error,
+        Ym2413State,
+    };
 
     #[test]
     fn address_latch_masks_to_six_bits() {
@@ -377,5 +394,20 @@ mod tests {
         assert_eq!(state.slot_index, 0);
         assert_eq!(state.elapsed_input_clocks, 0);
         assert_eq!(state.completed_rotations, 0);
+    }
+
+    #[test]
+    fn next_slot_descriptor_tracks_the_serial_clock_and_wraps_after_eighteen_slots() {
+        let mut core = Ym2413Core::new();
+
+        for expected_slot in 0..18_u8 {
+            let descriptor = core.next_slot_descriptor().unwrap();
+            assert_eq!(descriptor.slot_number, expected_slot + 1);
+            core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT)
+                .unwrap();
+        }
+
+        assert_eq!(core.slot_index(), 0);
+        assert_eq!(core.next_slot_descriptor().unwrap().slot_number, 1);
     }
 }
