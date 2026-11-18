@@ -133,7 +133,7 @@ impl EnvelopeGenerator {
             return Ok(self.level);
         }
 
-        if self.stage == EnvelopeStage::Damp && self.level >= 124 {
+        if is_carrier && self.stage == EnvelopeStage::Damp && self.level >= 124 {
             if parameters.attack_rate == 15 {
                 self.level = 0;
                 self.stage = EnvelopeStage::Decay;
@@ -145,7 +145,7 @@ impl EnvelopeGenerator {
         match self.stage {
             EnvelopeStage::Damp => {
                 self.advance_decay(global_counter, parameters.effective_rate(12));
-                if self.level >= 124 {
+                if is_carrier && self.level >= 124 {
                     if parameters.attack_rate == 15 {
                         self.level = 0;
                         self.stage = EnvelopeStage::Decay;
@@ -190,6 +190,19 @@ impl EnvelopeGenerator {
             }
         }
         Ok(self.level)
+    }
+
+    /// Synchronize the modulator's DAMP transition to the carrier.
+    ///
+    /// The measured model changes the modulator phase when the carrier leaves
+    /// DAMP, rather than letting the two operators independently choose their
+    /// transition boundary. Call this after the carrier update for that
+    /// sample; the owning operator pipeline is responsible for resetting both
+    /// PG phase accumulators at the corresponding boundary.
+    pub fn synchronize_damp_transition(&mut self, carrier: &Self) {
+        if self.stage == EnvelopeStage::Damp && carrier.stage != EnvelopeStage::Damp {
+            self.stage = carrier.stage;
+        }
     }
 
     /// Export all local state required to resume this EG.
@@ -343,6 +356,24 @@ mod tests {
         p.decay_rate = 15;
         eg.tick(1, true, true, p).unwrap();
         assert_eq!(eg.level(), 12);
+    }
+
+    #[test]
+    fn modulator_damp_transition_follows_carrier_boundary() {
+        let mut modulator = EnvelopeGenerator::with_level(127).unwrap();
+        let mut carrier = EnvelopeGenerator::with_level(127).unwrap();
+        let mut p = params();
+        p.attack_rate = 10;
+
+        // The modulator cannot independently leave DAMP.
+        modulator.tick(0, true, false, p).unwrap();
+        assert_eq!(modulator.stage(), EnvelopeStage::Damp);
+
+        // Carrier update owns the shared DAMP -> ATTACK transition.
+        carrier.tick(0, true, true, p).unwrap();
+        assert_eq!(carrier.stage(), EnvelopeStage::Attack);
+        modulator.synchronize_damp_transition(&carrier);
+        assert_eq!(modulator.stage(), EnvelopeStage::Attack);
     }
 
     #[test]
