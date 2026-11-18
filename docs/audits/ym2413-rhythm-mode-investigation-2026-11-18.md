@@ -53,7 +53,7 @@ O Bass Drum usa dois slots para produzir FM. O manual diz que sua síntese segue
 
 ### 3.2 Hi-Hat, Snare Drum, Tom-Tom e Top Cymbal
 
-O manual descreve um oscilador de ruído composto por um gerador de ruído branco e frequências derivadas das informações BLOCK, F-Number e MULTIPLE dos canais 8 e 9. A composição produz fases apropriadas para as quatro vozes e as entrega aos operadores correspondentes. O manual registra empiricamente uma relação ótima de frequência 3:1 entre os canais usados no exemplo.
+O manual descreve um oscilador de ruído composto por um gerador de ruído branco e frequências derivadas das informações BLOCK, F-Number e MULTIPLE dos canais 8 e 9. A composição produz fases apropriadas para as quatro vozes e as entrega aos operadores correspondentes. A transcrição inglesa do manual registra uma relação ótima empírica como `f7CH = 3 × f8CH`. Há uma ambiguidade nos rótulos: a frase anterior nomeia os canais 8 e 9 como fontes de frequência, enquanto a relação cita 7CH e 8CH. O exemplo de registradores do próprio manual ($16=$20, $17=$50, $18=$C0, $26=$05, $27=$05, $28=$01) deve ser preservado como vetor de configuração separado, não como prova de que essa razão 3:1 foi atendida. A ambiguidade precisa ser resolvida a partir do scan original ou de medição, sem normalização por suposição.
 
 O manual também informa que os envelopes de cada instrumento são armazenados em ROM, com uma atribuição de envelope por slot. O trecho consultado não fornece o conteúdo completo da ROM nem uma tabela de valores que permita reconstruí-la sem fonte adicional.
 
@@ -88,7 +88,6 @@ Essa implementação é útil para formular experimentos e vetores candidatos, m
 5. manter as equações como CANDIDATE até validação independente.
 
 Não transportar automaticamente para YM2413 as rotinas que o código identifica como “verified on real YM3812”.
-
 
 
 ## 5A. Top Cymbal — candidato combinacional isolado [C]
