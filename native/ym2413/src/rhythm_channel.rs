@@ -11,6 +11,10 @@ use crate::instrument::{
     InstrumentPatch, OperatorPatch, Ym2413RhythmInstrument, rhythm_patch_candidate,
 };
 use crate::key_scale::{KeyScaleError, key_scale_attenuation};
+use crate::operator::{
+    OperatorPairError, OperatorPairParameters, SingleOperatorCarrierParameters,
+    evaluate_single_operator_as_carrier,
+};
 use crate::rhythm::{Ym2413RhythmChannelFrequency, Ym2413RhythmConfig, decode_rhythm_registers};
 use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
 
