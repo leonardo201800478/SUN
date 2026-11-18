@@ -123,6 +123,14 @@ phase = (hh_bit8 << 9) OR ((hh_bit8 XOR noise) << 8)
 
 A atualização de andete registra que novas capturas confirmaram os dois estados de sinal nulo (+0 e -0). O crate implementa a função pura `snare_drum_phase_candidate`, recebendo o bit de ruído explicitamente.
 
+### 5.3A Caminho de saída dos operadores únicos [M]
+
+As notas de captura de Rhythm Mode indicam que, quando uma voz de percussão usa somente um operador, esse operador sempre atua como carrier, mesmo quando ocupa fisicamente um slot normalmente classificado como modulator. Isso se aplica a HH/mod7 e TOM/mod8, além de SD/car7 e TCY/car8.
+
+O caminho carrier usa atenuação `min(127, 8 × VOL + KSL + EG + AM)` e escala de saída `exponential_lookup >> 4`. O crate extraiu essa operação para `evaluate_single_operator_as_carrier`, reutilizando a mesma função dentro de `OperatorPair::evaluate`. Assim, as vozes rítmicas de um operador podem usar a mesma transformação de amplitude sem simular um modulator→carrier nem atualizar histórico de feedback.
+
+A função é apenas um avaliador digital puro. Não escolhe fase, não avança PG/EG, não aplica cadência LFSR e não decide o slot. Os testes comparam o resultado com a saída carrier do par FM quando o modulator está silencioso; isso valida a equivalência de software, não o roteamento do silício.
+
 ### 5.4 Tom-Tom [M]
 
 O Tom-Tom usa um único operador, mod8, com a fase normal do PG do canal físico 9. As capturas mostram que sua frequência varia com os registradores FNUM/BLOCK desse canal. Não há combinador de ruído documentado para TOM nas medições consultadas.
