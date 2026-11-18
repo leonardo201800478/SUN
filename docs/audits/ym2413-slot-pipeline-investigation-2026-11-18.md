@@ -135,6 +135,16 @@ A tabela abaixo é o máximo que a evidência permite afirmar hoje sem promover 
 
 Este contrato é deliberadamente parcial. Não implementar ainda a atualização de PG/EG/OP dentro do slot até que a ordem das subfases seja sustentada por evidência.
 
+## 5.1 Possível canal de diagnóstico interno (test mode)
+
+O manual Yamaha descreve um modo de barramento normalmente não utilizado no qual `CS=0`, `WE=1` e `A0=0` colocam dados de teste do OPLL nos pinos D0/D1. Isso é um fato documentado sobre a interface, mas o formato serial interno não está especificado no manual.
+
+Uma nota técnica de Nuke.YKT, reproduzida pelo arquivo de referência Silicon Prawn, propõe um formato para esse modo: D0 serializaria bits do PG de um operador e bits do EG de outro; D1 serializaria bits de um contador/fase. A própria nota marca a interpretação como **não verificada em hardware**.
+
+**Uso permitido:** incluir esse modo como experimento de instrumentação de baixo nível, após confirmar o comportamento em um YM2413 físico. Se validado, pode fornecer observabilidade direta de estados internos e reduzir a ambiguidade dos offsets PG/EG.
+
+**Uso proibido neste estágio:** implementar readback no emulador, assumir o formato de bits como especificação, ou usar a descrição de Nuke.YKT como prova. Primeiro é necessário capturar D0/D1 em múltiplos ciclos, comparar com saídas MO/RO e repetir após reset.
+
 ## 6. Plano experimental para fechar os offsets
 
 ### E1 — Captura de saída com resolução de clock
@@ -207,7 +217,7 @@ Nenhuma dessas questões deve ser fechada com base exclusiva em uma implementaç
 5. Andete, [ADSR transitions (2015-12-31)](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31): transições KEY/SUS/EG-TYP/DAMP.
 6. MSX Resource Center, [YM2413 reverse engineering progress](https://www.msx.org/photoshoots/ym2413-reverse-engineering-progress): medição de multiplexação MO/RO em 72 clocks e pulso ativo de três clocks por canal.
 7. [emu198x-yamaha-ym2413 documentation](https://docs.rs/emu198x-yamaha-ym2413/latest/emu198x_yamaha_ym2413/): descrição de pipeline com offsets e relação explícita com Nuked-OPLL 1.0.2. Referência secundária, não prova primária; não copiar código.
-8. [SMS Power YM2413 index](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes): índice cronológico das medições e das limitações do die shot FHB013.
+8. [SMS Power YM2413 index](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes): índice cronológico das medições e das limitações do die shot FHB013.\n9. [Silicon Prawn — YM2413 test data notes](https://siliconprawn.org/archive/doku.php?id=vendor:yamaha:opl2): hipótese de formato D0/D1 em test mode, explicitamente não verificada em hardware.
 
 ## 9. Resultado desta etapa
 
