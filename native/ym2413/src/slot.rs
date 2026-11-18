@@ -36,6 +36,90 @@ pub enum Ym2413RhythmVoice {
     TopCymbal,
 }
 
+/// Measured rhythm-output occurrence for one slot in the 18-slot rotation.
+///
+/// A repeated occurrence reuses the previously generated nine-bit percussion
+/// value from source_slot_index. This map records the observed positions only;
+/// it does not implement the physical delay register.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmOutputOccurrence {
+    /// Zero-based slot index in the 18-slot rotation.
+    pub slot_index: u8,
+    /// Percussion voice routed at this occurrence.
+    pub voice: Ym2413RhythmVoice,
+    /// True for the delayed second emission of this voice.
+    pub is_delayed_repeat: bool,
+    /// Zero-based slot index where the original voice value was generated.
+    pub source_slot_index: u8,
+}
+
+/// Rhythm-output occurrences measured by andete on a real YM2413.
+///
+/// The original voices are emitted at slots 13..17; their identical delayed
+/// copies appear at slots 0, 1, 2, 6 and 7 of the following rotation.
+pub const YM2413_RHYTHM_OUTPUT_MAP: [Ym2413RhythmOutputOccurrence; 10] = [
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 0,
+        voice: Ym2413RhythmVoice::HiHat,
+        is_delayed_repeat: true,
+        source_slot_index: 13,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 1,
+        voice: Ym2413RhythmVoice::TomTom,
+        is_delayed_repeat: true,
+        source_slot_index: 14,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 2,
+        voice: Ym2413RhythmVoice::BassDrum,
+        is_delayed_repeat: true,
+        source_slot_index: 15,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 6,
+        voice: Ym2413RhythmVoice::SnareDrum,
+        is_delayed_repeat: true,
+        source_slot_index: 16,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 7,
+        voice: Ym2413RhythmVoice::TopCymbal,
+        is_delayed_repeat: true,
+        source_slot_index: 17,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 13,
+        voice: Ym2413RhythmVoice::HiHat,
+        is_delayed_repeat: false,
+        source_slot_index: 13,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 14,
+        voice: Ym2413RhythmVoice::TomTom,
+        is_delayed_repeat: false,
+        source_slot_index: 14,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 15,
+        voice: Ym2413RhythmVoice::BassDrum,
+        is_delayed_repeat: false,
+        source_slot_index: 15,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 16,
+        voice: Ym2413RhythmVoice::SnareDrum,
+        is_delayed_repeat: false,
+        source_slot_index: 16,
+    },
+    Ym2413RhythmOutputOccurrence {
+        slot_index: 17,
+        voice: Ym2413RhythmVoice::TopCymbal,
+        is_delayed_repeat: false,
+        source_slot_index: 17,
+    },
+];
+
 /// Static assignment of one serial slot.
 ///
 /// 'channel' is zero-based to match the public channel-indexing APIs in this
@@ -237,6 +321,34 @@ mod tests {
                 .iter()
                 .all(|descriptor| descriptor.rhythm_voice.is_none())
         );
+    }
+
+    #[test]
+    fn rhythm_output_map_matches_measured_original_and_repeat_slots() {
+        use super::{YM2413_RHYTHM_OUTPUT_MAP, Ym2413RhythmVoice};
+
+        let expected = [
+            (0, Ym2413RhythmVoice::HiHat, true, 13),
+            (1, Ym2413RhythmVoice::TomTom, true, 14),
+            (2, Ym2413RhythmVoice::BassDrum, true, 15),
+            (6, Ym2413RhythmVoice::SnareDrum, true, 16),
+            (7, Ym2413RhythmVoice::TopCymbal, true, 17),
+            (13, Ym2413RhythmVoice::HiHat, false, 13),
+            (14, Ym2413RhythmVoice::TomTom, false, 14),
+            (15, Ym2413RhythmVoice::BassDrum, false, 15),
+            (16, Ym2413RhythmVoice::SnareDrum, false, 16),
+            (17, Ym2413RhythmVoice::TopCymbal, false, 17),
+        ];
+
+        assert_eq!(YM2413_RHYTHM_OUTPUT_MAP.len(), expected.len());
+        for (actual, (slot, voice, repeated, source)) in
+            YM2413_RHYTHM_OUTPUT_MAP.into_iter().zip(expected)
+        {
+            assert_eq!(actual.slot_index, slot);
+            assert_eq!(actual.voice, voice);
+            assert_eq!(actual.is_delayed_repeat, repeated);
+            assert_eq!(actual.source_slot_index, source);
+        }
     }
 
     #[test]
