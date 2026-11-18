@@ -414,3 +414,13 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 - Testes cobrem mapeamento das cinco vozes, slots, papéis, triggers, volumes, frequência, KEY-ON/SUS, seleção de patches e RHY desligado.
 
 **Estado:** decoder/configuração estática implementado. Nenhuma voz produz PCM; PG/EG ainda não foram conectados ao caminho de avaliação rítmica e não há pipeline temporal.
+
+
+## FM-7 — ponte para avaliação dos operadores rítmicos (2026-11-18)
+
+- `RhythmVoiceSynthesisConfig::single_operator_parameters` transforma volume, KSL, EG, AM e half-wave nos parâmetros do avaliador carrier já compartilhado.
+- `evaluate_single_operator` consome fase e níveis dinâmicos fornecidos pelo chamador, sem avançar PG/EG/LFSR ou estado temporal.
+- `bass_drum_operator_pair_parameters` monta os parâmetros do par FM de BD, preservando TL, feedback, KSL, volume e controles AM/half-wave; a mutação do histórico continua pertencendo a `OperatorPair`.
+- Testes cobrem seleção do caminho carrier, AM enable, validação de níveis, avaliação equivalente ao helper compartilhado e parâmetros BD.
+
+**Estado:** ponte digital pura concluída; a origem/cadência de fase e EG por slot, integração do LFSR e pipeline de áudio continuam pendentes.
