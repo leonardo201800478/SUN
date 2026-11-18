@@ -27,15 +27,15 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 
 | Etapa | Estado | Entrega existente | Pendência para conclusão |
 |---|---|---|---|
-| FM-0 — Auditoria e consolidação | <badge color="success">Concluída</badge> | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
-| FM-1 — PG e EG | <badge color="warning">Parcial</badge> | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; 17 testes EG | Integrar 18 EGs ao pipeline de operadores; resolver contratos de update; integrar snapshot ao estado agregado; validar transições com vetores independentes |
-| FM-2 — Operadores e síntese FM | <badge color="secondary">Pendente</badge> | Nenhum operador FM completo | Modulator/carrier, feedback, Log-Sine, EXP, waveform, saturação e PCM |
-| FM-3 — LFO e modulação | <badge color="warning">Parcial</badge> | Contador PM global e tabela PM 8×8 | AM LFO; conectar PM/AM aos operadores; comprovar fase e cadência |
-| FM-4 — Instrumentos | <badge color="secondary">Pendente</badge> | Decodificação de registradores já existente na fundação | Instrumento usuário; ROM de 15 instrumentos; parâmetros e validação dos nove canais melódicos |
-| FM-5 — Rhythm Mode | <badge color="secondary">Pendente</badge> | Nenhum gerador de ritmo integrado | Cinco vozes, seis slots, noise LFSR, volumes e temporização |
-| FM-6 — Scheduler | <badge color="secondary">Pendente</badge> | Core tem avanço de input clocks e rotação de 72 clocks | Clock domain, ordem dos slots, sample counter compartilhado, escritas temporalmente ordenadas e equivalência contínuo/blocos |
-| FM-7 — Hardware SMS | <badge color="secondary">Pendente</badge> | Nenhuma porta FM conectada | Portas F0–F2, latch, barramento, perfis Mark III/FM Unit/MK-2000/exportação e FM Auto/Off/On |
-| FM-8 — Áudio e validação final | <badge color="secondary">Pendente</badge> | Nenhuma saída PCM FM integrada | Mixer FM+PSG, resampling, clipping, continuidade, Save States agregados, regressões SMS/SG-1000 e testes com ROMs |
+| FM-0 — Auditoria e consolidação | **Concluída** | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
+| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; 17 testes EG | Integrar 18 EGs ao pipeline de operadores; resolver contratos de update; integrar snapshot ao estado agregado; validar transições com vetores independentes |
+| FM-2 — Operadores e síntese FM | **Pendente** | Nenhum operador FM completo | Modulator/carrier, feedback, Log-Sine, EXP, waveform, saturação e PCM |
+| FM-3 — LFO e modulação | **Parcial** | Contador PM global e tabela PM 8×8 | AM LFO; conectar PM/AM aos operadores; comprovar fase e cadência |
+| FM-4 — Instrumentos | **Pendente** | Decodificação de registradores já existente na fundação | Instrumento usuário; ROM de 15 instrumentos; parâmetros e validação dos nove canais melódicos |
+| FM-5 — Rhythm Mode | **Pendente** | Nenhum gerador de ritmo integrado | Cinco vozes, seis slots, noise LFSR, volumes e temporização |
+| FM-6 — Scheduler | **Pendente** | Core tem avanço de input clocks e rotação de 72 clocks | Clock domain, ordem dos slots, sample counter compartilhado, escritas temporalmente ordenadas e equivalência contínuo/blocos |
+| FM-7 — Hardware SMS | **Pendente** | Nenhuma porta FM conectada | Portas F0–F2, latch, barramento, perfis Mark III/FM Unit/MK-2000/exportação e FM Auto/Off/On |
+| FM-8 — Áudio e validação final | **Pendente** | Nenhuma saída PCM FM integrada | Mixer FM+PSG, resampling, clipping, continuidade, Save States agregados, regressões SMS/SG-1000 e testes com ROMs |
 
 ## Inventário funcional atual
 
