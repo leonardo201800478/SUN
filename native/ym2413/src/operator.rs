@@ -461,9 +461,7 @@ mod tests {
         pair_parameters.carrier_half_wave = true;
 
         let phase_index = 0x135;
-        let pair_sample = pair
-            .evaluate(0x222, phase_index, pair_parameters)
-            .unwrap();
+        let pair_sample = pair.evaluate(0x222, phase_index, pair_parameters).unwrap();
         let single_output = evaluate_single_operator_as_carrier(
             phase_index,
             SingleOperatorCarrierParameters {
@@ -490,17 +488,32 @@ mod tests {
             am: 0,
             half_wave: false,
         };
-        assert_eq!(evaluate_single_operator_as_carrier(0x100, parameters), Ok(0));
+        assert_eq!(
+            evaluate_single_operator_as_carrier(0x100, parameters),
+            Ok(0)
+        );
         assert_eq!(
             evaluate_single_operator_as_carrier(0x400, parameters),
             Err(OperatorPairError::InvalidPhaseIndex(0x400))
         );
 
         for invalid in [
-            SingleOperatorCarrierParameters { volume: 16, ..parameters },
-            SingleOperatorCarrierParameters { ksl: 113, ..parameters },
-            SingleOperatorCarrierParameters { envelope: 128, ..parameters },
-            SingleOperatorCarrierParameters { am: 14, ..parameters },
+            SingleOperatorCarrierParameters {
+                volume: 16,
+                ..parameters
+            },
+            SingleOperatorCarrierParameters {
+                ksl: 113,
+                ..parameters
+            },
+            SingleOperatorCarrierParameters {
+                envelope: 128,
+                ..parameters
+            },
+            SingleOperatorCarrierParameters {
+                am: 14,
+                ..parameters
+            },
         ] {
             assert!(evaluate_single_operator_as_carrier(0, invalid).is_err());
         }
