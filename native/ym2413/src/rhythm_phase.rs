@@ -272,19 +272,16 @@ mod tests {
         // m72, m77, m73, c85, c83.
         // This is a behavioral regression fixture, not a reset-phase proof.
         const EXPECTED_MIX: [bool; 32] = [
-            false, true, true, false, true, true, true, true,
-            true, true, true, true, true, true, true, true,
-            true, true, true, true, true, true, true, true,
-            true, true, true, true, false, true, true, false,
+            false, true, true, false, true, true, true, true, true, true, true, true, true, true,
+            true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+            false, true, true, false,
         ];
 
         for (input, expected) in EXPECTED_MIX.into_iter().enumerate() {
             let input = input as u16;
-            let mod_phase = ((input & 0x01) << 2)
-                | (((input >> 1) & 1) << 7)
-                | (((input >> 2) & 1) << 3);
-            let carrier_phase = (((input >> 3) & 1) << 5)
-                | (((input >> 4) & 1) << 3);
+            let mod_phase =
+                ((input & 0x01) << 2) | (((input >> 1) & 1) << 7) | (((input >> 2) & 1) << 3);
+            let carrier_phase = (((input >> 3) & 1) << 5) | (((input >> 4) & 1) << 3);
 
             assert_eq!(
                 rhythm_phase_mix_bit_candidate(mod_phase, carrier_phase),
