@@ -319,22 +319,6 @@ impl Ym2413SynthesisBank {
         Ok(state.envelope[operator_index].tick(global_counter, key_on, carrier, parameters)?)
     }
 
-    /// Advance PG for one physical operator described by a rhythm configuration.
-    ///
-    /// The caller decides when the slot is serviced. This helper only maps the
-    /// physical operator role to the existing channel PG state and does not
-    /// advance the chip clock or any other operator.
-    pub fn advance_rhythm_operator_phase(
-        &mut self,
-        operator: &RhythmOperatorSynthesisConfig,
-    ) -> Result<u16, Ym2413SynthesisError> {
-        self.advance_operator_phase(
-            operator.physical_channel,
-            operator.physical_role == Ym2413Operator::Carrier,
-            operator.phase,
-        )
-    }
-
     /// Tick EG for one physical rhythm operator using an explicit key state.
     ///
     /// The key state is deliberately supplied by the caller: the interaction
@@ -367,6 +351,7 @@ impl Ym2413SynthesisBank {
         &mut self,
         configuration: &Ym2413RhythmSynthesisConfig,
         voice: Ym2413RhythmVoice,
+        phase_index: Option<u16>,
     ) -> Result<Ym2413RhythmVoiceSample, Ym2413SynthesisError> {
         if !configuration.rhythm_mode_enabled {
             return Err(Ym2413SynthesisError::RhythmModeDisabled);
@@ -382,6 +367,9 @@ impl Ym2413SynthesisBank {
         let am_level = self.am_lfo.current_value();
 
         let output = if voice == Ym2413RhythmVoice::BassDrum {
+            if phase_index.is_some() {
+                return Err(RhythmVoiceSynthesisError::UnexpectedPhaseInput { voice }.into());
+            }
             let (Some(modulator), Some(carrier)) =
                 (voice_config.modulator, voice_config.carrier)
             else {
@@ -408,6 +396,9 @@ impl Ym2413SynthesisBank {
                 )?
                 .carrier_output
         } else {
+            let phase_index = phase_index.ok_or(
+                RhythmVoiceSynthesisError::MissingPhaseInput { voice },
+            )?;
             let operator = match (voice_config.modulator, voice_config.carrier) {
                 (Some(operator), None) | (None, Some(operator)) => operator,
                 _ => {
@@ -423,7 +414,7 @@ impl Ym2413SynthesisBank {
             let state = self.channel(operator.physical_channel)?;
             let operator_index = if carrier { 1 } else { 0 };
             voice_config.evaluate_single_operator(
-                state.phase[operator_index].phase_index(),
+                phase_index,
                 state.envelope[operator_index].level(),
                 am_level,
             )?
@@ -720,45 +711,24 @@ mod tests {
     }
 
     #[test]
-    fn rhythm_operator_helpers_map_physical_roles_without_advancing_other_state() {
-        let config = rhythm_configuration();
-        let mut helper_bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
-        let mut direct_bank = helper_bank.clone();
-        let operator = config.voices[1].modulator.unwrap();
-
-        let helper_phase = helper_bank.advance_rhythm_operator_phase(&operator).unwrap();
-        let direct_phase = direct_bank
-            .advance_operator_phase(operator.physical_channel, false, operator.phase)
-            .unwrap();
-        assert_eq!(helper_phase, direct_phase);
-
-        let helper_level = helper_bank
-            .tick_rhythm_operator_envelope(&operator, true, 17)
-            .unwrap();
-        let direct_level = direct_bank
-            .tick_operator_envelope(
-                operator.physical_channel,
-                false,
-                true,
-                17,
-                operator.envelope,
-            )
-            .unwrap();
-        assert_eq!(helper_level, direct_level);
-        assert_eq!(helper_bank.export_state(), direct_bank.export_state());
-    }
-
     #[test]
-    fn all_single_operator_rhythm_voices_use_their_physical_pg_eg_state() {
+    fn all_single_operator_rhythm_voices_use_explicit_phase_inputs_and_physical_eg_state() {
+        use crate::rhythm_phase::{
+            hi_hat_phase_candidate, snare_drum_phase_candidate, top_cymbal_phase_candidate,
+        };
+
         let config = rhythm_configuration();
         let mut bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
         let before = bank.export_state();
-        for voice in [
-            Ym2413RhythmVoice::HiHat,
-            Ym2413RhythmVoice::TomTom,
-            Ym2413RhythmVoice::SnareDrum,
-            Ym2413RhythmVoice::TopCymbal,
-        ] {
+        let mod7 = bank.phase_index(6, false).unwrap();
+        let car8 = bank.phase_index(7, true).unwrap();
+        let phases = [
+            (Ym2413RhythmVoice::HiHat, hi_hat_phase_candidate(mod7, car8, false).unwrap()),
+            (Ym2413RhythmVoice::TomTom, bank.phase_index(8, false).unwrap()),
+            (Ym2413RhythmVoice::SnareDrum, snare_drum_phase_candidate(mod7, false).unwrap()),
+            (Ym2413RhythmVoice::TopCymbal, top_cymbal_phase_candidate(mod7, car8).unwrap()),
+        ];
+        for (voice, phase_index) in phases {
             let index = match voice {
                 Ym2413RhythmVoice::HiHat => 1,
                 Ym2413RhythmVoice::TomTom => 2,
@@ -770,12 +740,12 @@ mod tests {
             let carrier = operator.physical_role == Ym2413Operator::Carrier;
             let expected = config.voices[index]
                 .evaluate_single_operator(
-                    bank.phase_index(operator.physical_channel, carrier).unwrap(),
+                    phase_index,
                     bank.envelope_level(operator.physical_channel, carrier).unwrap(),
                     bank.am_level(),
                 )
                 .unwrap();
-            let sample = bank.evaluate_rhythm_voice(&config, voice).unwrap();
+            let sample = bank.evaluate_rhythm_voice(&config, voice, Some(phase_index)).unwrap();
             assert_eq!(sample.voice, voice);
             assert_eq!(sample.output, expected);
         }
@@ -788,7 +758,7 @@ mod tests {
         let mut bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
         let before = bank.feedback_history(6).unwrap();
         let sample = bank
-            .evaluate_rhythm_voice(&config, Ym2413RhythmVoice::BassDrum)
+            .evaluate_rhythm_voice(&config, Ym2413RhythmVoice::BassDrum, None)
             .unwrap();
         assert_eq!(sample.voice, Ym2413RhythmVoice::BassDrum);
         assert_ne!(bank.feedback_history(6).unwrap(), before);
@@ -801,7 +771,7 @@ mod tests {
         let mut bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
         let before = bank.export_state();
         assert_eq!(
-            bank.evaluate_rhythm_voice(&config, Ym2413RhythmVoice::HiHat),
+            bank.evaluate_rhythm_voice(&config, Ym2413RhythmVoice::HiHat, Some(0)),
             Err(Ym2413SynthesisError::RhythmModeDisabled)
         );
         assert_eq!(bank.export_state(), before);
