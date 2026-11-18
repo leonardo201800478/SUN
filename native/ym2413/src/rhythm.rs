@@ -875,6 +875,30 @@ mod tests {
     }
 
     #[test]
+    fn slot_rate_lfsr_has_the_full_non_zero_23_bit_period() {
+        let seed = 1;
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(seed).unwrap();
+        let mut after_47 = None;
+        let mut after_178_481 = None;
+
+        for step in 1..=YM2413_RHYTHM_NOISE_LFSR_PERIOD {
+            let _ = lfsr.clock();
+            if step == 47 {
+                after_47 = Some(lfsr.register());
+            }
+            if step == 178_481 {
+                after_178_481 = Some(lfsr.register());
+            }
+        }
+
+        // 2^23 - 1 = 47 * 178481. The two checks exclude both
+        // proper prime-factor reductions of the candidate period.
+        assert_ne!(after_47, Some(seed));
+        assert_ne!(after_178_481, Some(seed));
+        assert_eq!(lfsr.register(), seed);
+    }
+
+    #[test]
     fn slot_rate_lfsr_snapshot_restore_and_chunked_advance_are_equivalent() {
         let mut continuous = Ym2413RhythmSlotNoiseLfsr::with_seed(0x5a_1234).unwrap();
         let mut chunked = continuous;
