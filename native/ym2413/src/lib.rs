@@ -3,8 +3,14 @@
 //! The phase generator is a standalone candidate model. It does not yet
 //! synthesize PCM or participate in the 18-slot operator pipeline.
 
+pub mod envelope;
 pub mod phase;
 pub mod pm_lfo;
+pub use envelope::{
+    AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
+    EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
+    YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
+};
 pub use phase::{
     PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
     YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
