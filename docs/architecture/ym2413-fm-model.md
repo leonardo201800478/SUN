@@ -990,3 +990,32 @@ A API não avança clocks próprios: o Scheduler deverá avançar o LFO uma vez 
 **Estado da integração:** o LFO e seu snapshot existem, mas ainda não estão ligados aos bits AM dos instrumentos nem aos 18 operadores. `OperatorPairParameters` continua recebendo AM por operador como entrada externa.
 
 **Fontes:** [Yamaha YM2413 Application Manual — AM 3.7 Hz](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual), [andete — AM measurements, 2015-11-28](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-11-28).
+
+
+## 25. User patch, channel registers e preset bank candidato — FM-4
+
+Foi adicionado `native/ym2413/src/instrument.rs` com:
+
+- Decodificação dos oito bytes do user tone register ($00–$07).
+- Campos AM, vibrato, EG type, KSR, MULTI, KSL, TL, waveform, FB, AR, DR, SL e RR.
+- Decodificação dos registradores por canal ($10–$18, $20–$28 e $30–$38): FNUM, BLOCK, KEY-ON, SUSTAIN, instrumento e volume.
+- Detecção do bit RHYTHM em $0E.
+- Resolução do instrumento 0 para o user patch e códigos 1..15 para um banco candidato.
+
+### Procedência do banco de 15 presets
+
+Os 15 padrões melódicos foram adaptados exclusivamente da primeira tabela YM2413 `default_inst[0]` de `emu2413.c`, do projeto `digital-sound-antiques/emu2413`, revisão `cef17c32f67a88df381e08168e5820984de7e936`.
+
+- Licença: MIT.
+- O aviso de licença foi preservado em `third_party/licenses/emu2413-MIT-LICENSE.txt`.
+- A procedência e os limites estão em `docs/third_party/ym2413-candidate-preset-data.md`.
+- Nenhum código C ou implementação de síntese foi copiado.
+- As tabelas VRC7/YMF281B e os três padrões de ritmo marcados como derivados de VRC7 foram excluídos.
+
+**Precisão:** os 15 patches são candidatos para testes audíveis, não um dump físico certificado. As notas de andete de 2018-05-13 informam que os patches reconstruídos estavam próximos, mas ainda não eram 100% idênticos aos instrumentos internos. O banco não deve ser tratado como ROM Yamaha exata.
+
+### Limites da etapa
+
+A decodificação ainda não está conectada ao pipeline dos operadores. A resolução dos presets não prova a exatidão dos parâmetros; o KSL, o multiplier, EG e AM precisam ser ligados ao PG/EG/operador por canal. O conteúdo dos instrumentos de ritmo e a síntese de percussão permanecem pendentes.
+
+**Fontes:** [Yamaha YM2413 Application Manual — register map e instrument codes](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual), [emu2413 — MIT source revision](https://github.com/digital-sound-antiques/emu2413/tree/cef17c32f67a88df381e08168e5820984de7e936), [andete — YM2413 reverse engineering, 2018-05-13](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2018-05-13).
