@@ -193,7 +193,6 @@ mod tests {
         snare_drum_phase_candidate, top_cymbal_phase_candidate,
     };
 
-
     #[test]
     fn sequencer_hihat_event_feeds_the_matching_phase_candidate() {
         let mut sequencer =
