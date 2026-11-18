@@ -48,7 +48,11 @@ impl EnvelopeParameters {
     /// Compute RATE = 4 * R + Rks, clipped to the six-bit range.
     pub const fn effective_rate(self, base_rate: u8) -> u8 {
         let key_code = (self.block << 1) | ((self.fnum >> 8) as u8);
-        let rks = if self.key_scale_rate { key_code } else { key_code >> 2 };
+        let rks = if self.key_scale_rate {
+            key_code
+        } else {
+            key_code >> 2
+        };
         let rate = (base_rate as u16) * 4 + rks as u16;
         if rate > 63 { 63 } else { rate as u8 }
     }
@@ -78,13 +82,19 @@ pub struct EnvelopeGenerator {
 }
 
 impl Default for EnvelopeGenerator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EnvelopeGenerator {
     /// Reset candidate: maximum attenuation, DAMP phase, key released.
     pub const fn new() -> Self {
-        Self { level: YM2413_EG_MAX_LEVEL, stage: EnvelopeStage::Damp, key_on: false }
+        Self {
+            level: YM2413_EG_MAX_LEVEL,
+            stage: EnvelopeStage::Damp,
+            key_on: false,
+        }
     }
 
     /// Construct from an explicit initial attenuation level.
@@ -92,14 +102,22 @@ impl EnvelopeGenerator {
         if level > YM2413_EG_MAX_LEVEL {
             return Err(EnvelopeGeneratorError::InvalidState);
         }
-        Ok(Self { level, stage: EnvelopeStage::Damp, key_on: false })
+        Ok(Self {
+            level,
+            stage: EnvelopeStage::Damp,
+            key_on: false,
+        })
     }
 
     /// Current attenuation (0 is loudest, 127 is silent).
-    pub const fn level(&self) -> u8 { self.level }
+    pub const fn level(&self) -> u8 {
+        self.level
+    }
 
     /// Current envelope phase.
-    pub const fn stage(&self) -> EnvelopeStage { self.stage }
+    pub const fn stage(&self) -> EnvelopeStage {
+        self.stage
+    }
 
     /// Advance one operator update using the externally owned counter value.
     ///
@@ -185,7 +203,11 @@ impl EnvelopeGenerator {
                 }
             }
             EnvelopeStage::Sustain => {
-                let base_rate = if parameters.sustained_tone { 0 } else { parameters.release_rate };
+                let base_rate = if parameters.sustained_tone {
+                    0
+                } else {
+                    parameters.release_rate
+                };
                 self.advance_decay(global_counter, parameters.effective_rate(base_rate));
             }
         }
@@ -222,17 +244,25 @@ impl EnvelopeGenerator {
         if state.format_version != YM2413_EG_STATE_VERSION || state.level > YM2413_EG_MAX_LEVEL {
             return Err(EnvelopeGeneratorError::InvalidState);
         }
-        Ok(Self { level: state.level, stage: state.stage, key_on: state.key_on })
+        Ok(Self {
+            level: state.level,
+            stage: state.stage,
+            key_on: state.key_on,
+        })
     }
 
     fn advance_decay(&mut self, counter: u32, rate: u8) {
-        if rate < 4 { return; }
+        if rate < 4 {
+            return;
+        }
 
         let increment = match rate / 4 {
             0..=12 => {
                 let shift = 13 - (rate / 4);
                 let mask = (1_u32 << shift) - 1;
-                if counter & mask != 0 { return; }
+                if counter & mask != 0 {
+                    return;
+                }
                 let column = ((counter >> shift) & 7) as usize;
                 EG_STEP_TABLE[(rate & 3) as usize][column]
             }
@@ -246,23 +276,34 @@ impl EnvelopeGenerator {
             }
             _ => 2,
         };
-        self.level = self.level.saturating_add(increment).min(YM2413_EG_MAX_LEVEL);
+        self.level = self
+            .level
+            .saturating_add(increment)
+            .min(YM2413_EG_MAX_LEVEL);
     }
 
     fn advance_attack(&mut self, counter: u32, rate: u8) {
-        if rate < 4 || rate >= 60 { return; }
+        if rate < 4 || rate >= 60 {
+            return;
+        }
 
         let next = if rate < 48 {
             let shift = 13 - (rate / 4);
             let mask = ((1_u32 << shift) - 1) & !3;
-            if counter & mask != 0 { return; }
+            if counter & mask != 0 {
+                return;
+            }
             let column = ((counter >> shift) & 7) as usize;
-            if EG_STEP_TABLE[(rate & 3) as usize][column] == 0 { return; }
+            if EG_STEP_TABLE[(rate & 3) as usize][column] == 0 {
+                return;
+            }
             Self::attack_formula(self.level, 4)
         } else {
             let column = ((counter & 0x0c) >> 1) as usize;
             let mut shift = 16 - (rate / 4);
-            if EG_STEP_TABLE[(rate & 3) as usize][column] != 0 { shift -= 1; }
+            if EG_STEP_TABLE[(rate & 3) as usize][column] != 0 {
+                shift -= 1;
+            }
             Self::attack_formula(self.level, shift)
         };
         self.level = next;
@@ -291,8 +332,14 @@ mod tests {
 
     fn params() -> EnvelopeParameters {
         EnvelopeParameters {
-            attack_rate: 10, decay_rate: 3, release_rate: 5, sustain_level: 4,
-            key_scale_rate: false, fnum: 0x100, block: 0, sustain_on: false,
+            attack_rate: 10,
+            decay_rate: 3,
+            release_rate: 5,
+            sustain_level: 4,
+            key_scale_rate: false,
+            fnum: 0x100,
+            block: 0,
+            sustain_on: false,
             sustained_tone: true,
         }
     }
@@ -311,8 +358,8 @@ mod tests {
     fn attack_formula_reproduces_measured_f4_sequence() {
         let mut level = 127_u8;
         let expected = [
-            119,111,104,97,90,84,78,73,68,63,59,55,51,47,44,41,38,35,32,29,27,
-            25,23,21,19,17,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,
+            119, 111, 104, 97, 90, 84, 78, 73, 68, 63, 59, 55, 51, 47, 44, 41, 38, 35, 32, 29, 27,
+            25, 23, 21, 19, 17, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
         ];
         for value in expected {
             level = level.saturating_sub((level >> 4) + 1);
@@ -430,20 +477,29 @@ mod tests {
         let mut eg = EnvelopeGenerator::with_level(61).unwrap();
         eg.stage = EnvelopeStage::Attack;
         eg.key_on = true;
-        assert_eq!(EnvelopeGenerator::restore_state(eg.export_state()).unwrap(), eg);
+        assert_eq!(
+            EnvelopeGenerator::restore_state(eg.export_state()).unwrap(),
+            eg
+        );
     }
 
     #[test]
     fn snapshot_rejects_bad_version_and_level() {
         assert_eq!(
             EnvelopeGenerator::restore_state(EnvelopeGeneratorState {
-                format_version: 99, level: 0, stage: EnvelopeStage::Damp, key_on: false,
+                format_version: 99,
+                level: 0,
+                stage: EnvelopeStage::Damp,
+                key_on: false,
             }),
             Err(EnvelopeGeneratorError::InvalidState)
         );
         assert_eq!(
             EnvelopeGenerator::restore_state(EnvelopeGeneratorState {
-                format_version: 1, level: 128, stage: EnvelopeStage::Damp, key_on: false,
+                format_version: 1,
+                level: 128,
+                stage: EnvelopeStage::Damp,
+                key_on: false,
             }),
             Err(EnvelopeGeneratorError::InvalidState)
         );
