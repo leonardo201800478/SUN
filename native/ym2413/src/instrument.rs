@@ -48,6 +48,38 @@ pub const YM2413_PRESET_PATCHES_CANDIDATE: [[u8; 8]; 15] = [
     [0x41, 0x41, 0x89, 0x03, 0xf1, 0xe4, 0xc0, 0x13],
 ];
 
+/// Source for the measured YM2413 rhythm-operator parameter candidates.
+pub const YM2413_RHYTHM_PATCH_CANDIDATE_SOURCE: &str =
+    "https://github.com/andete/ym2413/blob/master/results/rhythm/rhythm.md";
+
+/// These are reverse-engineered parameter candidates, not a physical ROM dump.
+pub const YM2413_RHYTHM_PATCHES_HARDWARE_VERIFIED: bool = false;
+
+/// Order of the five percussive operator-parameter candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+pub enum Ym2413RhythmInstrument {
+    BassDrum = 0,
+    HiHat = 1,
+    SnareDrum = 2,
+    TomTom = 3,
+    TopCymbal = 4,
+}
+
+/// Eight-byte operator parameter candidates reconstructed from hardware
+/// captures and the accompanying reverse-engineering analysis.
+///
+/// BD is reported as a close match, with a remaining one-sample alignment and
+/// peak-amplitude difference. The other four entries contain the measured
+/// per-operator envelope/multiplier settings; unused operator fields are zero.
+pub const YM2413_RHYTHM_PATCHES_CANDIDATE: [[u8; 8]; 5] = [
+    [0x01, 0x01, 0x18, 0x0f, 0xdf, 0xf8, 0x6a, 0x6d], // Bass Drum
+    [0x01, 0x00, 0x00, 0x00, 0xc8, 0x00, 0xa7, 0x00], // Hi-Hat (mod7)
+    [0x00, 0x01, 0x00, 0x00, 0x00, 0xd8, 0x00, 0x68], // Snare Drum (car7)
+    [0x05, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x59, 0x00], // Tom-Tom (mod8)
+    [0x00, 0x01, 0x00, 0x00, 0x00, 0xaa, 0x00, 0x55], // Top Cymbal (car8)
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperatorPatch {
     pub am_enabled: bool,
@@ -87,6 +119,14 @@ pub struct ChannelRegisterState {
 pub enum InstrumentError {
     InvalidPreset(u8),
     InvalidChannel(u8),
+}
+
+/// Decode one measured rhythm-operator parameter candidate.
+///
+/// This does not claim to reproduce the complete internal ROM or the rhythm
+/// mode's special phase/slot routing.
+pub const fn rhythm_patch_candidate(instrument: Ym2413RhythmInstrument) -> InstrumentPatch {
+    decode_patch_registers(YM2413_RHYTHM_PATCHES_CANDIDATE[instrument as usize])
 }
 
 /// Decode the eight user-tone bytes (or one eight-byte candidate preset).
@@ -217,6 +257,36 @@ mod tests {
         decode_channel_registers, decode_patch_registers, decode_user_patch, preset_name,
         preset_patch, resolve_instrument, rhythm_mode_enabled,
     };
+
+    #[test]
+    fn rhythm_patch_candidates_match_the_capture_derived_parameter_sets() {
+        use super::{
+            YM2413_RHYTHM_PATCHES_CANDIDATE, Ym2413RhythmInstrument, decode_patch_registers,
+            rhythm_patch_candidate,
+        };
+
+        assert_eq!(
+            rhythm_patch_candidate(Ym2413RhythmInstrument::BassDrum),
+            decode_patch_registers([0x01, 0x01, 0x18, 0x0f, 0xdf, 0xf8, 0x6a, 0x6d])
+        );
+        assert_eq!(
+            rhythm_patch_candidate(Ym2413RhythmInstrument::HiHat),
+            decode_patch_registers([0x01, 0x00, 0x00, 0x00, 0xc8, 0x00, 0xa7, 0x00])
+        );
+        assert_eq!(
+            rhythm_patch_candidate(Ym2413RhythmInstrument::SnareDrum),
+            decode_patch_registers([0x00, 0x01, 0x00, 0x00, 0x00, 0xd8, 0x00, 0x68])
+        );
+        assert_eq!(
+            rhythm_patch_candidate(Ym2413RhythmInstrument::TomTom),
+            decode_patch_registers([0x05, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x59, 0x00])
+        );
+        assert_eq!(
+            rhythm_patch_candidate(Ym2413RhythmInstrument::TopCymbal),
+            decode_patch_registers([0x00, 0x01, 0x00, 0x00, 0x00, 0xaa, 0x00, 0x55])
+        );
+        assert_eq!(YM2413_RHYTHM_PATCHES_CANDIDATE.len(), 5);
+    }
 
     #[test]
     fn user_patch_registers_decode_operator_fields() {

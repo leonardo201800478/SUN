@@ -12,6 +12,7 @@ pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
 pub mod rhythm;
+pub mod rhythm_phase;
 pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;

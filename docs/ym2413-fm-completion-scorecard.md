@@ -328,7 +328,7 @@ Foi adicionada a decodificação pura do estado dos cinco instrumentos de percus
 - `$38.D7..D4`: volume de Tom-Tom; `$38.D3..D0`: volume de Top Cymbal.
 - FNUM, BLOCK, KEY-ON e SUS brutos dos canais 7–9 (índices 6–8), preservados separadamente dos registradores de volume de ritmo.
 
-A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** trigger correspondente. Os bits KEY-ON melódicos de `$26–$28` são reportados sem serem reescritos: o manual orienta mantê-los em zero durante Rhythm Mode, mas o decoder não altera o estado de registradores do chamador.
+O método `is_active` representa somente o gate de registrador: Rhythm Mode habilitado **e** trigger correspondente em `$0E`. Não é um predicado completo de atividade do silício quando KEY-ON de `$26–$28` está setado. O manual manda limpar esses bits; as notas de andete sugerem uma possível combinação OR entre KEY-ON e triggers, ainda sem caracterização suficiente. O decoder preserva os bits crus e não altera os registradores do chamador.
 
 ### Testes adicionados
 
@@ -341,18 +341,18 @@ A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** 
 
 - Nenhuma forma de onda ou envelope de percussão é sintetizado.
 - O Bass Drum ainda não percorre o par FM de slots 13/16.
-- As fases não-BD derivadas de ruído branco + frequências dos canais 8/9 não estão implementadas.
-- A tabela ROM de envelopes de ritmo, a duplicação de saída descrita pelo manual, a cadência do LFSR e o roteamento MO/RO permanecem pendentes.
+- As funções candidatas de fase para HH/SD/TCY, o LFSR slot-rate e os parâmetros de operadores por voz foram adicionados depois desta etapa estática; ainda não estão conectados ao banco agregado de síntese.
+- A ROM física completa de ritmo não foi dumpada. O mapa de repetição de saída foi registrado, mas o buffer não foi implementado; o roteamento MO/RO continua pendente.
 - Não há alteração no Scheduler, no banco agregado FM, no mixer ou no runtime SMS.
 
-**Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
+**Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes direcionados, incluindo os cinco casos one-hot, e o CI #44297715529 passaram no HEAD da PR #1015 antes do merge squash. Os gates não aplicáveis foram SKIPPED. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
 
 **Referência primária:** Yamaha YM2413 Application Manual, III-1-7 (Rhythm), III-1-8 (Instrument/Volume) e V-4 (Percussion Sound Synthesis): https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf. A alocação dos bits do registrador $0E também foi comparada com as notas de reverse engineering de andete: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16.
 
 ---
 ## Correção de estado — 2026-11-18 / PR #1014 integrada
 
-**Main:** 5242b0b5ee6a3372d2c10ae23d02f2161d5d8bcf.
+**Main após PR #1015:** 1f0cfe37a5531c8e802ee9ba5f558eaa10b23797.
 
 - PR #1014 foi integrada por squash. O commit de merge é o HEAD confirmado da main.
 - Workflow CI #44292422118, executado no HEAD da PR b2a0b054b1fe6a5d18724dd83ff9f020e36629bc: Change impact classification, Documentation patch hygiene, Rust workspace regression e Rust quality/unit regression concluíram com SUCCESS.
@@ -376,3 +376,19 @@ Esta sequência substitui a numeração antiga de FM-5 a FM-8 acima, que refleti
 A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final” fica superada pelo registro acima. O CI passou no HEAD da PR antes do merge; não foi executado um workflow adicional no commit de merge, e isso não deve ser alegado.
 
 **Referência de investigação:** audits/ym2413-rhythm-mode-investigation-2026-11-18.md.
+
+
+## FM-7 — avanço a partir das capturas de Rhythm Mode (2026-11-18)
+
+- PR #1015 integrada por squash; CI #44297715529 passou em Rust workspace regression, Rust quality/unit regression, Documentation patch hygiene e Change impact classification. Os demais gates foram SKIPPED.
+- Main após merge: `1f0cfe37a5531c8e802ee9ba5f558eaa10b23797`.
+- A investigação de andete em `results/rhythm/rhythm.md` e a atualização de LFSR em `results/lfsr/lfsr.txt` acrescentam capturas físicas e esclarecem a fase das vozes e a cadência interna do ruído.
+- A primeira função Top Cymbal derivada do Genesis Plus GX foi descartada: usava os operadores/canais errados em relação às medições de andete. A branch #1016 foi corrigida para o candidato baseado em mod7 + car8 e na forma OR confirmada na atualização de Nuke.YKT. O relatório mantém explícitas as 16 variantes equivalentes por offsets PG iniciais desconhecidos.
+- `rhythm_phase.rs` agora contém candidatos combinacionais de Top Cymbal, Hi-Hat e Snare Drum. As entradas de ruído permanecem explícitas; nenhum relógio é avançado dentro das funções.
+- `rhythm.rs` preserva o LFSR decimado `x^23+x^9+x^8+x+1` e adiciona o LFSR slot-rate `x^23+x^9+1`, com um passo por slot de quatro clocks. O contrato medido é 18 passos por rotação de 72 clocks; HH no slot 13 e SD no slot 16, separados por três passos. Seed físico continua desconhecido.
+- `instrument.rs` contém cinco conjuntos candidatos de parâmetros por operador derivados das capturas: BD, HH, SD, TOM e TCY. BD ainda apresenta diferença residual de alinhamento de uma amostra e pico; os bytes não são declarados como dump da ROM física.
+- Testes adicionados cobrem a lógica combinacional, a relação de decimação do LFSR, o espaçamento HH→SD, limites de fase, parâmetros candidatos e snapshot/restore. São testes internos do modelo, não comparação física independente.
+- A repetição medida de cada voz foi mapeada em `YM2413_RHYTHM_OUTPUT_MAP`: slots 0–2 e 6–7 reproduzem os valores originalmente gerados nos slots 13–17. O mecanismo de repetição não foi implementado. O banco de shift registers observado no die shot é apenas inferência estrutural, pois o SMS Power esclarece que as imagens disponíveis são de FHB013, não de YM2413.
+- A interação entre KEY-ON melódico de $26–$28 e triggers de $0E permanece em aberto: o manual manda limpar KEY-ON; notas de andete sugerem que ambos os grupos de bits podem ser combinados por OR. `is_active` representa somente o gate $0E e não a atividade completa do hardware.
+
+**Estado:** FM-7 segue PARCIAL. Os blocos de fase, ruído e parâmetros de operador estão implementados como candidatos isolados, mas não há integração de cinco vozes ao banco de síntese, buffer de duplicação, roteamento MO/RO, PCM, Scheduler ou validação contínua/blocos. A fase inicial dos operadores e o seed do LFSR permanecem desconhecidos.
