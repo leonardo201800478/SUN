@@ -891,11 +891,7 @@ mod tests {
                 .evaluate_rhythm_voice(&config, Ym2413RhythmVoice::BassDrum, None)
                 .unwrap(),
             direct_bank
-                .evaluate_rhythm_voice(
-                    &config,
-                    Ym2413RhythmVoice::HiHat,
-                    Some(phases.hi_hat),
-                )
+                .evaluate_rhythm_voice(&config, Ym2413RhythmVoice::HiHat, Some(phases.hi_hat))
                 .unwrap(),
             direct_bank
                 .evaluate_rhythm_voice(
@@ -905,11 +901,7 @@ mod tests {
                 )
                 .unwrap(),
             direct_bank
-                .evaluate_rhythm_voice(
-                    &config,
-                    Ym2413RhythmVoice::TomTom,
-                    Some(phases.tom_tom),
-                )
+                .evaluate_rhythm_voice(&config, Ym2413RhythmVoice::TomTom, Some(phases.tom_tom))
                 .unwrap(),
             direct_bank
                 .evaluate_rhythm_voice(
