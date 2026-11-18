@@ -77,6 +77,10 @@ pub struct RhythmVoiceSynthesisConfig {
 pub enum RhythmVoiceSynthesisError {
     /// The requested evaluator does not match this voice's physical operator layout.
     InvalidOperatorLayout { voice: Ym2413RhythmVoice },
+    /// A single-operator voice requires a phase produced by its phase source.
+    MissingPhaseInput { voice: Ym2413RhythmVoice },
+    /// Bass Drum derives both phases from its existing FM operator pair.
+    UnexpectedPhaseInput { voice: Ym2413RhythmVoice },
     /// The existing digital operator evaluator rejected one of its inputs.
     Operator(OperatorPairError),
 }
