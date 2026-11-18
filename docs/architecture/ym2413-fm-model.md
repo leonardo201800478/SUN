@@ -778,3 +778,38 @@ Fonte do modelo e vetor: [andete — YM2413 Reverse Engineering Notes 2015-12-01
 **CI da PR #997:** execução #44223435767 concluiu SUCCESS no HEAD `224f2c3b215f9e6accf613d385e90ca7db931cc5`. Jobs executados: classificação de impacto, regressão do workspace Rust (format, Clippy, testes e observability runtime), higiene documental e gate agregado de qualidade. Jobs específicos de VDP, PSG, Z80, Scheduler, Slint/WGPU, CPAL, SDL3, ROM build e tooling Windows foram SKIPPED por não serem aplicáveis aos caminhos alterados; SKIPPED não é PASS. A comparação da PR indica 11 commits ahead, 0 behind, sem conflito de merge no snapshot consultado. Reviews e review threads: nenhuma.
 
 **Política:** estados IMPLEMENTED descrevem código presente, não fidelidade comprovada. Vetor publicado, CI, teste unitário e teste físico são evidências distintas. SKIPPED, pending, cancelled, ausente e NOT RUN nunca são PASS.
+
+
+## 19. Contador PM LFO candidato — próximo incremento
+
+A implementação PG-1 foi integrada à `main` pela PR #997, commit `a6adda38cc7db9317e93ca3c072f980fb5d239ec`. Esta fatia candidata isola o contador global de PM, sem acoplá-lo ao relógio do core ou ao Scheduler.
+
+### Modelo documentado
+
+As notas de andete de 2015-12-01 descrevem:
+- contador global com 13 bits relevantes;
+- avanço de uma posição PM a cada 1.024 amostras YM2413;
+- seleção da posição por `counter >> 10`;
+- período completo de 8.192 amostras;
+- uma amostra por rotação dos 18 slots, isto é, 72 clocks de entrada.
+
+A medição registra que o alinhamento inicial do contador global com o início da onda/saída não foi determinado. Portanto, a implementação exige fase inicial explícita e não atribui significado físico ao valor zero após reset.
+
+### Contrato do candidato
+
+- `PhaseModulationLfo::new(initial_counter)` valida e recebe explicitamente o contador inicial de 13 bits.
+- `position()` expõe a posição PM selecionada pelos bits 12..10.
+- `advance_samples(n)` avança por amostras completas já contabilizadas pelo chamador e aplica wrap módulo 8192.
+- Snapshot/restore versionado preserva o contador exato.
+- O módulo não avança clocks, não decide limites de rotação, não altera o PG e não presume reset/alinhamento de fase.
+- O proprietário futuro deverá chamar `advance_samples` uma vez por rotação completa (72 clocks), e não uma vez por slot ou por T-state.
+
+### Gates e limitações
+
+- Testes de fronteira 1023/1024, sequência de oito posições, wrap 8192, fase inicial explícita, invariância por particionamento e snapshot/restore.
+- Vetor/cadência fundamentados na medição publicada; não equivalem a comparação física independente.
+- Integração ao `Ym2413Core`, relação entre reset e primeiro sample, alinhamento PM com PG/modulador/carrier e temporização do pipeline permanecem pendentes.
+- AM LFO não faz parte desta fatia: AM tem cadência/tabela distinta (210 posições, atualização a cada 64 amostras) e deve ser tratada separadamente.
+- Não conectar ao SMS, Scheduler, mixer ou áudio host.
+
+Fonte: [andete — YM2413 Reverse Engineering Notes 2015-12-01](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01). A implementação é uma tradução independente da descrição matemática, sem copiar código de emuladores.
