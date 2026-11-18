@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-18
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main após as integrações iniciais:** `995dce7025b189ba25ce82a2dbf665d9cce9fb14`
+**Main após FM-2 parcial:** `c9285d2fc2d8e3987197d5186478dae784da1570`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -22,6 +22,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | PM LFO global | Integrado | PR #998; commit `fc383defbe035e699f33b07e7a525cfdb5b7fa5a` |
 | Auditoria de alinhamento PM | Integrada | PR #999; merge commit `1ce082a950ce2940b3f3de4c56dc7dbf37c536f9` |
 | EG candidato | Integrado | PR #1001; merge commit `995dce7025b189ba25ce82a2dbf665d9cce9fb14` |
+| Operadores FM e KSL | Integrados como candidatos isolados | PR #1003; merge commit `c9285d2fc2d8e3987197d5186478dae784da1570` |
 
 ## Scorecard por etapa
 
@@ -95,6 +96,16 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 O próximo desenvolvimento funcional é fechar FM-2 com vetores diferenciais de saída dos operadores e integração do KSL ao decoder de canal. Em paralelo, FM-3 precisa de AM LFO. Só depois da validação isolada da cadeia de síntese deve ser conectada aos 18 slots e ao Scheduler.
 
 Não iniciar a integração SMS ou mixer como substituto da síntese FM ainda inexistente. Não declarar o chip pronto para ROMs até haver PCM FM reproduzível, integração temporal e testes de regressão.
+
+
+
+### PR #1003 — operador FM e KSL
+
+- HEAD validado: `25154edce743db8ed03f86e74641500dc2df722e`
+- Merge commit: `c9285d2fc2d8e3987197d5186478dae784da1570`
+- Workflow #44246095781: SUCCESS nos gates aplicáveis.
+- Rust workspace regression, Rustfmt, Clippy, observability feature tests, Scheduler deterministic stress e documentation hygiene: SUCCESS.
+- Validações de hardware/console/desktop não relacionadas: SKIPPED.
 
 ## Capacidade de execução multiagente
 
