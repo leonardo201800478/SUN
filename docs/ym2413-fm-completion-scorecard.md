@@ -137,20 +137,20 @@ A sessão de desenvolvimento utilizada para estes marcos não disponibiliza trê
 
 ## Atualização FM-4 — ponte de parâmetros por canal
 
-**Branch:** \`feat/ym2413-channel-synthesis-bridge\`  
-**Base de implementação:** main \`a5a9eb826b086966b1436e1b584f91deeada78d4\`
+**Branch:** `feat/ym2413-channel-synthesis-bridge`  
+**Base de implementação:** main `a5a9eb826b086966b1436e1b584f91deeada78d4`
 
-Foi adicionado \`native/ym2413/src/channel.rs\`, uma camada pura de resolução entre os registradores/instrumentos e os componentes de síntese existentes.
+Foi adicionado `native/ym2413/src/channel.rs`, uma camada pura de resolução entre os registradores/instrumentos e os componentes de síntese existentes.
 
 ### Entrega
 
 - Resolve os nove canais melódicos a partir de FNUM, BLOCK, KEY-ON, SUSTAIN, instrumento e volume.
 - Resolve instrumento 0 para o user patch e 1–15 para os presets candidatos já licenciados/documentados.
 - Converte MULTI e VIB do patch em entradas explícitas do PG por operador.
-- Converte AR/DR/RR/SL, KSR, BLOCK/FNUM, SUS e EG-TYP em \`EnvelopeParameters\` por operador.
+- Converte AR/DR/RR/SL, KSR, BLOCK/FNUM, SUS e EG-TYP em `EnvelopeParameters` por operador.
 - Calcula KSL de modulator e carrier pela tabela existente.
-- Constrói \`OperatorPairParameters\` com TL, VOL, feedback, waveform, KSL, níveis EG e AM habilitado individualmente por operador.
-- Exporta os tipos e a função de resolução pelo crate \`sega-ym2413\`.
+- Constrói `OperatorPairParameters` com TL, VOL, feedback, waveform, KSL, níveis EG e AM habilitado individualmente por operador.
+- Exporta os tipos e a função de resolução pelo crate `sega-ym2413`.
 
 ### Limites preservados
 
