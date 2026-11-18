@@ -25,7 +25,7 @@
 - `On` ignora o catálogo apenas se o perfil físico já possuir YM2413 integrado; não cria hardware em Mark III sem unidade ou Export SMS sem FM de fábrica e não fabrica writes/dados FM.
 - `Off` silencia a saída; não interrompe estado/clock interno sem evidência de clock-gating.
 - Japanese Master System MK-2000 permite PSG+FM simultâneos por $F2. Mark III + FM Sound Unit é mutuamente exclusivo e fica fora da implementação. Mark III sem unidade e Export SMS de fábrica não recebem FM por suposição.
-- $F2 readback japonês depende de C-Sync no 315-5297. Não inferir contador a partir de VCounter, scanline ou timer do host.
+- $F2 readback japonês: D7–D5 são os bits 11/7/3 do contador C-Sync; D4 é zero; D3–D0 devolvem o último nibble escrito. Na escrita, só D1 (mute PSG) e D0 (mute FM) controlam roteamento. Contrato DOCUMENTADO no [SMS Power Audio Control Port](https://www.smspower.org/Development/AudioControlPort), mas teste físico por revisão continua PENDENTE. Não inferir contador a partir de VCounter, scanline ou timer do host.
 - Clock/fase comum PSG/FM permanece **PENDENTE** até evidência física. Reutilizar o avanço do PSG somente se FM-A01 confirmar a conexão; caso contrário, registrar domínio explícito no mesmo MachineScheduler.
 - Preservar MO/RO separadas até confirmar a rede analógica da placa. Não transplantar circuito MSX/SFG-05.
 - Core 100% Rust, independente de SMS/audio_runtime/GUI/host; hot path sem alocações dinâmicas ou locks; não copiar código/tabelas GPL.
