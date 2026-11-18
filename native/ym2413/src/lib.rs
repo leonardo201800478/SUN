@@ -8,7 +8,7 @@ pub use channel::{Carrier, MelodicChannel, Modulator, Operator};
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
-pub use operator::{lookup_exp, lookup_log_sine, YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
+pub use operator::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE, lookup_exp, lookup_log_sine};
 pub use phase::{
     PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
     YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
