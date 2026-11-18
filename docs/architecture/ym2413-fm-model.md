@@ -1,10 +1,9 @@
 # YM2413 / OPLL — Especificação arquitetural e modelo FM
 
 **Projeto:** Sega Emulator — Emulação de Alta Precisão  
-**Escopo:** núcleo compartilhado Rust e integração futura no Master System japonês  
-**Estado:** especificação arquitetural inicial (M0); **não autoriza declarar o chip implementado**  
-**Branch de documentação:** `fix/sn76489-psg-fidelity-20261107`  
-**PR relacionada:** [#615](https://github.com/leonardo201800478/sega-emulator/pull/615)
+**Escopo:** core digital YM2413 independente de console/host; integração futura no perfil físico Japanese Master System.
+**Estado:** modelo M0/M1 reconciliado por M2; a fundação FM-1 de registradores/clock está isolada em `native/ym2413`; não há síntese PCM nem integração de barramento SMS.
+**Auditoria M2 independente:** [auditoria pré-implementação](../audits/ym2413-pre-implementation-audit-2026-11-17.md).
 
 > Convenção de evidência usada neste documento:
 > - **DOCUMENTADO:** descrito no manual Yamaha ou documentação técnica primária.
@@ -287,11 +286,11 @@ O núcleo YM2413 não deve depender de tipos do Master System.
 
 ### 7.2 Portas SMS
 
-- $F0: latch/endereço do YM2413.
-- $F1: dados do YM2413.
-- $F2: detecção/controle de áudio e leitura de bits de contador no hardware correspondente.
+- $F0: escrita do latch/endereço; somente os seis bits inferiores selecionam o registrador.
+- $F1: escrita de dados no registrador previamente selecionado.
+- $F2: controle de roteamento/mute e readback dependente do perfil físico.
 
-A decodificação deve ocorrer no evento de conclusão da transação de I/O, preservando o timestamp. A máscara e os espelhos de portas devem ser confirmados no decodificador real do SMS, não inferidos apenas do byte baixo.
+No perfil Japanese Master System, os endereços $F0/$F1/$F2 são decodificados exatamente; não aplicar espelhamento genérico por máscara/paridade. As escritas devem produzir efeito no deadline de conclusão da transação de I/O, preservando timestamp e ordem causal. O intervalo de 12 clocks entre endereço e dados e de 84 clocks após dados é DOCUMENTADO pelo manual Yamaha; o efeito de violações permanece PENDENTE e não deve ser convertido em WAIT do Z80 sem evidência.
 
 ### 7.3 Perfis de hardware e controle $F2
 
@@ -313,32 +312,52 @@ No Japanese Master System, PSG e FM podem operar simultaneamente. No Mark III co
 
 A presença de FM não deve ser inferida apenas de `Territory::Japan`. O perfil deve representar explicitamente modelo/revisão e capacidade física. SMS exportação e variantes Tec Toy não devem receber YM2413 por suposição.
 
-Na leitura de $F2, bits 7, 6 e 5 refletem bits 11, 7 e 3 de um contador de 12 bits associado a C-Sync. Os demais bits têm comportamento definido pela documentação de Audio Control Port. A ausência de FM possui comportamento de leitura diferente conforme o modelo; o perfil precisa tratar isso explicitamente.
+Na leitura de $F2 do Japanese Master System, D7/D6/D5 refletem os bits 11/7/3 de um contador de 12 bits incrementado por pulsos C-Sync na entrada do 315-5297; D4–D2 são zero e D1–D0 refletem os últimos bits escritos. Isso é evidência MEDIDA/documentada por SMS Power. O contador não pode ser sintetizado a partir de VCounter, scanline ou temporizador do host: o runtime ainda não expõe o sinal C-Sync necessário.
 
-### 7.4 PSG e FM simultâneos
+### 7.3.1 Matriz de contratos por modelo físico
 
-O PSG e o YM2413:
-- têm clocks e estados internos independentes;
-- não devem ser pausados ou substituídos apenas porque a outra fonte está selecionada;
-- devem gerar amostras de forma determinística;
-- devem entrar no mixer comum com ganho/headroom documentados;
-- precisam preservar a fase de reamostragem entre blocos.
+| Modelo físico | Presença de FM | Roteamento/portas | Contrato desta trilha |
+|---|---|---|---|
+| Mark III sem FM Unit | Sem YM2413 instalado | Não há FM; SMS Power documenta leitura de $F2 a partir do port 0 neste perfil | Sem FM; não criar chip por configuração |
+| Mark III + FM Sound Unit | Unidade FM externa; não é YM2413 integrado à placa | PSG e FM são mutuamente exclusivos; o bit de controle PSG de $F2 é forçado a zero | Contrato de compatibilidade apenas; o módulo externo e seu adaptador físico ficam fora da implementação |
+| Japanese Master System MK-2000 | YM2413 integrado | $F0/$F1 para endereço/dados; $F2 permite PSG e FM simultâneos e expõe C-Sync no readback | Único perfil físico alvo da implementação integrada nesta trilha |
+| Export SMS sem FM de fábrica | Sem YM2413 de fábrica | Não usar o readback C-Sync japonês; SMS Power relata D1–D0 = $02 em SMS não japonês sem FM | FM ausente por padrão; revisões modificadas exigem perfil físico explícito e evidência própria |
 
-A implementação atual do mixer suporta múltiplas fontes, mas a sessão de áudio deve ser auditada e ampliada para entregar PSG + FM no mesmo intervalo de saída. Não duplicar mixers por console.
+A matriz descreve o modelo físico, não a região do software. `Territory` continua sendo uma propriedade separada: `Territory::Japan` não prova que a placa contém YM2413, e uma ROM de território export pode executar em um perfil físico japonês.
+
+### 7.3.2 Política FmMode — independente do modelo e do território
+
+| FmMode | Política |
+|---|---|
+| `Auto` | Só habilita FM quando o modelo físico selecionado suporta o chip integrado e o catálogo identifica correspondência exata de título/revisão/hash com driver/dados FM comprovados. Sem correspondência exata, mantém FM desativado. |
+| `On` | Override do catálogo para um modelo físico que já possua YM2413 integrado. Não adiciona hardware a Mark III sem unidade ou Export SMS sem FM; não implementa o Mark III FM Sound Unit. Também não fabrica writes, driver ou dados FM. |
+| `Off` | Silencia a saída FM. Se o chip estiver fisicamente presente, o estado interno continua avançando, salvo evidência de que o hardware realmente faça clock-gating. |
+
+O perfil Japanese Master System MK-2000 pode ser selecionado independentemente de `Territory`. A seleção física e `FmMode` não devem alterar BIOS, região do software ou modelo de VDP. Perfis desconhecidos permanecem sem FM em `Auto`; qualquer override de placa modificada deve ser explícito e separado do catálogo de compatibilidade.
+
+
+
+### 7.4 PSG, MO/RO, mixer e resampler
+
+PSG e YM2413 mantêm estados internos independentes. A relação de fonte elétrica e fase entre os clocks permanece **PENDENTE** (FM-A01); a igualdade da frequência nominal não prova clock comum ou alinhamento de fase.
+
+O manual Yamaha identifica MO e RO como saídas analógicas source-follower que exigem estágio posterior. A medição publicada no MSX Resource Center descreve multiplexação de canais em 72 clocks: o valor de cada canal permanece ativo por aproximadamente três clocks e retorna ao nível neutro no restante da janela. Isso não fornece a rede de soma/ganho do SMS japonês. Preservar MO e RO separadamente; não somar como PCM mono normalizado nem transplantar o circuito SFG-05/MSX. A rede analógica específica da placa permanece **PENDENTE** (FM-A02).
+
+No código auditado em M2:
+- `AudioMixer::mix_mono_into` aceita várias fontes mono apenas quando os blocos têm o mesmo número de frames.
+- `NativeAudioSession::process_samples` e o trait `AudioSession` recebem uma única fonte por chamada. Duas chamadas PSG/FM separadas concatenariam blocos no tempo, não os misturariam.
+- A taxa PCM interna canônica é 48.000 Hz; `PcmResampler::new` recebe taxas explícitas de entrada/saída e a taxa host é negociada.
+- A taxa nominal YM2413 de 3.579.545/72 ≈ 49.716,04 amostras/s é derivada, não taxa final de host.
+
+A integração futura deve alinhar determinística e continuamente as fontes antes de uma única operação de mixagem por intervalo (ou generalizar explicitamente o mixer para fontes com timestamps/taxas diferentes). Não entregar PSG e FM em chamadas sequenciais à sessão e não duplicar mixer/resampler por chip.
 
 ## 8. Scheduler e invariância temporal
 
-O `MachineScheduler` existente continua sendo o único dono da linha do tempo.
+O `MachineScheduler` existente continua sendo o único dono da linha do tempo. O core YM2413 recebe avanços explícitos de clock; não possui relógio de host nem Scheduler próprio.
 
-A integração FM requer:
-- um domínio de clock registrado e validado;
-- razão de clock explícita para o perfil de hardware;
-- prioridade/fase de eventos documentada;
-- avanço do YM2413 até cada timestamp de escrita;
-- preservação de restos de clock, slot e subfase;
-- processamento em lote que não ultrapasse eventos pendentes.
+A escolha entre consumir o mesmo `ClockAdvance` do domínio PSG ou registrar um domínio FM explícito **permanece PENDENTE** até evidência elétrica da placa alvo (FM-A01). O worker atual usa um tick lógico por T-state Z80 e o domínio PSG tem razão 1/1 nessa linha do tempo; isso não comprova fase elétrica comum. MAME XTAL(10,738,635)/3 corrobora a frequência nominal, não a conexão física. Se a evidência futura demonstrar clock compartilhado, reutilizar o avanço do PSG; se demonstrar fonte/fase distinta, registrar outro domínio no mesmo `MachineScheduler`. Nunca criar Scheduler paralelo.
 
-O ID do domínio FM ainda não está reservado nesta especificação. Não codificar um ID arbitrário sem verificar a política central de IDs e a validação do snapshot do coordenador SMS. A restauração atual do coordenador valida exatamente três domínios (Z80, PSG, VDP); adicionar FM exigirá evolução explícita do esquema e versão do estado.
+Em ambos os casos, a integração deve avançar o chip até o timestamp de conclusão de cada escrita, preservar resto de clock/slot/subfase, respeitar eventos simultâneos e manter snapshot/replay coerentes. Só definir ID/domínio e versionamento após fechar FM-A01.
 
 ## 9. Save State
 
@@ -367,7 +386,7 @@ Restaurar deve validar coerência entre timestamp do Scheduler, clock acumulado 
 5. Implementar presets e patch de usuário.
 6. Validar síntese melódica e envelopes.
 7. Validar Rhythm Mode.
-8. Implementar adaptador temporal e domínio no Scheduler.
+8. Implementar adaptador temporal no único MachineScheduler; compartilhar o domínio PSG somente se FM-A01 for fechado positivamente, caso contrário registrar domínio explícito na mesma timeline.
 9. Integrar portas $F0–$F2 por perfil físico.
 10. Integrar fontes PSG + FM no mixer e no resampler.
 11. Executar regressão SMS e SG-1000 e todos os gates do workspace.
@@ -425,9 +444,11 @@ Antes de reutilizar código, tabelas ou dados, verificar licença, versão/commi
 - Scheduler único, sem callbacks por instrução.
 - Operador processado sequencialmente em 18 slots.
 - PSG + FM simultâneos no perfil Japanese SMS.
-- Mark III FM Unit com comportamento exclusivo próprio.
-- Não presumir FM em SMS exportação ou Tec Toy sem evidência.
-- Não iniciar síntese de produção antes de fechar os itens PENDENTES.
+- Mark III FM Unit tem contrato de roteamento exclusivo documentado, mas o módulo externo não será implementado nesta trilha.
+- Não presumir FM em Export SMS ou Tec Toy sem perfil físico e evidência.
+- A síntese digital pura pode avançar em etapas isoladas com modelos candidatos e pendências explicitamente rastreadas; FM-A01/A02/A03/A04/A05/A07 bloqueiam integração de hardware/áudio, não a construção isolada dos operadores.
+- Incertezas digitais de PG/EG/feedback/pipeline, estado inicial, presets originais e comportamento de writes fora de 12/84 continuam gates de fidelidade: exigir vetores/diferenciais antes de declarar PASS.
+- Nenhum resultado autoriza alegação cycle-accurate sem comparação independente no escopo declarado.
 - Nenhuma mudança de hardware é considerada concluída sem testes diferenciais, temporais, de snapshot e regressão.
 
 
@@ -624,7 +645,7 @@ Fontes de código auditadas:
 
 ### 15. Errata M2 — reconciliação com o main de 2026-11-17
 
-A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf840090bad6036810a0df98f22b9d1484`. Ela **não deve ser usada isoladamente como decisão de implementação**. A auditoria atual, baseada no main `b82e0df4c9840b2cd59f090278b907cbb321869f`, está em [`docs/audits/ym2413-pre-implementation-audit-2026-11-17.md`](../audits/ym2413-pre-implementation-audit-2026-11-17.md) e corrige os pontos abaixo:
+A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf840090bad6036810a0df98f22b9d1484`. Ela **não deve ser usada isoladamente como decisão de implementação**. A auditoria atual, baseada no main `b82e0df4c9840b2cd59f090278b907cbb321869f`, está no documento independente [auditoria M2](../audits/ym2413-pre-implementation-audit-2026-11-17.md) e corrige os pontos abaixo:
 
 1. **Clock compartilhado: decisão suspensa.** O worker SMS ativo usa `SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE = 1`; o tick lógico é um T-state Z80, não um tick de 10,738635 MHz. O domínio PSG tem razão 1/1 nessa linha do tempo. O manual Yamaha especifica um oscilador de 3,579545 MHz em XIN/XOUT; MAME modela o YM2413 japonês com XTAL(10,738,635)/3. Isso corrobora frequência nominal, mas não prova fonte elétrica/fase comum em todas as placas. A decisão de consumir o mesmo `ClockAdvance` do PSG só será fechada após FM-A01.
 
@@ -641,3 +662,48 @@ A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf84
 7. **Saída e taxa de amostragem.** A taxa aproximada de 49,716 kHz deriva de 72 clocks por rotação. A saída MO/RO é multiplexada e o valor de cada canal permanece ativo por uma janela curta antes de retornar ao neutro; o modelo deve preservar as duas saídas e não tratá-las como uma fonte mono já normalizada. A rede analógica da placa SMS continua pendente.
 
 **Status atualizado:** a arquitetura geral proposta na seção 14 continua válida (core Rust, máquina SMS existente, Scheduler único, mixer existente). As decisões específicas de domínio de clock, conversão de taxa, decode japonês, C-Sync e mixagem MO/RO ficam condicionadas às evidências registradas na auditoria M2. Nenhum teste YM2413 foi executado.
+
+
+### 15.1 O que bloqueia síntese e o que bloqueia integração
+
+| Item | Síntese digital pura | Integração SMS/aceite físico | Estado |
+|---|---|---|---|
+| PG/EG/AM/PM/feedback, pipeline e estados iniciais | Pode avançar como modelo candidato isolado, com vetores e divergências explícitas | Exige resolução/diferencial suficiente para o nível de fidelidade declarado | PENDENTE |
+| Presets do YM2413 original (não VRC7/YMF281B/FHB013) | Bloqueia aceite de presets originais; não impede scaffolding de operadores | Bloqueia catálogo/aceite de timbres originais | PENDENTE (FM-A08) |
+| Latência de escrita 12/84 e comportamento fora da janela | Não bloqueia o algoritmo dos operadores; precisa ser modelada no contrato de registradores | Bloqueia aceite do barramento e transações FM | PENDENTE (FM-A06) |
+| Fonte/fase do clock PSG/FM | Não bloqueia core que recebe clocks explícitos | Bloqueia escolha de domínio/razão no Scheduler e sincronismo físico | PENDENTE (FM-A01) |
+| Rede analógica MO/RO | Não bloqueia geração digital separada das saídas | Bloqueia soma/ganho/filtragem específica do SMS | PENDENTE (FM-A02) |
+| C-Sync e readback de $F2 | Não bloqueia síntese | Bloqueia readback fiel de $F2; não derivar de VCounter | BLOCKED (FM-A03) |
+| Perfil físico/revisão da placa | Não bloqueia core genérico | Bloqueia seleção confiável da máquina e decode de portas | PENDENTE (FM-A04) |
+| Catálogo título/revisão/hash | Não bloqueia core | Bloqueia comportamento Auto conservador | PENDENTE (FM-A05) |
+| Alinhamento de mixer/resampler e continuidade | Não bloqueia core | Bloqueia áudio simultâneo, save state/replay de áudio e aceite do pipeline | PENDENTE (FM-A07) |
+
+O contrato permite iniciar a síntese digital pura em incrementos pequenos, mas não declarar o modelo completo nem integrar FM ao SMS. Os bloqueios físicos ficam isolados no adaptador/mixer; as pendências digitais continuam visíveis no scorecard e exigem evidência antes de qualquer alegação de fidelidade.
+
+## 16. Scorecard por subsistema
+
+**Snapshot de validação:** PR #996 head `b3a78474289994ec4328db47091d5845a1c6fd69`; CI [44213606017](https://github.com/leonardo201800478/sega-emulator/actions/runs/44213606017) ainda estava em andamento no último inventário. SMS runtime [44213606027](https://github.com/leonardo201800478/sega-emulator/actions/runs/44213606027) concluiu o job Release de formato/Clippy/testes com PASS. O próximo commit documental criará outro SHA; nenhum check deste snapshot valida esse novo HEAD.
+
+| Subsistema | Estado | Evidência e limite |
+|---|---|---|
+| Auditoria M2 independente | PASS | PR #994 integrada por `faecfc7fc6a869884bf5aaad063473ca5002be0d`; auditoria estática, sem teste físico |
+| Contrato dos quatro modelos físicos | PASS | Matriz documental da seção 7.3.1; não representa validação de todas as revisões de placa |
+| Isolamento do crate `sega-ym2413` | PASS | `native/ym2413` sem dependências; dependência unidirecional `sega-audio-runtime → sega-ym2413`, no SHA `b3a7847...` |
+| Latch/endereço e imagem de registradores | PASS | Testes de máscara de seis bits e escrita no registrador latched, no SHA `b3a7847...` |
+| Contagem 18 × 4 = 72 clocks e invariância em blocos | PASS | Testes aritméticos do fundamento; não validam pipeline físico nem ordem de operadores |
+| Snapshot/restore do fundamento | PASS | Round-trip de registradores e fase parcial; não é save state completo do chip/máquina |
+| Alocação/locks no fundamento | PASS | Métodos atuais usam array fixo e não contêm heap/locks; o hot path de síntese ainda não existe |
+| CI do PR #996 — jobs concluídos até o snapshot | PASS | Change impact, workspace regression, docs hygiene, PowerShell e SMS runtime Release fmt/Clippy/tests concluíram PASS no SHA indicado |
+| CI do PR #996 — jobs ainda em execução | NOT RUN | Slint/WGPU/Vulkan, CPAL e SDL3 ainda estavam em andamento; reconsultar no SHA exato |
+| CI do novo HEAD após atualização documental | NOT RUN | Exige nova execução no SHA criado por esta revisão |
+| Síntese PG/EG/AM/PM/feedback/Log-Sine/EXP/Rhythm | NOT RUN | Nenhum operador ou PCM implementado |
+| Latência 12/84 e writes no deadline SMS | NOT RUN | Fundação atual aplica writes imediatamente; adaptador ainda não existe |
+| Clock/fase compartilhada PSG/FM | BLOCKED | FM-A01; frequência nominal não prova fase/fonte elétrica |
+| C-Sync e readback $F2 | BLOCKED | FM-A03; runtime não expõe C-Sync |
+| Circuito analógico MO/RO do SMS | BLOCKED | FM-A02; preservar saídas separadas |
+| Mixer multi-source na sessão e conversão FM→48 kHz | BLOCKED | Mixer suporta fontes alinhadas, mas sessão aceita uma fonte por chamada; 49,716 kHz exige alinhamento determinístico |
+| Auto/On/Off e catálogo por título/revisão/hash | NOT RUN | Não existe preferência/catálogo no runtime |
+| Save state/replay integrado | NOT RUN | Só há snapshot do fundamento puro |
+| Testes físicos de placa e saída | NOT RUN | Nenhuma medição física executada nesta trilha |
+
+**SKIPPED no CI até o snapshot (não são PASS):** SMS1 VDP, input core, geração manual de lockfiles, workflow validation, Scheduler stress, SMS frame-pacing ROM build, Z80 focused validation, PSG core e SMS debugger Windows Release validation.
