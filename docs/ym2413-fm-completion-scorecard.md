@@ -403,3 +403,14 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 - Esta função não avança PG/EG, não altera feedback, não resolve o pipeline de slots e ainda não está conectada a uma configuração de voz rítmica.
 
 **Estado:** bloco digital puro implementado; integração de HH/SD/TOM/TCY pendente.
+
+
+## FM-7 — configuração estática das cinco vozes (2026-11-18)
+
+- Adicionado `decode_rhythm_synthesis`, que compõe o decoder de registradores já existente com os cinco patches candidatos, os canais físicos 7–9, os slots 13–18, PG/EG e KSL.
+- BD mantém dois operadores (mod7/slots 13 e 16); HH usa mod8/slot 14; TOM usa mod9/slot 15; SD usa car8/slot 17; TCY usa car9/slot 18.
+- As quatro vozes de operador único declaram explicitamente o uso do caminho de amplitude carrier, mesmo quando o papel físico é modulator.
+- Preservados FNUM/BLOCK, KEY-ON melódico bruto e SUS; a interação entre KEY-ON e trigger $0E não foi inferida.
+- Testes cobrem mapeamento das cinco vozes, slots, papéis, triggers, volumes, frequência, KEY-ON/SUS, seleção de patches e RHY desligado.
+
+**Estado:** decoder/configuração estática implementado. Nenhuma voz produz PCM; PG/EG ainda não foram conectados ao caminho de avaliação rítmica e não há pipeline temporal.
