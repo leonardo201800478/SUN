@@ -112,7 +112,7 @@ fn operator_config(
     })
 }
 
-fn build_voice(
+struct RhythmVoiceBuild {
     voice: Ym2413RhythmVoice,
     trigger: bool,
     volume: u8,
@@ -121,20 +121,24 @@ fn build_voice(
     modulator_slot: Option<u8>,
     carrier_slot: Option<u8>,
     single_operator_uses_carrier_path: bool,
+}
+
+fn build_voice(
+    build: RhythmVoiceBuild,
 ) -> Result<RhythmVoiceSynthesisConfig, RhythmChannelSynthesisError> {
-    let patch: InstrumentPatch = rhythm_patch_candidate(instrument);
-    let modulator = match modulator_slot {
+    let patch: InstrumentPatch = rhythm_patch_candidate(build.instrument);
+    let modulator = match build.modulator_slot {
         Some(slot) => Some(operator_config(
-            channel,
+            build.channel,
             slot,
             Ym2413Operator::Modulator,
             patch.modulator,
         )?),
         None => None,
     };
-    let carrier = match carrier_slot {
+    let carrier = match build.carrier_slot {
         Some(slot) => Some(operator_config(
-            channel,
+            build.channel,
             slot,
             Ym2413Operator::Carrier,
             patch.carrier,
@@ -142,13 +146,13 @@ fn build_voice(
         None => None,
     };
     Ok(RhythmVoiceSynthesisConfig {
-        voice,
-        trigger,
-        volume,
-        channel_frequency: channel,
+        voice: build.voice,
+        trigger: build.trigger,
+        volume: build.volume,
+        channel_frequency: build.channel,
         modulator,
         carrier,
-        single_operator_uses_carrier_path,
+        single_operator_uses_carrier_path: build.single_operator_uses_carrier_path,
         feedback: patch.feedback,
     })
 }
@@ -171,56 +175,56 @@ pub fn decode_rhythm_synthesis(
     let [channel7, channel8, channel9] = decoded.channel_frequencies;
 
     let voices = [
-        build_voice(
-            Ym2413RhythmVoice::BassDrum,
-            decoded.bass_drum.key_on,
-            decoded.bass_drum.volume,
-            channel7,
-            Ym2413RhythmInstrument::BassDrum,
-            Some(13),
-            Some(16),
-            false,
-        )?,
-        build_voice(
-            Ym2413RhythmVoice::HiHat,
-            decoded.hi_hat.key_on,
-            decoded.hi_hat.volume,
-            channel8,
-            Ym2413RhythmInstrument::HiHat,
-            Some(14),
-            None,
-            true,
-        )?,
-        build_voice(
-            Ym2413RhythmVoice::SnareDrum,
-            decoded.snare_drum.key_on,
-            decoded.snare_drum.volume,
-            channel8,
-            Ym2413RhythmInstrument::SnareDrum,
-            None,
-            Some(17),
-            true,
-        )?,
-        build_voice(
-            Ym2413RhythmVoice::TomTom,
-            decoded.tom_tom.key_on,
-            decoded.tom_tom.volume,
-            channel9,
-            Ym2413RhythmInstrument::TomTom,
-            Some(15),
-            None,
-            true,
-        )?,
-        build_voice(
-            Ym2413RhythmVoice::TopCymbal,
-            decoded.top_cymbal.key_on,
-            decoded.top_cymbal.volume,
-            channel9,
-            Ym2413RhythmInstrument::TopCymbal,
-            None,
-            Some(18),
-            true,
-        )?,
+        build_voice(RhythmVoiceBuild {
+            voice: Ym2413RhythmVoice::BassDrum,
+            trigger: decoded.bass_drum.key_on,
+            volume: decoded.bass_drum.volume,
+            channel: channel7,
+            instrument: Ym2413RhythmInstrument::BassDrum,
+            modulator_slot: Some(13),
+            carrier_slot: Some(16),
+            single_operator_uses_carrier_path: false,
+        })?,
+        build_voice(RhythmVoiceBuild {
+            voice: Ym2413RhythmVoice::HiHat,
+            trigger: decoded.hi_hat.key_on,
+            volume: decoded.hi_hat.volume,
+            channel: channel8,
+            instrument: Ym2413RhythmInstrument::HiHat,
+            modulator_slot: Some(14),
+            carrier_slot: None,
+            single_operator_uses_carrier_path: true,
+        })?,
+        build_voice(RhythmVoiceBuild {
+            voice: Ym2413RhythmVoice::SnareDrum,
+            trigger: decoded.snare_drum.key_on,
+            volume: decoded.snare_drum.volume,
+            channel: channel8,
+            instrument: Ym2413RhythmInstrument::SnareDrum,
+            modulator_slot: None,
+            carrier_slot: Some(17),
+            single_operator_uses_carrier_path: true,
+        })?,
+        build_voice(RhythmVoiceBuild {
+            voice: Ym2413RhythmVoice::TomTom,
+            trigger: decoded.tom_tom.key_on,
+            volume: decoded.tom_tom.volume,
+            channel: channel9,
+            instrument: Ym2413RhythmInstrument::TomTom,
+            modulator_slot: Some(15),
+            carrier_slot: None,
+            single_operator_uses_carrier_path: true,
+        })?,
+        build_voice(RhythmVoiceBuild {
+            voice: Ym2413RhythmVoice::TopCymbal,
+            trigger: decoded.top_cymbal.key_on,
+            volume: decoded.top_cymbal.volume,
+            channel: channel9,
+            instrument: Ym2413RhythmInstrument::TopCymbal,
+            modulator_slot: None,
+            carrier_slot: Some(18),
+            single_operator_uses_carrier_path: true,
+        })?,
     ];
 
     Ok(Ym2413RhythmSynthesisConfig {
