@@ -183,9 +183,7 @@ impl Ym2413ChannelSynthesis {
     }
 
     /// Restore one channel after validating every nested component snapshot.
-    fn restore_state(
-        state: Ym2413ChannelSynthesisState,
-    ) -> Result<Self, Ym2413SynthesisError> {
+    fn restore_state(state: Ym2413ChannelSynthesisState) -> Result<Self, Ym2413SynthesisError> {
         Ok(Self {
             phase: [
                 PhaseGenerator::restore_state(state.modulator_phase)?,
@@ -294,12 +292,7 @@ impl Ym2413SynthesisBank {
     ) -> Result<u8, Ym2413SynthesisError> {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
-        Ok(state.envelope[operator_index].tick(
-            global_counter,
-            key_on,
-            carrier,
-            parameters,
-        )?)
+        Ok(state.envelope[operator_index].tick(global_counter, key_on, carrier, parameters)?)
     }
 
     /// Apply the explicit CarrierDrivesBoth DAMP candidate after a carrier tick.
@@ -342,22 +335,14 @@ impl Ym2413SynthesisBank {
     }
 
     /// Return one operator's current PG phase index.
-    pub fn phase_index(
-        &self,
-        channel: u8,
-        carrier: bool,
-    ) -> Result<u16, Ym2413SynthesisError> {
+    pub fn phase_index(&self, channel: u8, carrier: bool) -> Result<u16, Ym2413SynthesisError> {
         let state = self.channel(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
         Ok(state.phase[operator_index].phase_index())
     }
 
     /// Return one operator's current EG attenuation level.
-    pub fn envelope_level(
-        &self,
-        channel: u8,
-        carrier: bool,
-    ) -> Result<u8, Ym2413SynthesisError> {
+    pub fn envelope_level(&self, channel: u8, carrier: bool) -> Result<u8, Ym2413SynthesisError> {
         let state = self.channel(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
         Ok(state.envelope[operator_index].level())
@@ -389,9 +374,7 @@ impl Ym2413SynthesisBank {
     }
 
     /// Restore the aggregate bank after validating every nested snapshot.
-    pub fn restore_state(
-        state: Ym2413SynthesisBankState,
-    ) -> Result<Self, Ym2413SynthesisError> {
+    pub fn restore_state(state: Ym2413SynthesisBankState) -> Result<Self, Ym2413SynthesisError> {
         if state.format_version != YM2413_SYNTHESIS_STATE_VERSION {
             return Err(Ym2413SynthesisError::InvalidState);
         }
@@ -490,10 +473,14 @@ mod tests {
         let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
         let config = configuration(0);
 
-        bank.advance_operator_phase(0, false, config.modulator_phase).unwrap();
-        bank.advance_operator_phase(0, true, config.carrier_phase).unwrap();
-        bank.tick_operator_envelope(0, false, true, 0, config.modulator_envelope).unwrap();
-        bank.tick_operator_envelope(0, true, true, 0, config.carrier_envelope).unwrap();
+        bank.advance_operator_phase(0, false, config.modulator_phase)
+            .unwrap();
+        bank.advance_operator_phase(0, true, config.carrier_phase)
+            .unwrap();
+        bank.tick_operator_envelope(0, false, true, 0, config.modulator_envelope)
+            .unwrap();
+        bank.tick_operator_envelope(0, true, true, 0, config.carrier_envelope)
+            .unwrap();
 
         let snapshot = bank.export_state();
         let mut restored = Ym2413SynthesisBank::restore_state(snapshot).unwrap();
@@ -523,10 +510,13 @@ mod tests {
     fn snapshot_round_trip_preserves_all_channel_and_global_state() {
         let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
         bank.advance_lfo_samples(777);
-        bank.advance_operator_phase(8, true, configuration(8).carrier_phase).unwrap();
+        bank.advance_operator_phase(8, true, configuration(8).carrier_phase)
+            .unwrap();
         let snapshot = bank.export_state();
         assert_eq!(
-            Ym2413SynthesisBank::restore_state(snapshot).unwrap().export_state(),
+            Ym2413SynthesisBank::restore_state(snapshot)
+                .unwrap()
+                .export_state(),
             snapshot
         );
     }
