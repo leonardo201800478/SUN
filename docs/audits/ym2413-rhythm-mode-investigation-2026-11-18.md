@@ -259,3 +259,8 @@ As configurações estáticas agora podem montar os parâmetros dinâmicos do av
 ## Avaliação digital integrada ao banco PG/EG (2026-11-18)
 
 A camada `Ym2413SynthesisBank` expõe agora operações direcionadas para os operadores físicos da configuração rítmica. O chamador ainda define o boundary de serviço PG, o contador global EG e o estado KEY-ON; os wrappers só encaminham esses valores para o PG/EG do canal e papel físico correspondentes. A avaliação de HH/SD/TOM/TCY lê fase e nível EG atuais e usa a saída carrier. BD avalia o par normal do canal 7, com o histórico de feedback já pertencente ao banco. O trigger `$0E` não é tratado como mute gate pelo avaliador: não foi demonstrado que o bit seja uma condição combinacional de saída, e o envelope pode representar cauda de release. A etapa não implementa cadência de slots, LFSR, M→C temporal, duplicação de saída, DAC, MO/RO ou PCM.
+
+
+### Contrato de fase explícita na avaliação integrada
+
+O avaliador integrado do banco não tenta derivar automaticamente a fase de HH, SD ou TCY a partir do PG associado ao operador que fornece o envelope. O chamador passa o índice de fase resultante de `hi_hat_phase_candidate`, `snare_drum_phase_candidate` ou `top_cymbal_phase_candidate`, com o bit de ruído amostrado no boundary correto. Para TOM, o chamador passa a fase normal do PG tonal. BD não recebe override e usa os dois PGs do par FM. Assim, a camada de amplitude lê o EG do slot físico correto, enquanto a origem da fase permanece explícita e separada. A API rejeita fase ausente nas quatro vozes simples e fase adicional em BD.
