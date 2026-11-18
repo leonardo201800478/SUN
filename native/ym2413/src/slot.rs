@@ -180,7 +180,7 @@ pub const fn slot_descriptor(slot_index: u8) -> Option<Ym2413SlotDescriptor> {
 #[cfg(test)]
 mod tests {
     use super::{
-        slot_descriptor, Ym2413Operator, Ym2413RhythmVoice, YM2413_SLOT_COUNT, YM2413_SLOT_MAP,
+        YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, slot_descriptor,
     };
 
     #[test]
