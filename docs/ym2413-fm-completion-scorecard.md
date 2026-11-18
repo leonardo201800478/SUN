@@ -450,3 +450,14 @@ O avaliador do banco não deduz fase de HH/SD/TCY a partir do PG do operador de 
 - Testes cobrem HH→SD, wrap 17→0, restore e rejeição de seed/índice/snapshot inválidos.
 
 **Limites:** o sequenciador é chamado explicitamente uma vez por slot pelo owner futuro. Não consome clocks, não se conecta ao MachineScheduler e não determina o alinhamento absoluto de reset. O bit retornado ainda deve ser fornecido ao combinador de fase e à avaliação da voz.
+
+
+## FM-7 — ponte entre amostras LFSR e candidatos de fase HH/SD (2026-11-18)
+
+- `rhythm_noise_phase_candidate` recebe o evento emitido pelo sequenciador e um tipo explícito de entradas PG compatível com a voz.
+- Hi-Hat exige slot 13 e fases do modulator do canal 7 e carrier do canal 8; Snare Drum exige slot 16 e fase do modulator do canal 7.
+- O bit de ruído é consumido diretamente do evento, sem novo clock ou leitura implícita do LFSR.
+- Combinações inconsistentes entre voz, índice de slot e variante de entrada são rejeitadas.
+- Testes conectam o sequenciador aos candidatos existentes de HH/SD e cobrem a rejeição de eventos incompatíveis.
+
+**Limites:** as equações permanecem candidatas de reverse engineering; offsets absolutos PG/reset não foram comprovados. O chamador ainda fornece fases PG na fronteira correta e encaminha o resultado ao avaliador de amplitude. Não há integração com o banco de slots, MachineScheduler, saída duplicada, DAC, MO/RO ou PCM. Nenhum contrato temporal novo é declarado.
