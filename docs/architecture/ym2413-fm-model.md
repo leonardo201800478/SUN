@@ -924,7 +924,7 @@ As constantes ficam em `native/ym2413/src/synthesis_tables.rs`. Não há `sin`, 
 ### Codificação e conversão
 
 - O índice de fase tem dez bits: bit 9 é sinal, bit 8 seleciona o espelhamento e os oito bits inferiores selecionam a tabela.
-- A opção half-wave substitui o semim ciclo negativo pelo código de atenuação `0x0fff`.
+- A opção half-wave substitui o semiciclo negativo pelo código de atenuação `0x0fff`.
 - A conversão EXP usa a mantissa invertida, o termo `0x0800`, o expoente nos bits 8..14 e complemento de um para o sinal negativo.
 - A saída é mantida como inteiro assinado. A conversão para DAC, offset-binary, mixagem ou PCM final não faz parte deste módulo.
 
@@ -946,7 +946,6 @@ O par recebe índices PG separados para modulator e carrier. Não pressupõe ali
 ### Evidência e limites
 
 - **MODELO MATEMÁTICO — andete, 2016-07-16:** fórmulas de geração das tabelas, codificação log-sine, EXP, atenuação, feedback e deslocamentos de saída.
-- **MODELO CANDIDATO — andete, 2017-01-26:** evolução do caminho de síntese e limites do modelo de ataque.
 - **IMPLEMENTADO:** lookup inteiro, atenuação, feedback de dois samples, phase wrap, snapshots do feedback e testes de simetria/limites.
 - **PENDENTE:** KSL a partir de FNUM/BLOCK, patch ROM, AM LFO, atualização dos 18 PGs/EGs, ordem de slots, validação PCM diferencial e confirmação física de quantização/escala.
 
