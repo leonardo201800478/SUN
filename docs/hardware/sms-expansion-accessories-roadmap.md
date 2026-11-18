@@ -19,16 +19,16 @@ A nomenclatura técnica encontrada é **Sega Card / My Card** (mídia) e **Card 
 - O YM2413 é um dispositivo opcional do perfil de hardware emulado, selecionável independentemente da região do console.
 - Quando presente, o YM2413 opera em conjunto com o SN76489/PSG. O port $F2 deve reproduzir o controle do SMS japonês: $00 FM off/PSG on; $01 FM on/PSG off; $02 ambos off; $03 ambos on. A capacidade de silenciar o PSG por esse controle é específica do SMS japonês.
 - Não inferir FM apenas da região. A presença do chip é uma opção de hardware; região/BIOS continuam propriedades separadas da máquina.
-- Oferecer modos de configuração: Auto (baseado em catálogo de compatibilidade por título/revisão), On e Off. Auto só ativa FM quando houver evidência de suporte no software; o usuário pode substituir a decisão. Não presumir que todo ROM tenha driver ou dados FM.
+- Oferecer `FmMode::Auto`, `On` e `Off`, independente de `Territory`: Auto exige correspondência exata de título/revisão/hash e driver/dados FM comprovados; On ignora o catálogo somente em perfil físico que já possua YM2413 integrado; Off silencia a saída sem parar o estado interno do chip. On não cria hardware em modelos sem FM e nenhum modo injeta dados em ROM sem suporte.
 - Algumas versões internacionais mantêm o driver FM; outras removeram o código durante localização. Há títulos que só utilizam FM com determinadas versões/condições regionais. A seleção do chip não injeta áudio FM em ROM sem suporte.
 - $F0: latch/endereço; $F1: dados; $F2: detecção/controle do perfil Japanese SMS.
 - Preservar SN76489 e YM2413 como dispositivos/estados independentes, com mixer final que permite saída simultânea real.
-- Reutilizar os domínios de clock do Scheduler; não criar domínio FM duplicado.
+- Reutilizar o `ClockAdvance` do PSG somente se FM-A01 confirmar fonte e relação de fase na placa alvo; caso contrário registrar domínio FM explícito dentro do mesmo `MachineScheduler`. Nunca criar Scheduler paralelo.
 - Alinhar fontes PSG/FM e misturá-las em uma operação determinística, com taxas/fases reconciliadas antes do resampler CPAL.
 - Save State inclui latch, registradores, operadores, EG/PG, LFOs, pipeline, roteamento e fase do mixer/resampler.
 - Validar portas, $F2, reset, timing, mute/enable, síntese, Rhythm Mode, snapshot/restore e mistura contínua/em blocos.
 
-O Mark III FM Sound Unit fica documentado como hardware histórico fora do escopo de emulação. `docs/architecture/ym2413-fm-model.md` é a especificação algorítmica existente; registra hipóteses e lacunas, não implementação concluída.
+O Mark III FM Sound Unit fica documentado como hardware histórico fora do escopo de emulação. [A especificação arquitetural YM2413](../architecture/ym2413-fm-model.md) é a fonte normativa dos contratos por modelo físico, `FmMode`, scorecard e pendências; a auditoria M2 permanece separada em `docs/audits/`.
 
 ## Sega Card / My Card
 
