@@ -881,7 +881,7 @@ O crate `sega-ym2413` passa a conter `native/ym2413/src/envelope.rs`, exportado 
 - SL comparado pela metade superior do nível (`level >> 3`), incluindo o comportamento SL=0.
 - Release do carrier: RR para EG-TYPE sustentado; taxas fixas 5/7 selecionadas por SUS-ON/OFF para EG-TYPE percussivo.
 - Snapshot local versionado (formato 2, incluindo a configuração candidata), validação de largura dos campos e testes determinísticos.
-- Nível inicial explícito por `EnvelopeGenerator::with_level`; não há valor default de reset declarado porque as fontes consultadas não comprovam o nível EG após reset IC.
+- Estado inicial explícito por `EnvelopeGenerator::with_initial_state(level, stage, key_on, config)`; não há valor default de reset declarado porque as fontes consultadas não comprovam o nível EG nem a fase após reset IC.
 
 ### Contrato temporal deliberado
 
