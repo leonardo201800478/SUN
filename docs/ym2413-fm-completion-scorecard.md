@@ -505,3 +505,28 @@ O limiar 124 continua parametrizado e não é promovido a constante física. A c
 **Estado:** alteração de código e vetores adicionados. O primeiro CI da branch (`44398643769`) detectou erro de inferência de tipo no teste da matriz FNUM (`0..=1` inferido como `i32`); corrigido na branch por tipagem explícita `0_u8..=1`. O CI do novo HEAD ainda precisa ser executado e aprovado. FM-1 permanece PARCIAL. Nenhuma alteração de runtime, Scheduler, PCM, portas SMS ou dependências.
 
 **Caderno de evidências:** [YM2413 — saída, EG e Rhythm Mode](ym2413-research-ledger-2026-11-18.md), com pinagem MO/RO, ressalvas sobre circuitos analógicos, classificação das hipóteses de ritmo e critérios para validação ciclo-a-ciclo.
+
+---
+
+## Atualização FM-1 — correção RATE=0/KSR integrada (2026-11-18)
+
+- PR #1024 integrada por squash.
+- Merge commit: `f3480e453e32b6c4ce2d80314c8163c405d1f2ff`.
+- CI do HEAD `b089f40cd7df1eab970943802b30c61b29bcf273`: SUCCESS (workflow #44402738227).
+- `EnvelopeParameters::effective_rate` agora preserva RATE=0 independentemente de KSR.
+- Cobertura: matriz BLOCK/FNUM8/KSR, retenção de sustain e vetor aritmético DAMP com threshold 124 explicitamente candidato.
+- DAMP=124, coordenação modulator/carrier e AR=15 continuam sem certificação física.
+
+FM-1 permanece PARCIAL: PG/EG ainda não estão conectados a uma execução serial de 18 slots com cadências demonstradas.
+
+## Atualização FM-5 — vetores fixos de fase do Rhythm Mode (em validação)
+
+**Branch:** `test/ym2413-rhythm-phase-reference-vectors`
+
+Foi adicionado um fixture fixo de 32 combinações para a função booleana compartilhada por Hi-Hat e Top Cymbal, com vetores derivados da expressão final publicada por Andete em [YM2413 Rhythm mode](https://github.com/andete/ym2413/blob/master/results/rhythm/rhythm.md).
+
+O teste também verifica as fases de saída de Top Cymbal e Hi-Hat para os dois estados possíveis do bit de ruído.
+
+**Limites:** o fixture é uma regressão comportamental da expressão publicada; não determina os offsets absolutos dos PGs, o seed/reset físico do LFSR ou o instante de amostragem no pipeline. A origem permanece referência de engenharia reversa, não especificação primária nem captura produzida pelo projeto.
+
+FM-5 permanece PARCIAL. Não foram alterados PG/EG, slots, Scheduler, PCM, barramento SMS ou dependências.
