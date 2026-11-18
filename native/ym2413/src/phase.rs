@@ -32,9 +32,7 @@ pub enum PhaseGeneratorError {
 }
 
 /// Measured ML multiplier mapping indexed by the four-bit MUL field.
-pub const YM2413_ML_TABLE: [u8; 16] = [
-    1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 20, 24, 24, 30, 30,
-];
+pub const YM2413_ML_TABLE: [u8; 16] = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 20, 24, 24, 30, 30];
 
 /// Measured 8×8 phase-modulation correction table.
 ///
@@ -153,9 +151,7 @@ impl PhaseGenerator {
     }
 
     /// Restore a phase accumulator after validating its snapshot.
-    pub const fn restore_state(
-        state: PhaseGeneratorState,
-    ) -> Result<Self, PhaseGeneratorError> {
+    pub const fn restore_state(state: PhaseGeneratorState) -> Result<Self, PhaseGeneratorError> {
         if state.format_version != YM2413_PG_STATE_VERSION || state.phase > YM2413_PHASE_MASK {
             return Err(PhaseGeneratorError::InvalidState);
         }
@@ -191,13 +187,13 @@ mod tests {
     fn pm_sequence_matches_published_ym2413_measurement_vector() {
         // Published andete example: FNUM=0x1c0, BLOCK=6, ML=2.
         let actual: Vec<u32> = (0..8)
-            .map(|position| {
-                PhaseGenerator::phase_step(0x1c0, 6, 1, true, position).unwrap()
-            })
+            .map(|position| PhaseGenerator::phase_step(0x1c0, 6, 1, true, position).unwrap())
             .collect();
         assert_eq!(
             actual,
-            [28_672, 28_768, 28_896, 28_768, 28_672, 28_576, 28_448, 28_576]
+            [
+                28_672, 28_768, 28_896, 28_768, 28_672, 28_576, 28_448, 28_576
+            ]
         );
     }
 
@@ -231,7 +227,9 @@ mod tests {
 
     #[test]
     fn phase_accumulator_wraps_at_nineteen_bits() {
-        let mut pg = PhaseGenerator { phase: YM2413_PHASE_MASK };
+        let mut pg = PhaseGenerator {
+            phase: YM2413_PHASE_MASK,
+        };
         let phase = pg.advance(0x1c0, 6, 1, false, 0).unwrap();
         assert_eq!(phase, 28_671);
         assert_eq!(pg.phase_index(), (phase >> 9) as u16);
