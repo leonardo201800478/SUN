@@ -435,3 +435,8 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 - Testes verificam o mapeamento físico PG/EG, equivalência dos wrappers com as APIs existentes, avaliação das quatro vozes simples sem mutação de estado, feedback BD e rejeição de Rhythm Mode desabilitado.
 
 **Estado:** ponte para avaliação digital sobre o banco compartilhado concluída quando CI passar. Não representa execução serial de slots, repetição de saída, LFSR integrado, mistura MO/RO, PCM ou precisão temporal validada.
+
+
+### Correção de contrato — fase explícita no avaliador de vozes (2026-11-18)
+
+O avaliador do banco não deduz fase de HH/SD/TCY a partir do PG do operador de envelope. Essas vozes recebem `phase_index` explícito, que deve vir dos combinadores medidos e do bit LFSR no slot correto; TOM recebe o índice do PG normal do operador tonal. BD não aceita override e usa os dois PGs do par FM. Essa separação impede confundir o operador físico que fornece EG/volume com as fontes de fase combinada. O banco não avança essas fontes nem o LFSR.
