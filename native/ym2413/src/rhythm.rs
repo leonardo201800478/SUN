@@ -351,9 +351,8 @@ impl Ym2413RhythmSlotNoiseLfsr {
 mod tests {
     use super::{
         YM2413_RHYTHM_NOISE_LFSR_MASK, YM2413_RHYTHM_NOISE_LFSR_PERIOD,
-        YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION, Ym2413RhythmNoiseError,
-        Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr,
-        Ym2413RhythmSlotNoiseState,
+        YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION, Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr,
+        Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr, Ym2413RhythmSlotNoiseState,
     };
 
     #[test]
@@ -672,7 +671,10 @@ mod tests {
         assert_eq!(continuous.export_state(), chunked.export_state());
 
         let snapshot = continuous.export_state();
-        assert_eq!(Ym2413RhythmSlotNoiseLfsr::restore_state(snapshot), Ok(continuous));
+        assert_eq!(
+            Ym2413RhythmSlotNoiseLfsr::restore_state(snapshot),
+            Ok(continuous)
+        );
         assert_eq!(
             Ym2413RhythmSlotNoiseLfsr::restore_state(Ym2413RhythmSlotNoiseState {
                 format_version: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION + 1,
