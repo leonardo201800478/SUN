@@ -81,22 +81,7 @@ pub struct EnvelopeGenerator {
     key_on: bool,
 }
 
-impl Default for EnvelopeGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl EnvelopeGenerator {
-    /// Reset candidate: maximum attenuation, DAMP phase, key released.
-    pub const fn new() -> Self {
-        Self {
-            level: YM2413_EG_MAX_LEVEL,
-            stage: EnvelopeStage::Damp,
-            key_on: false,
-        }
-    }
-
     /// Construct from an explicit initial attenuation level.
     pub const fn with_level(level: u8) -> Result<Self, EnvelopeGeneratorError> {
         if level > YM2413_EG_MAX_LEVEL {
@@ -507,7 +492,7 @@ mod tests {
 
     #[test]
     fn invalid_parameters_do_not_mutate_state() {
-        let mut eg = EnvelopeGenerator::new();
+        let mut eg = EnvelopeGenerator::with_level(127).unwrap();
         let before = eg;
         let mut p = params();
         p.fnum = 0x200;
