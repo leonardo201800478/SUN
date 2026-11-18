@@ -345,14 +345,14 @@ A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** 
 - A tabela ROM de envelopes de ritmo, a duplicação de saída descrita pelo manual, a cadência do LFSR e o roteamento MO/RO permanecem pendentes.
 - Não há alteração no Scheduler, no banco agregado FM, no mixer ou no runtime SMS.
 
-**Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
+**Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes direcionados, incluindo os cinco casos one-hot, e o CI #44297715529 passaram no HEAD da PR #1015 antes do merge squash. Os gates não aplicáveis foram SKIPPED. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
 
 **Referência primária:** Yamaha YM2413 Application Manual, III-1-7 (Rhythm), III-1-8 (Instrument/Volume) e V-4 (Percussion Sound Synthesis): https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf. A alocação dos bits do registrador $0E também foi comparada com as notas de reverse engineering de andete: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16.
 
 ---
 ## Correção de estado — 2026-11-18 / PR #1014 integrada
 
-**Main:** 5242b0b5ee6a3372d2c10ae23d02f2161d5d8bcf.
+**Main após PR #1015:** 1f0cfe37a5531c8e802ee9ba5f558eaa10b23797.
 
 - PR #1014 foi integrada por squash. O commit de merge é o HEAD confirmado da main.
 - Workflow CI #44292422118, executado no HEAD da PR b2a0b054b1fe6a5d18724dd83ff9f020e36629bc: Change impact classification, Documentation patch hygiene, Rust workspace regression e Rust quality/unit regression concluíram com SUCCESS.
@@ -376,3 +376,16 @@ Esta sequência substitui a numeração antiga de FM-5 a FM-8 acima, que refleti
 A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final” fica superada pelo registro acima. O CI passou no HEAD da PR antes do merge; não foi executado um workflow adicional no commit de merge, e isso não deve ser alegado.
 
 **Referência de investigação:** audits/ym2413-rhythm-mode-investigation-2026-11-18.md.
+
+
+## FM-7 — avanço isolado do Top Cymbal (2026-11-18)
+
+- PR #1015 integrada por squash; CI #44297715529 passou em Rust workspace regression, Rust quality/unit regression, Documentation patch hygiene e Change impact classification. Os demais gates foram SKIPPED.
+- Main após merge: `1f0cfe37a5531c8e802ee9ba5f558eaa10b23797`.
+- Foi criada uma função combinacional candidata para Top Cymbal em `native/ym2413/src/rhythm_phase.rs`. Entradas explícitas: índice de fase do modulador do canal físico 8 e do carrier do canal físico 9. Saída: endereço de fase candidato 0x100/0x300.
+- Os testes cobrem a tabela booleana interna e os limites de entrada; não provam correção do silício, offset temporal ou seleção de fase no pipeline.
+- Genesis Plus GX identifica Top Cymbal como verificado em YM2413, mas não publica vetores de medição junto à rotina. Status permanece **CANDIDATE IMPLEMENTED**, não VALIDATED.
+- A ROM de ritmo permanece sem dump primário. Os três patches rítmicos encontrados no `default_inst` do emu2413 são comentados como provenientes do VRC7; não foram incorporados como ROM YM2413.
+- A redação do manual sobre a razão ótima `f7CH = 3 × f8CH` é ambígua em relação à frase que cita os canais 8 e 9 como fontes. O relatório mantém a discrepância em aberto.
+
+A sequência de FM-7 continua: resolver contrato e parâmetros; BD com patch/EG ROM fundamentados; fase das demais vozes; envelopes/volumes; saídas e validação. Não há integração no banco de síntese, no Scheduler ou no áudio runtime.
