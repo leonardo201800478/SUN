@@ -899,6 +899,6 @@ Este componente é uma tradução independente das relações matemáticas descr
 
 **Não implementado nesta fatia:** integração dos 18 EGs ao scheduler de slots; ordenação exata modulator/carrier; alinhamento do contador global com reset/KEY-ON; pipeline PG/EG por slot; integração no snapshot agregado `Ym2413State`; síntese PCM; validação diferencial de PCM; integração SMS, mixer e PSG.
 
-**Validação:** PR #1001, HEAD `1164b033f411f3fe4c2fc0a101a7de4a34e5e3bb`. Os testes unitários do EG foram adicionados, mas a aprovação do CI desse SHA ainda está pendente. Nenhum teste local de workspace é declarado.
+**Validação:** PR #1001. Os testes unitários do EG foram adicionados; o resultado do CI deve ser associado ao HEAD efetivo da PR, e não a um SHA anterior. Nenhum teste local de workspace é declarado.
 
 **Fontes:** [andete — 2015-03-20](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-20), [2015-12-24](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-24), [2015-12-31](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31), [2017-01-26](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2017-01-26).
