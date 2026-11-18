@@ -188,8 +188,9 @@ pub fn rhythm_noise_phase_candidate(
 #[cfg(test)]
 mod tests {
     use super::{
-        RhythmPhaseCandidateError, RhythmPhaseSource, hi_hat_phase_candidate,
-        rhythm_phase_mix_bit_candidate, snare_drum_phase_candidate, top_cymbal_phase_candidate,
+        RhythmNoisePhaseInputs, RhythmPhaseCandidateError, RhythmPhaseSource,
+        hi_hat_phase_candidate, rhythm_noise_phase_candidate, rhythm_phase_mix_bit_candidate,
+        snare_drum_phase_candidate, top_cymbal_phase_candidate,
     };
 
 
