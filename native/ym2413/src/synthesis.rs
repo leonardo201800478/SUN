@@ -421,7 +421,7 @@ impl Ym2413SynthesisBank {
             }
             let carrier = operator.physical_role == Ym2413Operator::Carrier;
             let state = self.channel(operator.physical_channel)?;
-            let operator_index = usize::from(carrier);
+            let operator_index = if carrier { 1 } else { 0 };
             voice_config.evaluate_single_operator(
                 state.phase[operator_index].phase_index(),
                 state.envelope[operator_index].level(),
@@ -555,7 +555,7 @@ mod tests {
     };
     use crate::channel::decode_channel_synthesis;
     use crate::rhythm_channel::decode_rhythm_synthesis;
-    use crate::slot::Ym2413RhythmVoice;
+    use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
     use crate::envelope::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
