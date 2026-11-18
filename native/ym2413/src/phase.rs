@@ -121,7 +121,7 @@ impl PhaseGenerator {
         };
         let corrected_fnum = u64::try_from(i64::from(fnum) * 2 + pm)
             .map_err(|_| PhaseGeneratorError::InvalidState)?;
-        let step = (corrected_fnum * ml << block) >> 2;
+        let step = ((corrected_fnum * ml) << block) >> 2;
         u32::try_from(step).map_err(|_| PhaseGeneratorError::InvalidState)
     }
 
