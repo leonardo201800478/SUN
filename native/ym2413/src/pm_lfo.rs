@@ -73,8 +73,8 @@ impl PhaseModulationLfo {
     /// the owner must call it at the correct completed-rotation boundary.
     pub fn advance_samples(&mut self, samples: u64) -> u8 {
         let increment = samples % YM2413_PM_LFO_PERIOD_SAMPLES;
-        self.counter = ((u64::from(self.counter) + increment)
-            & u64::from(YM2413_PM_LFO_COUNTER_MASK)) as u16;
+        self.counter =
+            ((u64::from(self.counter) + increment) & u64::from(YM2413_PM_LFO_COUNTER_MASK)) as u16;
         self.position()
     }
 
