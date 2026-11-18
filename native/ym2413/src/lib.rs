@@ -52,16 +52,16 @@ pub use pm_lfo::{
     YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
     YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
 };
-pub use rhythm_channel::{
-    RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
-    Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
-};
 pub use rhythm::{
     YM2413_RHYTHM_MODE_BIT, YM2413_RHYTHM_NOISE_LFSR_BITS, YM2413_RHYTHM_NOISE_LFSR_MASK,
     YM2413_RHYTHM_NOISE_LFSR_PERIOD, YM2413_RHYTHM_NOISE_LFSR_TAPS,
     YM2413_RHYTHM_NOISE_STATE_VERSION, YM2413_RHYTHM_TRIGGER_MASK, Ym2413RhythmChannelFrequency,
     Ym2413RhythmConfig, Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState,
     Ym2413RhythmVoiceConfig, decode_rhythm_registers,
+};
+pub use rhythm_channel::{
+    RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
+    Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
 };
 pub use slot::{
     YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,
