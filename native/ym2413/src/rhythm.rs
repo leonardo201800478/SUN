@@ -506,4 +506,36 @@ mod tests {
         assert_eq!(config.tom_tom.volume, 5);
         assert_eq!(config.top_cymbal.volume, 12);
     }
+
+    #[test]
+    fn rhythm_trigger_bits_are_decoded_independently_one_hot() {
+        let cases = [
+            (0x10, 0), // Bass Drum
+            (0x08, 1), // Snare Drum
+            (0x04, 2), // Tom-Tom
+            (0x02, 3), // Top Cymbal
+            (0x01, 4), // Hi-Hat
+        ];
+
+        for (trigger, voice_index) in cases {
+            let mut registers = [0; 64];
+            registers[0x0e] = super::YM2413_RHYTHM_MODE_BIT | trigger;
+            let config = super::decode_rhythm_registers(&registers);
+            let active = [
+                config.bass_drum.key_on,
+                config.snare_drum.key_on,
+                config.tom_tom.key_on,
+                config.top_cymbal.key_on,
+                config.hi_hat.key_on,
+            ];
+
+            for (index, is_triggered) in active.into_iter().enumerate() {
+                assert_eq!(
+                    is_triggered,
+                    index == voice_index,
+                    "trigger bit {trigger:#04x} must select only voice index {voice_index}"
+                );
+            }
+        }
+    }
 }
