@@ -8,7 +8,7 @@ Este scorecard distingue implementação de componente, integração funcional, 
 
 ## Estado executivo
 
-**Status geral: EM DESENVOLVIMENTO — NÃO PRONTO PARA TESTES CONTROLADOS COM ROMS.**
+**Status geral: EM DESENVOLVIMENTO — NÃO PRONTO PARA TESTES CONTROLADOS COM ROMs.**
 
 A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG e o par de operadores FM foram implementados como componentes candidatos, com testes e snapshots locais, mas ainda não estão conectados ao pipeline de 18 slots nem ao estado agregado do YM2413. Ainda não existe geração PCM FM integrada ao runtime SMS.
 
@@ -34,7 +34,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | FM-2 — Operadores e síntese FM | **Parcial** | Tabelas Log-Sine/EXP; lookup de fase/sinal; par modulator/carrier; feedback de dois samples; KSL BLOCK/FNUM; snapshots locais | Integrar KSL ao decoder/canal, validar PCM diferencial, integrar aos slots e confirmar escala/quantização fisicamente |
 | FM-3 — LFO e modulação | **Parcial** | Contador PM global, tabela PM 8×8 e AM LFO de 210 posições/64 amostras, 14 níveis e snapshot | Conectar PM/AM aos operadores; comprovar fase absoluta e alinhamento temporal |
 | FM-4 — Instrumentos | **Parcial** | User patch decoder; 15 presets melódicos candidatos com licença MIT/procedência; decoder FNUM/BLOCK/KEY/SUS/INST/VOL por canal | Validar patches contra hardware; ligar parâmetros ao PG/EG/operadores; confirmar os nove canais; ROM física exata ainda não disponível |
-| FM-5 — Rhythm Mode | **Pendente** | Nenhum gerador de ritmo integrado | Cinco vozes, seis slots, noise LFSR, volumes e temporização |
+| FM-5 — Rhythm Mode | **Parcial** | Mapa de seis slots (PR #1010) e LFSR de 23 bits como primitiva explícita (PR #1011) | Síntese das cinco vozes, aplicação do ruído, volumes, seed/cadência física e temporização |
 | FM-6 — Scheduler | **Pendente** | Core tem avanço de input clocks e rotação de 72 clocks | Clock domain, ordem dos slots, sample counter compartilhado, escritas temporalmente ordenadas e equivalência contínuo/blocos |
 | FM-7 — Hardware SMS | **Pendente** | Nenhuma porta FM conectada | Portas F0–F2, latch, barramento, perfis Mark III/FM Unit/MK-2000/exportação e FM Auto/Off/On |
 | FM-8 — Áudio e validação final | **Pendente** | Nenhuma saída PCM FM integrada | Mixer FM+PSG, resampling, clipping, continuidade, Save States agregados, regressões SMS/SG-1000 e testes com ROMs |
@@ -55,7 +55,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | AM LFO | Implementado como LFO compartilhado, sample-clocked, 210 posições, 64 amostras/posição, 14 níveis e snapshot | Ainda não conectado aos bits AM dos instrumentos/18 operadores |
 | Instrument ROM | 15 patches candidatos licenciados (MIT) e decodificação do user patch | Valores não são dump físico certificado; revisão de hardware ainda necessária |
 | Channel register decode | FNUM/BLOCK/KEY-ON/SUSTAIN/INST/VOL para nove canais | Ainda não conectado ao pipeline temporal/operadores |
-| Rhythm / LFSR | Apenas bit RHYTHM de $0E decodificado | Vozes, LFSR e temporização não implementados |
+| Rhythm / LFSR | Bit RHYTHM de $0E, mapa de seis slots e LFSR de 23 bits implementados como primitiva explicitamente clockada (PRs #1010/#1011) | Cinco vozes, aplicação do ruído, seed/cadência física, envelopes e pipeline rítmico não implementados |
 | Portas F0–F2 | Não integradas | Pendente |
 | Mixer FM + PSG | Não integrado | Pendente |
 | Save State agregado | Parcial | Snapshots base, PG, PM e EG locais; estado completo de todos os operadores ainda não agregado |
@@ -69,7 +69,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 4. **AR=15:** o comportamento na fronteira DAMP/ATTACK é selecionável como candidato; não foi certificado em hardware pelo projeto.
 5. **Slots:** a ordem exata de atualização de PG, EG, modulator e carrier deve ser estabelecida antes da integração temporal.
 6. **Instrument ROM:** os parâmetros exatos dos instrumentos ainda exigem procedência e validação. Não copiar tabelas de emuladores sem licença e origem verificadas.
-7. **Rhythm LFSR:** o polinômio medido é conhecido, mas o estado inicial/reset físico não está estabelecido.
+7. **Rhythm LFSR:** PR #1011 implementa a recorrência Galois de 23 bits com seed explícito. O polinômio/recorrência estão documentados por reverse engineering; o estado inicial/reset físico e a cadência de clock-enable continuam desconhecidos.
 8. **Fidelidade:** nenhuma implementação atual equivale a certificação de fidelidade física completa.
 
 ## Gates CI publicados
@@ -277,3 +277,23 @@ A documentação do chip confirma a reutilização da célula FM em 18 slots e a
 - Descrição técnica de pipeline e clock (documentação Rust): https://docs.rs/emu198x-yamaha-ym2413/latest/emu198x_yamaha_ym2413/
 
 **Estado:** FM-6 PARCIAL. O mapeamento serial está implementado e testado por CI pendente; o pipeline de estágios continua aberto.
+
+
+---
+
+## Atualização documental — PRs #1010 e #1011 / dossiê de evidências
+
+**Referência:** [Dossiê YM2413 — pesquisa, evidências e lacunas](audits/ym2413-research-evidence-dossier-2026-11-18.md).
+
+- PR #1010 integrou o mapa serial de 18 slots, com ordem baseada na Tabela II-3 do manual Yamaha e atribuição de seis slots em Rhythm Mode. Isso não implementa as subfases internas do pipeline.
+- PR #1011 integrou o LFSR de ruído de 23 bits como primitiva explícita, com recorrência, snapshot e seed fornecido pelo chamador. O chip não avança esse LFSR automaticamente.
+- O seed físico de reset, a cadência de clock-enable e a combinação do ruído nas quatro vozes não-Bass Drum permanecem pendentes.
+- O scorecard anterior dizia que LFSR/slots não existiam; esse inventário foi corrigido. A síntese das cinco vozes de ritmo permanece pendente.
+- O dossiê diferencia fatos do manual, medições publicadas, reverse engineering, inferências e lacunas. A prioridade seguinte é especificar o pipeline de 18 slots por subfase antes de conectar o banco agregado aos operadores.
+- Nenhuma alteração de Scheduler, barramento SMS, mixer, saída PCM ou GUI é autorizada por esta atualização documental.
+
+**Estado FM-5:** parcial — mapa de slots e gerador LFSR isolado; Rhythm Mode ainda não sintetiza as cinco vozes.
+
+**Estado FM-6:** parcial — rotação e atribuição serial existem; offsets PG/EG/OP, feedback, DAC e latência continuam sem validação física.
+
+**Validação:** alteração documental apenas. Não declara testes de hardware, PCM FM ou regressões de runtime executados.
