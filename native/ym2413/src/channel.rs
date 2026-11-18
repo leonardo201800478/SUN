@@ -7,8 +7,8 @@
 
 use crate::envelope::EnvelopeParameters;
 use crate::instrument::{
-    ChannelRegisterState, InstrumentError, InstrumentPatch, OperatorPatch, decode_channel_registers,
-    decode_user_patch, resolve_instrument,
+    ChannelRegisterState, InstrumentError, InstrumentPatch, OperatorPatch,
+    decode_channel_registers, decode_user_patch, resolve_instrument,
 };
 use crate::key_scale::{KeyScaleError, key_scale_attenuation};
 use crate::operator::{OperatorPairError, OperatorPairParameters};
@@ -78,11 +78,7 @@ impl ChannelSynthesisConfig {
     /// The caller still owns the PG accumulator and decides the exact slot
     /// boundary. A disabled PM input intentionally ignores the supplied
     /// position, as the standalone PhaseGenerator contract specifies.
-    pub fn phase_step(
-        &self,
-        carrier: bool,
-        pm_position: u8,
-    ) -> Result<u32, PhaseGeneratorError> {
+    pub fn phase_step(&self, carrier: bool, pm_position: u8) -> Result<u32, PhaseGeneratorError> {
         let operator = if carrier {
             self.carrier_phase
         } else {
@@ -205,9 +201,7 @@ pub fn decode_channel_synthesis(
 #[cfg(test)]
 mod tests {
     use super::{ChannelSynthesisError, decode_channel_synthesis};
-    use crate::instrument::{
-        InstrumentError, decode_patch_registers, resolve_instrument,
-    };
+    use crate::instrument::{InstrumentError, decode_patch_registers, resolve_instrument};
     use crate::key_scale::key_scale_attenuation;
     use crate::operator::OperatorPairError;
     use crate::phase::{PhaseGenerator, PhaseGeneratorError};
