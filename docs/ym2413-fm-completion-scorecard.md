@@ -297,3 +297,16 @@ A documentação do chip confirma a reutilização da célula FM em 18 slots e a
 **Estado FM-6:** parcial — rotação e atribuição serial existem; offsets PG/EG/OP, feedback, DAC e latência continuam sem validação física.
 
 **Validação:** alteração documental apenas. Não declara testes de hardware, PCM FM ou regressões de runtime executados.
+
+
+---
+
+## Investigação P1 — pipeline de 18 slots (2026-11-18)
+
+Documento complementar: [YM2413 — Investigação P1 do pipeline de 18 slots](audits/ym2413-slot-pipeline-investigation-2026-11-18.md).
+
+- Confirmada a ordem dos 18 slots e o período de 72 input clocks por rotação.
+- Quatro clocks por slot permanecem uma derivação temporal; as quatro subfases funcionais não foram identificadas.
+- PG de 19 bits, feedback com dois valores históricos, EG com contador global e saída MO/RO multiplexada foram mapeados às evidências disponíveis.
+- Offsets de PG/EG/OP, latência M→C, commit de registradores e latch exato do DAC continuam pendentes.
+- **FM-6 permanece pendente.** Esta investigação é documentação; não implementa nem valida o pipeline executável.
