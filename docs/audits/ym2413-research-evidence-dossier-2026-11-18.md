@@ -1,9 +1,9 @@
 # YM2413 — Dossiê de pesquisa, evidências e lacunas
 
-**Projeto:** Sega Emulator — Emulação de Alta Precisão  
-**Escopo:** YM2413/OPLL integrado ao perfil físico Japanese Master System.  
-**Data de referência:** 2026-11-18  
-**Status:** documento de pesquisa vivo; não certifica o chip como cycle-accurate nem declara a síntese FM concluída.  
+**Projeto:** Sega Emulator — Emulação de Alta Precisão
+**Escopo:** YM2413/OPLL integrado ao perfil físico Japanese Master System.
+**Data de referência:** 2026-11-18
+**Status:** documento de pesquisa vivo; não certifica o chip como cycle-accurate nem declara a síntese FM concluída.
 **Implementação:** Rust puro no crate `native/ym2413`; integração SMS, Scheduler e PCM FM permanecem fora do escopo já validado.
 
 > **Regra de leitura:** “documentado” não significa que todo detalhe interno esteja especificado; “medido” descreve o experimento publicado, não uma validação feita pelo Sega Emulator; “inferido” não deve virar comportamento normativo sem teste independente; “desconhecido” deve permanecer explícito no código e nos snapshots.
