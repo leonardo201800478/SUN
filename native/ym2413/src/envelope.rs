@@ -399,9 +399,28 @@ const EG_STEP_TABLE: [[u8; 8]; 4] = [
 #[cfg(test)]
 mod tests {
     use super::{
+        AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination,
         EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters,
         EnvelopeStage,
     };
+
+    fn damp_config(
+        coordination: DampTransitionCoordination,
+        attack_rate_15: AttackRate15Transition,
+    ) -> DampTransitionConfig {
+        DampTransitionConfig::new(124, coordination, attack_rate_15).unwrap()
+    }
+
+    fn eg(level: u8) -> EnvelopeGenerator {
+        EnvelopeGenerator::with_level(
+            level,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap()
+    }
 
     fn params() -> EnvelopeParameters {
         EnvelopeParameters {
@@ -442,7 +461,7 @@ mod tests {
 
     #[test]
     fn slow_attack_uses_shared_counter_gate_and_selector() {
-        let mut eg = EnvelopeGenerator::with_level(127).unwrap();
+        let mut eg = eg(127);
         eg.stage = EnvelopeStage::Attack;
         eg.key_on = true;
         let p = params();
@@ -454,7 +473,7 @@ mod tests {
 
     #[test]
     fn zero_rate_holds_and_rate_fifteen_does_not_restart_attack_mid_phase() {
-        let mut eg = EnvelopeGenerator::with_level(32).unwrap();
+        let mut eg = eg(32);
         eg.stage = EnvelopeStage::Decay;
         let mut p = params();
         p.decay_rate = 0;
@@ -469,7 +488,7 @@ mod tests {
 
     #[test]
     fn fastest_decay_advances_two_levels_per_update() {
-        let mut eg = EnvelopeGenerator::with_level(10).unwrap();
+        let mut eg = eg(10);
         eg.stage = EnvelopeStage::Decay;
         eg.key_on = true;
         let mut p = params();
@@ -479,17 +498,19 @@ mod tests {
     }
 
     #[test]
-    fn modulator_damp_transition_follows_carrier_boundary() {
-        let mut modulator = EnvelopeGenerator::with_level(127).unwrap();
-        let mut carrier = EnvelopeGenerator::with_level(127).unwrap();
+    fn modulator_damp_transition_follows_carrier_only_in_selected_candidate() {
+        let config = damp_config(
+            DampTransitionCoordination::CarrierDrivesBoth,
+            AttackRate15Transition::SkipAttackToDecay,
+        );
+        let mut modulator = EnvelopeGenerator::with_level(127, config).unwrap();
+        let mut carrier = EnvelopeGenerator::with_level(127, config).unwrap();
         let mut p = params();
         p.attack_rate = 10;
 
-        // The modulator cannot independently leave DAMP.
         modulator.tick(0, true, false, p).unwrap();
         assert_eq!(modulator.stage(), EnvelopeStage::Damp);
 
-        // Carrier update owns the shared DAMP -> ATTACK transition.
         carrier.tick(0, true, true, p).unwrap();
         assert_eq!(carrier.stage(), EnvelopeStage::Attack);
         modulator.synchronize_damp_transition(&carrier);
@@ -497,8 +518,46 @@ mod tests {
     }
 
     #[test]
+    fn independent_damp_candidate_allows_modulator_own_transition() {
+        let mut modulator = eg(127);
+        let mut p = params();
+        p.attack_rate = 10;
+        modulator.tick(0, true, false, p).unwrap();
+        assert_eq!(modulator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn damp_threshold_is_an_explicit_candidate_parameter() {
+        let config = DampTransitionConfig::new(
+            120,
+            DampTransitionCoordination::IndependentPerOperator,
+            AttackRate15Transition::SkipAttackToDecay,
+        )
+        .unwrap();
+        let mut generator = EnvelopeGenerator::with_level(120, config).unwrap();
+        let mut p = params();
+        p.attack_rate = 10;
+        generator.tick(0, true, false, p).unwrap();
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn attack_rate_fifteen_transition_is_an_explicit_candidate_parameter() {
+        let config = damp_config(
+            DampTransitionCoordination::IndependentPerOperator,
+            AttackRate15Transition::EnterAttack,
+        );
+        let mut generator = EnvelopeGenerator::with_level(124, config).unwrap();
+        let mut p = params();
+        p.attack_rate = 15;
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.level(), 124);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
     fn damp_and_attack_fifteen_shortcut_are_explicit() {
-        let mut eg = EnvelopeGenerator::with_level(124).unwrap();
+        let mut eg = eg(124);
         let mut p = params();
         p.attack_rate = 15;
         eg.tick(0, true, true, p).unwrap();
@@ -508,7 +567,7 @@ mod tests {
 
     #[test]
     fn sustain_transition_uses_four_bit_level_comparison() {
-        let mut eg = EnvelopeGenerator::with_level(31).unwrap();
+        let mut eg = eg(31);
         eg.stage = EnvelopeStage::Decay;
         eg.key_on = true;
         let mut p = params();
@@ -521,7 +580,7 @@ mod tests {
 
     #[test]
     fn sustain_level_zero_does_not_decay_past_zero() {
-        let mut eg = EnvelopeGenerator::with_level(0).unwrap();
+        let mut eg = eg(0);
         eg.stage = EnvelopeStage::Decay;
         eg.key_on = true;
         let mut p = params();
@@ -534,7 +593,7 @@ mod tests {
 
     #[test]
     fn key_off_percussive_release_uses_sus_rate_five() {
-        let mut eg = EnvelopeGenerator::with_level(20).unwrap();
+        let mut eg = eg(20);
         eg.stage = EnvelopeStage::Sustain;
         eg.key_on = true;
         let mut p = params();
@@ -547,7 +606,7 @@ mod tests {
 
     #[test]
     fn snapshot_round_trip_preserves_complete_local_state() {
-        let mut eg = EnvelopeGenerator::with_level(61).unwrap();
+        let mut eg = eg(61);
         eg.stage = EnvelopeStage::Attack;
         eg.key_on = true;
         assert_eq!(
@@ -564,15 +623,23 @@ mod tests {
                 level: 0,
                 stage: EnvelopeStage::Damp,
                 key_on: false,
+                damp_config: damp_config(
+                    DampTransitionCoordination::IndependentPerOperator,
+                    AttackRate15Transition::SkipAttackToDecay,
+                ),
             }),
             Err(EnvelopeGeneratorError::InvalidState)
         );
         assert_eq!(
             EnvelopeGenerator::restore_state(EnvelopeGeneratorState {
-                format_version: 1,
+                format_version: 2,
                 level: 128,
                 stage: EnvelopeStage::Damp,
                 key_on: false,
+                damp_config: damp_config(
+                    DampTransitionCoordination::IndependentPerOperator,
+                    AttackRate15Transition::SkipAttackToDecay,
+                ),
             }),
             Err(EnvelopeGeneratorError::InvalidState)
         );
