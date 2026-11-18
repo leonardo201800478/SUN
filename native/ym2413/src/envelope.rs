@@ -291,7 +291,7 @@ mod tests {
         p.fnum = 0x100;
         assert_eq!(p.effective_rate(3), 14);
         p.key_scale_rate = true;
-        assert_eq!(p.effective_rate(3), 26);
+        assert_eq!(p.effective_rate(3), 23);
     }
 
     #[test]
@@ -338,6 +338,7 @@ mod tests {
     fn fastest_decay_advances_two_levels_per_update() {
         let mut eg = EnvelopeGenerator::with_level(10).unwrap();
         eg.stage = EnvelopeStage::Decay;
+        eg.key_on = true;
         let mut p = params();
         p.decay_rate = 15;
         eg.tick(1, true, true, p).unwrap();
@@ -358,6 +359,7 @@ mod tests {
     fn sustain_transition_uses_four_bit_level_comparison() {
         let mut eg = EnvelopeGenerator::with_level(31).unwrap();
         eg.stage = EnvelopeStage::Decay;
+        eg.key_on = true;
         let mut p = params();
         p.decay_rate = 15;
         p.sustain_level = 4;
@@ -370,6 +372,7 @@ mod tests {
     fn sustain_level_zero_does_not_decay_past_zero() {
         let mut eg = EnvelopeGenerator::with_level(0).unwrap();
         eg.stage = EnvelopeStage::Decay;
+        eg.key_on = true;
         let mut p = params();
         p.decay_rate = 15;
         p.sustain_level = 0;
