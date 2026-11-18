@@ -647,7 +647,7 @@ mod tests {
 
     #[test]
     fn invalid_parameters_do_not_mutate_state() {
-        let mut eg = EnvelopeGenerator::with_level(127).unwrap();
+        let mut eg = eg(127);
         let before = eg;
         let mut p = params();
         p.fnum = 0x200;
