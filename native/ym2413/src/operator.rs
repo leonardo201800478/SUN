@@ -96,6 +96,74 @@ impl OperatorPairParameters {
     }
 }
 
+/// Parameters for evaluating one operator through the carrier output path.
+///
+/// Rhythm Mode's single-operator percussion voices use carrier-style output
+/// scaling even when their physical serial slot is normally a modulator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SingleOperatorCarrierParameters {
+    /// Four-bit percussion volume attenuation field.
+    pub volume: u8,
+    /// KSL attenuation in EG units (0..112).
+    pub ksl: u8,
+    /// Current seven-bit EG attenuation.
+    pub envelope: u8,
+    /// Current AM-LFO attenuation (0..13), or zero when AM is disabled.
+    pub am: u8,
+    /// Whether the negative half-cycle is suppressed.
+    pub half_wave: bool,
+}
+
+impl SingleOperatorCarrierParameters {
+    /// Validate the carrier-path attenuation fields.
+    pub const fn validate(self) -> Result<(), OperatorPairError> {
+        if self.volume > 15 {
+            return Err(OperatorPairError::InvalidVolume(self.volume));
+        }
+        if self.ksl > 112 {
+            return Err(OperatorPairError::InvalidKsl(self.ksl));
+        }
+        if self.envelope > 127 {
+            return Err(OperatorPairError::InvalidEnvelope(self.envelope));
+        }
+        if self.am > 13 {
+            return Err(OperatorPairError::InvalidAm(self.am));
+        }
+        Ok(())
+    }
+
+    /// Compute carrier attenuation: min(127, 8*VOL + KSL + EG + AM).
+    pub const fn attenuation(self) -> u8 {
+        let value =
+            8 * self.volume as u16 + self.ksl as u16 + self.envelope as u16 + self.am as u16;
+        if value > 127 { 127 } else { value as u8 }
+    }
+}
+
+/// Evaluate one standalone rhythm operator using the carrier output path.
+///
+/// The caller supplies the ten-bit phase-table address and current attenuation
+/// inputs. This function does not advance PG, EG, LFSR, feedback, slots, or
+/// chip time. The carrier output scaling (exponential result divided by 16)
+/// is intentional even when the operator occupies a physical modulator slot.
+pub fn evaluate_single_operator_as_carrier(
+    phase_index: u16,
+    parameters: SingleOperatorCarrierParameters,
+) -> Result<i16, OperatorPairError> {
+    parameters.validate()?;
+    if phase_index > YM2413_PHASE_INDEX_MASK {
+        return Err(OperatorPairError::InvalidPhaseIndex(phase_index));
+    }
+
+    if parameters.envelope & 0x7c == 0x7c {
+        return Ok(0);
+    }
+
+    let sine = log_sine_lookup(phase_index, parameters.half_wave)?;
+    let encoded = sine.wrapping_add(u16::from(parameters.attenuation()) << 4);
+    Ok(exponential_lookup(encoded) >> 4)
+}
+
 /// Return the 15-bit log-sine magnitude with sign in bit 15.
 ///
 /// The phase index is ten bits: bit 9 is sign, bit 8 selects the mirrored
@@ -223,14 +291,16 @@ impl OperatorPair {
 
         let carrier_phase_offset = 2 * i32::from(modulator_output);
         let carrier_phase_used = wrap_phase(i32::from(carrier_phase_index) + carrier_phase_offset);
-        let carrier_output = if parameters.carrier_envelope & 0x7c == 0x7c {
-            0
-        } else {
-            let sine = log_sine_lookup(carrier_phase_used, parameters.carrier_half_wave)?;
-            let attenuation = parameters.carrier_attenuation();
-            let encoded = sine.wrapping_add(u16::from(attenuation) << 4);
-            exponential_lookup(encoded) >> 4
-        };
+        let carrier_output = evaluate_single_operator_as_carrier(
+            carrier_phase_used,
+            SingleOperatorCarrierParameters {
+                volume: parameters.carrier_volume,
+                ksl: parameters.carrier_ksl,
+                envelope: parameters.carrier_envelope,
+                am: parameters.carrier_am,
+                half_wave: parameters.carrier_half_wave,
+            },
+        )?;
 
         Ok(OperatorPairSample {
             modulator_output,
@@ -377,6 +447,75 @@ mod tests {
         let sample = pair.evaluate(0, 0, p).unwrap();
         assert_eq!(sample.modulator_output, 0);
         assert_eq!(sample.carrier_output, 0);
+    }
+
+    #[test]
+    fn single_operator_carrier_path_matches_pair_carrier_output() {
+        let mut pair = OperatorPair::with_feedback_history([321, -123]);
+        let mut pair_parameters = parameters();
+        pair_parameters.modulator_envelope = 127;
+        pair_parameters.carrier_volume = 3;
+        pair_parameters.carrier_ksl = 12;
+        pair_parameters.carrier_envelope = 25;
+        pair_parameters.carrier_am = 4;
+        pair_parameters.carrier_half_wave = true;
+
+        let phase_index = 0x135;
+        let pair_sample = pair
+            .evaluate(0x222, phase_index, pair_parameters)
+            .unwrap();
+        let single_output = evaluate_single_operator_as_carrier(
+            phase_index,
+            SingleOperatorCarrierParameters {
+                volume: pair_parameters.carrier_volume,
+                ksl: pair_parameters.carrier_ksl,
+                envelope: pair_parameters.carrier_envelope,
+                am: pair_parameters.carrier_am,
+                half_wave: pair_parameters.carrier_half_wave,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(pair_sample.modulator_output, 0);
+        assert_eq!(pair_sample.carrier_phase_used, phase_index);
+        assert_eq!(pair_sample.carrier_output, single_output);
+    }
+
+    #[test]
+    fn single_operator_carrier_path_validates_inputs_and_silence_gate() {
+        let parameters = SingleOperatorCarrierParameters {
+            volume: 0,
+            ksl: 0,
+            envelope: 124,
+            am: 0,
+            half_wave: false,
+        };
+        assert_eq!(evaluate_single_operator_as_carrier(0x100, parameters), Ok(0));
+        assert_eq!(
+            evaluate_single_operator_as_carrier(0x400, parameters),
+            Err(OperatorPairError::InvalidPhaseIndex(0x400))
+        );
+
+        for invalid in [
+            SingleOperatorCarrierParameters { volume: 16, ..parameters },
+            SingleOperatorCarrierParameters { ksl: 113, ..parameters },
+            SingleOperatorCarrierParameters { envelope: 128, ..parameters },
+            SingleOperatorCarrierParameters { am: 14, ..parameters },
+        ] {
+            assert!(evaluate_single_operator_as_carrier(0, invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn single_operator_carrier_attenuation_saturates_at_127() {
+        let parameters = SingleOperatorCarrierParameters {
+            volume: 15,
+            ksl: 112,
+            envelope: 127,
+            am: 13,
+            half_wave: false,
+        };
+        assert_eq!(parameters.attenuation(), 127);
     }
 
     #[test]
