@@ -502,4 +502,6 @@ O limiar 124 continua parametrizado e não é promovido a constante física. A c
 
 **Referências experimentais:** Andete, [2015-12-24 — Sustain Level e KSR](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-24) e [2015-12-31 — transições ADSR e DAMP](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31); Yamaha, [YM2413 Application Manual](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual).
 
-**Estado:** alteração de código e vetores adicionados; CI desta branch pendente. FM-1 permanece PARCIAL. Nenhuma alteração de runtime, Scheduler, PCM, portas SMS ou dependências.
+**Estado:** alteração de código e vetores adicionados. O primeiro CI da branch (`44398643769`) detectou erro de inferência de tipo no teste da matriz FNUM (`0..=1` inferido como `i32`); corrigido na branch por tipagem explícita `0_u8..=1`. O CI do novo HEAD ainda precisa ser executado e aprovado. FM-1 permanece PARCIAL. Nenhuma alteração de runtime, Scheduler, PCM, portas SMS ou dependências.
+
+**Caderno de evidências:** [YM2413 — saída, EG e Rhythm Mode](ym2413-research-ledger-2026-11-18.md), com pinagem MO/RO, ressalvas sobre circuitos analógicos, classificação das hipóteses de ritmo e critérios para validação ciclo-a-ciclo.
