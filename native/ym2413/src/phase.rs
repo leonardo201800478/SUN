@@ -121,9 +121,10 @@ impl PhaseGenerator {
         } else {
             0
         };
-        let corrected_fnum = (i64::from(fnum) * 2 + pm) as u64;
+        let corrected_fnum = u64::try_from(i64::from(fnum) * 2 + pm)
+            .map_err(|_| PhaseGeneratorError::InvalidState)?;
         let step = (corrected_fnum * ml << block) >> 2;
-        Ok(step as u32)
+        u32::try_from(step).map_err(|_| PhaseGeneratorError::InvalidState)
     }
 
     /// Advance this operator by one output-sample update and return its phase.
@@ -166,7 +167,7 @@ impl PhaseGenerator {
 mod tests {
     use super::{
         PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
-        YM2413_PHASE_MASK, YM2413_PM_TABLE,
+        YM2413_PHASE_MASK,
     };
 
     #[test]
