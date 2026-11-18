@@ -61,67 +61,109 @@ O manual também informa que os envelopes de cada instrumento são armazenados e
 
 ## 4. LFSR e medições [M]
 
-As notas de andete de 2018-05-13 descrevem captura do YM2413 real com amostragem 72 vezes mais rápida para separar os canais e observar simultaneamente as saídas MO e RO. A sequência de bits observada foi analisada com Berlekamp–Massey e repetida em capturas diferentes.
+As notas de andete descrevem capturas do YM2413 real com amostragem 72 vezes mais rápida para separar os canais e observar simultaneamente MO e RO. A sequência de ruído observada foi analisada com Berlekamp–Massey e repetida em diferentes offsets e capturas.
 
-A análise identifica um LFSR de 23 bits com polinômio:
+A análise inicial de 2018 identificou a sequência decimada com polinômio:
 
 x^23 + x^9 + x^8 + x + 1
 
-O período máximo matemático de um LFSR não nulo desse polinômio é 2^23 - 1. Isso confirma a recorrência candidata e sua sequência, mas não determina:
-- o estado físico depois de reset;
-- o ponto de amostragem da saída do LFSR;
-- a cadência de clock-enable dentro do chip;
-- a fase do LFSR em relação aos 18 slots;
-- como cada bit de ruído entra no phase-combining de HH/SD/TOM/TOP-CY.
+A atualização experimental de 2020 corrigiu a interpretação da cadência física: o gerador interno usa a recorrência mais rápida x^23 + x^9 + 1, avançada a cada operador/slot, isto é, uma vez a cada quatro clocks externos. Como existem 18 slots por rotação, ocorrem 18 passos do LFSR por 72 clocks externos. Observar apenas um bit a cada 18 passos produz a sequência decimada descrita pelo polinômio anterior.
 
-A implementação existente em rhythm.rs permanece corretamente como primitiva explicitamente clockada e com seed explícito. Não adicionar clock automático por input clock, slot ou sample até obter evidência.
+A relação entre os dois sons que consomem ruído também foi medida:
+- Hi-Hat é calculado no slot 13 e usa o bit corrente.
+- O LFSR avança três passos de slot até o slot 16.
+- Snare Drum usa então o bit corrente no slot 16.
+- Após SD, avançam-se os outros quinze passos até o próximo slot 13.
 
-## 5. Comparação com software [C — não normativa]
+O período máximo matemático do LFSR de 23 bits não nulo é 2^23 - 1 passos internos. O estado físico de reset continua desconhecido.
 
-Uma implementação pública consultada no pacote Genesis Plus GX contém uma rotina de cálculo de ritmo com expressões booleanas sobre bits das fases dos operadores e o bit de ruído. A própria rotina distingue alegações de verificação em YM3812 para Hi-Hat/Snare/Tom-Tom e uma alegação de verificação em YM2413 para Top Cymbal.
+O crate agora preserva a recorrência antiga em `Ym2413RhythmNoiseLfsr` como referência da sequência decimada e adiciona `Ym2413RhythmSlotNoiseLfsr` para a recorrência rápida. A nova primitiva exige seed explícito e avanço explícito por número de slots; ainda não está conectada ao MachineScheduler. Os testes verificam a recorrência rápida, a relação de decimação a cada 18 passos, o espaçamento de três slots HH→SD e snapshot/restore. Esses testes validam o modelo algébrico, não o seed físico.
 
-Essa implementação é útil para formular experimentos e vetores candidatos, mas não é especificação primária do YM2413. Não copiar código. Antes de qualquer reimplementação independente das expressões:
-1. mapear exatamente qual operador/fase é fonte de cada bit;
-2. conferir o deslocamento de fase e largura dos acumuladores contra o PG já existente;
-3. conferir as equações com o manual;
-4. procurar as capturas originais de andete e identificar se permitem reproduzir as transições;
-5. manter as equações como CANDIDATE até validação independente.
+## 5. Equações de fase e envelope por voz [M/C]
 
-Não transportar automaticamente para YM2413 as rotinas que o código identifica como “verified on real YM3812”.
+As notas de andete em `results/rhythm/rhythm.md` contêm capturas de hardware e modelos derivados para as cinco vozes. O mesmo material compara as fórmulas com Nuke.YKT. As equações abaixo são candidatas derivadas de medições; não definem o alinhamento inicial dos PGs.
 
+### 5.1 Top Cymbal [M]
 
-## 5A. Top Cymbal — candidato combinacional isolado [C]
+As medições mostram que a fase depende de cinco bits: bits 5 e 3 do carrier do canal físico 8 (`c85`, `c83`) e bits 7, 3 e 2 do modulador do canal físico 7 (`m77`, `m73`, `m72`). Portanto a fórmula anterior baseada no modulador do canal 8 e carrier do canal 9 foi descartada.
 
-Foi adicionado `native/ym2413/src/rhythm_phase.rs`, com a função pura `top_cymbal_phase_candidate`. Ela recebe explicitamente os índices de fase de 10 bits do modulador do canal físico 8 e do carrier do canal físico 9, e retorna apenas o endereço candidato 0x100 ou 0x300.
+A análise de andete encontrou 16 tabelas booleanas compatíveis com as capturas, porque os offsets iniciais dos dois contadores de fase não foram determinados. A atualização de Nuke.YKT registrada por andete usa a forma OR e o offset 0x100, que reproduz a amplitude máxima observada:
 
-A equação foi rederivada como lógica booleana a partir da rotina comparativa Genesis Plus GX 1.7.4+git20221128-2. A fonte marca Top Cymbal como “verified on real YM2413”, mas não fornece nesse comentário os vetores, revisão do chip ou protocolo de medição. Portanto a classificação permanece **CANDIDATE**, não VALIDATED.
+```
+rm_bit = (m72 XOR m77) OR (m73 XOR c85) OR (c83 XOR c85)
+phase  = (rm_bit << 9) OR 0x100
+```
 
-- Selecção base: `((phase8[2] XOR phase8[7]) OR phase8[3])` escolhe 0x300; caso contrário 0x100.
-- Gate: `phase9[3] OR phase9[5]` força 0x300 quando ativo.
-- O caminho Top Cymbal nessa implementação comparativa não consome o bit do LFSR.
-- A função não avança PG, não escolhe o instante de amostragem, não calcula envelope, não acessa ROM e não roteia MO/RO.
+O crate implementa essa forma como `top_cymbal_phase_candidate`, recebendo explicitamente os índices de fase de mod7 e car8. O resultado é 0x100 ou 0x300. A função é combinacional e não resolve o offset absoluto do PG; o scorecard mantém o estado CANDIDATE.
 
-Testes unitários cobrem exaustivamente as cinco entradas booleanas usadas pela equação, rejeição de índices fora de 10 bits e invariância a bits não usados. Esses testes validam apenas a lógica interna da função contra sua equação codificada; não constituem validação física independente.
+### 5.2 Hi-Hat [M]
 
-## 5B. ROM de percussão: limite das referências abertas [U/C]
+O Hi-Hat reutiliza o mesmo `rm_bit` de Top Cymbal e combina esse resultado com o bit de ruído fornecido pelo LFSR:
 
-O manual confirma que há cinco timbres rítmicos armazenados na ROM de tons e que o envelope é atribuído por slot. Não publica os bytes da ROM de percussão no material consultado. O banco de 15 presets melódicos existente em `instrument.rs` não é substituto.
+```
+phase = (rm_bit << 9) OR
+        ((rm_bit XOR noise) ? 0x0D0 : 0x034)
+```
 
-A tabela pública `default_inst` de emu2413 agrupa três pares de patches rítmicos (BD; HH/SD; TOM/Top Cymbal), mas os comentários da própria fonte os identificam como provenientes de VRC7. Isso não é evidência suficiente para declarar esses bytes como dump da ROM YM2413. Não importá-los para o crate como valores YM2413 validados. A pesquisa de NESdev reproduz os mesmos candidatos, mas não acrescenta uma captura física da ROM.
+Os quatro endereços possíveis são 0x034, 0x0D0, 0x234 e 0x2D0. O crate implementa a função pura `hi_hat_phase_candidate`; o bit de ruído é entrada explícita, sem avanço implícito do LFSR.
 
-## 5C. Observação sobre o duplicador de saída [D]
+### 5.3 Snare Drum [M]
 
-A seção III-4 do manual diz que os sons percussivos, por aparentarem nível menor que os sons melódicos, são emitidos duas vezes. A documentação não especifica no texto qual é o circuito/intervalo de repetição, nem se isso equivale a repetir um valor de DAC, a reutilizar slots em duas janelas, ou a outra operação interna. Genesis Plus GX também acumula o sinal rítmico em um caminho de saída separado e o escala no mixer, mas isso é uma estratégia de software comparativa, não confirmação do mecanismo físico. O duplicador deve continuar pendente até ser associado à figura III-3 e às capturas MO/RO.
+A fase usa o bit 8 do modulador do canal físico 7 e o bit corrente do ruído:
+
+```
+phase = (hh_bit8 << 9) OR ((hh_bit8 XOR noise) << 8)
+```
+
+A atualização de andete registra que novas capturas confirmaram os dois estados de sinal nulo (+0 e -0). O crate implementa a função pura `snare_drum_phase_candidate`, recebendo o bit de ruído explicitamente.
+
+### 5.4 Tom-Tom [M]
+
+O Tom-Tom usa um único operador, mod8, com a fase normal do PG do canal físico 9. As capturas mostram que sua frequência varia com os registradores FNUM/BLOCK desse canal. Não há combinador de ruído documentado para TOM nas medições consultadas.
+
+### 5.5 Parâmetros de operadores/envelopes [M/C]
+
+A investigação de andete apresenta estes bytes candidatos, derivados da comparação de capturas com parâmetros de instrumento customizados e confrontados com a tabela de Nuke.YKT:
+
+| Voz | Bytes 0–7 | Operador ativo | Observação |
+|---|---|---|---|
+| BD | `01 01 18 0F DF F8 6A 6D` | mod6 + car6 | Aproximação próxima; resta diferença de alinhamento de uma amostra e pico |
+| HH | `01 00 00 00 C8 00 A7 00` | mod7 | Envelope medido; parâmetros do carrier não usados |
+| SD | `00 01 00 00 00 D8 00 68` | car7 | Envelope medido; parâmetros do modulator não usados |
+| TOM | `05 00 00 00 F8 00 59 00` | mod8 | Um único operador tonal |
+| TCY | `00 01 00 00 00 AA 00 55` | car8 | Envelope medido; parâmetros do modulator não usados |
+
+Esses bytes foram adicionados como `YM2413_RHYTHM_PATCHES_CANDIDATE` em `instrument.rs`. Não são apresentados como dump físico completo da ROM. Para BD, o autor relata diferença residual de uma amostra e pico ligeiramente superior ao instrumento customizado. Para as outras vozes, os valores são candidatos de operador/envelope; a comparação de Nuke.YKT é corroborativa, não uma segunda medição de silício.
+
+### 5.6 Duplicação e slots de saída [M]
+
+A investigação de andete mediu que cada som de percussão é emitido duas vezes, com a segunda saída idêntica à primeira mesmo quando parâmetros são alterados entre as duas ocorrências. O mapa de 18 slots medido é:
+
+| Saída original | Slot | Repetição | Slot |
+|---|---:|---|---:|
+| HH | 13 | HH2 | 0 |
+| TOM | 14 | TOM2 | 1 |
+| BD | 15 | BD2 | 2 |
+| SD | 16 | SD2 | 6 |
+| TCY | 17 | TCY2 | 7 |
+
+O relatório identifica no die shot um banco de nove shift registers de comprimento cinco, próximo ao DAC, compatível com o armazenamento dos cinco valores de saída de nove bits. Isso sustenta a hipótese de atraso/reutilização da amostra, mas a implementação do buffer e sua posição exata no pipeline ainda dependem da integração com o contrato de slots.
+
+## 5.7 Limites das referências comparativas [C/U]
+
+Genesis Plus GX contém rotinas de percussão que identificam HH/SD/TOM como verificadas em YM3812 e Top Cymbal como verificado em YM2413. A fórmula antiga de Top Cymbal dessa implementação não reproduz a análise de capturas de andete e não é usada no crate. As equações atuais são derivadas das notas experimentais de andete e das correções documentadas de Nuke.YKT.
+
+A tabela de patches de ritmo de `emu2413` é comentada como originária do VRC7; ela não foi usada como fonte dos bytes YM2413. Os valores incluídos no crate vêm das tabelas experimentais de andete, com as limitações descritas acima.
 
 ## 6. Matriz por voz
 
 | Voz | Slots | Envelope/operadores | Fase | Evidência atual | Estado |
 |---|---|---|---|---|---|
-| Bass Drum | 13 + 16 | Dois operadores FM | PG normal, parâmetros dos canais de BD | Manual descreve FM em dois slots | CANDIDATE; falta mapear parâmetros/EG ROM e testar |
-| Hi-Hat | 14 | Envelope dedicado do slot 14 | Ruído + phase-combining dos canais 8/9 | Manual + captura global de ritmo; software comparativo | BLOCKED para implementação física; algoritmo candidato precisa validação |
-| Snare Drum | 17 | Envelope dedicado do slot 17 | Ruído combinado com fase derivada de canal | Manual + captura global; detalhe fino insuficiente | BLOCKED para implementação física |
-| Tom-Tom | 15 | Envelope dedicado do slot 15 | Componente tonal baseada em fase de operador | Manual + software comparativo | CANDIDATE; confirmar se e como ruído participa |
-| Top Cymbal | 18 | Envelope dedicado do slot 18 | Phase-combining de fases de channel 8 modulator + channel 9 carrier (equação combinacional isolada) | Manual + Genesis Plus GX alega verificação YM2413 | CANDIDATE IMPLEMENTED; ainda sem vetores de hardware independentes |
+| Bass Drum | 13 + 16 | Dois operadores FM | FM normal com parâmetros de BD | Manual + comparação de captura com patch customizado | PATCH CANDIDATE IMPLEMENTED; forma de onda ainda não integrada |
+| Hi-Hat | 14 | mod7 | rm_bit de mod7/car8 + LFSR | Capturas de hardware e modelo de fase/envelope de andete | PHASE/PATCH CANDIDATE IMPLEMENTED; offsets e áudio pendentes |
+| Snare Drum | 17 | car7 | bit8 de mod7 + LFSR | Capturas de hardware e confirmação posterior de +0/-0 | PHASE/PATCH CANDIDATE IMPLEMENTED; offsets e áudio pendentes |
+| Tom-Tom | 15 | mod8 | PG normal do canal físico 9 | Capturas de hardware e parâmetros de operador | PATCH CANDIDATE IMPLEMENTED; integração pendente |
+| Top Cymbal | 18 | car8 | rm_bit de mod7/car8; 16 variantes equivalentes por offsets | Capturas de hardware e correção posterior de Nuke.YKT | PHASE/PATCH CANDIDATE IMPLEMENTED; offset absoluto pendente |
 
 ## 7. Plano de implementação incremental
 
