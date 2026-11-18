@@ -1,9 +1,9 @@
 # YM2413 / OPLL — Especificação arquitetural e modelo FM
 
-**Projeto:** Sega Emulator — Emulação de Alta Precisão
-**Escopo:** núcleo compartilhado Rust e integração futura no Master System japonês
-**Estado:** especificação arquitetural inicial (M0); **não autoriza declarar o chip implementado**
-**Branch de documentação:** `fix/sn76489-psg-fidelity-20261107`
+**Projeto:** Sega Emulator — Emulação de Alta Precisão  
+**Escopo:** núcleo compartilhado Rust e integração futura no Master System japonês  
+**Estado:** especificação arquitetural inicial (M0); **não autoriza declarar o chip implementado**  
+**Branch de documentação:** `fix/sn76489-psg-fidelity-20261107`  
 **PR relacionada:** [#615](https://github.com/leonardo201800478/sega-emulator/pull/615)
 
 > Convenção de evidência usada neste documento:
@@ -624,7 +624,7 @@ Fontes de código auditadas:
 
 ### 15. Errata M2 — reconciliação com o main de 2026-11-17
 
-A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf840090bad6036810a0df98f22b9d1484`. Ela **não deve ser usada isoladamente como decisão de implementação**. A auditoria atual, baseada no main `b82e0df4c9840b2cd59f090278b907cbb321869f`, está em [auditoria M2 registrada na PR #994](https://github.com/leonardo201800478/sega-emulator/pull/994) e corrige os pontos abaixo:
+A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf840090bad6036810a0df98f22b9d1484`. Ela **não deve ser usada isoladamente como decisão de implementação**. A auditoria atual, baseada no main `b82e0df4c9840b2cd59f090278b907cbb321869f`, está em [`docs/audits/ym2413-pre-implementation-audit-2026-11-17.md`](../audits/ym2413-pre-implementation-audit-2026-11-17.md) e corrige os pontos abaixo:
 
 1. **Clock compartilhado: decisão suspensa.** O worker SMS ativo usa `SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE = 1`; o tick lógico é um T-state Z80, não um tick de 10,738635 MHz. O domínio PSG tem razão 1/1 nessa linha do tempo. O manual Yamaha especifica um oscilador de 3,579545 MHz em XIN/XOUT; MAME modela o YM2413 japonês com XTAL(10,738,635)/3. Isso corrobora frequência nominal, mas não prova fonte elétrica/fase comum em todas as placas. A decisão de consumir o mesmo `ClockAdvance` do PSG só será fechada após FM-A01.
 
