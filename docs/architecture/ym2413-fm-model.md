@@ -312,7 +312,7 @@ No Japanese Master System, PSG e FM podem operar simultaneamente. No Mark III co
 
 A presença de FM não deve ser inferida apenas de `Territory::Japan`. O perfil deve representar explicitamente modelo/revisão e capacidade física. SMS exportação e variantes Tec Toy não devem receber YM2413 por suposição.
 
-Na leitura de $F2 do Japanese Master System, D7/D6/D5 refletem os bits 11/7/3 de um contador de 12 bits incrementado por pulsos C-Sync na entrada do 315-5297; D4–D2 são zero e D1–D0 refletem os últimos bits escritos. Isso é evidência MEDIDA/documentada por SMS Power. O contador não pode ser sintetizado a partir de VCounter, scanline ou temporizador do host: o runtime ainda não expõe o sinal C-Sync necessário.
+Na leitura de $F2 do Japanese Master System, D7/D6/D5 refletem os bits 11/7/3 de um contador de 12 bits incrementado por pulsos C-Sync na entrada do 315-5297; D4 é sempre zero e D3–D0 refletem os últimos quatro bits escritos. Na escrita, somente D1 (mute PSG) e D0 (mute YM2413) controlam o roteamento; D3–D2 não são controles de mute. A descrição publicada pelo SMS Power registra esse readback, mas a integração ainda exige teste por revisão física. O contador não pode ser sintetizado a partir de VCounter, scanline ou temporizador do host: o runtime ainda não expõe o sinal C-Sync necessário.
 
 ### 7.3.1 Matriz de contratos por modelo físico
 
@@ -685,6 +685,12 @@ A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf84
 | Alinhamento de mixer/resampler e continuidade | Não bloqueia core | Bloqueia áudio simultâneo, save state/replay de áudio e aceite do pipeline | PENDENTE (FM-A07) |
 
 O contrato permite iniciar a síntese digital pura em incrementos pequenos, mas não declarar o modelo completo nem integrar FM ao SMS. Os bloqueios físicos ficam isolados no adaptador/mixer; as pendências digitais continuam visíveis no scorecard e exigem evidência antes de qualquer alegação de fidelidade.
+
+### 15.2 Errata M2.1 — readback da metade baixa de $F2
+
+Uma releitura da página SMS Power — Audio Control Port identificou uma correção necessária à formulação resumida anterior: no readback japonês, D7–D5 são o contador C-Sync, D4 é sempre zero e **D3–D0** devolvem o último nibble escrito. Na escrita, somente D1 (controle de mute do PSG) e D0 (controle de mute do YM2413) têm efeito de roteamento; D3–D2 não são controles de saída. O Mark III com FM Unit ainda força D1 a zero e mantém PSG/FM mutuamente exclusivos. Para sistemas sem FM, o readback é dependente do modelo: SMS não japonês retorna D1–D0 = %10 segundo a documentação, enquanto Mark III sem FM Unit retorna a entrada do port 0.
+
+**Classificação:** DOCUMENTADO pela página SMS Power — Audio Control Port, que referencia as observações de Charles MacDonald; ainda PENDENTE de teste físico do Japanese Master System MK-2000 e das revisões cobertas. A auditoria M2 independente permanece preservada; esta errata atualiza o modelo normativo e não transforma o readback em implementação.
 
 ## 16. Scorecard por subsistema
 
