@@ -1,7 +1,7 @@
 # YM2413 FM Completion Scorecard
 
-**Data de referência:** 2026-11-18  
-**Repositório:** `leonardo201800478/sega-emulator`  
+**Data de referência:** 2026-11-18
+**Repositório:** `leonardo201800478/sega-emulator`
 **Main após as integrações iniciais:** `995dce7025b189ba25ce82a2dbf665d9cce9fb14`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
