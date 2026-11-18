@@ -16,6 +16,11 @@ use crate::envelope::{
 use crate::operator::{OperatorPair, OperatorPairError, OperatorPairSample, OperatorPairState};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState};
 use crate::pm_lfo::{PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState};
+use crate::rhythm_channel::{
+    RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig, RhythmVoiceSynthesisError,
+    Ym2413RhythmSynthesisConfig,
+};
+use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
 
 /// Number of melodic channels in the YM2413.
 pub const YM2413_MELODIC_CHANNELS: usize = 9;
@@ -39,6 +44,10 @@ pub enum Ym2413SynthesisError {
     PhaseModulationLfo(PhaseModulationLfoError),
     /// The AM LFO rejected its initial or restored phase.
     AmLfo(AmLfoError),
+    /// Rhythm Mode is not enabled in the supplied register configuration.
+    RhythmModeDisabled,
+    /// The rhythm voice configuration is invalid for the selected evaluator.
+    RhythmVoice(RhythmVoiceSynthesisError),
     /// Aggregate snapshot version or contents are invalid.
     InvalidState,
 }
@@ -71,6 +80,21 @@ impl From<AmLfoError> for Ym2413SynthesisError {
     fn from(value: AmLfoError) -> Self {
         Self::AmLfo(value)
     }
+}
+
+impl From<RhythmVoiceSynthesisError> for Ym2413SynthesisError {
+    fn from(value: RhythmVoiceSynthesisError) -> Self {
+        Self::RhythmVoice(value)
+    }
+}
+
+/// One logical Rhythm Mode voice's current digital output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmVoiceSample {
+    /// Logical percussion voice that was evaluated.
+    pub voice: Ym2413RhythmVoice,
+    /// Signed digital output from the shared operator synthesis path.
+    pub output: i16,
 }
 
 /// Explicit startup state for one melodic channel's two operators.
@@ -293,6 +317,119 @@ impl Ym2413SynthesisBank {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
         Ok(state.envelope[operator_index].tick(global_counter, key_on, carrier, parameters)?)
+    }
+
+    /// Advance PG for one physical operator described by a rhythm configuration.
+    ///
+    /// The caller decides when the slot is serviced. This helper only maps the
+    /// physical operator role to the existing channel PG state and does not
+    /// advance the chip clock or any other operator.
+    pub fn advance_rhythm_operator_phase(
+        &mut self,
+        operator: &RhythmOperatorSynthesisConfig,
+    ) -> Result<u16, Ym2413SynthesisError> {
+        self.advance_operator_phase(
+            operator.physical_channel,
+            operator.physical_role == Ym2413Operator::Carrier,
+            operator.phase,
+        )
+    }
+
+    /// Tick EG for one physical rhythm operator using an explicit key state.
+    ///
+    /// The key state is deliberately supplied by the caller: the interaction
+    /// between Rhythm Mode trigger bits and melodic channel KEY-ON bits is
+    /// unresolved. The global counter and service boundary are caller-owned.
+    pub fn tick_rhythm_operator_envelope(
+        &mut self,
+        operator: &RhythmOperatorSynthesisConfig,
+        key_on: bool,
+        global_counter: u32,
+    ) -> Result<u8, Ym2413SynthesisError> {
+        self.tick_operator_envelope(
+            operator.physical_channel,
+            operator.physical_role == Ym2413Operator::Carrier,
+            key_on,
+            global_counter,
+            operator.envelope,
+        )
+    }
+
+    /// Evaluate one Rhythm Mode voice from the current PG/EG states.
+    ///
+    /// This does not advance PG, EG, LFO, LFSR, slots or chip time. The caller
+    /// must first service the relevant physical operators at their researched
+    /// boundaries. Rhythm trigger bits are not treated as a mute gate here:
+    /// EG state controls the current amplitude and may represent a release tail.
+    /// BD uses the existing channel-7 OperatorPair and therefore preserves its
+    /// feedback history; the other voices use the shared single-carrier path.
+    pub fn evaluate_rhythm_voice(
+        &mut self,
+        configuration: &Ym2413RhythmSynthesisConfig,
+        voice: Ym2413RhythmVoice,
+    ) -> Result<Ym2413RhythmVoiceSample, Ym2413SynthesisError> {
+        if !configuration.rhythm_mode_enabled {
+            return Err(Ym2413SynthesisError::RhythmModeDisabled);
+        }
+
+        let voice_config = match voice {
+            Ym2413RhythmVoice::BassDrum => &configuration.voices[0],
+            Ym2413RhythmVoice::HiHat => &configuration.voices[1],
+            Ym2413RhythmVoice::TomTom => &configuration.voices[2],
+            Ym2413RhythmVoice::SnareDrum => &configuration.voices[3],
+            Ym2413RhythmVoice::TopCymbal => &configuration.voices[4],
+        };
+        let am_level = self.am_lfo.current_value();
+
+        let output = if voice == Ym2413RhythmVoice::BassDrum {
+            let (Some(modulator), Some(carrier)) =
+                (voice_config.modulator, voice_config.carrier)
+            else {
+                return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
+            };
+            if modulator.physical_role != Ym2413Operator::Modulator
+                || carrier.physical_role != Ym2413Operator::Carrier
+                || modulator.physical_channel != carrier.physical_channel
+            {
+                return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
+            }
+            let state = self.channel_mut(modulator.physical_channel)?;
+            let parameters = voice_config.bass_drum_operator_pair_parameters(
+                state.envelope[0].level(),
+                state.envelope[1].level(),
+                am_level,
+            )?;
+            state
+                .operator_pair
+                .evaluate(
+                    state.phase[0].phase_index(),
+                    state.phase[1].phase_index(),
+                    parameters,
+                )?
+                .carrier_output
+        } else {
+            let operator = match (voice_config.modulator, voice_config.carrier) {
+                (Some(operator), None) | (None, Some(operator)) => operator,
+                _ => {
+                    return Err(
+                        RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into()
+                    );
+                }
+            };
+            if !voice_config.single_operator_uses_carrier_path {
+                return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
+            }
+            let carrier = operator.physical_role == Ym2413Operator::Carrier;
+            let state = self.channel(operator.physical_channel)?;
+            let operator_index = usize::from(carrier);
+            voice_config.evaluate_single_operator(
+                state.phase[operator_index].phase_index(),
+                state.envelope[operator_index].level(),
+                am_level,
+            )?
+        };
+
+        Ok(Ym2413RhythmVoiceSample { voice, output })
     }
 
     /// Apply the explicit CarrierDrivesBoth DAMP candidate after a carrier tick.
