@@ -392,3 +392,14 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 - A interação entre KEY-ON melódico de $26–$28 e triggers de $0E permanece em aberto: o manual manda limpar KEY-ON; notas de andete sugerem que ambos os grupos de bits podem ser combinados por OR. `is_active` representa somente o gate $0E e não a atividade completa do hardware.
 
 **Estado:** FM-7 segue PARCIAL. Os blocos de fase, ruído e parâmetros de operador estão implementados como candidatos isolados, mas não há integração de cinco vozes ao banco de síntese, buffer de duplicação, roteamento MO/RO, PCM, Scheduler ou validação contínua/blocos. A fase inicial dos operadores e o seed do LFSR permanecem desconhecidos.
+
+
+## FM-7 — caminho carrier para operadores únicos (2026-11-18)
+
+- A análise de andete registra que cada voz rítmica de operador único atua como carrier mesmo quando o slot físico é um modulator (HH/mod7 e TOM/mod8).
+- Foi extraída a avaliação carrier pura para `evaluate_single_operator_as_carrier`, com a mesma atenuação `8×VOL + KSL + EG + AM`, saturada em 127, e a escala de saída `exponential_lookup >> 4` já usada pelo carrier do par FM.
+- `OperatorPair::evaluate` reutiliza a função extraída, preservando o caminho existente e reduzindo risco de divergência entre FM normal e ritmo.
+- Testes verificam equivalência com a saída carrier quando o modulator está silencioso, validação dos campos, silêncio EG e saturação de atenuação.
+- Esta função não avança PG/EG, não altera feedback, não resolve o pipeline de slots e ainda não está conectada a uma configuração de voz rítmica.
+
+**Estado:** bloco digital puro implementado; integração de HH/SD/TOM/TCY pendente.
