@@ -38,9 +38,9 @@ pub enum Ym2413RhythmVoice {
 
 /// Measured rhythm-output occurrence for one slot in the 18-slot rotation.
 ///
-/// A repeated occurrence reuses the previously generated nine-bit percussion
-/// value from source_slot_index. This map records the observed positions only;
-/// it does not implement the physical delay register.
+/// A repeated occurrence reproduces the same nine-bit value measured at
+/// source_slot_index. This map records output positions only; it does not
+/// assert whether the physical chip stores or recomputes that value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413RhythmOutputOccurrence {
     /// Zero-based slot index in the 18-slot rotation.
