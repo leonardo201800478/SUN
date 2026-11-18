@@ -7,6 +7,7 @@ pub mod envelope;
 pub mod phase;
 pub mod pm_lfo;
 pub use envelope::{
+    AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination,
     EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters,
     EnvelopeStage, YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
 };
