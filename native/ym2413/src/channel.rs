@@ -49,12 +49,16 @@ impl Operator {
             return 0;
         }
         let sine = lookup_log_sine(phase, self.half_wave);
-        let am = if self.amplitude_modulation { am_level } else { 0 };
+        let am = if self.amplitude_modulation {
+            am_level
+        } else {
+            0
+        };
         let attenuation = (extra_level
             + u16::from(self.key_scale_level)
             + u16::from(self.envelope_level)
             + u16::from(am))
-            .min(127);
+        .min(127);
         lookup_exp(sine.wrapping_add(16 * attenuation))
     }
 }
