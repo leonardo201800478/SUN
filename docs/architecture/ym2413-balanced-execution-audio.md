@@ -1,7 +1,7 @@
 # YM2413 — estratégia equilibrada de execução, saída e desempenho
 
-**Data:** 2026-11-18  
-**Estado:** proposta arquitetural para implementação incremental; não declara síntese FM concluída.  
+**Data:** 2026-11-18
+**Estado:** proposta arquitetural para implementação incremental; não declara síntese FM concluída.
 **Objetivo:** preservar precisão temporal documentada sem executar trabalho redundante por clock mestre nem introduzir filtros/ganhos de placa sem evidência.
 
 ## 1. Decisão executiva
