@@ -4,6 +4,7 @@
 //! 18-slot FM pipeline or emit integrated YM2413 PCM.
 
 pub mod envelope;
+pub mod key_scale;
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
@@ -13,6 +14,7 @@ pub use envelope::{
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
     YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
 };
+pub use key_scale::{key_scale_attenuation, KeyScaleError, YM2413_KSL1_TABLE};
 pub use operator::{
     exponential_lookup, log_sine_lookup, OperatorPair, OperatorPairError, OperatorPairParameters,
     OperatorPairSample, OperatorPairState, YM2413_OPERATOR_PAIR_STATE_VERSION,
