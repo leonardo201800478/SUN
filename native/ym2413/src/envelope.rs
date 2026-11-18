@@ -101,7 +101,7 @@ impl EnvelopeParameters {
             && self.block <= 7
     }
 
-    /// Compute RATE = 4 * R + Rks, clipped to the six-bit range.
+    /// Compute RATE = 4 * R + Rks, clipped to six bits; R=0 forces RATE=0.
     pub const fn effective_rate(self, base_rate: u8) -> u8 {
         // A programmed rate of zero disables the EG increment regardless
         // of KSR. The KSR offset is applied only to non-zero base rates.
