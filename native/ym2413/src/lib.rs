@@ -5,6 +5,7 @@
 
 pub mod am_lfo;
 pub mod envelope;
+pub mod instrument;
 pub mod key_scale;
 pub mod operator;
 pub mod phase;
@@ -18,6 +19,13 @@ pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
     YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
+};
+pub use instrument::{
+    decode_channel_registers, decode_patch_registers, decode_user_patch, preset_name,
+    preset_patch, resolve_instrument, rhythm_mode_enabled, ChannelRegisterState, InstrumentError,
+    InstrumentPatch, OperatorPatch, YM2413_PRESET_NAMES, YM2413_PRESET_PATCHES_CANDIDATE,
+    YM2413_PRESET_PATCHES_HARDWARE_VERIFIED, YM2413_PRESET_PATCH_LICENSE,
+    YM2413_PRESET_PATCH_SOURCE, YM2413_PRESET_PATCH_SOURCE_COMMIT,
 };
 pub use key_scale::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
 pub use operator::{
