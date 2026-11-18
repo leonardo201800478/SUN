@@ -6,6 +6,8 @@
 //! here. The exact initial phase-counter offsets remain unresolved.
 
 use crate::operator::YM2413_PHASE_INDEX_MASK;
+use crate::rhythm::Ym2413RhythmNoiseSlotSample;
+use crate::slot::Ym2413RhythmVoice;
 
 /// Experimental source for the measured rhythm waveforms and phase equations.
 pub const YM2413_RHYTHM_PHASE_CANDIDATE_SOURCE: &str =
@@ -22,6 +24,11 @@ pub enum RhythmPhaseCandidateError {
     InvalidPhaseIndex {
         source: RhythmPhaseSource,
         value: u16,
+    },
+    /// The sampled voice, slot, and supplied phase-input variant do not match.
+    UnexpectedNoiseSample {
+        voice: Ym2413RhythmVoice,
+        slot_index: u8,
     },
 }
 
@@ -127,12 +134,133 @@ pub fn snare_drum_phase_candidate(
     Ok((phase_bit << 9) | (noise_phase_bit << 8))
 }
 
+/// Phase inputs required by the two rhythm voices that consume the LFSR bit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RhythmNoisePhaseInputs {
+    /// Hi-Hat combines channel 7 modulator, channel 8 carrier and the sampled noise bit.
+    HiHat {
+        channel7_modulator_phase: u16,
+        channel8_carrier_phase: u16,
+    },
+    /// Snare Drum combines channel 7 modulator phase and the sampled noise bit.
+    SnareDrum { channel7_modulator_phase: u16 },
+}
+
+/// Convert a sequencer event into the corresponding candidate phase-table address.
+///
+/// This is a combinational bridge only: it validates the event's physical slot
+/// and voice, then delegates to the existing candidate equation. It does not
+/// advance PG, EG, LFSR, slots or chip time, and it does not claim that the
+/// candidate's absolute phase offsets are hardware-verified.
+pub fn rhythm_noise_phase_candidate(
+    sample: Ym2413RhythmNoiseSlotSample,
+    inputs: RhythmNoisePhaseInputs,
+) -> Result<u16, RhythmPhaseCandidateError> {
+    match (sample.voice, sample.slot_index, inputs) {
+        (
+            Ym2413RhythmVoice::HiHat,
+            crate::rhythm::YM2413_RHYTHM_HIHAT_NOISE_SLOT_INDEX,
+            RhythmNoisePhaseInputs::HiHat {
+                channel7_modulator_phase,
+                channel8_carrier_phase,
+            },
+        ) => hi_hat_phase_candidate(
+            channel7_modulator_phase,
+            channel8_carrier_phase,
+            sample.noise_bit,
+        ),
+        (
+            Ym2413RhythmVoice::SnareDrum,
+            crate::rhythm::YM2413_RHYTHM_SNARE_NOISE_SLOT_INDEX,
+            RhythmNoisePhaseInputs::SnareDrum {
+                channel7_modulator_phase,
+            },
+        ) => snare_drum_phase_candidate(channel7_modulator_phase, sample.noise_bit),
+        (voice, slot_index, _) => {
+            Err(RhythmPhaseCandidateError::UnexpectedNoiseSample { voice, slot_index })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        RhythmPhaseCandidateError, RhythmPhaseSource, hi_hat_phase_candidate,
-        rhythm_phase_mix_bit_candidate, snare_drum_phase_candidate, top_cymbal_phase_candidate,
+        RhythmNoisePhaseInputs, RhythmPhaseCandidateError, RhythmPhaseSource, Ym2413RhythmVoice,
+        hi_hat_phase_candidate, rhythm_noise_phase_candidate, rhythm_phase_mix_bit_candidate,
+        snare_drum_phase_candidate, top_cymbal_phase_candidate,
     };
+
+    #[test]
+    fn sequencer_hihat_event_feeds_the_matching_phase_candidate() {
+        let mut sequencer =
+            crate::rhythm::Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(0x5a_1234, 13)
+                .unwrap();
+        let sample = sequencer.advance_slot().unwrap();
+        let inputs = RhythmNoisePhaseInputs::HiHat {
+            channel7_modulator_phase: 0x008c,
+            channel8_carrier_phase: 0x0028,
+        };
+
+        assert_eq!(
+            rhythm_noise_phase_candidate(sample, inputs),
+            hi_hat_phase_candidate(0x008c, 0x0028, sample.noise_bit)
+        );
+    }
+
+    #[test]
+    fn sequencer_snare_event_feeds_the_matching_phase_candidate() {
+        let mut sequencer =
+            crate::rhythm::Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(0x5a_1234, 16)
+                .unwrap();
+        let sample = sequencer.advance_slot().unwrap();
+        let inputs = RhythmNoisePhaseInputs::SnareDrum {
+            channel7_modulator_phase: 0x0100,
+        };
+
+        assert_eq!(
+            rhythm_noise_phase_candidate(sample, inputs),
+            snare_drum_phase_candidate(0x0100, sample.noise_bit)
+        );
+    }
+
+    #[test]
+    fn noise_phase_bridge_rejects_mismatched_voice_slot_or_input_variant() {
+        let hihat = crate::rhythm::Ym2413RhythmNoiseSlotSample {
+            slot_index: crate::rhythm::YM2413_RHYTHM_HIHAT_NOISE_SLOT_INDEX,
+            voice: Ym2413RhythmVoice::HiHat,
+            noise_bit: true,
+        };
+        assert_eq!(
+            rhythm_noise_phase_candidate(
+                hihat,
+                RhythmNoisePhaseInputs::SnareDrum {
+                    channel7_modulator_phase: 0,
+                }
+            ),
+            Err(RhythmPhaseCandidateError::UnexpectedNoiseSample {
+                voice: Ym2413RhythmVoice::HiHat,
+                slot_index: crate::rhythm::YM2413_RHYTHM_HIHAT_NOISE_SLOT_INDEX,
+            })
+        );
+
+        let invalid_slot = crate::rhythm::Ym2413RhythmNoiseSlotSample {
+            slot_index: 12,
+            ..hihat
+        };
+        assert_eq!(
+            rhythm_noise_phase_candidate(
+                invalid_slot,
+                RhythmNoisePhaseInputs::HiHat {
+                    channel7_modulator_phase: 0,
+                    channel8_carrier_phase: 0,
+                }
+            ),
+            Err(RhythmPhaseCandidateError::UnexpectedNoiseSample {
+                voice: Ym2413RhythmVoice::HiHat,
+                slot_index: 12,
+            })
+        );
+    }
 
     #[test]
     fn rhythm_phase_mix_candidate_exhaustively_covers_the_five_relevant_bits() {
