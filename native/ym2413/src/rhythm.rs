@@ -645,18 +645,19 @@ mod tests {
     }
 
     #[test]
-    fn slot_rate_lfsr_supports_three_slot_hh_to_sd_spacing() {
-        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(0x12_3456).unwrap();
-        let hh_bit = lfsr.output_bit();
-        lfsr.advance(3);
-        let sd_bit = lfsr.output_bit();
+    fn slot_rate_lfsr_matches_measured_three_slot_hh_to_sd_spacing_vector() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(0x12_3457).unwrap();
 
-        let mut expected = Ym2413RhythmSlotNoiseLfsr::with_seed(0x12_3456).unwrap();
-        assert_eq!(hh_bit, expected.output_bit());
-        for _ in 0..3 {
-            let _ = expected.clock();
-        }
-        assert_eq!(sd_bit, expected.output_bit());
+        // Slot 13: HH samples the current bit.
+        assert_eq!(lfsr.output_bit(), 1);
+        lfsr.advance(3);
+
+        // Slot 16: SD samples the bit after three operator-slot steps.
+        assert_eq!(lfsr.output_bit(), 0);
+        lfsr.advance(15);
+
+        // The next rotation returns to HH at slot 13 after 18 total steps.
+        assert_eq!(lfsr.output_bit(), 0);
     }
 
     #[test]
