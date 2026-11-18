@@ -348,4 +348,3 @@ A ativação efetiva de cada voz é calculada como Rhythm Mode habilitado **e** 
 **Estado:** FM-7 PARCIAL — apenas configuração estática dos registradores. Os testes de unidade e o CI desta PR ainda precisam ser associados ao HEAD final. Não equivale a Rhythm Mode funcional nem a PCM de percussão validado.
 
 **Referência primária:** Yamaha YM2413 Application Manual, III-1-7 (Rhythm), III-1-8 (Instrument/Volume) e V-4 (Percussion Sound Synthesis): https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf. A alocação dos bits do registrador $0E também foi comparada com as notas de reverse engineering de andete: https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16.
-
