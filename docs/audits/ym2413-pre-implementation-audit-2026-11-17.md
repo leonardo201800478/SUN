@@ -68,7 +68,7 @@ Estado observado:
 
 - `SmsTemporalBusState` contém memória, I/O, PSG, VDP, trace de escritas e estado do coordenador; não contém FM.
 - `read_port` trata VDP e, no caminho genérico, delega a `SmsIo`.
-- `SmsIo::read_port` trata os ports de controle/input existentes; $F2 não tem implementação de readback e atualmente cai no valor genérico $FF.
+- `SmsIo::read_port` trata os ports de controle/input existentes; como `SmsTemporalBus::read_port` reduz o endereço por `(port as u8) & 0xC1`, $F2 chega a `SmsIo::read_port`, que o interpreta como port par no intervalo $C0–$FE e retorna `read_dc()` (estado dos controles). Sem entradas ativas isso pode resultar em $FF, mas não é open bus nem readback YM2413/C-Sync. Escritas em $F2 chegam a `SmsIo::write_port`, que só reconhece os espelhos ímpares $01–$3F e ignora $F2.
 - `write_port` trata VDP, PSG, memory control e I/O. $F0/$F1/$F2 chegam ao caminho genérico de `SmsIo`, que não possui latch nem registradores FM.
 - Não há estado de latch de endereço YM2413, deadline de escrita ou contador C-Sync no barramento atual.
 
