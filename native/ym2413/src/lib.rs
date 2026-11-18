@@ -12,6 +12,7 @@ pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
 pub mod rhythm;
+pub mod rhythm_channel;
 pub mod rhythm_phase;
 pub mod slot;
 pub mod synthesis;
@@ -57,6 +58,10 @@ pub use rhythm::{
     YM2413_RHYTHM_NOISE_STATE_VERSION, YM2413_RHYTHM_TRIGGER_MASK, Ym2413RhythmChannelFrequency,
     Ym2413RhythmConfig, Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState,
     Ym2413RhythmVoiceConfig, decode_rhythm_registers,
+};
+pub use rhythm_channel::{
+    RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
+    Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
 };
 pub use slot::{
     YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,

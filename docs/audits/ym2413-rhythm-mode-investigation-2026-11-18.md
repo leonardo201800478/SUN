@@ -242,3 +242,10 @@ O fechamento funcional de software pode preceder a comparação com hardware, ma
 - SMS Power, visão geral YM2413 e alocação de slots: https://www.smspower.org/Development/YM2413
 
 Nenhum código GPL foi copiado. As referências de software acima servem somente para análise comparativa e desenho de experimentos.
+
+
+## Configuração estática das vozes (2026-11-18)
+
+O módulo `rhythm_channel` passa a compor os dados já decodificados em `rhythm.rs` com os patches candidatos e a tabela de slots. A configuração resultante identifica os operadores físicos: BD (canal 7, slots 13/16), HH (canal 8, slot 14), TOM (canal 9, slot 15), SD (canal 8, slot 17) e TCY (canal 9, slot 18). Os quatro sons de operador único usam o avaliador de saída carrier por contrato explícito, ainda que HH/TOM ocupem slots fisicamente classificados como modulator.
+
+O decoder conserva os bits KEY-ON melódicos e SUS sem tentar resolver a divergência entre o manual e as notas de captura sobre a combinação dos KEY-ON com triggers $0E. Os patches continuam candidatos não verificados. Esta etapa não executa PG/EG, não avança o LFSR e não sintetiza áudio.
