@@ -321,18 +321,20 @@ impl Ym2413SynthesisBank {
 
     /// Tick EG for one physical rhythm operator using an explicit key state.
     ///
-    /// The key state is deliberately supplied by the caller: the interaction
-    /// between Rhythm Mode trigger bits and melodic channel KEY-ON bits is
-    /// unresolved. The global counter and service boundary are caller-owned.
+    /// The key state and carrier-release policy are deliberately supplied by
+    /// the caller: trigger/KEY-ON interaction and whether a single-operator
+    /// voice uses carrier EG release semantics are not inferred here. The
+    /// global counter and service boundary are also caller-owned.
     pub fn tick_rhythm_operator_envelope(
         &mut self,
         operator: &RhythmOperatorSynthesisConfig,
         key_on: bool,
+        carrier_release_path: bool,
         global_counter: u32,
     ) -> Result<u8, Ym2413SynthesisError> {
         self.tick_operator_envelope(
             operator.physical_channel,
-            operator.physical_role == Ym2413Operator::Carrier,
+            carrier_release_path,
             key_on,
             global_counter,
             operator.envelope,
@@ -725,7 +727,7 @@ mod tests {
         let mut helper_bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
         let mut direct_bank = helper_bank.clone();
         let helper_level = helper_bank
-            .tick_rhythm_operator_envelope(&operator, true, 17)
+            .tick_rhythm_operator_envelope(&operator, true, false, 17)
             .unwrap();
         let direct_level = direct_bank
             .tick_operator_envelope(
