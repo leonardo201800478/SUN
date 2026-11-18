@@ -473,7 +473,7 @@ Foram adicionados testes de regressão para confrontar o seletor de taxas do EG 
 - RATE=14: padrão de intervalos 2048, 1024, 1024, com fase inicial do contador global explicitada.
 - RATE=19: intervalo inicial de 1024 seguido por seis intervalos de 512 amostras.
 - Carrier RELEASE: reutiliza o seletor temporal medido de DECAY com os parâmetros de release.
-- ATTACK RATE=4: valida a mesma seleção de contador global e os níveis 127→119→111→104 nos instantes amostrados.
+- ATTACK RATE=4: valida a janela de quatro atualizações por grupo de contador habilitado e os primeiros oito níveis 127→119→111→104→97→90→84→78→73.
 
 Os testes usam o contador global como entrada explícita; a fase inicial é escolhida para reproduzir o segmento publicado e **não** representa alinhamento de reset do YM2413. Os casos validam a implementação do seletor/curva dentro das condições medidas, não o instante físico em que cada operador recebe o tick.
 
