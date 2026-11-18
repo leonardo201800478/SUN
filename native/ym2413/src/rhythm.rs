@@ -397,7 +397,7 @@ pub struct Ym2413RhythmSlotNoiseSequencer {
 }
 
 impl Ym2413RhythmSlotNoiseSequencer {
-    /// Construct from an explicit non-zero LFSR seed and slot index (0..18).
+    /// Construct from an explicit non-zero LFSR seed and slot index (0..=17).
     pub const fn with_seed_at_slot(
         seed: u32,
         slot_index: u8,
