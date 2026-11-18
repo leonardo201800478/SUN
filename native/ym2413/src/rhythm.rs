@@ -44,7 +44,11 @@ pub struct Ym2413RhythmVoiceConfig {
 }
 
 impl Ym2413RhythmVoiceConfig {
-    /// Return whether the voice is logically triggered in the current mode.
+    /// Return the register-level trigger gate: RHY enabled and this $0E bit set.
+    ///
+    /// This is not a complete hardware-activity predicate when channels 7-9
+    /// have KEY-ON set. The manual says those bits must be cleared; andete's
+    /// notes report a possible OR interaction that remains unresolved.
     pub const fn is_active(self, rhythm_mode_enabled: bool) -> bool {
         rhythm_mode_enabled && self.key_on
     }
