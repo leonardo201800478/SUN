@@ -4,6 +4,7 @@
 //! synthesize PCM or participate in the 18-slot operator pipeline.
 
 pub mod channel;
+pub use channel::{Carrier, MelodicChannel, Modulator, Operator};
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
