@@ -283,7 +283,7 @@ const fn wrap_phase(phase: i32) -> u16 {
 mod tests {
     use super::{
         exponential_lookup, log_sine_lookup, OperatorPair, OperatorPairError,
-        OperatorPairParameters, OperatorPairState, OperatorPairSample,
+        OperatorPairParameters, OperatorPairState,
     };
 
     fn parameters() -> OperatorPairParameters {
@@ -355,7 +355,10 @@ mod tests {
         let sample = pair.evaluate(0, 512, parameters()).unwrap();
         assert_eq!(sample.feedback_phase_offset, 0);
         assert_eq!(sample.modulator_phase_used, 1023);
-        assert_eq!(sample.carrier_phase_used, 512 + 2 * i32::from(sample.modulator_output) as u16);
+        assert_eq!(
+            sample.carrier_phase_used,
+            wrap_phase_for_test(512 + 2 * i32::from(sample.modulator_output))
+        );
     }
 
     #[test]
