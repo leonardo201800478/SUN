@@ -17,8 +17,7 @@ use crate::operator::{OperatorPair, OperatorPairError, OperatorPairSample, Opera
 use crate::phase::{PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState};
 use crate::pm_lfo::{PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState};
 use crate::rhythm_channel::{
-    RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisError,
-    Ym2413RhythmSynthesisConfig,
+    RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisError, Ym2413RhythmSynthesisConfig,
 };
 use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
 
@@ -375,8 +374,7 @@ impl Ym2413SynthesisBank {
             if phase_index.is_some() {
                 return Err(RhythmVoiceSynthesisError::UnexpectedPhaseInput { voice }.into());
             }
-            let (Some(modulator), Some(carrier)) =
-                (voice_config.modulator, voice_config.carrier)
+            let (Some(modulator), Some(carrier)) = (voice_config.modulator, voice_config.carrier)
             else {
                 return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
             };
@@ -402,19 +400,16 @@ impl Ym2413SynthesisBank {
                 )?
                 .carrier_output
         } else {
-            let phase_index = phase_index.ok_or(
-                RhythmVoiceSynthesisError::MissingPhaseInput { voice },
-            )?;
+            let phase_index =
+                phase_index.ok_or(RhythmVoiceSynthesisError::MissingPhaseInput { voice })?;
             let (operator, expected_role) = match (voice_config.modulator, voice_config.carrier) {
                 (Some(operator), None) => (operator, Ym2413Operator::Modulator),
                 (None, Some(operator)) => (operator, Ym2413Operator::Carrier),
                 _ => {
-                    return Err(
-                        RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into()
-                    );
+                    return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
                 }
             };
-            if operator.physical_role != expected_role { 
+            if operator.physical_role != expected_role {
                 return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice }.into());
             }
             if !voice_config.single_operator_uses_carrier_path {
@@ -555,11 +550,11 @@ mod tests {
         Ym2413SynthesisError, Ym2413SynthesisInitialState,
     };
     use crate::channel::decode_channel_synthesis;
-    use crate::rhythm_channel::decode_rhythm_synthesis;
-    use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
     use crate::envelope::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
+    use crate::rhythm_channel::decode_rhythm_synthesis;
+    use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
 
     fn initial_state() -> Ym2413SynthesisInitialState {
         Ym2413SynthesisInitialState {
@@ -724,7 +719,8 @@ mod tests {
     fn rhythm_envelope_helper_maps_the_physical_slot_to_shared_eg_state() {
         let config = rhythm_configuration();
         let operator = config.voices[1].modulator.unwrap();
-        let mut helper_bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        let mut helper_bank =
+            Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
         let mut direct_bank = helper_bank.clone();
         let helper_level = helper_bank
             .tick_rhythm_operator_envelope(&operator, true, false, 17)
@@ -754,10 +750,22 @@ mod tests {
         let mod7 = bank.phase_index(6, false).unwrap();
         let car8 = bank.phase_index(7, true).unwrap();
         let phases = [
-            (Ym2413RhythmVoice::HiHat, hi_hat_phase_candidate(mod7, car8, false).unwrap()),
-            (Ym2413RhythmVoice::TomTom, bank.phase_index(8, false).unwrap()),
-            (Ym2413RhythmVoice::SnareDrum, snare_drum_phase_candidate(mod7, false).unwrap()),
-            (Ym2413RhythmVoice::TopCymbal, top_cymbal_phase_candidate(mod7, car8).unwrap()),
+            (
+                Ym2413RhythmVoice::HiHat,
+                hi_hat_phase_candidate(mod7, car8, false).unwrap(),
+            ),
+            (
+                Ym2413RhythmVoice::TomTom,
+                bank.phase_index(8, false).unwrap(),
+            ),
+            (
+                Ym2413RhythmVoice::SnareDrum,
+                snare_drum_phase_candidate(mod7, false).unwrap(),
+            ),
+            (
+                Ym2413RhythmVoice::TopCymbal,
+                top_cymbal_phase_candidate(mod7, car8).unwrap(),
+            ),
         ];
         for (voice, phase_index) in phases {
             let index = match voice {
@@ -767,16 +775,22 @@ mod tests {
                 Ym2413RhythmVoice::TopCymbal => 4,
                 Ym2413RhythmVoice::BassDrum => unreachable!(),
             };
-            let operator = config.voices[index].modulator.or(config.voices[index].carrier).unwrap();
+            let operator = config.voices[index]
+                .modulator
+                .or(config.voices[index].carrier)
+                .unwrap();
             let carrier = operator.physical_role == Ym2413Operator::Carrier;
             let expected = config.voices[index]
                 .evaluate_single_operator(
                     phase_index,
-                    bank.envelope_level(operator.physical_channel, carrier).unwrap(),
+                    bank.envelope_level(operator.physical_channel, carrier)
+                        .unwrap(),
                     bank.am_level(),
                 )
                 .unwrap();
-            let sample = bank.evaluate_rhythm_voice(&config, voice, Some(phase_index)).unwrap();
+            let sample = bank
+                .evaluate_rhythm_voice(&config, voice, Some(phase_index))
+                .unwrap();
             assert_eq!(sample.voice, voice);
             assert_eq!(sample.output, expected);
         }
