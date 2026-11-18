@@ -903,3 +903,69 @@ Este componente é uma tradução independente das relações matemáticas descr
 **Validação:** PR #1001. Os testes unitários do EG foram adicionados; o resultado do CI deve ser associado ao HEAD efetivo da PR, e não a um SHA anterior. Nenhum teste local de workspace é declarado.
 
 **Fontes:** [andete — 2015-03-20](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-20), [2015-12-24](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-24), [2015-12-31](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31), [2017-01-26](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2017-01-26).
+
+
+## 22. Log-Sine / EXP e par de operadores — candidato FM-2
+
+### Tabelas inteiras
+
+Foram adicionadas duas tabelas constantes de 256 entradas, geradas independentemente das fórmulas matemáticas publicadas no modelo de 2016-07-16:
+
+\[
+LS[i] = round\left(-256\log_2\left(\sin\frac{(i+0.5)\pi}{512}\right)\right)
+\]
+
+\[
+EXP[i] = round\left(1024\left(2^{i/256}-1\right)\right)
+\]
+
+As constantes ficam em `native/ym2413/src/synthesis_tables.rs`. Não há `sin`, `log2` ou `exp2` em runtime, nem dependência adicional. Os valores foram gerados a partir das fórmulas; não foram copiadas tabelas de outro emulador.
+
+### Codificação e conversão
+
+- O índice de fase tem dez bits: bit 9 é sinal, bit 8 seleciona o espelhamento e os oito bits inferiores selecionam a tabela.
+- A opção half-wave substitui o semiciclo negativo pelo código de atenuação `0x0fff`.
+- A conversão EXP usa a mantissa invertida, o termo `0x0800`, o expoente nos bits 8..14 e complemento de um para o sinal negativo.
+- A saída é mantida como inteiro assinado. A conversão para DAC, offset-binary, mixagem ou PCM final não faz parte deste módulo.
+
+### Par modulator/carrier
+
+`OperatorPair::evaluate` implementa o caminho matemático candidato:
+
+1. Feedback do modulator: `(p0 + p1) >> (8 - FB)`, desabilitado quando FB=0.
+2. Fase do modulator: índice PG próprio, menos um, mais feedback, com wrap de dez bits.
+3. Atenuação do modulator: `min(127, 2*TL + KSL + EG + AM)`.
+4. Saída do modulator: `lookupEXP(lookupLogSine(phase) + 16*attenuation) >> 1`.
+5. Atualização do histórico de feedback `p1=p0; p0=m`.
+6. Fase do carrier: índice PG independente mais duas vezes a saída do modulator.
+7. Atenuação do carrier: `min(127, 8*VOL + KSL + EG + AM)`.
+8. Saída do carrier: conversão EXP deslocada quatro bits.
+
+O par recebe índices PG separados para modulator e carrier. Não pressupõe alinhamento de fase entre os operadores. Também não avança PG, EG, LFO ou relógio; esses estados continuam sob controle do runtime/Scheduler.
+
+### Evidência e limites
+
+- **MODELO MATEMÁTICO — andete, 2016-07-16:** fórmulas de geração das tabelas, codificação log-sine, EXP, atenuação, feedback e deslocamentos de saída.
+- **IMPLEMENTADO:** lookup inteiro, atenuação, feedback de dois samples, phase wrap, snapshots do feedback e testes de simetria/limites.
+- **PENDENTE:** KSL a partir de FNUM/BLOCK, patch ROM, AM LFO, atualização dos 18 PGs/EGs, ordem de slots, validação PCM diferencial e confirmação física de quantização/escala.
+
+A saída `carrier_output` é o valor digital assinado bruto do operador, não uma amostra PCM final do chip. A saída analógica, a soma de canais, a escala do DAC e o mixer PSG/FM permanecem fora desta etapa.
+
+**Fonte principal:** [andete — modelo matemático de síntese (2016-07-16)](https://github.com/andete/ym2413/blob/master/results/20160716/model.cc). O código do repositório externo foi consultado como evidência documental; sua implementação não foi copiada.
+
+
+## 23. Key Scale Level (KSL) — FM-2
+
+O cálculo KSL foi separado em `native/ym2413/src/key_scale.rs`.
+
+- Entradas validadas: BLOCK (0..7), FNUM (0..511) e KSL (0..3).
+- Índice de frequência: `(FNUM >> 5) & 0x0f`, conforme a documentação do fabricante.
+- A tabela-base KSL=1 representa 1,5 dB/octave em unidades EG de 0,375 dB.
+- KSL=0 aplica zero; KSL=1 multiplica por 1; KSL=2 por 2; KSL=3 por 4.
+- O máximo é 112 unidades EG para BLOCK=7, FNUM MSB=0xF e KSL=3.
+
+A linha BLOCK=7 da tabela-base foi comparada com a medição publicada por andete. A derivação de KSL=2/3 segue as taxas de 3/6 dB por oitava documentadas no manual e a relação de escala indicada nas notas.
+
+**Limite da evidência:** as medições de andete são amostragens esparsas para KSL=1/2/3, e a tabela completa é a tradução da tabela do manual para unidades EG. Isso não substitui uma varredura física completa realizada pelo projeto.
+
+**Fontes:** [Yamaha YM2413 Application Manual, KSL/TL, Table III-4/III-5](https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf), [andete — KSL measurements, 2015-12-16](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16).

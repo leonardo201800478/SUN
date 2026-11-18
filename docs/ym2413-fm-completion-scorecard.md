@@ -10,7 +10,7 @@ Este scorecard distingue implementação de componente, integração funcional, 
 
 **Status geral: EM DESENVOLVIMENTO — NÃO PRONTO PARA TESTES CONTROLADOS COM ROMS.**
 
-A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG por operador foi implementado como modelo candidato, com testes e snapshots locais, mas ainda não está conectado ao pipeline de 18 slots, à síntese de operadores ou ao estado agregado do YM2413. Ainda não existe geração PCM FM funcional integrada ao runtime SMS.
+A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG e o par de operadores FM foram implementados como componentes candidatos, com testes e snapshots locais, mas ainda não estão conectados ao pipeline de 18 slots nem ao estado agregado do YM2413. Ainda não existe geração PCM FM integrada ao runtime SMS.
 
 ## Marcos já publicados
 
@@ -28,8 +28,8 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Etapa | Estado | Entrega existente | Pendência para conclusão |
 |---|---|---|---|
 | FM-0 — Auditoria e consolidação | **Concluída** | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
-| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; 17 testes EG | Integrar 18 EGs ao pipeline de operadores; resolver contratos de update; integrar snapshot ao estado agregado; validar transições com vetores independentes |
-| FM-2 — Operadores e síntese FM | **Pendente** | Nenhum operador FM completo | Modulator/carrier, feedback, Log-Sine, EXP, waveform, saturação e PCM |
+| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; 17 testes EG, 14 testes de tabelas/operadores e 6 testes KSL | Integrar 18 EGs ao pipeline de operadores; resolver contratos de update; integrar snapshot ao estado agregado; validar transições com vetores independentes |
+| FM-2 — Operadores e síntese FM | **Parcial** | Tabelas Log-Sine/EXP; lookup de fase/sinal; par modulator/carrier; feedback de dois samples; KSL BLOCK/FNUM; snapshots locais | Integrar KSL ao decoder/canal, validar PCM diferencial, integrar aos slots e confirmar escala/quantização fisicamente |
 | FM-3 — LFO e modulação | **Parcial** | Contador PM global e tabela PM 8×8 | AM LFO; conectar PM/AM aos operadores; comprovar fase e cadência |
 | FM-4 — Instrumentos | **Pendente** | Decodificação de registradores já existente na fundação | Instrumento usuário; ROM de 15 instrumentos; parâmetros e validação dos nove canais melódicos |
 | FM-5 — Rhythm Mode | **Pendente** | Nenhum gerador de ritmo integrado | Cinco vozes, seis slots, noise LFSR, volumes e temporização |
@@ -46,9 +46,10 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | PG-1 | Implementado | Testes unitários existentes; vetores independentes de andete não equivalem a medição própria |
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
 | EG por operador | Implementado como candidato | 17 testes unitários; não conectado aos slots |
-| Log-Sine / EXP | Não implementados | Pendente |
-| Modulator / carrier | Não implementados | Pendente |
-| Feedback FM | Não implementado | Pendente |
+| Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
+| Modulator / carrier | Par de operadores candidato implementado | Recebe PG/EG/KSL/AM externamente; ainda sem instrument ROM e sem slot scheduling |
+| Feedback FM | Histórico p0/p1 e cálculo de fase implementados | Pendente validação independente de PCM e integração ao canal real |
+| KSL | Lookup BLOCK/FNUM e escala KSL=0..3 implementados | Ainda não conectado ao decoder de instrumentos/canais |
 | AM LFO | Não implementado | Pendente |
 | Instrument ROM | Não implementada | Pendente |
 | Rhythm / LFSR | Não implementados | Pendente |
@@ -91,7 +92,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 
 ## Próxima dependência técnica
 
-O próximo desenvolvimento funcional é FM-2: implementar a cadeia de operador a partir das relações matemáticas documentadas para Log-Sine, EXP, feedback e modulação. Só depois da validação isolada da cadeia de síntese deve ser conectada aos 18 slots e ao Scheduler.
+O próximo desenvolvimento funcional é fechar FM-2 com vetores diferenciais de saída dos operadores e integração do KSL ao decoder de canal. Em paralelo, FM-3 precisa de AM LFO. Só depois da validação isolada da cadeia de síntese deve ser conectada aos 18 slots e ao Scheduler.
 
 Não iniciar a integração SMS ou mixer como substituto da síntese FM ainda inexistente. Não declarar o chip pronto para ROMs até haver PCM FM reproduzível, integração temporal e testes de regressão.
 

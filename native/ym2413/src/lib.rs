@@ -1,15 +1,23 @@
-//! YM2413 register, clock, and candidate phase-generator foundation.
+//! YM2413 register, clock, PG, EG, and operator-synthesis candidate components.
 //!
-//! The phase generator is a standalone candidate model. It does not yet
-//! synthesize PCM or participate in the 18-slot operator pipeline.
+//! These components are independently testable and do not yet form a complete
+//! 18-slot FM pipeline or emit integrated YM2413 PCM.
 
 pub mod envelope;
+pub mod key_scale;
+pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
+pub mod synthesis_tables;
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
     YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
+};
+pub use key_scale::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
+pub use operator::{
+    OperatorPair, OperatorPairError, OperatorPairParameters, OperatorPairSample, OperatorPairState,
+    YM2413_OPERATOR_PAIR_STATE_VERSION, exponential_lookup, log_sine_lookup,
 };
 pub use phase::{
     PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
@@ -21,6 +29,7 @@ pub use pm_lfo::{
     YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
     YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
 };
+pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 
 use core::fmt;
 
