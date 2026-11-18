@@ -254,3 +254,8 @@ O decoder conserva os bits KEY-ON melódicos e SUS sem tentar resolver a diverg�
 ## Ponte de avaliação dos operadores rítmicos (2026-11-18)
 
 As configurações estáticas agora podem montar os parâmetros dinâmicos do avaliador carrier para HH/SD/TOM/TCY e os parâmetros normais do par FM para BD. Fase, EG e AM continuam sendo valores de entrada fornecidos pelo chamador; nenhum estado PG/EG/LFSR ou feedback é avançado por esses builders. O par BD ainda deve ser avaliado pelo `OperatorPair` com seu estado de feedback preservado. Esta ponte valida composição aritmética, não timing, pipeline serial ou PCM.
+
+
+## Avaliação digital integrada ao banco PG/EG (2026-11-18)
+
+A camada `Ym2413SynthesisBank` expõe agora operações direcionadas para os operadores físicos da configuração rítmica. O chamador ainda define o boundary de serviço PG, o contador global EG e o estado KEY-ON; os wrappers só encaminham esses valores para o PG/EG do canal e papel físico correspondentes. A avaliação de HH/SD/TOM/TCY lê fase e nível EG atuais e usa a saída carrier. BD avalia o par normal do canal 7, com o histórico de feedback já pertencente ao banco. O trigger `$0E` não é tratado como mute gate pelo avaliador: não foi demonstrado que o bit seja uma condição combinacional de saída, e o envelope pode representar cauda de release. A etapa não implementa cadência de slots, LFSR, M→C temporal, duplicação de saída, DAC, MO/RO ou PCM.
