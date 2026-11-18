@@ -13,8 +13,8 @@ pub mod phase;
 pub mod pm_lfo;
 pub mod rhythm;
 pub mod rhythm_channel;
-pub mod rhythm_phase;
 pub mod rhythm_output;
+pub mod rhythm_phase;
 pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
@@ -68,16 +68,16 @@ pub use rhythm_channel::{
     RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
     RhythmVoiceSynthesisError, Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
 };
+pub use rhythm_output::{
+    YM2413_DAC_CODE_MAX, YM2413_DAC_CODE_MIN, YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
+    Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState,
+    Ym2413RhythmOutputError, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
+};
 pub use rhythm_phase::{
     RhythmNoisePhaseInputs, RhythmPhaseCandidateError, RhythmPhaseSource,
     YM2413_RHYTHM_PHASE_CANDIDATE_SOURCE, YM2413_TOP_CYMBAL_EQUIVALENT_PHASE_VARIANTS,
     hi_hat_phase_candidate, rhythm_noise_phase_candidate, rhythm_phase_mix_bit_candidate,
     snare_drum_phase_candidate, top_cymbal_phase_candidate,
-};
-pub use rhythm_output::{
-    YM2413_DAC_CODE_MAX, YM2413_DAC_CODE_MIN, YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
-    Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState,
-    Ym2413RhythmOutputError, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
 };
 pub use slot::{
     YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,
