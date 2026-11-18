@@ -137,7 +137,7 @@ A sessão de desenvolvimento utilizada para estes marcos não disponibiliza trê
 
 ## Atualização FM-4 — ponte de parâmetros por canal
 
-**Branch:** `feat/ym2413-channel-synthesis-bridge`  
+**Branch:** `feat/ym2413-channel-synthesis-bridge`
 **Base de implementação:** main `a5a9eb826b086966b1436e1b584f91deeada78d4`
 
 Foi adicionado `native/ym2413/src/channel.rs`, uma camada pura de resolução entre os registradores/instrumentos e os componentes de síntese existentes.
