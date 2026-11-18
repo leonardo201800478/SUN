@@ -632,7 +632,7 @@ A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf84
 
 3. **Mixer e sessão: estado atual.** `AudioMixer` suporta múltiplas `MixSource` alinhadas, mas `AudioSession`/`NativeAudioSession` continuam expondo uma única fonte mono por chamada. O FM exige uma API multi-source na sessão ou uma abstração equivalente; duas chamadas separadas não misturam PSG e FM.
 
-4. **Portas japonesas: ausentes no runtime.** $F0/$F1/$F2 não são implementados em `SmsTemporalBus`/`SmsIo`; $F2 atualmente retorna o valor genérico $FF. O contador C-Sync necessário ao readback de $F2 também não foi localizado como evento no VDP/runtime.
+4. **Portas japonesas: ausentes no runtime.** $F0/$F1/$F2 não são implementados em `SmsTemporalBus`/`SmsIo`. No caminho atual, $F0/$F1 são ignorados pelo I/O genérico; a leitura de $F2 cai em `SmsIo::read_port` e é aliasada para `read_dc()` (entrada dos controles) pelo intervalo de portas pares $C0–$FE. O valor pode ser $FF sem entradas ativas, mas não é open bus nem readback FM. O contador C-Sync necessário ao readback YM2413 também não foi localizado como evento no VDP/runtime.
 
 5. **Decode de $3E/$3F: perfil específico necessário.** O caminho SMS atual aceita espelhamento de controle por paridade no intervalo baixo. As medições de Japanese SMS consultadas indicam mapeamento somente nos endereços exatos $3E/$3F. O perfil japonês precisa de decode próprio, sem alterar regressivamente SMS1/SMS2 export.
 
