@@ -433,7 +433,13 @@ Nenhum teste é PASS por ter sido ignorado ou não executado. Registrar PASS, FA
 - ymfm: https://github.com/aaronsgiles/ymfm
 - ares: https://github.com/ares-emulator/ares
 
-Antes de reutilizar código, tabelas ou dados, verificar licença, versão/commit e proveniência. O die analisado por andete é de um derivativo FHB013; não tratá-lo como uma fotografia do silício YM2413 original.
+Auditoria de licença/proveniência consultada nesta revisão:
+- `emu2413` declara MIT, mas seus acknowledgements listam fontes de presets VRC7 e YMF281B. Pode servir como diferencial sample-oriented após pinagem de commit; não tratar automaticamente suas tabelas/presets como a ROM de instrumentos original do YM2413.
+- `ymfm` declara BSD-3-Clause e pode ser outro diferencial independente, sempre com commit/licença registrados.
+- `Nuked-OPLL` declara GPL-2.0-or-later; `emu198x_yamaha_ym2413` também está sob GPL-2.0-or-later. Não copiar nem criar dependência desses projetos no runtime MIT.
+- O die analisado por andete é de um derivativo FHB013; não tratá-lo como fotografia do silício YM2413 original. Não misturar presets/tabelas de VRC7, YMF281B ou FHB013 com o banco original YM2413.
+
+Links de licença/proveniência: [emu2413 MIT](https://github.com/digital-sound-antiques/emu2413/blob/develop/LICENSE), [emu2413 acknowledgements](https://github.com/digital-sound-antiques/emu2413#acknowledgements), [ymfm BSD-3-Clause](https://github.com/aaronsgiles/ymfm/blob/main/LICENSE), [Nuked-OPLL GPL](https://github.com/nukeykt/Nuked-OPLL/blob/master/LICENSE).
 
 ---
 
