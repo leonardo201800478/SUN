@@ -181,6 +181,9 @@ impl core::fmt::Display for Ym2413RhythmNoiseError {
                 f,
                 "YM2413 rhythm-noise state version {actual} is unsupported (expected {expected})"
             ),
+            Self::InvalidSlotIndex(slot) => {
+                write!(f, "invalid YM2413 rhythm-noise slot index: {slot}")
+            },
         }
     }
 }
@@ -482,8 +485,10 @@ impl Ym2413RhythmSlotNoiseSequencer {
 mod tests {
     use super::{
         YM2413_RHYTHM_NOISE_LFSR_MASK, YM2413_RHYTHM_NOISE_LFSR_PERIOD,
-        YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION, Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr,
-        Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr, Ym2413RhythmSlotNoiseState,
+        YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION, YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION,
+        Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseSlotSample,
+        Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr, Ym2413RhythmSlotNoiseSequencer,
+        Ym2413RhythmSlotNoiseSequencerState, Ym2413RhythmSlotNoiseState,
     };
 
     #[test]
