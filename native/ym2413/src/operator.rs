@@ -63,9 +63,7 @@ impl OperatorPairParameters {
             return Err(OperatorPairError::InvalidKsl(self.carrier_ksl));
         }
         if self.modulator_envelope > 127 {
-            return Err(OperatorPairError::InvalidEnvelope(
-                self.modulator_envelope,
-            ));
+            return Err(OperatorPairError::InvalidEnvelope(self.modulator_envelope));
         }
         if self.carrier_envelope > 127 {
             return Err(OperatorPairError::InvalidEnvelope(self.carrier_envelope));
@@ -104,10 +102,7 @@ impl OperatorPairParameters {
 /// quarter-wave, and bits 0..7 select the generated table entry. When
 /// half-wave mode is enabled, the negative half-cycle maps to maximum
 /// attenuation (0x0fff) before the sign bit is applied.
-pub fn log_sine_lookup(
-    phase_index: u16,
-    half_wave: bool,
-) -> Result<u16, OperatorPairError> {
+pub fn log_sine_lookup(phase_index: u16, half_wave: bool) -> Result<u16, OperatorPairError> {
     if phase_index > YM2413_PHASE_INDEX_MASK {
         return Err(OperatorPairError::InvalidPhaseIndex(phase_index));
     }
@@ -199,9 +194,7 @@ impl OperatorPair {
     ) -> Result<OperatorPairSample, OperatorPairError> {
         parameters.validate()?;
         if modulator_phase_index > YM2413_PHASE_INDEX_MASK {
-            return Err(OperatorPairError::InvalidPhaseIndex(
-                modulator_phase_index,
-            ));
+            return Err(OperatorPairError::InvalidPhaseIndex(modulator_phase_index));
         }
         if carrier_phase_index > YM2413_PHASE_INDEX_MASK {
             return Err(OperatorPairError::InvalidPhaseIndex(carrier_phase_index));
@@ -210,21 +203,16 @@ impl OperatorPair {
         let feedback_phase_offset = if parameters.feedback == 0 {
             0
         } else {
-            (i32::from(self.feedback_history[0])
-                + i32::from(self.feedback_history[1]))
+            (i32::from(self.feedback_history[0]) + i32::from(self.feedback_history[1]))
                 >> (8 - parameters.feedback)
         };
-        let modulator_phase_used = wrap_phase(
-            i32::from(modulator_phase_index) - 1 + feedback_phase_offset,
-        );
+        let modulator_phase_used =
+            wrap_phase(i32::from(modulator_phase_index) - 1 + feedback_phase_offset);
 
         let modulator_output = if parameters.modulator_envelope & 0x7c == 0x7c {
             0
         } else {
-            let sine = log_sine_lookup(
-                modulator_phase_used,
-                parameters.modulator_half_wave,
-            )?;
+            let sine = log_sine_lookup(modulator_phase_used, parameters.modulator_half_wave)?;
             let attenuation = parameters.modulator_attenuation();
             let encoded = sine.wrapping_add(u16::from(attenuation) << 4);
             exponential_lookup(encoded) >> 1
@@ -234,8 +222,7 @@ impl OperatorPair {
         self.feedback_history[0] = modulator_output;
 
         let carrier_phase_offset = 2 * i32::from(modulator_output);
-        let carrier_phase_used =
-            wrap_phase(i32::from(carrier_phase_index) + carrier_phase_offset);
+        let carrier_phase_used = wrap_phase(i32::from(carrier_phase_index) + carrier_phase_offset);
         let carrier_output = if parameters.carrier_envelope & 0x7c == 0x7c {
             0
         } else {
@@ -263,9 +250,7 @@ impl OperatorPair {
     }
 
     /// Restore feedback history after checking the snapshot version.
-    pub const fn restore_state(
-        state: OperatorPairState,
-    ) -> Result<Self, OperatorPairError> {
+    pub const fn restore_state(state: OperatorPairState) -> Result<Self, OperatorPairError> {
         if state.format_version != YM2413_OPERATOR_PAIR_STATE_VERSION {
             return Err(OperatorPairError::InvalidState);
         }
@@ -282,8 +267,8 @@ const fn wrap_phase(phase: i32) -> u16 {
 #[cfg(test)]
 mod tests {
     use super::{
-        exponential_lookup, log_sine_lookup, OperatorPair, OperatorPairError,
-        OperatorPairParameters, OperatorPairState,
+        OperatorPair, OperatorPairError, OperatorPairParameters, OperatorPairState,
+        exponential_lookup, log_sine_lookup,
     };
 
     fn parameters() -> OperatorPairParameters {
