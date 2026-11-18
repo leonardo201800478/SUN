@@ -875,7 +875,7 @@ O crate `sega-ym2413` passa a conter `native/ym2413/src/envelope.rs`, exportado 
 - Nível de atenuação de 7 bits: 0..127, com 128 níveis e resolução medida de 0,375 dB.
 - Estados DAMP, ATTACK, DECAY e SUSTAIN.
 - Cálculo de RATE com KSR: `RATE = 4 * R + Rks`, saturado em 63.
-- Cadência discreta de DECAY/RELEASE para rates 0..63, incluindo os grupos rápidos 52..63.
+- Cadência discreta de DECAY/RELEASE: rates 4..51 usam o seletor 4×8; rates 52..59 usam sequências medidas de 16 posições (0/1/2 níveis por amostra); rates 60..63 avançam dois níveis por atualização. As tabelas 16-entry reproduzem as medições e não afirmam que o chip contenha ROMs equivalentes.
 - Curva ATTACK por fórmulas inteiras `f_m(x) = x - (x >> m) - 1`, incluindo o modelo medido para rates 12:0..14:3.
 - DAMP com base-rate 12. O limiar de saída, a coordenação entre operadores e o comportamento de AR=15 são parâmetros explícitos de candidatos, não constantes declaradas como hardware: a nota de 2015 descreve o fim de DAMP como próximo de -45 dB e ainda sujeito a investigação, enquanto o modelo de software de andete usa o comparador de quatro bits superiores (nível 124..127) e o atalho AR=15.
 - SL comparado pela metade superior do nível (`level >> 3`), incluindo o comportamento SL=0.
@@ -891,7 +891,7 @@ A transição DAMP do modulator permanece uma questão em aberto. `DampTransitio
 
 ### Evidência e limites
 
-- **MEDIDO — andete, 2015-03-20:** níveis de envelope, cadência de decay e tabelas de avanço.
+- **MEDIDO — andete, 2015-03-20:** níveis de envelope, cadência de decay e sequências irregulares de avanço para rates 52..59; o autor descreve as tabelas de 16 posições como modelo de software, não como implementação física literal.
 - **DOCUMENTADO / MEDIDO — andete, 2015-12-24:** KSR, fórmula de RATE e níveis SL.
 - **MEDIDO — andete, 2015-12-31:** transições DAMP/ATTACK/DECAY/SUSTAIN, EG-TYPE, SUS-ON/OFF e taxas fixas DP/RR'/RS.
 - **MEDIDO / MODELO CANDIDATO — andete, 2017-01-26:** fórmulas e sequência de ataque para taxas lentas e rápidas. O próprio autor registra que o modelo ainda precisava de verificação adicional.
