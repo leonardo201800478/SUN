@@ -49,14 +49,14 @@ pub use pm_lfo::{
     YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
     YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
 };
+pub use slot::{
+    YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,
+    slot_descriptor,
+};
 pub use synthesis::{
     YM2413_MELODIC_CHANNELS, YM2413_OPERATORS_PER_CHANNEL, YM2413_SYNTHESIS_STATE_VERSION,
     Ym2413ChannelInitialState, Ym2413ChannelSynthesisState, Ym2413SynthesisBank,
     Ym2413SynthesisBankState, Ym2413SynthesisError, Ym2413SynthesisInitialState,
-};
-pub use slot::{
-    Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor, YM2413_SLOT_COUNT,
-    YM2413_SLOT_MAP, slot_descriptor,
 };
 pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 
@@ -400,7 +400,8 @@ mod tests {
         for expected_slot in 0..18_u8 {
             let descriptor = core.next_slot_descriptor().unwrap();
             assert_eq!(descriptor.slot_number, expected_slot + 1);
-            core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT).unwrap();
+            core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT)
+                .unwrap();
         }
 
         assert_eq!(core.slot_index(), 0);
