@@ -183,7 +183,7 @@ impl core::fmt::Display for Ym2413RhythmNoiseError {
             ),
             Self::InvalidSlotIndex(slot) => {
                 write!(f, "invalid YM2413 rhythm-noise slot index: {slot}")
-            },
+            }
         }
     }
 }
@@ -600,8 +600,7 @@ mod tests {
     #[test]
     fn slot_sequencer_samples_hihat_and_snare_three_lfsr_steps_apart() {
         let seed = 0x5a_1234;
-        let mut sequencer =
-            Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(seed, 13).unwrap();
+        let mut sequencer = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(seed, 13).unwrap();
         let mut reference = Ym2413RhythmSlotNoiseLfsr::with_seed(seed).unwrap();
         let expected_hihat = reference.output_bit() != 0;
         assert_eq!(
@@ -653,26 +652,26 @@ mod tests {
             Err(Ym2413RhythmNoiseError::InvalidSlotIndex(18))
         );
         assert_eq!(
-            Ym2413RhythmSlotNoiseSequencer::restore_state(
-                Ym2413RhythmSlotNoiseSequencerState {
-                    format_version: 0,
-                    slot_index: 0,
-                    lfsr: Ym2413RhythmSlotNoiseLfsr::with_seed(1).unwrap().export_state(),
-                }
-            ),
+            Ym2413RhythmSlotNoiseSequencer::restore_state(Ym2413RhythmSlotNoiseSequencerState {
+                format_version: 0,
+                slot_index: 0,
+                lfsr: Ym2413RhythmSlotNoiseLfsr::with_seed(1)
+                    .unwrap()
+                    .export_state(),
+            }),
             Err(Ym2413RhythmNoiseError::StateVersionMismatch {
                 expected: YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION,
                 actual: 0,
             })
         );
         assert_eq!(
-            Ym2413RhythmSlotNoiseSequencer::restore_state(
-                Ym2413RhythmSlotNoiseSequencerState {
-                    format_version: YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION,
-                    slot_index: 18,
-                    lfsr: Ym2413RhythmSlotNoiseLfsr::with_seed(1).unwrap().export_state(),
-                }
-            ),
+            Ym2413RhythmSlotNoiseSequencer::restore_state(Ym2413RhythmSlotNoiseSequencerState {
+                format_version: YM2413_RHYTHM_SLOT_NOISE_SEQUENCER_STATE_VERSION,
+                slot_index: 18,
+                lfsr: Ym2413RhythmSlotNoiseLfsr::with_seed(1)
+                    .unwrap()
+                    .export_state(),
+            }),
             Err(Ym2413RhythmNoiseError::InvalidSlotIndex(18))
         );
     }
