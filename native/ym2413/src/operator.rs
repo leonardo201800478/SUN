@@ -132,6 +132,6 @@ mod tests {
     #[test]
     fn phase_and_attenuation_inputs_are_bounded_to_hardware_fields() {
         assert_eq!(lookup_log_sine(0x0400, false), lookup_log_sine(0, false));
-        assert_eq!(lookup_exp(0x0000), lookup_exp(0x8000) * -1 - 1);
+        assert_eq!(lookup_exp(0x0000) + lookup_exp(0x8000), -1);
     }
 }
