@@ -19,7 +19,10 @@ pub const YM2413_TOP_CYMBAL_EQUIVALENT_PHASE_VARIANTS: usize = 16;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RhythmPhaseCandidateError {
     /// A supplied PG phase index exceeds the ten-bit operator phase domain.
-    InvalidPhaseIndex { source: RhythmPhaseSource, value: u16 },
+    InvalidPhaseIndex {
+        source: RhythmPhaseSource,
+        value: u16,
+    },
 }
 
 /// Identifies the operator phase input rejected by a candidate.
@@ -128,16 +131,14 @@ pub fn snare_drum_phase_candidate(
 mod tests {
     use super::{
         RhythmPhaseCandidateError, RhythmPhaseSource, hi_hat_phase_candidate,
-        rhythm_phase_mix_bit_candidate, snare_drum_phase_candidate,
-        top_cymbal_phase_candidate,
+        rhythm_phase_mix_bit_candidate, snare_drum_phase_candidate, top_cymbal_phase_candidate,
     };
 
     #[test]
     fn rhythm_phase_mix_candidate_exhaustively_covers_the_five_relevant_bits() {
         for mod_bits in 0..8_u16 {
-            let mod_phase = ((mod_bits & 1) << 2)
-                | (((mod_bits >> 1) & 1) << 3)
-                | (((mod_bits >> 2) & 1) << 7);
+            let mod_phase =
+                ((mod_bits & 1) << 2) | (((mod_bits >> 1) & 1) << 3) | (((mod_bits >> 2) & 1) << 7);
 
             for car_bits in 0..4_u16 {
                 let car_phase = ((car_bits & 1) << 3) | (((car_bits >> 1) & 1) << 5);
@@ -173,8 +174,7 @@ mod tests {
         for phase_bit in [0_u16, 1] {
             for noise_bit in [false, true] {
                 let phase = phase_bit << 8;
-                let expected =
-                    (phase_bit << 9) | ((phase_bit ^ u16::from(noise_bit)) << 8);
+                let expected = (phase_bit << 9) | ((phase_bit ^ u16::from(noise_bit)) << 8);
                 assert_eq!(snare_drum_phase_candidate(phase, noise_bit), Ok(expected));
             }
         }
@@ -209,8 +209,7 @@ mod tests {
     fn phase_candidates_ignore_bits_not_used_by_their_equations() {
         for channel7_phase in [0, 1, 0x10, 0x20, 0x100, 0x200, 0x3ff] {
             for channel8_phase in [0, 1, 0x10, 0x20, 0x100, 0x200, 0x3ff] {
-                let masked_channel7 =
-                    channel7_phase & ((1 << 2) | (1 << 3) | (1 << 7));
+                let masked_channel7 = channel7_phase & ((1 << 2) | (1 << 3) | (1 << 7));
                 let masked_channel8 = channel8_phase & ((1 << 3) | (1 << 5));
 
                 for noise_bit in [false, true] {
