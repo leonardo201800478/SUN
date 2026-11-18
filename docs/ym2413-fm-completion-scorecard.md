@@ -547,3 +547,26 @@ Foi adicionado um teste exaustivo do período da recorrência slot-rate candidat
 Como 2^23-1 = 47 × 178481, e ambos são fatores primos, as verificações excluem os períodos próprios obtidos pela divisão por cada fator primo. O teste valida a propriedade algébrica da recorrência implementada e sua representação de estado.
 
 **Limites:** não certifica o seed físico, alinhamento de reset, polaridade observada no pino, nem a cadência/instante de consumo do bit no YM2413. Não transforma o LFSR candidato em comportamento físico integralmente validado. Nenhuma lógica de runtime, slot sequencer, PG/EG, Scheduler, PCM ou barramento foi alterada.
+
+---
+
+## FM-8 — agregação digital das cinco vozes Rhythm Mode (em validação)
+
+**Branch:** `feat/ym2413-rhythm-voice-batch-evaluation`
+
+A API `Ym2413SynthesisBank::evaluate_rhythm_voices` reúne os cinco avaliadores já existentes em uma única operação lógica, recebendo endereços de fase explícitos para HH, SD, TOM e TCY. BD continua usando o par FM compartilhado de channel 7 e seu histórico de feedback.
+
+### Contratos preservados
+- Saída ordenada logicamente como BD, HH, SD, TOM e TCY.
+- Avaliadores de operador único são executados antes de BD, pois não alteram estado; BD é executado por último porque atualiza o histórico de feedback.
+- Fase, PG, EG, LFO, LFSR, posição de slot e tempo do chip continuam sob responsabilidade externa.
+- A saída é um conjunto de cinco valores digitais assinados do caminho de síntese, não uma palavra DAC/MO/RO de nove bits nem um frame PCM.
+- Não há retenção de saídas repetidas nos slots seguintes; a semântica do latch digital MO/RO continua pendente de definição independente.
+
+### Testes
+- Equivalência da avaliação em lote com as cinco avaliações individuais.
+- Ordem estável das vozes na saída.
+- Rejeição de fase inválida sem alteração do snapshot/feedback.
+- Comparação integral do estado após avaliação em lote e execução individual equivalente.
+
+**Limites:** esta API não cria uma ordem física de execução dos slots, não decide a chave de ativação dos operadores e não infere os instantes de PG/EG. A ordem de chamada dos avaliadores é apenas uma estratégia de atomicidade da API. Não integra Scheduler, PCM ou SMS.
