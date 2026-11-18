@@ -58,24 +58,114 @@ pub struct Ym2413SlotDescriptor {
 /// The channel/operator order is transcribed from Table II-3. Rhythm voice
 /// ownership follows the documented six-slot allocation for channels 7..9.
 pub const YM2413_SLOT_MAP: [Ym2413SlotDescriptor; YM2413_SLOT_COUNT] = [
-    Ym2413SlotDescriptor { slot_number: 1, channel: 0, operator: Ym2413Operator::Modulator, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 2, channel: 1, operator: Ym2413Operator::Modulator, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 3, channel: 2, operator: Ym2413Operator::Modulator, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 4, channel: 0, operator: Ym2413Operator::Carrier, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 5, channel: 1, operator: Ym2413Operator::Carrier, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 6, channel: 2, operator: Ym2413Operator::Carrier, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 7, channel: 3, operator: Ym2413Operator::Modulator, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 8, channel: 4, operator: Ym2413Operator::Modulator, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 9, channel: 5, operator: Ym2413Operator::Modulator, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 10, channel: 3, operator: Ym2413Operator::Carrier, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 11, channel: 4, operator: Ym2413Operator::Carrier, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 12, channel: 5, operator: Ym2413Operator::Carrier, rhythm_voice: None },
-    Ym2413SlotDescriptor { slot_number: 13, channel: 6, operator: Ym2413Operator::Modulator, rhythm_voice: Some(Ym2413RhythmVoice::BassDrum) },
-    Ym2413SlotDescriptor { slot_number: 14, channel: 7, operator: Ym2413Operator::Modulator, rhythm_voice: Some(Ym2413RhythmVoice::HiHat) },
-    Ym2413SlotDescriptor { slot_number: 15, channel: 8, operator: Ym2413Operator::Modulator, rhythm_voice: Some(Ym2413RhythmVoice::TomTom) },
-    Ym2413SlotDescriptor { slot_number: 16, channel: 6, operator: Ym2413Operator::Carrier, rhythm_voice: Some(Ym2413RhythmVoice::BassDrum) },
-    Ym2413SlotDescriptor { slot_number: 17, channel: 7, operator: Ym2413Operator::Carrier, rhythm_voice: Some(Ym2413RhythmVoice::SnareDrum) },
-    Ym2413SlotDescriptor { slot_number: 18, channel: 8, operator: Ym2413Operator::Carrier, rhythm_voice: Some(Ym2413RhythmVoice::TopCymbal) },
+    Ym2413SlotDescriptor {
+        slot_number: 1,
+        channel: 0,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 2,
+        channel: 1,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 3,
+        channel: 2,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 4,
+        channel: 0,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 5,
+        channel: 1,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 6,
+        channel: 2,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 7,
+        channel: 3,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 8,
+        channel: 4,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 9,
+        channel: 5,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 10,
+        channel: 3,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 11,
+        channel: 4,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 12,
+        channel: 5,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: None,
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 13,
+        channel: 6,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: Some(Ym2413RhythmVoice::BassDrum),
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 14,
+        channel: 7,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: Some(Ym2413RhythmVoice::HiHat),
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 15,
+        channel: 8,
+        operator: Ym2413Operator::Modulator,
+        rhythm_voice: Some(Ym2413RhythmVoice::TomTom),
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 16,
+        channel: 6,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: Some(Ym2413RhythmVoice::BassDrum),
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 17,
+        channel: 7,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: Some(Ym2413RhythmVoice::SnareDrum),
+    },
+    Ym2413SlotDescriptor {
+        slot_number: 18,
+        channel: 8,
+        operator: Ym2413Operator::Carrier,
+        rhythm_voice: Some(Ym2413RhythmVoice::TopCymbal),
+    }
 ];
 
 /// Resolve a zero-based serial slot index to its fixed channel/operator assignment.
