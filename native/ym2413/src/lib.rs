@@ -5,15 +5,15 @@
 
 pub mod phase;
 pub mod pm_lfo;
-pub use pm_lfo::{
-    PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState,
-    YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
-    YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
-};
 pub use phase::{
     PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
     YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
     YM2413_PM_TABLE,
+};
+pub use pm_lfo::{
+    PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState,
+    YM2413_PM_LFO_COUNTER_BITS, YM2413_PM_LFO_COUNTER_MASK, YM2413_PM_LFO_PERIOD_SAMPLES,
+    YM2413_PM_LFO_POSITIONS, YM2413_PM_LFO_SAMPLES_PER_POSITION, YM2413_PM_LFO_STATE_VERSION,
 };
 
 use core::fmt;
