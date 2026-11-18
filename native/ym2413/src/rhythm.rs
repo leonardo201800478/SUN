@@ -140,16 +140,16 @@ impl Ym2413RhythmNoiseLfsr {
 #[cfg(test)]
 mod tests {
     use super::{
-        YM2413_RHYTHM_NOISE_LFSR_MASK, YM2413_RHYTHM_NOISE_LFSR_PERIOD,
-        Ym2413RhythmNoiseError, Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState,
+        YM2413_RHYTHM_NOISE_LFSR_MASK, YM2413_RHYTHM_NOISE_LFSR_PERIOD, Ym2413RhythmNoiseError,
+        Ym2413RhythmNoiseLfsr, Ym2413RhythmNoiseState,
     };
 
     #[test]
     fn galois_recurrence_matches_reference_sequence_from_seed_one() {
         let mut lfsr = Ym2413RhythmNoiseLfsr::with_seed(1).unwrap();
         let expected = [
-            1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0,
-            1, 0, 1, 0, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0,
+            1, 0, 1,
         ];
 
         for bit in expected {
@@ -197,8 +197,7 @@ mod tests {
     fn snapshot_restore_preserves_the_exact_sequence_position() {
         let mut original = Ym2413RhythmNoiseLfsr::with_seed(0x12_3456).unwrap();
         original.advance(12_345);
-        let mut restored =
-            Ym2413RhythmNoiseLfsr::restore_state(original.export_state()).unwrap();
+        let mut restored = Ym2413RhythmNoiseLfsr::restore_state(original.export_state()).unwrap();
 
         for _ in 0..256 {
             assert_eq!(original.clock(), restored.clock());
