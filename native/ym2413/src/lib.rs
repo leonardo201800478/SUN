@@ -294,7 +294,10 @@ impl Ym2413Core {
 
 #[cfg(test)]
 mod tests {
-    use super::{YM2413_INPUT_CLOCKS_PER_ROTATION, Ym2413Core, Ym2413Error, Ym2413State};
+    use super::{
+        YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413Error,
+        Ym2413State,
+    };
 
     #[test]
     fn address_latch_masks_to_six_bits() {
