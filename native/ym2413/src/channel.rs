@@ -179,14 +179,12 @@ impl MelodicChannel {
 
 #[inline]
 const fn wrap_phase(phase: i32) -> u16 {
-    {
     let remainder = phase % 1024;
     if remainder < 0 {
         (remainder + 1024) as u16
     } else {
         remainder as u16
     }
-}
 }
 
 #[cfg(test)]
