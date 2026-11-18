@@ -525,6 +525,7 @@ dependencies = [
  "sega-machine-scheduler",
  "sega-observability",
  "sega-sn76489",
+ "sega-ym2413",
 ]
 
 [[package]]
@@ -555,6 +556,10 @@ version = "0.1.0"
 dependencies = [
  "sega-observability",
 ]
+
+[[package]]
+name = "sega-ym2413"
+version = "0.1.0"
 
 [[package]]
 name = "semver"
