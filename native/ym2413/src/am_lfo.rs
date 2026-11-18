@@ -106,9 +106,8 @@ const fn am_lfo_table_value(index: u16) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::{
-        AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS,
-        YM2413_AM_LFO_PERIOD_SAMPLES, YM2413_AM_LFO_SAMPLES_PER_STEP,
-        YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
+        AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
+        YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
     };
 
     #[test]
