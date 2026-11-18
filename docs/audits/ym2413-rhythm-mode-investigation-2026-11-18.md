@@ -89,6 +89,31 @@ Essa implementação é útil para formular experimentos e vetores candidatos, m
 
 Não transportar automaticamente para YM2413 as rotinas que o código identifica como “verified on real YM3812”.
 
+
+
+## 5A. Top Cymbal — candidato combinacional isolado [C]
+
+Foi adicionado `native/ym2413/src/rhythm_phase.rs`, com a função pura `top_cymbal_phase_candidate`. Ela recebe explicitamente os índices de fase de 10 bits do modulador do canal físico 8 e do carrier do canal físico 9, e retorna apenas o endereço candidato 0x100 ou 0x300.
+
+A equação foi rederivada como lógica booleana a partir da rotina comparativa Genesis Plus GX 1.7.4+git20221128-2. A fonte marca Top Cymbal como “verified on real YM2413”, mas não fornece nesse comentário os vetores, revisão do chip ou protocolo de medição. Portanto a classificação permanece **CANDIDATE**, não VALIDATED.
+
+- Selecção base: `((phase8[2] XOR phase8[7]) OR phase8[3])` escolhe 0x300; caso contrário 0x100.
+- Gate: `phase9[3] OR phase9[5]` força 0x300 quando ativo.
+- O caminho Top Cymbal nessa implementação comparativa não consome o bit do LFSR.
+- A função não avança PG, não escolhe o instante de amostragem, não calcula envelope, não acessa ROM e não roteia MO/RO.
+
+Testes unitários cobrem exaustivamente as cinco entradas booleanas usadas pela equação, rejeição de índices fora de 10 bits e invariância a bits não usados. Esses testes validam apenas a lógica interna da função contra sua equação codificada; não constituem validação física independente.
+
+## 5B. ROM de percussão: limite das referências abertas [U/C]
+
+O manual confirma que há cinco timbres rítmicos armazenados na ROM de tons e que o envelope é atribuído por slot. Não publica os bytes da ROM de percussão no material consultado. O banco de 15 presets melódicos existente em `instrument.rs` não é substituto.
+
+A tabela pública `default_inst` de emu2413 agrupa três pares de patches rítmicos (BD; HH/SD; TOM/Top Cymbal), mas os comentários da própria fonte os identificam como provenientes de VRC7. Isso não é evidência suficiente para declarar esses bytes como dump da ROM YM2413. Não importá-los para o crate como valores YM2413 validados. A pesquisa de NESdev reproduz os mesmos candidatos, mas não acrescenta uma captura física da ROM.
+
+## 5C. Observação sobre o duplicador de saída [D]
+
+A seção III-4 do manual diz que os sons percussivos, por aparentarem nível menor que os sons melódicos, são emitidos duas vezes. A documentação não especifica no texto qual é o circuito/intervalo de repetição, nem se isso equivale a repetir um valor de DAC, a reutilizar slots em duas janelas, ou a outra operação interna. Genesis Plus GX também acumula o sinal rítmico em um caminho de saída separado e o escala no mixer, mas isso é uma estratégia de software comparativa, não confirmação do mecanismo físico. O duplicador deve continuar pendente até ser associado à figura III-3 e às capturas MO/RO.
+
 ## 6. Matriz por voz
 
 | Voz | Slots | Envelope/operadores | Fase | Evidência atual | Estado |
@@ -97,7 +122,7 @@ Não transportar automaticamente para YM2413 as rotinas que o código identifica
 | Hi-Hat | 14 | Envelope dedicado do slot 14 | Ruído + phase-combining dos canais 8/9 | Manual + captura global de ritmo; software comparativo | BLOCKED para implementação física; algoritmo candidato precisa validação |
 | Snare Drum | 17 | Envelope dedicado do slot 17 | Ruído combinado com fase derivada de canal | Manual + captura global; detalhe fino insuficiente | BLOCKED para implementação física |
 | Tom-Tom | 15 | Envelope dedicado do slot 15 | Componente tonal baseada em fase de operador | Manual + software comparativo | CANDIDATE; confirmar se e como ruído participa |
-| Top Cymbal | 18 | Envelope dedicado do slot 18 | Phase-combining de canais 8/9 e ruído | Manual + software comparativo com nota de validação YM2413 | CANDIDATE; exige vetores independentes |
+| Top Cymbal | 18 | Envelope dedicado do slot 18 | Phase-combining de fases de channel 8 modulator + channel 9 carrier (equação combinacional isolada) | Manual + Genesis Plus GX alega verificação YM2413 | CANDIDATE IMPLEMENTED; ainda sem vetores de hardware independentes |
 
 ## 7. Plano de implementação incremental
 
@@ -155,7 +180,8 @@ O fechamento funcional de software pode preceder a comparação com hardware, ma
 - Repositório de resultados de captura indicado pelo autor: https://github.com/andete/ym2413/tree/master/results
 
 ### Comparação não normativa
-- Genesis Plus GX, core/sound/ym2413.c, pacote Debian 1.7.4+git20221128-2: https://sources.debian.org/src/genesisplusgx/1.7.4+git20221128-2/core/sound/ym2413.c
+- Genesis Plus GX, core/sound/ym2413.c, pacote Debian 1.7.4+git20221128-2 (comparação; GPL): https://sources.debian.org/src/genesisplusgx/1.7.4+git20221128-2/core/sound/ym2413.c
+- emu2413, tabela `default_inst` de três patches de ritmo comentados como VRC7 (MIT; não usar como dump YM2413): https://github.com/digital-sound-antiques/emu2413
 - SMS Power, visão geral YM2413 e alocação de slots: https://www.smspower.org/Development/YM2413
 
 Nenhum código GPL foi copiado. As referências de software acima servem somente para análise comparativa e desenho de experimentos.
