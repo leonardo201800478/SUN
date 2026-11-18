@@ -238,9 +238,7 @@ impl EnvelopeGenerator {
         match self.stage {
             EnvelopeStage::Damp => {
                 self.advance_decay(global_counter, parameters.effective_rate(12));
-                if self.owns_damp_transition(is_carrier)
-                    && self.level >= self.damp_config.threshold
-                {
+                if self.owns_damp_transition(is_carrier) && self.level >= self.damp_config.threshold {
                     self.complete_damp(parameters.attack_rate);
                 }
             }
@@ -550,20 +548,10 @@ mod tests {
             DampTransitionCoordination::CarrierDrivesBoth,
             AttackRate15Transition::SkipAttackToDecay,
         );
-        let mut modulator = EnvelopeGenerator::with_initial_state(
-            127,
-            EnvelopeStage::Damp,
-            false,
-            config,
-        )
-        .unwrap();
-        let mut carrier = EnvelopeGenerator::with_initial_state(
-            127,
-            EnvelopeStage::Damp,
-            false,
-            config,
-        )
-        .unwrap();
+        let mut modulator =
+            EnvelopeGenerator::with_initial_state(127, EnvelopeStage::Damp, false, config).unwrap();
+        let mut carrier =
+            EnvelopeGenerator::with_initial_state(127, EnvelopeStage::Damp, false, config).unwrap();
         let mut p = params();
         p.attack_rate = 10;
 
@@ -593,13 +581,8 @@ mod tests {
             AttackRate15Transition::SkipAttackToDecay,
         )
         .unwrap();
-        let mut generator = EnvelopeGenerator::with_initial_state(
-            120,
-            EnvelopeStage::Damp,
-            false,
-            config,
-        )
-        .unwrap();
+        let mut generator =
+            EnvelopeGenerator::with_initial_state(120, EnvelopeStage::Damp, false, config).unwrap();
         let mut p = params();
         p.attack_rate = 10;
         generator.tick(0, true, false, p).unwrap();
@@ -612,13 +595,8 @@ mod tests {
             DampTransitionCoordination::IndependentPerOperator,
             AttackRate15Transition::EnterAttack,
         );
-        let mut generator = EnvelopeGenerator::with_initial_state(
-            124,
-            EnvelopeStage::Damp,
-            false,
-            config,
-        )
-        .unwrap();
+        let mut generator =
+            EnvelopeGenerator::with_initial_state(124, EnvelopeStage::Damp, false, config).unwrap();
         let mut p = params();
         p.attack_rate = 15;
         generator.tick(0, true, true, p).unwrap();
