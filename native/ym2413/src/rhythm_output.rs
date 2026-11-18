@@ -75,19 +75,14 @@ pub enum Ym2413RhythmOutputError {
     /// The supplied slot index is outside 0..18.
     InvalidSlotIndex(u8),
     /// The slot is not the next slot expected by this state.
-    UnexpectedSlot {
-        expected: u8,
-        actual: u8,
-    },
+    UnexpectedSlot { expected: u8, actual: u8 },
     /// An original rhythm-output slot was reached without its computed value.
     MissingOriginalSample {
         slot_index: u8,
         voice: Ym2413RhythmVoice,
     },
     /// A sample was supplied for a slot that does not generate an original value.
-    UnexpectedOriginalSample {
-        slot_index: u8,
-    },
+    UnexpectedOriginalSample { slot_index: u8 },
     /// Snapshot version or cursor is invalid.
     InvalidState,
 }
@@ -169,14 +164,12 @@ impl Ym2413RhythmOutputDelay {
                     return Err(Ym2413RhythmOutputError::UnexpectedOriginalSample { slot_index });
                 }
                 match self.state.retained_values[voice_index(entry.voice)] {
-                    Some(code) => Ym2413RhythmOutputSlotResult::Emitted(
-                        Ym2413RhythmOutputEvent {
-                            slot_index,
-                            voice: entry.voice,
-                            is_delayed_repeat: true,
-                            code,
-                        },
-                    ),
+                    Some(code) => Ym2413RhythmOutputSlotResult::Emitted(Ym2413RhythmOutputEvent {
+                        slot_index,
+                        voice: entry.voice,
+                        is_delayed_repeat: true,
+                        code,
+                    }),
                     None => Ym2413RhythmOutputSlotResult::RepeatNotInitialized {
                         slot_index,
                         voice: entry.voice,
@@ -184,12 +177,10 @@ impl Ym2413RhythmOutputDelay {
                 }
             }
             Some(entry) => {
-                let code = original_code.ok_or(
-                    Ym2413RhythmOutputError::MissingOriginalSample {
-                        slot_index,
-                        voice: entry.voice,
-                    },
-                )?;
+                let code = original_code.ok_or(Ym2413RhythmOutputError::MissingOriginalSample {
+                    slot_index,
+                    voice: entry.voice,
+                })?;
                 self.state.retained_values[voice_index(entry.voice)] = Some(code);
                 Ym2413RhythmOutputSlotResult::Emitted(Ym2413RhythmOutputEvent {
                     slot_index,
@@ -252,8 +243,7 @@ mod tests {
 
     #[test]
     fn original_rhythm_codes_are_repeated_verbatim_at_measured_slots() {
-        let mut delay =
-            Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        let mut delay = Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
         let originals = [
             (13, Ym2413RhythmVoice::HiHat, 21),
             (14, Ym2413RhythmVoice::TomTom, -34),
@@ -287,14 +277,12 @@ mod tests {
             if let Some((voice, value)) = expected {
                 assert_eq!(
                     actual,
-                    Ym2413RhythmOutputSlotResult::Emitted(
-                        super::Ym2413RhythmOutputEvent {
-                            slot_index: slot,
-                            voice,
-                            is_delayed_repeat: true,
-                            code: code(value),
-                        }
-                    )
+                    Ym2413RhythmOutputSlotResult::Emitted(super::Ym2413RhythmOutputEvent {
+                        slot_index: slot,
+                        voice,
+                        is_delayed_repeat: true,
+                        code: code(value),
+                    })
                 );
             } else {
                 assert_eq!(actual, Ym2413RhythmOutputSlotResult::NoRhythmOutput);
@@ -304,8 +292,7 @@ mod tests {
 
     #[test]
     fn repeat_before_first_source_is_not_silently_converted_to_zero() {
-        let mut delay =
-            Ym2413RhythmOutputDelay::with_initial_state(initial_state(0)).unwrap();
+        let mut delay = Ym2413RhythmOutputDelay::with_initial_state(initial_state(0)).unwrap();
         assert_eq!(
             delay.process_slot(0, None).unwrap(),
             Ym2413RhythmOutputSlotResult::RepeatNotInitialized {
@@ -317,8 +304,7 @@ mod tests {
 
     #[test]
     fn invalid_slot_call_does_not_advance_or_mutate_state() {
-        let mut delay =
-            Ym2413RhythmOutputDelay::with_initial_state(initial_state(0)).unwrap();
+        let mut delay = Ym2413RhythmOutputDelay::with_initial_state(initial_state(0)).unwrap();
         let before = delay.export_state();
         assert_eq!(
             delay.process_slot(1, None),
@@ -332,8 +318,7 @@ mod tests {
 
     #[test]
     fn original_slot_requires_a_value_and_rejects_values_on_non_source_slots() {
-        let mut delay =
-            Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        let mut delay = Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
         assert_eq!(
             delay.process_slot(13, None),
             Err(Ym2413RhythmOutputError::MissingOriginalSample {
@@ -355,8 +340,7 @@ mod tests {
 
     #[test]
     fn unexpected_sample_is_rejected_without_changing_retention_or_cursor() {
-        let mut delay =
-            Ym2413RhythmOutputDelay::with_initial_state(initial_state(0)).unwrap();
+        let mut delay = Ym2413RhythmOutputDelay::with_initial_state(initial_state(0)).unwrap();
         let before = delay.export_state();
 
         assert_eq!(
@@ -374,8 +358,7 @@ mod tests {
 
     #[test]
     fn snapshot_restore_preserves_retained_codes_and_slot_cursor() {
-        let mut delay =
-            Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        let mut delay = Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
         delay.process_slot(13, Some(code(123))).unwrap();
         let snapshot = delay.export_state();
         let restored = Ym2413RhythmOutputDelay::with_initial_state(snapshot).unwrap();
