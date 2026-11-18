@@ -1,8 +1,8 @@
 # YM2413 — Investigação P1 do pipeline de 18 slots
 
-**Data:** 2026-11-18  
-**Estado:** investigação documental inicial concluída; offsets internos por subfase ainda não demonstrados.  
-**Escopo:** estabelecer um contrato temporal auditável antes de implementar o pipeline FM em Rust.  
+**Data:** 2026-11-18
+**Estado:** investigação documental inicial concluída; offsets internos por subfase ainda não demonstrados.
+**Escopo:** estabelecer um contrato temporal auditável antes de implementar o pipeline FM em Rust.
 **Dependências:** PR #1010 (mapa serial de slots), PR #1011 (LFSR isolado), dossiê `ym2413-research-evidence-dossier-2026-11-18.md`.
 
 > **Conclusão central:** a evidência pública confirma a reutilização serial de uma célula de operador por 18 slots e um período de 72 clocks de entrada por rotação. Ela não fornece uma tabela primária completa dos offsets de PG, EG, operador, feedback e DAC dentro dos quatro clocks associados a cada slot. Não vamos preencher essa lacuna por analogia com OPL ou copiando uma implementação GPL.
