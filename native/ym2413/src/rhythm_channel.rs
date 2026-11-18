@@ -485,9 +485,7 @@ mod tests {
 
     #[test]
     fn single_operator_evaluator_reuses_the_shared_carrier_path() {
-        use crate::operator::{
-            SingleOperatorCarrierParameters, evaluate_single_operator_as_carrier,
-        };
+        use crate::operator::evaluate_single_operator_as_carrier;
 
         let config = decode_rhythm_synthesis(&configured_registers()).unwrap();
         let voice = config.voices[3];
@@ -503,13 +501,6 @@ mod tests {
                 crate::operator::OperatorPairError::InvalidEnvelope(128)
             ))
         );
-        let _ = SingleOperatorCarrierParameters {
-            volume: 0,
-            ksl: 0,
-            envelope: 0,
-            am: 0,
-            half_wave: false,
-        };
     }
 
     #[test]
