@@ -100,9 +100,7 @@ impl RhythmVoiceSynthesisConfig {
         am_level: u8,
     ) -> Result<SingleOperatorCarrierParameters, RhythmVoiceSynthesisError> {
         if !self.single_operator_uses_carrier_path {
-            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout {
-                voice: self.voice,
-            });
+            return Err(RhythmVoiceSynthesisError::InvalidOperatorLayout { voice: self.voice });
         }
         let operator = match (self.modulator, self.carrier) {
             (Some(operator), None) | (None, Some(operator)) => operator,
@@ -138,7 +136,10 @@ impl RhythmVoiceSynthesisConfig {
         am_level: u8,
     ) -> Result<i16, RhythmVoiceSynthesisError> {
         let parameters = self.single_operator_parameters(envelope_level, am_level)?;
-        Ok(evaluate_single_operator_as_carrier(phase_index, parameters)?)
+        Ok(evaluate_single_operator_as_carrier(
+            phase_index,
+            parameters,
+        )?)
     }
 
     /// Build the normal two-operator FM inputs for the Bass Drum voice.
@@ -515,7 +516,10 @@ mod tests {
         let carrier = bd.carrier.unwrap();
         let parameters = bd.bass_drum_operator_pair_parameters(23, 41, 9).unwrap();
         assert_eq!(parameters.feedback, bd.feedback);
-        assert_eq!(parameters.modulator_total_level, modulator.patch.total_level);
+        assert_eq!(
+            parameters.modulator_total_level,
+            modulator.patch.total_level
+        );
         assert_eq!(parameters.modulator_ksl, modulator.ksl);
         assert_eq!(parameters.modulator_envelope, 23);
         assert_eq!(parameters.modulator_am, 0);
