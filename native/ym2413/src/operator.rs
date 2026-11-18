@@ -103,8 +103,8 @@ pub const fn lookup_log_sine(phase: u16, half_wave: bool) -> u16 {
 ///
 /// This follows the YM2413 exp-table decode: the low byte addresses the
 /// complemented exponential table, bits 8..14 select the right shift, and
-/// bit 15 applies two's-complement negation. The final four-bit truncation is
-/// part of the published decode path.
+/// bit 15 applies two's-complement negation. The caller applies the operator-specific output shift (modulator or carrier)
+/// after this conversion; the lookup itself returns the full signed 13-bit value.
 #[inline]
 pub const fn lookup_exp(value: u16) -> i16 {
     let index = ((value & 0x00ff) ^ 0x00ff) as usize;
@@ -113,7 +113,7 @@ pub const fn lookup_exp(value: u16) -> i16 {
     let shift = ((value & 0x7f00) >> 8) as u32;
     let magnitude = if shift >= 32 { 0 } else { expanded >> shift };
     let signed = if (value & 0x8000) != 0 { !magnitude } else { magnitude };
-    (signed >> 4) as i16
+    signed as i16
 }
 
 #[cfg(test)]
@@ -147,16 +147,16 @@ mod tests {
 
     #[test]
     fn exponential_lookup_matches_measured_envelope_endpoints() {
-        assert_eq!(lookup_exp(0), 255);
-        assert_eq!(lookup_exp(16 * 16) / 16, 127 / 16);
-        assert_eq!(lookup_exp(0x8000), -256);
+        assert_eq!(lookup_exp(0), 4_084);
+        assert_eq!(lookup_exp(16 * 16) >> 4, 127);
+        assert_eq!(lookup_exp(0x8000), -4_085);
     }
 
     #[test]
     fn exponential_lookup_is_monotonic_with_attenuation() {
         let values: Vec<i16> = (0..128).map(|level| lookup_exp(level << 4)).collect();
         assert!(values.windows(2).all(|pair| pair[0] >= pair[1]));
-        assert_eq!(values[0], 255);
+        assert_eq!(values[0], 4_084);
     }
 
     #[test]
