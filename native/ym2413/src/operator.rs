@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn snapshot_round_trip_preserves_feedback_history() {
-        let mut pair = OperatorPair::with_feedback_history([123, -456]);
+        let pair = OperatorPair::with_feedback_history([123, -456]);
         let restored = OperatorPair::restore_state(pair.export_state()).unwrap();
         assert_eq!(restored, pair);
     }
@@ -425,6 +425,11 @@ mod tests {
         assert_eq!(pair, before);
         assert_eq!(
             pair.evaluate(1024, 0, parameters()),
+            Err(OperatorPairError::InvalidPhaseIndex(1024))
+        );
+        assert_eq!(pair, before);
+        assert_eq!(
+            pair.evaluate(0, 1024, parameters()),
             Err(OperatorPairError::InvalidPhaseIndex(1024))
         );
         assert_eq!(pair, before);
