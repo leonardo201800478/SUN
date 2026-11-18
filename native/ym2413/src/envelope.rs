@@ -344,6 +344,7 @@ impl EnvelopeGenerator {
             }
             52..=59 => EG_FAST_DECAY_TABLE[(rate - 52) as usize][(counter & 0x0f) as usize],
             60..=63 => 2,
+            _ => unreachable!("effective EG rate is clamped to six bits"),
         };
         self.level = self
             .level
