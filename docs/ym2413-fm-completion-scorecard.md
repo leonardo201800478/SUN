@@ -29,9 +29,9 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Etapa | Estado | Entrega existente | Pendência para conclusão |
 |---|---|---|---|
 | FM-0 — Auditoria e consolidação | **Concluída** | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
-| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; 17 testes EG, 14 testes de tabelas/operadores e 6 testes KSL | Integrar 18 EGs ao pipeline de operadores; resolver contratos de update; integrar snapshot ao estado agregado; validar transições com vetores independentes |
+| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; 17 testes EG, 14 testes de tabelas/operadores, 6 testes KSL e 7 testes AM LFO | Integrar 18 EGs ao pipeline de operadores; resolver contratos de update; integrar snapshot ao estado agregado; validar transições com vetores independentes |
 | FM-2 — Operadores e síntese FM | **Parcial** | Tabelas Log-Sine/EXP; lookup de fase/sinal; par modulator/carrier; feedback de dois samples; KSL BLOCK/FNUM; snapshots locais | Integrar KSL ao decoder/canal, validar PCM diferencial, integrar aos slots e confirmar escala/quantização fisicamente |
-| FM-3 — LFO e modulação | **Parcial** | Contador PM global e tabela PM 8×8 | AM LFO; conectar PM/AM aos operadores; comprovar fase e cadência |
+| FM-3 — LFO e modulação | **Parcial** | Contador PM global, tabela PM 8×8 e AM LFO de 210 posições/64 amostras, 14 níveis e snapshot | Conectar PM/AM aos operadores; comprovar fase absoluta e alinhamento temporal |
 | FM-4 — Instrumentos | **Pendente** | Decodificação de registradores já existente na fundação | Instrumento usuário; ROM de 15 instrumentos; parâmetros e validação dos nove canais melódicos |
 | FM-5 — Rhythm Mode | **Pendente** | Nenhum gerador de ritmo integrado | Cinco vozes, seis slots, noise LFSR, volumes e temporização |
 | FM-6 — Scheduler | **Pendente** | Core tem avanço de input clocks e rotação de 72 clocks | Clock domain, ordem dos slots, sample counter compartilhado, escritas temporalmente ordenadas e equivalência contínuo/blocos |
@@ -51,7 +51,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Modulator / carrier | Par de operadores candidato implementado | Recebe PG/EG/KSL/AM externamente; ainda sem instrument ROM e sem slot scheduling |
 | Feedback FM | Histórico p0/p1 e cálculo de fase implementados | Pendente validação independente de PCM e integração ao canal real |
 | KSL | Lookup BLOCK/FNUM e escala KSL=0..3 implementados | Ainda não conectado ao decoder de instrumentos/canais |
-| AM LFO | Não implementado | Pendente |
+| AM LFO | Implementado como LFO compartilhado, sample-clocked, 210 posições, 64 amostras/posição, 14 níveis e snapshot | Ainda não conectado aos bits AM dos instrumentos/18 operadores |
 | Instrument ROM | Não implementada | Pendente |
 | Rhythm / LFSR | Não implementados | Pendente |
 | Portas F0–F2 | Não integradas | Pendente |
@@ -93,7 +93,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 
 ## Próxima dependência técnica
 
-O próximo desenvolvimento funcional é fechar FM-2 com vetores diferenciais de saída dos operadores e integração do KSL ao decoder de canal. Em paralelo, FM-3 precisa de AM LFO. Só depois da validação isolada da cadeia de síntese deve ser conectada aos 18 slots e ao Scheduler.
+O próximo desenvolvimento funcional é conectar KSL ao decoder de canal e AM LFO aos bits AM dos operadores, mantendo as fases iniciais explícitas. Depois disso, fechar a validação diferencial da cadeia de síntese e avançar para a ROM de instrumentos.
 
 Não iniciar a integração SMS ou mixer como substituto da síntese FM ainda inexistente. Não declarar o chip pronto para ROMs até haver PCM FM reproduzível, integração temporal e testes de regressão.
 

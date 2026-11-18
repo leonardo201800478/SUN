@@ -3,12 +3,17 @@
 //! These components are independently testable and do not yet form a complete
 //! 18-slot FM pipeline or emit integrated YM2413 PCM.
 
+pub mod am_lfo;
 pub mod envelope;
 pub mod key_scale;
 pub mod operator;
 pub mod phase;
 pub mod pm_lfo;
 pub mod synthesis_tables;
+pub use am_lfo::{
+    AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
+    YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
+};
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
