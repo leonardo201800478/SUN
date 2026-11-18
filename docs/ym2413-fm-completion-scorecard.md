@@ -434,9 +434,19 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 - O bit de trigger não é interpretado como mute gate na avaliação; o estado EG fornecido é que determina o nível atual e pode representar release tail. A origem do KEY-ON e a seleção da semântica de release do EG permanecem explicitamente sob controle do chamador.
 - Testes verificam o mapeamento físico EG, equivalência do wrapper com a API existente, avaliação das quatro vozes simples com fases explícitas sem mutação de estado, feedback BD e rejeição de Rhythm Mode desabilitado.
 
-**Estado:** ponte para avaliação digital sobre o banco compartilhado concluída quando CI passar. Não representa execução serial de slots, repetição de saída, LFSR integrado, mistura MO/RO, PCM ou precisão temporal validada.
+**Estado:** ponte para avaliação digital sobre o banco compartilhado integrada na PR #1020 (squash `b989e33cf6d4903e831fd307553f49176f7a6897`). CI #8731 passou em format, Clippy, testes de workspace, Clippy/testes de observabilidade e higiene documental. Os gates não relacionados foram SKIPPED. Não representa execução serial de slots, repetição de saída, LFSR integrado, mistura MO/RO, PCM ou precisão temporal validada.
 
 
 ### Correção de contrato — fase explícita no avaliador de vozes (2026-11-18)
 
 O avaliador do banco não deduz fase de HH/SD/TCY a partir do PG do operador de envelope. Essas vozes recebem `phase_index` explícito, que deve vir dos combinadores medidos e do bit LFSR no slot correto; TOM recebe o índice do PG normal do operador tonal. BD não aceita override e usa os dois PGs do par FM. Essa separação impede confundir o operador físico que fornece EG/volume com as fontes de fase combinada. O banco não avança essas fontes nem o LFSR.
+
+
+## FM-7 — sequenciamento explícito do ruído nos slots HH/SD (2026-11-18)
+
+- `Ym2413RhythmSlotNoiseSequencer` combina o LFSR slot-rate já existente com a posição zero-based de 0..17 dentro da rotação.
+- `advance_slot` observa o bit atual antes de clockar o LFSR uma vez e avançar a posição. Em slot 13 retorna o bit para HH; em slot 16 retorna o bit para SD. Os dois eventos ficam separados por exatamente três avanços internos.
+- Seed e posição inicial são explícitos; não existe seed/reset presumido. Snapshot inclui o índice do slot e o snapshot versionado do LFSR.
+- Testes cobrem HH→SD, wrap 17→0, restore e rejeição de seed/índice/snapshot inválidos.
+
+**Limites:** o sequenciador é chamado explicitamente uma vez por slot pelo owner futuro. Não consome clocks, não se conecta ao MachineScheduler e não determina o alinhamento absoluto de reset. O bit retornado ainda deve ser fornecido ao combinador de fase e à avaliação da voz.
