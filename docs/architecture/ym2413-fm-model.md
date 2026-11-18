@@ -719,3 +719,62 @@ Uma releitura da página SMS Power — Audio Control Port identificou uma corre�
 | Testes físicos de placa e saída | NOT RUN | Nenhuma medição física executada nesta trilha |
 
 **SKIPPED no CI até o snapshot (não são PASS):** SMS1 VDP, input core, geração manual de lockfiles, workflow validation, Scheduler stress, SMS frame-pacing ROM build, Z80 focused validation, PSG core e SMS debugger Windows Release validation.
+
+## 17. Implementação candidata PG-1 — 2026-11-18
+
+A branch `feat/ym2413-phase-generator-candidate` adiciona `native/ym2413/src/phase.rs`, um gerador de fase isolado por operador. Esta fatia implementa o modelo matemático M1 publicado por andete, sem importar código ou tabelas de terceiros.
+
+### Escopo implementado
+
+- Acumulador de fase de 19 bits em ponto fixo 10.9; os 10 bits superiores são expostos como índice da tabela de seno.
+- Tabela MUL → ML com 16 entradas.
+- Incremento base: `((FNUM * ML[MUL]) << BLOCK) >> 1`.
+- PM opcional com a tabela medida 8×8 e a expressão `(((2 * FNUM + PM) * ML[MUL]) << BLOCK) >> 2`.
+- Wrap modular de 19 bits.
+- Snapshot/restore versionado por acumulador.
+- Validação dos limites FNUM (9 bits), BLOCK (3 bits), MUL (4 bits) e posição PM (0..7).
+
+### Fronteiras deliberadas
+
+O PG não possui contador global de amostras nem avança o LFO. O chamador deve fornecer a posição PM correspondente ao instante exato da atualização do operador. Essa decisão evita fixar prematuramente o alinhamento de reset, a cadência de 1024 amostras, a ordem PG/EG/OP e os offsets dos 18 slots. O PG também não decodifica registradores, não produz seno/PCM e não escolhe quando cada operador é visitado.
+
+### Vetor diferencial incluído
+
+O exemplo publicado por andete para FNUM=`0x1c0`, BLOCK=6 e ML=2 produz os oito incrementos:
+`28672, 28768, 28896, 28768, 28672, 28576, 28448, 28576`.
+O teste `pm_sequence_matches_published_ym2413_measurement_vector` reproduz essa sequência. É um vetor publicado de engenharia reversa, não uma medição independente executada pelo projeto.
+
+### Estado de validação
+
+- Código e testes adicionados: implementação candidata.
+- CI no SHA final `224f2c3b215f9e6accf613d385e90ca7db931cc5`: SUCCESS (run #44223435767); formatação, Clippy, testes do workspace e higiene documental concluídos.
+- Comparação independente contra hardware YM2413 original: NOT RUN.
+- Alinhamento PM/reset/slot e pipeline cycle-accurate: PENDENTE.
+- Integração de PG ao core de 18 slots, EG, operador, DAC e saídas MO/RO: NOT RUN.
+- Não declarar síntese PCM, fidelidade cycle-accurate ou integração SMS concluída.
+
+Fonte do modelo e vetor: [andete — YM2413 Reverse Engineering Notes 2015-12-01](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01). A tabela e as fórmulas foram transcritas a partir da especificação documental do projeto; nenhum código da implementação C emu2413 ou da implementação GPL Nuked-OPLL foi incorporado.
+
+
+## 18. Snapshot de validação após merge da fundação e PG-1 — 2026-11-18
+
+**Base estável:** `main` em `55206fd9ae87bb3fc76608330d6d7db77f3c8985`, merge da PR #996.
+
+| Subsistema / gate | Estado | Evidência e limite |
+|---|---|---|
+| Fundação YM2413 — latch, registradores, 18×4 clocks, snapshot | PASS | PR #996 integrada em main; CI pós-merge #8569 e SMS Runtime #1533 concluíram SUCCESS no SHA da main |
+| Isolamento do crate e dependência unidirecional | PASS | `sega-audio-runtime → sega-ym2413`; crate sem dependências externas |
+| PG candidato — acumulador 19-bit, MUL/ML e PM 8×8 | IMPLEMENTED / CI PASS | PR #997; CI #44223435767 SUCCESS no HEAD `224f2c3b215f9e6accf613d385e90ca7db931cc5` |
+| Vetor PM publicado de oito incrementos | PASS (reprodução do vetor publicado) | Teste reproduz o exemplo de andete; não equivale a validação física independente |
+| PG contra hardware YM2413 original | NOT RUN | Sem captura física ou oráculo independente do projeto |
+| Alinhamento do LFO PM, reset e offsets de slot | PENDENTE | Chamador fornece posição PM; contador global e pipeline ainda não foram implementados |
+| EG, AM, feedback, Log-Sine/EXP, operadores, instrumentos e Rhythm | NOT RUN | Não fazem parte da PR #997 |
+| Scheduler/clock/fase PSG-FM | BLOCKED | FM-A01 permanece pendente de evidência física |
+| Portas SMS $F0/$F1/$F2 e C-Sync | NOT RUN / BLOCKED | Adaptador SMS ausente; FM-A03 depende de C-Sync real |
+| MO/RO e circuito analógico SMS | BLOCKED | FM-A02; preservar saídas separadas |
+| Mixer multi-source e alinhamento FM→48 kHz | BLOCKED | FM-A07; não integrar PCM FM à sessão atual |
+| Perfil físico, catálogo Auto e save state integrado | NOT RUN | Fora do escopo desta fatia |
+
+**CI da PR #997:** execução #44223435767 concluiu SUCCESS no HEAD `224f2c3b215f9e6accf613d385e90ca7db931cc5`. Jobs executados: classificação de impacto, regressão do workspace Rust (format, Clippy, testes e observability runtime), higiene documental e gate agregado de qualidade. Jobs específicos de VDP, PSG, Z80, Scheduler, Slint/WGPU, CPAL, SDL3, ROM build e tooling Windows foram SKIPPED por não serem aplicáveis aos caminhos alterados; SKIPPED não é PASS. A comparação da PR indica 11 commits ahead, 0 behind, sem conflito de merge no snapshot consultado. Reviews e review threads: nenhuma.
+
+**Política:** estados IMPLEMENTED descrevem código presente, não fidelidade comprovada. Vetor publicado, CI, teste unitário e teste físico são evidências distintas. SKIPPED, pending, cancelled, ausente e NOT RUN nunca são PASS.

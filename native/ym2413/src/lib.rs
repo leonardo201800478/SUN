@@ -1,9 +1,14 @@
-//! YM2413 register and clock foundation.
+//! YM2413 register, clock, and candidate phase-generator foundation.
 //!
-//! This first slice deliberately does not synthesize audio. It provides a
-//! deterministic address latch, register image, and 18-slot clock phase so
-//! later operator/envelope stages can be built and tested without coupling
-//! the chip to the Master System, host audio, or MachineScheduler.
+//! The phase generator is a standalone candidate model. It does not yet
+//! synthesize PCM or participate in the 18-slot operator pipeline.
+
+pub mod phase;
+pub use phase::{
+    PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
+    YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
+    YM2413_PM_TABLE,
+};
 
 use core::fmt;
 
