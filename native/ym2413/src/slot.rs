@@ -165,7 +165,7 @@ pub const YM2413_SLOT_MAP: [Ym2413SlotDescriptor; YM2413_SLOT_COUNT] = [
         channel: 8,
         operator: Ym2413Operator::Carrier,
         rhythm_voice: Some(Ym2413RhythmVoice::TopCymbal),
-    }
+    },
 ];
 
 /// Resolve a zero-based serial slot index to its fixed channel/operator assignment.
@@ -227,11 +227,16 @@ mod tests {
             Some(Ym2413RhythmVoice::TopCymbal),
         ];
         for (offset, voice) in expected.into_iter().enumerate() {
-            assert_eq!(slot_descriptor(12 + offset as u8).unwrap().rhythm_voice, voice);
+            assert_eq!(
+                slot_descriptor(12 + offset as u8).unwrap().rhythm_voice,
+                voice
+            );
         }
-        assert!(YM2413_SLOT_MAP[..12]
-            .iter()
-            .all(|descriptor| descriptor.rhythm_voice.is_none()));
+        assert!(
+            YM2413_SLOT_MAP[..12]
+                .iter()
+                .all(|descriptor| descriptor.rhythm_voice.is_none())
+        );
     }
 
     #[test]
