@@ -952,3 +952,20 @@ O par recebe índices PG separados para modulator e carrier. Não pressupõe ali
 A saída `carrier_output` é o valor digital assinado bruto do operador, não uma amostra PCM final do chip. A saída analógica, a soma de canais, a escala do DAC e o mixer PSG/FM permanecem fora desta etapa.
 
 **Fonte principal:** [andete — modelo matemático de síntese (2016-07-16)](https://github.com/andete/ym2413/blob/master/results/20160716/model.cc). O código do repositório externo foi consultado como evidência documental; sua implementação não foi copiada.
+
+
+## 23. Key Scale Level (KSL) — FM-2
+
+O cálculo KSL foi separado em `native/ym2413/src/key_scale.rs`.
+
+- Entradas validadas: BLOCK (0..7), FNUM (0..511) e KSL (0..3).
+- Índice de frequência: `(FNUM >> 5) & 0x0f`, conforme a documentação do fabricante.
+- A tabela-base KSL=1 representa 1,5 dB/octave em unidades EG de 0,375 dB.
+- KSL=0 aplica zero; KSL=1 multiplica por 1; KSL=2 por 2; KSL=3 por 4.
+- O máximo é 112 unidades EG para BLOCK=7, FNUM MSB=0xF e KSL=3.
+
+A linha BLOCK=7 da tabela-base foi comparada com a medição publicada por andete. A derivação de KSL=2/3 segue as taxas de 3/6 dB por oitava documentadas no manual e a relação de escala indicada nas notas.
+
+**Limite da evidência:** as medições de andete são amostragens esparsas para KSL=1/2/3, e a tabela completa é a tradução da tabela do manual para unidades EG. Isso não substitui uma varredura física completa realizada pelo projeto.
+
+**Fontes:** [Yamaha YM2413 Application Manual, KSL/TL, Table III-4/III-5](https://map.grauw.nl/resources/sound/yamaha_ym2413.pdf), [andete — KSL measurements, 2015-12-16](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16).
