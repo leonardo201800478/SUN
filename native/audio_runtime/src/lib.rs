@@ -9,11 +9,11 @@ pub use dsp::{
     OnePoleLowPass,
 };
 pub use psg::{PsgClockError, ScheduledPsg};
-pub use session::{AudioOutputMetrics, AudioSession, NativeAudioSession, PcmSink};
 pub use sega_ym2413::{
     YM2413_ADDRESS_MASK, YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT,
     YM2413_REGISTER_COUNT, YM2413_SLOTS_PER_ROTATION, Ym2413Core, Ym2413Error, Ym2413State,
 };
+pub use session::{AudioOutputMetrics, AudioSession, NativeAudioSession, PcmSink};
 
 /// Canonical internal PCM source rate, independent of any host audio endpoint.
 pub const DEFAULT_PCM_SOURCE_RATE_HZ: u32 = 48_000;
