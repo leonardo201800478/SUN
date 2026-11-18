@@ -1,0 +1,9 @@
+[package]
+name = "sega-ym2413"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "sega_ym2413"
+path = "src/lib.rs"
