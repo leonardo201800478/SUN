@@ -4,6 +4,7 @@
 //! 18-slot FM pipeline or emit integrated YM2413 PCM.
 
 pub mod am_lfo;
+pub mod channel;
 pub mod envelope;
 pub mod instrument;
 pub mod key_scale;
@@ -14,6 +15,10 @@ pub mod synthesis_tables;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
+};
+pub use channel::{
+    ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
+    decode_channel_synthesis,
 };
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,

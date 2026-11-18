@@ -131,3 +131,42 @@ A sessão de desenvolvimento utilizada para estes marcos não disponibiliza trê
 - [andete — attack measurements (2017-01-26)](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2017-01-26)
 - [andete — ADSR transitions and operator behavior (2015-12-31)](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31)
 - [andete — rhythm/noise LFSR (2018-05-13)](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2018-05-13)
+
+
+---
+
+## Atualização FM-4 — ponte de parâmetros por canal
+
+**Branch:** `feat/ym2413-channel-synthesis-bridge`
+**Base de implementação:** main `a5a9eb826b086966b1436e1b584f91deeada78d4`
+
+Foi adicionado `native/ym2413/src/channel.rs`, uma camada pura de resolução entre os registradores/instrumentos e os componentes de síntese existentes.
+
+### Entrega
+
+- Resolve os nove canais melódicos a partir de FNUM, BLOCK, KEY-ON, SUSTAIN, instrumento e volume.
+- Resolve instrumento 0 para o user patch e 1–15 para os presets candidatos já licenciados/documentados.
+- Converte MULTI e VIB do patch em entradas explícitas do PG por operador.
+- Converte AR/DR/RR/SL, KSR, BLOCK/FNUM, SUS e EG-TYP em `EnvelopeParameters` por operador.
+- Calcula KSL de modulator e carrier pela tabela existente.
+- Constrói `OperatorPairParameters` com TL, VOL, feedback, waveform, KSL, níveis EG e AM habilitado individualmente por operador.
+- Exporta os tipos e a função de resolução pelo crate `sega-ym2413`.
+
+### Limites preservados
+
+- A ponte não avança PG, EG, AM/PM, clocks ou slots.
+- Não decide alinhamento de fase, ordem modulator/carrier, DAMP, reset, nem cadência global do EG.
+- Não interpreta os canais 7–9 em Rhythm Mode; eles não podem ser enviados por este caminho melódico enquanto RHYTHM estiver ativo.
+- Os presets continuam candidatos, não ROM física certificada.
+- Nenhuma geração PCM, integração com Scheduler, portas SMS ou mixer é declarada.
+
+### Testes adicionados — aguardando CI no HEAD da PR
+
+- Resolução do user patch e mapeamento completo dos campos por operador.
+- Resolução dos 15 presets nos nove canais.
+- Rejeição de canal inválido e de código de preset inválido na API de resolução.
+- AM enable independente por operador.
+- Validação dos níveis dinâmicos EG/AM.
+- Seleção de MULTI e PM no cálculo de incremento de fase.
+
+**Estado:** FM-4 permanece PARCIAL. Esta entrega fecha somente a ponte estática de parâmetros; o próximo marco funcional é o pipeline agregado dos 18 slots, ainda sem declarar temporização física fechada.
