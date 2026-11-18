@@ -261,8 +261,8 @@ mod tests {
     #[test]
     fn rhythm_patch_candidates_match_the_capture_derived_parameter_sets() {
         use super::{
-            rhythm_patch_candidate, decode_patch_registers, Ym2413RhythmInstrument,
-            YM2413_RHYTHM_PATCHES_CANDIDATE,
+            YM2413_RHYTHM_PATCHES_CANDIDATE, Ym2413RhythmInstrument, decode_patch_registers,
+            rhythm_patch_candidate,
         };
 
         assert_eq!(
