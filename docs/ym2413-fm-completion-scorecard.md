@@ -480,4 +480,26 @@ Os testes usam o contador global como entrada explícita; a fase inicial é esco
 
 **Fonte experimental:** Andete, *YM2413 Reverse Engineering Notes 2015-03-20* (decay/release) e *2015-03-27* (attack): https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-20 e https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-27.
 
-**Estado:** testes adicionados; CI da PR pendente. FM-1 permanece PARCIAL e T06 continua CANDIDATE até cobrir integralmente DAMP, AR=15, SL/SUS, KSR, modulator/carrier e vetores independentes adicionais. Nenhuma subfase do slot ou cadência física foi inferida.
+**Estado:** PR #1023 integrada por squash (`53820a140bd1109fab4a38efbea5c337ee0cc5bf`). CI #44382316288 passou em classificação de impacto, Rust workspace regression (format, Clippy, testes e observability) e higiene documental. FM-1 permanece PARCIAL e T06 continua CANDIDATE; nenhuma subfase do slot ou cadência física foi inferida.
+
+
+## P2 — DAMP, KSR e retenção de sustain (2026-11-18)
+
+**Branch:** `test/ym2413-eg-damp-ksr-sustain-vectors`
+
+A auditoria dos vetores de EG identificou uma divergência funcional no cálculo de taxa efetiva: a implementação somava Rks mesmo quando a taxa programada R era zero. O manual Yamaha declara que R=0 mantém RATE=0; as medições de KSR documentam a soma do offset para taxas programadas não nulas. A função `EnvelopeParameters::effective_rate` agora trata R=0 como desabilitação do incremento, antes de aplicar KSR.
+
+### Cobertura adicionada
+
+- Matriz completa BLOCK 0..7 × FNUM8 0/1 para KSR=0 e KSR=1, com R=3.
+- Matriz completa para R=0, confirmando RATE=0 independentemente de BLOCK/FNUM/KSR.
+- Retenção de nível em Sustain para EG-TYPE sustentado com KSR habilitado e frequência máxima do conjunto testado.
+- Vetor DAMP: com threshold de software candidato 124 e contador inicial explícito em zero, a implementação alcança o limiar no contador 494 (aprox. 9,94 ms a 3.579.545/72 updates/s), coerente com a duração aproximada de 10 ms descrita nas notas. Isso valida a aritmética do candidato, não o limiar físico nem o alinhamento de reset.
+
+### Limites
+
+O limiar 124 continua parametrizado e não é promovido a constante física. A coordenação DAMP modulator/carrier e o comportamento de AR=15 continuam candidatos selecionáveis. A medição de SL estabelece o alvo interno 8×SL, mas a questão de clipping versus comparação ao cruzar o alvo com incrementos rápidos permanece não resolvida. Nenhuma ordem de subfase, cadência de slot ou integração de Scheduler é inferida.
+
+**Referências experimentais:** Andete, [2015-12-24 — Sustain Level e KSR](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-24) e [2015-12-31 — transições ADSR e DAMP](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31); Yamaha, [YM2413 Application Manual](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual).
+
+**Estado:** alteração de código e vetores adicionados; CI desta branch pendente. FM-1 permanece PARCIAL. Nenhuma alteração de runtime, Scheduler, PCM, portas SMS ou dependências.
