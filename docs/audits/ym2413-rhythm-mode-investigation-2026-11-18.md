@@ -254,3 +254,13 @@ O decoder conserva os bits KEY-ON melódicos e SUS sem tentar resolver a diverg�
 ## Ponte de avaliação dos operadores rítmicos (2026-11-18)
 
 As configurações estáticas agora podem montar os parâmetros dinâmicos do avaliador carrier para HH/SD/TOM/TCY e os parâmetros normais do par FM para BD. Fase, EG e AM continuam sendo valores de entrada fornecidos pelo chamador; nenhum estado PG/EG/LFSR ou feedback é avançado por esses builders. O par BD ainda deve ser avaliado pelo `OperatorPair` com seu estado de feedback preservado. Esta ponte valida composição aritmética, não timing, pipeline serial ou PCM.
+
+
+## Avaliação digital integrada ao banco PG/EG (2026-11-18)
+
+A camada `Ym2413SynthesisBank` expõe agora um wrapper direcionado para o tick EG do operador físico rítmico. O chamador ainda define o boundary de serviço PG, o contador global EG, o estado KEY-ON e a política de release carrier do EG; o wrapper apenas encaminha esses valores/parâmetros ao EG do slot físico correspondente. A avaliação de HH/SD/TOM/TCY recebe a fase como entrada explícita e lê o nível EG atual do operador físico, usando a saída carrier. BD avalia o par normal do canal 7, com o histórico de feedback já pertencente ao banco. O trigger `$0E` não é tratado como mute gate pelo avaliador: não foi demonstrado que o bit seja uma condição combinacional de saída, e o envelope pode representar cauda de release. A etapa não implementa cadência de slots, LFSR, M→C temporal, duplicação de saída, DAC, MO/RO ou PCM.
+
+
+### Contrato de fase explícita na avaliação integrada
+
+O avaliador integrado do banco não tenta derivar automaticamente a fase de HH, SD ou TCY a partir do PG associado ao operador que fornece o envelope. O chamador passa o índice de fase resultante de `hi_hat_phase_candidate`, `snare_drum_phase_candidate` ou `top_cymbal_phase_candidate`, com o bit de ruído amostrado no boundary correto. Para TOM, o chamador passa a fase normal do PG tonal. BD não recebe override e usa os dois PGs do par FM. Assim, a camada de amplitude lê o EG do slot físico correto, enquanto a origem da fase permanece explícita e separada. A API rejeita fase ausente nas quatro vozes simples e fase adicional em BD.

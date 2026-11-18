@@ -424,3 +424,19 @@ A frase anterior “os testes de unidade e o CI desta PR ainda precisam ser asso
 - Testes cobrem seleção do caminho carrier, AM enable, validação de níveis, avaliação equivalente ao helper compartilhado e parâmetros BD.
 
 **Estado:** ponte digital pura concluída; a origem/cadência de fase e EG por slot, integração do LFSR e pipeline de áudio continuam pendentes.
+
+
+## FM-7 — avaliação das vozes sobre o banco PG/EG compartilhado (2026-11-18)
+
+- `Ym2413SynthesisBank` oferece `tick_rhythm_operator_envelope`, que mapeia o operador físico do slot para um dos 18 EGs existentes e recebe KEY-ON, política de release carrier e counter do chamador; não cria scheduler nem cadence.
+- `evaluate_rhythm_voice` lê o EG do operador físico e usa a saída carrier para HH/TOM/SD/TCY. A fase é sempre explícita: HH/SD/TCY recebem o resultado dos combinadores candidatos e TOM recebe o índice do PG tonal. BD usa os dois PGs do canal 7 e o par FM existente.
+- BD usa o `OperatorPair` existente do canal 7, preservando e atualizando o histórico de feedback desse par, com os parâmetros de patch e volume específicos de BD.
+- O bit de trigger não é interpretado como mute gate na avaliação; o estado EG fornecido é que determina o nível atual e pode representar release tail. A origem do KEY-ON e a seleção da semântica de release do EG permanecem explicitamente sob controle do chamador.
+- Testes verificam o mapeamento físico EG, equivalência do wrapper com a API existente, avaliação das quatro vozes simples com fases explícitas sem mutação de estado, feedback BD e rejeição de Rhythm Mode desabilitado.
+
+**Estado:** ponte para avaliação digital sobre o banco compartilhado concluída quando CI passar. Não representa execução serial de slots, repetição de saída, LFSR integrado, mistura MO/RO, PCM ou precisão temporal validada.
+
+
+### Correção de contrato — fase explícita no avaliador de vozes (2026-11-18)
+
+O avaliador do banco não deduz fase de HH/SD/TCY a partir do PG do operador de envelope. Essas vozes recebem `phase_index` explícito, que deve vir dos combinadores medidos e do bit LFSR no slot correto; TOM recebe o índice do PG normal do operador tonal. BD não aceita override e usa os dois PGs do par FM. Essa separação impede confundir o operador físico que fornece EG/volume com as fontes de fase combinada. O banco não avança essas fontes nem o LFSR.
