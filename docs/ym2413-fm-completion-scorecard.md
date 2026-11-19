@@ -1067,7 +1067,7 @@ Esses itens são contratos de software e candidatos baseados em evidências publ
 ### Próximos gates, sem inferência de comportamento físico
 
 1. Consolidar por testes as interfaces já existentes entre sequenciador LFSR, candidatos de fase, PG/EG compartilhados, avaliação das cinco vozes, retenção e roteamento MO/RO; evitar duplicar cobertura existente.
-2. Auditar a integração entre triggers $0E e KEY-ON melódico de $26–$28, sem transformar `is_active` em predicado completo enquanto a divergência documental permanecer aberta.
+2. Preservar a regra normativa do manual Yamaha: em Rhythm Mode, os KEY-ON de $26–$28 devem permanecer em zero; $0E.D4..D0 são os controles ON/OFF das cinco percussões. O decoder deve continuar expondo os bits crus, mas a futura camada de configuração pode sinalizar combinações não conformes. Não modelar comportamento do silício para KEY-ON=1 sem captura específica. Referências: Yamaha YM2413 Application Manual, §III-1-7 (https://www.smspower.org/maxim/Documents/YM2413ApplicationManual) e SMS Power — YM2413 (https://www.smspower.org/Development/YM2413).
 3. Manter bloqueada a conversão operador→DAC: Issue #1031 não possui curva/transferência física conclusiva nem identificação da palavra interna aplicada ao DAC.
 4. Manter bloqueado o sequenciador cycle-accurate até capturas reproduzíveis e sincronizadas de XIN, MO e RO com resolução por input clock, reset reproduzível e escritas timestampadas.
 5. Não promover a cadência do LFSR, fase inicial PG, subfases dos quatro clocks por slot ou alinhamento do EG a contrato físico além do que os vetores primários sustentam.
