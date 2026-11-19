@@ -830,11 +830,11 @@ mod tests {
 
         // Carrier-driven DAMP coordination synchronizes the modulator stage.
         assert_eq!(
-            bank.export_state().channels[0].envelope[0].stage,
+            bank.export_state().channels[0].modulator_envelope.stage,
             EnvelopeStage::Attack
         );
         assert_eq!(
-            bank.export_state().channels[0].envelope[1].stage,
+            bank.export_state().channels[0].carrier_envelope.stage,
             EnvelopeStage::Attack
         );
     }
