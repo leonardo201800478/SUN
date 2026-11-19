@@ -1551,7 +1551,7 @@ mod tests {
     fn dynamic_sustain_level_change_after_sustain_entry_does_not_move_level() {
         let mut generator = EnvelopeGenerator::with_initial_state(
             32,
-            EnvelopeStage::Sustain,
+            EnvelopeStage::Decay,
             true,
             damp_config(
                 DampTransitionCoordination::IndependentPerOperator,
