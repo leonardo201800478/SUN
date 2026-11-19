@@ -12,7 +12,7 @@ A proveniência é **uma reconstrução matemática apoiada por análise de die 
 
 ## Fórmulas e domínios
 
-Para cada índice (i \in [0,255]):
+Para cada índice i = 0, ..., 255:
 
 - Log-Sine, escala fixa de 8 bits fracionários:
 
