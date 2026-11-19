@@ -46,7 +46,7 @@ A observação de que mudar SL durante DECAY para um alvo já ultrapassado não 
 
 ## Cobertura adicionada
 
-Dez testes focados:
+Onze testes focados:
 
 1. AR alterado durante ATTACK.
 2. DR alterado durante DECAY sem reiniciar a fase.
@@ -57,7 +57,7 @@ Dez testes focados:
 7. SUS alternado durante o segundo RELEASE do carrier.
 8. SL alterado durante DECAY para corresponder ao nível corrente.
 9. SL alterado depois da entrada em SUSTAIN sem mover o nível.
-10. SL=1 com nível ímpar 9, caracterizando a comparação candidata.
+10. SL alterado durante DECAY para um alvo já ultrapassado, preservando DECAY.\n11. SL=1 com nível ímpar 9, caracterizando a comparação candidata.
 
 Os testes usam contadores explícitos escolhidos para distinguir taxa zero da nova taxa e para alcançar um gate do seletor. Eles não certificam a frequência absoluta nem a fase física do contador.
 
