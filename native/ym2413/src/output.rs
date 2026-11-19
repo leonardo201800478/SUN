@@ -47,6 +47,20 @@ pub enum Ym2413OutputSource {
     RhythmVoice(Ym2413RhythmVoice),
 }
 
+/// Result of adapting a rhythm-retention slot result to the output-pin layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ym2413OutputSlotResult {
+    /// The slot does not emit a rhythm value.
+    NoOutput,
+    /// A retained or original rhythm value is routed to RO.
+    Pulse(Ym2413OutputPulse),
+    /// A delayed-repeat slot was reached before its source value was observed.
+    RepeatNotInitialized {
+        slot_index: u8,
+        voice: Ym2413RhythmVoice,
+    },
+}
+
 /// One slot's measured-domain output pulse.
 ///
 /// The pulse width is fixed by the documented/observed three-active-clock
@@ -182,16 +196,19 @@ pub fn rhythm_output_event(
 
 /// Convert a rhythm retention result to an RO pulse when a value was emitted.
 ///
-/// Non-output slots and uninitialized repeats produce no pulse. The latter is
-/// kept distinct by the retention component for diagnostics and reset-state
+/// Uninitialized repeats remain a distinct result for diagnostics and reset-state
 /// investigations; neither case is silently converted to digital zero.
 pub fn rhythm_slot_result(
     result: Ym2413RhythmOutputSlotResult,
-) -> Result<Option<Ym2413OutputPulse>, Ym2413OutputRoutingError> {
+) -> Result<Ym2413OutputSlotResult, Ym2413OutputRoutingError> {
     match result {
-        Ym2413RhythmOutputSlotResult::Emitted(event) => rhythm_output_event(event).map(Some),
-        Ym2413RhythmOutputSlotResult::NoRhythmOutput
-        | Ym2413RhythmOutputSlotResult::RepeatNotInitialized { .. } => Ok(None),
+        Ym2413RhythmOutputSlotResult::Emitted(event) => {
+            rhythm_output_event(event).map(Ym2413OutputSlotResult::Pulse)
+        }
+        Ym2413RhythmOutputSlotResult::NoRhythmOutput => Ok(Ym2413OutputSlotResult::NoOutput),
+        Ym2413RhythmOutputSlotResult::RepeatNotInitialized { slot_index, voice } => {
+            Ok(Ym2413OutputSlotResult::RepeatNotInitialized { slot_index, voice })
+        }
     }
 }
 
@@ -199,7 +216,8 @@ pub fn rhythm_slot_result(
 mod tests {
     use super::{
         YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
-        Ym2413OutputPin, Ym2413OutputRoutingError, Ym2413OutputSource, melody_output_for_slot,
+        Ym2413OutputPin, Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource,
+        melody_output_for_slot,
         rhythm_output_event, rhythm_slot_result,
     };
     use crate::rhythm_output::{
@@ -340,11 +358,14 @@ mod tests {
                 slot_index: 0,
                 voice: Ym2413RhythmVoice::HiHat,
             }),
-            Ok(None)
+            Ok(Ym2413OutputSlotResult::RepeatNotInitialized {
+                slot_index: 0,
+                voice: Ym2413RhythmVoice::HiHat,
+            })
         );
         assert_eq!(
             rhythm_slot_result(Ym2413RhythmOutputSlotResult::NoRhythmOutput),
-            Ok(None)
+            Ok(Ym2413OutputSlotResult::NoOutput)
         );
     }
 }
