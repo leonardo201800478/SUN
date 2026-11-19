@@ -10,6 +10,7 @@ pub mod envelope;
 pub mod instrument;
 pub mod key_scale;
 pub mod operator;
+pub mod output;
 pub mod phase;
 pub mod pm_lfo;
 pub mod rhythm;
@@ -46,6 +47,11 @@ pub use instrument::{
     resolve_instrument, rhythm_mode_enabled,
 };
 pub use key_scale::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
+pub use output::{
+    YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
+    Ym2413OutputPin, Ym2413OutputPulse, Ym2413OutputRoutingError, Ym2413OutputSource,
+    melody_output_for_slot, rhythm_output_event, rhythm_slot_result,
+};
 pub use operator::{
     OperatorPair, OperatorPairError, OperatorPairParameters, OperatorPairSample, OperatorPairState,
     YM2413_OPERATOR_PAIR_STATE_VERSION, exponential_lookup, log_sine_lookup,
