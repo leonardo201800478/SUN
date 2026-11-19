@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1062 em 2026-11-19:** `785bc45e1eb8c5bcba09570617ca2c852d5b00ec`
+**Main base após PR #1063 em 2026-11-19:** `f3c4d9b152c12263c606635f97edf10d10f6ae55`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -880,3 +880,37 @@ O vetor avança uma amostra antes do snapshot e compara execução contínua e r
 ### Próxima validação
 
 A próxima prova de isolamento é em nível de banco: verificar que os nove canais melódicos mantêm pipelines de feedback independentes, que avaliar um canal não altera os oito restantes e que o snapshot agregado preserva os nove históricos. Isso valida a separação de estado do banco, sem declarar a ordem física de execução dos canais nem criar um sequenciador.
+
+
+---
+
+## Atualização FM-2/FM-3 — matriz de feedback assinado e isolamento por canal (2026-11-19)
+
+### PR #1063 — isolamento dos nove canais integrado
+
+- Merge commit: `f3c4d9b152c12263c606635f97edf10d10f6ae55`.
+- CI #44558784375: Change impact classification, Rust workspace regression, documentation patch hygiene e Rust quality/unit regression SUCCESS.
+- O teste `nine_melodic_channels_keep_independent_feedback_histories` verifica que avaliar cada canal altera somente seu próprio histórico de feedback e que o snapshot agregado restaura os nove históricos.
+- A revisão automática de código não foi concluída por limite de uso do serviço; não reportou finding técnico. A validação obrigatória de CI aplicável passou.
+
+**Limite:** isolamento de estado no modelo de software; não determina a ordem física dos canais, slots, subfases ou ponto de captura de feedback.
+
+### Próxima caracterização — matriz FB=0..7 com históricos positivos e negativos
+
+A nova matriz de teste exercita todos os oito valores de feedback com duas condições iniciais assinadas: soma positiva e soma negativa dos dois outputs históricos. Para cada caso, verifica:
+
+- cálculo do deslocamento de fase usando os dois valores históricos;
+- comportamento especial FB=0;
+- uso da fase do modulator da amostra anterior;
+- wrap de fase em dez bits;
+- shift do histórico após a avaliação;
+- retenção da fase corrente para a próxima amostra;
+- sinal do output do modulator nos dois quadrantes exercitados.
+
+**Limite:** esta matriz valida a aritmética e a continuidade do modelo de software. Não prova o ponto físico de captura do feedback, a largura/representação elétrica do sinal interno nem a latência M→C em input clocks.
+
+### Gate para o pipeline de 18 slots
+
+A investigação P1 permanece como referência. A ordem serial dos 18 slots está documentada, mas a função dos quatro input clocks dentro de cada slot, os offsets PG/EG/OP, a latência física M→C e o latch exato de MO/RO continuam sem evidência primária suficiente. Portanto, não será criado um dispatcher temporal nem integrado o banco ao Scheduler com subfases presumidas.
+
+**Próxima dependência externa:** captura reproduzível de XIN, MO e RO com resolução por input clock, incluindo reset e escritas de registradores com offsets controlados. Sem esses vetores, a implementação cycle-accurate do pipeline permanece BLOCKED; não promover a hipótese de um emulador de referência a contrato físico.
