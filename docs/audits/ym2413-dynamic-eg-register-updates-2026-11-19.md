@@ -1,6 +1,6 @@
 # YM2413 — auditoria dinâmica dos registradores do EG
 
-**Data:** 2026-11-19  
+**Data:** 2026-11-19
 **Escopo:** efeito dinâmico de AR, DR, RR, SL, EG-TYPE e SUS no componente `EnvelopeGenerator`. Não altera cadência do contador global, slots, Scheduler, PG, LFO, DAC ou PCM.
 
 ## Evidência de referência
