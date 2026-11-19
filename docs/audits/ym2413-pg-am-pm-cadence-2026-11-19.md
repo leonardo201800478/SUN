@@ -1,7 +1,7 @@
 # YM2413 — auditoria de cadência PG, PM LFO e AM LFO
 
-**Data:** 2026-11-19  
-**Escopo:** comparar as cadências publicadas de PG/PM/AM com os contratos atuais de `PhaseGenerator`, `PhaseModulationLfo`, `AmLfo` e `Ym2413SynthesisBank`.  
+**Data:** 2026-11-19
+**Escopo:** comparar as cadências publicadas de PG/PM/AM com os contratos atuais de `PhaseGenerator`, `PhaseModulationLfo`, `AmLfo` e `Ym2413SynthesisBank`.
 **Limite:** auditoria de componentes digitais e evidência documental; não define offsets por subfase dos 18 slots nem alinhamento absoluto após reset.
 
 ## 1. Evidência de PM — Andete 2015-12-01
