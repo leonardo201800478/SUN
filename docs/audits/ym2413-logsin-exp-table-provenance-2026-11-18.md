@@ -1,7 +1,7 @@
 # YM2413 — proveniência das tabelas Log-Sine e EXP
 
-**Data:** 2026-11-18  
-**Escopo:** proveniência matemática e reprodutibilidade das duas tabelas de transformação usadas pelo candidato de operador.  
+**Data:** 2026-11-18
+**Escopo:** proveniência matemática e reprodutibilidade das duas tabelas de transformação usadas pelo candidato de operador.
 **Fora de escopo:** provar leitura direta da ROM física, validar toda a aritmética SIN/EXP, definir o código de entrada/saída do DAC ou estabelecer temporização por slot.
 
 ## Conclusão
@@ -33,7 +33,7 @@ O deslocamento de meia amostra no Log-Sine evita avaliar `log2(sin(0))`, que é 
    - tabelas de 256 entradas, Log-Sine entre 0 e 2137 e EXP entre 0 e 1018;
    - as fórmulas acima e a lógica de lookup;
    - comparação da forma de onda prevista com medições do chip: o autor relata correspondência exata para volumes 1–15 e atribui discrepâncias em volume 0 a ruído nas medições de maior amplitude.
-   
+
    O mesmo estudo ressalva que a interpretação dos die shots não é inteiramente certa. A afirmação de ROM idêntica entre OPLL/OPL2/OPL3 é apresentada como inferência, não como leitura digital completa.
 
 2. **Andete, 2016-07-16 — modelo parcial inicial.** Reutiliza as fórmulas Log-Sine e EXP e amplia a comparação experimental para o modelo de operador, incluindo modulator/carrier, feedback, volume e KSL. A página deixa explícito que envelope e AM ainda são níveis fixos, não geradores temporais completos.
