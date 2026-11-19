@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1063 em 2026-11-19:** `f3c4d9b152c12263c606635f97edf10d10f6ae55`
+**Main base após PR #1064 em 2026-11-19:** `4bc964361da310e5550c0b4d4b747669266f1d65`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -914,3 +914,35 @@ A nova matriz de teste exercita todos os oito valores de feedback com duas condi
 A investigação P1 permanece como referência. A ordem serial dos 18 slots está documentada, mas a função dos quatro input clocks dentro de cada slot, os offsets PG/EG/OP, a latência física M→C e o latch exato de MO/RO continuam sem evidência primária suficiente. Portanto, não será criado um dispatcher temporal nem integrado o banco ao Scheduler com subfases presumidas.
 
 **Próxima dependência externa:** captura reproduzível de XIN, MO e RO com resolução por input clock, incluindo reset e escritas de registradores com offsets controlados. Sem esses vetores, a implementação cycle-accurate do pipeline permanece BLOCKED; não promover a hipótese de um emulador de referência a contrato físico.
+
+
+---
+
+## Atualização FM-2/FM-3 — fronteira lógica da rotação de 18 slots (PR #1065, 2026-11-19)
+
+### PR #1064 — matriz de feedback assinada integrada
+
+- Merge commit: `4bc964361da310e5550c0b4d4b747669266f1d65`.
+- Workflow #44561067636: classificação de impacto, higiene documental, Rust workspace regression e Rust quality/unit regression SUCCESS.
+- A matriz exercita FB=0..7 com somas positivas e negativas dos dois outputs históricos, verifica o offset, a fase anterior do modulator, wrap de 10 bits, shift do histórico e continuidade da fase.
+- A revisão automática Codex não foi concluída por limite de uso; não há aprovação dessa revisão a registrar.
+- Nenhuma lógica de produção foi alterada.
+
+**Limite:** validação aritmética do modelo de software; não estabelece a captura física do feedback nem a latência M→C em input clocks.
+
+### Nova caracterização de fronteira — rotação lógica
+
+A caracterização adicionada nesta PR verifica, sem criar um sequenciador FM:
+
+- o descritor atual permanece estável enquanto o core acumula os quatro input clocks atribuídos ao slot;
+- o índice e o descritor avançam somente quando o orçamento de quatro clocks se completa;
+- a sequência percorre os 18 descritores de `YM2413_SLOT_MAP` e retorna ao primeiro após 72 clocks;
+- o estado de slot, fase parcial e rotação é preservado por snapshot/restore em todos os 72 offsets de clock de uma rotação.
+
+**Interpretação:** os quatro clocks são tratados exclusivamente como intervalo aritmético do slot no contrato atual do core. Os índices de fase parcial não são associados a operações físicas PG, EG, SIN/EXP, feedback, DAC ou commit de registradores.
+
+**Limites mantidos:** nenhum dispatcher de 18 slots, atualização automática do banco de síntese, PCM, integração com Scheduler ou fase absoluta após reset é introduzido. O teste demonstra consistência interna do contador/mapa e dos snapshots, não fidelidade física das subfases.
+
+### Próximo gate
+
+A implementação do pipeline interno continua BLOCKED até vetores físicos reproduzíveis de XIN, MO e RO com resolução por input clock, reset e escritas temporizadas. Em paralelo, a pesquisa pode aprofundar a latência M→C e os requisitos de captura, mas não converter a ordem de chamadas de modelos de software em contrato elétrico.
