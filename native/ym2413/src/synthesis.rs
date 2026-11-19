@@ -1333,8 +1333,7 @@ mod tests {
         };
 
         let config = rhythm_configuration();
-        let mut noise = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(0x5a_1234, 13)
-            .unwrap();
+        let mut noise = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(0x5a_1234, 13).unwrap();
 
         let hi_hat_noise = noise.advance_slot().unwrap();
         assert_eq!(hi_hat_noise.slot_index, 13);
@@ -1345,8 +1344,7 @@ mod tests {
         assert_eq!(snare_noise.slot_index, 16);
         assert_eq!(snare_noise.voice, Ym2413RhythmVoice::SnareDrum);
 
-        let mut bank =
-            Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        let mut bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
         let channel7_modulator = bank.phase_index(6, false).unwrap();
         let channel8_carrier = bank.phase_index(7, true).unwrap();
 
@@ -1369,11 +1367,7 @@ mod tests {
             hi_hat,
             snare_drum,
             tom_tom: bank.phase_index(8, false).unwrap(),
-            top_cymbal: top_cymbal_phase_candidate(
-                channel7_modulator,
-                channel8_carrier,
-            )
-            .unwrap(),
+            top_cymbal: top_cymbal_phase_candidate(channel7_modulator, channel8_carrier).unwrap(),
         };
 
         let first_batch = bank.evaluate_rhythm_voices(&config, phases).unwrap();
@@ -1396,5 +1390,4 @@ mod tests {
         assert_eq!(restored_batch, continuous_batch);
         assert_eq!(restored.export_state(), bank.export_state());
     }
-
 }
