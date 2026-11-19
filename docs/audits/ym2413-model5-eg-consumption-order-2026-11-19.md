@@ -95,3 +95,17 @@ Esses testes caracterizam equivalência com o modelo Andete, não equivalência 
 A auditoria resolve a ambiguidade **do modelo Andete**: contador incrementado no início da amostra; valor compartilhado durante todos os operadores; modulator antes do carrier; PG antes de EG em cada operador; DAMP do carrier reseta os dois PGs depois de o PG do carrier ter sido calculado naquela chamada.
 
 Ela não resolve a fase absoluta do contador físico, o instante real de incremento, os offsets dos estágios nos quatro clocks de slot nem o ponto de consumo do reset PG no YM2413. FM-1/FM-3 permanecem parciais e FM-6 continua pendente.
+
+
+## 4.1 Anomalia na expressão de RATE da referência C++
+
+A leitura literal de `model5.cc` também encontrou:
+
+```cpp
+uint6 rate = max(63, 4 * basicRate + rks);
+```
+
+No mesmo arquivo, `uint6` é declarado como alias de `uint8_t`, e não como um tipo C++ com truncamento automático para seis bits. Com `std::max`, a expressão seleciona o maior valor entre 63 e a taxa calculada; ela não implementa saturação superior em 63. Isso é inconsistente com a descrição de RATE como campo de seis bits e com as faixas de taxa usadas nas próprias tabelas/medições do modelo.
+
+**Tratamento:** não copiar essa expressão para Rust nem inferir silenciosamente que o autor pretendia `min`. O Rust atual limita a taxa a 63 em `EnvelopeParameters::effective_rate()`; essa decisão deve continuar rastreável à especificação do campo de seis bits e às medições, não ser justificada pela expressão C++ literal. A anomalia precisa permanecer registrada como possível erro tipográfico/defeito do modelo de referência até confirmação pelo autor ou por fonte primária adicional.
+
