@@ -905,7 +905,7 @@ A nova matriz de teste exercita todos os oito valores de feedback com duas condi
 - wrap de fase em dez bits;
 - shift do histórico após a avaliação;
 - retenção da fase corrente para a próxima amostra;
-- sinal do output do modulator nos dois quadrantes exercitados.
+- históricos de entrada com soma positiva e negativa, sem interpretar o valor transportado em complemento de um como amplitude signed convencional.
 
 **Limite:** esta matriz valida a aritmética e a continuidade do modelo de software. Não prova o ponto físico de captura do feedback, a largura/representação elétrica do sinal interno nem a latência M→C em input clocks.
 
