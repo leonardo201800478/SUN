@@ -1613,17 +1613,16 @@ mod tests {
         let mut p = params();
         p.sustained_tone = true;
         p.decay_rate = 0;
-        p.sustain_level = 4;
+        p.sustain_level = 3;
         p.key_scale_rate = false;
         p.fnum = 0;
         p.block = 0;
 
         generator.tick(0, true, true, p).unwrap();
-        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+        assert_eq!(generator.level(), 33);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
 
-        // Recreate an active DECAY state whose level is already past SL=2.
-        generator.stage = EnvelopeStage::Decay;
-        p.sustain_level = 2;
+        p.sustain_level = 2; // SL=2 is already below the current attenuation level.
         generator.tick(1, true, true, p).unwrap();
         assert_eq!(generator.level(), 33);
         assert_eq!(generator.stage(), EnvelopeStage::Decay);
