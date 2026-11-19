@@ -165,9 +165,7 @@ impl Ym2413TimedBus {
     }
 
     /// Restore the nested core and bus state after cross-validating timestamps.
-    pub fn restore_state(
-        state: Ym2413TimedBusState,
-    ) -> Result<Self, Ym2413TimedBusError> {
+    pub fn restore_state(state: Ym2413TimedBusState) -> Result<Self, Ym2413TimedBusError> {
         if state.format_version != YM2413_TIMED_BUS_STATE_VERSION {
             return Err(Ym2413TimedBusError::StateFormatVersionMismatch {
                 expected: YM2413_TIMED_BUS_STATE_VERSION,
@@ -237,7 +235,10 @@ mod tests {
         let state = bus.core().export_state();
         assert_eq!(state.elapsed_input_clocks, 112);
         assert_eq!(state.registers[0x20], 0x5a);
-        assert_eq!(bus.timing().last_write(), Some((112, Ym2413BusWriteKind::Data)));
+        assert_eq!(
+            bus.timing().last_write(),
+            Some((112, Ym2413BusWriteKind::Data))
+        );
     }
 
     #[test]
@@ -314,7 +315,10 @@ mod tests {
         let restored = Ym2413TimedBus::restore_state(bus.export_state()).unwrap();
         assert_eq!(restored.export_state(), bus.export_state());
         assert_eq!(restored.core().elapsed_input_clocks(), 250);
-        assert_eq!(restored.timing().last_write(), Some((112, Ym2413BusWriteKind::Data)));
+        assert_eq!(
+            restored.timing().last_write(),
+            Some((112, Ym2413BusWriteKind::Data))
+        );
     }
 
     #[test]
