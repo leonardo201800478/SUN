@@ -513,6 +513,52 @@ mod tests {
     }
 
     #[test]
+    fn feedback_strength_matrix_preserves_signed_history_and_phase_continuity() {
+        let cases = [
+            ([128, 64], 0_u16, 512_u16, true),
+            ([-128, -64], 512_u16, 0_u16, false),
+        ];
+
+        for (initial_history, previous_phase, current_phase, positive_output) in cases {
+            for feedback in 0..=7 {
+                let mut pair =
+                    OperatorPair::with_initial_state(initial_history, Some(previous_phase))
+                        .unwrap();
+                let mut p = parameters();
+                p.feedback = feedback;
+
+                let history_sum =
+                    i32::from(initial_history[0]) + i32::from(initial_history[1]);
+                let expected_offset = if feedback == 0 {
+                    0
+                } else {
+                    history_sum >> (8 - feedback)
+                };
+                let expected_phase =
+                    (i32::from(previous_phase) + expected_offset).rem_euclid(1024) as u16;
+
+                let sample = pair.evaluate(current_phase, 0x155, p).unwrap();
+
+                assert_eq!(sample.feedback_phase_offset, expected_offset);
+                assert_eq!(sample.modulator_phase_used, expected_phase);
+                assert_eq!(
+                    pair.feedback_history(),
+                    [sample.modulator_output, initial_history[0]]
+                );
+                assert_eq!(
+                    pair.previous_modulator_phase_index(),
+                    Some(current_phase)
+                );
+                assert_eq!(
+                    sample.modulator_output > 0,
+                    positive_output,
+                    "feedback={feedback}, history={initial_history:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn feedback_uses_two_previous_modulator_outputs() {
         let mut pair = OperatorPair::with_feedback_history([128, 128]);
         let mut p = parameters();
