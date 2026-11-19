@@ -907,7 +907,9 @@ mod tests {
         let mut sustained_parameters = params();
         sustained_parameters.sustained_tone = true;
         sustained_parameters.release_rate = 15;
-        sustained.tick(0, false, false, sustained_parameters).unwrap();
+        sustained
+            .tick(0, false, false, sustained_parameters)
+            .unwrap();
         assert_eq!(sustained.level(), 20);
         assert_eq!(sustained.stage(), EnvelopeStage::Sustain);
 
