@@ -693,7 +693,7 @@ mod tests {
         let first = uninterrupted.evaluate_channel(&config).unwrap();
         let second = restored.evaluate_channel(&config).unwrap();
         assert_eq!(first, second);
-        assert_eq!(bank.export_state(), restored.export_state());
+        assert_eq!(uninterrupted.export_state(), restored.export_state());
     }
 
     #[test]
