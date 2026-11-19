@@ -49,7 +49,8 @@ pub use instrument::{
 pub use key_scale::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
 pub use output::{
     YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
-    Ym2413OutputPin, Ym2413OutputPulse, Ym2413OutputRoutingError, Ym2413OutputSource,
+    Ym2413OutputPin, Ym2413OutputPulse, Ym2413OutputRoutingError, Ym2413OutputSlotResult,
+    Ym2413OutputSource,
     melody_output_for_slot, rhythm_output_event, rhythm_slot_result,
 };
 pub use operator::{
