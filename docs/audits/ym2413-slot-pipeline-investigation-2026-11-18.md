@@ -288,3 +288,90 @@ A Issue #1031 continua bloqueando a conversão do intermediário one's-complemen
 ### Validação
 
 CI #44450484181: Rustfmt, Clippy, testes unitários/integração do workspace, Clippy/testes de observability e gate final de qualidade SUCCESS. Jobs de integração SMS, PSG, Scheduler, CPAL, VDP, Z80 e desktop foram SKIPPED, por não serem afetados.
+
+
+---
+
+## 10. Auditoria específica — contador global do EG (2026-11-19)
+
+### 10.1 Evidência positiva sobre a cadência
+
+A nota de Andete de 2015-03-20 descreve explicitamente **um contador global compartilhado pelos 18 operadores**, incrementado uma vez por amostra do YM2413. A duração de amostra usada na própria análise é:
+
+`72 / 3.579.545 s`
+
+Logo, a cadência média descrita é uma atualização por rotação de 72 input clocks, aproximadamente 49.715,9027778 Hz. Isso é consistente com a rotação serial de 18 slots × 4 input clocks por slot documentada no manual e na investigação P1.
+
+A mesma nota explica que o contador não é apenas um divisor: sua fase determina a posição das janelas de atualização. Por isso a primeira transição de um envelope pode ser mais curta que as seguintes, dependendo do valor corrente do contador quando a fase ADSR começa.
+
+Fonte: Andete, [YM2413 Reverse Engineering Notes 2015-03-20](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-20), seções “Envelope-Generator Decay-Rate timing” e “global counter”.
+
+### 10.2 Relação com o seletor de taxa implementado
+
+Para decay/release, a descrição publicada estabelece:
+
+- RATE 0..3: não avança o nível.
+- RATE 60..63: avança dois níveis por avaliação.
+- RATE 4..59: usa `eg_shift = 13 - (RATE / 4)` e `eg_select = RATE & 3`.
+- O avanço é elegível quando os bits inferiores descartados pelo shift são zero; os três bits seguintes selecionam a posição da tabela de oito passos.
+- RATE 52..59 apresentou sequências que divergiram da extrapolação simples, e a análise publicada descreve tratamento especial/observações adicionais para essa faixa.
+
+A implementação atual em `EnvelopeGenerator::advance_decay` corresponde estruturalmente a essa decomposição:
+- 4..51: máscara de bits baixos, coluna derivada de `counter >> shift` e `EG_STEP_TABLE`;
+- 52..59: `EG_FAST_DECAY_TABLE` indexada pelos quatro bits baixos;
+- 60..63: incremento 2.
+
+A função `advance_attack` também consome o mesmo contador externo, com regras próprias para ATTACK. As medições de 2015-03-27 relacionam os padrões de ataque ao mesmo contador global, mas registram menor confiança para a faixa de rates mais rápidos.
+
+**Conclusão:** o parâmetro `global_counter` recebido pelo EG representa uma fase global de amostras/rotações, e não um contador local do operador nem o número de clocks dentro do slot.
+
+### 10.3 Relação aritmética com a rotação de slots
+
+O core de clock mantém:
+- `elapsed_input_clocks`;
+- `input_clock_phase` (0..3);
+- `slot_index` (0..17);
+- `completed_rotations`.
+
+A implementação incrementa `completed_rotations` somente quando o avanço de input clocks cruza a fronteira de 18 slots. A identidade aritmética do snapshot é:
+
+`elapsed_input_clocks = completed_rotations * 72 + slot_index * 4 + input_clock_phase`
+
+Isso demonstra uma contagem determinística de rotações desde o reset lógico do objeto. Não demonstra que `completed_rotations` seja o registrador/contador global físico do EG, nem define se o EG observa o valor anterior ou posterior ao incremento na fronteira de rotação.
+
+### 10.4 O que está demonstrado e o que permanece aberto
+
+| Questão | Resultado | Limite |
+|---|---|---|
+| Cadência média do contador global | **MEDIDA/descrita:** uma vez por amostra de saída (~49,716 kHz) | Não identifica o subclock em que o incremento é visível aos slots |
+| Relação com os 72 clocks | **Derivada:** uma amostra corresponde a 72 input clocks | Não determina a ordem de commit no clock 0..3 do slot 18 |
+| Compartilhamento | **MEDIDO/interpretado:** um contador comum aos 18 operadores | Não prova largura física nem implementação em flip-flops |
+| Gate de DECAY/RELEASE | **MEDIDO/modelado:** bits do contador global alimentam shift/seletor | As transições de fase podem observar valor antes/depois do incremento |
+| Gate de ATTACK | **MEDIDO/modelado:** mesma base global, seleção específica de ataque | A faixa de rates rápidos possui ressalvas nas medições publicadas |
+| Origem/fase após reset | **PENDENTE** | Não há evidência suficiente para escolher zero ou outro offset |
+| Largura/wrap do contador | **PENDENTE** | Não inferir largura a partir de `u32`, da fase PM ou do contador de slots |
+| Relação com PM/AM | **Parcial** | As notas associam outras funções ao contador, mas os offsets exatos e reset comum não estão fechados |
+| Relação com os 18 slots | **Parcial** | A unidade de incremento é a rotação; a fase de observação por operador não está medida |
+
+### 10.5 Decisão arquitetural
+
+1. Não usar `completed_rotations` diretamente como substituto do contador físico EG.
+2. Não incrementar o contador global 18 vezes por rotação nem uma vez por input clock.
+3. Não escolher fase inicial zero como comportamento de hardware.
+4. Não acoplar a contagem global ao EG isolado. O EG deve continuar recebendo o contador por parâmetro até existir um owner temporal do chip.
+5. Na futura integração, manter um estado de contador global explícito e versionado, com origem/fase configuráveis como hipótese documentada; o avanço nominal deverá ocorrer uma vez por rotação completa, após estabelecer o ponto de observação dos operadores.
+6. O estado global, a posição parcial de slot e os estados PG/EG/LFO deverão integrar o mesmo snapshot atômico do chip.
+
+### 10.6 Próximo experimento que realmente reduz a incerteza
+
+Para separar fase inicial, ordem de incremento e fase de serviço:
+- manter um carrier isolado em DECAY com RATE conhecido (preferencialmente RATE=14, cuja sequência publicada é 2048, 1024, 1024 amostras);
+- disparar KEY-ON/KEY-OFF em offsets controlados das 72 posições de input clock;
+- repetir a mesma sequência após cold reset e warm reset;
+- comparar a primeira transição e as subsequentes;
+- repetir com um segundo operador em slot diferente para verificar se ambos consultam a mesma fase global;
+- registrar o contador de input clocks e a amostra de saída, sem derivar o resultado de timestamps do host.
+
+Sem captura física nova, a implementação não pode resolver a fase absoluta nem o subclock de observação. A evidência atual é suficiente para fixar a **cadência média por rotação** e rejeitar incrementos por slot/input clock, mas não para declarar o contador físico fechado.
+
+**Resultado desta auditoria:** cadência global do EG caracterizada em unidades de amostra/rotação; origem, largura, wrap, ordem de incremento/consumo e alinhamento absoluto continuam pendentes. Nenhum código de produção foi alterado.
