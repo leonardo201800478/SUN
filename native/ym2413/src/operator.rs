@@ -769,10 +769,7 @@ mod tests {
 
         // FNUM=0x40, BLOCK=0, MUL=0 produces a 32-unit increment in
         // the 19-bit 10.9 accumulator: one 10-bit table step per 16 samples.
-        assert_eq!(
-            PhaseGenerator::phase_step(0x40, 0, 0, false, 0),
-            Ok(32)
-        );
+        assert_eq!(PhaseGenerator::phase_step(0x40, 0, 0, false, 0), Ok(32));
 
         for sample_index in 0..16_384_u32 {
             let current_modulator_phase = modulator_pg.phase_index();
@@ -788,23 +785,17 @@ mod tests {
             };
 
             let sample = pair
-                .evaluate(
-                    current_modulator_phase,
-                    current_carrier_phase,
-                    parameters,
-                )
+                .evaluate(current_modulator_phase, current_carrier_phase, parameters)
                 .unwrap();
 
             assert_eq!(
-                sample.modulator_phase_used,
-                expected_modulator_phase,
+                sample.modulator_phase_used, expected_modulator_phase,
                 "modulator phase mismatch at output sample {sample_index}"
             );
             assert_eq!(
                 sample.carrier_phase_used,
                 wrap_phase_for_test(
-                    i32::from(current_carrier_phase)
-                        + 2 * i32::from(sample.modulator_output)
+                    i32::from(current_carrier_phase) + 2 * i32::from(sample.modulator_output)
                 ),
                 "carrier phase mismatch at output sample {sample_index}"
             );
