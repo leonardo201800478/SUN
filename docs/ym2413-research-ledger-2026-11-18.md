@@ -249,3 +249,18 @@ A divergência está registrada na Issue #1051. Não alterar a implementação a
 PR #1050 foi integrada após CI #44512860362 (run #8835) SUCCESS nos gates aplicáveis: Rustfmt, Clippy workspace, testes unitários/integração e Clippy/testes observability. Os gates de subsistemas não afetados foram SKIPPED.
 
 **Limite geral:** nenhum desses marcos define a cadência física do contador EG, o alinhamento absoluto pós-reset ou a posição do tick dentro dos 18 slots. O EG continua isolado do pipeline temporal e do PCM final.
+
+
+---
+
+## 8. KEY-OFF — regressões por fase e distinção carrier/modulator (2026-11-19)
+
+A PR #1053 adicionou cobertura de regressão para o comportamento KEY-OFF descrito nas medições Andete de 2015-12-31:
+
+- Carrier: KEY-ON→OFF usa o caminho de release de segunda/única fase quando parte de DAMP, ATTACK, DECAY ou SUSTAIN.
+- Modulator EG-TYPE=1: o envelope permanece no nível de sustain após KEY-OFF.
+- Modulator EG-TYPE=0: o envelope continua na primeira taxa RR, sem usar o segundo release do carrier.
+
+A cobertura confirma a implementação candidata nas combinações testadas; não resolve a divergência de seleção de taxa do carrier para EG-TYPE=1 e SUS=ON/OFF. Essa questão permanece aberta na Issue #1051 e não deve ser ocultada por estes testes.
+
+**CI:** #44513838591 (run #8840) SUCCESS para Rustfmt, Clippy workspace, testes unitários/integração e Clippy/testes observability. Os gates não relacionados foram SKIPPED.

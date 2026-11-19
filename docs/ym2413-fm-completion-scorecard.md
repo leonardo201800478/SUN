@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main em 2026-11-19:** `546274f2bd9af0474179dfa2da2669b77567e53e`
+**Main em 2026-11-19:** `b343931941bb4e8b37e7253193672c20b2846284`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -47,7 +47,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Máquina de 18 slots | Implementada | Rotação de 72 clocks; pipeline funcional FM ainda pendente |
 | PG-1 | Implementado | Testes unitários existentes; vetores independentes de andete não equivalem a medição própria |
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
-| EG por operador | Implementado como candidato | 32 testes unitários; não conectado aos slots |
+| EG por operador | Implementado como candidato | 34 testes unitários; não conectado aos slots |
 | Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
 | Modulator / carrier | Par de operadores candidato implementado | Recebe PG/EG/KSL/AM externamente; ainda sem instrument ROM e sem slot scheduling |
 | Feedback FM | Histórico p0/p1 e cálculo de fase implementados | Pendente validação independente de PCM e integração ao canal real |
@@ -708,3 +708,24 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 - `EnterAttack` com AR=15 continua sendo apenas um candidato explícito; a sequência do ataque em RATE=60..63 não foi modelada como um caminho físico separado.
 
 **Estado:** EG permanece IMPLEMENTED como componente candidato, não INTEGRATED no sequenciador físico. FM-1 continua PARCIAL; não declarar ciclo-accurate.
+
+
+---
+
+## Atualização FM-1 — matriz de KEY-OFF carrier/modulator (2026-11-19)
+
+**PR #1053** — [test(ym2413): cover carrier and modulator KEY-OFF paths](https://github.com/leonardo201800478/sega-emulator/pull/1053)
+
+- Merge commit: `b343931941bb4e8b37e7253193672c20b2846284`.
+- HEAD validado: `27bc6dcf7102f885d8c566b1ac7f34edbb5ffe6b`.
+- CI #44513838591 (run #8840): SUCCESS.
+- Rustfmt, Clippy workspace, unit/integration tests, Clippy observability e testes observability: SUCCESS.
+- Gates não relacionados (SMS/VDP, PSG, Scheduler, CPAL, SDL3, Z80 e desktop): SKIPPED.
+
+### Cobertura adicionada
+
+- Carrier KEY-OFF partindo de DAMP, ATTACK, DECAY e SUSTAIN, verificando que o caminho de release do carrier prevalece sobre a fase anterior.
+- Modulator EG-TYPE=1: mantém o nível de sustain após KEY-OFF.
+- Modulator EG-TYPE=0: continua usando a taxa de release de primeira fase RR, sem entrar no caminho de segundo release do carrier.
+
+**Limite:** testes reproduzem o comportamento candidato documentado nas medições de Andete; não resolvem a divergência carrier SUS × EG-TYPE registrada na Issue #1051. O total de testes unitários do módulo EG passa a 34. FM-1 continua PARCIAL.
