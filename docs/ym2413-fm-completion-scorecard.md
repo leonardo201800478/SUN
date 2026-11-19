@@ -742,3 +742,4 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 - O rate-base selecionado continua passando por KSR; R=0 permanece sem incremento.
 - Testes adicionados para a matriz EG-TYPE × SUS, RATE efetivo com KSR on/off e regressão de EG-TYPE=1/SUS=1 com RR=0.
 - **Estado:** correção candidata implementada em branch; aguardando CI. Não implica integração do EG aos 18 slots, Scheduler, PCM ou conclusão FM-1.
+- Com os três testes novos desta alteração, o módulo EG passa de 34 para **37 testes unitários**.
