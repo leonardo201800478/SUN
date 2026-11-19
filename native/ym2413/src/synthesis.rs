@@ -1046,13 +1046,7 @@ mod tests {
         let phase_before = bank.phase_index(1, true).unwrap();
 
         let result = bank
-            .tick_operator_envelope_with_events(
-                1,
-                true,
-                true,
-                0,
-                config.carrier_envelope,
-            )
+            .tick_operator_envelope_with_events(1, true, true, 0, config.carrier_envelope)
             .unwrap();
 
         assert!(result.phase_reset_required);
@@ -1061,5 +1055,4 @@ mod tests {
         bank.reset_operator_phase(1, true).unwrap();
         assert_eq!(bank.phase_index(1, true).unwrap(), 0);
     }
-
 }
