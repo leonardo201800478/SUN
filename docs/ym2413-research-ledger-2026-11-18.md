@@ -162,3 +162,35 @@ O scorecard YM2413 deve continuar sendo a fonte de estado das etapas FM-0 a FM-6
 6. Só então planejar a integração do pipeline de 18 slots e PCM, preservando a autoridade temporal do MachineScheduler.
 
 **Critério de não regressão:** nenhum trabalho deste documento autoriza alteração do Scheduler, temporização SMS já validada, PSG, barramentos ou dependências externas. Componentes candidatos permanecem isolados até existirem vetores independentes e cobertura de estado/snapshot suficientes.
+
+
+---
+
+## 6. Saída MO/RO — roteamento lógico por slot (2026-11-19)
+
+A PR #1042 adicionou `native/ym2413/src/output.rs`, com um contrato puro de encaminhamento de eventos para os pinos de saída.
+
+### MO — melodia
+
+- Em modo melódico, os nove slots carrier (índices zero-based 3, 4, 5, 9, 10, 11, 15, 16 e 17) são associados aos canais 1–9 e encaminhados a MO.
+- Em Rhythm Mode, apenas os carriers dos canais 1–6 (slots 3, 4, 5, 9, 10 e 11) permanecem no caminho melódico. Os canais 7–9 são reservados ao modo de percussão.
+
+### RO — ritmo
+
+- Eventos originais e repetições atrasadas são validados contra `YM2413_RHYTHM_OUTPUT_MAP` e encaminhados a RO.
+- O estado `RepeatNotInitialized` é preservado como condição distinta de `NoRhythmOutput`; nenhum dos casos é convertido em nível zero.
+
+### Janela de saída
+
+A API registra três input clocks ativos e um clock neutro dentro de cada slot de quatro clocks. A evidência disponível não identifica a fase exata do pulso dentro do slot; por isso o tipo `Ym2413OutputPulse` expõe somente largura, slot, pino, origem lógica e nível medido.
+
+### Evidência e limites
+
+- Manual Yamaha: MO é saída melódica e RO é saída rítmica; a tabela de slots fornece a alocação serial.
+- Medições comunitárias publicadas: multiplexação em uma rotação de 72 clocks e permanência do valor de cada canal por três clocks antes do retorno ao nível neutro.
+- O valor fornecido pela API é `Ym2413DacCode`, domínio de amplitude assinada reconstruído a partir das medições. Não é uma palavra bruta de DAC.
+- Não foi implementada conversão operador→DAC, posição sub-clock, nível neutro elétrico, circuito source-follower, filtro de placa ou reamostragem.
+- Não há ligação a PG/EG, ao banco de síntese, ao MachineScheduler ou ao runtime SMS.
+
+**CI:** workflow #44450484181, gate Rust final SUCCESS; format, Clippy, testes de workspace e testes/Clippy de observability SUCCESS. Gates de subsistemas não afetados foram SKIPPED.
+
