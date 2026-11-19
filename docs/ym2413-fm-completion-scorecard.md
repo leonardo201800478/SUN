@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1068 em 2026-11-19:** `bd7f3fa115b592117334e66f326532eb9d01c0e0`
+**Main base após PR #1071 em 2026-11-19:** `fb83533bf27aceb802985583da6c55a92e2a94b9`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -1030,3 +1030,46 @@ O banco agregado já possui avaliação das cinco vozes rítmicas, com Bass Drum
 A próxima implementação não deve inventar a semântica de KEY-ON/trigger, a curva de volume, seed/cadência do ruído ou a conversão para código DAC. Primeiro, consolidar por testes os contratos já demonstráveis entre configuração de Rhythm Mode, estado PG/EG por slot, avaliação das cinco vozes e retenção/roteamento de saídas. Separar explicitamente qualquer resultado sample-domain da validação física.
 
 **Bloqueios físicos mantidos:** captura sincronizada XIN/MO/RO para subfases e pipeline; curva/transferência DAC e correspondência de código físico (issue #1031); seed/cadência LFSR e interação trigger/KEY-ON quando não sustentadas por vetor primário.
+
+---
+
+## Atualização FM-7 — continuidade de snapshot do banco de síntese em Rhythm Mode (PR #1071, 2026-11-19)
+
+- PR #1071: [test(ym2413): verify rhythm synthesis snapshot continuation](https://github.com/leonardo201800478/sega-emulator/pull/1071).
+- Merge squash na main: `fb83533bf27aceb802985583da6c55a92e2a94b9`.
+- HEAD validado antes do merge: `541711ad11bf282f322bc59e9f4a581f5a7b3dca`.
+- CI run #44635637093: classificação de impacto, Rust workspace regression (Rustfmt, Clippy, testes unitários/integração e observability) e Rust quality/unit regression SUCCESS.
+- Gates de Windows/Slint/WGPU, SDL3, Z80, VDP, Scheduler, PSG, CPAL e desktop foram SKIPPED pela classificação de impacto; não representam validação desses subsistemas.
+- Revisão Codex não concluída por limite de uso; não foi contabilizada como aprovação.
+
+### Cobertura integrada
+
+O teste `rhythm_batch_snapshot_restore_preserves_all_voice_outputs_and_bd_feedback`:
+- avalia o lote das cinco vozes com fases explícitas;
+- exporta o snapshot agregado e restaura outra instância;
+- continua ambas as instâncias com novas fases;
+- compara as cinco saídas, o estado agregado completo e o histórico de feedback do Bass Drum (canal zero-based 6).
+
+Nenhuma lógica de produção, cadência, PG/EG, LFSR, slot, Scheduler, DAC, PCM ou barramento foi alterada.
+
+### Estado atual da fronteira Rhythm → saída
+
+No HEAD desta atualização, os componentes digitais isolados existentes incluem:
+- decodificação dos cinco triggers/volumes e dos campos FNUM/BLOCK/KEY-ON/SUS dos canais 7–9;
+- configuração estática das cinco vozes e atribuição aos slots físicos;
+- candidatos combinacionais de fase para HH, SD e Top Cymbal, com entradas PG explícitas;
+- LFSR slot-rate e sequenciador explícito, com amostras de ruído para HH no slot 13 e SD no slot 16;
+- avaliação das cinco vozes no banco agregado PG/EG, com BD usando o par FM e as quatro vozes restantes usando avaliação carrier de operador único;
+- retenção/repetição digital dos valores de saída nos slots mapeados e roteamento lógico MO/RO, com largura ativa de três clocks por slot.
+
+Esses itens são contratos de software e candidatos baseados em evidências publicadas. O avaliador de vozes ainda recebe fases e limites de serviço externamente; não existe dispatcher temporal integrado que avance PG, EG, LFO, LFSR e operadores na ordem física dos 18 slots. O caminho de saída também não converte o intermediário do operador em palavra bruta de DAC de nove bits.
+
+### Próximos gates, sem inferência de comportamento físico
+
+1. Consolidar por testes as interfaces já existentes entre sequenciador LFSR, candidatos de fase, PG/EG compartilhados, avaliação das cinco vozes, retenção e roteamento MO/RO; evitar duplicar cobertura existente.
+2. Preservar a regra normativa do manual Yamaha: em Rhythm Mode, os KEY-ON de $26–$28 devem permanecer em zero; $0E.D4..D0 são os controles ON/OFF das cinco percussões. O decoder deve continuar expondo os bits crus, mas a futura camada de configuração pode sinalizar combinações não conformes. Não modelar comportamento do silício para KEY-ON=1 sem captura específica. Referências: Yamaha YM2413 Application Manual, §III-1-7 (https://www.smspower.org/maxim/Documents/YM2413ApplicationManual) e SMS Power — YM2413 (https://www.smspower.org/Development/YM2413).
+3. Manter bloqueada a conversão operador→DAC: Issue #1031 não possui curva/transferência física conclusiva nem identificação da palavra interna aplicada ao DAC.
+4. Manter bloqueado o sequenciador cycle-accurate até capturas reproduzíveis e sincronizadas de XIN, MO e RO com resolução por input clock, reset reproduzível e escritas timestampadas.
+5. Não promover a cadência do LFSR, fase inicial PG, subfases dos quatro clocks por slot ou alinhamento do EG a contrato físico além do que os vetores primários sustentam.
+
+**Status geral permanece: EM DESENVOLVIMENTO.** A PR #1071 fecha somente a regressão de continuidade de snapshot/restore do banco digital em Rhythm Mode. Não conclui FM-7, não fecha FM-8 temporal, não integra PCM ao SMS e não valida o YM2413 fisicamente.
