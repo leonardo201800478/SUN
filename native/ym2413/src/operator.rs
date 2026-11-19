@@ -834,11 +834,8 @@ mod tests {
                 for feedback in 0..=7 {
                     let mut modulator_pg = PhaseGenerator::new();
                     let mut carrier_pg = PhaseGenerator::new();
-                    let mut pair = OperatorPair::with_initial_state(
-                        initial_history,
-                        Some(0x03f0),
-                    )
-                    .unwrap();
+                    let mut pair =
+                        OperatorPair::with_initial_state(initial_history, Some(0x03f0)).unwrap();
                     let mut expected_history = initial_history;
                     let mut expected_previous_phase = Some(0x03f0);
                     let mut sample_parameters = parameters();
@@ -847,15 +844,15 @@ mod tests {
                     for sample_index in 0..512_u32 {
                         let current_modulator_phase = modulator_pg.phase_index();
                         let current_carrier_phase = carrier_pg.phase_index();
-                        let history_sum = i32::from(expected_history[0])
-                            + i32::from(expected_history[1]);
+                        let history_sum =
+                            i32::from(expected_history[0]) + i32::from(expected_history[1]);
                         let expected_feedback_offset = if feedback == 0 {
                             0
                         } else {
                             history_sum >> (8 - feedback)
                         };
-                        let phase_before_feedback = expected_previous_phase
-                            .unwrap_or(current_modulator_phase);
+                        let phase_before_feedback =
+                            expected_previous_phase.unwrap_or(current_modulator_phase);
                         let expected_modulator_phase = wrap_phase_for_test(
                             i32::from(phase_before_feedback) + expected_feedback_offset,
                         );
@@ -869,13 +866,11 @@ mod tests {
                             .unwrap();
 
                         assert_eq!(
-                            sample.feedback_phase_offset,
-                            expected_feedback_offset,
+                            sample.feedback_phase_offset, expected_feedback_offset,
                             "feedback offset mismatch: FNUM={fnum:#05x}, BLOCK={block}, MUL={modulator_mul}, FB={feedback}, sample={sample_index}"
                         );
                         assert_eq!(
-                            sample.modulator_phase_used,
-                            expected_modulator_phase,
+                            sample.modulator_phase_used, expected_modulator_phase,
                             "modulator phase mismatch: FNUM={fnum:#05x}, BLOCK={block}, MUL={modulator_mul}, FB={feedback}, sample={sample_index}"
                         );
                         assert_eq!(
