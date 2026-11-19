@@ -21,7 +21,7 @@ Referências:
 
 EnvelopeGenerator::complete_damp() alterava apenas o estágio do EG. O banco agregado mantinha os PGs separados e não recebia um evento explícito para representar o reset de fase descrito no modelo de referência. Assim, mesmo com a política CarrierDrivesBoth, a camada chamadora não tinha um sinal tipado e inequívoco para aplicar o reset dos PGs na fronteira correspondente.
 
-## Alteração proposta nesta PR
+## Alteração integrada e extensão de consumo atômico
 
 - EnvelopeTickResult expõe level e phase_reset_required.
 - EnvelopeGenerator::tick_with_events() informa o evento exatamente na atualização que conclui DAMP, inclusive quando AR=15 seleciona o atalho para DECAY.
@@ -35,7 +35,7 @@ EnvelopeGenerator::complete_damp() alterava apenas o estágio do EG. O banco agr
 Esta alteração não:
 - cria um scheduler ou contador global;
 - escolhe o clock/subfase em que o evento deve ser consumido;
-- aplica automaticamente o reset de PG;
+- escolhe automaticamente a fronteira temporal ou aplica o evento sem solicitação do chamador;
 - altera o comportamento de reset do chip;
 - afirma que CarrierDrivesBoth seja uma política física definitivamente comprovada;
 - integra PCM, DAC, MO/RO ou runtime SMS.
@@ -46,6 +46,8 @@ Esta alteração não:
 - evento emitido quando AR=15 pula ATTACK e entra em DECAY;
 - ausência de evento enquanto o nível permanece abaixo do limiar;
 - banco agregado propaga o evento sem reset implícito do PG;
-- reset explícito do PG altera a fase para zero.
+- consumo sob `CarrierDrivesBoth` sincroniza o modulator e reseta os dois PGs;
+- consumo sob `IndependentPerOperator` reseta somente o PG carrier;
+- evento falso não altera o estado agregado.
 
-A aprovação final depende dos gates CI aplicáveis no HEAD desta PR. A existência do evento não fecha a integração temporal FM-6 nem certifica o pipeline YM2413.
+A extensão de consumo atômico está em PR separada e depende dos gates CI aplicáveis no respectivo HEAD. A existência do evento não fecha a integração temporal FM-6 nem certifica o pipeline YM2413.
