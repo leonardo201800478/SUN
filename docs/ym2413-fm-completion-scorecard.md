@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main após FM-3 parcial:** `daf950d0e0bf3242dfb213d5e9e50a24db19a70e`
+**Main em 2026-11-19:** `546274f2bd9af0474179dfa2da2669b77567e53e`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -47,7 +47,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Máquina de 18 slots | Implementada | Rotação de 72 clocks; pipeline funcional FM ainda pendente |
 | PG-1 | Implementado | Testes unitários existentes; vetores independentes de andete não equivalem a medição própria |
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
-| EG por operador | Implementado como candidato | 17 testes unitários; não conectado aos slots |
+| EG por operador | Implementado como candidato | 32 testes unitários; não conectado aos slots |
 | Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
 | Modulator / carrier | Par de operadores candidato implementado | Recebe PG/EG/KSL/AM externamente; ainda sem instrument ROM e sem slot scheduling |
 | Feedback FM | Histórico p0/p1 e cálculo de fase implementados | Pendente validação independente de PCM e integração ao canal real |
@@ -673,4 +673,38 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 - Política CarrierDrivesBoth: continua explícita; o chamador consome o evento no limite escolhido. O helper sincroniza o estágio do modulator e reseta os dois PGs. Em IndependentPerOperator, somente o PG do operador indicado é resetado.
 - Evidência e limites: docs/audits/ym2413-eg-phase-reset-events-2026-11-19.md.
 
-**Estado:** evento tipado integrado pela PR #1045; consumo atômico em PR subsequente, aguardando CI. FM-1 continua PARCIAL; não há integração temporal/por slots concluída.
+**Estado:** evento tipado integrado pela PR #1045; consumo atômico integrado pela PR #1047; latch KEY-ON coerente na sincronização carrier-driven pela PR #1049; fronteira DAMP/ATTACK e atalho AR=15 alinhados ao modelo de referência pela PR #1050. FM-1 continua PARCIAL; não há integração temporal/por slots concluída.
+
+
+---
+
+## Atualização FM-1 — auditoria de transições EG e consumo de DAMP (2026-11-19)
+
+**Main após integração:** `546274f2bd9af0474179dfa2da2669b77567e53e`.
+
+### Entregas integradas
+
+- **PR #1045** — expõe o evento tipado de conclusão DAMP/solicitação de reset PG. O EG não reseta PG nem avança clocks automaticamente.
+- **PR #1046** — caracteriza por teste o valor intermediário candidato `-256` na fronteira do operador; não define a palavra bruta do DAC. Issue #1031 permanece aberta.
+- **PR #1047** — adiciona consumo atômico do evento carrier: sob `CarrierDrivesBoth`, sincroniza o estágio do modulator e reseta os dois PGs; sob `IndependentPerOperator`, reseta somente o PG correspondente. O limite temporal continua sob responsabilidade do chamador.
+- **PR #1049** — sincroniza também o latch KEY-ON do modulator ao aplicar a transição carrier-driven, evitando que o próximo tick interprete o mesmo KEY-ON como nova borda e reinicie DAMP.
+- **PR #1050** — remove o retorno antecipado após DAMP já estar completo na entrada da atualização. O estágio recém-selecionado pode consumir o mesmo contador global, conforme `Operator::calcEnv` do modelo Andete `results/20170126/model5.cc`. O atalho AR=15 muda o estágio para DECAY sem zerar a atenuação DAMP.
+
+### Validação PR #1050
+
+- HEAD validado: `91f6fe66f893071cddad8c0a96fcee665aca6a58`.
+- Merge commit: `546274f2bd9af0474179dfa2da2669b77567e53e`.
+- Workflow #44512860362 (run #8835): SUCCESS.
+- Rustfmt, Clippy workspace, testes unitários/integração, Clippy observability e testes observability: SUCCESS.
+- Jobs de SMS/VDP, PSG, Scheduler, CPAL, SDL3, Z80, desktop e tooling não relacionados: SKIPPED; não representam validação desses subsistemas.
+
+### Ressalvas e trabalho aberto
+
+- O limiar DAMP=124 continua candidato, não constante física.
+- A coordenação carrier/modulator continua selecionável; não há confirmação física definitiva da política.
+- A cadência do contador global EG e sua fase absoluta permanecem fora do componente.
+- O alinhamento do evento de reset PG com slots/subfases não foi estabelecido.
+- O comportamento de KEY-OFF e a interação SUS × EG-TYPE precisam de matriz comparativa. A divergência entre a descrição experimental Andete 2015-12-31, o manual Yamaha e o modelo de software 2017 foi registrada na Issue #1051.
+- `EnterAttack` com AR=15 continua sendo apenas um candidato explícito; a sequência do ataque em RATE=60..63 não foi modelada como um caminho físico separado.
+
+**Estado:** EG permanece IMPLEMENTED como componente candidato, não INTEGRATED no sequenciador físico. FM-1 continua PARCIAL; não declarar ciclo-accurate.
