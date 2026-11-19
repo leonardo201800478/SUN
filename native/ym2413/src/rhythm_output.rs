@@ -229,7 +229,7 @@ mod tests {
     }
 
     #[test]
-    fn dac_code_accepts_measured_endpoints_and_rejects_unused_or_out_of_range_values() {
+    fn signed_output_level_accepts_measured_amplitude_endpoints_and_rejects_out_of_range_values() {
         assert_eq!(code(YM2413_DAC_CODE_MIN).value(), -255);
         assert_eq!(code(YM2413_DAC_CODE_MAX).value(), 255);
         assert_eq!(
