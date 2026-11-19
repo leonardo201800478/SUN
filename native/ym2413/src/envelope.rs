@@ -1630,5 +1630,4 @@ mod tests {
         assert_eq!(generator.level(), 33);
         assert_eq!(generator.stage(), EnvelopeStage::Decay);
     }
-
 }
