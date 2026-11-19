@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn restore_rejects_unknown_snapshot_version() {
-        let mut bus = Ym2413TimedBus::new();
+        let bus = Ym2413TimedBus::new();
         let mut state = bus.export_state();
         state.format_version = YM2413_TIMED_BUS_STATE_VERSION + 1;
 
