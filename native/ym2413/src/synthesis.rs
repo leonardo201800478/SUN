@@ -1134,6 +1134,45 @@ mod tests {
     }
 
     #[test]
+    fn rhythm_batch_snapshot_restore_preserves_all_voice_outputs_and_bd_feedback() {
+        let config = rhythm_configuration();
+        let first_phases = super::Ym2413RhythmVoicePhases {
+            hi_hat: 0x134,
+            snare_drum: 0x200,
+            tom_tom: 0x2a1,
+            top_cymbal: 0x300,
+        };
+        let next_phases = super::Ym2413RhythmVoicePhases {
+            hi_hat: 0x13f,
+            snare_drum: 0x2ff,
+            tom_tom: 0x3a1,
+            top_cymbal: 0x3fe,
+        };
+
+        let mut continuous =
+            Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        let _ = continuous
+            .evaluate_rhythm_voices(&config, first_phases)
+            .unwrap();
+        let snapshot = continuous.export_state();
+        let mut restored = Ym2413SynthesisBank::restore_state(snapshot).unwrap();
+
+        let continuous_samples = continuous
+            .evaluate_rhythm_voices(&config, next_phases)
+            .unwrap();
+        let restored_samples = restored
+            .evaluate_rhythm_voices(&config, next_phases)
+            .unwrap();
+
+        assert_eq!(restored_samples, continuous_samples);
+        assert_eq!(restored.export_state(), continuous.export_state());
+        assert_eq!(
+            restored.feedback_history(6).unwrap(),
+            continuous.feedback_history(6).unwrap()
+        );
+    }
+
+    #[test]
     fn rhythm_batch_rejects_invalid_single_voice_phase_before_mutating_bd_feedback() {
         let config = rhythm_configuration();
         let phases = super::Ym2413RhythmVoicePhases {
