@@ -514,10 +514,7 @@ mod tests {
 
     #[test]
     fn feedback_strength_matrix_preserves_signed_history_and_phase_continuity() {
-        let cases = [
-            ([128, 64], 0_u16, 512_u16),
-            ([-128, -64], 512_u16, 0_u16),
-        ];
+        let cases = [([128, 64], 0_u16, 512_u16), ([-128, -64], 512_u16, 0_u16)];
 
         for (initial_history, previous_phase, current_phase) in cases {
             for feedback in 0..=7 {
