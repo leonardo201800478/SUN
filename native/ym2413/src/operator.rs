@@ -721,11 +721,9 @@ mod tests {
         assert_eq!(pair, before);
     }
 
-
     #[test]
     fn snapshot_restore_preserves_feedback_and_one_sample_phase_continuity() {
-        let mut uninterrupted =
-            OperatorPair::with_initial_state([321, -123], Some(0x155)).unwrap();
+        let mut uninterrupted = OperatorPair::with_initial_state([321, -123], Some(0x155)).unwrap();
         let mut initial_parameters = parameters();
         initial_parameters.feedback = 7;
 
