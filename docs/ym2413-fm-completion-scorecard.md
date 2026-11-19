@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1064 em 2026-11-19:** `4bc964361da310e5550c0b4d4b747669266f1d65`
+**Main base após PR #1065 em 2026-11-19:** `b36ec8519d7935fe42440207b10222799bb05ae0`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -946,3 +946,30 @@ A caracterização adicionada nesta PR verifica, sem criar um sequenciador FM:
 ### Próximo gate
 
 A implementação do pipeline interno continua BLOCKED até vetores físicos reproduzíveis de XIN, MO e RO com resolução por input clock, reset e escritas temporizadas. Em paralelo, a pesquisa pode aprofundar a latência M→C e os requisitos de captura, mas não converter a ordem de chamadas de modelos de software em contrato elétrico.
+
+
+---
+
+## Atualização FM-2/FM-3 — PR #1065 integrada e CI confirmado (2026-11-19)
+
+- PR #1065: `test(ym2413): characterize slot rotation boundaries`.
+- Commit validado no HEAD antes do merge: `de2d85c321ad17f537cb33527cf76401b87c9bf4`.
+- Merge commit squash: `b36ec8519d7935fe42440207b10222799bb05ae0`.
+- Workflow #8895 / run `44596283966`: SUCCESS.
+- Change impact classification: SUCCESS.
+- Documentation patch hygiene: SUCCESS.
+- Rust workspace regression: SUCCESS, incluindo Rustfmt, Clippy workspace, testes unitários/integração, Clippy observability e testes observability.
+- Rust quality and unit regression: SUCCESS.
+- Gates Windows, SDL3, Z80, VDP, PSG, Scheduler determinism, CPAL e desktop: SKIPPED por classificação de impacto; não tratados como aprovados.
+- A correção de `clippy::needless_range_loop` usa `YM2413_SLOT_MAP.iter().copied().enumerate()`, sem allow.
+- A PR caracteriza a estabilidade lógica do descritor durante quatro clocks, rotação de 18 slots/72 clocks e snapshot/restore nos 72 offsets.
+
+**Limite:** a rotação continua sendo um contrato aritmético do core. Nenhum subclock físico PG/EG/SIN/EXP/feedback/DAC foi identificado ou implementado. Nenhuma lógica de produção FM foi alterada.
+
+## Próxima caracterização — latência Modulator → Carrier (em andamento)
+
+**Branch:** `test/ym2413-modulator-carrier-sample-latency-ci`
+
+A investigação documental foi concluída e o teste diferencial do modelo foi adicionado à PR #1067. Os workflows #8902 e #8903 concluíram com sucesso todos os gates aplicáveis: classificação de impacto, higiene documental, toolchain/Cargo, Rustfmt, Clippy, testes workspace, testes observability e quality/unit regression. Gates de Windows, SDL3, Z80, VDP, Scheduler e demais subsistemas foram SKIPPED pela classificação de impacto, não aprovados. A revisão Codex não foi concluída por limite de uso; não é tratada como aprovação. O objetivo do teste é demonstrar que o estado atual do par de operadores reproduz a relação de fase por amostra descrita no modelo publicado para FNUM=0x40, BLOCK=0, MUL=0, sem converter o atraso em input clocks.
+
+**Não confundir:** a correspondência do modelo de saída não identifica o latch interno, o slot de captura/consumo ou a latência elétrica M→C. A integração cycle-accurate continua BLOCKED por captura física sincronizada de XIN/MO/RO.

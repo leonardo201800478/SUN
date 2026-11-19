@@ -324,9 +324,12 @@ impl OperatorPair {
             (i32::from(self.feedback_history[0]) + i32::from(self.feedback_history[1]))
                 >> (8 - parameters.feedback)
         };
-        // Andete's measured model uses the modulator phase from the previous
-        // output-sample update. A fixed -1 table-index offset is not equivalent:
-        // at FNUM=0x40/BLOCK=0/MUL=0, one table step spans 16 output samples.
+        // Andete's published output-fit model uses the modulator phase index
+        // from the previous output-sample update. This reproduces its
+        // (i - 1) / 16 lookup in the documented low-frequency vector; it is
+        // not a direct measurement of an internal latch or a physical clock
+        // offset. A fixed -1 table-index offset is not equivalent: at
+        // FNUM=0x40/BLOCK=0/MUL=0, one table step spans 16 output samples.
         let delayed_modulator_phase = self
             .previous_modulator_phase_index
             .unwrap_or(modulator_phase_index);
@@ -753,6 +756,61 @@ mod tests {
             Err(OperatorPairError::InvalidPhaseIndex(1024))
         );
         assert_eq!(pair, before);
+    }
+
+    #[test]
+    fn published_low_frequency_vector_uses_previous_sample_modulator_phase() {
+        use crate::phase::PhaseGenerator;
+
+        let mut modulator_pg = PhaseGenerator::new();
+        let mut carrier_pg = PhaseGenerator::new();
+        let mut pair = pair();
+        let parameters = parameters();
+
+        // FNUM=0x40, BLOCK=0, MUL=0 produces a 32-unit increment in
+        // the 19-bit 10.9 accumulator: one 10-bit table step per 16 samples.
+        assert_eq!(PhaseGenerator::phase_step(0x40, 0, 0, false, 0), Ok(32));
+
+        for sample_index in 0..16_384_u32 {
+            let current_modulator_phase = modulator_pg.phase_index();
+            let current_carrier_phase = carrier_pg.phase_index();
+
+            // The first evaluation has no prior sample and uses its current
+            // phase. Thereafter this is exactly floor((i - 1) / 16), modulo
+            // the 1024-entry phase table, as in the published output-fit model.
+            let expected_modulator_phase = if sample_index == 0 {
+                current_modulator_phase
+            } else {
+                ((sample_index - 1) / 16) as u16 & 0x03ff
+            };
+
+            let sample = pair
+                .evaluate(current_modulator_phase, current_carrier_phase, parameters)
+                .unwrap();
+
+            assert_eq!(
+                sample.modulator_phase_used, expected_modulator_phase,
+                "modulator phase mismatch at output sample {sample_index}"
+            );
+            assert_eq!(
+                sample.carrier_phase_used,
+                wrap_phase_for_test(
+                    i32::from(current_carrier_phase) + 2 * i32::from(sample.modulator_output)
+                ),
+                "carrier phase mismatch at output sample {sample_index}"
+            );
+            assert_eq!(
+                pair.previous_modulator_phase_index(),
+                Some(current_modulator_phase)
+            );
+
+            modulator_pg.advance(0x40, 0, 0, false, 0).unwrap();
+            carrier_pg.advance(0x40, 0, 0, false, 0).unwrap();
+        }
+
+        assert_eq!(pair.previous_modulator_phase_index(), Some(0x03ff));
+        assert_eq!(modulator_pg.phase(), 0);
+        assert_eq!(carrier_pg.phase(), 0);
     }
 
     #[test]
