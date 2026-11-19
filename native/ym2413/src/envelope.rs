@@ -1597,4 +1597,36 @@ mod tests {
         assert_eq!(generator.stage(), EnvelopeStage::Sustain);
     }
 
+
+    #[test]
+    fn dynamic_sustain_level_change_to_already_passed_target_keeps_decay_active() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            33,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.decay_rate = 0;
+        p.sustain_level = 4;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+
+        // Recreate an active DECAY state whose level is already past SL=2.
+        generator.stage = EnvelopeStage::Decay;
+        p.sustain_level = 2;
+        generator.tick(1, true, true, p).unwrap();
+        assert_eq!(generator.level(), 33);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+    }
+
 }
