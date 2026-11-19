@@ -565,6 +565,21 @@ impl Ym2413SynthesisBank {
         )?)
     }
 
+    /// Reset one operator PG after consuming an explicit EG phase-reset event.
+    ///
+    /// This method performs no clock advancement. The caller is responsible
+    /// for invoking it at the same selected boundary as the EG transition.
+    pub fn reset_operator_phase(
+        &mut self,
+        channel: u8,
+        carrier: bool,
+    ) -> Result<(), Ym2413SynthesisError> {
+        let state = self.channel_mut(channel)?;
+        let operator_index = if carrier { 1 } else { 0 };
+        state.phase[operator_index].reset();
+        Ok(())
+    }
+
     /// Return one operator's current PG phase index.
     pub fn phase_index(&self, channel: u8, carrier: bool) -> Result<u16, Ym2413SynthesisError> {
         let state = self.channel(channel)?;
@@ -1023,4 +1038,28 @@ mod tests {
         registers[0x36] = 0x10;
         assert!(decode_channel_synthesis(&registers, 6).is_err());
     }
+
+    #[test]
+    fn bank_reports_damp_reset_event_without_implicitly_resetting_pg() {
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
+        let config = configuration(1);
+        let phase_before = bank.phase_index(1, true).unwrap();
+
+        let result = bank
+            .tick_operator_envelope_with_events(
+                1,
+                true,
+                true,
+                0,
+                config.carrier_envelope,
+            )
+            .unwrap();
+
+        assert!(result.phase_reset_required);
+        assert_eq!(bank.phase_index(1, true).unwrap(), phase_before);
+
+        bank.reset_operator_phase(1, true).unwrap();
+        assert_eq!(bank.phase_index(1, true).unwrap(), 0);
+    }
+
 }
