@@ -1,7 +1,7 @@
 # YM2413 operator-to-DAC boundary: competing output encodings
 
-**Date:** 2026-11-19  
-**Related gate:** GitHub Issue #1031  
+**Date:** 2026-11-19
+**Related gate:** GitHub Issue #1031
 **Scope:** evidence analysis only; no conversion is approved by this document.
 
 ## 1. Problem statement
