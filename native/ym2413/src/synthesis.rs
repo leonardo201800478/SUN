@@ -853,10 +853,7 @@ mod tests {
             state.envelope_level = [0, 0];
             state.envelope_stage = [EnvelopeStage::Sustain; 2];
             state.envelope_key_on = [true; 2];
-            state.feedback_history = [
-                31 + channel_value * 17,
-                -47 - channel_value * 13,
-            ];
+            state.feedback_history = [31 + channel_value * 17, -47 - channel_value * 13];
             state.previous_modulator_phase_index = Some(modulator_phase);
         }
 
@@ -886,7 +883,9 @@ mod tests {
                 }
                 assert_eq!(
                     after.channels[other_channel].operator_pair.feedback_history,
-                    before.channels[other_channel].operator_pair.feedback_history,
+                    before.channels[other_channel]
+                        .operator_pair
+                        .feedback_history,
                     "evaluating channel {channel} changed feedback history for channel {other_channel}"
                 );
             }
