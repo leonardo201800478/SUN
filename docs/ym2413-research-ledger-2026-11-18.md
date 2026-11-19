@@ -194,3 +194,16 @@ A API registra três input clocks ativos e um clock neutro dentro de cada slot d
 
 **CI:** workflow #44450484181, gate Rust final SUCCESS; format, Clippy, testes de workspace e testes/Clippy de observability SUCCESS. Gates de subsistemas não afetados foram SKIPPED.
 
+
+
+## Atualização do bloqueio operador→DAC — variantes de polaridade (2026-11-19)
+
+A auditoria adicional das notas de Andete identificou duas expressões de saída em modelos publicados:
+
+- Nota 2015-12-03: `lookupExp(carrier) + 256`. O próprio texto informa que a forma de onda medida aparece invertida e suspeita de inversão de sinal no setup.
+- Nota 2015-12-12: `255 - c`, no modelo de feedback que reproduz as capturas posteriores.
+- Nota 2015-03-11: níveis reconstruídos como -255..+255, incluindo -0 e +0; a aquisição ADC apresenta ruído e espaçamento não uniforme.
+
+Para o intermediário candidato x ∈ [-256,255], as fórmulas `x+256` e `255-x` são complementos exatos no domínio de 9 bits (soma 511). Invertem a polaridade e trocam os códigos dos dois zeros. Portanto, não são diferenças triviais de arredondamento.
+
+A Issue #1031 continua aberta: nenhum desses modelos demonstra diretamente a palavra interna aplicada ao DAC físico. Não implementar conversão padrão, clamp de -256, saturação, wrap ou bias. A nova auditoria detalhada está em `docs/audits/ym2413-operator-dac-boundary-variants-2026-11-19.md`.
