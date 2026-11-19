@@ -1,9 +1,10 @@
 //! Integer lookup tables for the YM2413 log-sine and exponential transforms.
 //!
-//! Values are generated from the mathematical transfer curves described in
-//! the 2016-07-16 reverse-engineering model, rounded to the nearest integer.
-//! These constants are generated independently from the formulas; no emulator
-//! table or implementation is copied. No floating-point work occurs at runtime.
+//! Values follow the mathematical transfer curves first published in
+//! Andete's 2015-04-09 reverse-engineering notes and reused by the 2016-07-16
+//! and 2017-01-26 models. The formulas are independently evaluated and rounded
+//! to the nearest integer; no emulator table or implementation is copied.
+//! No floating-point work occurs at runtime.
 
 /// 256-entry log2(sin) attenuation table, scaled by 256.
 pub const YM2413_LOG_SINE_TABLE: [u16; 256] = [
@@ -59,5 +60,23 @@ mod tests {
     #[test]
     fn exponential_table_is_monotonically_non_decreasing() {
         assert!(YM2413_EXP_TABLE.windows(2).all(|w| w[0] <= w[1]));
+    }
+
+    #[test]
+    fn log_sine_table_matches_the_published_transfer_curve() {
+        for (index, actual) in YM2413_LOG_SINE_TABLE.iter().copied().enumerate() {
+            let angle = (index as f64 + 0.5) * core::f64::consts::PI / 512.0;
+            let expected = (-angle.sin().log2() * 256.0).round() as u16;
+            assert_eq!(actual, expected, "log-sine table index {index}");
+        }
+    }
+
+    #[test]
+    fn exponential_table_matches_the_published_transfer_curve() {
+        for (index, actual) in YM2413_EXP_TABLE.iter().copied().enumerate() {
+            let fraction = index as f64 / 256.0;
+            let expected = ((2.0_f64.powf(fraction) - 1.0) * 1024.0).round() as u16;
+            assert_eq!(actual, expected, "exponential table index {index}");
+        }
     }
 }
