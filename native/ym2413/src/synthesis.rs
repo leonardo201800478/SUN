@@ -11,7 +11,7 @@ use crate::am_lfo::{AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_PERIOD_SAMPLES}
 use crate::channel::{ChannelSynthesisConfig, OperatorPhaseParameters};
 use crate::envelope::{
     DampTransitionConfig, EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState,
-    EnvelopeParameters, EnvelopeStage,
+    EnvelopeParameters, EnvelopeStage, EnvelopeTickResult,
 };
 use crate::operator::{OperatorPair, OperatorPairError, OperatorPairSample, OperatorPairState};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState};
@@ -332,9 +332,38 @@ impl Ym2413SynthesisBank {
         global_counter: u32,
         parameters: EnvelopeParameters,
     ) -> Result<u8, Ym2413SynthesisError> {
+        self.tick_operator_envelope_with_events(
+            channel,
+            carrier,
+            key_on,
+            global_counter,
+            parameters,
+        )
+        .map(|result| result.level)
+    }
+
+    /// Tick one EG and expose candidate DAMP-completion phase-reset events.
+    ///
+    /// This method does not reset either PG. The caller must consume
+    /// `phase_reset_required` at the selected update boundary. If the channel
+    /// uses `CarrierDrivesBoth`, synchronize the modulator EG and reset both
+    /// PGs when the carrier reports the event. No slot ordering is inferred.
+    pub fn tick_operator_envelope_with_events(
+        &mut self,
+        channel: u8,
+        carrier: bool,
+        key_on: bool,
+        global_counter: u32,
+        parameters: EnvelopeParameters,
+    ) -> Result<EnvelopeTickResult, Ym2413SynthesisError> {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
-        Ok(state.envelope[operator_index].tick(global_counter, key_on, carrier, parameters)?)
+        Ok(state.envelope[operator_index].tick_with_events(
+            global_counter,
+            key_on,
+            carrier,
+            parameters,
+        )?)
     }
 
     /// Tick EG for one physical rhythm operator using an explicit key state.
@@ -534,6 +563,21 @@ impl Ym2413SynthesisBank {
             state.phase[1].phase_index(),
             parameters,
         )?)
+    }
+
+    /// Reset one operator PG after consuming an explicit EG phase-reset event.
+    ///
+    /// This method performs no clock advancement. The caller is responsible
+    /// for invoking it at the same selected boundary as the EG transition.
+    pub fn reset_operator_phase(
+        &mut self,
+        channel: u8,
+        carrier: bool,
+    ) -> Result<(), Ym2413SynthesisError> {
+        let state = self.channel_mut(channel)?;
+        let operator_index = if carrier { 1 } else { 0 };
+        state.phase[operator_index].reset();
+        Ok(())
     }
 
     /// Return one operator's current PG phase index.
@@ -993,5 +1037,22 @@ mod tests {
         registers[0x0e] = 0x20;
         registers[0x36] = 0x10;
         assert!(decode_channel_synthesis(&registers, 6).is_err());
+    }
+
+    #[test]
+    fn bank_reports_damp_reset_event_without_implicitly_resetting_pg() {
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
+        let config = configuration(1);
+        let phase_before = bank.phase_index(1, true).unwrap();
+
+        let result = bank
+            .tick_operator_envelope_with_events(1, true, true, 0, config.carrier_envelope)
+            .unwrap();
+
+        assert!(result.phase_reset_required);
+        assert_eq!(bank.phase_index(1, true).unwrap(), phase_before);
+
+        bank.reset_operator_phase(1, true).unwrap();
+        assert_eq!(bank.phase_index(1, true).unwrap(), 0);
     }
 }

@@ -137,6 +137,20 @@ pub enum EnvelopeGeneratorError {
     InvalidDampConfiguration,
 }
 
+/// Result of one EG update, including a candidate phase-reset boundary.
+///
+/// The reverse-engineered model resets the corresponding PG when DAMP ends.
+/// This event exposes that boundary without owning or advancing PG state.
+/// Under the explicit `CarrierDrivesBoth` candidate, the caller must also
+/// synchronize the modulator EG and reset its PG at the same selected boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnvelopeTickResult {
+    /// Current seven-bit attenuation (0 is loudest, 127 is silent).
+    pub level: u8,
+    /// True only on the update that completes DAMP and enters ATTACK or DECAY.
+    pub phase_reset_required: bool,
+}
+
 /// One operator EG. The caller supplies the shared global sample counter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnvelopeGenerator {
@@ -213,6 +227,21 @@ impl EnvelopeGenerator {
         is_carrier: bool,
         parameters: EnvelopeParameters,
     ) -> Result<u8, EnvelopeGeneratorError> {
+        self.tick_with_events(global_counter, key_on, is_carrier, parameters)
+            .map(|result| result.level)
+    }
+
+    /// Advance one operator EG and report candidate state-transition events.
+    ///
+    /// The event is emitted when the DAMP threshold is reached. The PG itself
+    /// remains caller-owned; this method never resets phase or advances clocks.
+    pub fn tick_with_events(
+        &mut self,
+        global_counter: u32,
+        key_on: bool,
+        is_carrier: bool,
+        parameters: EnvelopeParameters,
+    ) -> Result<EnvelopeTickResult, EnvelopeGeneratorError> {
         if !parameters.is_valid() {
             return Err(EnvelopeGeneratorError::InvalidParameters);
         }
@@ -221,6 +250,8 @@ impl EnvelopeGenerator {
             self.stage = EnvelopeStage::Damp;
         }
         self.key_on = key_on;
+
+        let mut phase_reset_required = false;
 
         if !key_on && is_carrier {
             let base_rate = if parameters.sustained_tone {
@@ -231,7 +262,10 @@ impl EnvelopeGenerator {
                 7
             };
             self.advance_decay(global_counter, parameters.effective_rate(base_rate));
-            return Ok(self.level);
+            return Ok(EnvelopeTickResult {
+                level: self.level,
+                phase_reset_required: false,
+            });
         }
 
         if self.owns_damp_transition(is_carrier)
@@ -239,6 +273,7 @@ impl EnvelopeGenerator {
             && self.level >= self.damp_config.threshold
         {
             self.complete_damp(parameters.attack_rate);
+            phase_reset_required = true;
         }
 
         match self.stage {
@@ -247,6 +282,7 @@ impl EnvelopeGenerator {
                 if self.owns_damp_transition(is_carrier) && self.level >= self.damp_config.threshold
                 {
                     self.complete_damp(parameters.attack_rate);
+                    phase_reset_required = true;
                 }
             }
             EnvelopeStage::Attack => {
@@ -288,7 +324,10 @@ impl EnvelopeGenerator {
                 self.advance_decay(global_counter, parameters.effective_rate(base_rate));
             }
         }
-        Ok(self.level)
+        Ok(EnvelopeTickResult {
+            level: self.level,
+            phase_reset_required,
+        })
     }
 
     /// Apply the carrier's DAMP transition under the CarrierDrivesBoth candidate.
@@ -970,5 +1009,66 @@ mod tests {
                 (12_291, 73),
             ]
         );
+    }
+
+    #[test]
+    fn damp_completion_emits_one_candidate_phase_reset_event() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            124,
+            EnvelopeStage::Damp,
+            false,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::EnterAttack,
+            ),
+        )
+        .unwrap();
+
+        let first = generator.tick_with_events(0, true, true, params()).unwrap();
+        assert_eq!(first.level, 124);
+        assert!(first.phase_reset_required);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+
+        let second = generator.tick_with_events(1, true, true, params()).unwrap();
+        assert!(!second.phase_reset_required);
+    }
+
+    #[test]
+    fn damp_completion_with_attack_rate_fifteen_emits_reset_and_skips_attack() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            124,
+            EnvelopeStage::Damp,
+            false,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.attack_rate = 15;
+
+        let result = generator.tick_with_events(0, true, true, p).unwrap();
+        assert!(result.phase_reset_required);
+        assert_eq!(result.level, 0);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+    }
+
+    #[test]
+    fn key_on_below_damp_threshold_does_not_emit_phase_reset() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            100,
+            EnvelopeStage::Sustain,
+            false,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::EnterAttack,
+            ),
+        )
+        .unwrap();
+
+        let result = generator.tick_with_events(0, true, true, params()).unwrap();
+        assert!(!result.phase_reset_required);
+        assert_eq!(generator.stage(), EnvelopeStage::Damp);
     }
 }
