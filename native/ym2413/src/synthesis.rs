@@ -1160,5 +1160,4 @@ mod tests {
         .unwrap();
         assert_eq!(bank.export_state(), before);
     }
-
 }
