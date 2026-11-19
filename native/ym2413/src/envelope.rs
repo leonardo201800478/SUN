@@ -1597,7 +1597,6 @@ mod tests {
         assert_eq!(generator.stage(), EnvelopeStage::Sustain);
     }
 
-
     #[test]
     fn dynamic_sustain_level_change_to_already_passed_target_keeps_decay_active() {
         let mut generator = EnvelopeGenerator::with_initial_state(
