@@ -3,7 +3,7 @@
 **Data:** 2026-11-19  
 **Branch:** `test/ym2413-modulator-carrier-sample-latency`  
 **Escopo:** relação entre o índice de fase usado pelo modulator e o índice corrente usado pelo carrier no modelo de síntese por amostra.  
-**Estado:** evidência documental reconstituída; teste diferencial do modelo Rust em preparação. Não é uma medição física nova.
+**Estado:** evidência documental reconstituída; teste diferencial do modelo Rust implementado, aguardando CI. Não é uma medição física nova.
 
 ## 1. Resultado executivo
 
