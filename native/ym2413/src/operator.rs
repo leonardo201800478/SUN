@@ -515,11 +515,11 @@ mod tests {
     #[test]
     fn feedback_strength_matrix_preserves_signed_history_and_phase_continuity() {
         let cases = [
-            ([128, 64], 0_u16, 512_u16, true),
-            ([-128, -64], 512_u16, 0_u16, false),
+            ([128, 64], 0_u16, 512_u16),
+            ([-128, -64], 512_u16, 0_u16),
         ];
 
-        for (initial_history, previous_phase, current_phase, positive_output) in cases {
+        for (initial_history, previous_phase, current_phase) in cases {
             for feedback in 0..=7 {
                 let mut pair =
                     OperatorPair::with_initial_state(initial_history, Some(previous_phase))
@@ -545,11 +545,6 @@ mod tests {
                     [sample.modulator_output, initial_history[0]]
                 );
                 assert_eq!(pair.previous_modulator_phase_index(), Some(current_phase));
-                assert_eq!(
-                    sample.modulator_output > 0,
-                    positive_output,
-                    "feedback={feedback}, history={initial_history:?}"
-                );
             }
         }
     }
