@@ -207,3 +207,45 @@ A auditoria adicional das notas de Andete identificou duas expressões de saída
 Para o intermediário candidato x ∈ [-256,255], as fórmulas `x+256` e `255-x` são complementos exatos no domínio de 9 bits (soma 511). Invertem a polaridade e trocam os códigos dos dois zeros. Portanto, não são diferenças triviais de arredondamento.
 
 A Issue #1031 continua aberta: nenhum desses modelos demonstra diretamente a palavra interna aplicada ao DAC físico. Não implementar conversão padrão, clamp de -256, saturação, wrap ou bias. A nova auditoria detalhada está em `docs/audits/ym2413-operator-dac-boundary-variants-2026-11-19.md`.
+
+
+---
+
+## 7. EG — fronteira DAMP, KEY-ON e atualização da nova fase (2026-11-19)
+
+### 7.1 Evento de conclusão e reset de PG
+
+As PRs #1045 e #1047 separam a detecção do fim de DAMP do consumo do evento:
+
+- `EnvelopeGenerator::tick_with_events` informa a conclusão candidata de DAMP.
+- O EG não avança clock nem reseta PG automaticamente.
+- O banco agregado oferece consumo explícito do evento. A política `CarrierDrivesBoth` sincroniza o estágio do modulator e reseta os dois PGs; a política independente reseta somente o PG do operador que gerou o evento.
+- A escolha do instante de consumo continua externa. Nenhuma subfase ou ordem física foi inferida.
+
+### 7.2 Latch KEY-ON na sincronização carrier-driven
+
+A PR #1049 identificou uma inconsistência entre o estado de KEY-ON compartilhado pelo canal e a cópia local mantida por cada EG. Se o carrier completasse DAMP antes do primeiro tick do modulator, sincronizar somente o estágio deixava o latch local do modulator desatualizado. O próximo tick poderia interpretar o mesmo KEY-ON como nova borda e reiniciar DAMP.
+
+A correção propaga o latch observado pelo carrier junto com o estágio, somente no candidato explícito `CarrierDrivesBoth`. Isso fecha a consistência interna da API; não decide se essa política é o comportamento físico definitivo.
+
+### 7.3 DAMP concluído na entrada da atualização
+
+A PR #1050 alinhou o modelo candidato com a ordem de `Operator::calcEnv` em Andete `results/20170126/model5.cc`:
+
+- Se o limiar já está satisfeito no início da atualização, o estado passa para ATTACK/DECAY antes do seletor de fase, e o novo estágio pode consumir o mesmo valor do contador global.
+- Se o incremento de DAMP alcança o limiar durante a atualização corrente, a transição é selecionada após esse incremento; o novo estágio começa na atualização seguinte.
+- Para AR=15 no candidato `SkipAttackToDecay`, o estágio passa a DECAY, mas o nível de atenuação não é zerado artificialmente.
+
+O teste de regressão usa nível 124, AR efetivo 40 e contador 8: a atualização seleciona ATTACK e produz 124 → 116. Isso valida a sequência do modelo de referência no domínio do software, não o instante físico de uma subfase.
+
+### 7.4 Divergência SUS × EG-TYPE em KEY-OFF
+
+A descrição experimental Andete de 2015-12-31 indica, para timbre sustentado, SUS=ON → taxa 5 e SUS=OFF → RR programado. O modelo de software Andete de 2017 em `results/20170126/model5.cc` seleciona RR para EG-TYPE sustentado sem consultar SUS. O manual Yamaha descreve SUS=ON como taxa 5 em KEY-OFF.
+
+A divergência está registrada na Issue #1051. Não alterar a implementação até construir a matriz EG-TYPE × SUS × RR e reconciliar a evidência. O comportamento do modulator deve ser analisado separadamente, pois suas transições de KEY-OFF não são iguais às do carrier.
+
+### 7.5 Validação de software
+
+PR #1050 foi integrada após CI #44512860362 (run #8835) SUCCESS nos gates aplicáveis: Rustfmt, Clippy workspace, testes unitários/integração e Clippy/testes observability. Os gates de subsistemas não afetados foram SKIPPED.
+
+**Limite geral:** nenhum desses marcos define a cadência física do contador EG, o alinhamento absoluto pós-reset ou a posição do tick dentro dos 18 slots. O EG continua isolado do pipeline temporal e do PCM final.
