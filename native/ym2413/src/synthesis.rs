@@ -788,13 +788,7 @@ mod tests {
             .advance_operator_phase(0, false, config.modulator_phase)
             .unwrap();
         let modulator_event = bank
-            .tick_operator_envelope_with_events(
-                0,
-                false,
-                true,
-                8,
-                config.modulator_envelope,
-            )
+            .tick_operator_envelope_with_events(0, false, true, 8, config.modulator_envelope)
             .unwrap();
         assert!(!modulator_event.phase_reset_required);
 
@@ -803,13 +797,7 @@ mod tests {
             .advance_operator_phase(0, true, config.carrier_phase)
             .unwrap();
         let carrier_event = bank
-            .tick_operator_envelope_with_events(
-                0,
-                true,
-                true,
-                8,
-                config.carrier_envelope,
-            )
+            .tick_operator_envelope_with_events(0, true, true, 8, config.carrier_envelope)
             .unwrap();
         assert!(carrier_event.phase_reset_required);
         assert_ne!(modulator_phase, 0);
