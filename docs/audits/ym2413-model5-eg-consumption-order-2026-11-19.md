@@ -1,17 +1,17 @@
 # YM2413 — auditoria da ordem de consumo do contador EG no modelo Andete 2017
 
-**Data:** 2026-11-19  
-**Base Rust:** `main` após PR #1053 e atualizações FM-1/FM-3.  
-**Escopo:** ordem de incremento/consumo do contador global e sequência de chamadas PG → EG → operador no modelo `results/20170126/model5.cc`.  
+**Data:** 2026-11-19
+**Base Rust:** `main` após PR #1053 e atualizações FM-1/FM-3.
+**Escopo:** ordem de incremento/consumo do contador global e sequência de chamadas PG → EG → operador no modelo `results/20170126/model5.cc`.
 **Status:** caracterização de referência de software; não certifica a ordem física do silício.
 
 ## 1. Fontes examinadas
 
-1. Andete, `results/20170126/model5.cc` — modelo C++ completo do operador e do ciclo YM2413:  
+1. Andete, `results/20170126/model5.cc` — modelo C++ completo do operador e do ciclo YM2413:
    https://github.com/andete/ym2413/blob/master/results/20170126/model5.cc
-2. Andete, `results/20170126/attack.txt` — medições de ataque, hipóteses e ressalvas do autor:  
+2. Andete, `results/20170126/attack.txt` — medições de ataque, hipóteses e ressalvas do autor:
    https://github.com/andete/ym2413/blob/master/results/20170126/attack.txt
-3. Andete, notas de 2015-03-20 — medições de decay/release e contador global:  
+3. Andete, notas de 2015-03-20 — medições de decay/release e contador global:
    https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-20
 4. Implementação Rust: `native/ym2413/src/envelope.rs`, `phase.rs`, `synthesis.rs` e `lib.rs`.
 
@@ -108,4 +108,3 @@ uint6 rate = max(63, 4 * basicRate + rks);
 No mesmo arquivo, `uint6` é declarado como alias de `uint8_t`, e não como um tipo C++ com truncamento automático para seis bits. Com `std::max`, a expressão seleciona o maior valor entre 63 e a taxa calculada; ela não implementa saturação superior em 63. Isso é inconsistente com a descrição de RATE como campo de seis bits e com as faixas de taxa usadas nas próprias tabelas/medições do modelo.
 
 **Tratamento:** não copiar essa expressão para Rust nem inferir silenciosamente que o autor pretendia `min`. O Rust atual limita a taxa a 63 em `EnvelopeParameters::effective_rate()`; essa decisão deve continuar rastreável à especificação do campo de seis bits e às medições, não ser justificada pela expressão C++ literal. A anomalia precisa permanecer registrada como possível erro tipográfico/defeito do modelo de referência até confirmação pelo autor ou por fonte primária adicional.
-
