@@ -11,7 +11,7 @@ use crate::am_lfo::{AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_PERIOD_SAMPLES}
 use crate::channel::{ChannelSynthesisConfig, OperatorPhaseParameters};
 use crate::envelope::{
     DampTransitionConfig, EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState,
-    EnvelopeParameters, EnvelopeStage,
+    EnvelopeParameters, EnvelopeStage, EnvelopeTickResult,
 };
 use crate::operator::{OperatorPair, OperatorPairError, OperatorPairSample, OperatorPairState};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState};
@@ -332,9 +332,38 @@ impl Ym2413SynthesisBank {
         global_counter: u32,
         parameters: EnvelopeParameters,
     ) -> Result<u8, Ym2413SynthesisError> {
+        self.tick_operator_envelope_with_events(
+            channel,
+            carrier,
+            key_on,
+            global_counter,
+            parameters,
+        )
+        .map(|result| result.level)
+    }
+
+    /// Tick one EG and expose candidate DAMP-completion phase-reset events.
+    ///
+    /// This method does not reset either PG. The caller must consume
+    /// `phase_reset_required` at the selected update boundary. If the channel
+    /// uses `CarrierDrivesBoth`, synchronize the modulator EG and reset both
+    /// PGs when the carrier reports the event. No slot ordering is inferred.
+    pub fn tick_operator_envelope_with_events(
+        &mut self,
+        channel: u8,
+        carrier: bool,
+        key_on: bool,
+        global_counter: u32,
+        parameters: EnvelopeParameters,
+    ) -> Result<EnvelopeTickResult, Ym2413SynthesisError> {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
-        Ok(state.envelope[operator_index].tick(global_counter, key_on, carrier, parameters)?)
+        Ok(state.envelope[operator_index].tick_with_events(
+            global_counter,
+            key_on,
+            carrier,
+            parameters,
+        )?)
     }
 
     /// Tick EG for one physical rhythm operator using an explicit key state.
