@@ -802,3 +802,20 @@ Documento atualizado: `docs/audits/ym2413-slot-pipeline-investigation-2026-11-18
 **Decisão:** não substituir o contador global por `completed_rotations`, não escolher fase inicial zero e não adicionar incremento por slot/input clock. A cadência média por rotação está sustentada; origem, largura/wrap, ordenação de incremento/consumo e alinhamento com PM/AM permanecem pendentes. Nenhuma lógica de produção foi alterada.
 
 **FM-1 permanece PARCIAL.** A cadência média não fecha o pipeline de 18 slots nem o instante físico de serviço dos EGs.
+
+
+---
+
+## Atualização FM-1/FM-3 — auditoria cruzada PG, PM e AM (2026-11-19)
+
+**Documentação:** `docs/audits/ym2413-pg-am-pm-cadence-2026-11-19.md`.
+
+- PM: Andete 2015-12-01 mede oito posições, cada uma por 1.024 amostras, ciclo de 8.192 amostras (~6,069 Hz). A implementação candidata de 13 bits, bits 12..10, corresponde a essa cadência e mantém fase inicial explícita.
+- AM: Andete 2015-11-28 mede 210 posições, 64 amostras por posição, 13.440 amostras (~3,699 Hz), 14 níveis. A implementação candidata preserva fase independente e explícita.
+- PG: o acumulador de 19 bits avança uma vez por chamada de operador; a posição PM é lida no instante da chamada. A API não define a fronteira física de slot nem faz latch de PM por rotação.
+- `advance_lfo_samples` avança PM e AM pelo mesmo delta em amostras, mas não demonstra que os dois LFOs compartilham o mesmo contador físico nem estabelece a ordem em relação aos updates PG.
+- Andete 2015-03-20 descreve o contador global EG e sugere uso por outras funções; Andete 2015-12-01 descreve contador PM de 13 bits. A identidade física EG↔PM não está demonstrada. A nota AM não demonstra contador comum com EG/PM.
+
+**Decisão:** manter PG, PM, AM e EG com estados explícitos e separados no software. Não reiniciar LFO em KEY-ON, não assumir reset zero, não derivar AM apenas do contador PM módulo 8.192 e não atualizar LFO no meio da rotação sem evidência de fronteira. O futuro sequenciador deve chamar os componentes nos limites de serviço pesquisados, preservando a ordem serial.
+
+**Estado:** cadências médias PG/PM/AM descritas por medições publicadas e reproduzidas em componentes candidatos; offsets de slot, ordenação de atualização, fase inicial física, reset e identidade dos contadores continuam pendentes. FM-1/FM-3 permanecem PARCIAIS.
