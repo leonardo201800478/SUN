@@ -970,6 +970,6 @@ A implementação do pipeline interno continua BLOCKED até vetores físicos rep
 
 **Branch:** `test/ym2413-modulator-carrier-sample-latency`
 
-A investigação documental e o teste diferencial de modelo estão sendo preparados. O objetivo é demonstrar que o estado atual do par de operadores reproduz a relação de fase por amostra descrita no modelo publicado para FNUM=0x40, BLOCK=0, MUL=0, sem converter o atraso em input clocks.
+A investigação documental foi concluída e o teste diferencial de modelo foi adicionado à PR #1066, aguardando CI. O objetivo é demonstrar que o estado atual do par de operadores reproduz a relação de fase por amostra descrita no modelo publicado para FNUM=0x40, BLOCK=0, MUL=0, sem converter o atraso em input clocks.
 
 **Não confundir:** a correspondência do modelo de saída não identifica o latch interno, o slot de captura/consumo ou a latência elétrica M→C. A integração cycle-accurate continua BLOCKED por captura física sincronizada de XIN/MO/RO.
