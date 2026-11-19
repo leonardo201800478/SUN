@@ -856,6 +856,91 @@ mod tests {
     }
 
     #[test]
+    fn carrier_key_off_uses_release_path_from_each_envelope_phase() {
+        use super::EnvelopeStage;
+
+        for stage in [
+            EnvelopeStage::Damp,
+            EnvelopeStage::Attack,
+            EnvelopeStage::Decay,
+            EnvelopeStage::Sustain,
+        ] {
+            let mut generator = EnvelopeGenerator::with_initial_state(
+                20,
+                stage,
+                true,
+                damp_config(
+                    DampTransitionCoordination::IndependentPerOperator,
+                    AttackRate15Transition::SkipAttackToDecay,
+                ),
+            )
+            .unwrap();
+            let mut p = params();
+            p.sustained_tone = false;
+            p.sustain_on = false;
+            p.release_rate = 0;
+            p.key_scale_rate = false;
+            p.fnum = 0;
+            p.block = 0;
+
+            // Percussive SUS=OFF selects base RR'=7 (effective rate 28).
+            // Counter 64 selects the first +1 decay step for this rate.
+            generator.tick(64, false, true, p).unwrap();
+            assert_eq!(generator.level(), 21, "stage {stage:?}");
+            assert_eq!(generator.stage(), stage, "stage {stage:?}");
+        }
+    }
+
+    #[test]
+    fn modulator_key_off_keeps_its_first_release_or_sustain_behavior() {
+        // EG-TYPE=1: the modulator remains at its sustain level on KEY-OFF.
+        let mut sustained = EnvelopeGenerator::with_initial_state(
+            20,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut sustained_parameters = params();
+        sustained_parameters.sustained_tone = true;
+        sustained_parameters.release_rate = 15;
+        sustained
+            .tick(0, false, false, sustained_parameters)
+            .unwrap();
+        assert_eq!(sustained.level(), 20);
+        assert_eq!(sustained.stage(), EnvelopeStage::Sustain);
+
+        // EG-TYPE=0: the modulator continues at the first release rate RR,
+        // rather than entering the carrier's second KEY-OFF release path.
+        let mut percussive = EnvelopeGenerator::with_initial_state(
+            20,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut percussive_parameters = params();
+        percussive_parameters.sustained_tone = false;
+        percussive_parameters.sustain_on = true;
+        percussive_parameters.release_rate = 4;
+        percussive_parameters.key_scale_rate = false;
+        percussive_parameters.fnum = 0;
+        percussive_parameters.block = 0;
+        // Effective RR=16; counter 512 selects the first +1 step.
+        percussive
+            .tick(512, false, false, percussive_parameters)
+            .unwrap();
+        assert_eq!(percussive.level(), 21);
+        assert_eq!(percussive.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
     fn snapshot_round_trip_preserves_complete_local_state() {
         let mut eg = eg(61);
         eg.stage = EnvelopeStage::Attack;
