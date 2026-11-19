@@ -839,7 +839,12 @@ mod tests {
 
         assert_eq!(config.rhythm_mode_melodic_key_on_warning_mask(), 0);
         assert!(!config.has_rhythm_mode_melodic_key_on_warning());
-        assert!(config.channel_frequencies.iter().all(|channel| channel.melodic_key_on));
+        assert!(
+            config
+                .channel_frequencies
+                .iter()
+                .all(|channel| channel.melodic_key_on)
+        );
     }
 
     #[test]
