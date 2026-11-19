@@ -1,7 +1,7 @@
 # YM2413 — evento candidato de reset do PG na conclusão de DAMP
 
-**Data:** 2026-11-19  
-**Escopo:** explicitar a fronteira DAMP → ATTACK/DECAY no contrato entre EG e PG.  
+**Data:** 2026-11-19
+**Escopo:** explicitar a fronteira DAMP → ATTACK/DECAY no contrato entre EG e PG.
 **Status:** evento de software implementado; integração temporal/por slot continua pendente.
 
 ## Evidência
