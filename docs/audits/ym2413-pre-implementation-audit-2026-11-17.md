@@ -171,7 +171,7 @@ A sessão de áudio host atual não faz parte do `SmsTemporalMachineState`. O pr
 - Escrita de dados: aguardar 84 ciclos do clock mestre antes da próxima escrita de endereço ou dados. O manual diz que dados ficam incertos se o intervalo não for respeitado.
 - DAC de 9 bits e saídas distintas MO (melody) e RO (rhythm). Ambas são source followers e exigem circuito integrado/estágio posterior, amplificação e, para melhor qualidade, filtragem.
 
-A especificação de 4 clocks por slot aparece na transcrição japonesa do manual de aplicação e é corroborada pela engenharia reversa; a taxa de 72 clocks por período completo é derivada de 18 × 4. A taxa resultante, aproximadamente 49.716,04 Hz, é uma taxa interna de atualização por canal, não a taxa final do host.
+A especificação de 4 clocks por slot aparece na transcrição japonesa do manual de aplicação e é corroborada pela engenharia reversa; a taxa de 72 clocks por período completo é derivada de 18 × 4. A taxa resultante, aproximadamente 49.715,9027778 Hz, é uma taxa interna de atualização por canal, não a taxa final do host.
 
 ### 4.2 Medido / engenharia reversa
 

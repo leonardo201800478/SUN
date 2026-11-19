@@ -226,7 +226,7 @@ A tabela de bits e a semântica de cada revisão devem ser mantidas junto aos te
 
 A especificação de áudio anexada pelo projeto descreve principalmente o PSG do SMS e seu estágio analógico. Ela fornece taxas de PSG de aproximadamente 223,72 kHz NTSC e 221,68 kHz PAL, mas essas taxas **não são clocks do YM2413**.
 
-Para o YM2413, 3.579.545 / 72 ≈ 49.716,04 Hz é uma taxa interna derivada do período de slots. Não é taxa de saída CPAL. O caminho FM precisa de conversão determinística para a base de mixagem do runtime; fase e histórico do conversor devem ser preservados por bloco e no restore, caso influenciem a sequência PCM.
+Para o YM2413, 3.579.545 / 72 ≈ 49.715,9027778 Hz é uma taxa interna derivada do período de slots. Não é taxa de saída CPAL. O caminho FM precisa de conversão determinística para a base de mixagem do runtime; fase e histórico do conversor devem ser preservados por bloco e no restore, caso influenciem a sequência PCM.
 
 A especificação de áudio também propõe ganho FM de 1,0×–1,25× e circuitos analógicos genéricos. Esses números não são medições do Japanese SMS e **não devem ser promovidos a constantes** do mixer/placa. Os valores de filtro, clipping e carga também exigem validação física.
 

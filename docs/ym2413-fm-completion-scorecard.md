@@ -570,3 +570,23 @@ A API `Ym2413SynthesisBank::evaluate_rhythm_voices` reúne os cinco avaliadores 
 - Comparação integral do estado após avaliação em lote e execução individual equivalente.
 
 **Limites:** esta API não cria uma ordem física de execução dos slots, não decide a chave de ativação dos operadores e não infere os instantes de PG/EG. A ordem de chamada dos avaliadores é apenas uma estratégia de atomicidade da API. Não integra Scheduler, PCM ou SMS.
+
+## FM-2 — atraso de fase do modulator por amostra (correção candidata)
+
+**Branch:** `fix/ym2413-modulator-one-sample-phase-history`
+
+A auditoria da medição modulator/carrier de Andete (2015-12-03) identificou que o modelo que reproduz as capturas utiliza a fase do modulator da amostra de saída anterior (`lookupSin((i - 1) / 16)`). O vetor FNUM=0x40, BLOCK=0, MUL=0 tem incremento de 32 unidades no acumulador 10.9, equivalente a 1/16 de uma entrada da tabela por amostra. Portanto, subtrair uma entrada inteira da tabela (`phase_index - 1`) não representa esse atraso de uma amostra.
+
+A alteração candidata:
+- remove o deslocamento fixo de uma entrada da tabela;
+- preserva o índice de fase do modulator utilizado na avaliação anterior;
+- conserva esse histórico no snapshot de `OperatorPairState`;
+- permite fornecer explicitamente o índice anterior inicial, sem presumir alinhamento de reset;
+- mantém o histórico de feedback de dois outputs;
+- incrementa as versões dos snapshots afetados.
+
+**Testes adicionados/ajustados:** atraso de uma amostra para o vetor de incremento 1/16, snapshot/restore do histórico de fase, validação de índice inicial e atomicidade dos históricos diante de parâmetros/fases inválidos.
+
+**Limites:** a nota de Andete é um modelo de saída ajustado às capturas analógicas, não uma leitura direta do latch interno. A correção estabelece o atraso em unidades de amostra do modelo; não determina a correspondência exata com os 72 input clocks, as subfases do slot ou o instante físico de consumo pelo carrier. O pipeline de 18 slots permanece pendente.
+
+**Estado:** aguardando CI e revisão da PR. Não representa fechamento de FM-2 nem do pipeline temporal.

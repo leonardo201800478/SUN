@@ -35,7 +35,7 @@
 
 - O manual Yamaha documenta 12 clocks após escrita de endereço e 84 após escrita de dados. O efeito de violar a janela permanece PENDENTE.
 - O mixer aceita fontes alinhadas de mesmo tamanho, mas a sessão atual recebe uma fonte por chamada. Não enviar PSG e FM em chamadas sequenciais: isso concatena blocos.
-- A taxa nominal YM2413 (3.579.545/72 ≈ 49.716,04 Hz) deve ser alinhada deterministicamente à base interna de 48 kHz antes da sessão atual, ou o mixer deve receber fontes com timestamps/taxas explícitos.
+- A taxa nominal YM2413 (3.579.545/72 ≈ 49.715,9027778 Hz) deve ser alinhada deterministicamente à base interna de 48 kHz antes da sessão atual, ou o mixer deve receber fontes com timestamps/taxas explícitos.
 - Snapshot/replay futuro deve incluir latch, registradores, deadlines, slot/fase, PG/EG/LFO/feedback, MO/RO, roteamento e o estado de conversão/mixagem que afete determinismo.
 
 ## Coordenação live das PRs — snapshot não substitui consulta remota
