@@ -839,6 +839,64 @@ mod tests {
     }
 
     #[test]
+    fn nine_melodic_channels_keep_independent_feedback_histories() {
+        let mut initial = initial_state();
+        for (channel, state) in initial.channels.iter_mut().enumerate() {
+            let index = channel as u16;
+            let modulator_phase = 0x40 + index * 0x20;
+            let carrier_phase = 0x180 + index * 0x10;
+            let channel_value = i16::try_from(channel).unwrap();
+            state.phase = [
+                u32::from(modulator_phase) << 9,
+                u32::from(carrier_phase) << 9,
+            ];
+            state.envelope_level = [0, 0];
+            state.envelope_stage = [EnvelopeStage::Sustain; 2];
+            state.envelope_key_on = [true; 2];
+            state.feedback_history = [31 + channel_value * 17, -47 - channel_value * 13];
+            state.previous_modulator_phase_index = Some(modulator_phase);
+        }
+
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial).unwrap();
+
+        for channel in 0..9_u8 {
+            let before = bank.export_state();
+            let previous_history = before.channels[usize::from(channel)]
+                .operator_pair
+                .feedback_history;
+
+            let mut config = configuration(channel);
+            config.patch.feedback = 7;
+            let sample = bank.evaluate_channel(&config).unwrap();
+
+            let after = bank.export_state();
+            assert_eq!(
+                after.channels[usize::from(channel)]
+                    .operator_pair
+                    .feedback_history,
+                [sample.modulator_output, previous_history[0]]
+            );
+
+            for other_channel in 0..9 {
+                if other_channel == usize::from(channel) {
+                    continue;
+                }
+                assert_eq!(
+                    after.channels[other_channel].operator_pair.feedback_history,
+                    before.channels[other_channel]
+                        .operator_pair
+                        .feedback_history,
+                    "evaluating channel {channel} changed feedback history for channel {other_channel}"
+                );
+            }
+        }
+
+        let snapshot = bank.export_state();
+        let restored = Ym2413SynthesisBank::restore_state(snapshot).unwrap();
+        assert_eq!(restored.export_state(), snapshot);
+    }
+
+    #[test]
     fn lfo_sample_advancement_is_shared_and_partition_invariant() {
         let mut continuous = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
         let mut chunked = continuous.clone();
