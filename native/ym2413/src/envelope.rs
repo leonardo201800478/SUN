@@ -1308,4 +1308,293 @@ mod tests {
         assert!(!result.phase_reset_required);
         assert_eq!(generator.stage(), EnvelopeStage::Damp);
     }
+
+    #[test]
+    fn dynamic_attack_rate_change_takes_effect_on_next_matching_counter_gate() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            64,
+            EnvelopeStage::Attack,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.attack_rate = 0;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.level(), 64);
+
+        p.attack_rate = 1; // RATE=4: selector column 1 advances at counter 4096.
+        generator.tick(4_096, true, true, p).unwrap();
+        assert_eq!(generator.level(), 59);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn dynamic_decay_rate_change_takes_effect_without_restarting_decay() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            16,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.decay_rate = 0;
+        p.sustain_level = 15;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.level(), 16);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+
+        p.decay_rate = 1; // RATE=4; counter 4096 selects a +1 step.
+        generator.tick(4_096, true, true, p).unwrap();
+        assert_eq!(generator.level(), 17);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+    }
+
+    #[test]
+    fn dynamic_release_rate_change_takes_effect_in_modulator_first_release() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            20,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = false;
+        p.release_rate = 0;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, true, false, p).unwrap();
+        assert_eq!(generator.level(), 20);
+
+        p.release_rate = 1; // The percussive first-release path consumes RR live.
+        generator.tick(4_096, true, false, p).unwrap();
+        assert_eq!(generator.level(), 21);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn dynamic_release_rate_change_takes_effect_in_sustained_carrier_key_off() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            20,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.sustain_on = false;
+        p.release_rate = 0;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, false, true, p).unwrap();
+        assert_eq!(generator.level(), 20);
+
+        p.release_rate = 1; // EG-TYPE=1/SUS=OFF selects the programmed RR.
+        generator.tick(4_096, false, true, p).unwrap();
+        assert_eq!(generator.level(), 21);
+    }
+
+    #[test]
+    fn dynamic_eg_type_switches_between_sustain_and_first_release_behavior() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            32,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.release_rate = 1;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.level(), 32);
+
+        p.sustained_tone = false; // The same state now uses RR, as percussive RR.
+        generator.tick(4_096, true, true, p).unwrap();
+        assert_eq!(generator.level(), 33);
+
+        p.sustained_tone = true; // Switching back to sustained holds the level.
+        generator.tick(8_192, true, true, p).unwrap();
+        assert_eq!(generator.level(), 33);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn dynamic_eg_type_switches_carrier_second_release_rate_selection() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            20,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.sustain_on = false;
+        p.release_rate = 0;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, false, true, p).unwrap();
+        assert_eq!(generator.level(), 20);
+
+        p.sustained_tone = false; // EG-TYPE=0/SUS=OFF selects fixed base rate 7.
+        generator.tick(64, false, true, p).unwrap();
+        assert_eq!(generator.level(), 21);
+
+        p.sustained_tone = true; // EG-TYPE=1/SUS=OFF returns to programmed RR=0.
+        generator.tick(128, false, true, p).unwrap();
+        assert_eq!(generator.level(), 21);
+    }
+
+    #[test]
+    fn dynamic_sus_change_takes_effect_during_carrier_second_release() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            20,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.sustain_on = false;
+        p.release_rate = 0;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, false, true, p).unwrap();
+        assert_eq!(generator.level(), 20);
+
+        p.sustain_on = true; // SUS changes the active release rate to fixed base 5.
+        generator.tick(256, false, true, p).unwrap();
+        assert_eq!(generator.level(), 21);
+
+        p.sustain_on = false; // Back to programmed RR=0 without a new KEY-OFF edge.
+        generator.tick(512, false, true, p).unwrap();
+        assert_eq!(generator.level(), 21);
+    }
+
+    #[test]
+    fn dynamic_sustain_level_change_during_decay_is_used_as_live_stop_condition() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            33,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.decay_rate = 0;
+        p.sustain_level = 3;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+        assert_eq!(generator.level(), 33);
+
+        p.sustain_level = 4; // Current level 33 belongs to the candidate SL=4 bucket.
+        generator.tick(1, true, true, p).unwrap();
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+        assert_eq!(generator.level(), 33);
+    }
+
+    #[test]
+    fn dynamic_sustain_level_change_after_sustain_entry_does_not_move_level() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            32,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.sustain_level = 4;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        p.sustain_level = 10;
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+        assert_eq!(generator.level(), 32);
+    }
+
+    #[test]
+    fn sustain_level_one_candidate_comparator_accepts_observed_odd_level_nine() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            9,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.decay_rate = 0;
+        p.sustain_level = 1;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.level(), 9);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
 }
