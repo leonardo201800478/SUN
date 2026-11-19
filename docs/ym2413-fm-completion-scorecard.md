@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base da auditoria em 2026-11-19:** `a77c4e0bced469f4d9bbc5140027edeb45df5602`
+**Main base após PR #1061 em 2026-11-19:** `1224d77db38274c1829c913ca46c07ac57948997`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -841,3 +841,25 @@ A implementação Rust preserva o contador externo e expõe separadamente PG, EG
 **Estado:** contador compartilhado por amostra e sequência de chamadas do modelo melhor caracterizados; origem/fase física, offsets PG/EG/OP e ponto de consumo do reset continuam pendentes. FM-1/FM-3 permanecem PARCIAIS; FM-6 permanece PENDENTE.
 
 **Ressalva adicional da referência:** `model5.cc` contém literalmente `uint6 rate = max(63, 4 * basicRate + rks)`, embora `uint6` seja apenas alias de `uint8_t`. A expressão `std::max` não satura em 63 e é inconsistente com o campo de seis bits. A auditoria registra a anomalia como possível erro no modelo; não a reproduz nem presume silenciosamente que o autor pretendia `min`. O clamp do Rust permanece uma decisão separada, rastreada à largura de RATE e às medições.
+
+
+---
+
+## Atualização FM-1/FM-3/FM-6 — auditorias e vetor DAMP integrados (2026-11-19)
+
+### PRs #1058–#1061
+
+- **PR #1058** — auditoria da cadência do contador global EG e sua fase observável no modelo. CI #8861: gates aplicáveis SUCCESS. Documentação apenas; não cria contador nem escolhe fase física.
+- **PR #1059** — auditoria cruzada das cadências PG, PM LFO e AM LFO. CI #8864: gates aplicáveis SUCCESS. Mantém fases e domínios de avanço separados; offsets de slot e alinhamento absoluto continuam pendentes.
+- **PR #1060** — auditoria da ordem de consumo EG no modelo Andete 2017. Merge commit `878326d53c8815fb5f4fcf0bcf51b6331834258e`; CI #8870: gates aplicáveis SUCCESS. Documentação apenas; a ordem do modelo é referência para vetores, não prova de subfases físicas.
+- **PR #1061** — vetor de teste `carrier_damp_reset_is_consumed_after_the_current_pair_sample`. Merge commit `1224d77db38274c1829c913ca46c07ac57948997`; CI #8876: Rustfmt, Clippy, testes unitários/integração dos workspaces e qualidade Rust SUCCESS.
+
+### Resultado do vetor DAMP
+
+O teste caracteriza, no contrato das APIs atuais, a sequência PG→EG do modulador, PG→EG do carrier, atualização do nível EG, avaliação do par e consumo posterior do evento de reset. Com AR=10, KSR desabilitado, FNUM=0, BLOCK=0 e contador 8, o nível do carrier transita de 127 para 119. A avaliação usa as fases calculadas antes do evento; o reset altera o estado PG para a atualização seguinte.
+
+**Limite:** trata-se de uma sequência determinística de referência de software. Não estabelece o subclock físico em que DAMP, PG, EG ou avaliação FM ocorrem. Não houve alteração de lógica de produção e FM-1/FM-6 continuam PARCIAIS/PENDENTES conforme o scorecard.
+
+### Próxima caracterização de software
+
+A próxima validação isolada é a continuidade do par modulator/carrier após snapshot/restore, verificando conjuntamente os dois valores históricos de feedback e a fase do modulator da amostra anterior. O teste deve comparar execução contínua e restaurada sem introduzir estado inicial físico presumido, cadência de slots ou conversão DAC.

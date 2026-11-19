@@ -721,6 +721,46 @@ mod tests {
         assert_eq!(pair, before);
     }
 
+    #[test]
+    fn snapshot_restore_preserves_feedback_and_one_sample_phase_continuity() {
+        let mut uninterrupted = OperatorPair::with_initial_state([321, -123], Some(0x155)).unwrap();
+        let mut initial_parameters = parameters();
+        initial_parameters.feedback = 7;
+
+        // Advance once so both the two-output feedback history and delayed
+        // modulator phase differ from their explicitly supplied initial state.
+        uninterrupted
+            .evaluate(0x166, 0x210, initial_parameters)
+            .unwrap();
+
+        let snapshot = uninterrupted.export_state();
+        assert_eq!(snapshot.previous_modulator_phase_index, Some(0x166));
+        let mut restored = OperatorPair::restore_state(snapshot).unwrap();
+
+        // Continue through different feedback strengths and phase wrap. The
+        // restored pair must consume exactly the same prior-sample phase and
+        // two prior modulator outputs as uninterrupted execution.
+        for (modulator_phase, carrier_phase, feedback) in [
+            (0x177, 0x3f0, 1),
+            (0x188, 0x020, 4),
+            (0x199, 0x3ff, 7),
+            (0x1aa, 0x100, 0),
+        ] {
+            let mut sample_parameters = parameters();
+            sample_parameters.feedback = feedback;
+
+            let expected = uninterrupted
+                .evaluate(modulator_phase, carrier_phase, sample_parameters)
+                .unwrap();
+            let actual = restored
+                .evaluate(modulator_phase, carrier_phase, sample_parameters)
+                .unwrap();
+
+            assert_eq!(actual, expected);
+            assert_eq!(restored.export_state(), uninterrupted.export_state());
+        }
+    }
+
     fn wrap_phase_for_test(phase: i32) -> u16 {
         phase.rem_euclid(1024) as u16
     }
