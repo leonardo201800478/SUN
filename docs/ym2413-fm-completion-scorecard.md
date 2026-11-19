@@ -869,8 +869,8 @@ A próxima validação isolada é a continuidade do par modulator/carrier após 
 
 ## Atualização FM-1/FM-3 — continuidade de snapshot do feedback (PR #1062, 2026-11-19)
 
-**PR #1062:** `test(ym2413): verify feedback snapshot continuation`  
-**Merge commit:** `785bc45e1eb8c5bcba09570617ca2c852d5b00ec`  
+**PR #1062:** `test(ym2413): verify feedback snapshot continuation`
+**Merge commit:** `785bc45e1eb8c5bcba09570617ca2c852d5b00ec`
 **CI #8879:** Rust workspace regression, formatação, Clippy, testes unitários/integração, observability e higiene documental SUCCESS.
 
 O vetor avança uma amostra antes do snapshot e compara execução contínua e restaurada ao continuar com feedback 1, 4, 7 e 0, incluindo fases que cruzam o limite de 10 bits. Cada amostra e o estado serializado subsequente devem permanecer idênticos.
