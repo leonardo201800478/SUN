@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1061 em 2026-11-19:** `1224d77db38274c1829c913ca46c07ac57948997`
+**Main base após PR #1062 em 2026-11-19:** `785bc45e1eb8c5bcba09570617ca2c852d5b00ec`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -863,3 +863,20 @@ O teste caracteriza, no contrato das APIs atuais, a sequência PG→EG do modula
 ### Próxima caracterização de software
 
 A próxima validação isolada é a continuidade do par modulator/carrier após snapshot/restore, verificando conjuntamente os dois valores históricos de feedback e a fase do modulator da amostra anterior. O teste deve comparar execução contínua e restaurada sem introduzir estado inicial físico presumido, cadência de slots ou conversão DAC.
+
+
+---
+
+## Atualização FM-1/FM-3 — continuidade de snapshot do feedback (PR #1062, 2026-11-19)
+
+**PR #1062:** `test(ym2413): verify feedback snapshot continuation`  
+**Merge commit:** `785bc45e1eb8c5bcba09570617ca2c852d5b00ec`  
+**CI #8879:** Rust workspace regression, formatação, Clippy, testes unitários/integração, observability e higiene documental SUCCESS.
+
+O vetor avança uma amostra antes do snapshot e compara execução contínua e restaurada ao continuar com feedback 1, 4, 7 e 0, incluindo fases que cruzam o limite de 10 bits. Cada amostra e o estado serializado subsequente devem permanecer idênticos.
+
+**Limite:** valida continuidade do estado de software do par. Não prova a posição física de captura do feedback, nem define offsets de slot/subfase.
+
+### Próxima validação
+
+A próxima prova de isolamento é em nível de banco: verificar que os nove canais melódicos mantêm pipelines de feedback independentes, que avaliar um canal não altera os oito restantes e que o snapshot agregado preserva os nove históricos. Isso valida a separação de estado do banco, sem declarar a ordem física de execução dos canais nem criar um sequenciador.
