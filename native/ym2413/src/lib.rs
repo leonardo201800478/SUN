@@ -479,13 +479,19 @@ mod tests {
                     assert_eq!(core.input_clock_phase(), clock_in_slot as u8);
                 } else {
                     let next_slot = (slot_index + 1) % YM2413_SLOT_COUNT;
-                    assert_eq!(core.next_slot_descriptor(), Some(YM2413_SLOT_MAP[next_slot]));
+                    assert_eq!(
+                        core.next_slot_descriptor(),
+                        Some(YM2413_SLOT_MAP[next_slot])
+                    );
                     assert_eq!(core.input_clock_phase(), 0);
                 }
             }
         }
 
-        assert_eq!(core.elapsed_input_clocks(), YM2413_INPUT_CLOCKS_PER_ROTATION);
+        assert_eq!(
+            core.elapsed_input_clocks(),
+            YM2413_INPUT_CLOCKS_PER_ROTATION
+        );
         assert_eq!(core.completed_rotations(), 1);
         assert_eq!(core.slot_index(), 0);
     }
@@ -507,5 +513,4 @@ mod tests {
             assert_eq!(restored.elapsed_input_clocks(), offset);
         }
     }
-
 }
