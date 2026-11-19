@@ -1566,8 +1566,12 @@ mod tests {
         p.fnum = 0;
         p.block = 0;
 
-        p.sustain_level = 10;
         generator.tick(0, true, true, p).unwrap();
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+        assert_eq!(generator.level(), 32);
+
+        p.sustain_level = 10;
+        generator.tick(1, true, true, p).unwrap();
         assert_eq!(generator.stage(), EnvelopeStage::Sustain);
         assert_eq!(generator.level(), 32);
     }
