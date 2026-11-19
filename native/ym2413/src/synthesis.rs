@@ -780,7 +780,9 @@ mod tests {
         )
         .unwrap();
         let mut bank = Ym2413SynthesisBank::with_initial_state(initial).unwrap();
-        let config = configuration(0);
+        let mut config = configuration(0);
+        config.modulator_envelope.attack_rate = 10;
+        config.carrier_envelope.attack_rate = 10;
 
         // Model5's per-operator call order is PG, then EG. The modulator
         // services first; its DAMP transition is coordinated by the carrier.
