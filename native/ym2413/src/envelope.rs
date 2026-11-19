@@ -1071,5 +1071,4 @@ mod tests {
         assert!(!result.phase_reset_required);
         assert_eq!(generator.stage(), EnvelopeStage::Damp);
     }
-
 }
