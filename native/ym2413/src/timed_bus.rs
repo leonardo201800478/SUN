@@ -146,10 +146,13 @@ impl Ym2413TimedBus {
         self.apply_write_at(master_clock, |core| core.write_data(value), false)
     }
 
-    /// Reset core registers, slot phase, elapsed clocks, and bus wait history.
+    /// Start a fresh logical core/timestamp epoch and clear bus wait history.
     ///
-    /// The machine adapter remains responsible for the documented external
-    /// reset-pulse timing and for choosing the correct reset event timestamp.
+    /// This delegates to the current core reset contract, which resets its
+    /// software slot phase and elapsed-clock origin. It does not establish
+    /// that an electrical YM2413 IC reset rephases the physical slot sequencer.
+    /// A machine adapter must not use this as proof of physical reset timing;
+    /// that hardware behavior remains a separate validation requirement.
     pub fn reset(&mut self) {
         self.core.reset();
         self.timing = Ym2413BusTiming::new();
@@ -335,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn reset_clears_registers_clock_and_bus_wait_history() {
+    fn reset_starts_a_fresh_logical_epoch_and_clears_bus_wait_history() {
         let mut bus = Ym2413TimedBus::new();
         bus.write_address_at(100, 0x20).unwrap();
         bus.write_data_at(112, 0x5a).unwrap();
