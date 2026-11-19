@@ -272,11 +272,11 @@ impl EnvelopeGenerator {
             && self.stage == EnvelopeStage::Damp
             && self.level >= self.damp_config.threshold
         {
+            // DAMP is complete at this update boundary. Select the new stage
+            // before the stage evaluator below, matching the reference model:
+            // ATTACK may consume this same shared-counter update.
             self.complete_damp(parameters.attack_rate);
-            return Ok(EnvelopeTickResult {
-                level: self.level,
-                phase_reset_required: true,
-            });
+            phase_reset_required = true;
         }
 
         match self.stage {
@@ -767,7 +767,7 @@ mod tests {
     }
 
     #[test]
-    fn damp_completion_does_not_advance_the_new_stage_in_the_same_update() {
+    fn damp_completion_at_update_entry_advances_attack_with_same_counter() {
         let config = damp_config(
             DampTransitionCoordination::IndependentPerOperator,
             AttackRate15Transition::EnterAttack,
@@ -777,10 +777,12 @@ mod tests {
         let mut p = params();
         p.attack_rate = 10;
 
+        // Effective AR is 40. Counter 8 selects an attack step, so the
+        // reference sequence transitions DAMP -> ATTACK and advances 124 -> 116.
         let result = generator.tick_with_events(8, true, true, p).unwrap();
 
         assert!(result.phase_reset_required);
-        assert_eq!(result.level, 124);
+        assert_eq!(result.level, 116);
         assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
