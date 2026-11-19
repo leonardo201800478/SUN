@@ -462,8 +462,7 @@ mod tests {
     fn slot_descriptor_changes_only_at_four_clock_boundaries_and_wraps_after_one_rotation() {
         let mut core = Ym2413Core::new();
 
-        for slot_index in 0..YM2413_SLOT_COUNT {
-            let expected = YM2413_SLOT_MAP[slot_index];
+        for (slot_index, expected) in YM2413_SLOT_MAP.iter().copied().enumerate() {
             assert_eq!(core.next_slot_descriptor(), Some(expected));
 
             for clock_in_slot in 1..=YM2413_INPUT_CLOCKS_PER_SLOT {
