@@ -839,3 +839,5 @@ A implementação Rust preserva o contador externo e expõe separadamente PG, EG
 **Decisão:** nenhuma lógica de produção alterada. Não mapear a sequência de chamadas do modelo diretamente aos quatro clocks do slot, não assumir fase física zero e não derivar `completed_rotations` como contador EG físico. A ordem é uma hipótese de referência para vetores diferenciais, não fechamento cycle-accurate.
 
 **Estado:** contador compartilhado por amostra e sequência de chamadas do modelo melhor caracterizados; origem/fase física, offsets PG/EG/OP e ponto de consumo do reset continuam pendentes. FM-1/FM-3 permanecem PARCIAIS; FM-6 permanece PENDENTE.
+
+**Ressalva adicional da referência:** `model5.cc` contém literalmente `uint6 rate = max(63, 4 * basicRate + rks)`, embora `uint6` seja apenas alias de `uint8_t`. A expressão `std::max` não satura em 63 e é inconsistente com o campo de seis bits. A auditoria registra a anomalia como possível erro no modelo; não a reproduz nem presume silenciosamente que o autor pretendia `min`. O clamp do Rust permanece uma decisão separada, rastreada à largura de RATE e às medições.
