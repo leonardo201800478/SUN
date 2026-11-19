@@ -7,23 +7,24 @@
 
 use crate::slot::{YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413RhythmVoice};
 
-/// Lowest signed digital value observed at the YM2413's nine-bit output.
+/// Lowest signed output-level value reconstructed from YM2413 measurements.
 pub const YM2413_DAC_CODE_MIN: i16 = -255;
-/// Highest signed digital value observed at the YM2413's nine-bit output.
+/// Highest signed output-level value reconstructed from YM2413 measurements.
 pub const YM2413_DAC_CODE_MAX: i16 = 255;
 /// Version of the rhythm output-retention snapshot.
 pub const YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION: u16 = 1;
 
-/// One signed digital code accepted by the YM2413's nine-bit output stage.
+/// One signed, measurement-domain YM2413 output level.
 ///
-/// The range reflects the 511 distinct values measured by andete
-/// (-255..=+255); the unused -256 code is rejected. This type does not
-/// describe the electrical voltage on MO/RO or convert operator i16 values.
+/// This wrapper stores the reconstructed amplitude domain `-255..=+255`.
+/// It is not the raw nine-bit DAC input word and does not preserve the two
+/// distinct one's-complement zero encodings. No conversion from the operator's
+/// `i16` representation is defined here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413DacCode(i16);
 
 impl Ym2413DacCode {
-    /// Construct a measured-domain DAC code, rejecting values outside its range.
+    /// Construct a signed measured-domain output level, rejecting values outside its range.
     pub const fn new(value: i16) -> Result<Self, Ym2413RhythmOutputError> {
         if value < YM2413_DAC_CODE_MIN || value > YM2413_DAC_CODE_MAX {
             return Err(Ym2413RhythmOutputError::InvalidDacCode(value));
@@ -31,7 +32,7 @@ impl Ym2413DacCode {
         Ok(Self(value))
     }
 
-    /// Return the signed nine-bit digital code.
+    /// Return the signed reconstructed output-level value.
     pub const fn value(self) -> i16 {
         self.0
     }
@@ -46,7 +47,7 @@ pub struct Ym2413RhythmOutputEvent {
     pub voice: Ym2413RhythmVoice,
     /// True when the value is the measured delayed duplicate.
     pub is_delayed_repeat: bool,
-    /// Exact signed nine-bit code emitted for this occurrence.
+    /// Signed reconstructed output-level value emitted for this occurrence.
     pub code: Ym2413DacCode,
 }
 
@@ -70,7 +71,7 @@ pub enum Ym2413RhythmOutputSlotResult {
 /// Errors from the rhythm output-retention model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413RhythmOutputError {
-    /// A value is outside the measured signed nine-bit output domain.
+    /// A value is outside the signed measured output-level domain.
     InvalidDacCode(i16),
     /// The supplied slot index is outside 0..18.
     InvalidSlotIndex(u8),
@@ -93,7 +94,7 @@ pub struct Ym2413RhythmOutputDelayState {
     pub format_version: u16,
     /// Slot index expected by the next process_slot call.
     pub next_slot_index: u8,
-    /// Most recently generated original code for BD, HH, SD, TOM and TCY.
+    /// Most recently generated original output level for BD, HH, SD, TOM and TCY.
     /// None means no source value has been observed in this state history.
     pub retained_values: [Option<Ym2413DacCode>; 5],
 }

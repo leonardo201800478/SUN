@@ -29,12 +29,12 @@ O deslocamento de meia amostra no Log-Sine evita avaliar `log2(sin(0))`, que é 
 ## Cadeia de evidência
 
 1. **Andete, 2015-04-09 — “sine and exp tables”.** O estudo descreve:
-   - regiões de die shots do OPLL e OPL3 com estruturas e padrões ROM correspondentes;
+   - regiões dos die shots do derivado FHB013 (não de um YM2413 genuíno) e do OPL3 com estruturas e padrões ROM correspondentes;
    - tabelas de 256 entradas, Log-Sine entre 0 e 2137 e EXP entre 0 e 1018;
    - as fórmulas acima e a lógica de lookup;
    - comparação da forma de onda prevista com medições do chip: o autor relata correspondência exata para volumes 1–15 e atribui discrepâncias em volume 0 a ruído nas medições de maior amplitude.
 
-   O mesmo estudo ressalva que a interpretação dos die shots não é inteiramente certa. A afirmação de ROM idêntica entre OPLL/OPL2/OPL3 é apresentada como inferência, não como leitura digital completa.
+   O mesmo estudo ressalva que a interpretação dos die shots não é inteiramente certa. A página de referência do projeto YM2413 esclarece que as imagens citadas são de um derivado FHB013, com conjunto de instrumentos diferente, e que não há die shots reais do YM2413 disponíveis. Portanto, essa evidência não pode ser descrita como inspeção física direta da ROM do YM2413. A identidade entre tabelas OPLL/OPL2/OPL3 permanece uma inferência.
 
 2. **Andete, 2016-07-16 — modelo parcial inicial.** Reutiliza as fórmulas Log-Sine e EXP e amplia a comparação experimental para o modelo de operador, incluindo modulator/carrier, feedback, volume e KSL. A página deixa explícito que envelope e AM ainda são níveis fixos, não geradores temporais completos.
 
@@ -45,6 +45,19 @@ O deslocamento de meia amostra no Log-Sine evita avaliar `log2(sin(0))`, que é 
 Os testes em `synthesis_tables.rs` agora percorrem todas as 256 posições de cada tabela e comparam o valor armazenado com a avaliação da fórmula correspondente, arredondada ao inteiro mais próximo.
 
 Uma verificação independente das 512 entradas, executada durante esta auditoria, encontrou **zero divergências** entre as tabelas de `main` e as fórmulas. Os testes usam ponto flutuante apenas em `cfg(test)`; o caminho de síntese em execução continua usando constantes inteiras e não ganha cálculo transcendental em runtime.
+
+## Representação de sinal, zeros e domínio DAC
+
+As fontes de reverse engineering distinguem a representação interna do operador do nível analógico reconstruído:
+
+- As notas de 2015-04-09 explicam que o bit de sinal é aplicado por complemento bit a bit, produzindo uma representação one's-complement e dois padrões distintos para zero (+0 e -0).
+- As medições iniciais de 2015-02-09 estimam 511 níveis analógicos distintos no sinal amostrado, no intervalo de amplitude -255 a +255, a partir de uma cadeia MO/RO → condicionamento analógico → ADC de 12 bits. O autor também registra ruído, picos ausentes e uma LUT calibrada ADC→nível. Isso não equivale a observar diretamente os nove fios digitais de entrada do DAC.
+- As notas de 2015-03-11 mostram explicitamente os valores -0 e +0 como níveis distintos na forma de onda reconstruída. Assim, 511 amplitudes numéricas distintas não significam necessariamente apenas 511 padrões digitais: os dois zeros podem ocupar padrões distintos.
+- O código de modelo publicado em 2015-12-03 desloca o resultado do operador por `+256`; modelos posteriores, incluindo 2015-12-12 e 2016-07-16, mostram a forma `255 - c`. Essas expressões não devem ser fundidas silenciosamente: há uma diferença de uma unidade na transformação de saída apresentada entre versões do modelo.
+
+O teste de caracterização agora fixa separadamente os resultados de pico positivo (`255`), pico negativo no transporte one's-complement (`-256`), zero positivo (`0`) e zero negativo (`-1`) após a escala do carrier. Isso valida a semântica do candidato de software, não determina qual transformação alimenta o DAC físico.
+
+Por esse motivo, `Ym2413DacCode` permanece apenas como wrapper do domínio de níveis assinados medidos; sua documentação não deve chamá-lo de palavra bruta de nove bits. A conversão operador→código DAC continua bloqueada até resolver a diferença entre os modelos e obter uma correlação física suficientemente forte.
 
 ## O que esta auditoria não prova
 
@@ -58,7 +71,11 @@ Essas questões permanecem separadas. Em particular, a fronteira operador/DAC co
 
 ## Referências
 
-- Andete, [YM2413 Reverse Engineering Notes 2015-04-09](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-04-09); fonte original: [results/20150409/tab.txt](https://github.com/andete/ym2413/blob/master/results/20150409/tab.txt).
+- Andete, [YM2413 Reverse Engineering Notes 2015-02-09](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-02-09) — reconstrução a partir de ADC e condicionamento analógico.
+- Andete, [YM2413 Reverse Engineering Notes 2015-03-11](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-03-11) — amplitudes medidas e zeros positivo/negativo.
+- Andete, [YM2413 Reverse Engineering Notes 2015-04-09](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-04-09); fonte original: [results/20150409/tab.txt](https://github.com/andete/ym2413/blob/master/results/20150409/tab.txt) — tabelas e complemento one's-complement.
+- Andete, [YM2413 Reverse Engineering Notes 2015-12-03](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-03) e [2015-12-12](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-12) — versões posteriores do modelo de saída.
+- [YM2413 reverse-engineering index](https://www.smspower.org/Development/YM2413) — identifica FHB013 como derivado e informa que não há die shots reais do YM2413.
 - Andete, [YM2413 Reverse Engineering Notes 2016-07-16](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2016-07-16).
 - Andete, [YM2413 Reverse Engineering Notes 2017-01-26](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2017-01-26); modelo: [results/20170126/model5.cc](https://github.com/andete/ym2413/blob/master/results/20170126/model5.cc).
 - [Índice cronológico das notas de reverse engineering](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes).
