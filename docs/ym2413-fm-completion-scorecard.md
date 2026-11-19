@@ -1,6 +1,6 @@
 # YM2413 FM Completion Scorecard
 
-**Data de referência:** 2026-11-18
+**Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
 **Main após FM-3 parcial:** `daf950d0e0bf3242dfb213d5e9e50a24db19a70e`
 
@@ -30,7 +30,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Etapa | Estado | Entrega existente | Pendência para conclusão |
 |---|---|---|---|
 | FM-0 — Auditoria e consolidação | **Concluída** | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
-| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; 17 testes EG, 14 testes de tabelas/operadores, 6 testes KSL, 7 testes AM LFO e 8 testes de instrumentos/canais | Integrar 18 EGs ao pipeline de operadores; resolver contratos de update; integrar snapshot ao estado agregado; validar transições com vetores independentes |
+| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; evento tipado candidato para reset de PG ao concluir DAMP | Integrar 18 EGs ao pipeline de operadores; consumir eventos de reset no limite temporal correto; integrar snapshot ao estado agregado; validar transições com vetores independentes |
 | FM-2 — Operadores e síntese FM | **Parcial** | Tabelas Log-Sine/EXP; lookup de fase/sinal; par modulator/carrier; feedback de dois samples; KSL BLOCK/FNUM; snapshots locais | Integrar KSL ao decoder/canal, validar PCM diferencial, integrar aos slots e confirmar escala/quantização fisicamente |
 | FM-3 — LFO e modulação | **Parcial** | Contador PM global, tabela PM 8×8 e AM LFO de 210 posições/64 amostras, 14 níveis e snapshot | Conectar PM/AM aos operadores; comprovar fase absoluta e alinhamento temporal |
 | FM-4 — Instrumentos | **Parcial** | User patch decoder; 15 presets melódicos candidatos com licença MIT/procedência; decoder FNUM/BLOCK/KEY/SUS/INST/VOL por canal | Validar patches contra hardware; ligar parâmetros ao PG/EG/operadores; confirmar os nove canais; ROM física exata ainda não disponível |
@@ -659,3 +659,18 @@ A auditoria adicional das notas de Andete identificou duas expressões de saída
 Para o intermediário candidato x ∈ [-256,255], as fórmulas `x+256` e `255-x` são complementos exatos no domínio de 9 bits (soma 511). Invertem a polaridade e trocam os códigos dos dois zeros. Portanto, não são diferenças triviais de arredondamento.
 
 A Issue #1031 continua aberta: nenhum desses modelos demonstra diretamente a palavra interna aplicada ao DAC físico. Não implementar conversão padrão, clamp de -256, saturação, wrap ou bias. A nova auditoria detalhada está em `docs/audits/ym2413-operator-dac-boundary-variants-2026-11-19.md`.
+
+
+---
+
+## Atualização FM-1 — evento de reset PG na conclusão de DAMP (2026-11-19)
+
+A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP é também uma fronteira de reset da fase PG no modelo de referência. A alteração em andamento expõe esse evento sem aplicar reset automático nem escolher a subfase/slot de consumo.
+
+- API EG: resultado tipado com nível e indicador de reset de fase.
+- Banco agregado: propagação do evento e operação explícita de reset de um PG.
+- Compatibilidade: a API anterior de tick continua retornando o nível.
+- Política CarrierDrivesBoth: continua explícita; o chamador é responsável por sincronizar o modulator e consumir o reset dos dois PGs no mesmo limite escolhido.
+- Evidência e limites: docs/audits/ym2413-eg-phase-reset-events-2026-11-19.md.
+
+**Estado:** implementação candidata em PR, aguardando CI. FM-1 continua PARCIAL; não há integração temporal/por slots concluída.
