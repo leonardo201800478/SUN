@@ -741,8 +741,8 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 - O modulator permanece separado: EG-TYPE=1 mantém sustain no KEY-OFF; EG-TYPE=0 continua no primeiro RR, sem aplicar o release secundário do carrier.
 - O rate-base selecionado continua passando por KSR; R=0 permanece sem incremento.
 - Testes adicionados para a matriz EG-TYPE × SUS, RATE efetivo com KSR on/off e regressão de EG-TYPE=1/SUS=1 com RR=0.
-- **Estado:** correção candidata implementada em branch; aguardando CI. Não implica integração do EG aos 18 slots, Scheduler, PCM ou conclusão FM-1.
-- Com os três testes novos desta alteração, o módulo EG passa de 34 para **37 testes unitários**.
+- **Estado:** PR #1055 integrada à main pelo commit `98e87aecb7d76ab3ae434f6940b405f445456f9c`. CI #44516002877 (run #8847): SUCCESS nos gates Rust, classificação de impacto e higiene documental; os gates não relacionados permaneceram SKIPPED. A correção não implica integração do EG aos 18 slots, Scheduler, PCM ou conclusão FM-1.
+- Com os três testes novos da PR #1055, o módulo EG passou de 34 para **37 testes unitários**.
 
 
 ---
@@ -768,3 +768,37 @@ Foram adicionados onze testes de caracterização:
 **Cobertura:** módulo EG passa de 37 para 48 testes unitários se todos os novos testes forem aprovados pela CI. A execução de CI desta branch ainda é necessária.
 
 **Limites:** a auditoria não demonstra cadência/fase absoluta do contador global, relação física com 72 input clocks/18 slots, nem instante de amostragem dos registradores. Não integra Scheduler, PG/LFO, DAC ou PCM. FM-1 permanece PARCIAL.
+
+
+---
+
+## Atualização FM-1 — integração SUS × EG-TYPE e auditoria do contador global (2026-11-19)
+
+### PR #1055 — integrada
+
+- HEAD: `094cc854c80cba081af43dcb59ace42e625e4d01`.
+- Merge commit na main: `98e87aecb7d76ab3ae434f6940b405f445456f9c`.
+- CI #44516002877 (run #8847): SUCCESS para Rust workspace regression, change impact classification, documentation patch hygiene e Rust quality/unit regression.
+- Jobs de input, PSG, VDP, Scheduler, desktop, CPAL, SDL3, Z80 e tooling não relacionados: SKIPPED.
+- A matriz SUS × EG-TYPE foi aplicada ao KEY-OFF do carrier; o caminho do modulator permanece separado. Issue #1051 está encerrada após a integração.
+
+### PR #1056 — auditoria dinâmica integrada
+
+- Merge commit: `16d9d4eff0fce8815f29c96ef2b392de11ed82d8`.
+- CI #44522970048 (run #8858): SUCCESS nos gates aplicáveis.
+- Onze testes de caracterização adicionados; inventário EG passa de 37 para **48 testes unitários**.
+- Nenhuma lógica de produção alterada. O teste SL=1/nível 9 permanece caracterização da hipótese `(level >> 3) == SL`, não prova da largura física do comparador.
+
+### Contador global do EG — resultado da auditoria
+
+Documento atualizado: `docs/audits/ym2413-slot-pipeline-investigation-2026-11-18.md`, seção 10.
+
+- Andete 2015-03-20 descreve um contador global compartilhado pelos 18 operadores, incrementado uma vez por amostra de saída.
+- Uma amostra corresponde a uma rotação de 72 input clocks, portanto a cadência média derivada é aproximadamente 49.715,9027778 Hz.
+- A fase desse contador altera o alinhamento dos gates e pode encurtar a primeira transição de envelope após uma mudança de fase ADSR.
+- O algoritmo candidato atual consome o contador externamente. O EG não possui relógio nem contador próprio.
+- `Ym2413Core::completed_rotations` conta rotações desde o reset lógico do objeto, mas não prova a origem/fase do contador físico, nem se o EG observa o valor pré ou pós-incremento na fronteira da rotação.
+
+**Decisão:** não substituir o contador global por `completed_rotations`, não escolher fase inicial zero e não adicionar incremento por slot/input clock. A cadência média por rotação está sustentada; origem, largura/wrap, ordenação de incremento/consumo e alinhamento com PM/AM permanecem pendentes. Nenhuma lógica de produção foi alterada.
+
+**FM-1 permanece PARCIAL.** A cadência média não fecha o pipeline de 18 slots nem o instante físico de serviço dos EGs.
