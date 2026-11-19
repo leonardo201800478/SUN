@@ -743,3 +743,28 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 - Testes adicionados para a matriz EG-TYPE × SUS, RATE efetivo com KSR on/off e regressão de EG-TYPE=1/SUS=1 com RR=0.
 - **Estado:** correção candidata implementada em branch; aguardando CI. Não implica integração do EG aos 18 slots, Scheduler, PCM ou conclusão FM-1.
 - Com os três testes novos desta alteração, o módulo EG passa de 34 para **37 testes unitários**.
+
+
+---
+
+## Atualização FM-1 — auditoria dinâmica de AR/DR/RR/SL/EG-TYPE/SUS (2026-11-19)
+
+**Branch:** `audit/ym2413-dynamic-eg-registers`
+
+A inspeção do EG e as notas de Andete 2015-12-31 indicam que AR, DR, RR, SL, EG-TYPE e SUS são consumidos dinamicamente pelo estado/fase em que se aplicam. “Imediato” significa que a taxa/condição nova é usada na próxima avaliação relevante e aguarda o gate apropriado do contador global; não significa incremento assíncrono do nível.
+
+Foram adicionados onze testes de caracterização:
+- AR durante ATTACK e DR durante DECAY;
+- RR durante o primeiro release do modulator e o KEY-OFF do carrier;
+- EG-TYPE alternado em SUSTAIN/primeiro RELEASE e no segundo RELEASE do carrier;
+- SUS alternado durante o segundo RELEASE do carrier;
+- SL alterado durante DECAY, incluindo alvo já ultrapassado, e depois de entrar em SUSTAIN;
+- SL=1 no nível ímpar 9, observado por Andete.
+
+**Ressalva SL:** o código continua usando `(level >> 3) == SL`. O nível 9 para SL=1 é compatível com essa hipótese, mas Andete não conseguiu distinguir experimentalmente se o comparador ignora um ou três bits inferiores. O teste registra a hipótese implementada, não certifica a largura física do comparador. Nenhuma lógica de produção foi alterada.
+
+**Documentação:** `docs/audits/ym2413-dynamic-eg-register-updates-2026-11-19.md`.
+
+**Cobertura:** módulo EG passa de 37 para 48 testes unitários se todos os novos testes forem aprovados pela CI. A execução de CI desta branch ainda é necessária.
+
+**Limites:** a auditoria não demonstra cadência/fase absoluta do contador global, relação física com 72 input clocks/18 slots, nem instante de amostragem dos registradores. Não integra Scheduler, PG/LFO, DAC ou PCM. FM-1 permanece PARCIAL.
