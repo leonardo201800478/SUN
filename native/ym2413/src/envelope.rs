@@ -147,7 +147,10 @@ pub enum EnvelopeGeneratorError {
 pub struct EnvelopeTickResult {
     /// Current seven-bit attenuation (0 is loudest, 127 is silent).
     pub level: u8,
-    /// True only on the update that completes DAMP and enters ATTACK or DECAY.
+    /// True only on the update that completes DAMP and requests a candidate PG reset.
+    ///
+    /// The selected ATTACK/DECAY stage may also consume this update's counter,
+    /// so the final stage after the update is not part of this event's contract.
     pub phase_reset_required: bool,
 }
 
