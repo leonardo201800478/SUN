@@ -771,6 +771,74 @@ mod tests {
     }
 
     #[test]
+    fn carrier_damp_reset_is_consumed_after_the_current_pair_sample() {
+        let mut initial = initial_state();
+        initial.damp_config = DampTransitionConfig::new(
+            124,
+            DampTransitionCoordination::CarrierDrivesBoth,
+            AttackRate15Transition::SkipAttackToDecay,
+        )
+        .unwrap();
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial).unwrap();
+        let mut config = configuration(0);
+        config.modulator_envelope.attack_rate = 10;
+        config.modulator_envelope.key_scale_rate = false;
+        config.modulator_envelope.fnum = 0;
+        config.modulator_envelope.block = 0;
+        config.carrier_envelope.attack_rate = 10;
+        config.carrier_envelope.key_scale_rate = false;
+        config.carrier_envelope.fnum = 0;
+        config.carrier_envelope.block = 0;
+
+        // Model5's per-operator call order is PG, then EG. The modulator
+        // services first; its DAMP transition is coordinated by the carrier.
+        let modulator_phase = bank
+            .advance_operator_phase(0, false, config.modulator_phase)
+            .unwrap();
+        let modulator_event = bank
+            .tick_operator_envelope_with_events(0, false, true, 8, config.modulator_envelope)
+            .unwrap();
+        assert!(!modulator_event.phase_reset_required);
+
+        // The carrier PG is also advanced before its EG detects DAMP completion.
+        let carrier_phase = bank
+            .advance_operator_phase(0, true, config.carrier_phase)
+            .unwrap();
+        let carrier_event = bank
+            .tick_operator_envelope_with_events(0, true, true, 8, config.carrier_envelope)
+            .unwrap();
+        assert!(carrier_event.phase_reset_required);
+        // AR=10, KSR=0, FNUM=0, BLOCK=0 => RATE=40; counter 8
+        // selects the measured -8 attack step from level 127 to 119.
+        assert_eq!(bank.envelope_level(0, true).unwrap(), 119);
+        assert_ne!(modulator_phase, 0);
+        assert_ne!(carrier_phase, 0);
+
+        // The current sample must observe the phases calculated before the
+        // DAMP event and the EG levels updated during this same service.
+        assert_eq!(bank.phase_index(0, false).unwrap(), modulator_phase);
+        assert_eq!(bank.phase_index(0, true).unwrap(), carrier_phase);
+        let _current_sample = bank.evaluate_channel(&config).unwrap();
+
+        // Consume the reset after evaluating this sample. The reset affects
+        // the next PG update, not the phase values already used by this sample.
+        bank.consume_carrier_damp_phase_reset_event(0, carrier_event)
+            .unwrap();
+        assert_eq!(bank.phase_index(0, false).unwrap(), 0);
+        assert_eq!(bank.phase_index(0, true).unwrap(), 0);
+
+        // Carrier-driven DAMP coordination synchronizes the modulator stage.
+        assert_eq!(
+            bank.export_state().channels[0].modulator_envelope.stage,
+            EnvelopeStage::Attack
+        );
+        assert_eq!(
+            bank.export_state().channels[0].carrier_envelope.stage,
+            EnvelopeStage::Attack
+        );
+    }
+
+    #[test]
     fn lfo_sample_advancement_is_shared_and_partition_invariant() {
         let mut continuous = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
         let mut chunked = continuous.clone();
