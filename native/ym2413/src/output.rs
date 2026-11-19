@@ -13,12 +13,9 @@
 //! questions. The supplied Ym2413DacCode is the project's reconstructed
 //! signed measurement-domain level, not a raw DAC input word.
 
-use crate::rhythm_output::{
-    Ym2413DacCode, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
-};
+use crate::rhythm_output::{Ym2413DacCode, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult};
 use crate::slot::{
-    YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413Operator, Ym2413RhythmVoice,
-    slot_descriptor,
+    YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413Operator, Ym2413RhythmVoice, slot_descriptor,
 };
 
 /// Number of input clocks in one serial operator slot.
@@ -111,7 +108,10 @@ impl core::fmt::Display for Ym2413OutputRoutingError {
             Self::InvalidSlotIndex(slot) => {
                 write!(f, "invalid YM2413 output slot index: {slot}")
             }
-            Self::MissingMelodyLevel { slot_index, channel } => write!(
+            Self::MissingMelodyLevel {
+                slot_index,
+                channel,
+            } => write!(
                 f,
                 "missing YM2413 MO level at slot {slot_index} for channel {channel}"
             ),
@@ -143,8 +143,8 @@ pub fn melody_output_for_slot(
     rhythm_mode_enabled: bool,
     level: Option<Ym2413DacCode>,
 ) -> Result<Option<Ym2413OutputPulse>, Ym2413OutputRoutingError> {
-    let descriptor =
-        slot_descriptor(slot_index).ok_or(Ym2413OutputRoutingError::InvalidSlotIndex(slot_index))?;
+    let descriptor = slot_descriptor(slot_index)
+        .ok_or(Ym2413OutputRoutingError::InvalidSlotIndex(slot_index))?;
     let is_melody_output = descriptor.operator == Ym2413Operator::Carrier
         && (!rhythm_mode_enabled || descriptor.channel < 6);
 
@@ -270,7 +270,11 @@ mod tests {
     #[test]
     fn rhythm_mode_routes_only_the_first_six_melodic_channels_to_mo() {
         for slot in [3, 4, 5, 9, 10, 11] {
-            assert!(melody_output_for_slot(slot, true, Some(level(12))).unwrap().is_some());
+            assert!(
+                melody_output_for_slot(slot, true, Some(level(12)))
+                    .unwrap()
+                    .is_some()
+            );
         }
         for slot in [15, 16, 17] {
             assert_eq!(melody_output_for_slot(slot, true, None), Ok(None));
@@ -283,9 +287,7 @@ mod tests {
             assert_eq!(melody_output_for_slot(slot, false, None), Ok(None));
             assert_eq!(
                 melody_output_for_slot(slot, false, Some(level(1))),
-                Err(Ym2413OutputRoutingError::UnexpectedMelodyLevel {
-                    slot_index: slot,
-                })
+                Err(Ym2413OutputRoutingError::UnexpectedMelodyLevel { slot_index: slot })
             );
         }
     }
