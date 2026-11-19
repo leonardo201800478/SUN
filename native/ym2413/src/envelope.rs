@@ -273,7 +273,10 @@ impl EnvelopeGenerator {
             && self.level >= self.damp_config.threshold
         {
             self.complete_damp(parameters.attack_rate);
-            phase_reset_required = true;
+            return Ok(EnvelopeTickResult {
+                level: self.level,
+                phase_reset_required: true,
+            });
         }
 
         match self.stage {
@@ -731,6 +734,24 @@ mod tests {
         let mut p = params();
         p.attack_rate = 10;
         generator.tick(0, true, false, p).unwrap();
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn damp_completion_does_not_advance_the_new_stage_in_the_same_update() {
+        let config = damp_config(
+            DampTransitionCoordination::IndependentPerOperator,
+            AttackRate15Transition::EnterAttack,
+        );
+        let mut generator =
+            EnvelopeGenerator::with_initial_state(124, EnvelopeStage::Damp, false, config).unwrap();
+        let mut p = params();
+        p.attack_rate = 10;
+
+        let result = generator.tick_with_events(8, true, true, p).unwrap();
+
+        assert!(result.phase_reset_required);
+        assert_eq!(result.level, 124);
         assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
