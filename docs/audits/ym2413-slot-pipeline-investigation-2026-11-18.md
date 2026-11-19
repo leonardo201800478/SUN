@@ -17,7 +17,7 @@
 | Operadores/slots por rotação | 18 | Manual, seção II-5 / Tabela II-3 | Uma célula de operador é reutilizada sequencialmente |
 | Clocks de entrada por rotação | 72 | Captura de saída multiplexada publicada | Uma rotação completa leva 72 clocks de entrada |
 | Clocks de entrada por slot | 4 | Derivado de 72 / 18; compatível com o contrato atual do crate | Quatro clocks formam o orçamento temporal de cada slot; a função individual de cada subfase não está demonstrada |
-| Taxa de rotação/amostra por canal | 3.579.545 / 72 ≈ 49.716,04 Hz | Derivação aritmética das medições | Taxa de repetição do quadro serial, não taxa CPAL |
+| Taxa de rotação/amostra por canal | 3.579.545 / 72 ≈ 49.715,9027778 Hz | Derivação aritmética das medições | Taxa de repetição do quadro serial, não taxa CPAL |
 | Espera após escrita de endereço | 12 clocks master | Manual, Tabela II-2 | Restrição externa entre endereço e dado |
 | Espera após escrita de dados | 84 clocks master | Manual, Tabela II-2 | Restrição externa antes de outra escrita |
 
