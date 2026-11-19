@@ -142,6 +142,12 @@ impl SingleOperatorCarrierParameters {
 
 /// Evaluate one standalone rhythm operator using the carrier output path.
 ///
+/// The returned `i16` carries the candidate operator's one's-complement output
+/// representation after carrier scaling; it is not a conventional signed
+/// amplitude or a raw nine-bit DAC input word. In this representation, `-1`
+/// preserves negative zero and `-256` is the negative-peak encoding after the
+/// four-bit carrier shift. No physical DAC conversion is implied.
+///
 /// The caller supplies the ten-bit phase-table address and current attenuation
 /// inputs. This function does not advance PG, EG, LFSR, feedback, slots, or
 /// chip time. The carrier output scaling (exponential result divided by 16)
@@ -190,11 +196,15 @@ pub fn log_sine_lookup(phase_index: u16, half_wave: bool) -> Result<u16, Operato
     Ok(result)
 }
 
-/// Convert sign/exponent/mantissa log-domain input to signed linear amplitude.
+/// Convert sign/exponent/mantissa log-domain input to a one's-complement
+/// encoded linear result, transported in an `i16`.
 ///
-/// Negative values use the measured one's-complement representation. Inputs
-/// outside the normal operator attenuation range are still defined: shifts
-/// of 32 or more return zero magnitude rather than panicking.
+/// A set sign bit complements the positive magnitude, preserving distinct
+/// positive-zero (`0`) and negative-zero (`-1`) encodings. Consequently, the
+/// returned host integer must not be treated as a conventional signed
+/// amplitude or as a raw DAC input code. Inputs outside the normal operator
+/// attenuation range remain defined: shifts of 32 or more return zero
+/// magnitude rather than panicking.
 pub fn exponential_lookup(encoded: u16) -> i16 {
     let sign = encoded & 0x8000 != 0;
     let mantissa_index = ((encoded & 0x00ff) ^ 0x00ff) as usize;
@@ -213,14 +223,17 @@ pub fn exponential_lookup(encoded: u16) -> i16 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperatorPairState {
     pub format_version: u16,
-    /// [p0, p1], the two previous signed modulator outputs.
+    /// [p0, p1], the two previous modulator outputs in the operator's
+    /// one's-complement representation, transported as i16 values.
     pub feedback_history: [i16; 2],
 }
 
 /// Output of one modulator/carrier synthesis update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperatorPairSample {
+    /// Modulator result in the candidate one's-complement representation.
     pub modulator_output: i16,
+    /// Carrier result in the candidate one's-complement representation.
     pub carrier_output: i16,
     /// Feedback phase offset applied to the modulator, in 10-bit phase units.
     pub feedback_phase_offset: i32,
@@ -382,6 +395,16 @@ mod tests {
                 !exponential_lookup(value)
             );
         }
+    }
+
+    #[test]
+    fn carrier_scaled_output_preserves_both_zero_encodings_and_negative_peak() {
+        // The candidate output uses one's-complement encoding after the
+        // carrier's four-bit scale reduction. Both zeros remain distinct.
+        assert_eq!(exponential_lookup(0x0000) >> 4, 255);
+        assert_eq!(exponential_lookup(0x8000) >> 4, -256);
+        assert_eq!(exponential_lookup(0x7f00) >> 4, 0);
+        assert_eq!(exponential_lookup(0xff00) >> 4, -1);
     }
 
     #[test]
