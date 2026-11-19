@@ -1,8 +1,8 @@
 # YM2413 — Caracterização da relação temporal Modulator → Carrier
 
-**Data:** 2026-11-19  
-**Branch:** `test/ym2413-modulator-carrier-sample-latency`  
-**Escopo:** relação entre o índice de fase usado pelo modulator e o índice corrente usado pelo carrier no modelo de síntese por amostra.  
+**Data:** 2026-11-19
+**Branch:** `test/ym2413-modulator-carrier-sample-latency`
+**Escopo:** relação entre o índice de fase usado pelo modulator e o índice corrente usado pelo carrier no modelo de síntese por amostra.
 **Estado:** evidência documental reconstituída; teste diferencial do modelo Rust implementado, aguardando CI. Não é uma medição física nova.
 
 ## 1. Resultado executivo
@@ -56,7 +56,7 @@ A conclusão metodológica é importante: o atraso de uma amostra é uma parte d
 
 ## 4. Fonte vinculada como 2015-12-12: discrepância editorial
 
-URL indicada no histórico de investigação:  
+URL indicada no histórico de investigação:
 https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-12
 
 O conteúdo atualmente servido nessa URL apresenta o título **“YM2413 Reverse engineering notes (2015-03-27)”**, com navegação anterior para a nota de 2015-12-03 e seguinte para 2015-12-16. Portanto, o slug da URL e o título exibido não concordam.
