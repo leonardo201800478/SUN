@@ -729,3 +729,17 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 - Modulator EG-TYPE=0: continua usando a taxa de release de primeira fase RR, sem entrar no caminho de segundo release do carrier.
 
 **Limite:** testes reproduzem o comportamento candidato documentado nas medições de Andete; não resolvem a divergência carrier SUS × EG-TYPE registrada na Issue #1051. O total de testes unitários do módulo EG passa a 34. FM-1 continua PARCIAL.
+
+
+---
+
+## Atualização FM-1 — seleção SUS × EG-TYPE no KEY-OFF do carrier
+
+- Decisão documentada em docs/audits/ym2413-sus-egtype-carrier-release-2026-11-19.md.
+- Rate-base do carrier: EG-TYPE=0/SUS=0 → 7; EG-TYPE=0/SUS=1 → 5; EG-TYPE=1/SUS=0 → RR; EG-TYPE=1/SUS=1 → 5.
+- Evidência prioritária: mapa de registradores e regra SUS do manual Yamaha; descrição de medições físicas de Andete 2015-12-31. O modelo de software Andete 2017-01-26 diverge para EG-TYPE=1/SUS=1 e não prevalece sobre essas duas fontes.
+- O modulator permanece separado: EG-TYPE=1 mantém sustain no KEY-OFF; EG-TYPE=0 continua no primeiro RR, sem aplicar o release secundário do carrier.
+- O rate-base selecionado continua passando por KSR; R=0 permanece sem incremento.
+- Testes adicionados para a matriz EG-TYPE × SUS, RATE efetivo com KSR on/off e regressão de EG-TYPE=1/SUS=1 com RR=0.
+- **Estado:** correção candidata implementada em branch; aguardando CI. Não implica integração do EG aos 18 slots, Scheduler, PCM ou conclusão FM-1.
+- Com os três testes novos desta alteração, o módulo EG passa de 34 para **37 testes unitários**.
