@@ -590,3 +590,27 @@ A alteração candidata:
 **Limites:** a nota de Andete é um modelo de saída ajustado às capturas analógicas, não uma leitura direta do latch interno. A correção estabelece o atraso em unidades de amostra do modelo; não determina a correspondência exata com os 72 input clocks, as subfases do slot ou o instante físico de consumo pelo carrier. O pipeline de 18 slots permanece pendente.
 
 **Estado:** aguardando CI e revisão da PR. Não representa fechamento de FM-2 nem do pipeline temporal.
+
+
+---
+
+## Atualização FM-2 — histórico de fase do modulador integrado (2026-11-19)
+
+- PR #1040 integrada à `main` por squash.
+- HEAD validado pela CI: `e45b1c02fc3ad3bd86749ad2eae5897aaeb6a68c`.
+- Merge commit: `60533292b2ea50376bc4dc48f0502032bc25ef9e`.
+- CI #44443428226: classificação de impacto SUCCESS; Rust workspace regression SUCCESS (format, Clippy, testes unitários/integração e observability); documentation patch hygiene SUCCESS. Gates não relacionados foram SKIPPED.
+- `OperatorPair` mantém o índice de fase do modulador usado na avaliação anterior; o estado é serializado e as versões dos snapshots foram incrementadas.
+- O histórico de feedback de dois outputs foi preservado. O estado inicial da fase anterior pode ser fornecido explicitamente; ausência permanece sem alegação de reset físico.
+
+**Escopo fechado:** correção do atraso de uma amostra de saída no modelo modulator/carrier, sustentada pelas capturas de Andete de 2015-12-03.
+
+**Limites:** não identifica a subfase física de captura/consumo, não converte o atraso em input clocks, não fecha PG/EG/OP offsets e não integra PCM, portas SMS ou MachineScheduler. FM-2 permanece PARCIAL; o pipeline serial completo permanece pendente.
+
+## Nota de proveniência — modelo de pipeline de terceiros (2026-11-19)
+
+Foi localizada a documentação do crate Rust `emu198x_yamaha_ym2413` 0.1.0. Ela descreve um modelo em que PG, EG e operador trabalham em slots diferentes, com prescaler 4 e 18 clocks internos por amostra. A própria documentação declara que os offsets e a aritmética do pipeline seguem Nuked-OPLL 1.0.2, GPL-2.0-or-later, e que os testes comparam os pinos clock a clock.
+
+**Classificação para este projeto:** referência comparativa de implementação, não evidência independente de silício. Por derivar explicitamente de Nuked-OPLL GPL, seu código e seus offsets não serão copiados nem adotados como especificação. A afirmação de pipeline é uma hipótese técnica útil para orientar a investigação, mas não fecha os offsets por si só.
+
+O manual Yamaha confirma a passagem serial por 18 slots e os 72 input clocks por rotação; as medições públicas de saída confirmam multiplexação em 72 clocks. As fontes examinadas não fornecem uma tabela primária completa dos offsets de PG, EG, OP, feedback e DAC dentro dos quatro clocks de cada slot. Portanto, a decisão permanece: não implementar subfases presumidas.

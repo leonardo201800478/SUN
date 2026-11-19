@@ -230,3 +230,31 @@ Nenhuma dessas questões deve ser fechada com base exclusiva em uma implementaç
 - **Ainda não confirmado:** offsets PG/EG/OP por subfase, fase de reset, mapeamento do atraso M→C de uma amostra para input clocks/latches físicos, commit temporal de registradores, latch DAC exato e alinhamento de fase com a placa SMS.
 - **Alteração candidata na branch de correção:** `OperatorPair` conserva a fase do modulator da avaliação anterior e a inclui no snapshot. A primeira fase histórica é opcional e não presume o estado elétrico após reset.
 - **Decisão:** não iniciar ainda o pipeline executável nem integrar Scheduler. A próxima entrega precisa ser um conjunto de vetores de captura ou uma fonte primária adicional que resolva as questões P1-01 a P1-08.
+
+
+---
+
+## Atualização de investigação — comparação com modelo Rust de terceiros (2026-11-19)
+
+Foi examinada a documentação pública do crate `emu198x_yamaha_ym2413` 0.1.0. Ela afirma que o clock de entrada é dividido por quatro e que, em cada clock interno, PG, EG e operador processam slots diferentes; uma amostra corresponde a 18 clocks internos (72 clocks de entrada). A documentação declara expressamente que offsets de pipeline e aritmética seguem Nuked-OPLL 1.0.2, licenciado GPL-2.0-or-later, com testes de equivalência de pinos executados clock a clock.
+
+### Resultado da comparação
+
+- A divisão 72 / 18 = 4 é compatível com o orçamento de quatro input clocks por slot já documentado neste projeto.
+- A hipótese de estágios PG/EG/OP sobrepostos em slots distintos é uma arquitetura plausível e explícita em uma implementação de terceiros.
+- Essa fonte não é uma medição independente: seu próprio texto atribui offsets e aritmética ao Nuked-OPLL. Não pode ser usada como prova primária nem como autorização para copiar código/offsets GPL.
+- A medição de Andete de 2015-12-03 sustenta o atraso do modulador em uma amostra de saída do modelo, mas não informa o deslocamento exato em input clocks/subfases.
+- O manual e as capturas de saída sustentam slots, rotação e multiplexação; não estabelecem o offset individual de PG, EG, operador, feedback e latch DAC em cada subfase.
+
+### Decisão técnica
+
+Manter o sequenciador de clock/slot como fronteira temporal comprovada (4 input clocks por slot, 18 slots por rotação) e manter os updates PG/EG e a avaliação FM fora de uma subfase física não demonstrada. Não importar, transcrever ou adaptar implementação derivada de Nuked-OPLL GPL.
+
+### Evidência necessária para desbloquear a próxima implementação
+
+1. Fonte primária ou captura física com resolução por input clock que localize os eventos PG/EG/OP/DAC, repetida com diferentes slots e após reset.
+2. Vetores que correlacionem escrita de FNUM/BLOCK/MUL e KEY-ON com a primeira atualização observável de cada operador.
+3. Comparação de MO e RO, incluindo a janela ativa de três clocks e os slots de saída, com estado e timestamp registrados.
+4. Para cada hipótese de pipeline, teste diferencial que compare execução contínua e particionada e preserve o estado em snapshots nos limites de subfase.
+
+Até que esses dados existam, o pipeline de estágios sobrepostos permanece hipótese de investigação, não implementação aprovada.
