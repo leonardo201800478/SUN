@@ -288,4 +288,3 @@ A Issue #1031 continua bloqueando a conversão do intermediário one's-complemen
 ### Validação
 
 CI #44450484181: Rustfmt, Clippy, testes unitários/integração do workspace, Clippy/testes de observability e gate final de qualidade SUCCESS. Jobs de integração SMS, PSG, Scheduler, CPAL, VDP, Z80 e desktop foram SKIPPED, por não serem afetados.
-
