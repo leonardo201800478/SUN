@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main em 2026-11-19:** `b343931941bb4e8b37e7253193672c20b2846284`
+**Main base da auditoria em 2026-11-19:** `a77c4e0bced469f4d9bbc5140027edeb45df5602`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -819,3 +819,25 @@ Documento atualizado: `docs/audits/ym2413-slot-pipeline-investigation-2026-11-18
 **Decisão:** manter PG, PM, AM e EG com estados explícitos e separados no software. Não reiniciar LFO em KEY-ON, não assumir reset zero, não derivar AM apenas do contador PM módulo 8.192 e não atualizar LFO no meio da rotação sem evidência de fronteira. O futuro sequenciador deve chamar os componentes nos limites de serviço pesquisados, preservando a ordem serial.
 
 **Estado:** cadências médias PG/PM/AM descritas por medições publicadas e reproduzidas em componentes candidatos; offsets de slot, ordenação de atualização, fase inicial física, reset e identidade dos contadores continuam pendentes. FM-1/FM-3 permanecem PARCIAIS.
+
+
+---
+
+## Atualização FM-1/FM-6 — ordem de consumo do EG no modelo Andete 2017 (2026-11-19)
+
+**Auditoria:** `docs/audits/ym2413-model5-eg-consumption-order-2026-11-19.md`.
+
+A leitura direta de `results/20170126/model5.cc` esclarece a ordem do modelo de software:
+
+- `YM2413::calc()` incrementa o contador global no início da amostra; o valor pós-incremento permanece compartilhado durante o processamento dos operadores/canais daquela chamada.
+- Cada `Operator::calcOp()` executa PG antes de EG e usa a fase calculada antes do tick EG, mas o nível EG atualizado na saída do operador.
+- Cada canal chama modulator antes de carrier.
+- A transição DAMP do carrier sincroniza o EG do modulator e zera ambos os PGs após o cálculo PG do carrier naquela chamada.
+
+A implementação Rust preserva o contador externo e expõe separadamente PG, EG e consumo do evento DAMP; ainda não impõe a sequência acima. Isso evita escolher prematuramente uma ordem de subfase física. O texto Andete `attack.txt` ressalva que o modelo ainda necessita de verificação adicional.
+
+**Decisão:** nenhuma lógica de produção alterada. Não mapear a sequência de chamadas do modelo diretamente aos quatro clocks do slot, não assumir fase física zero e não derivar `completed_rotations` como contador EG físico. A ordem é uma hipótese de referência para vetores diferenciais, não fechamento cycle-accurate.
+
+**Estado:** contador compartilhado por amostra e sequência de chamadas do modelo melhor caracterizados; origem/fase física, offsets PG/EG/OP e ponto de consumo do reset continuam pendentes. FM-1/FM-3 permanecem PARCIAIS; FM-6 permanece PENDENTE.
+
+**Ressalva adicional da referência:** `model5.cc` contém literalmente `uint6 rate = max(63, 4 * basicRate + rks)`, embora `uint6` seja apenas alias de `uint8_t`. A expressão `std::max` não satura em 63 e é inconsistente com o campo de seis bits. A auditoria registra a anomalia como possível erro no modelo; não a reproduz nem presume silenciosamente que o autor pretendia `min`. O clamp do Rust permanece uma decisão separada, rastreada à largura de RATE e às medições.
