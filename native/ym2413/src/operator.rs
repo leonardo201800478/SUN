@@ -766,7 +766,6 @@ mod tests {
         let mut carrier_pg = PhaseGenerator::new();
         let mut pair = pair();
         let parameters = parameters();
-        let mut previous_modulator_phase = 0;
 
         // FNUM=0x40, BLOCK=0, MUL=0 produces a 32-unit increment in
         // the 19-bit 10.9 accumulator: one 10-bit table step per 16 samples.
@@ -814,12 +813,11 @@ mod tests {
                 Some(current_modulator_phase)
             );
 
-            previous_modulator_phase = current_modulator_phase;
             modulator_pg.advance(0x40, 0, 0, false, 0).unwrap();
             carrier_pg.advance(0x40, 0, 0, false, 0).unwrap();
         }
 
-        assert_eq!(previous_modulator_phase, 0);
+        assert_eq!(pair.previous_modulator_phase_index(), Some(0x03ff));
         assert_eq!(modulator_pg.phase(), 0);
         assert_eq!(carrier_pg.phase(), 0);
     }
