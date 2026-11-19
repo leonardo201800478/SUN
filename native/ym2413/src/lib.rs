@@ -4,6 +4,7 @@
 //! 18-slot FM pipeline or emit integrated YM2413 PCM.
 
 pub mod am_lfo;
+pub mod bus_timing;
 pub mod channel;
 pub mod envelope;
 pub mod instrument;
@@ -18,6 +19,11 @@ pub mod rhythm_phase;
 pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
+pub use bus_timing::{
+    YM2413_ADDRESS_WRITE_WAIT_CLOCKS, YM2413_BUS_TIMING_STATE_VERSION,
+    YM2413_DATA_WRITE_WAIT_CLOCKS, Ym2413BusTiming, Ym2413BusTimingError,
+    Ym2413BusTimingState, Ym2413BusWriteKind,
+};
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
