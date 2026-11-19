@@ -1,6 +1,6 @@
 # YM2413 — auditoria SUS × EG-TYPE no KEY-OFF do carrier
 
-**Data:** 2026-11-19  
+**Data:** 2026-11-19
 **Escopo:** seleção do rate-base no KEY-OFF do carrier; não altera a semântica KEY-OFF do modulator, o contador global ou a temporização do Scheduler.
 
 ## Decisão
