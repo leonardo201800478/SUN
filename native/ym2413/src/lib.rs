@@ -471,7 +471,7 @@ mod tests {
                     && clock_in_slot == YM2413_INPUT_CLOCKS_PER_SLOT;
                 assert_eq!(
                     core.advance_input_clocks(1),
-                    Ok(u64::from(crossed_rotation))
+                    Ok(if crossed_rotation { 1 } else { 0 })
                 );
 
                 if clock_in_slot < YM2413_INPUT_CLOCKS_PER_SLOT {
