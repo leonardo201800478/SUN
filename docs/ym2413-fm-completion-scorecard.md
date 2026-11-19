@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1068 em 2026-11-19:** `bd7f3fa115b592117334e66f326532eb9d01c0e0`
+**Main base após PR #1071 em 2026-11-19:** `fb83533bf27aceb802985583da6c55a92e2a94b9`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -247,8 +247,7 @@ A ordem serial completa é M1, M2, M3, C1, C2, C3, M4, M5, M6, C4, C5, C6, M7, M
 
 - Slot 13 + 16: Bass Drum.
 - Slot 14: Hi-Hat.
-- Slot 15: Tom-Tom.
-- Slot 17: Snare Drum.
+- Slot 15: Tom-Tom.- Slot 17: Snare Drum.
 - Slot 18: Top Cymbal.
 
 O descritor de ritmo não implementa geração de percussão; preserva a atribuição física na camada de mapeamento.
@@ -497,7 +496,6 @@ A auditoria dos vetores de EG identificou uma divergência funcional no cálculo
 - Vetor DAMP: com threshold de software candidato 124 e contador inicial explícito em zero, a implementação alcança o limiar no contador 494 (aprox. 9,94 ms a 3.579.545/72 updates/s), coerente com a duração aproximada de 10 ms descrita nas notas. Isso valida a aritmética do candidato, não o limiar físico nem o alinhamento de reset.
 
 ### Limites
-
 O limiar 124 continua parametrizado e não é promovido a constante física. A coordenação DAMP modulator/carrier e o comportamento de AR=15 continuam candidatos selecionáveis. A medição de SL estabelece o alvo interno 8×SL, mas a questão de clipping versus comparação ao cruzar o alvo com incrementos rápidos permanece não resolvida. Nenhuma ordem de subfase, cadência de slot ou integração de Scheduler é inferida.
 
 **Referências experimentais:** Andete, [2015-12-24 — Sustain Level e KSR](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-24) e [2015-12-31 — transições ADSR e DAMP](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31); Yamaha, [YM2413 Application Manual](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual).
@@ -748,7 +746,6 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 ---
 
 ## Atualização FM-1 — auditoria dinâmica de AR/DR/RR/SL/EG-TYPE/SUS (2026-11-19)
-
 **Branch:** `audit/ym2413-dynamic-eg-registers`
 
 A inspeção do EG e as notas de Andete 2015-12-31 indicam que AR, DR, RR, SL, EG-TYPE e SUS são consumidos dinamicamente pelo estado/fase em que se aplicam. “Imediato” significa que a taxa/condição nova é usada na próxima avaliação relevante e aguarda o gate apropriado do contador global; não significa incremento assíncrono do nível.
@@ -997,8 +994,7 @@ Foi acrescentado um teste de regressão em `native/ym2413/src/operator.rs` que c
 
 O teste verifica separadamente:
 - cálculo do offset de feedback a partir dos dois outputs históricos;
-- consumo da fase do modulator da atualização anterior;
-- fase corrente independente do carrier, incluindo MUL distinto;
+- consumo da fase do modulator da atualização anterior;- fase corrente independente do carrier, incluindo MUL distinto;
 - wrap do acumulador PG de 19 bits e wrap do índice de fase de 10 bits;
 - atualização dos dois outputs históricos e retenção da fase corrente para a próxima chamada.
 
@@ -1030,3 +1026,46 @@ O banco agregado já possui avaliação das cinco vozes rítmicas, com Bass Drum
 A próxima implementação não deve inventar a semântica de KEY-ON/trigger, a curva de volume, seed/cadência do ruído ou a conversão para código DAC. Primeiro, consolidar por testes os contratos já demonstráveis entre configuração de Rhythm Mode, estado PG/EG por slot, avaliação das cinco vozes e retenção/roteamento de saídas. Separar explicitamente qualquer resultado sample-domain da validação física.
 
 **Bloqueios físicos mantidos:** captura sincronizada XIN/MO/RO para subfases e pipeline; curva/transferência DAC e correspondência de código físico (issue #1031); seed/cadência LFSR e interação trigger/KEY-ON quando não sustentadas por vetor primário.
+
+---
+
+## Atualização FM-7 — continuidade de snapshot do banco de síntese em Rhythm Mode (PR #1071, 2026-11-19)
+
+- PR #1071: [test(ym2413): verify rhythm synthesis snapshot continuation](https://github.com/leonardo201800478/sega-emulator/pull/1071).
+- Merge squash na main: `fb83533bf27aceb802985583da6c55a92e2a94b9`.
+- HEAD validado antes do merge: `541711ad11bf282f322bc59e9f4a581f5a7b3dca`.
+- CI run #44635637093: classificação de impacto, Rust workspace regression (Rustfmt, Clippy, testes unitários/integração e observability) e Rust quality/unit regression SUCCESS.
+- Gates de Windows/Slint/WGPU, SDL3, Z80, VDP, Scheduler, PSG, CPAL e desktop foram SKIPPED pela classificação de impacto; não representam validação desses subsistemas.
+- Revisão Codex não concluída por limite de uso; não foi contabilizada como aprovação.
+
+### Cobertura integrada
+
+O teste `rhythm_batch_snapshot_restore_preserves_all_voice_outputs_and_bd_feedback`:
+- avalia o lote das cinco vozes com fases explícitas;
+- exporta o snapshot agregado e restaura outra instância;
+- continua ambas as instâncias com novas fases;
+- compara as cinco saídas, o estado agregado completo e o histórico de feedback do Bass Drum (canal zero-based 6).
+
+Nenhuma lógica de produção, cadência, PG/EG, LFSR, slot, Scheduler, DAC, PCM ou barramento foi alterada.
+
+### Estado atual da fronteira Rhythm → saída
+
+No HEAD desta atualização, os componentes digitais isolados existentes incluem:
+- decodificação dos cinco triggers/volumes e dos campos FNUM/BLOCK/KEY-ON/SUS dos canais 7–9;
+- configuração estática das cinco vozes e atribuição aos slots físicos;
+- candidatos combinacionais de fase para HH, SD e Top Cymbal, com entradas PG explícitas;
+- LFSR slot-rate e sequenciador explícito, com amostras de ruído para HH no slot 13 e SD no slot 16;
+- avaliação das cinco vozes no banco agregado PG/EG, com BD usando o par FM e as quatro vozes restantes usando avaliação carrier de operador único;
+- retenção/repetição digital dos valores de saída nos slots mapeados e roteamento lógico MO/RO, com largura ativa de três clocks por slot.
+
+Esses itens são contratos de software e candidatos baseados em evidências publicadas. O avaliador de vozes ainda recebe fases e limites de serviço externamente; não existe dispatcher temporal integrado que avance PG, EG, LFO, LFSR e operadores na ordem física dos 18 slots. O caminho de saída também não converte o intermediário do operador em palavra bruta de DAC de nove bits.
+
+### Próximos gates, sem inferência de comportamento físico
+
+1. Consolidar por testes as interfaces já existentes entre sequenciador LFSR, candidatos de fase, PG/EG compartilhados, avaliação das cinco vozes, retenção e roteamento MO/RO; evitar duplicar cobertura existente.
+2. Auditar a integração entre triggers $0E e KEY-ON melódico de $26–$28, sem transformar `is_active` em predicado completo enquanto a divergência documental permanecer aberta.
+3. Manter bloqueada a conversão operador→DAC: Issue #1031 não possui curva/transferência física conclusiva nem identificação da palavra interna aplicada ao DAC.
+4. Manter bloqueado o sequenciador cycle-accurate até capturas reproduzíveis e sincronizadas de XIN, MO e RO com resolução por input clock, reset reproduzível e escritas timestampadas.
+5. Não promover a cadência do LFSR, fase inicial PG, subfases dos quatro clocks por slot ou alinhamento do EG a contrato físico além do que os vetores primários sustentam.
+
+**Status geral permanece: EM DESENVOLVIMENTO.** A PR #1071 fecha somente a regressão de continuidade de snapshot/restore do banco digital em Rhythm Mode. Não conclui FM-7, não fecha FM-8 temporal, não integra PCM ao SMS e não valida o YM2413 fisicamente.
