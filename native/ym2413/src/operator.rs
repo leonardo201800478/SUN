@@ -527,8 +527,7 @@ mod tests {
                 let mut p = parameters();
                 p.feedback = feedback;
 
-                let history_sum =
-                    i32::from(initial_history[0]) + i32::from(initial_history[1]);
+                let history_sum = i32::from(initial_history[0]) + i32::from(initial_history[1]);
                 let expected_offset = if feedback == 0 {
                     0
                 } else {
@@ -545,10 +544,7 @@ mod tests {
                     pair.feedback_history(),
                     [sample.modulator_output, initial_history[0]]
                 );
-                assert_eq!(
-                    pair.previous_modulator_phase_index(),
-                    Some(current_phase)
-                );
+                assert_eq!(pair.previous_modulator_phase_index(), Some(current_phase));
                 assert_eq!(
                     sample.modulator_output > 0,
                     positive_output,
