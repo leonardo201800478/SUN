@@ -208,7 +208,9 @@ impl EnvelopeGenerator {
         if attack_rate == 15
             && self.damp_config.attack_rate_15 == AttackRate15Transition::SkipAttackToDecay
         {
-            self.level = 0;
+            // Skipping ATTACK changes the stage, not the attenuation level.
+            // The reference model retains the DAMP endpoint and then evaluates
+            // DECAY using the same update counter.
             self.stage = EnvelopeStage::Decay;
         } else {
             self.stage = EnvelopeStage::Attack;
@@ -807,7 +809,7 @@ mod tests {
         let mut p = params();
         p.attack_rate = 15;
         eg.tick(0, true, true, p).unwrap();
-        assert_eq!(eg.level(), 0);
+        assert_eq!(eg.level(), 124);
         assert_eq!(eg.stage(), EnvelopeStage::Decay);
     }
 
@@ -1102,7 +1104,7 @@ mod tests {
 
         let result = generator.tick_with_events(0, true, true, p).unwrap();
         assert!(result.phase_reset_required);
-        assert_eq!(result.level, 0);
+        assert_eq!(result.level, 124);
         assert_eq!(generator.stage(), EnvelopeStage::Decay);
     }
 
