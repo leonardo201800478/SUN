@@ -297,8 +297,13 @@ impl OperatorPair {
 
     /// Evaluate one FM sample using independent modulator and carrier PG phases.
     ///
-    /// All validation occurs before feedback history is mutated. The caller
-    /// supplies current EG/AM/KSL values and the exact operator phase indices.
+    /// The modulator phase used by this evaluation is the phase index saved from
+    /// the previous call. The current modulator phase is saved for the next
+    /// output-sample update. On the first call without initialized phase history,
+    /// the current input phase is used; this is a startup fallback, not a claim
+    /// about the physical reset state.
+    ///
+    /// All inputs are validated before feedback and phase histories are mutated.
     pub fn evaluate(
         &mut self,
         modulator_phase_index: u16,
@@ -625,6 +630,32 @@ mod tests {
             half_wave: false,
         };
         assert_eq!(parameters.attenuation(), 127);
+    }
+
+    #[test]
+    fn initial_modulator_phase_history_rejects_out_of_range_index() {
+        assert_eq!(
+            OperatorPair::with_initial_state([0, 0], Some(1024)),
+            Err(OperatorPairError::InvalidPhaseIndex(1024))
+        );
+    }
+
+    #[test]
+    fn invalid_parameters_and_phases_preserve_both_histories() {
+        let mut pair = OperatorPair::with_initial_state([10, 20], Some(0x123)).unwrap();
+        let before = pair;
+        let mut invalid = parameters();
+        invalid.feedback = 8;
+        assert_eq!(
+            pair.evaluate(0x124, 0x200, invalid),
+            Err(OperatorPairError::InvalidFeedback(8))
+        );
+        assert_eq!(pair, before);
+        assert_eq!(
+            pair.evaluate(0x400, 0x200, parameters()),
+            Err(OperatorPairError::InvalidPhaseIndex(0x400))
+        );
+        assert_eq!(pair, before);
     }
 
     #[test]
