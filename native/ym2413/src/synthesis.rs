@@ -10,8 +10,8 @@
 use crate::am_lfo::{AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_PERIOD_SAMPLES};
 use crate::channel::{ChannelSynthesisConfig, OperatorPhaseParameters};
 use crate::envelope::{
-    DampTransitionConfig, EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState,
-    EnvelopeParameters, EnvelopeStage, EnvelopeTickResult,
+    DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator, EnvelopeGeneratorError,
+    EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage, EnvelopeTickResult,
 };
 use crate::operator::{OperatorPair, OperatorPairError, OperatorPairSample, OperatorPairState};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState};
@@ -580,6 +580,35 @@ impl Ym2413SynthesisBank {
         Ok(())
     }
 
+    /// Consume a carrier DAMP-completion event at the caller-selected boundary.
+    ///
+    /// A false event is a no-op. For the explicit CarrierDrivesBoth candidate,
+    /// this synchronizes the modulator EG transition and resets both PGs.
+    /// For IndependentPerOperator, only the carrier PG is reset; a modulator
+    /// event must be consumed separately through reset_operator_phase().
+    ///
+    /// This method does not advance clocks or select a slot/subphase. The
+    /// caller must pass the result from the carrier EG update and invoke this
+    /// operation at the timing boundary selected by its hardware model.
+    pub fn consume_carrier_damp_phase_reset_event(
+        &mut self,
+        channel: u8,
+        event: EnvelopeTickResult,
+    ) -> Result<(), Ym2413SynthesisError> {
+        let state = self.channel_mut(channel)?;
+        if !event.phase_reset_required {
+            return Ok(());
+        }
+
+        let carrier = state.envelope[1];
+        if carrier.damp_config().coordination() == DampTransitionCoordination::CarrierDrivesBoth {
+            state.envelope[0].synchronize_damp_transition(&carrier);
+            state.phase[0].reset();
+        }
+        state.phase[1].reset();
+        Ok(())
+    }
+
     /// Return one operator's current PG phase index.
     pub fn phase_index(&self, channel: u8, carrier: bool) -> Result<u16, Ym2413SynthesisError> {
         let state = self.channel(channel)?;
@@ -665,6 +694,7 @@ mod tests {
     use crate::channel::decode_channel_synthesis;
     use crate::envelope::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
+        EnvelopeTickResult,
     };
     use crate::rhythm_channel::decode_rhythm_synthesis;
     use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
@@ -1054,5 +1084,80 @@ mod tests {
 
         bank.reset_operator_phase(1, true).unwrap();
         assert_eq!(bank.phase_index(1, true).unwrap(), 0);
+    }
+
+    #[test]
+    fn consuming_carrier_event_resets_both_pgs_and_syncs_modulator_when_selected() {
+        let mut initial = initial_state();
+        initial.damp_config = DampTransitionConfig::new(
+            124,
+            DampTransitionCoordination::CarrierDrivesBoth,
+            AttackRate15Transition::EnterAttack,
+        )
+        .unwrap();
+        initial.channels[0].phase = [0x12345, 0x23456];
+        initial.channels[0].envelope_level = [124, 124];
+
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial).unwrap();
+        let config = configuration(0);
+        let event = bank
+            .tick_operator_envelope_with_events(0, true, true, 0, config.carrier_envelope)
+            .unwrap();
+        assert!(event.phase_reset_required);
+
+        bank.consume_carrier_damp_phase_reset_event(0, event)
+            .unwrap();
+
+        assert_eq!(bank.phase_index(0, false).unwrap(), 0);
+        assert_eq!(bank.phase_index(0, true).unwrap(), 0);
+        let state = bank.export_state();
+        assert_eq!(
+            state.channels[0].modulator_envelope.stage,
+            EnvelopeStage::Attack
+        );
+        assert_eq!(
+            state.channels[0].modulator_envelope.stage,
+            state.channels[0].carrier_envelope.stage
+        );
+    }
+
+    #[test]
+    fn consuming_carrier_event_resets_only_carrier_pg_for_independent_policy() {
+        let mut initial = initial_state();
+        initial.channels[0].phase = [0x12345, 0x23456];
+        initial.channels[0].envelope_level = [124, 124];
+
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial).unwrap();
+        let config = configuration(0);
+        let event = bank
+            .tick_operator_envelope_with_events(0, true, true, 0, config.carrier_envelope)
+            .unwrap();
+        assert!(event.phase_reset_required);
+
+        bank.consume_carrier_damp_phase_reset_event(0, event)
+            .unwrap();
+
+        assert_ne!(bank.phase_index(0, false).unwrap(), 0);
+        assert_eq!(bank.phase_index(0, true).unwrap(), 0);
+        let state = bank.export_state();
+        assert_eq!(
+            state.channels[0].modulator_envelope.stage,
+            EnvelopeStage::Damp
+        );
+    }
+
+    #[test]
+    fn false_carrier_reset_event_is_a_no_op() {
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
+        let before = bank.export_state();
+        bank.consume_carrier_damp_phase_reset_event(
+            0,
+            EnvelopeTickResult {
+                level: 127,
+                phase_reset_required: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(bank.export_state(), before);
     }
 }
