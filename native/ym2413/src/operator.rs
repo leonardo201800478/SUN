@@ -274,10 +274,10 @@ impl OperatorPair {
         feedback_history: [i16; 2],
         previous_modulator_phase_index: Option<u16>,
     ) -> Result<Self, OperatorPairError> {
-        if let Some(phase) = previous_modulator_phase_index {
-            if phase > YM2413_PHASE_INDEX_MASK {
-                return Err(OperatorPairError::InvalidPhaseIndex(phase));
-            }
+        if let Some(phase) = previous_modulator_phase_index
+            && phase > YM2413_PHASE_INDEX_MASK
+        {
+            return Err(OperatorPairError::InvalidPhaseIndex(phase));
         }
         Ok(Self {
             feedback_history,
@@ -382,10 +382,10 @@ impl OperatorPair {
         if state.format_version != YM2413_OPERATOR_PAIR_STATE_VERSION {
             return Err(OperatorPairError::InvalidState);
         }
-        if let Some(phase) = state.previous_modulator_phase_index {
-            if phase > YM2413_PHASE_INDEX_MASK {
-                return Err(OperatorPairError::InvalidState);
-            }
+        if let Some(phase) = state.previous_modulator_phase_index
+            && phase > YM2413_PHASE_INDEX_MASK
+        {
+            return Err(OperatorPairError::InvalidState);
         }
         Ok(Self {
             feedback_history: state.feedback_history,
