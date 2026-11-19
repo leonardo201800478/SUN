@@ -1325,4 +1325,69 @@ mod tests {
         .unwrap();
         assert_eq!(bank.export_state(), before);
     }
+    #[test]
+    fn rhythm_noise_phase_bridge_drives_shared_bank_batch_and_snapshot_continuation() {
+        use crate::rhythm::Ym2413RhythmSlotNoiseSequencer;
+        use crate::rhythm_phase::{
+            RhythmNoisePhaseInputs, rhythm_noise_phase_candidate, top_cymbal_phase_candidate,
+        };
+
+        let config = rhythm_configuration();
+        let mut noise = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(0x5a_1234, 13).unwrap();
+
+        let hi_hat_noise = noise.advance_slot().unwrap();
+        assert_eq!(hi_hat_noise.slot_index, 13);
+        assert_eq!(hi_hat_noise.voice, Ym2413RhythmVoice::HiHat);
+        assert_eq!(noise.advance_slot(), None);
+        assert_eq!(noise.advance_slot(), None);
+        let snare_noise = noise.advance_slot().unwrap();
+        assert_eq!(snare_noise.slot_index, 16);
+        assert_eq!(snare_noise.voice, Ym2413RhythmVoice::SnareDrum);
+
+        let mut bank = Ym2413SynthesisBank::with_initial_state(audible_initial_state()).unwrap();
+        let channel7_modulator = bank.phase_index(6, false).unwrap();
+        let channel8_carrier = bank.phase_index(7, true).unwrap();
+
+        let hi_hat = rhythm_noise_phase_candidate(
+            hi_hat_noise,
+            RhythmNoisePhaseInputs::HiHat {
+                channel7_modulator_phase: channel7_modulator,
+                channel8_carrier_phase: channel8_carrier,
+            },
+        )
+        .unwrap();
+        let snare_drum = rhythm_noise_phase_candidate(
+            snare_noise,
+            RhythmNoisePhaseInputs::SnareDrum {
+                channel7_modulator_phase: channel7_modulator,
+            },
+        )
+        .unwrap();
+        let phases = super::Ym2413RhythmVoicePhases {
+            hi_hat,
+            snare_drum,
+            tom_tom: bank.phase_index(8, false).unwrap(),
+            top_cymbal: top_cymbal_phase_candidate(channel7_modulator, channel8_carrier).unwrap(),
+        };
+
+        let first_batch = bank.evaluate_rhythm_voices(&config, phases).unwrap();
+        assert_eq!(
+            first_batch.map(|sample| sample.voice),
+            [
+                Ym2413RhythmVoice::BassDrum,
+                Ym2413RhythmVoice::HiHat,
+                Ym2413RhythmVoice::SnareDrum,
+                Ym2413RhythmVoice::TomTom,
+                Ym2413RhythmVoice::TopCymbal,
+            ]
+        );
+
+        let snapshot = bank.export_state();
+        let mut restored = Ym2413SynthesisBank::restore_state(snapshot).unwrap();
+        let continuous_batch = bank.evaluate_rhythm_voices(&config, phases).unwrap();
+        let restored_batch = restored.evaluate_rhythm_voices(&config, phases).unwrap();
+
+        assert_eq!(restored_batch, continuous_batch);
+        assert_eq!(restored.export_state(), bank.export_state());
+    }
 }
