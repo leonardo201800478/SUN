@@ -614,3 +614,48 @@ Foi localizada a documentação do crate Rust `emu198x_yamaha_ym2413` 0.1.0. Ela
 **Classificação para este projeto:** referência comparativa de implementação, não evidência independente de silício. Por derivar explicitamente de Nuked-OPLL GPL, seu código e seus offsets não serão copiados nem adotados como especificação. A afirmação de pipeline é uma hipótese técnica útil para orientar a investigação, mas não fecha os offsets por si só.
 
 O manual Yamaha confirma a passagem serial por 18 slots e os 72 input clocks por rotação; as medições públicas de saída confirmam multiplexação em 72 clocks. As fontes examinadas não fornecem uma tabela primária completa dos offsets de PG, EG, OP, feedback e DAC dentro dos quatro clocks de cada slot. Portanto, a decisão permanece: não implementar subfases presumidas.
+
+
+---
+
+## Atualização FM-8 — roteamento digital de saída MO/RO (2026-11-19)
+
+**PR #1042:** [feat(ym2413): model measured MO/RO slot output routing](https://github.com/leonardo201800478/sega-emulator/pull/1042)
+
+- Merge commit: `6c49f38bd8ca164daac0a6bc8454b0514a59392d`.
+- HEAD validado: `8286d7f14652539696497c96555bb98a7ed33971`.
+- CI #44450484181 (run #8804): Change impact classification SUCCESS; Cargo workspace validation SUCCESS; Rustfmt SUCCESS; Clippy SUCCESS; unit/integration tests SUCCESS; observability Clippy/tests SUCCESS; gate final Rust quality SUCCESS.
+- Os jobs de Scheduler, PSG/SMS, CPAL, VDP, SDL3, Z80, desktop e higiene documental foram SKIPPED por classificação de impacto. Não são evidência de integração ou validação desses subsistemas.
+
+### Entrega
+
+Novo módulo `native/ym2413/src/output.rs`:
+
+- Mapeia os slots carrier dos nove canais melódicos para MO.
+- Em Rhythm Mode, restringe MO aos canais 1–6; os slots carrier 16–18 deixam de representar canais melódicos.
+- Mapeia eventos originais e repetidos de Rhythm Mode para RO, validando slot, voz e indicador de repetição contra `YM2413_RHYTHM_OUTPUT_MAP`.
+- Expõe a janela medida de três input clocks ativos dentro do orçamento de quatro clocks por slot.
+- Preserva explicitamente o estado de repetição ainda não inicializada, sem tratá-lo como amostra zero.
+
+### Limites preservados
+
+- O pulso de três clocks é descrito em largura, mas o módulo não escolhe sua posição exata dentro dos quatro clocks.
+- O nível neutro elétrico não foi definido.
+- `Ym2413DacCode` continua sendo o domínio de nível assinado reconstruído pelas medições, não a palavra digital bruta de nove bits.
+- A conversão do intermediário one's-complement do operador para o código DAC permanece bloqueada pela divergência de polaridade/offset documentada na Issue #1031.
+- Nenhuma geração de PCM, mixer, filtro analógico, porta SMS ou integração MachineScheduler foi adicionada.
+
+**Estado:** roteamento lógico de pinos e largura de pulso por slot integrados. FM-8 permanece PARCIAL; não há PCM FM integrado nem pipeline cycle-accurate completo.
+
+
+## Atualização do bloqueio operador→DAC — variantes de polaridade (2026-11-19)
+
+A auditoria adicional das notas de Andete identificou duas expressões de saída em modelos publicados:
+
+- Nota 2015-12-03: `lookupExp(carrier) + 256`. O próprio texto informa que a forma de onda medida aparece invertida e suspeita de inversão de sinal no setup.
+- Nota 2015-12-12: `255 - c`, no modelo de feedback que reproduz as capturas posteriores.
+- Nota 2015-03-11: níveis reconstruídos como -255..+255, incluindo -0 e +0; a aquisição ADC apresenta ruído e espaçamento não uniforme.
+
+Para o intermediário candidato x ∈ [-256,255], as fórmulas `x+256` e `255-x` são complementos exatos no domínio de 9 bits (soma 511). Invertem a polaridade e trocam os códigos dos dois zeros. Portanto, não são diferenças triviais de arredondamento.
+
+A Issue #1031 continua aberta: nenhum desses modelos demonstra diretamente a palavra interna aplicada ao DAC físico. Não implementar conversão padrão, clamp de -256, saturação, wrap ou bias. A nova auditoria detalhada está em `docs/audits/ym2413-operator-dac-boundary-variants-2026-11-19.md`.
