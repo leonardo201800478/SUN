@@ -968,8 +968,8 @@ A implementação do pipeline interno continua BLOCKED até vetores físicos rep
 
 ## Próxima caracterização — latência Modulator → Carrier (em andamento)
 
-**Branch:** `test/ym2413-modulator-carrier-sample-latency`
+**Branch:** `test/ym2413-modulator-carrier-sample-latency-ci`
 
-A investigação documental foi concluída e o teste diferencial de modelo foi adicionado à PR #1066, aguardando CI. O objetivo é demonstrar que o estado atual do par de operadores reproduz a relação de fase por amostra descrita no modelo publicado para FNUM=0x40, BLOCK=0, MUL=0, sem converter o atraso em input clocks.
+A investigação documental foi concluída e o teste diferencial do modelo foi adicionado à PR #1067. Os workflows #8902 e #8903 concluíram com sucesso todos os gates aplicáveis: classificação de impacto, higiene documental, toolchain/Cargo, Rustfmt, Clippy, testes workspace, testes observability e quality/unit regression. Gates de Windows, SDL3, Z80, VDP, Scheduler e demais subsistemas foram SKIPPED pela classificação de impacto, não aprovados. A revisão Codex não foi concluída por limite de uso; não é tratada como aprovação. O objetivo do teste é demonstrar que o estado atual do par de operadores reproduz a relação de fase por amostra descrita no modelo publicado para FNUM=0x40, BLOCK=0, MUL=0, sem converter o atraso em input clocks.
 
 **Não confundir:** a correspondência do modelo de saída não identifica o latch interno, o slot de captura/consumo ou a latência elétrica M→C. A integração cycle-accurate continua BLOCKED por captura física sincronizada de XIN/MO/RO.
