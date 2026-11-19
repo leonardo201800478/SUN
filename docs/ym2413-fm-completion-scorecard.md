@@ -247,7 +247,8 @@ A ordem serial completa é M1, M2, M3, C1, C2, C3, M4, M5, M6, C4, C5, C6, M7, M
 
 - Slot 13 + 16: Bass Drum.
 - Slot 14: Hi-Hat.
-- Slot 15: Tom-Tom.- Slot 17: Snare Drum.
+- Slot 15: Tom-Tom.
+- Slot 17: Snare Drum.
 - Slot 18: Top Cymbal.
 
 O descritor de ritmo não implementa geração de percussão; preserva a atribuição física na camada de mapeamento.
@@ -496,6 +497,7 @@ A auditoria dos vetores de EG identificou uma divergência funcional no cálculo
 - Vetor DAMP: com threshold de software candidato 124 e contador inicial explícito em zero, a implementação alcança o limiar no contador 494 (aprox. 9,94 ms a 3.579.545/72 updates/s), coerente com a duração aproximada de 10 ms descrita nas notas. Isso valida a aritmética do candidato, não o limiar físico nem o alinhamento de reset.
 
 ### Limites
+
 O limiar 124 continua parametrizado e não é promovido a constante física. A coordenação DAMP modulator/carrier e o comportamento de AR=15 continuam candidatos selecionáveis. A medição de SL estabelece o alvo interno 8×SL, mas a questão de clipping versus comparação ao cruzar o alvo com incrementos rápidos permanece não resolvida. Nenhuma ordem de subfase, cadência de slot ou integração de Scheduler é inferida.
 
 **Referências experimentais:** Andete, [2015-12-24 — Sustain Level e KSR](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-24) e [2015-12-31 — transições ADSR e DAMP](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-31); Yamaha, [YM2413 Application Manual](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual).
@@ -746,6 +748,7 @@ A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP �
 ---
 
 ## Atualização FM-1 — auditoria dinâmica de AR/DR/RR/SL/EG-TYPE/SUS (2026-11-19)
+
 **Branch:** `audit/ym2413-dynamic-eg-registers`
 
 A inspeção do EG e as notas de Andete 2015-12-31 indicam que AR, DR, RR, SL, EG-TYPE e SUS são consumidos dinamicamente pelo estado/fase em que se aplicam. “Imediato” significa que a taxa/condição nova é usada na próxima avaliação relevante e aguarda o gate apropriado do contador global; não significa incremento assíncrono do nível.
@@ -994,7 +997,8 @@ Foi acrescentado um teste de regressão em `native/ym2413/src/operator.rs` que c
 
 O teste verifica separadamente:
 - cálculo do offset de feedback a partir dos dois outputs históricos;
-- consumo da fase do modulator da atualização anterior;- fase corrente independente do carrier, incluindo MUL distinto;
+- consumo da fase do modulator da atualização anterior;
+- fase corrente independente do carrier, incluindo MUL distinto;
 - wrap do acumulador PG de 19 bits e wrap do índice de fase de 10 bits;
 - atualização dos dois outputs históricos e retenção da fase corrente para a próxima chamada.
 
