@@ -668,9 +668,9 @@ A Issue #1031 continua aberta: nenhum desses modelos demonstra diretamente a pal
 A investigação do modelo Andete de 2017 identificou que a conclusão de DAMP é também uma fronteira de reset da fase PG no modelo de referência. A alteração em andamento expõe esse evento sem aplicar reset automático nem escolher a subfase/slot de consumo.
 
 - API EG: resultado tipado com nível e indicador de reset de fase.
-- Banco agregado: propagação do evento e operação explícita de reset de um PG.
+- Banco agregado: propagação do evento, reset explícito de um PG e helper de consumo do evento do carrier que aplica a política de coordenação selecionada.
 - Compatibilidade: a API anterior de tick continua retornando o nível.
-- Política CarrierDrivesBoth: continua explícita; o chamador é responsável por sincronizar o modulator e consumir o reset dos dois PGs no mesmo limite escolhido.
+- Política CarrierDrivesBoth: continua explícita; o chamador consome o evento no limite escolhido. O helper sincroniza o estágio do modulator e reseta os dois PGs. Em IndependentPerOperator, somente o PG do operador indicado é resetado.
 - Evidência e limites: docs/audits/ym2413-eg-phase-reset-events-2026-11-19.md.
 
-**Estado:** implementação candidata em PR, aguardando CI. FM-1 continua PARCIAL; não há integração temporal/por slots concluída.
+**Estado:** evento tipado integrado pela PR #1045; consumo atômico em PR subsequente, aguardando CI. FM-1 continua PARCIAL; não há integração temporal/por slots concluída.
