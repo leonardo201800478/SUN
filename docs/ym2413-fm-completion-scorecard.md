@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main em 2026-11-19:** `b343931941bb4e8b37e7253193672c20b2846284`
+**Main base da auditoria em 2026-11-19:** `a77c4e0bced469f4d9bbc5140027edeb45df5602`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
