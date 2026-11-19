@@ -819,3 +819,23 @@ Documento atualizado: `docs/audits/ym2413-slot-pipeline-investigation-2026-11-18
 **Decisão:** manter PG, PM, AM e EG com estados explícitos e separados no software. Não reiniciar LFO em KEY-ON, não assumir reset zero, não derivar AM apenas do contador PM módulo 8.192 e não atualizar LFO no meio da rotação sem evidência de fronteira. O futuro sequenciador deve chamar os componentes nos limites de serviço pesquisados, preservando a ordem serial.
 
 **Estado:** cadências médias PG/PM/AM descritas por medições publicadas e reproduzidas em componentes candidatos; offsets de slot, ordenação de atualização, fase inicial física, reset e identidade dos contadores continuam pendentes. FM-1/FM-3 permanecem PARCIAIS.
+
+
+---
+
+## Atualização FM-1/FM-6 — ordem de consumo do EG no modelo Andete 2017 (2026-11-19)
+
+**Auditoria:** `docs/audits/ym2413-model5-eg-consumption-order-2026-11-19.md`.
+
+A leitura direta de `results/20170126/model5.cc` esclarece a ordem do modelo de software:
+
+- `YM2413::calc()` incrementa o contador global no início da amostra; o valor pós-incremento permanece compartilhado durante o processamento dos operadores/canais daquela chamada.
+- Cada `Operator::calcOp()` executa PG antes de EG e usa a fase calculada antes do tick EG, mas o nível EG atualizado na saída do operador.
+- Cada canal chama modulator antes de carrier.
+- A transição DAMP do carrier sincroniza o EG do modulator e zera ambos os PGs após o cálculo PG do carrier naquela chamada.
+
+A implementação Rust preserva o contador externo e expõe separadamente PG, EG e consumo do evento DAMP; ainda não impõe a sequência acima. Isso evita escolher prematuramente uma ordem de subfase física. O texto Andete `attack.txt` ressalva que o modelo ainda necessita de verificação adicional.
+
+**Decisão:** nenhuma lógica de produção alterada. Não mapear a sequência de chamadas do modelo diretamente aos quatro clocks do slot, não assumir fase física zero e não derivar `completed_rotations` como contador EG físico. A ordem é uma hipótese de referência para vetores diferenciais, não fechamento cycle-accurate.
+
+**Estado:** contador compartilhado por amostra e sequência de chamadas do modelo melhor caracterizados; origem/fase física, offsets PG/EG/OP e ponto de consumo do reset continuam pendentes. FM-1/FM-3 permanecem PARCIAIS; FM-6 permanece PENDENTE.
