@@ -342,8 +342,8 @@ impl Ym2413Core {
 #[cfg(test)]
 mod tests {
     use super::{
-        YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413Error,
-        Ym2413State,
+        YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT,
+        YM2413_SLOT_MAP, Ym2413Core, Ym2413Error, Ym2413State,
     };
 
     #[test]
@@ -456,5 +456,60 @@ mod tests {
 
         assert_eq!(core.slot_index(), 0);
         assert_eq!(core.next_slot_descriptor().unwrap().slot_number, 1);
+    }
+
+    #[test]
+    fn slot_descriptor_changes_only_at_four_clock_boundaries_and_wraps_after_one_rotation() {
+        let mut core = Ym2413Core::new();
+
+        for (slot_index, expected) in YM2413_SLOT_MAP.iter().copied().enumerate() {
+            assert_eq!(core.next_slot_descriptor(), Some(expected));
+
+            for clock_in_slot in 1..=YM2413_INPUT_CLOCKS_PER_SLOT {
+                let crossed_rotation = slot_index + 1 == YM2413_SLOT_COUNT
+                    && clock_in_slot == YM2413_INPUT_CLOCKS_PER_SLOT;
+                assert_eq!(
+                    core.advance_input_clocks(1),
+                    Ok(if crossed_rotation { 1 } else { 0 })
+                );
+
+                if clock_in_slot < YM2413_INPUT_CLOCKS_PER_SLOT {
+                    assert_eq!(core.next_slot_descriptor(), Some(expected));
+                    assert_eq!(core.input_clock_phase(), clock_in_slot as u8);
+                } else {
+                    let next_slot = (slot_index + 1) % YM2413_SLOT_COUNT;
+                    assert_eq!(
+                        core.next_slot_descriptor(),
+                        Some(YM2413_SLOT_MAP[next_slot])
+                    );
+                    assert_eq!(core.input_clock_phase(), 0);
+                }
+            }
+        }
+
+        assert_eq!(
+            core.elapsed_input_clocks(),
+            YM2413_INPUT_CLOCKS_PER_ROTATION
+        );
+        assert_eq!(core.completed_rotations(), 1);
+        assert_eq!(core.slot_index(), 0);
+    }
+
+    #[test]
+    fn snapshot_restore_preserves_slot_boundary_state_at_every_clock_offset() {
+        for offset in 0..YM2413_INPUT_CLOCKS_PER_ROTATION {
+            let mut core = Ym2413Core::new();
+            core.advance_input_clocks(offset).unwrap();
+
+            let expected_descriptor = core.next_slot_descriptor();
+            let expected_phase = core.input_clock_phase();
+            let expected_rotation = core.completed_rotations();
+            let restored = Ym2413Core::restore_state(core.export_state()).unwrap();
+
+            assert_eq!(restored.next_slot_descriptor(), expected_descriptor);
+            assert_eq!(restored.input_clock_phase(), expected_phase);
+            assert_eq!(restored.completed_rotations(), expected_rotation);
+            assert_eq!(restored.elapsed_input_clocks(), offset);
+        }
     }
 }
