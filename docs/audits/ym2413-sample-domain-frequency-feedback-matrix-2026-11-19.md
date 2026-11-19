@@ -1,9 +1,9 @@
 # YM2413 — Matriz de taxas PG e feedback no domínio de amostras
 
-**Data:** 2026-11-19  
-**Branch:** `test/ym2413-sample-domain-frequency-feedback-matrix`  
-**Base:** `63fb10e630b5d789e8c8887cd5cdd2cec588c988`  
-**Escopo:** regressão interna do contrato sample-domain entre OperatorPair e PhaseGenerator.  
+**Data:** 2026-11-19
+**Branch:** `test/ym2413-sample-domain-frequency-feedback-matrix`
+**Base:** `63fb10e630b5d789e8c8887cd5cdd2cec588c988`
+**Escopo:** regressão interna do contrato sample-domain entre OperatorPair e PhaseGenerator.
 **Estado:** teste adicionado; aguardando CI. Não constitui nova medição física.
 
 ## 1. Objetivo
