@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1065 em 2026-11-19:** `b36ec8519d7935fe42440207b10222799bb05ae0`
+**Main base após PR #1067 em 2026-11-19:** `63fb10e630b5d789e8c8887cd5cdd2cec588c988`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -973,3 +973,35 @@ A implementação do pipeline interno continua BLOCKED até vetores físicos rep
 A investigação documental foi concluída e o teste diferencial do modelo foi adicionado à PR #1067. Os workflows #8902 e #8903 concluíram com sucesso todos os gates aplicáveis: classificação de impacto, higiene documental, toolchain/Cargo, Rustfmt, Clippy, testes workspace, testes observability e quality/unit regression. Gates de Windows, SDL3, Z80, VDP, Scheduler e demais subsistemas foram SKIPPED pela classificação de impacto, não aprovados. A revisão Codex não foi concluída por limite de uso; não é tratada como aprovação. O objetivo do teste é demonstrar que o estado atual do par de operadores reproduz a relação de fase por amostra descrita no modelo publicado para FNUM=0x40, BLOCK=0, MUL=0, sem converter o atraso em input clocks.
 
 **Não confundir:** a correspondência do modelo de saída não identifica o latch interno, o slot de captura/consumo ou a latência elétrica M→C. A integração cycle-accurate continua BLOCKED por captura física sincronizada de XIN/MO/RO.
+
+
+---
+
+## Atualização FM-2/FM-3 — caracterização M→C por amostra (PR #1067 integrada)
+
+- PR #1067: `test(ym2413): characterize modulator carrier sample latency`.
+- HEAD validado: `4eb431c60b765d290685e881b92427944dd7a946`.
+- Merge squash na main: `63fb10e630b5d789e8c8887cd5cdd2cec588c988`.
+- Workflows #8902, #8903 e #8904: gates aplicáveis SUCCESS, incluindo classificação de impacto, higiene documental, toolchain/Cargo, Rustfmt, Clippy, testes workspace, observability e quality/unit regression.
+- Revisão Codex: não concluída por limite de uso; não contabilizada como aprovação.
+- O teste percorre as 16.384 atualizações do vetor publicado FNUM=0x40, BLOCK=0, MUL=0 e caracteriza a fase anterior do modulator e a fase corrente do carrier no domínio de amostras.
+- Nenhuma lógica de produção, clock, slot, Scheduler, PG, EG ou PCM foi alterada.
+
+**Limite:** a latência de uma atualização é uma propriedade do modelo de saída documentado, não uma medição do latch interno nem uma conversão para input clocks. O pipeline físico M→C permanece BLOCKED por captura sincronizada XIN/MO/RO com resolução por input clock.
+
+## Próxima caracterização — matriz de taxas PG × feedback (em validação)
+
+**Branch:** `test/ym2413-sample-domain-frequency-feedback-matrix`
+
+Foi acrescentado um teste de regressão em `native/ym2413/src/operator.rs` que combina quatro vetores legais de FNUM/BLOCK/MUL, os oito valores FB=0..7 e históricos iniciais com somas positiva e negativa. Cada combinação percorre 512 atualizações.
+
+O teste verifica separadamente:
+- cálculo do offset de feedback a partir dos dois outputs históricos;
+- consumo da fase do modulator da atualização anterior;
+- fase corrente independente do carrier, incluindo MUL distinto;
+- wrap do acumulador PG de 19 bits e wrap do índice de fase de 10 bits;
+- atualização dos dois outputs históricos e retenção da fase corrente para a próxima chamada.
+
+**Classificação da evidência:** esta matriz amplia a cobertura interna do modelo de software. Os vetores adicionais não são medições físicas nem novos vetores publicados de Andete. Não validam waveform analógica, reset físico, ordem dos slots, subfases, latência em XIN ou conversão DAC.
+
+Nenhuma lógica de produção foi alterada. A próxima decisão depende do CI aplicável desta branch.
