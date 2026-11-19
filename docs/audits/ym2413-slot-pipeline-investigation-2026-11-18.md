@@ -85,11 +85,13 @@ O manual confirma que o primeiro slot de cada par melódico atua como modulator 
 - A célula de operador é reutilizada serialmente para os 18 operadores.
 - O modulator alimenta a fase do carrier; o diagrama funcional é descrito no manual.
 - O cálculo é discreto; o reverse engineering confirma que feedback não é instantâneo.
-- As medições de feedback foram reproduzidas pelo modelo com a média/soma escalada dos dois últimos outputs do modulator.
+- As medições de feedback foram reproduzidas pelo modelo com a soma escalada dos dois últimos outputs do modulator.
+- A nota de 2015-12-03 reproduz as capturas modulator/carrier usando a fase do modulator de uma amostra de saída anterior: no modelo, `lookupSin((i - 1) / 16)` alimenta o modulator enquanto o carrier usa `lookupSin(i / 16 + ...)`.
+- Para o vetor publicado FNUM=0x40, BLOCK=0, MUL=0, o incremento PG é 32 unidades no acumulador 10.9, isto é, 1/16 de uma entrada da tabela por amostra. Nesse caso, um atraso de uma amostra não equivale a subtrair uma entrada inteira da tabela.
 
-**Limite:** o modelo de dois samples explica as capturas publicadas depois de sincronizado, mas as condições iniciais dos dois valores anteriores podem divergir e alterar bastante os primeiros outputs, especialmente em feedback alto. A posição exata de captura e consumo da cadeia dentro dos slots não é exposta pela tabela de slots.
+**Limite:** o atraso de uma amostra é um modelo que reproduziu as capturas de saída, não uma medição direta dos latches internos. As condições iniciais dos dois outputs de feedback podem divergir e alterar bastante os primeiros outputs, especialmente em feedback alto. A posição exata de captura/consumo dentro dos slots e a conversão desse atraso em input clocks permanecem desconhecidas.
 
-**Consequência para o código:** manter a cadeia de feedback por canal e seu estado no snapshot; não presumir que o output do modulator de um slot seja consumido pelo carrier do mesmo par na mesma rotação sem identificar o latch e o atraso.
+**Consequência para o código:** manter a cadeia de feedback e o índice de fase do modulator da amostra anterior no estado serializável do par. O primeiro valor histórico deve ser explícito ou permanecer desconhecido; não substituir um atraso de amostra por um deslocamento fixo de uma entrada da tabela. Isso ainda não autoriza afirmar em qual subfase o modulator alimenta o carrier.
 
 ### 3.4 LFO global
 
@@ -205,6 +207,7 @@ Uma nota técnica de Nuke.YKT, reproduzida pelo arquivo de referência Silicon P
 | P1-07 | Como e quando o resultado do carrier entra no latch de MO/RO? | Saída digital |
 | P1-08 | Como o decode/commit de registradores se relaciona ao slot corrente? | Escritas temporais |
 | P1-09 | Qual a relação elétrica/fase do clock YM2413 com PSG/Z80 na placa SMS? | Scheduler e integração SMS |
+| P1-10 | Como o atraso de uma amostra medido no modelo M→C se mapeia em input clocks e latches físicos? | Pipeline M→C cycle-accurate |
 
 Nenhuma dessas questões deve ser fechada com base exclusiva em uma implementação GPL. O modelo `emu198x-yamaha-ym2413` e Nuked-OPLL podem ser usados para formular hipóteses e casos de comparação; sua arquitetura não substitui captura física e o código GPL não deve ser copiado para este projeto.
 
@@ -222,6 +225,8 @@ Nenhuma dessas questões deve ser fechada com base exclusiva em uma implementaç
 
 ## 9. Resultado desta etapa
 
-- **Confirmado:** 18 slots seriais, ordem de atribuição, 72 input clocks por rotação, 4 clocks por slot como derivação, 19-bit PG, EG por operador e contador global por rotação como modelo medido, feedback com dois valores históricos, multiplexação MO/RO.
-- **Ainda não confirmado:** offsets PG/EG/OP por subfase, fase de reset, transferência M→C em clocks exatos, commit temporal de registradores, latch DAC exato e alinhamento de fase com a placa SMS.
+- **Confirmado/documentado:** 18 slots seriais, ordem de atribuição, 72 input clocks por rotação, 4 clocks por slot como derivação, 19-bit PG, EG por operador e contador global por rotação como modelo medido, feedback com dois valores históricos, multiplexação MO/RO.
+- **Modelo de saída medido:** o modelo de Andete usa a fase do modulator da amostra anterior; o vetor FNUM=0x40/BLOCK=0/MUL=0 demonstra por que isso não pode ser representado por `phase_index - 1`.
+- **Ainda não confirmado:** offsets PG/EG/OP por subfase, fase de reset, mapeamento do atraso M→C de uma amostra para input clocks/latches físicos, commit temporal de registradores, latch DAC exato e alinhamento de fase com a placa SMS.
+- **Alteração candidata na branch de correção:** `OperatorPair` conserva a fase do modulator da avaliação anterior e a inclui no snapshot. A primeira fase histórica é opcional e não presume o estado elétrico após reset.
 - **Decisão:** não iniciar ainda o pipeline executável nem integrar Scheduler. A próxima entrega precisa ser um conjunto de vetores de captura ou uma fonte primária adicional que resolva as questões P1-01 a P1-08.
