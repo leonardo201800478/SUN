@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-19
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1067 em 2026-11-19:** `63fb10e630b5d789e8c8887cd5cdd2cec588c988`
+**Main base após PR #1068 em 2026-11-19:** `bd7f3fa115b592117334e66f326532eb9d01c0e0`
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -1005,3 +1005,28 @@ O teste verifica separadamente:
 **Classificação da evidência:** esta matriz amplia a cobertura interna do modelo de software. Os vetores adicionais não são medições físicas nem novos vetores publicados de Andete. Não validam waveform analógica, reset físico, ordem dos slots, subfases, latência em XIN ou conversão DAC.
 
 Nenhuma lógica de produção foi alterada. A próxima decisão depende do CI aplicável desta branch.
+
+
+---
+
+## Atualização FM-2/FM-3 — matriz PG × feedback integrada (PR #1068, 2026-11-19)
+
+- PR #1068: `test(ym2413): cover sample latency across PG rates and feedback`.
+- HEAD validado: `62eca186a932019942261f6e857726bdc4546d8a`.
+- Merge squash na main: `bd7f3fa115b592117334e66f326532eb9d01c0e0`.
+- Workflow #8908 / run `44622349207`: Change impact classification, Rust workspace regression e documentation patch hygiene SUCCESS; Rust quality and unit regression SUCCESS.
+- Gates Windows, SDL3, Z80, VDP, Scheduler, PSG, CPAL e desktop: SKIPPED pela classificação de impacto; não são aprovações desses subsistemas.
+- Revisão Codex: não concluída por limite de uso; não contabilizada como aprovação.
+- O teste cobre 4 vetores FNUM/BLOCK/MUL × 8 valores FB × 2 históricos assinados × 512 atualizações = 32.768 avaliações.
+- Verifica offset de feedback, fase anterior do modulator, fase independente do carrier, continuidade do histórico e wraps PG/fase.
+- Nenhuma lógica de produção, Scheduler, rotação de slots, PG/EG ou PCM foi alterada.
+
+**Limite:** a matriz amplia a regressão sample-domain do modelo de software. Não valida a latência física M→C em XIN, latch interno, subfases, ordem dos 18 slots, reset físico, waveform, DAC ou PCM.
+
+## Próxima frente técnica — fechar a fronteira entre síntese de vozes e saída física
+
+O banco agregado já possui avaliação das cinco vozes rítmicas, com Bass Drum usando o par modulator/carrier e as outras quatro vozes usando o caminho de operador único. A configuração estática preserva slots, patches candidatos, parâmetros PG/EG/KSL, trigger e volume. O caminho de avaliação não avança PG, EG, LFO, LFSR, slots ou clocks; exige que o chamador forneça as fases e os limites de serviço.
+
+A próxima implementação não deve inventar a semântica de KEY-ON/trigger, a curva de volume, seed/cadência do ruído ou a conversão para código DAC. Primeiro, consolidar por testes os contratos já demonstráveis entre configuração de Rhythm Mode, estado PG/EG por slot, avaliação das cinco vozes e retenção/roteamento de saídas. Separar explicitamente qualquer resultado sample-domain da validação física.
+
+**Bloqueios físicos mantidos:** captura sincronizada XIN/MO/RO para subfases e pipeline; curva/transferência DAC e correspondência de código físico (issue #1031); seed/cadência LFSR e interação trigger/KEY-ON quando não sustentadas por vetor primário.
