@@ -782,7 +782,13 @@ mod tests {
         let mut bank = Ym2413SynthesisBank::with_initial_state(initial).unwrap();
         let mut config = configuration(0);
         config.modulator_envelope.attack_rate = 10;
+        config.modulator_envelope.key_scale_rate = false;
+        config.modulator_envelope.fnum = 0;
+        config.modulator_envelope.block = 0;
         config.carrier_envelope.attack_rate = 10;
+        config.carrier_envelope.key_scale_rate = false;
+        config.carrier_envelope.fnum = 0;
+        config.carrier_envelope.block = 0;
 
         // Model5's per-operator call order is PG, then EG. The modulator
         // services first; its DAMP transition is coordinated by the carrier.
@@ -802,6 +808,9 @@ mod tests {
             .tick_operator_envelope_with_events(0, true, true, 8, config.carrier_envelope)
             .unwrap();
         assert!(carrier_event.phase_reset_required);
+        // AR=10, KSR=0, FNUM=0, BLOCK=0 => RATE=40; counter 8
+        // selects the measured -8 attack step from level 127 to 119.
+        assert_eq!(bank.envelope_level(0, true).unwrap(), 119);
         assert_ne!(modulator_phase, 0);
         assert_ne!(carrier_phase, 0);
 
