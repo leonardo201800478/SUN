@@ -345,6 +345,12 @@ impl EnvelopeGenerator {
             && carrier.stage != EnvelopeStage::Damp
         {
             self.stage = carrier.stage;
+            // The hardware model stores KEY-ON at channel scope. This EG keeps
+            // a local copy, so propagate the carrier-observed latch together
+            // with the candidate DAMP transition. Otherwise a later modulator
+            // tick could interpret the same KEY-ON as a fresh edge and restart
+            // DAMP after it was synchronized.
+            self.key_on = carrier.key_on;
         }
     }
 
@@ -709,6 +715,29 @@ mod tests {
         carrier.tick(0, true, true, p).unwrap();
         assert_eq!(carrier.stage(), EnvelopeStage::Attack);
         modulator.synchronize_damp_transition(&carrier);
+        assert_eq!(modulator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn carrier_damp_sync_preserves_transition_on_later_modulator_tick() {
+        let config = damp_config(
+            DampTransitionCoordination::CarrierDrivesBoth,
+            AttackRate15Transition::SkipAttackToDecay,
+        );
+        let mut modulator =
+            EnvelopeGenerator::with_initial_state(127, EnvelopeStage::Damp, false, config).unwrap();
+        let mut carrier =
+            EnvelopeGenerator::with_initial_state(127, EnvelopeStage::Damp, false, config).unwrap();
+        let mut p = params();
+        p.attack_rate = 10;
+
+        carrier.tick(0, true, true, p).unwrap();
+        modulator.synchronize_damp_transition(&carrier);
+        assert_eq!(modulator.stage(), EnvelopeStage::Attack);
+
+        // The modulator's first serviced tick may occur after the carrier
+        // event. It must not reinterpret the already-observed KEY-ON as new.
+        modulator.tick(0, true, false, p).unwrap();
         assert_eq!(modulator.stage(), EnvelopeStage::Attack);
     }
 
