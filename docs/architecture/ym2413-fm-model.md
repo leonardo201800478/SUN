@@ -45,7 +45,7 @@ Essas responsabilidades pertencem aos adaptadores e à configuração da máquin
 | Slots por período de saída | 18 | DOCUMENTADO |
 | Clocks por slot | 4 | DOCUMENTADO |
 | Clocks por período de saída | 72 | DOCUMENTADO |
-| Taxa interna de saída | 3.579.545 / 72 ≈ 49.716,04 Hz | Derivada |
+| Taxa interna de saída | 3.579.545 / 72 ≈ 49.715,9027778 Hz | Derivada |
 | Canais melódicos | 9 | DOCUMENTADO |
 | Operadores lógicos | 18 (2 por canal) | DOCUMENTADO |
 | Células físicas do operador | 1, reutilizada sequencialmente | DOCUMENTADO |
@@ -92,7 +92,7 @@ Cada operador possui, conceitualmente:
 3. Envelope Generator (EG);
 4. controle de amplitude e sinal.
 
-O canal usa modulator seguido de carrier. O modulator pode receber feedback de sua própria saída histórica. A saída do modulator altera a fase do carrier.
+O canal usa modulator seguido de carrier. O modulator pode receber feedback de suas duas saídas históricas anteriores. O modelo medido por Andete (2015-12-03) também utiliza a fase do modulator da amostra de saída anterior; isso não equivale a subtrair uma unidade inteira do índice da tabela. O estado candidato do par preserva esse índice histórico e o snapshot. A fase inicial anterior permanece explícita/opcional, pois o alinhamento após reset não foi medido. A saída do modulator altera a fase do carrier.
 
 Representação matemática conceitual:
 
@@ -195,7 +195,7 @@ O manual associa os valores FB a índices de modulação:
 
 O estado precisa preservar pelo menos o histórico temporal exigido pelo modelo confirmado. A média das duas últimas amostras aparece nas implementações de referência e nas análises de engenharia reversa.
 
-**PENDENTE:** largura do sinal histórico, ponto exato de truncamento, deslocamento de feedback por FB, sinal, saturação e pipeline por slot. Não fixar `9 - FB` ou qualquer shift simplificado sem vetores diferenciais.
+**PENDENTE:** largura do sinal histórico, ponto exato de truncamento, deslocamento de feedback por FB, sinal, saturação e pipeline por slot. O atraso de uma amostra no caminho de fase foi reproduzido pelo modelo contra capturas, mas sua correspondência com input clocks e latches físicos continua desconhecida. Não fixar `9 - FB` ou qualquer shift simplificado sem vetores diferenciais.
 
 ### 3.7 LFO AM e PM
 
@@ -347,7 +347,7 @@ No código auditado em M2:
 - `AudioMixer::mix_mono_into` aceita várias fontes mono apenas quando os blocos têm o mesmo número de frames.
 - `NativeAudioSession::process_samples` e o trait `AudioSession` recebem uma única fonte por chamada. Duas chamadas PSG/FM separadas concatenariam blocos no tempo, não os misturariam.
 - A taxa PCM interna canônica é 48.000 Hz; `PcmResampler::new` recebe taxas explícitas de entrada/saída e a taxa host é negociada.
-- A taxa nominal YM2413 de 3.579.545/72 ≈ 49.716,04 amostras/s é derivada, não taxa final de host.
+- A taxa nominal YM2413 de 3.579.545/72 ≈ 49.715,9027778 amostras/s é derivada, não taxa final de host.
 
 A integração futura deve alinhar determinística e continuamente as fontes antes de uma única operação de mixagem por intervalo (ou generalizar explicitamente o mixer para fontes com timestamps/taxas diferentes). Não entregar PSG e FM em chamadas sequenciais à sessão e não duplicar mixer/resampler por chip.
 
@@ -497,7 +497,7 @@ O acumulador deve manter os 19 bits efetivos; o cálculo intermediário do incre
 
 ### 14.2 Phase Modulation / Vibrato
 
-As notas de medição apresentam uma tabela PM de 8 × 8 indexada por `FNUM[8:6]` e pela posição do LFO. O índice de posição avança a cada 1024 amostras internas; o ciclo de oito posições dura 8192 amostras. Com 3.579.545 / 72 ≈ 49.716,04 amostras/s, o período corresponde a aproximadamente 6,069 Hz.
+As notas de medição apresentam uma tabela PM de 8 × 8 indexada por `FNUM[8:6]` e pela posição do LFO. O índice de posição avança a cada 1024 amostras internas; o ciclo de oito posições dura 8192 amostras. Com 3.579.545 / 72 ≈ 49.715,9027778 amostras/s, o período corresponde a aproximadamente 6,069 Hz.
 
 `pm = pmTable[FNUM >> 6][(global_sample_counter >> 10) & 7]`
 
@@ -625,7 +625,7 @@ A leitura dos fontes ativos confirmou os seguintes limites concretos:
 
 4. **Mixer multi-source ainda não está exposto pela sessão.** `AudioMixer::mix_mono_into` aceita várias `MixSource` com o mesmo número de frames, mas `NativeAudioSession::process_samples` constrói sempre um array com uma única fonte. Chamá-lo uma vez para PSG e outra para FM não mistura os chips: concatena dois blocos temporalmente no resampler e envia blocos separados. É necessário expor uma operação de sessão que receba todas as fontes alinhadas e invoque o mixer uma única vez por lote; manter `process_samples` como wrapper de fonte única é compatível.
 
-5. **Taxas nativas diferentes.** O SN76489 produz amostras na taxa solicitada ao core e aplica seu próprio filtro/downsampling a partir do clock interno dividido por 16. O `PcmResampler` de `sega-audio-runtime` assume entrada fixa de 44.100 Hz e converte para a taxa de saída do host. O YM2413 produz uma amostra por 72 clocks de entrada (aprox. 49.716,04 amostras/s). Portanto, a saída YM2413 não pode ser entregue diretamente ao atual `NativeAudioSession` como se fosse 44.100 Hz. Antes da mistura, deve existir uma conversão determinística para uma taxa comum (ou uma generalização explícita do mixer/resampler para fontes com taxas e timestamps próprios). A fase dos conversores precisa ser derivada do tempo do Scheduler, não do tamanho dos blocos da GUI/host.
+5. **Taxas nativas diferentes.** O SN76489 produz amostras na taxa solicitada ao core e aplica seu próprio filtro/downsampling a partir do clock interno dividido por 16. O `PcmResampler` de `sega-audio-runtime` assume entrada fixa de 44.100 Hz e converte para a taxa de saída do host. O YM2413 produz uma amostra por 72 clocks de entrada (aprox. 49.715,9027778 amostras/s). Portanto, a saída YM2413 não pode ser entregue diretamente ao atual `NativeAudioSession` como se fosse 44.100 Hz. Antes da mistura, deve existir uma conversão determinística para uma taxa comum (ou uma generalização explícita do mixer/resampler para fontes com taxas e timestamps próprios). A fase dos conversores precisa ser derivada do tempo do Scheduler, não do tamanho dos blocos da GUI/host.
 
 6. **MO/RO e circuito analógico.** O manual Yamaha identifica MO e RO como saídas source-follower e exige circuito integrado/amplificador posterior; portanto, os pinos não devem ser tratados como amostras digitais já normalizadas nem somados sem modelo de carga. O manual mostra um circuito de interface de áudio SFG-05/MSX, que não deve ser transplantado automaticamente para o SMS. Existe esquema do SMS japonês traçado a partir das trilhas da placa, mas o próprio autor alerta que ele pode não ser 100% preciso. O core deve preservar MO e RO separadamente; a conversão para a fonte mono deve seguir a rede de soma/ganho da revisão SMS escolhida, após confirmação por esquema confiável ou medição. O controle de mute/roteamento de $F2 não deve parar os geradores internos sem evidência física.
 
