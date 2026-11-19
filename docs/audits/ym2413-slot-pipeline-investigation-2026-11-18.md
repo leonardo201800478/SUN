@@ -258,3 +258,34 @@ Manter o sequenciador de clock/slot como fronteira temporal comprovada (4 input 
 4. Para cada hipótese de pipeline, teste diferencial que compare execução contínua e particionada e preserve o estado em snapshots nos limites de subfase.
 
 Até que esses dados existam, o pipeline de estágios sobrepostos permanece hipótese de investigação, não implementação aprovada.
+
+
+---
+
+## Atualização — roteamento MO/RO e largura de pulso por slot (2026-11-19)
+
+A PR #1042 integrou o módulo puro `native/ym2413/src/output.rs`.
+
+### Contrato implementado
+
+- MO recebe eventos de carrier dos nove canais em modo melódico.
+- Em Rhythm Mode, MO recebe apenas canais 1–6.
+- RO recebe eventos originais e repetidos das cinco vozes conforme o mapa medido de slots.
+- A API registra três input clocks ativos dentro do slot de quatro clocks e um clock neutro.
+- Eventos RO inválidos são rejeitados; estado de repetição ainda não inicializada permanece distinto de ausência de saída.
+
+### O que permanece em aberto
+
+A nova camada não resolve P1-07 por completo. Ela estabelece o roteamento lógico por slot e a largura de pulso, mas não determina:
+- subfase exata em que o valor começa e termina;
+- valor elétrico do nível neutro;
+- latch e transformação do valor do operador para a palavra de nove bits do DAC;
+- instante exato de seleção/commit do DAC;
+- resposta analógica do source follower e carga da placa.
+
+A Issue #1031 continua bloqueando a conversão do intermediário one's-complement para o domínio DAC, devido às formas de saída publicadas que divergem em polaridade e offset. Não contornar essa incerteza usando o wrapper `Ym2413DacCode`.
+
+### Validação
+
+CI #44450484181: Rustfmt, Clippy, testes unitários/integração do workspace, Clippy/testes de observability e gate final de qualidade SUCCESS. Jobs de integração SMS, PSG, Scheduler, CPAL, VDP, Z80 e desktop foram SKIPPED, por não serem afetados.
+
