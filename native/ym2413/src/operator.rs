@@ -459,6 +459,27 @@ mod tests {
     }
 
     #[test]
+    fn operator_candidate_boundary_reproduces_issue_1031_minus_256_at_phase_0x300() {
+        // Issue #1031's isolated candidate setup: phase 0x300, zero
+        // attenuation inputs, and the full sine wave. This proves the Rust
+        // operator candidate can produce -256; it does not identify a
+        // physical YM2413 DAC input word or approve a conversion.
+        let output = evaluate_single_operator_as_carrier(
+            0x300,
+            SingleOperatorCarrierParameters {
+                volume: 0,
+                ksl: 0,
+                envelope: 0,
+                am: 0,
+                half_wave: false,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(output, -256);
+    }
+
+    #[test]
     fn exponential_lookup_defines_large_exponents_without_panicking() {
         assert_eq!(exponential_lookup(0x7f00), 0);
         assert_eq!(exponential_lookup(0xff00), -1);
