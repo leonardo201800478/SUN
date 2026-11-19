@@ -966,7 +966,7 @@ A implementação do pipeline interno continua BLOCKED até vetores físicos rep
 
 **Limite:** a rotação continua sendo um contrato aritmético do core. Nenhum subclock físico PG/EG/SIN/EXP/feedback/DAC foi identificado ou implementado. Nenhuma lógica de produção FM foi alterada.
 
-## Próxima caracterização — latência Modulator → Carrier (em andamento)
+## Caracterização M→C no domínio de amostras — PR #1067 integrada
 
 **Branch:** `test/ym2413-modulator-carrier-sample-latency-ci`
 
@@ -989,7 +989,7 @@ A investigação documental foi concluída e o teste diferencial do modelo foi a
 
 **Limite:** a latência de uma atualização é uma propriedade do modelo de saída documentado, não uma medição do latch interno nem uma conversão para input clocks. O pipeline físico M→C permanece BLOCKED por captura sincronizada XIN/MO/RO com resolução por input clock.
 
-## Próxima caracterização — matriz de taxas PG × feedback (em validação)
+## Matriz de taxas PG × feedback — PR #1068 integrada
 
 **Branch:** `test/ym2413-sample-domain-frequency-feedback-matrix`
 
@@ -1004,7 +1004,7 @@ O teste verifica separadamente:
 
 **Classificação da evidência:** esta matriz amplia a cobertura interna do modelo de software. Os vetores adicionais não são medições físicas nem novos vetores publicados de Andete. Não validam waveform analógica, reset físico, ordem dos slots, subfases, latência em XIN ou conversão DAC.
 
-Nenhuma lógica de produção foi alterada. A próxima decisão depende do CI aplicável desta branch.
+Nenhuma lógica de produção foi alterada. A matriz foi integrada após aprovação dos gates CI aplicáveis.
 
 
 ---
