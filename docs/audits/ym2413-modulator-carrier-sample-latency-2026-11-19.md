@@ -1,9 +1,9 @@
 # YM2413 — Caracterização da relação temporal Modulator → Carrier
 
 **Data:** 2026-11-19
-**Branch:** `test/ym2413-modulator-carrier-sample-latency`
+**Branch:** `test/ym2413-modulator-carrier-sample-latency-ci`
 **Escopo:** relação entre o índice de fase usado pelo modulator e o índice corrente usado pelo carrier no modelo de síntese por amostra.
-**Estado:** evidência documental reconstituída; teste diferencial do modelo Rust implementado, aguardando CI. Não é uma medição física nova.
+**Estado:** evidência documental reconstituída; teste diferencial do modelo Rust implementado e validado pelos workflows #8902 e #8903 nos gates aplicáveis. Não é uma medição física nova. A revisão Codex não foi concluída por limite de uso e não é considerada aprovação.
 
 ## 1. Resultado executivo
 
