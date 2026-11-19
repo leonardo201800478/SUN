@@ -221,7 +221,7 @@ impl Ym2413TimedBus {
 
 #[cfg(test)]
 mod tests {
-    use super::{Ym2413TimedBus, Ym2413TimedBusError, YM2413_TIMED_BUS_STATE_VERSION};
+    use super::{YM2413_TIMED_BUS_STATE_VERSION, Ym2413TimedBus, Ym2413TimedBusError};
     use crate::{Ym2413BusTimingError, Ym2413BusWriteKind};
 
     #[test]
