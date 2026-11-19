@@ -160,6 +160,33 @@ pub const fn decode_rhythm_registers(registers: &[u8; 64]) -> Ym2413RhythmConfig
     }
 }
 
+impl Ym2413RhythmConfig {
+    /// Return a diagnostic mask for melodic KEY-ON bits set while Rhythm Mode is enabled.
+    ///
+    /// Bit 0 reports channel 7 ($26.KEY-ON), bit 1 channel 8 ($27.KEY-ON),
+    /// and bit 2 channel 9 ($28.KEY-ON). A set bit means the register
+    /// configuration violates the Yamaha manual's recommended Rhythm Mode
+    /// setup, which asks software to clear these melodic KEY-ON bits.
+    ///
+    /// This is a configuration diagnostic only. It does not predict whether
+    /// the physical chip ORs melodic KEY-ON with percussion triggers, and it
+    /// never changes the raw register fields returned by the decoder.
+    pub const fn rhythm_mode_melodic_key_on_warning_mask(self) -> u8 {
+        if !self.rhythm_mode_enabled {
+            return 0;
+        }
+
+        (self.channel_frequencies[0].melodic_key_on as u8)
+            | ((self.channel_frequencies[1].melodic_key_on as u8) << 1)
+            | ((self.channel_frequencies[2].melodic_key_on as u8) << 2)
+    }
+
+    /// Return whether the Rhythm Mode register configuration needs attention.
+    pub const fn has_rhythm_mode_melodic_key_on_warning(self) -> bool {
+        self.rhythm_mode_melodic_key_on_warning_mask() != 0
+    }
+}
+
 /// Errors returned by the rhythm-noise generator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413RhythmNoiseError {
@@ -782,6 +809,48 @@ mod tests {
                 sustain_on: false,
             }
         );
+    }
+
+    #[test]
+    fn rhythm_mode_key_on_warning_reports_channels_without_mutating_raw_fields() {
+        let mut registers = [0; 64];
+        registers[0x0e] = super::YM2413_RHYTHM_MODE_BIT | 0x1f;
+        registers[0x26] = 0x10;
+        registers[0x27] = 0x00;
+        registers[0x28] = 0x10;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.rhythm_mode_melodic_key_on_warning_mask(), 0b101);
+        assert!(config.has_rhythm_mode_melodic_key_on_warning());
+        assert!(config.channel_frequencies[0].melodic_key_on);
+        assert!(!config.channel_frequencies[1].melodic_key_on);
+        assert!(config.channel_frequencies[2].melodic_key_on);
+    }
+
+    #[test]
+    fn rhythm_mode_key_on_warning_is_suppressed_when_rhythm_mode_is_disabled() {
+        let mut registers = [0; 64];
+        registers[0x26] = 0x10;
+        registers[0x27] = 0x10;
+        registers[0x28] = 0x10;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.rhythm_mode_melodic_key_on_warning_mask(), 0);
+        assert!(!config.has_rhythm_mode_melodic_key_on_warning());
+        assert!(config.channel_frequencies.iter().all(|channel| channel.melodic_key_on));
+    }
+
+    #[test]
+    fn rhythm_mode_key_on_warning_is_clear_for_recommended_register_setup() {
+        let mut registers = [0; 64];
+        registers[0x0e] = super::YM2413_RHYTHM_MODE_BIT | 0x1f;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.rhythm_mode_melodic_key_on_warning_mask(), 0);
+        assert!(!config.has_rhythm_mode_melodic_key_on_warning());
     }
 
     #[test]
