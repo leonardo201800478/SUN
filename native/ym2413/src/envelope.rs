@@ -1010,4 +1010,66 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn damp_completion_emits_one_candidate_phase_reset_event() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            124,
+            EnvelopeStage::Damp,
+            false,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::EnterAttack,
+            ),
+        )
+        .unwrap();
+
+        let first = generator.tick_with_events(0, true, true, params()).unwrap();
+        assert_eq!(first.level, 124);
+        assert!(first.phase_reset_required);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+
+        let second = generator.tick_with_events(1, true, true, params()).unwrap();
+        assert!(!second.phase_reset_required);
+    }
+
+    #[test]
+    fn damp_completion_with_attack_rate_fifteen_emits_reset_and_skips_attack() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            124,
+            EnvelopeStage::Damp,
+            false,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.attack_rate = 15;
+
+        let result = generator.tick_with_events(0, true, true, p).unwrap();
+        assert!(result.phase_reset_required);
+        assert_eq!(result.level, 0);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+    }
+
+    #[test]
+    fn key_on_below_damp_threshold_does_not_emit_phase_reset() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            100,
+            EnvelopeStage::Sustain,
+            false,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::EnterAttack,
+            ),
+        )
+        .unwrap();
+
+        let result = generator.tick_with_events(0, true, true, params()).unwrap();
+        assert!(!result.phase_reset_required);
+        assert_eq!(generator.stage(), EnvelopeStage::Damp);
+    }
+
 }
