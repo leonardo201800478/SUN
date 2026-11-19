@@ -24,7 +24,7 @@ Para cada índice (i \in [0,255]):
 
 A variante de 2015 escreve a fórmula EXP como `round(2^(i / 256) * 1024) - 1024`. A avaliação das duas expressões para os 256 índices produz os mesmos inteiros armazenados nesta revisão.
 
-O deslocamento de meia amostra no Log-Sine evita avaliar `log2(sin(0))), que é indefinido, e permite reconstruir os demais quadrantes por espelhamento e sinal. O hardware/software transforma o domínio logarítmico em amplitude linear através da tabela EXP.
+O deslocamento de meia amostra no Log-Sine evita avaliar `log2(sin(0))`, que é indefinido, e permite reconstruir os demais quadrantes por espelhamento e sinal. O hardware/software transforma o domínio logarítmico em amplitude linear através da tabela EXP.
 
 ## Cadeia de evidência
 
