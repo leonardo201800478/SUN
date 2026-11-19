@@ -907,7 +907,7 @@ mod tests {
                 ksr_on,
                 "KSR=1, EG-TYPE={sustained_tone}, SUS={sustain_on}"
             );
-            assert_eq!(p.effective_rate(base_rate), if ksr_on == 35 || ksr_on == 31 || ksr_on == 27 { ksr_on } else { ksr_off });
+            assert_eq!(p.carrier_key_off_base_rate(), base_rate);
         }
     }
 
