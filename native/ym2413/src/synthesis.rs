@@ -26,7 +26,7 @@ pub const YM2413_MELODIC_CHANNELS: usize = 9;
 /// Two independent operators are retained for every melodic channel.
 pub const YM2413_OPERATORS_PER_CHANNEL: usize = 2;
 /// Version of the aggregate digital synthesis snapshot.
-pub const YM2413_SYNTHESIS_STATE_VERSION: u16 = 1;
+pub const YM2413_SYNTHESIS_STATE_VERSION: u16 = 2;
 
 /// Errors returned by the aggregate synthesis bank.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +122,9 @@ pub struct Ym2413ChannelInitialState {
     pub envelope_key_on: [bool; YM2413_OPERATORS_PER_CHANNEL],
     /// Initial two-sample modulator feedback history [p0, p1].
     pub feedback_history: [i16; 2],
+    /// Explicit phase-table index from the modulator's previous output sample.
+    /// None leaves the first-sample condition unspecified and uses current phase.
+    pub previous_modulator_phase_index: Option<u16>,
 }
 
 /// Explicit initial conditions for the aggregate YM2413 digital model.
@@ -203,7 +206,10 @@ impl Ym2413ChannelSynthesis {
         Ok(Self {
             phase,
             envelope,
-            operator_pair: OperatorPair::with_feedback_history(initial.feedback_history),
+            operator_pair: OperatorPair::with_initial_state(
+                initial.feedback_history,
+                initial.previous_modulator_phase_index,
+            )?,
         })
     }
 
@@ -627,6 +633,7 @@ mod tests {
                 envelope_stage: [EnvelopeStage::Damp; 2],
                 envelope_key_on: [false; 2],
                 feedback_history: [0; 2],
+                previous_modulator_phase_index: None,
             }),
             pm_lfo_counter: 0,
             am_lfo_phase: 0,
