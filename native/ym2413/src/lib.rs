@@ -19,6 +19,7 @@ pub mod rhythm_phase;
 pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
+pub mod timed_bus;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
@@ -96,6 +97,9 @@ pub use synthesis::{
     Ym2413SynthesisInitialState,
 };
 pub use synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
+pub use timed_bus::{
+    YM2413_TIMED_BUS_STATE_VERSION, Ym2413TimedBus, Ym2413TimedBusError, Ym2413TimedBusState,
+};
 
 use core::fmt;
 
