@@ -101,6 +101,24 @@ impl EnvelopeParameters {
             && self.block <= 7
     }
 
+    /// Select the carrier KEY-OFF base rate from EG-TYPE and channel SUS.
+    ///
+    /// The measured YM2413 behavior is:
+    /// - SUS=ON: fixed base rate 5 for either envelope type.
+    /// - SUS=OFF + sustained tone: the operator's programmed RR.
+    /// - SUS=OFF + percussive tone: fixed base rate 7.
+    ///
+    /// KSR is applied later by effective_rate(), including to fixed rates.
+    const fn carrier_key_off_base_rate(self) -> u8 {
+        if self.sustain_on {
+            5
+        } else if self.sustained_tone {
+            self.release_rate
+        } else {
+            7
+        }
+    }
+
     /// Compute RATE = 4 * R + Rks, clipped to six bits; R=0 forces RATE=0.
     pub const fn effective_rate(self, base_rate: u8) -> u8 {
         // A programmed rate of zero disables the EG increment regardless
@@ -222,9 +240,11 @@ impl EnvelopeGenerator {
 
     /// Advance one operator update using the externally owned counter value.
     ///
-    /// The carrier receives the measured second-release override. The
-    /// modulator retains its first-release/sustain path. DAMP coordination and
-    /// the AR=15 boundary behavior are explicit candidate configuration.
+    /// The carrier receives the measured second-release selector: SUS=ON
+    /// chooses base rate 5 for both EG types; with SUS=OFF, sustained tone
+    /// uses programmed RR and percussive tone uses fixed rate 7. The modulator
+    /// retains its first-release/sustain path. DAMP coordination and the AR=15
+    /// boundary behavior are explicit candidate configuration.
     pub fn tick(
         &mut self,
         global_counter: u32,
@@ -259,13 +279,7 @@ impl EnvelopeGenerator {
         let mut phase_reset_required = false;
 
         if !key_on && is_carrier {
-            let base_rate = if parameters.sustained_tone {
-                parameters.release_rate
-            } else if parameters.sustain_on {
-                5
-            } else {
-                7
-            };
+            let base_rate = parameters.carrier_key_off_base_rate();
             self.advance_decay(global_counter, parameters.effective_rate(base_rate));
             return Ok(EnvelopeTickResult {
                 level: self.level,
@@ -840,6 +854,87 @@ mod tests {
         eg.tick(0, true, true, p).unwrap();
         assert_eq!(eg.level(), 0);
         assert_eq!(eg.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn carrier_key_off_base_rate_matches_eg_type_and_sus_truth_table() {
+        let mut p = params();
+        p.release_rate = 6;
+
+        // EG-TYPE=0: SUS selects fixed rate 5 or 7.
+        // EG-TYPE=1: SUS=ON selects 5; SUS=OFF selects programmed RR.
+        for (sustained_tone, sustain_on, expected) in [
+            (false, false, 7),
+            (false, true, 5),
+            (true, false, 6),
+            (true, true, 5),
+        ] {
+            p.sustained_tone = sustained_tone;
+            p.sustain_on = sustain_on;
+            assert_eq!(
+                p.carrier_key_off_base_rate(),
+                expected,
+                "EG-TYPE={sustained_tone}, SUS={sustain_on}"
+            );
+        }
+    }
+
+    #[test]
+    fn carrier_key_off_effective_rate_matrix_applies_ksr_after_sus_selection() {
+        let mut p = params();
+        p.release_rate = 6;
+        p.block = 3;
+        p.fnum = 0x100;
+
+        let cases = [
+            (false, false, 7, 29, 35),
+            (false, true, 5, 21, 27),
+            (true, false, 6, 25, 31),
+            (true, true, 5, 21, 27),
+        ];
+        for (sustained_tone, sustain_on, base_rate, ksr_off, ksr_on) in cases {
+            p.sustained_tone = sustained_tone;
+            p.sustain_on = sustain_on;
+            p.key_scale_rate = false;
+            assert_eq!(
+                p.effective_rate(p.carrier_key_off_base_rate()),
+                ksr_off,
+                "KSR=0, EG-TYPE={sustained_tone}, SUS={sustain_on}"
+            );
+            p.key_scale_rate = true;
+            assert_eq!(
+                p.effective_rate(p.carrier_key_off_base_rate()),
+                ksr_on,
+                "KSR=1, EG-TYPE={sustained_tone}, SUS={sustain_on}"
+            );
+            assert_eq!(p.effective_rate(base_rate), if ksr_on == 35 || ksr_on == 31 || ksr_on == 27 { ksr_on } else { ksr_off });
+        }
+    }
+
+    #[test]
+    fn sustained_carrier_key_off_sus_on_uses_fixed_rate_five_not_programmed_rr() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            20,
+            EnvelopeStage::Sustain,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let mut p = params();
+        p.sustained_tone = true;
+        p.sustain_on = true;
+        p.release_rate = 0;
+        p.key_scale_rate = false;
+        p.fnum = 0;
+        p.block = 0;
+
+        // Effective rate 20 at counter 256 selects a +1 decay step.
+        // The old sustained_tone-first selector chose RR=0 and held at 20.
+        generator.tick(256, false, true, p).unwrap();
+        assert_eq!(generator.level(), 21);
     }
 
     #[test]
