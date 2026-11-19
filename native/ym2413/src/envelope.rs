@@ -147,7 +147,10 @@ pub enum EnvelopeGeneratorError {
 pub struct EnvelopeTickResult {
     /// Current seven-bit attenuation (0 is loudest, 127 is silent).
     pub level: u8,
-    /// True only on the update that completes DAMP and enters ATTACK or DECAY.
+    /// True only on the update that completes DAMP and requests a candidate PG reset.
+    ///
+    /// The selected ATTACK/DECAY stage may also consume this update's counter,
+    /// so the final stage after the update is not part of this event's contract.
     pub phase_reset_required: bool,
 }
 
@@ -208,7 +211,9 @@ impl EnvelopeGenerator {
         if attack_rate == 15
             && self.damp_config.attack_rate_15 == AttackRate15Transition::SkipAttackToDecay
         {
-            self.level = 0;
+            // Skipping ATTACK changes the stage, not the attenuation level.
+            // The reference model retains the DAMP endpoint and then evaluates
+            // DECAY using the same update counter.
             self.stage = EnvelopeStage::Decay;
         } else {
             self.stage = EnvelopeStage::Attack;
@@ -272,11 +277,11 @@ impl EnvelopeGenerator {
             && self.stage == EnvelopeStage::Damp
             && self.level >= self.damp_config.threshold
         {
+            // DAMP is complete at this update boundary. Select the new stage
+            // before the stage evaluator below, matching the reference model:
+            // ATTACK may consume this same shared-counter update.
             self.complete_damp(parameters.attack_rate);
-            return Ok(EnvelopeTickResult {
-                level: self.level,
-                phase_reset_required: true,
-            });
+            phase_reset_required = true;
         }
 
         match self.stage {
@@ -767,7 +772,7 @@ mod tests {
     }
 
     #[test]
-    fn damp_completion_does_not_advance_the_new_stage_in_the_same_update() {
+    fn damp_completion_at_update_entry_advances_attack_with_same_counter() {
         let config = damp_config(
             DampTransitionCoordination::IndependentPerOperator,
             AttackRate15Transition::EnterAttack,
@@ -777,10 +782,12 @@ mod tests {
         let mut p = params();
         p.attack_rate = 10;
 
+        // Effective AR is 40. Counter 8 selects an attack step, so the
+        // reference sequence transitions DAMP -> ATTACK and advances 124 -> 116.
         let result = generator.tick_with_events(8, true, true, p).unwrap();
 
         assert!(result.phase_reset_required);
-        assert_eq!(result.level, 124);
+        assert_eq!(result.level, 116);
         assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
@@ -805,7 +812,7 @@ mod tests {
         let mut p = params();
         p.attack_rate = 15;
         eg.tick(0, true, true, p).unwrap();
-        assert_eq!(eg.level(), 0);
+        assert_eq!(eg.level(), 124);
         assert_eq!(eg.stage(), EnvelopeStage::Decay);
     }
 
@@ -1100,7 +1107,7 @@ mod tests {
 
         let result = generator.tick_with_events(0, true, true, p).unwrap();
         assert!(result.phase_reset_required);
-        assert_eq!(result.level, 0);
+        assert_eq!(result.level, 124);
         assert_eq!(generator.stage(), EnvelopeStage::Decay);
     }
 
