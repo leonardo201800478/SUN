@@ -10,8 +10,8 @@
 use crate::am_lfo::{AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_PERIOD_SAMPLES};
 use crate::channel::{ChannelSynthesisConfig, OperatorPhaseParameters};
 use crate::envelope::{
-    DampTransitionConfig, EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState,
-    EnvelopeParameters, EnvelopeStage, EnvelopeTickResult,
+    DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator, EnvelopeGeneratorError,
+    EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage, EnvelopeTickResult,
 };
 use crate::operator::{OperatorPair, OperatorPairError, OperatorPairSample, OperatorPairState};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState};
@@ -577,6 +577,35 @@ impl Ym2413SynthesisBank {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
         state.phase[operator_index].reset();
+        Ok(())
+    }
+
+    /// Consume a carrier DAMP-completion event at the caller-selected boundary.
+    ///
+    /// A false event is a no-op. For the explicit CarrierDrivesBoth candidate,
+    /// this synchronizes the modulator EG transition and resets both PGs.
+    /// For IndependentPerOperator, only the carrier PG is reset; a modulator
+    /// event must be consumed separately through reset_operator_phase().
+    ///
+    /// This method does not advance clocks or select a slot/subphase. The
+    /// caller must pass the result from the carrier EG update and invoke this
+    /// operation at the timing boundary selected by its hardware model.
+    pub fn consume_carrier_damp_phase_reset_event(
+        &mut self,
+        channel: u8,
+        event: EnvelopeTickResult,
+    ) -> Result<(), Ym2413SynthesisError> {
+        let state = self.channel_mut(channel)?;
+        if !event.phase_reset_required {
+            return Ok(());
+        }
+
+        let carrier = state.envelope[1];
+        if carrier.damp_config().coordination() == DampTransitionCoordination::CarrierDrivesBoth {
+            state.envelope[0].synchronize_damp_transition(&carrier);
+            state.phase[0].reset();
+        }
+        state.phase[1].reset();
         Ok(())
     }
 
