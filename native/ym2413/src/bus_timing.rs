@@ -136,10 +136,7 @@ impl Ym2413BusTiming {
     }
 
     /// Record a data write if the previous write's wait has elapsed.
-    pub fn record_data_write_at(
-        &mut self,
-        master_clock: u64,
-    ) -> Result<(), Ym2413BusTimingError> {
+    pub fn record_data_write_at(&mut self, master_clock: u64) -> Result<(), Ym2413BusTimingError> {
         self.record_write_at(master_clock, Ym2413BusWriteKind::Data)
     }
 
@@ -161,9 +158,7 @@ impl Ym2413BusTiming {
     }
 
     /// Restore a snapshot after validating its version and paired optional fields.
-    pub const fn restore_state(
-        state: Ym2413BusTimingState,
-    ) -> Result<Self, Ym2413BusTimingError> {
+    pub const fn restore_state(state: Ym2413BusTimingState) -> Result<Self, Ym2413BusTimingError> {
         if state.format_version != YM2413_BUS_TIMING_STATE_VERSION {
             return Err(Ym2413BusTimingError::StateFormatVersionMismatch {
                 expected: YM2413_BUS_TIMING_STATE_VERSION,
@@ -215,8 +210,8 @@ impl Ym2413BusTiming {
 mod tests {
     use super::{
         YM2413_ADDRESS_WRITE_WAIT_CLOCKS, YM2413_BUS_TIMING_STATE_VERSION,
-        YM2413_DATA_WRITE_WAIT_CLOCKS, Ym2413BusTiming, Ym2413BusTimingError,
-        Ym2413BusTimingState, Ym2413BusWriteKind,
+        YM2413_DATA_WRITE_WAIT_CLOCKS, Ym2413BusTiming, Ym2413BusTimingError, Ym2413BusTimingState,
+        Ym2413BusWriteKind,
     };
 
     #[test]
@@ -241,7 +236,10 @@ mod tests {
                 actual_clock: 111,
             })
         );
-        assert_eq!(timing.last_write(), Some((100, Ym2413BusWriteKind::Address)));
+        assert_eq!(
+            timing.last_write(),
+            Some((100, Ym2413BusWriteKind::Address))
+        );
         assert_eq!(timing.record_data_write_at(112), Ok(()));
     }
 
