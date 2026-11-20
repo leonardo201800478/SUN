@@ -207,6 +207,7 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 | Contagem de descartes incompleta | **Corrigido no candidato** | `DiagnosticCollector` expõe descartes do histórico; o contador de trace soma descartes do produtor/ingress e do histórico. |
 | Buffer de frame pacing do host retido após revogação | **Corrigido no candidato** | O buffer `HostFramePacingWindow` é reinicializado na revogação; o timer é parado e a amostragem consulta `LoggingHandle::is_enabled()` como fonte única de consentimento. |
 | Estado de consentimento duplicado no host Slint | **Corrigido no candidato** | Removido `HOST_DIAGNOSTICS_ENABLED`; macro e timer consultam `LoggingHandle::is_enabled()`. O token único permanece em memória para autorizar workers substitutos durante a mesma sessão. |
+| Host Slint sem níveis de severidade úteis | **Parcialmente corrigido** | `diagnostic_log!` agora suporta ERROR/WARN/INFO/DEBUG/TRACE; falhas críticas usam ERROR, falhas recuperáveis WARN e métricas periódicas DEBUG. `SEGA_LOG_FILTER` aplica filtro central por target/nível. A taxonomia global ainda requer revisão. |
 | Snapshot automático no encerramento | **Corrigido na main pela PR #1105** | A PR removeu chamadas automáticas de snapshot no shutdown dos hosts Slint e legado. |
 
 ### 10.2 Cobertura de testes adicionada
@@ -220,7 +221,7 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 ### 10.3 Pendências que ainda bloqueiam DP-0
 
 1. **DP0-F5 — crash/bootstrap:** o hook global de panic ainda existe no código. ADR 0012 foi marcada como SUPERSEDED; falta remover o hook e implementar/testar relatório mínimo somente para falha crítica de bootstrap.
-2. **Níveis do host Slint:** o macro `diagnostic_log!` ainda envia os eventos do host como INFO. A taxonomia ERROR/WARN/INFO/DEBUG/TRACE precisa ser aplicada aos callsites para que filtros por severidade tenham efeito real.
+2. **Taxonomia e configuração de filtros:** o macro do host já emite níveis distintos, mas os callsites de todos os módulos ainda precisam de revisão cruzada; a configuração por `SEGA_LOG_FILTER` existe, porém ainda não há controle visual de severidade/target no Debugger.
 3. **Inventário exaustivo de saídas:** a busca não encontrou sinks de log paralelos no caminho ativo Slint/SMS, mas a varredura de todos os binários, stubs não-Windows, CLI, exemplos, testes, scripts e workflows ainda precisa ser classificada e documentada.
 4. **Validação:** nenhum teste local ou CI deste branch foi declarado PASS nesta auditoria. O resultado depende dos workflows executados sobre o SHA final do PR.
 
