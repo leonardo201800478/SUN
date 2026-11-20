@@ -14,14 +14,23 @@ def load_jsonl(path: Path) -> list[dict]:
     with path.open(encoding="utf-8") as stream:
         return [json.loads(line) for line in stream if line.strip()]
 
-def compare(rows: list[dict], level_key: str, stage_key: str) -> dict:
-    """Count exact level/stage mismatches without shifting or auto-aligning time."""
+def compare(
+    rows: list[dict],
+    level_key: str,
+    stage_key: str,
+    skip_seeded_key: str | None = None,
+) -> dict:
+    """Count exact mismatches without shifting time or comparing seeded rows."""
+    compared_samples = 0
     level_mismatches = 0
     stage_mismatches = 0
     max_level_error = 0
     first_level_mismatch = None
     first_stage_mismatch = None
     for row in rows:
+        if skip_seeded_key is not None and row[skip_seeded_key]:
+            continue
+        compared_samples += 1
         level_error = abs(row[level_key] - row["observed_level"])
         max_level_error = max(max_level_error, level_error)
         if level_error:
@@ -46,6 +55,7 @@ def compare(rows: list[dict], level_key: str, stage_key: str) -> dict:
                     "candidate_stage": row[stage_key],
                 }
     return {
+        "compared_samples": compared_samples,
         "level_mismatches": level_mismatches,
         "stage_mismatches": stage_mismatches,
         "max_absolute_level_error": max_level_error,
@@ -105,9 +115,11 @@ def main() -> int:
             rows, "candidate_level_initial_127_deferred_decay_phase_minus3",
             "candidate_stage_initial_127_deferred_decay_phase_minus3"
         ),
-        "candidate_initial_level_127_deferred_external_rate_phase": compare(
-            rows, "candidate_level_initial_127_deferred_external_rate_phase",
-            "candidate_stage_initial_127_deferred_external_rate_phase"
+        "candidate_seeded_external_rate_phase": compare(
+            rows,
+            "candidate_level_seeded_external_rate_phase",
+            "candidate_stage_seeded_external_rate_phase",
+            skip_seeded_key="candidate_seeded_external_rate_phase",
         ),
         "deferred_unwrapped_detail": {
             "level_mismatches_by_global_counter": mismatch_counts_by_counter,
