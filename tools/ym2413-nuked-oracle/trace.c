@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], "--pg-only")) {
             pg_only = 1;
         } else {
-            fprintf(stderr, "usage: %s --calls N [--events file.csv] [--chip-type 0]\n", argv[0]);
+            fprintf(stderr, "usage: %s --calls N [--events file.csv] [--chip-type 0] [--pg-only]\n", argv[0]);
             free(events);
             return 2;
         }
