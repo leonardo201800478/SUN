@@ -41,7 +41,7 @@ impl Write for SwitchableWriter<'_> {
             Some(writer) => {
                 let mut writer = NonBlocking::clone(writer);
                 writer.write(buffer)
-            },
+            }
             None => Ok(buffer.len()),
         }
     }
@@ -51,7 +51,7 @@ impl Write for SwitchableWriter<'_> {
             Some(writer) => {
                 let mut writer = NonBlocking::clone(writer);
                 writer.flush()
-            },
+            }
             None => Ok(()),
         }
     }
@@ -336,7 +336,7 @@ mod tests {
 
         // Detach all senders before dropping the guard. Its worker drains the
         // old queue while the shared sink gate remains closed.
-        slot.write().unwrap().take();
+        drop(slot.write().unwrap().take());
         drop(old_guard);
 
         let new_file = SizeRotatingWriter::new(&path, 4096, 1).unwrap();
@@ -353,7 +353,7 @@ mod tests {
             new_event.write_all(b"NEW_SESSION_SENTINEL\n").unwrap();
         }
 
-        slot.write().unwrap().take();
+        drop(slot.write().unwrap().take());
         drop(new_guard);
 
         let contents = fs::read_to_string(&path).unwrap();
