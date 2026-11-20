@@ -12,4 +12,7 @@ mod writer;
 mod runtime;
 
 #[cfg(feature = "runtime")]
-pub use runtime::{InitError, LogConfig, LoggingHandle, SessionMetadata, current, init};
+pub use runtime::{
+    DiagnosticsConsent, InitError, LogConfig, LoggingHandle, SessionMetadata, current,
+    init_after_explicit_consent,
+};
