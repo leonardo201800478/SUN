@@ -57,7 +57,11 @@ Cada item terá especificação própria, proveniência DOCUMENTADO/MEDIDO/INFER
 
 R5 é transversal; não deve bloquear implementação de hardware quando a integração coarse-grained necessária já existe.
 
-## 4. Trilhas transversais adicionais
+## 4. Trilha transversal — produto desktop (R5)
+
+A ordem normativa de produto, os requisitos de UX, persistência, catálogo de mídia, CLI e política de diagnóstico estão detalhados em [Roadmap de produto desktop](desktop-product-roadmap.md). Esta trilha é obrigatória para consolidar R5 e deve seguir os gates DP-0 a DP-7. A proibição de coleta diagnóstica sem consentimento explícito aplica-se imediatamente, inclusive a builds Release. O desenvolvimento desta trilha não altera a ordem de plataformas nem autoriza mudanças no runtime temporal.
+
+## 5. Trilhas transversais adicionais
 
 ### Z80 compartilhado
 
@@ -71,7 +75,7 @@ Implementado parcialmente e em evolução. Melhorar captura, retenção/exporta�
 
 O boot por BIOS convencional de 8 KiB está em implementação candidata na PR #928. Validação física com firmware real, handoff e primeiro código do cartucho permanece pendente. Não declarar boot físico validado.
 
-## 5. Estado operacional da baseline
+## 6. Estado operacional da baseline
 
 - Main SHA da baseline desta revisão: `be883792025de3db7eaf4e7b8243293ea90b7e06`.
 - CI push pós-merge da baseline: run [#43962737265](https://github.com/leonardo201800478/sega-emulator/actions/runs/43962737265). Change impact, Documentation patch hygiene e Rust quality/unit PASS; workspace, Z80, Scheduler, SMS1 VDP, CPAL, SDL3, Slint/WGPU/Vulkan e demais jobs de runtime foram SKIPPED. Não há validação de runtime pós-merge nesta execução.
@@ -82,7 +86,7 @@ O boot por BIOS convencional de 8 KiB está em implementação candidata na PR #
 - Host gráfico anterior: não está em uso ativo.
 - SG-1000 P2.2: integrado na main pela PR #988, merge commit `be883792025de3db7eaf4e7b8243293ea90b7e06`. `Sg1000Machine` usa `Z80MicroSequencer` compartilhado, M1/WAIT por eventos do MachineScheduler, TMS9918A, PSG, I/O temporal e snapshots compostos. CI pós-merge #8459 (run `44090848768`) concluiu com sucesso os gates aplicáveis: Z80 focused, SMS1 VDP, input, SDL3, workspace, Scheduler stress e Rust quality/unit. O caminho atomic antigo está limitado a `cfg(test)` como oracle funcional. SG-1000 P2.3: worker Rust dedicado com FrameMailbox, áudio compartilhado, input snapshots e save states em desenvolvimento na branch `feat/sg1000-runtime-worker-p23-20261117`. P2.4 ainda deve integrar seleção SG-1000 na GUI Slint, carregamento de ROM e handoff WGPU/CPAL. Não declarar o SG-1000 disponível no desktop antes desses gates.
 
-## 6. Método, evidência e gates
+## 7. Método, evidência e gates
 
 Antes de alterar código: auditar main/PRs/branches/workflows; consultar documentação técnica primária; identificar consumidor e efeito observável; modelar ownership, clocks, eventos, estados e snapshots; implementar mudanças pequenas.
 
@@ -93,6 +97,6 @@ Gates Rust conforme workspace/target afetado:
 
 Executar também os workspaces standalone e os testes focados pertinentes. Classificar PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED nunca é PASS. Vincular cada resultado ao SHA exato. Não transferir resultados de PR para a main sem validação pós-merge.
 
-## 7. GitHub e integração
+## 8. GitHub e integração
 
 Toda alteração em branch/PR. Não fazer commit direto na main, force-push, reset destrutivo ou merge cego. Portar seletivamente branches divergentes. Merge somente após diff revisado, CI aplicável verde no HEAD final e autorização explícita.
