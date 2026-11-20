@@ -162,6 +162,19 @@ def compare_ares(
 
 
 def main() -> int:
+    if len(sys.argv) == 4 and sys.argv[1] == "--ares-only":
+        core_header, core_rows, _ = read_jsonl(
+            Path(sys.argv[2]), "sega-sn76489-core-state-trace-v1"
+        )
+        ares_summary = compare_ares(Path(sys.argv[3]), core_rows, core_header)
+        print(json.dumps({
+            "schema": "sega-psg-ares-differential-summary-v1",
+            "comparison_policy": "same tick index; no waveform alignment",
+            "ticks_compared": len(core_rows),
+            "ares": ares_summary,
+        }, sort_keys=True, indent=2))
+        return 0
+
     if len(sys.argv) not in (3, 4, 5):
         raise SystemExit(
             "usage: compare.py crabemu-reference.jsonl core.jsonl "
