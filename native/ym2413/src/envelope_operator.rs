@@ -210,7 +210,7 @@ impl EnvelopeOperator {
 }
 
 /// Reconstruct the two-bit DECAY/SUSTAIN/RELEASE increment from consumed latches.
-const fn decay_increment(rate: EnvelopeRatePhase) -> u8 {
+fn decay_increment(rate: EnvelopeRatePhase) -> u8 {
     let rate_hi = rate.rate_hi;
     let inc_hi = rate.inc_hi;
     let inc_lo = rate.inc_lo;
