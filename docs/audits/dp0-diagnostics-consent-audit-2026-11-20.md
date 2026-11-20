@@ -89,7 +89,40 @@ Não se recomenda criar um segundo logger. A correção deve preservar a infraes
 
 Mesmo assim, o crate compartilhado `sega-observability` deve ter semântica segura independentemente do host legado.
 
-## 6. Plano de correção ordenado
+## 5.1 Atualização de correção em andamento — PR #1088
+
+A PR [#1088](https://github.com/leonardo201800478/sega-emulator/pull/1088) implementa a primeira fatia de correção sobre a baseline:
+
+- O host Slint passa a usar um gate atômico, inicialmente falso, para suas emissões diagnósticas diretas.
+- O painel DEBUG expõe autorização explícita, limitada à sessão e não persistida.
+- A amostragem host de frame pacing, conversão e fila de áudio só registra métricas quando a autorização está ativa.
+- A telemetria detalhada do worker SMS é vinculada ao consentimento de diagnóstico; foi separada da ação independente de captura de trace. Novas sessões herdam o estado de consentimento vigente.
+- Os quatro caminhos de resolução automática de região do worker SMS deixam de escrever diretamente em stderr e passam a emitir eventos estruturados `tracing`.
+- Três sinks de erro de persistência no host egui legado (autosave de preferências, salvamento no encerramento e ROMs recentes) passam a emitir eventos `tracing`; sem subscriber opt-in, não são coletados.
+
+Limites observados na PR:
+- O timer Slint ainda executa a verificação operacional de fallback do renderer; a parte de amostragem diagnóstica é condicionada ao consentimento. A separação do polling operacional e da telemetria permanece candidata a refinamento, caso a medição demonstre trabalho desnecessário.
+- A falha ao gravar o snapshot JSON no encerramento do host egui ainda usa stderr, mas só é alcançada quando o usuário já habilitou diagnóstico e a exportação final falha.
+- A saída de panic padrão continua deliberadamente preservada; não foi confundida com o arquivo de crash opt-in.
+- O worker SMS emite eventos `tracing`, mas o host Slint não instala subscriber de arquivo; no host Slint esses eventos não são atualmente encaminhados para um destino visível. Isso deve ser resolvido ou explicitamente classificado antes de declarar a experiência de diagnóstico completa.
+- PR ainda em validação CI e não mesclada.
+
+## 5.2 Classificação preliminar das demais saídas encontradas
+
+| Local | Ocorrência | Classificação inicial | Ação |
+|---|---|---|---|
+| `native/sega_app/src/main.rs`, `native/sms_debugger/src/main.rs`, `native/sega_desktop/src/main.rs` | Mensagem em `main()` de build stub não-Windows | Mensagem operacional de binário não suportado, não telemetria de sessão | Manter clara e sem dados privados; confirmar se esses stubs são distribuídos |
+| `native/sms_core/src/bin/z80test_runner.rs` | Uso, progresso e erros do runner | Saída explícita de CLI | Manter, documentar que a execução foi solicitada pelo usuário |
+| `native/ym2413/examples/*trace*.rs`, `native/sn76489/examples/psg_trace.rs`, `native/sms_core/examples/*trace*.rs` | Trace/relatórios de ferramentas de desenvolvimento | Artefatos explícitos de CLI | Confirmar caminhos de saída e ausência de invocação automática em Release |
+| `native/machine_scheduler/tests/stress_replay.rs` e testes de core | `eprintln!`/WAV de teste | Saída de testes e artefatos de validação | Manter confinados a testes; não reutilizar como logging de runtime |
+| `native/observability/src/runtime.rs` | Log rotativo, ring buffer, crash log e snapshot JSON | Infraestrutura de diagnóstico | Só iniciar após consentimento; exportação deve continuar ação explícita |
+| `native/save_runtime/src/lib.rs` | Escrita atômica de SRAM/save data | Persistência funcional de dados do usuário | Não classificar como telemetria; preservar integridade e semântica |
+| `native/sega_app/src/app.rs`, `native/sega_desktop/src/main.rs` | Preferências e histórico recente | Persistência funcional de preferências | Não classificar como log; revisar apenas mensagens de falha |
+| `native/sms_debugger/src/app.rs` | Exportação de relatório via diálogo/caminho selecionado | Exportação explícita iniciada pelo usuário | Preservar confirmação e destino explícito |
+
+A busca textual é uma triagem e não prova cobertura completa de macros indiretas, crates de terceiros ou sinks de plataforma. A classificação acima deve ser validada por leitura de cada callsite e pelos workflows que invocam os exemplos.
+
+## 7. Plano de correção ordenado
 
 1. **DP0-F1 — parar coleta host incondicional:** remover o timer de telemetria automática ou torná-lo inerte até consentimento específico; separar health checks necessários à operação (mensagens de status na UI) de amostragem diagnóstica.
 2. **DP0-F2 — eliminar stdout/stderr diagnóstico do desktop:** substituir `eprintln!` por resultados/status na UI para falhas operacionais e pelo canal de diagnóstico opt-in para eventos diagnósticos. Nenhum log direto pode permanecer no caminho normal.
@@ -99,7 +132,7 @@ Mesmo assim, o crate compartilhado `sega-observability` deve ter semântica segu
 6. **DP0-F6 — auditoria completa de sinks:** buscar macros `println!`/`eprintln!`, `tracing`, `log`, writers, arquivos, snapshots, CSV/trace, métricas e instrumentação de terceiros em todos os crates, binários, examples, tests, scripts e workflows. Classificar cada ocorrência como teste/tooling, ação explícita do usuário, status operacional na UI ou coleta diagnóstica.
 7. **DP0-F7 — validação:** testes em Debug e Release demonstrando ausência de arquivos/saídas diagnósticas sem consentimento, consentimentos independentes, revogação, fila cheia sem bloqueio, nenhuma amostragem periódica desnecessária e ausência de regressão no Scheduler/áudio/vídeo.
 
-## 7. Limites desta auditoria
+## 8. Limites desta auditoria
 
 Esta é uma revisão estática inicial da baseline GitHub. Não houve checkout/execução local, instrumentação de stderr, inspeção de binários empacotados, nem execução de testes. A busca de código retornou ocorrências e trechos relevantes, mas não substitui a varredura exaustiva de todo o repositório.
 
