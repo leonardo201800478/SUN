@@ -149,8 +149,7 @@ int main(int argc, char **argv) {
         OPLL_Clock(&chip, output);
         printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"cycle_after\":%" PRIu32,
                tick, cycle_before, chip.cycles);
-        printf(",\"slot\":%" PRIu32 ",\"output_m\":%" PRId32 ",\"output_r\":%" PRId32,
-               chip.slot, output[0], output[1]);
+        printf(",\"output_m\":%" PRId32 ",\"output_r\":%" PRId32, output[0], output[1]);
         printf(",\"pg_inc\":%" PRIu32 ",\"pg_phase_next\":%" PRIu32 ",\"pg_phase\":",
                chip.pg_inc, chip.pg_phase_next);
         print_u32_array(chip.pg_phase, 18);
