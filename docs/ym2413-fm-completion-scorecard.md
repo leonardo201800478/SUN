@@ -1,8 +1,9 @@
 # YM2413 FM Completion Scorecard
 
-**Data de referência:** 2026-11-19
+**Data de referência:** 2026-11-20
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1071 em 2026-11-19:** `fb83533bf27aceb802985583da6c55a92e2a94b9`
+**Main base após PR #1071 em 2026-11-19:** `fb83533bf27aceb802985583da6c55a92e2a94b9`  
+**HEAD de trabalho para o fechamento EG:** `0d7b32b2d350019880037422ae8f85b449ad4058` (PR #1084, ainda não integrada à main)
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -10,7 +11,7 @@ Este scorecard distingue implementação de componente, integração funcional, 
 
 **Status geral: EM DESENVOLVIMENTO — NÃO PRONTO PARA TESTES CONTROLADOS COM ROMs.**
 
-A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG e o par de operadores FM foram implementados como componentes candidatos, com testes e snapshots locais, mas ainda não estão conectados ao pipeline de 18 slots nem ao estado agregado do YM2413. Ainda não existe geração PCM FM integrada ao runtime SMS.
+A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada à main. O EG serial de 18 slots foi integrado ao `Ym2413Core` e passou pela caracterização diferencial descrita na atualização de 2026-11-20, mas essa integração ainda está em PR empilhada (#1084), não na main. PG, operadores FM, LFOs, PCM e runtime SMS ainda não formam um pipeline FM completo. O projeto continua sem geração PCM FM integrada ao runtime SMS.
 
 ## Marcos já publicados
 
@@ -30,7 +31,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Etapa | Estado | Entrega existente | Pendência para conclusão |
 |---|---|---|---|
 | FM-0 — Auditoria e consolidação | **Concluída** | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
-| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG candidate DAMP/ATTACK/DECAY/SUSTAIN; KSR; snapshots locais; evento tipado candidato para reset de PG ao concluir DAMP | Integrar 18 EGs ao pipeline de operadores; consumir eventos de reset no limite temporal correto; integrar snapshot ao estado agregado; validar transições com vetores independentes |
+| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG serial de 18 slots integrado ao `Ym2413Core` na PR #1084; timer compartilhado, latches KON/OFF/DOKON/SUS, decodificação register-driven e save state do core; replay diferencial aprovado no HEAD da PR | PG continua sem integração ao sequenciador; evento PG-reset não consumido; não há alinhamento físico PG↔EG nem subfases por input clock; aguarda revisão/integração da PR #1084 |
 | FM-2 — Operadores e síntese FM | **Parcial** | Tabelas Log-Sine/EXP; lookup de fase/sinal; par modulator/carrier; feedback de dois samples; KSL BLOCK/FNUM; snapshots locais | Integrar KSL ao decoder/canal, validar PCM diferencial, integrar aos slots e confirmar escala/quantização fisicamente |
 | FM-3 — LFO e modulação | **Parcial** | Contador PM global, tabela PM 8×8 e AM LFO de 210 posições/64 amostras, 14 níveis e snapshot | Conectar PM/AM aos operadores; comprovar fase absoluta e alinhamento temporal |
 | FM-4 — Instrumentos | **Parcial** | User patch decoder; 15 presets melódicos candidatos com licença MIT/procedência; decoder FNUM/BLOCK/KEY/SUS/INST/VOL por canal | Validar patches contra hardware; ligar parâmetros ao PG/EG/operadores; confirmar os nove canais; ROM física exata ainda não disponível |
@@ -47,7 +48,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Máquina de 18 slots | Implementada | Rotação de 72 clocks; pipeline funcional FM ainda pendente |
 | PG-1 | Implementado | Testes unitários existentes; vetores independentes de andete não equivalem a medição própria |
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
-| EG por operador | Implementado como candidato | 34 testes unitários; não conectado aos slots |
+| EG serial (18 operadores) | Implementado e integrado ao `Ym2413Core` na PR #1084 | Timer compartilhado, KON/OFF/DOKON/SUS, decodificação de registradores e snapshots no estado do core; replay diferencial do core e do sequenciador aprovado no HEAD `0d7b32b`; ainda não integrado à main |
 | Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
 | Modulator / carrier | Par de operadores candidato implementado | Recebe PG/EG/KSL/AM externamente; ainda sem instrument ROM e sem slot scheduling |
 | Feedback FM | Histórico p0/p1 e cálculo de fase implementados | Pendente validação independente de PCM e integração ao canal real |
@@ -58,12 +59,12 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 | Rhythm / LFSR | Bit RHYTHM de $0E, mapa de seis slots e LFSR de 23 bits implementados como primitiva explicitamente clockada (PRs #1010/#1011) | Cinco vozes, aplicação do ruído, seed/cadência física, envelopes e pipeline rítmico não implementados |
 | Portas F0–F2 | Não integradas | Pendente |
 | Mixer FM + PSG | Não integrado | Pendente |
-| Save State agregado | Parcial | Snapshots base, PG, PM e EG locais; estado completo de todos os operadores ainda não agregado |
+| Save State agregado | Parcial | Estado do core inclui registradores, barramento temporizado, rotação de slots e os 18 estados EG; PG, PM, operadores FM, LFOs e PCM ainda não estão agregados em um estado FM completo |
 | PCM FM | Não disponível | Pendente |
 
 ## Contratos e incertezas que devem permanecer explícitos
 
-1. **Contador global:** o EG recebe o contador externamente; não cria nem reinicia seu relógio. A evidência disponível descreve um contador compartilhado entre os 18 operadores, incrementado uma vez por amostra. O alinhamento absoluto com reset IC e com PG/PM ainda exige integração e validação.
+1. **Contador e fronteira temporal:** o EG serial agora avança uma vez por slot completo dentro de `Ym2413Core`; o core só conclui o slot após acumular quatro input clocks. Esses quatro clocks são apenas a fronteira aritmética atual do slot, não subfases físicas EG/PG/OP. O alinhamento absoluto com reset IC e com PG/PM ainda exige evidência independente.
 2. **DAMP:** o EG expõe limiar configurável. O valor 124 é um candidato do modelo de software; as notas de engenharia reversa também registram limiar próximo de -45 dB e incerteza.
 3. **Coordenação modulator/carrier:** o EG oferece modelos explícitos independente e carrier-driven. Nenhum deve ser tratado como comportamento físico definitivo sem validação.
 4. **AR=15:** o comportamento na fronteira DAMP/ATTACK é selecionável como candidato; não foi certificado em hardware pelo projeto.
@@ -1073,3 +1074,48 @@ Esses itens são contratos de software e candidatos baseados em evidências publ
 5. Não promover a cadência do LFSR, fase inicial PG, subfases dos quatro clocks por slot ou alinhamento do EG a contrato físico além do que os vetores primários sustentam.
 
 **Status geral permanece: EM DESENVOLVIMENTO.** A PR #1071 fecha somente a regressão de continuidade de snapshot/restore do banco digital em Rhythm Mode. Não conclui FM-7, não fecha FM-8 temporal, não integra PCM ao SMS e não valida o YM2413 fisicamente.
+
+
+---
+
+## Fechamento do EG serial no core — PR #1084 (2026-11-20)
+
+**Estado no branch:** IMPLEMENTADO + INTEGRADO AO `Ym2413Core` + VALIDAÇÃO DIFERENCIAL APROVADA.  
+**Estado na main:** AINDA NÃO INTEGRADO. A PR #1084 está empilhada sobre a PR #1083 (`validation/ym2413-eg-stage-transition`), que permanece Draft.
+
+### Entrega
+
+- `Ym2413Core` mantém os 18 estados EG, timer compartilhado, latches KON/OFF/DOKON e sustain.
+- Cada slot serial completo executa um ciclo EG; a conclusão do slot continua condicionada ao orçamento de quatro input clocks do core.
+- Escritas de endereço/dados, atrasos do barramento, writes qualificados por ciclo e writes de modo alimentam o decoder EG register-driven.
+- Estado EG e latches temporizados fazem parte do save state do core (formato v2).
+- Rhythm Mode: decoder serial para ciclos 11–16, preservando bits crus de KON/SUS e os cinco triggers; fixture diferencial específico.
+- `eg_core_trace` compara o estado EG do core com o trace do Nuked-OPLL por chamada `OPLL_Clock`.
+
+### Evidência CI no HEAD exato
+
+Commit: `0d7b32b2d350019880037422ae8f85b449ad4058`.
+
+- Workflow **YM2413 Nuked EG characterization**: SUCCESS.
+- Workflow **CI**: SUCCESS; Change impact classification, validação dos workflows, Rust workspace regression e Rust quality/unit regression concluídos com sucesso.
+- Workflow **YM2413 external Nuked oracle adapter**: SUCCESS.
+- Sequenciador completo: 1.140.000 chamadas OPLL de replay em 38 configurações, zero divergências nos campos do sequenciador e zero divergências nos campos do timer.
+- Replay do core integrado: canal único, quatro canais e as 38 configurações de taxa executados com sucesso.
+- Operador EG: 506.768 amostras no replay de referência, zero divergências de nível/estágio.
+- Análise de fase efetiva: 243.580 amostras, zero divergências de nível/estágio.
+- Rhythm Mode: captura repetida idêntica, inputs register-derived sem divergências e replay serial aprovado.
+- Snapshots do core são exercitados durante os replays; o teste de round-trip do estado também é executado.
+
+### Leitura correta dos resultados
+
+A varredura mantém métricas de candidatos de fase-base que ainda divergem: 44.064 divergências de nível e 71 de estágio no conjunto de comparação baseline. Essas métricas não foram ocultadas nem tratadas como aprovação. O caminho de fase efetiva analisado separadamente é o que apresenta zero divergências nas 243.580 amostras. O replay integrado do core e o replay do sequenciador são gates independentes e passaram.
+
+### Limites que permanecem
+
+- Não há comprovação elétrica de subfases dentro dos quatro input clocks por slot.
+- Não há captura física sincronizada XIN/MO/RO para estabelecer o alinhamento temporal absoluto.
+- O EG não está conectado ao PG, aos operadores FM ou ao pipeline de PCM.
+- O teste Rhythm Mode valida a seleção/controle EG contra o oracle usado; não certifica ROM interna completa, cadência física LFSR, DAC ou comportamento não caracterizado de KEY-ON conflitante.
+- Não há ainda validação com ROMs no runtime SMS, pois o chip não produz PCM FM integrado.
+
+**Conclusão da etapa:** o escopo de EG serial digital integrado ao core está fechado no branch e com CI diferencial aprovado. A etapa FM-1 como um todo permanece PARCIAL, pois PG/EG ainda não formam um pipeline temporal conjunto. O fechamento do EG não autoriza declarar o YM2413 completo nem iniciar validação de ROMs como se houvesse saída FM funcional.
