@@ -231,7 +231,7 @@ impl EnvelopeSequencer {
         let operator_slot = (cycle + 16) % YM2413_ENVELOPE_SEQUENCER_SLOTS as u8;
         let operator = self.operators[usize::from(operator_slot)]
             .tick(EnvelopeControlPhase {
-                rate: timer.rate_phase,
+                rate: timer.consumed_rate_phase,
                 key_on: self.eg_kon & 0x02 != 0,
                 off: self.eg_off & 0x02 != 0,
                 dokon: self.eg_dokon & 0x02 != 0,
