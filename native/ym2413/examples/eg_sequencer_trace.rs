@@ -171,9 +171,7 @@ impl RegisterBus {
         if self.write_fm_address && self.write_d_en {
             self.data = self.write_data;
         }
-        if self.write_fm_data && !self.write_a_en && cycle < 16
-            && (self.address & 0x0f) == cycle
-        {
+        if self.write_fm_data && !self.write_a_en && cycle < 16 && (self.address & 0x0f) == cycle {
             let channel = usize::from(cycle % 9);
             match self.address & 0xf0 {
                 0x10 | 0x20 | 0x30 => {
@@ -215,7 +213,9 @@ fn read_events(path: &Path) -> Result<Vec<Event>, Box<dyn Error>> {
         }
         let fields: Vec<&str> = trimmed.split(',').map(str::trim).collect();
         if fields.len() != 3 {
-            return Err(format!("event line {}: expected three CSV columns", line_index + 1).into());
+            return Err(
+                format!("event line {}: expected three CSV columns", line_index + 1).into(),
+            );
         }
         let event = Event {
             call_index: fields[0].parse()?,
@@ -223,7 +223,11 @@ fn read_events(path: &Path) -> Result<Vec<Event>, Box<dyn Error>> {
             value: fields[2].parse()?,
         };
         if event.call_index < previous_call || event.port > 1 {
-            return Err(format!("event line {}: unordered or invalid OPLL port write", line_index + 1).into());
+            return Err(format!(
+                "event line {}: unordered or invalid OPLL port write",
+                line_index + 1
+            )
+            .into());
         }
         previous_call = event.call_index;
         events.push(event);
@@ -248,15 +252,33 @@ fn decode_register_input(
 
 fn input_mismatches(actual: EnvelopeSlotInput, expected: EnvelopeSlotInput) -> Vec<&'static str> {
     let mut bad = Vec::new();
-    if actual.attack_rate != expected.attack_rate { bad.push("input_attack_rate"); }
-    if actual.decay_rate != expected.decay_rate { bad.push("input_decay_rate"); }
-    if actual.release_rate != expected.release_rate { bad.push("input_release_rate"); }
-    if actual.sustain_level != expected.sustain_level { bad.push("input_sustain_level"); }
-    if actual.key_scale_rate != expected.key_scale_rate { bad.push("input_key_scale_rate"); }
-    if actual.ksr_frequency != expected.ksr_frequency { bad.push("input_ksr_frequency"); }
-    if actual.sustain_on != expected.sustain_on { bad.push("input_sustain_on"); }
-    if actual.sustained_tone != expected.sustained_tone { bad.push("input_sustained_tone"); }
-    if actual.key_on != expected.key_on { bad.push("input_key_on"); }
+    if actual.attack_rate != expected.attack_rate {
+        bad.push("input_attack_rate");
+    }
+    if actual.decay_rate != expected.decay_rate {
+        bad.push("input_decay_rate");
+    }
+    if actual.release_rate != expected.release_rate {
+        bad.push("input_release_rate");
+    }
+    if actual.sustain_level != expected.sustain_level {
+        bad.push("input_sustain_level");
+    }
+    if actual.key_scale_rate != expected.key_scale_rate {
+        bad.push("input_key_scale_rate");
+    }
+    if actual.ksr_frequency != expected.ksr_frequency {
+        bad.push("input_ksr_frequency");
+    }
+    if actual.sustain_on != expected.sustain_on {
+        bad.push("input_sustain_on");
+    }
+    if actual.sustained_tone != expected.sustained_tone {
+        bad.push("input_sustained_tone");
+    }
+    if actual.key_on != expected.key_on {
+        bad.push("input_key_on");
+    }
     bad
 }
 
