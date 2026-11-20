@@ -317,7 +317,7 @@ O job `SMS debugger Windows Release validation` do workflow #1707 foi `SKIPPED`.
 
 ### 12.3 F9 — auditoria e integração
 
-A comparação `main...350126df6ddf7b62892f362aae7faf29cc3e8437` identifica merge-base `a0baa862e11b4551990f49b2c56c1cf791316164`, 11 commits do head e um commit da main fora do head: o merge-commit da #1107. O diff funcional da #1117 contém oito arquivos; as alterações da #1107 não foram duplicadas. A divergência é estrutural e não justifica rebase destrutivo.
+A comparação `main...350126df6ddf7b62892f362aae7faf29cc3e8437`, antes dos commits documentais finais, identificou merge-base `a0baa862e11b4551990f49b2c56c1cf791316164`, 11 commits de implementação e um commit da main fora do head: o merge-commit da #1107. O head documental atual contém 16 commits (11 de implementação e cinco commits de documentação) e 11 caminhos modificados no total; os oito caminhos do diff original foram mantidos e três caminhos documentais adicionais foram atualizados. As alterações da #1107 não foram duplicadas. A divergência é estrutural e não justifica rebase destrutivo.
 
 A PR #1117 permanece responsável exclusivamente pelo ring essencial SMS, integração do snapshot/export, benchmark e documentação correspondente. A integração na main e a validação pós-merge devem ser registradas após o merge efetivo; este registro não antecipa esse resultado.
 
