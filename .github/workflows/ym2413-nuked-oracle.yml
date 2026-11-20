@@ -84,6 +84,19 @@ jobs:
           assert [row["call_index"] for row in rows[1:]] == list(range(20))
           PY
 
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 20 --pg-phase-only > "$RUNNER_TEMP/pg-phase-only.jsonl"
+          python3 - "$RUNNER_TEMP/pg-phase-only.jsonl" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              rows = [json.loads(line) for line in stream if line]
+          assert len(rows) == 21, len(rows)
+          assert rows[0]["schema"] == "ym2413-nuked-opll-pg-phase-trace-v1"
+          assert all(len(row["pg_phase"]) == 18 for row in rows[1:])
+          assert [row["call_index"] for row in rows[1:]] == list(range(20))
+          PY
+
       - name: Reject ambiguous duplicate event timestamps
         run: |
           printf '4,0,16\n4,1,64\n' > "$RUNNER_TEMP/duplicate.csv"
