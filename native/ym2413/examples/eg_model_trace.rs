@@ -9,7 +9,7 @@
 
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination,
-    EnvelopeGenerator, EnvelopeParameters, EnvelopeStage,
+    EnvelopeGenerator, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
 };
 use std::error::Error;
 use std::fs::File;
@@ -88,6 +88,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         [make_generator(0)?, make_generator(0)?];
     let mut initial_silent: [EnvelopeGenerator; 2] =
         [make_generator(127)?, make_generator(127)?];
+    let mut initial_silent_wrapped: [EnvelopeGenerator; 2] =
+        [make_generator(127)?, make_generator(127)?];
+    let mut initial_silent_wrapped_deferred: [EnvelopeGenerator; 2] =
+        [make_generator(127)?, make_generator(127)?];
 
     let parameters = EnvelopeParameters {
         attack_rate: 10,
@@ -128,6 +132,34 @@ fn main() -> Result<(), Box<dyn Error>> {
                 parameters,
             )
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        let wrapped_result = initial_silent_wrapped[generator_index]
+            .tick_with_events(
+                sample.global_counter & 0xff,
+                sample.key_on,
+                is_carrier,
+                parameters,
+            )
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+
+        // Diagnostic candidate: preserve the DAMP -> ATTACK state transition,
+        // but do not consume the ATTACK increment on that same update.
+        let deferred_before = initial_silent_wrapped_deferred[generator_index].export_state();
+        let deferred_result = initial_silent_wrapped_deferred[generator_index]
+            .tick_with_events(
+                sample.global_counter & 0xff,
+                sample.key_on,
+                is_carrier,
+                parameters,
+            )
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        if deferred_result.phase_reset_required {
+            let mut deferred_state =
+                initial_silent_wrapped_deferred[generator_index].export_state();
+            deferred_state.level = deferred_before.level;
+            initial_silent_wrapped_deferred[generator_index] =
+                EnvelopeGenerator::restore_state(deferred_state)
+                    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        }
 
         println!(
             concat!(
@@ -136,7 +168,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "\"candidate_level_initial_0\":{},\"candidate_stage_initial_0\":{},",
                 "\"candidate_reset_initial_0\":{},",
                 "\"candidate_level_initial_127\":{},\"candidate_stage_initial_127\":{},",
-                "\"candidate_reset_initial_127\":{}}}"
+                "\"candidate_reset_initial_127\":{},",
+                "\"candidate_level_initial_127_wrapped\":{},\"candidate_stage_initial_127_wrapped\":{},",
+                "\"candidate_level_initial_127_wrapped_deferred\":{},",
+                "\"candidate_stage_initial_127_wrapped_deferred\":{}}}"
             ),
             sample.call_index,
             sample.slot,
@@ -150,6 +185,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             silent_result.level,
             stage_code(initial_silent[generator_index].stage()),
             u8::from(silent_result.phase_reset_required),
+            wrapped_result.level,
+            stage_code(initial_silent_wrapped[generator_index].stage()),
+            initial_silent_wrapped_deferred[generator_index].level(),
+            stage_code(initial_silent_wrapped_deferred[generator_index].stage()),
         );
         sample_count += 1;
     }
