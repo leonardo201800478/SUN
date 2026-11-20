@@ -79,6 +79,7 @@ pub struct SegaApp {
     menu_last_focused: Option<bool>,
     native_viewport: NativeViewportState,
     diagnostics_enabled: bool,
+    diagnostics_consent: Option<DiagnosticsConsent>,
     diagnostics_error: Option<String>,
     fps_overlay_enabled: bool,
     fps_overlay_was_active: bool,
@@ -130,6 +131,7 @@ impl Default for SegaApp {
             menu_last_focused: None,
             native_viewport: NativeViewportState::default(),
             diagnostics_enabled: false,
+            diagnostics_consent: None,
             diagnostics_error: None,
             fps_overlay_enabled: true,
             fps_overlay_was_active: false,
@@ -766,7 +768,7 @@ impl SegaApp {
             .worker
             .as_ref()
             .map(SmsTemporalWorker::debug_handle);
-        let diagnostics_enabled = self.diagnostics_enabled;
+        let diagnostics_enabled = self.diagnostics_consent.is_some();
         let state = Arc::clone(&self.debugger_window);
         let open = Arc::clone(&self.debugger_window_open);
         let mut builder = egui::ViewportBuilder::default()
@@ -1184,12 +1186,9 @@ impl SegaApp {
                             break;
                         }
                     }
-                    if self.diagnostics_enabled {
-                        if let Err(error) = worker.set_diagnostics_enabled(true) {
-                            self.native_viewport.error = Some(format!(
-                                "Falha ao habilitar diagnóstico no novo runtime: {error}"
-                            ));
-                        } else if trace_capture_enabled
+                    if let Some(consent) = self.diagnostics_consent.as_ref() {
+                        worker.enable_diagnostics(consent);
+                        if trace_capture_enabled
                             && let Err(error) = worker.set_trace_enabled(true)
                         {
                             self.native_viewport.error =
@@ -1243,7 +1242,7 @@ impl SegaApp {
             match logging.and_then(|logging| {
                 logging.enable(&consent)?;
                 if let Some(worker) = self.native_viewport.worker.as_ref() {
-                    worker.set_diagnostics_enabled(true)?;
+                    worker.enable_diagnostics(&consent);
                 }
                 Ok(logging)
             }) {
@@ -1254,6 +1253,7 @@ impl SegaApp {
                         session_id = %logging.session().session_id,
                     );
                     self.diagnostics_enabled = true;
+                    self.diagnostics_consent = Some(consent);
                     self.diagnostics_error = None;
                 }
                 Err(error) => {
@@ -1261,6 +1261,7 @@ impl SegaApp {
                         let _ = logging.disable();
                     }
                     self.diagnostics_enabled = false;
+                    self.diagnostics_consent = None;
                     self.diagnostics_error = Some(format!(
                         "Não foi possível ativar a coleta de diagnóstico: {error}"
                     ));
@@ -1271,13 +1272,14 @@ impl SegaApp {
                 .native_viewport
                 .worker
                 .as_ref()
-                .and_then(|worker| worker.set_diagnostics_enabled(false).err());
+                .and_then(|worker| worker.disable_diagnostics().err());
             if let Ok(mut state) = self.debugger_window.lock() {
                 state.trace_capture_enabled = false;
                 state.snapshot = None;
             }
             let logging_error = current_logging().and_then(|logging| logging.disable().err());
             self.diagnostics_enabled = false;
+            self.diagnostics_consent = None;
             self.diagnostics_error = worker_error
                 .or(logging_error)
                 .map(|error| format!("Falha ao encerrar a coleta diagnóstica: {error}"));
