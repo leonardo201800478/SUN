@@ -30,6 +30,7 @@ const FIELD_NAMES: [&str; 13] = [
 #[derive(Debug)]
 struct FirstMismatch {
     call_index: u64,
+    field: &'static str,
     slot_index: u8,
     expected: u32,
     actual: u32,
@@ -43,7 +44,6 @@ fn parse_u32(value: &str, field: &str) -> Result<u32, Box<dyn Error>> {
 
 fn record_mismatch(
     index: usize,
-    field: &'static str,
     expected: u32,
     actual: u32,
     call_index: u64,
