@@ -149,12 +149,18 @@ jobs:
 
           for fixture in "$SWEEP_DIR"/eg-rate-*.csv; do
             name="$(basename "$fixture" .csv)"
+            IFS='-' read -r _ _ ar_part dr_part ksr_part <<< "$name"
+            ar="${ar_part#ar}"
+            dr="${dr_part#dr}"
+            ksr="${ksr_part#ksr}"
             "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 --events "$fixture" > "$TRACE_A"
             "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 --events "$fixture" > "$TRACE_B"
             cmp "$TRACE_A" "$TRACE_B"
 
             python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
-              --trace "$TRACE_A" --expected-calls 30000 --channels 0,1,2,3
+              --trace "$TRACE_A" --expected-calls 30000 --channels 0,1,2,3 \
+              --expected-ar "$ar" --expected-dr "$dr" --expected-rr 7 \
+              --expected-ksr "$ksr" --expected-eg-type 1 --expected-sl 4
             python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
               --trace "$TRACE_A" --output "$SAMPLES" --channels 0,1,2,3
             cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
