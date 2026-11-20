@@ -53,13 +53,15 @@ def main() -> int:
     args = parser.parse_args()
 
     samples = load_nuked_trace(args.nuked_trace)
+    if not any(int(row["calc_fnum"]) > 0 for row in samples):
+        raise ValueError("Nuked trace never applied the programmed nonzero FNUM")
+    if not any(int(row["calc_mul"]) > 0 for row in samples):
+        raise ValueError("Nuked trace never selected a nonzero instrument multiplier")
+
     with tempfile.TemporaryDirectory(prefix="ym2413-pg-diff-") as temp_dir:
         input_csv = Path(temp_dir) / "rust_pg_inputs.csv"
         with input_csv.open("w", newline="", encoding="utf-8") as stream:
             writer = csv.writer(stream)
-            writer.writerow(
-                ("call_index", "fnum", "block", "mul", "pm_enabled", "pm_position")
-            )
             for row in samples:
                 writer.writerow(
                     (
