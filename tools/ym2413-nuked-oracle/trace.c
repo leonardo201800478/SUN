@@ -18,7 +18,7 @@
 #define MAX_EVENTS 65536
 
 typedef struct {
-    uint64_t clock;
+    uint64_t call_index;
     uint32_t port;
     uint8_t value;
 } input_event;
@@ -79,12 +79,12 @@ static int load_events(const char *path, input_event *events, size_t *count) {
             fclose(f);
             return 0;
         }
-        if (*count && clock < events[*count - 1].clock) {
+        if (*count && clock < events[*count - 1].call_index) {
             fprintf(stderr, "events must be sorted by nondecreasing clock\n");
             fclose(f);
             return 0;
         }
-        events[*count].clock = (uint64_t)clock;
+        events[*count].call_index = (uint64_t)clock;
         events[*count].port = port;
         events[*count].value = (uint8_t)value;
         ++*count;
@@ -103,20 +103,20 @@ int main(int argc, char **argv) {
     if (!events) return 2;
 
     for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "--clocks") && i + 1 < argc) {
+        if (!strcmp(argv[i], "--calls") && i + 1 < argc) {
             clocks = strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--events") && i + 1 < argc) {
             events_path = argv[++i];
         } else if (!strcmp(argv[i], "--chip-type") && i + 1 < argc) {
             chip_type = (uint32_t)strtoul(argv[++i], NULL, 0);
         } else {
-            fprintf(stderr, "usage: %s --clocks N [--events file.csv] [--chip-type 0]\n", argv[0]);
+            fprintf(stderr, "usage: %s --calls N [--events file.csv] [--chip-type 0]\n", argv[0]);
             free(events);
             return 2;
         }
     }
     if (clocks == 0) {
-        fprintf(stderr, "--clocks must be greater than zero\n");
+        fprintf(stderr, "--calls must be greater than zero\n");
         free(events);
         return 2;
     }
@@ -131,12 +131,12 @@ int main(int argc, char **argv) {
     for (uint64_t tick = 0; tick < clocks; ++tick) {
         int32_t output[2] = {0, 0};
         uint32_t cycle_before = chip.cycles;
-        while (event_index < event_count && events[event_index].clock == tick) {
+        while (event_index < event_count && events[event_index].call_index == tick) {
             OPLL_Write(&chip, events[event_index].port, events[event_index].value);
             ++event_index;
         }
         if (event_index < event_count && events[event_index].clock < tick) {
-            fprintf(stderr, "event clock was skipped\n");
+            fprintf(stderr, "event call index was skipped\n");
             free(events);
             return 3;
         }
