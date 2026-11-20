@@ -35,10 +35,10 @@ Optional CSV, sorted by nondecreasing input-clock index:
 
 ```csv
 # input_clock,port,value
-0,0,0x10
-1,1,0x40
-2,0,0x20
-3,1,0x15
+0,0,16
+1,1,64
+2,0,32
+3,1,21
 ```
 
 Port 0 queues an address-port write; port 1 queues a data-port write, using
