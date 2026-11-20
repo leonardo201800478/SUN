@@ -8,7 +8,7 @@ use std::io::Write;
 use std::panic::Location;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, Once, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, Once, OnceLock, PoisonError, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing_appender::non_blocking::{ErrorCounter, NonBlockingBuilder, WorkerGuard};
 use tracing_subscriber::EnvFilter;
@@ -119,6 +119,7 @@ pub struct LoggingHandle {
     filter: FilterHandle,
     error_counter: ErrorCounter,
     recent_events: Arc<Mutex<VecDeque<String>>>,
+    writer_gate: Arc<RwLock<bool>>,
     config: Mutex<LogConfig>,
     session: SessionMetadata,
 }
@@ -140,17 +141,41 @@ impl LoggingHandle {
         self.filter
             .reload(filter)
             .map_err(|error| error.to_string())?;
+        {
+            let mut writer_enabled = self
+                .writer_gate
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
+            self.recent_events
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            *writer_enabled = true;
+        }
         DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
         Ok(())
     }
 
-    /// Revoke diagnostic collection immediately; no consent capability is needed.
+    /// Revoke collection, discard queued writes, and clear this session's recent events.
+    ///
+    /// The writer gate waits for any write already in progress, then rejects
+    /// records still queued by the non-blocking appender. The ring buffer is
+    /// cleared before this method returns, so a later re-consent starts clean.
     pub fn disable(&self) -> Result<(), String> {
         DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
         let filter = EnvFilter::try_new("off").map_err(|error| error.to_string())?;
         self.filter
             .reload(filter)
             .map_err(|error| error.to_string())?;
+        let mut writer_enabled = self
+            .writer_gate
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        *writer_enabled = false;
+        self.recent_events
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         Ok(())
     }
 
@@ -315,6 +340,7 @@ pub fn init_after_explicit_consent(
     let recent_events = Arc::new(Mutex::new(VecDeque::with_capacity(
         config.recent_event_capacity.max(1),
     )));
+    let writer_gate = Arc::new(RwLock::new(false));
     let file_writer = SizeRotatingWriter::new(
         config.log_dir.join("sega-emulator.log"),
         config.max_file_size_bytes,
@@ -324,6 +350,7 @@ pub fn init_after_explicit_consent(
         file_writer,
         recent_events.clone(),
         config.recent_event_capacity,
+        Arc::clone(&writer_gate),
     );
     let (non_blocking, guard) = NonBlockingBuilder::default()
         .buffered_lines_limit(config.queue_capacity.max(1))
@@ -368,6 +395,7 @@ pub fn init_after_explicit_consent(
         filter: filter_handle,
         error_counter,
         recent_events,
+        writer_gate,
         config: Mutex::new(config),
         session,
     };
