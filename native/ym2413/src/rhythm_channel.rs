@@ -7,6 +7,7 @@
 
 use crate::channel::OperatorPhaseParameters;
 use crate::envelope::EnvelopeParameters;
+use crate::envelope_sequencer::{EnvelopeRhythmSelect, EnvelopeSlotInput};
 use crate::instrument::{
     InstrumentPatch, OperatorPatch, Ym2413RhythmInstrument, rhythm_patch_candidate,
 };
@@ -23,6 +24,10 @@ use crate::slot::{Ym2413Operator, Ym2413RhythmVoice};
 pub enum RhythmChannelSynthesisError {
     /// BLOCK/FNUM/KSL could not be represented by the shared KSL model.
     KeyScale(KeyScaleError),
+    /// The requested serial EG cycle is not one of the six rhythm cycles.
+    InvalidEnvelopeCycle { cycle: u8 },
+    /// The selected rhythm cycle has no operator in its declared physical role.
+    MissingEnvelopeOperator { cycle: u8 },
 }
 
 impl From<KeyScaleError> for RhythmChannelSynthesisError {
@@ -352,6 +357,49 @@ pub fn decode_rhythm_synthesis(
     })
 }
 
+
+/// Resolve the register-derived EG input for one of the six Rhythm Mode cycles.
+///
+/// The serial EG selector order is BD0, HH, TOM, BD1, SD, TC at cycles
+/// 11 through 16. The rate fields come from the corresponding dedicated
+/// rhythm patch candidate; raw channel KEY-ON/SUS and $0E trigger bits remain
+/// separate inputs so the sequencer owns their delayed interaction.
+pub fn decode_rhythm_envelope_slot_input(
+    registers: &[u8; 64],
+    cycle: u8,
+) -> Result<EnvelopeSlotInput, RhythmChannelSynthesisError> {
+    let (voice_index, carrier, selector) = match cycle {
+        11 => (0, false, EnvelopeRhythmSelect::BassDrumFirst),
+        12 => (1, false, EnvelopeRhythmSelect::HiHat),
+        13 => (3, false, EnvelopeRhythmSelect::TomTom),
+        14 => (0, true, EnvelopeRhythmSelect::BassDrumSecond),
+        15 => (2, true, EnvelopeRhythmSelect::SnareDrum),
+        16 => (4, true, EnvelopeRhythmSelect::TopCymbal),
+        _ => return Err(RhythmChannelSynthesisError::InvalidEnvelopeCycle { cycle }),
+    };
+
+    let config = decode_rhythm_synthesis(registers)?;
+    let voice = config.voices[voice_index];
+    let operator = if carrier { voice.carrier } else { voice.modulator }
+        .ok_or(RhythmChannelSynthesisError::MissingEnvelopeOperator { cycle })?;
+    let envelope = operator.envelope;
+    let channel = voice.channel_frequency;
+
+    Ok(EnvelopeSlotInput {
+        attack_rate: envelope.attack_rate,
+        decay_rate: envelope.decay_rate,
+        release_rate: envelope.release_rate,
+        sustain_level: envelope.sustain_level,
+        key_scale_rate: envelope.key_scale_rate,
+        ksr_frequency: ((envelope.block << 1) | (envelope.fnum >> 8) as u8) & 0x0f,
+        sustain_on: channel.sustain_on,
+        sustained_tone: envelope.sustained_tone,
+        key_on: channel.melodic_key_on,
+        rhythm_select: selector,
+        rhythm_bits: registers[0x0e] & 0x3f,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{RhythmVoiceSynthesisConfig, decode_rhythm_synthesis};
@@ -411,6 +459,48 @@ mod tests {
         assert!(tom.single_operator_uses_carrier_path);
         assert!(tcy.single_operator_uses_carrier_path);
         assert!(!bd.single_operator_uses_carrier_path);
+    }
+
+    #[test]
+    fn serial_rhythm_cycles_resolve_the_dedicated_operator_envelopes() {
+        use super::decode_rhythm_envelope_slot_input;
+        use crate::envelope_sequencer::EnvelopeRhythmSelect as Rhythm;
+
+        let registers = configured_registers();
+        let expected = [
+            (11, Rhythm::BassDrumFirst, 13, 15, 10, 6),
+            (12, Rhythm::HiHat, 12, 8, 7, 10),
+            (13, Rhythm::TomTom, 15, 8, 9, 5),
+            (14, Rhythm::BassDrumSecond, 15, 8, 13, 6),
+            (15, Rhythm::SnareDrum, 13, 8, 8, 6),
+            (16, Rhythm::TopCymbal, 10, 10, 5, 5),
+        ];
+
+        for (cycle, selector, attack, decay, release, sustain) in expected {
+            let input = decode_rhythm_envelope_slot_input(&registers, cycle).unwrap();
+            assert_eq!(input.rhythm_select, selector, "cycle {cycle}");
+            assert_eq!(input.rhythm_bits, registers[0x0e] & 0x3f, "cycle {cycle}");
+            assert_eq!(input.attack_rate, attack, "cycle {cycle}");
+            assert_eq!(input.decay_rate, decay, "cycle {cycle}");
+            assert_eq!(input.release_rate, release, "cycle {cycle}");
+            assert_eq!(input.sustain_level, sustain, "cycle {cycle}");
+            assert!(input.key_on, "cycle {cycle}");
+            assert!(input.sustain_on, "cycle {cycle}");
+        }
+    }
+
+    #[test]
+    fn rhythm_eg_decoder_rejects_cycles_outside_the_six_rhythm_slots() {
+        use super::{RhythmChannelSynthesisError, decode_rhythm_envelope_slot_input};
+
+        assert_eq!(
+            decode_rhythm_envelope_slot_input(&configured_registers(), 10),
+            Err(RhythmChannelSynthesisError::InvalidEnvelopeCycle { cycle: 10 })
+        );
+        assert_eq!(
+            decode_rhythm_envelope_slot_input(&configured_registers(), 17),
+            Err(RhythmChannelSynthesisError::InvalidEnvelopeCycle { cycle: 17 })
+        );
     }
 
     #[test]
