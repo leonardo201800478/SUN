@@ -31,7 +31,7 @@ adapt the output executable suffix as needed.
 
 ## Input events
 
-Optional CSV, sorted by nondecreasing input-clock index:
+Optional CSV, with exactly one event per strictly increasing input-clock index:
 
 ```csv
 # input_clock,port,value
