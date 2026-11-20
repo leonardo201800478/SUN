@@ -37,6 +37,7 @@ def main() -> int:
             "expected_inc_hi", "expected_max_rate", "expected_zero_rate",
             "expected_rate", "expected_eg_kon", "expected_eg_off",
             "expected_eg_dokon", "expected_eg_sl", "expected_pending_sustain_level",
+            "expected_rm_select", "expected_rm_enable", "expected_rhythm_bits",
         ))
 
         for line in source:
@@ -80,6 +81,9 @@ def main() -> int:
                 row["eg_dokon"],
                 row["eg_sl"],
                 row["c_sl"],
+                row["rm_select"],
+                row["rm_enable"],
+                row["rhythm"],
             ))
             calls += 1
 
