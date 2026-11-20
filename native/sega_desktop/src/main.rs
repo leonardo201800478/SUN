@@ -5114,11 +5114,13 @@ mod windows_host {
                     app.set_trace_enabled(false);
                 }
                 *diagnostics_consent_control.borrow_mut() = None;
+                // Close the central gate first; no diagnostic producer may publish
+                // while the worker is being asked to release its in-memory buffers.
+                let consent_result = set_diagnostics_consent(None);
                 let worker_result = diagnostics_worker
                     .borrow()
                     .as_ref()
                     .map_or(Ok(()), DesktopSession::disable_sms_diagnostics);
-                let consent_result = set_diagnostics_consent(None);
                 if let Some(app) = diagnostics_app.upgrade() {
                     app.set_debug_status(match (worker_result, consent_result) {
                         (Ok(()), Ok(())) => "Coleta revogada; timer, trace, métricas e buffers diagnósticos foram encerrados.".to_owned(),
@@ -5155,10 +5157,10 @@ mod windows_host {
                 Err(error) => {
                     diagnostics_timer_control.stop();
                     *diagnostics_consent_control.borrow_mut() = None;
+                    let _ = set_diagnostics_consent(None);
                     if let Some(worker) = diagnostics_worker.borrow().as_ref() {
                         let _ = worker.disable_sms_diagnostics();
                     }
-                    let _ = set_diagnostics_consent(None);
                     if let Some(app) = diagnostics_app.upgrade() {
                         app.set_diagnostics_enabled(false);
                         app.set_trace_enabled(false);
