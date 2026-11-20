@@ -217,6 +217,14 @@ def main() -> int:
     parser.add_argument("--trace", required=True, type=Path)
     parser.add_argument("--samples", required=True, type=Path)
     parser.add_argument("--rust-trace", required=True, type=Path)
+    parser.add_argument(
+        "--candidate",
+        default="initial_127_deferred_unwrapped",
+        choices=(
+            "initial_127_deferred_unwrapped",
+            "initial_127_deferred_decay_phase_minus3",
+        ),
+    )
     args = parser.parse_args()
 
     trace = load_trace(args.trace)
@@ -256,8 +264,8 @@ def main() -> int:
             })
 
         candidate = candidates[(call, slot)]
-        rust_level = int(candidate["candidate_level_initial_127_deferred_unwrapped"])
-        rust_stage = int(candidate["candidate_stage_initial_127_deferred_unwrapped"])
+        rust_level = int(candidate[f"candidate_level_{args.candidate}"])
+        rust_stage = int(candidate[f"candidate_stage_{args.candidate}"])
         level_bad = rust_level != observed_level
         stage_bad = rust_stage != NUKED_TO_RUST_STAGE[observed_state]
         level_mismatches += int(level_bad)
@@ -293,6 +301,7 @@ def main() -> int:
         f"{reference_errors[:3]}"
     )
     print(json.dumps({
+        "candidate": args.candidate,
         "sample_count": len(samples),
         "reference_internal_update_replay": "PASS",
         "reference_replay_mismatches": 0,
