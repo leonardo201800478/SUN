@@ -6,6 +6,8 @@ O logging é transversal aos crates compartilhados e não participa do controle 
 
 **Coleta desativada por padrão (opt-in).** A aplicação não inicializa o subscriber, não cria o diretório de logs, não instala o panic hook e não grava snapshots enquanto o usuário não ativar explicitamente `Opções > Diagnóstico > Ativar coleta de diagnóstico`. A opção não é persistida: cada inicialização começa desligada.
 
+A autorização é representada por um único `DiagnosticsConsent`, criado somente no callback de ação afirmativa do usuário e passado ao logger central e ao worker SMS. O worker não expõe setter booleano público para habilitar diagnósticos. O host Slint consulta `LoggingHandle::is_enabled()` para condicionar seus eventos e timers; a cópia do token mantida em memória serve apenas para autorizar workers substitutos durante a mesma sessão.
+
 Ao revogar a coleta durante a execução, o gate compartilhado é fechado, o filtro global é recarregado para `off`, eventos pendentes são descartados, o ring buffer é limpo e o worker antigo é encerrado com o sink fechado. Uma nova autorização inicia uma sessão de coleta limpa. O trace do worker SMS também é desabilitado, seu collector é descartado e os buffers de métricas do host/runtime são limpos.
 
 O caminho de hardware não executa operações de disco. Quando ativada, a coleta usa uma fila limitada e uma thread de escrita independente. Quando desativada, não há coleta de eventos de diagnóstico.
