@@ -373,3 +373,29 @@ Em `native/sega_app/src/app.rs:522-526`, a preferência `debugger_trace_enabled`
 **DP0-F6-G — trace core e coletor do worker têm limites diferentes.**
 
 `native/sms_core/src/temporal_machine.rs` mantém `trace_events: Vec<SmsTemporalTraceEvent>`, inicia com captura desligada e faz `push` quando `trace_enabled` está ativo. O worker SMS cria um `DiagnosticCollector` com capacidade limitada de 512 eventos e política de descarte; consumidores diretos de `SmsTemporalMachine` não recebem automaticamente esse limite. A política de coleta e limite do worker não deve ser confundida com a API pública do core. Manter o limite do core como contrato pendente, sem alterar o formato de snapshots sem análise de compatibilidade.
+
+
+### 10.10 Atualização após a PR #1101 — 20/11/2026
+
+**Baseline atualizada:** `main` em `355f038c98244e26cc1c9b66506be6c228d021ce`.
+
+A PR [#1101](https://github.com/leonardo201800478/sega-emulator/pull/1101) foi integrada por squash merge no commit `355f038c98244e26cc1c9b66506be6c228d021ce`. O host egui legado deixou de restaurar a chave persistida `debugger_trace_enabled` e deixou de serializá-la. O teste `persisted_debugger_trace_preference_is_ignored_after_restart` comprova que um arquivo legado contendo `debugger_trace_enabled=true` não reativa a captura após reinicialização.
+
+**Reclassificação DP0-F6-F:** corrigido no host egui legado pela PR #1101. A captura de trace permanece desligada por padrão e exige ação explícita na sessão atual. Breakpoints, endereço de memória e geometria do debugger continuam persistidos. Esta correção não altera o worker SMS, o trace core nem o estado temporal da máquina.
+
+**Estado DP0-F4/F5 na baseline atual:**
+- F4 — a API pública disponível é `init_after_explicit_consent`, que recebe `DiagnosticsConsent`; a instalação do subscriber/writer/hook e os efeitos de filesystem ocorrem somente nessa inicialização consentida. O filtro do subscriber inicia em `off`, e `write_diagnostics_json()` exige consentimento ativo. O host continua responsável por criar a capability somente no callback de opt-in; isso é um contrato documentado do chamador, não uma prova criptográfica de ação humana.
+- F5 — integrada pela PR #1099, com crash record sanitizado e limitado e preservação do hook anterior. A saída padrão do hook anterior continua preservada por decisão documentada.
+
+**Estado DP0-F7:** permanece aberto. A PR [#1102](https://github.com/leonardo201800478/sega-emulator/pull/1102) propõe fechar a fronteira de revogação do writer assíncrono: limpar o ring buffer, rejeitar eventos entregues após revogação e encerrar o worker/fila antigos antes de aceitar uma nova autorização. No HEAD consultado durante esta atualização, a PR está em draft e a CI ainda está em execução; portanto, não é considerada integrada nem validada.
+
+**Achados ainda abertos:**
+- DP0-F6-A — limpeza e isolamento do ring buffer entre consentimentos, aguardando implementação/validação da PR #1102.
+- DP0-F6-B — falha de snapshot final ainda pode usar stderr após uma sessão consentida; avaliar substituição por status da UI sem criar um segundo sink.
+- DP0-F6-C — overhead dos eventos TRACE em caminhos sensíveis ainda precisa de medição Debug/Release.
+- DP0-F6-D — manter documentada a distinção entre telemetria operacional SG-1000 em memória e coleta diagnóstica persistente.
+- DP0-F6-E — caminhos absolutos das ROMs recentes continuam sendo persistência funcional; retenção/limpeza devem ser documentadas.
+- DP0-F6-G — vetor `SmsTemporalMachine::trace_events` não tem limite próprio para consumidores diretos do core.
+- F6 — o inventário ampliado ainda não cobre de forma demonstravelmente exaustiva todos os wrappers, macros indiretas, dependências, FFI, subprocessos e artefatos de distribuição.
+
+**Conclusão atualizada:** F6 continua parcial e F7 permanece em validação. DP-0 segue ABERTO. Não houve alteração em hardware, CPU, VDP, PSG, barramentos, Scheduler, mappers ou temporização nas PRs #1101/#1102.
