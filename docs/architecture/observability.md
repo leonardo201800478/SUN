@@ -4,11 +4,11 @@
 
 O logging é transversal aos crates compartilhados e não participa do controle temporal da máquina. CPU, VDP, PSG, Scheduler, barramentos e hosts publicam eventos estruturados; a aplicação nativa instala o subscriber e mantém o ciclo de vida do escritor.
 
-**Coleta desativada por padrão (opt-in).** A aplicação não inicializa o subscriber, não cria o diretório de logs, não instala o panic hook e não grava snapshots enquanto o usuário não ativar explicitamente `Opções > Diagnóstico > Ativar coleta de diagnóstico`. A opção não é persistida: cada inicialização começa desligada.
+**Logging persistente desativado por padrão (opt-in).** A aplicação não inicializa o subscriber nem cria o diretório de logs até o usuário ativar explicitamente `Opções > Diagnóstico > Ativar coleta de diagnóstico`. A opção não é persistida: cada inicialização começa desligada. Separadamente, o runtime SMS mantém um ring essencial de diagnóstico em RAM, limitado e sempre ativo; ele não usa o subscriber, não grava em disco e não depende do consentimento.
 
-Ao desativar a coleta durante a execução, o filtro global é recarregado para `off` e o panic hook deixa de gravar. O worker de escrita permanece ocioso para permitir reativação sem reiniciar. Eventos já enfileirados antes da desativação ainda podem terminar de ser gravados; nenhum evento novo é aceito pelo filtro desligado.
+Ao desativar a coleta durante a execução, o filtro global é recarregado para `off` e novos eventos de logging deixam de ser aceitos. O worker de escrita permanece ocioso para permitir reativação sem reiniciar. Eventos já enfileirados antes da desativação ainda podem terminar de ser gravados. A revogação não limpa nem desativa o ring essencial RAM-only; snapshots e exportações continuam bloqueados sem consentimento.
 
-O caminho de hardware não executa operações de disco. Quando ativada, a coleta usa uma fila limitada e uma thread de escrita independente. Quando desativada, não há coleta de eventos de diagnóstico.
+O caminho de hardware não executa operações de disco. Quando ativada, a coleta usa uma fila limitada e uma thread de escrita independente. Quando desativada, não há coleta de eventos via `tracing`; o ring essencial do SMS permanece separado e somente em RAM.
 
 ## Bibliotecas e versões
 
@@ -40,6 +40,10 @@ Z80 / Scheduler / VDP / PSG / Audio / D3D12 / ROM / GUI
              recent-event ring buffer
                          |
               Diagnostics / export
+
+SMS machine -> essential fixed ring (RAM only, always active)
+                         |
+              explicit snapshot/export
 ```
 
 A fila tem capacidade padrão de 16.384 linhas e usa política `lossy`: quando saturada, o produtor não aguarda disco; o evento é descartado e o contador `dropped_lines` é incrementado. O contador deve ser exibido no painel Diagnostics. A fila e o ring buffer são limitados.
@@ -54,21 +58,17 @@ No Windows, o diretório padrão é:
 
 Arquivos:
 
-- `sega-emulator.log`: JSON Lines, rotação por tamanho (10 MiB por arquivo, cinco backups).
-- `sega-emulator-diagnostics.json`: snapshot da sessão escrito no encerramento ou na exportação.
-- `sega-emulator-crash.log`: registro privado de panic, somente quando o consentimento está ativo no instante da falha.
+- `sega-emulator.log`: JSON Lines, rotação por tamanho (10 MiB por arquivo, cinco backups), somente após consentimento.
+- `sega-emulator-diagnostics.json`: pacote/snapshot escrito somente por ação explícita de exportação e com consentimento; nunca no encerramento automático.
+- Não existe `sega-emulator-crash.log` para panics comuns. A saída padrão de panic do Rust é preservada.
 
-### Política do crash log — ADR 0012 / DP0-F5
+### Política de panic e falhas críticas de bootstrap — ADR 0013 / DP0-F5
 
-O hook privado é instalado somente durante a inicialização consentida da infraestrutura. O hook consulta o estado atômico do consentimento no instante do panic. Se o consentimento tiver sido revogado, não grava o arquivo privado.
+A infraestrutura de observabilidade não instala nem substitui um panic hook global. Panics comuns preservam integralmente o hook padrão do Rust e não criam arquivos de crash, mesmo quando o logging foi autorizado. Não há captura automática de payload, backtrace, minidump ou snapshot no encerramento.
 
-O registro permitido contém somente timestamp Unix em milissegundos, ID de sessão sanitizado, nome-base do arquivo-fonte, linha, coluna e indicador booleano de que o payload era textual. O conteúdo do payload, caminho absoluto, diretórios pessoais e backtrace não são capturados.
+O ring essencial SMS permanece limitado e RAM-only para investigação durante a sessão. Revogar consentimento não limpa esse ring, mas bloqueia snapshots e exportações. A exportação exige consentimento central e uma ação separada do usuário.
 
-Cada registro tem limite de 1 KiB. O arquivo tem limite derivado de `LogConfig.max_file_size_bytes`; se o próximo registro não couber, ele é descartado em vez de executar rotação no hook. A rotação e a retenção de backups ocorrem durante a inicialização consentida, antes da instalação do hook. O limite de backups usa `LogConfig.retained_files`.
-
-Falhas de abertura, escrita ou flush do arquivo privado não impedem a chamada do hook anterior do Rust, que é delegada exatamente uma vez. O hook não usa logger, subscriber, worker, GUI, Scheduler, mutexes de aplicação, `catch_unwind`, rede ou backtrace. A saída padrão de panic continua separada do arquivo privado e preserva o comportamento normal de falha.
-
-A implementação foi validada no commit de código 8bedcb3a6956faf3a3bb8351ccdd08a47bc43a11: Windows x64 Debug e Release passaram em rustfmt, Clippy e testes (14 testes por perfil); o CI Linux Release também aprovou Clippy e os testes da feature runtime. A PR #1099 aguarda somente a conclusão dos checks gerais restantes e o merge.
+Um relatório mínimo de falha de bootstrap só poderá existir para um caminho fatal de inicialização explicitamente classificado, com dados sanitizados e sem ROM/BIOS, payload, caminhos pessoais ou backtrace. Nenhum callsite de bootstrap foi classificado como elegível nesta revisão; portanto, nenhum reporter automático de bootstrap está instalado.
 
 `SEGA_LOG_DIR` permite substituir o diretório e `SEGA_LOG_FILTER` define o filtro inicial. O filtro pode ser recarregado em runtime por `LoggingHandle::set_filter`.
 
@@ -120,7 +120,7 @@ Não registrar cada instrução Z80 nem cada T-state por padrão. A instrumenta�
 
 ## Política de panic e crash
 
-A saída padrão de panic do Rust deve ser preservada e chamada exatamente uma vez, mesmo quando a coleta privada estiver desativada. A captura para `sega-emulator-crash.log` é independente da saída padrão: só pode ocorrer com consentimento ativo no instante do panic. Não capturar payload arbitrário nem backtrace bruto por padrão; não suprimir panic nem usar `catch_unwind` para mascarar falhas. Ver [ADR 0012](../adr/0012-panic-crash-diagnostics-policy.md).
+Não há hook privado nem arquivo automático de crash para panics comuns. A saída padrão do Rust é preservada; não usar `catch_unwind` para mascarar falhas. Qualquer futuro relatório mínimo de bootstrap exige um callsite fatal explicitamente classificado. Ver [ADR 0013](../adr/0013-no-automatic-runtime-crash-files.md).
 
 ## Testes e validação
 
@@ -128,7 +128,7 @@ O crate contém testes para rotação por tamanho, retenção de backups e ring 
 
 `cargo test --manifest-path native/observability/Cargo.toml --features runtime --locked`
 
-A fatia DP0-F5 acrescenta testes do formatter puro, ausência de sentinelas, limite do arquivo, retenção pré-hook, falha de I/O e delegação em subprocessos. A aprovação exige Windows x64 Debug e Release. CI aprovado não substitui validação física de saída de console em todos os ambientes.
+A fatia DP0-F5 testa em subprocesso que a inicialização consentida não substitui o hook padrão e que panic comum não cria arquivo de crash. A aprovação exige Windows x64 Debug e Release. CI aprovado não substitui validação física de saída de console em todos os ambientes.
 
 ## Entregas seguintes da sprint
 
