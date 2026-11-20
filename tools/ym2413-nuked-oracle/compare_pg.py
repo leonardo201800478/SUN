@@ -26,6 +26,7 @@ def load_nuked_trace(path: Path) -> list[dict[str, object]]:
     supported_schemas = {
         "ym2413-nuked-opll-trace-v1",
         "ym2413-nuked-opll-pg-trace-v1",
+        "ym2413-nuked-opll-pg-phase-trace-v1",
     }
     if len(rows) < 2 or rows[0].get("schema") not in supported_schemas:
         raise ValueError("input is not a supported Nuked-OPLL trace")
@@ -70,6 +71,20 @@ def main() -> int:
         raise ValueError(
             f"PM-enabled FNUM samples did not cover all eight LFO positions: {sorted(pm_positions)}"
         )
+    fnum_rows = {
+        int(row["calc_fnum"]) >> 6
+        for row in samples
+        if int(row["calc_fnum"]) > 0 and int(row["calc_vib"]) == 1
+    }
+    if fnum_rows != set(range(8)):
+        raise ValueError(f"PM-enabled samples did not cover FNUM[8:6] rows: {sorted(fnum_rows)}")
+    blocks = {
+        int(row["calc_block"])
+        for row in samples
+        if int(row["calc_fnum"]) > 0 and int(row["calc_vib"]) == 1
+    }
+    if blocks != set(range(8)):
+        raise ValueError(f"PM-enabled samples did not cover all BLOCK values: {sorted(blocks)}")
 
     with tempfile.TemporaryDirectory(prefix="ym2413-pg-diff-") as temp_dir:
         input_csv = Path(temp_dir) / "rust_pg_inputs.csv"
@@ -149,6 +164,8 @@ def main() -> int:
                 "compared_calls": len(samples),
                 "pm_enabled_calls": sum(int(row["calc_vib"]) == 1 for row in samples),
                 "pm_positions_covered": sorted(pm_positions),
+                "fnum_high_rows_covered": sorted(fnum_rows),
+                "block_values_covered": sorted(blocks),
                 "comparison": "Nuked OPLL_PhaseCalcIncrement output vs Rust PhaseGenerator::phase_step",
                 "scope": "PG integer increment only; no slot/phase accumulator alignment claim",
             },
