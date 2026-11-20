@@ -1,8 +1,8 @@
 # YM2413 PG integer rounding — Nuked-OPLL convergence
 
-**Date:** 2026-11-19  
-**Scope:** phase-increment integer arithmetic only.  
-**Primary reference:** Nuked-OPLL commit `1269cf5a783b65583b50fa2464d08be75830aaa0`.  
+**Date:** 2026-11-19
+**Scope:** phase-increment integer arithmetic only.
+**Primary reference:** Nuked-OPLL commit `1269cf5a783b65583b50fa2464d08be75830aaa0`.
 **Secondary reference:** MAME/ymfm commit `66deabe1768df8e0ee3767688a8bfec32df27f72`.
 
 ## Finding
