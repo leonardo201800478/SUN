@@ -1,9 +1,9 @@
 # YM2413 PG — 18-slot phase accumulator differential
 
-**Date:** 2026-11-19  
-**Primary oracle:** Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`  
-**Rust base:** PR #1075, PG integer-rounding correction  
-**Harness/comparator:** PRs #1076 and #1077  
+**Date:** 2026-11-19
+**Primary oracle:** Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`
+**Rust base:** PR #1075, PG integer-rounding correction
+**Harness/comparator:** PRs #1076 and #1077
 **CI:** run `44654562391`, job `136017489127` — SUCCESS
 
 ## What was compared
