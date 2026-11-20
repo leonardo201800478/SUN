@@ -153,8 +153,7 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
             None,
         )
         .unwrap_or_else(|error| panic!("{}: worker rejected ROM: {error}", path.display()));
-        worker
-            .enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         let mailbox = FrameMailbox::new();
         worker
             .attach_video_mailbox(mailbox.clone())
