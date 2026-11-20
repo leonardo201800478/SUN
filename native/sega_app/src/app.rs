@@ -1268,18 +1268,19 @@ impl SegaApp {
                 }
             }
         } else {
-            let worker_error = self
-                .native_viewport
-                .worker
-                .as_ref()
-                .and_then(|worker| worker.disable_diagnostics().err());
+            // Revoke the shared logger gate before waiting for the worker boundary.
+            self.diagnostics_enabled = false;
+            self.diagnostics_consent = None;
             if let Ok(mut state) = self.debugger_window.lock() {
                 state.trace_capture_enabled = false;
                 state.snapshot = None;
             }
             let logging_error = current_logging().and_then(|logging| logging.disable().err());
-            self.diagnostics_enabled = false;
-            self.diagnostics_consent = None;
+            let worker_error = self
+                .native_viewport
+                .worker
+                .as_ref()
+                .and_then(|worker| worker.disable_diagnostics().err());
             self.diagnostics_error = worker_error
                 .or(logging_error)
                 .map(|error| format!("Falha ao encerrar a coleta diagnóstica: {error}"));
