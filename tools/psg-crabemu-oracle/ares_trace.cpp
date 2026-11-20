@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
     << "\"source_repo\":\"ares-emulator/ares\","
     << "\"source_commit\":\"" << REFERENCE_COMMIT << "\","
     << "\"engine\":\"ares::SN76489\","
-    << "\"license\":\"ISC\","
+    << "\"license\":\"Ares project license (ISC-style)\","
     << "\"time_unit\":\"sn76489_component_clock\","
     << "\"clock_divider_context\":\"one call per Ares component clock\"}\n";
 
