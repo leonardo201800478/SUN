@@ -265,10 +265,21 @@ impl DesktopSession {
         }
     }
 
-    /// Enable/disable detailed SMS diagnostics without inventing SG-1000 trace support.
-    pub fn set_sms_diagnostics_enabled(&self, enabled: bool) -> Result<(), String> {
+    /// Enable SMS diagnostics using the same explicit consent capability as the logger.
+    pub fn enable_sms_diagnostics(
+        &self,
+        consent: &DiagnosticsConsent,
+    ) -> Result<(), String> {
         if let Self::Sms { worker, .. } = self {
-            worker.set_diagnostics_enabled(enabled)?;
+            worker.enable_diagnostics(consent);
+        }
+        Ok(())
+    }
+
+    /// Revoke SMS diagnostics and discard all retained trace data.
+    pub fn disable_sms_diagnostics(&self) -> Result<(), String> {
+        if let Self::Sms { worker, .. } = self {
+            worker.disable_diagnostics()?;
         }
         Ok(())
     }
@@ -353,7 +364,8 @@ impl DesktopSession {
 mod tests {
     use super::{DesktopSession, DesktopSystem};
     use sega_sg1000_runtime::Sg1000TemporalWorker;
-    use sega_sms_runtime::SmsTemporalWorker;
+    use sega_observability::DiagnosticsConsent;
+use sega_sms_runtime::SmsTemporalWorker;
 
     #[test]
     fn system_identifiers_are_explicit_and_unknown_values_do_not_fall_back() {
