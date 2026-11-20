@@ -254,12 +254,13 @@ impl Write for SizeRotatingWriter {
 
 #[cfg(test)]
 mod tests {
-    use super::{FanoutWriter, SizeRotatingWriter};
+    use super::{FanoutWriter, SizeRotatingWriter, SwitchableMakeWriter};
     use std::collections::VecDeque;
     use std::fs;
     use std::io::Write;
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::{SystemTime, UNIX_EPOCH};
+    use tracing_subscriber::fmt::writer::MakeWriter;
 
     fn temporary_directory() -> std::path::PathBuf {
         let stamp = SystemTime::now()
@@ -333,7 +334,7 @@ mod tests {
 
         {
             let mut old_event = make_writer.make_writer();
-            old_event.write_all(b"OLD_SESSION_SENTINEL\\n").unwrap();
+            old_event.write_all(b"OLD_SESSION_SENTINEL\n").unwrap();
         }
 
         // Detach all senders before dropping the guard. Its worker drains the
@@ -352,7 +353,7 @@ mod tests {
 
         {
             let mut new_event = make_writer.make_writer();
-            new_event.write_all(b"NEW_SESSION_SENTINEL\\n").unwrap();
+            new_event.write_all(b"NEW_SESSION_SENTINEL\n").unwrap();
         }
 
         slot.lock().unwrap().take();
