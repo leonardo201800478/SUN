@@ -97,3 +97,11 @@ pin values.
 
 The purpose is to provide repeatable, commit-pinned diagnostic traces for
 investigating discrepancies. It is not permission to copy or port Nuked code.
+
+## Automated smoke test
+
+The repository workflow `.github/workflows/ym2413-nuked-oracle.yml` checks
+out the pinned reference in the ephemeral CI runner, compiles this adapter,
+parses an 80-call JSONL trace, validates array dimensions and serial-cycle
+progression, and checks rejection of duplicate event indices and unsupported
+chip types. It does not publish or retain the GPL reference binary.
