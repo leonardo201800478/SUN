@@ -215,3 +215,7 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 - Alterações estáticas aplicadas; validação local não executada neste ambiente.
 - Exigir CI Windows x64 Release, testes de `sms_core`, testes do `sms-runtime`, Clippy e regressões de save-state antes de merge.
 - Nenhum resultado `NOT RUN` deve ser tratado como PASS.
+
+## Inventário dos 43 callsites host
+
+Os 43 usos de `diagnostic_log!` no host Slint foram substituídos por `diagnostic_event!`, com target, nível e campos estruturados. O macro consulta o `LoggingHandle` central e não serializa os dados em um único campo `message`. Os dois eventos de telemetria periódica foram classificados como `TRACE`. Inventário completo: [DP0 host diagnostic callsites](dp0-host-diagnostic-callsites-2026-11-20.md).
