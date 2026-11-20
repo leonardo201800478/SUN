@@ -136,6 +136,18 @@ jobs:
             --example eg_hardware_trace -- "$RUNNER_TEMP/eg-matrix-control-samples.csv" \
             > "$RUNNER_TEMP/eg-matrix-hardware-replay.json"
 
+      - name: Extract complete four-channel EG sequencer vectors
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv"
+
+      - name: Replay the complete 18-slot EG sequencer across four channels
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv" \
+            > "$RUNNER_TEMP/eg-matrix-sequencer-replay.json"
+
       - name: Extract rate-matrix operator samples and parameters
         run: |
           python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
@@ -244,6 +256,8 @@ jobs:
             ${{ runner.temp }}/eg-sequencer-replay.json
             ${{ runner.temp }}/eg-matrix-control-samples.csv
             ${{ runner.temp }}/eg-matrix-hardware-replay.json
+            ${{ runner.temp }}/eg-matrix-sequencer-samples.csv
+            ${{ runner.temp }}/eg-matrix-sequencer-replay.json
             ${{ runner.temp }}/eg-hardware-replay.json
             ${{ runner.temp }}/eg-rust-candidates.jsonl
             ${{ runner.temp }}/eg-matrix-a.jsonl
