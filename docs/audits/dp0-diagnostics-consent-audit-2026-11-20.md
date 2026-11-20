@@ -331,3 +331,100 @@ A PR #1117 permanece responsável exclusivamente pelo ring essencial SMS, integr
 - Nenhum job `SKIPPED` foi promovido a PASS.
 
 **Estado nesta revisão:** a implementação e a auditoria estrutural estão concluídas; F7 aguarda a terceira repetição comparável (#37), e F8 aguarda a revalidação do head final (#9428/#1713). O DP0 só poderá ser declarado formalmente concluído após esses gates, merge confirmado da #1117 na main e validação pós-merge do commit resultante.
+
+
+## 13. Verificação pós-merge e encerramento formal — 2026-11-20
+
+Esta seção supersede qualquer estado anterior desta auditoria que indique F7/F8 pendentes, integração #1117 ainda não confirmada ou ausência de CI pós-merge. A evidência foi consultada diretamente na API do GitHub após o merge.
+
+### 13.1 F7 — benchmark Release A/B consolidado
+
+**PASS.** Quatro execuções comparáveis concluídas contra o merge-base correto `a0baa862e11b4551990f49b2c56c1cf791316164`, com 20 amostras por revisão, quatro pares A/B alternados e invariância de instruções e ticks:
+
+| Execução | Bus-heavy | Relative-loop |
+|---|---:|---:|
+| #31 | -0,47% | +0,16% |
+| #36 | +2,82% | -0,92% |
+| #37 | -0,14% | +0,03% |
+| #38 | +0,10% | -0,19% |
+| **Mediana** | **-0,02%** | **-0,08%** |
+
+A execução #36 permanece registrada como dispersão/outlier; não foi descartada. As execuções #37 e #38 não reproduziram o desvio. Não há evidência de regressão consistente ou mensurável relevante, tampouco fundamento para alegar ganho de desempenho.
+
+Limitações mantidas: benchmark físico Windows x64 **NOT RUN**; smoke test interativo no hardware Windows do usuário **NOT RUN**.
+
+### 13.2 F8 — CI pós-merge efetivamente executada
+
+**PASS — CI #9431, workflow push na main.**
+
+- Run ID: `44837777090`.
+- Commit: `eac1d2463637a65d40621066d4ec889d2e062884`.
+- Evento: `push`.
+- Branch: `main`.
+- Conclusão do workflow: `success`.
+- Check suite: `121360783773`.
+- 12 jobs SUCCESS e 4 jobs SKIPPED no workflow CI #9431.
+- Nenhum job FAILURE ou CANCELLED.
+
+Jobs SUCCESS: Change impact classification; Rust workspace regression; Z80 focused validation; GitHub Actions workflow validation; SMS1 VDP core and machine integration validation; Windows SDL3 input validation; Input core and console integration validation; Scheduler deterministic stress; Windows PowerShell tooling syntax; Documentation patch hygiene; Windows x64 Slint WGPU 30 Vulkan POC; Rust quality and unit regression.
+
+Jobs SKIPPED: PSG core and console integration validation; Windows x64 CPAL audio output; SMS frame pacing ROM build (four profiles); Generate Cargo lockfiles (manual artifact; no repository writes). Esses skips não são contabilizados como PASS. O PSG não foi alterado pelo DP0 e a regressão do workspace foi executada com sucesso. CPAL possui evidência independente de validação na base #1107, conforme abaixo.
+
+**PASS — SMS Debugger Runtime #1716, workflow push.**
+
+- Run ID: `44837777063`.
+- Commit: `eac1d2463637a65d40621066d4ec889d2e062884`.
+- Evento: `push`; branch `main`; conclusão `success`.
+- Job `SMS runtime Release format, Clippy and tests`: SUCCESS.
+- Job `SMS debugger Windows Release validation`: SKIPPED, referente ao host egui legado fora do baseline ativo. Não é contado como PASS.
+
+**PASS — CPAL 0.18.2, evidência independente preservada.**
+
+- CI #9418, run ID `44833816014`, base integrada #1107.
+- Job Windows x64 CPAL: `136625213918`.
+- Formatação, Clippy, 21 testes Release e integração/build correspondentes aprovados.
+- O skip de CPAL na CI #9431 não substitui nem invalida essa evidência anterior; não é contado como PASS pós-merge.
+
+**Resultado F8:** todos os gates de regressão aplicáveis ao escopo DP0 foram comprovados por execução pós-merge ou pela validação independente explicitamente aplicável de CPAL. Os skips estão identificados e não foram promovidos a sucesso.
+
+Links de evidência:
+- CI #9431: https://github.com/leonardo201800478/sega-emulator/actions/runs/44837777090
+- SMS Runtime #1716: https://github.com/leonardo201800478/sega-emulator/actions/runs/44837777063
+- CPAL CI #9418: https://github.com/leonardo201800478/sega-emulator/actions/runs/44833816014
+
+### 13.3 F9 — integração e identidade da main
+
+**PASS.** Consulta direta a `GET /branches/main` confirmou:
+
+- HEAD de `main`: `eac1d2463637a65d40621066d4ec889d2e062884`.
+- Merge commit da PR #1117: o mesmo SHA.
+- Pais do merge: `bc4664d9f44f6791ad8f8520a57c8744dd647dbf` (merge #1107) e `4bdb6657500aeb0218ca0788c5787878540434b8` (head #1117).
+- A PR #1117 está MERGED e fechada.
+- O merge preservou a ancestralidade da #1107; não houve duplicação da implementação de consentimento.
+- A branch `main` está protegida no repositório.
+
+O evento push da CI #9431 e o workflow SMS Runtime #1716 estão associados exatamente ao merge commit atual. A comparação de status combinado isolada não era suficiente; a verificação dos check-runs e dos workflows por branch confirmou a execução real.
+
+### 13.4 F10 — documentação consolidada
+
+A auditoria e o inventário complementar dos 43 callsites Slint permanecem como documentos de referência. Esta atualização corrige o estado histórico que ainda aguardava merge e CI pós-merge, registra os quatro benchmarks F7, as execuções finais F8 e a integração F9.
+
+A ADR 0013 continua normativa. Sua referência de PR e seu estado de validação são atualizados nesta mesma revisão documental.
+
+**Pendências externas preservadas, sem serem apresentadas como aprovadas:**
+- Benchmark físico Windows x64: **NOT RUN**.
+- Smoke test interativo local no hardware Windows: **NOT RUN**.
+- Job do debugger egui legado: **SKIPPED**, fora do baseline ativo.
+- Jobs condicionais não executados: permanecem **SKIPPED**, não PASS.
+
+### 13.5 Scorecard final DP0
+
+| Marco | Estado | Evidência |
+|---|---|---|
+| F6 — Consentimento e inventário | PASS | PR #1107, merge `bc4664d9f44f6791ad8f8520a57c8744dd647dbf`; ADR 0013; inventário 43 callsites e 15 módulos |
+| F7 — Desempenho | PASS | Runs #31, #36, #37 e #38; medianas -0,02% e -0,08%; instruções/ticks invariantes |
+| F8 — Regressão | PASS | CI push #9431; SMS Runtime push #1716; CPAL CI #9418; skips explicitamente classificados |
+| F9 — Integração | PASS | PR #1117 MERGED; main HEAD = `eac1d2463637a65d40621066d4ec889d2e062884`; CI pós-merge executada |
+| F10 — Documentação | PASS após integração desta revisão | Auditoria, ADR 0013 e inventário; atualização documental por PR |
+
+**Conclusão:** os critérios internos de encerramento DP0 F6–F10 estão satisfeitos após a integração desta revisão documental. As limitações externas NOT RUN permanecem registradas e não impedem o fechamento interno do escopo. Nenhuma alteração foi feita no Scheduler, Z80, temporização, hardware, áudio ou runtime para obter estas evidências.
