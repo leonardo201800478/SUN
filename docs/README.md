@@ -17,6 +17,7 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Escopo do projeto](project-scope.md)
 - [Roadmap mestre](project-roadmap.md)
 - [Roadmap de produto desktop — capacidades, UX, mídia e diagnóstico](desktop-product-roadmap.md)
+- [Auditoria DP-0 — consentimento e observabilidade](audits/dp0-diagnostics-consent-audit-2026-11-20.md)
 - [Status dos componentes](component-status.md)
 - [Reorganização e reconciliação 2026-11-16](project-reconciliation-2026-11-16.md)
 - [Política de CI e validação](ci-validation-policy.md)
