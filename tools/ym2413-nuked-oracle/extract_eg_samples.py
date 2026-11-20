@@ -53,7 +53,10 @@ def main() -> int:
                     f"EG counter phase mismatch at call {row['call_index']}: "
                     f"state={row['eg_counter_state']} expected={global_counter & 0xff}"
                 )
-                mcsel = ((slot + 1) // 3) & 1
+                # The EG array index is (cycle_before + 16) % 18, but
+                # PreparePatch1 selects modulator/carrier from the live chip
+                # cycle. Do not derive mcsel from the delayed EG array index.
+                mcsel = ((row["cycle_before"] + 1) // 3) & 1
                 is_carrier = mcsel == 1
                 writer.writerow((
                     row["call_index"], slot, channel, int(is_carrier),
