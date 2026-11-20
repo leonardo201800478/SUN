@@ -41,9 +41,9 @@ The Rust implementation now preserves both truncation points. A regression test 
 
 ## Secondary MAME comparison
 
-MAME/ymfm uses a 10.10 phase representation and a differently scaled phase-step expression. After normalizing its phase scale to the 19-bit Rust/Nuked accumulator, its previous single-quantization result matched the former Rust expression rather than Nuked's staged truncation in the affected cases.
+MAME/ymfm uses a 10.10 phase representation and routes OPLL phase calculation through its OPL phase-step helper. Its OPLL-specific frequency packing, raw-PM scale, LFO initialization and phase-unit conversion must all be normalized before an exact integer comparison is valid. The source-level inspection performed for this change did not establish that complete mapping, so this audit does **not** claim that MAME agrees with either expression.
 
-The project decision is to follow Nuked for this internal PG integer behavior because it is the selected primary cycle-accurate reference. The MAME difference remains documented; it is not silently discarded or treated as a vote.
+The project decision for this narrowly scoped internal PG operation is to follow the explicit staged arithmetic in the selected primary Nuked reference. MAME remains a secondary independent cross-check; its exact PG vector comparison is still open.
 
 ## Change boundary
 
