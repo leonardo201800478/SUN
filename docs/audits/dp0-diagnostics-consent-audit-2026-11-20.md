@@ -364,3 +364,12 @@ As seções 9.1 e 9.2 registram a fotografia anterior e os próximos passos daqu
 - `rust/runtime/sg1000-runtime/src/worker.rs:50-110`: telemetria operacional em memória do SG-1000.
 
 **Confirmação externa da semântica da fila:** a documentação oficial de `tracing-appender 0.2.5` informa que `NonBlocking` enfileira eventos para um worker dedicado e que `WorkerGuard` drena/flush os registros pendentes ao ser descartado. O método `flush` de `NonBlocking` não fornece uma operação pública de purga seletiva da fila. Portanto, a política de revogação precisa distinguir registros já aceitos/enfileirados antes da revogação de eventos novos, e definir se os registros antigos podem continuar chegando ao arquivo depois do clique de revogação. Referência: https://docs.rs/tracing-appender/0.2.5/tracing_appender/non_blocking/.
+
+
+**DP0-F6-F — captura de trace do debugger é restaurada automaticamente pelo host egui legado.**
+
+Em `native/sega_app/src/app.rs:522-526`, a preferência `debugger_trace_enabled` é lida do arquivo de configurações; em `1160-1195`, ao criar um novo worker SMS, `trace_capture_enabled` restaurado causa `worker.set_trace_enabled(true)` sem novo clique na sessão atual. A mesma preferência é serializada em `679-702`. O controle visual permite ativar/desativar o trace, mas a persistência faz com que uma autorização anterior seja reutilizada após reinicialização. Diferentemente de breakpoints e geometria de janela, trace captura eventos de barramento e pode crescer em custo/volume. **Recomendação:** não persistir nem restaurar `debugger_trace_enabled`; iniciar sempre desligado e exigir ativação explícita na sessão atual. Preservar os demais ajustes do debugger.
+
+**DP0-F6-G — trace core e coletor do worker têm limites diferentes.**
+
+`native/sms_core/src/temporal_machine.rs` mantém `trace_events: Vec<SmsTemporalTraceEvent>`, inicia com captura desligada e faz `push` quando `trace_enabled` está ativo. O worker SMS cria um `DiagnosticCollector` com capacidade limitada de 512 eventos e política de descarte; consumidores diretos de `SmsTemporalMachine` não recebem automaticamente esse limite. A política de coleta e limite do worker não deve ser confundida com a API pública do core. Manter o limite do core como contrato pendente, sem alterar o formato de snapshots sem análise de compatibilidade.
