@@ -3329,9 +3329,7 @@ mod windows_host {
             )?;
             if let Some(capacity) = diagnostic_capacity {
                 diagnostic_log!(
-                    "SRAM_PROFILE status=diagnostic-override sha1={} sha256={} capacity={} persistent=false restored=false",
-                    identity.sha1_hex(),
-                    identity.sha256_hex(),
+                    "SRAM_PROFILE status=diagnostic-override capacity={} persistent=false restored=false",
                     capacity
                 );
                 return Ok(PreparedCartridge {
@@ -3340,11 +3338,7 @@ mod windows_host {
                     save_context: None,
                 });
             }
-            diagnostic_log!(
-                "SRAM_PROFILE status=unknown sha1={} sha256={}",
-                identity.sha1_hex(),
-                identity.sha256_hex()
-            );
+            diagnostic_log!("SRAM_PROFILE status=unknown");
             return Ok(PreparedCartridge {
                 sram_capacity: None,
                 initial_sram: None,
@@ -3363,9 +3357,7 @@ mod windows_host {
                 store,
             });
         diagnostic_log!(
-            "SRAM_PROFILE status=verified sha1={} sha256={} capacity={} persistent={} restored={}",
-            identity.sha1_hex(),
-            identity.sha256_hex(),
+            "SRAM_PROFILE status=verified capacity={} persistent={} restored={}",
             profile.ram_capacity_bytes().unwrap_or_default(),
             profile.requires_persistent_store(),
             initial_sram.is_some()
@@ -3495,8 +3487,7 @@ mod windows_host {
         save.join()
             .map_err(|_| "thread de gravação SRM encerrou inesperadamente".to_owned())??;
         diagnostic_log!(
-            "SRAM_SAVE status=written sha256={} bytes={}",
-            context.identity.sha256_hex(),
+            "SRAM_SAVE status=written bytes={}",
             context.profile.ram_capacity_bytes().unwrap_or_default()
         );
         Ok(())
@@ -3702,11 +3693,10 @@ mod windows_host {
             .load_validated(&entry.path, id)
             .map_err(|error| format!("não foi possível validar {}: {error}", descriptor.name))?;
         diagnostic_log!(
-            "SMS_BIOS status=validated id={} region={} bytes={} sha256={}",
+            "SMS_BIOS status=validated id={} region={} bytes={}",
             firmware_id_key(id),
             region.key(),
-            bytes.len(),
-            descriptor.sha256
+            bytes.len()
         );
         Ok(Some(bytes))
     }
