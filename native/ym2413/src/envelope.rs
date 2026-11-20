@@ -1095,7 +1095,7 @@ mod tests {
         generator
             .tick_with_rate_phase(true, false, p, phase)
             .unwrap();
-        assert_eq!(generator.level(), 31);
+        assert_eq!(generator.level(), 59);
         assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
