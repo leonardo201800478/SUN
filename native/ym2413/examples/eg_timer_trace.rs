@@ -31,7 +31,6 @@ const FIELD_NAMES: [&str; 13] = [
 struct FirstMismatch {
     call_index: u64,
     slot_index: u8,
-    field: &'static str,
     expected: u32,
     actual: u32,
 }
@@ -60,7 +59,7 @@ fn record_mismatch(
         *first = Some(FirstMismatch {
             call_index,
             slot_index,
-            field,
+            field: FIELD_NAMES[index],
             expected,
             actual,
         });
@@ -147,7 +146,6 @@ fn run(path: &Path) -> Result<(), Box<dyn Error>> {
         for index in 0..FIELD_NAMES.len() {
             record_mismatch(
                 index,
-                FIELD_NAMES[index],
                 expected[index],
                 actual[index],
                 call_index,
