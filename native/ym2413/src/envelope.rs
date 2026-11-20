@@ -321,24 +321,17 @@ impl EnvelopeGenerator {
                 }
             }
             EnvelopeStage::Decay => {
-                // Evaluate the measured SL comparator before the next EG
-                // increment; SL=0 must stop at level zero.
+                // The DECAY -> SUSTAIN decision consumes the pre-update
+                // attenuation. If this update reaches SL, DECAY remains
+                // visible until the next operator EG update; that transition
+                // update does not also consume a SUSTAIN/RR increment.
                 if (self.level >> 3) == parameters.sustain_level {
                     self.stage = EnvelopeStage::Sustain;
-                    let base_rate = if parameters.sustained_tone {
-                        0
-                    } else {
-                        parameters.release_rate
-                    };
-                    self.advance_decay(global_counter, parameters.effective_rate(base_rate));
                 } else {
                     self.advance_decay(
                         global_counter,
                         parameters.effective_rate(parameters.decay_rate),
                     );
-                    if (self.level >> 3) == parameters.sustain_level {
-                        self.stage = EnvelopeStage::Sustain;
-                    }
                 }
             }
             EnvelopeStage::Sustain => {
@@ -899,16 +892,42 @@ mod tests {
     }
 
     #[test]
-    fn sustain_transition_uses_four_bit_level_comparison() {
-        let mut eg = eg(31);
-        eg.stage = EnvelopeStage::Decay;
-        eg.key_on = true;
+    fn decay_to_sustain_transition_uses_pre_update_level_and_defers_sustain_rate() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            31,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
         let mut p = params();
-        p.decay_rate = 15;
+        p.decay_rate = 8;
+        p.release_rate = 15;
         p.sustain_level = 4;
-        eg.tick(0, true, true, p).unwrap();
-        assert_eq!(eg.level(), 33);
-        assert_eq!(eg.stage(), EnvelopeStage::Sustain);
+        p.key_scale_rate = true;
+        p.fnum = 0x080;
+        p.block = 6;
+        p.sustained_tone = false;
+
+        // Effective DR=44: this update reaches SL=4 (31 -> 32), but
+        // Nuked keeps the operator in DECAY for the update that crosses SL.
+        generator.tick(316, true, false, p).unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+
+        // The next update consumes the DECAY -> SUSTAIN state transition,
+        // without also consuming the programmed RR=15 increment.
+        generator.tick(317, true, false, p).unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+
+        // Only the following update consumes the SUSTAIN/RR rate.
+        generator.tick(318, true, false, p).unwrap();
+        assert_eq!(generator.level(), 34);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
     }
 
     #[test]
