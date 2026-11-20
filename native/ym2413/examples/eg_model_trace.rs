@@ -162,10 +162,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         }
 
-        let unwrapped_before =
-            initial_silent_deferred_unwrapped[generator_index].export_state();
-        let unwrapped_deferred_result =
-            initial_silent_deferred_unwrapped[generator_index].tick_with_events(
+        let unwrapped_before = initial_silent_deferred_unwrapped[generator_index].export_state();
+        let unwrapped_deferred_result = initial_silent_deferred_unwrapped[generator_index]
+            .tick_with_events(
                 sample.global_counter,
                 sample.key_on,
                 sample.is_carrier,
