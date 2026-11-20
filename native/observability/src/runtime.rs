@@ -639,6 +639,9 @@ mod tests {
         assert!(*writer_gate.read().unwrap());
         assert!(recent_events.lock().unwrap().is_empty());
     }
+
+    #[test]
+    fn diagnostics_snapshot_requires_active_consent() {
         assert_eq!(
             ensure_diagnostics_enabled(false).unwrap_err().kind(),
             std::io::ErrorKind::PermissionDenied
