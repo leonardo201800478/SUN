@@ -23,12 +23,13 @@ struct Sample {
     multiplier: u8,
     pm_enabled: bool,
     pm_position: u8,
+    phase_next_reset: bool,
 }
 
 fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>> {
     let fields: Vec<&str> = line.split(',').map(str::trim).collect();
-    if fields.len() != 7 {
-        return Err(format!("line {line_number}: expected 7 CSV columns").into());
+    if fields.len() != 8 {
+        return Err(format!("line {line_number}: expected 8 CSV columns").into());
     }
 
     let pm_enabled = match fields[5] {
@@ -36,6 +37,13 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
         "1" => true,
         other => {
             return Err(format!("line {line_number}: invalid pm_enabled {other}").into());
+        }
+    };
+    let phase_next_reset = match fields[7] {
+        "0" => false,
+        "1" => true,
+        other => {
+            return Err(format!("line {line_number}: invalid phase_next_reset {other}").into());
         }
     };
 
@@ -47,6 +55,7 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
         multiplier: fields[4].parse()?,
         pm_enabled,
         pm_position: fields[6].parse()?,
+        phase_next_reset,
     })
 }
 
@@ -85,6 +94,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let update_slot = (sample.cycle_before + 17) % 18;
         if let Some(prior) = previous {
+            if prior.phase_next_reset {
+                phases[update_slot].reset();
+            }
             phases[update_slot]
                 .advance(
                     prior.fnum,
