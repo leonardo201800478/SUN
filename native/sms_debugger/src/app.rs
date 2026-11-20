@@ -105,6 +105,9 @@ impl DebuggerApp {
         self.last_snapshot_refresh = Instant::now();
         if !self.diagnostics_enabled {
             self.snapshot = None;
+            if self.worker.is_some() {
+                self.status = "Ative Modo Debugger para capturar snapshots e traces".into();
+            }
             return;
         }
         let Some(worker) = self.worker.as_ref() else {
@@ -268,6 +271,10 @@ impl DebuggerApp {
     }
 
     fn export_diagnostic(&mut self) {
+        if !self.diagnostics_enabled {
+            self.status = "Habilite Modo Debugger antes de exportar diagnóstico".into();
+            return;
+        }
         let Some(snapshot) = self.snapshot.as_ref() else {
             self.status = "Nenhum snapshot disponível para exportação".into();
             return;
