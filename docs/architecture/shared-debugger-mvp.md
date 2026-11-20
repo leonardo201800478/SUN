@@ -1,6 +1,6 @@
 # Shared Debugger MVP — Architecture and Delivery Plan
 
-Status: SMS debugger is integrated into the application as a separate native viewport; user-settings persistence is implemented; final Release validation is pending
+Status: DP0 SMS diagnostic trace and snapshot/export integration is implemented. The active Slint desktop passed Windows x64 Release format, Clippy, 58 tests and build in CI #9422. Interactive smoke test on physical Windows hardware remains NOT RUN.
 Scope owner: emulator runtime; GUI is a presentation and command surface only.
 
 ## Objective
@@ -61,7 +61,7 @@ A dedicated, independently movable and resizable native Debugger window should e
 - essential RAM trace and dropped-event count (always active in memory), plus detailed events and their drop count when explicitly enabled; the GUI refreshes live snapshots at 10 Hz while running;
 - export report to a user-selected local file.
 
-The GUI sends commands and renders snapshots only. It must not execute instructions, advance machine time, decode hardware state or own hardware timing. The debugger is opened from DEBUG > Abrir janela do Debugger and is hosted by an egui deferred native viewport, not embedded over the game viewport. The deferred viewport has independent repaint scheduling; it uses a cloneable command handle to the existing worker rather than taking ownership or creating a second machine.
+The egui deferred native viewport described in earlier implementation notes belongs to the deprecated host and is outside the active product baseline. The active product host is Slint 1.18 in `native/sega_desktop`; its callbacks issue coarse-grained commands and request snapshots from the existing `SmsTemporalWorker`. The GUI sends commands and renders snapshots only. It must not execute instructions, advance machine time, decode hardware state or own hardware timing.
 
 User-configurable frontend preferences are auto-saved every five seconds and again during orderly shutdown to `%APPDATA%/Sega Emulator/ui_settings.txt`. This includes the last ROM path field (without auto-loading it), region, aspect ratio, footer visibility, audio backend/state/volume, diagnostics preference, FPS overlay settings, debugger open state, ROM-scoped breakpoint list, memory-inspection address, trace preference, and main/debugger window geometry. Keyboard and gamepad mappings, the last ROM-picker directory and recent ROM paths continue to use their existing files in the same user directory. The emulator does not automatically load a ROM on startup.
 
