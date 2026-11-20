@@ -391,7 +391,8 @@ pub fn current() -> Option<&'static LoggingHandle> {
 
 /// Initialize diagnostics infrastructure only after an explicit user opt-in.
 ///
-/// This performs filesystem, subscriber, writer, and panic-hook setup. Callers
+/// This performs filesystem, subscriber, and writer setup after explicit consent.
+/// It does not install a global panic hook or create automatic crash files. Callers
 /// must obtain the capability directly from the affirmative UI action; never
 /// call this during application startup or preference restoration.
 pub fn init_after_explicit_consent(
