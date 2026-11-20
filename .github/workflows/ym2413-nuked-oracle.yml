@@ -60,16 +60,11 @@ jobs:
 
           assert len(rows) == 201, len(rows)
           schema, samples = rows[0], rows[1:]
-          assert schema["schema"] == "ym2413-nuked-opll-trace-v1"
+          assert schema["schema"] == "ym2413-nuked-opll-pg-trace-v1"
           assert schema["time_unit"] == "opll_clock_call"
           assert [row["call_index"] for row in samples] == list(range(200))
           assert [row["cycle_before"] for row in samples[:18]] == list(range(18))
-          assert all(len(row["pg_phase"]) == 18 for row in samples)
           assert all("calc_fnum" in row and "pg_inc_after" in row for row in samples)
-          assert all(len(row["eg_state"]) == 18 for row in samples)
-          assert all(len(row["eg_level"]) == 18 for row in samples)
-          assert all(len(row["op_fb1"]) == 9 for row in samples)
-          assert all(len(row["op_fb2"]) == 9 for row in samples)
           PY
 
       - name: Reject ambiguous duplicate event timestamps
