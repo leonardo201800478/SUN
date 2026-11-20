@@ -154,6 +154,17 @@ int main(int argc, char **argv) {
         uint8_t calc_mul = chip.c_multi;
         uint8_t calc_vib = chip.c_vib;
         uint8_t calc_lfo_vib_counter = chip.lfo_vib_counter;
+        uint32_t calc_eg_dokon = chip.eg_dokon;
+        uint8_t calc_testmode = chip.testmode;
+        uint8_t calc_rm_enable = chip.rm_enable;
+        uint32_t phase_ismod =
+            ((calc_rm_enable & 0x40) && (cycle_before == 13 || cycle_before == 14))
+                ? 0
+                : (((cycle_before + 3) / 3) & 1);
+        uint32_t phase_next_reset =
+            ((calc_testmode & 0x04) != 0)
+            || (phase_ismod && (calc_eg_dokon & 0x8000))
+            || (!phase_ismod && (calc_eg_dokon & 0x01));
         while (event_index < event_count && events[event_index].call_index == tick) {
             OPLL_Write(&chip, events[event_index].port, events[event_index].value);
             ++event_index;
@@ -169,10 +180,14 @@ int main(int argc, char **argv) {
             printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32
                    ",\"cycle_after\":%" PRIu32 ",\"calc_fnum\":%u,\"calc_block\":%u"
                    ",\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u"
-                   ",\"pg_inc_after\":%" PRIu32 ",\"pg_phase_next\":%" PRIu32 ",\"pg_phase\":",
+                   ",\"calc_eg_dokon\":%" PRIu32 ",\"calc_testmode\":%u,\"calc_rm_enable\":%u"
+                   ",\"phase_next_reset\":%u,\"pg_inc_after\":%" PRIu32
+                   ",\"pg_phase_next\":%" PRIu32 ",\"pg_phase\":",
                    tick, cycle_before, chip.cycles, (unsigned)calc_fnum,
                    (unsigned)calc_block, (unsigned)calc_mul, (unsigned)calc_vib,
-                   (unsigned)calc_lfo_vib_counter, chip.pg_inc, chip.pg_phase_next);
+                   (unsigned)calc_lfo_vib_counter, calc_eg_dokon,
+                   (unsigned)calc_testmode, (unsigned)calc_rm_enable,
+                   (unsigned)phase_next_reset, chip.pg_inc, chip.pg_phase_next);
             print_u32_array(chip.pg_phase, 18);
             puts("}");
             continue;
