@@ -2781,7 +2781,7 @@ mod windows_host {
     }
 
     /// Creates the host diagnostics timer stopped; consent controls its lifecycle.
-    fn start_frame_diagnostics(
+    fn create_frame_diagnostics_timer(
         app: &MainWindow,
         host_pacing: Arc<Mutex<HostFramePacingWindow>>,
         worker_slot: Rc<RefCell<Option<DesktopSession>>>,
@@ -5049,7 +5049,7 @@ mod windows_host {
         let diagnostics_host_pacing = Arc::clone(&host_pacing);
         let diagnostics_worker = Rc::clone(&worker);
         let diagnostics_app = app.as_weak();
-        let diagnostics_timer = Rc::new(start_frame_diagnostics(
+        let diagnostics_timer = Rc::new(create_frame_diagnostics_timer(
             &app,
             Arc::clone(&host_pacing),
             Rc::clone(&worker),
