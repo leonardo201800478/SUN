@@ -26,6 +26,8 @@ def main() -> int:
     total_samples = 0
     total_level_mismatches = 0
     total_stage_mismatches = 0
+    baseline_level_mismatches = 0
+    baseline_stage_mismatches = 0
     reference_replay_failures = []
 
     for config in manifest["configurations"]:
@@ -41,8 +43,10 @@ def main() -> int:
             raise ValueError(f"wrong candidate in {analysis_path.name}")
 
         sample_count = int(analysis["sample_count"])
-        level_mismatches = int(analysis["rust_candidate_level_mismatches"])
-        stage_mismatches = int(analysis["rust_candidate_stage_mismatches"])
+        if sample_count != 6418:
+            raise ValueError(
+                f"{config['fixture']} expected 6,418 selected samples, got {sample_count}"
+            )
         replay_ok = (
             analysis.get("reference_internal_update_replay") == "PASS"
             and int(analysis["reference_replay_mismatches"]) == 0
@@ -51,28 +55,38 @@ def main() -> int:
             reference_replay_failures.append(config["fixture"])
 
         total_samples += sample_count
+
+        baseline_comparison = comparison[
+            "candidate_initial_level_127_deferred_attack_unwrapped"
+        ]
+        candidate_comparison = comparison[
+            "candidate_initial_level_127_deferred_decay_phase_minus3"
+        ]
+        baseline_level = int(baseline_comparison["level_mismatches"])
+        baseline_stage = int(baseline_comparison["stage_mismatches"])
+        level_mismatches = int(candidate_comparison["level_mismatches"])
+        stage_mismatches = int(candidate_comparison["stage_mismatches"])
+        baseline_level_mismatches += baseline_level
+        baseline_stage_mismatches += baseline_stage
         total_level_mismatches += level_mismatches
         total_stage_mismatches += stage_mismatches
         level_by_dr[int(config["dr"])] += level_mismatches
         level_by_ksr[int(config["ksr"])] += level_mismatches
 
-        candidate_comparison = comparison[
-            "candidate_initial_level_127_deferred_decay_phase_minus3"
-        ]
         results.append({
             "fixture": config["fixture"],
             "ar": int(config["ar"]),
             "dr": int(config["dr"]),
             "ksr": int(config["ksr"]),
             "sample_count": sample_count,
+            "baseline_level_mismatches": baseline_level,
+            "baseline_stage_mismatches": baseline_stage,
             "level_mismatches": level_mismatches,
             "stage_mismatches": stage_mismatches,
-            "max_absolute_level_error": int(
-                candidate_comparison["max_absolute_level_error"]
-            ),
+            "max_absolute_level_error": int(candidate_comparison["max_absolute_level_error"]),
             "reference_replay": "PASS" if replay_ok else "FAIL",
-            "first_level_mismatch": analysis["first_rust_level_mismatch"],
-            "first_stage_mismatch": analysis["first_rust_stage_mismatch"],
+            "first_level_mismatch": candidate_comparison["first_level_mismatch"],
+            "first_stage_mismatch": candidate_comparison["first_stage_mismatch"],
         })
 
     summary = {
@@ -80,6 +94,8 @@ def main() -> int:
         "candidate": "initial_127_deferred_decay_phase_minus3",
         "configuration_count": len(results),
         "total_samples": total_samples,
+        "baseline_total_level_mismatches": baseline_level_mismatches,
+        "baseline_total_stage_mismatches": baseline_stage_mismatches,
         "total_level_mismatches": total_level_mismatches,
         "total_stage_mismatches": total_stage_mismatches,
         "all_reference_replays_pass": not reference_replay_failures,
