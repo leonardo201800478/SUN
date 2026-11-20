@@ -5,9 +5,7 @@
 //! still-unimplemented chip-wide key/rate pipeline generator.
 
 use sega_ym2413::envelope_timer::EnvelopeRatePhase;
-use sega_ym2413::{
-    EnvelopeControlPhase, EnvelopeOperator, EnvelopeOperatorStage,
-};
+use sega_ym2413::{EnvelopeControlPhase, EnvelopeOperator, EnvelopeOperatorStage};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
