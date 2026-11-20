@@ -37,6 +37,7 @@ def main() -> int:
                 "global_counter", "key_on", "observed_level", "observed_state",
                 "attack_rate", "decay_rate", "release_rate", "sustain_level",
                 "key_scale_rate", "fnum", "block", "sustain_on", "sustained_tone",
+                "rate_hi", "inc_lo", "inc_hi", "max_rate", "counter_state_prev",
             ))
             for row in rows:
                 # This is the array entry updated during this OPLL_Clock call.
@@ -64,6 +65,8 @@ def main() -> int:
                     row["c_adrr"][0], row["c_adrr"][1], row["c_adrr"][2],
                     row["c_sl"], row["c_ksr"], row["fnum"][channel], row["block"][channel],
                     row["son"][channel], row["c_et"],
+                    row["eg_rate_hi"], row["eg_inc_lo"], row["eg_inc_hi"],
+                    row["eg_maxrate"], row["eg_counter_state_prev"],
                 ))
                 counts_by_channel[channel] += 1
                 counts_by_slot[slot] += 1
