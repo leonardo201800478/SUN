@@ -1,0 +1,116 @@
+name: YM2413 Nuked PG differential
+
+on:
+  pull_request:
+    paths:
+      - "native/ym2413/**"
+      - "tools/ym2413-nuked-oracle/compare_pg.py"
+      - ".github/workflows/ym2413-pg-differential.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pg-differential:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Rust implementation
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Nuked-OPLL reference
+        env:
+          NUKED_SHA: 1269cf5a783b65583b50fa2464d08be75830aaa0
+        run: |
+          git clone https://github.com/nukeykt/Nuked-OPLL.git "$RUNNER_TEMP/Nuked-OPLL"
+          git -C "$RUNNER_TEMP/Nuked-OPLL" checkout "$NUKED_SHA"
+          test "$(git -C "$RUNNER_TEMP/Nuked-OPLL" rev-parse HEAD)" = "$NUKED_SHA"
+
+      - name: Compile external Nuked trace adapter
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra \
+            -I"$RUNNER_TEMP/Nuked-OPLL" \
+            tools/ym2413-nuked-oracle/trace.c \
+            "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
+            -o "$RUNNER_TEMP/ym2413-nuked-trace"
+
+      - name: Generate all-channel melodic register sequence
+        run: |
+          python3 - "$RUNNER_TEMP/events.csv" <<'PY'
+          import csv
+          import sys
+
+          fnums = [32, 64, 128, 192, 256, 320, 384, 448, 511]
+          events = []
+          call_index = 0
+          for channel, fnum in enumerate(fnums):
+              block = min(channel, 7)
+              writes = (
+                  (0x10 + channel, fnum & 0xFF),
+                  (0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1)),
+                  (0x30 + channel, 0x10),  # instrument 1, volume 0
+              )
+              for address, value in writes:
+                  events.append((call_index, 0, address))
+                  events.append((call_index + 2, 1, value))
+                  call_index += 40
+
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 --pg-phase-only \
+            --events "$RUNNER_TEMP/events.csv" > "$RUNNER_TEMP/nuked-pg-phase.jsonl"
+
+      - name: Compare every captured PG increment with production Rust
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_pg.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-pg-phase.jsonl"
+
+      - name: Compare all 18 accumulated PG phases with production Rust
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_pg_phase.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-pg-phase.jsonl"
+
+      - name: Generate controlled KEY-ON and KEY-OFF events
+        run: |
+          python3 - "$RUNNER_TEMP/keyon-events.csv" <<'PY'
+          import csv
+          import sys
+
+          fnums = [32, 64, 128, 192, 256, 320, 384, 448, 511]
+          events = []
+          call_index = 0
+          for channel, fnum in enumerate(fnums):
+              block = min(channel, 7)
+              writes = (
+                  (0x10 + channel, fnum & 0xFF),
+                  (0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1)),
+                  (0x30 + channel, 0x10),
+              )
+              for address, value in writes:
+                  events.append((call_index, 0, address))
+                  events.append((call_index + 2, 1, value))
+                  call_index += 40
+
+          # Assert KEY-ON on channel 8, then clear it after the envelope has advanced.
+          events.extend(((1200, 0, 0x28), (1202, 1, 0x1F),
+                         (1400, 0, 0x28), (1402, 1, 0x0F)))
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 2600 --pg-phase-only \
+            --events "$RUNNER_TEMP/keyon-events.csv" > "$RUNNER_TEMP/nuked-keyon-phase.jsonl"
+
+      - name: Compare phase accumulator reset after KEY-ON
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_pg_phase.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-keyon-phase.jsonl" \
+            --allow-partial --require-reset-event
+
+      - name: Run pinned MAME/ymfm source-level PG arithmetic audit
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_mame_pg.py
