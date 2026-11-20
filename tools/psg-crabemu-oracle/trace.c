@@ -74,13 +74,13 @@ static int load_events(const char *path, input_event *events, size_t *count) {
     while (fgets(line, sizeof line, file)) {
         char *cursor = line;
         unsigned long long tick;
-        unsigned value;
+        int parsed_value;
 
         while (*cursor == ' ' || *cursor == '\t') ++cursor;
         if (*cursor == '\0' || *cursor == '\n' || *cursor == '#') continue;
 
-        if (sscanf(cursor, "%llu,%i", &tick, (int *)&value) != 2 ||
-            value > 255 || *count >= MAX_EVENTS) {
+        if (sscanf(cursor, "%llu,%i", &tick, &parsed_value) != 2 ||
+            parsed_value < 0 || parsed_value > 255 || *count >= MAX_EVENTS) {
             fprintf(stderr, "invalid event row or event limit exceeded: %s", line);
             fclose(file);
             return 0;
@@ -93,7 +93,7 @@ static int load_events(const char *path, input_event *events, size_t *count) {
         }
 
         events[*count].tick = (uint64_t)tick;
-        events[*count].value = (uint8_t)value;
+        events[*count].value = (uint8_t)parsed_value;
         ++*count;
     }
 
