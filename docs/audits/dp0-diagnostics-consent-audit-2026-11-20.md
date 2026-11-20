@@ -201,11 +201,11 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 |---|---|---|
 | DP0-011 — histórico incondicional de escritas de porta | **Corrigido** | Removido `SmsTemporalBus::port_write_trace`, seu accessor e o campo de estado. A auditoria não encontrou consumidor de produto; os testes continuam validando os efeitos reais de PSG/I/O e round-trip do barramento. Versões: Bus 20→21, Machine 33→34 e Worker save state 1→2. |
 | DP0-012 — vetor de trace do core sem limite | **Corrigido** | `SmsTemporalMachine` usa buffer de até 65.536 eventos, com descarte do mais antigo e contador drenável. O worker drena o buffer mesmo quando o publisher já está inativo. |
-| Trace independente do consentimento global | **Corrigido no SMS worker** | `set_trace_enabled(true)` exige `diagnostics_enabled`; `set_diagnostics_enabled(false)` revoga trace, descarta collector e limpa o histórico. |
+| Trace independente do consentimento global | **Corrigido no SMS worker** | `enable_diagnostics` exige `DiagnosticsConsent`; o mesmo token é passado ao logger e ao worker. `disable_diagnostics` revoga trace, descarta collector e limpa o histórico. |
 | Snapshot SMS acessível sem consentimento | **Corrigido no worker** | `SmsTemporalWorker::debug_snapshot` e o handle retornam erro sem consentimento. `DesktopSession::debug_summary` também exige a autorização global. |
 | Revogação não encerrava trace ativo | **Corrigido no candidato** | Revogação desativa a telemetria, descarta o collector antes do comando de desativação e limpa o buffer de máquina no limite seguro do worker. Eventos durante a transição são drenados e descartados, não retidos. |
 | Contagem de descartes incompleta | **Corrigido no candidato** | `DiagnosticCollector` expõe descartes do histórico; o contador de trace soma descartes do produtor/ingress e do histórico. |
-| Buffer de frame pacing do host retido após revogação | **Corrigido no candidato** | O buffer `HostFramePacingWindow` é reinicializado na revogação; o timer é parado e a flag de coleta host é desativada. |
+| Buffer de frame pacing do host retido após revogação | **Corrigido no candidato** | O buffer `HostFramePacingWindow` é reinicializado na revogação; o timer é parado e a amostragem consulta `LoggingHandle::is_enabled()` como fonte única de consentimento. |
 | Snapshot automático no encerramento | **Corrigido na main pela PR #1105** | A PR removeu chamadas automáticas de snapshot no shutdown dos hosts Slint e legado. |
 
 ### 10.2 Cobertura de testes adicionada
@@ -220,7 +220,6 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 
 1. **DP0-F5 — crash/bootstrap:** o hook global de panic ainda existe no código. ADR 0012 foi marcada como SUPERSEDED; falta remover o hook e implementar/testar relatório mínimo somente para falha crítica de bootstrap.
 2. **Níveis do host Slint:** o macro `diagnostic_log!` ainda envia os eventos do host como INFO. A taxonomia ERROR/WARN/INFO/DEBUG/TRACE precisa ser aplicada aos callsites para que filtros por severidade tenham efeito real.
-3. **Estado central:** O host Slint deixou de manter `HOST_DIAGNOSTICS_ENABLED`; a amostragem e os logs consultam `LoggingHandle::is_enabled()`. O token de consentimento fica somente em memória para habilitar workers substitutos durante a mesma sessão. A flag interna por worker é derivada do token e não é persistida.
 4. **Inventário exaustivo de saídas:** a busca não encontrou sinks de log paralelos no caminho ativo Slint/SMS, mas a varredura de todos os binários, stubs não-Windows, CLI, exemplos, testes, scripts e workflows ainda precisa ser classificada e documentada.
 5. **Validação:** nenhum teste local ou CI deste branch foi declarado PASS nesta auditoria. O resultado depende dos workflows executados sobre o SHA final do PR.
 
