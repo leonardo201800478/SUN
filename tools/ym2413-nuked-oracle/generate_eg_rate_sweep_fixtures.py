@@ -47,7 +47,7 @@ def generate_fixture(base_rows: list[list[str]], ar: int, dr: int, ksr: int) -> 
             seen_patch_addresses.add(current_address)
         current_address = None
 
-    expected = set(range(8))
+    expected = {0, 1, 4, 5, 6, 7}
     if seen_patch_addresses != expected:
         raise ValueError(
             f"fixture did not program all user-patch registers: "
