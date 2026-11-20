@@ -354,15 +354,19 @@ mod tests {
 
     #[test]
     fn restore_state_rejects_invalid_timer_and_lock_ranges() {
-        let mut state = EnvelopeTimerState::default();
-        state.timer = TIMER_MASK + 1;
+        let state = EnvelopeTimerState {
+            timer: TIMER_MASK + 1,
+            ..EnvelopeTimerState::default()
+        };
         assert!(matches!(
             EnvelopeTimer::restore_state(state),
             Err(EnvelopeTimerError::InvalidState(_))
         ));
 
-        let mut state = EnvelopeTimerState::default();
-        state.shift_lock = TIMER_SHIFT_LOCK_LIMIT + 1;
+        let state = EnvelopeTimerState {
+            shift_lock: TIMER_SHIFT_LOCK_LIMIT + 1,
+            ..EnvelopeTimerState::default()
+        };
         assert!(matches!(
             EnvelopeTimer::restore_state(state),
             Err(EnvelopeTimerError::InvalidState(_))
