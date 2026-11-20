@@ -58,13 +58,16 @@ fn make_generator(initial_level: u8) -> Result<EnvelopeGenerator, Box<dyn Error>
         124,
         DampTransitionCoordination::IndependentPerOperator,
         AttackRate15Transition::SkipAttackToDecay,
-    )?;
-    Ok(EnvelopeGenerator::with_initial_state(
+    )
+    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+    EnvelopeGenerator::with_initial_state(
         initial_level,
         EnvelopeStage::Damp,
         false,
         config,
-    )?)
+    )
+    .map_err(|error| std::io::Error::other(format!("{error:?}")))
+    .map_err(Into::into)
 }
 
 fn stage_code(stage: EnvelopeStage) -> u8 {
@@ -109,18 +112,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         let generator_index = if sample.slot == 2 { 0 } else { 1 };
         let is_carrier = sample.slot == 2;
 
-        let zero_result = initial_zero[generator_index].tick_with_events(
-            sample.global_counter,
-            sample.key_on,
-            is_carrier,
-            parameters,
-        )?;
-        let silent_result = initial_silent[generator_index].tick_with_events(
-            sample.global_counter,
-            sample.key_on,
-            is_carrier,
-            parameters,
-        )?;
+        let zero_result = initial_zero[generator_index]
+            .tick_with_events(
+                sample.global_counter,
+                sample.key_on,
+                is_carrier,
+                parameters,
+            )
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        let silent_result = initial_silent[generator_index]
+            .tick_with_events(
+                sample.global_counter,
+                sample.key_on,
+                is_carrier,
+                parameters,
+            )
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
 
         println!(
             concat!(
