@@ -158,4 +158,15 @@ Atualizar este bloco a cada checkpoint com PRs, commits, workflows, evidências,
 
 | Data | Item | SHA/PR/Workflow | Status | Evidência/impedimento |
 |---|---|---|---|---|
-| 2026-11-20 | Kickoff e baseline | `137d0859463bfbf6cdbcdde0945b0eca65eee90c` | IN PROGRESS | Baseline main consultada; PR #1107 e issue #1103 identificadas para reconciliação |
+| 2026-11-20 | Kickoff e baseline | `137d0859463bfbf6cdbcdde0945b0eca65eee90c` | IN PROGRESS | Baseline main consultada; PR #1107 CI workflows consultados: sucesso nos jobs aplicáveis, com jobs opcionais skipped; issue #1103 atualizada; auditoria confirmou trace do core começa desabilitado e usa Vec; issue #1110 aberta para ring buffer essencial RAM-only |
+
+
+### 8.1 Evidências iniciais — 2026-11-20
+
+- **Sprint tracking:** issue [#1108](https://github.com/leonardo201800478/sega-emulator/issues/1108).
+- **Documento:** PR [#1109](https://github.com/leonardo201800478/sega-emulator/pull/1109).
+- **Primeiro item técnico:** issue [#1110](https://github.com/leonardo201800478/sega-emulator/issues/1110).
+- **DP0 policy:** issue [#1103](https://github.com/leonardo201800478/sega-emulator/issues/1103) atualizada para RAM-first; o trace essencial não é revogado junto com coleta detalhada.
+- **PR #1107:** CI #9349 e SMS Debugger Runtime #1639 concluíram SUCCESS no HEAD `5031f2f6bd72ae038c59dbe3e39a6f912d3d6507`. Jobs condicionais de CPAL/PSG e ferramentas foram SKIPPED; não representam validação desses componentes. PR permanece sem merge enquanto se decide a integração com o novo contrato de trace essencial.
+- **Achado de código:** `SmsTemporalMachine` ainda possui `trace_enabled: bool` e `trace_events: Vec<SmsTemporalTraceEvent>`; a documentação do Debugger informa captura opt-in e limpeza ao desabilitar. Isso não satisfaz o requisito de ring buffer essencial sempre ativo e limitado.
+- **Limite da evidência:** revisão remota estática; nenhuma execução local ou benchmark foi realizado nesta sessão. Overhead e preservação temporal permanecem NOT RUN até testes específicos.
