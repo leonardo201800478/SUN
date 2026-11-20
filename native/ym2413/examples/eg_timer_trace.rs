@@ -70,7 +70,9 @@ fn record_mismatch(
 fn run(path: &Path) -> Result<(), Box<dyn Error>> {
     let input = BufReader::new(File::open(path)?);
     let mut lines = input.lines();
-    let _header = lines.next().ok_or("timer CSV is empty")??;
+    let _header = lines.next().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, "timer CSV is empty")
+    })??;
 
     let mut timer = EnvelopeTimer::new();
     let mut counts = [0_u64; FIELD_NAMES.len()];
@@ -116,14 +118,14 @@ fn run(path: &Path) -> Result<(), Box<dyn Error>> {
             u32::from(snapshot.counter_state),
             u32::from(snapshot.counter_state_prev),
             u32::from(snapshot.shift),
-            u32::from(snapshot.shift_stop),
+            snapshot.shift_stop as u32,
             u32::from(snapshot.low_lock),
             u32::from(snapshot.shift_lock),
             u32::from(snapshot.rate_phase.rate_hi),
-            u32::from(snapshot.rate_phase.inc_lo),
-            u32::from(snapshot.rate_phase.inc_hi),
-            u32::from(snapshot.rate_phase.max_rate),
-            u32::from(snapshot.rate_phase.zero_rate),
+            snapshot.rate_phase.inc_lo as u32,
+            snapshot.rate_phase.inc_hi as u32,
+            snapshot.rate_phase.max_rate as u32,
+            snapshot.rate_phase.zero_rate as u32,
         ];
         let expected = [
             expected_timer,
