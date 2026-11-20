@@ -1,0 +1,121 @@
+name: PSG external CrabEmu oracle adapter
+
+on:
+  pull_request:
+    paths:
+      - "tools/psg-crabemu-oracle/**"
+      - "native/sn76489/examples/psg_state_trace.rs"
+      - ".github/workflows/psg-crabemu-oracle.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/psg-crabemu-oracle/**"
+      - "native/sn76489/examples/psg_state_trace.rs"
+      - ".github/workflows/psg-crabemu-oracle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-compare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Sega Emulator
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal && rustup default 1.99.1
+
+      - name: Checkout pinned SMS Plus GX reference
+        env:
+          SMSPLUS_SHA: 3844b46caa926b6494987b97da63092818c4ddef
+        run: |
+          git clone https://github.com/libretro/smsplus-gx.git "$RUNNER_TEMP/smsplus-gx"
+          git -C "$RUNNER_TEMP/smsplus-gx" checkout "$SMSPLUS_SHA"
+          test "$(git -C "$RUNNER_TEMP/smsplus-gx" rev-parse HEAD)" = "$SMSPLUS_SHA"
+
+      - name: Compile external CrabEmu oracle adapter
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra \
+            -I"$RUNNER_TEMP/smsplus-gx/source/sound/crabemu_sn76489" \
+            tools/psg-crabemu-oracle/trace.c \
+            "$RUNNER_TEMP/smsplus-gx/source/sound/crabemu_sn76489/sn76489.c" \
+            -o "$RUNNER_TEMP/psg-crabemu-trace"
+
+      - name: Generate identical clock-stamped write schedule
+        run: |
+          cat > "$RUNNER_TEMP/events.csv" <<'EOF'
+          # tick,byte
+          0,0xE4
+          0,0xF0
+          540,0xE0
+          560,0xE4
+          EOF
+
+      - name: Capture reference trace
+        run: |
+          "$RUNNER_TEMP/psg-crabemu-trace" \
+            --calls 600 --events "$RUNNER_TEMP/events.csv" \
+            > "$RUNNER_TEMP/reference.jsonl"
+
+      - name: Capture Sega Emulator SMS PSG trace
+        run: |
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 600 --events "$RUNNER_TEMP/events.csv" \
+            > "$RUNNER_TEMP/core.jsonl"
+
+      - name: Compare traces without time alignment
+        run: |
+          python3 tools/psg-crabemu-oracle/compare.py \
+            "$RUNNER_TEMP/reference.jsonl" "$RUNNER_TEMP/core.jsonl" \
+            > "$RUNNER_TEMP/comparison.json"
+          cat "$RUNNER_TEMP/comparison.json"
+
+      - name: Validate pinned reference schedule and diagnostic output
+        run: |
+          python3 - "$RUNNER_TEMP/reference.jsonl" "$RUNNER_TEMP/core.jsonl" "$RUNNER_TEMP/comparison.json" <<'PY'
+          import json
+          import sys
+
+          def read(path):
+              with open(path, encoding="utf-8") as stream:
+                  return [json.loads(line) for line in stream if line.strip()]
+
+          reference = read(sys.argv[1])
+          core = read(sys.argv[2])
+          summary = json.load(open(sys.argv[3], encoding="utf-8"))
+
+          assert len(reference) == 601, len(reference)
+          assert len(core) == 601, len(core)
+          assert reference[0]["schema"] == "smsplus-crabemu-psg-trace-v1"
+          assert core[0]["schema"] == "sega-sn76489-core-state-trace-v1"
+          assert reference[0]["source_commit"] == "3844b46caa926b6494987b97da63092818c4ddef"
+          assert reference[0]["noise_bits"] == 16
+          assert reference[0]["noise_tapped"] == 9
+          assert summary["ticks_compared"] == 600
+
+          # CrabEmu starts with a zero noise counter and positive noise flip-flop.
+          # Its first LFSR shift is one PSG internal tick later than
+          # the current core's initialized 16-count/phase-zero divider.
+          assert summary["reference_first_lfsr_shift_tick"] == 16
+          assert summary["core_first_lfsr_shift_tick"] == 15
+
+          # The fixture must expose the current output-latch convention
+          # separately from the reference sample's current LFSR bit.
+          assert summary["reference_sample_vs_core_noise_output_latch_mismatch_count"] > 0
+          PY
+
+      - name: Upload diagnostic traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: psg-crabemu-differential-traces
+          path: |
+            ${{ runner.temp }}/reference.jsonl
+            ${{ runner.temp }}/core.jsonl
+            ${{ runner.temp }}/comparison.json
+          if-no-files-found: warn
+          retention-days: 14
