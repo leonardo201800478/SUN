@@ -4,7 +4,7 @@
 //! The core owns the delayed register-write pipeline, rhythm selector, EG timer,
 //! and all 18 operator envelope states; no independent test-only bus is used.
 
-use sega_ym2413::{Ym2413Core, YM2413_INPUT_CLOCKS_PER_SLOT};
+use sega_ym2413::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
