@@ -36,17 +36,21 @@ Optional CSV, with exactly one event per strictly increasing OPLL_Clock call ind
 ```csv
 # call_index,port,value
 0,0,16
-1,1,64
-2,0,32
-3,1,21
+2,1,64
+40,0,32
+42,1,0
+80,0,48
+82,1,16
 ```
 
 Port 0 queues an address-port write; port 1 queues a data-port write, using
 Nuked's own `OPLL_Write` API. Rows are submitted immediately before the
 corresponding `OPLL_Clock` call. Address/data timing and internal write
 acceptance remain the reference implementation's behavior; this harness does
-not bypass its IO state machine. Use decimal values in CSV (the example's
-hexadecimal-looking values are illustrative; convert them to decimal).
+not bypass its IO state machine. CSV fields are decimal integers. Keep address and data requests separated by
+at least two OPLL_Clock calls so the reference IO synchronizer can latch them.
+The sample schedule leaves additional time for the serial register-write
+pipeline to reach its channel slot.
 
 Run:
 
@@ -71,6 +75,13 @@ Without `--events`, the chip remains in its reset register state.
 - Arrays retain Nuked's native order. In particular, do not assume its
   `cycles` index is identical to the Rust crate's zero-based slot index
   without a separately tested mapping.
+
+Each sample also contains `calc_fnum`, `calc_block`, `calc_mul`, `calc_vib`,
+`calc_lfo_vib_counter`, and `pg_inc_after`. The `calc_*` fields are captured
+immediately before the call and are the inputs consumed by
+`OPLL_PhaseCalcIncrement` during that call; `pg_inc_after` is captured after
+that calculation. This creates a correctly paired PG arithmetic observation
+without confusing the next slot's `c_*` values with the previous increment.
 
 The trace includes PG phase/increment, the active channel/operator patch
 parameters, EG timer and per-operator state,
