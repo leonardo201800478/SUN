@@ -1,0 +1,54 @@
+name: YM2413 Nuked EG characterization
+
+on:
+  pull_request:
+    paths:
+      - "tools/ym2413-nuked-oracle/**"
+      - ".github/workflows/ym2413-eg-characterization.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eg-characterization:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Sega Emulator
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Nuked-OPLL reference
+        env:
+          NUKED_SHA: 1269cf5a783b65583b50fa2464d08be75830aaa0
+        run: |
+          git clone https://github.com/nukeykt/Nuked-OPLL.git "$RUNNER_TEMP/Nuked-OPLL"
+          git -C "$RUNNER_TEMP/Nuked-OPLL" checkout "$NUKED_SHA"
+          test "$(git -C "$RUNNER_TEMP/Nuked-OPLL" rev-parse HEAD)" = "$NUKED_SHA"
+
+      - name: Compile external oracle adapter
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra \
+            -I"$RUNNER_TEMP/Nuked-OPLL" \
+            tools/ym2413-nuked-oracle/trace.c \
+            "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
+            -o "$RUNNER_TEMP/ym2413-nuked-trace"
+
+      - name: Capture and validate a single-channel EG sequence twice
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
+            > "$RUNNER_TEMP/eg-trace-a.jsonl"
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
+            > "$RUNNER_TEMP/eg-trace-b.jsonl"
+          cmp "$RUNNER_TEMP/eg-trace-a.jsonl" "$RUNNER_TEMP/eg-trace-b.jsonl"
+          python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" --expected-calls 30000
+
+      - name: Retain deterministic EG trace artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym2413-nuked-eg-characterization
+          path: ${{ runner.temp }}/eg-trace-a.jsonl
+          if-no-files-found: error
+          retention-days: 7
