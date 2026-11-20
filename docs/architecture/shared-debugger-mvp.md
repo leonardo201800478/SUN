@@ -42,7 +42,7 @@ The SMS adapter should expose:
 - recent bus events with machine timestamp, operation, address, data, base T-states and WAIT states;
 - an instruction breakpoint and single-instruction command.
 
-The existing `SmsTemporalMachine::set_trace_enabled` / `take_trace` API is the event source. The machine-side buffer is capped at 65,536 events and reports upstream drops. The runtime worker drains it at frame/command boundaries into a 2,048-event FIFO history fed by a 512-entry non-blocking queue. Capture requires the same global Coleta de logs consent as all other diagnostics; the trace toggle is only a secondary capture control. Revoking consent disables machine trace, drops the collector, and clears pending and retained events. The machine-side buffer is drained even if its publisher has become inactive.
+The existing `SmsTemporalMachine::set_trace_enabled` / `take_trace` API is the event source. The machine-side buffer is capped at 65,536 events and reports upstream drops. The runtime worker drains it at frame/command boundaries into a 2,048-event FIFO history fed by a 512-entry non-blocking queue. Capture requires the same global Coleta de logs consent as all other diagnostics. The UI passes one `DiagnosticsConsent` capability to the logger and worker; the trace toggle is only a secondary capture control. Revoking consent disables machine trace, drops the collector, and clears pending and retained events. The machine-side buffer is drained even if its publisher has become inactive.
 
 ## GUI
 
