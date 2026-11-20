@@ -1,8 +1,8 @@
 # YM2413 PG — MAME/ymfm secondary source-level cross-check
 
-**Date:** 2026-11-19  
-**Primary reference:** Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`  
-**Secondary source:** MAME/ymfm `66deabe1768df8e0ee3767688a8bfec32df27f72`  
+**Date:** 2026-11-19
+**Primary reference:** Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`
+**Secondary source:** MAME/ymfm `66deabe1768df8e0ee3767688a8bfec32df27f72`
 **Scope:** OPLL PG integer arithmetic and PM transfer function, source-level only.
 
 ## Source path audited
