@@ -263,7 +263,7 @@ mod tests {
         assert_eq!(result.stage, EnvelopeOperatorStage::Attack);
 
         let next = operator
-            .tick(control(11, true, false, false, 3, true, false, false, 4))
+            .tick(control(11, true, 3, true, false, false, 4))
             .unwrap();
         assert_eq!(next.stage, EnvelopeOperatorStage::Decay);
     }
@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(result.stage, EnvelopeOperatorStage::Decay);
 
         let next = operator
-            .tick(control(15, false, false, true, 3, true, false, false, 4))
+            .tick(control(15, false, 3, true, false, false, 4))
             .unwrap();
         assert_eq!(next.level, 33);
         assert_eq!(next.stage, EnvelopeOperatorStage::Sustain);
