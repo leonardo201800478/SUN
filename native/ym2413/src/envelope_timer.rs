@@ -34,8 +34,15 @@ pub struct EnvelopeTimerState {
     pub shift_lock: u8,
     /// Rate prepared for consumption by the next slot.
     pub pending_rate: u8,
-    /// Base-rate-zero flag prepared for consumption by the next slot.
+    /// Base-rate-zero flag prepared for the next timer-latch calculation.
     pub pending_zero_rate: bool,
+    /// Rate phase latches already prepared and consumed by the current EG update.
+    pub latched_rate_source: u8,
+    pub latched_rate_hi: u8,
+    pub latched_inc_lo: bool,
+    pub latched_inc_hi: bool,
+    pub latched_max_rate: bool,
+    pub latched_zero_rate: bool,
     /// Next slot expected by this state machine.
     pub next_slot: u8,
 }
@@ -93,6 +100,10 @@ impl EnvelopeRatePhase {
 /// Timer and rate-latch state after one operator slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EnvelopeTimerSnapshot {
+    /// Rate latches consumed by the EG operator update in this slot.
+    pub consumed_rate_phase: EnvelopeRatePhase,
+    /// Rate latches prepared by this timer call for the following slot.
+    pub rate_phase: EnvelopeRatePhase,
     pub timer: u32,
     pub carry: u8,
     pub counter_state: u8,
@@ -101,7 +112,6 @@ pub struct EnvelopeTimerSnapshot {
     pub shift_stop: bool,
     pub low_lock: u8,
     pub shift_lock: u8,
-    pub rate_phase: EnvelopeRatePhase,
 }
 
 /// Invalid timer input or an out-of-order slot.
@@ -156,6 +166,12 @@ impl EnvelopeTimer {
                 shift_lock: 0,
                 pending_rate: 0,
                 pending_zero_rate: false,
+                latched_rate_source: 0,
+                latched_rate_hi: 0,
+                latched_inc_lo: false,
+                latched_inc_hi: false,
+                latched_max_rate: false,
+                latched_zero_rate: false,
                 next_slot: 0,
             },
         }
@@ -189,9 +205,16 @@ impl EnvelopeTimer {
                 "shift lock exceeds its hardware range",
             ));
         }
-        if state.pending_rate > 63 {
+        if state.pending_rate > 63 || state.latched_rate_source > 63 {
             return Err(EnvelopeTimerError::InvalidState(
-                "pending rate exceeds six bits",
+                "rate latch exceeds six bits",
+            ));
+        }
+        if state.latched_rate_hi > 15
+            || state.latched_max_rate != (state.latched_rate_hi == 15)
+        {
+            return Err(EnvelopeTimerError::InvalidState(
+                "prepared rate phase is inconsistent",
             ));
         }
         Ok(Self { state })
@@ -227,6 +250,12 @@ impl EnvelopeTimer {
         let rate_hi = rate_latch_source >> 2;
         let rate_lo = rate_latch_source & 0x03;
         let zero_rate_latch_source = self.state.pending_zero_rate;
+        let consumed_rate_latch_source = self.state.latched_rate_source;
+        let consumed_rate_hi = self.state.latched_rate_hi;
+        let consumed_inc_lo = self.state.latched_inc_lo;
+        let consumed_inc_hi = self.state.latched_inc_hi;
+        let consumed_max_rate = self.state.latched_max_rate;
+        let consumed_zero_rate = self.state.latched_zero_rate;
 
         // The fractional timer input is enabled only at the terminal
         // two-bit counter phase. Slot zero seeds the carry; later slots
@@ -294,12 +323,31 @@ impl EnvelopeTimer {
             zero_rate: next_zero_rate,
             counter_state_prev: self.state.counter_state_prev,
         };
+        let consumed_rate_phase = EnvelopeRatePhase {
+            rate_latch_source: consumed_rate_latch_source,
+            next_rate: self.state.pending_rate,
+            next_zero_rate: self.state.pending_zero_rate,
+            rate_hi: consumed_rate_hi,
+            inc_lo: consumed_inc_lo,
+            inc_hi: consumed_inc_hi,
+            max_rate: consumed_max_rate,
+            zero_rate: consumed_zero_rate,
+            counter_state_prev: self.state.counter_state_prev,
+        };
 
+        self.state.latched_rate_source = rate_latch_source;
+        self.state.latched_rate_hi = rate_hi;
+        self.state.latched_inc_lo = inc_lo;
+        self.state.latched_inc_hi = inc_hi;
+        self.state.latched_max_rate = rate_hi == 15;
+        self.state.latched_zero_rate = next_zero_rate;
         self.state.pending_rate = next_rate;
         self.state.pending_zero_rate = next_zero_rate;
         self.state.next_slot = (slot_index + 1) % SLOT_COUNT;
 
         Ok(EnvelopeTimerSnapshot {
+            consumed_rate_phase,
+            rate_phase,
             timer: self.state.timer,
             carry: self.state.carry,
             counter_state: self.state.counter_state,
