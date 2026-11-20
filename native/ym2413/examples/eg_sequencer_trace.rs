@@ -5,9 +5,7 @@
 //! file and the channel decoder constructs the current-cycle EG input. The
 //! sequencer owns all 18 EG states, timer, and delayed control pipelines.
 
-use sega_ym2413::{
-    EnvelopeSequencer, EnvelopeSlotInput, decode_envelope_slot_input_for_cycle,
-};
+use sega_ym2413::{EnvelopeSequencer, EnvelopeSlotInput, decode_envelope_slot_input_for_cycle};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs::File;
