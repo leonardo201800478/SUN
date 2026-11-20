@@ -94,6 +94,7 @@ jobs:
           assert len(rows) == 21, len(rows)
           assert rows[0]["schema"] == "ym2413-nuked-opll-pg-phase-trace-v1"
           assert all(len(row["pg_phase"]) == 18 for row in rows[1:])
+          assert all("phase_next_reset" in row and "calc_eg_dokon" in row for row in rows[1:])
           assert [row["call_index"] for row in rows[1:]] == list(range(20))
           PY
 
