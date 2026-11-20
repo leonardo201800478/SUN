@@ -1,8 +1,8 @@
 # DP-0 — auditoria inicial de diagnóstico e observabilidade
 
-**Estado:** auditoria parcial; não autoriza declarar DP-0 concluído.  
-**Baseline auditada:** `main` em `a58edc27dc6c07df019987d904a49c18fb972172`.  
-**Data:** 2026-11-20.  
+**Estado:** auditoria parcial; não autoriza declarar DP-0 concluído.
+**Baseline auditada:** `main` em `a58edc27dc6c07df019987d904a49c18fb972172`.
+**Data:** 2026-11-20.
 **Escopo desta revisão:** host desktop Slint, worker SMS, infraestrutura compartilhada de observabilidade e caminho legado egui identificado no workspace.
 
 ## 1. Resultado executivo
