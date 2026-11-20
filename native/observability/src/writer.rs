@@ -37,7 +37,7 @@ struct SwitchableWriter<'a> {
 
 impl Write for SwitchableWriter<'_> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        match self.current.as_mut() {
+        match self.current.as_ref() {
             Some(writer) => {
                 let mut writer = NonBlocking::clone(writer);
                 writer.write(buffer)
@@ -47,7 +47,7 @@ impl Write for SwitchableWriter<'_> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        match self.current.as_mut() {
+        match self.current.as_ref() {
             Some(writer) => {
                 let mut writer = NonBlocking::clone(writer);
                 writer.flush()
