@@ -316,8 +316,15 @@ mod tests {
     fn invalid_rate_and_sustain_latches_are_rejected_without_mutation() {
         let mut operator =
             EnvelopeOperator::with_initial_state(24, EnvelopeOperatorStage::Decay).unwrap();
+        let invalid_rate_phase = EnvelopeControlPhase {
+            rate: EnvelopeRatePhase::from_consumed_latches(15, false, false, false, 0),
+            key_on: true,
+            off: false,
+            dokon: false,
+            sustain_level: 4,
+        };
         assert_eq!(
-            operator.tick(control(15, false, 0, true, false, false, 4)),
+            operator.tick(invalid_rate_phase),
             Err(EnvelopeOperatorError::InvalidRatePhase)
         );
         assert_eq!(
