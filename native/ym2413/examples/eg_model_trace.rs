@@ -76,6 +76,21 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
     })
 }
 
+fn make_generator_at_state(
+    initial_level: u8,
+    initial_stage: EnvelopeStage,
+    key_on: bool,
+) -> Result<EnvelopeGenerator, Box<dyn Error>> {
+    let config = DampTransitionConfig::new(
+        124,
+        DampTransitionCoordination::IndependentPerOperator,
+        AttackRate15Transition::SkipAttackToDecay,
+    )
+    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+    EnvelopeGenerator::with_initial_state(initial_level, initial_stage, key_on, config)
+        .map_err(|error| std::io::Error::other(format!("{error:?}")).into())
+}
+
 fn make_generator(initial_level: u8) -> Result<EnvelopeGenerator, Box<dyn Error>> {
     let config = DampTransitionConfig::new(
         124,
@@ -118,7 +133,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut initial_silent_wrapped_deferred = make_generators(127)?;
     let mut initial_silent_deferred_unwrapped = make_generators(127)?;
     let mut initial_silent_deferred_decay_phase_minus3 = make_generators(127)?;
-    let mut initial_silent_deferred_external_rate_phase = make_generators(127)?;
+    let mut seeded_external_rate_phase: [Option<EnvelopeGenerator>; 18] =
+        std::array::from_fn(|_| None);
 
     let mut sample_count = 0_u64;
     for (line_index, line) in input.lines().enumerate() {
@@ -227,28 +243,43 @@ fn main() -> Result<(), Box<dyn Error>> {
                     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         }
 
-        // Diagnostic candidate: use the exact rate latches consumed by this
-        // Nuked update, independently of the per-operator rate selector.
-        let external_phase_before =
-            initial_silent_deferred_external_rate_phase[generator_index].export_state();
-        let external_phase_defer_attack = external_phase_before.stage == EnvelopeStage::Damp
-            && external_phase_before.level >= 124;
-        let external_phase_result = initial_silent_deferred_external_rate_phase[generator_index]
-            .tick_with_rate_phase(
-                sample.key_on,
-                sample.is_carrier,
-                sample.parameters,
-                sample.rate_phase,
-            )
-            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        if external_phase_defer_attack && external_phase_result.phase_reset_required {
-            let mut state =
-                initial_silent_deferred_external_rate_phase[generator_index].export_state();
-            state.level = external_phase_before.level;
-            initial_silent_deferred_external_rate_phase[generator_index] =
-                EnvelopeGenerator::restore_state(state)
+        // Diagnostic candidate: seed each slot from its first post-DAMP
+        // Nuked state, then replay subsequent updates with the exact consumed
+        // global rate latches. The seed sample is excluded from comparison.
+        let (external_phase_level, external_phase_stage, external_phase_seeded) =
+            if seeded_external_rate_phase[generator_index].is_none() {
+                let stage = match sample.observed_state {
+                    0 => EnvelopeStage::Attack,
+                    1 => EnvelopeStage::Decay,
+                    2 => EnvelopeStage::Sustain,
+                    other => {
+                        return Err(format!(
+                            "slot {} first selected state {} is not a KEY-ON EG state",
+                            sample.slot, other
+                        )
+                        .into());
+                    }
+                };
+                seeded_external_rate_phase[generator_index] = Some(make_generator_at_state(
+                    sample.observed_level,
+                    stage,
+                    sample.key_on,
+                )?);
+                (sample.observed_level, stage, true)
+            } else {
+                let generator = seeded_external_rate_phase[generator_index]
+                    .as_mut()
+                    .expect("external phase generator was initialized");
+                let result = generator
+                    .tick_with_rate_phase(
+                        sample.key_on,
+                        sample.is_carrier,
+                        sample.parameters,
+                        sample.rate_phase,
+                    )
                     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        }
+                (result.level, generator.stage(), false)
+            };
 
         println!(
             concat!(
@@ -263,8 +294,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "\"candidate_stage_initial_127_deferred_unwrapped\":{},",
                 "\"candidate_level_initial_127_deferred_decay_phase_minus3\":{},",
                 "\"candidate_stage_initial_127_deferred_decay_phase_minus3\":{},",
-                "\"candidate_level_initial_127_deferred_external_rate_phase\":{},",
-                "\"candidate_stage_initial_127_deferred_external_rate_phase\":{}}}"
+                "\"candidate_level_seeded_external_rate_phase\":{},",
+                "\"candidate_stage_seeded_external_rate_phase\":{},",
+                "\"candidate_seeded_external_rate_phase\":{}}}"
             ),
             sample.call_index,
             sample.slot,
@@ -286,8 +318,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             stage_code(initial_silent_deferred_unwrapped[generator_index].stage()),
             initial_silent_deferred_decay_phase_minus3[generator_index].level(),
             stage_code(initial_silent_deferred_decay_phase_minus3[generator_index].stage()),
-            external_phase_result.level,
-            stage_code(initial_silent_deferred_external_rate_phase[generator_index].stage()),
+            external_phase_level,
+            stage_code(external_phase_stage),
+            u8::from(external_phase_seeded),
         );
         sample_count += 1;
     }
