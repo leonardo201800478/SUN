@@ -74,7 +74,7 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
             sustained_tone: parse_bool(fields[9], line_number)?,
             key_on: parse_bool(fields[10], line_number)?,
             rhythm_select: EnvelopeRhythmSelect::from_code(fields[33].parse()?)
-                .ok_or_else(|| format!("line {line_number}: invalid rhythm selector"))?,
+                .ok_or_else(|| std::io::Error::other(format!("line {line_number}: invalid rhythm selector")))?,
             rhythm_bits: fields[35].parse()?,
         },
         expected_operator_slot: fields[11].parse()?,
