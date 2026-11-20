@@ -262,7 +262,10 @@ pub fn decode_channel_synthesis(
 
 #[cfg(test)]
 mod tests {
-    use super::{ChannelSynthesisError, decode_channel_synthesis};
+    use super::{
+        ChannelSynthesisError, YM2413_EG_CYCLE_CHANNELS, decode_channel_synthesis,
+        envelope_cycle_is_carrier, envelope_slot_input_for_cycle,
+    };
     use crate::instrument::{InstrumentError, decode_patch_registers, resolve_instrument};
     use crate::key_scale::key_scale_attenuation;
     use crate::operator::OperatorPairError;
@@ -276,6 +279,65 @@ mod tests {
         registers[0x20 + index] = 0x35;
         registers[0x30 + index] = (instrument << 4) | 0x0b;
         registers
+    }
+
+    fn registers_for_all_channels() -> [u8; 64] {
+        let mut registers = [0; 64];
+        registers[..8].copy_from_slice(&[0xf2, 0xb5, 0xaf, 0xdb, 0xa5, 0x3c, 0x6d, 0xf2]);
+        for channel in 0..9 {
+            let index = usize::from(channel);
+            registers[0x10 + index] = 0x80 + channel;
+            registers[0x20 + index] = 0x30 | ((channel & 7) << 1) | (channel & 1);
+            registers[0x30 + index] = channel & 0x0f;
+        }
+        registers
+    }
+
+    #[test]
+    fn serial_cycle_mapping_selects_nuked_channel_and_operator_role() {
+        let registers = registers_for_all_channels();
+        let channels = std::array::from_fn(|index| {
+            decode_channel_synthesis(&registers, index as u8).unwrap()
+        });
+
+        for cycle in 0..18_u8 {
+            let channel = YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)];
+            let carrier = envelope_cycle_is_carrier(cycle).unwrap();
+            let config = channels[usize::from(channel)];
+            let selected = if carrier {
+                config.carrier_envelope
+            } else {
+                config.modulator_envelope
+            };
+            let input = envelope_slot_input_for_cycle(&channels, cycle).unwrap();
+
+            assert_eq!(input.attack_rate, selected.attack_rate, "cycle {cycle}");
+            assert_eq!(input.decay_rate, selected.decay_rate, "cycle {cycle}");
+            assert_eq!(input.release_rate, selected.release_rate, "cycle {cycle}");
+            assert_eq!(input.sustain_level, selected.sustain_level, "cycle {cycle}");
+            assert_eq!(input.key_scale_rate, selected.key_scale_rate, "cycle {cycle}");
+            assert_eq!(
+                input.ksr_frequency,
+                ((selected.block << 1) | (selected.fnum >> 8) as u8) & 0x0f,
+                "cycle {cycle}"
+            );
+            assert_eq!(input.sustain_on, config.channel.sustain_on, "cycle {cycle}");
+            assert_eq!(input.sustained_tone, selected.sustained_tone, "cycle {cycle}");
+            assert_eq!(input.key_on, config.channel.key_on, "cycle {cycle}");
+        }
+    }
+
+    #[test]
+    fn serial_cycle_mapping_rejects_out_of_range_cycles() {
+        let registers = registers_for_all_channels();
+        let channels = std::array::from_fn(|index| {
+            decode_channel_synthesis(&registers, index as u8).unwrap()
+        });
+        assert_eq!(
+            envelope_slot_input_for_cycle(&channels, 18),
+            Err(ChannelSynthesisError::InvalidEnvelopeCycle { cycle: 18 })
+        );
+        assert_eq!(envelope_cycle_is_carrier(18), None);
     }
 
     #[test]
