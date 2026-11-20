@@ -544,6 +544,7 @@ jobs:
             artifacts/psg-crabemu-reference.jsonl \
             artifacts/psg-crabemu-core.jsonl \
             artifacts/psg-gearsystem-reference.jsonl \
+            artifacts/psg-ares-reference.jsonl \
             > artifacts/psg-crabemu-comparison.json
           cat artifacts/psg-crabemu-comparison.json
 
@@ -580,6 +581,11 @@ jobs:
           assert reference[0]["noise_bits"] == 16
           assert reference[0]["noise_tapped"] == 9
           assert summary["ticks_compared"] == 600
+          assert summary["ares"]["same_tick_comparison"] is True
+          assert summary["ares"]["lfsr_raw_state_comparable"] is True
+          assert summary["ares"]["commit"] == "8bc30c8c3d3c8081d2a66587add602df771441dd"
+          assert "tone_counter" in summary["ares"]["field_mismatch_counts"]
+          assert "noise_output_post" in summary["ares"]["field_mismatch_counts"]
 
           # CrabEmu starts with a zero noise counter and positive noise flip-flop.
           assert summary["reference_first_lfsr_shift_tick"] == 16
