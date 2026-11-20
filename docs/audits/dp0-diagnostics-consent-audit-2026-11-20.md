@@ -94,19 +94,21 @@ Mesmo assim, o crate compartilhado `sega-observability` deve ter semântica segu
 
 A PR [#1088](https://github.com/leonardo201800478/sega-emulator/pull/1088) implementa a primeira fatia de correção sobre a baseline:
 
-- O host Slint passa a usar um gate atômico, inicialmente falso, para suas emissões diagnósticas diretas.
-- O painel DEBUG expõe autorização explícita, limitada à sessão e não persistida.
+- O host Slint inicializa a infraestrutura compartilhada `sega-observability` somente após autorização explícita no painel DEBUG; sem consentimento não instala subscriber, writer, arquivo de log nem panic hook.
+- A autorização é limitada à sessão e não é persistida.
+- As emissões diagnósticas do host Slint passam por um macro lazy que emite eventos estruturados `tracing`; não há mais saída direta de stderr do host em operação normal.
+- Ao autorizar, o subscriber compartilhado captura eventos estruturados do host e dos crates de hardware no diretório de logs configurado; o snapshot JSON final só é gravado se o usuário mantiver a autorização ativa.
 - A amostragem host de frame pacing, conversão e fila de áudio só registra métricas quando a autorização está ativa.
-- As métricas SMS de frame time/FPS/latência input→frame também ficam inativas sem consentimento; o histórico é reiniciado em cada transição de autorização e há teste de revogação.
+- As métricas SMS de frame time/FPS/latência input→frame e frame pacing também ficam inativas sem consentimento; o histórico é reiniciado em cada transição de autorização e há teste de revogação.
 - A telemetria detalhada do worker SMS é vinculada ao consentimento de diagnóstico; foi separada da ação independente de captura de trace. Novas sessões herdam o estado de consentimento vigente.
-- Os quatro caminhos de resolução automática de região do worker SMS deixam de escrever diretamente em stderr e passam a emitir eventos estruturados `tracing`.
+- Os quatro caminhos de resolução automática de região do worker SMS deixam de escrever diretamente em stderr e passam a emitir eventos estruturados `tracing`, capturados pelo subscriber Slint após consentimento.
 - Três sinks de erro de persistência no host egui legado (autosave de preferências, salvamento no encerramento e ROMs recentes) passam a emitir eventos `tracing`; sem subscriber opt-in, não são coletados.
 
 Limites observados na PR:
 - O timer Slint ainda executa a verificação operacional de fallback do renderer; a parte de amostragem diagnóstica é condicionada ao consentimento. A separação do polling operacional e da telemetria permanece candidata a refinamento, caso a medição demonstre trabalho desnecessário.
-- A falha ao gravar o snapshot JSON no encerramento do host egui ainda usa stderr, mas só é alcançada quando o usuário já habilitou diagnóstico e a exportação final falha.
-- A saída de panic padrão continua deliberadamente preservada; não foi confundida com o arquivo de crash opt-in.
-- O worker SMS emite eventos `tracing`, mas o host Slint não instala subscriber de arquivo; no host Slint esses eventos não são atualmente encaminhados para um destino visível. Isso deve ser resolvido ou explicitamente classificado antes de declarar a experiência de diagnóstico completa.
+- A falha ao gravar o snapshot JSON no encerramento dos hosts ainda usa stderr, mas só é alcançada quando o usuário já habilitou diagnóstico e a exportação final falha.
+- A saída de panic padrão continua deliberadamente preservada; o arquivo de crash personalizado só é habilitado após consentimento.
+- A API pública `sega-observability::init()` ainda não impõe token de consentimento; a segurança depende de os chamadores continuarem invocando-a somente após ação explícita.
 - PR ainda em validação CI e não mesclada.
 
 ## 5.2 Classificação preliminar das demais saídas encontradas
