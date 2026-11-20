@@ -60,14 +60,9 @@ fn make_generator(initial_level: u8) -> Result<EnvelopeGenerator, Box<dyn Error>
         AttackRate15Transition::SkipAttackToDecay,
     )
     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-    EnvelopeGenerator::with_initial_state(
-        initial_level,
-        EnvelopeStage::Damp,
-        false,
-        config,
-    )
-    .map_err(|error| std::io::Error::other(format!("{error:?}")))
-    .map_err(Into::into)
+    EnvelopeGenerator::with_initial_state(initial_level, EnvelopeStage::Damp, false, config)
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))
+        .map_err(Into::into)
 }
 
 fn stage_code(stage: EnvelopeStage) -> u8 {
@@ -84,10 +79,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         "usage: cargo run --manifest-path native/ym2413/Cargo.toml --example eg_model_trace -- input.csv",
     )?;
     let input = BufReader::new(File::open(Path::new(&path))?);
-    let mut initial_zero: [EnvelopeGenerator; 2] =
-        [make_generator(0)?, make_generator(0)?];
-    let mut initial_silent: [EnvelopeGenerator; 2] =
-        [make_generator(127)?, make_generator(127)?];
+    let mut initial_zero: [EnvelopeGenerator; 2] = [make_generator(0)?, make_generator(0)?];
+    let mut initial_silent: [EnvelopeGenerator; 2] = [make_generator(127)?, make_generator(127)?];
     let mut initial_silent_wrapped: [EnvelopeGenerator; 2] =
         [make_generator(127)?, make_generator(127)?];
     let mut initial_silent_wrapped_deferred: [EnvelopeGenerator; 2] =
@@ -119,20 +112,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let is_carrier = sample.slot == 2;
 
         let zero_result = initial_zero[generator_index]
-            .tick_with_events(
-                sample.global_counter,
-                sample.key_on,
-                is_carrier,
-                parameters,
-            )
+            .tick_with_events(sample.global_counter, sample.key_on, is_carrier, parameters)
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         let silent_result = initial_silent[generator_index]
-            .tick_with_events(
-                sample.global_counter,
-                sample.key_on,
-                is_carrier,
-                parameters,
-            )
+            .tick_with_events(sample.global_counter, sample.key_on, is_carrier, parameters)
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         let wrapped_result = initial_silent_wrapped[generator_index]
             .tick_with_events(
@@ -165,15 +148,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let deferred_unwrapped_before =
             initial_silent_deferred_unwrapped[generator_index].export_state();
-        let deferred_unwrapped_result =
-            initial_silent_deferred_unwrapped[generator_index]
-                .tick_with_events(
-                    sample.global_counter,
-                    sample.key_on,
-                    is_carrier,
-                    parameters,
-                )
-                .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        let deferred_unwrapped_result = initial_silent_deferred_unwrapped[generator_index]
+            .tick_with_events(sample.global_counter, sample.key_on, is_carrier, parameters)
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         if deferred_unwrapped_result.phase_reset_required {
             let mut deferred_state =
                 initial_silent_deferred_unwrapped[generator_index].export_state();
