@@ -169,7 +169,11 @@ def main() -> int:
                 "phase_reset_events": reset_events,
                 "eg_dokon_nonzero_calls": eg_key_events,
                 "comparison": "Nuked pg_phase[18] low 19 bits vs Rust PhaseGenerator[18]",
-                "scope": "18-slot accumulator pipeline with no KEY-ON/reset events",
+                "scope": (
+                    "18-slot accumulator pipeline with KEY-ON phase reset events"
+                    if args.require_reset_event
+                    else "18-slot accumulator pipeline without KEY-ON/reset events"
+                ),
             },
             indent=2,
         )
