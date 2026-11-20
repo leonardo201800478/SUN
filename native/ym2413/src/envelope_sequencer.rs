@@ -238,8 +238,7 @@ impl EnvelopeSequencer {
         let state_rate = rate_operator.stage();
         let off_bit = (rate_operator.level() >> 2) == 0x1f;
         let rhythm_key_on = input.rhythm_select.key_on(input.rhythm_bits);
-        let next_eg_kon =
-            self.eg_kon.wrapping_shl(1) | u8::from(input.key_on || rhythm_key_on);
+        let next_eg_kon = self.eg_kon.wrapping_shl(1) | u8::from(input.key_on || rhythm_key_on);
         let next_eg_off = self.eg_off.wrapping_shl(1) | u8::from(off_bit);
         let mut next_eg_dokon = self.eg_dokon.wrapping_shl(1);
 
@@ -271,10 +270,7 @@ impl EnvelopeSequencer {
             }
         };
 
-        if !key_on_pipeline
-            && !mcsel
-            && !input.rhythm_select.preserves_modulator_rate()
-        {
+        if !key_on_pipeline && !mcsel && !input.rhythm_select.preserves_modulator_rate() {
             base_rate = 0;
         }
         if key_on_pipeline && state_rate == EnvelopeOperatorStage::Release && !off_pipeline {
