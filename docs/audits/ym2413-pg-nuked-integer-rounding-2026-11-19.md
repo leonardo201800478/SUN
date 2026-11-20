@@ -37,7 +37,7 @@ Before the change, 21,504 combinations differed from the staged Nuked expression
 |---|---:|---:|
 | FNUM=64, BLOCK=0, MUL=2, PM=2 | 129 | 128 |
 
-The Rust implementation now preserves both truncation points. A regression test compares all 524,288 legal tuples against an independent test-side transcription of the observed Nuked arithmetic and pins the counterexample above.
+The Rust implementation now preserves both truncation points. The regression test pins positive and negative odd-frequency PM boundaries across all 16 MUL encodings, plus a BLOCK=1 control case. The exhaustive 524,288-tuple comparison was performed as a static arithmetic analysis; it is not represented as an executable Nuked differential test.
 
 ## Secondary MAME comparison
 
@@ -61,7 +61,8 @@ It does **not** change:
 ## Validation status
 
 - Static source comparison against the pinned Nuked formula: completed.
-- Exhaustive test added for all 524,288 legal PG input tuples: pending CI execution on this branch.
+- Targeted PM/MUL rounding regression vectors: pending CI execution on this branch.
+- Exhaustive 524,288-tuple static arithmetic comparison: completed in the audit; not a runtime oracle comparison.
 - Nuked executable/oracle vectors and MAME output vectors: not yet generated in this environment.
 - PCM-level impact and cycle/slot alignment: still open.
 
