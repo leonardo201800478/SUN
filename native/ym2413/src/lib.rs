@@ -431,8 +431,7 @@ impl Ym2413Core {
             0x0e => {
                 let rhythm = self.write_data_latch & 0x3f;
                 self.registers[0x0e] = rhythm;
-                self.rm_enable =
-                    (self.rm_enable & 0x7f) | (((rhythm << 2) & 0x80) as i8);
+                self.rm_enable = (self.rm_enable & 0x7f) | (((rhythm << 2) & 0x80) as i8);
             }
             0x0f => {
                 self.registers[0x0f] = self.write_data_latch & 0x0f;
@@ -462,8 +461,7 @@ impl Ym2413Core {
             let channel = usize::from(cycle % 9);
             match self.fm_address & 0xf0 {
                 0x10 | 0x20 | 0x30 => {
-                    self.registers[usize::from(self.fm_address & 0xf0) + channel] =
-                        self.data_latch;
+                    self.registers[usize::from(self.fm_address & 0xf0) + channel] = self.data_latch;
                 }
                 _ => {}
             }
@@ -527,8 +525,7 @@ impl Ym2413Core {
             || u64::from(state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT
             || u64::from(state.slot_index) >= YM2413_SLOTS_PER_ROTATION
             || state.rm_select > 6
-            || (state.write_mode_address != 0
-                && !(0x10..=0x1f).contains(&state.write_mode_address))
+            || (state.write_mode_address != 0 && !(0x10..=0x1f).contains(&state.write_mode_address))
         {
             return Err(Ym2413Error::InvalidState);
         }
