@@ -207,7 +207,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::fs;
     use std::io::Write;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, RwLock};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temporary_directory() -> std::path::PathBuf {
