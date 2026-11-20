@@ -68,23 +68,23 @@ static int load_events(const char *path, input_event *events, size_t *count) {
         return 0;
     }
     while (fgets(line, sizeof line, f)) {
-        unsigned long long clock;
+        unsigned long long call_index;
         unsigned port, value;
         char *p = line;
         while (*p == ' ' || *p == '\t') ++p;
         if (*p == '\0' || *p == '\n' || *p == '#') continue;
-        if (sscanf(p, "%llu,%u,%u", &clock, &port, &value) != 3 ||
+        if (sscanf(p, "%llu,%u,%u", &call_index, &port, &value) != 3 ||
             port > 1 || value > 255 || *count >= MAX_EVENTS) {
             fprintf(stderr, "invalid event row or event limit exceeded: %s", line);
             fclose(f);
             return 0;
         }
-        if (*count && clock <= events[*count - 1].call_index) {
+        if (*count && call_index <= events[*count - 1].call_index) {
             fprintf(stderr, "events must have strictly increasing OPLL_Clock call indices\n");
             fclose(f);
             return 0;
         }
-        events[*count].call_index = (uint64_t)clock;
+        events[*count].call_index = (uint64_t)call_index;
         events[*count].port = port;
         events[*count].value = (uint8_t)value;
         ++*count;
@@ -94,7 +94,7 @@ static int load_events(const char *path, input_event *events, size_t *count) {
 }
 
 int main(int argc, char **argv) {
-    uint64_t clocks = 0;
+    uint64_t calls = 0;
     uint32_t chip_type = opll_type_ym2413;
     const char *events_path = NULL;
     input_event *events = calloc(MAX_EVENTS, sizeof(*events));
@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
 
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--calls") && i + 1 < argc) {
-            clocks = strtoull(argv[++i], NULL, 10);
+            calls = strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--events") && i + 1 < argc) {
             events_path = argv[++i];
         } else if (!strcmp(argv[i], "--chip-type") && i + 1 < argc) {
@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
         free(events);
         return 2;
     }
-    if (clocks == 0) {
+    if (calls == 0) {
         fprintf(stderr, "--calls must be greater than zero\n");
         free(events);
         return 2;
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
     OPLL_Reset(&chip, chip_type);
     puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9}}");
 
-    for (uint64_t tick = 0; tick < clocks; ++tick) {
+    for (uint64_t tick = 0; tick < calls; ++tick) {
         int32_t output[2] = {0, 0};
         uint32_t cycle_before = chip.cycles;
         while (event_index < event_count && events[event_index].call_index == tick) {
@@ -155,6 +155,12 @@ int main(int argc, char **argv) {
                chip.pg_inc, chip.pg_phase_next);
         print_u32_array(chip.pg_phase, 18);
         printf(",\"pg_out\":%u", (unsigned)chip.pg_out);
+        printf(",\"c_instr\":%u,\"c_op\":%u,\"c_tl\":%u,\"c_fb\":%u,\"c_am\":%u,\"c_vib\":%u,\"c_ksr\":%u,\"c_ksl\":%u,\"c_multi\":%u,\"c_fnum\":%u,\"c_block\":%u",
+               (unsigned)chip.c_instr, (unsigned)chip.c_op, (unsigned)chip.c_tl,
+               (unsigned)chip.c_fb, (unsigned)chip.c_am, (unsigned)chip.c_vib,
+               (unsigned)chip.c_ksr, (unsigned)chip.c_ksl, (unsigned)chip.c_multi,
+               (unsigned)chip.c_fnum, (unsigned)chip.c_block);
+        printf(",\"c_adrr\":"); print_u8_array(chip.c_adrr, 3);
         printf(",\"eg_counter_state\":%u,\"eg_timer\":%" PRIu32 ",\"eg_timer_carry\":%u",
                (unsigned)chip.eg_counter_state, chip.eg_timer, (unsigned)chip.eg_timer_carry);
         printf(",\"eg_state\":"); print_u8_array(chip.eg_state, 18);
