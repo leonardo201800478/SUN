@@ -2,7 +2,7 @@
 
 **Data de referência:** 2026-11-20
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1071 em 2026-11-19:** `fb83533bf27aceb802985583da6c55a92e2a94b9`  
+**Main base após PR #1071 em 2026-11-19:** `fb83533bf27aceb802985583da6c55a92e2a94b9`
 **HEAD de trabalho para o fechamento EG:** `0d7b32b2d350019880037422ae8f85b449ad4058` (PR #1084, ainda não integrada à main)
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
@@ -1080,7 +1080,7 @@ Esses itens são contratos de software e candidatos baseados em evidências publ
 
 ## Fechamento do EG serial no core — PR #1084 (2026-11-20)
 
-**Estado no branch:** IMPLEMENTADO + INTEGRADO AO `Ym2413Core` + VALIDAÇÃO DIFERENCIAL APROVADA.  
+**Estado no branch:** IMPLEMENTADO + INTEGRADO AO `Ym2413Core` + VALIDAÇÃO DIFERENCIAL APROVADA.
 **Estado na main:** AINDA NÃO INTEGRADO. A PR #1084 está empilhada sobre a PR #1083 (`validation/ym2413-eg-stage-transition`), que permanece Draft.
 
 ### Entrega
