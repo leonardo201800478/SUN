@@ -1,7 +1,8 @@
-//! YM2413 register, clock, PG, EG, and operator-synthesis candidate components.
+//! YM2413 register bus, slot clock, serial EG, PG, and operator-synthesis components.
 //!
-//! These components are independently testable and do not yet form a complete
-//! 18-slot FM pipeline or emit integrated YM2413 PCM.
+//! The 18-slot EG timer/operator pipeline is integrated into `Ym2413Core` and
+//! advances at the existing four-input-clock slot boundary. PG/FM synthesis
+//! and PCM output remain separate candidate components.
 
 pub mod am_lfo;
 pub mod bus_timing;
@@ -139,9 +140,9 @@ pub const YM2413_SLOTS_PER_ROTATION: u64 = 18;
 pub const YM2413_INPUT_CLOCKS_PER_ROTATION: u64 =
     YM2413_INPUT_CLOCKS_PER_SLOT * YM2413_SLOTS_PER_ROTATION;
 
-const YM2413_STATE_FORMAT_VERSION: u16 = 1;
+const YM2413_STATE_FORMAT_VERSION: u16 = 2;
 
-/// Errors raised by the YM2413 register and clock foundation.
+/// Errors raised by the YM2413 register, bus, clock, and EG foundation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413Error {
     /// The accumulated input-clock or rotation counter would overflow.
@@ -150,6 +151,10 @@ pub enum Ym2413Error {
     StateFormatVersionMismatch { expected: u16, actual: u16 },
     /// A snapshot contains an invalid latch, slot, phase, or clock relation.
     InvalidState,
+    /// Register-derived EG inputs could not be decoded.
+    EnvelopeInput(ChannelSynthesisError),
+    /// The serial EG sequencer rejected its current slot or state.
+    EnvelopeSequencer(EnvelopeSequencerError),
 }
 
 impl fmt::Display for Ym2413Error {
@@ -160,14 +165,32 @@ impl fmt::Display for Ym2413Error {
                 f,
                 "YM2413 state version {actual} is unsupported (expected {expected})"
             ),
-            Self::InvalidState => f.write_str("YM2413 register/clock state is inconsistent"),
+            Self::InvalidState => f.write_str("YM2413 register/clock/EG state is inconsistent"),
+            Self::EnvelopeInput(error) => {
+                write!(f, "YM2413 EG input decode error: {error:?}")
+            }
+            Self::EnvelopeSequencer(error) => {
+                write!(f, "YM2413 EG sequencer error: {error}")
+            }
         }
     }
 }
 
 impl std::error::Error for Ym2413Error {}
 
-/// Complete snapshot of the current register and clock foundation.
+impl From<ChannelSynthesisError> for Ym2413Error {
+    fn from(value: ChannelSynthesisError) -> Self {
+        Self::EnvelopeInput(value)
+    }
+}
+
+impl From<EnvelopeSequencerError> for Ym2413Error {
+    fn from(value: EnvelopeSequencerError) -> Self {
+        Self::EnvelopeSequencer(value)
+    }
+}
+
+/// Complete snapshot of the YM2413 register bus, serial EG and slot clock.
 ///
 /// The register image is internal device state. It is not a claim that the
 /// YM2413 exposes readable registers on its external bus.
@@ -175,22 +198,52 @@ impl std::error::Error for Ym2413Error {}
 pub struct Ym2413State {
     pub format_version: u16,
     pub registers: [u8; YM2413_REGISTER_COUNT],
+    /// Most recently presented six-bit address-port value.
     pub address_latch: u8,
+    /// Address currently consumed by the delayed FM register-write pipeline.
+    pub fm_address: u8,
+    pub write_data_latch: u8,
+    pub data_latch: u8,
+    pub write_a: u8,
+    pub write_d: u8,
+    pub write_a_enable: bool,
+    pub write_d_enable: bool,
+    pub write_fm_address: bool,
+    pub write_fm_data: bool,
+    pub write_mode_address: u8,
+    pub rm_enable: i8,
+    pub rm_select: u8,
+    pub envelope: EnvelopeSequencerState,
     pub input_clock_phase: u8,
     pub slot_index: u8,
     pub elapsed_input_clocks: u64,
     pub completed_rotations: u64,
 }
 
-/// Deterministic YM2413 register and sequential-slot clock foundation.
+/// Deterministic YM2413 register-bus, serial-EG, and slot-clock core.
 ///
-/// This type is independent of the SMS bus and scheduler. The machine adapter
-/// must supply input-clock advances at the correct scheduler deadline. A full
-/// rotation is a timing boundary only; this stage does not emit PCM samples.
+/// The EG sequencer receives one serial update whenever the existing four
+/// input clocks per slot complete. This establishes slot-level causality only;
+/// it does not assign PG/EG/operator work to unmeasured subphases within those
+/// four clocks. The machine adapter remains responsible for supplying input
+/// clocks at the correct MachineScheduler deadline.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ym2413Core {
     registers: [u8; YM2413_REGISTER_COUNT],
     address_latch: u8,
+    fm_address: u8,
+    write_data_latch: u8,
+    data_latch: u8,
+    write_a: u8,
+    write_d: u8,
+    write_a_enable: bool,
+    write_d_enable: bool,
+    write_fm_address: bool,
+    write_fm_data: bool,
+    write_mode_address: u8,
+    rm_enable: i8,
+    rm_select: u8,
+    envelope: EnvelopeSequencer,
     input_clock_phase: u8,
     slot_index: u8,
     elapsed_input_clocks: u64,
@@ -204,11 +257,24 @@ impl Default for Ym2413Core {
 }
 
 impl Ym2413Core {
-    /// Construct a reset YM2413 register/clock foundation.
+    /// Construct a reset YM2413 bus, serial-EG and slot-clock core.
     pub const fn new() -> Self {
         Self {
             registers: [0; YM2413_REGISTER_COUNT],
             address_latch: 0,
+            fm_address: 0,
+            write_data_latch: 0,
+            data_latch: 0,
+            write_a: 0,
+            write_d: 0,
+            write_a_enable: false,
+            write_d_enable: false,
+            write_fm_address: false,
+            write_fm_data: false,
+            write_mode_address: 0,
+            rm_enable: 0,
+            rm_select: 6,
+            envelope: EnvelopeSequencer::new(),
             input_clock_phase: 0,
             slot_index: 0,
             elapsed_input_clocks: 0,
@@ -216,27 +282,33 @@ impl Ym2413Core {
         }
     }
 
-    /// Reset the logical register image, address latch, and sequential clock phase.
+    /// Reset the logical register image, delayed bus pipeline, EG and slot phase.
     ///
     /// The machine adapter remains responsible for the documented external reset-pulse timing.
     pub fn reset(&mut self) {
         *self = Self::new();
     }
 
-    /// Latch the six-bit register address presented on the address port.
+    /// Queue a six-bit address-port write for the delayed internal bus pipeline.
+    ///
+    /// The public address latch records the presented value immediately; the
+    /// internal FM address is committed later by the serial bus pipeline.
     pub fn write_address(&mut self, address: u8) {
         self.address_latch = address & YM2413_ADDRESS_MASK;
+        self.write_data_latch = self.address_latch;
+        self.write_a |= 1;
     }
 
-    /// Write data to the currently latched register.
+    /// Queue a data-port write for the delayed internal bus pipeline.
     ///
-    /// Bus wait intervals and timestamp ordering are enforced by the future
-    /// SMS adapter; this pure core applies the write when called.
+    /// The register image changes only when the chip's serial write pipeline
+    /// reaches the selected register cycle.
     pub fn write_data(&mut self, value: u8) {
-        self.registers[usize::from(self.address_latch)] = value;
+        self.write_data_latch = value;
+        self.write_d |= 1;
     }
 
-    /// Return the current address latch for deterministic diagnostics.
+    /// Return the most recently presented address-port value.
     pub const fn address_latch(&self) -> u8 {
         self.address_latch
     }
@@ -249,8 +321,8 @@ impl Ym2413Core {
     /// Describe the next serial operator slot without advancing the clock.
     ///
     /// The returned descriptor follows the Yamaha Table II-3 ordering. It
-    /// identifies channel/operator ownership only; PG, EG and operator stage
-    /// offsets are not inferred by this accessor.
+    /// identifies channel/operator ownership only; it does not infer PG or
+    /// operator subphase offsets.
     pub const fn next_slot_descriptor(&self) -> Option<Ym2413SlotDescriptor> {
         slot_descriptor(self.slot_index)
     }
@@ -270,12 +342,20 @@ impl Ym2413Core {
         self.completed_rotations
     }
 
-    /// Advance the sequential slot clock by an exact number of input clocks.
+    /// Return a copy of the complete serial EG state for diagnostics and tests.
+    pub fn envelope_state(&self) -> EnvelopeSequencerState {
+        self.envelope.export_state()
+    }
+
+    /// Advance the slot clock and serial EG by an exact number of input clocks.
+    ///
+    /// Each completed four-clock slot services exactly one EG serial cycle.
+    /// The delayed address/data and rhythm-mode latches are advanced in the
+    /// same order as the serial slot. The operation is transactional: if an
+    /// input or EG state is invalid, neither the clock nor the EG is committed.
     ///
     /// Returns the number of complete 18-slot rotations crossed by this call.
-    /// The result is independent of how the caller partitions the clock block.
-    /// It is a timing boundary, not an audio sample, because synthesis has not
-    /// been implemented in this foundation stage.
+    /// The result and complete state are independent of block partitioning.
     pub fn advance_input_clocks(&mut self, clocks: u64) -> Result<u64, Ym2413Error> {
         let next_elapsed = self
             .elapsed_input_clocks
@@ -298,20 +378,135 @@ impl Ym2413Core {
         let next_slot = u8::try_from(total_slots % u128::from(YM2413_SLOTS_PER_ROTATION))
             .map_err(|_| Ym2413Error::InvalidState)?;
 
-        self.elapsed_input_clocks = next_elapsed;
-        self.input_clock_phase = next_clock_phase;
-        self.slot_index = next_slot;
-        self.completed_rotations = next_completed_rotations;
+        let mut next = self.clone();
+        let mut slots_remaining = completed_slots;
+        while slots_remaining != 0 {
+            next.clock_one_slot()?;
+            next.slot_index = (next.slot_index + 1) % YM2413_SLOTS_PER_ROTATION as u8;
+            slots_remaining -= 1;
+        }
+
+        next.elapsed_input_clocks = next_elapsed;
+        next.input_clock_phase = next_clock_phase;
+        next.slot_index = next_slot;
+        next.completed_rotations = next_completed_rotations;
+        *self = next;
 
         Ok(rotations)
     }
 
-    /// Export the complete register and sequential clock state.
+    /// Service one completed serial slot: mode latches, EG, register writes, IO latches.
+    fn clock_one_slot(&mut self) -> Result<(), Ym2413Error> {
+        let cycle = self.slot_index;
+
+        // Nuked's serial mode selector shifts before the current EG update.
+        self.rm_enable >>= 1;
+        self.apply_mode_write();
+        self.rm_select = (self.rm_select + 1).min(6);
+        if cycle == 11 && (self.rm_enable as u8 & 0x80) != 0 {
+            self.rm_select = 0;
+        }
+
+        let mut input = decode_envelope_slot_input_for_cycle(&self.registers, cycle)?;
+        input.rhythm_select =
+            EnvelopeRhythmSelect::from_code(self.rm_select).ok_or(Ym2413Error::InvalidState)?;
+        input.rhythm_bits = self.registers[0x0e] & 0x3f;
+        self.envelope.tick_slot(cycle, input)?;
+
+        self.apply_register_write(cycle);
+        Ok(())
+    }
+
+    /// Apply delayed user-patch, rhythm and test-mode register writes.
+    fn apply_mode_write(&mut self) {
+        if self.write_mode_address & 0x10 == 0 || !self.write_d_enable {
+            return;
+        }
+
+        let register = self.write_mode_address & 0x0f;
+        match register {
+            0x00..=0x07 => {
+                self.registers[usize::from(register)] = self.write_data_latch;
+            }
+            0x0e => {
+                let rhythm = self.write_data_latch & 0x3f;
+                self.registers[0x0e] = rhythm;
+                self.rm_enable =
+                    (self.rm_enable & 0x7f) | (((rhythm << 2) & 0x80) as i8);
+            }
+            0x0f => {
+                self.registers[0x0f] = self.write_data_latch & 0x0f;
+            }
+            _ => {}
+        }
+    }
+
+    /// Apply cycle-qualified FM register writes and advance the IO shift latches.
+    fn apply_register_write(&mut self, cycle: u8) {
+        if self.write_a_enable {
+            if self.write_data_latch & 0xc0 == 0 {
+                self.write_fm_address = true;
+                self.fm_address = self.write_data_latch;
+            } else {
+                self.write_fm_address = false;
+            }
+        }
+        if self.write_fm_address && self.write_d_enable {
+            self.data_latch = self.write_data_latch;
+        }
+        if self.write_fm_data
+            && !self.write_a_enable
+            && cycle < 16
+            && (self.fm_address & 0x0f) == cycle
+        {
+            let channel = usize::from(cycle % 9);
+            match self.fm_address & 0xf0 {
+                0x10 | 0x20 | 0x30 => {
+                    self.registers[usize::from(self.fm_address & 0xf0) + channel] =
+                        self.data_latch;
+                }
+                _ => {}
+            }
+        }
+        if self.write_a_enable {
+            self.write_fm_data = false;
+        }
+        if self.write_fm_address && self.write_d_enable {
+            self.write_fm_data = true;
+        }
+        if self.write_a_enable {
+            self.write_mode_address = if self.write_data_latch & 0xf0 == 0 {
+                0x10 | (self.write_data_latch & 0x0f)
+            } else {
+                0
+            };
+        }
+
+        self.write_a_enable = self.write_a & 0x03 == 0x01;
+        self.write_d_enable = self.write_d & 0x03 == 0x01;
+        self.write_a <<= 1;
+        self.write_d <<= 1;
+    }
+
+    /// Export the complete register bus, serial EG and slot-clock state.
     pub fn export_state(&self) -> Ym2413State {
         Ym2413State {
             format_version: YM2413_STATE_FORMAT_VERSION,
             registers: self.registers,
             address_latch: self.address_latch,
+            fm_address: self.fm_address,
+            write_data_latch: self.write_data_latch,
+            data_latch: self.data_latch,
+            write_a: self.write_a,
+            write_d: self.write_d,
+            write_a_enable: self.write_a_enable,
+            write_d_enable: self.write_d_enable,
+            write_fm_address: self.write_fm_address,
+            write_fm_data: self.write_fm_data,
+            write_mode_address: self.write_mode_address,
+            rm_enable: self.rm_enable,
+            rm_select: self.rm_select,
+            envelope: self.envelope.export_state(),
             input_clock_phase: self.input_clock_phase,
             slot_index: self.slot_index,
             elapsed_input_clocks: self.elapsed_input_clocks,
@@ -319,7 +514,7 @@ impl Ym2413Core {
         }
     }
 
-    /// Restore a snapshot after validating its version and clock arithmetic.
+    /// Restore a snapshot after validating the bus, EG, and clock relationships.
     pub fn restore_state(state: Ym2413State) -> Result<Self, Ym2413Error> {
         if state.format_version != YM2413_STATE_FORMAT_VERSION {
             return Err(Ym2413Error::StateFormatVersionMismatch {
@@ -328,8 +523,12 @@ impl Ym2413Core {
             });
         }
         if state.address_latch & !YM2413_ADDRESS_MASK != 0
+            || state.fm_address & !YM2413_ADDRESS_MASK != 0
             || u64::from(state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT
             || u64::from(state.slot_index) >= YM2413_SLOTS_PER_ROTATION
+            || state.rm_select > 6
+            || (state.write_mode_address != 0
+                && !(0x10..=0x1f).contains(&state.write_mode_address))
         {
             return Err(Ym2413Error::InvalidState);
         }
@@ -342,9 +541,27 @@ impl Ym2413Core {
             return Err(Ym2413Error::InvalidState);
         }
 
+        let envelope = EnvelopeSequencer::restore_state(state.envelope)?;
+        if envelope.timer_state().next_slot != state.slot_index {
+            return Err(Ym2413Error::InvalidState);
+        }
+
         Ok(Self {
             registers: state.registers,
             address_latch: state.address_latch,
+            fm_address: state.fm_address,
+            write_data_latch: state.write_data_latch,
+            data_latch: state.data_latch,
+            write_a: state.write_a,
+            write_d: state.write_d,
+            write_a_enable: state.write_a_enable,
+            write_d_enable: state.write_d_enable,
+            write_fm_address: state.write_fm_address,
+            write_fm_data: state.write_fm_data,
+            write_mode_address: state.write_mode_address,
+            rm_enable: state.rm_enable,
+            rm_select: state.rm_select,
+            envelope,
             input_clock_phase: state.input_clock_phase,
             slot_index: state.slot_index,
             elapsed_input_clocks: state.elapsed_input_clocks,
