@@ -72,7 +72,7 @@ Um relatório mínimo de falha de bootstrap só poderá existir para um caminho 
 
 `SEGA_LOG_DIR` permite substituir o diretório e `SEGA_LOG_FILTER` define o filtro inicial. O filtro pode ser recarregado em runtime por `LoggingHandle::set_filter`.
 
-O `WorkerGuard` só é criado após o opt-in e permanece vivo durante a execução. No encerramento normal, a aplicação só registra o evento final e grava o snapshot JSON se a coleta ainda estiver ativa; depois descarta o guard. Se a coleta estiver desativada, nenhum snapshot de encerramento é produzido.
+O `WorkerGuard` só é criado após o opt-in e permanece vivo durante a execução. No encerramento normal, a aplicação só registra o evento final se a coleta ainda estiver ativa e depois descarta o guard. Snapshot JSON nunca é gravado automaticamente no encerramento: ele só é produzido por ação explícita de exportação enquanto o consentimento central estiver ativo.
 
 ## Níveis e filtros
 
