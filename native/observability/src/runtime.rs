@@ -29,7 +29,7 @@ const MAX_CRASH_SOURCE_BASENAME_BYTES: usize = 128;
 pub type InitError = Box<dyn Error + Send + Sync>;
 
 type FilterHandle = reload::Handle<EnvFilter, Registry>;
-type WriterSlot = Arc<Mutex<Option<NonBlocking>>>;
+type WriterSlot = Arc<RwLock<Option<NonBlocking>>>;
 
 /// Capability representing an affirmative user action to enable diagnostics.
 ///
@@ -142,10 +142,7 @@ impl LoggingHandle {
         let filter = EnvFilter::try_new(&config.filter).map_err(|error| error.to_string())?;
 
         {
-            let mut writer_slot = self
-                .writer_slot
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
+            let mut writer_slot = self.writer_slot.write().unwrap_or_else(PoisonError::into_inner);
             let mut guard_slot = self.guard.lock().unwrap_or_else(PoisonError::into_inner);
             if guard_slot.is_none() {
                 let (writer, guard, error_counter) = create_non_blocking_writer(
@@ -190,10 +187,7 @@ impl LoggingHandle {
         // Detach the sender only after in-flight event writers release the slot.
         // Dropping WorkerGuard then drains the old queue while the sink gate is closed.
         {
-            let mut writer_slot = self
-                .writer_slot
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
+            let mut writer_slot = self.writer_slot.write().unwrap_or_else(PoisonError::into_inner);
             writer_slot.take();
         }
         let guard = self
@@ -323,10 +317,7 @@ impl LoggingHandle {
     /// Drop the non-blocking worker guard after the final diagnostics snapshot is written.
     pub fn shutdown(&self) {
         {
-            let mut writer_slot = self
-                .writer_slot
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
+            let mut writer_slot = self.writer_slot.write().unwrap_or_else(PoisonError::into_inner);
             writer_slot.take();
         }
         let guard = self
@@ -422,7 +413,7 @@ pub fn init_after_explicit_consent(
         Arc::clone(&recent_events),
         Arc::clone(&writer_gate),
     )?;
-    let writer_slot = Arc::new(Mutex::new(Some(non_blocking)));
+    let writer_slot = Arc::new(RwLock::new(Some(non_blocking)));
 
     // Install the subscriber inert; enable() activates it after consent.
     let filter = EnvFilter::try_new(initial_filter_directives())?;
