@@ -140,15 +140,28 @@ fn run() -> Result<(), String> {
 
         psg.advance_clocks(16);
 
+        let tone_periods_after = psg.tone_periods();
+        let tone_counters_after = psg.tone_counters();
+        let tone_outputs_after = psg.tone_outputs();
+        let attenuations_after = psg.attenuations();
+        let latched_register_after = psg.latched_register();
+        let noise_control_after = psg.noise_control();
+
         println!(
             concat!(
                 "{{\"tick\":{},\"write_count\":{},",
                 "\"latched_register_before\":{},",
                 "\"noise_control_before\":{},",
                 "\"tone_periods_before\":{:?},",
+                "\"tone_periods_after\":{:?},",
                 "\"tone_counters_before\":{:?},",
+                "\"tone_counters_after\":{:?},",
                 "\"tone_outputs_before\":{:?},",
+                "\"tone_outputs_after\":{:?},",
                 "\"attenuations_before\":{:?},",
+                "\"attenuations_after\":{:?},",
+                "\"latched_register_after\":{},",
+                "\"noise_control_after\":{},",
                 "\"lfsr_before\":{},\"lfsr_after\":{},",
                 "\"lfsr_bit_before\":{},\"lfsr_bit_after\":{},",
                 "\"noise_output_before\":{},\"noise_output_after\":{},",
@@ -163,9 +176,15 @@ fn run() -> Result<(), String> {
             latched_register_before,
             noise_control_before,
             tone_periods_before,
+            tone_periods_after,
             tone_counters_before,
+            tone_counters_after,
             tone_outputs_before,
+            tone_outputs_after,
             attenuations_before,
+            attenuations_after,
+            latched_register_after,
+            noise_control_after,
             lfsr_before,
             psg.lfsr(),
             lfsr_before & 1,
