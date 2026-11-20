@@ -1042,7 +1042,9 @@ fn capture_debug_snapshot(
         .map_err(|_| "debugger collector state is unavailable".to_owned())?;
     if let Some(collector) = slot.as_ref() {
         snapshot.trace_events = collector.snapshot();
-        snapshot.trace_dropped = collector.ingress_dropped();
+        snapshot.trace_dropped = collector
+            .ingress_dropped()
+            .saturating_add(snapshot.trace_buffer_dropped);
         snapshot.trace_enabled = true;
     }
     Ok(snapshot)
@@ -1091,11 +1093,17 @@ pub struct SmsDebugSnapshot {
     pub mapper_control: u8,
     pub memory_control: u8,
     pub framebuffer_rgb: Vec<u8>,
-    /// Most recent scheduler/bus events, oldest first.
+    /// Most recent scheduler/bus events from the opt-in detailed collector.
     pub trace_events: Vec<SmsTemporalTraceEvent>,
-    /// Number of trace events discarded after the bounded history filled.
+    /// Total detailed events discarded by the machine buffer and host collector.
     pub trace_dropped: u64,
-    /// Whether runtime trace capture is currently enabled.
+    /// Detailed events overwritten in the machine-owned bounded buffer.
+    pub trace_buffer_dropped: u64,
+    /// Always-on, fixed-capacity essential runtime events retained in machine RAM.
+    pub essential_trace_events: Vec<SmsTemporalTraceEvent>,
+    /// Number of essential events overwritten after the RAM ring filled.
+    pub essential_trace_dropped: u64,
+    /// Whether optional detailed trace capture is currently enabled.
     pub trace_enabled: bool,
 }
 
@@ -2663,6 +2671,9 @@ fn handle_command(
                 framebuffer_rgb: machine.framebuffer().to_vec(),
                 trace_events: Vec::new(),
                 trace_dropped: 0,
+                trace_buffer_dropped: machine.trace_dropped(),
+                essential_trace_events: machine.essential_trace_snapshot(),
+                essential_trace_dropped: machine.essential_trace_dropped(),
                 trace_enabled: *trace_enabled,
             };
             let _ = reply.send(Ok(snapshot));
@@ -3212,6 +3223,12 @@ mod tests {
 
     const SYNTHETIC_ROM: [u8; 0x4000] = [0; 0x4000];
 
+    fn memory_write_test_rom() -> Vec<u8> {
+        let mut rom = vec![0; 0x4000];
+        rom[..3].copy_from_slice(&[0x32, 0x00, 0xC0]); // LD ($C000),A
+        rom
+    }
+
     #[test]
     fn worker_exports_sram_and_preserves_it_across_reset_and_power_off() {
         let initial = vec![0x5A; 0x2000];
@@ -3516,10 +3533,11 @@ mod tests {
 
     #[test]
     fn trace_capture_is_opt_in_and_exposes_bounded_owned_events() {
-        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+        let worker = SmsTemporalWorker::new(memory_write_test_rom(), "usa").unwrap();
         let initial = worker.debug_snapshot().unwrap();
         assert!(!initial.trace_enabled);
         assert!(initial.trace_events.is_empty());
+        assert!(initial.essential_trace_events.is_empty());
 
         worker.set_trace_enabled(true).unwrap();
         worker.step_instruction().unwrap();
@@ -3527,12 +3545,28 @@ mod tests {
         assert!(captured.trace_enabled);
         assert!(!captured.trace_events.is_empty());
         assert_eq!(captured.trace_dropped, 0);
+        assert!(!captured.essential_trace_events.is_empty());
+        assert_eq!(captured.essential_trace_dropped, 0);
 
         worker.set_trace_enabled(false).unwrap();
         let disabled = worker.debug_snapshot().unwrap();
         assert!(!disabled.trace_enabled);
         assert!(disabled.trace_events.is_empty());
         assert_eq!(disabled.trace_dropped, 0);
+        assert!(!disabled.essential_trace_events.is_empty());
+        assert_eq!(disabled.essential_trace_dropped, 0);
+    }
+
+    #[test]
+    fn essential_trace_is_available_without_detailed_consent() {
+        let worker = SmsTemporalWorker::new(memory_write_test_rom(), "usa").unwrap();
+        worker.step_instruction().unwrap();
+
+        let snapshot = worker.debug_snapshot().unwrap();
+        assert!(!snapshot.trace_enabled);
+        assert!(snapshot.trace_events.is_empty());
+        assert!(!snapshot.essential_trace_events.is_empty());
+        assert_eq!(snapshot.essential_trace_dropped, 0);
     }
 
     #[test]
@@ -3561,6 +3595,10 @@ mod tests {
         assert_eq!(traced_state.frame_number, untraced_state.frame_number);
         assert!(traced_state.trace_enabled);
         assert!(!untraced_state.trace_enabled);
+        assert_eq!(
+            traced_state.essential_trace_events,
+            untraced_state.essential_trace_events
+        );
     }
 
     #[test]
