@@ -440,6 +440,15 @@ jobs:
           git -C "$RUNNER_TEMP/gearsystem" checkout "$reference_sha"
           test "$(git -C "$RUNNER_TEMP/gearsystem" rev-parse HEAD)" = "$reference_sha"
 
+      - name: Checkout pinned Ares SN76489 oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          reference_sha="8bc30c8c3d3c8081d2a66587add602df771441dd"
+          git clone https://github.com/ares-emulator/ares.git "$RUNNER_TEMP/ares"
+          git -C "$RUNNER_TEMP/ares" checkout "$reference_sha"
+          test "$(git -C "$RUNNER_TEMP/ares" rev-parse HEAD)" = "$reference_sha"
+
       - name: Compile external Gearsystem state trace adapter
         shell: bash
         run: |
@@ -450,6 +459,17 @@ jobs:
             "$RUNNER_TEMP/gearsystem/src/audio/Sms_Apu.cpp" \
             "$RUNNER_TEMP/gearsystem/src/audio/Blip_Buffer.cpp" -lm \
             -o "$RUNNER_TEMP/psg-gearsystem-trace"
+
+      - name: Compile external Ares SN76489 state trace adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++11 -O2 -Wall -Wextra \
+            -Itools/psg-crabemu-oracle/ares-shim \
+            -I"$RUNNER_TEMP/ares/ares/component/audio/sn76489" \
+            tools/psg-crabemu-oracle/ares_trace.cpp \
+            "$RUNNER_TEMP/ares/ares/component/audio/sn76489/sn76489.cpp" \
+            -o "$RUNNER_TEMP/psg-ares-trace"
 
       - name: Compile external CrabEmu oracle trace adapter
         shell: bash
@@ -504,6 +524,18 @@ jobs:
             > "$RUNNER_TEMP/psg-gearsystem-reference-repeat.jsonl"
           cmp artifacts/psg-gearsystem-reference.jsonl "$RUNNER_TEMP/psg-gearsystem-reference-repeat.jsonl"
 
+      - name: Capture Ares SN76489 component trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/psg-ares-trace" \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > artifacts/psg-ares-reference.jsonl
+          "$RUNNER_TEMP/psg-ares-trace" \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > "$RUNNER_TEMP/psg-ares-reference-repeat.jsonl"
+          cmp artifacts/psg-ares-reference.jsonl "$RUNNER_TEMP/psg-ares-reference-repeat.jsonl"
+
       - name: Compare same-tick PSG traces without waveform alignment
         shell: bash
         run: |
@@ -529,15 +561,20 @@ jobs:
           reference = read("artifacts/psg-crabemu-reference.jsonl")
           core = read("artifacts/psg-crabemu-core.jsonl")
           gear = read("artifacts/psg-gearsystem-reference.jsonl")
+          ares = read("artifacts/psg-ares-reference.jsonl")
           with open("artifacts/psg-crabemu-comparison.json", encoding="utf-8") as stream:
               summary = json.load(stream)
 
           assert len(reference) == 601, len(reference)
           assert len(core) == 601, len(core)
           assert len(gear) == 601, len(gear)
+          assert len(ares) == 601, len(ares)
           assert reference[0]["schema"] == "smsplus-crabemu-psg-trace-v1"
           assert core[0]["schema"] == "sega-sn76489-core-state-trace-v1"
           assert gear[0]["schema"] == "gearsystem-sms-psg-state-trace-v1"
+          assert ares[0]["schema"] == "ares-sn76489-state-trace-v1"
+          assert ares[0]["source_commit"] == "8bc30c8c3d3c8081d2a66587add602df771441dd"
+          assert ares[0]["time_unit"] == "sn76489_component_clock"
           assert reference[0]["source_commit"] == "3844b46caa926b6494987b97da63092818c4ddef"
           assert gear[0]["source_commit"] == "1be9a12b82cae84ddd6f9b7006d546abe2d58bd4"
           assert reference[0]["noise_bits"] == 16
@@ -555,6 +592,13 @@ jobs:
 
           # Keep sample/bit output conventions visible as diagnostic deltas.
           assert summary["reference_sample_vs_core_noise_output_latch_mismatch_count"] > 0
+
+          # Ares powers up with zero noise counter/flip; first component call
+          # clocks the first LFSR shift. Preserve this as an observed source fact.
+          assert ares[1]["lfsr"] == 32768
+          assert ares[1]["post_clock"]["lfsr"] == 16384
+          assert ares[1]["post_clock"]["noise_flip"] == 1
+          assert ares[1]["post_clock"]["noise_output"] == 0
           PY
 
       - name: Fetch historical PSG baseline
