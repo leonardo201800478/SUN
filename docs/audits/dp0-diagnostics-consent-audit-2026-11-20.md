@@ -266,6 +266,10 @@ Limite residual: esta é uma auditoria estática de código-fonte e workflows do
 
 ### 11.5 Estado da validação F7
 
-A implementação F7 fica vinculada aos resultados dos workflows no SHA final da PR #1115: CI geral, SMS Runtime Release, observabilidade Windows x64 Debug/Release e benchmark A/B Release com comparação de instruções e ticks. O benchmark precisa resolver a ponta atual da branch base, não o SHA congelado no momento de criação da PR. A validação local no hardware Windows x64 permanece **NOT RUN** e está registrada como follow-up externo; os workflows Windows x64 cobrem compilação/testes automatizados, não substituem medição física no PC do usuário.
+**Benchmark A/B Release: PASS.** Workflow run #27 comparou a base atual #1107 `dd09c136c71bbbf5b998578e80613e93bd07971c` com o head #1116 `7b4f98c78cd51bcf636912af9b59084fdf3755ec`, usando quatro pares A/B alternados e 20 amostras por revisão. Overhead mediano: **+1,14% bus-heavy** e **+1,13% relative-loop**. As contagens de instruções e ticks de máquina foram idênticas em todas as amostras. O workflow resolve a ponta atual da branch base, não o SHA congelado na criação da PR.
+
+**CI integral: PENDING no último checkpoint.** Na base #1107, workspace, Z80, Scheduler, VDP, SDL3, input, PowerShell, SMS Runtime Release e observabilidade Windows x64 Debug/Release concluíram SUCCESS; CPAL e Slint/WGPU/Vulkan Windows ainda estavam em execução. Na PR #1116, documentação, workflow, input, VDP e Scheduler concluíram SUCCESS; workspace, Z80, SDL3, Slint/WGPU/Vulkan Windows e SMS Runtime Release ainda estavam em execução. Jobs SKIPPED não são tratados como PASS quando não aplicáveis.
+
+A validação local no hardware Windows x64 permanece **NOT RUN** e está registrada como follow-up externo; os workflows Windows x64 cobrem compilação/testes automatizados, não substituem medição física no PC do usuário.
 
 **Esta seção supersede a conclusão histórica das seções 10.4, 10.8 e 10.10 para a classificação F6.** As seções anteriores permanecem preservadas como histórico de auditoria e decisões.
