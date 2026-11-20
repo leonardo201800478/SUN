@@ -1,7 +1,7 @@
 # P2 — Differential reference audit of the Sega SN76489
 
 **Date:** 2026-11-19
-**Status:** PARTIAL — static source comparison completed; executable external adapters and automated cross-emulator traces remain pending.
+**Status:** PARTIAL — static comparison plus CrabEmu/Gearsystem executable traces validated; Ares adapter added and awaiting CI; tone-boundary, reset and Tone 2 phase vectors remain pending.
 **Production changes:** none.
 **Baseline:** `main` at `0e8025e476eee12135f4c0f7def9dead7dfcaa14`.
 **Core blob:** `native/sn76489/src/psg.rs`, blob `cfccd43bf9178c5204464dd8057ac964d8429d4c`.
@@ -41,7 +41,7 @@ All commits below are pinned. File paths are relative to the listed repository.
 
 | Reference | Commit | Relevant source | License observed | Independence / caveat |
 |---|---|---|---|---|
-| [Ares](https://github.com/ares-emulator/ares) | `8bc30c8c3d3c8081d2a66587add602df771441dd` | `ares/component/audio/sn76489/sn76489.cpp`, `sn76489.hpp`, `ares/ms/psg/psg.cpp` | ISC | Generic SN76489 component reused by Master System; not a Sega-specific period-0/1 implementation |
+| [Ares](https://github.com/ares-emulator/ares) | `8bc30c8c3d3c8081d2a66587add602df771441dd` | `ares/component/audio/sn76489/sn76489.cpp`, `sn76489.hpp`, `ares/ms/psg/psg.cpp` | Ares project license (permissive ISC-style notice) | Generic SN76489 component reused by Master System; not a Sega-specific period-0/1 implementation |
 | [Genesis Plus GX](https://github.com/ekeeke/Genesis-Plus-GX) | `2499cd3e3d1d8b7d0130d8b2825adb4cc608b2c0` | `core/sound/psg.c` | Custom source license: non-commercial restriction | Independent implementation; integrated ASIC profile and reset comments are relevant, but do not assume every Genesis-specific behavior is identical to SMS |
 | [SMS Plus GX](https://github.com/libretro/smsplus-gx) | `3844b46caa926b6494987b97da63092818c4ddef` | `source/sound/crabemu_sn76489/sn76489.c`; `source/sound/maxim_sn76489/sn76489.c`; `source/sound/mame_sn76489/sn76489.c` | Project GPLv2+; CrabEmu GPLv2; Maxim implementation has a separate problematic permission; MAME-derived engine follows its upstream lineage | Contains three distinct sound engines. Do not count its MAME engine as an independent confirmation of MAME. |
 | [Gearsystem](https://github.com/drhelius/Gearsystem) | `1be9a12b82cae84ddd6f9b7006d546abe2d58bd4` | `src/audio/Sms_Apu.cpp`, `src/audio/Sms_Apu.h` | GPLv3 | Independent SMS implementation; uses Galois-form LFSR state |
@@ -53,7 +53,7 @@ All commits below are pinned. File paths are relative to the listed repository.
 
 These references are used only to inspect behavior and generate test expectations. No code is copied or translated.
 
-- Ares: ISC.
+- Ares: repository's permissive project license (ISC-style notice).
 - MAME source file: BSD-3-Clause.
 - Gearsystem: GPLv3 — oracle only.
 - SMS Plus GX CrabEmu core: GPLv2 — oracle only.
@@ -187,7 +187,7 @@ No production PSG code is changed by this audit.
 | Tone period 0/1 | CONFLICT | Variant-specific oracle; preserve PCM case |
 | Noise Rate = Tone 2 phase | PARTIAL | Timestamp traces across reset and writes |
 | Reset latch/output phase | CONFLICT | Profile-specific reset fixture |
-| External differential automation | NOT IMPLEMENTED | Add reproducible adapters and CI artifact format |
+| External differential automation | PARTIAL | CrabEmu/Gearsystem adapters validated; Ares adapter added and awaiting CI; add further independent references |
 
 ### Next P2 implementation tasks
 
@@ -247,10 +247,32 @@ The following were validated in the PSG-focused CI job: Rust formatting, Clippy,
 
 Still pending for P2:
 
-- executable Ares, Genesis Plus GX and MEKA traces;
+- Ares adapter compilation/trace validation in CI, plus executable Genesis Plus GX and MEKA traces;
 - tone period 0/1 differential vectors;
 - reset/latch and Noise Rate = Tone 2 phase vectors;
 - a formally documented mapping for Galois/Fibonacci state across every tested reset/write boundary;
 - independent evidence sufficient to choose hardware behavior rather than a majority of emulator implementations.
 
 No production hardware code was modified by this trial.
+
+
+## 11. Ares executable adapter — 2026-11-20
+
+A project-authored adapter was added to draft PR [#1081](https://github.com/leonardo201800478/sega-emulator/pull/1081):
+
+- `tools/psg-crabemu-oracle/ares_trace.cpp` exposes the Ares component state and four channel output values.
+- `tools/psg-crabemu-oracle/ares-shim/ares/ares.hpp` supplies only the fixed-width integer, array and no-op serializer vocabulary required by the component. It contains no PSG algorithm.
+- CI checks out Ares at `8bc30c8c3d3c8081d2a66587add602df771441dd` and compiles the original component files from that external checkout.
+- The adapter records pre/post state for each component clock. It does not resample, time-align or link Ares into the Rust backend.
+- The compatibility layer was smoke-compiled with C++11 against a locally reconstructed minimal component interface. The exact pinned upstream component build remains pending the GitHub Actions result for PR #1081 head `c19f95ecddf3b61f520224ffb2d6e39c3836d1d5`.
+
+### Additional Ares source observations
+
+- `SN76489::Tone::clock` toggles output when its counter is zero or reaches zero after decrement. Pitch 0 and 1 therefore both toggle at the maximum component-clock rate.
+- `SN76489::Noise::clock` reloads its divider from 0x10, 0x20, 0x40 or the copied Tone 2 pitch. Its flip-flop shifts the LFSR on every second divider expiration.
+- On the shift edge, Ares assigns `noise.output` from the old LFSR bit 0 before shifting the 16-bit register.
+- Writes to Tone 2 copy the new pitch into the noise pitch, but do not explicitly copy Tone 2's pending counter.
+- `power()` resets tone/noise structures and latch to their default member state: pitch/counters/output/flip/latch zero, volumes 15, LFSR 0x8000.
+- The component itself is generic SN76489 logic; its presence in Ares' Master System integration does not prove that every TI-chip behavior matches every Sega integrated PSG revision.
+
+The source-level behavior reinforces the existing P2 conflicts for period 0/1, reset phase and LFSR output edge. It does not authorize a production change.
