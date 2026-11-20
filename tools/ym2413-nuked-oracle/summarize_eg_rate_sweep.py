@@ -34,6 +34,7 @@ def main() -> int:
     total_timer_field_mismatches = 0
     external_phase_level_mismatches = 0
     external_phase_stage_mismatches = 0
+    external_phase_compared_samples = 0
 
     for config in manifest["configurations"]:
         stem = Path(config["fixture"]).stem
@@ -82,7 +83,7 @@ def main() -> int:
             "candidate_initial_level_127_deferred_decay_phase_minus3"
         ]
         external_phase_comparison = comparison[
-            "candidate_initial_level_127_deferred_external_rate_phase"
+            "candidate_seeded_external_rate_phase"
         ]
         baseline_level = int(baseline_comparison["level_mismatches"])
         baseline_stage = int(baseline_comparison["stage_mismatches"])
@@ -96,6 +97,9 @@ def main() -> int:
         external_stage = int(external_phase_comparison["stage_mismatches"])
         external_phase_level_mismatches += external_level
         external_phase_stage_mismatches += external_stage
+        external_phase_compared_samples += int(
+            external_phase_comparison["compared_samples"]
+        )
         level_by_dr[int(config["dr"])] += level_mismatches
         level_by_ksr[int(config["ksr"])] += level_mismatches
 
@@ -116,6 +120,9 @@ def main() -> int:
             "timer_replay": "PASS" if timer_ok else "FAIL",
             "first_level_mismatch": candidate_comparison["first_level_mismatch"],
             "first_stage_mismatch": candidate_comparison["first_stage_mismatch"],
+            "external_rate_phase_compared_samples": int(
+                external_phase_comparison["compared_samples"]
+            ),
             "external_rate_phase_level_mismatches": external_level,
             "external_rate_phase_stage_mismatches": external_stage,
             "external_rate_phase_max_absolute_level_error": int(
@@ -138,6 +145,7 @@ def main() -> int:
         "baseline_total_stage_mismatches": baseline_stage_mismatches,
         "total_level_mismatches": total_level_mismatches,
         "total_stage_mismatches": total_stage_mismatches,
+        "external_rate_phase_compared_samples": external_phase_compared_samples,
         "external_rate_phase_total_level_mismatches": external_phase_level_mismatches,
         "external_rate_phase_total_stage_mismatches": external_phase_stage_mismatches,
         "external_rate_phase_all_levels_match": external_phase_level_mismatches == 0,
