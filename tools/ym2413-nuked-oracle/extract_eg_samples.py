@@ -19,7 +19,7 @@ def main() -> int:
         rows = (json.loads(line) for line in stream if line.strip())
         with args.output.open("w", newline="", encoding="utf-8") as output:
             writer = csv.writer(output)
-            writer.writerow(("call_index", "slot", "global_counter", "key_on",
+            writer.writerow(("# call_index", "slot", "global_counter", "key_on",
                              "observed_level", "observed_state"))
             count = 0
             for row in rows:
