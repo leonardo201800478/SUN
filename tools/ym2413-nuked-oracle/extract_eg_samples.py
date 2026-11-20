@@ -31,6 +31,7 @@ def main() -> int:
         assert schema["time_unit"] == "opll_clock_call"
         rows = (json.loads(line) for line in stream if line.strip())
         previous_eg_sl = None
+        previous_eg_rate_phase = None
         with args.output.open("w", newline="", encoding="utf-8") as output:
             writer = csv.writer(output)
             writer.writerow((
@@ -43,6 +44,16 @@ def main() -> int:
             for row in rows:
                 consumed_eg_sl = previous_eg_sl
                 previous_eg_sl = row["eg_sl"]
+                # Nuked consumes the rate-phase latches before refreshing them
+                # at the end of OPLL_EnvelopeGenerate. The post-call trace row
+                # therefore exposes the latches for the next clock call.
+                consumed_rate_phase = previous_eg_rate_phase
+                previous_eg_rate_phase = (
+                    row["eg_rate_hi"],
+                    row["eg_inc_lo"],
+                    row["eg_inc_hi"],
+                    row["eg_maxrate"],
+                )
                 # This is the array entry updated during this OPLL_Clock call.
                 slot = (row["cycle_before"] + 16) % 18
                 channel = CH_OFFSET[slot]
@@ -53,6 +64,8 @@ def main() -> int:
                     continue
                 if consumed_eg_sl is None:
                     raise ValueError("selected EG update has no preceding SL latch")
+                if consumed_rate_phase is None:
+                    raise ValueError("selected EG update has no preceding rate-phase latch")
 
                 global_counter = row["call_index"] // 18
                 assert row["eg_counter_state"] == (global_counter & 0xff), (
@@ -70,8 +83,7 @@ def main() -> int:
                     row["c_adrr"][0], row["c_adrr"][1], row["c_adrr"][2],
                     consumed_eg_sl, row["c_ksr"], row["fnum"][channel], row["block"][channel],
                     row["son"][channel], row["c_et"],
-                    row["eg_rate_hi"], row["eg_inc_lo"], row["eg_inc_hi"],
-                    row["eg_maxrate"], row["eg_counter_state_prev"],
+                    *consumed_rate_phase, row["eg_counter_state_prev"],
                 ))
                 counts_by_channel[channel] += 1
                 counts_by_slot[slot] += 1
