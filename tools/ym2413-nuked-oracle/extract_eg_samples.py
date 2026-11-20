@@ -24,7 +24,11 @@ def main() -> int:
             count = 0
             for row in rows:
                 slot = (row["cycle_before"] + 16) % 18
-                if slot not in (2, 17) or row["kon"][0] != 1:
+                # eg_kon is shifted once inside OPLL_EnvelopeGenerate.
+                # Bit 2 after the call is the bit-1 value consumed by the
+                # EG update during this call, so this is the per-slot KEY-ON
+                # actually observed by the envelope, not raw channel KON.
+                if slot not in (2, 17) or (row["eg_kon"] & 0x04) == 0:
                     continue
                 global_counter = row["call_index"] // 18
                 assert row["eg_counter_state"] == (global_counter & 0xff), (
