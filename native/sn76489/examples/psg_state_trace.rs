@@ -9,7 +9,10 @@ struct Event {
 }
 
 fn parse_u8(value: &str) -> Result<u8, String> {
-    if let Some(hex) = value.strip_prefix("0x").or_else(|| value.strip_prefix("0X")) {
+    if let Some(hex) = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+    {
         u8::from_str_radix(hex, 16).map_err(|error| error.to_string())
     } else {
         value.parse::<u8>().map_err(|error| error.to_string())
@@ -44,7 +47,10 @@ fn load_events(path: &str) -> Result<Vec<Event>, String> {
         if fields.next().is_some() {
             return Err(format!("too many CSV fields at line {}", line_index + 1));
         }
-        if events.last().is_some_and(|previous: &Event| tick < previous.tick) {
+        if events
+            .last()
+            .is_some_and(|previous: &Event| tick < previous.tick)
+        {
             return Err("event ticks must be nondecreasing".to_string());
         }
         events.push(Event { tick, value });
