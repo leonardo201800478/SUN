@@ -422,6 +422,101 @@ jobs:
           mkdir -p artifacts
           PSG_AUDIO_ARTIFACT_DIR="$GITHUB_WORKSPACE/artifacts" cargo test --release --locked --all-targets -p sega-sn76489 -p sega-audio-runtime -p sega-sms-core -p sega-sg1000-core
 
+      - name: Checkout pinned SMS Plus GX CrabEmu oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          reference_sha="3844b46caa926b6494987b97da63092818c4ddef"
+          git clone https://github.com/libretro/smsplus-gx.git "$RUNNER_TEMP/smsplus-gx"
+          git -C "$RUNNER_TEMP/smsplus-gx" checkout "$reference_sha"
+          test "$(git -C "$RUNNER_TEMP/smsplus-gx" rev-parse HEAD)" = "$reference_sha"
+
+      - name: Compile external CrabEmu oracle trace adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -O2 -Wall -Wextra \
+            -I"$RUNNER_TEMP/smsplus-gx/source/sound/crabemu_sn76489" \
+            tools/psg-crabemu-oracle/trace.c \
+            "$RUNNER_TEMP/smsplus-gx/source/sound/crabemu_sn76489/sn76489.c" \
+            -o "$RUNNER_TEMP/psg-crabemu-trace"
+
+      - name: Generate clock-stamped PSG write schedule
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > artifacts/psg-crabemu-events.csv <<'EOF'
+          # tick,byte
+          0,0xE4
+          0,0xF0
+          540,0xE0
+          560,0xE4
+          EOF
+
+      - name: Capture pinned CrabEmu and current SMS PSG traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/psg-crabemu-trace" \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > artifacts/psg-crabemu-reference.jsonl
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > artifacts/psg-crabemu-core.jsonl
+          "$RUNNER_TEMP/psg-crabemu-trace" \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > "$RUNNER_TEMP/psg-crabemu-reference-repeat.jsonl"
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > "$RUNNER_TEMP/psg-crabemu-core-repeat.jsonl"
+          cmp artifacts/psg-crabemu-reference.jsonl "$RUNNER_TEMP/psg-crabemu-reference-repeat.jsonl"
+          cmp artifacts/psg-crabemu-core.jsonl "$RUNNER_TEMP/psg-crabemu-core-repeat.jsonl"
+
+      - name: Compare same-tick PSG traces without waveform alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/psg-crabemu-oracle/compare.py \
+            artifacts/psg-crabemu-reference.jsonl \
+            artifacts/psg-crabemu-core.jsonl \
+            > artifacts/psg-crabemu-comparison.json
+          cat artifacts/psg-crabemu-comparison.json
+
+      - name: Validate CrabEmu trace schema and known diagnostic schedule
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+
+          def read(path):
+              with open(path, encoding="utf-8") as stream:
+                  return [json.loads(line) for line in stream if line.strip()]
+
+          reference = read("artifacts/psg-crabemu-reference.jsonl")
+          core = read("artifacts/psg-crabemu-core.jsonl")
+          with open("artifacts/psg-crabemu-comparison.json", encoding="utf-8") as stream:
+              summary = json.load(stream)
+
+          assert len(reference) == 601, len(reference)
+          assert len(core) == 601, len(core)
+          assert reference[0]["schema"] == "smsplus-crabemu-psg-trace-v1"
+          assert core[0]["schema"] == "sega-sn76489-core-state-trace-v1"
+          assert reference[0]["source_commit"] == "3844b46caa926b6494987b97da63092818c4ddef"
+          assert reference[0]["noise_bits"] == 16
+          assert reference[0]["noise_tapped"] == 9
+          assert summary["ticks_compared"] == 600
+
+          # CrabEmu starts with a zero noise counter and positive noise flip-flop.
+          # Its first LFSR shift is one PSG internal tick later than the current
+          # core's initialized 16-count/phase-zero divider.
+          assert summary["reference_first_lfsr_shift_tick"] == 16
+          assert summary["core_first_lfsr_shift_tick"] == 15
+
+          # Keep the sample bit separate from the core's latched noise output.
+          assert summary["reference_sample_vs_core_noise_output_latch_mismatch_count"] > 0
+          PY
+
       - name: Fetch historical PSG baseline
         shell: bash
         run: |
