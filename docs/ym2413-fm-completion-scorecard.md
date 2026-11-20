@@ -101,11 +101,24 @@ A correção de arredondamento inteiro do Phase Generator está proposta na PR #
 - Aritmética de PG ajustada para preservar os dois pontos de truncamento observados em `OPLL_PhaseCalcIncrement` do Nuked-OPLL fixado.
 - Vetores de regressão positivos/negativos de PM e todos os 16 valores MUL adicionados.
 - CI aplicável no HEAD `15278ea4fcb19669a7f3b3c10e8a89ab3cebb379`: Rust workspace regression, Rust quality/unit regression e documentação — SUCCESS.
-- Comparação estática exaustiva de 524.288 combinações executada; não é uma execução diferencial do binário Nuked.
+- Comparação estática exaustiva de 524.288 combinações executada.
+- PR #1076 fornece adapter externo fixado ao Nuked; PR #1077 executa a comparação diferencial contra o método Rust real.
+- Differential CI: 147.456 chamadas `OPLL_Clock`, 16.373 chamadas PM-enabled, todas as oito posições PM cobertas e zero divergências no incremento PG.
 - Comparação exata MAME/ymfm para PG permanece aberta.
-- O harness externo de trace Nuked está em desenvolvimento separado; não altera o backend.
+- Nenhuma implementação Nuked foi copiada ou ligada ao backend.
 
 **Classificação:** correção local de PG implementada na branch e CI validado; aguardando revisão/integração. FM-1 continua PARCIAL. FM-6 continua PENDENTE. Nenhuma afirmação de cycle-accuracy integrada.
+
+## Resultado diferencial PG — Nuked-OPLL × Rust (PR #1077, 2026-11-19)
+
+- Comparador usa o `PhaseGenerator::phase_step` de produção, sem duplicar sua fórmula em Python.
+- O adapter registra os operandos imediatamente antes de `OPLL_PhaseCalcIncrement` e o `pg_inc` calculado depois da operação, evitando parear parâmetros do próximo slot com o incremento anterior.
+- Referência Nuked fixada em `1269cf5a783b65583b50fa2464d08be75830aaa0`.
+- 147.456 chamadas comparadas; 16.373 com PM habilitado; posições 0..7 cobertas com FNUM não nulo; zero divergências.
+- Workflow #44652587533 / job #136010866086: SUCCESS.
+- O modo PG-only gera trace compacto para percorrer o período do LFO sem armazenar arrays de EG/operadores que não participam deste teste.
+
+**Limite:** valida igualdade do incremento PG nos operandos observados. Não valida fase acumulada alinhada, mapeamento de slot, subfase dos quatro input clocks, reset, EG, feedback, PCM ou fidelidade física. A triangulação MAME/ymfm permanece pendente.
 
 ## Próxima dependência técnica
 
