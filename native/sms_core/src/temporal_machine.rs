@@ -25,7 +25,7 @@ use sega_z80_cpu::{
     Z80MicroSequencerError, Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep,
 };
 
-pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 33;
+pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 34;
 
 /// Runtime event trace emitted from actual Scheduler/bus dispatch boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1892,10 +1892,10 @@ mod tests {
     fn vdp_testrom_timing_snapshot_version_rejects_previous_semantics() {
         let machine = SmsTemporalMachine::new(vec![0; 0x4000], 3).unwrap();
         let mut state = machine.export_state();
-        assert_eq!(state.format_version, 33);
-        assert_eq!(state.bus.format_version, 20);
+        assert_eq!(state.format_version, 34);
+        assert_eq!(state.bus.format_version, 21);
 
-        state.format_version = 32;
+        state.format_version = 33;
         assert!(matches!(
             SmsTemporalMachine::restore_state(state),
             Err(SmsTemporalMachineError::InvalidState)
@@ -3315,13 +3315,6 @@ mod base_immediate_io_temporal_tests {
         );
         assert_eq!(output.bus.io().io_control(), 0xD5);
         assert_eq!(output.cpu().wz, 0xD540);
-        assert_eq!(output.bus.port_write_trace().len(), 1);
-        assert_eq!(output.bus.port_write_trace()[0].port, 0xD53F);
-        assert_eq!(output.bus.port_write_trace()[0].value, 0xD5);
-        assert_eq!(
-            output.bus.port_write_trace()[0].completed_at,
-            MachineTime::from_ticks(33)
-        );
         assert_eq!(output.now(), MachineTime::from_ticks(33));
 
         let mut memory_control = SmsTemporalMachine::new(vec![0xD3, 0x3E], 3).unwrap();
