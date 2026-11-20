@@ -729,13 +729,15 @@ mod tests {
             directory.join("crash.log")
         };
 
-        std::panic::set_hook(Box::new(move |_| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
             let mut file = fs::OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(&marker)
                 .unwrap();
             writeln!(file, "previous").unwrap();
+            previous(panic_info);
         }));
 
         if mode != "no-opt-in" {
