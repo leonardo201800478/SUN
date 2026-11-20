@@ -296,9 +296,8 @@ mod tests {
     #[test]
     fn serial_cycle_mapping_selects_nuked_channel_and_operator_role() {
         let registers = registers_for_all_channels();
-        let channels = std::array::from_fn(|index| {
-            decode_channel_synthesis(&registers, index as u8).unwrap()
-        });
+        let channels =
+            std::array::from_fn(|index| decode_channel_synthesis(&registers, index as u8).unwrap());
 
         for cycle in 0..18_u8 {
             let channel = YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)];
@@ -315,14 +314,20 @@ mod tests {
             assert_eq!(input.decay_rate, selected.decay_rate, "cycle {cycle}");
             assert_eq!(input.release_rate, selected.release_rate, "cycle {cycle}");
             assert_eq!(input.sustain_level, selected.sustain_level, "cycle {cycle}");
-            assert_eq!(input.key_scale_rate, selected.key_scale_rate, "cycle {cycle}");
+            assert_eq!(
+                input.key_scale_rate, selected.key_scale_rate,
+                "cycle {cycle}"
+            );
             assert_eq!(
                 input.ksr_frequency,
                 ((selected.block << 1) | (selected.fnum >> 8) as u8) & 0x0f,
                 "cycle {cycle}"
             );
             assert_eq!(input.sustain_on, config.channel.sustain_on, "cycle {cycle}");
-            assert_eq!(input.sustained_tone, selected.sustained_tone, "cycle {cycle}");
+            assert_eq!(
+                input.sustained_tone, selected.sustained_tone,
+                "cycle {cycle}"
+            );
             assert_eq!(input.key_on, config.channel.key_on, "cycle {cycle}");
         }
     }
