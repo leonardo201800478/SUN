@@ -186,3 +186,32 @@ A auditoria inicial permanece válida como registro da baseline `a58edc2`, mas n
 Implementar DP0-F4 no crate compartilhado `native/observability`: separar preparação side-effect-free da ativação após consentimento, iniciar com filtro `off`, impedir escrita de snapshot sem autorização apropriada e preservar singleton do subscriber, fila limitada, rotação e comportamento de shutdown. Atualizar os dois hosts consumidores de forma coordenada e cobrir o contrato com testes isolados de filesystem e transições de estado.
 
 Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 concluído, não comprova execução física nem afirma overhead zero.
+
+
+## Reauditoria de unificação — 2026-11-20
+
+**Base auditada:** `main` em `137d0859463bfbf6cdbcdde0945b0eca65eee90c`.
+**Branch candidata:** `fix/dp0-unified-debugger-consent-and-passive-trace-removal`.
+
+### Achados confirmados
+
+1. Os eventos estruturados de produção usam a fachada `sega_observability::tracing`; a instalação do subscriber, filtro, fila e writer permanece concentrada em `native/observability`. Não foi encontrado segundo `tracing_subscriber`, `env_logger` ou macro da fachada `log` em caminhos ativos de produção.
+2. Os `println!`/`eprintln!` encontrados pertencem a build scripts, ferramentas, exemplos, testes e stubs não-Windows; não foi identificado um logger de console paralelo no host Slint Windows.
+3. `HOST_DIAGNOSTICS_ENABLED` duplicava o estado de autorização já mantido por `LoggingHandle`. A branch candidata remove esse espelho e consulta o estado do handle central.
+4. O controle de trace podia ativar o coletor independente do consentimento do logger; a revogação de logs não encerrava esse coletor. A branch candidata condiciona snapshots e trace ao consentimento central e encerra trace/métricas na revogação e em falha de ativação.
+5. A descrição do Debugger ainda prometia um snapshot automático no encerramento, embora a remoção dessa gravação já esteja na base. A branch candidata corrige o texto: snapshots/traces só por ação explícita, com coleta autorizada.
+6. `SmsTemporalBus::port_write_trace` registrava continuamente as últimas 64 escritas de I/O, sem opt-in, e serializava esse histórico em `SmsTemporalBusState`. O histórico não tinha consumidores de produção; era usado apenas por testes. A branch candidata remove o buffer passivo e suas validações/cópias de estado. Os testes continuam verificando os efeitos reais das escritas nos latches do I/O, mapper e PSG.
+7. A remoção do campo diagnóstico altera o formato dos snapshots em memória: versão do barramento 20 → 21 e versão da máquina 33 → 34. Os testes de rejeição de versões anteriores foram atualizados.
+
+### Pendências que permanecem abertas
+
+- O panic hook genérico ainda captura panics de runtime somente quando o consentimento está ativo. Isso diverge da política do produto: o único arquivo automático deve ser um relatório mínimo para falha crítica de bootstrap que impeça iniciar. A próxima fatia DP0 deve remover o hook genérico e implementar o reporter explícito de falha de bootstrap, com chamadas apenas nos pontos de inicialização classificados.
+- `SmsTemporalMachine::trace_events` continua sendo uma estrutura de captura de baixo nível. No worker, ela é drenada para um `DiagnosticCollector` limitado; a ativação no host Slint passa a depender do consentimento central. Ainda é necessário revisar os consumidores diretos da API de core e garantir limite/descartar eventos quando não houver publisher ativo.
+- O host legado `native/sega_app` e a ferramenta independente `native/sms_debugger` mantêm interfaces de depuração próprias. Não são o host Slint de destino, mas precisam permanecer identificados como ferramentas/legado e não podem reativar coleta persistente por preferência herdada.
+- O inventário de macros estruturadas deve ser revisto por target e nível em uma próxima etapa, removendo instrumentação temporária sem valor diagnóstico permanente. Os eventos úteis podem permanecer porque todos passam pelo mesmo subscriber, inicialmente desligado.
+
+### Validação desta branch
+
+- Alterações estáticas aplicadas; validação local não executada neste ambiente.
+- Exigir CI Windows x64 Release, testes de `sms_core`, testes do `sms-runtime`, Clippy e regressões de save-state antes de merge.
+- Nenhum resultado `NOT RUN` deve ser tratado como PASS.
