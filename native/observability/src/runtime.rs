@@ -661,8 +661,8 @@ mod tests {
         ensure_diagnostics_enabled, format_crash_record, initial_filter_directives,
         prepare_crash_log, set_writer_gate,
     };
-    use std::fs;
     use std::collections::VecDeque;
+    use std::fs;
     use std::io::Write;
     use std::process::Command;
     use std::sync::{Mutex, RwLock};
