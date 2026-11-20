@@ -808,9 +808,9 @@ mod tests {
             .tick_operator_envelope_with_events(0, true, true, 8, config.carrier_envelope)
             .unwrap();
         assert!(carrier_event.phase_reset_required);
-        // AR=10, KSR=0, FNUM=0, BLOCK=0 => RATE=40; counter 8
-        // selects the measured -8 attack step from level 127 to 119.
-        assert_eq!(bank.envelope_level(0, true).unwrap(), 119);
+        // DAMP completion is consumed after this operator update; ATTACK
+        // must not also consume the counter-8 increment on this same update.
+        assert_eq!(bank.envelope_level(0, true).unwrap(), 127);
         assert_ne!(modulator_phase, 0);
         assert_ne!(carrier_phase, 0);
 
@@ -836,6 +836,14 @@ mod tests {
             bank.export_state().channels[0].carrier_envelope.stage,
             EnvelopeStage::Attack
         );
+
+        // The next carrier EG update consumes the ATTACK step that was
+        // deferred by the DAMP completion boundary.
+        let next_carrier_event = bank
+            .tick_operator_envelope_with_events(0, true, true, 9, config.carrier_envelope)
+            .unwrap();
+        assert!(!next_carrier_event.phase_reset_required);
+        assert_eq!(bank.envelope_level(0, true).unwrap(), 119);
     }
 
     #[test]
