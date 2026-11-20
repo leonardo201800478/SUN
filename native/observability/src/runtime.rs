@@ -131,6 +131,7 @@ impl LoggingHandle {
     /// reactivation after revocation. On failure, collection remains disabled.
     pub fn enable(&self, _consent: &DiagnosticsConsent) -> Result<(), String> {
         DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
+        set_writer_gate(&self.writer_gate, &self.recent_events, false);
         let directives = self
             .config
             .lock()
@@ -153,11 +154,11 @@ impl LoggingHandle {
     /// cleared before this method returns, so a later re-consent starts clean.
     pub fn disable(&self) -> Result<(), String> {
         DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
+        set_writer_gate(&self.writer_gate, &self.recent_events, false);
         let filter = EnvFilter::try_new("off").map_err(|error| error.to_string())?;
         self.filter
             .reload(filter)
             .map_err(|error| error.to_string())?;
-        set_writer_gate(&self.writer_gate, &self.recent_events, false);
         Ok(())
     }
 
