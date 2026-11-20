@@ -5078,6 +5078,11 @@ mod windows_host {
 
     #[cfg(test)]
     mod tests {
+        #[test]
+        fn host_diagnostics_are_disabled_by_default() {
+            assert!(!super::host_diagnostics_enabled());
+        }
+
         use super::*;
 
         #[test]
