@@ -429,6 +429,89 @@ mod tests {
     }
 
     #[test]
+    fn rhythm_selectors_map_all_five_trigger_bits() {
+        use super::EnvelopeRhythmSelect as Rhythm;
+
+        assert!(Rhythm::BassDrumFirst.key_on(0x10));
+        assert!(Rhythm::BassDrumSecond.key_on(0x10));
+        assert!(Rhythm::HiHat.key_on(0x01));
+        assert!(Rhythm::TomTom.key_on(0x04));
+        assert!(Rhythm::SnareDrum.key_on(0x08));
+        assert!(Rhythm::TopCymbal.key_on(0x02));
+        assert!(!Rhythm::None.key_on(0x3f));
+        assert_eq!(Rhythm::from_code(6), Some(Rhythm::None));
+        assert_eq!(Rhythm::from_code(7), None);
+        assert!(Rhythm::HiHat.preserves_modulator_rate());
+        assert!(Rhythm::TomTom.preserves_modulator_rate());
+        assert!(!Rhythm::BassDrumFirst.preserves_modulator_rate());
+    }
+
+    #[test]
+    fn rhythm_trigger_is_orred_into_the_delayed_eg_key_on_pipeline() {
+        use super::EnvelopeRhythmSelect;
+
+        let mut sequencer = EnvelopeSequencer::new();
+        let result = sequencer
+            .tick_slot(
+                0,
+                EnvelopeSlotInput {
+                    rhythm_select: EnvelopeRhythmSelect::HiHat,
+                    rhythm_bits: 0x21,
+                    ..EnvelopeSlotInput::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(result.eg_kon, 1);
+    }
+
+    #[test]
+    fn hihat_and_tom_selectors_preserve_modulator_release_rate() {
+        use super::EnvelopeRhythmSelect;
+
+        let mut hihat = EnvelopeSequencer::new();
+        let hihat_result = hihat
+            .tick_slot(
+                0,
+                EnvelopeSlotInput {
+                    release_rate: 7,
+                    rhythm_select: EnvelopeRhythmSelect::HiHat,
+                    ..EnvelopeSlotInput::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(hihat_result.next_rate >> 2, 7);
+        assert!(!hihat_result.next_zero_rate);
+
+        let mut tom = EnvelopeSequencer::new();
+        let tom_result = tom
+            .tick_slot(
+                0,
+                EnvelopeSlotInput {
+                    release_rate: 7,
+                    rhythm_select: EnvelopeRhythmSelect::TomTom,
+                    ..EnvelopeSlotInput::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(tom_result.next_rate >> 2, 7);
+        assert!(!tom_result.next_zero_rate);
+
+        let mut ordinary = EnvelopeSequencer::new();
+        let ordinary_result = ordinary
+            .tick_slot(
+                0,
+                EnvelopeSlotInput {
+                    release_rate: 7,
+                    rhythm_select: EnvelopeRhythmSelect::None,
+                    ..EnvelopeSlotInput::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ordinary_result.next_rate >> 2, 0);
+        assert!(ordinary_result.next_zero_rate);
+    }
+
+    #[test]
     fn state_round_trip_preserves_pipeline_and_timer_phase() {
         let mut sequencer = EnvelopeSequencer::new();
         for cycle in 0..18 {
