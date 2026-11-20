@@ -663,7 +663,11 @@ mod tests {
                 .unwrap();
 
             let state = core.export_state();
-            assert_eq!(state.registers[0x0e], 0x20 | trigger, "cycle {target_cycle}");
+            assert_eq!(
+                state.registers[0x0e],
+                0x20 | trigger,
+                "cycle {target_cycle}"
+            );
             assert_eq!(
                 state.rm_select,
                 target_cycle - 11,
