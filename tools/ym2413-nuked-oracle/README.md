@@ -154,15 +154,15 @@ patch fields include `c_adrr`, `c_et`, `c_sl`, and `c_ksr_freq`.
 
 The fixture `fixtures/eg-single-channel.csv` programs a custom user patch on
 channel 0, starts KEY-ON, then KEY-OFF. It uses AR=10, DR=5, RR=7, SL=4 and
-EG-TYPE=1. The characterization workflow captures 30,000
+EG-TYPE=1 (bit 5 of each operator mode register). The characterization workflow captures 30,000
 `OPLL_Clock` calls twice, requires byte-identical traces, and validates the
 serial EG arrays and observed register/key transitions.
 
 Nuked updates `eg_level[(cycles + 16) % 18]` and
 `eg_state[(cycles + 16) % 18]` once per `OPLL_Clock` call. For the pinned
 source's `ch_offset[18]` and `mcsel=((cycles+1)/3)&1`, channel 0's
-carrier update maps to EG array index 0 and its modulator update maps to
-index 15. These are source-derived mappings, not an assumed Rust slot map.
+carrier update maps to EG array index 2 and its modulator update maps to
+index 17. These are source-derived mappings, not an assumed Rust slot map.
 
 This is deliberately a **reference characterization**, not yet a Rust
 differential pass. Nuked's 18-call serial timebase must be related to the Rust
