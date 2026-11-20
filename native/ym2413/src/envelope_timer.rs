@@ -56,13 +56,13 @@ pub struct EnvelopeRatePhase {
     pub next_rate: u8,
     /// Whether the newly calculated base rate is zero (independent of KSR).
     pub next_zero_rate: bool,
-    /// Upper four bits of the consumed rate.
+    /// Upper four bits of the rate phase represented by this record.
     pub rate_hi: u8,
     /// Low-rate increment enable.
     pub inc_lo: bool,
     /// High-rate increment enable.
     pub inc_hi: bool,
-    /// Consumed rate is in the maximum-rate class.
+    /// Rate phase is in the maximum-rate class.
     pub max_rate: bool,
     /// Newly prepared base rate is zero, independent of KSR.
     pub zero_rate: bool,
@@ -152,7 +152,7 @@ pub struct EnvelopeTimer {
 }
 
 impl EnvelopeTimer {
-    /// Create a reset timer with slot zero next.
+    /// Create a reset timer with slot zero next and cleared rate latches.
     pub const fn new() -> Self {
         Self {
             state: EnvelopeTimerState {
@@ -220,13 +220,14 @@ impl EnvelopeTimer {
         Ok(Self { state })
     }
 
-    /// Advance one operator slot and prepare rate latches for the following slot.
+    /// Advance one operator slot and prepare rate latches for the following update.
     ///
-    /// next_rate is calculated for the following EG operator update. The
-    /// returned phase is the complete set of latches visible at the next slot:
-    /// increment enables and maximum-rate status derive from the previously
-    /// pending rate, while zero-rate status derives from the newly prepared
-    /// rate. This mixed pipeline is intentional and matches the chip timing.
+    /// next_rate is calculated by the serial EG rate selector in this cycle.
+    /// The snapshot keeps two distinct phases: consumed_rate_phase is the
+    /// previously prepared set used by this cycle's operator update, while
+    /// rate_phase is calculated now and will be consumed by the following
+    /// operator update. The timer counter is advanced before the consumed
+    /// phase is returned, matching the reference's counter-state latch order.
     pub fn tick_slot(
         &mut self,
         slot_index: u8,
@@ -369,6 +370,24 @@ mod tests {
     fn reset_state_is_zeroed_and_starts_at_slot_zero() {
         let timer = EnvelopeTimer::new();
         assert_eq!(timer.export_state(), EnvelopeTimerState::default());
+    }
+
+    #[test]
+    fn consumed_phase_is_the_previous_slots_prepared_phase() {
+        let mut timer = EnvelopeTimer::new();
+        let first = timer.tick_slot(0, 0x3f, false).unwrap();
+        let second = timer.tick_slot(1, 0x20, false).unwrap();
+        let third = timer.tick_slot(2, 0, true).unwrap();
+
+        assert_eq!(second.consumed_rate_phase.rate_hi, first.rate_phase.rate_hi);
+        assert_eq!(second.consumed_rate_phase.inc_lo, first.rate_phase.inc_lo);
+        assert_eq!(second.consumed_rate_phase.inc_hi, first.rate_phase.inc_hi);
+        assert_eq!(third.consumed_rate_phase.rate_hi, second.rate_phase.rate_hi);
+        assert_eq!(third.consumed_rate_phase.max_rate, second.rate_phase.max_rate);
+        assert_eq!(third.consumed_rate_phase.inc_lo, second.rate_phase.inc_lo);
+        assert_eq!(third.consumed_rate_phase.inc_hi, second.rate_phase.inc_hi);
+        assert_eq!(third.rate_phase.next_rate, 0);
+        assert!(third.rate_phase.next_zero_rate);
     }
 
     #[test]
