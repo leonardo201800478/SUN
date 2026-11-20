@@ -54,7 +54,9 @@ def main() -> int:
         s for s in samples
         if s["c_adrr"] == [10, 5, 7] and s["c_et"] == 1 and s["c_sl"] == 4
     ]
-    assert patch_rows, "configured user-patch EG parameters were not observed"
+    if not patch_rows:
+        observed = sorted({(tuple(s["c_adrr"]), s["c_et"], s["c_sl"], s["c_instr"], s["c_op"]) for s in samples})
+        raise AssertionError(f"configured user-patch EG parameters were not observed; observed tuples={observed[:24]}")
     changed_level_slots = [0] * 18
     changed_state_slots = [0] * 18
     eg_dokon_nonzero = 0
