@@ -5,9 +5,8 @@
 //! scheduler-driven PSG, and SMS1 VDP port effects are applied there. The VDP
 //! scanline clock advances from Scheduler-dispatched Z80 cycles; dot/fetch
 //! arbitration and mid-scanline effects remain outside this slice.
-//! Unconnected reads return open bus, port writes are retained in a bounded
-//! diagnostic trace, and INT acknowledge data comes from an explicit external
-//! vector input.
+//! Unconnected reads return open bus, and INT acknowledge data comes from an
+//! explicit external vector input.
 
 use core::fmt;
 
@@ -2107,12 +2106,12 @@ mod temporal_vdp_tests {
         // Two direct four-T-state bus writes complete at T8 (HPos 12).
         assert_eq!(captured, 0xEE);
         let mut snapshot = bus.export_state();
-        assert_eq!(snapshot.format_version, 20);
+        assert_eq!(snapshot.format_version, 21);
 
         let restored = SmsTemporalBus::restore_state(snapshot.clone()).unwrap();
         assert_eq!(restored.vdp().read_h_counter(), captured);
 
-        snapshot.format_version = 19;
+        snapshot.format_version = 20;
         assert!(matches!(
             SmsTemporalBus::restore_state(snapshot),
             Err(super::SmsTemporalBusError::InvalidState)
