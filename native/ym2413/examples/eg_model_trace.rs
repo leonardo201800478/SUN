@@ -145,9 +145,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
 
-        // Candidate: preserve DAMP -> ATTACK but defer the first ATTACK increment.
-        let wrapped_before = initial_silent_wrapped_deferred[generator_index].export_state();
-        let wrapped_deferred_result = initial_silent_wrapped_deferred[generator_index]
+        // The production generator now owns the deferred DAMP -> ATTACK boundary.
+        initial_silent_wrapped_deferred[generator_index]
             .tick_with_events(
                 sample.global_counter & 0xff,
                 sample.key_on,
@@ -155,16 +154,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 sample.parameters,
             )
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        if wrapped_deferred_result.phase_reset_required {
-            let mut state = initial_silent_wrapped_deferred[generator_index].export_state();
-            state.level = wrapped_before.level;
-            initial_silent_wrapped_deferred[generator_index] =
-                EnvelopeGenerator::restore_state(state)
-                    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        }
 
-        let unwrapped_before = initial_silent_deferred_unwrapped[generator_index].export_state();
-        let unwrapped_deferred_result = initial_silent_deferred_unwrapped[generator_index]
+        initial_silent_deferred_unwrapped[generator_index]
             .tick_with_events(
                 sample.global_counter,
                 sample.key_on,
@@ -172,13 +163,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 sample.parameters,
             )
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        if unwrapped_deferred_result.phase_reset_required {
-            let mut state = initial_silent_deferred_unwrapped[generator_index].export_state();
-            state.level = unwrapped_before.level;
-            initial_silent_deferred_unwrapped[generator_index] =
-                EnvelopeGenerator::restore_state(state)
-                    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        }
 
         // Hypothesis: retain the full counter in DAMP/ATTACK, but apply a
         // three-count phase correction to DECAY/SUSTAIN rate selection.
@@ -189,9 +173,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             EnvelopeStage::Damp | EnvelopeStage::Attack => sample.global_counter,
             EnvelopeStage::Decay | EnvelopeStage::Sustain => sample.global_counter.saturating_sub(3),
         };
-        let decay_phase_minus3_before =
-            initial_silent_deferred_decay_phase_minus3[generator_index].export_state();
-        let decay_phase_minus3_result = initial_silent_deferred_decay_phase_minus3[generator_index]
+        initial_silent_deferred_decay_phase_minus3[generator_index]
             .tick_with_events(
                 decay_phase_minus3_counter,
                 sample.key_on,
@@ -199,14 +181,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 sample.parameters,
             )
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        if decay_phase_minus3_result.phase_reset_required {
-            let mut state =
-                initial_silent_deferred_decay_phase_minus3[generator_index].export_state();
-            state.level = decay_phase_minus3_before.level;
-            initial_silent_deferred_decay_phase_minus3[generator_index] =
-                EnvelopeGenerator::restore_state(state)
-                    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        }
 
         println!(
             concat!(
