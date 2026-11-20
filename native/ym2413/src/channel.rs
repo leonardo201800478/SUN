@@ -278,7 +278,8 @@ pub fn decode_channel_synthesis(
 mod tests {
     use super::{
         ChannelSynthesisError, YM2413_EG_CYCLE_CHANNELS, decode_channel_synthesis,
-        envelope_cycle_is_carrier, envelope_slot_input_for_cycle,
+        decode_envelope_slot_input_for_cycle, envelope_cycle_is_carrier,
+        envelope_slot_input_for_cycle,
     };
     use crate::instrument::{InstrumentError, decode_patch_registers, resolve_instrument};
     use crate::key_scale::key_scale_attenuation;
@@ -323,6 +324,10 @@ mod tests {
                 config.modulator_envelope
             };
             let input = envelope_slot_input_for_cycle(&channels, cycle).unwrap();
+            assert_eq!(
+                decode_envelope_slot_input_for_cycle(&registers, cycle).unwrap(),
+                input
+            );
 
             assert_eq!(input.attack_rate, selected.attack_rate, "cycle {cycle}");
             assert_eq!(input.decay_rate, selected.decay_rate, "cycle {cycle}");
