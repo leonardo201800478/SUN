@@ -135,3 +135,10 @@ Pass `--pg-phase-only` to emit a compact trace containing the 18-entry
 increment inputs and serial-cycle index. This mode supports differential
 validation of the 18 operator accumulators without the unrelated EG/operator
 diagnostic arrays.
+
+
+The PG phase-array trace also records `calc_eg_dokon`, `calc_testmode`,
+`calc_rm_enable`, and `phase_next_reset`. The reset flag describes the
+phase-generator reset decision made during that call; its effect is applied
+to the previous slot on the following serial call, matching the
+`pg_phase_next` pipeline.
