@@ -57,13 +57,32 @@ mod windows_host {
         sega_observability::current().is_some_and(sega_observability::LoggingHandle::is_enabled)
     }
 
-    macro_rules! diagnostic_log {
-        ($($argument:tt)*) => {
+    // Emit structured host diagnostics only while the central consent handle is enabled.
+    // Keep the event target/level and fields explicit; never flatten them into a formatted message.
+    macro_rules! diagnostic_event {
+        (trace, $target:literal, $event:literal $(, $($fields:tt)*)?) => {
             if host_diagnostics_enabled() {
-                sega_observability::tracing::info!(
-                    target: "sega::host",
-                    message = %format!($($argument)*)
-                );
+                sega_observability::tracing::trace!(target: $target, event = $event $(, $($fields)*)?);
+            }
+        };
+        (debug, $target:literal, $event:literal $(, $($fields:tt)*)?) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::debug!(target: $target, event = $event $(, $($fields)*)?);
+            }
+        };
+        (info, $target:literal, $event:literal $(, $($fields:tt)*)?) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::info!(target: $target, event = $event $(, $($fields)*)?);
+            }
+        };
+        (warn, $target:literal, $event:literal $(, $($fields:tt)*)?) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::warn!(target: $target, event = $event $(, $($fields)*)?);
+            }
+        };
+        (error, $target:literal, $event:literal $(, $($fields:tt)*)?) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::error!(target: $target, event = $event $(, $($fields)*)?);
             }
         };
     }
@@ -281,7 +300,7 @@ mod windows_host {
             if let Some(join) = self.join.take()
                 && join.join().is_err()
             {
-                diagnostic_log!("R4_SDL3 event=poll_thread_panicked");
+                diagnostic_event!(error, "sega::input::sdl3", "poll_thread_panicked");
             }
         }
     }
@@ -325,7 +344,7 @@ mod windows_host {
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
                             .status_update = Some(status);
-                        diagnostic_log!("R4_SDL3 event=initialization_failed error={error}");
+                        diagnostic_event!(error, "sega::input::sdl3", "initialization_failed", error = %error);
                         return;
                     }
                 };
@@ -343,7 +362,7 @@ mod windows_host {
                             }
                         }
                         Err(error) => {
-                            diagnostic_log!("R4_SDL3 event=poll_failed error={error}");
+                            diagnostic_event!(warn, "sega::input::sdl3", "poll_failed", error = %error);
                             let mut latest = thread_snapshot
                                 .lock()
                                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -367,7 +386,7 @@ mod windows_host {
                 let status =
                     format!("SDL3 indisponível — teclado ativo: falha ao iniciar thread: {error}");
                 app.set_input_status(status.into());
-                diagnostic_log!("R4_SDL3 event=thread_start_failed error={error}");
+                diagnostic_event!(warn, "sega::input::sdl3", "thread_start_failed", error = %error);
                 Sdl3PollingThread { stop, join: None }
             }
         };
@@ -403,7 +422,7 @@ mod windows_host {
                 && let Some(worker) = worker_slot.borrow().as_ref()
                 && let Err(error) = worker.request_nmi()
             {
-                diagnostic_log!("R4_SDL3 action=pause_nmi error={error}");
+                diagnostic_event!(warn, "sega::input::sdl3", "pause_nmi_failed", error = %error);
             }
             last_pause_pressed = pause_pressed;
 
@@ -418,9 +437,7 @@ mod windows_host {
                             next_players[0],
                         );
                         if let Err(error) = worker.set_controller_at(1, combined, Instant::now()) {
-                            diagnostic_log!(
-                                "R4_SDL3 player=1 action=controller_update error={error}"
-                            );
+                            diagnostic_event!(warn, "sega::input::sdl3", "controller_update_failed", player = 1_u8, error = %error);
                         }
                     }
 
@@ -428,7 +445,7 @@ mod windows_host {
                         && let Err(error) =
                             worker.set_controller_at(2, next_players[1], Instant::now())
                     {
-                        diagnostic_log!("R4_SDL3 player=2 action=controller_update error={error}");
+                        diagnostic_event!(warn, "sega::input::sdl3", "controller_update_failed", player = 2_u8, error = %error);
                     }
                 }
             }
@@ -1677,7 +1694,7 @@ mod windows_host {
         recent.insert(0, path);
         recent.truncate(MAX_RECENT_ROMS);
         if let Err(error) = save_recent_roms(recent) {
-            diagnostic_log!("R2_PREFERENCES recent_roms_save_failed error={error}");
+            diagnostic_event!(warn, "sega::preferences", "recent_roms_save_failed", error = %error);
         }
     }
 
@@ -1819,10 +1836,7 @@ mod windows_host {
                     setup_counter.set(setup_count);
 
                     let adapter_info = device.adapter_info();
-                    diagnostic_log!(
-                        "R2_LIFECYCLE event=RenderingSetup count={setup_count} backend={:?} adapter={}",
-                        adapter_info.backend, adapter_info.name
-                    );
+                    diagnostic_event!(info, "sega::video::lifecycle", "rendering_setup", count = setup_count, backend = ?adapter_info.backend, adapter = %adapter_info.name);
 
                     if adapter_info.backend != wgpu::Backend::Vulkan {
                         let app_weak = app_weak.clone();
@@ -1866,15 +1880,13 @@ mod windows_host {
                                     app.set_gpu_status(status.into());
                                     app.set_lifecycle_status(lifecycle_status.into());
                                     if let Err(error) = mailbox.notify_if_pending() {
-                                        diagnostic_log!(
-                                            "R2_FRAME_NOTIFY renderer_recovery_failed error={error}"
-                                        );
+                                        diagnostic_event!(warn, "sega::video::frame_notify", "renderer_recovery_failed", error = %error);
                                     }
                                 }
                             });
                         }
                         Err(error) => {
-                            diagnostic_log!("R2_LIFECYCLE event=TextureImportFailed error={error}");
+                            diagnostic_event!(error, "sega::video::lifecycle", "texture_import_failed", error = %error);
                             let app_weak = app_weak.clone();
                             let status = format!("FALHA ao importar textura WGPU: {error}");
                             Timer::single_shot(Duration::ZERO, move || {
@@ -1888,9 +1900,7 @@ mod windows_host {
                 (RenderingState::RenderingTeardown, _) => {
                     let teardown_count = teardown_counter.get().wrapping_add(1);
                     teardown_counter.set(teardown_count);
-                    diagnostic_log!(
-                        "R2_LIFECYCLE event=RenderingTeardown count={teardown_count}"
-                    );
+                    diagnostic_event!(debug, "sega::video::lifecycle", "rendering_teardown", count = teardown_count);
 
                     *gpu_context_slot.lock().unwrap() = None;
 
@@ -1910,9 +1920,7 @@ mod windows_host {
                     });
                 }
                 (RenderingState::RenderingSetup, _) => {
-                    diagnostic_log!(
-                        "R2_LIFECYCLE event=RenderingSetupFailed reason=GraphicsAPI_not_WGPU30"
-                    );
+                    diagnostic_event!(error, "sega::video::lifecycle", "rendering_setup_failed", reason = "graphics_api_not_wgpu30");
                     let app_weak = app_weak.clone();
                     Timer::single_shot(Duration::ZERO, move || {
                         if let Some(app) = app_weak.upgrade() {
@@ -2322,112 +2330,112 @@ mod windows_host {
                     (total_ns / u128::from(count) / 1_000).min(u128::from(u64::MAX)) as u64
                 }
             };
-            diagnostic_log!(
-                "R2_FRAME_PACING_HOST qpc_available={} qpc_ticks={} qpc_frequency={} window_ms={} wakeups={} empty_wakeups={} consumed={} uploaded={} sequence_gaps={} wake_interval_avg_us={} wake_interval_max_us={} wake_interval_samples={} wake_interval_p50_us={} wake_interval_p95_us={} wake_interval_p99_us={} wake_interval_jitter_p95_us={} consumed_interval_avg_us={} consumed_interval_max_us={} consumed_interval_samples={} consumed_interval_p50_us={} consumed_interval_p95_us={} consumed_interval_p99_us={} consumed_interval_jitter_p95_us={} mailbox_residence_avg_us={} mailbox_residence_max_us={} mailbox_residence_samples={} mailbox_residence_p50_us={} mailbox_residence_p95_us={} mailbox_residence_p99_us={} convert_avg_us={} convert_max_us={} convert_samples={} convert_p50_us={} convert_p95_us={} convert_p99_us={} queue_write_avg_us={} queue_write_max_us={} queue_write_samples={} queue_write_p50_us={} queue_write_p95_us={} queue_write_p99_us={} callback_avg_us={} callback_max_us={} callback_samples={} callback_p50_us={} callback_p95_us={} callback_p99_us={} mailbox_take_avg_us={} mailbox_take_max_us={} mailbox_take_samples={} mailbox_take_p50_us={} mailbox_take_p95_us={} mailbox_take_p99_us={} mailbox_replaced_total={} worker_samples={} worker_total_samples={} worker_frame_interval_p50_us={} worker_frame_interval_p95_us={} worker_frame_interval_p99_us={} worker_frame_interval_jitter_p95_us={} machine_ticks_per_frame_min={} machine_ticks_per_frame_p50={} machine_ticks_per_frame_max={} worker_step_p50_us={} worker_step_p95_us={} worker_step_p99_us={} video_publish_p95_us={} audio_submit_p95_us={} frame_processing_p50_us={} frame_processing_p95_us={} frame_processing_p99_us={} pacing_wait_budget_p50_us={} pacing_wait_budget_p95_us={} pacing_wait_budget_p99_us={} pacing_wait_elapsed_p50_us={} pacing_wait_elapsed_p95_us={} pacing_wait_elapsed_p99_us={} frame_budget_p50_us={} frame_budget_p95_us={} frame_budget_p99_us={} psg_samples_p50={} psg_samples_p95={} psg_samples_p99={} pacing_timeout_lateness_p50_us={} pacing_timeout_lateness_p95_us={} pacing_timeout_lateness_p99_us={} pacing_timeout_count_total={} pacing_command_wakeups_total={} pacing_command_remaining_p95_us={} command_handler_p95_us={} machine_clock_hz={} physical_present_timestamp=unavailable_slint_owned",
-                u8::from(qpc_available),
-                qpc_ticks,
-                qpc_frequency,
-                elapsed.as_millis(),
-                self.wakeups,
-                self.empty_wakeups,
-                self.consumed,
-                self.uploaded,
-                self.sequence_gaps,
-                average_us(self.wake_interval_sum_ns, self.wakeups.saturating_sub(1)),
-                self.wake_interval_max_ns / 1_000,
-                self.wake_interval_distribution.len(),
-                self.wake_interval_distribution.percentile_ns(50) / 1_000,
-                self.wake_interval_distribution.percentile_ns(95) / 1_000,
-                self.wake_interval_distribution.percentile_ns(99) / 1_000,
-                self.wake_interval_distribution
+            diagnostic_event!(trace, "sega::video::frame_pacing", "host_metrics",
+        qpc_available = qpc_available,
+        qpc_ticks = qpc_ticks,
+        qpc_frequency = qpc_frequency,
+        window_ms = elapsed.as_millis().min(u128::from(u64::MAX)) as u64,
+        wakeups = self.wakeups,
+        empty_wakeups = self.empty_wakeups,
+        consumed = self.consumed,
+        uploaded = self.uploaded,
+        sequence_gaps = self.sequence_gaps,
+        wake_interval_avg_us = average_us(self.wake_interval_sum_ns, self.wakeups.saturating_sub(1)),
+        wake_interval_max_us = self.wake_interval_max_ns / 1_000,
+        wake_interval_samples = self.wake_interval_distribution.len(),
+        wake_interval_p50_us = self.wake_interval_distribution.percentile_ns(50) / 1_000,
+        wake_interval_p95_us = self.wake_interval_distribution.percentile_ns(95) / 1_000,
+        wake_interval_p99_us = self.wake_interval_distribution.percentile_ns(99) / 1_000,
+        wake_interval_jitter_p95_us = self.wake_interval_distribution
                     .percentile_ns(95)
                     .saturating_sub(self.wake_interval_distribution.percentile_ns(50))
                     / 1_000,
-                average_us(
+        consumed_interval_avg_us = average_us(
                     self.consumed_interval_sum_ns,
                     self.consumed.saturating_sub(1)
                 ),
-                self.consumed_interval_max_ns / 1_000,
-                self.consumed_interval_distribution.len(),
-                self.consumed_interval_distribution.percentile_ns(50) / 1_000,
-                self.consumed_interval_distribution.percentile_ns(95) / 1_000,
-                self.consumed_interval_distribution.percentile_ns(99) / 1_000,
-                self.consumed_interval_distribution
+        consumed_interval_max_us = self.consumed_interval_max_ns / 1_000,
+        consumed_interval_samples = self.consumed_interval_distribution.len(),
+        consumed_interval_p50_us = self.consumed_interval_distribution.percentile_ns(50) / 1_000,
+        consumed_interval_p95_us = self.consumed_interval_distribution.percentile_ns(95) / 1_000,
+        consumed_interval_p99_us = self.consumed_interval_distribution.percentile_ns(99) / 1_000,
+        consumed_interval_jitter_p95_us = self.consumed_interval_distribution
                     .percentile_ns(95)
                     .saturating_sub(self.consumed_interval_distribution.percentile_ns(50))
                     / 1_000,
-                average_us(self.mailbox_residence_sum_ns, self.mailbox_residence_count),
-                self.mailbox_residence_max_ns / 1_000,
-                self.mailbox_residence_distribution.len(),
-                self.mailbox_residence_distribution.percentile_ns(50) / 1_000,
-                self.mailbox_residence_distribution.percentile_ns(95) / 1_000,
-                self.mailbox_residence_distribution.percentile_ns(99) / 1_000,
-                average_us(self.conversion_sum_ns, self.conversion_count),
-                self.conversion_max_ns / 1_000,
-                self.conversion_distribution.len(),
-                self.conversion_distribution.percentile_ns(50) / 1_000,
-                self.conversion_distribution.percentile_ns(95) / 1_000,
-                self.conversion_distribution.percentile_ns(99) / 1_000,
-                average_us(self.queue_write_sum_ns, self.queue_write_count),
-                self.queue_write_max_ns / 1_000,
-                self.queue_write_distribution.len(),
-                self.queue_write_distribution.percentile_ns(50) / 1_000,
-                self.queue_write_distribution.percentile_ns(95) / 1_000,
-                self.queue_write_distribution.percentile_ns(99) / 1_000,
-                average_us(self.callback_sum_ns, self.callback_count),
-                self.callback_max_ns / 1_000,
-                self.callback_distribution.len(),
-                self.callback_distribution.percentile_ns(50) / 1_000,
-                self.callback_distribution.percentile_ns(95) / 1_000,
-                self.callback_distribution.percentile_ns(99) / 1_000,
-                average_us(self.mailbox_take_sum_ns, self.mailbox_take_count),
-                self.mailbox_take_max_ns / 1_000,
-                self.mailbox_take_distribution.len(),
-                self.mailbox_take_distribution.percentile_ns(50) / 1_000,
-                self.mailbox_take_distribution.percentile_ns(95) / 1_000,
-                self.mailbox_take_distribution.percentile_ns(99) / 1_000,
-                replaced_frames,
-                runtime.sample_count,
-                runtime.total_samples,
-                runtime.frame_interval_p50_ns / 1_000,
-                runtime.frame_interval_p95_ns / 1_000,
-                runtime.frame_interval_p99_ns / 1_000,
-                runtime
+        mailbox_residence_avg_us = average_us(self.mailbox_residence_sum_ns, self.mailbox_residence_count),
+        mailbox_residence_max_us = self.mailbox_residence_max_ns / 1_000,
+        mailbox_residence_samples = self.mailbox_residence_distribution.len(),
+        mailbox_residence_p50_us = self.mailbox_residence_distribution.percentile_ns(50) / 1_000,
+        mailbox_residence_p95_us = self.mailbox_residence_distribution.percentile_ns(95) / 1_000,
+        mailbox_residence_p99_us = self.mailbox_residence_distribution.percentile_ns(99) / 1_000,
+        convert_avg_us = average_us(self.conversion_sum_ns, self.conversion_count),
+        convert_max_us = self.conversion_max_ns / 1_000,
+        convert_samples = self.conversion_distribution.len(),
+        convert_p50_us = self.conversion_distribution.percentile_ns(50) / 1_000,
+        convert_p95_us = self.conversion_distribution.percentile_ns(95) / 1_000,
+        convert_p99_us = self.conversion_distribution.percentile_ns(99) / 1_000,
+        queue_write_avg_us = average_us(self.queue_write_sum_ns, self.queue_write_count),
+        queue_write_max_us = self.queue_write_max_ns / 1_000,
+        queue_write_samples = self.queue_write_distribution.len(),
+        queue_write_p50_us = self.queue_write_distribution.percentile_ns(50) / 1_000,
+        queue_write_p95_us = self.queue_write_distribution.percentile_ns(95) / 1_000,
+        queue_write_p99_us = self.queue_write_distribution.percentile_ns(99) / 1_000,
+        callback_avg_us = average_us(self.callback_sum_ns, self.callback_count),
+        callback_max_us = self.callback_max_ns / 1_000,
+        callback_samples = self.callback_distribution.len(),
+        callback_p50_us = self.callback_distribution.percentile_ns(50) / 1_000,
+        callback_p95_us = self.callback_distribution.percentile_ns(95) / 1_000,
+        callback_p99_us = self.callback_distribution.percentile_ns(99) / 1_000,
+        mailbox_take_avg_us = average_us(self.mailbox_take_sum_ns, self.mailbox_take_count),
+        mailbox_take_max_us = self.mailbox_take_max_ns / 1_000,
+        mailbox_take_samples = self.mailbox_take_distribution.len(),
+        mailbox_take_p50_us = self.mailbox_take_distribution.percentile_ns(50) / 1_000,
+        mailbox_take_p95_us = self.mailbox_take_distribution.percentile_ns(95) / 1_000,
+        mailbox_take_p99_us = self.mailbox_take_distribution.percentile_ns(99) / 1_000,
+        mailbox_replaced_total = replaced_frames,
+        worker_samples = runtime.sample_count,
+        worker_total_samples = runtime.total_samples,
+        worker_frame_interval_p50_us = runtime.frame_interval_p50_ns / 1_000,
+        worker_frame_interval_p95_us = runtime.frame_interval_p95_ns / 1_000,
+        worker_frame_interval_p99_us = runtime.frame_interval_p99_ns / 1_000,
+        worker_frame_interval_jitter_p95_us = runtime
                     .frame_interval_p95_ns
                     .saturating_sub(runtime.frame_interval_p50_ns)
                     / 1_000,
-                runtime.machine_ticks_per_frame_min,
-                runtime.machine_ticks_per_frame_p50,
-                runtime.machine_ticks_per_frame_max,
-                runtime.step_frame_p50_ns / 1_000,
-                runtime.step_frame_p95_ns / 1_000,
-                runtime.step_frame_p99_ns / 1_000,
-                runtime.video_publish_p95_ns / 1_000,
-                runtime.audio_submit_p95_ns / 1_000,
-                runtime.frame_processing_p50_ns / 1_000,
-                runtime.frame_processing_p95_ns / 1_000,
-                runtime.frame_processing_p99_ns / 1_000,
-                runtime.pacing_wait_budget_p50_ns / 1_000,
-                runtime.pacing_wait_budget_p95_ns / 1_000,
-                runtime.pacing_wait_budget_p99_ns / 1_000,
-                runtime.pacing_wait_elapsed_p50_ns / 1_000,
-                runtime.pacing_wait_elapsed_p95_ns / 1_000,
-                runtime.pacing_wait_elapsed_p99_ns / 1_000,
-                runtime.frame_budget_p50_ns / 1_000,
-                runtime.frame_budget_p95_ns / 1_000,
-                runtime.frame_budget_p99_ns / 1_000,
-                runtime.audio_samples_p50,
-                runtime.audio_samples_p95,
-                runtime.audio_samples_p99,
-                runtime.pacing_timeout_lateness_p50_ns / 1_000,
-                runtime.pacing_timeout_lateness_p95_ns / 1_000,
-                runtime.pacing_timeout_lateness_p99_ns / 1_000,
-                runtime.pacing_timeout_count_total,
-                runtime.pacing_command_wakeups_total,
-                runtime.pacing_command_remaining_p95_ns / 1_000,
-                runtime.command_handler_p95_ns / 1_000,
-                machine_clock_hz,
-            );
+        machine_ticks_per_frame_min = runtime.machine_ticks_per_frame_min,
+        machine_ticks_per_frame_p50 = runtime.machine_ticks_per_frame_p50,
+        machine_ticks_per_frame_max = runtime.machine_ticks_per_frame_max,
+        worker_step_p50_us = runtime.step_frame_p50_ns / 1_000,
+        worker_step_p95_us = runtime.step_frame_p95_ns / 1_000,
+        worker_step_p99_us = runtime.step_frame_p99_ns / 1_000,
+        video_publish_p95_us = runtime.video_publish_p95_ns / 1_000,
+        audio_submit_p95_us = runtime.audio_submit_p95_ns / 1_000,
+        frame_processing_p50_us = runtime.frame_processing_p50_ns / 1_000,
+        frame_processing_p95_us = runtime.frame_processing_p95_ns / 1_000,
+        frame_processing_p99_us = runtime.frame_processing_p99_ns / 1_000,
+        pacing_wait_budget_p50_us = runtime.pacing_wait_budget_p50_ns / 1_000,
+        pacing_wait_budget_p95_us = runtime.pacing_wait_budget_p95_ns / 1_000,
+        pacing_wait_budget_p99_us = runtime.pacing_wait_budget_p99_ns / 1_000,
+        pacing_wait_elapsed_p50_us = runtime.pacing_wait_elapsed_p50_ns / 1_000,
+        pacing_wait_elapsed_p95_us = runtime.pacing_wait_elapsed_p95_ns / 1_000,
+        pacing_wait_elapsed_p99_us = runtime.pacing_wait_elapsed_p99_ns / 1_000,
+        frame_budget_p50_us = runtime.frame_budget_p50_ns / 1_000,
+        frame_budget_p95_us = runtime.frame_budget_p95_ns / 1_000,
+        frame_budget_p99_us = runtime.frame_budget_p99_ns / 1_000,
+        psg_samples_p50 = runtime.audio_samples_p50,
+        psg_samples_p95 = runtime.audio_samples_p95,
+        psg_samples_p99 = runtime.audio_samples_p99,
+        pacing_timeout_lateness_p50_us = runtime.pacing_timeout_lateness_p50_ns / 1_000,
+        pacing_timeout_lateness_p95_us = runtime.pacing_timeout_lateness_p95_ns / 1_000,
+        pacing_timeout_lateness_p99_us = runtime.pacing_timeout_lateness_p99_ns / 1_000,
+        pacing_timeout_count_total = runtime.pacing_timeout_count_total,
+        pacing_command_wakeups_total = runtime.pacing_command_wakeups_total,
+        pacing_command_remaining_p95_us = runtime.pacing_command_remaining_p95_ns / 1_000,
+        command_handler_p95_us = runtime.command_handler_p95_ns / 1_000,
+        machine_clock_hz = machine_clock_hz,
+        physical_present_timestamp = "unavailable_slint_owned"
+    );
 
             if let Some((audio, output_error)) = audio_output {
                 let (delta, window_ms, window_valid) = audio_window.map_or(
@@ -2459,39 +2467,38 @@ mod windows_host {
                 } else {
                     0.0
                 };
-                diagnostic_log!(
-                    "R3_AUDIO_HEALTH configured={} sample_rate_hz={} queue_capacity_frames={} queue_queued_frames={} queue_high_water_frames={} accepted_frames_total={} consumed_frames_total={} requested_frames_total={} dropped_frames_total={} dropped_blocks_total={} underrun_frames_total={} underrun_events_total={} flushed_frames_total={} zero_fill_percent_total={:.3} window_valid={} window_ms={} counter_reset={} rate_valid={} accepted_frames_delta={} consumed_frames_delta={} requested_frames_delta={} dropped_frames_delta={} dropped_blocks_delta={} underrun_frames_delta={} underrun_events_delta={} flushed_frames_delta={} accepted_frames_per_second={:.1} requested_frames_per_second={:.1} zero_fill_percent_window={:.3} output_error={:?}",
-                    u8::from(audio.sample_rate_hz > 0),
-                    audio.sample_rate_hz,
-                    audio.queue_capacity_frames,
-                    audio.queue_queued_frames,
-                    audio.queue_high_water_frames,
-                    audio.accepted_frames,
-                    audio.consumed_frames,
-                    requested_frames_total,
-                    audio.dropped_frames,
-                    audio.dropped_blocks,
-                    audio.underrun_frames,
-                    audio.underrun_events,
-                    audio.flushed_frames,
-                    zero_fill_percent_total,
-                    u8::from(window_valid),
-                    window_ms,
-                    u8::from(delta.counter_reset),
-                    u8::from(rate_valid),
-                    delta.accepted_frames,
-                    delta.consumed_frames,
-                    requested_frames,
-                    delta.dropped_frames,
-                    delta.dropped_blocks,
-                    delta.underrun_frames,
-                    delta.underrun_events,
-                    delta.flushed_frames,
-                    accepted_frames_per_second,
-                    requested_frames_per_second,
-                    delta.zero_fill_percent_for_window(rate_valid),
-                    output_error,
-                );
+                diagnostic_event!(trace, "sega::audio::health", "output_metrics",
+        configured = audio.sample_rate_hz > 0,
+        sample_rate_hz = audio.sample_rate_hz,
+        queue_capacity_frames = audio.queue_capacity_frames,
+        queue_queued_frames = audio.queue_queued_frames,
+        queue_high_water_frames = audio.queue_high_water_frames,
+        accepted_frames_total = audio.accepted_frames,
+        consumed_frames_total = audio.consumed_frames,
+        requested_frames_total = requested_frames_total,
+        dropped_frames_total = audio.dropped_frames,
+        dropped_blocks_total = audio.dropped_blocks,
+        underrun_frames_total = audio.underrun_frames,
+        underrun_events_total = audio.underrun_events,
+        flushed_frames_total = audio.flushed_frames,
+        zero_fill_percent_total = zero_fill_percent_total,
+        window_valid = window_valid,
+        window_ms = window_ms,
+        counter_reset = delta.counter_reset,
+        rate_valid = rate_valid,
+        accepted_frames_delta = delta.accepted_frames,
+        consumed_frames_delta = delta.consumed_frames,
+        requested_frames_delta = requested_frames,
+        dropped_frames_delta = delta.dropped_frames,
+        dropped_blocks_delta = delta.dropped_blocks,
+        underrun_frames_delta = delta.underrun_frames,
+        underrun_events_delta = delta.underrun_events,
+        flushed_frames_delta = delta.flushed_frames,
+        accepted_frames_per_second = accepted_frames_per_second,
+        requested_frames_per_second = requested_frames_per_second,
+        zero_fill_percent_window = delta.zero_fill_percent_for_window(rate_valid),
+        output_error = ?output_error
+    );
             }
 
             self.started = Instant::now();
@@ -2741,7 +2748,7 @@ mod windows_host {
                 });
                 if let Err(error) = result {
                     notification_pending.store(false, Ordering::Release);
-                    diagnostic_log!("R2_FRAME_NOTIFY enqueue_failed error={error}");
+                    diagnostic_event!(warn, "sega::video::frame_notify", "enqueue_failed", error = %error);
                 }
             });
 
@@ -3283,14 +3290,10 @@ mod windows_host {
             AudioRendererMode::Psg
         };
         if let Err(error) = worker.set_audio_renderer(renderer) {
-            diagnostic_log!(
-                "R3_AUDIO renderer selection failed; PSG remains the fallback: {error}"
-            );
+            diagnostic_event!(warn, "sega::audio::output", "renderer_selection_failed", error = %error, fallback = "psg");
         }
         if video_only_capture_enabled() {
-            diagnostic_log!(
-                "R3_AUDIO skipped: SEGA_EMULATOR_VIDEO_ONLY enabled; digital PSG generation remains active"
-            );
+            diagnostic_event!(debug, "sega::audio::output", "skipped", reason = "video_only_capture", psg_generation = "active");
             return;
         }
         const BUFFER_FRAMES: u32 = 512;
@@ -3298,23 +3301,14 @@ mod windows_host {
         let result = worker.configure_audio_output(
             move || -> Result<Box<dyn sega_sms_runtime::AudioSession>, String> {
                 let sink = sega_audio_output::NativeCpalOutput::new(BUFFER_FRAMES, QUEUE_BLOCKS)?;
-                diagnostic_log!(
-                    "R3_AUDIO CPAL output opened: sample_rate={} Hz, channels={}, format={:?}, default_config_fallback={}, queue_capacity={} frames",
-                    sink.sample_rate_hz(),
-                    sink.channels(),
-                    sink.sample_format(),
-                    sink.used_default_config_fallback(),
-                    BUFFER_FRAMES as usize * QUEUE_BLOCKS
-                );
+                diagnostic_event!(info, "sega::audio::output", "cpal_output_opened", sample_rate_hz = sink.sample_rate_hz(), channels = sink.channels(), format = ?sink.sample_format(), default_config_fallback = sink.used_default_config_fallback(), queue_capacity_frames = BUFFER_FRAMES as usize * QUEUE_BLOCKS);
                 let mut session = sink.into_audio_session(volume)?;
                 session.set_analog_output_config(dsp_config)?;
                 Ok(Box::new(session))
             },
         );
         if let Err(error) = result {
-            diagnostic_log!(
-                "R3_AUDIO CPAL unavailable; continuing without physical audio: {error}"
-            );
+            diagnostic_event!(warn, "sega::audio::output", "cpal_unavailable", error = %error, fallback = "no_physical_audio");
         }
     }
 
@@ -3355,17 +3349,14 @@ mod windows_host {
                 std::env::var(DIAGNOSTIC_SRAM_CAPACITY_ENV).ok().as_deref(),
             )?;
             if let Some(capacity) = diagnostic_capacity {
-                diagnostic_log!(
-                    "SRAM_PROFILE status=diagnostic-override capacity={} persistent=false restored=false",
-                    capacity
-                );
+                diagnostic_event!(warn, "sega::sram::profile", "diagnostic_override", capacity_bytes = capacity, persistent = false, restored = false);
                 return Ok(PreparedCartridge {
                     sram_capacity: Some(capacity),
                     initial_sram: None,
                     save_context: None,
                 });
             }
-            diagnostic_log!("SRAM_PROFILE status=unknown");
+            diagnostic_event!(warn, "sega::sram::profile", "unknown");
             return Ok(PreparedCartridge {
                 sram_capacity: None,
                 initial_sram: None,
@@ -3383,12 +3374,7 @@ mod windows_host {
                 profile: profile.clone(),
                 store,
             });
-        diagnostic_log!(
-            "SRAM_PROFILE status=verified capacity={} persistent={} restored={}",
-            profile.ram_capacity_bytes().unwrap_or_default(),
-            profile.requires_persistent_store(),
-            initial_sram.is_some()
-        );
+        diagnostic_event!(info, "sega::sram::profile", "verified", capacity_bytes = profile.ram_capacity_bytes().unwrap_or_default(), persistent = profile.requires_persistent_store(), restored = initial_sram.is_some());
         Ok(PreparedCartridge {
             sram_capacity: profile.ram_capacity_bytes(),
             initial_sram,
@@ -3439,7 +3425,7 @@ mod windows_host {
         dsp_config: AnalogOutputConfig,
     ) {
         if video_only_capture_enabled() {
-            diagnostic_log!("R3_AUDIO skipped for SG-1000: SEGA_EMULATOR_VIDEO_ONLY enabled");
+            diagnostic_event!(debug, "sega::audio::output", "skipped", system = "sg1000", reason = "video_only_capture");
             return;
         }
         const BUFFER_FRAMES: u32 = 512;
@@ -3447,23 +3433,14 @@ mod windows_host {
         let result = worker.configure_audio_output(
             move || -> Result<Box<dyn sega_sms_runtime::AudioSession>, String> {
                 let sink = sega_audio_output::NativeCpalOutput::new(BUFFER_FRAMES, QUEUE_BLOCKS)?;
-                diagnostic_log!(
-                    "R3_AUDIO SG-1000 CPAL output opened: sample_rate={} Hz, channels={}, format={:?}, default_config_fallback={}, queue_capacity={} frames",
-                    sink.sample_rate_hz(),
-                    sink.channels(),
-                    sink.sample_format(),
-                    sink.used_default_config_fallback(),
-                    BUFFER_FRAMES as usize * QUEUE_BLOCKS
-                );
+                diagnostic_event!(info, "sega::audio::output", "sg1000_cpal_output_opened", sample_rate_hz = sink.sample_rate_hz(), channels = sink.channels(), format = ?sink.sample_format(), default_config_fallback = sink.used_default_config_fallback(), queue_capacity_frames = BUFFER_FRAMES as usize * QUEUE_BLOCKS);
                 let mut session = sink.into_audio_session(volume)?;
                 session.set_analog_output_config(dsp_config)?;
                 Ok(Box::new(session))
             },
         );
         if let Err(error) = result {
-            diagnostic_log!(
-                "R3_AUDIO SG-1000 CPAL unavailable; continuing without physical audio: {error}"
-            );
+            diagnostic_event!(warn, "sega::audio::output", "sg1000_cpal_unavailable", system = "sg1000", error = %error, fallback = "no_physical_audio");
         }
     }
 
@@ -3513,10 +3490,7 @@ mod windows_host {
             .map_err(|error| format!("não foi possível iniciar gravação SRM: {error}"))?;
         save.join()
             .map_err(|_| "thread de gravação SRM encerrou inesperadamente".to_owned())??;
-        diagnostic_log!(
-            "SRAM_SAVE status=written bytes={}",
-            context.profile.ram_capacity_bytes().unwrap_or_default()
-        );
+        diagnostic_event!(info, "sega::sram::save", "profile_persisted", capacity_bytes = context.profile.ram_capacity_bytes().unwrap_or_default());
         Ok(())
     }
 
@@ -3647,9 +3621,7 @@ mod windows_host {
                     resolve_sms_region(preference, rom, &cartridge_catalog).region
                 }
                 Err(error) => {
-                    diagnostic_log!(
-                        "SMS_REGION preference=auto catalog_error={error}; fallback=usa"
-                    );
+                    diagnostic_event!(warn, "sega::machine::region", "catalog_error", preference = "auto", fallback_region = "usa", error = %error);
                     SmsRegion::Usa
                 }
             },
@@ -3719,12 +3691,7 @@ mod windows_host {
         let bytes = catalog
             .load_validated(&entry.path, id)
             .map_err(|error| format!("não foi possível validar {}: {error}", descriptor.name))?;
-        diagnostic_log!(
-            "SMS_BIOS status=validated id={} region={} bytes={}",
-            firmware_id_key(id),
-            region.key(),
-            bytes.len()
-        );
+        diagnostic_event!(info, "sega::machine::bios", "validated", firmware_id = %firmware_id_key(id), region = %region.key(), bytes = bytes.len());
         Ok(Some(bytes))
     }
 
@@ -3960,7 +3927,7 @@ mod windows_host {
             if let Some(worker) = start_worker.borrow().as_ref()
                 && let Err(error) = worker.start()
             {
-                diagnostic_log!("R2_CONTROL action=start error={error}");
+                diagnostic_event!(warn, "sega::machine::control", "action_failed", action = "start", error = %error);
             } else if let Some(app) = start_app.upgrade() {
                 app.set_emulation_paused(false);
             }
@@ -3972,7 +3939,7 @@ mod windows_host {
             if let Some(worker) = pause_worker.borrow().as_ref()
                 && let Err(error) = worker.pause()
             {
-                diagnostic_log!("R2_CONTROL action=pause error={error}");
+                diagnostic_event!(warn, "sega::machine::control", "action_failed", action = "pause", error = %error);
             } else if let Some(app) = pause_app.upgrade() {
                 app.set_emulation_paused(true);
             }
@@ -4008,7 +3975,7 @@ mod windows_host {
                     }
                     Err(error) => {
                         app.set_rom_status(format!("Falha ao reiniciar o console: {error}").into());
-                        diagnostic_log!("R2_CONTROL action=reset error={error}");
+                        diagnostic_event!(warn, "sega::machine::control", "action_failed", action = "reset", error = %error);
                     }
                 }
             }
@@ -4019,7 +3986,7 @@ mod windows_host {
             if let Some(worker) = step_worker.borrow().as_ref()
                 && let Err(error) = worker.step_frame(100_000)
             {
-                diagnostic_log!("R2_CONTROL action=step_frame error={error}");
+                diagnostic_event!(warn, "sega::machine::control", "action_failed", action = "step_frame", error = %error);
             }
         });
 
@@ -4133,9 +4100,7 @@ mod windows_host {
                 if let Some(worker) = keyboard_press_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
-                    diagnostic_log!(
-                        "SLINT_KEYBOARD action=keyboard_controller_press error={error}"
-                    );
+                    diagnostic_event!(warn, "sega::input::keyboard", "controller_press_failed", error = %error);
                 }
             }
 
@@ -4144,7 +4109,7 @@ mod windows_host {
                     if let Some(worker) = keyboard_press_worker.borrow().as_ref()
                         && let Err(error) = worker.request_nmi()
                     {
-                        diagnostic_log!("SLINT_KEYBOARD action=keyboard_nmi error={error}");
+                        diagnostic_event!(warn, "sega::input::keyboard", "nmi_failed", error = %error);
                     }
                 }
                 KeyboardAction::Start => app.invoke_start_requested(),
@@ -4175,9 +4140,7 @@ mod windows_host {
                 if let Some(worker) = keyboard_release_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
-                    diagnostic_log!(
-                        "SLINT_KEYBOARD action=keyboard_controller_release error={error}"
-                    );
+                    diagnostic_event!(warn, "sega::input::keyboard", "controller_release_failed", error = %error);
                 }
             }
         });
@@ -4197,7 +4160,7 @@ mod windows_host {
             if let Some(worker) = keyboard_focus_worker.borrow().as_ref()
                 && let Err(error) = worker.set_controller_at(1, combined, Instant::now())
             {
-                diagnostic_log!("SLINT_KEYBOARD action=keyboard_focus_release error={error}");
+                diagnostic_event!(warn, "sega::input::keyboard", "focus_release_failed", error = %error);
             }
         });
 
@@ -4533,11 +4496,7 @@ mod windows_host {
         });
 
         app.on_firmware_selection_changed(move |region, firmware| {
-            diagnostic_log!(
-                "SMS_FIRMWARE_SELECTION region={} selection={}",
-                region,
-                firmware
-            );
+            diagnostic_event!(info, "sega::machine::firmware", "region_selected", region = %region, selection = %firmware);
         });
 
         let firmware_toggle_app = app.as_weak();
@@ -4809,7 +4768,7 @@ mod windows_host {
                 keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
             };
             if let Err(error) = save_desktop_preferences(&prefs) {
-                diagnostic_log!("R2_PREFERENCES save_failed error={error}");
+                diagnostic_event!(warn, "sega::preferences", "save_failed", error = %error);
             }
         });
 
@@ -5022,7 +4981,7 @@ mod windows_host {
             if let Some(worker) = sprite_worker.borrow().as_ref()
                 && let Err(error) = worker.set_sprite_limit_enabled(enabled)
             {
-                diagnostic_log!("R2_VIDEO action=sprite_limit_toggle error={error}");
+                diagnostic_event!(warn, "sega::video::sprites", "sprite_limit_toggle_failed", error = %error);
                 if let Some(app) = sprite_app.upgrade() {
                     app.set_sprite_limit_enabled(!enabled);
                     app.set_rom_status(
@@ -5184,7 +5143,7 @@ mod windows_host {
         let mut final_save_error = None;
         if let Some(active_worker) = worker.borrow_mut().take() {
             if let Err(error) = active_worker.pause() {
-                diagnostic_log!("SRAM_SAVE pause_before_exit_failed error={error}");
+                diagnostic_event!(warn, "sega::sram::save", "pause_before_exit_failed", error = %error);
             }
             if let Err(error) =
                 persist_desktop_session_sram(&active_worker, save_context.borrow().as_ref())
@@ -5199,10 +5158,10 @@ mod windows_host {
         let _ = mailbox.close();
         app.set_gpu_texture(slint::Image::default());
         if let Some(error) = final_save_error.as_ref() {
-            diagnostic_log!("SRAM_SAVE final_save_failed error={error}");
+            diagnostic_event!(error, "sega::sram::save", "final_save_failed", error = %error);
         }
         if let Err(error) = &run_result {
-            diagnostic_log!("SLINT event_loop_failed error={error}");
+            diagnostic_event!(error, "sega::app", "event_loop_failed", error = %error);
         }
         shutdown_diagnostics();
         if let Some(error) = final_save_error {
