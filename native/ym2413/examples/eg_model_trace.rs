@@ -9,7 +9,7 @@
 
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination,
-    EnvelopeGenerator, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
+    EnvelopeGenerator, EnvelopeParameters, EnvelopeStage,
 };
 use std::error::Error;
 use std::fs::File;
