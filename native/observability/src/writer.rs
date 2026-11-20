@@ -311,6 +311,59 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
 
+
+    #[test]
+    fn replacing_non_blocking_writer_drains_old_queue_before_new_session() {
+        use tracing_appender::non_blocking::NonBlockingBuilder;
+
+        let directory = temporary_directory();
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("sega-emulator.log");
+        let recent = Arc::new(Mutex::new(VecDeque::new()));
+        let gate = Arc::new(RwLock::new(false));
+
+        let old_file = SizeRotatingWriter::new(&path, 4096, 1).unwrap();
+        let old_sink = FanoutWriter::new(old_file, recent.clone(), 8, gate.clone());
+        let (old_non_blocking, old_guard) = NonBlockingBuilder::default()
+            .buffered_lines_limit(16)
+            .lossy(true)
+            .finish(old_sink);
+        let slot = Arc::new(Mutex::new(Some(old_non_blocking)));
+        let make_writer = SwitchableMakeWriter::new(slot.clone());
+
+        {
+            let mut old_event = make_writer.make_writer();
+            old_event.write_all(b"OLD_SESSION_SENTINEL\\n").unwrap();
+        }
+
+        // Detach all senders before dropping the guard. Its worker drains the
+        // old queue while the shared sink gate remains closed.
+        slot.lock().unwrap().take();
+        drop(old_guard);
+
+        let new_file = SizeRotatingWriter::new(&path, 4096, 1).unwrap();
+        let new_sink = FanoutWriter::new(new_file, recent.clone(), 8, gate.clone());
+        let (new_non_blocking, new_guard) = NonBlockingBuilder::default()
+            .buffered_lines_limit(16)
+            .lossy(true)
+            .finish(new_sink);
+        *slot.lock().unwrap() = Some(new_non_blocking);
+        *gate.write().unwrap() = true;
+
+        {
+            let mut new_event = make_writer.make_writer();
+            new_event.write_all(b"NEW_SESSION_SENTINEL\\n").unwrap();
+        }
+
+        slot.lock().unwrap().take();
+        drop(new_guard);
+
+        let contents = fs::read_to_string(&path).unwrap();
+        assert!(!contents.contains("OLD_SESSION_SENTINEL"));
+        assert!(contents.contains("NEW_SESSION_SENTINEL"));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn fanout_writer_discards_queued_records_after_revocation() {
         let directory = temporary_directory();
