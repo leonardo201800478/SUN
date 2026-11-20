@@ -301,6 +301,7 @@ impl DesktopSession {
     }
 
     /// Capture a concise system-neutral debugger summary after explicit diagnostics consent.
+    /// Build a machine snapshot only when the central diagnostics consent is active.
     pub fn debug_summary(&self, diagnostics_enabled: bool) -> Result<String, String> {
         if !diagnostics_enabled {
             return Err("Ative Coleta de logs no Debugger antes de capturar um snapshot".to_owned());
