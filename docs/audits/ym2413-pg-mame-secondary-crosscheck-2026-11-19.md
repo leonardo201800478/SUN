@@ -43,25 +43,26 @@ The source-level script evaluates:
 
 The 256 base exact-unit differences are half-Rust-LSB values retained by MAME's additional fractional precision; flooring MAME's 10.10 increment to the Rust 9-fractional-bit unit yields equality for every base tuple.
 
-The script also tests every possible cyclic PM phase-origin offset. The best cyclic rotation is offset 6:
+The script tests every possible cyclic PM phase-origin offset. Offset 6 maps MAME's raw PM scale to `[0, 4, 8, 4, 0, -4, -8, -4]`. Expressing the correction in Rust's corrected-FNUM units as `trunc_toward_zero(raw_pm × FNUM[8:6] / 8)` reproduces every entry of the Rust 8×8 PM table exactly.
 
-- Floor-normalized PM mismatches at best offset: **135,136 / 524,288**.
-- Exact common-unit PM mismatches at best offset: **140,625 / 524,288**.
+Even with that phase-origin mapping, the final increments do not compare exactly because MAME preserves fractional PM corrections and performs its own intermediate shifts:
 
-No cyclic phase rotation makes the PM transfer functions equal.
+- Floor-normalized PM increment mismatches at offset 6: **135,136 / 524,288**.
+- Exact common-unit PM increment mismatches at offset 6: **140,625 / 524,288**.
+- The largest mismatch groups are odd FNUM[8:6] rows, where MAME's fractional half-step information is discarded by the Rust integer PM table.
 
 ## Interpretation and decision
 
-The base/no-PM arithmetic agrees after phase-unit normalization. The PM arithmetic does not: MAME/ymfm's source-level LFO/PM transfer function differs materially from the pinned Nuked-OPLL/Rust PM table, even after trying all eight cyclic phase-origin offsets.
+The base/no-PM arithmetic agrees after phase-unit normalization. A more detailed PM analysis shows that MAME's raw LFO waveform is compatible with the Rust PM table after a cyclic phase-origin offset of 6 and truncation toward zero. The remaining phase-increment mismatches come from MAME retaining fractional PM adjustments and applying integer shifts at different points, not from a different quantized 8×8 PM table.
 
-This is a **recorded secondary-reference divergence**, not proof that either implementation is physically correct or that MAME is defective. The comparison is static source-level arithmetic; it does not run a MAME executable, capture its internal state, establish PM clock alignment, or measure silicon.
+This is a **recorded secondary-reference arithmetic difference**, not proof that either implementation is physically correct or that MAME is defective. The quantized PM table shape agrees after phase-origin normalization; the increment results differ because the two implementations retain and truncate fractional PM information differently. The comparison is static source-level arithmetic; it does not run a MAME executable, capture its internal state, establish full PM clock alignment, or measure silicon.
 
 Project decision remains unchanged:
 
 - Nuked-OPLL is the primary software oracle for YM2413 PG convergence.
 - MAME/ymfm remains a secondary independent source for triangulation.
-- Do not modify the Rust PM table to match MAME solely because this source-level comparison differs.
-- Investigate the PM depth/shape and clock-domain interpretation before any production change.
+- Do not modify the Rust PM table: after phase-origin offset 6 and truncation toward zero, the MAME raw PM waveform produces the same 8×8 table.
+- Investigate the fractional PM arithmetic and intermediate rounding differences before any production change.
 - Preserve the exact Nuked differential result: 147,456 calls, all eight PM positions, zero PG increment mismatches.
 
 ## Validation boundary
