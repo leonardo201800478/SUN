@@ -220,7 +220,7 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 
 1. **DP0-F5 — crash/bootstrap:** o hook global de panic ainda existe no código. ADR 0012 foi marcada como SUPERSEDED; falta remover o hook e implementar/testar relatório mínimo somente para falha crítica de bootstrap.
 2. **Níveis do host Slint:** o macro `diagnostic_log!` ainda envia os eventos do host como INFO. A taxonomia ERROR/WARN/INFO/DEBUG/TRACE precisa ser aplicada aos callsites para que filtros por severidade tenham efeito real.
-3. **Estado central:** `HOST_DIAGNOSTICS_ENABLED` no host Slint ainda duplica o estado atômico do logger. Deve ser substituído por consulta à fonte única de consentimento, mantendo apenas flags derivadas por worker quando necessárias.
+3. **Estado central:** O host Slint deixou de manter `HOST_DIAGNOSTICS_ENABLED`; a amostragem e os logs consultam `LoggingHandle::is_enabled()`. O token de consentimento fica somente em memória para habilitar workers substitutos durante a mesma sessão. A flag interna por worker é derivada do token e não é persistida.
 4. **Inventário exaustivo de saídas:** a busca não encontrou sinks de log paralelos no caminho ativo Slint/SMS, mas a varredura de todos os binários, stubs não-Windows, CLI, exemplos, testes, scripts e workflows ainda precisa ser classificada e documentada.
 5. **Validação:** nenhum teste local ou CI deste branch foi declarado PASS nesta auditoria. O resultado depende dos workflows executados sobre o SHA final do PR.
 
