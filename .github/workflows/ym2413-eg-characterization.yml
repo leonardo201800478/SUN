@@ -59,6 +59,7 @@ jobs:
         run: |
           cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
             --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
             > "$RUNNER_TEMP/eg-sequencer-replay.json"
 
       - name: Extract complete channel-zero EG control pipeline
@@ -146,6 +147,7 @@ jobs:
         run: |
           cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
             --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
             > "$RUNNER_TEMP/eg-matrix-sequencer-replay.json"
 
       - name: Extract rate-matrix operator samples and parameters
@@ -231,7 +233,7 @@ jobs:
             python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
               --trace "$TRACE_A" --output "$SEQUENCER_SAMPLES"
             cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
-              --example eg_sequencer_trace -- "$SEQUENCER_SAMPLES" \
+              --example eg_sequencer_trace -- "$SEQUENCER_SAMPLES" "$fixture" \
               > "$SWEEP_DIR/$name-sequencer-replay.json"
             python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
               --trace "$TRACE_A" --output "$SAMPLES" --channels 0,1,2,3
