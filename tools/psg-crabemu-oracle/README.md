@@ -164,3 +164,16 @@ reference's internal tick; the adapter header explicitly identifies this
 clock domain. The first component call also exercises Ares' reset-time
 counter/flip phase. Same-index observations are retained without automatic
 alignment.
+
+
+## Tone-boundary and Tone 2 noise-sync fixture
+
+CI also generates a second event stream dedicated to the tone oscillators:
+
+- Tone 0 period 0 and Tone 1 period 1 are established at reset.
+- Tone 2 is changed through periods 7, 8, 0, 1 and 7.
+- Noise is configured with register value `0xE7` (Tone 2 rate, white-noise feedback).
+- The same writes are delivered to Ares, Gearsystem and the Rust core at identical internal tick indices.
+- Ares and Rust pre/post states are compared field-by-field; Gearsystem's four channel periods/phases/volumes and noise state are captured separately.
+
+The fixture is deliberately separate from the noise-only CrabEmu sample comparison: enabling tone channels would make its mixed sample unsuitable as a direct observation of the isolated noise bit. No automatic phase shift is introduced. The resulting mismatch counts are diagnostic, not pass/fail hardware assertions.
