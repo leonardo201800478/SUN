@@ -1,9 +1,9 @@
 # P2 — Differential reference audit of the Sega SN76489
 
-**Date:** 2026-11-19  
-**Status:** PARTIAL — static source comparison completed; executable external adapters and automated cross-emulator traces remain pending.  
-**Production changes:** none.  
-**Baseline:** `main` at `0e8025e476eee12135f4c0f7def9dead7dfcaa14`.  
+**Date:** 2026-11-19
+**Status:** PARTIAL — static source comparison completed; executable external adapters and automated cross-emulator traces remain pending.
+**Production changes:** none.
+**Baseline:** `main` at `0e8025e476eee12135f4c0f7def9dead7dfcaa14`.
 **Core blob:** `native/sn76489/src/psg.rs`, blob `cfccd43bf9178c5204464dd8057ac964d8429d4c`.
 
 This document records source-level behavior, not physical-chip validation. A reference implementation is evidence about that implementation's model; it is not automatically a hardware oracle. No third-party production code is copied into Sega Emulator.
