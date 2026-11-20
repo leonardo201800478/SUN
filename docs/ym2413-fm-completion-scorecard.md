@@ -120,6 +120,19 @@ A correção de arredondamento inteiro do Phase Generator está proposta na PR #
 
 **Limite:** valida igualdade do incremento PG nos operandos observados. Não valida fase acumulada alinhada, mapeamento de slot, subfase dos quatro input clocks, reset, EG, feedback, PCM ou fidelidade física. A triangulação MAME/ymfm permanece pendente.
 
+## Differential PG accumulator — Nuked-OPLL × Rust (2026-11-19)
+
+Auditoria: `docs/audits/ym2413-pg-phase-accumulator-nuked-differential-2026-11-19.md`.
+
+- 147.456 chamadas `OPLL_Clock`, 146.885 com PM habilitado.
+- Todos os nove canais programados; FNUM[8:6] rows 0..7, BLOCK 0..7 e PM positions 0..7 cobertos.
+- 147.456 incrementos PG comparados: zero divergências.
+- 2.654.208 valores de acumulador (18 slots × 147.456 chamadas) comparados nos 19 bits efetivos: zero divergências.
+- 5.076 wraps de 19 bits observados; todos os 18 slots ficaram ativos.
+- CI run `44654562391`, job `136017489127`: SUCCESS.
+
+**Escopo validado:** ordem de atualização do slot anterior e estado de fase acumulada para a sequência melódica controlada sem KEY-ON. KEY-ON/reset, Rhythm Mode, subfases XIN, EG, feedback, operador, PCM e todos os patches continuam fora desta validação. Nenhum código de produção foi alterado por este comparador.
+
 ## Triangulação secundária MAME/ymfm — 2026-11-19
 
 A auditoria source-level `docs/audits/ym2413-pg-mame-secondary-crosscheck-2026-11-19.md`
