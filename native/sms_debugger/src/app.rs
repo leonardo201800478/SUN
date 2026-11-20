@@ -245,7 +245,7 @@ impl DebuggerApp {
         else {
             return;
         };
-        let report = format!(
+        let mut report = format!(
             "Sega Master System — Debug Report\nROM: {}\nPC: {:04X}\nSP: {:04X}\nAF: {:04X}\nBC: {:04X}\nDE: {:04X}\nHL: {:04X}\nAF': {:04X}\nBC': {:04X}\nDE': {:04X}\nHL': {:04X}\nIX: {:04X}\nIY: {:04X}\nWZ: {:04X}\nI: {:02X}\nR: {:02X}\nIFF1: {}\nIFF2: {}\nIM: {}\nHALT: {}\nInstruction T-states: {}\nMachine ticks: {}\nFrame: {}\nVDP status: {:02X}\nVDP scanline: {}\nVDP cycles/line: {}\nMapper banks: {:02X}/{:02X}/{:02X}\nMapper control: {:02X}\nMemory control: {:02X}\n",
             self.rom_path
                 .as_ref()
@@ -281,6 +281,22 @@ impl DebuggerApp {
             snapshot.mapper_control,
             snapshot.memory_control,
         );
+        report.push_str(&format!(
+            "\nEssential trace events: {}\nEssential trace overwritten: {}\nDetailed trace enabled: {}\nDetailed trace events: {}\nDetailed trace buffer overwritten: {}\nDetailed trace total dropped: {}\n\nESSENTIAL TRACE (oldest first)\n",
+            snapshot.essential_trace_events.len(),
+            snapshot.essential_trace_dropped,
+            snapshot.trace_enabled,
+            snapshot.trace_events.len(),
+            snapshot.trace_buffer_dropped,
+            snapshot.trace_dropped,
+        ));
+        for (index, event) in snapshot.essential_trace_events.iter().enumerate() {
+            report.push_str(&format!("{index:04} {event:?}\n"));
+        }
+        report.push_str("\nDETAILED TRACE (opt-in, oldest first)\n");
+        for (index, event) in snapshot.trace_events.iter().enumerate() {
+            report.push_str(&format!("{index:04} {event:?}\n"));
+        }
         match fs::write(path, report) {
             Ok(()) => self.status = "Relatório exportado sem dados da ROM".into(),
             Err(error) => self.status = format!("Falha ao exportar relatório: {error}"),
