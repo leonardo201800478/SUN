@@ -266,10 +266,7 @@ impl DesktopSession {
     }
 
     /// Enable SMS diagnostics using the same explicit consent capability as the logger.
-    pub fn enable_sms_diagnostics(
-        &self,
-        consent: &DiagnosticsConsent,
-    ) -> Result<(), String> {
+    pub fn enable_sms_diagnostics(&self, consent: &DiagnosticsConsent) -> Result<(), String> {
         if let Self::Sms { worker, .. } = self {
             worker.enable_diagnostics(consent);
         }
@@ -304,7 +301,9 @@ impl DesktopSession {
     /// Build a machine snapshot only when the central diagnostics consent is active.
     pub fn debug_summary(&self, diagnostics_enabled: bool) -> Result<String, String> {
         if !diagnostics_enabled {
-            return Err("Ative Coleta de logs no Debugger antes de capturar um snapshot".to_owned());
+            return Err(
+                "Ative Coleta de logs no Debugger antes de capturar um snapshot".to_owned(),
+            );
         }
         match self {
             Self::Sms { worker, .. } => worker.debug_snapshot().map(|snapshot| {
@@ -364,9 +363,9 @@ impl DesktopSession {
 #[cfg(test)]
 mod tests {
     use super::{DesktopSession, DesktopSystem};
-    use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_observability::DiagnosticsConsent;
-use sega_sms_runtime::SmsTemporalWorker;
+    use sega_sg1000_runtime::Sg1000TemporalWorker;
+    use sega_sms_runtime::SmsTemporalWorker;
 
     #[test]
     fn system_identifiers_are_explicit_and_unknown_values_do_not_fall_back() {
