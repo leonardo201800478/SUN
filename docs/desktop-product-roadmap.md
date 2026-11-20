@@ -1,8 +1,8 @@
 # Roadmap de produto desktop — capacidades, UX, mídia e diagnóstico
 
-**Estado:** documento normativo de planejamento; requisitos aprovados para orientar implementação, não declaração de recursos já concluídos.  
-**Data:** 2026-11-20  
-**Host-alvo:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.  
+**Estado:** documento normativo de planejamento; requisitos aprovados para orientar implementação, não declaração de recursos já concluídos.
+**Data:** 2026-11-20
+**Host-alvo:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 **Escopo:** aplicação desktop, serviços de aplicação, persistência, biblioteca/carregamento de mídia, menus, CLI, diagnóstico e documentação de produto.
 
 ## 1. Autoridade e precedência
@@ -362,4 +362,3 @@ Este resumo é ponto de partida da auditoria, não substitui o inventário DP-0.
 - [README do desktop Slint](../native/sega_desktop/README.md)
 - [Inventário de migração da aplicação Rust](architecture/rust-application-migration-inventory.md)
 - [Política de CI e validação](ci-validation-policy.md)
-
