@@ -52,11 +52,10 @@ mod windows_host {
     const SMS_HEIGHT: u32 = 192;
     const SMS_EXTENDED_HEIGHTS: [u32; 2] = [224, 240];
 
-    // Host diagnostics are session-only and remain disabled until the user opts in.
-    static HOST_DIAGNOSTICS_ENABLED: AtomicBool = AtomicBool::new(false);
-
+    // The observability handle is the single authority for diagnostic consent.
     fn host_diagnostics_enabled() -> bool {
-        HOST_DIAGNOSTICS_ENABLED.load(Ordering::Acquire)
+        sega_observability::current()
+            .is_some_and(sega_observability::LoggingHandle::is_enabled)
     }
 
     macro_rules! diagnostic_log {
@@ -1264,9 +1263,9 @@ mod windows_host {
                             Rectangle { height: 220px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Runtime e CPU"; color: #F1F5FA; }
-                                    CompactButton { text: "Capturar snapshot da CPU"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
-                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom && root.active-system != "sg1000"; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
-                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
+                                    CompactButton { text: "Capturar snapshot da CPU"; enabled: root.has-rom && root.diagnostics-enabled; clicked => { root.debug-snapshot-requested(); } }
+                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom && root.active-system != "sg1000" && root.diagnostics-enabled; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled && root.diagnostics-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
                                     Text { font-size: 11px; text: root.debug-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                     Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
                                 }
@@ -1279,7 +1278,7 @@ mod windows_host {
                                         checked <=> root.diagnostics-enabled;
                                         toggled => { root.diagnostics-toggle-requested(self.checked); }
                                     }
-                                    Text { font-size: 10px; text: "Desativado por padrão. Quando ativo, registra eventos estruturados, frame pacing e saúde do áudio em arquivos de log e snapshot final na pasta de logs do usuário. A autorização não é persistida."; color: #B4C0D0; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "Desativado por padrão. Quando autorizado, coleta eventos estruturados e métricas de frame pacing e áudio. Snapshots e traces exigem a coleta ativa e só são exportados por ação explícita; nenhum snapshot é gravado automaticamente no encerramento. A autorização não é persistida."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
                             Rectangle { height: 84px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
@@ -4689,6 +4688,12 @@ mod windows_host {
         let debug_app = app.as_weak();
         let debug_worker = Rc::clone(&worker);
         app.on_debug_snapshot_requested(move || {
+            if !host_diagnostics_enabled() {
+                if let Some(app) = debug_app.upgrade() {
+                    app.set_debug_status("Autorize a coleta de logs no Debugger antes de capturar snapshots.".into());
+                }
+                return;
+            }
             let worker_guard = debug_worker.borrow();
             let Some(worker) = worker_guard.as_ref() else {
                 return;
@@ -4707,6 +4712,9 @@ mod windows_host {
         let trace_export_worker = Rc::clone(&worker);
         app.on_trace_export_requested(move || {
             let result = (|| -> Result<Option<PathBuf>, String> {
+                if !host_diagnostics_enabled() {
+                    return Err("Autorize a coleta de logs no Debugger antes de exportar traces.".to_owned());
+                }
                 let snapshot = {
                     let worker_guard = trace_export_worker.borrow();
                     let session = worker_guard
@@ -5026,13 +5034,17 @@ mod windows_host {
         let trace_worker = Rc::clone(&worker);
         let trace_app = app.as_weak();
         app.on_trace_toggle_requested(move |enabled| {
-            let result = trace_worker.borrow().as_ref().map_or_else(
-                || Err("SMS worker indisponível".to_owned()),
-                |worker| {
-                    worker.set_sms_trace_enabled(enabled)?;
-                    Ok(())
-                },
-            );
+            let result = if enabled && !host_diagnostics_enabled() {
+                Err("Autorize a coleta de logs no Debugger antes de ativar o trace.".to_owned())
+            } else {
+                trace_worker.borrow().as_ref().map_or_else(
+                    || Err("SMS worker indisponível".to_owned()),
+                    |worker| {
+                        worker.set_sms_trace_enabled(enabled)?;
+                        Ok(())
+                    },
+                )
+            };
             if let Err(error) = result
                 && let Some(app) = trace_app.upgrade()
             {
@@ -5064,9 +5076,12 @@ mod windows_host {
         app.on_diagnostics_toggle_requested(move |enabled| {
             if !enabled {
                 diagnostics_timer_control.stop();
-                HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
                 if let Some(worker) = diagnostics_worker.borrow().as_ref() {
+                    let _ = worker.set_sms_trace_enabled(false);
                     worker.set_sms_diagnostics_enabled(false);
+                }
+                if let Some(app) = diagnostics_app.upgrade() {
+                    app.set_trace_enabled(false);
                 }
             }
 
@@ -5078,7 +5093,6 @@ mod windows_host {
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner()) =
                             HostFramePacingWindow::new();
-                        HOST_DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
                         if let Some(worker) = diagnostics_worker.borrow().as_ref() {
                             worker.set_sms_diagnostics_enabled(true);
                         }
@@ -5094,11 +5108,12 @@ mod windows_host {
                 }
                 Err(error) => {
                     diagnostics_timer_control.stop();
-                    HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
                     if let Some(worker) = diagnostics_worker.borrow().as_ref() {
+                        let _ = worker.set_sms_trace_enabled(false);
                         worker.set_sms_diagnostics_enabled(false);
                     }
                     if let Some(app) = diagnostics_app.upgrade() {
+                        app.set_trace_enabled(false);
                         app.set_diagnostics_enabled(false);
                         app.set_debug_status(
                             format!("Não foi possível alterar a coleta diagnóstica: {error}")
