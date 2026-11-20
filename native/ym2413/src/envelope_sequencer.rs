@@ -183,10 +183,11 @@ impl EnvelopeSequencer {
     /// Construct the Nuked reset state: silent RELEASE operators and cleared
     /// delayed control pipelines.
     pub const fn new() -> Self {
-        let initial = match EnvelopeOperator::with_initial_state(127, EnvelopeOperatorStage::Release) {
-            Ok(operator) => operator,
-            Err(_) => panic!("the YM2413 EG reset state is valid"),
-        };
+        let initial =
+            match EnvelopeOperator::with_initial_state(127, EnvelopeOperatorStage::Release) {
+                Ok(operator) => operator,
+                Err(_) => panic!("the YM2413 EG reset state is valid"),
+            };
         Self {
             operators: [initial; YM2413_ENVELOPE_SEQUENCER_SLOTS],
             timer: EnvelopeTimer::new(),
