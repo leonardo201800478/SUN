@@ -73,8 +73,9 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
             sustain_on: parse_bool(fields[8], line_number)?,
             sustained_tone: parse_bool(fields[9], line_number)?,
             key_on: parse_bool(fields[10], line_number)?,
-            rhythm_select: EnvelopeRhythmSelect::from_code(fields[33].parse()?)
-                .ok_or_else(|| std::io::Error::other(format!("line {line_number}: invalid rhythm selector")))?,
+            rhythm_select: EnvelopeRhythmSelect::from_code(fields[33].parse()?).ok_or_else(
+                || std::io::Error::other(format!("line {line_number}: invalid rhythm selector")),
+            )?,
             rhythm_bits: fields[35].parse()?,
         },
         expected_operator_slot: fields[11].parse()?,
@@ -170,9 +171,8 @@ impl RegisterBus {
                 0x0e => {
                     self.rhythm = self.write_data & 0x3f;
                     self.registers[0x0e] = self.rhythm;
-                    self.rm_enable = (self.rm_enable & 0x7f)
-                        | (((self.rhythm << 2) & 0x80) as i8);
-                },
+                    self.rm_enable = (self.rm_enable & 0x7f) | (((self.rhythm << 2) & 0x80) as i8);
+                }
                 0x0f => self.registers[0x0f] = self.write_data & 0x0f,
                 _ => {}
             }
@@ -361,8 +361,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             sample.input
         };
         if register_mode {
-            decoded_input.rhythm_select = EnvelopeRhythmSelect::from_code(register_bus.rm_select)
-                .ok_or_else(|| std::io::Error::other("invalid local rhythm selector"))?;
+            decoded_input.rhythm_select =
+                EnvelopeRhythmSelect::from_code(register_bus.rm_select)
+                    .ok_or_else(|| std::io::Error::other("invalid local rhythm selector"))?;
             decoded_input.rhythm_bits = register_bus.rhythm;
         }
         let mut input_bad = if register_mode {
