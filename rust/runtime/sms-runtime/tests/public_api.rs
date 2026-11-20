@@ -7,6 +7,7 @@ use sega_sms_runtime::SmsTemporalWorker;
 fn public_worker_api_loads_steps_resets_and_accepts_controller_levels() {
     let rom = vec![0; 0x4000];
     let worker = SmsTemporalWorker::new(rom.clone(), "usa").unwrap();
+        worker.set_diagnostics_enabled(true).unwrap();
 
     worker
         .set_controller(
