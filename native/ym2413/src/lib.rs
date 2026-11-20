@@ -35,7 +35,8 @@ pub use bus_timing::{
 };
 pub use channel::{
     ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
-    decode_channel_synthesis,
+    YM2413_EG_CYCLE_CHANNELS, decode_channel_synthesis, envelope_cycle_is_carrier,
+    envelope_slot_input_for_cycle,
 };
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
