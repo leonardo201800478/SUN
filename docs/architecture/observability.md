@@ -4,7 +4,7 @@
 
 O logging é transversal aos crates compartilhados e não participa do controle temporal da máquina. CPU, VDP, PSG, Scheduler, barramentos e hosts publicam eventos estruturados; a aplicação nativa instala o subscriber e mantém o ciclo de vida do escritor.
 
-**Coleta desativada por padrão (opt-in).** A aplicação não inicializa o subscriber, não cria o diretório de logs, não instala o panic hook e não grava snapshots enquanto o usuário não ativar explicitamente `Opções > Diagnóstico > Ativar coleta de diagnóstico`. A opção não é persistida: cada inicialização começa desligada.
+**Coleta desativada por padrão (opt-in).** A aplicação não inicializa o subscriber, não cria o diretório de logs, não instala o panic hook e não grava snapshots enquanto o usuário não ativar explicitamente `Debugger > Coleta de logs`. A opção não é persistida: cada inicialização começa desligada.
 
 A autorização é representada por um único `DiagnosticsConsent`, criado somente no callback de ação afirmativa do usuário e passado ao logger central e ao worker SMS. O worker não expõe setter booleano público para habilitar diagnósticos. O host Slint consulta `LoggingHandle::is_enabled()` para condicionar seus eventos e timers; a cópia do token mantida em memória serve apenas para autorizar workers substitutos durante a mesma sessão.
 
