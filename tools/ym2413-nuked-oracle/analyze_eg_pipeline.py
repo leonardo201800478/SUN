@@ -109,39 +109,86 @@ def replay_nuked_update(pre: dict, slot: int) -> tuple[int, int, dict]:
     return next_level + step, next_state, consumed
 
 
-def rust_effective_attack_rate(sample: dict) -> int:
-    """Calculate the production model's effective AR for this sample."""
-    base = int(sample["attack_rate"])
-    if base == 0:
+EG_FAST_DECAY_TABLE = (
+    (0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1),
+    (0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1),
+    (0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1),
+    (0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+    (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+    (2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+    (2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1),
+    (2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1),
+)
+
+
+def rust_effective_rate(sample: dict, base_rate: int) -> int:
+    """Calculate the production model's effective rate for the active stage."""
+    if base_rate == 0:
         return 0
     key_code = (int(sample["block"]) << 1) | (int(sample["fnum"]) >> 8)
     rks = key_code if int(sample["key_scale_rate"]) else key_code >> 2
-    return min(63, 4 * base + rks)
+    return min(63, 4 * base_rate + rks)
 
 
-def rust_attack_selector(counter: int, rate: int) -> dict:
-    """Expose the production attack table selector for a counter candidate."""
-    if not 4 <= rate < 60:
-        return {"rate": rate, "enabled": False}
-    if rate < 48:
+def rust_stage_selector(sample: dict, candidate_stage: int, counter: int) -> dict:
+    """Expose the production rate selector matching the candidate's current EG stage."""
+    key_on = bool(int(sample["key_on"]))
+    is_carrier = bool(int(sample["is_carrier"]))
+    if not key_on and is_carrier:
+        base_rate = 5 if int(sample["sustain_on"]) else (
+            int(sample["release_rate"]) if int(sample["sustained_tone"]) else 7
+        )
+        stage_name = "RELEASE"
+    elif candidate_stage == 0:
+        base_rate, stage_name = 12, "DAMP"
+    elif candidate_stage == 1:
+        base_rate, stage_name = int(sample["attack_rate"]), "ATTACK"
+    elif candidate_stage == 2:
+        base_rate, stage_name = int(sample["decay_rate"]), "DECAY"
+    else:
+        base_rate = 0 if int(sample["sustained_tone"]) else int(sample["release_rate"])
+        stage_name = "SUSTAIN"
+
+    rate = rust_effective_rate(sample, base_rate)
+    result = {"stage": stage_name, "base_rate": base_rate, "effective_rate": rate}
+    if rate < 4:
+        return {**result, "enabled": False, "reason": "effective rate below 4"}
+    if stage_name == "ATTACK":
+        if rate >= 60:
+            return {**result, "enabled": False, "reason": "attack rate 60..63 holds"}
+        if rate < 48:
+            shift = 13 - rate // 4
+            mask = ((1 << shift) - 1) & ~3
+            column = (counter >> shift) & 7
+            table_bit = EG_STEP_TABLE[rate & 3][column]
+            return {
+                **result, "shift": shift, "mask": mask,
+                "counter_masked": counter & mask, "column": column,
+                "table_bit": table_bit,
+                "enabled": (counter & mask) == 0 and table_bit != 0,
+            }
+        column = (counter & 0x0C) >> 1
+        shift = 16 - rate // 4
+        if EG_STEP_TABLE[rate & 3][column] != 0:
+            shift -= 1
+        return {**result, "column": column, "shift": shift, "enabled": True}
+
+    if rate <= 51:
         shift = 13 - rate // 4
-        mask = ((1 << shift) - 1) & ~3
+        mask = (1 << shift) - 1
         column = (counter >> shift) & 7
         table_bit = EG_STEP_TABLE[rate & 3][column]
         return {
-            "rate": rate,
-            "shift": shift,
-            "mask": mask,
-            "counter_masked": counter & mask,
-            "column": column,
+            **result, "shift": shift, "mask": mask,
+            "counter_masked": counter & mask, "column": column,
             "table_bit": table_bit,
             "enabled": (counter & mask) == 0 and table_bit != 0,
         }
-    column = (counter & 0x0C) >> 1
-    shift = 16 - rate // 4
-    if EG_STEP_TABLE[rate & 3][column] != 0:
-        shift -= 1
-    return {"rate": rate, "shift": shift, "column": column, "enabled": True}
+    if rate <= 59:
+        column = counter & 0x0F
+        increment = EG_FAST_DECAY_TABLE[rate - 52][column]
+        return {**result, "column": column, "increment": increment, "enabled": increment != 0}
+    return {**result, "increment": 2, "enabled": True}
 
 
 def compress_counter_counts(counts: Counter[int]) -> list[dict]:
@@ -219,14 +266,14 @@ def main() -> int:
         by_counter[counter] += int(level_bad)
 
         if level_bad and first_level is None:
-            rate = rust_effective_attack_rate(sample)
             first_level = {
                 "call_index": call,
                 "slot": slot,
                 "global_counter": counter,
                 "observed_nuked_level": observed_level,
                 "candidate_rust_level": rust_level,
-                "rust_attack_selector": rust_attack_selector(counter, rate),
+                "candidate_rust_stage": rust_stage,
+                "rust_candidate_selector": rust_stage_selector(sample, rust_stage, counter),
                 "nuked_consumed_state": consumed,
             }
         if stage_bad and first_stage is None:
