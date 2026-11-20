@@ -13,14 +13,14 @@ use crate::envelope_timer::{
     EnvelopeTimer, EnvelopeTimerError, EnvelopeTimerSnapshot, EnvelopeTimerState,
 };
 
-pub const YM2413_ENVELOPE_SEQUENCER_STATE_VERSION: u16 = 1;
+pub const YM2413_ENVELOPE_SEQUENCER_STATE_VERSION: u16 = 2;
 pub const YM2413_ENVELOPE_SEQUENCER_SLOTS: usize = 18;
 
 /// Register-derived inputs selected for the current serial cycle.
 ///
-/// `sustain_level` is the previously prepared c_sl latch transferred into
-/// eg_sl by this cycle; it is intentionally one call behind the freshly
-/// decoded c_sl value visible after the current OPLL clock call.
+/// `sustain_level` is the freshly selected c_sl value. The sequencer queues it
+/// and transfers the preceding cycle's value into eg_sl after the current EG
+/// update, matching the separate PreparePatch2 latch boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EnvelopeSlotInput {
     pub attack_rate: u8,
@@ -46,6 +46,7 @@ pub struct EnvelopeSequencerState {
     pub eg_off: u8,
     pub eg_dokon: u32,
     pub eg_sl: u8,
+    pub pending_sustain_level: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +96,7 @@ pub struct EnvelopeSequencerTick {
     pub eg_off: u8,
     pub eg_dokon: u32,
     pub eg_sl: u8,
+    pub pending_sustain_level: u8,
     /// Composed six-bit rate prepared for the following serial cycle.
     pub next_rate: u8,
     /// Base-rate-zero latch prepared independently of KSR.
@@ -110,6 +112,7 @@ pub struct EnvelopeSequencer {
     eg_off: u8,
     eg_dokon: u32,
     eg_sl: u8,
+    pending_sustain_level: u8,
 }
 
 impl Default for EnvelopeSequencer {
@@ -131,6 +134,7 @@ impl EnvelopeSequencer {
             eg_off: 0,
             eg_dokon: 0,
             eg_sl: 0,
+            pending_sustain_level: 0,
         }
     }
 
@@ -164,7 +168,9 @@ impl EnvelopeSequencer {
             || input.release_rate > 15
             || input.sustain_level > 15
             || input.ksr_frequency > 15
+            || input.sustain_level > 15
             || self.eg_sl > 15
+            || self.pending_sustain_level > 15
         {
             return Err(EnvelopeSequencerError::InvalidInput);
         }
@@ -245,7 +251,8 @@ impl EnvelopeSequencer {
         self.eg_kon = next_eg_kon;
         self.eg_off = next_eg_off;
         self.eg_dokon = next_eg_dokon;
-        self.eg_sl = input.sustain_level;
+        self.eg_sl = self.pending_sustain_level;
+        self.pending_sustain_level = input.sustain_level;
 
         Ok(EnvelopeSequencerTick {
             cycle,
@@ -256,6 +263,7 @@ impl EnvelopeSequencer {
             eg_off: self.eg_off,
             eg_dokon: self.eg_dokon,
             eg_sl: self.eg_sl,
+            pending_sustain_level: self.pending_sustain_level,
             next_rate,
             next_zero_rate,
         })
@@ -271,12 +279,16 @@ impl EnvelopeSequencer {
             eg_off: self.eg_off,
             eg_dokon: self.eg_dokon,
             eg_sl: self.eg_sl,
+            pending_sustain_level: self.pending_sustain_level,
         }
     }
 
     /// Restore a complete sequencer snapshot after validating every component.
     pub fn restore_state(state: EnvelopeSequencerState) -> Result<Self, EnvelopeSequencerError> {
-        if state.format_version != YM2413_ENVELOPE_SEQUENCER_STATE_VERSION || state.eg_sl > 15 {
+        if state.format_version != YM2413_ENVELOPE_SEQUENCER_STATE_VERSION
+            || state.eg_sl > 15
+            || state.pending_sustain_level > 15
+        {
             return Err(EnvelopeSequencerError::InvalidState);
         }
 
@@ -299,6 +311,7 @@ impl EnvelopeSequencer {
             eg_off: state.eg_off,
             eg_dokon: state.eg_dokon,
             eg_sl: state.eg_sl,
+            pending_sustain_level: state.pending_sustain_level,
         })
     }
 }
@@ -315,6 +328,7 @@ mod tests {
         assert_eq!(state.eg_off, 0);
         assert_eq!(state.eg_dokon, 0);
         assert_eq!(state.eg_sl, 0);
+        assert_eq!(state.pending_sustain_level, 0);
         assert!(!state.timer.pending_zero_rate);
         for slot in 0..18 {
             assert_eq!(
