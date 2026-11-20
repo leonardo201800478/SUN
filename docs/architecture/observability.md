@@ -56,7 +56,7 @@ Arquivos:
 
 - `sega-emulator.log`: JSON Lines, rotação por tamanho (10 MiB por arquivo, cinco backups).
 - `sega-emulator-diagnostics.json`: snapshot da sessão escrito no encerramento ou na exportação.
-- `sega-emulator-crash.log`: panic hook, com timestamp, payload e backtrace.
+- `sega-emulator-crash.log`: registro privado de panic, somente quando o consentimento está ativo no instante da falha. Pela ADR 0012, deve conter timestamp, ID da sessão e localização sanitizada (nome-base/linha/coluna), sem payload bruto, caminhos absolutos ou backtrace por padrão. A implementação desta política está pendente da DP0-F5.
 
 `SEGA_LOG_DIR` permite substituir o diretório e `SEGA_LOG_FILTER` define o filtro inicial. O filtro pode ser recarregado em runtime por `LoggingHandle::set_filter`.
 
@@ -106,7 +106,7 @@ Não registrar cada instrução Z80 nem cada T-state por padrão. A instrumenta�
 - O timestamp é gerado no subscriber; não é usado como fonte temporal do emulador.
 - A política de descarte fica observável pelo contador de eventos perdidos.
 
-## Testes e validação
+## Política de panic e crash\n\nA saída padrão de panic do Rust deve ser preservada e chamada exatamente uma vez, mesmo quando a coleta privada estiver desativada. A captura para `sega-emulator-crash.log` é independente da saída padrão: só pode ocorrer com consentimento ativo no instante do panic. Não capturar payload arbitrário nem backtrace bruto por padrão; não suprimir panic nem usar `catch_unwind` para mascarar falhas. Ver [ADR 0012](../adr/0012-panic-crash-diagnostics-policy.md). A implementação e os testes de subprocesso permanecem pendentes em DP0-F5.\n\n## Testes e validação
 
 O crate contém testes para rotação por tamanho, retenção de backups e ring buffer. A suíte com feature `runtime` deve ser executada explicitamente:
 
