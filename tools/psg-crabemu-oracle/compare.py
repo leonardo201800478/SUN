@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare pinned CrabEmu SMS PSG traces with the Sega Emulator core trace."""
+"""Compare pinned external PSG traces with the Sega Emulator core trace."""
 
 from __future__ import annotations
 
@@ -32,8 +32,10 @@ def first_index(values: list[bool]) -> int | None:
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: compare.py reference.jsonl core.jsonl")
+    if len(sys.argv) not in (3, 4):
+        raise SystemExit(
+            "usage: compare.py crabemu-reference.jsonl core.jsonl [gearsystem-reference.jsonl]"
+        )
 
     ref_header, ref_rows, ref_raw = read_jsonl(
         Path(sys.argv[1]), "smsplus-crabemu-psg-trace-v1"
@@ -44,12 +46,12 @@ def main() -> int:
 
     if len(ref_rows) != len(core_rows):
         raise SystemExit(
-            f"trace lengths differ: reference={len(ref_rows)} core={len(core_rows)}"
+            f"CrabEmu/core trace lengths differ: reference={len(ref_rows)} core={len(core_rows)}"
         )
     if ref_header.get("source_commit") != "3844b46caa926b6494987b97da63092818c4ddef":
-        raise SystemExit("reference commit pin mismatch")
+        raise SystemExit("CrabEmu reference commit pin mismatch")
     if ref_header.get("noise_bits") != 16 or ref_header.get("noise_tapped") != 9:
-        raise SystemExit("reference SMS noise configuration mismatch")
+        raise SystemExit("CrabEmu SMS noise configuration mismatch")
 
     state_mismatch = []
     sample_vs_core_lfsr = []
@@ -69,7 +71,7 @@ def main() -> int:
         # CrabEmu's raw noise sample must equal its pre-update LFSR bit 0.
         if sample_bit != int(reference["noise_bit_before"]):
             raise SystemExit(
-                f"reference sample does not match its pre-update LFSR bit at tick {tick}"
+                f"CrabEmu sample does not match its pre-update LFSR bit at tick {tick}"
             )
 
         if ref_before != ref_after:
@@ -84,7 +86,7 @@ def main() -> int:
             sample_vs_core_latch.append(tick)
         sample_bits.append(sample_bit)
 
-    summary = {
+    summary: dict[str, Any] = {
         "schema": "sega-psg-differential-summary-v1",
         "comparison_policy": "same tick index; no waveform alignment or correlation-based shifting",
         "reference": {
@@ -125,10 +127,63 @@ def main() -> int:
         "reference_sample_bit_ones": sum(sample_bits),
         "note": (
             "Differences are diagnostic, not an automatic hardware pass/fail. "
-            "The reference sample is captured before its LFSR update; the Rust "
+            "The CrabEmu sample is captured before its LFSR update; the Rust "
             "core exposes both current LFSR state and its latched noise_output."
         ),
     }
+
+    if len(sys.argv) == 4:
+        gear_header, gear_rows, gear_raw = read_jsonl(
+            Path(sys.argv[3]), "gearsystem-sms-psg-state-trace-v1"
+        )
+        if len(gear_rows) != len(core_rows):
+            raise SystemExit(
+                f"Gearsystem/core trace lengths differ: reference={len(gear_rows)} core={len(core_rows)}"
+            )
+        if gear_header.get("source_commit") != "1be9a12b82cae84ddd6f9b7006d546abe2d58bd4":
+            raise SystemExit("Gearsystem reference commit pin mismatch")
+        if gear_header.get("row_duration_tstates") != 16:
+            raise SystemExit("Gearsystem trace must advance exactly 16 Z80 T-states per row")
+
+        gear_shift_ticks = []
+        gear_bit_vs_core_bit = []
+        gear_bit_vs_core_latch = []
+        for tick, (gear, core) in enumerate(zip(gear_rows, core_rows, strict=True)):
+            if int(gear["noise_shifter_before"]) != int(gear["noise_shifter_after"]):
+                gear_shift_ticks.append(tick)
+            gear_bit = int(gear["noise_bit_after"])
+            if gear_bit != int(core["lfsr_bit_after"]):
+                gear_bit_vs_core_bit.append(tick)
+            if gear_bit != int(core["noise_output_after"]):
+                gear_bit_vs_core_latch.append(tick)
+
+        summary["gearsystem"] = {
+            "name": "Gearsystem Sms_Apu",
+            "commit": gear_header["source_commit"],
+            "license": gear_header["license"],
+            "trace_sha256": hashlib.sha256(gear_raw).hexdigest(),
+            "lfsr_shift_count": len(gear_shift_ticks),
+            "first_lfsr_shift_tick": first_index(
+                [tick in gear_shift_ticks for tick in range(len(gear_rows))]
+            ),
+            "lfsr_shift_ticks_first_20": gear_shift_ticks[:20],
+            "galois_state_raw_values_compared": False,
+            "observable_bit0_vs_core_lfsr_bit_mismatch_count": len(gear_bit_vs_core_bit),
+            "observable_bit0_vs_core_lfsr_bit_first_mismatch_tick": first_index(
+                [tick in gear_bit_vs_core_bit for tick in range(len(gear_rows))]
+            ),
+            "observable_bit0_vs_core_noise_output_latch_mismatch_count": len(
+                gear_bit_vs_core_latch
+            ),
+            "observable_bit0_vs_core_noise_output_latch_first_mismatch_tick": first_index(
+                [tick in gear_bit_vs_core_latch for tick in range(len(gear_rows))]
+            ),
+            "note": (
+                "Gearsystem uses a Galois-form LFSR. Raw state integers are not "
+                "compared to the core's Fibonacci-form register; only observable "
+                "bit-0 state and timestamped shift events are compared."
+            ),
+        }
 
     print(json.dumps(summary, sort_keys=True, indent=2))
     return 0
