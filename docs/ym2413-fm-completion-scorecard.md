@@ -104,7 +104,7 @@ A correção de arredondamento inteiro do Phase Generator está proposta na PR #
 - Comparação estática exaustiva de 524.288 combinações executada.
 - PR #1076 fornece adapter externo fixado ao Nuked; PR #1077 executa a comparação diferencial contra o método Rust real.
 - Differential CI: 147.456 chamadas `OPLL_Clock`, 16.373 chamadas PM-enabled, todas as oito posições PM cobertas e zero divergências no incremento PG.
-- MAME/ymfm: comparação estática exaustiva da fórmula de PG concluída; base/no-PM coincide após normalização de unidade, mas a transferência PM diverge da tabela Nuked mesmo após testar oito offsets cíclicos. Runtime MAME independente permanece pendente.
+- MAME/ymfm: comparação estática exaustiva concluída; base/no-PM coincide após normalização. O PM bruto, com offset cíclico 6 e truncamento em direção a zero, reproduz exatamente a tabela 8×8 Rust; os incrementos finais ainda divergem devido à precisão fracionária e aos pontos de truncamento diferentes. Runtime MAME independente permanece pendente.
 - Nenhuma implementação Nuked foi copiada ou ligada ao backend.
 
 **Classificação:** correção local de PG implementada na branch e CI validado; aguardando revisão/integração. FM-1 continua PARCIAL. FM-6 continua PENDENTE. Nenhuma afirmação de cycle-accuracy integrada.
@@ -126,11 +126,12 @@ A auditoria source-level `docs/audits/ym2413-pg-mame-secondary-crosscheck-2026-1
 e o script `tools/ym2413-nuked-oracle/compare_mame_pg.py` registram:
 
 - 65.536 combinações base/no-PM: zero divergências após normalização da unidade 10.10 do MAME para 9 bits fracionários do Rust.
-- 524.288 combinações PM: 404.965 divergências na mesma posição LFO; a melhor rotação cíclica ainda deixa 135.136 divergências.
+- A posição de fase cíclica 6 alinha o PM bruto MAME ao PM Rust: `trunc_toward_zero(raw_pm × FNUM[8:6] / 8)` reproduz exatamente a tabela Rust 8×8.
+- Ainda há 135.136 divergências de incremento após normalização no melhor offset, pois o MAME conserva frações PM e aplica shifts em pontos diferentes.
 - O MAME mantém 10 bits fracionários; 256 casos base retêm meio LSB adicional que não existe no PG Rust.
 - Resultado é comparação estática da fórmula e das tabelas-fonte, não execução diferencial do MAME.
 
-**Decisão:** manter Nuked como oráculo primário. Não alterar a tabela PM Rust para convergir com MAME sem resolver primeiro a diferença de forma/profundidade do LFO e a normalização temporal. A divergência é evidência para investigação, não decisão por votação.
+**Decisão:** manter Nuked como oráculo primário. Não alterar a tabela PM Rust para convergir com MAME sem resolver primeiro a diferença de forma/profundidade do LFO e a normalização temporal. A diferença restante está na aritmética fracionária e no arredondamento dos incrementos, não na tabela PM quantizada. É evidência para investigação, não decisão por votação.
 
 ## Próxima dependência técnica
 
