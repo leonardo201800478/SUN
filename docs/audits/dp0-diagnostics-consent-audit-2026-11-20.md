@@ -281,7 +281,7 @@ A validação local no hardware Windows x64 permanece **NOT RUN** e está regist
 
 ### 12.1 F7 — desempenho e invariantes
 
-**F7 — Benchmark Release A/B em repetição; resultado conclusivo pendente da execução #37.**
+**PASS — F7 Benchmark Release A/B; três execuções comparáveis concluídas (#31, #36 e #37).**
 
 - Baseline: `a0baa862e11b4551990f49b2c56c1cf791316164`.
 - Head: `350126df6ddf7b62892f362aae7faf29cc3e8437`.
@@ -299,7 +299,7 @@ Limites: medição comparativa Linux CI; benchmark físico no PC Windows x64 per
 
 ### 12.2 F8 — regressão e integração de plataforma
 
-**PASS — CI #9422** (workflow run ID `44835163604`) para o head de implementação `350126df`; todos os gates aplicáveis concluíram com sucesso. A revalidação do head documental/workflow final `508a9a0c` está em execução na CI #9428 (run ID `44836483487`):
+**PASS — CI #9429** (workflow run ID `44836664882`) no head final `62314a679429d374bb958f16008afc2a7b927192`; todos os gates obrigatórios aplicáveis concluíram com sucesso. A CI #9422 (run ID `44835163604`) também havia aprovado a implementação original.
 
 - workspace Rust: formato, Clippy, testes e feature runtime de observabilidade;
 - Z80 focused validation, incluindo vetores DD/FD e testes de flags/MEMPTR;
@@ -309,7 +309,7 @@ Limites: medição comparativa Linux CI; benchmark físico no PC Windows x64 per
 - PowerShell tooling, documentação e validação dos workflows;
 - Windows x64 Slint/WGPU 30/Vulkan: `native/sega_desktop` format, Clippy Release, testes Release (**58 passed, 0 failed**) e build Release.
 
-**PASS — SMS Runtime Release #1707** (run ID `44835163525`, job `136629612104`) no head de implementação `350126df`. A revalidação do head final está em execução no SMS Runtime #1713 (run ID `44836482687`).
+**PASS — SMS Runtime Release #1714** (run ID `44836664895`, job `136634693106`) no head final: formato, Clippy, testes e build Windows x64 Release aprovados. A execução #1707 também havia aprovado a implementação original.
 
 **PASS — CPAL 0.18.2 na integração da base #1107:** CI #9418 (run ID `44833816014`), job Windows x64 CPAL `136625213918`, com formato, Clippy, testes Release (**21 passed, 0 failed**) e integração/build do host legado aprovados. CPAL foi `SKIPPED` na #9422 porque não houve alteração no caminho de áudio; o skip não é contado como PASS e a validação da base #1107 é a evidência separada.
 
@@ -317,7 +317,7 @@ O job `SMS debugger Windows Release validation` do workflow #1707 foi `SKIPPED`.
 
 ### 12.3 F9 — auditoria e integração
 
-A comparação `main...350126df6ddf7b62892f362aae7faf29cc3e8437`, antes dos commits documentais finais, identificou merge-base `a0baa862e11b4551990f49b2c56c1cf791316164`, 11 commits de implementação e um commit da main fora do head: o merge-commit da #1107. O head documental/workflow atual contém 18 commits (11 commits de implementação e sete commits documentais/de workflow) e 11 caminhos modificados no total; os oito caminhos do diff original foram mantidos e três caminhos documentais adicionais foram atualizados. As alterações da #1107 não foram duplicadas. A divergência é estrutural e não justifica rebase destrutivo.
+A comparação `main...350126df6ddf7b62892f362aae7faf29cc3e8437`, antes dos commits documentais finais, identificou merge-base `a0baa862e11b4551990f49b2c56c1cf791316164`, 11 commits de implementação e um commit da main fora do head: o merge-commit da #1107. O head final contém 19 commits (11 commits de implementação e oito commits documentais/de workflow) e 11 caminhos modificados no total; os oito caminhos do diff original foram mantidos e três caminhos documentais adicionais foram atualizados. As alterações da #1107 não foram duplicadas. A divergência é estrutural e não justifica rebase destrutivo.
 
 A PR #1117 permanece responsável exclusivamente pelo ring essencial SMS, integração do snapshot/export, benchmark e documentação correspondente. A integração na main e a validação pós-merge devem ser registradas após o merge efetivo; este registro não antecipa esse resultado.
 
