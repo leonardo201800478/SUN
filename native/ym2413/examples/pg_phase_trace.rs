@@ -96,10 +96,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map_err(|error| format!("invalid PG input: {error:?}"))?;
         }
 
-        let phase_values = phases
-            .iter()
-            .map(PhaseGenerator::phase)
-            .collect::<Vec<_>>();
+        let phase_values = phases.iter().map(PhaseGenerator::phase).collect::<Vec<_>>();
         let phase_json = phase_values
             .iter()
             .map(u32::to_string)
