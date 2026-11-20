@@ -66,9 +66,33 @@ For the controlled melodic sequence, the following are now demonstrated against 
 
 This is materially stronger than comparing only static increments. It is still a software differential result, not a physical measurement or proof of complete YM2413 cycle accuracy.
 
+## KEY-ON phase-reset follow-up
+
+A second controlled trace programs the same nine melodic channels, asserts
+KEY-ON for channel 8, then clears KEY-ON. The adapter records the pre-call
+`eg_dokon`, test-mode/rhythm inputs, and the phase-reset decision used by
+`OPLL_PhaseGenerate`. The Rust replay applies that reset signal to the
+previous slot before advancing it, matching the `pg_phase_next` pipeline.
+
+- Calls: **2,600**.
+- Nonzero `eg_dokon` observations: **35**.
+- Phase-next reset events: **2**.
+- Phase values compared: **46,800** (18 per call).
+- Low-19-bit phase mismatches: **0**.
+- 19-bit wrap events: **54**.
+- Active slots: **all 18**.
+- Workflow: run `44655142186`, job `136019395851` — SUCCESS.
+
+This validates the PG accumulator's response and one-slot-delayed application
+of the observed KEY-ON phase-reset event for this channel-8 scenario. The
+reset event is derived from Nuked's own pre-call `eg_dokon`, test-mode and
+rhythm state using the condition in `OPLL_PhaseGenerate`; this test does not
+independently validate the EG key-on detector or every channel's key-on
+generation.
+
 ## Explicitly not covered
 
-- KEY-ON phase reset and `eg_dokon` alignment;
+- KEY-ON phase-reset event generation across every channel, simultaneous multi-channel KEY-ON, and test-mode reset;
 - test-mode phase reset;
 - Rhythm Mode PG overrides and percussion phase taps;
 - four-XIN subphase correspondence and absolute physical clock alignment;
