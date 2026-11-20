@@ -642,6 +642,45 @@ mod tests {
     }
 
     #[test]
+    fn core_rhythm_triggers_follow_the_six_serial_eg_selectors() {
+        let cases = [
+            (11_u8, 0x10_u8), // Bass Drum, first selector.
+            (12, 0x01),       // Hi-Hat.
+            (13, 0x04),       // Tom-Tom.
+            (14, 0x10),       // Bass Drum, second selector.
+            (15, 0x08),       // Snare Drum.
+            (16, 0x02),       // Top Cymbal.
+        ];
+
+        for (target_cycle, trigger) in cases {
+            let mut core = Ym2413Core::new();
+            core.advance_input_clocks(8 * YM2413_INPUT_CLOCKS_PER_SLOT)
+                .unwrap();
+            core.write_address(0x0e);
+            core.advance_input_clocks(2 * YM2413_INPUT_CLOCKS_PER_SLOT)
+                .unwrap();
+            core.write_data(0x20 | trigger);
+
+            let slots_to_target = u64::from(target_cycle - 10 + 1);
+            core.advance_input_clocks(slots_to_target * YM2413_INPUT_CLOCKS_PER_SLOT)
+                .unwrap();
+
+            let state = core.export_state();
+            assert_eq!(state.registers[0x0e], 0x20 | trigger, "cycle {target_cycle}");
+            assert_eq!(
+                state.rm_select,
+                target_cycle - 11,
+                "rhythm selector at cycle {target_cycle}"
+            );
+            assert_eq!(
+                state.envelope.eg_kon & 1,
+                1,
+                "rhythm trigger did not reach EG KON at cycle {target_cycle}"
+            );
+        }
+    }
+
+    #[test]
     fn restore_rejects_eg_timer_slot_misaligned_with_core_slot() {
         let core = Ym2413Core::new();
         let mut state = core.export_state();
