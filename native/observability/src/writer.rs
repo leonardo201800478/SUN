@@ -2,12 +2,66 @@ use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockReadGuard};
+use tracing_appender::non_blocking::NonBlocking;
+use tracing_subscriber::fmt::writer::MakeWriter;
+
+/// A reloadable MakeWriter whose mutex is held for the lifetime of each event writer.
+/// Revocation can therefore detach the old queue only after all in-flight events have
+/// finished enqueueing; the old WorkerGuard can then drain that queue while its sink gate
+/// is closed.
+#[derive(Clone)]
+pub(super) struct SwitchableMakeWriter {
+    current: Arc<RwLock<Option<NonBlocking>>>,
+}
+
+impl SwitchableMakeWriter {
+    pub(super) fn new(current: Arc<RwLock<Option<NonBlocking>>>) -> Self {
+        Self { current }
+    }
+}
+
+impl<'a> MakeWriter<'a> for SwitchableMakeWriter {
+    type Writer = SwitchableWriter<'a>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SwitchableWriter {
+            current: self.current.read().unwrap_or_else(PoisonError::into_inner),
+        }
+    }
+}
+
+pub(super) struct SwitchableWriter<'a> {
+    current: RwLockReadGuard<'a, Option<NonBlocking>>,
+}
+
+impl Write for SwitchableWriter<'_> {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        match self.current.as_ref() {
+            Some(writer) => {
+                let mut writer = NonBlocking::clone(writer);
+                writer.write(buffer)
+            }
+            None => Ok(buffer.len()),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self.current.as_ref() {
+            Some(writer) => {
+                let mut writer = NonBlocking::clone(writer);
+                writer.flush()
+            }
+            None => Ok(()),
+        }
+    }
+}
 
 pub(super) struct FanoutWriter {
     file: SizeRotatingWriter,
     recent: Arc<Mutex<VecDeque<String>>>,
     recent_capacity: usize,
+    enabled: Arc<RwLock<bool>>,
     pending: Vec<u8>,
 }
 
@@ -16,11 +70,13 @@ impl FanoutWriter {
         file: SizeRotatingWriter,
         recent: Arc<Mutex<VecDeque<String>>>,
         recent_capacity: usize,
+        enabled: Arc<RwLock<bool>>,
     ) -> Self {
         Self {
             file,
             recent,
             recent_capacity: recent_capacity.max(1),
+            enabled,
             pending: Vec::new(),
         }
     }
@@ -60,6 +116,11 @@ impl FanoutWriter {
 
 impl Write for FanoutWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let enabled_gate = Arc::clone(&self.enabled);
+        let enabled = enabled_gate.read().unwrap_or_else(PoisonError::into_inner);
+        if !*enabled {
+            return Ok(buffer.len());
+        }
         let written = self.file.write(buffer)?;
         self.pending.extend_from_slice(&buffer[..written]);
         self.publish_complete_lines();
@@ -67,6 +128,12 @@ impl Write for FanoutWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        let enabled_gate = Arc::clone(&self.enabled);
+        let enabled = enabled_gate.read().unwrap_or_else(PoisonError::into_inner);
+        if !*enabled {
+            self.pending.clear();
+            return Ok(());
+        }
         self.file.flush()?;
         self.publish_pending();
         Ok(())
@@ -185,12 +252,13 @@ impl Write for SizeRotatingWriter {
 
 #[cfg(test)]
 mod tests {
-    use super::{FanoutWriter, SizeRotatingWriter};
+    use super::{FanoutWriter, SizeRotatingWriter, SwitchableMakeWriter};
     use std::collections::VecDeque;
     use std::fs;
     use std::io::Write;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, RwLock};
     use std::time::{SystemTime, UNIX_EPOCH};
+    use tracing_subscriber::fmt::writer::MakeWriter;
 
     fn temporary_directory() -> std::path::PathBuf {
         let stamp = SystemTime::now()
@@ -225,7 +293,8 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let file = SizeRotatingWriter::new(directory.join("sega-emulator.log"), 1024, 1).unwrap();
         let recent = Arc::new(Mutex::new(VecDeque::new()));
-        let mut writer = FanoutWriter::new(file, recent.clone(), 2);
+        let enabled = Arc::new(RwLock::new(true));
+        let mut writer = FanoutWriter::new(file, recent.clone(), 2, enabled);
 
         writer.write_all(b"{\"level\":\"INFO\"}\n").unwrap();
         writer.write_all(b"{\"level\":\"WARN\"}\n").unwrap();
@@ -238,6 +307,91 @@ mod tests {
         assert!(records[1].contains("ERROR"));
 
         drop(records);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn replacing_non_blocking_writer_drains_old_queue_before_new_session() {
+        use tracing_appender::non_blocking::NonBlockingBuilder;
+
+        let directory = temporary_directory();
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("sega-emulator.log");
+        let recent = Arc::new(Mutex::new(VecDeque::new()));
+        let gate = Arc::new(RwLock::new(false));
+
+        let old_file = SizeRotatingWriter::new(&path, 4096, 1).unwrap();
+        let old_sink = FanoutWriter::new(old_file, recent.clone(), 8, gate.clone());
+        let (old_non_blocking, old_guard) = NonBlockingBuilder::default()
+            .buffered_lines_limit(16)
+            .lossy(true)
+            .finish(old_sink);
+        let slot = Arc::new(RwLock::new(Some(old_non_blocking)));
+        let make_writer = SwitchableMakeWriter::new(slot.clone());
+
+        {
+            let mut old_event = make_writer.make_writer();
+            old_event.write_all(b"OLD_SESSION_SENTINEL\n").unwrap();
+        }
+
+        // Detach all senders before dropping the guard. Its worker drains the
+        // old queue while the shared sink gate remains closed.
+        drop(slot.write().unwrap().take());
+        drop(old_guard);
+
+        let new_file = SizeRotatingWriter::new(&path, 4096, 1).unwrap();
+        let new_sink = FanoutWriter::new(new_file, recent.clone(), 8, gate.clone());
+        let (new_non_blocking, new_guard) = NonBlockingBuilder::default()
+            .buffered_lines_limit(16)
+            .lossy(true)
+            .finish(new_sink);
+        *slot.write().unwrap() = Some(new_non_blocking);
+        *gate.write().unwrap() = true;
+
+        {
+            let mut new_event = make_writer.make_writer();
+            new_event.write_all(b"NEW_SESSION_SENTINEL\n").unwrap();
+        }
+
+        drop(slot.write().unwrap().take());
+        drop(new_guard);
+
+        let contents = fs::read_to_string(&path).unwrap();
+        assert!(!contents.contains("OLD_SESSION_SENTINEL"));
+        assert!(contents.contains("NEW_SESSION_SENTINEL"));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn fanout_writer_discards_queued_records_after_revocation() {
+        let directory = temporary_directory();
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("sega-emulator.log");
+        let file = SizeRotatingWriter::new(&path, 1024, 1).unwrap();
+        let recent = Arc::new(Mutex::new(VecDeque::new()));
+        let enabled = Arc::new(RwLock::new(false));
+        let mut writer = FanoutWriter::new(file, recent.clone(), 4, enabled.clone());
+
+        // The non-blocking appender may deliver a record after consent was revoked.
+        writer.write_all(b"{\"level\":\"INFO\"}\n").unwrap();
+        writer.flush().unwrap();
+        assert!(!path.exists() || fs::read(&path).unwrap().is_empty());
+        assert!(recent.lock().unwrap().is_empty());
+
+        *enabled.write().unwrap() = true;
+        writer.write_all(b"{\"level\":\"WARN\"}\n").unwrap();
+        writer.flush().unwrap();
+        assert!(fs::read_to_string(&path).unwrap().contains("WARN"));
+        assert_eq!(recent.lock().unwrap().len(), 1);
+
+        *enabled.write().unwrap() = false;
+        writer.write_all(b"{\"level\":\"ERROR\"}\n").unwrap();
+        writer.flush().unwrap();
+        let contents = fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("WARN"));
+        assert!(!contents.contains("ERROR"));
+        assert_eq!(recent.lock().unwrap().len(), 1);
+
         fs::remove_dir_all(directory).unwrap();
     }
 }
