@@ -1,7 +1,7 @@
 # P2 — Differential reference audit of the Sega SN76489
 
 **Date:** 2026-11-19
-**Status:** PARTIAL — static comparison plus CrabEmu/Gearsystem executable traces validated; Ares adapter added and awaiting CI; tone-boundary, reset and Tone 2 phase vectors remain pending.
+**Status:** PARTIAL — CrabEmu, Gearsystem and Ares adapters compile and emit deterministic traces in CI; tone-boundary and Noise Rate = Tone 2 diagnostics are available; reset/latch and edge semantics remain unresolved.
 **Production changes:** none.
 **Baseline:** `main` at `0e8025e476eee12135f4c0f7def9dead7dfcaa14`.
 **Core blob:** `native/sn76489/src/psg.rs`, blob `cfccd43bf9178c5204464dd8057ac964d8429d4c`.
@@ -271,3 +271,61 @@ O workflow foi corrigido no commit `aa482402e78bc32c848b6ee65561e705c0b541d3` pa
 - Rust e Ares em pitch do clock interno/valor do registrador: `{7, 8, 0, 1, 7}`.
 
 Essa separação valida a interpretação dos campos de estado e a aplicação dos writes na fixture. Não demonstra equivalência de fase do contador nem fecha a questão Noise Rate = Tone 2; isso requer comparação temporal específica dos contadores e eventos de shift. O novo CI ainda precisa executar com sucesso antes de considerar a fixture validada. Nenhum código de produção PSG foi alterado.
+
+
+## 13. Ares + three-engine Noise Rate differential — 2026-11-20
+
+The completed PSG-focused CI run [#44681137021](https://github.com/leonardo201800478/sega-emulator/actions/runs/44681137021) executed all trace steps successfully on PR #1081. The job compiled the pinned CrabEmu, Gearsystem and Ares adapters, captured the traces twice, ran the same-tick comparators and uploaded artifact `psg-audio-ab-reference` (artifact ID `14604546090`). The separate SMS Release workflow [#44681136969](https://github.com/leonardo201800478/sega-emulator/actions/runs/44681136969) also passed. No production PSG code changed.
+
+### Noise-rate fixture
+
+The 1,400-tick fixture applies these writes (same tick index to each adapter):
+
+- tick 0: Tone 2 = 7; white noise, rate 0; noise volume enabled;
+- ticks 256, 512 and 768: rates 1, 2 and 3;
+- ticks 800, 832, 864 and 896: Tone 2 = 8, 0, 1 and 7;
+- ticks 1024, 1100 and 1200: rate/feedback transitions.
+
+The comparator does not align traces by correlation and does not treat mismatch as CI failure.
+
+### Observed LFSR shift timestamps
+
+| Engine | First shift tick | Shift count in 1,400 ticks | First 20 shift ticks |
+|---|---:|---:|---|
+| Sega Emulator SMS core | 15 | 76 | 15, 47, 79, 111, 143, 175, 207, 239, 271, 335, 399, 463, 527, 655, 783, 797, 812, 828, 837, 839 |
+| SMS Plus GX / CrabEmu | 16 | 79 | 16, 48, 80, 112, 144, 176, 208, 240, 256, 288, 352, 416, 480, 576, 704, 770, 784, 798, 813, 829 |
+| Gearsystem | 0 | 86 | 0, 32, 64, 96, 128, 160, 192, 224, 256, 320, 384, 448, 512, 640, 768, 782, 796, 810, 826, 842 |
+
+These schedules are not equivalent after the initial segment. In particular, the rate-3 transition and Tone 2 writes expose phase/period coupling differences; matching average noise frequency is insufficient.
+
+### Same-tick diagnostic mismatches
+
+| Field comparison | Mismatches | First mismatch |
+|---|---:|---:|
+| CrabEmu raw LFSR state vs Rust | 570 | tick 15 |
+| CrabEmu sampled bit vs Rust LFSR bit | 34 | tick 857 |
+| CrabEmu sampled bit vs Rust latched noise output | 40 | tick 857 |
+| Gearsystem observable bit 0 vs Rust LFSR bit 0 | 39 | tick 851 |
+| Gearsystem observable bit 0 vs Rust latched noise output | 39 | tick 851 |
+| Ares raw LFSR state vs Rust | 648 | tick 1 |
+| Ares noise output vs Rust latched noise output | 40 | tick 857 |
+| Ares noise pitch vs Tone 2 pitch | 0 | none |
+
+Ares reports a raw LFSR state with a directly comparable representation, so its mismatch is not the Gearsystem Galois/Fibonacci representation issue. The component clock mapping is still a deliberately explicit adapter-level mapping, not a claim that the Ares host integration is the Sega hardware clock contract.
+
+The Ares tone fixture also reports differences in tone counter/output and channel output nibbles. In the 1,400-tick noise-rate fixture, tone pitch and noise pitch remain equal in Ares at every captured row; this confirms the pitch copy, not divider phase or shift-event equivalence.
+
+### Interpretation and remaining decisions
+
+1. **Initial divider phase is unresolved.** The first shift differs (Gearsystem tick 0, Rust tick 15, CrabEmu tick 16); Ares raw state diverges from Rust at tick 1. Do not normalize these offsets away.
+2. **Noise Rate = Tone 2 is not phase-converged.** Ares pitch follows Tone 2, but its independent counter/flip timing differs. Gearsystem uses a live Tone 2 period with persistent delay; CrabEmu copies Tone 2 counter at its noise-register write. The Rust core's independent counter remains a candidate, not a proven hardware rule.
+3. **Output edge convention remains unresolved.** The first observable-bit/output-latch mismatches occur after the noise sequence advances; a focused fixture must isolate old/new bit sampling at one shift edge without unrelated tone/noise writes.
+4. **Rate transition semantics require separate vectors.** The current fixture intentionally changes several dimensions. Follow-up fixtures should isolate each rate change, Tone 2 write, noise-register write, and reset, each with known pre-write counter/phase.
+5. **No production correction is justified yet.** These results establish reproducible differences among implementations. They do not establish which implementation matches a specific Sega PSG revision.
+
+### Updated P2 status
+
+- **Validated tooling:** CrabEmu, Gearsystem and Ares compile and produce deterministic same-tick traces in CI.
+- **Validated diagnostic coverage:** tone-boundary/Tone 2 vectors and the 1,400-tick noise-rate transition fixture execute successfully.
+- **Still missing:** executable Genesis Plus GX and MEKA traces; isolated reset/latch vectors; edge-only LFSR output fixture; independent phase vectors for each Noise Rate = Tone 2 write transition; a profile-specific hardware decision.
+- **Production status:** unchanged. P2 remains PARTIAL; no merge is performed by this update.
