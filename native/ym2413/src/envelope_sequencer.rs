@@ -16,6 +16,60 @@ use crate::envelope_timer::{
 pub const YM2413_ENVELOPE_SEQUENCER_STATE_VERSION: u16 = 2;
 pub const YM2413_ENVELOPE_SEQUENCER_SLOTS: usize = 18;
 
+/// Rhythm operator selected by Nuked's serial rm_select latch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum EnvelopeRhythmSelect {
+    /// Bass Drum first operator phase (rm_select 0).
+    BassDrumFirst = 0,
+    /// Hi-Hat operator phase (rm_select 1).
+    HiHat = 1,
+    /// Tom-Tom operator phase (rm_select 2).
+    TomTom = 2,
+    /// Bass Drum second operator phase (rm_select 3).
+    BassDrumSecond = 3,
+    /// Snare Drum operator phase (rm_select 4).
+    SnareDrum = 4,
+    /// Top Cymbal operator phase (rm_select 5).
+    TopCymbal = 5,
+    /// No rhythm operator selected (rm_select 6).
+    #[default]
+    None = 6,
+}
+
+impl EnvelopeRhythmSelect {
+    /// Decode Nuked's six rhythm selectors plus the inactive selector.
+    pub const fn from_code(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::BassDrumFirst),
+            1 => Some(Self::HiHat),
+            2 => Some(Self::TomTom),
+            3 => Some(Self::BassDrumSecond),
+            4 => Some(Self::SnareDrum),
+            5 => Some(Self::TopCymbal),
+            6 => Some(Self::None),
+            _ => None,
+        }
+    }
+
+    /// Return the $0E trigger bit associated with the selected rhythm slot.
+    pub const fn key_on(self, rhythm_bits: u8) -> bool {
+        match self {
+            Self::BassDrumFirst | Self::BassDrumSecond => rhythm_bits & 0x10 != 0,
+            Self::HiHat => rhythm_bits & 0x01 != 0,
+            Self::TomTom => rhythm_bits & 0x04 != 0,
+            Self::SnareDrum => rhythm_bits & 0x08 != 0,
+            Self::TopCymbal => rhythm_bits & 0x02 != 0,
+            Self::None => false,
+        }
+    }
+
+    /// Nuked does not force the modulator base rate to zero in HH/TOM phases.
+    pub const fn preserves_modulator_rate(self) -> bool {
+        matches!(self, Self::HiHat | Self::TomTom)
+    }
+}
+
 /// Register-derived inputs selected for the current serial cycle.
 ///
 /// `sustain_level` is the freshly selected c_sl value. The sequencer queues it
@@ -34,6 +88,10 @@ pub struct EnvelopeSlotInput {
     pub sustained_tone: bool,
     /// Raw channel KON bit appended to the delayed EG key-on pipeline.
     pub key_on: bool,
+    /// Current serial rhythm selector (rm_select).
+    pub rhythm_select: EnvelopeRhythmSelect,
+    /// Raw register $0E rhythm bits (RHY plus the five drum triggers).
+    pub rhythm_bits: u8,
 }
 
 /// Complete serializable state of the 18-slot EG sequencer.
@@ -169,6 +227,7 @@ impl EnvelopeSequencer {
             || input.sustain_level > 15
             || input.ksr_frequency > 15
             || input.sustain_level > 15
+            || input.rhythm_bits > 0x3f
             || self.eg_sl > 15
             || self.pending_sustain_level > 15
         {
@@ -178,7 +237,9 @@ impl EnvelopeSequencer {
         let rate_operator = self.operators[usize::from(cycle)];
         let state_rate = rate_operator.stage();
         let off_bit = (rate_operator.level() >> 2) == 0x1f;
-        let next_eg_kon = self.eg_kon.wrapping_shl(1) | u8::from(input.key_on);
+        let rhythm_key_on = input.rhythm_select.key_on(input.rhythm_bits);
+        let next_eg_kon =
+            self.eg_kon.wrapping_shl(1) | u8::from(input.key_on || rhythm_key_on);
         let next_eg_off = self.eg_off.wrapping_shl(1) | u8::from(off_bit);
         let mut next_eg_dokon = self.eg_dokon.wrapping_shl(1);
 
@@ -210,7 +271,10 @@ impl EnvelopeSequencer {
             }
         };
 
-        if !key_on_pipeline && !mcsel {
+        if !key_on_pipeline
+            && !mcsel
+            && !input.rhythm_select.preserves_modulator_rate()
+        {
             base_rate = 0;
         }
         if key_on_pipeline && state_rate == EnvelopeOperatorStage::Release && !off_pipeline {
@@ -354,6 +418,8 @@ mod tests {
                     sustain_on: false,
                     sustained_tone: false,
                     key_on: false,
+                    rhythm_select: super::EnvelopeRhythmSelect::None,
+                    rhythm_bits: 0,
                 },
             )
             .unwrap();
@@ -379,6 +445,8 @@ mod tests {
                         sustain_on: false,
                         sustained_tone: true,
                         key_on: cycle < 4,
+                        rhythm_select: super::EnvelopeRhythmSelect::None,
+                        rhythm_bits: 0,
                     },
                 )
                 .unwrap();
