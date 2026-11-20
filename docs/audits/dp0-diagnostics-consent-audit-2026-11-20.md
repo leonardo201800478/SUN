@@ -254,3 +254,96 @@ A PR #1099 foi integrada em `main` pelo commit
 `68861c17cbf1d4a595e9bbefbb8d95cbad8b9688`. Os checks do HEAD da PR foram concluídos: 11 checks `success` e 9 `skipped` por não aplicabilidade. Os jobs dedicados de observabilidade Windows x64 Debug/Release e o teste/build do shell legado CPAL Windows x64 Release passaram. Isso fecha a implementação DP0-F5, mas não fecha o inventário F6 nem a validação F7.
 
 **Conclusão F6:** inventário inicial documentado; auditoria completa permanece aberta. Nenhuma alteração de hardware, Scheduler, CPU, VDP, PSG, barramentos, mappers ou temporização foi feita nesta fatia.
+
+
+### 10.6 Resultado da inspeção dos callsites e classificação refinada
+
+A leitura dos arquivos-fonte da baseline confirmou os seguintes grupos:
+
+**A. Eventos `tracing` efetivamente presentes no código de produção**
+
+| Crate / arquivo | Targets e eventos | Dados emitidos / observação |
+|---|---|---|
+| `native/sms_core/src/cartridge/image.rs` | `sega::rom` | Formato da imagem, tamanho e rejeição de imagem vazia; não registra bytes nem caminho da ROM. |
+| `native/sms_core/src/memory.rs` | `sega::mapper` | Tipo de mapper, tamanho/bancos, presença/tamanho de BIOS, endereço/valor de escritas e mudanças de latches. O trace de escritas pode ser frequente. |
+| `native/machine_scheduler/src/lib.rs` | `sega::scheduler` | Registro de clock domains, agendamento/dispatch de eventos, timestamps, prioridades, contagens e falhas. Há eventos em operações temporais frequentes. |
+| `native/video_runtime/src/d3d12.rs` | `sega::video::d3d12` | Criação/atualização de janela, HWNDs, dimensões, LUID do adaptador, swapchain, Present e erros DXGI/D3D12. HWND/LUID merecem revisão de minimização. |
+| `native/sn76489/src/psg.rs` | `sega::psg` | Inicialização, reset, escrita de registrador, drenagem/overflow da fila de amostras. Escrita de registrador e drenagem podem ocorrer frequentemente. |
+| `native/sg1000_core/src/machine.rs` | `sega::machine`, `sega::vdp`, `sega::io` | Configuração da máquina, mudança de sprite limit e escrita de porta com endereço, valor e T-state. O último evento é um caminho de I/O de hardware e pode ser frequente. |
+| `native/z80_cpu/src/cpu.rs` | `sega::z80` | Reset, NMI/INT latched/accepted e falha de execução, com PC, T-states e vetor/dados. Não há evento por instrução normal nesta busca. |
+| `native/audio_runtime/src/lib.rs` | `sega::audio::dsp` | Inicialização, volume, batches de amostras processados e flush. Os eventos trace acompanham processamento de áudio. |
+| `native/audio_runtime/src/session.rs` | `sega::audio::session` | Ciclo de vida e operações da sessão/sink, incluindo métricas e eventos de fluxo de áudio. |
+| `native/audio_runtime/src/psg.rs` | `sega::audio::psg` | Domínio de clock, perfil, clock e sample rate na criação do PSG agendado. |
+| `native/sms_core/src/temporal_bus.rs` | `sega::machine`, `sega::bus` | Configuração de máquina e rejeições/erros de requests, endereços, IDs, operações e T-states. |
+| `native/video_core/src/sms/vdp.rs` | `sega::vdp` | Inicialização/reset, IRQ de linha, VBlank, publicação de frame e mudanças de registradores. |
+| `native/sega_app/src/app.rs` | `sega::ui::menu`, `sega::app`, `sega::settings` | Eventos de menu, consentimento e lifecycle; os callsites consultados verificam o handle/estado de logging ou estão dentro do callback de opt-in/shutdown. |
+| `native/sega_desktop/src/main.rs` | `sega::host`, `sega::app` | Macro `diagnostic_log!` condicionado por `HOST_DIAGNOSTICS_ENABLED`, eventos do host e snapshot final. |
+| `rust/runtime/sms-runtime/src/worker.rs` | `sega::rom` e eventos de worker | Resolução de região/fallback e eventos de runtime. A telemetria de performance do SMS tem gates explícitos em `diagnostics_enabled`. |
+
+O crate `native/observability` reexporta `tracing`; o subscriber global e o writer são instalados pelo feature `runtime`. O filtro inicial do subscriber é `off`; `LogConfig::default()` seleciona `info` após opt-in, salvo configuração por `SEGA_LOG_FILTER`. Portanto, os eventos acima não são automaticamente gravados na inicialização normal. Após consentimento, eventos INFO de crates dependentes também podem ser capturados pelo subscriber global; não existe allowlist de targets documentada nesta baseline.
+
+**B. Saídas diretas de console**
+
+A busca estática encontrou 12 arquivos com `eprintln!` e 22 resultados/arquivos com `println!` (incluindo ocorrências de documentação). A classificação das ocorrências de código é:
+
+- **Hosts de produto:** `native/sega_desktop/src/main.rs` e `native/sega_app/src/app.rs` mantêm `eprintln!` apenas no tratamento de falha do snapshot final, depois de uma sessão de diagnóstico consentida e do shutdown do writer. Não é emissão automática sem opt-in, mas ainda é um canal de saída fora do subscriber e deve ser substituído por status da UI/retorno estruturado ou explicitamente justificado.
+- **Stubs não-Windows:** `native/sega_app/src/main.rs`, `native/sms_debugger/src/main.rs` e os exemplos D3D12 imprimem que o alvo não é suportado. Não são caminhos do host Windows x64 suportado.
+- **CLI/tooling:** `native/sms_core/src/bin/z80test_runner.rs`, `native/z80_alu/src/main.rs` e `native/ym2413/examples/eg_timer_trace.rs` usam stdout/stderr como interface explícita de linha de comando.
+- **Examples e smoke tests:** `native/sn76489/examples/psg_trace.rs`, `native/ym2413/examples/*trace.rs`, `native/sms_core/examples/irq_wiring_repro.rs`, `native/sms_core/examples/ace_of_aces_boot_trace.rs`, `native/video_runtime/examples/d3d12_*_smoke.rs`, `native/machine_scheduler/tests/stress_replay.rs` e `rust/runtime/sms-runtime/tests/in_game_rom_smoke.rs` produzem saída/artefatos de desenvolvimento ou teste.
+- **Build:** `native/sega_app/build.rs` usa `println!("cargo:...")` para instruções do Cargo e metadados de build; não é logging de runtime.
+- **Debugger:** `native/sms_debugger/src/app.rs` não imprime o relatório em console; exporta um TXT somente após o usuário abrir o diálogo e confirmar o caminho.
+
+Não foi encontrado uso de `log::info!`, `log::warn!`, `log::error!` ou `tracing::event!` nos resultados da busca exata. A busca por `log::` isolada produziu falsos positivos por substring e não foi considerada evidência de uso do facade `log`.
+
+**C. Persistência funcional, preferências e exportações — fora do canal de diagnóstico**
+
+| Arquivo/área | Operação | Dados e gatilho |
+|---|---|---|
+| `native/save_runtime/src/lib.rs` | Leitura e escrita SRM atômica | SRAM persistente vinculada à identidade SHA-1/SHA-256/CRC32 da ROM e perfil do cartucho. É persistência funcional do jogo, não telemetria; a escrita ocorre no fluxo de save do host. |
+| `native/sega_desktop/src/main.rs` | `slint_ui_settings.txt`, `recent_roms.txt` | Preferências, teclas e caminhos absolutos das ROMs recentes; persistência de preferências da aplicação. |
+| `native/sega_app/src/app.rs` | `ui_settings.txt`, lista recente e arquivos de bindings | Preferências, posições/tamanhos de janelas, estado do debugger, caminhos de ROM e bindings. Persistência funcional; caminhos locais são dados pessoais do ambiente e devem ser tratados como tal. |
+| `native/sms_debugger/src/app.rs` | Exportação `sms-debug-report.txt` | Ação explícita do usuário pelo diálogo Save; o relatório inclui caminho da ROM e estado de CPU/VDP/mapper. Não é upload automático; o usuário controla destino e compartilhamento. |
+| `native/sega_desktop/src/main.rs` | Exportação de trace/snapshot pelo host | Ação explícita do usuário via diálogo de arquivo; deve permanecer separada da coleta contínua e do consentimento de logs. |
+| `native/media_runtime/src/sms_firmware.rs` | Leitura/validação de firmware | As ocorrências de escrita encontradas pertencem a fixtures de teste; o caminho de produção valida/carrega arquivo selecionado, sem evidência de telemetria persistente. |
+| `native/input_runtime/src/sdl3_backend.rs` | Criação/escrita de DLLs falsas | Fixtures de teste para resolver prioridade/localização de SDL3, não instalação ou logging do produto. |
+| `native/sn76489/src/psg.rs`, `native/sn76489/src/psg_h2_model.rs` | WAV/CSV e artefatos | Testes e estudo de reconstrução de áudio; não são sinks de runtime normal. `PSG_AUDIO_ARTIFACT_DIR` ativa artefatos de teste/benchmark. |
+| `native/sms_core/examples/ace_of_aces_boot_trace.rs` | Arquivo de trace | Ferramenta manual que lê ROM/BIOS locais e grava checkpoints/transações em caminho especificado; documentação do exemplo declara que bytes de ROM/BIOS não são copiados ao repositório. |
+
+A busca por `fs::write`, `write_all`, `File::create`, `OpenOptions`, `fs::rename` e `create_dir_all` também retornou fixtures e testes. Esses resultados foram classificados por callsite, e não considerados automaticamente telemetria.
+
+### 10.7 Achados e critérios de saída da F6/F7
+
+**DP0-F6-A — ring buffer de eventos sobrevive à revogação (risco de lifecycle, encaminhado à F7).**
+
+Em `native/observability/src/runtime.rs`, `LoggingHandle::disable()` desliga o flag atômico e recarrega o filtro `off`, mas não limpa `recent_events`. `enable()` reativa o filtro sem limpar esse buffer, e `write_diagnostics_json()` serializa `recent_events()` quando o consentimento está ativo. Assim, eventos coletados durante um período de consentimento anterior podem permanecer em memória e reaparecer em snapshot após uma nova autorização. O comportamento deve ser definido e testado; recomendação: limpar o ring buffer na revogação e confirmar que não há eventos de uma autorização anterior após reconsentimento. A mesma decisão deve especificar o destino de registros já enfileirados no writer non-blocking quando ocorre revogação.
+
+**DP0-F6-B — saída de falha do snapshot ainda usa stderr nos dois hosts.**
+
+A saída só é alcançada depois de consentimento ativo e falha de escrita do snapshot final, mas permanece fora do canal estruturado. A correção de menor risco é apresentar a falha como estado operacional da UI ou encaminhar um erro mínimo para um mecanismo de status sem reativar logging após shutdown. Não escrever um segundo arquivo de diagnóstico em resposta à falha do primeiro.
+
+**DP0-F6-C — instrumentação em caminhos sensíveis a desempenho.**
+
+Existem callsites `tracing::trace!` em escrita de portas SG-1000, escritas do PSG, drenagem de áudio, agendamento/dispatch do Scheduler, barramento SMS e transições do VDP. Os eventos são condicionados pelo filtro global e o writer é non-blocking/lossy, mas a criação/dispatch do evento ainda pode ter custo quando a categoria estiver habilitada. F7 deve comparar Debug/Release com diagnóstico off, INFO e TRACE, incluindo execução contínua e em blocos, e provar que nenhuma métrica altera o estado temporal ou a ordem do Scheduler.
+
+**DP0-F6-D — telemetria operacional SG-1000 não é o mesmo que coleta diagnóstica SMS.**
+
+`rust/runtime/sg1000-runtime/src/worker.rs` mantém contadores de frame/T-states/instruções, erros e snapshot de métricas de áudio em memória para comunicação com o host. Diferentemente do SMS, essa estrutura não possui um flag de consentimento próprio. A inspeção não encontrou writer, subscriber ou persistência nesse worker; os campos são usados como estado operacional/debug snapshot. Manter essa distinção explícita e verificar que nenhum host os exporta automaticamente sem opt-in.
+
+**DP0-F6-E — preferências e histórico de ROMs persistem caminhos locais.**
+
+Os hosts persistem caminhos de ROM em arquivos de preferências/lista recente. É comportamento funcional solicitado pela lista de recentes, não diagnóstico. Deve haver uma ação de usuário para limpar histórico e a política de retenção deve ser documentada; não condicionar automaticamente a persistência de preferências ao consentimento de diagnóstico.
+
+**Critérios para considerar F6 concluída:**
+- Todos os callsites dos targets listados revisados quanto a campos e possíveis caminhos locais/identificadores.
+- Busca complementar de wrappers/macros próprios, APIs de terceiros, FFI e subprocessos concluída; nenhum sink não classificado nos bins distribuídos.
+- Cada destino de arquivo classificado por finalidade, gatilho, dados, retenção e exclusão.
+- DP0-F6-A e DP0-F6-B encaminhados com decisão/alteração explícita e testes.
+- Matriz final com referências de arquivo/linha e testes que provam cada fronteira.
+
+**Plano de validação F7 atualizado:** testes em subprocesso e filesystem temporário para (1) startup sem consentimento sem criação de diretório/arquivo/subscriber/hook privado; (2) opt-in cria somente os destinos previstos; (3) revogação interrompe novos eventos, limpa memória pendente conforme política e não reexporta eventos antigos após reconsentimento; (4) panic após revogação não grava crash privado; (5) fila cheia permanece lossy/non-blocking; (6) snapshot exige consentimento ativo; (7) Debug/Release e filtros INFO/TRACE medem overhead em worker SMS, SG-1000, Scheduler, Z80, VDP e PSG; (8) execução contínua vs em blocos preserva estado/hash e resultados temporais com diagnóstico off/on.
+
+### 10.8 Reconciliamento do histórico desta auditoria
+
+As seções 9.1 e 9.2 registram a fotografia anterior e os próximos passos daquele SHA; não devem ser interpretadas como estado atual após os merges #1098/#1099. Na baseline desta seção, DP0-F4 usa a API `init_after_explicit_consent` e o filtro inicial `off`; DP0-F5 está integrada pela PR #1099. A reavaliação F6 acima prevalece para a classificação atual. A API de consentimento documenta que o host é responsável por criar a capability somente em resposta à ação afirmativa; a linguagem não consegue provar que uma ação humana ocorreu.
+
+**Estado após esta inspeção:** inventário estático ampliado e achados encaminhados; F6 ainda não está encerrada porque a verificação de wrappers/FFI/dependências e a resolução/testagem dos achados de lifecycle permanecem pendentes. Nenhuma alteração de código de hardware/runtime foi feita.
