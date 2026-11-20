@@ -42,6 +42,7 @@ def main() -> int:
     sequencer_replay_failures = []
     total_sequencer_replay_calls = 0
     total_sequencer_field_mismatches = 0
+    total_sequencer_register_input_mismatches = 0
 
     for config in manifest["configurations"]:
         stem = Path(config["fixture"]).stem
@@ -107,8 +108,12 @@ def main() -> int:
 
         sequencer_calls = int(sequencer_replay["calls"])
         sequencer_mismatches = int(sequencer_replay["field_mismatches"])
+        sequencer_register_mismatches = int(sequencer_replay["register_input_mismatches"])
+        sequencer_register_mode = bool(sequencer_replay["register_mode"])
         sequencer_ok = (
             sequencer_calls == 30000
+            and sequencer_register_mode
+            and sequencer_register_mismatches == 0
             and sequencer_mismatches == 0
             and sequencer_replay["first_mismatch"] is None
         )
@@ -116,6 +121,7 @@ def main() -> int:
             sequencer_replay_failures.append(config["fixture"])
         total_sequencer_replay_calls += sequencer_calls
         total_sequencer_field_mismatches += sequencer_mismatches
+        total_sequencer_register_input_mismatches += sequencer_register_mismatches
 
         total_samples += sample_count
 
@@ -167,6 +173,8 @@ def main() -> int:
             "hardware_operator_level_mismatches": hardware_level_mismatches,
             "hardware_operator_stage_mismatches": hardware_stage_mismatches,
             "hardware_operator_replay": "PASS" if hardware_ok else "FAIL",
+            "sequencer_register_mode": sequencer_register_mode,
+            "sequencer_register_input_mismatches": sequencer_register_mismatches,
             "sequencer_replay_calls": sequencer_calls,
             "sequencer_replay_field_mismatches": sequencer_mismatches,
             "sequencer_replay": "PASS" if sequencer_ok else "FAIL",
@@ -214,6 +222,7 @@ def main() -> int:
         "hardware_operator_replay_failures": hardware_operator_replay_failures,
         "total_sequencer_replay_calls": total_sequencer_replay_calls,
         "total_sequencer_field_mismatches": total_sequencer_field_mismatches,
+        "total_sequencer_register_input_mismatches": total_sequencer_register_input_mismatches,
         "all_sequencer_replays_pass": not sequencer_replay_failures,
         "sequencer_replay_failures": sequencer_replay_failures,
         "all_phase_minus3_levels_match": total_level_mismatches == 0,
