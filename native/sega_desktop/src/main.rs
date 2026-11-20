@@ -52,6 +52,21 @@ mod windows_host {
     const SMS_HEIGHT: u32 = 192;
     const SMS_EXTENDED_HEIGHTS: [u32; 2] = [224, 240];
 
+    // Host diagnostics are session-only and remain disabled until the user opts in.
+    static HOST_DIAGNOSTICS_ENABLED: AtomicBool = AtomicBool::new(false);
+
+    fn host_diagnostics_enabled() -> bool {
+        HOST_DIAGNOSTICS_ENABLED.load(Ordering::Acquire)
+    }
+
+    macro_rules! diagnostic_eprintln {
+        ($($argument:tt)*) => {
+            if host_diagnostics_enabled() {
+                eprintln!($($argument)*);
+            }
+        };
+    }
+
     /// Shared renderer resources plus the dimensions of the Slint-imported texture.
     /// This is host presentation state only; it never feeds back into the runtime.
     #[derive(Clone)]
@@ -220,7 +235,7 @@ mod windows_host {
             if let Some(join) = self.join.take()
                 && join.join().is_err()
             {
-                eprintln!("R4_SDL3 event=poll_thread_panicked");
+                diagnostic_eprintln!("R4_SDL3 event=poll_thread_panicked");
             }
         }
     }
@@ -264,7 +279,7 @@ mod windows_host {
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
                             .status_update = Some(status);
-                        eprintln!("R4_SDL3 event=initialization_failed error={error}");
+                        diagnostic_eprintln!("R4_SDL3 event=initialization_failed error={error}");
                         return;
                     }
                 };
@@ -282,7 +297,7 @@ mod windows_host {
                             }
                         }
                         Err(error) => {
-                            eprintln!("R4_SDL3 event=poll_failed error={error}");
+                            diagnostic_eprintln!("R4_SDL3 event=poll_failed error={error}");
                             let mut latest = thread_snapshot
                                 .lock()
                                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -306,7 +321,7 @@ mod windows_host {
                 let status =
                     format!("SDL3 indisponível — teclado ativo: falha ao iniciar thread: {error}");
                 app.set_input_status(status.into());
-                eprintln!("R4_SDL3 event=thread_start_failed error={error}");
+                diagnostic_eprintln!("R4_SDL3 event=thread_start_failed error={error}");
                 Sdl3PollingThread { stop, join: None }
             }
         };
@@ -342,7 +357,7 @@ mod windows_host {
                 && let Some(worker) = worker_slot.borrow().as_ref()
                 && let Err(error) = worker.request_nmi()
             {
-                eprintln!("R4_SDL3 action=pause_nmi error={error}");
+                diagnostic_eprintln!("R4_SDL3 action=pause_nmi error={error}");
             }
             last_pause_pressed = pause_pressed;
 
@@ -357,7 +372,7 @@ mod windows_host {
                             next_players[0],
                         );
                         if let Err(error) = worker.set_controller_at(1, combined, Instant::now()) {
-                            eprintln!("R4_SDL3 player=1 action=controller_update error={error}");
+                            diagnostic_eprintln!("R4_SDL3 player=1 action=controller_update error={error}");
                         }
                     }
 
@@ -365,7 +380,7 @@ mod windows_host {
                         && let Err(error) =
                             worker.set_controller_at(2, next_players[1], Instant::now())
                     {
-                        eprintln!("R4_SDL3 player=2 action=controller_update error={error}");
+                        diagnostic_eprintln!("R4_SDL3 player=2 action=controller_update error={error}");
                     }
                 }
             }
@@ -453,7 +468,7 @@ mod windows_host {
             in-out property <bool> sprite-limit-enabled: true;
             in-out property <bool> show-fps: true;
             in-out property <bool> show-status-footer: true;
-            in-out property <bool> trace-enabled: false;
+            in-out property <bool> trace-enabled: false;\n            in-out property <bool> diagnostics-enabled: false;
             in-out property <float> audio-volume: 70;
             in-out property <bool> audio-muted: false;
             in-out property <string> audio-status: "Aguardando configuração da saída de áudio.";
@@ -498,7 +513,7 @@ mod windows_host {
             callback exit-requested();
             callback debug-snapshot-requested();
             callback trace-export-requested();
-            callback trace-toggle-requested(bool);
+            callback trace-toggle-requested(bool);\n            callback diagnostics-toggle-requested(bool);
             callback sprite-limit-toggle-requested(bool);
             callback display-mode-toggle-requested(string);
             callback video-area-clicked();
@@ -704,18 +719,18 @@ mod windows_host {
             x: (root.active-menu == "firmware" || root.active-menu == "video" || root.active-menu == "controls" || root.active-menu == "system" || root.active-menu == "file" || root.active-menu == "options" || root.active-menu == "debug") ? (parent.width - self.width) / 2 : min(max(root.active-menu == "audio" ? 207px : 8px, 8px), parent.width - self.width - 8px);
             y: 88px;
             width: min(parent.width - 32px, root.active-menu == "video" ? 1048px : root.active-menu == "firmware" ? 900px : root.active-menu == "controls" ? 680px : root.active-menu == "system" ? 760px : root.active-menu == "file" ? 720px : root.active-menu == "options" || root.active-menu == "debug" ? 640px : 480px);
-            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 560px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 400px : root.active-menu == "system" ? 660px : root.active-menu == "debug" ? 400px : root.active-menu == "audio" ? 480px : 180px);
+            height: min(parent.height - 104px, root.active-menu == "firmware" || root.active-menu == "video" ? 680px : root.active-menu == "file" ? 560px : root.active-menu == "controls" ? 660px : root.active-menu == "options" ? 400px : root.active-menu == "system" ? 660px : root.active-menu == "debug" ? 480px : root.active-menu == "audio" ? 480px : 180px);
             z: 100;
             background: #1b2834; border-radius: 5px; border-width: 1px;
             border-color: #344154; min-height: 120px; max-height: 680px; max-width: 1048px;
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 360px : root.active-menu == "audio" ? 780px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             spacing: 12px;
@@ -1204,6 +1219,17 @@ mod windows_host {
                                     Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
+                            Rectangle { height: 112px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 6px;
+                                    Text { font-size: 16px; text: "Coleta de logs e métricas"; color: #F1F5FA; }
+                                    CheckBox {
+                                        text: "Autorizar logs e métricas diagnósticas nesta sessão";
+                                        checked <=> root.diagnostics-enabled;
+                                        toggled => { root.diagnostics-toggle-requested(self.checked); }
+                                    }
+                                    Text { font-size: 10px; text: "Desativado por padrão. Quando ativo, registra eventos do host, frame pacing e saúde do áudio no stderr. A autorização não é persistida."; color: #B4C0D0; wrap: word-wrap; }
+                                }
+                            }
                             Rectangle { height: 84px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 6px;
                                     Text { font-size: 12px; text: "Breakpoints, inspeção de memória e depuração interativa ainda não foram integrados."; color: #D6B879; wrap: word-wrap; }
@@ -1601,7 +1627,7 @@ mod windows_host {
         recent.insert(0, path);
         recent.truncate(MAX_RECENT_ROMS);
         if let Err(error) = save_recent_roms(recent) {
-            eprintln!("R2_PREFERENCES recent_roms_save_failed error={error}");
+            diagnostic_eprintln!("R2_PREFERENCES recent_roms_save_failed error={error}");
         }
     }
 
@@ -1743,7 +1769,7 @@ mod windows_host {
                     setup_counter.set(setup_count);
 
                     let adapter_info = device.adapter_info();
-                    eprintln!(
+                    diagnostic_eprintln!(
                         "R2_LIFECYCLE event=RenderingSetup count={setup_count} backend={:?} adapter={}",
                         adapter_info.backend, adapter_info.name
                     );
@@ -1790,7 +1816,7 @@ mod windows_host {
                                     app.set_gpu_status(status.into());
                                     app.set_lifecycle_status(lifecycle_status.into());
                                     if let Err(error) = mailbox.notify_if_pending() {
-                                        eprintln!(
+                                        diagnostic_eprintln!(
                                             "R2_FRAME_NOTIFY renderer_recovery_failed error={error}"
                                         );
                                     }
@@ -1798,7 +1824,7 @@ mod windows_host {
                             });
                         }
                         Err(error) => {
-                            eprintln!("R2_LIFECYCLE event=TextureImportFailed error={error}");
+                            diagnostic_eprintln!("R2_LIFECYCLE event=TextureImportFailed error={error}");
                             let app_weak = app_weak.clone();
                             let status = format!("FALHA ao importar textura WGPU: {error}");
                             Timer::single_shot(Duration::ZERO, move || {
@@ -1812,7 +1838,7 @@ mod windows_host {
                 (RenderingState::RenderingTeardown, _) => {
                     let teardown_count = teardown_counter.get().wrapping_add(1);
                     teardown_counter.set(teardown_count);
-                    eprintln!(
+                    diagnostic_eprintln!(
                         "R2_LIFECYCLE event=RenderingTeardown count={teardown_count}"
                     );
 
@@ -1834,7 +1860,7 @@ mod windows_host {
                     });
                 }
                 (RenderingState::RenderingSetup, _) => {
-                    eprintln!(
+                    diagnostic_eprintln!(
                         "R2_LIFECYCLE event=RenderingSetupFailed reason=GraphicsAPI_not_WGPU30"
                     );
                     let app_weak = app_weak.clone();
@@ -2246,7 +2272,7 @@ mod windows_host {
                     (total_ns / u128::from(count) / 1_000).min(u128::from(u64::MAX)) as u64
                 }
             };
-            eprintln!(
+            diagnostic_eprintln!(
                 "R2_FRAME_PACING_HOST qpc_available={} qpc_ticks={} qpc_frequency={} window_ms={} wakeups={} empty_wakeups={} consumed={} uploaded={} sequence_gaps={} wake_interval_avg_us={} wake_interval_max_us={} wake_interval_samples={} wake_interval_p50_us={} wake_interval_p95_us={} wake_interval_p99_us={} wake_interval_jitter_p95_us={} consumed_interval_avg_us={} consumed_interval_max_us={} consumed_interval_samples={} consumed_interval_p50_us={} consumed_interval_p95_us={} consumed_interval_p99_us={} consumed_interval_jitter_p95_us={} mailbox_residence_avg_us={} mailbox_residence_max_us={} mailbox_residence_samples={} mailbox_residence_p50_us={} mailbox_residence_p95_us={} mailbox_residence_p99_us={} convert_avg_us={} convert_max_us={} convert_samples={} convert_p50_us={} convert_p95_us={} convert_p99_us={} queue_write_avg_us={} queue_write_max_us={} queue_write_samples={} queue_write_p50_us={} queue_write_p95_us={} queue_write_p99_us={} callback_avg_us={} callback_max_us={} callback_samples={} callback_p50_us={} callback_p95_us={} callback_p99_us={} mailbox_take_avg_us={} mailbox_take_max_us={} mailbox_take_samples={} mailbox_take_p50_us={} mailbox_take_p95_us={} mailbox_take_p99_us={} mailbox_replaced_total={} worker_samples={} worker_total_samples={} worker_frame_interval_p50_us={} worker_frame_interval_p95_us={} worker_frame_interval_p99_us={} worker_frame_interval_jitter_p95_us={} machine_ticks_per_frame_min={} machine_ticks_per_frame_p50={} machine_ticks_per_frame_max={} worker_step_p50_us={} worker_step_p95_us={} worker_step_p99_us={} video_publish_p95_us={} audio_submit_p95_us={} frame_processing_p50_us={} frame_processing_p95_us={} frame_processing_p99_us={} pacing_wait_budget_p50_us={} pacing_wait_budget_p95_us={} pacing_wait_budget_p99_us={} pacing_wait_elapsed_p50_us={} pacing_wait_elapsed_p95_us={} pacing_wait_elapsed_p99_us={} frame_budget_p50_us={} frame_budget_p95_us={} frame_budget_p99_us={} psg_samples_p50={} psg_samples_p95={} psg_samples_p99={} pacing_timeout_lateness_p50_us={} pacing_timeout_lateness_p95_us={} pacing_timeout_lateness_p99_us={} pacing_timeout_count_total={} pacing_command_wakeups_total={} pacing_command_remaining_p95_us={} command_handler_p95_us={} machine_clock_hz={} physical_present_timestamp=unavailable_slint_owned",
                 u8::from(qpc_available),
                 qpc_ticks,
@@ -2383,7 +2409,7 @@ mod windows_host {
                 } else {
                     0.0
                 };
-                eprintln!(
+                diagnostic_eprintln!(
                     "R3_AUDIO_HEALTH configured={} sample_rate_hz={} queue_capacity_frames={} queue_queued_frames={} queue_high_water_frames={} accepted_frames_total={} consumed_frames_total={} requested_frames_total={} dropped_frames_total={} dropped_blocks_total={} underrun_frames_total={} underrun_events_total={} flushed_frames_total={} zero_fill_percent_total={:.3} window_valid={} window_ms={} counter_reset={} rate_valid={} accepted_frames_delta={} consumed_frames_delta={} requested_frames_delta={} dropped_frames_delta={} dropped_blocks_delta={} underrun_frames_delta={} underrun_events_delta={} flushed_frames_delta={} accepted_frames_per_second={:.1} requested_frames_per_second={:.1} zero_fill_percent_window={:.3} output_error={:?}",
                     u8::from(audio.sample_rate_hz > 0),
                     audio.sample_rate_hz,
@@ -2458,10 +2484,12 @@ mod windows_host {
 
     impl Drop for HostFrameCallbackGuard {
         fn drop(&mut self) {
-            self.host_pacing
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .record_callback(self.started.elapsed());
+            if host_diagnostics_enabled() {
+                self.host_pacing
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .record_callback(self.started.elapsed());
+            }
         }
     }
 
@@ -2477,10 +2505,12 @@ mod windows_host {
             host_pacing: Arc::clone(host_pacing),
             started: callback_started,
         };
-        host_pacing
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .record_wakeup(callback_started);
+        if host_diagnostics_enabled() {
+            host_pacing
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .record_wakeup(callback_started);
+        }
 
         let Some(app) = app_weak.upgrade() else {
             return;
@@ -2497,17 +2527,21 @@ mod windows_host {
 
         let mailbox_take_started = Instant::now();
         let take_result = mailbox.take_latest_with_timestamp();
-        host_pacing
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .record_mailbox_take(mailbox_take_started.elapsed());
+        if host_diagnostics_enabled() {
+            host_pacing
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .record_mailbox_take(mailbox_take_started.elapsed());
+        }
         let (frame, published_at) = match take_result {
             Ok(Some(frame)) => frame,
             Ok(None) => {
-                host_pacing
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .record_empty_wakeup();
+                if host_diagnostics_enabled() {
+                    host_pacing
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .record_empty_wakeup();
+                }
                 return;
             }
             Err(error) => {
@@ -2566,18 +2600,22 @@ mod windows_host {
         };
 
         let now = Instant::now();
-        host_pacing
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .record_frame(now, frame.sequence(), published_at);
+        if host_diagnostics_enabled() {
+            host_pacing
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .record_frame(now, frame.sequence(), published_at);
+        }
 
         let conversion_started = Instant::now();
         match convert_rgb888_to_rgba8(&frame) {
             Ok(pixels) => {
-                host_pacing
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .record_conversion(conversion_started.elapsed());
+                if host_diagnostics_enabled() {
+                    host_pacing
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .record_conversion(conversion_started.elapsed());
+                }
                 let queue_write_started = Instant::now();
                 queue.write_texture(
                     texture.as_image_copy(),
@@ -2585,10 +2623,12 @@ mod windows_host {
                     texture_data_layout(frame.width(), frame.height()),
                     texture_extent(frame.width(), frame.height()),
                 );
-                host_pacing
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .record_queue_write(queue_write_started.elapsed());
+                if host_diagnostics_enabled() {
+                    host_pacing
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .record_queue_write(queue_write_started.elapsed());
+                }
                 let upload_fps = host_pacing
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -2608,10 +2648,12 @@ mod windows_host {
                 app.window().request_redraw();
             }
             Err(error) => {
-                host_pacing
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .record_conversion(conversion_started.elapsed());
+                if host_diagnostics_enabled() {
+                    host_pacing
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .record_conversion(conversion_started.elapsed());
+                }
                 app.set_frame_status(format!("Falha ao converter frame: {error}").into());
             }
         }
@@ -2650,7 +2692,7 @@ mod windows_host {
                 });
                 if let Err(error) = result {
                     notification_pending.store(false, Ordering::Release);
-                    eprintln!("R2_FRAME_NOTIFY enqueue_failed error={error}");
+                    diagnostic_eprintln!("R2_FRAME_NOTIFY enqueue_failed error={error}");
                 }
             });
 
@@ -2683,10 +2725,12 @@ mod windows_host {
                 app.set_audio_status(error.into());
                 app.invoke_preferences_changed();
             }
-            host_pacing
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .report_if_due(&worker_slot);
+            if host_diagnostics_enabled() {
+                host_pacing
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .report_if_due(&worker_slot);
+            }
         });
         timer
     }
@@ -3165,10 +3209,10 @@ mod windows_host {
             AudioRendererMode::Psg
         };
         if let Err(error) = worker.set_audio_renderer(renderer) {
-            eprintln!("R3_AUDIO renderer selection failed; PSG remains the fallback: {error}");
+            diagnostic_eprintln!("R3_AUDIO renderer selection failed; PSG remains the fallback: {error}");
         }
         if video_only_capture_enabled() {
-            eprintln!(
+            diagnostic_eprintln!(
                 "R3_AUDIO skipped: SEGA_EMULATOR_VIDEO_ONLY enabled; digital PSG generation remains active"
             );
             return;
@@ -3178,7 +3222,7 @@ mod windows_host {
         let result = worker.configure_audio_output(
             move || -> Result<Box<dyn sega_sms_runtime::AudioSession>, String> {
                 let sink = sega_audio_output::NativeCpalOutput::new(BUFFER_FRAMES, QUEUE_BLOCKS)?;
-                eprintln!(
+                diagnostic_eprintln!(
                     "R3_AUDIO CPAL output opened: sample_rate={} Hz, channels={}, format={:?}, default_config_fallback={}, queue_capacity={} frames",
                     sink.sample_rate_hz(),
                     sink.channels(),
@@ -3192,7 +3236,7 @@ mod windows_host {
             },
         );
         if let Err(error) = result {
-            eprintln!("R3_AUDIO CPAL unavailable; continuing without physical audio: {error}");
+            diagnostic_eprintln!("R3_AUDIO CPAL unavailable; continuing without physical audio: {error}");
         }
     }
 
@@ -3233,7 +3277,7 @@ mod windows_host {
                 std::env::var(DIAGNOSTIC_SRAM_CAPACITY_ENV).ok().as_deref(),
             )?;
             if let Some(capacity) = diagnostic_capacity {
-                eprintln!(
+                diagnostic_eprintln!(
                     "SRAM_PROFILE status=diagnostic-override sha1={} sha256={} capacity={} persistent=false restored=false",
                     identity.sha1_hex(),
                     identity.sha256_hex(),
@@ -3245,7 +3289,7 @@ mod windows_host {
                     save_context: None,
                 });
             }
-            eprintln!(
+            diagnostic_eprintln!(
                 "SRAM_PROFILE status=unknown sha1={} sha256={}",
                 identity.sha1_hex(),
                 identity.sha256_hex()
@@ -3267,7 +3311,7 @@ mod windows_host {
                 profile: profile.clone(),
                 store,
             });
-        eprintln!(
+        diagnostic_eprintln!(
             "SRAM_PROFILE status=verified sha1={} sha256={} capacity={} persistent={} restored={}",
             identity.sha1_hex(),
             identity.sha256_hex(),
@@ -3325,7 +3369,7 @@ mod windows_host {
         dsp_config: AnalogOutputConfig,
     ) {
         if video_only_capture_enabled() {
-            eprintln!("R3_AUDIO skipped for SG-1000: SEGA_EMULATOR_VIDEO_ONLY enabled");
+            diagnostic_eprintln!("R3_AUDIO skipped for SG-1000: SEGA_EMULATOR_VIDEO_ONLY enabled");
             return;
         }
         const BUFFER_FRAMES: u32 = 512;
@@ -3333,7 +3377,7 @@ mod windows_host {
         let result = worker.configure_audio_output(
             move || -> Result<Box<dyn sega_sms_runtime::AudioSession>, String> {
                 let sink = sega_audio_output::NativeCpalOutput::new(BUFFER_FRAMES, QUEUE_BLOCKS)?;
-                eprintln!(
+                diagnostic_eprintln!(
                     "R3_AUDIO SG-1000 CPAL output opened: sample_rate={} Hz, channels={}, format={:?}, default_config_fallback={}, queue_capacity={} frames",
                     sink.sample_rate_hz(),
                     sink.channels(),
@@ -3347,7 +3391,7 @@ mod windows_host {
             },
         );
         if let Err(error) = result {
-            eprintln!(
+            diagnostic_eprintln!(
                 "R3_AUDIO SG-1000 CPAL unavailable; continuing without physical audio: {error}"
             );
         }
@@ -3399,7 +3443,7 @@ mod windows_host {
             .map_err(|error| format!("não foi possível iniciar gravação SRM: {error}"))?;
         save.join()
             .map_err(|_| "thread de gravação SRM encerrou inesperadamente".to_owned())??;
-        eprintln!(
+        diagnostic_eprintln!(
             "SRAM_SAVE status=written sha256={} bytes={}",
             context.identity.sha256_hex(),
             context.profile.ram_capacity_bytes().unwrap_or_default()
@@ -3533,7 +3577,7 @@ mod windows_host {
                     resolve_sms_region(preference, rom, &cartridge_catalog).region
                 }
                 Err(error) => {
-                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    diagnostic_eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
                     SmsRegion::Usa
                 }
             },
@@ -3603,7 +3647,7 @@ mod windows_host {
         let bytes = catalog
             .load_validated(&entry.path, id)
             .map_err(|error| format!("não foi possível validar {}: {error}", descriptor.name))?;
-        eprintln!(
+        diagnostic_eprintln!(
             "SMS_BIOS status=validated id={} region={} bytes={} sha256={}",
             firmware_id_key(id),
             region.key(),
@@ -3845,7 +3889,7 @@ mod windows_host {
             if let Some(worker) = start_worker.borrow().as_ref()
                 && let Err(error) = worker.start()
             {
-                eprintln!("R2_CONTROL action=start error={error}");
+                diagnostic_eprintln!("R2_CONTROL action=start error={error}");
             } else if let Some(app) = start_app.upgrade() {
                 app.set_emulation_paused(false);
             }
@@ -3857,7 +3901,7 @@ mod windows_host {
             if let Some(worker) = pause_worker.borrow().as_ref()
                 && let Err(error) = worker.pause()
             {
-                eprintln!("R2_CONTROL action=pause error={error}");
+                diagnostic_eprintln!("R2_CONTROL action=pause error={error}");
             } else if let Some(app) = pause_app.upgrade() {
                 app.set_emulation_paused(true);
             }
@@ -3893,7 +3937,7 @@ mod windows_host {
                     }
                     Err(error) => {
                         app.set_rom_status(format!("Falha ao reiniciar o console: {error}").into());
-                        eprintln!("R2_CONTROL action=reset error={error}");
+                        diagnostic_eprintln!("R2_CONTROL action=reset error={error}");
                     }
                 }
             }
@@ -3904,7 +3948,7 @@ mod windows_host {
             if let Some(worker) = step_worker.borrow().as_ref()
                 && let Err(error) = worker.step_frame(100_000)
             {
-                eprintln!("R2_CONTROL action=step_frame error={error}");
+                diagnostic_eprintln!("R2_CONTROL action=step_frame error={error}");
             }
         });
 
@@ -4018,7 +4062,7 @@ mod windows_host {
                 if let Some(worker) = keyboard_press_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
-                    eprintln!("SLINT_KEYBOARD action=keyboard_controller_press error={error}");
+                    diagnostic_eprintln!("SLINT_KEYBOARD action=keyboard_controller_press error={error}");
                 }
             }
 
@@ -4027,7 +4071,7 @@ mod windows_host {
                     if let Some(worker) = keyboard_press_worker.borrow().as_ref()
                         && let Err(error) = worker.request_nmi()
                     {
-                        eprintln!("SLINT_KEYBOARD action=keyboard_nmi error={error}");
+                        diagnostic_eprintln!("SLINT_KEYBOARD action=keyboard_nmi error={error}");
                     }
                 }
                 KeyboardAction::Start => app.invoke_start_requested(),
@@ -4058,7 +4102,7 @@ mod windows_host {
                 if let Some(worker) = keyboard_release_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
-                    eprintln!("SLINT_KEYBOARD action=keyboard_controller_release error={error}");
+                    diagnostic_eprintln!("SLINT_KEYBOARD action=keyboard_controller_release error={error}");
                 }
             }
         });
@@ -4078,7 +4122,7 @@ mod windows_host {
             if let Some(worker) = keyboard_focus_worker.borrow().as_ref()
                 && let Err(error) = worker.set_controller_at(1, combined, Instant::now())
             {
-                eprintln!("SLINT_KEYBOARD action=keyboard_focus_release error={error}");
+                diagnostic_eprintln!("SLINT_KEYBOARD action=keyboard_focus_release error={error}");
             }
         });
 
@@ -4414,7 +4458,7 @@ mod windows_host {
         });
 
         app.on_firmware_selection_changed(move |region, firmware| {
-            eprintln!(
+            diagnostic_eprintln!(
                 "SMS_FIRMWARE_SELECTION region={} selection={}",
                 region, firmware
             );
@@ -4678,7 +4722,7 @@ mod windows_host {
                 keyboard_button2_key: app.get_keyboard_button2_key().to_string(),
             };
             if let Err(error) = save_desktop_preferences(&prefs) {
-                eprintln!("R2_PREFERENCES save_failed error={error}");
+                diagnostic_eprintln!("R2_PREFERENCES save_failed error={error}");
             }
         });
 
@@ -4891,7 +4935,7 @@ mod windows_host {
             if let Some(worker) = sprite_worker.borrow().as_ref()
                 && let Err(error) = worker.set_sprite_limit_enabled(enabled)
             {
-                eprintln!("R2_VIDEO action=sprite_limit_toggle error={error}");
+                diagnostic_eprintln!("R2_VIDEO action=sprite_limit_toggle error={error}");
                 if let Some(app) = sprite_app.upgrade() {
                     app.set_sprite_limit_enabled(!enabled);
                     app.set_rom_status(
@@ -4931,6 +4975,26 @@ mod windows_host {
             teardown_counter,
         )?;
         let host_pacing = Arc::new(Mutex::new(HostFramePacingWindow::new()));
+        let diagnostics_host_pacing = Arc::clone(&host_pacing);
+        let diagnostics_app = app.as_weak();
+        app.on_diagnostics_toggle_requested(move |enabled| {
+            if enabled {
+                *diagnostics_host_pacing
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                    HostFramePacingWindow::new();
+            }
+            HOST_DIAGNOSTICS_ENABLED.store(enabled, Ordering::Release);
+            if let Some(app) = diagnostics_app.upgrade() {
+                app.set_debug_status(
+                    if enabled {
+                        "Coleta diagnóstica autorizada para esta sessão; saída em stderr.".into()
+                    } else {
+                        "Coleta diagnóstica desativada; novas métricas e logs foram interrompidos.".into()
+                    },
+                );
+            }
+        });
         let _frame_diagnostics_timer =
             start_frame_diagnostics(&app, Arc::clone(&host_pacing), Rc::clone(&worker));
         let _sdl3_input_timer = start_sdl3_input_polling(
@@ -4991,7 +5055,7 @@ mod windows_host {
         let mut final_save_error = None;
         if let Some(active_worker) = worker.borrow_mut().take() {
             if let Err(error) = active_worker.pause() {
-                eprintln!("SRAM_SAVE pause_before_exit_failed error={error}");
+                diagnostic_eprintln!("SRAM_SAVE pause_before_exit_failed error={error}");
             }
             if let Err(error) =
                 persist_desktop_session_sram(&active_worker, save_context.borrow().as_ref())
