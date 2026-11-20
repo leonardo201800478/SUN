@@ -227,7 +227,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .tick_slot(sample.cycle, decoded_input)
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
 
-        let mut bad = input_bad;
+        let mut bad = input_bad.clone();
         if result.operator_slot != sample.expected_operator_slot {
             bad.push("operator_slot");
         }
