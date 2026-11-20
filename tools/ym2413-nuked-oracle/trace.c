@@ -115,7 +115,12 @@ int main(int argc, char **argv) {
             return 2;
         }
     }
-    if (chip_type != opll_type_ym2413) {\n        fprintf(stderr, "this adapter supports YM2413 only (chip type 0)\\n");\n        free(events);\n        return 2;\n    }\n    if (clocks == 0) {
+    if (chip_type != opll_type_ym2413) {
+        fprintf(stderr, "this adapter supports YM2413 only (chip type 0)\n");
+        free(events);
+        return 2;
+    }
+    if (clocks == 0) {
         fprintf(stderr, "--calls must be greater than zero\n");
         free(events);
         return 2;
