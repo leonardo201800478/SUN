@@ -34,21 +34,31 @@ jobs:
           rustup toolchain install 1.99.1 --profile minimal
           rustup default 1.99.1
 
-      - name: Resolve current base branch tip
+      - name: Resolve benchmark baseline (PR merge-base or explicit SHA)
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA_INPUT: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           if [[ -n "${BASE_REF:-}" ]]; then
-            git fetch origin "$BASE_REF" --depth=1
-            BASE_SHA="$(git rev-parse FETCH_HEAD)"
+            # Compare the PR change against its actual common ancestor. The
+            # branch may intentionally omit a merge commit already on main;
+            # benchmarking against the current base tip would mix unrelated
+            # base-branch changes into the measured delta.
+            git fetch origin "$BASE_REF" --no-tags
+            BASE_SHA="$(git merge-base "$HEAD_SHA" FETCH_HEAD)"
           elif [[ -n "${BASE_SHA_INPUT:-}" ]]; then
-            git fetch --depth=1 origin "$BASE_SHA_INPUT"
+            # workflow_dispatch may pin an explicit baseline for reproduction.
+            git fetch --no-tags origin "$BASE_SHA_INPUT"
             BASE_SHA="$BASE_SHA_INPUT"
           else
-            git fetch origin main --depth=1
-            BASE_SHA="$(git rev-parse FETCH_HEAD)"
+            git fetch origin main --no-tags
+            BASE_SHA="$(git merge-base "$HEAD_SHA" FETCH_HEAD)"
+          fi
+          if [[ -z "$BASE_SHA" ]]; then
+            echo "Unable to resolve a common benchmark baseline" >&2
+            exit 1
           fi
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
 
