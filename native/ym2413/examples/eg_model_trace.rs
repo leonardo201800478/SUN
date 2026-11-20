@@ -188,27 +188,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Hypothesis: retain the full counter in DAMP/ATTACK, but apply a
         // three-count phase correction to DECAY/SUSTAIN rate selection.
-        let decay_phase_minus3_counter = match initial_silent_deferred_decay_phase_minus3
-            [generator_index]
-            .stage()
-        {
-            EnvelopeStage::Damp | EnvelopeStage::Attack => sample.global_counter,
-            EnvelopeStage::Decay | EnvelopeStage::Sustain => sample.global_counter.saturating_sub(3),
-        };
+        let decay_phase_minus3_counter =
+            match initial_silent_deferred_decay_phase_minus3[generator_index].stage() {
+                EnvelopeStage::Damp | EnvelopeStage::Attack => sample.global_counter,
+                EnvelopeStage::Decay | EnvelopeStage::Sustain => {
+                    sample.global_counter.saturating_sub(3)
+                }
+            };
         let decay_phase_minus3_before =
             initial_silent_deferred_decay_phase_minus3[generator_index].export_state();
-        let decay_phase_minus3_defer_attack =
-            decay_phase_minus3_before.stage == EnvelopeStage::Damp
-                && decay_phase_minus3_before.level >= 124;
-        let decay_phase_minus3_result =
-            initial_silent_deferred_decay_phase_minus3[generator_index]
-                .tick_with_events(
-                    decay_phase_minus3_counter,
-                    sample.key_on,
-                    sample.is_carrier,
-                    sample.parameters,
-                )
-                .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        let decay_phase_minus3_defer_attack = decay_phase_minus3_before.stage
+            == EnvelopeStage::Damp
+            && decay_phase_minus3_before.level >= 124;
+        let decay_phase_minus3_result = initial_silent_deferred_decay_phase_minus3[generator_index]
+            .tick_with_events(
+                decay_phase_minus3_counter,
+                sample.key_on,
+                sample.is_carrier,
+                sample.parameters,
+            )
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         if decay_phase_minus3_defer_attack && decay_phase_minus3_result.phase_reset_required {
             let mut state =
                 initial_silent_deferred_decay_phase_minus3[generator_index].export_state();
