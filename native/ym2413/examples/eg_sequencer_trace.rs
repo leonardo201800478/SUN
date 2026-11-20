@@ -194,7 +194,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         let sample = parse_sample(trimmed, line_index + 1)?;
 
-        while event_index < events.len() && events[event_index].call_index <= sample.call_index {
+        // Fixture timestamps are applied after the named OPLL_Clock call.
+        // Therefore a write at call N first affects the register selection at N+1.
+        while event_index < events.len() && events[event_index].call_index < sample.call_index {
             let event = events[event_index];
             if event.port == 0 {
                 address_latch = event.value & 0x3f;
