@@ -103,6 +103,106 @@ struct Event {
     value: u8,
 }
 
+#[derive(Debug, Clone)]
+struct RegisterBus {
+    registers: [u8; 64],
+    write_data: u8,
+    write_a: u8,
+    write_d: u8,
+    write_a_en: bool,
+    write_d_en: bool,
+    write_fm_address: bool,
+    write_fm_data: bool,
+    address: u8,
+    data: u8,
+    write_mode_address: u8,
+}
+
+impl RegisterBus {
+    fn new() -> Self {
+        Self {
+            registers: [0; 64],
+            write_data: 0,
+            write_a: 0,
+            write_d: 0,
+            write_a_en: false,
+            write_d_en: false,
+            write_fm_address: false,
+            write_fm_data: false,
+            address: 0,
+            data: 0,
+            write_mode_address: 0,
+        }
+    }
+
+    /// Queue an address/data port write exactly as OPLL_Write does.
+    fn write(&mut self, port: u8, value: u8) {
+        self.write_data = value;
+        if port & 1 != 0 {
+            self.write_d |= 1;
+        } else {
+            self.write_a |= 1;
+        }
+    }
+
+    /// Apply the delayed user-patch/mode write at the start of OPLL_Clock.
+    fn begin_clock(&mut self) {
+        if self.write_mode_address & 0x10 != 0 && self.write_d_en {
+            let register = self.write_mode_address & 0x0f;
+            match register {
+                0x00..=0x07 => self.registers[usize::from(register)] = self.write_data,
+                0x0e => self.registers[0x0e] = self.write_data & 0x3f,
+                0x0f => self.registers[0x0f] = self.write_data & 0x0f,
+                _ => {}
+            }
+        }
+    }
+
+    /// Apply cycle-qualified channel writes, then advance OPLL_DoIO latches.
+    fn end_clock(&mut self, cycle: u8) {
+        if self.write_a_en {
+            if self.write_data & 0xc0 == 0 {
+                self.write_fm_address = true;
+                self.address = self.write_data;
+            } else {
+                self.write_fm_address = false;
+            }
+        }
+        if self.write_fm_address && self.write_d_en {
+            self.data = self.write_data;
+        }
+        if self.write_fm_data && !self.write_a_en && cycle < 16
+            && (self.address & 0x0f) == cycle
+        {
+            let channel = usize::from(cycle % 9);
+            match self.address & 0xf0 {
+                0x10 | 0x20 | 0x30 => {
+                    self.registers[usize::from(self.address & 0xf0) + channel] = self.data;
+                }
+                _ => {}
+            }
+        }
+        if self.write_a_en {
+            self.write_fm_data = false;
+        }
+        if self.write_fm_address && self.write_d_en {
+            self.write_fm_data = true;
+        }
+        if self.write_a_en {
+            self.write_mode_address = if self.write_data & 0xf0 == 0 {
+                0x10 | (self.write_data & 0x0f)
+            } else {
+                0
+            };
+        }
+
+        self.write_a_en = self.write_a & 0x03 == 0x01;
+        self.write_d_en = self.write_d & 0x03 == 0x01;
+        self.write_a <<= 1;
+        self.write_d <<= 1;
+    }
+}
+
 fn read_events(path: &Path) -> Result<Vec<Event>, Box<dyn Error>> {
     let input = BufReader::new(File::open(path)?);
     let mut events = Vec::new();
@@ -177,8 +277,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let register_mode = events.is_some();
     let events = events.unwrap_or_default();
     let mut event_index = 0_usize;
-    let mut address_latch = 0_u8;
-    let mut registers = [0_u8; 64];
+    let mut register_bus = RegisterBus::new();
 
     let input = BufReader::new(File::open(Path::new(&samples_path))?);
     let mut sequencer = EnvelopeSequencer::new();
@@ -198,18 +297,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Fixture timestamps are applied after the named OPLL_Clock call.
         // Therefore a write at call N first affects the register selection at N+1.
-        while event_index < events.len() && events[event_index].call_index < sample.call_index {
+        while event_index < events.len() && events[event_index].call_index == sample.call_index {
             let event = events[event_index];
-            if event.port == 0 {
-                address_latch = event.value & 0x3f;
-            } else {
-                registers[usize::from(address_latch)] = event.value;
-            }
+            register_bus.write(event.port, event.value);
             event_index += 1;
+        }
+        if event_index < events.len() && events[event_index].call_index < sample.call_index {
+            return Err("register event call index was skipped".into());
+        }
+        if register_mode {
+            register_bus.begin_clock();
         }
 
         let decoded_input = if register_mode {
-            decode_register_input(&registers, sample.cycle)?
+            decode_register_input(&register_bus.registers, sample.cycle)?
         } else {
             sample.input
         };
@@ -293,6 +394,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         if result.pending_sustain_level != sample.expected_pending_sustain_level {
             bad.push("pending_sustain_level");
+        }
+
+        if register_mode {
+            register_bus.end_clock(sample.cycle);
         }
 
         if !bad.is_empty() {
