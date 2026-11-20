@@ -10,7 +10,7 @@ use crate::envelope_operator::{
     EnvelopeOperatorState, EnvelopeOperatorTick,
 };
 use crate::envelope_timer::{
-    EnvelopeRatePhase, EnvelopeTimer, EnvelopeTimerError, EnvelopeTimerSnapshot,
+    EnvelopeTimer, EnvelopeTimerError, EnvelopeTimerSnapshot,
     EnvelopeTimerState,
 };
 
