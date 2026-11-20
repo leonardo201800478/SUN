@@ -186,3 +186,71 @@ A auditoria inicial permanece válida como registro da baseline `a58edc2`, mas n
 Implementar DP0-F4 no crate compartilhado `native/observability`: separar preparação side-effect-free da ativação após consentimento, iniciar com filtro `off`, impedir escrita de snapshot sem autorização apropriada e preservar singleton do subscriber, fila limitada, rotação e comportamento de shutdown. Atualizar os dois hosts consumidores de forma coordenada e cobrir o contrato com testes isolados de filesystem e transições de estado.
 
 Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 concluído, não comprova execução física nem afirma overhead zero.
+
+
+## 10. DP0-F6 — inventário inicial de sinks e integrações (20/11/2026)
+
+**Baseline:** `main` após o merge da PR #1099, commit
+`68861c17cbf1d4a595e9bbefbb8d95cbad8b9688`.
+
+**Estado:** inventário inicial produzido; DP0-F6 permanece **em andamento**. A pesquisa estática abaixo delimita sinks e integrações conhecidos, mas não prova cobertura exaustiva nem substitui inspeção de todos os callsites e testes em runtime.
+
+### 10.1 Critérios de classificação
+
+Cada ocorrência encontrada deve ser classificada por finalidade e não apenas pelo nome da API:
+
+1. **Diagnóstico opt-in:** evento destinado ao subscriber/arquivo/ring buffer; deve estar atrás da autorização e ser inerte quando desligado.
+2. **Ação explícita do usuário:** exportação de trace/snapshot, seleção de arquivo, salvar SRAM ou firmware; exige gesto explícito e não deve ser confundida com coleta contínua.
+3. **Estado operacional:** falha necessária para informar se uma operação solicitada foi concluída; preferir resultado/estado na UI, sem transformar isso em telemetria persistente.
+4. **Persistência funcional:** SRAM, firmware/configuração e outros dados necessários ao funcionamento; não são logs diagnósticos, mas precisam de inventário de localização, identidade e lifecycle.
+5. **Ferramentas, exemplos e testes:** saída de CLI, smoke tests e harnesses; classificar por executabilidade/distribuição, sem migrar automaticamente para o logger do produto.
+6. **Build/CI:** mensagens `cargo:`, logs de workflows e captura de artefatos; fora do consentimento de runtime do usuário, mas precisam permanecer sem dados pessoais ou conteúdo de ROM.
+
+### 10.2 Inventário de sinks e pontos de integração identificados
+
+| Área / arquivo | Sink ou mecanismo | Classificação inicial | Fronteira/risco a validar |
+|---|---|---|---|
+| `native/observability/src/runtime.rs` | subscriber `tracing`, filtro reload, fila non-blocking, writer, ring buffer, snapshot JSON, panic hook | Diagnóstico opt-in | Validar cada entrada pública, revogação com fila pendente e snapshot; F5 foi integrado pela #1099. |
+| `native/observability/src/writer.rs` | arquivo rotativo e fanout para eventos recentes | Diagnóstico opt-in | Writer só pode existir após autorização; validar shutdown/flush e limites. |
+| `native/sega_desktop/src/main.rs` | macro `diagnostic_log!`, integração do host com subscriber; amostragem de frame pacing/áudio; snapshot de encerramento | Diagnóstico opt-in + estado operacional | Confirmar que todos os callsites ativos estão condicionados; falha do snapshot ainda pode ir a stderr depois de consentimento ativo. |
+| `native/sega_desktop/src/desktop_session.rs` | comandos de trace SMS e sessão SMS/SG-1000 | Ação explícita do usuário | Trace de barramento é finalidade separada de logging geral; verificar fluxo de autorização e exportação. |
+| `rust/runtime/sms-runtime/src/worker.rs` | `tracing::warn!`/eventos de fallback, métricas e janelas limitadas de frame pacing | Diagnóstico opt-in + estado operacional | A coleta de métricas depende de consentimento; diferenciar métricas necessárias à execução de amostragem diagnóstica. |
+| `native/video_runtime/src/diagnostics.rs` | QPC clock/frequency helper | Instrumentação de suporte, não sink | A leitura do relógio por si só não persiste nem publica dados; auditar os consumidores e timers. |
+| `native/audio_runtime/src/session.rs`, `native/audio_runtime/src/lib.rs`, `native/audio_runtime/src/psg.rs` | eventos estruturados `tracing` sobre sessão/PSG/saída de áudio | Diagnóstico opt-in | Conferir campos e frequência; eventos de alta frequência não podem bloquear nem alterar o runtime. |
+| `native/video_runtime/src/d3d12.rs` | eventos estruturados de inicialização/falha do renderer | Diagnóstico opt-in | Conferir se dados de device/adapter/window são minimizados e não incluem caminhos pessoais. |
+| `native/machine_scheduler/src/lib.rs`, `native/z80_cpu/src/cpu.rs`, `native/sms_core/src/temporal_bus.rs`, `native/video_core/src/sms/vdp.rs`, `native/sn76489/src/psg.rs`, `native/sg1000_core/src/machine.rs` | eventos estruturados de erros, violações e configuração | Diagnóstico opt-in | A fachada `tracing` não instala subscriber; validar custo lazy/níveis e ausência de I/O nos caminhos de hardware. |
+| `native/sms_core/src/cartridge/image.rs`, `native/sms_core/src/memory.rs` | eventos de imagem ROM/mapper | Diagnóstico opt-in | Apenas metadados permitidos; nunca bytes de ROM/BIOS ou caminhos absolutos. |
+| `native/save_runtime/src/lib.rs` | leitura/escrita persistente de SRAM | Persistência funcional | Não classificar como log; revisar identidade/hash, caminhos, atomicidade e somente operações de save/load solicitadas. |
+| `native/media_runtime/src/sms_firmware.rs` | leitura/validação de firmware | Persistência/entrada funcional | Não classificar como sink diagnóstico; evitar registrar caminhos completos ou conteúdo do firmware. |
+| `native/media_runtime/src/catalog.rs` | catálogo e perfis de mídia | Dados funcionais em memória | Não é sink de log; confirmar ausência de persistência automática de telemetria. |
+| `native/sega_app/src/app.rs` | host egui legado, integração de logging e snapshot | Legado + diagnóstico opt-in | Manter inventariado até confirmar todos os consumidores/builds; não é destino da GUI final. |
+| `native/sms_debugger/src/main.rs`, `native/sms_core/src/bin/z80test_runner.rs` | stdout/stderr de CLI | Ferramenta explícita | Separar execução interativa de tooling/test harness; confirmar se algum binário é distribuído ao usuário final. |
+| `native/*/examples/**`, `native/*/tests/**`, `rust/runtime/**/tests/**` | stdout/stderr, CSV/WAV/trace e arquivos temporários | Teste/ferramenta | Classificar por alvo; artefatos de teste não devem ser tratados como logs do desktop. |
+| `native/sega_app/build.rs` e `.github/workflows/**` | `cargo:rustc-env`, logs de build e CI | Build/CI | Não é consentimento de runtime; não introduzir dados pessoais, ROMs ou caminhos locais nos logs. |
+
+### 10.3 Busca estática reproduzível e seus limites
+
+A busca no repositório por `eprintln!`, `println!`, `tracing::`, `log::`, `std::fs`, `std::io::Write`, `create_dir_all`, `write_all`, `OpenOptions`, `Command::new`, `diagnostics_enabled`, `trace_enabled` e `telemetry` encontrou, entre outros, os caminhos listados acima.
+
+Resultados relevantes:
+- O caminho Slint ativo e o worker SMS têm pontos de integração explícitos com diagnóstico e consentimento.
+- A infraestrutura compartilhada concentra writer, snapshot e panic hook em `native/observability`.
+- Há persistência funcional separada em `save_runtime` e leitura/validação de firmware em `media_runtime`.
+- Há saídas de CLI/examples/tests e stubs não-Windows que não devem ser automaticamente classificadas como sinks do produto.
+- A busca por texto não encontra necessariamente macros importadas por `use`, wrappers locais, APIs de terceiros, FFI, handles de stdout/stderr, subprocessos, arquivos criados por dependências ou caminhos condicionais de plataforma. A indexação de code search também pode atrasar em relação ao HEAD.
+
+### 10.4 Lacunas que impedem fechar F6
+
+1. Percorrer integralmente os callsites do host Slint, host legado, workers SMS/SG-1000, áudio e vídeo, verificando os campos emitidos e o gate real em cada caminho.
+2. Auditar todos os pontos de escrita/leitura em disco e exportações (save state, SRAM, trace, snapshot, logs, crash e artefatos), separando persistência funcional de diagnóstico.
+3. Inspecionar wrappers, macros importadas, crates externos, FFI e subprocessos; busca por tokens isolados não comprova ausência de outros sinks.
+4. Confirmar quais bins/examples são empacotados/distribuídos e quais existem somente em CI/testes.
+5. Testar os caminhos sem consentimento e após revogação, incluindo fila pendente, snapshot final, stderr de falha operacional e hook padrão de panic.
+6. Produzir matriz final por sink com: origem, consumidor, dados/campos, gatilho, consentimento/finalidade, destino, retenção, redaction, custo/frequência e teste que prova a fronteira.
+
+### 10.5 Relação com DP0-F5
+
+A PR #1099 foi integrada em `main` pelo commit
+`68861c17cbf1d4a595e9bbefbb8d95cbad8b9688`. Os checks do HEAD da PR foram concluídos: 11 checks `success` e 9 `skipped` por não aplicabilidade. Os jobs dedicados de observabilidade Windows x64 Debug/Release e o teste/build do shell legado CPAL Windows x64 Release passaram. Isso fecha a implementação DP0-F5, mas não fecha o inventário F6 nem a validação F7.
+
+**Conclusão F6:** inventário inicial documentado; auditoria completa permanece aberta. Nenhuma alteração de hardware, Scheduler, CPU, VDP, PSG, barramentos, mappers ou temporização foi feita nesta fatia.
