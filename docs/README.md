@@ -27,6 +27,10 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Índice de hosts/documentos históricos](architecture/legacy-document-index.md)
 - [Scheduler](architecture/scheduler/README.md)
 
+## Integrações e serviços
+
+- RetroAchievements: trilha planejada e gates RA-0 a RA-6 no [roadmap mestre](project-roadmap.md#retroachievements--integração-transversal-planejada).
+
 ## Sistemas e hardware
 
 - [SMS1 × SMS2 — diferenças](hardware/sms1-sms2-hardware-difference-matrix-2026-11-15.md)
