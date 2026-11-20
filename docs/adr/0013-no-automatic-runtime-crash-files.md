@@ -86,6 +86,6 @@ A política desta ADR foi implementada e validada na revisão final da PR #1117:
 7. Benchmark Release A/B #31: 20 amostras por revisão; -0,47% bus-heavy e +0,16% relative-loop; instruções e ticks idênticos.
 8. CI #9422 e SMS Runtime Release #1707 aprovados; CPAL 0.18.2 validado separadamente na CI #9418 da base #1107.
 
-A comparação é Linux CI e não prova overhead zero; benchmark físico Windows x64 e smoke test interativo no hardware do usuário permanecem NOT RUN. A evidência detalhada e os IDs dos workflows estão na seção 12 da auditoria DP0.
+A comparação é Linux CI e não prova overhead zero; benchmark físico Windows x64 e smoke test interativo no hardware do usuário permanecem NOT RUN. A evidência detalhada e os IDs dos workflows estão nas seções 12 e 13 da auditoria DP0.
 
-A ADR define a política; a conclusão formal do DP0 depende ainda da confirmação do merge da PR #1117 e da validação pós-merge.
+A PR #1117 foi integrada na main pelo merge commit `eac1d2463637a65d40621066d4ec889d2e062884`. A CI push #9431 e o SMS Runtime push #1716 foram concluídos com SUCCESS no commit de merge. A validação independente de CPAL 0.18.2 permanece na CI #9418 da base #1107. O fechamento documental final e o scorecard estão registrados na seção 13 da auditoria DP0.
