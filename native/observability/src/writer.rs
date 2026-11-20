@@ -347,7 +347,7 @@ mod tests {
             new_event.write_all(b"NEW_SESSION_SENTINEL\n").unwrap();
         }
 
-        slot.lock().unwrap().take();
+        slot.write().unwrap().take();
         drop(new_guard);
 
         let contents = fs::read_to_string(&path).unwrap();
