@@ -142,7 +142,10 @@ impl LoggingHandle {
         let filter = EnvFilter::try_new(&config.filter).map_err(|error| error.to_string())?;
 
         {
-            let mut writer_slot = self.writer_slot.write().unwrap_or_else(PoisonError::into_inner);
+            let mut writer_slot = self
+                .writer_slot
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
             let mut guard_slot = self.guard.lock().unwrap_or_else(PoisonError::into_inner);
             if guard_slot.is_none() {
                 let (writer, guard, error_counter) = create_non_blocking_writer(
@@ -187,7 +190,10 @@ impl LoggingHandle {
         // Detach the sender only after in-flight event writers release the slot.
         // Dropping WorkerGuard then drains the old queue while the sink gate is closed.
         {
-            let mut writer_slot = self.writer_slot.write().unwrap_or_else(PoisonError::into_inner);
+            let mut writer_slot = self
+                .writer_slot
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
             writer_slot.take();
         }
         let guard = self
@@ -314,10 +320,13 @@ impl LoggingHandle {
         Ok(destination)
     }
 
-    /// Drop the non-blocking worker guard after the final diagnostics snapshot is written.
+    /// Detach and drain the event writer; the in-memory ring remains available for the final snapshot.
     pub fn shutdown(&self) {
         {
-            let mut writer_slot = self.writer_slot.write().unwrap_or_else(PoisonError::into_inner);
+            let mut writer_slot = self
+                .writer_slot
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
             writer_slot.take();
         }
         let guard = self
