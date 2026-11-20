@@ -1,8 +1,7 @@
 //! Public API tests for the Rust-only SMS runtime boundary.
 
 use sega_sms_core::ControllerButtons;
-use sega_observability::DiagnosticsConsent;
-use sega_sms_runtime::SmsTemporalWorker;
+use sega_sms_runtime::{DiagnosticsConsent, SmsTemporalWorker};
 
 #[test]
 fn public_worker_api_loads_steps_resets_and_accepts_controller_levels() {
