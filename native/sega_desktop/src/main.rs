@@ -2780,7 +2780,10 @@ mod windows_host {
     }
 
     /// The diagnostic timer may run only after an explicit consent change succeeds.
-    fn should_run_diagnostics_timer(consent_requested: bool, consent_change_succeeded: bool) -> bool {
+    fn should_run_diagnostics_timer(
+        consent_requested: bool,
+        consent_change_succeeded: bool,
+    ) -> bool {
         consent_requested && consent_change_succeeded
     }
 
