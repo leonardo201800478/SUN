@@ -26,6 +26,7 @@ pub struct DebuggerApp {
     memory_address: String,
     memory_bytes: Vec<u8>,
     snapshot: Option<SmsDebugSnapshot>,
+    diagnostics_enabled: bool,
     texture: Option<egui::TextureHandle>,
     displayed_frame: u64,
     status: String,
@@ -43,6 +44,7 @@ impl Default for DebuggerApp {
             memory_address: "C000".into(),
             memory_bytes: Vec::new(),
             snapshot: None,
+            diagnostics_enabled: false,
             texture: None,
             displayed_frame: u64::MAX,
             status: "Abra uma ROM SMS".into(),
@@ -60,13 +62,29 @@ impl DebuggerApp {
             return;
         };
 
+        let trace_was_enabled = self
+            .snapshot
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.trace_enabled);
         let result = fs::read(&path)
             .map_err(|error| error.to_string())
             .and_then(|rom| SmsTemporalWorker::new(rom, "usa"));
         match result {
             Ok(worker) => {
-                // Detailed diagnostics remain disabled until the user explicitly
-                // enables Debugger mode from the controls.
+                if self.diagnostics_enabled {
+                    if let Err(error) = worker.set_diagnostics_enabled(true) {
+                        self.status = format!("Falha ao restaurar consentimento diagnóstico: {error}");
+                        return;
+                    }
+                    if trace_was_enabled
+                        && let Err(error) = worker.set_trace_enabled(true)
+                    {
+                        let _ = worker.set_diagnostics_enabled(false);
+                        self.diagnostics_enabled = false;
+                        self.status = format!("Falha ao restaurar trace: {error}");
+                        return;
+                    }
+                }
                 self.worker = Some(worker);
                 self.rom_path = Some(path);
                 self.running = false;
@@ -85,6 +103,10 @@ impl DebuggerApp {
 
     fn refresh_snapshot(&mut self) {
         self.last_snapshot_refresh = Instant::now();
+        if !self.diagnostics_enabled {
+            self.snapshot = None;
+            return;
+        }
         let Some(worker) = self.worker.as_ref() else {
             self.snapshot = None;
             return;
@@ -193,21 +215,33 @@ impl DebuggerApp {
         let Some(worker) = self.worker.as_ref() else {
             return;
         };
-        let enabled = !self
-            .snapshot
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.trace_enabled);
-        match worker.set_trace_enabled(enabled) {
+        let enabled = !self.diagnostics_enabled;
+        let result = if enabled {
+            worker
+                .set_diagnostics_enabled(true)
+                .and_then(|()| worker.set_trace_enabled(true))
+        } else {
+            worker.set_diagnostics_enabled(false)
+        };
+        match result {
             Ok(()) => {
-                worker.set_diagnostics_enabled(enabled);
-                self.refresh_snapshot();
-                self.status = if enabled {
-                    "Modo Debugger habilitado (captura limitada em memória)".into()
+                self.diagnostics_enabled = enabled;
+                if enabled {
+                    self.refresh_snapshot();
+                    self.status = "Coleta de logs e trace habilitada nesta sessão".into();
                 } else {
-                    "Modo Debugger desabilitado; captura detalhada interrompida".into()
-                };
+                    self.snapshot = None;
+                    self.status = "Coleta revogada; trace e snapshots foram descartados".into();
+                }
             }
-            Err(error) => self.status = format!("Falha ao configurar modo Debugger: {error}"),
+            Err(error) => {
+                if enabled {
+                    let _ = worker.set_diagnostics_enabled(false);
+                }
+                self.diagnostics_enabled = false;
+                self.snapshot = None;
+                self.status = format!("Falha ao alterar coleta diagnóstica: {error}");
+            }
         }
     }
 
