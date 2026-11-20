@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
+use sega_observability::DiagnosticsConsent;
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
@@ -1495,12 +1496,15 @@ impl SmsTemporalWorker {
     }
 
     /// Enable or disable optional diagnostic telemetry without changing emulation.
-    pub fn set_diagnostics_enabled(&self, enabled: bool) -> Result<(), String> {
-        self.telemetry.set_diagnostics_enabled(enabled);
-        if !enabled {
-            set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, false)?;
-        }
-        Ok(())
+    /// Enable in-memory diagnostic metrics after the caller receives explicit consent.
+    pub fn enable_diagnostics(&self, _consent: &DiagnosticsConsent) {
+        self.telemetry.set_diagnostics_enabled(true);
+    }
+
+    /// Revoke diagnostics, disable trace capture, and discard all retained trace data.
+    pub fn disable_diagnostics(&self) -> Result<(), String> {
+        self.telemetry.set_diagnostics_enabled(false);
+        set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, false)
     }
 
     pub fn reset(&self) -> Result<(), String> {
@@ -3269,7 +3273,7 @@ mod tests {
         let rom = vec![0x76; 0x4000];
 
         let worker = SmsTemporalWorker::new_with_bios(rom, bios.clone(), "usa").unwrap();
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
 
         assert_eq!(worker.inspect_memory(0, 3).unwrap(), bios[..3]);
         assert_eq!(worker.debug_snapshot().unwrap().sp, 0x0000);
@@ -3577,7 +3581,7 @@ mod tests {
         worker.step_instruction().unwrap();
         assert!(worker.debug_snapshot().unwrap().trace_enabled);
 
-        worker.set_diagnostics_enabled(false).unwrap();
+        worker.disable_diagnostics().unwrap();
         assert!(worker.debug_snapshot().is_err());
 
         worker.set_diagnostics_enabled(true).unwrap();
@@ -3591,8 +3595,8 @@ mod tests {
     fn trace_opt_in_does_not_change_machine_progression() {
         let traced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
         let untraced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
-        traced.set_diagnostics_enabled(true).unwrap();
-        untraced.set_diagnostics_enabled(true).unwrap();
+        traced.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
+        untraced.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
 
         traced.set_trace_enabled(true).unwrap();
         for _ in 0..32 {
