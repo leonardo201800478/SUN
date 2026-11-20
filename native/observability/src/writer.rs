@@ -271,19 +271,19 @@ mod tests {
         let mut writer = FanoutWriter::new(file, recent.clone(), 4, enabled.clone());
 
         // The non-blocking appender may deliver a record after consent was revoked.
-        writer.write_all(b"{\\"level\\":\\"INFO\\"}\\n").unwrap();
+        writer.write_all(b"{\"level\":\"INFO\"}\n").unwrap();
         writer.flush().unwrap();
         assert!(!path.exists() || fs::read(&path).unwrap().is_empty());
         assert!(recent.lock().unwrap().is_empty());
 
         *enabled.write().unwrap() = true;
-        writer.write_all(b"{\\"level\\":\\"WARN\\"}\\n").unwrap();
+        writer.write_all(b"{\"level\":\"WARN\"}\n").unwrap();
         writer.flush().unwrap();
         assert!(fs::read_to_string(&path).unwrap().contains("WARN"));
         assert_eq!(recent.lock().unwrap().len(), 1);
 
         *enabled.write().unwrap() = false;
-        writer.write_all(b"{\\"level\\":\\"ERROR\\"}\\n").unwrap();
+        writer.write_all(b"{\"level\":\"ERROR\"}\n").unwrap();
         writer.flush().unwrap();
         let contents = fs::read_to_string(&path).unwrap();
         assert!(contents.contains("WARN"));
