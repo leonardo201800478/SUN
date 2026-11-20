@@ -82,3 +82,16 @@ Erros recuperáveis usam `WARN`; falhas que impedem inicialização/importação
 - Os dois eventos periódicos são TRACE e mantêm campos numéricos/booleanos estruturados.
 - Nenhum evento inclui ROM, BIOS, SRAM, caminho pessoal completo ou payload de memória.
 - Este inventário não classifica logs de testes, exemplos, CLI e build scripts; esses sinks são tratados separadamente por target.
+
+
+## Integração e rastreabilidade do fechamento DP0 — 2026-11-20
+
+Este inventário corresponde aos 43 callsites estruturados do host Slint migrados para o macro condicionado pelo consentimento central `LoggingHandle` e incorporados pela PR #1107, merge commit `bc4664d9f44f6791ad8f8520a57c8744dd647dbf`. O head #1117 preserva esse inventário sem duplicar a implementação de consentimento.
+
+A revisão final da #1117 confirmou a separação entre:
+- sinks host-side condicionados ao consentimento;
+- trace essencial SMS em ring RAM-only de 2.048 eventos, sem consentimento de logging;
+- trace detalhado separado, limitado e opt-in;
+- snapshots não destrutivos e exportação condicionada ao consentimento e à ação explícita do usuário.
+
+A classificação permanece estática e limitada aos targets first-party identificados. Ela não afirma auditoria dos internals de dependências externas nem substitui observação física de todos os backends do sistema operacional. Para gates, benchmarks e limitações F7/F8/F9, consultar a seção 12 de `dp0-diagnostics-consent-audit-2026-11-20.md`.
