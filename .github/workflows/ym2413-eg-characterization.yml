@@ -42,16 +42,36 @@ jobs:
             --events tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
             > "$RUNNER_TEMP/eg-trace-b.jsonl"
           cmp "$RUNNER_TEMP/eg-trace-a.jsonl" "$RUNNER_TEMP/eg-trace-b.jsonl"
-      - name: Retain deterministic EG trace artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ym2413-nuked-eg-characterization
-          path: ${{ runner.temp }}/eg-trace-a.jsonl
-          if-no-files-found: warn
-          retention-days: 7
-
       - name: Validate serial EG state and channel events
         run: |
           python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
             --trace "$RUNNER_TEMP/eg-trace-a.jsonl" --expected-calls 30000
+
+      - name: Extract channel-zero EG update samples
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-samples.csv"
+
+      - name: Replay the production Rust EG component
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_model_trace -- "$RUNNER_TEMP/eg-samples.csv" \
+            > "$RUNNER_TEMP/eg-rust-candidates.jsonl"
+
+      - name: Compare explicit Rust reset-state candidates with Nuked
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_eg.py \
+            --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl"
+
+      - name: Retain deterministic EG and Rust candidate traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym2413-nuked-eg-characterization
+          path: |
+            ${{ runner.temp }}/eg-trace-a.jsonl
+            ${{ runner.temp }}/eg-samples.csv
+            ${{ runner.temp }}/eg-rust-candidates.jsonl
+          if-no-files-found: warn
+          retention-days: 7
