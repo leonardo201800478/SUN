@@ -168,3 +168,28 @@ This is deliberately a **reference characterization**, not yet a Rust
 differential pass. Nuked's 18-call serial timebase must be related to the Rust
 component's shared per-output-sample counter before level curves can be
 compared. The fixture does not establish physical chip correctness.
+
+
+### First Rust EG differential result
+
+The fixture currently yields 1,744 active channel-0 operator samples. The
+extractor uses the post-call `eg_kon & 0x04` pipeline bit as the effective
+per-slot KEY-ON event, not the raw `kon[0]` channel bit. The absolute
+`call_index / 18` sample counter matches the low eight bits of Nuked's
+`eg_counter_state` at each selected update; the Rust candidate is evaluated
+with the unwrapped counter.
+
+For this one patch configuration, the best diagnostic candidate starts at
+level 127 and defers the first ATTACK increment on the DAMP-to-ATTACK
+transition. It produces 18 level mismatches (maximum absolute error 1) and
+two stage mismatches, versus 254 level / 16 stage mismatches when the
+transition consumes the same update. The 18 level mismatches are confined to
+global-counter values 256–258, 512–514 and 768–770, two operator slots at each
+counter. The two stage mismatches occur when level reaches zero: Nuked keeps
+ATTACK for one more operator update before DECAY.
+
+These results are documented in
+`docs/audits/ym2413-eg-nuked-differential-2026-11-20.md`. They are
+diagnostic only and do not authorize a production change. The counter-truncate
+candidate was materially worse, so the low-eight-bit equality is a phase
+observation, not evidence that the Rust global counter should wrap.
