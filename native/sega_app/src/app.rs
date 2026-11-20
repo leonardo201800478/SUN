@@ -1790,23 +1790,15 @@ impl Drop for SegaApp {
         self.input_backend = None;
 
         if let Some(logging) = current_logging() {
-            let diagnostics_were_enabled = logging.is_enabled();
-
-            if diagnostics_were_enabled {
+            if logging.is_enabled() {
                 sega_observability::tracing::info!(
                     target: "sega::app",
                     event = "application_shutdown",
                     session_id = %logging.session().session_id,
                 );
-
-                // Drain queued records before serializing the final snapshot.
-                logging.shutdown();
-                if let Err(error) = logging.write_diagnostics_json() {
-                    eprintln!("Unable to write diagnostics snapshot: {error}");
-                }
-            } else {
-                logging.shutdown();
             }
+            // Never create a diagnostics snapshot implicitly during application exit.
+            logging.shutdown();
         }
     }
 }
