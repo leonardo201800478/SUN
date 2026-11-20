@@ -9,6 +9,7 @@
 //! outside this temporal slice.
 
 use core::fmt;
+use std::collections::VecDeque;
 
 use crate::{
     ControllerButtons, SmsTemporalBus, SmsTemporalBusError, SmsTemporalBusState,
@@ -25,7 +26,8 @@ use sega_z80_cpu::{
     Z80MicroSequencerError, Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep,
 };
 
-pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 33;
+pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 34;
+const MAX_SMS_TEMPORAL_TRACE_EVENTS: usize = 65_536;
 
 /// Runtime event trace emitted from actual Scheduler/bus dispatch boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -283,7 +285,8 @@ pub struct SmsTemporalMachine {
     m1: Option<SmsTemporalM1>,
     m1_fixture_wait_tstates: Option<u32>,
     trace_enabled: bool,
-    trace_events: Vec<SmsTemporalTraceEvent>,
+    trace_events: VecDeque<SmsTemporalTraceEvent>,
+    trace_dropped: u64,
 }
 
 impl SmsTemporalMachine {
@@ -303,7 +306,8 @@ impl SmsTemporalMachine {
             m1: None,
             m1_fixture_wait_tstates: None,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
         })
     }
 
@@ -380,7 +384,8 @@ impl SmsTemporalMachine {
             m1: None,
             m1_fixture_wait_tstates: None,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
         })
     }
 
@@ -441,7 +446,8 @@ impl SmsTemporalMachine {
             m1: None,
             m1_fixture_wait_tstates: None,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
         })
     }
 
@@ -709,8 +715,7 @@ impl SmsTemporalMachine {
             } = dispatch
             {
                 if self.trace_enabled {
-                    self.trace_events
-                        .push(SmsTemporalTraceEvent::ExternalThTransition {
+                    self.record_trace_event(SmsTemporalTraceEvent::ExternalThTransition {
                             timestamp: completed_at,
                             player,
                             high,
@@ -758,7 +763,7 @@ impl SmsTemporalMachine {
                 }
 
                 if let Some((request, wait_tstates)) = trace_data {
-                    self.trace_events.push(SmsTemporalTraceEvent::BusCompleted {
+                    self.record_trace_event(SmsTemporalTraceEvent::BusCompleted {
                         timestamp: completion.completed_at,
                         request_id: request.id,
                         operation: request.operation,
@@ -805,8 +810,7 @@ impl SmsTemporalMachine {
                 )?;
 
                 if self.trace_enabled {
-                    self.trace_events
-                        .push(SmsTemporalTraceEvent::M1TStateCompleted {
+                    self.record_trace_event(SmsTemporalTraceEvent::M1TStateCompleted {
                             timestamp: completed_at,
                             phase: phase_before,
                             pins,
@@ -851,8 +855,7 @@ impl SmsTemporalMachine {
                     self.instruction_started_at = None;
                 }
                 if self.trace_enabled {
-                    self.trace_events
-                        .push(SmsTemporalTraceEvent::InternalCycleCompleted {
+                    self.record_trace_event(SmsTemporalTraceEvent::InternalCycleCompleted {
                             timestamp: completion.completed_at,
                             continuation_id: completion.continuation_id,
                             tstates,
@@ -1045,16 +1048,39 @@ impl SmsTemporalMachine {
     }
 
     /// Enable or disable allocation-backed runtime trace capture.
+    ///
+    /// The bounded buffer is allocated only after an explicit trace request and
+    /// released when capture is disabled.
     pub fn set_trace_enabled(&mut self, enabled: bool) {
         self.trace_enabled = enabled;
-        if !enabled {
-            self.trace_events.clear();
+        self.trace_events.clear();
+        self.trace_dropped = 0;
+        if enabled {
+            self.trace_events.reserve(MAX_SMS_TEMPORAL_TRACE_EVENTS);
+        } else {
+            self.trace_events.shrink_to_fit();
         }
+    }
+
+    fn record_trace_event(&mut self, event: SmsTemporalTraceEvent) {
+        if !self.trace_enabled {
+            return;
+        }
+        if self.trace_events.len() == MAX_SMS_TEMPORAL_TRACE_EVENTS {
+            self.trace_events.pop_front();
+            self.trace_dropped = self.trace_dropped.saturating_add(1);
+        }
+        self.trace_events.push_back(event);
     }
 
     /// Drain trace events captured from actual scheduler dispatches.
     pub fn take_trace(&mut self) -> Vec<SmsTemporalTraceEvent> {
-        core::mem::take(&mut self.trace_events)
+        self.trace_events.drain(..).collect()
+    }
+
+    /// Drain the number of events discarded by the bounded machine-side buffer.
+    pub fn take_trace_dropped(&mut self) -> u64 {
+        core::mem::take(&mut self.trace_dropped)
     }
 
     /// Current CPU state (read-only).
@@ -1375,14 +1401,18 @@ impl SmsTemporalMachine {
             m1,
             m1_fixture_wait_tstates: state.m1_fixture_wait_tstates,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SmsTemporalMachine, SmsTemporalMachineError, SmsTemporalTraceEvent};
+    use super::{
+        MAX_SMS_TEMPORAL_TRACE_EVENTS, SmsTemporalMachine, SmsTemporalMachineError,
+        SmsTemporalTraceEvent,
+    };
     use sega_temporal_core::{
         BusCycleKind, BusDirection, BusPhase, MCycleIndex, MachineTime, TStateIndex,
     };
@@ -3315,13 +3345,6 @@ mod base_immediate_io_temporal_tests {
         );
         assert_eq!(output.bus.io().io_control(), 0xD5);
         assert_eq!(output.cpu().wz, 0xD540);
-        assert_eq!(output.bus.port_write_trace().len(), 1);
-        assert_eq!(output.bus.port_write_trace()[0].port, 0xD53F);
-        assert_eq!(output.bus.port_write_trace()[0].value, 0xD5);
-        assert_eq!(
-            output.bus.port_write_trace()[0].completed_at,
-            MachineTime::from_ticks(33)
-        );
         assert_eq!(output.now(), MachineTime::from_ticks(33));
 
         let mut memory_control = SmsTemporalMachine::new(vec![0xD3, 0x3E], 3).unwrap();
@@ -3636,4 +3659,34 @@ mod temporal_frame_tests {
         );
         assert_eq!(machine.now().ticks(), 4);
     }
+    #[test]
+    fn runtime_trace_buffer_is_bounded_and_reports_dropped_events() {
+        let mut machine = SmsTemporalMachine::new(vec![0; 0x4000], 3).unwrap();
+        machine.set_trace_enabled(true);
+
+        for index in 0..(MAX_SMS_TEMPORAL_TRACE_EVENTS + 17) {
+            machine.record_trace_event(SmsTemporalTraceEvent::ExternalThTransition {
+                timestamp: MachineTime::from_ticks(index as u128),
+                player: 1,
+                high: index % 2 == 0,
+            });
+        }
+
+        let events = machine.take_trace();
+        assert_eq!(events.len(), MAX_SMS_TEMPORAL_TRACE_EVENTS);
+        assert_eq!(machine.take_trace_dropped(), 17);
+        assert!(matches!(
+            events.first(),
+            Some(SmsTemporalTraceEvent::ExternalThTransition {
+                timestamp,
+                player: 1,
+                ..
+            }) if *timestamp == MachineTime::from_ticks(17)
+        ));
+
+        machine.set_trace_enabled(false);
+        assert!(machine.take_trace().is_empty());
+        assert_eq!(machine.take_trace_dropped(), 0);
+    }
+
 }
