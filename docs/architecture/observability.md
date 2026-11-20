@@ -68,7 +68,7 @@ Cada registro tem limite de 1 KiB. O arquivo tem limite derivado de `LogConfig.m
 
 Falhas de abertura, escrita ou flush do arquivo privado não impedem a chamada do hook anterior do Rust, que é delegada exatamente uma vez. O hook não usa logger, subscriber, worker, GUI, Scheduler, mutexes de aplicação, `catch_unwind`, rede ou backtrace. A saída padrão de panic continua separada do arquivo privado e preserva o comportamento normal de falha.
 
-A implementação está na branch DP0-F5 e depende da aprovação dos testes de formatter, limites, retenção e subprocessos em Windows x64 Debug/Release antes de ser considerada concluída.
+A implementação foi validada no commit de código 8bedcb3a6956faf3a3bb8351ccdd08a47bc43a11: Windows x64 Debug e Release passaram em rustfmt, Clippy e testes (14 testes por perfil); o CI Linux Release também aprovou Clippy e os testes da feature runtime. A PR #1099 aguarda somente a conclusão dos checks gerais restantes e o merge.
 
 `SEGA_LOG_DIR` permite substituir o diretório e `SEGA_LOG_FILTER` define o filtro inicial. O filtro pode ser recarregado em runtime por `LoggingHandle::set_filter`.
 
