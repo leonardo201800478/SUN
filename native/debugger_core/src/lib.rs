@@ -440,5 +440,4 @@ mod tests {
         assert_eq!(collector.ingress_dropped(), 4);
         assert_eq!(collector.history_dropped(), 1);
     }
-
 }
