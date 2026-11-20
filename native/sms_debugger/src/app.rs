@@ -78,8 +78,7 @@ impl DebuggerApp {
                         && let Err(error) = worker.set_trace_enabled(true)
                     {
                         let _ = worker.disable_diagnostics();
-                        self.diagnostics_consent = None;
-                        self.status = format!("Falha ao restaurar trace: {error}");
+                        self.status = format!("Falha ao restaurar trace no novo worker: {error}");
                         return;
                     }
                 }
