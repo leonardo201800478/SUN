@@ -8,8 +8,8 @@
 //! does not choose a reset-state interpretation or alter production behavior.
 
 use sega_ym2413::{
-    AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination,
-    EnvelopeGenerator, EnvelopeParameters, EnvelopeStage,
+    AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
+    EnvelopeParameters, EnvelopeStage,
 };
 use std::error::Error;
 use std::fs::File;
