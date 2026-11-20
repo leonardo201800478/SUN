@@ -276,7 +276,7 @@ def main() -> int:
         ),
     }
 
-    if len(sys.argv) == 4:
+    if len(sys.argv) in (4, 5):
         gear_header, gear_rows, gear_raw = read_jsonl(
             Path(sys.argv[3]), "gearsystem-sms-psg-state-trace-v1"
         )
