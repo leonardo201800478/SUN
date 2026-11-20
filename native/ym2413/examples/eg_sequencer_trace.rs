@@ -9,6 +9,7 @@ use sega_ym2413::{
     ChannelSynthesisConfig, EnvelopeSequencer, EnvelopeSlotInput, decode_channel_synthesis,
     envelope_slot_input_for_cycle,
 };
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -184,6 +185,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut calls = 0_u64;
     let mut mismatches = 0_u64;
     let mut register_input_mismatches = 0_u64;
+    let mut input_mismatch_counts = BTreeMap::<&'static str, u64>::new();
     let mut first_mismatch = None;
 
     for (line_index, line) in input.lines().enumerate() {
@@ -217,6 +219,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             Vec::new()
         };
         register_input_mismatches += input_bad.len() as u64;
+        for field in &input_bad {
+            *input_mismatch_counts.entry(field).or_default() += 1;
+        }
 
         let result = sequencer
             .tick_slot(sample.cycle, decoded_input)
@@ -300,6 +305,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                     sample.expected_operator_slot,
                     bad.join("|"),
                 ));
+                if register_mode && !input_bad.is_empty() {
+                    first_mismatch = Some(format!(
+                        "call={} cycle={} operator_slot={} fields={} expected_input={:?} decoded_input={:?}",
+                        sample.call_index,
+                        sample.cycle,
+                        sample.expected_operator_slot,
+                        bad.join("|"),
+                        sample.input,
+                        decoded_input,
+                    ));
+                }
             }
         }
 
@@ -319,8 +335,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
+    let input_counts_json = input_mismatch_counts
+        .iter()
+        .map(|(field, count)| format!("\"{field}\":{count}"))
+        .collect::<Vec<_>>()
+        .join(",");
     println!(
-        "{{\"calls\":{calls},\"register_mode\":{register_mode},\"register_input_mismatches\":{register_input_mismatches},\"field_mismatches\":{mismatches},\"first_mismatch\":{}}}",
+        "{{\"calls\":{calls},\"register_mode\":{register_mode},\"register_input_mismatches\":{register_input_mismatches},\"input_mismatch_counts\":{{{input_counts_json}}},\"field_mismatches\":{mismatches},\"first_mismatch\":{}}}",
         first_mismatch
             .as_ref()
             .map(|value| format!("\"{}\"", value.replace('"', "\\\"")))
