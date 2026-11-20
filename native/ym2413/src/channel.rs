@@ -14,6 +14,7 @@ use crate::instrument::{
 use crate::key_scale::{KeyScaleError, key_scale_attenuation};
 use crate::operator::{OperatorPairError, OperatorPairParameters};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
+use crate::rhythm_channel::{RhythmChannelSynthesisError, decode_rhythm_envelope_slot_input};
 
 /// Errors produced while resolving one channel's register-derived parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +27,8 @@ pub enum ChannelSynthesisError {
     RhythmModeActive { channel: u8 },
     /// The serial EG cycle index must be in 0..18.
     InvalidEnvelopeCycle { cycle: u8 },
+    /// Rhythm-mode slot inputs could not be resolved.
+    Rhythm(RhythmChannelSynthesisError),
 }
 
 impl From<InstrumentError> for ChannelSynthesisError {
@@ -37,6 +40,12 @@ impl From<InstrumentError> for ChannelSynthesisError {
 impl From<KeyScaleError> for ChannelSynthesisError {
     fn from(value: KeyScaleError) -> Self {
         Self::KeyScale(value)
+    }
+}
+
+impl From<RhythmChannelSynthesisError> for ChannelSynthesisError {
+    fn from(value: RhythmChannelSynthesisError) -> Self {
+        Self::Rhythm(value)
     }
 }
 
@@ -232,6 +241,11 @@ pub fn decode_envelope_slot_input_for_cycle(
         .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
     let carrier = envelope_cycle_is_carrier(cycle)
         .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+
+    if rhythm_mode_enabled(registers) && (11..=16).contains(&cycle) {
+        return Ok(decode_rhythm_envelope_slot_input(registers, cycle)?);
+    }
+
     let config = decode_channel_synthesis(registers, channel)?;
     Ok(config.envelope_slot_input(carrier))
 }
