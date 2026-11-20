@@ -57,6 +57,12 @@ def mame_phase_step_10_10(
     return (phase_step * multiple) >> 1
 
 
+def trunc_toward_zero(numerator: int, denominator: int) -> int:
+    """Divide integers while discarding the fractional part toward zero."""
+    magnitude = abs(numerator) // denominator
+    return magnitude if numerator >= 0 else -magnitude
+
+
 def main() -> None:
     """Exhaustively compare base PG and PM arithmetic across legal inputs."""
     base_total = 0
@@ -68,6 +74,22 @@ def main() -> None:
     pm_exact_mismatches = 0
     rotation_floor_mismatches = [0] * 8
     rotation_exact_mismatches = [0] * 8
+    floor_mismatches_by_fnum_high = [0] * 8
+    exact_mismatches_by_fnum_high = [0] * 8
+
+    # MAME's PM counter origin differs by a cyclic offset. At offset 6, its
+    # raw 1.3 PM values quantize toward zero to the Rust/Nuked 8x8 PM table.
+    quantized_mame_pm_table = []
+    for fnum_high in range(8):
+        row = []
+        for rust_position in range(8):
+            raw_pm = MAME_PM_SCALE[(rust_position + 6) & 7]
+            row.append(trunc_toward_zero(raw_pm * fnum_high, 8))
+        quantized_mame_pm_table.append(row)
+    pm_table_matches_after_quantization = all(
+        tuple(quantized_mame_pm_table[row]) == RUST_PM_TABLE[row]
+        for row in range(8)
+    )
 
     for fnum in range(512):
         for block in range(8):
@@ -95,12 +117,13 @@ def main() -> None:
                         mame_native = mame_phase_step_10_10(
                             fnum, block, mul, mame_position, True
                         )
-                        rotation_floor_mismatches[rotation] += (
-                            (mame_native >> 1) != rust_step
-                        )
-                        rotation_exact_mismatches[rotation] += (
-                            mame_native != (2 * rust_step)
-                        )
+                        floor_mismatch = (mame_native >> 1) != rust_step
+                        exact_mismatch = mame_native != (2 * rust_step)
+                        rotation_floor_mismatches[rotation] += floor_mismatch
+                        rotation_exact_mismatches[rotation] += exact_mismatch
+                        if rotation == 6:
+                            floor_mismatches_by_fnum_high[fnum >> 6] += floor_mismatch
+                            exact_mismatches_by_fnum_high[fnum >> 6] += exact_mismatch
 
     best_rotation = min(range(8), key=rotation_floor_mismatches.__getitem__)
     result = {
@@ -121,6 +144,10 @@ def main() -> None:
             "floor_normalized_same_position_mismatches": pm_floor_mismatches,
             "exact_common_unit_same_position_mismatches": pm_exact_mismatches,
             "best_cyclic_rotation": best_rotation,
+            "pm_table_matches_rust_after_offset_6_and_truncation_toward_zero": pm_table_matches_after_quantization,
+            "quantized_mame_pm_table": quantized_mame_pm_table,
+            "floor_normalized_mismatches_by_fnum_high_at_offset_6": floor_mismatches_by_fnum_high,
+            "exact_common_unit_mismatches_by_fnum_high_at_offset_6": exact_mismatches_by_fnum_high,
             "floor_normalized_mismatches_at_best_rotation": rotation_floor_mismatches[best_rotation],
             "exact_common_unit_mismatches_at_best_rotation": rotation_exact_mismatches[best_rotation],
             "floor_normalized_mismatches_by_rotation": rotation_floor_mismatches,
@@ -135,7 +162,11 @@ def main() -> None:
     }
     print(json.dumps(result, indent=2))
 
-    if base_floor_mismatches != 0 or rotation_floor_mismatches[best_rotation] == 0:
+    if (
+        base_floor_mismatches != 0
+        or not pm_table_matches_after_quantization
+        or rotation_floor_mismatches[best_rotation] == 0
+    ):
         raise SystemExit("unexpected source-level comparison result")
 
 
