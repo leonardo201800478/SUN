@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
-"""Validate the pinned Nuked-OPLL single-channel EG characterization trace."""
+"""Validate serial EG state and channel events in a pinned Nuked trace."""
 from __future__ import annotations
+
 import argparse
 import json
 from pathlib import Path
+
+CH_OFFSET = (1, 2, 0, 1, 2, 3, 4, 5, 3, 4, 5, 6, 7, 8, 6, 7, 8, 0)
+
 
 def load_trace(path: Path) -> list[dict]:
     """Load JSONL trace records, including the schema descriptor."""
     with path.open(encoding="utf-8") as stream:
         return [json.loads(line) for line in stream if line.strip()]
 
+
 def main() -> int:
-    """Validate trace shape, channel events, and serial EG update behavior."""
+    """Validate selected channels, user-patch parameters, and one-slot updates."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--trace", required=True, type=Path)
     parser.add_argument("--expected-calls", required=True, type=int)
+    parser.add_argument("--channels", default="0")
     args = parser.parse_args()
+    channels = {int(value) for value in args.channels.split(",")}
+    if not channels or any(channel < 0 or channel > 8 for channel in channels):
+        raise ValueError("--channels must contain channel indices 0 through 8")
+
     rows = load_trace(args.trace)
     assert len(rows) == args.expected_calls + 1, (
         f"expected {args.expected_calls + 1} JSONL rows, got {len(rows)}"
@@ -24,14 +34,15 @@ def main() -> int:
     assert schema["schema"] == "ym2413-nuked-opll-trace-v1"
     assert schema["time_unit"] == "opll_clock_call"
     assert schema["sample_point"] == "after_OPLL_Clock"
+
     required = {
         "call_index", "cycle_before", "cycle_after", "c_adrr", "c_et",
-        "c_sl", "c_ksr_freq", "eg_counter_state", "eg_counter_state_prev",
-        "eg_timer", "eg_timer_carry", "eg_timer_low_lock", "eg_timer_shift",
-        "eg_timer_shift_lock", "eg_timer_shift_stop", "eg_state", "eg_level",
-        "eg_kon", "eg_dokon", "eg_off", "eg_rate", "eg_rate_hi",
-        "eg_maxrate", "eg_zerorate", "eg_inc_lo", "eg_inc_hi", "eg_sl",
-        "eg_silent", "kon",
+        "c_sl", "c_ksr", "c_fnum", "c_block", "son", "eg_counter_state",
+        "eg_counter_state_prev", "eg_timer", "eg_timer_carry",
+        "eg_timer_low_lock", "eg_timer_shift", "eg_timer_shift_lock",
+        "eg_timer_shift_stop", "eg_state", "eg_level", "eg_kon", "eg_dokon",
+        "eg_off", "eg_rate", "eg_rate_hi", "eg_maxrate", "eg_zerorate",
+        "eg_inc_lo", "eg_inc_hi", "eg_sl", "eg_silent", "kon",
     }
     for index, sample in enumerate(samples):
         missing = required.difference(sample)
@@ -42,21 +53,25 @@ def main() -> int:
         assert len(sample["eg_state"]) == 18
         assert len(sample["eg_level"]) == 18
         assert len(sample["kon"]) == 9
+        assert len(sample["son"]) == 9
         assert all(0 <= state <= 3 for state in sample["eg_state"])
         assert all(0 <= level <= 127 for level in sample["eg_level"])
-    active_calls = [s["call_index"] for s in samples if s["kon"][0] == 1]
-    inactive_after_keyoff = [
-        s for s in samples if s["call_index"] >= 16_100 and s["kon"][0] == 0
-    ]
-    assert active_calls, "channel 0 KEY-ON was not observed by Nuked"
-    assert inactive_after_keyoff, "channel 0 KEY-OFF was not observed by Nuked"
+
+    active_first_call = {}
+    for channel in channels:
+        active = [s["call_index"] for s in samples if s["kon"][channel] == 1]
+        assert active, f"channel {channel} KEY-ON was not observed by Nuked"
+        active_first_call[channel] = active[0]
+        assert any(s["kon"][channel] == 0 for s in samples[-100:]), (
+            f"channel {channel} KEY-OFF was not observed in the trace tail"
+        )
+
     patch_rows = [
         s for s in samples
         if s["c_adrr"] == [10, 5, 7] and s["c_et"] == 1 and s["c_sl"] == 4
     ]
-    if not patch_rows:
-        observed = sorted({(tuple(s["c_adrr"]), s["c_et"], s["c_sl"], s["c_instr"], s["c_op"]) for s in samples})
-        raise AssertionError(f"configured user-patch EG parameters were not observed; observed tuples={observed[:24]}")
+    assert patch_rows, "configured user-patch EG parameters were not observed"
+
     changed_level_slots = [0] * 18
     changed_state_slots = [0] * 18
     eg_dokon_nonzero = 0
@@ -68,12 +83,14 @@ def main() -> int:
             eg_dokon_nonzero += 1
         if previous is not None:
             changed_levels = [
-                i for i, pair in enumerate(zip(previous["eg_level"], sample["eg_level"], strict=True))
-                if pair[0] != pair[1]
+                i for i, pair in enumerate(
+                    zip(previous["eg_level"], sample["eg_level"], strict=True)
+                ) if pair[0] != pair[1]
             ]
             changed_states = [
-                i for i, pair in enumerate(zip(previous["eg_state"], sample["eg_state"], strict=True))
-                if pair[0] != pair[1]
+                i for i, pair in enumerate(
+                    zip(previous["eg_state"], sample["eg_state"], strict=True)
+                ) if pair[0] != pair[1]
             ]
             assert len(changed_levels) <= 1, (
                 f"multiple EG level slots changed at call {sample['call_index']}: {changed_levels}"
@@ -88,30 +105,32 @@ def main() -> int:
             timer_changes += previous["eg_timer"] != sample["eg_timer"]
             counter_changes += previous["eg_counter_state"] != sample["eg_counter_state"]
         previous = sample
-    # In the pinned source, cycle c updates array index (c + 16) % 18.
-    # ch_offset[2]/mcsel(2) selects channel 0 carrier => EG index 2;
-    # ch_offset[17]/mcsel(17) selects channel 0 modulator => EG index 17.
-    assert changed_level_slots[2] > 0, "channel 0 carrier EG slot 2 never changed"
-    assert changed_level_slots[17] > 0, "channel 0 modulator EG slot 17 never changed"
+
+    expected_slots = [slot for slot, channel in enumerate(CH_OFFSET) if channel in channels]
+    for slot in expected_slots:
+        assert changed_level_slots[slot] > 0, (
+            f"selected channel EG slot {slot} never changed"
+        )
     assert timer_changes > 0, "Nuked EG timer did not advance"
     assert counter_changes > 0, "Nuked EG counter state did not advance"
     assert eg_dokon_nonzero > 0, "no EG KEY-ON transition was observed"
+
     summary = {
         "calls": len(samples),
-        "channel_0_keyon_first_call": active_calls[0],
-        "channel_0_keyoff_observed": True,
+        "selected_channels": sorted(channels),
+        "keyon_first_call_by_channel": active_first_call,
+        "expected_eg_slots": expected_slots,
         "user_patch_rows": len(patch_rows),
         "eg_dokon_nonzero_rows": eg_dokon_nonzero,
         "eg_timer_changes": timer_changes,
         "eg_counter_state_changes": counter_changes,
         "eg_level_changes_by_slot": changed_level_slots,
         "eg_state_changes_by_slot": changed_state_slots,
-        "channel_0_carrier_eg_slot": 2,
-        "channel_0_modulator_eg_slot": 17,
         "timebase": "Nuked OPLL_Clock calls; not XIN clocks",
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
