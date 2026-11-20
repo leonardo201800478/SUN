@@ -146,10 +146,9 @@ impl Default for SegaApp {
             main_window_fullscreen: false,
             main_window_geometry_restored: false,
         };
+        // Diagnostic consent is session-scoped and must never be restored
+        // from persisted UI preferences.
         app.restore_ui_settings();
-        if app.diagnostics_enabled {
-            app.set_diagnostics_enabled(true);
-        }
         app
     }
 }
@@ -564,11 +563,6 @@ impl SegaApp {
         {
             self.audio_volume = volume.min(100);
         }
-        if let Some(enabled) =
-            saved_ui_setting(contents, "diagnostics_enabled").and_then(|value| value.parse().ok())
-        {
-            self.diagnostics_enabled = enabled;
-        }
     }
 
     fn restore_display_settings(&mut self, contents: &str) {
@@ -681,7 +675,7 @@ impl SegaApp {
             .join(",");
 
         let contents = format!(
-            "rom_path={}\ndebugger_breakpoints_rom={}\ndebugger_memory_address={}\ndebugger_breakpoint_input={}\ndebugger_breakpoints={}\ndebugger_trace_enabled={}\nregion={}\naspect_ratio={}\nfooter={}\naudio_state={}\naudio_volume={}\ndiagnostics_enabled={}\nfps_overlay_enabled={}\nfps_overlay_size={}\nfps_overlay_position={}\ndebugger_open={}\ndebugger_position={}\ndebugger_size={}\nmain_window_position={}\nmain_window_size={}\nmain_window_maximized={}\nmain_window_fullscreen={}\n",
+            "rom_path={}\ndebugger_breakpoints_rom={}\ndebugger_memory_address={}\ndebugger_breakpoint_input={}\ndebugger_breakpoints={}\ndebugger_trace_enabled={}\nregion={}\naspect_ratio={}\nfooter={}\naudio_state={}\naudio_volume={}\nfps_overlay_enabled={}\nfps_overlay_size={}\nfps_overlay_position={}\ndebugger_open={}\ndebugger_position={}\ndebugger_size={}\nmain_window_position={}\nmain_window_size={}\nmain_window_maximized={}\nmain_window_fullscreen={}\n",
             self.rom_path,
             debugger_window.breakpoint_rom_path,
             debugger_window.memory_address,
@@ -693,7 +687,6 @@ impl SegaApp {
             footer,
             audio_state,
             self.audio_volume,
-            self.diagnostics_enabled,
             self.fps_overlay_enabled,
             fps_size,
             fps_position,
@@ -3238,6 +3231,17 @@ mod tests {
         assert!(app.fps_overlay_enabled);
         assert_eq!(app.fps_overlay_size, FpsOverlaySize::Medium);
         assert_eq!(app.fps_overlay_position, FpsOverlayPosition::BottomRight);
+    }
+
+    #[test]
+    fn legacy_persisted_diagnostics_consent_is_ignored() {
+        let mut app = SegaApp::default();
+
+        app.restore_audio_settings("region=brazil\ndiagnostics_enabled=true\naudio_volume=75");
+
+        assert!(!app.diagnostics_enabled);
+        assert_eq!(app.region, "brazil");
+        assert_eq!(app.audio_volume, 75);
     }
 
     #[test]
