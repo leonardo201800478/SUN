@@ -256,33 +256,18 @@ Still pending for P2:
 No production hardware code was modified by this trial.
 
 
-## 12. Retificação da leitura do trace Gearsystem — 2026-11-20
+## 12. Unidades temporais na fixture de Tone 2 — 2026-11-20
 
-A primeira versão da fixture de fronteira de tom interpretou incorretamente o índice do vetor `channel_periods_after` emitido pelo adaptador Gearsystem. O vetor contém **quatro canais**, na ordem Tone 0, Tone 1, Tone 2 e Noise. Portanto, o índice `[2]` é Tone 2 e não o valor bruto do registrador.
+A fixture de fronteira de tom usa o mesmo registrador Tone 2 nos três motores, mas os campos de estado observados não têm a mesma unidade temporal:
 
-O log do CI #9045 registrou, na linha inicial, `channel_periods_after = [0, 16, 112, 112]`. O valor de Tone 2 é `112`, correspondente ao divisor interno do registrador `7` escalado por 16. Isso concorda com os valores expostos pelos adaptadores Rust e Ares na mesma fixture.
+- **Gearsystem `Sms_Apu`:** `Sms_Apu::GetState()` copia `squares[i].period`. O oscilador Gearsystem avança em T-states e o período é expresso nessa unidade. Para o valor de registrador 7, o campo exposto é 112 T-states (7 × 16).
+- **Sega Emulator Rust:** `Sn76489::tone_periods()` expõe o valor de 10 bits do registrador. Para o mesmo valor programado, o campo é 7.
+- **Ares:** `SN76489::Tone::pitch` é um campo `n10` de pitch do componente, exposto na unidade do clock interno do SN76489. Para o mesmo valor programado, o campo é 7.
 
-A falha não demonstra divergência de representação no Gearsystem. Ela foi causada pela expectativa de teste que comparava o campo correto com a unidade errada. O workflow foi corrigido no commit `9001939882f388b59403869a94b489433e0087e0`, exigindo os valores de divisor `{112, 128, 0, 16, 112}` nos ticks de alteração correspondentes para os três adaptadores.
+O vetor Gearsystem `channel_periods_after` tem quatro canais na ordem Tone 0, Tone 1, Tone 2 e Noise. O índice `[2]` é Tone 2. O trace observado no tick inicial contém Tone 2 = 112; a asserção Gearsystem passou. A falha CI #9045 ocorreu na asserção seguinte, que comparava o valor Gearsystem 112 com o campo Rust `tone_periods_after[2]`, cujo valor correto é 7. Portanto, a falha era uma comparação entre unidades diferentes, não uma divergência de comportamento do Gearsystem.
 
-A nova execução CI #9045 está em andamento no momento desta retificação. Até sua conclusão, a correção da fixture está registrada, mas a validação completa da PR #1081 não deve ser considerada aprovada. Nenhum código de produção PSG foi modificado.
+O workflow foi corrigido no commit `aa482402e78bc32c848b6ee65561e705c0b541d3` para validar separadamente:
+- Gearsystem em T-states: `{112, 128, 0, 16, 112}`;
+- Rust e Ares em pitch do clock interno/valor do registrador: `{7, 8, 0, 1, 7}`.
 
-## 11. Ares executable adapter — 2026-11-20
-
-A project-authored adapter was added to draft PR [#1081](https://github.com/leonardo201800478/sega-emulator/pull/1081):
-
-- `tools/psg-crabemu-oracle/ares_trace.cpp` exposes the Ares component state and four channel output values.
-- `tools/psg-crabemu-oracle/ares-shim/ares/ares.hpp` supplies only the fixed-width integer, array and no-op serializer vocabulary required by the component. It contains no PSG algorithm.
-- CI checks out Ares at `8bc30c8c3d3c8081d2a66587add602df771441dd` and compiles the original component files from that external checkout.
-- The adapter records pre/post state for each component clock. It does not resample, time-align or link Ares into the Rust backend.
-- The compatibility layer was smoke-compiled with C++11 against a locally reconstructed minimal component interface. The exact pinned upstream component build remains pending the GitHub Actions result for PR #1081 head `c19f95ecddf3b61f520224ffb2d6e39c3836d1d5`.
-
-### Additional Ares source observations
-
-- `SN76489::Tone::clock` toggles output when its counter is zero or reaches zero after decrement. Pitch 0 and 1 therefore both toggle at the maximum component-clock rate.
-- `SN76489::Noise::clock` reloads its divider from 0x10, 0x20, 0x40 or the copied Tone 2 pitch. Its flip-flop shifts the LFSR on every second divider expiration.
-- On the shift edge, Ares assigns `noise.output` from the old LFSR bit 0 before shifting the 16-bit register.
-- Writes to Tone 2 copy the new pitch into the noise pitch, but do not explicitly copy Tone 2's pending counter.
-- `power()` resets tone/noise structures and latch to their default member state: pitch/counters/output/flip/latch zero, volumes 15, LFSR 0x8000.
-- The component itself is generic SN76489 logic; its presence in Ares' Master System integration does not prove that every TI-chip behavior matches every Sega integrated PSG revision.
-
-The source-level behavior reinforces the existing P2 conflicts for period 0/1, reset phase and LFSR output edge. It does not authorize a production change.
+Essa separação valida a interpretação dos campos de estado e a aplicação dos writes na fixture. Não demonstra equivalência de fase do contador nem fecha a questão Noise Rate = Tone 2; isso requer comparação temporal específica dos contadores e eventos de shift. O novo CI ainda precisa executar com sucesso antes de considerar a fixture validada. Nenhum código de produção PSG foi alterado.
