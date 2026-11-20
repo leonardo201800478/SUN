@@ -134,8 +134,7 @@ Reference pin:
 - Repository: https://github.com/ares-emulator/ares
 - Commit: `8bc30c8c3d3c8081d2a66587add602df771441dd`
 - Component: `ares/component/audio/sn76489`
-- License: Ares repository license notices; the selected component is tracked
-  as ISC in the reference audit.
+- License: the Ares repository's permissive project license (ISC-style notice).
 
 `ares-shim/ares/ares.hpp` is project-authored compatibility glue for the
 small fixed-width integer, array, and serializer vocabulary expected by the
