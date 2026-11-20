@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: leonardo201800478/sega-emulator
-          ref: 527d89176912365b99540055976c0cc4e7ec77bf
+          ref: e6e7e17785e88c2a87e665b6ec884e147e04dbf1
           path: oracle-adapter
 
       - name: Checkout pinned Nuked-OPLL reference
@@ -52,7 +52,7 @@ jobs:
           80,0,48
           82,1,16
           EOF
-          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 240 \
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 --pg-only \
             --events "$RUNNER_TEMP/events.csv" > "$RUNNER_TEMP/nuked-pg.jsonl"
 
       - name: Compare every captured PG increment with production Rust
