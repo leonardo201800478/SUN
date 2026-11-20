@@ -6,6 +6,7 @@
 //! scheduling; those contracts belong to the later aggregate chip pipeline.
 
 use crate::envelope::EnvelopeParameters;
+use crate::envelope_sequencer::EnvelopeSlotInput;
 use crate::instrument::{
     ChannelRegisterState, InstrumentError, InstrumentPatch, OperatorPatch,
     decode_channel_registers, decode_user_patch, resolve_instrument, rhythm_mode_enabled,
@@ -23,6 +24,8 @@ pub enum ChannelSynthesisError {
     KeyScale(KeyScaleError),
     /// Rhythm Mode owns channels 7–9; they are not melodic channels in this mode.
     RhythmModeActive { channel: u8 },
+    /// The serial EG cycle index must be in 0..18.
+    InvalidEnvelopeCycle { cycle: u8 },
 }
 
 impl From<InstrumentError> for ChannelSynthesisError {
@@ -75,6 +78,30 @@ pub struct ChannelSynthesisConfig {
 }
 
 impl ChannelSynthesisConfig {
+    /// Build the current-cycle EG input for this channel and operator role.
+    ///
+    /// sustain_level is the fresh c_sl latch; EnvelopeSequencer owns its
+    /// one-cycle transfer into eg_sl. The channel's KON and SUS bits are
+    /// copied separately from the selected operator's patch fields.
+    pub fn envelope_slot_input(&self, carrier: bool) -> EnvelopeSlotInput {
+        let envelope = if carrier {
+            self.carrier_envelope
+        } else {
+            self.modulator_envelope
+        };
+        EnvelopeSlotInput {
+            attack_rate: envelope.attack_rate,
+            decay_rate: envelope.decay_rate,
+            release_rate: envelope.release_rate,
+            sustain_level: envelope.sustain_level,
+            key_scale_rate: envelope.key_scale_rate,
+            ksr_frequency: ((envelope.block << 1) | (envelope.fnum >> 8) as u8) & 0x0f,
+            sustain_on: self.channel.sustain_on,
+            sustained_tone: envelope.sustained_tone,
+            key_on: self.channel.key_on,
+        }
+    }
+
     /// Calculate one operator's candidate phase increment for a PM table position.
     ///
     /// The caller still owns the PG accumulator and decides the exact slot
@@ -161,6 +188,36 @@ fn phase_parameters(
         multiplier: operator.multiplier,
         pm_enabled: operator.vibrato_enabled,
     }
+}
+
+/// Nuked-OPLL channel selected by each of the 18 serial EG cycles.
+pub const YM2413_EG_CYCLE_CHANNELS: [u8; 18] =
+    [1, 2, 0, 1, 2, 3, 4, 5, 3, 4, 5, 6, 7, 8, 6, 7, 8, 0];
+
+/// Return whether a serial EG cycle selects the carrier operator.
+pub const fn envelope_cycle_is_carrier(cycle: u8) -> Option<bool> {
+    if cycle >= 18 {
+        None
+    } else {
+        Some(((cycle + 1) / 3) & 1 != 0)
+    }
+}
+
+/// Resolve the current cycle's channel/operator register inputs.
+///
+/// The caller supplies all nine decoded channel configurations. The serial
+/// channel map and modulator/carrier cadence are kept here so every runtime
+/// host uses the same register-to-EG selection contract.
+pub fn envelope_slot_input_for_cycle(
+    channels: &[ChannelSynthesisConfig; 9],
+    cycle: u8,
+) -> Result<EnvelopeSlotInput, ChannelSynthesisError> {
+    let channel = *YM2413_EG_CYCLE_CHANNELS
+        .get(usize::from(cycle))
+        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+    let carrier = envelope_cycle_is_carrier(cycle)
+        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+    Ok(channels[usize::from(channel)].envelope_slot_input(carrier))
 }
 
 /// Resolve one melodic channel's patch and all static synthesis parameters.
