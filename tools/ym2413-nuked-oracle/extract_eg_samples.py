@@ -59,7 +59,7 @@ def main() -> int:
                     row["call_index"], slot, channel, int(is_carrier),
                     global_counter, 1, row["eg_level"][slot], row["eg_state"][slot],
                     row["c_adrr"][0], row["c_adrr"][1], row["c_adrr"][2],
-                    row["c_sl"], row["c_ksr"], row["c_fnum"], row["c_block"],
+                    row["c_sl"], row["c_ksr"], row["fnum"][channel], row["block"][channel],
                     row["son"][channel], row["c_et"],
                 ))
                 counts_by_channel[channel] += 1
