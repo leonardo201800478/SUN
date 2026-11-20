@@ -3400,7 +3400,7 @@ mod tests {
     #[test]
     fn sprite_limit_mode_changes_only_through_worker_command_queue() {
         let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         assert_eq!(
             worker.debug_snapshot().unwrap().sprite_limit_mode,
             SpriteLimitMode::HardwareLimit
@@ -3426,7 +3426,7 @@ mod tests {
     #[test]
     fn stop_powers_off_machine_but_keeps_rom_available_for_restart() {
         let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         worker.step_frame(100_000).unwrap();
         assert!(worker.machine_time_ticks() > 0);
 
@@ -3443,7 +3443,7 @@ mod tests {
     #[test]
     fn reset_preserves_host_selected_sprite_limit_mode() {
         let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         worker
             .set_sprite_limit_mode(SpriteLimitMode::UnlockedCompatibility)
             .unwrap();
@@ -3480,7 +3480,7 @@ mod tests {
     #[test]
     fn single_instruction_step_advances_scheduler_on_paused_worker() {
         let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
 
         let initial_ticks = worker.machine_time_ticks();
         assert_eq!(worker.total_instructions(), 0);
@@ -3512,7 +3512,7 @@ mod tests {
     #[test]
     fn debugger_snapshot_and_mapper_reads_are_owned_and_bounded() {
         let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         let initial_ticks = worker.machine_time_ticks();
 
         let snapshot = worker.debug_snapshot().unwrap();
@@ -3533,7 +3533,7 @@ mod tests {
         assert_send_sync::<SmsTemporalWorkerDebugHandle>();
 
         let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         let handle = worker.debug_handle();
 
         assert_eq!(
@@ -3552,7 +3552,7 @@ mod tests {
     fn trace_capture_is_opt_in_and_exposes_bounded_owned_events() {
         let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
         assert!(worker.debug_snapshot().is_err());
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         let initial = worker.debug_snapshot().unwrap();
         assert!(!initial.trace_enabled);
         assert!(initial.trace_events.is_empty());
@@ -3576,7 +3576,7 @@ mod tests {
         let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
 
         assert!(worker.set_trace_enabled(true).is_err());
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         worker.set_trace_enabled(true).unwrap();
         worker.step_instruction().unwrap();
         assert!(worker.debug_snapshot().unwrap().trace_enabled);
@@ -3584,7 +3584,7 @@ mod tests {
         worker.disable_diagnostics().unwrap();
         assert!(worker.debug_snapshot().is_err());
 
-        worker.set_diagnostics_enabled(true).unwrap();
+        worker.enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         let after_reconsent = worker.debug_snapshot().unwrap();
         assert!(!after_reconsent.trace_enabled);
         assert!(after_reconsent.trace_events.is_empty());
