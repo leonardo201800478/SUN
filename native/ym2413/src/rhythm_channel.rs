@@ -357,7 +357,6 @@ pub fn decode_rhythm_synthesis(
     })
 }
 
-
 /// Resolve the register-derived EG input for one of the six Rhythm Mode cycles.
 ///
 /// The serial EG selector order is BD0, HH, TOM, BD1, SD, TC at cycles
@@ -380,8 +379,12 @@ pub fn decode_rhythm_envelope_slot_input(
 
     let config = decode_rhythm_synthesis(registers)?;
     let voice = config.voices[voice_index];
-    let operator = if carrier { voice.carrier } else { voice.modulator }
-        .ok_or(RhythmChannelSynthesisError::MissingEnvelopeOperator { cycle })?;
+    let operator = if carrier {
+        voice.carrier
+    } else {
+        voice.modulator
+    }
+    .ok_or(RhythmChannelSynthesisError::MissingEnvelopeOperator { cycle })?;
     let envelope = operator.envelope;
     let channel = voice.channel_frequency;
 
