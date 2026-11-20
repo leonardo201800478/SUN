@@ -6,8 +6,7 @@
 //! sequencer owns all 18 EG states, timer, and delayed control pipelines.
 
 use sega_ym2413::{
-    ChannelSynthesisConfig, EnvelopeSequencer, EnvelopeSlotInput, decode_channel_synthesis,
-    envelope_slot_input_for_cycle,
+    EnvelopeSequencer, EnvelopeSlotInput, decode_envelope_slot_input_for_cycle,
 };
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -239,14 +238,7 @@ fn decode_register_input(
     registers: &[u8; 64],
     cycle: u8,
 ) -> Result<EnvelopeSlotInput, Box<dyn Error>> {
-    let first = decode_channel_synthesis(registers, 0)
-        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-    let mut channels: [ChannelSynthesisConfig; 9] = [first; 9];
-    for (index, channel) in channels.iter_mut().enumerate() {
-        *channel = decode_channel_synthesis(registers, index as u8)
-            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-    }
-    envelope_slot_input_for_cycle(&channels, cycle)
+    decode_envelope_slot_input_for_cycle(registers, cycle)
         .map_err(|error| std::io::Error::other(format!("{error:?}")).into())
 }
 
