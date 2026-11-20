@@ -402,7 +402,6 @@ mod tests {
     }
 }
 
-
 #[cfg(test)]
 mod switchable_writer_tests {
     use super::SwitchableMakeWriter;
