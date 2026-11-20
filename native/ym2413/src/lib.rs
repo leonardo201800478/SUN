@@ -7,6 +7,7 @@ pub mod am_lfo;
 pub mod bus_timing;
 pub mod channel;
 pub mod envelope;
+pub mod envelope_timer;
 pub mod instrument;
 pub mod key_scale;
 pub mod operator;
