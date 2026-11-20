@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_subscriber::fmt::writer::MakeWriter;
 
-
 /// A reloadable MakeWriter whose mutex is held for the lifetime of each event writer.
 /// Revocation can therefore detach the old queue only after all in-flight events have
 /// finished enqueueing; the old WorkerGuard can then drain that queue while its sink gate
@@ -27,10 +26,7 @@ impl<'a> MakeWriter<'a> for SwitchableMakeWriter {
 
     fn make_writer(&'a self) -> Self::Writer {
         SwitchableWriter {
-            current: self
-                .current
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner),
+            current: self.current.lock().unwrap_or_else(PoisonError::into_inner),
         }
     }
 }
@@ -114,10 +110,7 @@ impl FanoutWriter {
 
 impl Write for FanoutWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        let enabled = self
-            .enabled
-            .read()
-            .unwrap_or_else(PoisonError::into_inner);
+        let enabled = self.enabled.read().unwrap_or_else(PoisonError::into_inner);
         if !*enabled {
             return Ok(buffer.len());
         }
@@ -311,7 +304,6 @@ mod tests {
         drop(records);
         fs::remove_dir_all(directory).unwrap();
     }
-
 
     #[test]
     fn replacing_non_blocking_writer_drains_old_queue_before_new_session() {
