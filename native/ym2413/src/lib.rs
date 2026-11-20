@@ -587,18 +587,69 @@ mod tests {
     }
 
     #[test]
-    fn data_write_targets_only_the_latched_register() {
+    fn data_write_targets_only_the_latched_register_after_the_serial_bus_pipeline() {
         let mut core = Ym2413Core::new();
 
         core.write_address(0x21);
+        core.advance_input_clocks(2 * YM2413_INPUT_CLOCKS_PER_SLOT)
+            .unwrap();
         core.write_data(0x9a);
+        core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_ROTATION)
+            .unwrap();
+
         core.write_address(0x32);
+        core.advance_input_clocks(2 * YM2413_INPUT_CLOCKS_PER_SLOT)
+            .unwrap();
         core.write_data(0x47);
+        core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_ROTATION)
+            .unwrap();
 
         let state = core.export_state();
         assert_eq!(state.registers[0x21], 0x9a);
         assert_eq!(state.registers[0x32], 0x47);
         assert_eq!(state.registers[0x20], 0);
+    }
+
+    #[test]
+    fn serial_eg_advances_only_when_a_four_clock_slot_completes() {
+        let mut core = Ym2413Core::new();
+
+        assert_eq!(core.envelope_state().timer.next_slot, 0);
+        core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT - 1)
+            .unwrap();
+        assert_eq!(core.envelope_state().timer.next_slot, 0);
+        core.advance_input_clocks(1).unwrap();
+        assert_eq!(core.envelope_state().timer.next_slot, 1);
+        assert_eq!(core.slot_index(), 1);
+    }
+
+    #[test]
+    fn rhythm_mode_eg_cycles_are_driven_by_the_serial_selector_pipeline() {
+        let mut core = Ym2413Core::new();
+        // Queue $0E = RHY + all five percussion triggers.
+        core.write_address(0x0e);
+        core.advance_input_clocks(2 * YM2413_INPUT_CLOCKS_PER_SLOT)
+            .unwrap();
+        core.write_data(0x3f);
+        core.advance_input_clocks(20 * YM2413_INPUT_CLOCKS_PER_SLOT)
+            .unwrap();
+
+        let state = core.export_state();
+        assert_eq!(state.registers[0x0e], 0x3f);
+        assert!(state.rm_enable < 0 || state.rm_enable == 0);
+        assert!(state.envelope.timer.next_slot < 18);
+    }
+
+    #[test]
+    fn restore_rejects_eg_timer_slot_misaligned_with_core_slot() {
+        let core = Ym2413Core::new();
+        let mut state = core.export_state();
+        state.envelope.timer.next_slot = 1;
+
+        assert_eq!(
+            Ym2413Core::restore_state(state),
+            Err(Ym2413Error::InvalidState)
+        );
     }
 
     #[test]
