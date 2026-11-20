@@ -269,7 +269,7 @@ impl DebuggerApp {
     }
 
     fn export_diagnostic(&mut self) {
-        if !self.diagnostics_enabled {
+        if self.diagnostics_consent.is_none() {
             self.status = "Habilite Modo Debugger antes de exportar diagnóstico".into();
             return;
         }
