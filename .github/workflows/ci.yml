@@ -615,7 +615,8 @@ jobs:
           assert comparison["ares"]["channel_output_nibble_mismatch_count"] >= 0
 
           # Header row is index 0; the first data row is tick 0.
-          expected_tone2 = {1: 7, 121: 8, 241: 0, 361: 1, 481: 7}
+          # The trace exposes the PSG's internal divider period (register value << 4).
+          expected_tone2 = {1: 112, 121: 128, 241: 0, 361: 16, 481: 112}
           for row_index, period in expected_tone2.items():
               assert gear[row_index]["channel_periods_after"][2] == period, (
                   row_index, gear[row_index]["channel_periods_after"]
