@@ -15,8 +15,8 @@ use std::time::{Duration, Instant};
 use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
-use sega_observability::DiagnosticsConsent;
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
+use sega_observability::DiagnosticsConsent;
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
     SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
@@ -1174,8 +1174,7 @@ impl SmsTemporalWorkerDebugHandle {
         )
     }
 
-    /// Capture an immutable, owned machine snapshot.
-    /// Return a coarse-grained snapshot only after explicit diagnostics consent.
+    /// Capture an immutable, owned machine snapshot only after explicit diagnostics consent.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
         if !self.telemetry.diagnostics_enabled() {
             return Err("SMS diagnostics consent is not enabled".to_owned());
@@ -1545,7 +1544,7 @@ impl SmsTemporalWorker {
         self.request_unit(WorkerCommand::StepInstruction)
     }
 
-    /// Capture a coherent, owned debugger snapshot at a worker command boundary.
+    /// Capture a coherent, owned debugger snapshot only after explicit diagnostics consent.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
         if !self.telemetry.diagnostics_enabled() {
             return Err("SMS diagnostics consent is not enabled".to_owned());
@@ -1577,9 +1576,14 @@ impl SmsTemporalWorker {
         receive_worker_reply(reply_receiver, "restoring a save state")?
     }
 
-    /// Enable or disable bounded scheduler/bus trace capture.
+    /// Set bounded scheduler/bus trace capture; enabling requires explicit diagnostics consent.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
-        set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, enabled)
+        set_trace_capture(
+            &self.commands,
+            &self.trace_collector,
+            &self.telemetry,
+            enabled,
+        )
     }
 
     /// Change the active SMS VDP sprite rendering limit through the machine worker.
