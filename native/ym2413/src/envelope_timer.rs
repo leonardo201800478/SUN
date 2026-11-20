@@ -210,9 +210,7 @@ impl EnvelopeTimer {
                 "rate latch exceeds six bits",
             ));
         }
-        if state.latched_rate_hi > 15
-            || state.latched_max_rate != (state.latched_rate_hi == 15)
-        {
+        if state.latched_rate_hi > 15 || state.latched_max_rate != (state.latched_rate_hi == 15) {
             return Err(EnvelopeTimerError::InvalidState(
                 "prepared rate phase is inconsistent",
             ));
@@ -382,7 +380,10 @@ mod tests {
         assert_eq!(second.consumed_rate_phase.inc_lo, first.rate_phase.inc_lo);
         assert_eq!(second.consumed_rate_phase.inc_hi, first.rate_phase.inc_hi);
         assert_eq!(third.consumed_rate_phase.rate_hi, second.rate_phase.rate_hi);
-        assert_eq!(third.consumed_rate_phase.max_rate, second.rate_phase.max_rate);
+        assert_eq!(
+            third.consumed_rate_phase.max_rate,
+            second.rate_phase.max_rate
+        );
         assert_eq!(third.consumed_rate_phase.inc_lo, second.rate_phase.inc_lo);
         assert_eq!(third.consumed_rate_phase.inc_hi, second.rate_phase.inc_hi);
         assert_eq!(third.rate_phase.next_rate, 0);
