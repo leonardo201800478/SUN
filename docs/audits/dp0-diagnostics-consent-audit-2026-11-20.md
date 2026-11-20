@@ -191,7 +191,7 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 ## 10. Reauditoria do candidato de consentimento único — 20/11/2026
 
 **Base `main`:** `137d0859463bfbf6cdbcdde0945b0eca65eee90c` (após PR #1105).
-**SHA de código candidato:** `0ec7a8b46e63c9b0306fd1b252a5c9fde0ca963d`.
+**SHA de código candidato:** `e697ffecbf2cf5ad8684235a7e2678544c121d18`.
 **Branch:** `fix/diagnostics-single-consent-and-bounded-traces`.
 **Estado:** alterações implementadas no branch; CI e validação de workspace ainda pendentes. DP-0 permanece ABERTO.
 
