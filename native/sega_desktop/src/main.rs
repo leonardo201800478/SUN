@@ -4353,6 +4353,7 @@ mod windows_host {
                         )));
                         app.set_has_rom(true);
                         app.set_active_system(system.to_owned().into());
+                        app.set_trace_enabled(false);
                         app.set_audio_status(if video_only_capture_enabled() {
                             "Saída física desativada pelo modo de captura somente vídeo.".into()
                         } else if open_worker
@@ -4362,7 +4363,7 @@ mod windows_host {
                         {
                             "CPAL ativo — volume aplicado no DSP de saída.".into()
                         } else {
-                            "Saída CPAL indisponível; consulte R3_AUDIO nos logs.".into()
+                            "Saída CPAL indisponível; ative Coleta de logs para detalhes.".into()
                         });
                         app.set_emulation_paused(false);
                         app.set_rom_status(
@@ -4382,7 +4383,7 @@ mod windows_host {
                         app.set_recent_rom_path(path.display().to_string().into());
                         app.set_rom_path_input(path.display().to_string().into());
                         app.set_debug_status(
-                            "ROM carregada; snapshot ainda não solicitado.".into(),
+                            "ROM carregada; ative Coleta de logs para capturar snapshots e traces.".into(),
                         );
                     }
                 }
