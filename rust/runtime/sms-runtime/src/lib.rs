@@ -6,6 +6,7 @@ mod audio;
 mod worker;
 
 pub use audio::AudioSession;
+pub use sega_observability::DiagnosticsConsent;
 pub use sega_audio_runtime::AnalogOutputConfig;
 pub use sega_sms_core::{
     SmsOverscanMode, SmsTemporalMachineState, SmsVdpRevision, SpriteLimitMode,
