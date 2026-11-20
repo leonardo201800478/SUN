@@ -139,6 +139,15 @@ int main(int argc, char **argv) {
             << ",\"noise_period\":" << after.channels[3].period
             << ",\"tone2_period\":" << after.channels[2].period
             << ",\"tone2_phase\":" << after.channels[2].phase
+            << ",\"channel_periods_after\":[" << after.channels[0].period << ","
+            << after.channels[1].period << "," << after.channels[2].period << ","
+            << after.channels[3].period << "]"
+            << ",\"channel_phases_after\":[" << after.channels[0].phase << ","
+            << after.channels[1].phase << "," << after.channels[2].phase << ","
+            << after.channels[3].phase << "]"
+            << ",\"channel_volumes_after\":[" << after.channels[0].volume << ","
+            << after.channels[1].volume << "," << after.channels[2].volume << ","
+            << after.channels[3].volume << "]"
             << ",\"ti_chip\":" << (after.ti_chip ? "true" : "false")
             << ",\"buffer_samples_available\":" << buffer.samples_avail()
             << "}\n";
