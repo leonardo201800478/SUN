@@ -68,8 +68,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut phases: [PhaseGenerator; 18] = std::array::from_fn(|_| PhaseGenerator::new());
     let mut previous: Option<Sample> = None;
-    let mut previous_call = None;
-    let mut previous_cycle = None;
+    let mut previous_call: Option<u64> = None;
+    let mut previous_cycle: Option<usize> = None;
 
     for sample in samples {
         if let Some(call) = previous_call {
@@ -85,13 +85,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let update_slot = (sample.cycle_before + 17) % 18;
         if let Some(prior) = previous {
-            phases[update_slot].advance(
-                prior.fnum,
-                prior.block,
-                prior.multiplier,
-                prior.pm_enabled,
-                prior.pm_position,
-            )?;
+            phases[update_slot]
+                .advance(
+                    prior.fnum,
+                    prior.block,
+                    prior.multiplier,
+                    prior.pm_enabled,
+                    prior.pm_position,
+                )
+                .map_err(|error| format!("invalid PG input: {error:?}"))?;
         }
 
         let phase_values = phases
