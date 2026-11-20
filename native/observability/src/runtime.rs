@@ -25,6 +25,27 @@ pub type InitError = Box<dyn Error + Send + Sync>;
 
 type FilterHandle = reload::Handle<EnvFilter, Registry>;
 
+/// Capability representing an affirmative user action to enable diagnostics.
+///
+/// The host must create this value only inside the callback that handles the
+/// user's affirmative opt-in. Rust cannot independently verify a human action;
+/// this capability makes the authorization boundary explicit in the API.
+#[derive(Clone, Copy, Debug)]
+#[must_use = "pass the consent capability to the diagnostics activation API"]
+pub struct DiagnosticsConsent {
+    _private: (),
+}
+
+impl DiagnosticsConsent {
+    /// Create a consent capability after the user explicitly enables diagnostics.
+    ///
+    /// Call only in direct response to an affirmative UI action, never during
+    /// startup, preference restoration, or background processing.
+    pub fn from_explicit_user_action() -> Self {
+        Self { _private: () }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LogConfig {
     pub log_dir: PathBuf,
@@ -98,32 +119,33 @@ pub struct LoggingHandle {
 }
 
 impl LoggingHandle {
-    /// Enable or disable diagnostic collection without restarting the application.
+    /// Enable collection after the host receives an explicit user-consent action.
     ///
-    /// Disabling reloads the subscriber filter to off and suppresses the
-    /// diagnostic panic hook. The writer remains idle so collection can be
-    /// re-enabled during the same application session.
-    pub fn set_enabled(&self, enabled: bool) -> Result<(), String> {
-        let directives = if enabled {
-            self.config
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .filter
-                .clone()
-        } else {
-            "off".to_owned()
-        };
-        if !enabled {
-            // Disable the panic hook before changing the subscriber filter.
-            DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
-        }
+    /// A consent capability is required for every activation, including
+    /// reactivation after revocation. On failure, collection remains disabled.
+    pub fn enable(&self, _consent: &DiagnosticsConsent) -> Result<(), String> {
+        DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
+        let directives = self
+            .config
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .filter
+            .clone();
         let filter = EnvFilter::try_new(&directives).map_err(|error| error.to_string())?;
         self.filter
             .reload(filter)
             .map_err(|error| error.to_string())?;
-        if enabled {
-            DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
-        }
+        DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    /// Revoke diagnostic collection immediately; no consent capability is needed.
+    pub fn disable(&self) -> Result<(), String> {
+        DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
+        let filter = EnvFilter::try_new("off").map_err(|error| error.to_string())?;
+        self.filter
+            .reload(filter)
+            .map_err(|error| error.to_string())?;
         Ok(())
     }
 
@@ -181,6 +203,7 @@ impl LoggingHandle {
 
     /// Write a privacy-conscious session snapshot without ROM contents or absolute paths.
     pub fn write_diagnostics_json(&self) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
+        ensure_diagnostics_enabled(self.is_enabled())?;
         #[derive(Serialize)]
         struct DiagnosticConfig<'a> {
             filter: &'a str,
@@ -248,11 +271,32 @@ impl LoggingHandle {
     }
 }
 
+fn initial_filter_directives() -> &'static str {
+    "off"
+}
+
+fn ensure_diagnostics_enabled(enabled: bool) -> Result<(), std::io::Error> {
+    if enabled {
+        Ok(())
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "diagnostics snapshot requires active user consent",
+        ))
+    }
+}
+
 pub fn current() -> Option<&'static LoggingHandle> {
     LOGGING.get()
 }
 
-pub fn init(
+/// Initialize diagnostics infrastructure only after an explicit user opt-in.
+///
+/// This performs filesystem, subscriber, writer, and panic-hook setup. Callers
+/// must obtain the capability directly from the affirmative UI action; never
+/// call this during application startup or preference restoration.
+pub fn init_after_explicit_consent(
+    _consent: &DiagnosticsConsent,
     config: LogConfig,
     session: SessionMetadata,
 ) -> Result<&'static LoggingHandle, InitError> {
@@ -260,6 +304,8 @@ pub fn init(
         return Ok(logging);
     }
 
+    // Validate the requested filter before creating directories or files.
+    let _validated_filter = EnvFilter::try_new(&config.filter)?;
     fs::create_dir_all(&config.log_dir)?;
     let recent_events = Arc::new(Mutex::new(VecDeque::with_capacity(
         config.recent_event_capacity.max(1),
@@ -280,7 +326,8 @@ pub fn init(
         .finish(writer);
     let error_counter = non_blocking.error_counter();
 
-    let filter = EnvFilter::try_new(&config.filter)?;
+    // Install the subscriber inert; enable() activates it after consent.
+    let filter = EnvFilter::try_new(initial_filter_directives())?;
     let (filter_layer, filter_handle) = reload::Layer::new(filter);
     let formatting_layer = tracing_subscriber::fmt::layer()
         .json()
@@ -366,11 +413,28 @@ fn install_panic_hook(crash_log: PathBuf) {
 
 #[cfg(test)]
 mod tests {
-    use super::{DIAGNOSTICS_ENABLED, LogConfig, Ordering, SessionMetadata};
+    use super::{
+        DIAGNOSTICS_ENABLED, LogConfig, Ordering, SessionMetadata, ensure_diagnostics_enabled,
+        initial_filter_directives,
+    };
 
     #[test]
     fn diagnostics_collection_starts_disabled() {
         assert!(!DIAGNOSTICS_ENABLED.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn subscriber_initial_filter_is_off() {
+        assert_eq!(initial_filter_directives(), "off");
+    }
+
+    #[test]
+    fn diagnostics_snapshot_requires_active_consent() {
+        assert_eq!(
+            ensure_diagnostics_enabled(false).unwrap_err().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+        assert!(ensure_diagnostics_enabled(true).is_ok());
     }
 
     #[test]
