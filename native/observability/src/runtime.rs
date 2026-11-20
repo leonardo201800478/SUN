@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::panic::{Location, PanicHookInfo};
+use std::panic::Location;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Once, OnceLock, PoisonError};
