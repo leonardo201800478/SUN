@@ -7,8 +7,9 @@
 
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
-    EnvelopeParameters, EnvelopeRatePhase, EnvelopeStage,
+    EnvelopeParameters, EnvelopeStage,
 };
+use sega_ym2413::envelope_timer::EnvelopeRatePhase;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
