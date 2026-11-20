@@ -595,7 +595,7 @@ mod tests {
     use super::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination,
         EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters,
-        EnvelopeStage,
+        EnvelopeRatePhase, EnvelopeStage,
     };
 
     fn damp_config(
@@ -1041,6 +1041,62 @@ mod tests {
         generator.tick(318, true, false, p).unwrap();
         assert_eq!(generator.level(), 34);
         assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn external_rate_phase_preserves_decay_to_sustain_pre_update_boundary() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            31,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let p = params();
+        let phase = EnvelopeRatePhase::from_consumed_latches(12, true, false, false, 3);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 33);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn external_rate_phase_drives_attack_from_shared_increment_latches() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            64,
+            EnvelopeStage::Attack,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let p = params();
+        let phase = EnvelopeRatePhase::from_consumed_latches(11, true, false, false, 0);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 31);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
     #[test]
