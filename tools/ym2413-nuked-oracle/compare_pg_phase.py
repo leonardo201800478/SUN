@@ -19,6 +19,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--nuked-trace", required=True, type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--allow-partial", action="store_true")
+    parser.add_argument("--require-reset-event", action="store_true")
     args = parser.parse_args()
 
     with args.nuked_trace.open(encoding="utf-8") as stream:
@@ -38,6 +40,8 @@ def main() -> int:
         "calc_mul",
         "calc_vib",
         "calc_lfo_vib_counter",
+        "calc_eg_dokon",
+        "phase_next_reset",
         "pg_phase",
     )
     for row in samples:
@@ -51,6 +55,12 @@ def main() -> int:
         raise ValueError("trace never applied nonzero FNUM")
     if not any(int(row["calc_block"]) == 7 and int(row["calc_fnum"]) > 0 for row in samples):
         raise ValueError("trace never exercised BLOCK=7")
+    reset_events = sum(bool(row["phase_next_reset"]) for row in samples)
+    eg_key_events = sum(int(row["calc_eg_dokon"]) != 0 for row in samples)
+    if args.require_reset_event and (reset_events == 0 or eg_key_events == 0):
+        raise ValueError(
+            f"expected KEY-ON phase reset event; phase resets={reset_events}, eg_dokon events={eg_key_events}"
+        )
 
     with tempfile.TemporaryDirectory(prefix="ym2413-pg-phase-diff-") as temp_dir:
         input_csv = Path(temp_dir) / "rust_pg_phase_inputs.csv"
@@ -66,6 +76,7 @@ def main() -> int:
                         row["calc_mul"],
                         row["calc_vib"],
                         row["calc_lfo_vib_counter"],
+                        row["phase_next_reset"],
                     )
                 )
 
@@ -134,12 +145,13 @@ def main() -> int:
                     pass
             previous_rust_phases = [int(value) for value in rust["phases"]]
 
-    if wrap_events == 0:
-        raise ValueError("phase test did not exercise a 19-bit accumulator wrap")
-    if active_phase_slots != set(range(18)):
-        raise ValueError(
-            f"phase test did not activate all 18 slots: {sorted(active_phase_slots)}"
-        )
+    if not args.allow_partial:
+        if wrap_events == 0:
+            raise ValueError("phase test did not exercise a 19-bit accumulator wrap")
+        if active_phase_slots != set(range(18)):
+            raise ValueError(
+                f"phase test did not activate all 18 slots: {sorted(active_phase_slots)}"
+            )
 
     if mismatches:
         print(json.dumps({"status": "FAIL", "first_mismatches": mismatches}, indent=2))
@@ -154,6 +166,8 @@ def main() -> int:
                 "phase_values_compared": len(samples) * 18,
                 "rust_19_bit_wrap_events": wrap_events,
                 "active_phase_slots": sorted(active_phase_slots),
+                "phase_reset_events": reset_events,
+                "eg_dokon_nonzero_calls": eg_key_events,
                 "comparison": "Nuked pg_phase[18] low 19 bits vs Rust PhaseGenerator[18]",
                 "scope": "18-slot accumulator pipeline with no KEY-ON/reset events",
             },
