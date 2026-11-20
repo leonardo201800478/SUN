@@ -73,8 +73,7 @@ mod windows_host {
     fn set_diagnostics_consent(enabled: bool) -> Result<(), String> {
         if enabled {
             // This function is called directly by the Slint diagnostics opt-in callback.
-            let consent =
-                sega_observability::DiagnosticsConsent::from_explicit_user_action();
+            let consent = sega_observability::DiagnosticsConsent::from_explicit_user_action();
             let logging = if let Some(logging) = sega_observability::current() {
                 logging
             } else {
