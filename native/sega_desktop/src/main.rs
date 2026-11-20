@@ -58,13 +58,40 @@ mod windows_host {
     }
 
     macro_rules! diagnostic_log {
-        ($($argument:tt)*) => {
+        (error, $($argument:tt)*) => {
             if host_diagnostics_enabled() {
-                sega_observability::tracing::info!(
+                sega_observability::tracing::error!(
                     target: "sega::host",
                     message = %format!($($argument)*)
                 );
             }
+        };
+        (warn, $($argument:tt)*) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::warn!(
+                    target: "sega::host",
+                    message = %format!($($argument)*)
+                );
+            }
+        };
+        (debug, $($argument:tt)*) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::debug!(
+                    target: "sega::host",
+                    message = %format!($($argument)*)
+                );
+            }
+        };
+        (trace, $($argument:tt)*) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::trace!(
+                    target: "sega::host",
+                    message = %format!($($argument)*)
+                );
+            }
+        };
+        ($($argument:tt)*) => {
+            diagnostic_log!(info, $($argument)*);
         };
     }
 
