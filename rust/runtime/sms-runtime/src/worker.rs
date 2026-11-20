@@ -3568,6 +3568,26 @@ mod tests {
     }
 
     #[test]
+    fn diagnostics_revocation_disables_trace_and_discards_retained_events() {
+        let worker = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
+
+        assert!(worker.set_trace_enabled(true).is_err());
+        worker.set_diagnostics_enabled(true).unwrap();
+        worker.set_trace_enabled(true).unwrap();
+        worker.step_instruction().unwrap();
+        assert!(worker.debug_snapshot().unwrap().trace_enabled);
+
+        worker.set_diagnostics_enabled(false).unwrap();
+        assert!(worker.debug_snapshot().is_err());
+
+        worker.set_diagnostics_enabled(true).unwrap();
+        let after_reconsent = worker.debug_snapshot().unwrap();
+        assert!(!after_reconsent.trace_enabled);
+        assert!(after_reconsent.trace_events.is_empty());
+        assert_eq!(after_reconsent.trace_dropped, 0);
+    }
+
+    #[test]
     fn trace_opt_in_does_not_change_machine_progression() {
         let traced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
         let untraced = SmsTemporalWorker::new(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
