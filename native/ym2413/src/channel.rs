@@ -439,6 +439,39 @@ mod tests {
     }
 
     #[test]
+    fn serial_eg_input_decoder_uses_rhythm_patch_rates_and_register_triggers() {
+        use crate::envelope_sequencer::EnvelopeRhythmSelect as Rhythm;
+
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        registers[0x16] = 0x55;
+        registers[0x26] = 0x35;
+        registers[0x17] = 0xaa;
+        registers[0x27] = 0x26;
+        registers[0x18] = 0x33;
+        registers[0x28] = 0x3b;
+
+        let expected = [
+            (11, Rhythm::BassDrumFirst, 13, 15, 10, 6),
+            (12, Rhythm::HiHat, 12, 8, 7, 10),
+            (13, Rhythm::TomTom, 15, 8, 9, 5),
+            (14, Rhythm::BassDrumSecond, 15, 8, 13, 6),
+            (15, Rhythm::SnareDrum, 13, 8, 8, 6),
+            (16, Rhythm::TopCymbal, 10, 10, 5, 5),
+        ];
+
+        for (cycle, selector, attack, decay, release, sustain) in expected {
+            let input = decode_envelope_slot_input_for_cycle(&registers, cycle).unwrap();
+            assert_eq!(input.rhythm_select, selector, "cycle {cycle}");
+            assert_eq!(input.rhythm_bits, 0x3f, "cycle {cycle}");
+            assert_eq!(input.attack_rate, attack, "cycle {cycle}");
+            assert_eq!(input.decay_rate, decay, "cycle {cycle}");
+            assert_eq!(input.release_rate, release, "cycle {cycle}");
+            assert_eq!(input.sustain_level, sustain, "cycle {cycle}");
+        }
+    }
+
+    #[test]
     fn rhythm_mode_rejects_melodic_resolution_for_channels_seven_to_nine() {
         let mut registers = registers_for_channel(6, 1);
         registers[0x0e] = 0x20;
