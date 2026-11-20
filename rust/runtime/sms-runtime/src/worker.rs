@@ -1495,8 +1495,7 @@ impl SmsTemporalWorker {
         receive_worker_reply(reply_receiver, "exporting cartridge SRAM")
     }
 
-    /// Enable or disable optional diagnostic telemetry without changing emulation.
-    /// Enable in-memory diagnostic metrics after the caller receives explicit consent.
+    /// Enable optional diagnostic telemetry using the shared consent capability.
     pub fn enable_diagnostics(&self, _consent: &DiagnosticsConsent) {
         self.telemetry.set_diagnostics_enabled(true);
     }
@@ -2880,7 +2879,7 @@ fn handle_command(
 #[cfg(test)]
 mod tests {
     use super::{
-        AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
+        DiagnosticsConsent, AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
         Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
         WorkerTelemetry, build_sms_temporal_machine,
