@@ -145,7 +145,7 @@ impl RegisterBus {
             data: 0,
             write_mode_address: 0,
             rm_enable: 0,
-            rm_select: 0,
+            rm_select: 6,
             rhythm: 0,
         }
     }
