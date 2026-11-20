@@ -89,10 +89,10 @@ def main() -> int:
             counter_changes += previous["eg_counter_state"] != sample["eg_counter_state"]
         previous = sample
     # In the pinned source, cycle c updates array index (c + 16) % 18.
-    # ch_offset[2]/mcsel(2) selects channel 0 carrier => EG index 0;
-    # ch_offset[17]/mcsel(17) selects channel 0 modulator => EG index 15.
-    assert changed_level_slots[0] > 0, "channel 0 carrier EG slot 0 never changed"
-    assert changed_level_slots[15] > 0, "channel 0 modulator EG slot 15 never changed"
+    # ch_offset[2]/mcsel(2) selects channel 0 carrier => EG index 2;
+    # ch_offset[17]/mcsel(17) selects channel 0 modulator => EG index 17.
+    assert changed_level_slots[2] > 0, "channel 0 carrier EG slot 2 never changed"
+    assert changed_level_slots[17] > 0, "channel 0 modulator EG slot 17 never changed"
     assert timer_changes > 0, "Nuked EG timer did not advance"
     assert counter_changes > 0, "Nuked EG counter state did not advance"
     assert eg_dokon_nonzero > 0, "no EG KEY-ON transition was observed"
@@ -106,8 +106,8 @@ def main() -> int:
         "eg_counter_state_changes": counter_changes,
         "eg_level_changes_by_slot": changed_level_slots,
         "eg_state_changes_by_slot": changed_state_slots,
-        "channel_0_carrier_eg_slot": 0,
-        "channel_0_modulator_eg_slot": 15,
+        "channel_0_carrier_eg_slot": 2,
+        "channel_0_modulator_eg_slot": 17,
         "timebase": "Nuked OPLL_Clock calls; not XIN clocks",
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
