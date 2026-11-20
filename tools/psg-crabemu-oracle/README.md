@@ -112,7 +112,7 @@ The comparator uses identical tick indices and never aligns traces by correlatio
 - reference sample bit versus the Rust core's latched noise output;
 - SHA-256 digests of both trace streams.
 
-Differences are diagnostic results, not automatically test failures. In particular, the output-bit boundary and initial divider phase are open hardware questions. The existing `.github/workflows/ci.yml` PSG-focused job builds the pinned reference adapter, checks trace determinism and the pinned reference's known schedule, then uploads both traces and the comparison summary as part of the PSG artifact.
+Differences are diagnostic results, not automatically test failures. In particular, the output-bit boundary and initial divider phase are open hardware questions. The existing `.github/workflows/ci.yml` PSG-focused job builds both pinned external adapters (CrabEmu and Gearsystem), checks trace determinism and their known scheduling behavior, then uploads all traces and the comparison summary as part of the PSG artifact.
 
 ## Interpretation constraints
 
