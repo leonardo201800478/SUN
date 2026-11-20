@@ -358,6 +358,25 @@ mod tests {
     }
 
     #[test]
+    fn base_zero_rate_latch_is_independent_of_nonzero_ksr_rate_bits() {
+        let state = EnvelopeTimerState {
+            shift_lock: 12,
+            pending_rate: 3,
+            pending_zero_rate: true,
+            next_slot: 1,
+            ..EnvelopeTimerState::default()
+        };
+        let mut timer = EnvelopeTimer::restore_state(state).unwrap();
+
+        let snapshot = timer.tick_slot(1, 3, true).unwrap();
+
+        assert_eq!(snapshot.rate_phase.rate_latch_source, 3);
+        assert_eq!(snapshot.rate_phase.rate_hi, 0);
+        assert!(snapshot.rate_phase.zero_rate);
+        assert!(!snapshot.rate_phase.inc_lo);
+    }
+
+    #[test]
     fn slot_sequence_is_strict_and_rejects_invalid_rates() {
         let mut timer = EnvelopeTimer::new();
         timer.tick_slot(0, 1, false).unwrap();
