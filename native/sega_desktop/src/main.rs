@@ -2330,112 +2330,125 @@ mod windows_host {
                     (total_ns / u128::from(count) / 1_000).min(u128::from(u64::MAX)) as u64
                 }
             };
-            diagnostic_event!(trace, "sega::video::frame_pacing", "host_metrics",
-        qpc_available = qpc_available,
-        qpc_ticks = qpc_ticks,
-        qpc_frequency = qpc_frequency,
-        window_ms = elapsed.as_millis().min(u128::from(u64::MAX)) as u64,
-        wakeups = self.wakeups,
-        empty_wakeups = self.empty_wakeups,
-        consumed = self.consumed,
-        uploaded = self.uploaded,
-        sequence_gaps = self.sequence_gaps,
-        wake_interval_avg_us = average_us(self.wake_interval_sum_ns, self.wakeups.saturating_sub(1)),
-        wake_interval_max_us = self.wake_interval_max_ns / 1_000,
-        wake_interval_samples = self.wake_interval_distribution.len(),
-        wake_interval_p50_us = self.wake_interval_distribution.percentile_ns(50) / 1_000,
-        wake_interval_p95_us = self.wake_interval_distribution.percentile_ns(95) / 1_000,
-        wake_interval_p99_us = self.wake_interval_distribution.percentile_ns(99) / 1_000,
-        wake_interval_jitter_p95_us = self.wake_interval_distribution
+            diagnostic_event!(
+                trace,
+                "sega::video::frame_pacing",
+                "host_metrics",
+                qpc_available = qpc_available,
+                qpc_ticks = qpc_ticks,
+                qpc_frequency = qpc_frequency,
+                window_ms = elapsed.as_millis().min(u128::from(u64::MAX)) as u64,
+                wakeups = self.wakeups,
+                empty_wakeups = self.empty_wakeups,
+                consumed = self.consumed,
+                uploaded = self.uploaded,
+                sequence_gaps = self.sequence_gaps,
+                wake_interval_avg_us =
+                    average_us(self.wake_interval_sum_ns, self.wakeups.saturating_sub(1)),
+                wake_interval_max_us = self.wake_interval_max_ns / 1_000,
+                wake_interval_samples = self.wake_interval_distribution.len(),
+                wake_interval_p50_us = self.wake_interval_distribution.percentile_ns(50) / 1_000,
+                wake_interval_p95_us = self.wake_interval_distribution.percentile_ns(95) / 1_000,
+                wake_interval_p99_us = self.wake_interval_distribution.percentile_ns(99) / 1_000,
+                wake_interval_jitter_p95_us = self
+                    .wake_interval_distribution
                     .percentile_ns(95)
                     .saturating_sub(self.wake_interval_distribution.percentile_ns(50))
                     / 1_000,
-        consumed_interval_avg_us = average_us(
+                consumed_interval_avg_us = average_us(
                     self.consumed_interval_sum_ns,
                     self.consumed.saturating_sub(1)
                 ),
-        consumed_interval_max_us = self.consumed_interval_max_ns / 1_000,
-        consumed_interval_samples = self.consumed_interval_distribution.len(),
-        consumed_interval_p50_us = self.consumed_interval_distribution.percentile_ns(50) / 1_000,
-        consumed_interval_p95_us = self.consumed_interval_distribution.percentile_ns(95) / 1_000,
-        consumed_interval_p99_us = self.consumed_interval_distribution.percentile_ns(99) / 1_000,
-        consumed_interval_jitter_p95_us = self.consumed_interval_distribution
+                consumed_interval_max_us = self.consumed_interval_max_ns / 1_000,
+                consumed_interval_samples = self.consumed_interval_distribution.len(),
+                consumed_interval_p50_us =
+                    self.consumed_interval_distribution.percentile_ns(50) / 1_000,
+                consumed_interval_p95_us =
+                    self.consumed_interval_distribution.percentile_ns(95) / 1_000,
+                consumed_interval_p99_us =
+                    self.consumed_interval_distribution.percentile_ns(99) / 1_000,
+                consumed_interval_jitter_p95_us = self
+                    .consumed_interval_distribution
                     .percentile_ns(95)
                     .saturating_sub(self.consumed_interval_distribution.percentile_ns(50))
                     / 1_000,
-        mailbox_residence_avg_us = average_us(self.mailbox_residence_sum_ns, self.mailbox_residence_count),
-        mailbox_residence_max_us = self.mailbox_residence_max_ns / 1_000,
-        mailbox_residence_samples = self.mailbox_residence_distribution.len(),
-        mailbox_residence_p50_us = self.mailbox_residence_distribution.percentile_ns(50) / 1_000,
-        mailbox_residence_p95_us = self.mailbox_residence_distribution.percentile_ns(95) / 1_000,
-        mailbox_residence_p99_us = self.mailbox_residence_distribution.percentile_ns(99) / 1_000,
-        convert_avg_us = average_us(self.conversion_sum_ns, self.conversion_count),
-        convert_max_us = self.conversion_max_ns / 1_000,
-        convert_samples = self.conversion_distribution.len(),
-        convert_p50_us = self.conversion_distribution.percentile_ns(50) / 1_000,
-        convert_p95_us = self.conversion_distribution.percentile_ns(95) / 1_000,
-        convert_p99_us = self.conversion_distribution.percentile_ns(99) / 1_000,
-        queue_write_avg_us = average_us(self.queue_write_sum_ns, self.queue_write_count),
-        queue_write_max_us = self.queue_write_max_ns / 1_000,
-        queue_write_samples = self.queue_write_distribution.len(),
-        queue_write_p50_us = self.queue_write_distribution.percentile_ns(50) / 1_000,
-        queue_write_p95_us = self.queue_write_distribution.percentile_ns(95) / 1_000,
-        queue_write_p99_us = self.queue_write_distribution.percentile_ns(99) / 1_000,
-        callback_avg_us = average_us(self.callback_sum_ns, self.callback_count),
-        callback_max_us = self.callback_max_ns / 1_000,
-        callback_samples = self.callback_distribution.len(),
-        callback_p50_us = self.callback_distribution.percentile_ns(50) / 1_000,
-        callback_p95_us = self.callback_distribution.percentile_ns(95) / 1_000,
-        callback_p99_us = self.callback_distribution.percentile_ns(99) / 1_000,
-        mailbox_take_avg_us = average_us(self.mailbox_take_sum_ns, self.mailbox_take_count),
-        mailbox_take_max_us = self.mailbox_take_max_ns / 1_000,
-        mailbox_take_samples = self.mailbox_take_distribution.len(),
-        mailbox_take_p50_us = self.mailbox_take_distribution.percentile_ns(50) / 1_000,
-        mailbox_take_p95_us = self.mailbox_take_distribution.percentile_ns(95) / 1_000,
-        mailbox_take_p99_us = self.mailbox_take_distribution.percentile_ns(99) / 1_000,
-        mailbox_replaced_total = replaced_frames,
-        worker_samples = runtime.sample_count,
-        worker_total_samples = runtime.total_samples,
-        worker_frame_interval_p50_us = runtime.frame_interval_p50_ns / 1_000,
-        worker_frame_interval_p95_us = runtime.frame_interval_p95_ns / 1_000,
-        worker_frame_interval_p99_us = runtime.frame_interval_p99_ns / 1_000,
-        worker_frame_interval_jitter_p95_us = runtime
+                mailbox_residence_avg_us =
+                    average_us(self.mailbox_residence_sum_ns, self.mailbox_residence_count),
+                mailbox_residence_max_us = self.mailbox_residence_max_ns / 1_000,
+                mailbox_residence_samples = self.mailbox_residence_distribution.len(),
+                mailbox_residence_p50_us =
+                    self.mailbox_residence_distribution.percentile_ns(50) / 1_000,
+                mailbox_residence_p95_us =
+                    self.mailbox_residence_distribution.percentile_ns(95) / 1_000,
+                mailbox_residence_p99_us =
+                    self.mailbox_residence_distribution.percentile_ns(99) / 1_000,
+                convert_avg_us = average_us(self.conversion_sum_ns, self.conversion_count),
+                convert_max_us = self.conversion_max_ns / 1_000,
+                convert_samples = self.conversion_distribution.len(),
+                convert_p50_us = self.conversion_distribution.percentile_ns(50) / 1_000,
+                convert_p95_us = self.conversion_distribution.percentile_ns(95) / 1_000,
+                convert_p99_us = self.conversion_distribution.percentile_ns(99) / 1_000,
+                queue_write_avg_us = average_us(self.queue_write_sum_ns, self.queue_write_count),
+                queue_write_max_us = self.queue_write_max_ns / 1_000,
+                queue_write_samples = self.queue_write_distribution.len(),
+                queue_write_p50_us = self.queue_write_distribution.percentile_ns(50) / 1_000,
+                queue_write_p95_us = self.queue_write_distribution.percentile_ns(95) / 1_000,
+                queue_write_p99_us = self.queue_write_distribution.percentile_ns(99) / 1_000,
+                callback_avg_us = average_us(self.callback_sum_ns, self.callback_count),
+                callback_max_us = self.callback_max_ns / 1_000,
+                callback_samples = self.callback_distribution.len(),
+                callback_p50_us = self.callback_distribution.percentile_ns(50) / 1_000,
+                callback_p95_us = self.callback_distribution.percentile_ns(95) / 1_000,
+                callback_p99_us = self.callback_distribution.percentile_ns(99) / 1_000,
+                mailbox_take_avg_us = average_us(self.mailbox_take_sum_ns, self.mailbox_take_count),
+                mailbox_take_max_us = self.mailbox_take_max_ns / 1_000,
+                mailbox_take_samples = self.mailbox_take_distribution.len(),
+                mailbox_take_p50_us = self.mailbox_take_distribution.percentile_ns(50) / 1_000,
+                mailbox_take_p95_us = self.mailbox_take_distribution.percentile_ns(95) / 1_000,
+                mailbox_take_p99_us = self.mailbox_take_distribution.percentile_ns(99) / 1_000,
+                mailbox_replaced_total = replaced_frames,
+                worker_samples = runtime.sample_count,
+                worker_total_samples = runtime.total_samples,
+                worker_frame_interval_p50_us = runtime.frame_interval_p50_ns / 1_000,
+                worker_frame_interval_p95_us = runtime.frame_interval_p95_ns / 1_000,
+                worker_frame_interval_p99_us = runtime.frame_interval_p99_ns / 1_000,
+                worker_frame_interval_jitter_p95_us = runtime
                     .frame_interval_p95_ns
                     .saturating_sub(runtime.frame_interval_p50_ns)
                     / 1_000,
-        machine_ticks_per_frame_min = runtime.machine_ticks_per_frame_min,
-        machine_ticks_per_frame_p50 = runtime.machine_ticks_per_frame_p50,
-        machine_ticks_per_frame_max = runtime.machine_ticks_per_frame_max,
-        worker_step_p50_us = runtime.step_frame_p50_ns / 1_000,
-        worker_step_p95_us = runtime.step_frame_p95_ns / 1_000,
-        worker_step_p99_us = runtime.step_frame_p99_ns / 1_000,
-        video_publish_p95_us = runtime.video_publish_p95_ns / 1_000,
-        audio_submit_p95_us = runtime.audio_submit_p95_ns / 1_000,
-        frame_processing_p50_us = runtime.frame_processing_p50_ns / 1_000,
-        frame_processing_p95_us = runtime.frame_processing_p95_ns / 1_000,
-        frame_processing_p99_us = runtime.frame_processing_p99_ns / 1_000,
-        pacing_wait_budget_p50_us = runtime.pacing_wait_budget_p50_ns / 1_000,
-        pacing_wait_budget_p95_us = runtime.pacing_wait_budget_p95_ns / 1_000,
-        pacing_wait_budget_p99_us = runtime.pacing_wait_budget_p99_ns / 1_000,
-        pacing_wait_elapsed_p50_us = runtime.pacing_wait_elapsed_p50_ns / 1_000,
-        pacing_wait_elapsed_p95_us = runtime.pacing_wait_elapsed_p95_ns / 1_000,
-        pacing_wait_elapsed_p99_us = runtime.pacing_wait_elapsed_p99_ns / 1_000,
-        frame_budget_p50_us = runtime.frame_budget_p50_ns / 1_000,
-        frame_budget_p95_us = runtime.frame_budget_p95_ns / 1_000,
-        frame_budget_p99_us = runtime.frame_budget_p99_ns / 1_000,
-        psg_samples_p50 = runtime.audio_samples_p50,
-        psg_samples_p95 = runtime.audio_samples_p95,
-        psg_samples_p99 = runtime.audio_samples_p99,
-        pacing_timeout_lateness_p50_us = runtime.pacing_timeout_lateness_p50_ns / 1_000,
-        pacing_timeout_lateness_p95_us = runtime.pacing_timeout_lateness_p95_ns / 1_000,
-        pacing_timeout_lateness_p99_us = runtime.pacing_timeout_lateness_p99_ns / 1_000,
-        pacing_timeout_count_total = runtime.pacing_timeout_count_total,
-        pacing_command_wakeups_total = runtime.pacing_command_wakeups_total,
-        pacing_command_remaining_p95_us = runtime.pacing_command_remaining_p95_ns / 1_000,
-        command_handler_p95_us = runtime.command_handler_p95_ns / 1_000,
-        machine_clock_hz = machine_clock_hz,
-        physical_present_timestamp = "unavailable_slint_owned"
-    );
+                machine_ticks_per_frame_min = runtime.machine_ticks_per_frame_min,
+                machine_ticks_per_frame_p50 = runtime.machine_ticks_per_frame_p50,
+                machine_ticks_per_frame_max = runtime.machine_ticks_per_frame_max,
+                worker_step_p50_us = runtime.step_frame_p50_ns / 1_000,
+                worker_step_p95_us = runtime.step_frame_p95_ns / 1_000,
+                worker_step_p99_us = runtime.step_frame_p99_ns / 1_000,
+                video_publish_p95_us = runtime.video_publish_p95_ns / 1_000,
+                audio_submit_p95_us = runtime.audio_submit_p95_ns / 1_000,
+                frame_processing_p50_us = runtime.frame_processing_p50_ns / 1_000,
+                frame_processing_p95_us = runtime.frame_processing_p95_ns / 1_000,
+                frame_processing_p99_us = runtime.frame_processing_p99_ns / 1_000,
+                pacing_wait_budget_p50_us = runtime.pacing_wait_budget_p50_ns / 1_000,
+                pacing_wait_budget_p95_us = runtime.pacing_wait_budget_p95_ns / 1_000,
+                pacing_wait_budget_p99_us = runtime.pacing_wait_budget_p99_ns / 1_000,
+                pacing_wait_elapsed_p50_us = runtime.pacing_wait_elapsed_p50_ns / 1_000,
+                pacing_wait_elapsed_p95_us = runtime.pacing_wait_elapsed_p95_ns / 1_000,
+                pacing_wait_elapsed_p99_us = runtime.pacing_wait_elapsed_p99_ns / 1_000,
+                frame_budget_p50_us = runtime.frame_budget_p50_ns / 1_000,
+                frame_budget_p95_us = runtime.frame_budget_p95_ns / 1_000,
+                frame_budget_p99_us = runtime.frame_budget_p99_ns / 1_000,
+                psg_samples_p50 = runtime.audio_samples_p50,
+                psg_samples_p95 = runtime.audio_samples_p95,
+                psg_samples_p99 = runtime.audio_samples_p99,
+                pacing_timeout_lateness_p50_us = runtime.pacing_timeout_lateness_p50_ns / 1_000,
+                pacing_timeout_lateness_p95_us = runtime.pacing_timeout_lateness_p95_ns / 1_000,
+                pacing_timeout_lateness_p99_us = runtime.pacing_timeout_lateness_p99_ns / 1_000,
+                pacing_timeout_count_total = runtime.pacing_timeout_count_total,
+                pacing_command_wakeups_total = runtime.pacing_command_wakeups_total,
+                pacing_command_remaining_p95_us = runtime.pacing_command_remaining_p95_ns / 1_000,
+                command_handler_p95_us = runtime.command_handler_p95_ns / 1_000,
+                machine_clock_hz = machine_clock_hz,
+                physical_present_timestamp = "unavailable_slint_owned"
+            );
 
             if let Some((audio, output_error)) = audio_output {
                 let (delta, window_ms, window_valid) = audio_window.map_or(
@@ -2468,37 +2481,37 @@ mod windows_host {
                     0.0
                 };
                 diagnostic_event!(trace, "sega::audio::health", "output_metrics",
-        configured = audio.sample_rate_hz > 0,
-        sample_rate_hz = audio.sample_rate_hz,
-        queue_capacity_frames = audio.queue_capacity_frames,
-        queue_queued_frames = audio.queue_queued_frames,
-        queue_high_water_frames = audio.queue_high_water_frames,
-        accepted_frames_total = audio.accepted_frames,
-        consumed_frames_total = audio.consumed_frames,
-        requested_frames_total = requested_frames_total,
-        dropped_frames_total = audio.dropped_frames,
-        dropped_blocks_total = audio.dropped_blocks,
-        underrun_frames_total = audio.underrun_frames,
-        underrun_events_total = audio.underrun_events,
-        flushed_frames_total = audio.flushed_frames,
-        zero_fill_percent_total = zero_fill_percent_total,
-        window_valid = window_valid,
-        window_ms = window_ms,
-        counter_reset = delta.counter_reset,
-        rate_valid = rate_valid,
-        accepted_frames_delta = delta.accepted_frames,
-        consumed_frames_delta = delta.consumed_frames,
-        requested_frames_delta = requested_frames,
-        dropped_frames_delta = delta.dropped_frames,
-        dropped_blocks_delta = delta.dropped_blocks,
-        underrun_frames_delta = delta.underrun_frames,
-        underrun_events_delta = delta.underrun_events,
-        flushed_frames_delta = delta.flushed_frames,
-        accepted_frames_per_second = accepted_frames_per_second,
-        requested_frames_per_second = requested_frames_per_second,
-        zero_fill_percent_window = delta.zero_fill_percent_for_window(rate_valid),
-        output_error = ?output_error
-    );
+                    configured = audio.sample_rate_hz > 0,
+                    sample_rate_hz = audio.sample_rate_hz,
+                    queue_capacity_frames = audio.queue_capacity_frames,
+                    queue_queued_frames = audio.queue_queued_frames,
+                    queue_high_water_frames = audio.queue_high_water_frames,
+                    accepted_frames_total = audio.accepted_frames,
+                    consumed_frames_total = audio.consumed_frames,
+                    requested_frames_total = requested_frames_total,
+                    dropped_frames_total = audio.dropped_frames,
+                    dropped_blocks_total = audio.dropped_blocks,
+                    underrun_frames_total = audio.underrun_frames,
+                    underrun_events_total = audio.underrun_events,
+                    flushed_frames_total = audio.flushed_frames,
+                    zero_fill_percent_total = zero_fill_percent_total,
+                    window_valid = window_valid,
+                    window_ms = window_ms,
+                    counter_reset = delta.counter_reset,
+                    rate_valid = rate_valid,
+                    accepted_frames_delta = delta.accepted_frames,
+                    consumed_frames_delta = delta.consumed_frames,
+                    requested_frames_delta = requested_frames,
+                    dropped_frames_delta = delta.dropped_frames,
+                    dropped_blocks_delta = delta.dropped_blocks,
+                    underrun_frames_delta = delta.underrun_frames,
+                    underrun_events_delta = delta.underrun_events,
+                    flushed_frames_delta = delta.flushed_frames,
+                    accepted_frames_per_second = accepted_frames_per_second,
+                    requested_frames_per_second = requested_frames_per_second,
+                    zero_fill_percent_window = delta.zero_fill_percent_for_window(rate_valid),
+                    output_error = ?output_error
+                );
             }
 
             self.started = Instant::now();
@@ -2724,8 +2737,8 @@ mod windows_host {
     ) -> Result<(), sega_video_runtime::FrameMailboxError> {
         let app_weak = app.as_weak();
         let notification_pending = Arc::new(AtomicBool::new(false));
-        let notifier: Arc<dyn Fn(FrameMailbox) + Send + Sync> =
-            Arc::new(move |published_mailbox| {
+        let notifier: Arc<dyn Fn(FrameMailbox) + Send + Sync> = Arc::new(
+            move |published_mailbox| {
                 if notification_pending.swap(true, Ordering::AcqRel) {
                     return;
                 }
@@ -2750,7 +2763,8 @@ mod windows_host {
                     notification_pending.store(false, Ordering::Release);
                     diagnostic_event!(warn, "sega::video::frame_notify", "enqueue_failed", error = %error);
                 }
-            });
+            },
+        );
 
         mailbox.set_frame_available_notifier(Some(Arc::clone(&notifier)))?;
         mailbox.notify_if_pending()?;
@@ -3293,7 +3307,13 @@ mod windows_host {
             diagnostic_event!(warn, "sega::audio::output", "renderer_selection_failed", error = %error, fallback = "psg");
         }
         if video_only_capture_enabled() {
-            diagnostic_event!(debug, "sega::audio::output", "skipped", reason = "video_only_capture", psg_generation = "active");
+            diagnostic_event!(
+                debug,
+                "sega::audio::output",
+                "skipped",
+                reason = "video_only_capture",
+                psg_generation = "active"
+            );
             return;
         }
         const BUFFER_FRAMES: u32 = 512;
@@ -3349,7 +3369,14 @@ mod windows_host {
                 std::env::var(DIAGNOSTIC_SRAM_CAPACITY_ENV).ok().as_deref(),
             )?;
             if let Some(capacity) = diagnostic_capacity {
-                diagnostic_event!(warn, "sega::sram::profile", "diagnostic_override", capacity_bytes = capacity, persistent = false, restored = false);
+                diagnostic_event!(
+                    warn,
+                    "sega::sram::profile",
+                    "diagnostic_override",
+                    capacity_bytes = capacity,
+                    persistent = false,
+                    restored = false
+                );
                 return Ok(PreparedCartridge {
                     sram_capacity: Some(capacity),
                     initial_sram: None,
@@ -3374,7 +3401,14 @@ mod windows_host {
                 profile: profile.clone(),
                 store,
             });
-        diagnostic_event!(info, "sega::sram::profile", "verified", capacity_bytes = profile.ram_capacity_bytes().unwrap_or_default(), persistent = profile.requires_persistent_store(), restored = initial_sram.is_some());
+        diagnostic_event!(
+            info,
+            "sega::sram::profile",
+            "verified",
+            capacity_bytes = profile.ram_capacity_bytes().unwrap_or_default(),
+            persistent = profile.requires_persistent_store(),
+            restored = initial_sram.is_some()
+        );
         Ok(PreparedCartridge {
             sram_capacity: profile.ram_capacity_bytes(),
             initial_sram,
@@ -3425,7 +3459,13 @@ mod windows_host {
         dsp_config: AnalogOutputConfig,
     ) {
         if video_only_capture_enabled() {
-            diagnostic_event!(debug, "sega::audio::output", "skipped", system = "sg1000", reason = "video_only_capture");
+            diagnostic_event!(
+                debug,
+                "sega::audio::output",
+                "skipped",
+                system = "sg1000",
+                reason = "video_only_capture"
+            );
             return;
         }
         const BUFFER_FRAMES: u32 = 512;
@@ -3490,7 +3530,12 @@ mod windows_host {
             .map_err(|error| format!("não foi possível iniciar gravação SRM: {error}"))?;
         save.join()
             .map_err(|_| "thread de gravação SRM encerrou inesperadamente".to_owned())??;
-        diagnostic_event!(info, "sega::sram::save", "profile_persisted", capacity_bytes = context.profile.ram_capacity_bytes().unwrap_or_default());
+        diagnostic_event!(
+            info,
+            "sega::sram::save",
+            "profile_persisted",
+            capacity_bytes = context.profile.ram_capacity_bytes().unwrap_or_default()
+        );
         Ok(())
     }
 
