@@ -23,7 +23,11 @@ def load_nuked_trace(path: Path) -> list[dict[str, object]]:
     with path.open(encoding="utf-8") as stream:
         rows = [json.loads(line) for line in stream if line.strip()]
 
-    if len(rows) < 2 or rows[0].get("schema") != "ym2413-nuked-opll-trace-v1":
+    supported_schemas = {
+        "ym2413-nuked-opll-trace-v1",
+        "ym2413-nuked-opll-pg-trace-v1",
+    }
+    if len(rows) < 2 or rows[0].get("schema") not in supported_schemas:
         raise ValueError("input is not a supported Nuked-OPLL trace")
     if rows[0].get("time_unit") != "opll_clock_call":
         raise ValueError("trace time unit must be opll_clock_call")
@@ -57,6 +61,15 @@ def main() -> int:
         raise ValueError("Nuked trace never applied the programmed nonzero FNUM")
     if not any(int(row["calc_mul"]) > 0 for row in samples):
         raise ValueError("Nuked trace never selected a nonzero instrument multiplier")
+    pm_positions = {
+        int(row["calc_lfo_vib_counter"])
+        for row in samples
+        if int(row["calc_fnum"]) > 0 and int(row["calc_vib"]) == 1
+    }
+    if pm_positions != set(range(8)):
+        raise ValueError(
+            f"PM-enabled FNUM samples did not cover all eight LFO positions: {sorted(pm_positions)}"
+        )
 
     with tempfile.TemporaryDirectory(prefix="ym2413-pg-diff-") as temp_dir:
         input_csv = Path(temp_dir) / "rust_pg_inputs.csv"
@@ -134,6 +147,8 @@ def main() -> int:
             {
                 "status": "PASS",
                 "compared_calls": len(samples),
+                "pm_enabled_calls": sum(int(row["calc_vib"]) == 1 for row in samples),
+                "pm_positions_covered": sorted(pm_positions),
                 "comparison": "Nuked OPLL_PhaseCalcIncrement output vs Rust PhaseGenerator::phase_step",
                 "scope": "PG integer increment only; no slot/phase accumulator alignment claim",
             },
