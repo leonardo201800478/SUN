@@ -219,3 +219,53 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 ## Inventário dos 43 callsites host
 
 Os 43 usos de `diagnostic_log!` no host Slint foram substituídos por `diagnostic_event!`, com target, nível e campos estruturados. O macro consulta o `LoggingHandle` central e não serializa os dados em um único campo `message`. Os dois eventos de telemetria periódica foram classificados como `TRACE`. Inventário completo: [DP0 host diagnostic callsites](dp0-host-diagnostic-callsites-2026-11-20.md).
+
+
+## 11. Fechamento DP0-F6 — inventário de sinks e limites de escopo (20/11/2026)
+
+**Base da revisão:** baseline funcional `main@137d0859463bfbf6cdbcdde0945b0eca65eee90c`; camada de consentimento PR #1107; implementação RAM-first PR #1115.
+
+### 11.1 Matriz final de classificação
+
+A auditoria consolidada nas seções 10.2, 10.6, 10.7 e no inventário `dp0-host-diagnostic-callsites-2026-11-20.md` cobre os seguintes grupos:
+
+| Grupo | Cobertura e decisão |
+|---|---|
+| Host Slint | 43 callsites inventariados por target, nível e campos; eventos estruturados sem campo `message` arbitrário; métricas periódicas em TRACE; gate central via `LoggingHandle`. |
+| Runtime compartilhado | 15 módulos de produção com eventos `tracing` classificados; eventos de Scheduler, Z80, barramento, VDP, PSG, áudio e vídeo ficam inertes com filtro `off` e só são coletados após opt-in. |
+| Writer e fila | `tracing-appender 0.2.5` usa fila non-blocking; fila/arquivo/ring host-side só são ativados após consentimento; revogação fecha o sink e descarta itens pendentes. O `SwitchableMakeWriter` usa `try_read`: se a troca do writer estiver em andamento, descarta o evento em vez de bloquear a thread chamadora. |
+| CLI e debugger standalone | Saída de console classificada como interface explícita de ferramenta; relatório do SMS Debugger somente após diálogo de Save e confirmação do destino. Não é coleta automática do desktop. |
+| Examples, testes e smoke tests | Saídas stdout/stderr, CSV/WAV/trace e arquivos temporários classificados como artefatos de desenvolvimento/validação, fora dos bins do produto. |
+| Build e CI | `cargo:rustc-env`, logs de workflow e artefatos classificados como build/CI, fora do consentimento de runtime. |
+| Persistência funcional | SRAM, firmware, preferências, ROMs recentes e bindings separados de telemetria; cada operação tem finalidade funcional ou ação explícita. Caminhos locais permanecem dados do ambiente e não são copiados para o relatório de diagnóstico do desktop. |
+| Exportações | Snapshot/trace persistente requer consentimento central ativo e gesto separado de exportação; não há exportação automática no shutdown. |
+| Crash/panic | Nenhum panic hook privado é instalado; hook padrão do Rust preservado; panic comum não cria arquivo privado de crash. Não há callsite fatal de bootstrap classificado que justifique reporter adicional. |
+
+### 11.2 Auditoria de wrappers, macros, FFI e subprocessos
+
+- Macros próprias do host e callsites diretos `tracing` foram classificados separadamente; o inventário dos 43 callsites não foi usado como substituto dos sinks dos crates compartilhados.
+- O facade `log` não foi identificado como caminho de produção nos resultados de busca registrados; o subscriber central recebe os eventos `tracing`.
+- Integrações D3D12/Windows registram falhas por eventos estruturados do target de vídeo; não foi identificado writer de arquivo ou stdout/stderr adicional associado diretamente à FFI nos targets de produto.
+- O subprocesso identificado no teste de panic é exclusivamente harness de validação; não foi identificado subprocesso de coleta no ciclo de vida do desktop.
+- Dependências externas de logging permanecem limitadas ao conjunto declarado (`tracing`, `tracing-subscriber`, `tracing-appender`); a aplicação controla o subscriber e o writer. Não se atribui ao inventário capacidade de auditar internals de dependências que não pertencem ao repositório.
+
+### 11.3 Resultado F6 e limitação explicitada
+
+**DP0-F6: PASS no escopo dos targets first-party do produto e das ferramentas distribuídas identificadas.** Os sinks conhecidos estão classificados por finalidade, gatilho, destino e fronteira de consentimento; não foi encontrado sink first-party de produção sem classificação no inventário atualizado.
+
+Limite residual: esta é uma auditoria estática de código-fonte e workflows do repositório. Ela não prova o comportamento interno de bibliotecas de terceiros nem substitui observação física de cada backend de sistema operacional. Nenhum desses limites foi convertido em afirmação de overhead zero ou em alegação de auditoria de código externo. Os bins de ferramenta/teste e o host legado permanecem classificados separadamente do host Slint ativo.
+
+### 11.4 Requisitos de implementação preservados
+
+- O ring essencial de 2.048 eventos pertence a `SmsTemporalMachine`, é sempre ativo, pré-alocado e overwrite-oldest, com contador saturante.
+- O snapshot do ring é não destrutivo; o ring não faz parte de `SmsTemporalMachineState` e começa vazio após restore.
+- A coleta detalhada continua opt-in, com buffer separado e limitado a 2.048 eventos.
+- A gravação do ring essencial não usa I/O, alocação, lock, canal, thread, callback de GUI ou serialização.
+- A troca/revogação do writer não faz a thread chamadora esperar por lock exclusivo; eventos concorrentes são descartados.
+- Não houve alteração deliberada em CPU Z80, Scheduler, WAIT, VDP, PSG, barramentos funcionais, mappers ou timing.
+
+### 11.5 Estado da validação F7
+
+A implementação F7 fica vinculada aos resultados dos workflows no SHA final da PR #1115: CI geral, SMS Runtime Release, observabilidade Windows x64 Debug/Release e benchmark A/B Release com comparação de instruções e ticks. O benchmark precisa resolver a ponta atual da branch base, não o SHA congelado no momento de criação da PR. A validação local no hardware Windows x64 permanece **NOT RUN** e está registrada como follow-up externo; os workflows Windows x64 cobrem compilação/testes automatizados, não substituem medição física no PC do usuário.
+
+**Esta seção supersede a conclusão histórica das seções 10.4, 10.8 e 10.10 para a classificação F6.** As seções anteriores permanecem preservadas como histórico de auditoria e decisões.
