@@ -281,7 +281,7 @@ A validação local no hardware Windows x64 permanece **NOT RUN** e está regist
 
 ### 12.1 F7 — desempenho e invariantes
 
-**PASS — Benchmark Release A/B #31** (workflow run ID `44835163386`, job `136629580927`).
+**F7 — Benchmark Release A/B em repetição; resultado conclusivo pendente da execução #37.**
 
 - Baseline: `a0baa862e11b4551990f49b2c56c1cf791316164`.
 - Head: `350126df6ddf7b62892f362aae7faf29cc3e8437`.
@@ -299,7 +299,7 @@ Limites: medição comparativa Linux CI; benchmark físico no PC Windows x64 per
 
 ### 12.2 F8 — regressão e integração de plataforma
 
-**PASS — CI #9422** (workflow run ID `44835163604`), todos os gates aplicáveis concluídos com sucesso:
+**PASS — CI #9422** (workflow run ID `44835163604`) para o head de implementação `350126df`; todos os gates aplicáveis concluíram com sucesso. A revalidação do head documental/workflow final `508a9a0c` está em execução na CI #9428 (run ID `44836483487`):
 
 - workspace Rust: formato, Clippy, testes e feature runtime de observabilidade;
 - Z80 focused validation, incluindo vetores DD/FD e testes de flags/MEMPTR;
@@ -309,7 +309,7 @@ Limites: medição comparativa Linux CI; benchmark físico no PC Windows x64 per
 - PowerShell tooling, documentação e validação dos workflows;
 - Windows x64 Slint/WGPU 30/Vulkan: `native/sega_desktop` format, Clippy Release, testes Release (**58 passed, 0 failed**) e build Release.
 
-**PASS — SMS Runtime Release #1707** (run ID `44835163525`, job `136629612104`): formato, Clippy, testes e build Windows x64 Release aprovados.
+**PASS — SMS Runtime Release #1707** (run ID `44835163525`, job `136629612104`) no head de implementação `350126df`. A revalidação do head final está em execução no SMS Runtime #1713 (run ID `44836482687`).
 
 **PASS — CPAL 0.18.2 na integração da base #1107:** CI #9418 (run ID `44833816014`), job Windows x64 CPAL `136625213918`, com formato, Clippy, testes Release (**21 passed, 0 failed**) e integração/build do host legado aprovados. CPAL foi `SKIPPED` na #9422 porque não houve alteração no caminho de áudio; o skip não é contado como PASS e a validação da base #1107 é a evidência separada.
 
@@ -317,7 +317,7 @@ O job `SMS debugger Windows Release validation` do workflow #1707 foi `SKIPPED`.
 
 ### 12.3 F9 — auditoria e integração
 
-A comparação `main...350126df6ddf7b62892f362aae7faf29cc3e8437`, antes dos commits documentais finais, identificou merge-base `a0baa862e11b4551990f49b2c56c1cf791316164`, 11 commits de implementação e um commit da main fora do head: o merge-commit da #1107. O head documental atual contém 16 commits (11 de implementação e cinco commits de documentação) e 11 caminhos modificados no total; os oito caminhos do diff original foram mantidos e três caminhos documentais adicionais foram atualizados. As alterações da #1107 não foram duplicadas. A divergência é estrutural e não justifica rebase destrutivo.
+A comparação `main...350126df6ddf7b62892f362aae7faf29cc3e8437`, antes dos commits documentais finais, identificou merge-base `a0baa862e11b4551990f49b2c56c1cf791316164`, 11 commits de implementação e um commit da main fora do head: o merge-commit da #1107. O head documental/workflow atual contém 18 commits (11 commits de implementação e sete commits documentais/de workflow) e 11 caminhos modificados no total; os oito caminhos do diff original foram mantidos e três caminhos documentais adicionais foram atualizados. As alterações da #1107 não foram duplicadas. A divergência é estrutural e não justifica rebase destrutivo.
 
 A PR #1117 permanece responsável exclusivamente pelo ring essencial SMS, integração do snapshot/export, benchmark e documentação correspondente. A integração na main e a validação pós-merge devem ser registradas após o merge efetivo; este registro não antecipa esse resultado.
 
@@ -330,4 +330,4 @@ A PR #1117 permanece responsável exclusivamente pelo ring essencial SMS, integr
 - Pendências externas: benchmark físico Windows x64 e smoke test interativo no hardware Windows do usuário permanecem **NOT RUN**.
 - Nenhum job `SKIPPED` foi promovido a PASS.
 
-**Estado nesta revisão:** F7 e F8 aprovados por evidência CI; auditoria estrutural F9 concluída. O DP0 só poderá ser declarado formalmente concluído após merge confirmado da #1117 na main e validação pós-merge do commit resultante.
+**Estado nesta revisão:** a implementação e a auditoria estrutural estão concluídas; F7 aguarda a terceira repetição comparável (#37), e F8 aguarda a revalidação do head final (#9428/#1713). O DP0 só poderá ser declarado formalmente concluído após esses gates, merge confirmado da #1117 na main e validação pós-merge do commit resultante.
