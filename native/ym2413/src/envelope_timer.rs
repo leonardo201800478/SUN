@@ -264,7 +264,7 @@ impl EnvelopeTimer {
             inc_lo,
             inc_hi,
             max_rate: rate_hi == 15,
-            zero_rate: next_rate == 0,
+            zero_rate: next_zero_rate,
             counter_state_prev: self.state.counter_state_prev,
         };
 
@@ -301,12 +301,12 @@ mod tests {
         let mut timer = EnvelopeTimer::new();
 
         for slot in 0..SLOT_COUNT - 1 {
-            let snapshot = timer.tick_slot(slot, 0).unwrap();
+            let snapshot = timer.tick_slot(slot, 0, false).unwrap();
             assert_eq!(snapshot.counter_state, 0);
             assert_eq!(snapshot.counter_state_prev, 0);
         }
 
-        let snapshot = timer.tick_slot(SLOT_COUNT - 1, 0).unwrap();
+        let snapshot = timer.tick_slot(SLOT_COUNT - 1, 0, false).unwrap();
         assert_eq!(snapshot.counter_state, 1);
         assert_eq!(snapshot.counter_state_prev, 0);
     }
@@ -315,14 +315,14 @@ mod tests {
     fn rate_pipeline_consumes_previous_rate_and_tracks_next_zero_rate() {
         let mut timer = EnvelopeTimer::new();
 
-        let first = timer.tick_slot(0, 60).unwrap();
+        let first = timer.tick_slot(0, 60, false).unwrap();
         assert_eq!(first.rate_phase.rate_latch_source, 0);
         assert_eq!(first.rate_phase.rate_hi, 0);
         assert!(!first.rate_phase.max_rate);
         assert!(!first.rate_phase.zero_rate);
         assert!(!first.rate_phase.next_zero_rate);
 
-        let second = timer.tick_slot(1, 0).unwrap();
+        let second = timer.tick_slot(1, 0, true).unwrap();
         assert_eq!(second.rate_phase.rate_latch_source, 60);
         assert_eq!(second.rate_phase.rate_hi, 15);
         assert!(second.rate_phase.max_rate);
@@ -333,7 +333,7 @@ mod tests {
     #[test]
     fn slot_sequence_is_strict_and_rejects_invalid_rates() {
         let mut timer = EnvelopeTimer::new();
-        timer.tick_slot(0, 1).unwrap();
+        timer.tick_slot(0, 1, false).unwrap();
 
         assert_eq!(
             timer.tick_slot(2, 1, false),
