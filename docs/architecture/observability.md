@@ -4,9 +4,9 @@
 
 O logging é transversal aos crates compartilhados e não participa do controle temporal da máquina. CPU, VDP, PSG, Scheduler, barramentos e hosts publicam eventos estruturados; a aplicação nativa instala o subscriber e mantém o ciclo de vida do escritor.
 
-**Coleta desativada por padrão (opt-in).** A aplicação não inicializa o subscriber, não cria o diretório de logs, não instala o panic hook e não grava snapshots enquanto o usuário não ativar explicitamente `Opções > Diagnóstico > Ativar coleta de diagnóstico`. A opção não é persistida: cada inicialização começa desligada.
+**Coleta desativada por padrão (opt-in).** A aplicação não inicializa o subscriber, não cria o diretório de logs, não instala o panic hook e não grava snapshots enquanto o usuário não ativar explicitamente \`Opções > Diagnóstico > Ativar coleta de diagnóstico\`. A opção não é persistida: cada inicialização começa desligada.
 
-Ao desativar a coleta durante a execução, o filtro global é recarregado para `off` e o panic hook deixa de gravar. O worker de escrita permanece ocioso para permitir reativação sem reiniciar. Eventos já enfileirados antes da desativação ainda podem terminar de ser gravados; nenhum evento novo é aceito pelo filtro desligado.
+Ao desativar a coleta durante a execução, o filtro global é recarregado para \`off\` e o panic hook deixa de gravar. O worker de escrita permanece ocioso para permitir reativação sem reiniciar. Eventos já enfileirados antes da desativação ainda podem terminar de ser gravados; nenhum evento novo é aceito pelo filtro desligado.
 
 O caminho de hardware não executa operações de disco. Quando ativada, a coleta usa uma fila limitada e uma thread de escrita independente. Quando desativada, não há coleta de eventos de diagnóstico.
 
@@ -14,16 +14,16 @@ O caminho de hardware não executa operações de disco. Quando ativada, a colet
 
 | Biblioteca | Versão | Responsabilidade |
 |---|---:|---|
-| `tracing` | 0.1.44 | API estruturada de eventos e spans nos crates |
-| `tracing-subscriber` | 0.3.23 | Formatação JSON, `EnvFilter` e reload de filtros |
-| `tracing-appender` | 0.2.5 | Fila não bloqueante e worker de escrita |
-| `serde` / `serde_json` | 1.0.229 / 1.0.154 | Snapshot de diagnóstico JSON |
+| \`tracing\` | 0.1.44 | API estruturada de eventos e spans nos crates |
+| \`tracing-subscriber\` | 0.3.23 | Formatação JSON, \`EnvFilter\` e reload de filtros |
+| \`tracing-appender\` | 0.2.5 | Fila não bloqueante e worker de escrita |
+| \`serde\` / \`serde_json\` | 1.0.229 / 1.0.154 | Snapshot de diagnóstico JSON |
 
-As dependências de subscriber e appender são opcionais e habilitadas pela feature `runtime` do crate `sega-observability`. Os crates de hardware usam somente a fachada de `tracing`; não carregam o subscriber nem o worker de arquivo.
+As dependências de subscriber e appender são opcionais e habilitadas pela feature \`runtime\` do crate \`sega-observability\`. Os crates de hardware usam somente a fachada de \`tracing\`; não carregam o subscriber nem o worker de arquivo.
 
 ## Pipeline
 
-```text
+\`\`\`text
 Z80 / Scheduler / VDP / PSG / Audio / D3D12 / ROM / GUI
                          |
                  tracing events
@@ -40,9 +40,9 @@ Z80 / Scheduler / VDP / PSG / Audio / D3D12 / ROM / GUI
              recent-event ring buffer
                          |
               Diagnostics / export
-```
+\`\`\`
 
-A fila tem capacidade padrão de 16.384 linhas e usa política `lossy`: quando saturada, o produtor não aguarda disco; o evento é descartado e o contador `dropped_lines` é incrementado. O contador deve ser exibido no painel Diagnostics. A fila e o ring buffer são limitados.
+A fila tem capacidade padrão de 16.384 linhas e usa política \`lossy\`: quando saturada, o produtor não aguarda disco; o evento é descartado e o contador \`dropped_lines\` é incrementado. O contador deve ser exibido no painel Diagnostics. A fila e o ring buffer são limitados.
 
 O ring buffer mantém os 256 eventos mais recentes para consulta pela GUI. Ele é atualizado pela thread de escrita, não pelo thread de CPU ou Scheduler.
 
@@ -50,32 +50,44 @@ O ring buffer mantém os 256 eventos mais recentes para consulta pela GUI. Ele �
 
 No Windows, o diretório padrão é:
 
-`%LOCALAPPDATA%\\Sega Emulator\\logs\\`
+\`%LOCALAPPDATA%\\Sega Emulator\\logs\\\`
 
 Arquivos:
 
-- `sega-emulator.log`: JSON Lines, rotação por tamanho (10 MiB por arquivo, cinco backups).
-- `sega-emulator-diagnostics.json`: snapshot da sessão escrito no encerramento ou na exportação.
-- `sega-emulator-crash.log`: registro privado de panic, somente quando o consentimento está ativo no instante da falha. Pela ADR 0012, deve conter timestamp, ID da sessão e localização sanitizada (nome-base/linha/coluna), sem payload bruto, caminhos absolutos ou backtrace por padrão. A implementação desta política está pendente da DP0-F5.
+- \`sega-emulator.log\`: JSON Lines, rotação por tamanho (10 MiB por arquivo, cinco backups).
+- \`sega-emulator-diagnostics.json\`: snapshot da sessão escrito no encerramento ou na exportação.
+- \`sega-emulator-crash.log\`: registro privado de panic, somente quando o consentimento está ativo no instante da falha.
 
-`SEGA_LOG_DIR` permite substituir o diretório e `SEGA_LOG_FILTER` define o filtro inicial. O filtro pode ser recarregado em runtime por `LoggingHandle::set_filter`.
+### Política do crash log — ADR 0012 / DP0-F5
 
-O `WorkerGuard` só é criado após o opt-in e permanece vivo durante a execução. No encerramento normal, a aplicação só registra o evento final e grava o snapshot JSON se a coleta ainda estiver ativa; depois descarta o guard. Se a coleta estiver desativada, nenhum snapshot de encerramento é produzido.
+O hook privado é instalado somente durante a inicialização consentida da infraestrutura. O hook consulta o estado atômico do consentimento no instante do panic. Se o consentimento tiver sido revogado, não grava o arquivo privado.
+
+O registro permitido contém somente timestamp Unix em milissegundos, ID de sessão sanitizado, nome-base do arquivo-fonte, linha, coluna e indicador booleano de que o payload era textual. O conteúdo do payload, caminho absoluto, diretórios pessoais e backtrace não são capturados.
+
+Cada registro tem limite de 1 KiB. O arquivo tem limite derivado de \`LogConfig.max_file_size_bytes\`; se o próximo registro não couber, ele é descartado em vez de executar rotação no hook. A rotação e a retenção de backups ocorrem durante a inicialização consentida, antes da instalação do hook. O limite de backups usa \`LogConfig.retained_files\`.
+
+Falhas de abertura, escrita ou flush do arquivo privado não impedem a chamada do hook anterior do Rust, que é delegada exatamente uma vez. O hook não usa logger, subscriber, worker, GUI, Scheduler, mutexes de aplicação, \`catch_unwind\`, rede ou backtrace. A saída padrão de panic continua separada do arquivo privado e preserva o comportamento normal de falha.
+
+A implementação está na branch DP0-F5 e depende da aprovação dos testes de formatter, limites, retenção e subprocessos em Windows x64 Debug/Release antes de ser considerada concluída.
+
+\`SEGA_LOG_DIR\` permite substituir o diretório e \`SEGA_LOG_FILTER\` define o filtro inicial. O filtro pode ser recarregado em runtime por \`LoggingHandle::set_filter\`.
+
+O \`WorkerGuard\` só é criado após o opt-in e permanece vivo durante a execução. No encerramento normal, a aplicação só registra o evento final e grava o snapshot JSON se a coleta ainda estiver ativa; depois descarta o guard. Se a coleta estiver desativada, nenhum snapshot de encerramento é produzido.
 
 ## Níveis e filtros
 
 Níveis suportados: ERROR, WARN, INFO, DEBUG e TRACE.
 
-Com a coleta ativada e sem `SEGA_LOG_FILTER` definido, o filtro inicial é `info,sega::audio::pacing=trace`. Enquanto desativada, o filtro é `off`. Eventos de alta frequência, como despacho individual do Scheduler, escrita de registradores PSG, submissão de buffers e consumo de amostras, usam TRACE.
+Com a coleta ativada e sem \`SEGA_LOG_FILTER\` definido, o filtro inicial é \`info,sega::audio::pacing=trace\`. Enquanto desativada, o filtro é \`off\`. Eventos de alta frequência, como despacho individual do Scheduler, escrita de registradores PSG, submissão de buffers e consumo de amostras, usam TRACE.
 
 Exemplos de filtros:
 
-```text
+\`\`\`text
 info
 info,sega::z80=debug,sega::scheduler=trace
 warn,sega::audio::backend=trace
 debug,sega::vdp=trace,sega::mapper=trace
-```
+\`\`\`
 
 Não registrar cada instrução Z80 nem cada T-state por padrão. A instrumentação detalhada deve ser ativada somente para o subsistema investigado.
 
@@ -83,18 +95,18 @@ Não registrar cada instrução Z80 nem cada T-state por padrão. A instrumenta�
 
 | Target | Conteúdo |
 |---|---|
-| `sega::app` | inicialização, encerramento e metadados da sessão |
-| `sega::z80` | reset, interrupções e exceções de execução |
-| `sega::scheduler` | domínios de clock, eventos causais e violações temporais |
-| `sega::vdp` | configuração, modo, VBlank e Line IRQ |
-| `sega::psg` | configuração, registradores e fila de amostras |
-| `sega::audio::dsp` | resampling, volume e lotes de amostras |
-| `sega::audio::output` | CPAL stream, formato/taxa negociados, FIFO, underruns, descartes e falhas de dispositivo |
-| `sega::video::d3d12` | adaptador, device, swapchain, HWND e falhas de Present |
-| `sega::rom` | formato e tamanho da imagem |
-| `sega::mapper` | mapper, BIOS, memória e trocas de banco |
-| `sega::machine` | perfil e clocks da máquina |
-| `sega::io` | operações de I/O selecionadas |
+| \`sega::app\` | inicialização, encerramento e metadados da sessão |
+| \`sega::z80\` | reset, interrupções e exceções de execução |
+| \`sega::scheduler\` | domínios de clock, eventos causais e violações temporais |
+| \`sega::vdp\` | configuração, modo, VBlank e Line IRQ |
+| \`sega::psg\` | configuração, registradores e fila de amostras |
+| \`sega::audio::dsp\` | resampling, volume e lotes de amostras |
+| \`sega::audio::output\` | CPAL stream, formato/taxa negociados, FIFO, underruns, descartes e falhas de dispositivo |
+| \`sega::video::d3d12\` | adaptador, device, swapchain, HWND e falhas de Present |
+| \`sega::rom\` | formato e tamanho da imagem |
+| \`sega::mapper\` | mapper, BIOS, memória e trocas de banco |
+| \`sega::machine\` | perfil e clocks da máquina |
+| \`sega::io\` | operações de I/O selecionadas |
 
 ## Privacidade e determinismo
 
@@ -106,13 +118,17 @@ Não registrar cada instrução Z80 nem cada T-state por padrão. A instrumenta�
 - O timestamp é gerado no subscriber; não é usado como fonte temporal do emulador.
 - A política de descarte fica observável pelo contador de eventos perdidos.
 
-## Política de panic e crash\n\nA saída padrão de panic do Rust deve ser preservada e chamada exatamente uma vez, mesmo quando a coleta privada estiver desativada. A captura para `sega-emulator-crash.log` é independente da saída padrão: só pode ocorrer com consentimento ativo no instante do panic. Não capturar payload arbitrário nem backtrace bruto por padrão; não suprimir panic nem usar `catch_unwind` para mascarar falhas. Ver [ADR 0012](../adr/0012-panic-crash-diagnostics-policy.md). A implementação e os testes de subprocesso permanecem pendentes em DP0-F5.\n\n## Testes e validação
+## Política de panic e crash
 
-O crate contém testes para rotação por tamanho, retenção de backups e ring buffer. A suíte com feature `runtime` deve ser executada explicitamente:
+A saída padrão de panic do Rust deve ser preservada e chamada exatamente uma vez, mesmo quando a coleta privada estiver desativada. A captura para \`sega-emulator-crash.log\` é independente da saída padrão: só pode ocorrer com consentimento ativo no instante do panic. Não capturar payload arbitrário nem backtrace bruto por padrão; não suprimir panic nem usar \`catch_unwind\` para mascarar falhas. Ver [ADR 0012](../adr/0012-panic-crash-diagnostics-policy.md).
 
-`cargo test --manifest-path native/observability/Cargo.toml --features runtime --locked`
+## Testes e validação
 
-Além dos testes, a aplicação deve ser validada em Windows para confirmar os caminhos de escrita, rotação, encerramento e captura de panic.
+O crate contém testes para rotação por tamanho, retenção de backups e ring buffer. A suíte com feature \`runtime\` deve ser executada explicitamente:
+
+\`cargo test --manifest-path native/observability/Cargo.toml --features runtime --locked\`
+
+A fatia DP0-F5 acrescenta testes do formatter puro, ausência de sentinelas, limite do arquivo, retenção pré-hook, falha de I/O e delegação em subprocessos. A aprovação exige Windows x64 Debug e Release. CI aprovado não substitui validação física de saída de console em todos os ambientes.
 
 ## Entregas seguintes da sprint
 
