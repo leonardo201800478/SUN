@@ -41,24 +41,44 @@ jobs:
             "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
             -o "$RUNNER_TEMP/ym2413-nuked-trace"
 
-      - name: Generate controlled melodic register sequence
+      - name: Generate all-channel melodic register sequence
         run: |
-          cat > "$RUNNER_TEMP/events.csv" <<'EOF'
-          # call_index,port,value
-          0,0,16
-          2,1,64
-          40,0,32
-          42,1,0
-          80,0,48
-          82,1,16
-          EOF
-          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 --pg-only \
-            --events "$RUNNER_TEMP/events.csv" > "$RUNNER_TEMP/nuked-pg.jsonl"
+          python3 - "$RUNNER_TEMP/events.csv" <<'PY'
+          import csv
+          import sys
+
+          fnums = [32, 64, 128, 192, 256, 320, 384, 448, 511]
+          events = []
+          call_index = 0
+          for channel, fnum in enumerate(fnums):
+              block = min(channel, 7)
+              writes = (
+                  (0x10 + channel, fnum & 0xFF),
+                  (0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1)),
+                  (0x30 + channel, 0x10),  # instrument 1, volume 0
+              )
+              for address, value in writes:
+                  events.append((call_index, 0, address))
+                  events.append((call_index + 2, 1, value))
+                  call_index += 40
+
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 --pg-phase-only \
+            --events "$RUNNER_TEMP/events.csv" > "$RUNNER_TEMP/nuked-pg-phase.jsonl"
 
       - name: Compare every captured PG increment with production Rust
         run: |
           python3 tools/ym2413-nuked-oracle/compare_pg.py \
-            --nuked-trace "$RUNNER_TEMP/nuked-pg.jsonl"
+            --nuked-trace "$RUNNER_TEMP/nuked-pg-phase.jsonl"
+
+      - name: Compare all 18 accumulated PG phases with production Rust
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_pg_phase.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-pg-phase.jsonl"
 
       - name: Run pinned MAME/ymfm source-level PG arithmetic audit
         run: |
