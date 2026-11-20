@@ -372,7 +372,9 @@ mod windows_host {
                             next_players[0],
                         );
                         if let Err(error) = worker.set_controller_at(1, combined, Instant::now()) {
-                            diagnostic_eprintln!("R4_SDL3 player=1 action=controller_update error={error}");
+                            diagnostic_eprintln!(
+                                "R4_SDL3 player=1 action=controller_update error={error}"
+                            );
                         }
                     }
 
@@ -380,7 +382,9 @@ mod windows_host {
                         && let Err(error) =
                             worker.set_controller_at(2, next_players[1], Instant::now())
                     {
-                        diagnostic_eprintln!("R4_SDL3 player=2 action=controller_update error={error}");
+                        diagnostic_eprintln!(
+                            "R4_SDL3 player=2 action=controller_update error={error}"
+                        );
                     }
                 }
             }
@@ -3210,7 +3214,9 @@ mod windows_host {
             AudioRendererMode::Psg
         };
         if let Err(error) = worker.set_audio_renderer(renderer) {
-            diagnostic_eprintln!("R3_AUDIO renderer selection failed; PSG remains the fallback: {error}");
+            diagnostic_eprintln!(
+                "R3_AUDIO renderer selection failed; PSG remains the fallback: {error}"
+            );
         }
         if video_only_capture_enabled() {
             diagnostic_eprintln!(
@@ -3237,7 +3243,9 @@ mod windows_host {
             },
         );
         if let Err(error) = result {
-            diagnostic_eprintln!("R3_AUDIO CPAL unavailable; continuing without physical audio: {error}");
+            diagnostic_eprintln!(
+                "R3_AUDIO CPAL unavailable; continuing without physical audio: {error}"
+            );
         }
     }
 
@@ -3578,7 +3586,9 @@ mod windows_host {
                     resolve_sms_region(preference, rom, &cartridge_catalog).region
                 }
                 Err(error) => {
-                    diagnostic_eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    diagnostic_eprintln!(
+                        "SMS_REGION preference=auto catalog_error={error}; fallback=usa"
+                    );
                     SmsRegion::Usa
                 }
             },
@@ -4063,7 +4073,9 @@ mod windows_host {
                 if let Some(worker) = keyboard_press_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
-                    diagnostic_eprintln!("SLINT_KEYBOARD action=keyboard_controller_press error={error}");
+                    diagnostic_eprintln!(
+                        "SLINT_KEYBOARD action=keyboard_controller_press error={error}"
+                    );
                 }
             }
 
@@ -4103,7 +4115,9 @@ mod windows_host {
                 if let Some(worker) = keyboard_release_worker.borrow().as_ref()
                     && let Err(error) = worker.set_controller_at(1, buttons, Instant::now())
                 {
-                    diagnostic_eprintln!("SLINT_KEYBOARD action=keyboard_controller_release error={error}");
+                    diagnostic_eprintln!(
+                        "SLINT_KEYBOARD action=keyboard_controller_release error={error}"
+                    );
                 }
             }
         });
@@ -4461,7 +4475,8 @@ mod windows_host {
         app.on_firmware_selection_changed(move |region, firmware| {
             diagnostic_eprintln!(
                 "SMS_FIRMWARE_SELECTION region={} selection={}",
-                region, firmware
+                region,
+                firmware
             );
         });
 
@@ -4987,13 +5002,12 @@ mod windows_host {
             }
             HOST_DIAGNOSTICS_ENABLED.store(enabled, Ordering::Release);
             if let Some(app) = diagnostics_app.upgrade() {
-                app.set_debug_status(
-                    if enabled {
-                        "Coleta diagnóstica autorizada para esta sessão; saída em stderr.".into()
-                    } else {
-                        "Coleta diagnóstica desativada; novas métricas e logs foram interrompidos.".into()
-                    },
-                );
+                app.set_debug_status(if enabled {
+                    "Coleta diagnóstica autorizada para esta sessão; saída em stderr.".into()
+                } else {
+                    "Coleta diagnóstica desativada; novas métricas e logs foram interrompidos."
+                        .into()
+                });
             }
         });
         let _frame_diagnostics_timer =
