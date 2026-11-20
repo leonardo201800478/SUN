@@ -10,7 +10,7 @@ Este diretório contém as decisões arquiteturais que definem o produto e sua e
 | [0008 — hardware nativo Rust](0008-rust-native-hardware-only.md) | Hardware e lógica de emulação em Rust | Vigente naquilo que não conflita com ADR 0010/0011 |
 | [0009 — aplicação Rust + egui/eframe](0009-full-rust-application-egui-eframe.md) | Aplicação desktop nativa Rust com egui/eframe | **Supersedida na escolha de UI pela ADR 0011** |
 | [0010 — Rust-only e SMS temporal primeiro](0010-rust-only-sms-temporal-first.md) | Produto Rust-only e prioridade SMS temporal | Normativa para runtime, hardware e roadmap; escolha de UI supersedida pela ADR 0011 |
-| [0011 — Slint + WGPU + CPAL](0011-slint-wgpu-cpal-desktop-platform.md) | Nova plataforma desktop e adaptadores de host | **Normativa para a replataforma; produção condicionada ao POC** |
+| [0011 — Slint + WGPU + CPAL](0011-slint-wgpu-cpal-desktop-platform.md) | Nova plataforma desktop e adaptadores de host | **Normativa para a replataforma; produção condicionada ao POC** |\n| [0012 — política de panic e crash diagnostics](0012-panic-crash-diagnostics-policy.md) | Preservar hook padrão; captura privada sanitizada somente com consentimento | **Normativa; implementação DP0-F5 pendente** |
 | [Z80-001 — execução retomável](ADR-Z80-001-resumable-execution.md) | Contrato de execução suspensível/retomável do Z80 | Aplicar conforme o caminho temporal observável e ADR-0016 |
 
 ## Precedência
