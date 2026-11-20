@@ -605,11 +605,12 @@ mod tests {
     fn crash_formatter_excludes_payload_and_absolute_source_paths() {
         let record = format_crash_record(
             1_800_000_000_000,
-            "session/SECRET-ID",
+            "session/ID",
             Some((r"C:\Users\private\ROM_SENTINEL\source\cpu.rs", 42, 7)),
             true,
         );
 
+        assert!(record.contains("session_id=sessionID"));
         assert!(record.contains("source_file=cpu.rs"));
         assert!(record.contains("source_line=42"));
         assert!(record.contains("source_column=7"));
