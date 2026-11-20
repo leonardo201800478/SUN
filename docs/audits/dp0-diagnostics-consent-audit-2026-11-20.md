@@ -347,3 +347,20 @@ Os hosts persistem caminhos de ROM em arquivos de preferências/lista recente. �
 As seções 9.1 e 9.2 registram a fotografia anterior e os próximos passos daquele SHA; não devem ser interpretadas como estado atual após os merges #1098/#1099. Na baseline desta seção, DP0-F4 usa a API `init_after_explicit_consent` e o filtro inicial `off`; DP0-F5 está integrada pela PR #1099. A reavaliação F6 acima prevalece para a classificação atual. A API de consentimento documenta que o host é responsável por criar a capability somente em resposta à ação afirmativa; a linguagem não consegue provar que uma ação humana ocorreu.
 
 **Estado após esta inspeção:** inventário estático ampliado e achados encaminhados; F6 ainda não está encerrada porque a verificação de wrappers/FFI/dependências e a resolução/testagem dos achados de lifecycle permanecem pendentes. Nenhuma alteração de código de hardware/runtime foi feita.
+
+
+### 10.9 Referências de código para os achados de lifecycle
+
+- `native/observability/src/runtime.rs:131-159`: `enable()` e `disable()`; a revogação altera o flag e o filtro, mas não limpa `recent_events`.
+- `native/observability/src/runtime.rs:184-185, 210-249`: leitura do ring buffer e serialização do snapshot.
+- `native/observability/src/runtime.rs:303-370`: inicialização consentida, criação do diretório/writer, fila non-blocking e filtro inicial.
+- `native/observability/src/writer.rs:47-58`: publicação de linhas no ring buffer; `47-58` não verifica um estado de consentimento.
+- `native/observability/src/writer.rs:62-69`: o fanout escreve no destino e acumula as linhas completas para o snapshot.
+- `native/sega_desktop/src/main.rs:73-117`: callback de opt-in/revogação, shutdown e stderr de falha do snapshot.
+- `native/sega_app/src/app.rs:1216-1268`: transição de consentimento do host egui legado; `1779-1811`: shutdown e stderr de falha do snapshot.
+- `native/sega_desktop/src/main.rs:1562-1685`: persistência de preferências e lista de ROMs recentes.
+- `native/sega_app/src/app.rs:620-702, 1996-2021`: persistência de preferências e lista de ROMs recentes.
+- `native/sms_debugger/src/app.rs:236-288`: exportação explícita do relatório.
+- `rust/runtime/sg1000-runtime/src/worker.rs:50-110`: telemetria operacional em memória do SG-1000.
+
+**Confirmação externa da semântica da fila:** a documentação oficial de `tracing-appender 0.2.5` informa que `NonBlocking` enfileira eventos para um worker dedicado e que `WorkerGuard` drena/flush os registros pendentes ao ser descartado. O método `flush` de `NonBlocking` não fornece uma operação pública de purga seletiva da fila. Portanto, a política de revogação precisa distinguir registros já aceitos/enfileirados antes da revogação de eventos novos, e definir se os registros antigos podem continuar chegando ao arquivo depois do clique de revogação. Referência: https://docs.rs/tracing-appender/0.2.5/tracing_appender/non_blocking/.
