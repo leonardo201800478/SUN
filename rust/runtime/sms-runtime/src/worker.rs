@@ -998,34 +998,41 @@ impl WorkerCommand {
 fn set_trace_capture(
     commands: &SyncSender<WorkerCommand>,
     collector_slot: &Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>,
+    telemetry: &WorkerTelemetry,
     enabled: bool,
 ) -> Result<(), String> {
+    if enabled && !telemetry.diagnostics_enabled() {
+        return Err("Enable Coleta de logs no Debugger antes de ativar o trace".to_owned());
+    }
+
     let mut slot = collector_slot
         .lock()
         .map_err(|_| "debugger collector state is unavailable".to_owned())?;
-    if enabled == slot.is_some() {
+    if enabled {
+        if slot.is_some() {
+            return Ok(());
+        }
+        let collector = DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY)
+            .map_err(|error| format!("failed to start SMS debugger collector: {error}"))?;
+        let publisher = Some(collector.publisher());
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(
+            commands,
+            WorkerCommand::SetTraceEnabled(true, publisher, reply_sender),
+        )?;
+        receive_worker_reply(reply_receiver, "enabling debugger trace capture")??;
+        *slot = Some(collector);
         return Ok(());
     }
-    let collector = if enabled {
-        Some(
-            DiagnosticCollector::start(512, DEBUG_TRACE_CAPACITY)
-                .map_err(|error| format!("failed to start SMS debugger collector: {error}"))?,
-        )
-    } else {
-        None
-    };
-    let publisher = collector.as_ref().map(|collector| collector.publisher());
+
+    // Revoke and clear retained events before asking the machine worker to
+    // disable trace generation at its next command boundary.
+    drop(slot.take());
     let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
-    enqueue_worker_command(
-        commands,
-        WorkerCommand::SetTraceEnabled(enabled, publisher, reply_sender),
-    )?;
-    receive_worker_reply(reply_receiver, "changing debugger trace capture")??;
-    if enabled {
-        *slot = collector;
-    } else {
-        slot.take();
-    }
+    commands
+        .send(WorkerCommand::SetTraceEnabled(false, None, reply_sender))
+        .map_err(|_| "SMS worker stopped while disabling debugger trace".to_owned())?;
+    receive_worker_reply(reply_receiver, "disabling debugger trace capture")??;
     Ok(())
 }
 
@@ -1042,7 +1049,9 @@ fn capture_debug_snapshot(
         .map_err(|_| "debugger collector state is unavailable".to_owned())?;
     if let Some(collector) = slot.as_ref() {
         snapshot.trace_events = collector.snapshot();
-        snapshot.trace_dropped = collector.ingress_dropped();
+        snapshot.trace_dropped = collector
+            .ingress_dropped()
+            .saturating_add(collector.history_dropped());
         snapshot.trace_enabled = true;
     }
     Ok(snapshot)
@@ -1056,7 +1065,7 @@ pub struct SmsWorkerSaveState {
     pub machine_state: SmsTemporalMachineState,
 }
 
-pub const SMS_WORKER_SAVE_STATE_VERSION: u16 = 1;
+pub const SMS_WORKER_SAVE_STATE_VERSION: u16 = 2;
 
 /// Owned, immutable SMS/Z80 state captured on the machine worker thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1093,7 +1102,7 @@ pub struct SmsDebugSnapshot {
     pub framebuffer_rgb: Vec<u8>,
     /// Most recent scheduler/bus events, oldest first.
     pub trace_events: Vec<SmsTemporalTraceEvent>,
-    /// Number of trace events discarded after the bounded history filled.
+    /// Number of trace events discarded by the machine buffer, ingress queue, or retained history.
     pub trace_dropped: u64,
     /// Whether runtime trace capture is currently enabled.
     pub trace_enabled: bool,
@@ -1156,11 +1165,14 @@ impl SmsTemporalWorkerDebugHandle {
 
     /// Enable or disable bounded scheduler and bus trace capture.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
-        set_trace_capture(&self.commands, &self.trace_collector, enabled)
+        set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, enabled)
     }
 
     /// Capture an immutable, owned machine snapshot.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
+        if !self.telemetry.diagnostics_enabled() {
+            return Err("SMS diagnostics consent is not enabled".to_owned());
+        }
         capture_debug_snapshot(&self.commands, &self.trace_collector)
     }
 
@@ -1483,8 +1495,12 @@ impl SmsTemporalWorker {
     }
 
     /// Enable or disable optional diagnostic telemetry without changing emulation.
-    pub fn set_diagnostics_enabled(&self, enabled: bool) {
+    pub fn set_diagnostics_enabled(&self, enabled: bool) -> Result<(), String> {
         self.telemetry.set_diagnostics_enabled(enabled);
+        if !enabled {
+            set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, false)?;
+        }
+        Ok(())
     }
 
     pub fn reset(&self) -> Result<(), String> {
@@ -1517,6 +1533,9 @@ impl SmsTemporalWorker {
 
     /// Capture a coherent, owned debugger snapshot at a worker command boundary.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
+        if !self.telemetry.diagnostics_enabled() {
+            return Err("SMS diagnostics consent is not enabled".to_owned());
+        }
         capture_debug_snapshot(&self.commands, &self.trace_collector)
     }
 
@@ -1546,7 +1565,7 @@ impl SmsTemporalWorker {
 
     /// Enable or disable bounded scheduler/bus trace capture.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
-        set_trace_capture(&self.commands, &self.trace_collector, enabled)
+        set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, enabled)
     }
 
     /// Change the active SMS VDP sprite rendering limit through the machine worker.
@@ -2366,10 +2385,15 @@ fn drain_machine_trace(
     machine: &mut SmsTemporalMachine,
     publisher: Option<&DiagnosticPublisher<SmsTemporalTraceEvent>>,
 ) {
+    // Always drain the machine-side bounded buffer. If consent was revoked,
+    // the publisher is inactive and these events are discarded immediately.
+    let events = machine.take_trace();
+    let dropped = machine.take_trace_dropped();
     let Some(publisher) = publisher.filter(|publisher| publisher.is_active()) else {
         return;
     };
-    for event in machine.take_trace() {
+    publisher.record_dropped(dropped);
+    for event in events {
         let _ = publisher.try_publish(event);
     }
 }
