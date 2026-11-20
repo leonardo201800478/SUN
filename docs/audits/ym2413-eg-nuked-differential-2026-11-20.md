@@ -215,3 +215,45 @@ or the complete audio path.
 **Production status at this capture:** unchanged. PR #1076 contains tooling
 and diagnostics only. The ATTACK-to-DECAY correction is to be developed and
 validated separately; no merge is authorized by this record.
+
+
+## Post-correction differential — ATTACK-to-DECAY
+
+The production correction is isolated in draft PR #1082:
+
+- Production fix commit: ba503de6badd5caa3175a5c05f15ca21089c4c09
+- Corrected production source blob: dacbcf1eaa64fa0e393809392fa248b855d38e38
+- Directed test: attack_to_decay_transition_uses_pre_update_zero_level
+
+To keep PR #1076 tooling-only, the exact production source change was applied
+to a separate validation branch and combined with the characterization
+tooling in temporary draft PR #1083. No merge was performed.
+
+Validation run:
+
+- EG workflow: 44687055542
+- Validation HEAD: c0104ca3f2d4b9cb0ab0811765d388ff3442d041
+- Artifact ID: 14606314250
+- Artifact SHA-256: cc2fe8c6f86bc0f9658c1a5e8e72957da1c67246affda4ea058646923a6399bf
+
+The corrected production source eliminates every ATTACK-to-DECAY stage
+mismatch while leaving the level residuals unchanged:
+
+| Capture | Level mismatches | Maximum absolute error | Stage mismatches |
+|---|---:|---:|---:|
+| Channel 0 | 18 / 1,744 | 1 | 0 |
+| Channels 0–3 | 60 / 6,418 | 1 | 0 |
+
+The pre-state replay analyzer still reports zero Nuked reconstruction errors
+for both captures. The differential therefore confirms that the production
+state-transition correction is isolated: it removes the eight observed
+matrix stage mismatches and the two single-channel stage mismatches without
+changing the residual level trace.
+
+The remaining level mismatches are still restricted to counters 256–258,
+512–514 and 768–770. They remain unresolved and are not covered by this
+production correction.
+
+The temporary validation PR #1083 is not a delivery PR and must be closed
+after its workflow validation is complete. PR #1076 remains tooling-only and
+draft; PR #1082 remains the separate production-fix draft. Neither is merged.
