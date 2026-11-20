@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: leonardo201800478/sega-emulator
-          ref: e9e5fd73b6d2738abfe1cb4ab981eb5adbc2f6cc
+          ref: 3cbd2aefe85c39da217f680783ebcafb8a461d28
           path: oracle-adapter
 
       - name: Checkout pinned Nuked-OPLL reference
