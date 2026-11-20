@@ -1,0 +1,52 @@
+name: Observability panic and crash validation
+
+on:
+  pull_request:
+    paths:
+      - 'native/observability/**'
+      - '.github/workflows/observability-panic-crash.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'native/observability/**'
+      - '.github/workflows/observability-panic-crash.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observability-panic-crash-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    name: Windows x64 observability (${{ matrix.profile }})
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, release]
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; rustup default 1.99.1
+      - name: Check formatting
+        run: cargo fmt --manifest-path native/observability/Cargo.toml -- --check
+      - name: Clippy Debug
+        if: matrix.profile == 'debug'
+        run: cargo clippy --manifest-path native/observability/Cargo.toml --features runtime --all-targets --locked -- -D warnings
+      - name: Test Debug
+        if: matrix.profile == 'debug'
+        run: cargo test --manifest-path native/observability/Cargo.toml --features runtime --locked
+      - name: Clippy Release
+        if: matrix.profile == 'release'
+        run: cargo clippy --release --manifest-path native/observability/Cargo.toml --features runtime --all-targets --locked -- -D warnings
+      - name: Test Release
+        if: matrix.profile == 'release'
+        run: cargo test --release --manifest-path native/observability/Cargo.toml --features runtime --locked

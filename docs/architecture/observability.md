@@ -56,7 +56,19 @@ Arquivos:
 
 - `sega-emulator.log`: JSON Lines, rotação por tamanho (10 MiB por arquivo, cinco backups).
 - `sega-emulator-diagnostics.json`: snapshot da sessão escrito no encerramento ou na exportação.
-- `sega-emulator-crash.log`: registro privado de panic, somente quando o consentimento está ativo no instante da falha. Pela ADR 0012, deve conter timestamp, ID da sessão e localização sanitizada (nome-base/linha/coluna), sem payload bruto, caminhos absolutos ou backtrace por padrão. A implementação desta política está pendente da DP0-F5.
+- `sega-emulator-crash.log`: registro privado de panic, somente quando o consentimento está ativo no instante da falha.
+
+### Política do crash log — ADR 0012 / DP0-F5
+
+O hook privado é instalado somente durante a inicialização consentida da infraestrutura. O hook consulta o estado atômico do consentimento no instante do panic. Se o consentimento tiver sido revogado, não grava o arquivo privado.
+
+O registro permitido contém somente timestamp Unix em milissegundos, ID de sessão sanitizado, nome-base do arquivo-fonte, linha, coluna e indicador booleano de que o payload era textual. O conteúdo do payload, caminho absoluto, diretórios pessoais e backtrace não são capturados.
+
+Cada registro tem limite de 1 KiB. O arquivo tem limite derivado de `LogConfig.max_file_size_bytes`; se o próximo registro não couber, ele é descartado em vez de executar rotação no hook. A rotação e a retenção de backups ocorrem durante a inicialização consentida, antes da instalação do hook. O limite de backups usa `LogConfig.retained_files`.
+
+Falhas de abertura, escrita ou flush do arquivo privado não impedem a chamada do hook anterior do Rust, que é delegada exatamente uma vez. O hook não usa logger, subscriber, worker, GUI, Scheduler, mutexes de aplicação, `catch_unwind`, rede ou backtrace. A saída padrão de panic continua separada do arquivo privado e preserva o comportamento normal de falha.
+
+A implementação foi validada no commit de código 8bedcb3a6956faf3a3bb8351ccdd08a47bc43a11: Windows x64 Debug e Release passaram em rustfmt, Clippy e testes (14 testes por perfil); o CI Linux Release também aprovou Clippy e os testes da feature runtime. A PR #1099 aguarda somente a conclusão dos checks gerais restantes e o merge.
 
 `SEGA_LOG_DIR` permite substituir o diretório e `SEGA_LOG_FILTER` define o filtro inicial. O filtro pode ser recarregado em runtime por `LoggingHandle::set_filter`.
 
@@ -106,13 +118,17 @@ Não registrar cada instrução Z80 nem cada T-state por padrão. A instrumenta�
 - O timestamp é gerado no subscriber; não é usado como fonte temporal do emulador.
 - A política de descarte fica observável pelo contador de eventos perdidos.
 
-## Política de panic e crash\n\nA saída padrão de panic do Rust deve ser preservada e chamada exatamente uma vez, mesmo quando a coleta privada estiver desativada. A captura para `sega-emulator-crash.log` é independente da saída padrão: só pode ocorrer com consentimento ativo no instante do panic. Não capturar payload arbitrário nem backtrace bruto por padrão; não suprimir panic nem usar `catch_unwind` para mascarar falhas. Ver [ADR 0012](../adr/0012-panic-crash-diagnostics-policy.md). A implementação e os testes de subprocesso permanecem pendentes em DP0-F5.\n\n## Testes e validação
+## Política de panic e crash
+
+A saída padrão de panic do Rust deve ser preservada e chamada exatamente uma vez, mesmo quando a coleta privada estiver desativada. A captura para `sega-emulator-crash.log` é independente da saída padrão: só pode ocorrer com consentimento ativo no instante do panic. Não capturar payload arbitrário nem backtrace bruto por padrão; não suprimir panic nem usar `catch_unwind` para mascarar falhas. Ver [ADR 0012](../adr/0012-panic-crash-diagnostics-policy.md).
+
+## Testes e validação
 
 O crate contém testes para rotação por tamanho, retenção de backups e ring buffer. A suíte com feature `runtime` deve ser executada explicitamente:
 
 `cargo test --manifest-path native/observability/Cargo.toml --features runtime --locked`
 
-Além dos testes, a aplicação deve ser validada em Windows para confirmar os caminhos de escrita, rotação, encerramento e captura de panic.
+A fatia DP0-F5 acrescenta testes do formatter puro, ausência de sentinelas, limite do arquivo, retenção pré-hook, falha de I/O e delegação em subprocessos. A aprovação exige Windows x64 Debug e Release. CI aprovado não substitui validação física de saída de console em todos os ambientes.
 
 ## Entregas seguintes da sprint
 
