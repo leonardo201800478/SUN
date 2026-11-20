@@ -261,7 +261,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "\"candidate_level_initial_127_deferred_unwrapped\":{},",
                 "\"candidate_stage_initial_127_deferred_unwrapped\":{},",
                 "\"candidate_level_initial_127_deferred_decay_phase_minus3\":{},",
-                "\"candidate_stage_initial_127_deferred_decay_phase_minus3\":{}}}"
+                "\"candidate_stage_initial_127_deferred_decay_phase_minus3\":{},",
+                "\"candidate_level_initial_127_deferred_external_rate_phase\":{},",
+                "\"candidate_stage_initial_127_deferred_external_rate_phase\":{}}}"
             ),
             sample.call_index,
             sample.slot,
@@ -283,6 +285,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             stage_code(initial_silent_deferred_unwrapped[generator_index].stage()),
             initial_silent_deferred_decay_phase_minus3[generator_index].level(),
             stage_code(initial_silent_deferred_decay_phase_minus3[generator_index].stage()),
+            external_phase_result.level,
+            stage_code(initial_silent_deferred_external_rate_phase[generator_index].stage()),
         );
         sample_count += 1;
     }
