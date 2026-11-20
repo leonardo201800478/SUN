@@ -72,6 +72,15 @@ jobs:
             --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl" \
             > "$RUNNER_TEMP/eg-pipeline-analysis.json"
 
+      - name: Audit the three-count DECAY phase candidate
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --candidate initial_127_deferred_decay_phase_minus3 \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-pipeline-analysis-decay-phase-minus3.json"
+
       - name: Capture four KSR low-bit rows across four channels twice
         run: |
           "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
@@ -114,6 +123,15 @@ jobs:
             --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl" \
             > "$RUNNER_TEMP/eg-matrix-pipeline-analysis.json"
 
+      - name: Audit the three-count DECAY phase candidate across the rate matrix
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --candidate initial_127_deferred_decay_phase_minus3 \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-matrix-pipeline-analysis-decay-phase-minus3.json"
+
       - name: Retain deterministic EG and Rust candidate traces
         if: always()
         uses: actions/upload-artifact@v4
@@ -128,5 +146,7 @@ jobs:
             ${{ runner.temp }}/eg-matrix-rust-candidates.jsonl
             ${{ runner.temp }}/eg-pipeline-analysis.json
             ${{ runner.temp }}/eg-matrix-pipeline-analysis.json
+            ${{ runner.temp }}/eg-pipeline-analysis-decay-phase-minus3.json
+            ${{ runner.temp }}/eg-matrix-pipeline-analysis-decay-phase-minus3.json
           if-no-files-found: warn
           retention-days: 7
