@@ -5119,7 +5119,6 @@ mod windows_host {
                 }
                 Err(error) => {
                     diagnostics_timer_control.stop();
-                    HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
                     *diagnostics_consent_control.borrow_mut() = None;
                     if let Some(worker) = diagnostics_worker.borrow().as_ref() {
                         let _ = worker.disable_sms_diagnostics();
