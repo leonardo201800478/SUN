@@ -1,8 +1,9 @@
 //! Full 18-slot YM2413 EG sequencer replay against a pinned Nuked trace.
 //!
-//! The input row supplies the selected current-cycle channel/operator latches.
-//! The sequencer owns the 18 EG states, shared timer, and delayed control
-//! pipelines, then compares its complete post-cycle state with the oracle.
+//! The input CSV contains oracle post-cycle state. When an event fixture is
+//! supplied, OPLL address/data writes are replayed into the 64-byte register
+//! file and the channel decoder constructs the current-cycle EG input. The
+//! sequencer owns all 18 EG states, timer, and delayed control pipelines.
 
 use sega_ym2413::{
     ChannelSynthesisConfig, EnvelopeSequencer, EnvelopeSlotInput, decode_channel_synthesis,
