@@ -42,13 +42,16 @@ jobs:
             --events tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
             > "$RUNNER_TEMP/eg-trace-b.jsonl"
           cmp "$RUNNER_TEMP/eg-trace-a.jsonl" "$RUNNER_TEMP/eg-trace-b.jsonl"
-          python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
-            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" --expected-calls 30000
-
       - name: Retain deterministic EG trace artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ym2413-nuked-eg-characterization
           path: ${{ runner.temp }}/eg-trace-a.jsonl
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
+
+      - name: Validate serial EG state and channel events
+        run: |
+          python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" --expected-calls 30000
