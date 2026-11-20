@@ -7,6 +7,7 @@ pub mod am_lfo;
 pub mod bus_timing;
 pub mod channel;
 pub mod envelope;
+pub mod envelope_operator;
 pub mod envelope_timer;
 pub mod instrument;
 pub mod key_scale;
@@ -34,6 +35,11 @@ pub use bus_timing::{
 pub use channel::{
     ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
     decode_channel_synthesis,
+};
+pub use envelope_operator::{
+    EnvelopeControlPhase, EnvelopeOperator, EnvelopeOperatorError, EnvelopeOperatorStage,
+    EnvelopeOperatorState, EnvelopeOperatorTick, YM2413_ENVELOPE_OPERATOR_MAX_LEVEL,
+    YM2413_ENVELOPE_OPERATOR_STATE_VERSION,
 };
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
