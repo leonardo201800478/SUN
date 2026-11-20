@@ -36,15 +36,15 @@ pub use channel::{
     ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
     decode_channel_synthesis,
 };
-pub use envelope_operator::{
-    EnvelopeControlPhase, EnvelopeOperator, EnvelopeOperatorError, EnvelopeOperatorStage,
-    EnvelopeOperatorState, EnvelopeOperatorTick, YM2413_ENVELOPE_OPERATOR_MAX_LEVEL,
-    YM2413_ENVELOPE_OPERATOR_STATE_VERSION,
-};
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
     EnvelopeTickResult, YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
+};
+pub use envelope_operator::{
+    EnvelopeControlPhase, EnvelopeOperator, EnvelopeOperatorError, EnvelopeOperatorStage,
+    EnvelopeOperatorState, EnvelopeOperatorTick, YM2413_ENVELOPE_OPERATOR_MAX_LEVEL,
+    YM2413_ENVELOPE_OPERATOR_STATE_VERSION,
 };
 pub use instrument::{
     ChannelRegisterState, InstrumentError, InstrumentPatch, OperatorPatch, YM2413_PRESET_NAMES,
