@@ -130,8 +130,9 @@ Auditoria: `docs/audits/ym2413-pg-phase-accumulator-nuked-differential-2026-11-1
 - 2.654.208 valores de acumulador (18 slots × 147.456 chamadas) comparados nos 19 bits efetivos: zero divergências.
 - 5.076 wraps de 19 bits observados; todos os 18 slots ficaram ativos.
 - CI run `44654562391`, job `136017489127`: SUCCESS.
+- KEY-ON follow-up: 2.600 chamadas, 35 observações `eg_dokon`, 2 eventos de reset de fase, 46.800 valores comparados, zero divergências; run `44655142186`, job `136019395851`: SUCCESS. O reset é validado como estímulo observado de Nuked para um KEY-ON no canal 8, não como auditoria completa do detector EG.
 
-**Escopo validado:** ordem de atualização do slot anterior e estado de fase acumulada para a sequência melódica controlada sem KEY-ON. KEY-ON/reset, Rhythm Mode, subfases XIN, EG, feedback, operador, PCM e todos os patches continuam fora desta validação. Nenhum código de produção foi alterado por este comparador.
+**Escopo validado:** ordem de atualização do slot anterior e estado de fase acumulada para a sequência melódica controlada sem KEY-ON. A aplicação do reset PG foi comparada para um evento KEY-ON no canal 8; geração EG do evento em todos os canais, KEY-ON simultâneo, test mode, Rhythm Mode, subfases XIN, EG completo, feedback, operador, PCM e todos os patches continuam fora desta validação. Nenhum código de produção foi alterado por este comparador.
 
 ## Triangulação secundária MAME/ymfm — 2026-11-19
 
