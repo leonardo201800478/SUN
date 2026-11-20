@@ -14,8 +14,8 @@ use std::time::{Duration, Instant};
 
 use crate::audio::AudioSession;
 use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
-use sega_observability::DiagnosticsConsent;
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
+use sega_observability::DiagnosticsConsent;
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
@@ -1164,10 +1164,14 @@ impl SmsTemporalWorkerDebugHandle {
         self.request_unit(|reply| WorkerCommand::SetBreakpoint(address, enabled, reply))
     }
 
-    /// Enable or disable bounded scheduler and bus trace capture.
-    /// Enable bounded trace capture; enabling requires a prior consent capability.
+    /// Set bounded scheduler/bus trace capture; enabling requires explicit diagnostics consent.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
-        set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, enabled)
+        set_trace_capture(
+            &self.commands,
+            &self.trace_collector,
+            &self.telemetry,
+            enabled,
+        )
     }
 
     /// Capture an immutable, owned machine snapshot.
@@ -1505,7 +1509,12 @@ impl SmsTemporalWorker {
     /// Revoke diagnostics, disable trace capture, and discard all retained trace data.
     pub fn disable_diagnostics(&self) -> Result<(), String> {
         self.telemetry.set_diagnostics_enabled(false);
-        set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, false)
+        set_trace_capture(
+            &self.commands,
+            &self.trace_collector,
+            &self.telemetry,
+            false,
+        )
     }
 
     pub fn reset(&self) -> Result<(), String> {
@@ -2881,10 +2890,10 @@ fn handle_command(
 #[cfg(test)]
 mod tests {
     use super::{
-        DiagnosticsConsent, AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
-        FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
-        Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
-        WorkerTelemetry, build_sms_temporal_machine,
+        AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
+        DiagnosticsConsent, FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample,
+        FramePacingWindow, Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker,
+        SpriteLimitMode, WorkerTelemetry, build_sms_temporal_machine,
         build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
         execute_frame, execute_frame_with_renderer, frame_duration_from_machine_ticks,
         sms_temporal_hardware_profile, sms_temporal_region_profile,
