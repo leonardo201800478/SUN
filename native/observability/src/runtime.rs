@@ -141,17 +141,7 @@ impl LoggingHandle {
         self.filter
             .reload(filter)
             .map_err(|error| error.to_string())?;
-        {
-            let mut writer_enabled = self
-                .writer_gate
-                .write()
-                .unwrap_or_else(PoisonError::into_inner);
-            self.recent_events
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .clear();
-            *writer_enabled = true;
-        }
+        set_writer_gate(&self.writer_gate, &self.recent_events, true);
         DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
         Ok(())
     }
@@ -167,15 +157,7 @@ impl LoggingHandle {
         self.filter
             .reload(filter)
             .map_err(|error| error.to_string())?;
-        let mut writer_enabled = self
-            .writer_gate
-            .write()
-            .unwrap_or_else(PoisonError::into_inner);
-        *writer_enabled = false;
-        self.recent_events
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clear();
+        set_writer_gate(&self.writer_gate, &self.recent_events, false);
         Ok(())
     }
 
@@ -303,6 +285,23 @@ impl LoggingHandle {
 
 fn initial_filter_directives() -> &'static str {
     "off"
+}
+
+/// Serialize writer activation/revocation with in-flight writes and clear the
+/// recent-event ring so records never cross a consent boundary.
+fn set_writer_gate(
+    writer_gate: &RwLock<bool>,
+    recent_events: &Mutex<VecDeque<String>>,
+    enabled: bool,
+) {
+    let mut writer_enabled = writer_gate
+        .write()
+        .unwrap_or_else(PoisonError::into_inner);
+    recent_events
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+    *writer_enabled = enabled;
 }
 
 fn ensure_diagnostics_enabled(enabled: bool) -> Result<(), std::io::Error> {
@@ -592,8 +591,10 @@ mod tests {
     use super::{
         DIAGNOSTICS_ENABLED, LogConfig, Ordering, SessionMetadata, append_crash_record,
         ensure_diagnostics_enabled, format_crash_record, initial_filter_directives,
-        prepare_crash_log,
+        prepare_crash_log, set_writer_gate,
     };
+    use std::collections::VecDeque;
+    use std::sync::{Mutex, RwLock};
     use std::fs;
     use std::io::Write;
     use std::process::Command;
@@ -619,6 +620,26 @@ mod tests {
     fn subscriber_initial_filter_is_off() {
         assert_eq!(initial_filter_directives(), "off");
     }
+
+    #[test]
+    fn revocation_and_reconsent_clear_recent_events() {
+        let writer_gate = RwLock::new(true);
+        let recent_events = Mutex::new(VecDeque::from([
+            "{\\"level\\":\\"INFO\\"}".to_owned(),
+        ]));
+
+        set_writer_gate(&writer_gate, &recent_events, false);
+        assert!(!*writer_gate.read().unwrap());
+        assert!(recent_events.lock().unwrap().is_empty());
+
+        recent_events.lock().unwrap().push_back(
+            "{\\"level\\":\\"STALE\\"}".to_owned(),
+        );
+        set_writer_gate(&writer_gate, &recent_events, true);
+        assert!(*writer_gate.read().unwrap());
+        assert!(recent_events.lock().unwrap().is_empty());
+    }
+
 
     #[test]
     fn diagnostics_snapshot_requires_active_consent() {
