@@ -29,16 +29,25 @@ def main() -> int:
     baseline_level_mismatches = 0
     baseline_stage_mismatches = 0
     reference_replay_failures = []
+    timer_replay_failures = []
+    total_timer_replay_calls = 0
+    total_timer_field_mismatches = 0
 
     for config in manifest["configurations"]:
         stem = Path(config["fixture"]).stem
         analysis_path = args.input_dir / f"{stem}-analysis.json"
         comparison_path = args.input_dir / f"{stem}-comparison.json"
-        if not analysis_path.is_file() or not comparison_path.is_file():
+        timer_path = args.input_dir / f"{stem}-timer-validation.json"
+        if (
+            not analysis_path.is_file()
+            or not comparison_path.is_file()
+            or not timer_path.is_file()
+        ):
             raise FileNotFoundError(f"missing result for {config['fixture']}")
 
         analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
         comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+        timer_validation = json.loads(timer_path.read_text(encoding="utf-8"))
         if analysis.get("candidate") != "initial_127_deferred_decay_phase_minus3":
             raise ValueError(f"wrong candidate in {analysis_path.name}")
 
@@ -53,6 +62,14 @@ def main() -> int:
         )
         if not replay_ok:
             reference_replay_failures.append(config["fixture"])
+
+        timer_calls = int(timer_validation["calls"])
+        timer_mismatches = int(timer_validation["total_field_mismatches"])
+        timer_ok = timer_calls == 30000 and timer_mismatches == 0
+        if not timer_ok:
+            timer_replay_failures.append(config["fixture"])
+        total_timer_replay_calls += timer_calls
+        total_timer_field_mismatches += timer_mismatches
 
         total_samples += sample_count
 
@@ -85,6 +102,9 @@ def main() -> int:
             "stage_mismatches": stage_mismatches,
             "max_absolute_level_error": int(candidate_comparison["max_absolute_level_error"]),
             "reference_replay": "PASS" if replay_ok else "FAIL",
+            "timer_replay_calls": timer_calls,
+            "timer_replay_field_mismatches": timer_mismatches,
+            "timer_replay": "PASS" if timer_ok else "FAIL",
             "first_level_mismatch": candidate_comparison["first_level_mismatch"],
             "first_stage_mismatch": candidate_comparison["first_stage_mismatch"],
         })
@@ -99,6 +119,10 @@ def main() -> int:
         "total_level_mismatches": total_level_mismatches,
         "total_stage_mismatches": total_stage_mismatches,
         "all_reference_replays_pass": not reference_replay_failures,
+        "total_timer_replay_calls": total_timer_replay_calls,
+        "total_timer_field_mismatches": total_timer_field_mismatches,
+        "all_timer_replays_pass": not timer_replay_failures,
+        "timer_replay_failures": timer_replay_failures,
         "all_phase_minus3_levels_match": total_level_mismatches == 0,
         "all_stage_transitions_match": total_stage_mismatches == 0,
         "level_mismatches_by_dr": dict(sorted(level_by_dr.items())),
@@ -112,7 +136,7 @@ def main() -> int:
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
 
-    if reference_replay_failures:
+    if reference_replay_failures or timer_replay_failures:
         return 1
     return 0
 
