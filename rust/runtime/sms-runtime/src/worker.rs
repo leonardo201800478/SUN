@@ -1207,16 +1207,22 @@ impl SmsTemporalWorker {
             SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
                 Ok(catalog) => {
                     let resolution = resolve_sms_region(preference, &rom, &catalog);
-                    eprintln!(
-                        "SMS_REGION preference=auto resolved={} source={:?} dat_title={}",
-                        resolution.region.key(),
-                        resolution.source,
-                        resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    sega_observability::tracing::info!(
+                        target: "sega::rom",
+                        event = "sms_region_resolved",
+                        region = resolution.region.key(),
+                        source = ?resolution.source,
+                        dat_title = resolution.dat_title.as_deref().unwrap_or("unmatched")
                     );
                     resolution.region.key().to_owned()
                 }
                 Err(error) => {
-                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    sega_observability::tracing::warn!(
+                        target: "sega::rom",
+                        event = "sms_region_catalog_fallback",
+                        error = %error,
+                        fallback = "usa"
+                    );
                     "usa".to_owned()
                 }
             },
@@ -1246,16 +1252,22 @@ impl SmsTemporalWorker {
             SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
                 Ok(catalog) => {
                     let resolution = resolve_sms_region(preference, &rom, &catalog);
-                    eprintln!(
-                        "SMS_REGION preference=auto resolved={} source={:?} dat_title={}",
-                        resolution.region.key(),
-                        resolution.source,
-                        resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    sega_observability::tracing::info!(
+                        target: "sega::rom",
+                        event = "sms_region_resolved",
+                        region = resolution.region.key(),
+                        source = ?resolution.source,
+                        dat_title = resolution.dat_title.as_deref().unwrap_or("unmatched")
                     );
                     resolution.region.key().to_owned()
                 }
                 Err(error) => {
-                    eprintln!("SMS_REGION preference=auto catalog_error={error}; fallback=usa");
+                    sega_observability::tracing::warn!(
+                        target: "sega::rom",
+                        event = "sms_region_catalog_fallback",
+                        error = %error,
+                        fallback = "usa"
+                    );
                     "usa".to_owned()
                 }
             },
