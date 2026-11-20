@@ -136,6 +136,12 @@ int main(int argc, char **argv) {
     for (uint64_t tick = 0; tick < calls; ++tick) {
         int32_t output[2] = {0, 0};
         uint32_t cycle_before = chip.cycles;
+        /* Inputs consumed by OPLL_PhaseCalcIncrement during this call. */
+        uint16_t calc_fnum = chip.c_fnum;
+        uint16_t calc_block = chip.c_block;
+        uint8_t calc_mul = chip.c_multi;
+        uint8_t calc_vib = chip.c_vib;
+        uint8_t calc_lfo_vib_counter = chip.lfo_vib_counter;
         while (event_index < event_count && events[event_index].call_index == tick) {
             OPLL_Write(&chip, events[event_index].port, events[event_index].value);
             ++event_index;
@@ -149,6 +155,9 @@ int main(int argc, char **argv) {
         OPLL_Clock(&chip, output);
         printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"cycle_after\":%" PRIu32,
                tick, cycle_before, chip.cycles);
+        printf(",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32,
+               (unsigned)calc_fnum, (unsigned)calc_block, (unsigned)calc_mul,
+               (unsigned)calc_vib, (unsigned)calc_lfo_vib_counter, chip.pg_inc);
         printf(",\"output_m\":%" PRId32 ",\"output_r\":%" PRId32, output[0], output[1]);
         printf(",\"pg_inc\":%" PRIu32 ",\"pg_phase_next\":%" PRIu32 ",\"pg_phase\":",
                chip.pg_inc, chip.pg_phase_next);
