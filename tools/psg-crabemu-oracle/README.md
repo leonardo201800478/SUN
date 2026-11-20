@@ -114,6 +114,28 @@ The comparator uses identical tick indices and never aligns traces by correlatio
 
 Differences are diagnostic results, not automatically test failures. In particular, the output-bit boundary and initial divider phase are open hardware questions. The existing `.github/workflows/ci.yml` PSG-focused job builds both pinned external adapters (CrabEmu and Gearsystem), checks trace determinism and their known scheduling behavior, then uploads all traces and the comparison summary as part of the PSG artifact.
 
+## Noise-rate transition and Tone 2 tracking fixture
+
+CI also captures a 1,400-tick diagnostic schedule across CrabEmu, Gearsystem,
+Ares and the Rust SMS PSG core. It deliberately exercises all four noise-rate
+selections and transitions while Tone 2 changes:
+
+- Tick 0: Tone 2 period 7, white noise rate 0.
+- Tick 256: white noise rate 1.
+- Tick 512: white noise rate 2.
+- Tick 768: white noise rate 3 (Tone 2-derived).
+- Ticks 800, 832, 864 and 896: Tone 2 periods 8, 0, 1 and 7.
+- Tick 1024: periodic noise rate 3.
+- Tick 1100: white noise rate 3.
+- Tick 1200: white noise rate 0.
+
+All four adapters receive the same timestamped write schedule. Each capture is
+repeated and compared byte-for-byte to establish adapter determinism. The
+four-reference comparator then reports same-index differences without phase
+alignment. This fixture is diagnostic: a mismatch is evidence to inspect, not
+an automatic failure or a hardware-truth vote. It does not establish that the
+four implementations share an identical clock-domain interpretation.
+
 ## Interpretation constraints
 
 - The reference sample is computed from the current LFSR bit before the reference advances the divider and LFSR.
