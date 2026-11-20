@@ -14,7 +14,7 @@ const TIMER_SHIFT_LOCK_LIMIT: u8 = 13;
 const STEP_HIGH: [[u8; 4]; 4] = [[0, 0, 0, 0], [1, 0, 0, 0], [1, 0, 1, 0], [1, 1, 1, 0]];
 
 /// Serializable state of the chip-global envelope timer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnvelopeTimerState {
     /// Eighteen-bit shift-register state.
     pub timer: u32,
@@ -38,6 +38,25 @@ pub struct EnvelopeTimerState {
     pub pending_zero_rate: bool,
     /// Next slot expected by this state machine.
     pub next_slot: u8,
+}
+
+impl Default for EnvelopeTimerState {
+    fn default() -> Self {
+        Self {
+            timer: 0,
+            carry: 0,
+            counter_state: 0,
+            counter_state_prev: 0,
+            shift: 0,
+            shift_stop: false,
+            low_lock: 0,
+            shift_lock: 0,
+            pending_rate: 0,
+            // Nuked-OPLL reset initializes eg_zerorate to true.
+            pending_zero_rate: true,
+            next_slot: 0,
+        }
+    }
 }
 
 /// Rate and counter phase prepared for the following operator EG update.
@@ -155,7 +174,7 @@ impl EnvelopeTimer {
                 low_lock: 0,
                 shift_lock: 0,
                 pending_rate: 0,
-                pending_zero_rate: false,
+                pending_zero_rate: true,
                 next_slot: 0,
             },
         }
