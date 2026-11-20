@@ -1103,7 +1103,7 @@ Commit: `0d7b32b2d350019880037422ae8f85b449ad4058`.
 - Replay do core integrado: canal único, quatro canais e as 38 configurações de taxa executados com sucesso.
 - Operador EG: 506.768 amostras no replay de referência, zero divergências de nível/estágio.
 - Análise de fase efetiva: 243.580 amostras, zero divergências de nível/estágio.
-- Rhythm Mode: captura repetida idêntica, inputs register-derived sem divergências e replay serial aprovado.
+- Rhythm Mode: captura repetida idêntica e replay serial oracle-driven aprovados; testes unitários separados cobrem seletores, taxas de patch e triggers do decoder. O fixture de percussão não é uma comparação diferencial completa do decoder register-derived.
 - Snapshots do core são exercitados durante os replays; o teste de round-trip do estado também é executado.
 
 ### Leitura correta dos resultados
@@ -1115,7 +1115,7 @@ A varredura mantém métricas de candidatos de fase-base que ainda divergem: 44.
 - Não há comprovação elétrica de subfases dentro dos quatro input clocks por slot.
 - Não há captura física sincronizada XIN/MO/RO para estabelecer o alinhamento temporal absoluto.
 - O EG não está conectado ao PG, aos operadores FM ou ao pipeline de PCM.
-- O teste Rhythm Mode valida a seleção/controle EG contra o oracle usado; não certifica ROM interna completa, cadência física LFSR, DAC ou comportamento não caracterizado de KEY-ON conflitante.
+- O teste Rhythm Mode valida a sequência EG usando inputs do oracle; testes unitários separados verificam o decoder register-driven contra os valores candidatos de patch. Isso não certifica a ROM interna completa, cadência física LFSR, DAC ou comportamento não caracterizado de KEY-ON conflitante.
 - Não há ainda validação com ROMs no runtime SMS, pois o chip não produz PCM FM integrado.
 
 **Conclusão da etapa:** o escopo de EG serial digital integrado ao core está fechado no branch e com CI diferencial aprovado. A etapa FM-1 como um todo permanece PARCIAL, pois PG/EG ainda não formam um pipeline temporal conjunto. O fechamento do EG não autoriza declarar o YM2413 completo nem iniciar validação de ROMs como se houvesse saída FM funcional.
