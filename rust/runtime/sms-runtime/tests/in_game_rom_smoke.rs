@@ -14,8 +14,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use sega_observability::DiagnosticsConsent;
-use sega_sms_runtime::{SmsDebugSnapshot, SmsTemporalWorker, SmsVdpRevision};
+use sega_sms_runtime::{DiagnosticsConsent, SmsDebugSnapshot, SmsTemporalWorker, SmsVdpRevision};
 use sega_video_runtime::FrameMailbox;
 
 const DEFAULT_FRAMES_PER_ROM: usize = 1800;
