@@ -154,10 +154,7 @@ fn smoke_test_user_supplied_sms_roms_in_the_temporal_runtime() {
         )
         .unwrap_or_else(|error| panic!("{}: worker rejected ROM: {error}", path.display()));
         worker
-            .set_diagnostics_enabled(true)
-            .unwrap_or_else(|error| {
-                panic!("{}: cannot enable explicit test diagnostics: {error}", path.display())
-            });
+            .enable_diagnostics(&DiagnosticsConsent::from_explicit_user_action());
         let mailbox = FrameMailbox::new();
         worker
             .attach_video_mailbox(mailbox.clone())
