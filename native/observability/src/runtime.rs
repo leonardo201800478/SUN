@@ -359,7 +359,7 @@ pub fn init_after_explicit_consent(
     );
     install_panic_hook(
         crash_log,
-        config.max_file_size_bytes.max(MAX_CRASH_RECORD_BYTES),
+        config.max_file_size_bytes.max(1),
         session.session_id.clone(),
     );
 
@@ -414,7 +414,9 @@ fn source_basename(file: &str) -> String {
 fn sanitize_field(value: &str, max_bytes: usize) -> String {
     value
         .chars()
-        .filter(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
+        .filter(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
+        })
         .take(max_bytes)
         .collect()
 }
@@ -430,8 +432,16 @@ fn format_crash_record(
 ) -> String {
     let session_id = sanitize_field(session_id, MAX_CRASH_SESSION_ID_BYTES);
     let (source_file, source_line, source_column) = match location {
-        Some((file, line, column)) => (source_basename(file), line.to_string(), column.to_string()),
-        None => ("unknown".to_owned(), "unknown".to_owned(), "unknown".to_owned()),
+        Some((file, line, column)) => (
+            source_basename(file),
+            line.to_string(),
+            column.to_string(),
+        ),
+        None => (
+            "unknown".to_owned(),
+            "unknown".to_owned(),
+            "unknown".to_owned(),
+        ),
     };
 
     format!(
@@ -507,16 +517,11 @@ fn install_panic_hook(crash_log: PathBuf, max_bytes: u64, session_id: String) {
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis();
-                let location = panic_info
-                    .location()
-                    .map(|location: &Location<'_>| (location.file(), location.line(), location.column()));
+                let location = panic_info.location().map(|location: &Location<'_>| {
+                    (location.file(), location.line(), location.column())
+                });
                 let payload_is_text = panic_payload_is_text(panic_info.payload());
-                let record = format_crash_record(
-                    timestamp,
-                    &session_id,
-                    location,
-                    payload_is_text,
-                );
+                let record = format_crash_record(timestamp, &session_id, location, payload_is_text);
                 // I/O errors are intentionally ignored so the previous hook is always called.
                 let _ = append_crash_record(&crash_log, max_bytes, &record);
             }
@@ -577,11 +582,7 @@ mod tests {
         let record = format_crash_record(
             1_800_000_000_000,
             "session/SECRET-ID",
-            Some((
-                r"C:\Users\private\ROM_SENTINEL\source\cpu.rs",
-                42,
-                7,
-            )),
+            Some((r"C:\Users\private\ROM_SENTINEL\source\cpu.rs", 42, 7)),
             true,
         );
 
@@ -625,7 +626,10 @@ mod tests {
         prepare_crash_log(&path, 8, 2).unwrap();
 
         assert!(!path.exists());
-        assert_eq!(fs::read(directory.join("crash.log.1")).unwrap(), b"active-log-near-limit");
+        assert_eq!(
+            fs::read(directory.join("crash.log.1")).unwrap(),
+            b"active-log-near-limit"
+        );
         assert_eq!(fs::read(directory.join("crash.log.2")).unwrap(), b"older-1");
         assert!(!directory.join("crash.log.3").exists());
 
@@ -672,9 +676,8 @@ mod tests {
             return;
         };
 
-        let directory = std::path::PathBuf::from(
-            std::env::var_os("SEGA_OBSERVABILITY_PANIC_DIR").unwrap(),
-        );
+        let directory =
+            std::path::PathBuf::from(std::env::var_os("SEGA_OBSERVABILITY_PANIC_DIR").unwrap());
         let marker = directory.join("previous-hook-called");
         let crash_log = if mode == "io-failure" {
             directory.join("not-a-directory").join("crash.log")
