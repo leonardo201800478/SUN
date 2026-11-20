@@ -291,9 +291,9 @@ impl EnvelopeGenerator {
             && self.stage == EnvelopeStage::Damp
             && self.level >= self.damp_config.threshold
         {
-            // DAMP is complete at this update boundary. Select the new stage
-            // before the stage evaluator below, matching the reference model:
-            // ATTACK may consume this same shared-counter update.
+            // DAMP/KEY-ON is consumed at this update boundary. ATTACK starts
+            // on the next operator EG update; this update cannot also consume
+            // an ATTACK increment.
             self.complete_damp(parameters.attack_rate);
             phase_reset_required = true;
         }
@@ -313,7 +313,7 @@ impl EnvelopeGenerator {
                 // until the next operator EG update.
                 if self.level == 0 {
                     self.stage = EnvelopeStage::Decay;
-                } else {
+                } else if !phase_reset_required {
                     self.advance_attack(
                         global_counter,
                         parameters.effective_rate(parameters.attack_rate),
@@ -657,6 +657,43 @@ mod tests {
         assert_eq!(eg.level(), 127);
         eg.tick(8, true, true, p).unwrap();
         assert!(eg.level() < 127);
+    }
+
+    #[test]
+    fn damp_completion_does_not_consume_attack_increment_on_same_update() {
+        let mut generator = eg(127);
+        let mut p = params();
+        p.attack_rate = 10;
+        p.fnum = 0;
+        p.block = 0;
+
+        // RATE=40, counter 24 would decrement 127 -> 119 if ATTACK were
+        // incorrectly evaluated on the DAMP completion update.
+        let transition = generator.tick_with_events(24, true, true, p).unwrap();
+        assert!(transition.phase_reset_required);
+        assert_eq!(generator.level(), 127);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+
+        // The next EG update is allowed to consume the ATTACK increment.
+        generator.tick_with_events(25, true, true, p).unwrap();
+        assert_eq!(generator.level(), 119);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn damp_decay_step_is_preserved_when_it_reaches_the_off_threshold() {
+        let mut generator = eg(123);
+        let mut p = params();
+        p.attack_rate = 10;
+        p.fnum = 0;
+        p.block = 0;
+
+        // DAMP's own RATE=48 update advances 123 -> 124. Completing DAMP
+        // must preserve that update rather than restoring the old level.
+        let transition = generator.tick_with_events(2, true, true, p).unwrap();
+        assert!(transition.phase_reset_required);
+        assert_eq!(generator.level(), 124);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
     #[test]
