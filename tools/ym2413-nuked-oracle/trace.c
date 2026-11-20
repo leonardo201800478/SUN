@@ -5,7 +5,7 @@
  * independently checked-out Nuked-OPLL tree and links that tree's opll.c;
  * it does not contain or copy Nuked implementation code.
  *
- * Output: one JSON object per input clock, after OPLL_Clock() returns.
+ * Output: one JSON object per OPLL_Clock() invocation, after the call returns.
  */
 #include <errno.h>
 #include <inttypes.h>
@@ -79,8 +79,8 @@ static int load_events(const char *path, input_event *events, size_t *count) {
             fclose(f);
             return 0;
         }
-        if (*count && clock < events[*count - 1].call_index) {
-            fprintf(stderr, "events must be sorted by nondecreasing clock\n");
+        if (*count && clock <= events[*count - 1].call_index) {
+            fprintf(stderr, "events must have strictly increasing OPLL_Clock call indices\n");
             fclose(f);
             return 0;
         }
@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
     }
 
     OPLL_Reset(&chip, chip_type);
-    puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"clock_unit\":\"input_clock\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9}}");
+    puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9}}");
 
     for (uint64_t tick = 0; tick < clocks; ++tick) {
         int32_t output[2] = {0, 0};
@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
             OPLL_Write(&chip, events[event_index].port, events[event_index].value);
             ++event_index;
         }
-        if (event_index < event_count && events[event_index].clock < tick) {
+        if (event_index < event_count && events[event_index].call_index < tick) {
             fprintf(stderr, "event call index was skipped\n");
             free(events);
             return 3;
