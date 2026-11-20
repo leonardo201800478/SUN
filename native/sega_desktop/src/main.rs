@@ -104,17 +104,15 @@ mod windows_host {
         let Some(logging) = sega_observability::current() else {
             return;
         };
-        let diagnostics_were_enabled = logging.is_enabled();
-        if diagnostics_were_enabled {
+        if logging.is_enabled() {
             sega_observability::tracing::info!(
                 target: "sega::app",
                 event = "application_shutdown"
             );
         }
+        // Shutdown only drains the explicitly enabled session. Diagnostic snapshots
+        // are exported only through an explicit user action, never automatically.
         logging.shutdown();
-        if diagnostics_were_enabled && let Err(error) = logging.write_diagnostics_json() {
-            eprintln!("Unable to write diagnostics snapshot: {error}");
-        }
     }
 
     /// Shared renderer resources plus the dimensions of the Slint-imported texture.
