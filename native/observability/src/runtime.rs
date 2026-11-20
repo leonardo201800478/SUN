@@ -146,10 +146,7 @@ impl LoggingHandle {
                 .writer_slot
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
-            let mut guard_slot = self
-                .guard
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
+            let mut guard_slot = self.guard.lock().unwrap_or_else(PoisonError::into_inner);
             if guard_slot.is_none() {
                 let (writer, guard, error_counter) = create_non_blocking_writer(
                     &config,
@@ -184,7 +181,11 @@ impl LoggingHandle {
         set_writer_gate(&self.writer_gate, &self.recent_events, false);
         let filter_result = EnvFilter::try_new("off")
             .map_err(|error| error.to_string())
-            .and_then(|filter| self.filter.reload(filter).map_err(|error| error.to_string()));
+            .and_then(|filter| {
+                self.filter
+                    .reload(filter)
+                    .map_err(|error| error.to_string())
+            });
 
         // Detach the sender only after in-flight event writers release the slot.
         // Dropping WorkerGuard then drains the old queue while the sink gate is closed.
@@ -348,9 +349,7 @@ fn set_writer_gate(
     recent_events: &Mutex<VecDeque<String>>,
     enabled: bool,
 ) {
-    let mut writer_enabled = writer_gate
-        .write()
-        .unwrap_or_else(PoisonError::into_inner);
+    let mut writer_enabled = writer_gate.write().unwrap_or_else(PoisonError::into_inner);
     recent_events
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -662,11 +661,11 @@ mod tests {
         ensure_diagnostics_enabled, format_crash_record, initial_filter_directives,
         prepare_crash_log, set_writer_gate,
     };
-    use std::collections::VecDeque;
-    use std::sync::{Mutex, RwLock};
     use std::fs;
+    use std::collections::VecDeque;
     use std::io::Write;
     use std::process::Command;
+    use std::sync::{Mutex, RwLock};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temporary_directory(label: &str) -> std::path::PathBuf {
