@@ -64,6 +64,14 @@ jobs:
           python3 tools/ym2413-nuked-oracle/compare_eg.py \
             --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl"
 
+      - name: Audit Nuked pre-update timer selectors against the single-channel replay
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-pipeline-analysis.json"
+
       - name: Capture four KSR low-bit rows across four channels twice
         run: |
           "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
@@ -98,6 +106,14 @@ jobs:
           python3 tools/ym2413-nuked-oracle/compare_eg.py \
             --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl"
 
+      - name: Audit Nuked pre-update timer selectors across the rate matrix
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-matrix-pipeline-analysis.json"
+
       - name: Retain deterministic EG and Rust candidate traces
         if: always()
         uses: actions/upload-artifact@v4
@@ -110,5 +126,7 @@ jobs:
             ${{ runner.temp }}/eg-matrix-a.jsonl
             ${{ runner.temp }}/eg-matrix-samples.csv
             ${{ runner.temp }}/eg-matrix-rust-candidates.jsonl
+            ${{ runner.temp }}/eg-pipeline-analysis.json
+            ${{ runner.temp }}/eg-matrix-pipeline-analysis.json
           if-no-files-found: warn
           retention-days: 7
