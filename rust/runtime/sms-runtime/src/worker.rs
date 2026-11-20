@@ -3052,6 +3052,7 @@ mod tests {
 
         let mut machine = build_sms_temporal_machine(SYNTHETIC_ROM.to_vec(), "usa").unwrap();
         let telemetry = WorkerTelemetry::default();
+        telemetry.set_diagnostics_enabled(true);
         telemetry.record_input_detected(Instant::now());
 
         let mut breakpoint = BreakpointSet::default();
