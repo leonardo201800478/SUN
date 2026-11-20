@@ -5,7 +5,10 @@
 //! file and the channel decoder constructs the current-cycle EG input. The
 //! sequencer owns all 18 EG states, timer, and delayed control pipelines.
 
-use sega_ym2413::{EnvelopeSequencer, EnvelopeSlotInput, decode_envelope_slot_input_for_cycle};
+use sega_ym2413::{
+    EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSlotInput,
+    decode_envelope_slot_input_for_cycle,
+};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs::File;
@@ -39,6 +42,9 @@ struct Sample {
     expected_eg_dokon: u32,
     expected_eg_sl: u8,
     expected_pending_sustain_level: u8,
+    expected_rm_select: u8,
+    expected_rm_enable: u8,
+    expected_rhythm_bits: u8,
 }
 
 fn parse_bool(value: &str, line_number: usize) -> Result<bool, Box<dyn Error>> {
@@ -51,8 +57,8 @@ fn parse_bool(value: &str, line_number: usize) -> Result<bool, Box<dyn Error>> {
 
 fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>> {
     let fields: Vec<&str> = line.split(',').map(str::trim).collect();
-    if fields.len() != 33 {
-        return Err(format!("line {line_number}: expected 33 CSV columns").into());
+    if fields.len() != 36 {
+        return Err(format!("line {line_number}: expected 36 CSV columns").into());
     }
     Ok(Sample {
         call_index: fields[0].parse()?,
@@ -67,6 +73,9 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
             sustain_on: parse_bool(fields[8], line_number)?,
             sustained_tone: parse_bool(fields[9], line_number)?,
             key_on: parse_bool(fields[10], line_number)?,
+            rhythm_select: EnvelopeRhythmSelect::from_code(fields[33].parse()?)
+                .ok_or_else(|| format!("line {line_number}: invalid rhythm selector"))?,
+            rhythm_bits: fields[35].parse()?,
         },
         expected_operator_slot: fields[11].parse()?,
         expected_level: fields[12].parse()?,
@@ -90,6 +99,9 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
         expected_eg_dokon: fields[30].parse()?,
         expected_eg_sl: fields[31].parse()?,
         expected_pending_sustain_level: fields[32].parse()?,
+        expected_rm_select: fields[33].parse()?,
+        expected_rm_enable: fields[34].parse()?,
+        expected_rhythm_bits: fields[35].parse()?,
     })
 }
 
@@ -113,6 +125,9 @@ struct RegisterBus {
     address: u8,
     data: u8,
     write_mode_address: u8,
+    rm_enable: i8,
+    rm_select: u8,
+    rhythm: u8,
 }
 
 impl RegisterBus {
@@ -129,6 +144,9 @@ impl RegisterBus {
             address: 0,
             data: 0,
             write_mode_address: 0,
+            rm_enable: 0,
+            rm_select: 0,
+            rhythm: 0,
         }
     }
 
@@ -143,15 +161,25 @@ impl RegisterBus {
     }
 
     /// Apply the delayed user-patch/mode write at the start of OPLL_Clock.
-    fn begin_clock(&mut self) {
+    fn begin_clock(&mut self, cycle: u8) {
+        self.rm_enable >>= 1;
         if self.write_mode_address & 0x10 != 0 && self.write_d_en {
             let register = self.write_mode_address & 0x0f;
             match register {
                 0x00..=0x07 => self.registers[usize::from(register)] = self.write_data,
-                0x0e => self.registers[0x0e] = self.write_data & 0x3f,
+                0x0e => {
+                    self.rhythm = self.write_data & 0x3f;
+                    self.registers[0x0e] = self.rhythm;
+                    self.rm_enable = (self.rm_enable & 0x7f)
+                        | (((self.rhythm << 2) & 0x80) as i8);
+                },
                 0x0f => self.registers[0x0f] = self.write_data & 0x0f,
                 _ => {}
             }
+        }
+        self.rm_select = (self.rm_select + 1).min(6);
+        if cycle == 11 && (self.rm_enable as u8 & 0x80) != 0 {
+            self.rm_select = 0;
         }
     }
 
@@ -269,6 +297,12 @@ fn input_mismatches(actual: EnvelopeSlotInput, expected: EnvelopeSlotInput) -> V
     if actual.key_on != expected.key_on {
         bad.push("input_key_on");
     }
+    if actual.rhythm_select != expected.rhythm_select {
+        bad.push("input_rhythm_select");
+    }
+    if actual.rhythm_bits != expected.rhythm_bits {
+        bad.push("input_rhythm_bits");
+    }
     bad
 }
 
@@ -318,19 +352,33 @@ fn main() -> Result<(), Box<dyn Error>> {
             return Err("register event call index was skipped".into());
         }
         if register_mode {
-            register_bus.begin_clock();
+            register_bus.begin_clock(sample.cycle);
         }
 
-        let decoded_input = if register_mode {
+        let mut decoded_input = if register_mode && register_bus.rhythm & 0x20 == 0 {
             decode_register_input(&register_bus.registers, sample.cycle)?
         } else {
             sample.input
         };
-        let input_bad = if register_mode {
+        if register_mode {
+            decoded_input.rhythm_select = EnvelopeRhythmSelect::from_code(register_bus.rm_select)
+                .ok_or_else(|| std::io::Error::other("invalid local rhythm selector"))?;
+            decoded_input.rhythm_bits = register_bus.rhythm;
+        }
+        let mut input_bad = if register_mode {
             input_mismatches(decoded_input, sample.input)
         } else {
             Vec::new()
         };
+        if register_mode && register_bus.rm_select != sample.expected_rm_select {
+            input_bad.push("rm_select");
+        }
+        if register_mode && register_bus.rm_enable as u8 != sample.expected_rm_enable {
+            input_bad.push("rm_enable");
+        }
+        if register_mode && register_bus.rhythm != sample.expected_rhythm_bits {
+            input_bad.push("rhythm_bits");
+        }
         register_input_mismatches += input_bad.len() as u64;
         for field in &input_bad {
             *input_mismatch_counts.entry(*field).or_default() += 1;
