@@ -121,7 +121,13 @@ impl PhaseGenerator {
         };
         let corrected_fnum = u64::try_from(i64::from(fnum) * 2 + pm)
             .map_err(|_| PhaseGeneratorError::InvalidState)?;
-        let step = ((corrected_fnum * ml) << block) >> 2;
+
+        // Preserve the two integer truncation points used by the primary
+        // Nuked-OPLL reference: block scaling is shifted before MUL is applied.
+        // Combining the operations algebraically changes some odd PM-adjusted
+        // frequencies by 1..7 phase units.
+        let block_adjusted_frequency = (corrected_fnum << block) >> 1;
+        let step = (block_adjusted_frequency * ml) >> 1;
         u32::try_from(step).map_err(|_| PhaseGeneratorError::InvalidState)
     }
 
@@ -195,6 +201,46 @@ mod tests {
                 28_672, 28_768, 28_896, 28_768, 28_672, 28_576, 28_448, 28_576
             ]
         );
+    }
+
+    #[test]
+    fn phase_step_matches_nuked_integer_rounding_for_all_legal_inputs() {
+        // Nuked-OPLL 1.0.2, pinned at 1269cf5a783b65583b50fa2464d08be75830aaa0:
+        // frequency starts at FNUM << 1, PM is applied, BLOCK is shifted and
+        // truncated, then the MUL table is applied and truncated again.
+        fn nuked_phase_step(fnum: u16, block: u8, mul: u8, pm_position: u8) -> u32 {
+            let mut frequency = u32::from(fnum) << 1;
+            match pm_position {
+                1 | 3 => frequency += frequency >> 8,
+                2 => frequency += frequency >> 7,
+                5 | 7 => frequency -= frequency >> 8,
+                6 => frequency -= frequency >> 7,
+                _ => {}
+            }
+
+            let block_adjusted_frequency = (frequency << block) >> 1;
+            (block_adjusted_frequency
+                * u32::from(YM2413_ML_TABLE[usize::from(mul)]))
+                >> 1
+        }
+
+        // This boundary distinguishes staged truncation (128) from the
+        // algebraically combined expression (129).
+        assert_eq!(PhaseGenerator::phase_step(64, 0, 2, true, 2), Ok(128));
+
+        for fnum in 0..=0x01ff_u16 {
+            for block in 0..=7_u8 {
+                for mul in 0..=15_u8 {
+                    for pm_position in 0..8_u8 {
+                        assert_eq!(
+                            PhaseGenerator::phase_step(fnum, block, mul, true, pm_position),
+                            Ok(nuked_phase_step(fnum, block, mul, pm_position)),
+                            "FNUM={fnum:#05x}, BLOCK={block}, MUL={mul}, PM={pm_position}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
