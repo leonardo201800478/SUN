@@ -85,12 +85,8 @@ jobs:
             --output "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv"
           cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
             --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv" \
-            tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
+            tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv --oracle-inputs \
             > "$RUNNER_TEMP/eg-rhythm-sequencer-replay.json"
-          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
-            --example eg_core_trace -- "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv" \
-            tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
-            > "$RUNNER_TEMP/eg-rhythm-core-replay.json"
 
       - name: Extract complete channel-zero EG control pipeline
         run: |
@@ -306,7 +302,6 @@ jobs:
             ${{ runner.temp }}/eg-rhythm-trace-a.jsonl
             ${{ runner.temp }}/eg-rhythm-sequencer-samples.csv
             ${{ runner.temp }}/eg-rhythm-sequencer-replay.json
-            ${{ runner.temp }}/eg-rhythm-core-replay.json
             ${{ runner.temp }}/eg-matrix-control-samples.csv
             ${{ runner.temp }}/eg-matrix-hardware-replay.json
             ${{ runner.temp }}/eg-matrix-sequencer-samples.csv
