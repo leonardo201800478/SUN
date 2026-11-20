@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include <ares/ares.hpp>
 #include "sn76489.hpp"
 
 #define REFERENCE_COMMIT "8bc30c8c3d3c8081d2a66587add602df771441dd"
