@@ -43,8 +43,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         let pm_position: u8 = fields[5].parse()?;
 
-        let phase_step =
-            PhaseGenerator::phase_step(fnum, block, multiplier, pm_enabled, pm_position)?;
+        let phase_step = PhaseGenerator::phase_step(
+            fnum,
+            block,
+            multiplier,
+            pm_enabled,
+            pm_position,
+        )
+        .map_err(|error| format!("invalid PG input at line {}: {error:?}", line_number + 1))?;
 
         println!("{{\"call_index\":{call_index},\"phase_step\":{phase_step}}}");
     }
