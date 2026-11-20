@@ -194,7 +194,7 @@ impl LoggingHandle {
                 .writer_slot
                 .write()
                 .unwrap_or_else(PoisonError::into_inner);
-            writer_slot.take();
+            drop(writer_slot.take());
         }
         let guard = self
             .guard
@@ -327,7 +327,7 @@ impl LoggingHandle {
                 .writer_slot
                 .write()
                 .unwrap_or_else(PoisonError::into_inner);
-            writer_slot.take();
+            drop(writer_slot.take());
         }
         let guard = self
             .guard
