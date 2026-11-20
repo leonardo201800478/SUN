@@ -16,18 +16,18 @@ struct bitfield {
   constexpr bitfield() = default;
   constexpr bitfield(std::uint32_t initial) : value(initial & mask) {}
   constexpr bitfield(const bitfield&) = default;
-  constexpr auto operator=(const bitfield&) -> bitfield& = default;
-  constexpr auto operator=(std::uint32_t next) -> bitfield& {
+  auto operator=(const bitfield&) -> bitfield& = default;
+  auto operator=(std::uint32_t next) -> bitfield& {
     value = next & mask;
     return *this;
   }
   constexpr operator std::uint32_t() const { return value; }
   constexpr explicit operator bool() const { return value != 0; }
-  constexpr auto operator--() -> bitfield& {
+  auto operator--() -> bitfield& {
     value = (value - 1) & mask;
     return *this;
   }
-  constexpr auto operator^=(std::uint32_t rhs) -> bitfield& {
+  auto operator^=(std::uint32_t rhs) -> bitfield& {
     value = (value ^ rhs) & mask;
     return *this;
   }
