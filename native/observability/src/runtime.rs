@@ -432,11 +432,7 @@ fn format_crash_record(
 ) -> String {
     let session_id = sanitize_field(session_id, MAX_CRASH_SESSION_ID_BYTES);
     let (source_file, source_line, source_column) = match location {
-        Some((file, line, column)) => (
-            source_basename(file),
-            line.to_string(),
-            column.to_string(),
-        ),
+        Some((file, line, column)) => (source_basename(file), line.to_string(), column.to_string()),
         None => (
             "unknown".to_owned(),
             "unknown".to_owned(),
