@@ -2502,12 +2502,12 @@ mod windows_host {
         mailbox: &FrameMailbox,
         host_pacing: &Arc<Mutex<HostFramePacingWindow>>,
     ) {
-        let callback_started = Instant::now();
-        let _callback_guard = HostFrameCallbackGuard {
+        let callback_started = host_diagnostics_enabled().then(Instant::now);
+        let _callback_guard = callback_started.map(|started| HostFrameCallbackGuard {
             host_pacing: Arc::clone(host_pacing),
-            started: callback_started,
-        };
-        if host_diagnostics_enabled() {
+            started,
+        });
+        if let Some(callback_started) = callback_started {
             host_pacing
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -2527,13 +2527,13 @@ mod windows_host {
         let device = context.device.clone();
         let queue = context.queue.clone();
 
-        let mailbox_take_started = Instant::now();
+        let mailbox_take_started = host_diagnostics_enabled().then(Instant::now);
         let take_result = mailbox.take_latest_with_timestamp();
-        if host_diagnostics_enabled() {
+        if let Some(started) = mailbox_take_started {
             host_pacing
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .record_mailbox_take(mailbox_take_started.elapsed());
+                .record_mailbox_take(started.elapsed());
         }
         let (frame, published_at) = match take_result {
             Ok(Some(frame)) => frame,
@@ -2601,35 +2601,34 @@ mod windows_host {
             return;
         };
 
-        let now = Instant::now();
         if host_diagnostics_enabled() {
             host_pacing
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .record_frame(now, frame.sequence(), published_at);
+                .record_frame(Instant::now(), frame.sequence(), published_at);
         }
 
-        let conversion_started = Instant::now();
+        let conversion_started = host_diagnostics_enabled().then(Instant::now);
         match convert_rgb888_to_rgba8(&frame) {
             Ok(pixels) => {
-                if host_diagnostics_enabled() {
+                if let Some(started) = conversion_started {
                     host_pacing
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .record_conversion(conversion_started.elapsed());
+                        .record_conversion(started.elapsed());
                 }
-                let queue_write_started = Instant::now();
+                let queue_write_started = host_diagnostics_enabled().then(Instant::now);
                 queue.write_texture(
                     texture.as_image_copy(),
                     &pixels,
                     texture_data_layout(frame.width(), frame.height()),
                     texture_extent(frame.width(), frame.height()),
                 );
-                if host_diagnostics_enabled() {
+                if let Some(started) = queue_write_started {
                     host_pacing
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .record_queue_write(queue_write_started.elapsed());
+                        .record_queue_write(started.elapsed());
                 }
                 let upload_fps = host_pacing
                     .lock()
@@ -2650,11 +2649,11 @@ mod windows_host {
                 app.window().request_redraw();
             }
             Err(error) => {
-                if host_diagnostics_enabled() {
+                if let Some(started) = conversion_started {
                     host_pacing
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .record_conversion(conversion_started.elapsed());
+                        .record_conversion(started.elapsed());
                 }
                 app.set_frame_status(format!("Falha ao converter frame: {error}").into());
             }
