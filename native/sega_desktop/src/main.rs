@@ -78,7 +78,11 @@ mod windows_host {
                 let session = sega_observability::SessionMetadata::current(
                     env!("CARGO_PKG_VERSION"),
                     option_env!("SEGA_GIT_SHA").unwrap_or("unknown"),
-                    if cfg!(debug_assertions) { "debug" } else { "release" },
+                    if cfg!(debug_assertions) {
+                        "debug"
+                    } else {
+                        "release"
+                    },
                 );
                 sega_observability::init(sega_observability::LogConfig::default(), session)
                     .map_err(|error| error.to_string())?
@@ -102,9 +106,7 @@ mod windows_host {
             );
         }
         logging.shutdown();
-        if diagnostics_were_enabled
-            && let Err(error) = logging.write_diagnostics_json()
-        {
+        if diagnostics_were_enabled && let Err(error) = logging.write_diagnostics_json() {
             eprintln!("Unable to write diagnostics snapshot: {error}");
         }
     }
@@ -424,9 +426,7 @@ mod windows_host {
                         && let Err(error) =
                             worker.set_controller_at(2, next_players[1], Instant::now())
                     {
-                        diagnostic_log!(
-                            "R4_SDL3 player=2 action=controller_update error={error}"
-                        );
+                        diagnostic_log!("R4_SDL3 player=2 action=controller_update error={error}");
                     }
                 }
             }
