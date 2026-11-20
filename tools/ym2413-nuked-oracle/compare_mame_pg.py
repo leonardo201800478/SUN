@@ -53,9 +53,7 @@ def mame_phase_step_10_10(
     phase_step = (adjusted_fnum << adjusted_block) >> 2
 
     # MAME's OPLL multiple cache maps MUL to x.1 units; zero maps to 1/2.
-    multiple = ML_TABLE[mul] * 2
-    if multiple == 0:
-        multiple = 1
+    multiple = ML_TABLE[mul]
     return (phase_step * multiple) >> 1
 
 
