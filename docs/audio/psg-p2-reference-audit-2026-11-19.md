@@ -256,6 +256,16 @@ Still pending for P2:
 No production hardware code was modified by this trial.
 
 
+## 12. Retificação da leitura do trace Gearsystem — 2026-11-20
+
+A primeira versão da fixture de fronteira de tom interpretou incorretamente o índice do vetor `channel_periods_after` emitido pelo adaptador Gearsystem. O vetor contém **quatro canais**, na ordem Tone 0, Tone 1, Tone 2 e Noise. Portanto, o índice `[2]` é Tone 2 e não o valor bruto do registrador.
+
+O log do CI #9045 registrou, na linha inicial, `channel_periods_after = [0, 16, 112, 112]`. O valor de Tone 2 é `112`, correspondente ao divisor interno do registrador `7` escalado por 16. Isso concorda com os valores expostos pelos adaptadores Rust e Ares na mesma fixture.
+
+A falha não demonstra divergência de representação no Gearsystem. Ela foi causada pela expectativa de teste que comparava o campo correto com a unidade errada. O workflow foi corrigido no commit `9001939882f388b59403869a94b489433e0087e0`, exigindo os valores de divisor `{112, 128, 0, 16, 112}` nos ticks de alteração correspondentes para os três adaptadores.
+
+A nova execução CI #9045 está em andamento no momento desta retificação. Até sua conclusão, a correção da fixture está registrada, mas a validação completa da PR #1081 não deve ser considerada aprovada. Nenhum código de produção PSG foi modificado.
+
 ## 11. Ares executable adapter — 2026-11-20
 
 A project-authored adapter was added to draft PR [#1081](https://github.com/leonardo201800478/sega-emulator/pull/1081):
