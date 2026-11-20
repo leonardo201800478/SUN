@@ -59,3 +59,7 @@ jobs:
         run: |
           python3 tools/ym2413-nuked-oracle/compare_pg.py \
             --nuked-trace "$RUNNER_TEMP/nuked-pg.jsonl"
+
+      - name: Run pinned MAME/ymfm source-level PG arithmetic audit
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_mame_pg.py
