@@ -1,0 +1,321 @@
+name: YM2413 Nuked EG characterization
+
+on:
+  pull_request:
+    paths:
+      - "tools/ym2413-nuked-oracle/**"
+      - "native/ym2413/**"
+      - ".github/workflows/ym2413-eg-characterization.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eg-characterization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Sega Emulator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkout pinned Nuked-OPLL reference
+        env:
+          NUKED_SHA: 1269cf5a783b65583b50fa2464d08be75830aaa0
+        run: |
+          git clone https://github.com/nukeykt/Nuked-OPLL.git "$RUNNER_TEMP/Nuked-OPLL"
+          git -C "$RUNNER_TEMP/Nuked-OPLL" checkout "$NUKED_SHA"
+          test "$(git -C "$RUNNER_TEMP/Nuked-OPLL" rev-parse HEAD)" = "$NUKED_SHA"
+
+      - name: Compile external oracle adapter
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra \
+            -I"$RUNNER_TEMP/Nuked-OPLL" \
+            tools/ym2413-nuked-oracle/trace.c \
+            "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
+            -o "$RUNNER_TEMP/ym2413-nuked-trace"
+
+      - name: Capture and validate a single-channel EG sequence twice
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
+            > "$RUNNER_TEMP/eg-trace-a.jsonl"
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
+            > "$RUNNER_TEMP/eg-trace-b.jsonl"
+          cmp "$RUNNER_TEMP/eg-trace-a.jsonl" "$RUNNER_TEMP/eg-trace-b.jsonl"
+      - name: Validate serial EG state and channel events
+        run: |
+          python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" --expected-calls 30000
+
+      - name: Extract complete 18-slot EG sequencer vectors
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-sequencer-samples.csv"
+
+      - name: Replay the complete 18-slot EG sequencer from reset
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
+            > "$RUNNER_TEMP/eg-sequencer-replay.json"
+      - name: Replay the production YM2413 core against the single-channel EG trace
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_core_trace -- "$RUNNER_TEMP/eg-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
+            > "$RUNNER_TEMP/eg-core-replay.json"
+
+      - name: Capture and validate Rhythm Mode EG from register writes twice
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
+            > "$RUNNER_TEMP/eg-rhythm-trace-a.jsonl"
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
+            > "$RUNNER_TEMP/eg-rhythm-trace-b.jsonl"
+          cmp "$RUNNER_TEMP/eg-rhythm-trace-a.jsonl" "$RUNNER_TEMP/eg-rhythm-trace-b.jsonl"
+
+      - name: Extract and replay register-derived Rhythm Mode EG inputs
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
+            --trace "$RUNNER_TEMP/eg-rhythm-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv"
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv --oracle-inputs \
+            > "$RUNNER_TEMP/eg-rhythm-sequencer-replay.json"
+
+      - name: Extract complete channel-zero EG control pipeline
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_control_samples.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-control-samples.csv"
+
+      - name: Replay every channel-zero EG update from reset through KEY-ON and KEY-OFF
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_hardware_trace -- "$RUNNER_TEMP/eg-control-samples.csv" \
+            > "$RUNNER_TEMP/eg-hardware-replay.json"
+
+      - name: Extract channel-zero EG update samples
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-samples.csv"
+
+      - name: Replay the production Rust EG component
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_model_trace -- "$RUNNER_TEMP/eg-samples.csv" \
+            > "$RUNNER_TEMP/eg-rust-candidates.jsonl"
+
+      - name: Compare explicit Rust reset-state candidates with Nuked
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_eg.py \
+            --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl"
+
+      - name: Audit Nuked pre-update timer selectors against the single-channel replay
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-pipeline-analysis.json"
+
+      - name: Audit the three-count DECAY phase candidate
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --candidate initial_127_deferred_decay_phase_minus3 \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-pipeline-analysis-decay-phase-minus3.json"
+
+      - name: Capture four KSR low-bit rows across four channels twice
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            > "$RUNNER_TEMP/eg-matrix-a.jsonl"
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            > "$RUNNER_TEMP/eg-matrix-b.jsonl"
+          cmp "$RUNNER_TEMP/eg-matrix-a.jsonl" "$RUNNER_TEMP/eg-matrix-b.jsonl"
+
+      - name: Validate all eight selected operator EG slots
+        run: |
+          python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --expected-calls 30000 --channels 0,1,2,3
+
+      - name: Extract four-channel EG control pipeline including KEY-OFF
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_control_samples.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-matrix-control-samples.csv" \
+            --channels 0,1,2,3
+
+      - name: Replay eight EG operators across four channels from reset through KEY-OFF
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_hardware_trace -- "$RUNNER_TEMP/eg-matrix-control-samples.csv" \
+            > "$RUNNER_TEMP/eg-matrix-hardware-replay.json"
+
+      - name: Extract complete four-channel EG sequencer vectors
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv"
+
+      - name: Replay the complete 18-slot EG sequencer across four channels
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            > "$RUNNER_TEMP/eg-matrix-sequencer-replay.json"
+      - name: Replay the integrated core across four channels
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_core_trace -- "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            > "$RUNNER_TEMP/eg-matrix-core-replay.json"
+
+      - name: Extract rate-matrix operator samples and parameters
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            --channels 0,1,2,3
+
+      - name: Replay the production Rust EG component across the rate matrix
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_model_trace -- "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            > "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl"
+
+      - name: Compare all four effective-rate low-bit rows with Nuked
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_eg.py \
+            --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl"
+
+      - name: Audit Nuked pre-update timer selectors across the rate matrix
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-matrix-pipeline-analysis.json"
+
+      - name: Audit the three-count DECAY phase candidate across the rate matrix
+        run: |
+          python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+            --candidate initial_127_deferred_decay_phase_minus3 \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --samples "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl" \
+            > "$RUNNER_TEMP/eg-matrix-pipeline-analysis-decay-phase-minus3.json"
+
+      - name: Generate and run the 38-configuration AR/DR/KSR sweep
+        run: |
+          set -euo pipefail
+          SWEEP_DIR="$RUNNER_TEMP/eg-rate-sweep"
+          mkdir -p "$SWEEP_DIR"
+          python3 tools/ym2413-nuked-oracle/generate_eg_rate_sweep_fixtures.py \
+            --base tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            --output-dir "$SWEEP_DIR"
+
+          TRACE_A="$RUNNER_TEMP/eg-rate-sweep-a.jsonl"
+          TRACE_B="$RUNNER_TEMP/eg-rate-sweep-b.jsonl"
+          SAMPLES="$RUNNER_TEMP/eg-rate-sweep-samples.csv"
+          RUST_TRACE="$RUNNER_TEMP/eg-rate-sweep-rust.jsonl"
+          TIMER_SAMPLES="$RUNNER_TEMP/eg-rate-sweep-timer-samples.csv"
+
+          HARDWARE_SAMPLES="$RUNNER_TEMP/eg-rate-sweep-hardware-samples.csv"
+
+          SEQUENCER_SAMPLES="$RUNNER_TEMP/eg-rate-sweep-sequencer-samples.csv"
+
+          for fixture in "$SWEEP_DIR"/eg-rate-*.csv; do
+            name="$(basename "$fixture" .csv)"
+            IFS='-' read -r _ _ ar_part dr_part ksr_part <<< "$name"
+            ar="${ar_part#ar}"
+            dr="${dr_part#dr}"
+            ksr="${ksr_part#ksr}"
+            "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 --events "$fixture" > "$TRACE_A"
+            "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 --events "$fixture" > "$TRACE_B"
+            cmp "$TRACE_A" "$TRACE_B"
+
+            python3 tools/ym2413-nuked-oracle/extract_eg_timer_samples.py \
+              --trace "$TRACE_A" --output "$TIMER_SAMPLES" --expected-calls 30000
+            cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+              --example eg_timer_trace -- "$TIMER_SAMPLES" \
+              > "$SWEEP_DIR/$name-timer-validation.json"
+
+            python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
+              --trace "$TRACE_A" --expected-calls 30000 --channels 0,1,2,3 \
+              --expected-ar "$ar" --expected-dr "$dr" --expected-rr 7 \
+              --expected-ksr "$ksr" --expected-eg-type 1 --expected-sl 4 \
+              --allow-inactive-eg-slots
+            python3 tools/ym2413-nuked-oracle/extract_eg_control_samples.py \
+              --trace "$TRACE_A" --output "$HARDWARE_SAMPLES" --channels 0,1,2,3
+            cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+              --example eg_hardware_trace -- "$HARDWARE_SAMPLES" \
+              > "$SWEEP_DIR/$name-hardware-replay.json"
+            python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
+              --trace "$TRACE_A" --output "$SEQUENCER_SAMPLES"
+            cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+              --example eg_sequencer_trace -- "$SEQUENCER_SAMPLES" "$fixture" \
+              > "$SWEEP_DIR/$name-sequencer-replay.json"
+            cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+              --example eg_core_trace -- "$SEQUENCER_SAMPLES" "$fixture" \
+              > "$SWEEP_DIR/$name-core-replay.json"
+            python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
+              --trace "$TRACE_A" --output "$SAMPLES" --channels 0,1,2,3
+            cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+              --example eg_model_trace -- "$SAMPLES" > "$RUST_TRACE"
+            python3 tools/ym2413-nuked-oracle/compare_eg.py \
+              --rust-trace "$RUST_TRACE" > "$SWEEP_DIR/$name-comparison.json"
+            python3 tools/ym2413-nuked-oracle/analyze_eg_pipeline.py \
+              --candidate initial_127_deferred_decay_phase_minus3 \
+              --trace "$TRACE_A" --samples "$SAMPLES" --rust-trace "$RUST_TRACE" \
+              > "$SWEEP_DIR/$name-analysis.json"
+          done
+
+          python3 tools/ym2413-nuked-oracle/summarize_eg_rate_sweep.py \
+            --input-dir "$SWEEP_DIR" --output "$SWEEP_DIR/summary.json"
+
+          rm -f "$TRACE_A" "$TRACE_B" "$SAMPLES" "$RUST_TRACE" "$TIMER_SAMPLES" "$HARDWARE_SAMPLES" "$SEQUENCER_SAMPLES"
+
+      - name: Retain deterministic EG and Rust candidate traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym2413-nuked-eg-characterization
+          path: |
+            ${{ runner.temp }}/eg-trace-a.jsonl
+            ${{ runner.temp }}/eg-samples.csv
+            ${{ runner.temp }}/eg-control-samples.csv
+            ${{ runner.temp }}/eg-sequencer-samples.csv
+            ${{ runner.temp }}/eg-sequencer-replay.json
+            ${{ runner.temp }}/eg-core-replay.json
+            ${{ runner.temp }}/eg-rhythm-trace-a.jsonl
+            ${{ runner.temp }}/eg-rhythm-sequencer-samples.csv
+            ${{ runner.temp }}/eg-rhythm-sequencer-replay.json
+            ${{ runner.temp }}/eg-matrix-control-samples.csv
+            ${{ runner.temp }}/eg-matrix-hardware-replay.json
+            ${{ runner.temp }}/eg-matrix-sequencer-samples.csv
+            ${{ runner.temp }}/eg-matrix-sequencer-replay.json
+            ${{ runner.temp }}/eg-matrix-core-replay.json
+            ${{ runner.temp }}/eg-hardware-replay.json
+            ${{ runner.temp }}/eg-rust-candidates.jsonl
+            ${{ runner.temp }}/eg-matrix-a.jsonl
+            ${{ runner.temp }}/eg-matrix-samples.csv
+            ${{ runner.temp }}/eg-matrix-rust-candidates.jsonl
+            ${{ runner.temp }}/eg-pipeline-analysis.json
+            ${{ runner.temp }}/eg-matrix-pipeline-analysis.json
+            ${{ runner.temp }}/eg-pipeline-analysis-decay-phase-minus3.json
+            ${{ runner.temp }}/eg-matrix-pipeline-analysis-decay-phase-minus3.json
+            ${{ runner.temp }}/eg-rate-sweep/
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,4 @@
+# YM2413 Rhythm Mode: enable RHY and all five percussion triggers.
+# The address/data pair is scheduled so the mode-write pipeline commits at serial cycle 11.
+8,0,14
+10,1,63

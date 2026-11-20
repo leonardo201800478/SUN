@@ -6,6 +6,7 @@
 //! scheduling; those contracts belong to the later aggregate chip pipeline.
 
 use crate::envelope::EnvelopeParameters;
+use crate::envelope_sequencer::EnvelopeSlotInput;
 use crate::instrument::{
     ChannelRegisterState, InstrumentError, InstrumentPatch, OperatorPatch,
     decode_channel_registers, decode_user_patch, resolve_instrument, rhythm_mode_enabled,
@@ -13,6 +14,7 @@ use crate::instrument::{
 use crate::key_scale::{KeyScaleError, key_scale_attenuation};
 use crate::operator::{OperatorPairError, OperatorPairParameters};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
+use crate::rhythm_channel::{RhythmChannelSynthesisError, decode_rhythm_envelope_slot_input};
 
 /// Errors produced while resolving one channel's register-derived parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +25,10 @@ pub enum ChannelSynthesisError {
     KeyScale(KeyScaleError),
     /// Rhythm Mode owns channels 7–9; they are not melodic channels in this mode.
     RhythmModeActive { channel: u8 },
+    /// The serial EG cycle index must be in 0..18.
+    InvalidEnvelopeCycle { cycle: u8 },
+    /// Rhythm-mode slot inputs could not be resolved.
+    Rhythm(RhythmChannelSynthesisError),
 }
 
 impl From<InstrumentError> for ChannelSynthesisError {
@@ -34,6 +40,12 @@ impl From<InstrumentError> for ChannelSynthesisError {
 impl From<KeyScaleError> for ChannelSynthesisError {
     fn from(value: KeyScaleError) -> Self {
         Self::KeyScale(value)
+    }
+}
+
+impl From<RhythmChannelSynthesisError> for ChannelSynthesisError {
+    fn from(value: RhythmChannelSynthesisError) -> Self {
+        Self::Rhythm(value)
     }
 }
 
@@ -75,6 +87,32 @@ pub struct ChannelSynthesisConfig {
 }
 
 impl ChannelSynthesisConfig {
+    /// Build the current-cycle EG input for this channel and operator role.
+    ///
+    /// sustain_level is the fresh c_sl latch; EnvelopeSequencer owns its
+    /// one-cycle transfer into eg_sl. The channel's KON and SUS bits are
+    /// copied separately from the selected operator's patch fields.
+    pub fn envelope_slot_input(&self, carrier: bool) -> EnvelopeSlotInput {
+        let envelope = if carrier {
+            self.carrier_envelope
+        } else {
+            self.modulator_envelope
+        };
+        EnvelopeSlotInput {
+            attack_rate: envelope.attack_rate,
+            decay_rate: envelope.decay_rate,
+            release_rate: envelope.release_rate,
+            sustain_level: envelope.sustain_level,
+            key_scale_rate: envelope.key_scale_rate,
+            ksr_frequency: ((envelope.block << 1) | (envelope.fnum >> 8) as u8) & 0x0f,
+            sustain_on: self.channel.sustain_on,
+            sustained_tone: envelope.sustained_tone,
+            key_on: self.channel.key_on,
+            rhythm_select: crate::envelope_sequencer::EnvelopeRhythmSelect::None,
+            rhythm_bits: 0,
+        }
+    }
+
     /// Calculate one operator's candidate phase increment for a PM table position.
     ///
     /// The caller still owns the PG accumulator and decides the exact slot
@@ -163,6 +201,55 @@ fn phase_parameters(
     }
 }
 
+/// Nuked-OPLL channel selected by each of the 18 serial EG cycles.
+pub const YM2413_EG_CYCLE_CHANNELS: [u8; 18] =
+    [1, 2, 0, 1, 2, 3, 4, 5, 3, 4, 5, 6, 7, 8, 6, 7, 8, 0];
+
+/// Return whether a serial EG cycle selects the carrier operator.
+pub const fn envelope_cycle_is_carrier(cycle: u8) -> Option<bool> {
+    if cycle >= 18 {
+        None
+    } else {
+        Some(((cycle + 1) / 3) & 1 != 0)
+    }
+}
+
+/// Resolve the current cycle's channel/operator register inputs.
+///
+/// The caller supplies all nine decoded channel configurations. The serial
+/// channel map and modulator/carrier cadence are kept here so every runtime
+/// host uses the same register-to-EG selection contract.
+pub fn envelope_slot_input_for_cycle(
+    channels: &[ChannelSynthesisConfig; 9],
+    cycle: u8,
+) -> Result<EnvelopeSlotInput, ChannelSynthesisError> {
+    let channel = *YM2413_EG_CYCLE_CHANNELS
+        .get(usize::from(cycle))
+        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+    let carrier = envelope_cycle_is_carrier(cycle)
+        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+    Ok(channels[usize::from(channel)].envelope_slot_input(carrier))
+}
+
+/// Decode only the channel/operator selected by this serial EG cycle.
+pub fn decode_envelope_slot_input_for_cycle(
+    registers: &[u8; 64],
+    cycle: u8,
+) -> Result<EnvelopeSlotInput, ChannelSynthesisError> {
+    let channel = *YM2413_EG_CYCLE_CHANNELS
+        .get(usize::from(cycle))
+        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+    let carrier = envelope_cycle_is_carrier(cycle)
+        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+
+    if rhythm_mode_enabled(registers) && (11..=16).contains(&cycle) {
+        return Ok(decode_rhythm_envelope_slot_input(registers, cycle)?);
+    }
+
+    let config = decode_channel_synthesis(registers, channel)?;
+    Ok(config.envelope_slot_input(carrier))
+}
+
 /// Resolve one melodic channel's patch and all static synthesis parameters.
 ///
 /// Instrument code 0 selects the live user patch in registers $00-$07.
@@ -205,7 +292,11 @@ pub fn decode_channel_synthesis(
 
 #[cfg(test)]
 mod tests {
-    use super::{ChannelSynthesisError, decode_channel_synthesis};
+    use super::{
+        ChannelSynthesisError, YM2413_EG_CYCLE_CHANNELS, decode_channel_synthesis,
+        decode_envelope_slot_input_for_cycle, envelope_cycle_is_carrier,
+        envelope_slot_input_for_cycle,
+    };
     use crate::instrument::{InstrumentError, decode_patch_registers, resolve_instrument};
     use crate::key_scale::key_scale_attenuation;
     use crate::operator::OperatorPairError;
@@ -219,6 +310,73 @@ mod tests {
         registers[0x20 + index] = 0x35;
         registers[0x30 + index] = (instrument << 4) | 0x0b;
         registers
+    }
+
+    fn registers_for_all_channels() -> [u8; 64] {
+        let mut registers = [0; 64];
+        registers[..8].copy_from_slice(&[0xf2, 0xb5, 0xaf, 0xdb, 0xa5, 0x3c, 0x6d, 0xf2]);
+        for channel in 0..9 {
+            let index = usize::from(channel);
+            registers[0x10 + index] = 0x80 + channel;
+            registers[0x20 + index] = 0x30 | ((channel & 7) << 1) | (channel & 1);
+            registers[0x30 + index] = channel & 0x0f;
+        }
+        registers
+    }
+
+    #[test]
+    fn serial_cycle_mapping_selects_nuked_channel_and_operator_role() {
+        let registers = registers_for_all_channels();
+        let channels =
+            std::array::from_fn(|index| decode_channel_synthesis(&registers, index as u8).unwrap());
+
+        for cycle in 0..18_u8 {
+            let channel = YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)];
+            let carrier = envelope_cycle_is_carrier(cycle).unwrap();
+            let config = channels[usize::from(channel)];
+            let selected = if carrier {
+                config.carrier_envelope
+            } else {
+                config.modulator_envelope
+            };
+            let input = envelope_slot_input_for_cycle(&channels, cycle).unwrap();
+            assert_eq!(
+                decode_envelope_slot_input_for_cycle(&registers, cycle).unwrap(),
+                input
+            );
+
+            assert_eq!(input.attack_rate, selected.attack_rate, "cycle {cycle}");
+            assert_eq!(input.decay_rate, selected.decay_rate, "cycle {cycle}");
+            assert_eq!(input.release_rate, selected.release_rate, "cycle {cycle}");
+            assert_eq!(input.sustain_level, selected.sustain_level, "cycle {cycle}");
+            assert_eq!(
+                input.key_scale_rate, selected.key_scale_rate,
+                "cycle {cycle}"
+            );
+            assert_eq!(
+                input.ksr_frequency,
+                ((selected.block << 1) | (selected.fnum >> 8) as u8) & 0x0f,
+                "cycle {cycle}"
+            );
+            assert_eq!(input.sustain_on, config.channel.sustain_on, "cycle {cycle}");
+            assert_eq!(
+                input.sustained_tone, selected.sustained_tone,
+                "cycle {cycle}"
+            );
+            assert_eq!(input.key_on, config.channel.key_on, "cycle {cycle}");
+        }
+    }
+
+    #[test]
+    fn serial_cycle_mapping_rejects_out_of_range_cycles() {
+        let registers = registers_for_all_channels();
+        let channels =
+            std::array::from_fn(|index| decode_channel_synthesis(&registers, index as u8).unwrap());
+        assert_eq!(
+            envelope_slot_input_for_cycle(&channels, 18),
+            Err(ChannelSynthesisError::InvalidEnvelopeCycle { cycle: 18 })
+        );
+        assert_eq!(envelope_cycle_is_carrier(18), None);
     }
 
     #[test]
@@ -278,6 +436,39 @@ mod tests {
             resolve_instrument(16, user_patch),
             Err(InstrumentError::InvalidPreset(16))
         );
+    }
+
+    #[test]
+    fn serial_eg_input_decoder_uses_rhythm_patch_rates_and_register_triggers() {
+        use crate::envelope_sequencer::EnvelopeRhythmSelect as Rhythm;
+
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        registers[0x16] = 0x55;
+        registers[0x26] = 0x35;
+        registers[0x17] = 0xaa;
+        registers[0x27] = 0x26;
+        registers[0x18] = 0x33;
+        registers[0x28] = 0x3b;
+
+        let expected = [
+            (11, Rhythm::BassDrumFirst, 13, 15, 10, 6),
+            (12, Rhythm::HiHat, 12, 8, 7, 10),
+            (13, Rhythm::TomTom, 15, 8, 9, 5),
+            (14, Rhythm::BassDrumSecond, 15, 8, 13, 6),
+            (15, Rhythm::SnareDrum, 13, 8, 8, 6),
+            (16, Rhythm::TopCymbal, 10, 10, 5, 5),
+        ];
+
+        for (cycle, selector, attack, decay, release, sustain) in expected {
+            let input = decode_envelope_slot_input_for_cycle(&registers, cycle).unwrap();
+            assert_eq!(input.rhythm_select, selector, "cycle {cycle}");
+            assert_eq!(input.rhythm_bits, 0x3f, "cycle {cycle}");
+            assert_eq!(input.attack_rate, attack, "cycle {cycle}");
+            assert_eq!(input.decay_rate, decay, "cycle {cycle}");
+            assert_eq!(input.release_rate, release, "cycle {cycle}");
+            assert_eq!(input.sustain_level, sustain, "cycle {cycle}");
+        }
     }
 
     #[test]

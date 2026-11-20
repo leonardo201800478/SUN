@@ -12,7 +12,7 @@ use crate::{
 use core::fmt;
 
 /// Snapshot format version for the timed register-bus adapter.
-pub const YM2413_TIMED_BUS_STATE_VERSION: u16 = 1;
+pub const YM2413_TIMED_BUS_STATE_VERSION: u16 = 2;
 
 /// Errors returned by the timestamped YM2413 bus adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -234,9 +234,12 @@ mod tests {
         bus.write_address_at(100, 0x20).unwrap();
         assert_eq!(bus.core().elapsed_input_clocks(), 100);
         bus.write_data_at(112, 0x5a).unwrap();
+        // The internal address/data latches and channel-cycle decoder commit
+        // the value only when the serial pipeline reaches channel zero.
+        bus.advance_to(200).unwrap();
 
         let state = bus.core().export_state();
-        assert_eq!(state.elapsed_input_clocks, 112);
+        assert_eq!(state.elapsed_input_clocks, 200);
         assert_eq!(state.registers[0x20], 0x5a);
         assert_eq!(
             bus.timing().last_write(),

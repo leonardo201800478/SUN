@@ -6,6 +6,8 @@
 //! 2015-12-24, 2015-12-31 and 2017-01-26). This is a measured software model,
 //! not a claim of transistor-level or absolute phase fidelity.
 
+use crate::envelope_timer::EnvelopeRatePhase;
+
 pub const YM2413_EG_LEVELS: u8 = 128;
 pub const YM2413_EG_MAX_LEVEL: u8 = YM2413_EG_LEVELS - 1;
 pub const YM2413_EG_STATE_VERSION: u16 = 2;
@@ -260,6 +262,82 @@ impl EnvelopeGenerator {
     ///
     /// The event is emitted when the DAMP threshold is reached. The PG itself
     /// remains caller-owned; this method never resets phase or advances clocks.
+    /// Advance one operator EG update using latches from the chip-global timer.
+    ///
+    /// This entry point separates per-operator level/state evolution from
+    /// global rate selection. The supplied phase must be the phase consumed
+    /// by this operator slot, not the rate calculated for the following slot.
+    /// It is intended for the cycle-accurate 18-slot integration and
+    /// differential replay; the ordinary `tick_with_events` API remains a
+    /// standalone measured-rate candidate.
+    pub fn tick_with_rate_phase(
+        &mut self,
+        key_on: bool,
+        is_carrier: bool,
+        parameters: EnvelopeParameters,
+        rate_phase: EnvelopeRatePhase,
+    ) -> Result<EnvelopeTickResult, EnvelopeGeneratorError> {
+        if !parameters.is_valid() {
+            return Err(EnvelopeGeneratorError::InvalidParameters);
+        }
+
+        if key_on && !self.key_on {
+            self.stage = EnvelopeStage::Damp;
+        }
+        self.key_on = key_on;
+
+        let mut phase_reset_required = false;
+
+        if !key_on && is_carrier {
+            self.advance_decay_with_rate_phase(rate_phase);
+            return Ok(EnvelopeTickResult {
+                level: self.level,
+                phase_reset_required: false,
+            });
+        }
+
+        if self.owns_damp_transition(is_carrier)
+            && self.stage == EnvelopeStage::Damp
+            && self.level >= self.damp_config.threshold
+        {
+            self.complete_damp(parameters.attack_rate);
+            phase_reset_required = true;
+        }
+
+        match self.stage {
+            EnvelopeStage::Damp => {
+                self.advance_decay_with_rate_phase(rate_phase);
+                if self.owns_damp_transition(is_carrier) && self.level >= self.damp_config.threshold
+                {
+                    self.complete_damp(parameters.attack_rate);
+                    phase_reset_required = true;
+                }
+            }
+            EnvelopeStage::Attack => {
+                if self.level == 0 {
+                    self.stage = EnvelopeStage::Decay;
+                } else if !phase_reset_required {
+                    self.advance_attack_with_rate_phase(rate_phase);
+                }
+            }
+            EnvelopeStage::Decay => {
+                if (self.level >> 3) == parameters.sustain_level {
+                    self.stage = EnvelopeStage::Sustain;
+                } else {
+                    self.advance_decay_with_rate_phase(rate_phase);
+                }
+            }
+            EnvelopeStage::Sustain => {
+                self.advance_decay_with_rate_phase(rate_phase);
+            }
+        }
+
+        Ok(EnvelopeTickResult {
+            level: self.level,
+            phase_reset_required,
+        })
+    }
+
     pub fn tick_with_events(
         &mut self,
         global_counter: u32,
@@ -291,9 +369,9 @@ impl EnvelopeGenerator {
             && self.stage == EnvelopeStage::Damp
             && self.level >= self.damp_config.threshold
         {
-            // DAMP is complete at this update boundary. Select the new stage
-            // before the stage evaluator below, matching the reference model:
-            // ATTACK may consume this same shared-counter update.
+            // DAMP/KEY-ON is consumed at this update boundary. ATTACK starts
+            // on the next operator EG update; this update cannot also consume
+            // an ATTACK increment.
             self.complete_damp(parameters.attack_rate);
             phase_reset_required = true;
         }
@@ -308,33 +386,30 @@ impl EnvelopeGenerator {
                 }
             }
             EnvelopeStage::Attack => {
-                self.advance_attack(
-                    global_counter,
-                    parameters.effective_rate(parameters.attack_rate),
-                );
+                // Nuked evaluates the zero-level condition from the pre-update
+                // envelope. If this update reaches zero, ATTACK remains active
+                // until the next operator EG update.
                 if self.level == 0 {
                     self.stage = EnvelopeStage::Decay;
+                } else if !phase_reset_required {
+                    self.advance_attack(
+                        global_counter,
+                        parameters.effective_rate(parameters.attack_rate),
+                    );
                 }
             }
             EnvelopeStage::Decay => {
-                // Evaluate the measured SL comparator before the next EG
-                // increment; SL=0 must stop at level zero.
+                // The DECAY -> SUSTAIN decision consumes the pre-update
+                // attenuation. If this update reaches SL, DECAY remains
+                // visible until the next operator EG update; that transition
+                // update does not also consume a SUSTAIN/RR increment.
                 if (self.level >> 3) == parameters.sustain_level {
                     self.stage = EnvelopeStage::Sustain;
-                    let base_rate = if parameters.sustained_tone {
-                        0
-                    } else {
-                        parameters.release_rate
-                    };
-                    self.advance_decay(global_counter, parameters.effective_rate(base_rate));
                 } else {
                     self.advance_decay(
                         global_counter,
                         parameters.effective_rate(parameters.decay_rate),
                     );
-                    if (self.level >> 3) == parameters.sustain_level {
-                        self.stage = EnvelopeStage::Sustain;
-                    }
                 }
             }
             EnvelopeStage::Sustain => {
@@ -397,6 +472,41 @@ impl EnvelopeGenerator {
             key_on: state.key_on,
             damp_config: state.damp_config,
         })
+    }
+
+    fn advance_decay_with_rate_phase(&mut self, phase: EnvelopeRatePhase) {
+        let rate_hi = phase.rate_hi;
+        let inc_hi = phase.inc_hi;
+        let inc_lo = phase.inc_lo;
+        let counter = phase.counter_state_prev;
+
+        let i0 = rate_hi == 15 || (rate_hi == 14 && inc_hi);
+        let i1 = (rate_hi == 14 && !inc_hi)
+            || (rate_hi == 13 && inc_hi)
+            || (rate_hi == 13 && !inc_hi && counter & 1 != 0)
+            || (rate_hi == 12 && inc_hi && counter & 1 != 0)
+            || (rate_hi == 12 && !inc_hi && counter & 3 == 3)
+            || (inc_lo && counter & 3 == 3);
+        let increment = (u8::from(i0) << 1) | u8::from(i1);
+        self.level = self
+            .level
+            .saturating_add(increment)
+            .min(YM2413_EG_MAX_LEVEL);
+    }
+
+    fn advance_attack_with_rate_phase(&mut self, phase: EnvelopeRatePhase) {
+        if phase.max_rate {
+            return;
+        }
+
+        let shift = if phase.rate_hi < 12 {
+            u8::from(phase.inc_lo)
+        } else {
+            phase.rate_hi - 11 + u8::from(phase.inc_hi)
+        };
+        if shift > 0 {
+            self.level = Self::attack_formula(self.level, 5 - shift);
+        }
     }
 
     fn advance_decay(&mut self, counter: u32, rate: u8) {
@@ -485,7 +595,7 @@ mod tests {
     use super::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination,
         EnvelopeGenerator, EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters,
-        EnvelopeStage,
+        EnvelopeRatePhase, EnvelopeStage,
     };
 
     fn damp_config(
@@ -656,6 +766,66 @@ mod tests {
     }
 
     #[test]
+    fn damp_completion_does_not_consume_attack_increment_on_same_update() {
+        let mut generator = eg(127);
+        let mut p = params();
+        p.attack_rate = 10;
+        p.fnum = 0;
+        p.block = 0;
+
+        // RATE=40, counter 24 would decrement 127 -> 119 if ATTACK were
+        // incorrectly evaluated on the DAMP completion update.
+        let transition = generator.tick_with_events(24, true, true, p).unwrap();
+        assert!(transition.phase_reset_required);
+        assert_eq!(generator.level(), 127);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+
+        // The next EG update is allowed to consume the ATTACK increment.
+        generator.tick_with_events(25, true, true, p).unwrap();
+        assert_eq!(generator.level(), 119);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn damp_decay_step_is_preserved_when_it_reaches_the_off_threshold() {
+        let mut generator = eg(123);
+        let mut p = params();
+        p.attack_rate = 10;
+        p.fnum = 0;
+        p.block = 0;
+
+        // DAMP's own RATE=48 update advances 123 -> 124. Completing DAMP
+        // must preserve that update rather than restoring the old level.
+        let transition = generator.tick_with_events(2, true, true, p).unwrap();
+        assert!(transition.phase_reset_required);
+        assert_eq!(generator.level(), 124);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+    }
+
+    #[test]
+    fn attack_to_decay_transition_uses_pre_update_zero_level() {
+        let mut generator = eg(1);
+        generator.stage = EnvelopeStage::Attack;
+        generator.key_on = true;
+        let mut p = params();
+        p.attack_rate = 10;
+        p.fnum = 0x100;
+        p.block = 0;
+        p.sustain_level = 4;
+
+        // RATE=40, counter 8: ATTACK consumes the final 1 -> 0 step.
+        generator.tick(8, true, true, p).unwrap();
+        assert_eq!(generator.level(), 0);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+
+        // The following operator update observes the pre-update level at zero
+        // and changes to DECAY without consuming a DECAY increment yet.
+        generator.tick(9, true, true, p).unwrap();
+        assert_eq!(generator.level(), 0);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+    }
+
+    #[test]
     fn zero_rate_holds_and_rate_fifteen_does_not_restart_attack_mid_phase() {
         let mut eg = eg(32);
         eg.stage = EnvelopeStage::Decay;
@@ -786,7 +956,7 @@ mod tests {
     }
 
     #[test]
-    fn damp_completion_at_update_entry_advances_attack_with_same_counter() {
+    fn damp_completion_at_update_entry_defers_attack_until_next_update() {
         let config = damp_config(
             DampTransitionCoordination::IndependentPerOperator,
             AttackRate15Transition::EnterAttack,
@@ -796,12 +966,16 @@ mod tests {
         let mut p = params();
         p.attack_rate = 10;
 
-        // Effective AR is 40. Counter 8 selects an attack step, so the
-        // reference sequence transitions DAMP -> ATTACK and advances 124 -> 116.
+        // Counter 8 selects an ATTACK step, but the DAMP completion update
+        // cannot consume it. The following operator update can.
         let result = generator.tick_with_events(8, true, true, p).unwrap();
 
         assert!(result.phase_reset_required);
-        assert_eq!(result.level, 116);
+        assert_eq!(result.level, 124);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+
+        generator.tick_with_events(9, true, true, p).unwrap();
+        assert_eq!(generator.level(), 116);
         assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
@@ -831,16 +1005,98 @@ mod tests {
     }
 
     #[test]
-    fn sustain_transition_uses_four_bit_level_comparison() {
-        let mut eg = eg(31);
-        eg.stage = EnvelopeStage::Decay;
-        eg.key_on = true;
+    fn decay_to_sustain_transition_uses_pre_update_level_and_defers_sustain_rate() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            31,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
         let mut p = params();
-        p.decay_rate = 15;
+        p.decay_rate = 8;
+        p.release_rate = 15;
         p.sustain_level = 4;
-        eg.tick(0, true, true, p).unwrap();
-        assert_eq!(eg.level(), 33);
-        assert_eq!(eg.stage(), EnvelopeStage::Sustain);
+        p.key_scale_rate = true;
+        p.fnum = 0x080;
+        p.block = 6;
+        p.sustained_tone = false;
+
+        // Effective DR=44: this update reaches SL=4 (31 -> 32), but
+        // Nuked keeps the operator in DECAY for the update that crosses SL.
+        generator.tick(316, true, false, p).unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+
+        // The next update consumes the DECAY -> SUSTAIN state transition,
+        // without also consuming the programmed RR=15 increment.
+        generator.tick(317, true, false, p).unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+
+        // Only the following update consumes the SUSTAIN/RR rate.
+        generator.tick(318, true, false, p).unwrap();
+        assert_eq!(generator.level(), 34);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn external_rate_phase_preserves_decay_to_sustain_pre_update_boundary() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            31,
+            EnvelopeStage::Decay,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let p = params();
+        let phase = EnvelopeRatePhase::from_consumed_latches(12, true, false, false, 3);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 32);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 33);
+        assert_eq!(generator.stage(), EnvelopeStage::Sustain);
+    }
+
+    #[test]
+    fn external_rate_phase_drives_attack_from_shared_increment_latches() {
+        let mut generator = EnvelopeGenerator::with_initial_state(
+            64,
+            EnvelopeStage::Attack,
+            true,
+            damp_config(
+                DampTransitionCoordination::IndependentPerOperator,
+                AttackRate15Transition::SkipAttackToDecay,
+            ),
+        )
+        .unwrap();
+        let p = params();
+        let phase = EnvelopeRatePhase::from_consumed_latches(11, true, false, false, 0);
+
+        generator
+            .tick_with_rate_phase(true, false, p, phase)
+            .unwrap();
+        assert_eq!(generator.level(), 59);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
     }
 
     #[test]
