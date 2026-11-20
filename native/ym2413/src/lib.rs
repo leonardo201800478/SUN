@@ -49,8 +49,9 @@ pub use envelope_operator::{
     YM2413_ENVELOPE_OPERATOR_STATE_VERSION,
 };
 pub use envelope_sequencer::{
-    EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSequencerError,
-    EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput, YM2413_ENVELOPE_SEQUENCER_SLOTS, YM2413_ENVELOPE_SEQUENCER_STATE_VERSION,
+    EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSequencerError, EnvelopeSequencerState,
+    EnvelopeSequencerTick, EnvelopeSlotInput, YM2413_ENVELOPE_SEQUENCER_SLOTS,
+    YM2413_ENVELOPE_SEQUENCER_STATE_VERSION,
 };
 pub use instrument::{
     ChannelRegisterState, InstrumentError, InstrumentPatch, OperatorPatch, YM2413_PRESET_NAMES,
