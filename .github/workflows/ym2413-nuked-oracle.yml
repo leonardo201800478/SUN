@@ -43,11 +43,13 @@ jobs:
           cat > "$RUNNER_TEMP/events.csv" <<'EOF'
           # call_index,port,value
           0,0,16
-          1,1,64
-          2,0,32
-          3,1,21
+          2,1,64
+          40,0,32
+          42,1,0
+          80,0,48
+          82,1,16
           EOF
-          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 80 \
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 200 \
             --events "$RUNNER_TEMP/events.csv" > "$RUNNER_TEMP/trace.jsonl"
           python3 - "$RUNNER_TEMP/trace.jsonl" <<'PY'
           import json
@@ -56,13 +58,14 @@ jobs:
           with open(sys.argv[1], encoding="utf-8") as stream:
               rows = [json.loads(line) for line in stream]
 
-          assert len(rows) == 81, len(rows)
+          assert len(rows) == 201, len(rows)
           schema, samples = rows[0], rows[1:]
           assert schema["schema"] == "ym2413-nuked-opll-trace-v1"
           assert schema["time_unit"] == "opll_clock_call"
-          assert [row["call_index"] for row in samples] == list(range(80))
+          assert [row["call_index"] for row in samples] == list(range(200))
           assert [row["cycle_before"] for row in samples[:18]] == list(range(18))
           assert all(len(row["pg_phase"]) == 18 for row in samples)
+          assert all("calc_fnum" in row and "pg_inc_after" in row for row in samples)
           assert all(len(row["eg_state"]) == 18 for row in samples)
           assert all(len(row["eg_level"]) == 18 for row in samples)
           assert all(len(row["op_fb1"]) == 9 for row in samples)
