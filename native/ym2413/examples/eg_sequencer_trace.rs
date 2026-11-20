@@ -321,8 +321,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|path| read_events(Path::new(path)))
         .transpose()?;
     let register_mode = events.is_some();
-    let oracle_inputs = args.next().as_deref() == Some("--oracle-inputs");
-    if args.next().is_some() || (oracle_inputs && !register_mode) {
+    let mode_flag = args.next();
+    let oracle_inputs = mode_flag.as_deref() == Some("--oracle-inputs");
+    if mode_flag.is_some() && !oracle_inputs || args.next().is_some() || (oracle_inputs && !register_mode) {
         return Err("invalid EG trace arguments".into());
     }
     let register_input_mode = register_mode && !oracle_inputs;
