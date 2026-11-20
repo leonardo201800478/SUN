@@ -22,11 +22,10 @@ use sega_temporal_core::{HardwarePhase, MachineTime};
 use sega_video::sms::SmsVdpProfile;
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
 
-pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 20;
+pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 21;
 const DEFAULT_INTERRUPT_VECTOR: u8 = 0xFF;
 const DEFAULT_SMS_PSG_CLOCK_HZ: u64 = 3_579_545;
 const DEFAULT_AUDIO_SAMPLE_RATE: u64 = DEFAULT_PCM_SOURCE_RATE_HZ as u64;
-const MAX_PORT_WRITE_TRACE: usize = 64;
 
 fn elapsed_tstates(
     started_at: MachineTime,
@@ -94,14 +93,6 @@ pub enum SmsTemporalDispatch {
     },
 }
 
-/// Observable port write committed at a scheduled bus-completion boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SmsTemporalPortWrite {
-    pub port: u16,
-    pub value: u8,
-    pub completed_at: MachineTime,
-}
-
 /// Complete in-memory continuation of the transactional bus adapter.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SmsTemporalBusState {
@@ -111,7 +102,6 @@ pub struct SmsTemporalBusState {
     pub io: SmsIo,
     pub psg: ScheduledPsg,
     pub vdp: SmsVdp,
-    pub port_write_trace: Vec<SmsTemporalPortWrite>,
     pub coordinator: SmsTemporalCoordinatorState,
     pub pending_request: Option<Z80BusRequest>,
     pub request_started_at: Option<MachineTime>,
@@ -203,7 +193,6 @@ pub struct SmsTemporalBus {
     io: SmsIo,
     psg: ScheduledPsg,
     vdp: SmsVdp,
-    port_write_trace: Vec<SmsTemporalPortWrite>,
     coordinator: SmsTemporalCoordinator,
     pending_request: Option<Z80BusRequest>,
     request_started_at: Option<MachineTime>,
@@ -304,7 +293,6 @@ impl SmsTemporalBus {
             io: SmsIo::new(territory),
             psg,
             vdp: SmsVdp::new_with_profile(vdp_profile),
-            port_write_trace: Vec::new(),
             coordinator,
             pending_request: None,
             request_started_at: None,
@@ -384,7 +372,6 @@ impl SmsTemporalBus {
             io: SmsIo::new(territory),
             psg,
             vdp: SmsVdp::new_with_profile(vdp_profile),
-            port_write_trace: Vec::new(),
             coordinator,
             pending_request: None,
             request_started_at: None,
@@ -720,10 +707,6 @@ impl SmsTemporalBus {
         self.interrupt_vector = vector;
     }
 
-    pub fn port_write_trace(&self) -> &[SmsTemporalPortWrite] {
-        &self.port_write_trace
-    }
-
     /// Inspect the integrated SMS-profile PSG without advancing machine time.
     pub fn psg(&self) -> &Sn76489Core {
         self.psg.core()
@@ -808,14 +791,6 @@ impl SmsTemporalBus {
             }
             _ => self.io.write_port(port, value),
         }
-        if self.port_write_trace.len() == MAX_PORT_WRITE_TRACE {
-            self.port_write_trace.remove(0);
-        }
-        self.port_write_trace.push(SmsTemporalPortWrite {
-            port,
-            value,
-            completed_at,
-        });
     }
 
     /// Read-only access to the mapper-backed memory image.
@@ -849,7 +824,6 @@ impl SmsTemporalBus {
             io: self.io.clone(),
             psg: self.psg.clone(),
             vdp: self.vdp.clone(),
-            port_write_trace: self.port_write_trace.clone(),
             coordinator: self.coordinator.export_state(),
             pending_request: self.pending_request,
             request_started_at: self.request_started_at,
@@ -876,18 +850,6 @@ impl SmsTemporalBus {
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
         let scale = state.coordinator.master_ticks_per_tstate;
         let now = coordinator.now();
-        if state.port_write_trace.len() > MAX_PORT_WRITE_TRACE
-            || state
-                .port_write_trace
-                .iter()
-                .any(|write| write.completed_at > now)
-            || state
-                .port_write_trace
-                .windows(2)
-                .any(|pair| pair[0].completed_at > pair[1].completed_at)
-        {
-            return Err(SmsTemporalBusError::InvalidState);
-        }
         let last_dispatch = state.coordinator.scheduler.last_dispatch_timestamp;
         let external_events_valid = pending_events.iter().all(|event| match event.payload {
             SmsTemporalEvent::ExternalThTransition { player, .. } => {
@@ -983,7 +945,6 @@ impl SmsTemporalBus {
             io: state.io,
             psg: state.psg,
             vdp: state.vdp,
-            port_write_trace: state.port_write_trace,
             coordinator,
             pending_request: state.pending_request,
             request_started_at: state.request_started_at,
@@ -1732,7 +1693,6 @@ mod tests {
         assert_eq!(restored.psg().clock_divider_phase(), 4);
         assert_eq!(restored.psg().latched_register(), 0);
         assert_eq!(restored.psg().tone_periods()[0], 5);
-        assert_eq!(restored.port_write_trace().last().unwrap().port, 0x7E);
         restored.acknowledge_completion(70).unwrap();
 
         let data = request(71, Z80BusOperation::PortWrite { value: 0x12 }, 0x7F, 4);
@@ -1889,16 +1849,9 @@ mod immediate_port_transaction_tests {
         ));
         bus.acknowledge_completion(2).unwrap();
         assert_eq!(bus.memory().control_port(), 0x55);
-        assert_eq!(bus.port_write_trace().len(), 2);
-        assert_eq!(bus.port_write_trace()[0].port, 0xD53F);
-        assert_eq!(bus.port_write_trace()[0].value, 0xD5);
-        assert_eq!(bus.port_write_trace()[1].port, 0x553E);
-        assert_eq!(bus.port_write_trace()[1].value, 0x55);
-
         let restored = SmsTemporalBus::restore_state(bus.export_state()).unwrap();
         assert_eq!(restored.io().io_control(), 0xD5);
         assert_eq!(restored.memory().control_port(), 0x55);
-        assert_eq!(restored.port_write_trace(), bus.port_write_trace());
     }
 }
 
