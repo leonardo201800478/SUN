@@ -117,3 +117,12 @@ out the pinned reference in the ephemeral CI runner, compiles this adapter,
 parses an 80-call JSONL trace, validates array dimensions and serial-cycle
 progression, and checks rejection of duplicate event indices and unsupported
 chip types. It does not publish or retain the GPL reference binary.
+
+
+## Compact PG-only mode
+
+Pass `--pg-only` to emit a compact `ym2413-nuked-opll-pg-trace-v1`
+JSONL stream. It retains only the per-call inputs consumed by
+`OPLL_PhaseCalcIncrement`, the serial cycle index, and the calculated
+`pg_inc`. This mode is intended for long LFO-period differential runs where
+full EG/operator arrays add no value to the arithmetic comparison.
