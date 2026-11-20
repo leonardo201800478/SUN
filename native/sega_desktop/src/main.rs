@@ -54,8 +54,7 @@ mod windows_host {
 
     // The observability handle is the single authority for diagnostic consent.
     fn host_diagnostics_enabled() -> bool {
-        sega_observability::current()
-            .is_some_and(sega_observability::LoggingHandle::is_enabled)
+        sega_observability::current().is_some_and(sega_observability::LoggingHandle::is_enabled)
     }
 
     macro_rules! diagnostic_log {
@@ -4690,7 +4689,9 @@ mod windows_host {
         app.on_debug_snapshot_requested(move || {
             if !host_diagnostics_enabled() {
                 if let Some(app) = debug_app.upgrade() {
-                    app.set_debug_status("Autorize a coleta de logs no Debugger antes de capturar snapshots.".into());
+                    app.set_debug_status(
+                        "Autorize a coleta de logs no Debugger antes de capturar snapshots.".into(),
+                    );
                 }
                 return;
             }
