@@ -519,11 +519,8 @@ impl SegaApp {
         {
             debugger_window.breakpoints.clear();
         }
-        if let Some(enabled) = saved_ui_setting(contents, "debugger_trace_enabled")
-            .and_then(|value| value.parse().ok())
-        {
-            debugger_window.trace_capture_enabled = enabled;
-        }
+        // Debugger trace is session-only. Ignore the legacy persisted key so
+        // loading a settings file can never reactivate diagnostic capture.
         if let Some(open) =
             saved_ui_setting(contents, "debugger_open").and_then(|value| value.parse().ok())
         {
@@ -676,13 +673,12 @@ impl SegaApp {
             .join(",");
 
         let contents = format!(
-            "rom_path={}\ndebugger_breakpoints_rom={}\ndebugger_memory_address={}\ndebugger_breakpoint_input={}\ndebugger_breakpoints={}\ndebugger_trace_enabled={}\nregion={}\naspect_ratio={}\nfooter={}\naudio_state={}\naudio_volume={}\nfps_overlay_enabled={}\nfps_overlay_size={}\nfps_overlay_position={}\ndebugger_open={}\ndebugger_position={}\ndebugger_size={}\nmain_window_position={}\nmain_window_size={}\nmain_window_maximized={}\nmain_window_fullscreen={}\n",
+            "rom_path={}\ndebugger_breakpoints_rom={}\ndebugger_memory_address={}\ndebugger_breakpoint_input={}\ndebugger_breakpoints={}\nregion={}\naspect_ratio={}\nfooter={}\naudio_state={}\naudio_volume={}\nfps_overlay_enabled={}\nfps_overlay_size={}\nfps_overlay_position={}\ndebugger_open={}\ndebugger_position={}\ndebugger_size={}\nmain_window_position={}\nmain_window_size={}\nmain_window_maximized={}\nmain_window_fullscreen={}\n",
             self.rom_path,
             debugger_window.breakpoint_rom_path,
             debugger_window.memory_address,
             debugger_window.breakpoint_input,
             breakpoints,
-            debugger_window.trace_capture_enabled,
             self.region,
             aspect_ratio,
             footer,
@@ -3234,6 +3230,19 @@ mod tests {
         assert!(app.fps_overlay_enabled);
         assert_eq!(app.fps_overlay_size, FpsOverlaySize::Medium);
         assert_eq!(app.fps_overlay_position, FpsOverlayPosition::BottomRight);
+    }
+
+    #[test]
+    fn persisted_debugger_trace_preference_is_ignored_after_restart() {
+        let mut app = SegaApp::default();
+
+        app.restore_debugger_settings("debugger_trace_enabled=true");
+
+        let debugger = app.debugger_window.lock().unwrap();
+        assert!(
+            !debugger.trace_capture_enabled,
+            "debugger trace must require a fresh explicit action in each session"
+        );
     }
 
     #[test]
