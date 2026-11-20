@@ -236,8 +236,6 @@ mod tests {
     fn control(
         rate_hi: u8,
         inc_lo: bool,
-        inc_hi: bool,
-        max_rate: bool,
         counter_state_prev: u8,
         key_on: bool,
         off: bool,
@@ -248,8 +246,8 @@ mod tests {
             rate: EnvelopeRatePhase::from_consumed_latches(
                 rate_hi,
                 inc_lo,
-                inc_hi,
-                max_rate,
+                false,
+                rate_hi == 15,
                 counter_state_prev,
             ),
             key_on,
@@ -264,7 +262,7 @@ mod tests {
         let mut operator =
             EnvelopeOperator::with_initial_state(1, EnvelopeOperatorStage::Attack).unwrap();
         let result = operator
-            .tick(control(11, true, false, false, 3, true, false, false, 4))
+            .tick(control(11, true, 3, true, false, false, 4))
             .unwrap();
         assert_eq!(result.level, 0);
         assert_eq!(result.stage, EnvelopeOperatorStage::Attack);
@@ -280,7 +278,7 @@ mod tests {
         let mut operator =
             EnvelopeOperator::with_initial_state(31, EnvelopeOperatorStage::Decay).unwrap();
         let result = operator
-            .tick(control(15, false, false, true, 3, true, false, false, 4))
+            .tick(control(15, false, 3, true, false, false, 4))
             .unwrap();
         assert_eq!(result.level, 33);
         assert_eq!(result.stage, EnvelopeOperatorStage::Decay);
@@ -297,12 +295,12 @@ mod tests {
         let mut operator =
             EnvelopeOperator::with_initial_state(20, EnvelopeOperatorStage::Decay).unwrap();
         let release = operator
-            .tick(control(0, false, false, false, 0, false, false, false, 4))
+            .tick(control(0, false, 0, false, false, false, 4))
             .unwrap();
         assert_eq!(release.stage, EnvelopeOperatorStage::Release);
 
         let key_on_completion = operator
-            .tick(control(15, false, false, true, 0, false, true, true, 4))
+            .tick(control(15, false, 0, false, true, true, 4))
             .unwrap();
         assert_eq!(key_on_completion.level, 0);
         assert_eq!(key_on_completion.stage, EnvelopeOperatorStage::Attack);
@@ -313,7 +311,7 @@ mod tests {
         let mut operator =
             EnvelopeOperator::with_initial_state(12, EnvelopeOperatorStage::Release).unwrap();
         let result = operator
-            .tick(control(0, false, false, false, 0, false, true, false, 4))
+            .tick(control(0, false, 0, false, true, false, 4))
             .unwrap();
         assert_eq!(result.level, 127);
         assert_eq!(result.stage, EnvelopeOperatorStage::Release);
@@ -324,11 +322,11 @@ mod tests {
         let mut operator =
             EnvelopeOperator::with_initial_state(24, EnvelopeOperatorStage::Decay).unwrap();
         assert_eq!(
-            operator.tick(control(15, false, false, false, 0, true, false, false, 4)),
+            operator.tick(control(15, false, 0, true, false, false, 4)),
             Err(EnvelopeOperatorError::InvalidRatePhase)
         );
         assert_eq!(
-            operator.tick(control(0, false, false, false, 0, true, false, false, 16)),
+            operator.tick(control(0, false, 0, true, false, false, 16)),
             Err(EnvelopeOperatorError::InvalidSustainLevel(16))
         );
         assert_eq!(operator.level(), 24);
