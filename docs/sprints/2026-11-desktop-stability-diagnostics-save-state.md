@@ -37,7 +37,7 @@ A Sprint não autoriza reescrita de hardware, CPU, VDP, PSG, barramentos, mapper
 - [ ] Separar trace essencial de falhas, coleta detalhada de sessão e persistência/exportação em disco.
 - [ ] Auditar/classificar individualmente os 43 callsites e todos os sinks identificados (tracing/log, stdout/stderr, arquivos, snapshots, traces, métricas e panic/crash).
 - [ ] Garantir que revogação descarte fila pendente e dados de sessão persistentes, sem afetar o buffer essencial em RAM definido pelo contrato.
-- [ ] Definir fronteira de crash de bootstrap; preservar o hook padrão de panic e evitar payload/backtrace/dados privados automáticos.
+- [ ] Definir registro sanitizado de panic/falha crítica no buffer RAM; preservar o hook padrão e não criar arquivo automático.
 - [ ] Testar fila cheia, descarte, revogação/reconsentimento, ausência de I/O sem opt-in e overhead A/B.
 
 **Aceite:** diagnóstico essencial permanece em RAM e limitado; coleta persistente só ocorre por ação explícita; nenhum I/O no caminho de hardware; revogação efetiva; nenhuma mudança temporal; evidência de overhead em Release.
