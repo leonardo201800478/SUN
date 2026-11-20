@@ -617,20 +617,34 @@ struct WorkerTelemetry {
 
 impl WorkerTelemetry {
     fn record_input_detected(&self, detected_at: Instant) {
-        if let Ok(mut timing) = self.frame_timing.lock() {
+        if !self.diagnostics_enabled() {
+            return;
+        }
+        if let Ok(mut timing) = self.frame_timing.lock()
+            && self.diagnostics_enabled()
+        {
             timing.record_input(detected_at);
         }
     }
 
     fn record_frame_completed(&self, completed_at: Instant) -> Option<u64> {
-        self.frame_timing
-            .lock()
-            .ok()
-            .and_then(|mut timing| timing.record_frame_completed(completed_at))
+        if !self.diagnostics_enabled() {
+            return None;
+        }
+        self.frame_timing.lock().ok().and_then(|mut timing| {
+            self.diagnostics_enabled()
+                .then(|| timing.record_frame_completed(completed_at))
+                .flatten()
+        })
     }
 
     fn record_frame_pacing_sample(&self, sample: FramePacingSample) {
-        if let Ok(mut timing) = self.frame_timing.lock() {
+        if !self.diagnostics_enabled() {
+            return;
+        }
+        if let Ok(mut timing) = self.frame_timing.lock()
+            && self.diagnostics_enabled()
+        {
             timing.record_pacing_sample(sample);
         }
     }
@@ -672,20 +686,35 @@ impl WorkerTelemetry {
     }
 
     fn frame_pacing_metrics(&self) -> SmsFramePacingMetrics {
+        if !self.diagnostics_enabled() {
+            return SmsFramePacingMetrics::default();
+        }
         // Clone the fixed-size window under the mutex, then sort/allocate outside
         // the worker's frame-completion critical section.
         let window = self.frame_timing.lock().map_or_else(
             |_| FramePacingWindow::default(),
             |timing| timing.pacing_window.clone(),
         );
-        window.snapshot()
+        if self.diagnostics_enabled() {
+            window.snapshot()
+        } else {
+            SmsFramePacingMetrics::default()
+        }
     }
 
     fn performance_metrics(&self) -> SmsPerformanceMetrics {
-        self.frame_timing.lock().map_or_else(
+        if !self.diagnostics_enabled() {
+            return SmsPerformanceMetrics::default();
+        }
+        let metrics = self.frame_timing.lock().map_or_else(
             |_| SmsPerformanceMetrics::default(),
             |timing| timing.metrics_at(Instant::now()),
-        )
+        );
+        if self.diagnostics_enabled() {
+            metrics
+        } else {
+            SmsPerformanceMetrics::default()
+        }
     }
 
     fn reset_frame_timing(&self) {
@@ -722,7 +751,10 @@ impl WorkerTelemetry {
     }
 
     fn set_diagnostics_enabled(&self, enabled: bool) {
-        self.diagnostics_enabled.store(enabled, Ordering::Release);
+        let previous = self.diagnostics_enabled.swap(enabled, Ordering::AcqRel);
+        if previous != enabled {
+            self.reset_frame_timing();
+        }
         if !enabled {
             self.total_instructions.store(0, Ordering::Release);
             self.video_replaced_frames.store(0, Ordering::Release);
@@ -2880,6 +2912,32 @@ mod tests {
             SmsVdpRevision::Sega3155246
         );
         assert_eq!(machine.vdp().visible_height(), 192);
+    }
+
+    #[test]
+    fn worker_performance_metrics_are_opt_in_and_cleared_on_revocation() {
+        use super::WorkerTelemetry;
+        use std::time::{Duration, Instant};
+
+        let telemetry = WorkerTelemetry::default();
+        let start = Instant::now();
+
+        telemetry.record_input_detected(start);
+        telemetry.record_frame_completed(start + Duration::from_millis(16));
+        assert_eq!(telemetry.performance_metrics().completed_frames, 0);
+
+        telemetry.set_diagnostics_enabled(true);
+        telemetry.record_input_detected(start + Duration::from_millis(20));
+        telemetry.record_frame_completed(start + Duration::from_millis(36));
+        let enabled_metrics = telemetry.performance_metrics();
+        assert_eq!(enabled_metrics.completed_frames, 1);
+        assert_eq!(enabled_metrics.input_to_frame_ms, Some(16.0));
+
+        telemetry.set_diagnostics_enabled(false);
+        let revoked_metrics = telemetry.performance_metrics();
+        assert_eq!(revoked_metrics.completed_frames, 0);
+        assert_eq!(revoked_metrics.frame_time_ms, None);
+        assert_eq!(revoked_metrics.input_to_frame_ms, None);
     }
 
     #[test]
