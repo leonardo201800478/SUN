@@ -2788,19 +2788,15 @@ mod windows_host {
     ) -> Timer {
         let timer = Timer::default();
         let app_weak = app.as_weak();
-        timer.start(
-            TimerMode::Repeated,
-            HOST_DIAGNOSTICS_INTERVAL,
-            move || {
-                if app_weak.upgrade().is_none() || !host_diagnostics_enabled() {
-                    return;
-                }
-                host_pacing
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .report_if_due(&worker_slot);
-            },
-        );
+        timer.start(TimerMode::Repeated, HOST_DIAGNOSTICS_INTERVAL, move || {
+            if app_weak.upgrade().is_none() || !host_diagnostics_enabled() {
+                return;
+            }
+            host_pacing
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .report_if_due(&worker_slot);
+        });
         timer.stop();
         timer
     }
@@ -5102,8 +5098,7 @@ mod windows_host {
                 }
             }
         });
-        let _renderer_fallback_timer =
-            start_renderer_fallback_polling(&app, Rc::clone(&worker));
+        let _renderer_fallback_timer = start_renderer_fallback_polling(&app, Rc::clone(&worker));
         let _frame_diagnostics_timer = diagnostics_timer;
         let _sdl3_input_timer = start_sdl3_input_polling(
             &app,
