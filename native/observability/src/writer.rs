@@ -2,7 +2,58 @@ use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use tracing_appender::non_blocking::NonBlocking;
+use tracing_subscriber::fmt::writer::MakeWriter;
+
+
+/// A reloadable MakeWriter whose mutex is held for the lifetime of each event writer.
+/// Revocation can therefore detach the old queue only after all in-flight events have
+/// finished enqueueing; the old WorkerGuard can then drain that queue while its sink gate
+/// is closed.
+#[derive(Clone)]
+pub(super) struct SwitchableMakeWriter {
+    current: Arc<Mutex<Option<NonBlocking>>>,
+}
+
+impl SwitchableMakeWriter {
+    pub(super) fn new(current: Arc<Mutex<Option<NonBlocking>>>) -> Self {
+        Self { current }
+    }
+}
+
+impl<'a> MakeWriter<'a> for SwitchableMakeWriter {
+    type Writer = SwitchableWriter<'a>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SwitchableWriter {
+            current: self
+                .current
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        }
+    }
+}
+
+struct SwitchableWriter<'a> {
+    current: MutexGuard<'a, Option<NonBlocking>>,
+}
+
+impl Write for SwitchableWriter<'_> {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        match self.current.as_mut() {
+            Some(writer) => writer.write(buffer),
+            None => Ok(buffer.len()),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self.current.as_mut() {
+            Some(writer) => writer.flush(),
+            None => Ok(()),
+        }
+    }
+}
 
 pub(super) struct FanoutWriter {
     file: SizeRotatingWriter,
