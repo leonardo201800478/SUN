@@ -31,7 +31,7 @@ impl<'a> MakeWriter<'a> for SwitchableMakeWriter {
     }
 }
 
-struct SwitchableWriter<'a> {
+pub(super) struct SwitchableWriter<'a> {
     current: RwLockReadGuard<'a, Option<NonBlocking>>,
 }
 
