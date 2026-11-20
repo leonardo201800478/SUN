@@ -121,3 +121,47 @@ Differences are diagnostic results, not automatically test failures. In particul
 - A mismatch between the reference sample bit and `noise_output` does not by itself prove which model is physically correct; it identifies the exact tick and state where the conventions diverge.
 - This adapter does not validate analog gain, filtering, PSG-to-FM routing, or host resampling.
 - No reference code is copied, translated or vendored into the production crate.
+
+## Optional Ares SN76489 component trace
+
+The directory also contains a project-authored adapter for the pinned Ares
+SN76489 component. Ares is checked out externally in CI; the exact upstream
+`sn76489.cpp`, `sn76489.hpp`, and `serialization.cpp` are compiled directly
+from that checkout. No Ares implementation source is copied into this repo.
+
+Reference pin:
+
+- Repository: https://github.com/ares-emulator/ares
+- Commit: `8bc30c8c3d3c8081d2a66587add602df771441dd`
+- Component: `ares/component/audio/sn76489`
+- License: Ares repository license notices; the selected component is tracked
+  as ISC in the reference audit.
+
+`ares-shim/ares/ares.hpp` is project-authored compatibility glue for the
+small fixed-width integer, array, and serializer vocabulary expected by the
+component. It implements width truncation and bit-slice access only; it does
+not implement any PSG behavior. The adapter derives from the component to
+expose diagnostic state and records the component's four channel outputs.
+
+Build against an external checkout:
+
+```sh
+git clone https://github.com/ares-emulator/ares.git /tmp/ares
+git -C /tmp/ares checkout 8bc30c8c3d3c8081d2a66587add602df771441dd
+
+g++ -std=c++11 -O2 -Wall -Wextra \
+  -Itools/psg-crabemu-oracle/ares-shim \
+  -I/tmp/ares/ares/component/audio/sn76489 \
+  tools/psg-crabemu-oracle/ares_trace.cpp \
+  /tmp/ares/ares/component/audio/sn76489/sn76489.cpp \
+  -o /tmp/psg-ares-trace
+
+/tmp/psg-ares-trace --calls 600 --events events.csv > ares.jsonl
+```
+
+Ares' component clock is traced one call at a time. This is not an assertion
+that its host integration clock divider is interchangeable with every other
+reference's internal tick; the adapter header explicitly identifies this
+clock domain. The first component call also exercises Ares' reset-time
+counter/flip phase. Same-index observations are retained without automatic
+alignment.
