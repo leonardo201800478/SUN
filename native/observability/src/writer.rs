@@ -2,12 +2,13 @@ use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 pub(super) struct FanoutWriter {
     file: SizeRotatingWriter,
     recent: Arc<Mutex<VecDeque<String>>>,
     recent_capacity: usize,
+    enabled: Arc<RwLock<bool>>,
     pending: Vec<u8>,
 }
 
@@ -16,11 +17,13 @@ impl FanoutWriter {
         file: SizeRotatingWriter,
         recent: Arc<Mutex<VecDeque<String>>>,
         recent_capacity: usize,
+        enabled: Arc<RwLock<bool>>,
     ) -> Self {
         Self {
             file,
             recent,
             recent_capacity: recent_capacity.max(1),
+            enabled,
             pending: Vec::new(),
         }
     }
@@ -60,6 +63,13 @@ impl FanoutWriter {
 
 impl Write for FanoutWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let enabled = self
+            .enabled
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        if !*enabled {
+            return Ok(buffer.len());
+        }
         let written = self.file.write(buffer)?;
         self.pending.extend_from_slice(&buffer[..written]);
         self.publish_complete_lines();
@@ -67,6 +77,14 @@ impl Write for FanoutWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        let enabled = self
+            .enabled
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        if !*enabled {
+            self.pending.clear();
+            return Ok(());
+        }
         self.file.flush()?;
         self.publish_pending();
         Ok(())
@@ -225,7 +243,8 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let file = SizeRotatingWriter::new(directory.join("sega-emulator.log"), 1024, 1).unwrap();
         let recent = Arc::new(Mutex::new(VecDeque::new()));
-        let mut writer = FanoutWriter::new(file, recent.clone(), 2);
+        let enabled = Arc::new(RwLock::new(true));
+        let mut writer = FanoutWriter::new(file, recent.clone(), 2, enabled);
 
         writer.write_all(b"{\"level\":\"INFO\"}\n").unwrap();
         writer.write_all(b"{\"level\":\"WARN\"}\n").unwrap();
@@ -238,6 +257,39 @@ mod tests {
         assert!(records[1].contains("ERROR"));
 
         drop(records);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn fanout_writer_discards_queued_records_after_revocation() {
+        let directory = temporary_directory();
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("sega-emulator.log");
+        let file = SizeRotatingWriter::new(&path, 1024, 1).unwrap();
+        let recent = Arc::new(Mutex::new(VecDeque::new()));
+        let enabled = Arc::new(RwLock::new(false));
+        let mut writer = FanoutWriter::new(file, recent.clone(), 4, enabled.clone());
+
+        // The non-blocking appender may deliver a record after consent was revoked.
+        writer.write_all(b"{\\"level\\":\\"INFO\\"}\\n").unwrap();
+        writer.flush().unwrap();
+        assert!(!path.exists() || fs::read(&path).unwrap().is_empty());
+        assert!(recent.lock().unwrap().is_empty());
+
+        *enabled.write().unwrap() = true;
+        writer.write_all(b"{\\"level\\":\\"WARN\\"}\\n").unwrap();
+        writer.flush().unwrap();
+        assert!(fs::read_to_string(&path).unwrap().contains("WARN"));
+        assert_eq!(recent.lock().unwrap().len(), 1);
+
+        *enabled.write().unwrap() = false;
+        writer.write_all(b"{\\"level\\":\\"ERROR\\"}\\n").unwrap();
+        writer.flush().unwrap();
+        let contents = fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("WARN"));
+        assert!(!contents.contains("ERROR"));
+        assert_eq!(recent.lock().unwrap().len(), 1);
+
         fs::remove_dir_all(directory).unwrap();
     }
 }
