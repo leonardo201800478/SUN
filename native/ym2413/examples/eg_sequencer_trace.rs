@@ -193,7 +193,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         calls += 1;
-        if calls % 127 == 0 {
+        if calls.is_multiple_of(127) {
             let state = sequencer.export_state();
             let restored = EnvelopeSequencer::restore_state(state)
                 .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
