@@ -39,6 +39,7 @@ def main() -> int:
             "expected_eg_dokon", "expected_eg_sl",
         ))
 
+        previous_c_sl = 0
         for line in source:
             if not line.strip():
                 continue
@@ -52,7 +53,7 @@ def main() -> int:
                 row["c_adrr"][0],
                 row["c_adrr"][1],
                 row["c_adrr"][2],
-                row["c_sl"],
+                previous_c_sl,
                 row["c_ksr"],
                 row["c_ksr_freq"],
                 row["son"][channel],
@@ -80,6 +81,7 @@ def main() -> int:
                 row["eg_dokon"],
                 row["eg_sl"],
             ))
+            previous_c_sl = row["c_sl"]
             calls += 1
 
     if calls == 0:
