@@ -96,6 +96,7 @@ A PR [#1088](https://github.com/leonardo201800478/sega-emulator/pull/1088) imple
 - O host Slint passa a usar um gate atômico, inicialmente falso, para suas emissões diagnósticas diretas.
 - O painel DEBUG expõe autorização explícita, limitada à sessão e não persistida.
 - A amostragem host de frame pacing, conversão e fila de áudio só registra métricas quando a autorização está ativa.
+- As métricas SMS de frame time/FPS/latência input→frame também ficam inativas sem consentimento; o histórico é reiniciado em cada transição de autorização e há teste de revogação.
 - A telemetria detalhada do worker SMS é vinculada ao consentimento de diagnóstico; foi separada da ação independente de captura de trace. Novas sessões herdam o estado de consentimento vigente.
 - Os quatro caminhos de resolução automática de região do worker SMS deixam de escrever diretamente em stderr e passam a emitir eventos estruturados `tracing`.
 - Três sinks de erro de persistência no host egui legado (autosave de preferências, salvamento no encerramento e ROMs recentes) passam a emitir eventos `tracing`; sem subscriber opt-in, não são coletados.
