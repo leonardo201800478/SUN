@@ -1,7 +1,7 @@
 # YM2413 external Nuked-OPLL oracle trace
 
 This tool records the public internal state exposed by the pinned Nuked-OPLL
-`opll_t` structure at every input-clock call. It is a **separate external
+`opll_t` structure at every OPLL_Clock call. It is a **separate external
 reference tool**; no Nuked implementation source is copied into this repository.
 
 ## Reference pin
@@ -31,7 +31,7 @@ adapt the output executable suffix as needed.
 
 ## Input events
 
-Optional CSV, with exactly one event per strictly increasing input-clock index:
+Optional CSV, with exactly one event per strictly increasing OPLL_Clock call index:
 
 ```csv
 # input_clock,port,value
@@ -51,7 +51,7 @@ hexadecimal-looking values are illustrative; convert them to decimal).
 Run:
 
 ```sh
-./ym2413-nuked-trace --clocks 20000 --events sequence.csv > trace.jsonl
+./ym2413-nuked-trace --calls 20000 --events sequence.csv > trace.jsonl
 ```
 
 Without `--events`, the chip remains in its reset register state.
@@ -61,7 +61,7 @@ Without `--events`, the chip remains in its reset register state.
 
 - The first JSONL record is a schema descriptor.
 - Each following record corresponds to one call to `OPLL_Clock`.
-- `tick` is the zero-based input-clock call index.
+- `tick` is the zero-based OPLL_Clock-call call index.
 - `cycle_before` is Nuked's serial cycle selected before the call;
   `cycle_after` is the value after its 18-cycle rotation update.
 - `output_m/output_r` are the two values copied to the API buffer at the
