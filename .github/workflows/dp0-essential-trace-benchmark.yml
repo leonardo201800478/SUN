@@ -69,17 +69,35 @@ jobs:
           export BASE_LOG="$RUNNER_TEMP/dp0-baseline.log"
           export HEAD_LOG="$RUNNER_TEMP/dp0-head.log"
 
-          (
-            cd "$RUNNER_TEMP/dp0-baseline"
-            cargo run --release --manifest-path native/sms_core/Cargo.toml \
-              --example dp0_trace_overhead
-          ) | tee "$BASE_LOG"
+          : > "$BASE_LOG"
+          : > "$HEAD_LOG"
 
-          (
-            cd "$GITHUB_WORKSPACE"
-            cargo run --release --manifest-path native/sms_core/Cargo.toml \
-              --example dp0_trace_overhead
-          ) | tee "$HEAD_LOG"
+          run_baseline() {
+            (
+              cd "$RUNNER_TEMP/dp0-baseline"
+              cargo run --release --manifest-path native/sms_core/Cargo.toml \
+                --example dp0_trace_overhead
+            )
+          }
+
+          run_head() {
+            (
+              cd "$GITHUB_WORKSPACE"
+              cargo run --release --manifest-path native/sms_core/Cargo.toml \
+                --example dp0_trace_overhead
+            )
+          }
+
+          # Alternate execution order to reduce systematic runner/thermal drift.
+          for order in base-head head-base base-head head-base; do
+            if [[ "$order" == "base-head" ]]; then
+              run_baseline | tee -a "$BASE_LOG"
+              run_head | tee -a "$HEAD_LOG"
+            else
+              run_head | tee -a "$HEAD_LOG"
+              run_baseline | tee -a "$BASE_LOG"
+            fi
+          done
 
           python3 - <<'PY'
           import re
@@ -115,12 +133,12 @@ jobs:
               f"Baseline commit: `{__import__('os').environ.get('BASE_SHA', 'main')}`",
               f"PR head: `{__import__('os').environ.get('HEAD_SHA', 'unknown')}`",
               "",
-              "| Workload | Baseline median (ns/instruction) | PR median (ns/instruction) | Overhead |",
-              "|---|---:|---:|---:|",
+              "| Workload | Samples/revision | Baseline median (ns/instruction) | PR median (ns/instruction) | Overhead |",
+              "|---|---:|---:|---:|---:|",
           ]
           for scenario in scenarios:
-              if len(baseline[scenario]) < 3 or len(head[scenario]) < 3:
-                  raise SystemExit(f"Insufficient samples for {scenario}")
+              if len(baseline[scenario]) < 15 or len(head[scenario]) < 15:
+                  raise SystemExit(f"Insufficient paired samples for {scenario}")
               baseline_progress = [(item[1], item[2]) for item in baseline[scenario]]
               head_progress = [(item[1], item[2]) for item in head[scenario]]
               if baseline_progress != head_progress:
@@ -129,12 +147,12 @@ jobs:
               current = statistics.median(item[0] for item in head[scenario])
               overhead = (current / base - 1.0) * 100.0
               lines.append(
-                  f"| {scenario} | {base:.3f} | {current:.3f} | {overhead:+.2f}% |"
+                  f"| {scenario} | {len(baseline[scenario])} | {base:.3f} | {current:.3f} | {overhead:+.2f}% |"
               )
 
           lines.extend([
               "",
-              "Measurements use the same Release workload and runner for both revisions.",
+              "Measurements use four alternating A/B pairs (20 samples per revision) on the same Release runner.",
               "This is a comparative CI measurement, not a substitute for a local Windows hardware benchmark.",
           ])
           summary = "\n".join(lines) + "\n"
