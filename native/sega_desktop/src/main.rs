@@ -90,6 +90,14 @@ mod windows_host {
                 );
             }
         };
+        (info, $($argument:tt)*) => {
+            if host_diagnostics_enabled() {
+                sega_observability::tracing::info!(
+                    target: "sega::host",
+                    message = %format!($($argument)*)
+                );
+            }
+        };
         ($($argument:tt)*) => {
             diagnostic_log!(info, $($argument)*);
         };
