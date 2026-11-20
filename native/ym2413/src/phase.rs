@@ -219,9 +219,7 @@ mod tests {
             }
 
             let block_adjusted_frequency = (frequency << block) >> 1;
-            (block_adjusted_frequency
-                * u32::from(YM2413_ML_TABLE[usize::from(mul)]))
-                >> 1
+            (block_adjusted_frequency * u32::from(YM2413_ML_TABLE[usize::from(mul)])) >> 1
         }
 
         // This boundary distinguishes staged truncation (128) from the
