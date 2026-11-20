@@ -206,6 +206,7 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 | Revogação não encerrava trace ativo | **Corrigido no candidato** | Revogação desativa a telemetria, descarta o collector antes do comando de desativação e limpa o buffer de máquina no limite seguro do worker. Eventos durante a transição são drenados e descartados, não retidos. |
 | Contagem de descartes incompleta | **Corrigido no candidato** | `DiagnosticCollector` expõe descartes do histórico; o contador de trace soma descartes do produtor/ingress e do histórico. |
 | Buffer de frame pacing do host retido após revogação | **Corrigido no candidato** | O buffer `HostFramePacingWindow` é reinicializado na revogação; o timer é parado e a amostragem consulta `LoggingHandle::is_enabled()` como fonte única de consentimento. |
+| Estado de consentimento duplicado no host Slint | **Corrigido no candidato** | Removido `HOST_DIAGNOSTICS_ENABLED`; macro e timer consultam `LoggingHandle::is_enabled()`. O token único permanece em memória para autorizar workers substitutos durante a mesma sessão. |
 | Snapshot automático no encerramento | **Corrigido na main pela PR #1105** | A PR removeu chamadas automáticas de snapshot no shutdown dos hosts Slint e legado. |
 
 ### 10.2 Cobertura de testes adicionada
@@ -220,8 +221,8 @@ Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 
 
 1. **DP0-F5 — crash/bootstrap:** o hook global de panic ainda existe no código. ADR 0012 foi marcada como SUPERSEDED; falta remover o hook e implementar/testar relatório mínimo somente para falha crítica de bootstrap.
 2. **Níveis do host Slint:** o macro `diagnostic_log!` ainda envia os eventos do host como INFO. A taxonomia ERROR/WARN/INFO/DEBUG/TRACE precisa ser aplicada aos callsites para que filtros por severidade tenham efeito real.
-4. **Inventário exaustivo de saídas:** a busca não encontrou sinks de log paralelos no caminho ativo Slint/SMS, mas a varredura de todos os binários, stubs não-Windows, CLI, exemplos, testes, scripts e workflows ainda precisa ser classificada e documentada.
-5. **Validação:** nenhum teste local ou CI deste branch foi declarado PASS nesta auditoria. O resultado depende dos workflows executados sobre o SHA final do PR.
+3. **Inventário exaustivo de saídas:** a busca não encontrou sinks de log paralelos no caminho ativo Slint/SMS, mas a varredura de todos os binários, stubs não-Windows, CLI, exemplos, testes, scripts e workflows ainda precisa ser classificada e documentada.
+4. **Validação:** nenhum teste local ou CI deste branch foi declarado PASS nesta auditoria. O resultado depende dos workflows executados sobre o SHA final do PR.
 
 ### 10.4 Garantias de escopo
 
