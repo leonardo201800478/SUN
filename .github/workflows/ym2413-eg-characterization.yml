@@ -207,6 +207,8 @@ jobs:
           path: |
             ${{ runner.temp }}/eg-trace-a.jsonl
             ${{ runner.temp }}/eg-samples.csv
+            ${{ runner.temp }}/eg-control-samples.csv
+            ${{ runner.temp }}/eg-hardware-replay.json
             ${{ runner.temp }}/eg-rust-candidates.jsonl
             ${{ runner.temp }}/eg-matrix-a.jsonl
             ${{ runner.temp }}/eg-matrix-samples.csv
