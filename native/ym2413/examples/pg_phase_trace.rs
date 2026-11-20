@@ -81,15 +81,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut previous_cycle: Option<usize> = None;
 
     for sample in samples {
-        if let Some(call) = previous_call {
-            if sample.call_index != call + 1 {
-                return Err("call indices must be consecutive".into());
-            }
+        if let Some(call) = previous_call
+            && sample.call_index != call + 1
+        {
+            return Err("call indices must be consecutive".into());
         }
-        if let Some(cycle) = previous_cycle {
-            if sample.cycle_before != (cycle + 1) % 18 {
-                return Err("serial cycle indices must advance modulo 18".into());
-            }
+        if let Some(cycle) = previous_cycle
+            && sample.cycle_before != (cycle + 1) % 18
+        {
+            return Err("serial cycle indices must advance modulo 18".into());
         }
 
         let update_slot = (sample.cycle_before + 17) % 18;
