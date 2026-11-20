@@ -5102,7 +5102,9 @@ mod windows_host {
                         .unwrap_or_else(|poisoned| poisoned.into_inner()) =
                         HostFramePacingWindow::new();
                     HOST_DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
-                    diagnostics_timer_control.restart();
+                    if should_run_diagnostics_timer(enabled, true) {
+                        diagnostics_timer_control.restart();
+                    }
                     if let Some(app) = diagnostics_app.upgrade() {
                         app.set_debug_status(
                             "Coleta autorizada nesta sessão: logs, métricas e traces permanecem sob o mesmo consentimento.".into(),
