@@ -124,7 +124,8 @@ mod windows_host {
     fn is_supported_sms_frame_extent(width: u32, height: u32) -> bool {
         width == SMS_WIDTH && (height == SMS_HEIGHT || SMS_EXTENDED_HEIGHTS.contains(&height))
     }
-    const DIAGNOSTICS_INTERVAL: Duration = Duration::from_millis(250);
+    const RENDERER_FALLBACK_POLL_INTERVAL: Duration = Duration::from_millis(250);
+    const HOST_DIAGNOSTICS_INTERVAL: Duration = Duration::from_millis(250);
     const APP_DATA_DIRECTORY: &str = "Sega Emulator";
     const MAX_RECENT_ROMS: usize = 10;
     const MAX_ROM_ARCHIVE_BYTES: usize = 32 * 1024 * 1024;
@@ -2748,37 +2749,62 @@ mod windows_host {
         Ok(())
     }
 
-    /// Keeps runtime error handling and telemetry reporting off the frame delivery path.
-    fn start_frame_diagnostics(
+    fn start_renderer_fallback_polling(
+        app: &MainWindow,
+        worker_slot: Rc<RefCell<Option<DesktopSession>>>,
+    ) -> Timer {
+        let timer = Timer::default();
+        let app_weak = app.as_weak();
+        timer.start(
+            TimerMode::Repeated,
+            RENDERER_FALLBACK_POLL_INTERVAL,
+            move || {
+                let Some(app) = app_weak.upgrade() else {
+                    return;
+                };
+                let renderer_fallback = worker_slot
+                    .borrow()
+                    .as_ref()
+                    .and_then(|worker| worker.runtime_error())
+                    .filter(|error| error.starts_with("H2 renderer"));
+                if let Some(error) = renderer_fallback
+                    && app.get_audio_renderer_mode().as_str() != "psg"
+                {
+                    app.set_audio_renderer_mode("psg".into());
+                    app.set_audio_status(error.into());
+                    app.invoke_preferences_changed();
+                }
+            },
+        );
+        timer
+    }
+
+    /// The diagnostic timer may run only after an explicit consent change succeeds.
+    fn should_run_diagnostics_timer(
+        consent_requested: bool,
+        consent_change_succeeded: bool,
+    ) -> bool {
+        consent_requested && consent_change_succeeded
+    }
+
+    /// Creates the host diagnostics timer stopped; consent controls its lifecycle.
+    fn create_frame_diagnostics_timer(
         app: &MainWindow,
         host_pacing: Arc<Mutex<HostFramePacingWindow>>,
         worker_slot: Rc<RefCell<Option<DesktopSession>>>,
     ) -> Timer {
         let timer = Timer::default();
         let app_weak = app.as_weak();
-        timer.start(TimerMode::Repeated, DIAGNOSTICS_INTERVAL, move || {
-            let Some(app) = app_weak.upgrade() else {
+        timer.start(TimerMode::Repeated, HOST_DIAGNOSTICS_INTERVAL, move || {
+            if app_weak.upgrade().is_none() || !host_diagnostics_enabled() {
                 return;
-            };
-            let renderer_fallback = worker_slot
-                .borrow()
-                .as_ref()
-                .and_then(|worker| worker.runtime_error())
-                .filter(|error| error.starts_with("H2 renderer"));
-            if let Some(error) = renderer_fallback
-                && app.get_audio_renderer_mode().as_str() != "psg"
-            {
-                app.set_audio_renderer_mode("psg".into());
-                app.set_audio_status(error.into());
-                app.invoke_preferences_changed();
             }
-            if host_diagnostics_enabled() {
-                host_pacing
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .report_if_due(&worker_slot);
-            }
+            host_pacing
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .report_if_due(&worker_slot);
         });
+        timer.stop();
         timer
     }
 
@@ -5026,8 +5052,15 @@ mod windows_host {
         let diagnostics_host_pacing = Arc::clone(&host_pacing);
         let diagnostics_worker = Rc::clone(&worker);
         let diagnostics_app = app.as_weak();
+        let diagnostics_timer = Rc::new(create_frame_diagnostics_timer(
+            &app,
+            Arc::clone(&host_pacing),
+            Rc::clone(&worker),
+        ));
+        let diagnostics_timer_control = Rc::clone(&diagnostics_timer);
         app.on_diagnostics_toggle_requested(move |enabled| {
             if !enabled {
+                diagnostics_timer_control.stop();
                 HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
                 if let Some(worker) = diagnostics_worker.borrow().as_ref() {
                     worker.set_sms_diagnostics_enabled(false);
@@ -5037,7 +5070,7 @@ mod windows_host {
             let result = set_diagnostics_consent(enabled);
             match result {
                 Ok(()) => {
-                    if enabled {
+                    if should_run_diagnostics_timer(enabled, true) {
                         *diagnostics_host_pacing
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner()) =
@@ -5046,6 +5079,7 @@ mod windows_host {
                         if let Some(worker) = diagnostics_worker.borrow().as_ref() {
                             worker.set_sms_diagnostics_enabled(true);
                         }
+                        diagnostics_timer_control.restart();
                     }
                     if let Some(app) = diagnostics_app.upgrade() {
                         app.set_debug_status(if enabled {
@@ -5056,6 +5090,7 @@ mod windows_host {
                     }
                 }
                 Err(error) => {
+                    diagnostics_timer_control.stop();
                     HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
                     if let Some(worker) = diagnostics_worker.borrow().as_ref() {
                         worker.set_sms_diagnostics_enabled(false);
@@ -5070,8 +5105,8 @@ mod windows_host {
                 }
             }
         });
-        let _frame_diagnostics_timer =
-            start_frame_diagnostics(&app, Arc::clone(&host_pacing), Rc::clone(&worker));
+        let _renderer_fallback_timer = start_renderer_fallback_polling(&app, Rc::clone(&worker));
+        let _frame_diagnostics_timer = diagnostics_timer;
         let _sdl3_input_timer = start_sdl3_input_polling(
             &app,
             Rc::clone(&worker),
@@ -5160,6 +5195,13 @@ mod windows_host {
 
     #[cfg(test)]
     mod tests {
+        #[test]
+        fn diagnostics_timer_requires_successful_explicit_consent() {
+            assert!(!should_run_diagnostics_timer(false, true));
+            assert!(!should_run_diagnostics_timer(true, false));
+            assert!(should_run_diagnostics_timer(true, true));
+        }
+
         #[test]
         fn host_diagnostics_are_disabled_by_default() {
             assert!(!super::host_diagnostics_enabled());
