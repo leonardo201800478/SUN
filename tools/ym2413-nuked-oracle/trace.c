@@ -216,8 +216,25 @@ int main(int argc, char **argv) {
                (unsigned)chip.c_ksr, (unsigned)chip.c_ksl, (unsigned)chip.c_multi,
                (unsigned)chip.c_fnum, (unsigned)chip.c_block);
         printf(",\"c_adrr\":"); print_u8_array(chip.c_adrr, 3);
-        printf(",\"eg_counter_state\":%u,\"eg_timer\":%" PRIu32 ",\"eg_timer_carry\":%u",
-               (unsigned)chip.eg_counter_state, chip.eg_timer, (unsigned)chip.eg_timer_carry);
+        printf(",\"c_et\":%u,\"c_sl\":%u,\"c_ksr_freq\":%u",
+               (unsigned)chip.c_et, (unsigned)chip.c_sl, (unsigned)chip.c_ksr_freq);
+        printf(",\"eg_counter_state\":%u,\"eg_counter_state_prev\":%u"
+               ",\"eg_timer\":%" PRIu32 ",\"eg_timer_carry\":%u"
+               ",\"eg_timer_low_lock\":%u,\"eg_timer_shift\":%u"
+               ",\"eg_timer_shift_lock\":%u,\"eg_timer_shift_stop\":%u",
+               (unsigned)chip.eg_counter_state, (unsigned)chip.eg_counter_state_prev,
+               chip.eg_timer, (unsigned)chip.eg_timer_carry,
+               (unsigned)chip.eg_timer_low_lock, (unsigned)chip.eg_timer_shift,
+               (unsigned)chip.eg_timer_shift_lock, (unsigned)chip.eg_timer_shift_stop);
+        printf(",\"eg_kon\":%u,\"eg_dokon\":%" PRIu32 ",\"eg_off\":%u"
+               ",\"eg_rate\":%u,\"eg_rate_hi\":%u,\"eg_maxrate\":%u"
+               ",\"eg_zerorate\":%u,\"eg_inc_lo\":%u,\"eg_inc_hi\":%u"
+               ",\"eg_sl\":%u,\"eg_silent\":%u",
+               (unsigned)chip.eg_kon, chip.eg_dokon, (unsigned)chip.eg_off,
+               (unsigned)chip.eg_rate, (unsigned)chip.eg_rate_hi,
+               (unsigned)chip.eg_maxrate, (unsigned)chip.eg_zerorate,
+               (unsigned)chip.eg_inc_lo, (unsigned)chip.eg_inc_hi,
+               (unsigned)chip.eg_sl, (unsigned)chip.eg_silent);
         printf(",\"eg_state\":"); print_u8_array(chip.eg_state, 18);
         printf(",\"eg_level\":"); print_u8_array(chip.eg_level, 18);
         printf(",\"eg_out\":%u", (unsigned)chip.eg_out);
