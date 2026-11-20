@@ -85,9 +85,9 @@ fn run(path: &Path) -> Result<(), Box<dyn Error>> {
             continue;
         }
         let fields: Vec<&str> = line.split(',').collect();
-        if fields.len() != 16 {
+        if fields.len() != 17 {
             return Err(format!(
-                "line {} has {} columns; expected 16",
+                "line {} has {} columns; expected 17",
                 line_index + 2,
                 fields.len()
             )
@@ -97,21 +97,22 @@ fn run(path: &Path) -> Result<(), Box<dyn Error>> {
         let call_index = u64::from(parse_u32(fields[0], "call_index")?);
         let slot_index = u8::try_from(parse_u32(fields[1], "slot_index")?)?;
         let next_rate = u8::try_from(parse_u32(fields[2], "next_rate")?)?;
-        let expected_timer = parse_u32(fields[3], "expected_timer")?;
-        let expected_carry = parse_u32(fields[4], "expected_carry")?;
-        let expected_counter = parse_u32(fields[5], "expected_counter_state")?;
-        let expected_counter_prev = parse_u32(fields[6], "expected_counter_state_prev")?;
-        let expected_shift = parse_u32(fields[7], "expected_shift")?;
-        let expected_shift_stop = parse_u32(fields[8], "expected_shift_stop")?;
-        let expected_low_lock = parse_u32(fields[9], "expected_low_lock")?;
-        let expected_shift_lock = parse_u32(fields[10], "expected_shift_lock")?;
-        let expected_rate_hi = parse_u32(fields[11], "expected_rate_hi")?;
-        let expected_inc_lo = parse_u32(fields[12], "expected_inc_lo")?;
-        let expected_inc_hi = parse_u32(fields[13], "expected_inc_hi")?;
-        let expected_max_rate = parse_u32(fields[14], "expected_max_rate")?;
-        let expected_zero_rate = parse_u32(fields[15], "expected_zero_rate")?;
+        let next_zero_rate = parse_u32(fields[3], "next_zero_rate")? != 0;
+        let expected_timer = parse_u32(fields[4], "expected_timer")?;
+        let expected_carry = parse_u32(fields[5], "expected_carry")?;
+        let expected_counter = parse_u32(fields[6], "expected_counter_state")?;
+        let expected_counter_prev = parse_u32(fields[7], "expected_counter_state_prev")?;
+        let expected_shift = parse_u32(fields[8], "expected_shift")?;
+        let expected_shift_stop = parse_u32(fields[9], "expected_shift_stop")?;
+        let expected_low_lock = parse_u32(fields[10], "expected_low_lock")?;
+        let expected_shift_lock = parse_u32(fields[11], "expected_shift_lock")?;
+        let expected_rate_hi = parse_u32(fields[12], "expected_rate_hi")?;
+        let expected_inc_lo = parse_u32(fields[13], "expected_inc_lo")?;
+        let expected_inc_hi = parse_u32(fields[14], "expected_inc_hi")?;
+        let expected_max_rate = parse_u32(fields[15], "expected_max_rate")?;
+        let expected_zero_rate = parse_u32(fields[16], "expected_zero_rate")?;
 
-        let snapshot = timer.tick_slot(slot_index, next_rate)?;
+        let snapshot = timer.tick_slot(slot_index, next_rate, next_zero_rate)?;
         let actual = [
             snapshot.timer,
             u32::from(snapshot.carry),
