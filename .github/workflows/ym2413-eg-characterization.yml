@@ -111,6 +111,19 @@ jobs:
             --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
             --expected-calls 30000 --channels 0,1,2,3
 
+      - name: Extract four-channel EG control pipeline including KEY-OFF
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_control_samples.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-matrix-control-samples.csv" \
+            --channels 0,1,2,3
+
+      - name: Replay eight EG operators across four channels from reset through KEY-OFF
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_hardware_trace -- "$RUNNER_TEMP/eg-matrix-control-samples.csv" \
+            > "$RUNNER_TEMP/eg-matrix-hardware-replay.json"
+
       - name: Extract rate-matrix operator samples and parameters
         run: |
           python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
@@ -208,6 +221,8 @@ jobs:
             ${{ runner.temp }}/eg-trace-a.jsonl
             ${{ runner.temp }}/eg-samples.csv
             ${{ runner.temp }}/eg-control-samples.csv
+            ${{ runner.temp }}/eg-matrix-control-samples.csv
+            ${{ runner.temp }}/eg-matrix-hardware-replay.json
             ${{ runner.temp }}/eg-hardware-replay.json
             ${{ runner.temp }}/eg-rust-candidates.jsonl
             ${{ runner.temp }}/eg-matrix-a.jsonl
