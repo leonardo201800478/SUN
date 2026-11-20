@@ -7,6 +7,7 @@
  * No Ares source is copied into this repository or linked into the Rust core.
  */
 #include <cstdint>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -62,7 +63,7 @@ static bool load_events(const char* path, std::vector<InputEvent>& events) {
   }
   while (std::getline(input, line)) {
     const char* cursor = line.c_str();
-    while (*cursor == ' ' || *cursor == '\\t') ++cursor;
+    while (*cursor != '\\0' && std::isspace(static_cast<unsigned char>(*cursor))) ++cursor;
     if (*cursor == '\\0' || *cursor == '#') continue;
     unsigned long long tick = 0;
     int parsed_value = 0;
