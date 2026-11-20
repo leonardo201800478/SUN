@@ -105,6 +105,10 @@ def main() -> int:
             rows, "candidate_level_initial_127_deferred_decay_phase_minus3",
             "candidate_stage_initial_127_deferred_decay_phase_minus3"
         ),
+        "candidate_initial_level_127_deferred_external_rate_phase": compare(
+            rows, "candidate_level_initial_127_deferred_external_rate_phase",
+            "candidate_stage_initial_127_deferred_external_rate_phase"
+        ),
         "deferred_unwrapped_detail": {
             "level_mismatches_by_global_counter": mismatch_counts_by_counter,
             "level_mismatches_by_slot": mismatch_counts_by_slot,
