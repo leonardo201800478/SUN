@@ -3929,6 +3929,23 @@ mod essential_trace_buffer_tests {
         assert_eq!(machine.essential_trace_len(), retained_before);
         assert!(!machine.take_essential_trace().is_empty());
     }
+
+    #[test]
+    fn essential_trace_snapshot_is_non_destructive_and_not_serialized() {
+        let mut rom = vec![0x00; 0x4000];
+        rom[..3].copy_from_slice(&[0x32, 0x00, 0xC0]); // LD ($C000),A
+        let mut machine = SmsTemporalMachine::new(rom, 3).unwrap();
+        machine.step_instruction(0).unwrap();
+
+        let first_snapshot = machine.essential_trace_snapshot();
+        let second_snapshot = machine.essential_trace_snapshot();
+        assert!(!first_snapshot.is_empty());
+        assert_eq!(first_snapshot, second_snapshot);
+
+        let restored = SmsTemporalMachine::restore_state(machine.export_state()).unwrap();
+        assert!(restored.essential_trace_snapshot().is_empty());
+        assert_eq!(restored.essential_trace_dropped(), 0);
+    }
 }
 
 #[cfg(test)]
