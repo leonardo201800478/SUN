@@ -1,14 +1,11 @@
 use crate::writer::{FanoutWriter, SizeRotatingWriter, SwitchableMakeWriter};
 use serde::Serialize;
-use std::any::Any;
 use std::collections::VecDeque;
 use std::error::Error;
-use std::fs::{self, File, OpenOptions};
-use std::io::Write;
-use std::panic::Location;
-use std::path::{Path, PathBuf};
+use std::fs::{self, File};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, Once, OnceLock, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing_appender::non_blocking::{ErrorCounter, NonBlocking, NonBlockingBuilder, WorkerGuard};
 use tracing_subscriber::EnvFilter;
@@ -19,12 +16,8 @@ use tracing_subscriber::reload;
 use tracing_subscriber::util::SubscriberInitExt;
 
 static LOGGING: OnceLock<LoggingHandle> = OnceLock::new();
-static PANIC_HOOK: Once = Once::new();
 static DIAGNOSTICS_ENABLED: AtomicBool = AtomicBool::new(false);
 
-const MAX_CRASH_RECORD_BYTES: u64 = 1_024;
-const MAX_CRASH_SESSION_ID_BYTES: usize = 64;
-const MAX_CRASH_SOURCE_BASENAME_BYTES: usize = 128;
 
 pub type InitError = Box<dyn Error + Send + Sync>;
 
@@ -442,20 +435,6 @@ pub fn init_after_explicit_consent(
         .with(formatting_layer)
         .try_init()?;
 
-    let crash_log = config.log_dir.join("sega-emulator-crash.log");
-    // Rotation is performed during consented initialization, never in the panic hook.
-    // A failure here is non-fatal: the hook still delegates to Rust's previous hook.
-    let _ = prepare_crash_log(
-        &crash_log,
-        config.max_file_size_bytes,
-        config.retained_files,
-    );
-    install_panic_hook(
-        crash_log,
-        config.max_file_size_bytes.max(1),
-        session.session_id.clone(),
-    );
-
     let logging = LoggingHandle {
         guard: Mutex::new(Some(guard)),
         writer_slot,
@@ -499,167 +478,12 @@ fn default_log_directory() -> PathBuf {
     std::env::temp_dir().join("Sega Emulator").join("logs")
 }
 
-/// Return a bounded, sanitized source basename without directory components.
-fn source_basename(file: &str) -> String {
-    let basename = file.rsplit(['/', '\\']).next().unwrap_or(file);
-    sanitize_field(basename, MAX_CRASH_SOURCE_BASENAME_BYTES)
-}
-
-/// Sanitize a field to printable ASCII and cap its length.
-fn sanitize_field(value: &str, max_bytes: usize) -> String {
-    value
-        .chars()
-        .filter(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
-        })
-        .take(max_bytes)
-        .collect()
-}
-
-/// Format the only fields permitted in a private crash record.
-///
-/// The payload content and full source path are intentionally not accepted.
-fn format_crash_record(
-    timestamp_unix_ms: u128,
-    session_id: &str,
-    location: Option<(&str, u32, u32)>,
-    payload_is_text: bool,
-) -> String {
-    let session_id = sanitize_field(session_id, MAX_CRASH_SESSION_ID_BYTES);
-    let (source_file, source_line, source_column) = match location {
-        Some((file, line, column)) => (source_basename(file), line.to_string(), column.to_string()),
-        None => (
-            "unknown".to_owned(),
-            "unknown".to_owned(),
-            "unknown".to_owned(),
-        ),
-    };
-
-    format!(
-        "timestamp_unix_ms={timestamp_unix_ms}\nsession_id={session_id}\nsource_file={source_file}\nsource_line={source_line}\nsource_column={source_column}\npayload_is_text={payload_is_text}\n\n"
-    )
-}
-
-/// Rotate an existing crash log before installing the hook.
-///
-/// This function is called only during consented initialization. The panic hook
-/// itself never renames, removes, or rotates files.
-fn prepare_crash_log(path: &Path, max_bytes: u64, retained_files: usize) -> std::io::Result<()> {
-    prune_crash_backups(path, retained_files)?;
-    if retained_files == 0 {
-        if path.exists() {
-            fs::remove_file(path)?;
-        }
-        return Ok(());
-    }
-
-    let metadata = match fs::metadata(path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    if metadata.len().saturating_add(MAX_CRASH_RECORD_BYTES) <= max_bytes.max(1) {
-        return Ok(());
-    }
-
-    for index in (1..=retained_files).rev() {
-        let source = if index == 1 {
-            path.to_path_buf()
-        } else {
-            crash_backup_path(path, index - 1)
-        };
-        let destination = crash_backup_path(path, index);
-        if source.exists() {
-            if destination.exists() {
-                fs::remove_file(&destination)?;
-            }
-            fs::rename(source, destination)?;
-        }
-    }
-    Ok(())
-}
-
-/// Remove numbered backups outside the configured retention window.
-fn prune_crash_backups(path: &Path, retained_files: usize) -> std::io::Result<()> {
-    let Some(parent) = path.parent() else {
-        return Ok(());
-    };
-    let Some(file_name) = path.file_name() else {
-        return Ok(());
-    };
-    let prefix = format!("{}.", file_name.to_string_lossy());
-
-    for entry in fs::read_dir(parent)? {
-        let entry = entry?;
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if let Some(index) = name
-            .strip_prefix(&prefix)
-            .and_then(|suffix| suffix.parse::<usize>().ok())
-            && index > retained_files
-        {
-            fs::remove_file(entry.path())?;
-        }
-    }
-    Ok(())
-}
-
-/// Construct a numbered backup path without changing the original filename.
-fn crash_backup_path(path: &Path, index: usize) -> PathBuf {
-    let mut name = path.as_os_str().to_os_string();
-    name.push(format!(".{index}"));
-    PathBuf::from(name)
-}
-
-/// Append a bounded record only when it fits; never rotate in the panic path.
-fn append_crash_record(path: &Path, max_bytes: u64, record: &str) -> std::io::Result<()> {
-    if record.len() as u64 > MAX_CRASH_RECORD_BYTES {
-        return Ok(());
-    }
-
-    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
-    let current_size = file.metadata()?.len();
-    if current_size.saturating_add(record.len() as u64) > max_bytes.max(1) {
-        return Ok(());
-    }
-    file.write_all(record.as_bytes())?;
-    file.flush()
-}
-
-/// Install the private crash hook after consented diagnostics initialization.
-fn install_panic_hook(crash_log: PathBuf, max_bytes: u64, session_id: String) {
-    PANIC_HOOK.call_once(move || {
-        let previous = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |panic_info| {
-            if DIAGNOSTICS_ENABLED.load(Ordering::Acquire) {
-                let timestamp = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis();
-                let location = panic_info.location().map(|location: &Location<'_>| {
-                    (location.file(), location.line(), location.column())
-                });
-                let payload_is_text = panic_payload_is_text(panic_info.payload());
-                let record = format_crash_record(timestamp, &session_id, location, payload_is_text);
-                // I/O errors are intentionally ignored so the previous hook is always called.
-                let _ = append_crash_record(&crash_log, max_bytes, &record);
-            }
-            previous(panic_info);
-        }));
-    });
-}
-
-/// Detect only the payload type; never format or persist its contents.
-fn panic_payload_is_text(payload: &(dyn Any + Send)) -> bool {
-    payload.is::<String>() || payload.is::<&'static str>()
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        DIAGNOSTICS_ENABLED, LogConfig, Ordering, SessionMetadata, append_crash_record,
-        ensure_diagnostics_enabled, format_crash_record, initial_filter_directives,
-        prepare_crash_log, set_writer_gate,
+        DIAGNOSTICS_ENABLED, DiagnosticsConsent, LogConfig, Ordering, SessionMetadata,
+        ensure_diagnostics_enabled, init_after_explicit_consent, initial_filter_directives,
+        set_writer_gate,
     };
     use std::collections::VecDeque;
     use std::fs;
@@ -717,98 +541,6 @@ mod tests {
     }
 
     #[test]
-    fn crash_formatter_excludes_payload_and_absolute_source_paths() {
-        let record = format_crash_record(
-            1_800_000_000_000,
-            "session/ID",
-            Some((r"C:\Users\private\ROM_SENTINEL\source\cpu.rs", 42, 7)),
-            true,
-        );
-
-        assert!(record.contains("session_id=sessionID"));
-        assert!(record.contains("source_file=cpu.rs"));
-        assert!(record.contains("source_line=42"));
-        assert!(record.contains("source_column=7"));
-        assert!(record.contains("payload_is_text=true"));
-        assert!(!record.contains("Users"));
-        assert!(!record.contains("private"));
-        assert!(!record.contains("ROM_SENTINEL"));
-        assert!(!record.contains("SECRET"));
-        assert!(record.len() <= 1_024);
-    }
-
-    #[test]
-    fn crash_record_append_obeys_file_size_limit() {
-        let directory = temporary_directory("crash-size");
-        fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("crash.log");
-        fs::write(&path, b"123456").unwrap();
-
-        append_crash_record(&path, 8, "123\n").unwrap();
-        assert_eq!(fs::read(&path).unwrap(), b"123456");
-
-        append_crash_record(&path, 16, "123\n").unwrap();
-        assert_eq!(fs::read(&path).unwrap(), b"123456123\n");
-
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn crash_log_rotation_is_bounded_and_runs_before_hook() {
-        let directory = temporary_directory("crash-retention");
-        fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("crash.log");
-        fs::write(&path, b"active-log-near-limit").unwrap();
-        fs::write(directory.join("crash.log.1"), b"older-1").unwrap();
-        fs::write(directory.join("crash.log.2"), b"older-2").unwrap();
-        fs::write(directory.join("crash.log.3"), b"older-3").unwrap();
-
-        prepare_crash_log(&path, 8, 2).unwrap();
-
-        assert!(!path.exists());
-        assert_eq!(
-            fs::read(directory.join("crash.log.1")).unwrap(),
-            b"active-log-near-limit"
-        );
-        assert_eq!(fs::read(directory.join("crash.log.2")).unwrap(), b"older-1");
-        assert!(!directory.join("crash.log.3").exists());
-
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn crash_log_rotation_can_disable_backups() {
-        let directory = temporary_directory("crash-no-retention");
-        fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("crash.log");
-        fs::write(&path, b"old").unwrap();
-        fs::write(directory.join("crash.log.1"), b"older").unwrap();
-
-        prepare_crash_log(&path, 1, 0).unwrap();
-
-        assert!(!path.exists());
-        assert!(!directory.join("crash.log.1").exists());
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn crash_log_prunes_stale_backups_even_without_an_active_file() {
-        let directory = temporary_directory("crash-prune");
-        fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("crash.log");
-        fs::write(directory.join("crash.log.1"), b"newest").unwrap();
-        fs::write(directory.join("crash.log.2"), b"older").unwrap();
-        fs::write(directory.join("crash.log.3"), b"oldest").unwrap();
-
-        prepare_crash_log(&path, 1_024, 1).unwrap();
-
-        assert_eq!(fs::read(directory.join("crash.log.1")).unwrap(), b"newest");
-        assert!(!directory.join("crash.log.2").exists());
-        assert!(!directory.join("crash.log.3").exists());
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
     fn default_log_configuration_uses_bounded_async_queue_and_rotation() {
         let config = LogConfig::default();
         assert!(config.queue_capacity > 0);
@@ -828,7 +560,7 @@ mod tests {
         assert!(!session.architecture.is_empty());
     }
 
-    /// Child entry point used to validate hook delegation in an isolated process.
+    /// Child entry point proving diagnostics initialization does not replace Rust's panic hook.
     #[test]
     fn panic_hook_subprocess_child() {
         let Ok(mode) = std::env::var("SEGA_OBSERVABILITY_PANIC_CHILD") else {
@@ -838,12 +570,6 @@ mod tests {
         let directory =
             std::path::PathBuf::from(std::env::var_os("SEGA_OBSERVABILITY_PANIC_DIR").unwrap());
         let marker = directory.join("previous-hook-called");
-        let crash_log = if mode == "io-failure" {
-            directory.join("not-a-directory").join("crash.log")
-        } else {
-            directory.join("crash.log")
-        };
-
         let previous = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
             let mut file = fs::OpenOptions::new()
@@ -855,57 +581,50 @@ mod tests {
             previous(panic_info);
         }));
 
-        if mode != "no-opt-in" {
-            super::install_panic_hook(crash_log, 4_096, "child-session".to_owned());
-        }
-        DIAGNOSTICS_ENABLED.store(mode == "opt-in" || mode == "io-failure", Ordering::Release);
+        let config = LogConfig {
+            log_dir: directory,
+            ..LogConfig::default()
+        };
+        let consent = DiagnosticsConsent::from_explicit_user_action();
+        let _logging = init_after_explicit_consent(
+            &consent,
+            config,
+            SessionMetadata::current("test", "test-sha", "test"),
+        )
+        .unwrap();
 
-        panic!("PAYLOAD_SENTINEL /private/ROM_SENTINEL");
+        assert_eq!(mode, "init");
+        panic!("ordinary runtime panic; no automatic crash file");
     }
 
     #[test]
-    fn panic_hook_delegates_once_and_respects_consent_matrix_in_subprocesses() {
-        for mode in ["no-opt-in", "opt-in", "revoked", "io-failure"] {
-            let directory = temporary_directory(mode);
-            fs::create_dir_all(&directory).unwrap();
-            if mode == "io-failure" {
-                fs::write(directory.join("not-a-directory"), b"block").unwrap();
-            }
+    fn diagnostics_initialization_preserves_the_default_panic_hook() {
+        let directory = temporary_directory("panic-hook-preserved");
+        fs::create_dir_all(&directory).unwrap();
 
-            let output = Command::new(std::env::current_exe().unwrap())
-                .arg("--exact")
-                .arg("runtime::tests::panic_hook_subprocess_child")
-                .arg("--nocapture")
-                .env("SEGA_OBSERVABILITY_PANIC_CHILD", mode)
-                .env("SEGA_OBSERVABILITY_PANIC_DIR", &directory)
-                .output()
-                .unwrap();
+        let output = Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("runtime::tests::panic_hook_subprocess_child")
+            .arg("--nocapture")
+            .env("SEGA_OBSERVABILITY_PANIC_CHILD", "init")
+            .env("SEGA_OBSERVABILITY_PANIC_DIR", &directory)
+            .output()
+            .unwrap();
 
-            assert!(
-                !output.status.success(),
-                "panic child unexpectedly succeeded for mode {mode}"
-            );
-            assert_eq!(
-                fs::read_to_string(directory.join("previous-hook-called")).unwrap(),
-                "previous\n",
-                "previous hook was not called exactly once for mode {mode}"
-            );
+        assert!(
+            !output.status.success(),
+            "panic child unexpectedly succeeded"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.join("previous-hook-called")).unwrap(),
+            "previous\n",
+            "the original Rust panic hook was not called exactly once"
+        );
+        assert!(
+            !directory.join("sega-emulator-crash.log").exists(),
+            "ordinary runtime panic unexpectedly produced a crash file"
+        );
 
-            let crash_log = directory.join("crash.log");
-            if mode == "opt-in" {
-                let contents = fs::read_to_string(&crash_log).unwrap();
-                assert!(contents.contains("session_id=child-session"));
-                assert!(contents.contains("payload_is_text=true"));
-                assert!(!contents.contains("PAYLOAD_SENTINEL"));
-                assert!(!contents.contains("ROM_SENTINEL"));
-            } else {
-                assert!(
-                    !crash_log.exists(),
-                    "private crash log unexpectedly exists for mode {mode}"
-                );
-            }
-
-            fs::remove_dir_all(directory).unwrap();
-        }
+        fs::remove_dir_all(directory).unwrap();
     }
 }
