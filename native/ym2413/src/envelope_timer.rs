@@ -43,12 +43,12 @@ pub struct EnvelopeTimerState {
     pub next_slot: u8,
 }
 
-/// Rate and counter phase consumed by one operator EG update.
+/// Rate and counter phase prepared for the following operator EG update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EnvelopeRatePhase {
-    /// Rate latched on the preceding slot and consumed now.
-    pub consumed_rate: u8,
-    /// Rate prepared on this slot for the following operator update.
+    /// Previous rate that generated the increment latches for the next slot.
+    pub rate_latch_source: u8,
+    /// Newly calculated rate, consumed by the timer pipeline on the next slot.
     pub next_rate: u8,
     /// Upper four bits of the consumed rate.
     pub rate_hi: u8,
@@ -160,11 +160,13 @@ impl EnvelopeTimer {
         Ok(Self { state })
     }
 
-    /// Advance one operator slot and prepare the rate latch for the next slot.
+    /// Advance one operator slot and prepare rate latches for the following slot.
     ///
-    /// next_rate is the rate calculated for the next EG operator update.
-    /// The returned rate phase contains the previous slot's pending rate,
-    /// matching the timer's one-slot rate-latch pipeline.
+    /// next_rate is calculated for the following EG operator update. The
+    /// returned phase is the complete set of latches visible at the next slot:
+    /// increment enables and maximum-rate status derive from the previously
+    /// pending rate, while zero-rate status derives from the newly prepared
+    /// rate. This mixed pipeline is intentional and matches the chip timing.
     pub fn tick_slot(
         &mut self,
         slot_index: u8,
@@ -183,9 +185,9 @@ impl EnvelopeTimer {
             return Err(EnvelopeTimerError::InvalidRate(next_rate));
         }
 
-        let consumed_rate = self.state.pending_rate;
-        let rate_hi = consumed_rate >> 2;
-        let rate_lo = consumed_rate & 0x03;
+        let rate_latch_source = self.state.pending_rate;
+        let rate_hi = rate_latch_source >> 2;
+        let rate_lo = rate_latch_source & 0x03;
 
         // The fractional timer input is enabled only at the terminal
         // two-bit counter phase. Slot zero seeds the carry; later slots
@@ -248,7 +250,7 @@ impl EnvelopeTimer {
         };
 
         let rate_phase = EnvelopeRatePhase {
-            consumed_rate,
+            rate_latch_source,
             next_rate,
             rate_hi,
             inc_lo,
@@ -305,13 +307,13 @@ mod tests {
         let mut timer = EnvelopeTimer::new();
 
         let first = timer.tick_slot(0, 60).unwrap();
-        assert_eq!(first.rate_phase.consumed_rate, 0);
+        assert_eq!(first.rate_phase.rate_latch_source, 0);
         assert_eq!(first.rate_phase.rate_hi, 0);
         assert!(!first.rate_phase.max_rate);
         assert!(!first.rate_phase.zero_rate);
 
         let second = timer.tick_slot(1, 0).unwrap();
-        assert_eq!(second.rate_phase.consumed_rate, 60);
+        assert_eq!(second.rate_phase.rate_latch_source, 60);
         assert_eq!(second.rate_phase.rate_hi, 15);
         assert!(second.rate_phase.max_rate);
         assert!(second.rate_phase.zero_rate);
