@@ -131,7 +131,7 @@ e o script `tools/ym2413-nuked-oracle/compare_mame_pg.py` registram:
 - O MAME mantém 10 bits fracionários; 256 casos base retêm meio LSB adicional que não existe no PG Rust.
 - Resultado é comparação estática da fórmula e das tabelas-fonte, não execução diferencial do MAME.
 
-**Decisão:** manter Nuked como oráculo primário. Não alterar a tabela PM Rust para convergir com MAME sem resolver primeiro a diferença de forma/profundidade do LFO e a normalização temporal. A diferença restante está na aritmética fracionária e no arredondamento dos incrementos, não na tabela PM quantizada. É evidência para investigação, não decisão por votação.
+**Decisão:** manter Nuked como oráculo primário. Não alterar a tabela PM Rust: a tabela quantizada já coincide com MAME após offset 6 e truncamento em direção a zero. Investigar a precisão fracionária e os pontos de arredondamento dos incrementos. É evidência para investigação, não decisão por votação.
 
 ## Próxima dependência técnica
 
