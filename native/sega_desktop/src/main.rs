@@ -53,10 +53,8 @@ mod windows_host {
     const SMS_EXTENDED_HEIGHTS: [u32; 2] = [224, 240];
 
     // Host diagnostics are session-only and remain disabled until the user opts in.
-    static HOST_DIAGNOSTICS_ENABLED: AtomicBool = AtomicBool::new(false);
-
     fn host_diagnostics_enabled() -> bool {
-        HOST_DIAGNOSTICS_ENABLED.load(Ordering::Acquire)
+        sega_observability::current().is_some_and(|logging| logging.is_enabled())
     }
 
     macro_rules! diagnostic_log {
@@ -5073,7 +5071,6 @@ mod windows_host {
         app.on_diagnostics_toggle_requested(move |enabled| {
             if !enabled {
                 diagnostics_timer_control.stop();
-                HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
                 *diagnostics_host_pacing
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner()) =
@@ -5111,7 +5108,6 @@ mod windows_host {
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner()) =
                         HostFramePacingWindow::new();
-                    HOST_DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
                     if should_run_diagnostics_timer(enabled, true) {
                         diagnostics_timer_control.restart();
                     }
