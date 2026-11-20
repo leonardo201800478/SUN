@@ -30,6 +30,7 @@ def main() -> int:
         assert schema["schema"] == "ym2413-nuked-opll-trace-v1"
         assert schema["time_unit"] == "opll_clock_call"
         rows = (json.loads(line) for line in stream if line.strip())
+        previous_eg_sl = None
         with args.output.open("w", newline="", encoding="utf-8") as output:
             writer = csv.writer(output)
             writer.writerow((
@@ -40,6 +41,8 @@ def main() -> int:
                 "rate_hi", "inc_lo", "inc_hi", "max_rate", "counter_state_prev",
             ))
             for row in rows:
+                consumed_eg_sl = previous_eg_sl
+                previous_eg_sl = row["eg_sl"]
                 # This is the array entry updated during this OPLL_Clock call.
                 slot = (row["cycle_before"] + 16) % 18
                 channel = CH_OFFSET[slot]
@@ -48,6 +51,8 @@ def main() -> int:
                 # slot's EG update; raw channel KON is earlier in the pipeline.
                 if channel not in selected_channels or (row["eg_kon"] & 0x04) == 0:
                     continue
+                if consumed_eg_sl is None:
+                    raise ValueError("selected EG update has no preceding SL latch")
 
                 global_counter = row["call_index"] // 18
                 assert row["eg_counter_state"] == (global_counter & 0xff), (
@@ -63,7 +68,7 @@ def main() -> int:
                     row["call_index"], slot, channel, int(is_carrier),
                     global_counter, 1, row["eg_level"][slot], row["eg_state"][slot],
                     row["c_adrr"][0], row["c_adrr"][1], row["c_adrr"][2],
-                    row["c_sl"], row["c_ksr"], row["fnum"][channel], row["block"][channel],
+                    consumed_eg_sl, row["c_ksr"], row["fnum"][channel], row["block"][channel],
                     row["son"][channel], row["c_et"],
                     row["eg_rate_hi"], row["eg_inc_lo"], row["eg_inc_hi"],
                     row["eg_maxrate"], row["eg_counter_state_prev"],
