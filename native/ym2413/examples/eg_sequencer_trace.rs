@@ -4,7 +4,10 @@
 //! The sequencer owns the 18 EG states, shared timer, and delayed control
 //! pipelines, then compares its complete post-cycle state with the oracle.
 
-use sega_ym2413::{EnvelopeSequencer, EnvelopeSlotInput};
+use sega_ym2413::{
+    ChannelSynthesisConfig, EnvelopeSequencer, EnvelopeSlotInput, decode_channel_synthesis,
+    envelope_slot_input_for_cycle,
+};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -91,18 +94,95 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
     })
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Event {
+    call_index: u64,
+    port: u8,
+    value: u8,
+}
+
+fn read_events(path: &Path) -> Result<Vec<Event>, Box<dyn Error>> {
+    let input = BufReader::new(File::open(path)?);
+    let mut events = Vec::new();
+    let mut previous_call = 0_u64;
+    for (line_index, line) in input.lines().enumerate() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let fields: Vec<&str> = trimmed.split(',').map(str::trim).collect();
+        if fields.len() != 3 {
+            return Err(format!("event line {}: expected three CSV columns", line_index + 1).into());
+        }
+        let event = Event {
+            call_index: fields[0].parse()?,
+            port: fields[1].parse()?,
+            value: fields[2].parse()?,
+        };
+        if event.call_index < previous_call || event.port > 1 {
+            return Err(format!("event line {}: unordered or invalid OPLL port write", line_index + 1).into());
+        }
+        previous_call = event.call_index;
+        events.push(event);
+    }
+    Ok(events)
+}
+
+fn decode_register_input(
+    registers: &[u8; 64],
+    cycle: u8,
+) -> Result<EnvelopeSlotInput, Box<dyn Error>> {
+    let first = decode_channel_synthesis(registers, 0)
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+    let mut channels: [ChannelSynthesisConfig; 9] = [first; 9];
+    for (index, channel) in channels.iter_mut().enumerate() {
+        *channel = decode_channel_synthesis(registers, index as u8)
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+    }
+    envelope_slot_input_for_cycle(&channels, cycle)
+        .map_err(|error| std::io::Error::other(format!("{error:?}")).into())
+}
+
+fn input_mismatches(actual: EnvelopeSlotInput, expected: EnvelopeSlotInput) -> Vec<&'static str> {
+    let mut bad = Vec::new();
+    if actual.attack_rate != expected.attack_rate { bad.push("input_attack_rate"); }
+    if actual.decay_rate != expected.decay_rate { bad.push("input_decay_rate"); }
+    if actual.release_rate != expected.release_rate { bad.push("input_release_rate"); }
+    if actual.sustain_level != expected.sustain_level { bad.push("input_sustain_level"); }
+    if actual.key_scale_rate != expected.key_scale_rate { bad.push("input_key_scale_rate"); }
+    if actual.ksr_frequency != expected.ksr_frequency { bad.push("input_ksr_frequency"); }
+    if actual.sustain_on != expected.sustain_on { bad.push("input_sustain_on"); }
+    if actual.sustained_tone != expected.sustained_tone { bad.push("input_sustained_tone"); }
+    if actual.key_on != expected.key_on { bad.push("input_key_on"); }
+    bad
+}
+
 fn state_code(stage: sega_ym2413::EnvelopeOperatorStage) -> u8 {
     stage as u8
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let path = std::env::args().nth(1).ok_or(
-        "usage: cargo run --manifest-path native/ym2413/Cargo.toml --example eg_sequencer_trace -- input.csv",
+    let mut args = std::env::args().skip(1);
+    let samples_path = args.next().ok_or(
+        "usage: cargo run --manifest-path native/ym2413/Cargo.toml --example eg_sequencer_trace -- samples.csv [events.csv]",
     )?;
-    let input = BufReader::new(File::open(Path::new(&path))?);
+    let events_path = args.next();
+    let events = events_path
+        .as_deref()
+        .map(|path| read_events(Path::new(path)))
+        .transpose()?;
+    let register_mode = events.is_some();
+    let events = events.unwrap_or_default();
+    let mut event_index = 0_usize;
+    let mut address_latch = 0_u8;
+    let mut registers = [0_u8; 64];
+
+    let input = BufReader::new(File::open(Path::new(&samples_path))?);
     let mut sequencer = EnvelopeSequencer::new();
     let mut calls = 0_u64;
     let mut mismatches = 0_u64;
+    let mut register_input_mismatches = 0_u64;
     let mut first_mismatch = None;
 
     for (line_index, line) in input.lines().enumerate() {
@@ -112,11 +192,34 @@ fn main() -> Result<(), Box<dyn Error>> {
             continue;
         }
         let sample = parse_sample(trimmed, line_index + 1)?;
+
+        while event_index < events.len() && events[event_index].call_index <= sample.call_index {
+            let event = events[event_index];
+            if event.port == 0 {
+                address_latch = event.value & 0x3f;
+            } else {
+                registers[usize::from(address_latch)] = event.value;
+            }
+            event_index += 1;
+        }
+
+        let decoded_input = if register_mode {
+            decode_register_input(&registers, sample.cycle)?
+        } else {
+            sample.input
+        };
+        let input_bad = if register_mode {
+            input_mismatches(decoded_input, sample.input)
+        } else {
+            Vec::new()
+        };
+        register_input_mismatches += input_bad.len() as u64;
+
         let result = sequencer
-            .tick_slot(sample.cycle, sample.input)
+            .tick_slot(sample.cycle, decoded_input)
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
 
-        let mut bad = Vec::new();
+        let mut bad = input_bad;
         if result.operator_slot != sample.expected_operator_slot {
             bad.push("operator_slot");
         }
@@ -214,14 +317,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     println!(
-        "{{\"calls\":{calls},\"field_mismatches\":{mismatches},\"first_mismatch\":{}}}",
+        "{{\"calls\":{calls},\"register_mode\":{register_mode},\"register_input_mismatches\":{register_input_mismatches},\"field_mismatches\":{mismatches},\"first_mismatch\":{}}}",
         first_mismatch
             .as_ref()
             .map(|value| format!("\"{}\"", value.replace('"', "\\\"")))
             .unwrap_or_else(|| "null".to_owned()),
     );
 
-    if mismatches != 0 {
+    if register_input_mismatches != 0 || mismatches != 0 {
         return Err("full YM2413 EG sequencer differential mismatch".into());
     }
     Ok(())
