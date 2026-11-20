@@ -99,6 +99,8 @@ impl ChannelSynthesisConfig {
             sustain_on: self.channel.sustain_on,
             sustained_tone: envelope.sustained_tone,
             key_on: self.channel.key_on,
+            rhythm_select: crate::envelope_sequencer::EnvelopeRhythmSelect::None,
+            rhythm_bits: 0,
         }
     }
 
