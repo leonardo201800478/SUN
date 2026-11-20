@@ -615,18 +615,22 @@ jobs:
           assert comparison["ares"]["channel_output_nibble_mismatch_count"] >= 0
 
           # Header row is index 0; the first data row is tick 0.
-          # All three adapters expose Tone 2 in divider units (register << 4).
-          # Gearsystem's channel_periods_after array is ordered Tone 0, Tone 1,
-          # Tone 2, Noise; index 2 is therefore Tone 2, not the raw register.
-          expected_tone2_divider = {1: 112, 121: 128, 241: 0, 361: 16, 481: 112}
-          for row_index, divider_value in expected_tone2_divider.items():
-              assert gear[row_index]["channel_periods_after"][2] == divider_value, (
+          # Tone 2 is exposed in different time units by the three engines:
+          # Gearsystem Sms_Apu uses Z80 T-states (register * 16), while the
+          # Rust core and Ares component expose the 10-bit register pitch.
+          # Gearsystem's channel_periods_after order is Tone 0, Tone 1,
+          # Tone 2, Noise; index 2 is Tone 2.
+          expected_tone2_register = {1: 7, 121: 8, 241: 0, 361: 1, 481: 7}
+          expected_tone2_tstates = {1: 112, 121: 128, 241: 0, 361: 16, 481: 112}
+          for row_index, register_value in expected_tone2_register.items():
+              tstate_value = expected_tone2_tstates[row_index]
+              assert gear[row_index]["channel_periods_after"][2] == tstate_value, (
                   row_index, gear[row_index]["channel_periods_after"]
               )
-              assert core[row_index]["tone_periods_after"][2] == divider_value, (
+              assert core[row_index]["tone_periods_after"][2] == register_value, (
                   row_index, core[row_index]["tone_periods_after"]
               )
-              assert ares[row_index]["post_clock"]["tone_pitch"][2] == divider_value, (
+              assert ares[row_index]["post_clock"]["tone_pitch"][2] == register_value, (
                   row_index, ares[row_index]["post_clock"]["tone_pitch"]
               )
 
