@@ -716,10 +716,10 @@ impl SmsTemporalMachine {
             {
                 if self.trace_enabled {
                     self.record_trace_event(SmsTemporalTraceEvent::ExternalThTransition {
-                            timestamp: completed_at,
-                            player,
-                            high,
-                        });
+                        timestamp: completed_at,
+                        player,
+                        high,
+                    });
                 }
                 continue;
             }
@@ -811,10 +811,10 @@ impl SmsTemporalMachine {
 
                 if self.trace_enabled {
                     self.record_trace_event(SmsTemporalTraceEvent::M1TStateCompleted {
-                            timestamp: completed_at,
-                            phase: phase_before,
-                            pins,
-                        });
+                        timestamp: completed_at,
+                        phase: phase_before,
+                        pins,
+                    });
                 }
 
                 self.m1 = Some(m1);
@@ -856,10 +856,10 @@ impl SmsTemporalMachine {
                 }
                 if self.trace_enabled {
                     self.record_trace_event(SmsTemporalTraceEvent::InternalCycleCompleted {
-                            timestamp: completion.completed_at,
-                            continuation_id: completion.continuation_id,
-                            tstates,
-                        });
+                        timestamp: completion.completed_at,
+                        continuation_id: completion.continuation_id,
+                        tstates,
+                    });
                 }
                 Ok(step)
             }
@@ -3688,5 +3688,4 @@ mod temporal_frame_tests {
         assert!(machine.take_trace().is_empty());
         assert_eq!(machine.take_trace_dropped(), 0);
     }
-
 }
