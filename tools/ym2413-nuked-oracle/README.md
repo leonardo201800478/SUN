@@ -126,3 +126,12 @@ JSONL stream. It retains only the per-call inputs consumed by
 `OPLL_PhaseCalcIncrement`, the serial cycle index, and the calculated
 `pg_inc`. This mode is intended for long LFO-period differential runs where
 full EG/operator arrays add no value to the arithmetic comparison.
+
+
+## Compact PG phase-array mode
+
+Pass `--pg-phase-only` to emit a compact trace containing the 18-entry
+`pg_phase` accumulator array after each `OPLL_Clock` call, plus the PG
+increment inputs and serial-cycle index. This mode supports differential
+validation of the 18 operator accumulators without the unrelated EG/operator
+diagnostic arrays.
