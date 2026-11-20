@@ -10,8 +10,7 @@ use crate::envelope_operator::{
     EnvelopeOperatorState, EnvelopeOperatorTick,
 };
 use crate::envelope_timer::{
-    EnvelopeTimer, EnvelopeTimerError, EnvelopeTimerSnapshot,
-    EnvelopeTimerState,
+    EnvelopeTimer, EnvelopeTimerError, EnvelopeTimerSnapshot, EnvelopeTimerState,
 };
 
 pub const YM2413_ENVELOPE_SEQUENCER_STATE_VERSION: u16 = 1;
@@ -120,14 +119,11 @@ impl Default for EnvelopeSequencer {
 }
 
 impl EnvelopeSequencer {
-    /// Construct the Nuked-characterized reset state: silent RELEASE operators
-    /// and the reset OFF pipeline asserted for both delayed stages.
+    /// Construct the Nuked reset state: silent RELEASE operators and cleared
+    /// delayed control pipelines.
     pub fn new() -> Self {
-        let initial = EnvelopeOperator::with_initial_state(
-            127,
-            EnvelopeOperatorStage::Release,
-        )
-        .expect("the YM2413 EG reset state is valid");
+        let initial = EnvelopeOperator::with_initial_state(127, EnvelopeOperatorStage::Release)
+            .expect("the YM2413 EG reset state is valid");
         Self {
             operators: [initial; YM2413_ENVELOPE_SEQUENCER_SLOTS],
             timer: EnvelopeTimer::new(),
@@ -183,10 +179,7 @@ impl EnvelopeSequencer {
         let key_on_pipeline = next_eg_kon & 1 != 0;
         let off_pipeline = next_eg_off & 1 != 0;
         let mut rate_state = state_rate;
-        if state_rate == EnvelopeOperatorStage::Release
-            && key_on_pipeline
-            && off_pipeline
-        {
+        if state_rate == EnvelopeOperatorStage::Release && key_on_pipeline && off_pipeline {
             rate_state = EnvelopeOperatorStage::Attack;
             next_eg_dokon |= 1;
         }
@@ -282,24 +275,21 @@ impl EnvelopeSequencer {
     }
 
     /// Restore a complete sequencer snapshot after validating every component.
-    pub fn restore_state(
-        state: EnvelopeSequencerState,
-    ) -> Result<Self, EnvelopeSequencerError> {
-        if state.format_version != YM2413_ENVELOPE_SEQUENCER_STATE_VERSION
-            || state.eg_sl > 15
-        {
+    pub fn restore_state(state: EnvelopeSequencerState) -> Result<Self, EnvelopeSequencerError> {
+        if state.format_version != YM2413_ENVELOPE_SEQUENCER_STATE_VERSION || state.eg_sl > 15 {
             return Err(EnvelopeSequencerError::InvalidState);
         }
 
         let timer = EnvelopeTimer::restore_state(state.timer)?;
         let mut operators = [Self::new().operators[0]; YM2413_ENVELOPE_SEQUENCER_SLOTS];
         for (slot, operator_state) in state.operators.into_iter().enumerate() {
-            operators[slot] = EnvelopeOperator::restore_state(operator_state).map_err(
-                |source| EnvelopeSequencerError::Operator {
-                    slot: slot as u8,
-                    source,
-                },
-            )?;
+            operators[slot] =
+                EnvelopeOperator::restore_state(operator_state).map_err(|source| {
+                    EnvelopeSequencerError::Operator {
+                        slot: slot as u8,
+                        source,
+                    }
+                })?;
         }
 
         Ok(Self {
@@ -327,7 +317,10 @@ mod tests {
         assert_eq!(state.eg_sl, 0);
         assert!(!state.timer.pending_zero_rate);
         for slot in 0..18 {
-            assert_eq!(sequencer.operator(slot), Some((127, super::EnvelopeOperatorStage::Release)));
+            assert_eq!(
+                sequencer.operator(slot),
+                Some((127, super::EnvelopeOperatorStage::Release))
+            );
         }
     }
 
