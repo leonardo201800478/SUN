@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
         OPLL_Clock(&chip, output);
         if (pg_only) {
             printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"cycle_after\":%" PRIu32
-                   ",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32 "}\\n",
+                   ",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32 "}\n",
                    tick, cycle_before, chip.cycles, (unsigned)calc_fnum,
                    (unsigned)calc_block, (unsigned)calc_mul, (unsigned)calc_vib,
                    (unsigned)calc_lfo_vib_counter, chip.pg_inc);
