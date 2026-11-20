@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockReadGuard};
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_subscriber::fmt::writer::MakeWriter;
 
@@ -12,11 +12,11 @@ use tracing_subscriber::fmt::writer::MakeWriter;
 /// is closed.
 #[derive(Clone)]
 pub(super) struct SwitchableMakeWriter {
-    current: Arc<Mutex<Option<NonBlocking>>>,
+    current: Arc<RwLock<Option<NonBlocking>>>,
 }
 
 impl SwitchableMakeWriter {
-    pub(super) fn new(current: Arc<Mutex<Option<NonBlocking>>>) -> Self {
+    pub(super) fn new(current: Arc<RwLock<Option<NonBlocking>>>) -> Self {
         Self { current }
     }
 }
@@ -26,26 +26,26 @@ impl<'a> MakeWriter<'a> for SwitchableMakeWriter {
 
     fn make_writer(&'a self) -> Self::Writer {
         SwitchableWriter {
-            current: self.current.lock().unwrap_or_else(PoisonError::into_inner),
+            current: self.current.read().unwrap_or_else(PoisonError::into_inner),
         }
     }
 }
 
 struct SwitchableWriter<'a> {
-    current: MutexGuard<'a, Option<NonBlocking>>,
+    current: RwLockReadGuard<'a, Option<NonBlocking>>,
 }
 
 impl Write for SwitchableWriter<'_> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         match self.current.as_mut() {
-            Some(writer) => writer.write(buffer),
+            Some(writer) => writer.clone().write(buffer),
             None => Ok(buffer.len()),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         match self.current.as_mut() {
-            Some(writer) => writer.flush(),
+            Some(writer) => writer.clone().flush(),
             None => Ok(()),
         }
     }
@@ -320,7 +320,7 @@ mod tests {
             .buffered_lines_limit(16)
             .lossy(true)
             .finish(old_sink);
-        let slot = Arc::new(Mutex::new(Some(old_non_blocking)));
+        let slot = Arc::new(RwLock::new(Some(old_non_blocking)));
         let make_writer = SwitchableMakeWriter::new(slot.clone());
 
         {
@@ -330,7 +330,7 @@ mod tests {
 
         // Detach all senders before dropping the guard. Its worker drains the
         // old queue while the shared sink gate remains closed.
-        slot.lock().unwrap().take();
+        slot.write().unwrap().take();
         drop(old_guard);
 
         let new_file = SizeRotatingWriter::new(&path, 4096, 1).unwrap();
@@ -339,7 +339,7 @@ mod tests {
             .buffered_lines_limit(16)
             .lossy(true)
             .finish(new_sink);
-        *slot.lock().unwrap() = Some(new_non_blocking);
+        *slot.write().unwrap() = Some(new_non_blocking);
         *gate.write().unwrap() = true;
 
         {
