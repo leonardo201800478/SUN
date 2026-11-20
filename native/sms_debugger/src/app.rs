@@ -3,7 +3,7 @@
 
 use eframe::egui;
 use rfd::FileDialog;
-use sega_sms_runtime::{SmsDebugSnapshot, SmsTemporalWorker};
+use sega_sms_runtime::{DiagnosticsConsent, SmsDebugSnapshot, SmsTemporalWorker};
 use std::{
     fs,
     path::PathBuf,
