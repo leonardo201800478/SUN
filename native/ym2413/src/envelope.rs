@@ -308,12 +308,16 @@ impl EnvelopeGenerator {
                 }
             }
             EnvelopeStage::Attack => {
-                self.advance_attack(
-                    global_counter,
-                    parameters.effective_rate(parameters.attack_rate),
-                );
+                // Nuked evaluates the zero-level condition from the pre-update
+                // envelope. If this update reaches zero, ATTACK remains active
+                // until the next operator EG update.
                 if self.level == 0 {
                     self.stage = EnvelopeStage::Decay;
+                } else {
+                    self.advance_attack(
+                        global_counter,
+                        parameters.effective_rate(parameters.attack_rate),
+                    );
                 }
             }
             EnvelopeStage::Decay => {
@@ -653,6 +657,29 @@ mod tests {
         assert_eq!(eg.level(), 127);
         eg.tick(8, true, true, p).unwrap();
         assert!(eg.level() < 127);
+    }
+
+    #[test]
+    fn attack_to_decay_transition_uses_pre_update_zero_level() {
+        let mut generator = eg(1);
+        generator.stage = EnvelopeStage::Attack;
+        generator.key_on = true;
+        let mut p = params();
+        p.attack_rate = 10;
+        p.fnum = 0x100;
+        p.block = 0;
+        p.sustain_level = 4;
+
+        // RATE=40, counter 8: ATTACK consumes the final 1 -> 0 step.
+        generator.tick(8, true, true, p).unwrap();
+        assert_eq!(generator.level(), 0);
+        assert_eq!(generator.stage(), EnvelopeStage::Attack);
+
+        // The following operator update observes the pre-update level at zero
+        // and changes to DECAY without consuming a DECAY increment yet.
+        generator.tick(9, true, true, p).unwrap();
+        assert_eq!(generator.level(), 0);
+        assert_eq!(generator.stage(), EnvelopeStage::Decay);
     }
 
     #[test]
