@@ -146,6 +146,7 @@ jobs:
           TRACE_B="$RUNNER_TEMP/eg-rate-sweep-b.jsonl"
           SAMPLES="$RUNNER_TEMP/eg-rate-sweep-samples.csv"
           RUST_TRACE="$RUNNER_TEMP/eg-rate-sweep-rust.jsonl"
+          TIMER_SAMPLES="$RUNNER_TEMP/eg-rate-sweep-timer-samples.csv"
 
           for fixture in "$SWEEP_DIR"/eg-rate-*.csv; do
             name="$(basename "$fixture" .csv)"
@@ -156,6 +157,12 @@ jobs:
             "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 --events "$fixture" > "$TRACE_A"
             "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 --events "$fixture" > "$TRACE_B"
             cmp "$TRACE_A" "$TRACE_B"
+
+            python3 tools/ym2413-nuked-oracle/extract_eg_timer_samples.py \
+              --trace "$TRACE_A" --output "$TIMER_SAMPLES" --expected-calls 30000
+            cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+              --example eg_timer_trace -- "$TIMER_SAMPLES" \
+              > "$SWEEP_DIR/$name-timer-validation.json"
 
             python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
               --trace "$TRACE_A" --expected-calls 30000 --channels 0,1,2,3 \
@@ -177,7 +184,7 @@ jobs:
           python3 tools/ym2413-nuked-oracle/summarize_eg_rate_sweep.py \
             --input-dir "$SWEEP_DIR" --output "$SWEEP_DIR/summary.json"
 
-          rm -f "$TRACE_A" "$TRACE_B" "$SAMPLES" "$RUST_TRACE"
+          rm -f "$TRACE_A" "$TRACE_B" "$SAMPLES" "$RUST_TRACE" "$TIMER_SAMPLES"
 
       - name: Retain deterministic EG and Rust candidate traces
         if: always()
