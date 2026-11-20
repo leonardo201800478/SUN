@@ -37,7 +37,7 @@ Before the change, 21,504 combinations differed from the staged Nuked expression
 |---|---:|---:|
 | FNUM=64, BLOCK=0, MUL=2, PM=2 | 129 | 128 |
 
-The Rust implementation now preserves both truncation points. The regression test pins positive and negative odd-frequency PM boundaries across all 16 MUL encodings, plus a BLOCK=1 control case. The exhaustive 524,288-tuple comparison was performed as a static arithmetic analysis; it is not represented as an executable Nuked differential test.
+The Rust implementation now preserves both truncation points. The regression test pins positive and negative odd-frequency PM boundaries across all 16 MUL encodings, plus a BLOCK=1 control case. The exhaustive 524,288-tuple comparison was performed as a static arithmetic analysis. It is now complemented by an executable Nuked differential run described below.
 
 ## Secondary MAME comparison
 
@@ -64,7 +64,36 @@ It does **not** change:
 - Targeted PM/MUL rounding regression vectors: CI PASS on HEAD `15278ea4fcb19669a7f3b3c10e8a89ab3cebb379`.
 - Exhaustive 524,288-tuple static arithmetic comparison: completed in the audit; not a runtime oracle comparison.
 - Rust workspace regression, Rust quality/unit regression and documentation patch hygiene: CI PASS on the recorded HEAD.
-- Nuked executable/oracle vectors and MAME output vectors: not yet generated in this environment.
+- Executable Nuked differential: **147,456 OPLL_Clock calls**, all increments compared exactly against the production Rust `PhaseGenerator::phase_step`; 16,373 calls had PM enabled, and all eight `lfo_vib_counter` positions (0..7) were covered. CI run `44652587533`: SUCCESS.
+- MAME/ymfm output vectors: not yet generated; exact independent cross-check remains open.
 - PCM-level impact and cycle/slot alignment: still open.
 
 This is a targeted convergence correction, not a claim that the complete YM2413 pipeline is cycle-accurate or validated.
+
+
+## Executable differential result — 2026-11-19
+
+The external Nuked adapter captures the exact inputs consumed by
+`OPLL_PhaseCalcIncrement` immediately before each `OPLL_Clock` call and the
+calculated `pg_inc` immediately after that call's calculation. The Rust
+comparator feeds those inputs into the production `PhaseGenerator::phase_step`
+implementation; it does not reimplement the formula in Python.
+
+- Nuked revision: `1269cf5a783b65583b50fa2464d08be75830aaa0`.
+- Rust correction branch: PR #1075.
+- Differential harness: PR #1077.
+- Calls compared: **147,456**.
+- PM-enabled calls: **16,373**.
+- PM positions covered with nonzero FNUM and PM enabled: **0, 1, 2, 3, 4, 5, 6, 7**.
+- Mismatches: **0**.
+- Workflow: run `44652587533`, job `136010866086` — SUCCESS.
+
+**What this proves:** exact equality of the integer PG increment for the
+captured legal register/patch inputs, including every PM LFO position exercised
+by the pinned reference.
+
+**What this does not prove:** equality of accumulated phase at a shared
+physical instant, correspondence between Nuked's 18 serial steps and the
+Rust 18-slot/four-input-clock representation, reset alignment, PG service
+subphase, EG timing, feedback timing, PCM output, or physical silicon fidelity.
+MAME/ymfm triangulation remains pending.
