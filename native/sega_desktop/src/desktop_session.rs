@@ -266,10 +266,11 @@ impl DesktopSession {
     }
 
     /// Enable/disable detailed SMS diagnostics without inventing SG-1000 trace support.
-    pub fn set_sms_diagnostics_enabled(&self, enabled: bool) {
+    pub fn set_sms_diagnostics_enabled(&self, enabled: bool) -> Result<(), String> {
         if let Self::Sms { worker, .. } = self {
-            worker.set_diagnostics_enabled(enabled);
+            worker.set_diagnostics_enabled(enabled)?;
         }
+        Ok(())
     }
 
     /// Return the runtime's latest reported audio output error, if any.
@@ -288,8 +289,11 @@ impl DesktopSession {
         }
     }
 
-    /// Capture a concise system-neutral debugger summary from the selected worker.
-    pub fn debug_summary(&self) -> Result<String, String> {
+    /// Capture a concise system-neutral debugger summary after explicit diagnostics consent.
+    pub fn debug_summary(&self, diagnostics_enabled: bool) -> Result<String, String> {
+        if !diagnostics_enabled {
+            return Err("Ative Coleta de logs no Debugger antes de capturar um snapshot".to_owned());
+        }
         match self {
             Self::Sms { worker, .. } => worker.debug_snapshot().map(|snapshot| {
                 format!(
