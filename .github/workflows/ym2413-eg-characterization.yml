@@ -49,6 +49,18 @@ jobs:
           python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
             --trace "$RUNNER_TEMP/eg-trace-a.jsonl" --expected-calls 30000
 
+      - name: Extract complete 18-slot EG sequencer vectors
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-sequencer-samples.csv"
+
+      - name: Replay the complete 18-slot EG sequencer from reset
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-sequencer-samples.csv" \
+            > "$RUNNER_TEMP/eg-sequencer-replay.json"
+
       - name: Extract complete channel-zero EG control pipeline
         run: |
           python3 tools/ym2413-nuked-oracle/extract_eg_control_samples.py \
@@ -228,6 +240,8 @@ jobs:
             ${{ runner.temp }}/eg-trace-a.jsonl
             ${{ runner.temp }}/eg-samples.csv
             ${{ runner.temp }}/eg-control-samples.csv
+            ${{ runner.temp }}/eg-sequencer-samples.csv
+            ${{ runner.temp }}/eg-sequencer-replay.json
             ${{ runner.temp }}/eg-matrix-control-samples.csv
             ${{ runner.temp }}/eg-matrix-hardware-replay.json
             ${{ runner.temp }}/eg-hardware-replay.json
