@@ -4,7 +4,7 @@
 - **Data:** 2026-11-20.
 - **Escopo:** `sega-observability`, runtimes de emulação e hosts desktop.
 - **Supersede:** ADR 0012 — política de panic e crash diagnostics.
-- **Relacionadas:** ADR 0011, Sprint #1108, DP0 #1110, PRs #1107 e #1114.
+- **Relacionadas:** ADR 0011, Sprint #1108, DP0 #1110, PRs #1107 e #1117.
 
 ## Contexto
 
@@ -71,3 +71,21 @@ Nenhum callsite de bootstrap foi classificado como elegível nesta revisão; por
 6. Testar que snapshots/exportações exigem consentimento e ação explícita.
 7. Demonstrar equivalência de instruções e ticks entre baseline e trace essencial.
 8. Executar benchmark Release A/B e reportar overhead sem confundir ruído do runner com ganho real.
+
+
+## Validação da implementação DP0 — 2026-11-20
+
+A política desta ADR foi implementada e validada na revisão final da PR #1117:
+
+1. Ring essencial fixo de 2.048 eventos, pré-alocado e sempre ativo em RAM; wrap-around, overwrite-oldest e contador saturante cobertos por testes.
+2. Captura essencial independente do consentimento detalhado; revogação do trace detalhado não limpa o ring.
+3. Trace detalhado separado, opt-in e limitado a 2.048 eventos, com contador de overwrite.
+4. Snapshot essencial não destrutivo; teste comprova que o ring não integra Save States e inicia vazio após restore.
+5. Exportação Slint exige consentimento central ativo e ação explícita de destino; o relatório pode incluir o ring essencial com trace detalhado desligado.
+6. Testes cobrem falhas de execução, prefixos Z80, transições efetivas de INT e equivalência com captura detalhada ligada/desligada.
+7. Benchmark Release A/B #31: 20 amostras por revisão; -0,47% bus-heavy e +0,16% relative-loop; instruções e ticks idênticos.
+8. CI #9422 e SMS Runtime Release #1707 aprovados; CPAL 0.18.2 validado separadamente na CI #9418 da base #1107.
+
+A comparação é Linux CI e não prova overhead zero; benchmark físico Windows x64 e smoke test interativo no hardware do usuário permanecem NOT RUN. A evidência detalhada e os IDs dos workflows estão na seção 12 da auditoria DP0.
+
+A ADR define a política; a conclusão formal do DP0 depende ainda da confirmação do merge da PR #1117 e da validação pós-merge.
