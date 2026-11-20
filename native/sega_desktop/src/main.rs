@@ -468,7 +468,8 @@ mod windows_host {
             in-out property <bool> sprite-limit-enabled: true;
             in-out property <bool> show-fps: true;
             in-out property <bool> show-status-footer: true;
-            in-out property <bool> trace-enabled: false;\n            in-out property <bool> diagnostics-enabled: false;
+            in-out property <bool> trace-enabled: false;
+            in-out property <bool> diagnostics-enabled: false;
             in-out property <float> audio-volume: 70;
             in-out property <bool> audio-muted: false;
             in-out property <string> audio-status: "Aguardando configuração da saída de áudio.";
@@ -513,7 +514,8 @@ mod windows_host {
             callback exit-requested();
             callback debug-snapshot-requested();
             callback trace-export-requested();
-            callback trace-toggle-requested(bool);\n            callback diagnostics-toggle-requested(bool);
+            callback trace-toggle-requested(bool);
+            callback diagnostics-toggle-requested(bool);
             callback sprite-limit-toggle-requested(bool);
             callback display-mode-toggle-requested(string);
             callback video-area-clicked();
