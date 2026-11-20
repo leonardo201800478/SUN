@@ -4,7 +4,7 @@
 //! The core owns the delayed register-write pipeline, rhythm selector, EG timer,
 //! and all 18 operator envelope states; no independent test-only bus is used.
 
-use sega_ym2413::{EnvelopeOperatorStage, Ym2413Core, YM2413_INPUT_CLOCKS_PER_SLOT};
+use sega_ym2413::{Ym2413Core, YM2413_INPUT_CLOCKS_PER_SLOT};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -240,6 +240,5 @@ fn main() -> Result<(), Box<dyn Error>> {
     if mismatches != 0 {
         return Err("integrated YM2413 core EG differential mismatch".into());
     }
-    let _ = EnvelopeOperatorStage::Release;
     Ok(())
 }
