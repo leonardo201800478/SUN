@@ -70,10 +70,10 @@ mod windows_host {
         };
     }
 
-    fn set_diagnostics_consent(enabled: bool) -> Result<(), String> {
-        if enabled {
-            // This function is called directly by the Slint diagnostics opt-in callback.
-            let consent = sega_observability::DiagnosticsConsent::from_explicit_user_action();
+    fn set_diagnostics_consent(
+        consent: Option<&sega_observability::DiagnosticsConsent>,
+    ) -> Result<(), String> {
+        if let Some(consent) = consent {
             let logging = if let Some(logging) = sega_observability::current() {
                 logging
             } else {
@@ -87,13 +87,13 @@ mod windows_host {
                     },
                 );
                 sega_observability::init_after_explicit_consent(
-                    &consent,
+                    consent,
                     sega_observability::LogConfig::default(),
                     session,
                 )
                 .map_err(|error| error.to_string())?
             };
-            logging.enable(&consent)?;
+            logging.enable(consent)?;
         } else if let Some(logging) = sega_observability::current() {
             logging.disable()?;
         }
@@ -3544,10 +3544,13 @@ mod windows_host {
         save_store: Arc<SaveRamStore>,
         mailbox: &FrameMailbox,
         settings: &SmsWorkerSettings,
+        diagnostics_consent: Option<sega_observability::DiagnosticsConsent>,
     ) -> Result<(), String> {
         let rom = read_rom_image(path)?;
         let (next, next_save_context) = create_desktop_session(rom, settings, save_store)?;
-        next.set_sms_diagnostics_enabled(host_diagnostics_enabled())?;
+        if let Some(consent) = diagnostics_consent.as_ref() {
+            next.enable_sms_diagnostics(consent)?;
+        }
 
         let previous = worker_slot.borrow_mut().take();
         if let Some(previous) = previous {
@@ -3823,6 +3826,7 @@ mod windows_host {
             record_recent_rom(&mut recent_roms.borrow_mut(), path.clone());
         }
         let worker = Rc::new(RefCell::new(worker));
+        let diagnostics_consent_slot = Rc::new(RefCell::new(None::<sega_observability::DiagnosticsConsent>));
         let save_context = Rc::new(RefCell::new(initial_save_context));
         let recent_rom = Rc::new(RefCell::new(rom_path.clone()));
 
@@ -4205,6 +4209,7 @@ mod windows_host {
 
         let open_app = app.as_weak();
         let open_worker = Rc::clone(&worker);
+        let open_diagnostics_consent = Rc::clone(&diagnostics_consent_slot);
         let open_save_context = Rc::clone(&save_context);
         let open_save_store = Arc::clone(&save_store);
         let open_recent = Rc::clone(&recent_rom);
@@ -4336,6 +4341,7 @@ mod windows_host {
                 Arc::clone(&open_save_store),
                 &open_mailbox,
                 &open_settings,
+                open_diagnostics_consent.borrow().as_ref().copied(),
             ) {
                 Ok(()) => {
                     *open_gamepad_state.borrow_mut() = [ControllerButtons::default(); 2];
@@ -5056,6 +5062,7 @@ mod windows_host {
         let host_pacing = Arc::new(Mutex::new(HostFramePacingWindow::new()));
         let diagnostics_host_pacing = Arc::clone(&host_pacing);
         let diagnostics_worker = Rc::clone(&worker);
+        let diagnostics_consent_control = Rc::clone(&diagnostics_consent_slot);
         let diagnostics_app = app.as_weak();
         let diagnostics_timer = Rc::new(create_frame_diagnostics_timer(
             &app,
@@ -5074,11 +5081,12 @@ mod windows_host {
                 if let Some(app) = diagnostics_app.upgrade() {
                     app.set_trace_enabled(false);
                 }
+                *diagnostics_consent_control.borrow_mut() = None;
                 let worker_result = diagnostics_worker
                     .borrow()
                     .as_ref()
-                    .map_or(Ok(()), |worker| worker.set_sms_diagnostics_enabled(false));
-                let consent_result = set_diagnostics_consent(false);
+                    .map_or(Ok(()), DesktopSession::disable_sms_diagnostics);
+                let consent_result = set_diagnostics_consent(None);
                 if let Some(app) = diagnostics_app.upgrade() {
                     app.set_debug_status(match (worker_result, consent_result) {
                         (Ok(()), Ok(())) => "Coleta revogada; timer, trace, métricas e buffers diagnósticos foram encerrados.".to_owned(),
@@ -5089,14 +5097,16 @@ mod windows_host {
                 return;
             }
 
-            let result = set_diagnostics_consent(true).and_then(|()| {
+            let consent = sega_observability::DiagnosticsConsent::from_explicit_user_action();
+            let result = set_diagnostics_consent(Some(&consent)).and_then(|()| {
                 diagnostics_worker
                     .borrow()
                     .as_ref()
-                    .map_or(Ok(()), |worker| worker.set_sms_diagnostics_enabled(true))
+                    .map_or(Ok(()), |worker| worker.enable_sms_diagnostics(&consent))
             });
             match result {
                 Ok(()) => {
+                    *diagnostics_consent_control.borrow_mut() = Some(consent);
                     *diagnostics_host_pacing
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner()) =
@@ -5114,10 +5124,11 @@ mod windows_host {
                 Err(error) => {
                     diagnostics_timer_control.stop();
                     HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
+                    *diagnostics_consent_control.borrow_mut() = None;
                     if let Some(worker) = diagnostics_worker.borrow().as_ref() {
-                        let _ = worker.set_sms_diagnostics_enabled(false);
+                        let _ = worker.disable_sms_diagnostics();
                     }
-                    let _ = set_diagnostics_consent(false);
+                    let _ = set_diagnostics_consent(None);
                     if let Some(app) = diagnostics_app.upgrade() {
                         app.set_diagnostics_enabled(false);
                         app.set_trace_enabled(false);
