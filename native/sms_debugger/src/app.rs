@@ -247,9 +247,7 @@ impl DebuggerApp {
         };
         let mut report = format!(
             "Sega Master System — Debug Report\nROM: {}\nPC: {:04X}\nSP: {:04X}\nAF: {:04X}\nBC: {:04X}\nDE: {:04X}\nHL: {:04X}\nAF': {:04X}\nBC': {:04X}\nDE': {:04X}\nHL': {:04X}\nIX: {:04X}\nIY: {:04X}\nWZ: {:04X}\nI: {:02X}\nR: {:02X}\nIFF1: {}\nIFF2: {}\nIM: {}\nHALT: {}\nInstruction T-states: {}\nMachine ticks: {}\nFrame: {}\nVDP status: {:02X}\nVDP scanline: {}\nVDP cycles/line: {}\nMapper banks: {:02X}/{:02X}/{:02X}\nMapper control: {:02X}\nMemory control: {:02X}\n",
-            self.rom_path
-                .as_ref()
-                .map_or_else(|| "(unknown)".into(), |path| path.display().to_string()),
+            report_rom_label(self.rom_path.as_deref()),
             snapshot.pc,
             snapshot.sp,
             snapshot.af,
@@ -320,6 +318,29 @@ impl DebuggerApp {
                 Some(context.load_texture("sms-framebuffer", image, egui::TextureOptions::NEAREST));
         }
         self.displayed_frame = snapshot.frame_number;
+    }
+}
+
+
+fn report_rom_label(path: Option<&std::path::Path>) -> String {
+    path.and_then(std::path::Path::file_name)
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "(unknown)".into())
+}
+
+#[cfg(test)]
+mod report_privacy_tests {
+    use super::report_rom_label;
+    use std::path::Path;
+
+    #[test]
+    fn exported_report_uses_rom_filename_without_private_directory() {
+        let label = report_rom_label(Some(Path::new(
+            "/private/users/example/roms/sonic.sms",
+        )));
+        assert_eq!(label, "sonic.sms");
+        assert!(!label.contains("private"));
     }
 }
 
