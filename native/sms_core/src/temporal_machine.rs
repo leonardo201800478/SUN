@@ -9,6 +9,7 @@
 //! outside this temporal slice.
 
 use core::fmt;
+use std::collections::VecDeque;
 
 use crate::{
     ControllerButtons, SmsTemporalBus, SmsTemporalBusError, SmsTemporalBusState,
@@ -49,11 +50,120 @@ pub enum SmsTemporalTraceEvent {
         phase: Z80M1Phase,
         pins: Z80M1Pins,
     },
+    /// A sampled Z80 prefix byte, retained because it changes instruction decoding.
+    PrefixSampled {
+        timestamp: MachineTime,
+        pc: u16,
+        opcode: u8,
+    },
+    /// An execution failure captured without changing the returned runtime error.
+    ExecutionFault {
+        timestamp: MachineTime,
+        pc: u16,
+        opcode: Option<u8>,
+        stage: SmsTemporalTraceFaultStage,
+    },
+    /// Effective Z80 INT line transition, including the resolved interrupt vector.
+    InterruptLineTransition {
+        timestamp: MachineTime,
+        vector: Option<u8>,
+    },
     ExternalThTransition {
         timestamp: MachineTime,
         player: u8,
         high: bool,
     },
+}
+
+/// Execution boundary at which an SMS runtime failure was observed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SmsTemporalTraceFaultStage {
+    InstructionBegin,
+    SchedulerDispatch,
+    BusCompletion,
+    M1TStateCompletion,
+    InternalCycleCompletion,
+    ExternalInputDispatch,
+}
+
+/// Maximum number of essential runtime events retained in the always-on RAM trace.
+pub const SMS_ESSENTIAL_TRACE_CAPACITY: usize = 2_048;
+
+/// Maximum number of optional detailed trace events retained between worker drains.
+pub const SMS_DETAILED_TRACE_CAPACITY: usize = 2_048;
+
+/// Fixed-capacity circular buffer for essential runtime diagnostics.
+///
+/// The buffer is owned by the machine thread, requires no synchronization, and
+/// never allocates while recording events. When full, it overwrites the oldest
+/// event and increments a monotonic drop counter.
+#[derive(Debug, Clone)]
+struct SmsTemporalTraceBuffer {
+    events: [Option<SmsTemporalTraceEvent>; SMS_ESSENTIAL_TRACE_CAPACITY],
+    next_write: usize,
+    len: usize,
+    dropped: u64,
+}
+
+impl SmsTemporalTraceBuffer {
+    const fn new() -> Self {
+        Self {
+            events: [None; SMS_ESSENTIAL_TRACE_CAPACITY],
+            next_write: 0,
+            len: 0,
+            dropped: 0,
+        }
+    }
+
+    fn push(&mut self, event: SmsTemporalTraceEvent) {
+        if self.len == SMS_ESSENTIAL_TRACE_CAPACITY {
+            self.dropped = self.dropped.saturating_add(1);
+        } else {
+            self.len += 1;
+        }
+        self.events[self.next_write] = Some(event);
+        self.next_write = (self.next_write + 1) % SMS_ESSENTIAL_TRACE_CAPACITY;
+    }
+
+    fn snapshot(&self) -> Vec<SmsTemporalTraceEvent> {
+        let mut retained = Vec::with_capacity(self.len);
+        let oldest = if self.len == SMS_ESSENTIAL_TRACE_CAPACITY {
+            self.next_write
+        } else {
+            0
+        };
+        for offset in 0..self.len {
+            let index = (oldest + offset) % SMS_ESSENTIAL_TRACE_CAPACITY;
+            if let Some(event) = self.events[index] {
+                retained.push(event);
+            }
+        }
+        retained
+    }
+
+    fn take(&mut self) -> Vec<SmsTemporalTraceEvent> {
+        let retained = self.snapshot();
+        let oldest = if self.len == SMS_ESSENTIAL_TRACE_CAPACITY {
+            self.next_write
+        } else {
+            0
+        };
+        for offset in 0..self.len {
+            let index = (oldest + offset) % SMS_ESSENTIAL_TRACE_CAPACITY;
+            self.events[index] = None;
+        }
+        self.len = 0;
+        self.next_write = 0;
+        retained
+    }
+
+    const fn len(&self) -> usize {
+        self.len
+    }
+
+    const fn dropped(&self) -> u64 {
+        self.dropped
+    }
 }
 
 /// Versioned state spanning the CPU continuation and SMS memory/scheduler.
@@ -276,6 +386,7 @@ pub struct SmsTemporalMachine {
     cpu: Z80MicroSequencer,
     bus: SmsTemporalBus,
     external_int_line: Option<u8>,
+    last_effective_int_line: Option<u8>,
     instruction_started_at: Option<MachineTime>,
     next_internal_cycle_id: u64,
     pending_internal_cycle_id: Option<u64>,
@@ -283,7 +394,9 @@ pub struct SmsTemporalMachine {
     m1: Option<SmsTemporalM1>,
     m1_fixture_wait_tstates: Option<u32>,
     trace_enabled: bool,
-    trace_events: Vec<SmsTemporalTraceEvent>,
+    trace_events: VecDeque<SmsTemporalTraceEvent>,
+    trace_dropped: u64,
+    essential_trace: SmsTemporalTraceBuffer,
 }
 
 impl SmsTemporalMachine {
@@ -296,6 +409,7 @@ impl SmsTemporalMachine {
             cpu: Z80MicroSequencer::default(),
             bus: SmsTemporalBus::new(rom, master_ticks_per_tstate)?,
             external_int_line: None,
+            last_effective_int_line: None,
             instruction_started_at: None,
             next_internal_cycle_id: 0,
             pending_internal_cycle_id: None,
@@ -303,7 +417,9 @@ impl SmsTemporalMachine {
             m1: None,
             m1_fixture_wait_tstates: None,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
+            essential_trace: SmsTemporalTraceBuffer::new(),
         })
     }
 
@@ -373,6 +489,7 @@ impl SmsTemporalMachine {
                 cartridge_sram_size,
             )?,
             external_int_line: None,
+            last_effective_int_line: None,
             instruction_started_at: None,
             next_internal_cycle_id: 0,
             pending_internal_cycle_id: None,
@@ -380,7 +497,9 @@ impl SmsTemporalMachine {
             m1: None,
             m1_fixture_wait_tstates: None,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
+            essential_trace: SmsTemporalTraceBuffer::new(),
         })
     }
 
@@ -434,6 +553,7 @@ impl SmsTemporalMachine {
                 cartridge_sram_size,
             )?,
             external_int_line: None,
+            last_effective_int_line: None,
             instruction_started_at: None,
             next_internal_cycle_id: 0,
             pending_internal_cycle_id: None,
@@ -441,7 +561,9 @@ impl SmsTemporalMachine {
             m1: None,
             m1_fixture_wait_tstates: None,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
+            essential_trace: SmsTemporalTraceBuffer::new(),
         })
     }
 
@@ -463,7 +585,13 @@ impl SmsTemporalMachine {
         // dispatch path also synchronizes after each scheduled hardware event;
         // this second boundary check prevents stale INT state before HALT M1.
         self.sync_vdp_interrupt_line();
-        let step = self.cpu.begin_instruction()?;
+        let step = match self.cpu.begin_instruction() {
+            Ok(step) => step,
+            Err(error) => {
+                self.record_execution_fault(SmsTemporalTraceFaultStage::InstructionBegin);
+                return Err(error.into());
+            }
+        };
         self.instruction_started_at = Some(self.bus.now());
         Ok(step)
     }
@@ -697,10 +825,14 @@ impl SmsTemporalMachine {
     /// Dispatch one event and resume the matching CPU continuation.
     pub fn dispatch_next(&mut self) -> Result<Z80MicroStep, SmsTemporalMachineError> {
         loop {
-            let dispatch = self
-                .bus
-                .dispatch_next()?
-                .ok_or(SmsTemporalMachineError::NoScheduledEvent)?;
+            let dispatch = match self.bus.dispatch_next() {
+                Ok(Some(dispatch)) => dispatch,
+                Ok(None) => return Err(SmsTemporalMachineError::NoScheduledEvent),
+                Err(error) => {
+                    self.record_execution_fault(SmsTemporalTraceFaultStage::SchedulerDispatch);
+                    return Err(error.into());
+                }
+            };
             self.sync_vdp_interrupt_line();
             if let SmsTemporalDispatch::ExternalThTransition {
                 player,
@@ -708,14 +840,11 @@ impl SmsTemporalMachine {
                 completed_at,
             } = dispatch
             {
-                if self.trace_enabled {
-                    self.trace_events
-                        .push(SmsTemporalTraceEvent::ExternalThTransition {
-                            timestamp: completed_at,
-                            player,
-                            high,
-                        });
-                }
+                self.record_trace_event(SmsTemporalTraceEvent::ExternalThTransition {
+                    timestamp: completed_at,
+                    player,
+                    high,
+                });
                 continue;
             }
             return self.dispatch_cpu_event(dispatch);
@@ -726,20 +855,40 @@ impl SmsTemporalMachine {
         &mut self,
         dispatch: SmsTemporalDispatch,
     ) -> Result<Z80MicroStep, SmsTemporalMachineError> {
+        let stage = match dispatch {
+            SmsTemporalDispatch::BusCompletion(_) => SmsTemporalTraceFaultStage::BusCompletion,
+            SmsTemporalDispatch::M1TStateComplete { .. } => {
+                SmsTemporalTraceFaultStage::M1TStateCompletion
+            }
+            SmsTemporalDispatch::InternalCycleComplete(_) => {
+                SmsTemporalTraceFaultStage::InternalCycleCompletion
+            }
+            SmsTemporalDispatch::ExternalThTransition { .. } => {
+                SmsTemporalTraceFaultStage::ExternalInputDispatch
+            }
+        };
+        let result = self.dispatch_cpu_event_inner(dispatch);
+        if result.is_err() {
+            self.record_execution_fault(stage);
+        }
+        result
+    }
+
+    fn dispatch_cpu_event_inner(
+        &mut self,
+        dispatch: SmsTemporalDispatch,
+    ) -> Result<Z80MicroStep, SmsTemporalMachineError> {
         match dispatch {
             SmsTemporalDispatch::ExternalThTransition { .. } => {
                 Err(SmsTemporalMachineError::InvalidState)
             }
             SmsTemporalDispatch::BusCompletion(completion) => {
-                let trace_data = if self.trace_enabled {
-                    let request = self
-                        .bus
-                        .pending_request()
-                        .ok_or(SmsTemporalMachineError::InvalidState)?;
-                    Some((request, self.cpu.export_state().handshake.wait_tstates))
-                } else {
-                    None
-                };
+                // Trace metadata is observational only: its absence must never
+                // introduce a new emulation error or alter dispatch semantics.
+                let trace_data = self
+                    .bus
+                    .pending_request()
+                    .map(|request| (request, self.cpu.export_state().handshake.wait_tstates));
 
                 // Validate and apply the CPU continuation on a clone before
                 // consuming the latched bus completion. If CPU completion fails
@@ -758,7 +907,7 @@ impl SmsTemporalMachine {
                 }
 
                 if let Some((request, wait_tstates)) = trace_data {
-                    self.trace_events.push(SmsTemporalTraceEvent::BusCompleted {
+                    self.record_trace_event(SmsTemporalTraceEvent::BusCompleted {
                         timestamp: completion.completed_at,
                         request_id: request.id,
                         operation: request.operation,
@@ -797,6 +946,13 @@ impl SmsTemporalMachine {
                 if phase_before == Z80M1Phase::T3 {
                     let opcode = self.bus.memory().read(pins.address);
                     m1.sample_opcode(opcode)?;
+                    if matches!(opcode, 0xCB | 0xDD | 0xED | 0xFD) {
+                        self.record_essential_trace_event(SmsTemporalTraceEvent::PrefixSampled {
+                            timestamp: completed_at,
+                            pc: pins.address,
+                            opcode,
+                        });
+                    }
                 }
                 let next_phase = m1.complete_tstate(
                     crate::SmsTemporalEvent::M1TStateComplete { continuation_id },
@@ -804,14 +960,11 @@ impl SmsTemporalMachine {
                     wait_asserted,
                 )?;
 
-                if self.trace_enabled {
-                    self.trace_events
-                        .push(SmsTemporalTraceEvent::M1TStateCompleted {
-                            timestamp: completed_at,
-                            phase: phase_before,
-                            pins,
-                        });
-                }
+                self.record_trace_event(SmsTemporalTraceEvent::M1TStateCompleted {
+                    timestamp: completed_at,
+                    phase: phase_before,
+                    pins,
+                });
 
                 self.m1 = Some(m1);
                 if next_phase == Z80M1Phase::Complete {
@@ -850,14 +1003,11 @@ impl SmsTemporalMachine {
                 ) {
                     self.instruction_started_at = None;
                 }
-                if self.trace_enabled {
-                    self.trace_events
-                        .push(SmsTemporalTraceEvent::InternalCycleCompleted {
-                            timestamp: completion.completed_at,
-                            continuation_id: completion.continuation_id,
-                            tstates,
-                        });
-                }
+                self.record_trace_event(SmsTemporalTraceEvent::InternalCycleCompleted {
+                    timestamp: completion.completed_at,
+                    continuation_id: completion.continuation_id,
+                    tstates,
+                });
                 Ok(step)
             }
         }
@@ -1044,17 +1194,91 @@ impl SmsTemporalMachine {
         }
     }
 
-    /// Enable or disable allocation-backed runtime trace capture.
-    pub fn set_trace_enabled(&mut self, enabled: bool) {
-        self.trace_enabled = enabled;
-        if !enabled {
-            self.trace_events.clear();
+    fn record_essential_trace_event(&mut self, event: SmsTemporalTraceEvent) {
+        self.essential_trace.push(event);
+    }
+
+    fn record_trace_event(&mut self, event: SmsTemporalTraceEvent) {
+        // M1 pin transitions are useful in the opt-in detailed trace, but are
+        // intentionally excluded from the essential ring to avoid per-T-state
+        // capture during ordinary instruction fetches.
+        if !matches!(event, SmsTemporalTraceEvent::M1TStateCompleted { .. }) {
+            self.record_essential_trace_event(event);
+        }
+        if self.trace_enabled {
+            if self.trace_events.len() == SMS_DETAILED_TRACE_CAPACITY {
+                self.trace_events.pop_front();
+                self.trace_dropped = self.trace_dropped.saturating_add(1);
+            }
+            self.trace_events.push_back(event);
         }
     }
 
-    /// Drain trace events captured from actual scheduler dispatches.
+    fn record_execution_fault(&mut self, stage: SmsTemporalTraceFaultStage) {
+        let cpu = self.cpu.export_state();
+        self.record_essential_trace_event(SmsTemporalTraceEvent::ExecutionFault {
+            timestamp: self.bus.now(),
+            pc: self.cpu.registers.pc,
+            opcode: cpu.opcode,
+            stage,
+        });
+    }
+
+    /// Enable or disable the optional, user-requested detailed trace stream.
+    ///
+    /// The essential fixed-capacity RAM trace remains active regardless of this
+    /// setting and is never cleared when detailed capture is disabled.
+    pub fn set_trace_enabled(&mut self, enabled: bool) {
+        if enabled && !self.trace_enabled {
+            // Allocate the bounded detailed buffer only after explicit opt-in.
+            self.trace_events = VecDeque::with_capacity(SMS_DETAILED_TRACE_CAPACITY);
+            self.trace_dropped = 0;
+        } else if !enabled {
+            // Releasing this buffer is outside the scheduler/dispatch path.
+            self.trace_events = VecDeque::new();
+            self.trace_dropped = 0;
+        }
+        self.trace_enabled = enabled;
+    }
+
+    /// Drain events from the optional detailed trace stream.
     pub fn take_trace(&mut self) -> Vec<SmsTemporalTraceEvent> {
-        core::mem::take(&mut self.trace_events)
+        let mut events = Vec::with_capacity(self.trace_events.len());
+        events.extend(self.trace_events.drain(..));
+        events
+    }
+
+    /// Number of optional detailed events overwritten before the next drain.
+    #[must_use]
+    pub const fn trace_dropped(&self) -> u64 {
+        self.trace_dropped
+    }
+
+    /// Drain the always-on essential trace, oldest event first.
+    ///
+    /// Allocation occurs only because the caller explicitly requests an owned
+    /// snapshot; event recording itself remains allocation-free.
+    pub fn take_essential_trace(&mut self) -> Vec<SmsTemporalTraceEvent> {
+        self.essential_trace.take()
+    }
+
+    /// Return a non-destructive, oldest-first snapshot of essential RAM events.
+    ///
+    /// This allocates only at the explicit diagnostic snapshot boundary.
+    pub fn essential_trace_snapshot(&self) -> Vec<SmsTemporalTraceEvent> {
+        self.essential_trace.snapshot()
+    }
+
+    /// Number of essential events currently retained in the RAM ring buffer.
+    #[must_use]
+    pub const fn essential_trace_len(&self) -> usize {
+        self.essential_trace.len()
+    }
+
+    /// Monotonic count of essential events overwritten after the ring filled.
+    #[must_use]
+    pub const fn essential_trace_dropped(&self) -> u64 {
+        self.essential_trace.dropped()
     }
 
     /// Current CPU state (read-only).
@@ -1135,6 +1359,13 @@ impl SmsTemporalMachine {
         self.bus
             .set_interrupt_vector(effective_line.unwrap_or(0xFF));
         self.cpu.set_int_line(effective_line);
+        if effective_line != self.last_effective_int_line {
+            self.last_effective_int_line = effective_line;
+            self.record_essential_trace_event(SmsTemporalTraceEvent::InterruptLineTransition {
+                timestamp: self.bus.now(),
+                vector: effective_line,
+            });
+        }
     }
 
     /// Current mapper-backed memory (read-only).
@@ -1368,6 +1599,7 @@ impl SmsTemporalMachine {
             cpu,
             bus,
             external_int_line: state.external_int_line,
+            last_effective_int_line: None,
             instruction_started_at: state.instruction_started_at,
             next_internal_cycle_id: state.next_internal_cycle_id,
             pending_internal_cycle_id: state.pending_internal_cycle_id,
@@ -1375,7 +1607,9 @@ impl SmsTemporalMachine {
             m1,
             m1_fixture_wait_tstates: state.m1_fixture_wait_tstates,
             trace_enabled: false,
-            trace_events: Vec::new(),
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
+            essential_trace: SmsTemporalTraceBuffer::new(),
         })
     }
 }
@@ -3628,5 +3862,198 @@ mod temporal_frame_tests {
             0x0001
         );
         assert_eq!(machine.now().ticks(), 4);
+    }
+}
+
+#[cfg(test)]
+mod essential_trace_buffer_tests {
+    use super::{
+        SMS_ESSENTIAL_TRACE_CAPACITY, SmsTemporalMachine, SmsTemporalTraceBuffer,
+        SmsTemporalTraceEvent,
+    };
+    use sega_temporal_core::MachineTime;
+
+    fn event(index: usize) -> SmsTemporalTraceEvent {
+        SmsTemporalTraceEvent::ExternalThTransition {
+            timestamp: MachineTime::from_ticks(index as u128),
+            player: 1,
+            high: index.is_multiple_of(2),
+        }
+    }
+
+    #[test]
+    fn essential_trace_overwrites_oldest_and_counts_every_overwrite() {
+        let mut trace = SmsTemporalTraceBuffer::new();
+        for index in 0..=SMS_ESSENTIAL_TRACE_CAPACITY {
+            trace.push(event(index));
+        }
+
+        assert_eq!(trace.len(), SMS_ESSENTIAL_TRACE_CAPACITY);
+        assert_eq!(trace.dropped(), 1);
+        let retained = trace.take();
+        assert_eq!(retained.len(), SMS_ESSENTIAL_TRACE_CAPACITY);
+        assert_eq!(retained.first(), Some(&event(1)));
+        assert_eq!(retained.last(), Some(&event(SMS_ESSENTIAL_TRACE_CAPACITY)));
+        assert_eq!(trace.len(), 0);
+        assert_eq!(trace.dropped(), 1);
+        assert!(trace.take().is_empty());
+    }
+
+    #[test]
+    fn machine_records_essential_events_without_enabling_detailed_capture() {
+        let mut rom = vec![0x00; 0x4000];
+        rom[..3].copy_from_slice(&[0x32, 0x00, 0xC0]); // LD ($C000),A
+        let mut machine = SmsTemporalMachine::new(rom, 3).unwrap();
+
+        machine.step_instruction(0).unwrap();
+
+        assert!(machine.take_trace().is_empty());
+        let essential = machine.take_essential_trace();
+        assert!(!essential.is_empty());
+        assert_eq!(machine.essential_trace_len(), 0);
+        assert_eq!(machine.essential_trace_dropped(), 0);
+    }
+
+    #[test]
+    fn disabling_detailed_trace_does_not_clear_essential_history() {
+        let mut rom = vec![0x00; 0x4000];
+        rom[..3].copy_from_slice(&[0x32, 0x00, 0xC0]); // LD ($C000),A
+        let mut machine = SmsTemporalMachine::new(rom, 3).unwrap();
+        machine.step_instruction(0).unwrap();
+        let retained_before = machine.essential_trace_len();
+        assert!(retained_before > 0);
+
+        machine.set_trace_enabled(true);
+        machine.set_trace_enabled(false);
+
+        assert_eq!(machine.essential_trace_len(), retained_before);
+        assert!(!machine.take_essential_trace().is_empty());
+    }
+
+    #[test]
+    fn essential_trace_snapshot_is_non_destructive_and_not_serialized() {
+        let mut rom = vec![0x00; 0x4000];
+        rom[..3].copy_from_slice(&[0x32, 0x00, 0xC0]); // LD ($C000),A
+        let mut machine = SmsTemporalMachine::new(rom, 3).unwrap();
+        machine.step_instruction(0).unwrap();
+
+        let first_snapshot = machine.essential_trace_snapshot();
+        let second_snapshot = machine.essential_trace_snapshot();
+        assert!(!first_snapshot.is_empty());
+        assert_eq!(first_snapshot, second_snapshot);
+
+        let restored = SmsTemporalMachine::restore_state(machine.export_state()).unwrap();
+        assert!(restored.essential_trace_snapshot().is_empty());
+        assert_eq!(restored.essential_trace_dropped(), 0);
+    }
+}
+
+#[cfg(test)]
+mod essential_trace_fault_tests {
+    use super::{SmsTemporalMachine, SmsTemporalTraceEvent, SmsTemporalTraceFaultStage};
+
+    #[test]
+    fn failed_instruction_begin_is_recorded_without_replacing_the_error() {
+        let mut machine = SmsTemporalMachine::new(vec![0x00; 0x4000], 3).unwrap();
+        machine.begin_instruction().unwrap();
+
+        let error = machine.begin_instruction().unwrap_err();
+        let trace = machine.take_essential_trace();
+
+        assert!(matches!(error, super::SmsTemporalMachineError::Cpu(_)));
+        assert!(trace.iter().any(|event| matches!(
+            event,
+            SmsTemporalTraceEvent::ExecutionFault {
+                pc: 0,
+                stage: SmsTemporalTraceFaultStage::InstructionBegin,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn prefix_fetch_is_retained_without_recording_every_m1_tstate() {
+        let mut rom = vec![0x00; 0x4000];
+        rom[..2].copy_from_slice(&[0xDD, 0x00]);
+        let mut machine = SmsTemporalMachine::new(rom, 3).unwrap();
+
+        machine.step_instruction(0).unwrap();
+
+        let trace = machine.take_essential_trace();
+        assert!(trace.iter().any(|event| matches!(
+            event,
+            SmsTemporalTraceEvent::PrefixSampled {
+                pc: 0,
+                opcode: 0xDD,
+                ..
+            }
+        )));
+        assert!(
+            trace
+                .iter()
+                .all(|event| !matches!(event, SmsTemporalTraceEvent::M1TStateCompleted { .. }))
+        );
+    }
+}
+
+#[cfg(test)]
+mod essential_trace_interrupt_tests {
+    use super::{SmsTemporalMachine, SmsTemporalTraceEvent};
+
+    #[test]
+    fn essential_trace_records_only_effective_interrupt_line_transitions() {
+        let mut machine = SmsTemporalMachine::new(vec![0x00; 0x4000], 3).unwrap();
+
+        machine.set_int_line(Some(0xCF));
+        machine.set_int_line(Some(0xCF));
+        machine.set_int_line(None);
+
+        let trace = machine.take_essential_trace();
+        let transitions: Vec<_> = trace
+            .iter()
+            .filter_map(|event| match event {
+                SmsTemporalTraceEvent::InterruptLineTransition { vector, .. } => Some(*vector),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(transitions, [Some(0xCF), None]);
+        assert_eq!(machine.now().ticks(), 0);
+    }
+}
+
+#[cfg(test)]
+mod detailed_trace_buffer_tests {
+    use super::{SMS_DETAILED_TRACE_CAPACITY, SmsTemporalMachine, SmsTemporalTraceEvent};
+    use sega_temporal_core::MachineTime;
+
+    #[test]
+    fn opt_in_detailed_trace_is_bounded_and_counts_overwrites() {
+        let mut machine = SmsTemporalMachine::new(vec![0; 0x4000], 3).unwrap();
+        machine.set_trace_enabled(true);
+
+        for index in 0..=SMS_DETAILED_TRACE_CAPACITY {
+            machine.record_trace_event(SmsTemporalTraceEvent::ExternalThTransition {
+                timestamp: MachineTime::from_ticks(index as u128),
+                player: 1,
+                high: true,
+            });
+        }
+
+        assert_eq!(machine.trace_dropped(), 1);
+        let trace = machine.take_trace();
+        assert_eq!(trace.len(), SMS_DETAILED_TRACE_CAPACITY);
+        assert!(matches!(
+            trace.first(),
+            Some(SmsTemporalTraceEvent::ExternalThTransition {
+                timestamp,
+                ..
+            }) if *timestamp == MachineTime::from_ticks(1)
+        ));
+        assert_eq!(machine.trace_dropped(), 1);
+
+        machine.set_trace_enabled(false);
+        assert_eq!(machine.trace_dropped(), 0);
+        assert!(machine.take_trace().is_empty());
     }
 }
