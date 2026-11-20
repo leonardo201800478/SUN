@@ -20,6 +20,9 @@
 #define MAX_EVENTS 65536
 #define REFERENCE_COMMIT "3844b46caa926b6494987b97da63092818c4ddef"
 
+/* The upstream translation unit declares this legacy context symbol. */
+sn76489_t psg_sn;
+
 typedef struct {
     uint64_t tick;
     uint8_t value;
