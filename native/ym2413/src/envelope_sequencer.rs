@@ -18,6 +18,10 @@ pub const YM2413_ENVELOPE_SEQUENCER_STATE_VERSION: u16 = 1;
 pub const YM2413_ENVELOPE_SEQUENCER_SLOTS: usize = 18;
 
 /// Register-derived inputs selected for the current serial cycle.
+///
+/// `sustain_level` is the previously prepared c_sl latch transferred into
+/// eg_sl by this cycle; it is intentionally one call behind the freshly
+/// decoded c_sl value visible after the current OPLL clock call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EnvelopeSlotInput {
     pub attack_rate: u8,
