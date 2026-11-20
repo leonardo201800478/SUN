@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
     uint64_t calls = 0;
     uint32_t chip_type = opll_type_ym2413;
     const char *events_path = NULL;
+    int pg_only = 0;
     input_event *events = calloc(MAX_EVENTS, sizeof(*events));
     size_t event_count = 0, event_index = 0;
     opll_t chip;
@@ -109,6 +110,8 @@ int main(int argc, char **argv) {
             events_path = argv[++i];
         } else if (!strcmp(argv[i], "--chip-type") && i + 1 < argc) {
             chip_type = (uint32_t)strtoul(argv[++i], NULL, 0);
+        } else if (!strcmp(argv[i], "--pg-only")) {
+            pg_only = 1;
         } else {
             fprintf(stderr, "usage: %s --calls N [--events file.csv] [--chip-type 0]\n", argv[0]);
             free(events);
@@ -131,7 +134,11 @@ int main(int argc, char **argv) {
     }
 
     OPLL_Reset(&chip, chip_type);
-    puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9}}");
+    if (pg_only) {
+        puts("{\"schema\":\"ym2413-nuked-opll-pg-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"pg_increment_after_OPLL_Clock\"}");
+    } else {
+        puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9}}");
+    }
 
     for (uint64_t tick = 0; tick < calls; ++tick) {
         int32_t output[2] = {0, 0};
@@ -153,6 +160,14 @@ int main(int argc, char **argv) {
         }
 
         OPLL_Clock(&chip, output);
+        if (pg_only) {
+            printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"cycle_after\":%" PRIu32
+                   ",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32 "}\\n",
+                   tick, cycle_before, chip.cycles, (unsigned)calc_fnum,
+                   (unsigned)calc_block, (unsigned)calc_mul, (unsigned)calc_vib,
+                   (unsigned)calc_lfo_vib_counter, chip.pg_inc);
+            continue;
+        }
         printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"cycle_after\":%" PRIu32,
                tick, cycle_before, chip.cycles);
         printf(",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32,
