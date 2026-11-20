@@ -429,7 +429,7 @@ mod tests {
         let state = EnvelopeTimerState {
             shift_lock: 12,
             pending_rate: 3,
-            pending_zero_rate: false,
+            pending_zero_rate: true,
             next_slot: 1,
             ..EnvelopeTimerState::default()
         };
