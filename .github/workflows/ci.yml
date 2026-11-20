@@ -616,15 +616,19 @@ jobs:
 
           # Header row is index 0; the first data row is tick 0.
           # The trace exposes the PSG's internal divider period (register value << 4).
-          expected_tone2 = {1: 112, 121: 128, 241: 0, 361: 16, 481: 112}
-          for row_index, period in expected_tone2.items():
-              assert gear[row_index]["channel_periods_after"][2] == period, (
+          expected_tone2_register = {1: 7, 121: 8, 241: 0, 361: 1, 481: 7}
+          expected_tone2_divider = {1: 112, 121: 128, 241: 0, 361: 16, 481: 112}
+          for row_index, register_value in expected_tone2_register.items():
+              divider_value = expected_tone2_divider[row_index]
+              # Gearsystem exposes the register period; Rust/Ares expose the
+              # internal divider period (register value << 4).
+              assert gear[row_index]["channel_periods_after"][2] == register_value, (
                   row_index, gear[row_index]["channel_periods_after"]
               )
-              assert core[row_index]["tone_periods_after"][2] == period, (
+              assert core[row_index]["tone_periods_after"][2] == divider_value, (
                   row_index, core[row_index]["tone_periods_after"]
               )
-              assert ares[row_index]["post_clock"]["tone_pitch"][2] == period, (
+              assert ares[row_index]["post_clock"]["tone_pitch"][2] == divider_value, (
                   row_index, ares[row_index]["post_clock"]["tone_pitch"]
               )
 
