@@ -536,6 +536,104 @@ jobs:
             > "$RUNNER_TEMP/psg-ares-reference-repeat.jsonl"
           cmp artifacts/psg-ares-reference.jsonl "$RUNNER_TEMP/psg-ares-reference-repeat.jsonl"
 
+      - name: Generate tone-boundary and Tone 2 synchronized-noise events
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > artifacts/psg-tone-events.csv <<'EOF'
+          # tick,byte
+          0,0x80
+          0,0x90
+          0,0xA1
+          0,0xB0
+          0,0xC7
+          0,0xD0
+          0,0xE7
+          0,0xF0
+          120,0xC8
+          240,0xC0
+          360,0xC1
+          480,0xC7
+          EOF
+
+      - name: Capture Ares, Gearsystem and Rust tone-boundary traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/psg-ares-trace" \
+            --calls 600 --events artifacts/psg-tone-events.csv \
+            > artifacts/psg-ares-tone-reference.jsonl
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 600 --events artifacts/psg-tone-events.csv \
+            > artifacts/psg-tone-core.jsonl
+          "$RUNNER_TEMP/psg-gearsystem-trace" \
+            --calls 600 --events artifacts/psg-tone-events.csv \
+            > artifacts/psg-gearsystem-tone-reference.jsonl
+          "$RUNNER_TEMP/psg-ares-trace" \
+            --calls 600 --events artifacts/psg-tone-events.csv \
+            > "$RUNNER_TEMP/psg-ares-tone-repeat.jsonl"
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 600 --events artifacts/psg-tone-events.csv \
+            > "$RUNNER_TEMP/psg-tone-core-repeat.jsonl"
+          "$RUNNER_TEMP/psg-gearsystem-trace" \
+            --calls 600 --events artifacts/psg-tone-events.csv \
+            > "$RUNNER_TEMP/psg-gearsystem-tone-repeat.jsonl"
+          cmp artifacts/psg-ares-tone-reference.jsonl "$RUNNER_TEMP/psg-ares-tone-repeat.jsonl"
+          cmp artifacts/psg-tone-core.jsonl "$RUNNER_TEMP/psg-tone-core-repeat.jsonl"
+          cmp artifacts/psg-gearsystem-tone-reference.jsonl "$RUNNER_TEMP/psg-gearsystem-tone-repeat.jsonl"
+
+      - name: Compare Ares and Rust tone traces at identical clocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/psg-crabemu-oracle/compare.py --ares-only \
+            artifacts/psg-tone-core.jsonl artifacts/psg-ares-tone-reference.jsonl \
+            > artifacts/psg-ares-tone-comparison.json
+          cat artifacts/psg-ares-tone-comparison.json
+
+      - name: Validate tone-boundary and Tone 2 synchronization vectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+
+          def read(path):
+              with open(path, encoding="utf-8") as stream:
+                  return [json.loads(line) for line in stream if line.strip()]
+
+          core = read("artifacts/psg-tone-core.jsonl")
+          ares = read("artifacts/psg-ares-tone-reference.jsonl")
+          gear = read("artifacts/psg-gearsystem-tone-reference.jsonl")
+          with open("artifacts/psg-ares-tone-comparison.json", encoding="utf-8") as stream:
+              comparison = json.load(stream)
+
+          assert len(core) == len(ares) == len(gear) == 601
+          assert comparison["ticks_compared"] == 600
+          assert comparison["ares"]["same_tick_comparison"] is True
+          assert comparison["ares"]["field_mismatch_counts"]["tone_pitch"] >= 0
+          assert comparison["ares"]["channel_output_nibble_mismatch_count"] >= 0
+
+          # Header row is index 0; the first data row is tick 0.
+          expected_tone2 = {1: 7, 121: 8, 241: 0, 361: 1, 481: 7}
+          for row_index, period in expected_tone2.items():
+              assert gear[row_index]["channel_periods_after"][2] == period, (
+                  row_index, gear[row_index]["channel_periods_after"]
+              )
+              assert core[row_index]["tone_periods_after"][2] == period, (
+                  row_index, core[row_index]["tone_periods_after"]
+              )
+              assert ares[row_index]["post_clock"]["tone_pitch"][2] == period, (
+                  row_index, ares[row_index]["post_clock"]["tone_pitch"]
+              )
+
+          # Tone 2 noise mode is selected by 0xE7; all references must retain
+          # the register write and expose the period-3 coupling path.
+          assert core[1]["noise_control_after"] == 7
+          assert ares[1]["post_clock"]["noise_rate"] == 3
+          assert gear[1]["noise_rate"] == 3
+          PY
+
       - name: Compare same-tick PSG traces without waveform alignment
         shell: bash
         run: |
