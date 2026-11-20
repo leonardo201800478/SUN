@@ -2779,6 +2779,11 @@ mod windows_host {
         timer
     }
 
+    /// The diagnostic timer may run only after an explicit consent change succeeds.
+    fn should_run_diagnostics_timer(consent_requested: bool, consent_change_succeeded: bool) -> bool {
+        consent_requested && consent_change_succeeded
+    }
+
     /// Creates the host diagnostics timer stopped; consent controls its lifecycle.
     fn create_frame_diagnostics_timer(
         app: &MainWindow,
@@ -5062,7 +5067,7 @@ mod windows_host {
             let result = set_diagnostics_consent(enabled);
             match result {
                 Ok(()) => {
-                    if enabled {
+                    if should_run_diagnostics_timer(enabled, true) {
                         *diagnostics_host_pacing
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner()) =
@@ -5187,6 +5192,13 @@ mod windows_host {
 
     #[cfg(test)]
     mod tests {
+        #[test]
+        fn diagnostics_timer_requires_successful_explicit_consent() {
+            assert!(!should_run_diagnostics_timer(false, true));
+            assert!(!should_run_diagnostics_timer(true, false));
+            assert!(should_run_diagnostics_timer(true, true));
+        }
+
         #[test]
         fn host_diagnostics_are_disabled_by_default() {
             assert!(!super::host_diagnostics_enabled());
