@@ -34,7 +34,7 @@ adapt the output executable suffix as needed.
 Optional CSV, with exactly one event per strictly increasing OPLL_Clock call index:
 
 ```csv
-# input_clock,port,value
+# call_index,port,value
 0,0,16
 1,1,64
 2,0,32
@@ -61,9 +61,9 @@ Without `--events`, the chip remains in its reset register state.
 
 - The first JSONL record is a schema descriptor.
 - Each following record corresponds to one call to `OPLL_Clock`.
-- `tick` is the zero-based OPLL_Clock-call call index.
+- `call_index` is the zero-based OPLL_Clock invocation index.
 - `cycle_before` is Nuked's serial cycle selected before the call;
-  `cycle_after` is the value after its 18-cycle rotation update.
+  `cycle_after` is the value after its 18-step rotation update.
 - `output_m/output_r` are the two values copied to the API buffer at the
   beginning of that call.
 - `output_pins_m/output_pins_r` and the internal arrays are sampled after
@@ -86,9 +86,10 @@ pin values.
    comparator must map state fields and time boundaries explicitly.
 4. The harness must not infer four functional subphases from the Rust
    four-input-clock slot budget. Nuked advances one serial `cycles` step per
-   `OPLL_Clock` call, but the mapping of its 18-cycle loop to 72 YM2413 input
-   clocks must be established before treating its cycle as a physical XIN
-   clock.
+   `OPLL_Clock` call. Its 18-step loop represents the serial operator traversal
+   in that software model; it must not be mislabeled as 18 physical XIN clocks.
+   The 72-XIN-clock rotation belongs to separate hardware timing evidence and
+   must be mapped explicitly before combining the traces.
 5. The reference is GPL-2.0. Keep the reference checkout and linked executable
    outside the Sega Emulator distribution. This repository contains only the
    independently authored adapter source and build instructions. Review
