@@ -431,6 +431,26 @@ jobs:
           git -C "$RUNNER_TEMP/smsplus-gx" checkout "$reference_sha"
           test "$(git -C "$RUNNER_TEMP/smsplus-gx" rev-parse HEAD)" = "$reference_sha"
 
+      - name: Checkout pinned Gearsystem SMS APU oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          reference_sha="1be9a12b82cae84ddd6f9b7006d546abe2d58bd4"
+          git clone https://github.com/drhelius/Gearsystem.git "$RUNNER_TEMP/gearsystem"
+          git -C "$RUNNER_TEMP/gearsystem" checkout "$reference_sha"
+          test "$(git -C "$RUNNER_TEMP/gearsystem" rev-parse HEAD)" = "$reference_sha"
+
+      - name: Compile external Gearsystem state trace adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++11 -O2 -Wall -Wextra -include cassert \
+            -I"$RUNNER_TEMP/gearsystem/src/audio" \
+            tools/psg-crabemu-oracle/gearsystem_trace.cpp \
+            "$RUNNER_TEMP/gearsystem/src/audio/Sms_Apu.cpp" \
+            "$RUNNER_TEMP/gearsystem/src/audio/Blip_Buffer.cpp" -lm \
+            -o "$RUNNER_TEMP/psg-gearsystem-trace"
+
       - name: Compile external CrabEmu oracle trace adapter
         shell: bash
         run: |
@@ -472,6 +492,18 @@ jobs:
           cmp artifacts/psg-crabemu-reference.jsonl "$RUNNER_TEMP/psg-crabemu-reference-repeat.jsonl"
           cmp artifacts/psg-crabemu-core.jsonl "$RUNNER_TEMP/psg-crabemu-core-repeat.jsonl"
 
+      - name: Capture Gearsystem SMS PSG state trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/psg-gearsystem-trace" \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > artifacts/psg-gearsystem-reference.jsonl
+          "$RUNNER_TEMP/psg-gearsystem-trace" \
+            --calls 600 --events artifacts/psg-crabemu-events.csv \
+            > "$RUNNER_TEMP/psg-gearsystem-reference-repeat.jsonl"
+          cmp artifacts/psg-gearsystem-reference.jsonl "$RUNNER_TEMP/psg-gearsystem-reference-repeat.jsonl"
+
       - name: Compare same-tick PSG traces without waveform alignment
         shell: bash
         run: |
@@ -479,6 +511,7 @@ jobs:
           python3 tools/psg-crabemu-oracle/compare.py \
             artifacts/psg-crabemu-reference.jsonl \
             artifacts/psg-crabemu-core.jsonl \
+            artifacts/psg-gearsystem-reference.jsonl \
             > artifacts/psg-crabemu-comparison.json
           cat artifacts/psg-crabemu-comparison.json
 
@@ -495,25 +528,32 @@ jobs:
 
           reference = read("artifacts/psg-crabemu-reference.jsonl")
           core = read("artifacts/psg-crabemu-core.jsonl")
+          gear = read("artifacts/psg-gearsystem-reference.jsonl")
           with open("artifacts/psg-crabemu-comparison.json", encoding="utf-8") as stream:
               summary = json.load(stream)
 
           assert len(reference) == 601, len(reference)
           assert len(core) == 601, len(core)
+          assert len(gear) == 601, len(gear)
           assert reference[0]["schema"] == "smsplus-crabemu-psg-trace-v1"
           assert core[0]["schema"] == "sega-sn76489-core-state-trace-v1"
+          assert gear[0]["schema"] == "gearsystem-sms-psg-state-trace-v1"
           assert reference[0]["source_commit"] == "3844b46caa926b6494987b97da63092818c4ddef"
+          assert gear[0]["source_commit"] == "1be9a12b82cae84ddd6f9b7006d546abe2d58bd4"
           assert reference[0]["noise_bits"] == 16
           assert reference[0]["noise_tapped"] == 9
           assert summary["ticks_compared"] == 600
 
           # CrabEmu starts with a zero noise counter and positive noise flip-flop.
-          # Its first LFSR shift is one PSG internal tick later than the current
-          # core's initialized 16-count/phase-zero divider.
           assert summary["reference_first_lfsr_shift_tick"] == 16
+          # The current core starts with a 16-count divider and phase zero.
           assert summary["core_first_lfsr_shift_tick"] == 15
+          # Gearsystem's persistent initial delay is zero; its first run_until
+          # advances the Galois LFSR at the beginning of the first frame.
+          assert summary["gearsystem"]["first_lfsr_shift_tick"] == 0
+          assert summary["gearsystem"]["galois_state_raw_values_compared"] is False
 
-          # Keep the sample bit separate from the core's latched noise output.
+          # Keep sample/bit output conventions visible as diagnostic deltas.
           assert summary["reference_sample_vs_core_noise_output_latch_mismatch_count"] > 0
           PY
 
