@@ -101,6 +101,10 @@ def main() -> int:
             rows, "candidate_level_initial_127_deferred_unwrapped",
             "candidate_stage_initial_127_deferred_unwrapped"
         ),
+        "candidate_initial_level_127_deferred_decay_wrapped": compare(
+            rows, "candidate_level_initial_127_deferred_decay_wrapped",
+            "candidate_stage_initial_127_deferred_decay_wrapped"
+        ),
         "deferred_unwrapped_detail": {
             "level_mismatches_by_global_counter": mismatch_counts_by_counter,
             "level_mismatches_by_slot": mismatch_counts_by_slot,
