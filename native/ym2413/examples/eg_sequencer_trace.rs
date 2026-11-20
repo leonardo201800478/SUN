@@ -36,6 +36,7 @@ struct Sample {
     expected_eg_off: u8,
     expected_eg_dokon: u32,
     expected_eg_sl: u8,
+    expected_pending_sustain_level: u8,
 }
 
 fn parse_bool(value: &str, line_number: usize) -> Result<bool, Box<dyn Error>> {
@@ -48,8 +49,8 @@ fn parse_bool(value: &str, line_number: usize) -> Result<bool, Box<dyn Error>> {
 
 fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>> {
     let fields: Vec<&str> = line.split(',').map(str::trim).collect();
-    if fields.len() != 32 {
-        return Err(format!("line {line_number}: expected 32 CSV columns").into());
+    if fields.len() != 33 {
+        return Err(format!("line {line_number}: expected 33 CSV columns").into());
     }
     Ok(Sample {
         call_index: fields[0].parse()?,
@@ -86,6 +87,7 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
         expected_eg_off: fields[29].parse()?,
         expected_eg_dokon: fields[30].parse()?,
         expected_eg_sl: fields[31].parse()?,
+        expected_pending_sustain_level: fields[32].parse()?,
     })
 }
 
@@ -177,6 +179,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         if result.eg_sl != sample.expected_eg_sl {
             bad.push("eg_sl");
+        }
+        if result.pending_sustain_level != sample.expected_pending_sustain_level {
+            bad.push("pending_sustain_level");
         }
 
         if !bad.is_empty() {
