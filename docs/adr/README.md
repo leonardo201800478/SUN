@@ -10,7 +10,9 @@ Este diretório contém as decisões arquiteturais que definem o produto e sua e
 | [0008 — hardware nativo Rust](0008-rust-native-hardware-only.md) | Hardware e lógica de emulação em Rust | Vigente naquilo que não conflita com ADR 0010/0011 |
 | [0009 — aplicação Rust + egui/eframe](0009-full-rust-application-egui-eframe.md) | Aplicação desktop nativa Rust com egui/eframe | **Supersedida na escolha de UI pela ADR 0011** |
 | [0010 — Rust-only e SMS temporal primeiro](0010-rust-only-sms-temporal-first.md) | Produto Rust-only e prioridade SMS temporal | Normativa para runtime, hardware e roadmap; escolha de UI supersedida pela ADR 0011 |
-| [0011 — Slint + WGPU + CPAL](0011-slint-wgpu-cpal-desktop-platform.md) | Nova plataforma desktop e adaptadores de host | **Normativa para a replataforma; produção condicionada ao POC** |\n| [0012 — política de panic e crash diagnostics](0012-panic-crash-diagnostics-policy.md) | Preservar hook padrão; captura privada sanitizada somente com consentimento | **Normativa; implementação DP0-F5 pendente** |
+| [0011 — Slint + WGPU + CPAL](0011-slint-wgpu-cpal-desktop-platform.md) | Nova plataforma desktop e adaptadores de host | **Normativa para a replataforma; produção condicionada ao POC** |
+| [0012 — política anterior de panic/crash](0012-panic-crash-diagnostics-policy.md) | Hook privado consentido para crash diagnostics | **Supersedida pela ADR 0013** |
+| [0013 — diagnóstico RAM-first sem crash files automáticos](0013-no-automatic-runtime-crash-files.md) | Trace essencial em RAM, consentimento para persistência/export e preservação do panic hook padrão | **Normativa; política vigente de DP0** |
 | [Z80-001 — execução retomável](ADR-Z80-001-resumable-execution.md) | Contrato de execução suspensível/retomável do Z80 | Aplicar conforme o caminho temporal observável e ADR-0016 |
 
 ## Precedência
@@ -18,7 +20,8 @@ Este diretório contém as decisões arquiteturais que definem o produto e sua e
 1. ADR 0010 continua definindo propriedade do hardware/runtime, prioridade SMS temporal, preservação SG-1000 e regras de determinismo.
 2. ADR 0011 define a tecnologia da aplicação desktop, API gráfica, saída de áudio, fronteiras host e sequência de replataforma.
 3. ADR-0016 (`docs/architecture/adr/0016-observable-fidelity-and-proportional-timing.md`) define a política de fidelidade e granularidade temporal.
-4. Roadmap mestre define fases e gates de hardware/plataforma.
-5. ADRs antigas preservam decisões e contexto; quando conflitarem com decisões mais recentes, não prevalecem.
+4. ADR 0013 define a política vigente de diagnóstico RAM-first, consentimento e ausência de crash files automáticos.
+5. Roadmap mestre define fases e gates de hardware/plataforma.
+6. ADRs antigas preservam decisões e contexto; quando conflitarem com decisões mais recentes, não prevalecem.
 
 Uma ADR aceita não comprova implementação. Para o estado efetivo, consultar [status atual](../project-status-2026-11-07.md), [roadmap](../project-roadmap.md) e [status dos componentes](../component-status.md).
