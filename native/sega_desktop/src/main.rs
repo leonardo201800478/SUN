@@ -1264,22 +1264,22 @@ mod windows_host {
                             Rectangle { height: 220px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
                                     Text { font-size: 16px; text: "Runtime e CPU"; color: #F1F5FA; }
-                                    CompactButton { text: "Capturar snapshot da CPU"; enabled: root.has-rom; clicked => { root.debug-snapshot-requested(); } }
-                                    CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom && root.active-system != "sg1000"; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
-                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
+                                    CompactButton { text: "Capturar snapshot da CPU"; enabled: root.has-rom && root.diagnostics-enabled; clicked => { root.debug-snapshot-requested(); } }
+                                    CompactButton { text: root.trace-enabled ? "Desativar trace" : "Ativar trace"; enabled: root.has-rom && root.active-system != "sg1000" && root.diagnostics-enabled; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
+                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled && root.diagnostics-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
                                     Text { font-size: 11px; text: root.debug-status; color: rgb(142, 171, 255); wrap: word-wrap; }
                                     Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
                             Rectangle { height: 112px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 6px;
-                                    Text { font-size: 16px; text: "Coleta de logs e métricas"; color: #F1F5FA; }
+                                    Text { font-size: 16px; text: "Coleta de logs, métricas e traces"; color: #F1F5FA; }
                                     CheckBox {
-                                        text: "Autorizar logs e métricas diagnósticas nesta sessão";
+                                        text: "Autorizar coleta diagnóstica nesta sessão";
                                         checked <=> root.diagnostics-enabled;
                                         toggled => { root.diagnostics-toggle-requested(self.checked); }
                                     }
-                                    Text { font-size: 10px; text: "Desativado por padrão. Quando ativo, registra eventos estruturados, frame pacing e saúde do áudio em arquivos de log e snapshot final na pasta de logs do usuário. A autorização não é persistida."; color: #B4C0D0; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "Desativado por padrão. A autorização desta sessão abrange logs, métricas, snapshots e traces. Desativar interrompe a coleta e limpa os buffers; exportar trace exige ação explícita. A autorização não é persistida."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
                             Rectangle { height: 84px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
@@ -3547,7 +3547,7 @@ mod windows_host {
     ) -> Result<(), String> {
         let rom = read_rom_image(path)?;
         let (next, next_save_context) = create_desktop_session(rom, settings, save_store)?;
-        next.set_sms_diagnostics_enabled(host_diagnostics_enabled());
+        next.set_sms_diagnostics_enabled(host_diagnostics_enabled())?;
 
         let previous = worker_slot.borrow_mut().take();
         if let Some(previous) = previous {
@@ -4693,7 +4693,7 @@ mod windows_host {
             let Some(worker) = worker_guard.as_ref() else {
                 return;
             };
-            let result = worker.debug_summary();
+            let result = worker.debug_summary(host_diagnostics_enabled());
             if let Some(app) = debug_app.upgrade() {
                 app.set_debug_status(
                     result
@@ -5026,18 +5026,19 @@ mod windows_host {
         let trace_worker = Rc::clone(&worker);
         let trace_app = app.as_weak();
         app.on_trace_toggle_requested(move |enabled| {
-            let result = trace_worker.borrow().as_ref().map_or_else(
-                || Err("SMS worker indisponível".to_owned()),
-                |worker| {
-                    worker.set_sms_trace_enabled(enabled)?;
-                    Ok(())
-                },
-            );
+            let result = if enabled && !host_diagnostics_enabled() {
+                Err("Habilite Coleta de logs antes de ativar o trace".to_owned())
+            } else {
+                trace_worker.borrow().as_ref().map_or_else(
+                    || Err("SMS worker indisponível".to_owned()),
+                    |worker| worker.set_sms_trace_enabled(enabled),
+                )
+            };
             if let Err(error) = result
                 && let Some(app) = trace_app.upgrade()
             {
-                app.set_trace_enabled(!enabled);
-                app.set_debug_status(format!("Falha ao alterar modo Debugger: {error}").into());
+                app.set_trace_enabled(false);
+                app.set_debug_status(format!("Falha ao alterar trace: {error}").into());
             }
         });
 
@@ -5065,44 +5066,60 @@ mod windows_host {
             if !enabled {
                 diagnostics_timer_control.stop();
                 HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
-                if let Some(worker) = diagnostics_worker.borrow().as_ref() {
-                    worker.set_sms_diagnostics_enabled(false);
+                *diagnostics_host_pacing
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                    HostFramePacingWindow::new();
+                if let Some(app) = diagnostics_app.upgrade() {
+                    app.set_trace_enabled(false);
                 }
+                let worker_result = diagnostics_worker
+                    .borrow()
+                    .as_ref()
+                    .map_or(Ok(()), |worker| worker.set_sms_diagnostics_enabled(false));
+                let consent_result = set_diagnostics_consent(false);
+                if let Some(app) = diagnostics_app.upgrade() {
+                    app.set_debug_status(match (worker_result, consent_result) {
+                        (Ok(()), Ok(())) => "Coleta revogada; timer, trace, métricas e buffers diagnósticos foram encerrados.".to_owned(),
+                        (Err(worker_error), _) => format!("Coleta revogada; falha ao encerrar o trace do worker: {worker_error}"),
+                        (_, Err(logging_error)) => format!("Coleta interrompida; falha ao fechar o logger: {logging_error}"),
+                    }.into());
+                }
+                return;
             }
 
-            let result = set_diagnostics_consent(enabled);
+            let result = set_diagnostics_consent(true).and_then(|()| {
+                diagnostics_worker
+                    .borrow()
+                    .as_ref()
+                    .map_or(Ok(()), |worker| worker.set_sms_diagnostics_enabled(true))
+            });
             match result {
                 Ok(()) => {
-                    if should_run_diagnostics_timer(enabled, true) {
-                        *diagnostics_host_pacing
-                            .lock()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner()) =
-                            HostFramePacingWindow::new();
-                        HOST_DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
-                        if let Some(worker) = diagnostics_worker.borrow().as_ref() {
-                            worker.set_sms_diagnostics_enabled(true);
-                        }
-                        diagnostics_timer_control.restart();
-                    }
+                    *diagnostics_host_pacing
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                        HostFramePacingWindow::new();
+                    HOST_DIAGNOSTICS_ENABLED.store(true, Ordering::Release);
+                    diagnostics_timer_control.restart();
                     if let Some(app) = diagnostics_app.upgrade() {
-                        app.set_debug_status(if enabled {
-                            "Coleta diagnóstica autorizada nesta sessão; arquivos na pasta de logs do usuário.".into()
-                        } else {
-                            "Coleta diagnóstica desativada; novas métricas e eventos foram interrompidos.".into()
-                        });
+                        app.set_debug_status(
+                            "Coleta autorizada nesta sessão: logs, métricas e traces permanecem sob o mesmo consentimento.".into(),
+                        );
                     }
                 }
                 Err(error) => {
                     diagnostics_timer_control.stop();
                     HOST_DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
                     if let Some(worker) = diagnostics_worker.borrow().as_ref() {
-                        worker.set_sms_diagnostics_enabled(false);
+                        let _ = worker.set_sms_diagnostics_enabled(false);
                     }
+                    let _ = set_diagnostics_consent(false);
                     if let Some(app) = diagnostics_app.upgrade() {
                         app.set_diagnostics_enabled(false);
+                        app.set_trace_enabled(false);
                         app.set_debug_status(
-                            format!("Não foi possível alterar a coleta diagnóstica: {error}")
-                                .into(),
+                            format!("Não foi possível ativar a coleta diagnóstica: {error}").into(),
                         );
                     }
                 }
