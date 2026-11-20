@@ -1,4 +1,4 @@
-use crate::writer::{FanoutWriter, SizeRotatingWriter};
+use crate::writer::{FanoutWriter, SizeRotatingWriter, SwitchableMakeWriter};
 use serde::Serialize;
 use std::any::Any;
 use std::collections::VecDeque;
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Once, OnceLock, PoisonError, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing_appender::non_blocking::{ErrorCounter, NonBlockingBuilder, WorkerGuard};
+use tracing_appender::non_blocking::{ErrorCounter, NonBlocking, NonBlockingBuilder, WorkerGuard};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Registry;
 use tracing_subscriber::fmt::time::UtcTime;
@@ -29,6 +29,7 @@ const MAX_CRASH_SOURCE_BASENAME_BYTES: usize = 128;
 pub type InitError = Box<dyn Error + Send + Sync>;
 
 type FilterHandle = reload::Handle<EnvFilter, Registry>;
+type WriterSlot = Arc<Mutex<Option<NonBlocking>>>;
 
 /// Capability representing an affirmative user action to enable diagnostics.
 ///
@@ -116,8 +117,9 @@ impl SessionMetadata {
 
 pub struct LoggingHandle {
     guard: Mutex<Option<WorkerGuard>>,
+    writer_slot: WriterSlot,
     filter: FilterHandle,
-    error_counter: ErrorCounter,
+    error_counter: Mutex<ErrorCounter>,
     recent_events: Arc<Mutex<VecDeque<String>>>,
     writer_gate: Arc<RwLock<bool>>,
     config: Mutex<LogConfig>,
@@ -132,13 +134,38 @@ impl LoggingHandle {
     pub fn enable(&self, _consent: &DiagnosticsConsent) -> Result<(), String> {
         DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
         set_writer_gate(&self.writer_gate, &self.recent_events, false);
-        let directives = self
+        let config = self
             .config
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .filter
             .clone();
-        let filter = EnvFilter::try_new(&directives).map_err(|error| error.to_string())?;
+        let filter = EnvFilter::try_new(&config.filter).map_err(|error| error.to_string())?;
+
+        {
+            let mut writer_slot = self
+                .writer_slot
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let mut guard_slot = self
+                .guard
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if guard_slot.is_none() {
+                let (writer, guard, error_counter) = create_non_blocking_writer(
+                    &config,
+                    Arc::clone(&self.recent_events),
+                    Arc::clone(&self.writer_gate),
+                )
+                .map_err(|error| error.to_string())?;
+                *writer_slot = Some(writer);
+                *guard_slot = Some(guard);
+                *self
+                    .error_counter
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner) = error_counter;
+            }
+        }
+
         self.filter
             .reload(filter)
             .map_err(|error| error.to_string())?;
@@ -155,11 +182,27 @@ impl LoggingHandle {
     pub fn disable(&self) -> Result<(), String> {
         DIAGNOSTICS_ENABLED.store(false, Ordering::Release);
         set_writer_gate(&self.writer_gate, &self.recent_events, false);
-        let filter = EnvFilter::try_new("off").map_err(|error| error.to_string())?;
-        self.filter
-            .reload(filter)
-            .map_err(|error| error.to_string())?;
-        Ok(())
+        let filter_result = EnvFilter::try_new("off")
+            .map_err(|error| error.to_string())
+            .and_then(|filter| self.filter.reload(filter).map_err(|error| error.to_string()));
+
+        // Detach the sender only after in-flight event writers release the slot.
+        // Dropping WorkerGuard then drains the old queue while the sink gate is closed.
+        {
+            let mut writer_slot = self
+                .writer_slot
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            writer_slot.take();
+        }
+        let guard = self
+            .guard
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        drop(guard);
+
+        filter_result
     }
 
     /// Return whether diagnostic collection is currently enabled.
@@ -199,7 +242,10 @@ impl LoggingHandle {
     }
 
     pub fn dropped_lines(&self) -> usize {
-        self.error_counter.dropped_lines()
+        self.error_counter
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .dropped_lines()
     }
 
     pub fn session(&self) -> &SessionMetadata {
@@ -275,6 +321,13 @@ impl LoggingHandle {
 
     /// Drop the non-blocking worker guard after the final diagnostics snapshot is written.
     pub fn shutdown(&self) {
+        {
+            let mut writer_slot = self
+                .writer_slot
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            writer_slot.take();
+        }
         let guard = self
             .guard
             .lock()
@@ -303,6 +356,30 @@ fn set_writer_gate(
         .unwrap_or_else(PoisonError::into_inner)
         .clear();
     *writer_enabled = enabled;
+}
+
+fn create_non_blocking_writer(
+    config: &LogConfig,
+    recent_events: Arc<Mutex<VecDeque<String>>>,
+    writer_gate: Arc<RwLock<bool>>,
+) -> Result<(NonBlocking, WorkerGuard, ErrorCounter), InitError> {
+    let file_writer = SizeRotatingWriter::new(
+        config.log_dir.join("sega-emulator.log"),
+        config.max_file_size_bytes,
+        config.retained_files,
+    )?;
+    let writer = FanoutWriter::new(
+        file_writer,
+        recent_events,
+        config.recent_event_capacity,
+        writer_gate,
+    );
+    let (non_blocking, guard) = NonBlockingBuilder::default()
+        .buffered_lines_limit(config.queue_capacity.max(1))
+        .lossy(true)
+        .finish(writer);
+    let error_counter = non_blocking.error_counter();
+    Ok((non_blocking, guard, error_counter))
 }
 
 fn ensure_diagnostics_enabled(enabled: bool) -> Result<(), std::io::Error> {
@@ -341,22 +418,12 @@ pub fn init_after_explicit_consent(
         config.recent_event_capacity.max(1),
     )));
     let writer_gate = Arc::new(RwLock::new(false));
-    let file_writer = SizeRotatingWriter::new(
-        config.log_dir.join("sega-emulator.log"),
-        config.max_file_size_bytes,
-        config.retained_files,
-    )?;
-    let writer = FanoutWriter::new(
-        file_writer,
-        recent_events.clone(),
-        config.recent_event_capacity,
+    let (non_blocking, guard, error_counter) = create_non_blocking_writer(
+        &config,
+        Arc::clone(&recent_events),
         Arc::clone(&writer_gate),
-    );
-    let (non_blocking, guard) = NonBlockingBuilder::default()
-        .buffered_lines_limit(config.queue_capacity.max(1))
-        .lossy(true)
-        .finish(writer);
-    let error_counter = non_blocking.error_counter();
+    )?;
+    let writer_slot = Arc::new(Mutex::new(Some(non_blocking)));
 
     // Install the subscriber inert; enable() activates it after consent.
     let filter = EnvFilter::try_new(initial_filter_directives())?;
@@ -369,7 +436,7 @@ pub fn init_after_explicit_consent(
         .with_thread_names(true)
         .with_span_list(true)
         .with_ansi(false)
-        .with_writer(non_blocking);
+        .with_writer(SwitchableMakeWriter::new(Arc::clone(&writer_slot)));
 
     tracing_subscriber::registry()
         .with(filter_layer)
@@ -392,8 +459,9 @@ pub fn init_after_explicit_consent(
 
     let logging = LoggingHandle {
         guard: Mutex::new(Some(guard)),
+        writer_slot,
         filter: filter_handle,
-        error_counter,
+        error_counter: Mutex::new(error_counter),
         recent_events,
         writer_gate,
         config: Mutex::new(config),
