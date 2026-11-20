@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: leonardo201800478/sega-emulator
-          ref: 3cbd2aefe85c39da217f680783ebcafb8a461d28
+          ref: 25f7af97347c6df7cac9b25dd4d9e1281f619355
           path: oracle-adapter
 
       - name: Checkout pinned Nuked-OPLL reference
@@ -79,6 +79,44 @@ jobs:
         run: |
           python3 tools/ym2413-nuked-oracle/compare_pg_phase.py \
             --nuked-trace "$RUNNER_TEMP/nuked-pg-phase.jsonl"
+
+      - name: Generate controlled KEY-ON and KEY-OFF events
+        run: |
+          python3 - "$RUNNER_TEMP/keyon-events.csv" <<'PY'
+          import csv
+          import sys
+
+          fnums = [32, 64, 128, 192, 256, 320, 384, 448, 511]
+          events = []
+          call_index = 0
+          for channel, fnum in enumerate(fnums):
+              block = min(channel, 7)
+              writes = (
+                  (0x10 + channel, fnum & 0xFF),
+                  (0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1)),
+                  (0x30 + channel, 0x10),
+              )
+              for address, value in writes:
+                  events.append((call_index, 0, address))
+                  events.append((call_index + 2, 1, value))
+                  call_index += 40
+
+          # Assert KEY-ON on channel 8, then clear it after the envelope has advanced.
+          events.extend(((1200, 0, 0x28), (1202, 1, 0x1F),
+                         (1400, 0, 0x28), (1402, 1, 0x0F)))
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 2600 --pg-phase-only \
+            --events "$RUNNER_TEMP/keyon-events.csv" > "$RUNNER_TEMP/nuked-keyon-phase.jsonl"
+
+      - name: Compare phase accumulator reset after KEY-ON
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_pg_phase.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-keyon-phase.jsonl" \
+            --allow-partial --require-reset-event
 
       - name: Run pinned MAME/ymfm source-level PG arithmetic audit
         run: |
