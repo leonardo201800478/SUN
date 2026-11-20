@@ -61,8 +61,9 @@ It does **not** change:
 ## Validation status
 
 - Static source comparison against the pinned Nuked formula: completed.
-- Targeted PM/MUL rounding regression vectors: pending CI execution on this branch.
+- Targeted PM/MUL rounding regression vectors: CI PASS on HEAD `15278ea4fcb19669a7f3b3c10e8a89ab3cebb379`.
 - Exhaustive 524,288-tuple static arithmetic comparison: completed in the audit; not a runtime oracle comparison.
+- Rust workspace regression, Rust quality/unit regression and documentation patch hygiene: CI PASS on the recorded HEAD.
 - Nuked executable/oracle vectors and MAME output vectors: not yet generated in this environment.
 - PCM-level impact and cycle/slot alignment: still open.
 
