@@ -2,8 +2,8 @@
 
 **Data de referência:** 2026-11-20
 **Repositório:** `leonardo201800478/sega-emulator`
-**Main base após PR #1071 em 2026-11-19:** `fb83533bf27aceb802985583da6c55a92e2a94b9`
-**HEAD de trabalho para o fechamento EG:** `0d7b32b2d350019880037422ae8f85b449ad4058` (PR #1084, ainda não integrada à main)
+**Main após publicação do EG (PR #1084, 2026-11-20):** `2a1abf1e9443bd40650f1449da9f309e6d91536c`
+**HEAD validado antes do merge EG:** `0d7b32b2d350019880037422ae8f85b449ad4058`; **merge commit:** `2a1abf1e9443bd40650f1449da9f309e6d91536c` (PR #1084)
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -11,7 +11,7 @@ Este scorecard distingue implementação de componente, integração funcional, 
 
 **Status geral: EM DESENVOLVIMENTO — NÃO PRONTO PARA TESTES CONTROLADOS COM ROMs.**
 
-A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada à main. O EG serial de 18 slots foi integrado ao `Ym2413Core` e passou pela caracterização diferencial descrita na atualização de 2026-11-20, mas essa integração ainda está em PR empilhada (#1084), não na main. PG, operadores FM, LFOs, PCM e runtime SMS ainda não formam um pipeline FM completo. O projeto continua sem geração PCM FM integrada ao runtime SMS.
+A fundação de registradores, slots, clock, PG-1 e PM LFO permanece integrada à main. O EG serial de 18 slots está publicado e integrado ao `Ym2413Core` pela PR #1084, com caracterização diferencial aprovada no escopo descrito abaixo. PG, operadores FM, LFOs, PCM e runtime SMS ainda não formam um pipeline FM completo. O projeto continua sem geração PCM FM integrada ao runtime SMS.
 
 ## Marcos já publicados
 
@@ -31,7 +31,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada à ma
 | Etapa | Estado | Entrega existente | Pendência para conclusão |
 |---|---|---|---|
 | FM-0 — Auditoria e consolidação | **Concluída** | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
-| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG serial de 18 slots integrado ao `Ym2413Core` na PR #1084; timer compartilhado, latches KON/OFF/DOKON/SUS, decodificação register-driven e save state do core; replay diferencial aprovado no HEAD da PR | PG continua sem integração ao sequenciador; evento PG-reset não consumido; não há alinhamento físico PG↔EG nem subfases por input clock; aguarda revisão/integração da PR #1084 |
+| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG serial de 18 slots publicado na main pela PR #1084; timer compartilhado, latches KON/OFF/DOKON/SUS, decodificação register-driven e save state do core; replay diferencial aprovado | PG continua sem integração ao sequenciador; evento PG-reset não consumido; não há alinhamento físico PG↔EG nem subfases por input clock |
 | FM-2 — Operadores e síntese FM | **Parcial** | Tabelas Log-Sine/EXP; lookup de fase/sinal; par modulator/carrier; feedback de dois samples; KSL BLOCK/FNUM; snapshots locais | Integrar KSL ao decoder/canal, validar PCM diferencial, integrar aos slots e confirmar escala/quantização fisicamente |
 | FM-3 — LFO e modulação | **Parcial** | Contador PM global, tabela PM 8×8 e AM LFO de 210 posições/64 amostras, 14 níveis e snapshot | Conectar PM/AM aos operadores; comprovar fase absoluta e alinhamento temporal |
 | FM-4 — Instrumentos | **Parcial** | User patch decoder; 15 presets melódicos candidatos com licença MIT/procedência; decoder FNUM/BLOCK/KEY/SUS/INST/VOL por canal | Validar patches contra hardware; ligar parâmetros ao PG/EG/operadores; confirmar os nove canais; ROM física exata ainda não disponível |
@@ -48,7 +48,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada à ma
 | Máquina de 18 slots | Implementada | Rotação de 72 clocks; pipeline funcional FM ainda pendente |
 | PG-1 | Implementado | Testes unitários existentes; vetores independentes de andete não equivalem a medição própria |
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
-| EG serial (18 operadores) | Implementado e integrado ao `Ym2413Core` na PR #1084 | Timer compartilhado, KON/OFF/DOKON/SUS, decodificação de registradores e snapshots no estado do core; replay diferencial do core e do sequenciador aprovado no HEAD `0d7b32b`; ainda não integrado à main |
+| EG serial (18 operadores) | Implementado e integrado ao `Ym2413Core`; publicado na main pela PR #1084 | Timer compartilhado, KON/OFF/DOKON/SUS, decodificação de registradores e snapshots no estado do core; replay diferencial do core e do sequenciador aprovado no HEAD `0d7b32b` |
 | Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
 | Modulator / carrier | Par de operadores candidato implementado | Recebe PG/EG/KSL/AM externamente; ainda sem instrument ROM e sem slot scheduling |
 | Feedback FM | Histórico p0/p1 e cálculo de fase implementados | Pendente validação independente de PCM e integração ao canal real |
@@ -1081,7 +1081,7 @@ Esses itens são contratos de software e candidatos baseados em evidências publ
 ## Fechamento do EG serial no core — PR #1084 (2026-11-20)
 
 **Estado no branch:** IMPLEMENTADO + INTEGRADO AO `Ym2413Core` + VALIDAÇÃO DIFERENCIAL APROVADA.
-**Estado na main:** AINDA NÃO INTEGRADO. A PR #1084 está empilhada sobre a PR #1083 (`validation/ym2413-eg-stage-transition`), que permanece Draft.
+**Estado na main:** INTEGRADO pela PR #1084; squash merge `2a1abf1e9443bd40650f1449da9f309e6d91536c` (2026-11-20). A PR #1083 foi supersedida e não precisa de merge independente.
 
 ### Entrega
 
@@ -1118,4 +1118,4 @@ A varredura mantém métricas de candidatos de fase-base que ainda divergem: 44.
 - O teste Rhythm Mode valida a sequência EG usando inputs do oracle; testes unitários separados verificam o decoder register-driven contra os valores candidatos de patch. Isso não certifica a ROM interna completa, cadência física LFSR, DAC ou comportamento não caracterizado de KEY-ON conflitante.
 - Não há ainda validação com ROMs no runtime SMS, pois o chip não produz PCM FM integrado.
 
-**Conclusão da etapa:** o escopo de EG serial digital integrado ao core está fechado no branch e com CI diferencial aprovado. A etapa FM-1 como um todo permanece PARCIAL, pois PG/EG ainda não formam um pipeline temporal conjunto. O fechamento do EG não autoriza declarar o YM2413 completo nem iniciar validação de ROMs como se houvesse saída FM funcional.
+**Conclusão da etapa:** o escopo de EG serial digital integrado ao core está publicado na main e possui CI diferencial aprovado no HEAD validado. A etapa FM-1 como um todo permanece PARCIAL, pois PG/EG ainda não formam um pipeline temporal conjunto. O fechamento do EG não autoriza declarar o YM2413 completo nem iniciar validação de ROMs como se houvesse saída FM funcional.
