@@ -450,17 +450,20 @@ fn format_crash_record(
 /// This function is called only during consented initialization. The panic hook
 /// itself never renames, removes, or rotates files.
 fn prepare_crash_log(path: &Path, max_bytes: u64, retained_files: usize) -> std::io::Result<()> {
+    prune_crash_backups(path, retained_files)?;
+    if retained_files == 0 {
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        return Ok(());
+    }
+
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     };
     if metadata.len().saturating_add(MAX_CRASH_RECORD_BYTES) <= max_bytes.max(1) {
-        return Ok(());
-    }
-
-    if retained_files == 0 {
-        fs::remove_file(path)?;
         return Ok(());
     }
 
@@ -476,6 +479,31 @@ fn prepare_crash_log(path: &Path, max_bytes: u64, retained_files: usize) -> std:
                 fs::remove_file(&destination)?;
             }
             fs::rename(source, destination)?;
+        }
+    }
+    Ok(())
+}
+
+/// Remove numbered backups outside the configured retention window.
+fn prune_crash_backups(path: &Path, retained_files: usize) -> std::io::Result<()> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+    let Some(file_name) = path.file_name() else {
+        return Ok(());
+    };
+    let prefix = format!("{}.", file_name.to_string_lossy());
+
+    for entry in fs::read_dir(parent)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if let Some(index) = name
+            .strip_prefix(&prefix)
+            .and_then(|suffix| suffix.parse::<usize>().ok())
+            && index > retained_files
+        {
+            fs::remove_file(entry.path())?;
         }
     }
     Ok(())
@@ -638,10 +666,29 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("crash.log");
         fs::write(&path, b"old").unwrap();
+        fs::write(directory.join("crash.log.1"), b"older").unwrap();
 
         prepare_crash_log(&path, 1, 0).unwrap();
 
         assert!(!path.exists());
+        assert!(!directory.join("crash.log.1").exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn crash_log_prunes_stale_backups_even_without_an_active_file() {
+        let directory = temporary_directory("crash-prune");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("crash.log");
+        fs::write(directory.join("crash.log.1"), b"newest").unwrap();
+        fs::write(directory.join("crash.log.2"), b"older").unwrap();
+        fs::write(directory.join("crash.log.3"), b"oldest").unwrap();
+
+        prepare_crash_log(&path, 1_024, 1).unwrap();
+
+        assert_eq!(fs::read(directory.join("crash.log.1")).unwrap(), b"newest");
+        assert!(!directory.join("crash.log.2").exists());
+        assert!(!directory.join("crash.log.3").exists());
         fs::remove_dir_all(directory).unwrap();
     }
 
