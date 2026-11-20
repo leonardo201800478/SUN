@@ -93,6 +93,20 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO está integrada. O EG
 
 **Interpretação:** os gates Rust aplicáveis ao EG passaram. Os itens SKIPPED não são aprovados por inferência e não validam a futura integração FM/SMS.
 
+## Atualização de precisão — 2026-11-19
+
+A correção de arredondamento inteiro do Phase Generator está proposta na PR #1075
+(`fix/ym2413-pg-nuked-integer-rounding`), ainda em draft e não integrada à main.
+
+- Aritmética de PG ajustada para preservar os dois pontos de truncamento observados em `OPLL_PhaseCalcIncrement` do Nuked-OPLL fixado.
+- Vetores de regressão positivos/negativos de PM e todos os 16 valores MUL adicionados.
+- CI aplicável no HEAD `15278ea4fcb19669a7f3b3c10e8a89ab3cebb379`: Rust workspace regression, Rust quality/unit regression e documentação — SUCCESS.
+- Comparação estática exaustiva de 524.288 combinações executada; não é uma execução diferencial do binário Nuked.
+- Comparação exata MAME/ymfm para PG permanece aberta.
+- O harness externo de trace Nuked está em desenvolvimento separado; não altera o backend.
+
+**Classificação:** correção local de PG implementada na branch e CI validado; aguardando revisão/integração. FM-1 continua PARCIAL. FM-6 continua PENDENTE. Nenhuma afirmação de cycle-accuracy integrada.
+
 ## Próxima dependência técnica
 
 O próximo desenvolvimento funcional é ligar o patch/channel decoder aos parâmetros do par de operadores: MULTI/PG, KSR/EG, KSL, AM, waveform, TL/VOL e feedback. Os 15 patches continuam candidatos até comparação física; depois disso deve ser fechado o pipeline dos 18 slots.
