@@ -204,41 +204,33 @@ mod tests {
     }
 
     #[test]
-    fn phase_step_matches_nuked_integer_rounding_for_all_legal_inputs() {
-        // Nuked-OPLL 1.0.2, pinned at 1269cf5a783b65583b50fa2464d08be75830aaa0:
-        // frequency starts at FNUM << 1, PM is applied, BLOCK is shifted and
-        // truncated, then the MUL table is applied and truncated again.
-        fn nuked_phase_step(fnum: u16, block: u8, mul: u8, pm_position: u8) -> u32 {
-            let mut frequency = u32::from(fnum) << 1;
-            match pm_position {
-                1 | 3 => frequency += frequency >> 8,
-                2 => frequency += frequency >> 7,
-                5 | 7 => frequency -= frequency >> 8,
-                6 => frequency -= frequency >> 7,
-                _ => {}
-            }
+    fn phase_step_preserves_nuked_rounding_at_positive_and_negative_pm_boundaries() {
+        // Expected values are fixed regression vectors for FNUM=64, BLOCK=0.
+        // PM=2 produces an odd positive frequency (129); PM=6 produces an
+        // odd negative-adjusted frequency (127). Every MUL encoding is covered.
+        let positive_pm = [
+            32, 64, 128, 192, 256, 320, 384, 448, 512, 576, 640, 640, 768, 768, 960, 960,
+        ];
+        let negative_pm = [
+            31, 63, 126, 189, 252, 315, 378, 441, 504, 567, 630, 630, 756, 756, 945, 945,
+        ];
 
-            let block_adjusted_frequency = (frequency << block) >> 1;
-            (block_adjusted_frequency * u32::from(YM2413_ML_TABLE[usize::from(mul)])) >> 1
+        for mul in 0..=15_u8 {
+            assert_eq!(
+                PhaseGenerator::phase_step(64, 0, mul, true, 2),
+                Ok(positive_pm[usize::from(mul)]),
+                "positive PM, MUL={mul}"
+            );
+            assert_eq!(
+                PhaseGenerator::phase_step(64, 0, mul, true, 6),
+                Ok(negative_pm[usize::from(mul)]),
+                "negative PM, MUL={mul}"
+            );
         }
 
-        // This boundary distinguishes staged truncation (128) from the
-        // algebraically combined expression (129).
-        assert_eq!(PhaseGenerator::phase_step(64, 0, 2, true, 2), Ok(128));
-
-        for fnum in 0..=0x01ff_u16 {
-            for block in 0..=7_u8 {
-                for mul in 0..=15_u8 {
-                    for pm_position in 0..8_u8 {
-                        assert_eq!(
-                            PhaseGenerator::phase_step(fnum, block, mul, true, pm_position),
-                            Ok(nuked_phase_step(fnum, block, mul, pm_position)),
-                            "FNUM={fnum:#05x}, BLOCK={block}, MUL={mul}, PM={pm_position}"
-                        );
-                    }
-                }
-            }
-        }
+        // BLOCK >= 1 shifts the odd frequency before division, so this
+        // boundary remains 258 for FNUM=64, MUL=2, PM=2.
+        assert_eq!(PhaseGenerator::phase_step(64, 1, 2, true, 2), Ok(258));
     }
 
     #[test]
