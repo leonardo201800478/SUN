@@ -1,0 +1,61 @@
+name: YM2413 Nuked PG differential
+
+on:
+  pull_request:
+    paths:
+      - "native/ym2413/**"
+      - "tools/ym2413-nuked-oracle/compare_pg.py"
+      - ".github/workflows/ym2413-pg-differential.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pg-differential:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Rust implementation
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned oracle adapter revision
+        uses: actions/checkout@v4
+        with:
+          repository: leonardo201800478/sega-emulator
+          ref: 527d89176912365b99540055976c0cc4e7ec77bf
+          path: oracle-adapter
+
+      - name: Checkout pinned Nuked-OPLL reference
+        env:
+          NUKED_SHA: 1269cf5a783b65583b50fa2464d08be75830aaa0
+        run: |
+          git clone https://github.com/nukeykt/Nuked-OPLL.git "$RUNNER_TEMP/Nuked-OPLL"
+          git -C "$RUNNER_TEMP/Nuked-OPLL" checkout "$NUKED_SHA"
+          test "$(git -C "$RUNNER_TEMP/Nuked-OPLL" rev-parse HEAD)" = "$NUKED_SHA"
+
+      - name: Compile external Nuked trace adapter
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra \
+            -I"$RUNNER_TEMP/Nuked-OPLL" \
+            oracle-adapter/tools/ym2413-nuked-oracle/trace.c \
+            "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
+            -o "$RUNNER_TEMP/ym2413-nuked-trace"
+
+      - name: Generate controlled melodic register sequence
+        run: |
+          cat > "$RUNNER_TEMP/events.csv" <<'EOF'
+          # call_index,port,value
+          0,0,16
+          2,1,64
+          40,0,32
+          42,1,0
+          80,0,48
+          82,1,16
+          EOF
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 240 \
+            --events "$RUNNER_TEMP/events.csv" > "$RUNNER_TEMP/nuked-pg.jsonl"
+
+      - name: Compare every captured PG increment with production Rust
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_pg.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-pg.jsonl"
