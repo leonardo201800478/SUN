@@ -34,6 +34,8 @@ pub struct EnvelopeTimerState {
     pub shift_lock: u8,
     /// Rate prepared for consumption by the next slot.
     pub pending_rate: u8,
+    /// Base-rate-zero flag prepared for consumption by the next slot.
+    pub pending_zero_rate: bool,
     /// Next slot expected by this state machine.
     pub next_slot: u8,
 }
@@ -45,6 +47,8 @@ pub struct EnvelopeRatePhase {
     pub rate_latch_source: u8,
     /// Newly calculated rate, consumed by the timer pipeline on the next slot.
     pub next_rate: u8,
+    /// Whether the newly calculated base rate is zero (independent of KSR).
+    pub next_zero_rate: bool,
     /// Upper four bits of the consumed rate.
     pub rate_hi: u8,
     /// Low-rate increment enable.
@@ -124,6 +128,7 @@ impl EnvelopeTimer {
                 low_lock: 0,
                 shift_lock: 0,
                 pending_rate: 0,
+                pending_zero_rate: false,
                 next_slot: 0,
             },
         }
@@ -176,6 +181,7 @@ impl EnvelopeTimer {
         &mut self,
         slot_index: u8,
         next_rate: u8,
+        next_zero_rate: bool,
     ) -> Result<EnvelopeTimerSnapshot, EnvelopeTimerError> {
         if slot_index >= SLOT_COUNT {
             return Err(EnvelopeTimerError::InvalidSlot(slot_index));
@@ -193,6 +199,7 @@ impl EnvelopeTimer {
         let rate_latch_source = self.state.pending_rate;
         let rate_hi = rate_latch_source >> 2;
         let rate_lo = rate_latch_source & 0x03;
+        let zero_rate_latch_source = self.state.pending_zero_rate;
 
         // The fractional timer input is enabled only at the terminal
         // two-bit counter phase. Slot zero seeds the carry; later slots
@@ -238,7 +245,7 @@ impl EnvelopeTimer {
 
         let phase_sum = self.state.shift_lock.wrapping_add(rate_hi) & 0x0f;
         let inc_hi = STEP_HIGH[rate_lo as usize][self.state.low_lock as usize] != 0;
-        let inc_lo = if rate_hi >= 12 {
+        let inc_lo = if rate_hi >= 12 || zero_rate_latch_source {
             false
         } else {
             match phase_sum {
@@ -252,6 +259,7 @@ impl EnvelopeTimer {
         let rate_phase = EnvelopeRatePhase {
             rate_latch_source,
             next_rate,
+            next_zero_rate,
             rate_hi,
             inc_lo,
             inc_hi,
@@ -261,6 +269,7 @@ impl EnvelopeTimer {
         };
 
         self.state.pending_rate = next_rate;
+        self.state.pending_zero_rate = next_zero_rate;
         self.state.next_slot = (slot_index + 1) % SLOT_COUNT;
 
         Ok(EnvelopeTimerSnapshot {
@@ -311,12 +320,14 @@ mod tests {
         assert_eq!(first.rate_phase.rate_hi, 0);
         assert!(!first.rate_phase.max_rate);
         assert!(!first.rate_phase.zero_rate);
+        assert!(!first.rate_phase.next_zero_rate);
 
         let second = timer.tick_slot(1, 0).unwrap();
         assert_eq!(second.rate_phase.rate_latch_source, 60);
         assert_eq!(second.rate_phase.rate_hi, 15);
         assert!(second.rate_phase.max_rate);
         assert!(second.rate_phase.zero_rate);
+        assert!(second.rate_phase.next_zero_rate);
     }
 
     #[test]
@@ -325,18 +336,18 @@ mod tests {
         timer.tick_slot(0, 1).unwrap();
 
         assert_eq!(
-            timer.tick_slot(2, 1),
+            timer.tick_slot(2, 1, false),
             Err(EnvelopeTimerError::UnexpectedSlot {
                 expected: 1,
                 actual: 2,
             })
         );
         assert_eq!(
-            timer.tick_slot(1, 64),
+            timer.tick_slot(1, 64, false),
             Err(EnvelopeTimerError::InvalidRate(64))
         );
         assert_eq!(
-            timer.tick_slot(18, 1),
+            timer.tick_slot(18, 1, false),
             Err(EnvelopeTimerError::InvalidSlot(18))
         );
     }
