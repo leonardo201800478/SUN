@@ -243,7 +243,7 @@ These results justify deeper investigation of the reset divider phase and output
 
 ### Validation boundary
 
-The following were validated in the PSG-focused CI job: Rust formatting, Clippy, targeted PSG/audio/SMS/SG-1000 tests, both external adapter builds, deterministic repeated traces, trace schema, and the diagnostic schedule. The broader workflow still had its Windows CPAL job running when this audit update was prepared.
+The following were validated in the PSG-focused CI job: Rust formatting, Clippy, targeted PSG/audio/SMS/SG-1000 tests, both external adapter builds, deterministic repeated traces, trace schema, diagnostic schedule, historical PCM/chunk-invariance checks, and artifact upload. The complete CI run [#44659953063](https://github.com/leonardo201800478/sega-emulator/actions/runs/44659953063) also passed GitHub Actions workflow validation, documentation hygiene, Windows x64 CPAL tests/build and Rust quality/unit regression. The separate SMS Debugger Runtime workflow passed as well.
 
 Still pending for P2:
 
