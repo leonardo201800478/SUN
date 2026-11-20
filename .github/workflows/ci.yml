@@ -540,10 +540,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '  # tick,byte\\n\\n\\t0,0xE4\\n\\t0,0xF0\\n  540,0xE0\\n560,0xE4\\n' \\
+          printf '  # tick,byte\n\n\t0,0xE4\n\t0,0xF0\n  540,0xE0\n560,0xE4\n' \
             > artifacts/psg-ares-whitespace-events.csv
-          "$RUNNER_TEMP/psg-ares-trace" \\
-            --calls 600 --events artifacts/psg-ares-whitespace-events.csv \\
+          "$RUNNER_TEMP/psg-ares-trace" \
+            --calls 600 --events artifacts/psg-ares-whitespace-events.csv \
             > "$RUNNER_TEMP/psg-ares-whitespace-reference.jsonl"
           cmp artifacts/psg-ares-reference.jsonl "$RUNNER_TEMP/psg-ares-whitespace-reference.jsonl"
 
