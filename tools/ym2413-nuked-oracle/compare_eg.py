@@ -79,6 +79,10 @@ def main() -> int:
             rows, "candidate_level_initial_127_wrapped_deferred",
             "candidate_stage_initial_127_wrapped_deferred"
         ),
+        "candidate_initial_level_127_deferred_attack_unwrapped": compare(
+            rows, "candidate_level_initial_127_deferred_unwrapped",
+            "candidate_stage_initial_127_deferred_unwrapped"
+        ),
         "interpretation": (
             "diagnostic only; mismatches do not select hardware truth or fail this tool"
         ),
