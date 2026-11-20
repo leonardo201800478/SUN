@@ -31,10 +31,141 @@ def first_index(values: list[bool]) -> int | None:
     return next((index for index, value in enumerate(values) if value), None)
 
 
-def main() -> int:
-    if len(sys.argv) not in (3, 4):
+
+def compare_ares(
+    path: Path, core_rows: list[dict[str, Any]], core_header: dict[str, Any]
+) -> dict[str, Any]:
+    """Compare Ares component clocks with one Rust SMS PSG /16 tick per row."""
+    header, rows, raw = read_jsonl(path, "ares-sn76489-state-trace-v1")
+    expected_commit = "8bc30c8c3d3c8081d2a66587add602df771441dd"
+    if header.get("source_commit") != expected_commit:
+        raise SystemExit("Ares reference commit pin mismatch")
+    if header.get("time_unit") != "sn76489_component_clock":
+        raise SystemExit("Ares trace must use one component clock per row")
+    if len(rows) != len(core_rows):
         raise SystemExit(
-            "usage: compare.py crabemu-reference.jsonl core.jsonl [gearsystem-reference.jsonl]"
+            f"Ares/core trace lengths differ: reference={len(rows)} core={len(core_rows)}"
+        )
+    if core_header.get("input_clocks_per_row") != 16:
+        raise SystemExit("Rust core trace must advance exactly 16 input clocks per row")
+
+    fields = {
+        "tone_pitch": ("tone_pitch", "tone_periods_before"),
+        "tone_counter": ("tone_counter", "tone_counters_before"),
+        "tone_output": ("tone_output", "tone_outputs_before"),
+        "tone_volume": ("tone_volume", "attenuations_before"),
+        "tone_pitch_post": ("tone_pitch", "tone_periods_after", "post"),
+        "tone_counter_post": ("tone_counter", "tone_counters_after", "post"),
+        "tone_output_post": ("tone_output", "tone_outputs_after", "post"),
+        "tone_volume_post": ("tone_volume", "attenuations_after", "post"),
+    }
+    mismatch_counts: dict[str, int] = {}
+    first_mismatch: dict[str, int | None] = {}
+    for label, mapping in fields.items():
+        ares_key, core_key = mapping[:2]
+        post = len(mapping) == 3
+        ticks = []
+        for tick, (ares, core) in enumerate(zip(rows, core_rows, strict=True)):
+            ares_state = ares["post_clock"] if post else ares
+            if ares_state[ares_key] != core[core_key]:
+                ticks.append(tick)
+        mismatch_counts[label] = len(ticks)
+        first_mismatch[label] = ticks[0] if ticks else None
+
+    scalar_mappings = {
+        "noise_counter": ("noise_counter", "noise_counter_before"),
+        "noise_counter_post": ("noise_counter", "noise_counter_after", "post"),
+        "noise_flip": ("noise_flip", "noise_phase_before"),
+        "noise_flip_post": ("noise_flip", "noise_phase_after", "post"),
+        "lfsr": ("lfsr", "lfsr_before"),
+        "lfsr_post": ("lfsr", "lfsr_after", "post"),
+        "noise_output": ("noise_output", "noise_output_before"),
+        "noise_output_post": ("noise_output", "noise_output_after", "post"),
+        "latch_type": ("latch_type", "latched_register_before", "type"),
+        "latch_channel": ("latch_channel", "latched_register_before", "channel"),
+        "noise_rate": ("noise_rate", "noise_control_before", "rate"),
+        "noise_enable": ("noise_enable", "noise_control_before", "enable"),
+        "latch_type_post": ("latch_type", "latched_register_after", "type_post"),
+        "latch_channel_post": ("latch_channel", "latched_register_after", "channel_post"),
+        "noise_rate_post": ("noise_rate", "noise_control_after", "rate_post"),
+        "noise_enable_post": ("noise_enable", "noise_control_after", "enable_post"),
+    }
+    for label, mapping in scalar_mappings.items():
+        ares_key, core_key, *mode = mapping
+        ticks = []
+        for tick, (ares, core) in enumerate(zip(rows, core_rows, strict=True)):
+            ares_state = ares["post_clock"] if mode and mode[0].endswith("_post") else ares
+            core_value = core[core_key]
+            if mode and mode[0].startswith("type"):
+                core_value = int(core_value) & 1
+            elif mode and mode[0].startswith("channel"):
+                core_value = (int(core_value) >> 1) & 3
+            elif mode and mode[0].startswith("rate"):
+                core_value = int(core_value) & 3
+            elif mode and mode[0].startswith("enable"):
+                core_value = (int(core_value) >> 2) & 1
+            if int(ares_state[ares_key]) != int(core_value):
+                ticks.append(tick)
+        mismatch_counts[label] = len(ticks)
+        first_mismatch[label] = ticks[0] if ticks else None
+
+    output_ticks = []
+    for tick, (ares, core) in enumerate(zip(rows, core_rows, strict=True)):
+        core_expected = [
+            core["tone_outputs_after"][channel]
+            and core["attenuations_after"][channel]
+            or (15 if not core["tone_outputs_after"][channel] else 0)
+            for channel in range(3)
+        ]
+        core_expected.append(
+            core["attenuations_after"][3]
+            if core["noise_output_after"]
+            else 15
+        )
+        if [int(value) for value in ares["output"]] != [int(value) for value in core_expected]:
+            output_ticks.append(tick)
+
+    tone2_rate_ticks = []
+    for tick, (ares, core) in enumerate(zip(rows, core_rows, strict=True)):
+        if (int(ares["noise_rate"]) == 3 and
+            int(ares["noise_pitch"]) != int(core["tone_periods_before"][2])):
+            tone2_rate_ticks.append(tick)
+
+    return {
+        "name": "Ares SN76489 component",
+        "commit": header["source_commit"],
+        "license": header["license"],
+        "trace_sha256": hashlib.sha256(raw).hexdigest(),
+        "clock_mapping": (
+            "one Ares component clock per row compared to one Rust SMS PSG tick; "
+            "the Rust tick is exactly 16 input clocks. This is a component-level "
+            "mapping, not a claim about Ares host integration or hardware truth."
+        ),
+        "same_tick_comparison": True,
+        "lfsr_raw_state_comparable": True,
+        "field_mismatch_counts": mismatch_counts,
+        "field_first_mismatch_ticks": first_mismatch,
+        "channel_output_nibble_mismatch_count": len(output_ticks),
+        "channel_output_nibble_first_mismatch_tick": output_ticks[0] if output_ticks else None,
+        "noise_pitch_vs_tone2_mismatch_count": len(tone2_rate_ticks),
+        "noise_pitch_vs_tone2_first_mismatch_tick": (
+            tone2_rate_ticks[0] if tone2_rate_ticks else None
+        ),
+        "note": (
+            "Ares is the Texas Instruments SN76489 component used by its SMS host. "
+            "It is not a guaranteed silicon oracle for every Sega PSG revision. "
+            "All mismatches are diagnostics; no automatic alignment is applied. "
+            "Ares output nibbles are compared against the Rust channel polarity "
+            "and attenuation state after the corresponding clock."
+        ),
+    }
+
+
+def main() -> int:
+    if len(sys.argv) not in (3, 4, 5):
+        raise SystemExit(
+            "usage: compare.py crabemu-reference.jsonl core.jsonl "
+            "[gearsystem-reference.jsonl] [ares-reference.jsonl]"
         )
 
     ref_header, ref_rows, ref_raw = read_jsonl(
@@ -184,6 +315,10 @@ def main() -> int:
                 "bit-0 state and timestamped shift events are compared."
             ),
         }
+
+    if len(sys.argv) == 5:
+        summary["ares"] = compare_ares(Path(sys.argv[4]), core_rows, core_header)
+
 
     print(json.dumps(summary, sort_keys=True, indent=2))
     return 0
