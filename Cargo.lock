@@ -3731,6 +3731,7 @@ dependencies = [
  "sega-audio-output",
  "sega-input-runtime",
  "sega-media",
+ "sega-observability",
  "sega-save-runtime",
  "sega-sg1000-runtime",
  "sega-sms-core",
