@@ -37,21 +37,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         let pm_enabled = match fields[4] {
             "0" => false,
             "1" => true,
-            other => return Err(format!("line {}: invalid pm_enabled {other}", line_number + 1).into()),
+            other => {
+                return Err(format!("line {}: invalid pm_enabled {other}", line_number + 1).into());
+            }
         };
         let pm_position: u8 = fields[5].parse()?;
 
-        let phase_step = PhaseGenerator::phase_step(
-            fnum,
-            block,
-            multiplier,
-            pm_enabled,
-            pm_position,
-        )?;
+        let phase_step =
+            PhaseGenerator::phase_step(fnum, block, multiplier, pm_enabled, pm_position)?;
 
-        println!(
-            "{{\"call_index\":{call_index},\"phase_step\":{phase_step}}}"
-        );
+        println!("{{\"call_index\":{call_index},\"phase_step\":{phase_step}}}");
     }
 
     Ok(())
