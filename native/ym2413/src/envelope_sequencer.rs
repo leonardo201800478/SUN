@@ -128,7 +128,7 @@ impl EnvelopeSequencer {
             operators: [initial; YM2413_ENVELOPE_SEQUENCER_SLOTS],
             timer: EnvelopeTimer::new(),
             eg_kon: 0,
-            eg_off: 0xff,
+            eg_off: 0,
             eg_dokon: 0,
             eg_sl: 0,
         }
@@ -318,10 +318,10 @@ mod tests {
         let sequencer = EnvelopeSequencer::new();
         let state = sequencer.export_state();
         assert_eq!(state.eg_kon, 0);
-        assert_eq!(state.eg_off, 0xff);
+        assert_eq!(state.eg_off, 0);
         assert_eq!(state.eg_dokon, 0);
         assert_eq!(state.eg_sl, 0);
-        assert!(state.timer.pending_zero_rate);
+        assert!(!state.timer.pending_zero_rate);
         for slot in 0..18 {
             assert_eq!(sequencer.operator(slot), Some((127, super::EnvelopeOperatorStage::Release)));
         }
