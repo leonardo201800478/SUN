@@ -407,6 +407,7 @@ mod switchable_writer_tests {
     use super::SwitchableMakeWriter;
     use std::io::Write;
     use std::sync::{Arc, RwLock};
+    use tracing_subscriber::fmt::writer::MakeWriter;
 
     #[test]
     fn writer_slot_contention_drops_event_instead_of_blocking() {
