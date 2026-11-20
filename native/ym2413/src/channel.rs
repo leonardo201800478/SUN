@@ -354,9 +354,8 @@ mod tests {
     #[test]
     fn serial_cycle_mapping_rejects_out_of_range_cycles() {
         let registers = registers_for_all_channels();
-        let channels = std::array::from_fn(|index| {
-            decode_channel_synthesis(&registers, index as u8).unwrap()
-        });
+        let channels =
+            std::array::from_fn(|index| decode_channel_synthesis(&registers, index as u8).unwrap());
         assert_eq!(
             envelope_slot_input_for_cycle(&channels, 18),
             Err(ChannelSynthesisError::InvalidEnvelopeCycle { cycle: 18 })
