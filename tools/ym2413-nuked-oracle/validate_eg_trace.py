@@ -21,6 +21,12 @@ def main() -> int:
     parser.add_argument("--trace", required=True, type=Path)
     parser.add_argument("--expected-calls", required=True, type=int)
     parser.add_argument("--channels", default="0")
+    parser.add_argument("--expected-ar", type=int, default=10)
+    parser.add_argument("--expected-dr", type=int, default=5)
+    parser.add_argument("--expected-rr", type=int, default=7)
+    parser.add_argument("--expected-ksr", type=int, default=0)
+    parser.add_argument("--expected-eg-type", type=int, default=1)
+    parser.add_argument("--expected-sl", type=int, default=4)
     args = parser.parse_args()
     channels = {int(value) for value in args.channels.split(",")}
     if not channels or any(channel < 0 or channel > 8 for channel in channels):
@@ -68,7 +74,10 @@ def main() -> int:
 
     patch_rows = [
         s for s in samples
-        if s["c_adrr"] == [10, 5, 7] and s["c_et"] == 1 and s["c_sl"] == 4
+        if s["c_adrr"] == [args.expected_ar, args.expected_dr, args.expected_rr]
+        and s["c_ksr"] == args.expected_ksr
+        and s["c_et"] == args.expected_eg_type
+        and s["c_sl"] == args.expected_sl
     ]
     assert patch_rows, "configured user-patch EG parameters were not observed"
 
@@ -121,6 +130,14 @@ def main() -> int:
         "keyon_first_call_by_channel": active_first_call,
         "expected_eg_slots": expected_slots,
         "user_patch_rows": len(patch_rows),
+        "expected_user_patch": {
+            "ar": args.expected_ar,
+            "dr": args.expected_dr,
+            "rr": args.expected_rr,
+            "ksr": args.expected_ksr,
+            "eg_type": args.expected_eg_type,
+            "sl": args.expected_sl,
+        },
         "eg_dokon_nonzero_rows": eg_dokon_nonzero,
         "eg_timer_changes": timer_changes,
         "eg_counter_state_changes": counter_changes,
