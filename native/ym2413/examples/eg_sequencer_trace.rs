@@ -313,7 +313,7 @@ fn state_code(stage: sega_ym2413::EnvelopeOperatorStage) -> u8 {
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args().skip(1);
     let samples_path = args.next().ok_or(
-        "usage: cargo run --manifest-path native/ym2413/Cargo.toml --example eg_sequencer_trace -- samples.csv [events.csv]",
+        "usage: cargo run --manifest-path native/ym2413/Cargo.toml --example eg_sequencer_trace -- samples.csv [events.csv] [--oracle-inputs]",
     )?;
     let events_path = args.next();
     let events = events_path
@@ -321,6 +321,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|path| read_events(Path::new(path)))
         .transpose()?;
     let register_mode = events.is_some();
+    let oracle_inputs = args.next().as_deref() == Some("--oracle-inputs");
+    if args.next().is_some() || (oracle_inputs && !register_mode) {
+        return Err("invalid EG trace arguments".into());
+    }
+    let register_input_mode = register_mode && !oracle_inputs;
     let events = events.unwrap_or_default();
     let mut event_index = 0_usize;
     let mut register_bus = RegisterBus::new();
@@ -355,7 +360,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             register_bus.begin_clock(sample.cycle);
         }
 
-        let mut decoded_input = if register_mode {
+        let mut decoded_input = if register_input_mode {
             decode_register_input(&register_bus.registers, sample.cycle)?
         } else {
             sample.input
@@ -366,7 +371,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     .ok_or_else(|| std::io::Error::other("invalid local rhythm selector"))?;
             decoded_input.rhythm_bits = register_bus.rhythm;
         }
-        let mut input_bad = if register_mode {
+        let mut input_bad = if register_input_mode {
             input_mismatches(decoded_input, sample.input)
         } else {
             Vec::new()
@@ -507,7 +512,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect::<Vec<_>>()
         .join(",");
     println!(
-        "{{\"calls\":{calls},\"register_mode\":{register_mode},\"register_input_mismatches\":{register_input_mismatches},\"input_mismatch_counts\":{{{input_counts_json}}},\"field_mismatches\":{mismatches},\"first_mismatch\":{}}}",
+        "{{\"calls\":{calls},\"register_mode\":{register_mode},\"register_inputs_used\":{register_input_mode},\"register_input_mismatches\":{register_input_mismatches},\"input_mismatch_counts\":{{{input_counts_json}}},\"field_mismatches\":{mismatches},\"first_mismatch\":{}}}",
         first_mismatch
             .as_ref()
             .map(|value| format!("\"{}\"", value.replace('"', "\\\"")))
