@@ -18,7 +18,6 @@ use tracing_subscriber::util::SubscriberInitExt;
 static LOGGING: OnceLock<LoggingHandle> = OnceLock::new();
 static DIAGNOSTICS_ENABLED: AtomicBool = AtomicBool::new(false);
 
-
 pub type InitError = Box<dyn Error + Send + Sync>;
 
 type FilterHandle = reload::Handle<EnvFilter, Registry>;
