@@ -35,22 +35,29 @@ def main() -> int:
     external_phase_level_mismatches = 0
     external_phase_stage_mismatches = 0
     external_phase_compared_samples = 0
+    hardware_operator_replay_failures = []
+    total_hardware_operator_samples = 0
+    total_hardware_operator_level_mismatches = 0
+    total_hardware_operator_stage_mismatches = 0
 
     for config in manifest["configurations"]:
         stem = Path(config["fixture"]).stem
         analysis_path = args.input_dir / f"{stem}-analysis.json"
         comparison_path = args.input_dir / f"{stem}-comparison.json"
         timer_path = args.input_dir / f"{stem}-timer-validation.json"
+        hardware_path = args.input_dir / f"{stem}-hardware-replay.json"
         if (
             not analysis_path.is_file()
             or not comparison_path.is_file()
             or not timer_path.is_file()
+            or not hardware_path.is_file()
         ):
             raise FileNotFoundError(f"missing result for {config['fixture']}")
 
         analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
         comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
         timer_validation = json.loads(timer_path.read_text(encoding="utf-8"))
+        hardware_replay = json.loads(hardware_path.read_text(encoding="utf-8"))
         if analysis.get("candidate") != "initial_127_deferred_decay_phase_minus3":
             raise ValueError(f"wrong candidate in {analysis_path.name}")
 
@@ -73,6 +80,24 @@ def main() -> int:
             timer_replay_failures.append(config["fixture"])
         total_timer_replay_calls += timer_calls
         total_timer_field_mismatches += timer_mismatches
+
+        hardware_samples = int(hardware_replay["samples"])
+        hardware_key_on = int(hardware_replay["key_on_samples"])
+        hardware_key_off = int(hardware_replay["key_off_samples"])
+        hardware_level_mismatches = int(hardware_replay["level_mismatches"])
+        hardware_stage_mismatches = int(hardware_replay["stage_mismatches"])
+        hardware_ok = (
+            hardware_samples > 0
+            and hardware_key_on + hardware_key_off == hardware_samples
+            and hardware_level_mismatches == 0
+            and hardware_stage_mismatches == 0
+            and hardware_replay["first_mismatch"] is None
+        )
+        if not hardware_ok:
+            hardware_operator_replay_failures.append(config["fixture"])
+        total_hardware_operator_samples += hardware_samples
+        total_hardware_operator_level_mismatches += hardware_level_mismatches
+        total_hardware_operator_stage_mismatches += hardware_stage_mismatches
 
         total_samples += sample_count
 
@@ -118,6 +143,12 @@ def main() -> int:
             "timer_replay_calls": timer_calls,
             "timer_replay_field_mismatches": timer_mismatches,
             "timer_replay": "PASS" if timer_ok else "FAIL",
+            "hardware_operator_samples": hardware_samples,
+            "hardware_operator_key_on_samples": hardware_key_on,
+            "hardware_operator_key_off_samples": hardware_key_off,
+            "hardware_operator_level_mismatches": hardware_level_mismatches,
+            "hardware_operator_stage_mismatches": hardware_stage_mismatches,
+            "hardware_operator_replay": "PASS" if hardware_ok else "FAIL",
             "first_level_mismatch": candidate_comparison["first_level_mismatch"],
             "first_stage_mismatch": candidate_comparison["first_stage_mismatch"],
             "external_rate_phase_compared_samples": int(
@@ -155,6 +186,11 @@ def main() -> int:
         "total_timer_field_mismatches": total_timer_field_mismatches,
         "all_timer_replays_pass": not timer_replay_failures,
         "timer_replay_failures": timer_replay_failures,
+        "total_hardware_operator_samples": total_hardware_operator_samples,
+        "total_hardware_operator_level_mismatches": total_hardware_operator_level_mismatches,
+        "total_hardware_operator_stage_mismatches": total_hardware_operator_stage_mismatches,
+        "all_hardware_operator_replays_pass": not hardware_operator_replay_failures,
+        "hardware_operator_replay_failures": hardware_operator_replay_failures,
         "all_phase_minus3_levels_match": total_level_mismatches == 0,
         "all_stage_transitions_match": total_stage_mismatches == 0,
         "level_mismatches_by_dr": dict(sorted(level_by_dr.items())),
@@ -168,7 +204,7 @@ def main() -> int:
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
 
-    if reference_replay_failures or timer_replay_failures:
+    if reference_replay_failures or timer_replay_failures or hardware_operator_replay_failures:
         return 1
     return 0
 
