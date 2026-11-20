@@ -29,6 +29,8 @@ O crate `sega-observability` tem uma arquitetura útil de fila limitada, rotaç�
 | DP0-008 | Alta | `rust/runtime/sms-runtime/src/worker.rs:1210-1220`, `1249-1259` | Resolução automática de região e fallback do catálogo usam `eprintln!` em dois caminhos de construção de máquina. | Uma operação normal de carregamento produz saída de diagnóstico independente da UI. |
 | DP0-009 | Alta | `native/observability/src/runtime.rs:39-49, 255-300` | `LogConfig::default()` seleciona filtro `info`; `init()` cria diretório/arquivo, inicia writer/subscriber e instala panic hook. | A garantia opt-in depende do chamador e não é invariante da própria API. |
 | DP0-010 | Média | `native/observability/src/runtime.rs:343-365` | Panic hook personalizado só grava arquivo quando o flag está ativo, mas sempre chama o hook anterior. | Depois da instalação, panic ainda pode produzir saída padrão no stderr mesmo após desativação da coleta. Exige decisão explícita de política; não suprimir o mecanismo padrão de falha sem ADR. |
+| DP0-011 | Média — classificação pendente | `native/sms_core/src/temporal_bus.rs:206,307,811-818,852,879-887` | `SmsTemporalBus` mantém uma fila de até 64 escritas de porta, acrescentada em toda escrita e incluída em export/restore do estado do barramento. A busca atual encontrou consumidores somente em testes. | Não há saída externa nem consumidor de produto identificado, mas o campo é explicitamente chamado de trace diagnóstico e persiste como estado. Decidir se é histórico semântico de barramento ou observabilidade; não remover nem alterar snapshots sem análise de compatibilidade. |
+| DP0-012 | Média — limite de API | `native/sms_core/src/temporal_machine.rs:285-306,711-768,807-860` | `SmsTemporalMachine::trace_enabled` inicia falso e a captura só ocorre após habilitação explícita, mas o vetor interno `trace_events` não possui limite próprio. O worker de produto drena para um coletor limitado; consumidores diretos do core podem reter eventos indefinidamente enquanto habilitados. | A captura é opt-in, porém o contrato público do core não garante limite de memória. Avaliar limite/drop policy no core sem perder eventos necessários aos testes temporais.
 
 As linhas acima são relativas ao SHA de baseline indicado; devem ser atualizadas quando os arquivos mudarem.
 
@@ -47,6 +49,17 @@ A captura de trace é, portanto, iniciada por ação explícita no menu DEBUG e 
 ### 3.3 Estado da sessão SMS
 
 O worker SMS oferece controle separado para trace e telemetria opcional. O host não deve inferir consentimento para logs de arquivo/console a partir do simples fato de o usuário habilitar um trace de barramento. São finalidades e volumes distintos; a UI deve explicar e autorizar cada finalidade.
+
+### 2.1 Controles de captura já existentes
+
+A auditoria também confirmou fronteiras positivas que devem ser preservadas:
+
+- `SmsTemporalMachine` inicializa `trace_enabled = false`; os eventos temporais são acrescentados somente quando explicitamente habilitado.
+- O worker SMS cria o `DiagnosticCollector` como `None`; o caminho de trace do worker o habilita por comando e drena eventos para um coletor limitado.
+- `WorkerTelemetry` começa desabilitado e os métodos de amostragem verificam o flag antes de atualizar as métricas.
+- O snapshot resumido de CPU é solicitado por callback explícito da UI; a exportação do trace exige captura ativa e uma segunda ação de escolha de arquivo.
+
+Essas garantias são específicas dos caminhos verificados. Não compensam as emissões diretas do host Slint listadas acima.
 
 ## 4. Infraestrutura compartilhada: avaliação
 
