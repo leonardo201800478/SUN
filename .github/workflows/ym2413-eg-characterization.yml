@@ -64,6 +64,40 @@ jobs:
           python3 tools/ym2413-nuked-oracle/compare_eg.py \
             --rust-trace "$RUNNER_TEMP/eg-rust-candidates.jsonl"
 
+      - name: Capture four KSR low-bit rows across four channels twice
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            > "$RUNNER_TEMP/eg-matrix-a.jsonl"
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            > "$RUNNER_TEMP/eg-matrix-b.jsonl"
+          cmp "$RUNNER_TEMP/eg-matrix-a.jsonl" "$RUNNER_TEMP/eg-matrix-b.jsonl"
+
+      - name: Validate all eight selected operator EG slots
+        run: |
+          python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --expected-calls 30000 --channels 0,1,2,3
+
+      - name: Extract rate-matrix operator samples and parameters
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
+            --trace "$RUNNER_TEMP/eg-matrix-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            --channels 0,1,2,3
+
+      - name: Replay the production Rust EG component across the rate matrix
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_model_trace -- "$RUNNER_TEMP/eg-matrix-samples.csv" \
+            > "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl"
+
+      - name: Compare all four effective-rate low-bit rows with Nuked
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_eg.py \
+            --rust-trace "$RUNNER_TEMP/eg-matrix-rust-candidates.jsonl"
+
       - name: Retain deterministic EG and Rust candidate traces
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,5 +107,8 @@ jobs:
             ${{ runner.temp }}/eg-trace-a.jsonl
             ${{ runner.temp }}/eg-samples.csv
             ${{ runner.temp }}/eg-rust-candidates.jsonl
+            ${{ runner.temp }}/eg-matrix-a.jsonl
+            ${{ runner.temp }}/eg-matrix-samples.csv
+            ${{ runner.temp }}/eg-matrix-rust-candidates.jsonl
           if-no-files-found: warn
           retention-days: 7
