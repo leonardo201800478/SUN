@@ -218,7 +218,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "\"candidate_level_initial_127_wrapped_deferred\":{},",
                 "\"candidate_stage_initial_127_wrapped_deferred\":{},",
                 "\"candidate_level_initial_127_deferred_unwrapped\":{},",
-                "\"candidate_stage_initial_127_deferred_unwrapped\":{}}}"
+                "\"candidate_stage_initial_127_deferred_unwrapped\":{},",
+                "\"candidate_level_initial_127_deferred_decay_wrapped\":{},",
+                "\"candidate_stage_initial_127_deferred_decay_wrapped\":{}}}"
             ),
             sample.call_index,
             sample.slot,
