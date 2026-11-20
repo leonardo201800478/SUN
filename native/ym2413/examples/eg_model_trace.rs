@@ -92,6 +92,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         [make_generator(127)?, make_generator(127)?];
     let mut initial_silent_wrapped_deferred: [EnvelopeGenerator; 2] =
         [make_generator(127)?, make_generator(127)?];
+    let mut initial_silent_deferred_unwrapped: [EnvelopeGenerator; 2] =
+        [make_generator(127)?, make_generator(127)?];
 
     let parameters = EnvelopeParameters {
         attack_rate: 10,
@@ -161,6 +163,26 @@ fn main() -> Result<(), Box<dyn Error>> {
                     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         }
 
+        let deferred_unwrapped_before =
+            initial_silent_deferred_unwrapped[generator_index].export_state();
+        let deferred_unwrapped_result =
+            initial_silent_deferred_unwrapped[generator_index]
+                .tick_with_events(
+                    sample.global_counter,
+                    sample.key_on,
+                    is_carrier,
+                    parameters,
+                )
+                .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        if deferred_unwrapped_result.phase_reset_required {
+            let mut deferred_state =
+                initial_silent_deferred_unwrapped[generator_index].export_state();
+            deferred_state.level = deferred_unwrapped_before.level;
+            initial_silent_deferred_unwrapped[generator_index] =
+                EnvelopeGenerator::restore_state(deferred_state)
+                    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        }
+
         println!(
             concat!(
                 "{{\"call_index\":{},\"slot\":{},\"global_counter\":{},",
@@ -171,7 +193,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "\"candidate_reset_initial_127\":{},",
                 "\"candidate_level_initial_127_wrapped\":{},\"candidate_stage_initial_127_wrapped\":{},",
                 "\"candidate_level_initial_127_wrapped_deferred\":{},",
-                "\"candidate_stage_initial_127_wrapped_deferred\":{}}}"
+                "\"candidate_stage_initial_127_wrapped_deferred\":{},",
+                "\"candidate_level_initial_127_deferred_unwrapped\":{},",
+                "\"candidate_stage_initial_127_deferred_unwrapped\":{}}}"
             ),
             sample.call_index,
             sample.slot,
@@ -189,6 +213,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             stage_code(initial_silent_wrapped[generator_index].stage()),
             initial_silent_wrapped_deferred[generator_index].level(),
             stage_code(initial_silent_wrapped_deferred[generator_index].stage()),
+            initial_silent_deferred_unwrapped[generator_index].level(),
+            stage_code(initial_silent_deferred_unwrapped[generator_index].stage()),
         );
         sample_count += 1;
     }
