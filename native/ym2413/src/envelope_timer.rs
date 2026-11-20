@@ -57,7 +57,7 @@ pub struct EnvelopeRatePhase {
     pub inc_hi: bool,
     /// Consumed rate is in the maximum-rate class.
     pub max_rate: bool,
-    /// Newly prepared rate is zero. This is deliberately a next-rate flag.
+    /// Newly prepared base rate is zero, independent of KSR.
     pub zero_rate: bool,
     /// Counter value visible to the current EG update.
     pub counter_state_prev: u8,
