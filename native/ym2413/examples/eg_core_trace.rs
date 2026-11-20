@@ -104,7 +104,9 @@ fn read_events(path: &Path) -> Result<Vec<Event>, Box<dyn Error>> {
         }
         let fields: Vec<&str> = trimmed.split(',').map(str::trim).collect();
         if fields.len() != 3 {
-            return Err(format!("event line {}: expected three CSV columns", line_index + 1).into());
+            return Err(
+                format!("event line {}: expected three CSV columns", line_index + 1).into(),
+            );
         }
         let event = Event {
             call_index: fields[0].parse()?,
@@ -112,7 +114,11 @@ fn read_events(path: &Path) -> Result<Vec<Event>, Box<dyn Error>> {
             value: fields[2].parse()?,
         };
         if event.port > 1 || previous_call.is_some_and(|previous| event.call_index <= previous) {
-            return Err(format!("event line {}: unordered or invalid OPLL port write", line_index + 1).into());
+            return Err(format!(
+                "event line {}: unordered or invalid OPLL port write",
+                line_index + 1
+            )
+            .into());
         }
         previous_call = Some(event.call_index);
         events.push(event);
@@ -127,31 +133,81 @@ fn compare_sample(core: &Ym2413Core, sample: Sample) -> Vec<&'static str> {
     let operator = eg.operators[usize::from(sample.operator_slot)];
     let mut bad = Vec::new();
 
-    if operator.level != sample.level { bad.push("operator_level"); }
-    if operator.stage as u8 != sample.stage { bad.push("operator_stage"); }
-    if timer.timer != sample.timer { bad.push("timer"); }
-    if timer.carry != sample.carry { bad.push("timer_carry"); }
-    if timer.counter_state != sample.counter_state { bad.push("counter_state"); }
-    if timer.counter_state_prev != sample.counter_state_prev { bad.push("counter_state_prev"); }
-    if timer.shift != sample.shift { bad.push("timer_shift"); }
-    if timer.shift_stop != sample.shift_stop { bad.push("timer_shift_stop"); }
-    if timer.low_lock != sample.low_lock { bad.push("timer_low_lock"); }
-    if timer.shift_lock != sample.shift_lock { bad.push("timer_shift_lock"); }
-    if timer.latched_rate_hi != sample.rate_hi { bad.push("rate_hi"); }
-    if timer.latched_inc_lo != sample.inc_lo { bad.push("inc_lo"); }
-    if timer.latched_inc_hi != sample.inc_hi { bad.push("inc_hi"); }
-    if timer.latched_max_rate != sample.max_rate { bad.push("max_rate"); }
-    if timer.latched_zero_rate != sample.zero_rate { bad.push("zero_rate"); }
-    if timer.pending_rate != sample.rate { bad.push("rate"); }
-    if eg.eg_kon != sample.eg_kon { bad.push("eg_kon"); }
-    if eg.eg_off != sample.eg_off { bad.push("eg_off"); }
-    if eg.eg_dokon != sample.eg_dokon { bad.push("eg_dokon"); }
-    if eg.eg_sl != sample.eg_sl { bad.push("eg_sl"); }
-    if eg.pending_sustain_level != sample.pending_sustain_level { bad.push("pending_sustain_level"); }
-    if state.rm_select != sample.rm_select { bad.push("rm_select"); }
-    if state.rm_enable as u8 != sample.rm_enable { bad.push("rm_enable"); }
-    if state.registers[0x0e] & 0x3f != sample.rhythm_bits { bad.push("rhythm_bits"); }
-    if core.slot_index() != (sample.cycle + 1) % 18 { bad.push("slot_index"); }
+    if operator.level != sample.level {
+        bad.push("operator_level");
+    }
+    if operator.stage as u8 != sample.stage {
+        bad.push("operator_stage");
+    }
+    if timer.timer != sample.timer {
+        bad.push("timer");
+    }
+    if timer.carry != sample.carry {
+        bad.push("timer_carry");
+    }
+    if timer.counter_state != sample.counter_state {
+        bad.push("counter_state");
+    }
+    if timer.counter_state_prev != sample.counter_state_prev {
+        bad.push("counter_state_prev");
+    }
+    if timer.shift != sample.shift {
+        bad.push("timer_shift");
+    }
+    if timer.shift_stop != sample.shift_stop {
+        bad.push("timer_shift_stop");
+    }
+    if timer.low_lock != sample.low_lock {
+        bad.push("timer_low_lock");
+    }
+    if timer.shift_lock != sample.shift_lock {
+        bad.push("timer_shift_lock");
+    }
+    if timer.latched_rate_hi != sample.rate_hi {
+        bad.push("rate_hi");
+    }
+    if timer.latched_inc_lo != sample.inc_lo {
+        bad.push("inc_lo");
+    }
+    if timer.latched_inc_hi != sample.inc_hi {
+        bad.push("inc_hi");
+    }
+    if timer.latched_max_rate != sample.max_rate {
+        bad.push("max_rate");
+    }
+    if timer.latched_zero_rate != sample.zero_rate {
+        bad.push("zero_rate");
+    }
+    if timer.pending_rate != sample.rate {
+        bad.push("rate");
+    }
+    if eg.eg_kon != sample.eg_kon {
+        bad.push("eg_kon");
+    }
+    if eg.eg_off != sample.eg_off {
+        bad.push("eg_off");
+    }
+    if eg.eg_dokon != sample.eg_dokon {
+        bad.push("eg_dokon");
+    }
+    if eg.eg_sl != sample.eg_sl {
+        bad.push("eg_sl");
+    }
+    if eg.pending_sustain_level != sample.pending_sustain_level {
+        bad.push("pending_sustain_level");
+    }
+    if state.rm_select != sample.rm_select {
+        bad.push("rm_select");
+    }
+    if state.rm_enable as u8 != sample.rm_enable {
+        bad.push("rm_enable");
+    }
+    if state.registers[0x0e] & 0x3f != sample.rhythm_bits {
+        bad.push("rhythm_bits");
+    }
+    if core.slot_index() != (sample.cycle + 1) % 18 {
+        bad.push("slot_index");
+    }
 
     bad
 }
@@ -183,7 +239,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 sample.call_index,
                 core.slot_index(),
                 sample.cycle
-            ).into());
+            )
+            .into());
         }
 
         while event_index < events.len() && events[event_index].call_index == sample.call_index {
@@ -219,7 +276,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             let state = core.export_state();
             let restored = Ym2413Core::restore_state(state.clone())?;
             if restored.export_state() != state {
-                return Err(format!("core save-state round trip changed at call {}", sample.call_index).into());
+                return Err(format!(
+                    "core save-state round trip changed at call {}",
+                    sample.call_index
+                )
+                .into());
             }
             core = restored;
         }
