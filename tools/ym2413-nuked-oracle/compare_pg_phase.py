@@ -101,6 +101,7 @@ def main() -> int:
 
         mismatches = []
         wrap_events = 0
+        active_phase_slots = set()
         previous_rust_phases = [0] * 18
         for nuked, rust in zip(samples, rust_rows, strict=True):
             if nuked["call_index"] != rust["call_index"]:
@@ -115,6 +116,8 @@ def main() -> int:
                 actual = int(rust_phase)
                 if actual < previous_rust_phases[slot]:
                     wrap_events += 1
+                if actual != 0:
+                    active_phase_slots.add(slot)
                 if expected != actual and len(mismatches) < 20:
                     mismatches.append(
                         {
@@ -131,6 +134,13 @@ def main() -> int:
                     pass
             previous_rust_phases = [int(value) for value in rust["phases"]]
 
+    if wrap_events == 0:
+        raise ValueError("phase test did not exercise a 19-bit accumulator wrap")
+    if active_phase_slots != set(range(18)):
+        raise ValueError(
+            f"phase test did not activate all 18 slots: {sorted(active_phase_slots)}"
+        )
+
     if mismatches:
         print(json.dumps({"status": "FAIL", "first_mismatches": mismatches}, indent=2))
         return 1
@@ -143,6 +153,7 @@ def main() -> int:
                 "phase_slots_per_call": 18,
                 "phase_values_compared": len(samples) * 18,
                 "rust_19_bit_wrap_events": wrap_events,
+                "active_phase_slots": sorted(active_phase_slots),
                 "comparison": "Nuked pg_phase[18] low 19 bits vs Rust PhaseGenerator[18]",
                 "scope": "18-slot accumulator pipeline with no KEY-ON/reset events",
             },
