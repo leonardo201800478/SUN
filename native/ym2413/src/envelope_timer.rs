@@ -32,9 +32,9 @@ pub struct EnvelopeTimerState {
     pub low_lock: u8,
     /// High-phase slot captured at the lock boundary.
     pub shift_lock: u8,
-    /// Rate prepared for consumption by the next slot.
+    /// Composed rate selected by the preceding EG update, awaiting timer phase conversion.
     pub pending_rate: u8,
-    /// Base-rate-zero flag prepared for the next timer-latch calculation.
+    /// Base-rate-zero flag selected with pending_rate, used during timer phase conversion.
     pub pending_zero_rate: bool,
     /// Rate phase latches already prepared and consumed by the current EG update.
     pub latched_rate_source: u8,
@@ -50,11 +50,11 @@ pub struct EnvelopeTimerState {
 /// Rate and counter phase prepared for the following operator EG update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EnvelopeRatePhase {
-    /// Previous rate that generated the increment latches for the next slot.
+    /// Rate source used to generate this phase's increment latches.
     pub rate_latch_source: u8,
-    /// Newly calculated rate, consumed by the timer pipeline on the next slot.
+    /// Newly selected rate submitted to the timer pipeline for a later update.
     pub next_rate: u8,
-    /// Whether the newly calculated base rate is zero (independent of KSR).
+    /// Whether the newly selected base rate is zero (independent of KSR).
     pub next_zero_rate: bool,
     /// Upper four bits of the rate phase represented by this record.
     pub rate_hi: u8,
@@ -64,7 +64,7 @@ pub struct EnvelopeRatePhase {
     pub inc_hi: bool,
     /// Rate phase is in the maximum-rate class.
     pub max_rate: bool,
-    /// Newly prepared base rate is zero, independent of KSR.
+    /// Base-rate-zero flag associated with the prepared phase.
     pub zero_rate: bool,
     /// Counter value visible to the current EG update.
     pub counter_state_prev: u8,
