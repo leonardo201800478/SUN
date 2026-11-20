@@ -652,6 +652,72 @@ jobs:
           assert gear[1]["noise_rate"] == 3
           PY
 
+      - name: Generate noise-rate transition and Tone 2 tracking events
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > artifacts/psg-noise-rates-events.csv <<'EOF'
+          # tick,byte
+          0,0xC7
+          0,0xE4
+          0,0xF0
+          256,0xE5
+          512,0xE6
+          768,0xE7
+          800,0xC8
+          832,0xC0
+          864,0xC1
+          896,0xC7
+          1024,0xE3
+          1100,0xE7
+          1200,0xE4
+          EOF
+
+      - name: Capture all pinned PSG oracles and Rust noise-rate trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/psg-crabemu-trace" \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > artifacts/psg-noise-rates-crabemu.jsonl
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > artifacts/psg-noise-rates-core.jsonl
+          "$RUNNER_TEMP/psg-gearsystem-trace" \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > artifacts/psg-noise-rates-gearsystem.jsonl
+          "$RUNNER_TEMP/psg-ares-trace" \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > artifacts/psg-noise-rates-ares.jsonl
+          "$RUNNER_TEMP/psg-crabemu-trace" \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > "$RUNNER_TEMP/psg-noise-rates-crabemu-repeat.jsonl"
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > "$RUNNER_TEMP/psg-noise-rates-core-repeat.jsonl"
+          "$RUNNER_TEMP/psg-gearsystem-trace" \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > "$RUNNER_TEMP/psg-noise-rates-gearsystem-repeat.jsonl"
+          "$RUNNER_TEMP/psg-ares-trace" \
+            --calls 1400 --events artifacts/psg-noise-rates-events.csv \
+            > "$RUNNER_TEMP/psg-noise-rates-ares-repeat.jsonl"
+          cmp artifacts/psg-noise-rates-crabemu.jsonl "$RUNNER_TEMP/psg-noise-rates-crabemu-repeat.jsonl"
+          cmp artifacts/psg-noise-rates-core.jsonl "$RUNNER_TEMP/psg-noise-rates-core-repeat.jsonl"
+          cmp artifacts/psg-noise-rates-gearsystem.jsonl "$RUNNER_TEMP/psg-noise-rates-gearsystem-repeat.jsonl"
+          cmp artifacts/psg-noise-rates-ares.jsonl "$RUNNER_TEMP/psg-noise-rates-ares-repeat.jsonl"
+
+      - name: Compare noise-rate transitions and Tone 2 tracking at identical ticks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/psg-crabemu-oracle/compare.py \
+            artifacts/psg-noise-rates-crabemu.jsonl \
+            artifacts/psg-noise-rates-core.jsonl \
+            artifacts/psg-noise-rates-gearsystem.jsonl \
+            artifacts/psg-noise-rates-ares.jsonl \
+            > artifacts/psg-noise-rates-comparison.json
+          cat artifacts/psg-noise-rates-comparison.json
+
       - name: Compare same-tick PSG traces without waveform alignment
         shell: bash
         run: |
