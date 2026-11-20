@@ -355,7 +355,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             register_bus.begin_clock(sample.cycle);
         }
 
-        let mut decoded_input = if register_mode && register_bus.rhythm & 0x20 == 0 {
+        let mut decoded_input = if register_mode {
             decode_register_input(&register_bus.registers, sample.cycle)?
         } else {
             sample.input
