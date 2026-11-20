@@ -1281,9 +1281,9 @@ mod windows_host {
                                     Text { font-size: 16px; text: "Runtime e CPU"; color: #F1F5FA; }
                                     CompactButton { text: "Capturar snapshot da CPU"; enabled: root.has-rom && root.diagnostics-enabled; clicked => { root.debug-snapshot-requested(); } }
                                     CompactButton { text: root.trace-enabled ? "Desativar modo Debugger" : "Ativar modo Debugger"; enabled: root.has-rom && root.active-system != "sg1000" && root.diagnostics-enabled; clicked => { root.trace-enabled = !root.trace-enabled; root.trace-toggle-requested(root.trace-enabled); } }
-                                    CompactButton { text: "Exportar trace para arquivo"; enabled: root.has-rom && root.trace-enabled && root.diagnostics-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
+                                    CompactButton { text: "Exportar diagnóstico RAM/trace"; enabled: root.has-rom && root.diagnostics-enabled && root.active-system != "sg1000"; clicked => { root.trace-export-requested(); } }
                                     Text { font-size: 11px; text: root.debug-status; color: rgb(142, 171, 255); wrap: word-wrap; }
-                                    Text { font-size: 10px; text: "A GUI solicita snapshots e traces; não executa instruções nem controla ciclos."; color: #B4C0D0; wrap: word-wrap; }
+                                    Text { font-size: 10px; text: "Trace essencial RAM-only sempre ativo; modo Debugger habilita coleta detalhada. Exportação exige autorização e confirmação."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
                             Rectangle { height: 112px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
@@ -3116,11 +3116,11 @@ mod windows_host {
             [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
             $dialog = New-Object System.Windows.Forms.SaveFileDialog
             $dialog.Title = 'Exportar diagnóstico do Sega Master System'
-            $dialog.Filter = 'Trace SMS (*.txt)|*.txt|Todos os arquivos (*.*)|*.*'
+            $dialog.Filter = 'Diagnóstico SMS (*.txt)|*.txt|Todos os arquivos (*.*)|*.*'
             $dialog.DefaultExt = 'txt'
             $dialog.AddExtension = $true
             $dialog.OverwritePrompt = $true
-            $dialog.FileName = 'sms-bus-trace.txt'
+            $dialog.FileName = 'sms-diagnostic-trace.txt'
             if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                 [Console]::Out.Write($dialog.FileName)
             }
@@ -4730,14 +4730,11 @@ mod windows_host {
                     };
                     worker.debug_snapshot()?
                 };
-                if !snapshot.trace_enabled {
-                    return Err("Ative o trace antes de exportar".to_owned());
-                }
-
                 let mut report = format!(
-                    "SEGA EMULATOR — SMS BUS TRACE\nformat_version=1\nframe={}\nmachine_time_ticks={}\ntrace_enabled={}\ntrace_events={}\ntrace_dropped={}\nPC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} IX={:04X} IY={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={}\nVDP_STATUS={:02X} VDP_SCANLINE={} VDP_CYCLES_INTO_LINE={}\nMAPPER_BANKS={:02X},{:02X},{:02X} MAPPER_CONTROL={:02X} MEMORY_CONTROL={:02X}\n\nEVENTS (oldest first)\n",
+                    "SEGA EMULATOR — SMS DIAGNOSTIC TRACE\nformat_version=2\nframe={}\nmachine_time_ticks={}\ndetailed_trace_enabled={}\ndetailed_trace_events={}\ndetailed_trace_buffer_dropped={}\ndetailed_trace_dropped_total={}\nessential_trace_events={}\nessential_trace_dropped={}\nPC={:04X} SP={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} IX={:04X} IY={:04X} I={:02X} R={:02X} IFF1={} IFF2={} IM={} HALT={}\nVDP_STATUS={:02X} VDP_SCANLINE={} VDP_CYCLES_INTO_LINE={}\nMAPPER_BANKS={:02X},{:02X},{:02X} MAPPER_CONTROL={:02X} MEMORY_CONTROL={:02X}\n\nESSENTIAL_EVENTS (oldest first)\n",
                     snapshot.frame_number, snapshot.machine_time_ticks, snapshot.trace_enabled,
-                    snapshot.trace_events.len(), snapshot.trace_dropped,
+                    snapshot.trace_events.len(), snapshot.trace_buffer_dropped, snapshot.trace_dropped,
+                    snapshot.essential_trace_events.len(), snapshot.essential_trace_dropped,
                     snapshot.pc, snapshot.sp, snapshot.af, snapshot.bc, snapshot.de, snapshot.hl,
                     snapshot.ix, snapshot.iy, snapshot.i, snapshot.r, snapshot.iff1, snapshot.iff2,
                     snapshot.interrupt_mode, snapshot.halted, snapshot.vdp_status,
@@ -4745,6 +4742,10 @@ mod windows_host {
                     snapshot.mapper_banks[0], snapshot.mapper_banks[1], snapshot.mapper_banks[2],
                     snapshot.mapper_control, snapshot.memory_control
                 );
+                for (index, event) in snapshot.essential_trace_events.iter().enumerate() {
+                    report.push_str(&format!("{index:04} {event:?}\n"));
+                }
+                report.push_str("\nDETAILED_EVENTS (opt-in, oldest first)\n");
                 for (index, event) in snapshot.trace_events.iter().enumerate() {
                     report.push_str(&format!("{index:04} {event:?}\n"));
                 }
@@ -4758,9 +4759,9 @@ mod windows_host {
             })();
             if let Some(app) = trace_export_app.upgrade() {
                 let status = match result {
-                    Ok(Some(path)) => format!("Trace exportado: {}", path.display()),
+                    Ok(Some(path)) => format!("Diagnóstico exportado: {}", path.display()),
                     Ok(None) => "Exportação do trace cancelada; nenhum arquivo foi gravado.".to_owned(),
-                    Err(error) => format!("Falha ao exportar trace: {error}"),
+                    Err(error) => format!("Falha ao exportar diagnóstico: {error}"),
                 };
                 app.set_debug_status(status.into());
             }

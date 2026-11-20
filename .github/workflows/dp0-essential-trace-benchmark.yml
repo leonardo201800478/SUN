@@ -1,0 +1,172 @@
+name: DP0 Essential Trace A/B Benchmark
+
+on:
+  pull_request:
+    paths:
+      - "native/sms_core/src/temporal_machine.rs"
+      - "native/sms_core/examples/dp0_trace_overhead.rs"
+      - ".github/workflows/dp0-essential-trace-benchmark.yml"
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: "Baseline commit SHA (defaults to main)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release-ab:
+    name: Release A/B — baseline vs essential trace
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+
+      - name: Resolve benchmark baseline (PR merge-base or explicit SHA)
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA_INPUT: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${BASE_REF:-}" ]]; then
+            # Compare the PR change against its actual common ancestor. The
+            # branch may intentionally omit a merge commit already on main;
+            # benchmarking against the current base tip would mix unrelated
+            # base-branch changes into the measured delta.
+            git fetch origin "$BASE_REF" --no-tags
+            BASE_SHA="$(git merge-base "$HEAD_SHA" FETCH_HEAD)"
+          elif [[ -n "${BASE_SHA_INPUT:-}" ]]; then
+            # workflow_dispatch may pin an explicit baseline for reproduction.
+            git fetch --no-tags origin "$BASE_SHA_INPUT"
+            BASE_SHA="$BASE_SHA_INPUT"
+          else
+            git fetch origin main --no-tags
+            BASE_SHA="$(git merge-base "$HEAD_SHA" FETCH_HEAD)"
+          fi
+          if [[ -z "$BASE_SHA" ]]; then
+            echo "Unable to resolve a common benchmark baseline" >&2
+            exit 1
+          fi
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: Run identical Release workload on baseline and PR head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          git fetch --depth=1 origin "$BASE_SHA"
+          git worktree add --detach "$RUNNER_TEMP/dp0-baseline" "$BASE_SHA"
+
+          mkdir -p "$RUNNER_TEMP/dp0-baseline/native/sms_core/examples"
+          cp native/sms_core/examples/dp0_trace_overhead.rs \
+            "$RUNNER_TEMP/dp0-baseline/native/sms_core/examples/dp0_trace_overhead.rs"
+
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/dp0-cargo-target"
+          export BASE_LOG="$RUNNER_TEMP/dp0-baseline.log"
+          export HEAD_LOG="$RUNNER_TEMP/dp0-head.log"
+
+          : > "$BASE_LOG"
+          : > "$HEAD_LOG"
+
+          run_baseline() {
+            (
+              cd "$RUNNER_TEMP/dp0-baseline"
+              cargo run --release --manifest-path native/sms_core/Cargo.toml \
+                --example dp0_trace_overhead
+            )
+          }
+
+          run_head() {
+            (
+              cd "$GITHUB_WORKSPACE"
+              cargo run --release --manifest-path native/sms_core/Cargo.toml \
+                --example dp0_trace_overhead
+            )
+          }
+
+          # Alternate execution order to reduce systematic runner/thermal drift.
+          for order in base-head head-base base-head head-base; do
+            if [[ "$order" == "base-head" ]]; then
+              run_baseline | tee -a "$BASE_LOG"
+              run_head | tee -a "$HEAD_LOG"
+            else
+              run_head | tee -a "$HEAD_LOG"
+              run_baseline | tee -a "$BASE_LOG"
+            fi
+          done
+
+          python3 - <<'PY'
+          import re
+          import statistics
+          from pathlib import Path
+
+          pattern = re.compile(
+              r"DP0_BENCH scenario=(\S+) sample=\d+ frames=\d+ "
+              r"instructions=(\d+) ticks=(\d+) elapsed_ns=\d+ "
+              r"ns_per_instruction=([0-9.]+)"
+          )
+
+          def read_samples(path):
+              found = {}
+              for line in Path(path).read_text(encoding="utf-8").splitlines():
+                  match = pattern.search(line)
+                  if match:
+                      found.setdefault(match.group(1), []).append(
+                          (float(match.group(4)), int(match.group(2)), int(match.group(3)))
+                      )
+              return found
+
+          import os
+          baseline = read_samples(os.environ["BASE_LOG"])
+          head = read_samples(os.environ["HEAD_LOG"])
+          scenarios = sorted(set(baseline) & set(head))
+          if not scenarios:
+              raise SystemExit("No matching benchmark samples were produced")
+
+          lines = [
+              "## DP0 Release A/B benchmark",
+              "",
+              f"Baseline commit: `{__import__('os').environ.get('BASE_SHA', 'main')}`",
+              f"PR head: `{__import__('os').environ.get('HEAD_SHA', 'unknown')}`",
+              "",
+              "| Workload | Samples/revision | Baseline median (ns/instruction) | PR median (ns/instruction) | Overhead |",
+              "|---|---:|---:|---:|---:|",
+          ]
+          for scenario in scenarios:
+              if len(baseline[scenario]) < 15 or len(head[scenario]) < 15:
+                  raise SystemExit(f"Insufficient paired samples for {scenario}")
+              baseline_progress = [(item[1], item[2]) for item in baseline[scenario]]
+              head_progress = [(item[1], item[2]) for item in head[scenario]]
+              if baseline_progress != head_progress:
+                  raise SystemExit(f"Instruction count or machine-time divergence in {scenario}")
+              base = statistics.median(item[0] for item in baseline[scenario])
+              current = statistics.median(item[0] for item in head[scenario])
+              overhead = (current / base - 1.0) * 100.0
+              lines.append(
+                  f"| {scenario} | {len(baseline[scenario])} | {base:.3f} | {current:.3f} | {overhead:+.2f}% |"
+              )
+
+          lines.extend([
+              "",
+              "Measurements use four alternating A/B pairs (20 samples per revision) on the same Release runner.",
+              "This is a comparative CI measurement, not a substitute for a local Windows hardware benchmark.",
+          ])
+          summary = "\n".join(lines) + "\n"
+          print(summary)
+          with open(__import__('os').environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write(summary)
+          PY

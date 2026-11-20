@@ -1,6 +1,6 @@
 # DP-0 — auditoria inicial de diagnóstico e observabilidade
 
-**Estado:** auditoria parcial; não autoriza declarar DP-0 concluído.
+**Estado histórico:** auditoria parcial na primeira revisão; o fechamento vigente e seus gates estão registrados na seção 12.
 **Baseline auditada originalmente:** `main` em `a58edc27dc6c07df019987d904a49c18fb972172`.
 **Reavaliação integrada:** `main` em `cbcbdc531ba32ef933161349c2e860b96df0e95c` (20/11/2026), registrada na seção 9.
 **Data:** 2026-11-20.
@@ -234,7 +234,7 @@ A auditoria consolidada nas seções 10.2, 10.6, 10.7 e no inventário `dp0-host
 | Host Slint | 43 callsites inventariados por target, nível e campos; eventos estruturados sem campo `message` arbitrário; métricas periódicas em TRACE; gate central via `LoggingHandle`. |
 | Runtime compartilhado | 15 módulos de produção com eventos `tracing` classificados; eventos de Scheduler, Z80, barramento, VDP, PSG, áudio e vídeo ficam inertes com filtro `off` e só são coletados após opt-in. |
 | Writer e fila | `tracing-appender 0.2.5` usa fila non-blocking; fila/arquivo/ring host-side só são ativados após consentimento; revogação fecha o sink e descarta itens pendentes. O `SwitchableMakeWriter` usa `try_read`: se a troca do writer estiver em andamento, descarta o evento em vez de bloquear a thread chamadora. |
-| CLI e debugger standalone | Saída de console classificada como interface explícita de ferramenta; relatório do SMS Debugger somente após diálogo de Save e confirmação do destino. O relatório inclui apenas o nome do arquivo ROM, nunca o diretório local privado. Não é coleta automática do desktop. |
+| CLI e debugger legado | Saída de console classificada como interface explícita de ferramenta. O host egui do SMS Debugger é legado e está fora do baseline ativo; seu workflow declara NOT RUN e não recebeu novas alterações DP0. O host Slint ativo tem exportação própria, protegida pelo consentimento central, sem incluir o caminho local da ROM. |
 | Examples, testes e smoke tests | Saídas stdout/stderr, CSV/WAV/trace e arquivos temporários classificados como artefatos de desenvolvimento/validação, fora dos bins do produto. |
 | Build e CI | `cargo:rustc-env`, logs de workflow e artefatos classificados como build/CI, fora do consentimento de runtime. |
 | Persistência funcional | SRAM, firmware, preferências, ROMs recentes e bindings separados de telemetria; cada operação tem finalidade funcional ou ação explícita. Caminhos locais permanecem dados do ambiente e não são copiados para o relatório de diagnóstico do desktop. |
@@ -266,10 +266,68 @@ Limite residual: esta é uma auditoria estática de código-fonte e workflows do
 
 ### 11.5 Estado da validação F7
 
-**Benchmark A/B Release: PASS.** Workflow run #27 comparou a base atual #1107 `dd09c136c71bbbf5b998578e80613e93bd07971c` com o head #1116 `7b4f98c78cd51bcf636912af9b59084fdf3755ec`, usando quatro pares A/B alternados e 20 amostras por revisão. Overhead mediano: **+1,14% bus-heavy** e **+1,13% relative-loop**. As contagens de instruções e ticks de máquina foram idênticas em todas as amostras. O workflow resolve a ponta atual da branch base, não o SHA congelado na criação da PR.
+**Benchmark A/B Release: PASS.** Workflow run #28 comparou a base final #1107 `a0baa862e11b4551990f49b2c56c1cf791316164` com o head final #1117 `a13c4a04a5ce7b300a0919c2841172e40b7fc3ac`, usando quatro pares A/B alternados e 20 amostras por revisão. Resultado: **-0,37% bus-heavy** e **-0,84% relative-loop**. As contagens de instruções e ticks de máquina foram idênticas em todas as amostras.
 
-**CI integral: PENDING no último checkpoint.** Na base #1107, workspace, Z80, Scheduler, VDP, SDL3, input, PowerShell, SMS Runtime Release e observabilidade Windows x64 Debug/Release concluíram SUCCESS; CPAL e Slint/WGPU/Vulkan Windows ainda estavam em execução. Na PR #1116, documentação, workflow, input, VDP e Scheduler concluíram SUCCESS; workspace, Z80, SDL3, Slint/WGPU/Vulkan Windows e SMS Runtime Release ainda estavam em execução. Jobs SKIPPED não são tratados como PASS quando não aplicáveis.
+O run #27 anterior, também com 20 amostras, mediu +1,14%/+1,13%. A variação entre execuções demonstra ruído do runner. A mediana dos dois resultados é **+0,39% bus-heavy** e **+0,15% relative-loop**, sem regressão mensurável relevante. O resultado é comparativo Linux CI, não benchmark físico no PC Windows.
+
+**CI integral: PENDING no último checkpoint.** Na base #1107, workspace, Z80, Scheduler, VDP, input, SDL3, PowerShell, SMS Runtime Release e observabilidade Windows x64 Debug/Release concluíram SUCCESS; CPAL e Slint/WGPU/Vulkan Windows ainda estavam em execução. Na PR #1117, workspace, Z80, Scheduler, VDP, input, SDL3, PowerShell, workflow validation e documentação concluíram SUCCESS; SMS Runtime Release concluiu SUCCESS; Slint/WGPU/Vulkan Windows ainda estava em execução. CPAL é SKIPPED na #1117 por não haver alteração no caminho de áudio; a validação CPAL obrigatória da base #1107 continua em execução.
 
 A validação local no hardware Windows x64 permanece **NOT RUN** e está registrada como follow-up externo; os workflows Windows x64 cobrem compilação/testes automatizados, não substituem medição física no PC do usuário.
 
-**Esta seção supersede a conclusão histórica das seções 10.4, 10.8 e 10.10 para a classificação F6.** As seções anteriores permanecem preservadas como histórico de auditoria e decisões.
+
+## 12. Fechamento F7–F10 — 2026-11-20
+
+**Revisão final vinculada ao GitHub:** base integrada #1107 `a0baa862e11b4551990f49b2c56c1cf791316164`; head da implementação #1117 `350126df6ddf7b62892f362aae7faf29cc3e8437`; merge da #1107 na `main` `bc4664d9f44f6791ad8f8520a57c8744dd647dbf`.
+
+### 12.1 F7 — desempenho e invariantes
+
+**PASS — F7 Benchmark Release A/B; três execuções comparáveis concluídas (#31, #36 e #37).**
+
+- Baseline: `a0baa862e11b4551990f49b2c56c1cf791316164`.
+- Head: `350126df6ddf7b62892f362aae7faf29cc3e8437`.
+- Quatro pares A/B alternados; 20 amostras por revisão e por workload.
+- Instruções e ticks de máquina idênticos em todas as amostras comparadas.
+
+| Workload | Mediana baseline (ns/instruction) | Mediana head (ns/instruction) | Overhead |
+|---|---:|---:|---:|
+| bus-heavy | 1839.052 | 1830.336 | -0.47% |
+| relative-loop | 2048.939 | 2052.317 | +0.16% |
+
+As diferenças são pequenas e compatíveis com ruído normal do runner. Não são tratadas como ganho de desempenho. **Não foi observada regressão mensurável relevante** nos workloads avaliados.
+
+Limites: medição comparativa Linux CI; benchmark físico no PC Windows x64 permanece **NOT RUN**. Os workloads sintéticos não substituem profiling de jogos reais nem demonstram overhead zero.
+
+### 12.2 F8 — regressão e integração de plataforma
+
+**PASS — CI #9429** (workflow run ID `44836664882`) no head final `62314a679429d374bb958f16008afc2a7b927192`; todos os gates obrigatórios aplicáveis concluíram com sucesso. A CI #9422 (run ID `44835163604`) também havia aprovado a implementação original.
+
+- workspace Rust: formato, Clippy, testes e feature runtime de observabilidade;
+- Z80 focused validation, incluindo vetores DD/FD e testes de flags/MEMPTR;
+- Scheduler deterministic stress;
+- SMS1 VDP e integração da máquina;
+- SDL3/Input core e integração de consoles;
+- PowerShell tooling, documentação e validação dos workflows;
+- Windows x64 Slint/WGPU 30/Vulkan: `native/sega_desktop` format, Clippy Release, testes Release (**58 passed, 0 failed**) e build Release.
+
+**PASS — SMS Runtime Release #1714** (run ID `44836664895`, job `136634693106`) no head final: formato, Clippy, testes e build Windows x64 Release aprovados. A execução #1707 também havia aprovado a implementação original.
+
+**PASS — CPAL 0.18.2 na integração da base #1107:** CI #9418 (run ID `44833816014`), job Windows x64 CPAL `136625213918`, com formato, Clippy, testes Release (**21 passed, 0 failed**) e integração/build do host legado aprovados. CPAL foi `SKIPPED` na #9422 porque não houve alteração no caminho de áudio; o skip não é contado como PASS e a validação da base #1107 é a evidência separada.
+
+O job `SMS debugger Windows Release validation` do workflow #1707 foi `SKIPPED`. Ele corresponde ao host egui legado, explicitamente fora do baseline ativo e do escopo da #1117; não é contado como PASS. O host Slint ativo foi validado separadamente pelo gate Windows x64 da #9422.
+
+### 12.3 F9 — auditoria e integração
+
+A comparação `main...350126df6ddf7b62892f362aae7faf29cc3e8437`, antes dos commits documentais finais, identificou merge-base `a0baa862e11b4551990f49b2c56c1cf791316164`, 11 commits de implementação e um commit da main fora do head: o merge-commit da #1107. O head final contém 19 commits (11 commits de implementação e oito commits documentais/de workflow) e 11 caminhos modificados no total; os oito caminhos do diff original foram mantidos e três caminhos documentais adicionais foram atualizados. As alterações da #1107 não foram duplicadas. A divergência é estrutural e não justifica rebase destrutivo.
+
+A PR #1117 permanece responsável exclusivamente pelo ring essencial SMS, integração do snapshot/export, benchmark e documentação correspondente. A integração na main e a validação pós-merge devem ser registradas após o merge efetivo; este registro não antecipa esse resultado.
+
+### 12.4 F10 — documentação, limitações e estado
+
+- Esta auditoria consolida os resultados F7/F8 e a rastreabilidade da #1117.
+- O inventário dos 43 callsites Slint e dos 15 módulos de produção com tracing permanece referenciado no documento complementar.
+- ADR 0013 permanece a política normativa: trace essencial RAM-first, logging detalhado opt-in, exportação consentida e ausência de crash files automáticos.
+- O estado de validação do debugger compartilhado foi atualizado para distinguir o host Slint ativo do host egui legado.
+- Pendências externas: benchmark físico Windows x64 e smoke test interativo no hardware Windows do usuário permanecem **NOT RUN**.
+- Nenhum job `SKIPPED` foi promovido a PASS.
+
+**Estado nesta revisão:** a implementação e a auditoria estrutural estão concluídas; F7 aguarda a terceira repetição comparável (#37), e F8 aguarda a revalidação do head final (#9428/#1713). O DP0 só poderá ser declarado formalmente concluído após esses gates, merge confirmado da #1117 na main e validação pós-merge do commit resultante.

@@ -1,6 +1,6 @@
 # Shared Debugger MVP — Architecture and Delivery Plan
 
-Status: SMS debugger is integrated into the application as a separate native viewport; user-settings persistence is implemented; final Release validation is pending
+Status: DP0 SMS diagnostic trace and snapshot/export integration is implemented. The active Slint desktop passed Windows x64 Release format, Clippy, 58 tests and build in CI #9422. Interactive smoke test on physical Windows hardware remains NOT RUN.
 Scope owner: emulator runtime; GUI is a presentation and command surface only.
 
 ## Objective
@@ -42,7 +42,12 @@ The SMS adapter should expose:
 - recent bus events with machine timestamp, operation, address, data, base T-states and WAIT states;
 - an instruction breakpoint and single-instruction command.
 
-The existing `SmsTemporalMachine::set_trace_enabled` / `take_trace` API is the event source. The runtime worker drains it after each frame or paused command into a 2,048-event FIFO history. Overflow discards the oldest event and increments the dropped counter. Capture is opt-in and disabling it clears both pending and retained events; the underlying machine trace vector is drained at each worker boundary.
+SMS now exposes two separate trace levels:
+
+- **Essential trace:** a fixed-capacity 2,048-event ring owned by `SmsTemporalMachine`, always active in RAM and independent of debugger/logging consent. It retains selected bus completions (including WAIT counts), sampled Z80 prefixes, effective INT-line transitions and execution faults with timestamp, PC and opcode when available. Routine M1 pin/T-state transitions are excluded to avoid per-T-state capture. Overflow overwrites the oldest event and increments a monotonic counter. The worker exposes a non-destructive snapshot through `SmsDebugSnapshot`.
+- **Detailed trace:** the legacy event stream remains opt-in. Its machine-side buffer is allocated only after explicit enable, is bounded to 2,048 events, and counts overwrites. It preserves the legacy event sequence; disabling detailed capture releases its buffer without clearing essential history. The worker drains detailed events at frame/paused-command boundaries into the separately bounded debugger collector.
+
+Neither trace is serialized into Save States. The essential ring is not cleared when consent is revoked; it is not written to disk automatically. Export requires the central diagnostics consent and a separate explicit user action, and includes both essential and, when enabled, detailed events.
 
 ## GUI
 
@@ -53,10 +58,10 @@ A dedicated, independently movable and resizable native Debugger window should e
 - a hexadecimal PC breakpoint field with Add / Remove / Clear;
 - CPU and hardware summary;
 - memory address + short hex/ASCII view;
-- recent events and dropped-event count (trace capture is opt-in; the GUI refreshes live snapshots at 10 Hz while running);
+- essential RAM trace and dropped-event count (always active in memory), plus detailed events and their drop count when explicitly enabled; the GUI refreshes live snapshots at 10 Hz while running;
 - export report to a user-selected local file.
 
-The GUI sends commands and renders snapshots only. It must not execute instructions, advance machine time, decode hardware state or own hardware timing. The debugger is opened from DEBUG > Abrir janela do Debugger and is hosted by an egui deferred native viewport, not embedded over the game viewport. The deferred viewport has independent repaint scheduling; it uses a cloneable command handle to the existing worker rather than taking ownership or creating a second machine.
+The egui deferred native viewport described in earlier implementation notes belongs to the deprecated host and is outside the active product baseline. The active product host is Slint 1.18 in `native/sega_desktop`; its callbacks issue coarse-grained commands and request snapshots from the existing `SmsTemporalWorker`. The GUI sends commands and renders snapshots only. It must not execute instructions, advance machine time, decode hardware state or own hardware timing.
 
 User-configurable frontend preferences are auto-saved every five seconds and again during orderly shutdown to `%APPDATA%/Sega Emulator/ui_settings.txt`. This includes the last ROM path field (without auto-loading it), region, aspect ratio, footer visibility, audio backend/state/volume, diagnostics preference, FPS overlay settings, debugger open state, ROM-scoped breakpoint list, memory-inspection address, trace preference, and main/debugger window geometry. Keyboard and gamepad mappings, the last ROM-picker directory and recent ROM paths continue to use their existing files in the same user directory. The emulator does not automatically load a ROM on startup.
 
@@ -66,7 +71,7 @@ A new console adds an adapter that maps its native CPU/machine state into the sh
 
 ## Safety and privacy
 
-- Trace capture is opt-in and bounded.
+- Essential trace is always active in bounded RAM; detailed trace capture is opt-in and bounded.
 - Diagnostic files are local and user-requested.
 - Never include ROM bytes, BIOS bytes, copyrighted instruction dumps or full memory images in GitHub issues/PRs.
 - Do not change emulation behavior to make debugging easier.
@@ -78,7 +83,7 @@ A new console adds an adapter that maps its native CPU/machine state into the sh
 - Unit tests for breakpoint uniqueness, capacity, ordering and removal.
 - Unit tests proving bounded history never exceeds capacity and counts discarded entries.
 - SMS integration tests for step, breakpoint stop/resume, snapshots and bounded trace draining;
-- runtime trace test proving capture is disabled by default, events are exposed in order, and disabling clears the history.
+- runtime tests proving essential trace is always active and consent-independent, both buffers are bounded with drop accounting, detailed trace remains opt-in, and revocation does not clear essential history.
 - GUI tests for command wiring where practical.
 - Required repository gates: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo test --workspace --locked`.
 - Classify every suite as PASS, FAIL, BLOCKED or NOT RUN; skipped suites are not PASS.
