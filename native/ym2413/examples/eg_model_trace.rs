@@ -7,7 +7,7 @@
 
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
-    EnvelopeParameters, EnvelopeStage,
+    EnvelopeParameters, EnvelopeRatePhase, EnvelopeStage,
 };
 use std::error::Error;
 use std::fs::File;
@@ -25,6 +25,7 @@ struct Sample {
     observed_level: u8,
     observed_state: u8,
     parameters: EnvelopeParameters,
+    rate_phase: EnvelopeRatePhase,
 }
 
 fn parse_bool(value: &str, line_number: usize) -> Result<bool, Box<dyn Error>> {
@@ -37,8 +38,8 @@ fn parse_bool(value: &str, line_number: usize) -> Result<bool, Box<dyn Error>> {
 
 fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>> {
     let fields: Vec<&str> = line.split(',').map(str::trim).collect();
-    if fields.len() != 17 {
-        return Err(format!("line {line_number}: expected 17 CSV columns").into());
+    if fields.len() != 22 {
+        return Err(format!("line {line_number}: expected 22 CSV columns").into());
     }
     let slot: u8 = fields[1].parse()?;
     if slot >= 18 {
@@ -64,6 +65,13 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
             sustain_on: parse_bool(fields[15], line_number)?,
             sustained_tone: parse_bool(fields[16], line_number)?,
         },
+        rate_phase: EnvelopeRatePhase::from_consumed_latches(
+            fields[17].parse()?,
+            parse_bool(fields[18], line_number)?,
+            parse_bool(fields[19], line_number)?,
+            parse_bool(fields[20], line_number)?,
+            fields[21].parse()?,
+        ),
     })
 }
 
@@ -109,6 +117,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut initial_silent_wrapped_deferred = make_generators(127)?;
     let mut initial_silent_deferred_unwrapped = make_generators(127)?;
     let mut initial_silent_deferred_decay_phase_minus3 = make_generators(127)?;
+    let mut initial_silent_deferred_external_rate_phase = make_generators(127)?;
 
     let mut sample_count = 0_u64;
     for (line_index, line) in input.lines().enumerate() {
@@ -213,6 +222,29 @@ fn main() -> Result<(), Box<dyn Error>> {
                 initial_silent_deferred_decay_phase_minus3[generator_index].export_state();
             state.level = decay_phase_minus3_before.level;
             initial_silent_deferred_decay_phase_minus3[generator_index] =
+                EnvelopeGenerator::restore_state(state)
+                    .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        }
+
+        // Diagnostic candidate: use the exact rate latches consumed by this
+        // Nuked update, independently of the per-operator rate selector.
+        let external_phase_before =
+            initial_silent_deferred_external_rate_phase[generator_index].export_state();
+        let external_phase_defer_attack = external_phase_before.stage == EnvelopeStage::Damp
+            && external_phase_before.level >= 124;
+        let external_phase_result = initial_silent_deferred_external_rate_phase[generator_index]
+            .tick_with_rate_phase(
+                sample.key_on,
+                sample.is_carrier,
+                sample.parameters,
+                sample.rate_phase,
+            )
+            .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        if external_phase_defer_attack && external_phase_result.phase_reset_required {
+            let mut state =
+                initial_silent_deferred_external_rate_phase[generator_index].export_state();
+            state.level = external_phase_before.level;
+            initial_silent_deferred_external_rate_phase[generator_index] =
                 EnvelopeGenerator::restore_state(state)
                     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         }
