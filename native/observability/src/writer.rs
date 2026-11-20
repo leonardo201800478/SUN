@@ -110,7 +110,8 @@ impl FanoutWriter {
 
 impl Write for FanoutWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        let enabled = self.enabled.read().unwrap_or_else(PoisonError::into_inner);
+        let enabled_gate = Arc::clone(&self.enabled);
+        let enabled = enabled_gate.read().unwrap_or_else(PoisonError::into_inner);
         if !*enabled {
             return Ok(buffer.len());
         }
@@ -121,7 +122,8 @@ impl Write for FanoutWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let enabled = self.enabled.read().unwrap_or_else(PoisonError::into_inner);
+        let enabled_gate = Arc::clone(&self.enabled);
+        let enabled = enabled_gate.read().unwrap_or_else(PoisonError::into_inner);
         if !*enabled {
             self.pending.clear();
             return Ok(());
