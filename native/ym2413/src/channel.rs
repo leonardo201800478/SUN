@@ -220,12 +220,6 @@ pub fn envelope_slot_input_for_cycle(
     Ok(channels[usize::from(channel)].envelope_slot_input(carrier))
 }
 
-/// Resolve one melodic channel's patch and all static synthesis parameters.
-///
-/// Instrument code 0 selects the live user patch in registers $00-$07.
-/// Codes 1..15 select the repository's explicitly candidate preset bank.
-/// Channels 7..9 are rejected while Rhythm Mode is active because those
-/// channel resources are assigned to rhythm voices rather than melodic FM.
 /// Decode only the channel/operator selected by this serial EG cycle.
 pub fn decode_envelope_slot_input_for_cycle(
     registers: &[u8; 64],
@@ -241,6 +235,11 @@ pub fn decode_envelope_slot_input_for_cycle(
 }
 
 /// Resolve one melodic channel's patch and all static synthesis parameters.
+///
+/// Instrument code 0 selects the live user patch in registers $00-$07.
+/// Codes 1..15 select the repository's explicitly candidate preset bank.
+/// Channels 7..9 are rejected while Rhythm Mode is active because those
+/// channel resources are assigned to rhythm voices rather than melodic FM.
 pub fn decode_channel_synthesis(
     registers: &[u8; 64],
     channel: u8,
