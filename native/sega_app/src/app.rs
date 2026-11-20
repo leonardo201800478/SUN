@@ -746,7 +746,11 @@ impl SegaApp {
 
         if self.last_settings_save.elapsed() >= Duration::from_secs(5) {
             if let Err(error) = self.save_ui_settings() {
-                eprintln!("Unable to auto-save UI settings: {error}");
+                sega_observability::tracing::warn!(
+                    target: "sega::settings",
+                    event = "ui_settings_autosave_failed",
+                    error = %error
+                );
             }
             self.last_settings_save = Instant::now();
         }
@@ -1777,7 +1781,11 @@ impl Drop for SegaApp {
         // viewport owns the SMS and D3D12 workers; they may emit final events
         // while being stopped and joined.
         if let Err(error) = self.save_ui_settings() {
-            eprintln!("Unable to save UI settings: {error}");
+            sega_observability::tracing::warn!(
+                target: "sega::settings",
+                event = "ui_settings_save_failed",
+                error = %error
+            );
         }
         self.native_viewport.shutdown();
 
@@ -2013,7 +2021,11 @@ fn update_recent_rom_list(recent_roms: &mut Vec<PathBuf>, path: &Path) {
 fn remember_recent_rom(recent_roms: &mut Vec<PathBuf>, path: &Path) {
     update_recent_rom_list(recent_roms, path);
     if let Err(error) = save_recent_roms(recent_roms) {
-        eprintln!("Não foi possível salvar a lista de ROMs recentes: {error}");
+        sega_observability::tracing::warn!(
+            target: "sega::library",
+            event = "recent_roms_save_failed",
+            error = %error
+        );
     }
 }
 
