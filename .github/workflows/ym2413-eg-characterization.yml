@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/ym2413-nuked-oracle/**"
+      - "native/ym2413/**"
       - ".github/workflows/ym2413-eg-characterization.yml"
   workflow_dispatch:
 
@@ -47,6 +48,18 @@ jobs:
         run: |
           python3 tools/ym2413-nuked-oracle/validate_eg_trace.py \
             --trace "$RUNNER_TEMP/eg-trace-a.jsonl" --expected-calls 30000
+
+      - name: Extract complete channel-zero EG control pipeline
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_control_samples.py \
+            --trace "$RUNNER_TEMP/eg-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-control-samples.csv"
+
+      - name: Replay every channel-zero EG update from reset through KEY-ON and KEY-OFF
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_hardware_trace -- "$RUNNER_TEMP/eg-control-samples.csv" \
+            > "$RUNNER_TEMP/eg-hardware-replay.json"
 
       - name: Extract channel-zero EG update samples
         run: |
