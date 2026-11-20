@@ -62,6 +62,24 @@ def main() -> int:
     assert rows, "Rust EG trace is empty"
     calls = [row["call_index"] for row in rows]
     assert len(calls) == len(set(calls)), "duplicate call indices in Rust trace"
+    deferred_level_key = "candidate_level_initial_127_deferred_unwrapped"
+    deferred_stage_key = "candidate_stage_initial_127_deferred_unwrapped"
+    deferred_level_mismatches = [
+        row for row in rows
+        if row[deferred_level_key] != row["observed_level"]
+    ]
+    deferred_stage_mismatches = [
+        row for row in rows
+        if row[deferred_stage_key] != NUKED_TO_RUST_STAGE[row["observed_state"]]
+    ]
+    mismatch_counts_by_counter: dict[int, int] = {}
+    mismatch_counts_by_slot: dict[int, int] = {}
+    for row in deferred_level_mismatches:
+        counter = row["global_counter"]
+        slot = row["slot"]
+        mismatch_counts_by_counter[counter] = mismatch_counts_by_counter.get(counter, 0) + 1
+        mismatch_counts_by_slot[slot] = mismatch_counts_by_slot.get(slot, 0) + 1
+
     summary = {
         "sample_count": len(rows),
         "time_alignment": "exact call_index and per-slot global_counter; no auto-alignment",
@@ -83,6 +101,22 @@ def main() -> int:
             rows, "candidate_level_initial_127_deferred_unwrapped",
             "candidate_stage_initial_127_deferred_unwrapped"
         ),
+        "deferred_unwrapped_detail": {
+            "level_mismatches_by_global_counter": mismatch_counts_by_counter,
+            "level_mismatches_by_slot": mismatch_counts_by_slot,
+            "stage_mismatch_events": [
+                {
+                    "call_index": row["call_index"],
+                    "slot": row["slot"],
+                    "global_counter": row["global_counter"],
+                    "observed_nuked_state": row["observed_state"],
+                    "candidate_rust_stage": row[deferred_stage_key],
+                    "observed_level": row["observed_level"],
+                    "candidate_level": row[deferred_level_key],
+                }
+                for row in deferred_stage_mismatches
+            ],
+        },
         "interpretation": (
             "diagnostic only; mismatches do not select hardware truth or fail this tool"
         ),
