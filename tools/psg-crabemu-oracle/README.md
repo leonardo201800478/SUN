@@ -64,6 +64,40 @@ cargo run --locked -p sega-sn76489 --example psg_state_trace -- \
 
 The sample rate of the Rust core affects its PCM queue/resampler state but not the PSG hardware state. The example defaults to 48 kHz.
 
+## Optional Gearsystem state trace
+
+The same tool directory contains a second project-authored adapter for Gearsystem's SMS APU. It reads the public `Sms_Apu::GetState()` diagnostic state and compiles only the external APU and Blip_Buffer modules from the pinned checkout.
+
+Reference pin:
+
+- Repository: https://github.com/drhelius/Gearsystem
+- Commit: `1be9a12b82cae84ddd6f9b7006d546abe2d58bd4`
+- Source files: `src/audio/Sms_Apu.cpp`, `src/audio/Blip_Buffer.cpp`
+- The repository is GPLv3; the two audio modules carry LGPL-2.1 notices. Oracle only.
+
+Build:
+
+```sh
+git clone https://github.com/drhelius/Gearsystem.git /tmp/gearsystem
+git -C /tmp/gearsystem checkout 1be9a12b82cae84ddd6f9b7006d546abe2d58bd4
+
+g++ -std=c++11 -O2 -Wall -Wextra -include cassert \
+  -I/tmp/gearsystem/src/audio \
+  tools/psg-crabemu-oracle/gearsystem_trace.cpp \
+  /tmp/gearsystem/src/audio/Sms_Apu.cpp \
+  /tmp/gearsystem/src/audio/Blip_Buffer.cpp -lm \
+  -o /tmp/psg-gearsystem-trace
+```
+
+Run with the same CSV schedule:
+
+```sh
+/tmp/psg-gearsystem-trace --calls 600 --events events.csv > gearsystem.jsonl
+python3 tools/psg-crabemu-oracle/compare.py reference.jsonl core.jsonl gearsystem.jsonl
+```
+
+One row advances 16 Z80 T-states (one PSG input-divider period). The adapter attaches a Blip_Buffer so Gearsystem's oscillator state actually advances. Gearsystem uses a Galois-form LFSR; the comparator deliberately does not compare its raw state integers to the core's Fibonacci state. It compares bit-0 observations and timestamped shift events.
+
 ## Compare
 
 ```sh
