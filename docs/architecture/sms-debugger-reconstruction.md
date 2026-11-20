@@ -14,7 +14,7 @@ Status: reconstruction started; this branch establishes the opt-in boundary. The
 ## User consent and persistence
 
 - The global diagnostics consent is disabled on every application start and is never restored from preferences. A replacement ROM worker may inherit the current in-session consent, but no consent is inherited across application sessions.
-- Enabling the global Coleta de logs option in the Debugger is the single explicit consent for logs, metrics, snapshots and traces. The trace toggle is a secondary control and cannot enable capture without this consent.
+- Enabling the global Coleta de logs option in the Debugger creates one `DiagnosticsConsent` capability passed to both the central logger and SMS worker. It authorizes logs, metrics, snapshots and traces; the trace toggle is a secondary control and cannot enable capture without this capability.
 - Enabling it may collect bounded records in memory only; it must not create directories or files.
 - Filesystem access is allowed only after a separate explicit Export command and a user-selected destination.
 - Revoking consent stops publication/timers, disables worker trace at a command boundary, drops the collector, clears pending/retained records and host pacing buffers, and disables detailed runtime telemetry. Re-enabling starts with empty buffers.
