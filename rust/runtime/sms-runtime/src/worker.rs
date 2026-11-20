@@ -1165,11 +1165,13 @@ impl SmsTemporalWorkerDebugHandle {
     }
 
     /// Enable or disable bounded scheduler and bus trace capture.
+    /// Enable bounded trace capture; enabling requires a prior consent capability.
     pub fn set_trace_enabled(&self, enabled: bool) -> Result<(), String> {
         set_trace_capture(&self.commands, &self.trace_collector, &self.telemetry, enabled)
     }
 
     /// Capture an immutable, owned machine snapshot.
+    /// Return a coarse-grained snapshot only after explicit diagnostics consent.
     pub fn debug_snapshot(&self) -> Result<SmsDebugSnapshot, String> {
         if !self.telemetry.diagnostics_enabled() {
             return Err("SMS diagnostics consent is not enabled".to_owned());
