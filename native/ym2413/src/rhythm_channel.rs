@@ -484,7 +484,8 @@ mod tests {
             assert_eq!(input.decay_rate, decay, "cycle {cycle}");
             assert_eq!(input.release_rate, release, "cycle {cycle}");
             assert_eq!(input.sustain_level, sustain, "cycle {cycle}");
-            assert!(input.key_on, "cycle {cycle}");
+            let expected_key_on = matches!(cycle, 11 | 13 | 14 | 16);
+            assert_eq!(input.key_on, expected_key_on, "cycle {cycle}");
             assert!(input.sustain_on, "cycle {cycle}");
         }
     }
