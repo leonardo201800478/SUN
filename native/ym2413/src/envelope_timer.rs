@@ -63,6 +63,33 @@ pub struct EnvelopeRatePhase {
     pub counter_state_prev: u8,
 }
 
+impl EnvelopeRatePhase {
+    /// Construct the latches consumed by one operator update from a trace.
+    ///
+    /// This is useful when replaying the per-operator EG independently of the
+    /// global timer. The next-rate fields are intentionally neutral because
+    /// they are not consumed by the current update.
+    pub const fn from_consumed_latches(
+        rate_hi: u8,
+        inc_lo: bool,
+        inc_hi: bool,
+        max_rate: bool,
+        counter_state_prev: u8,
+    ) -> Self {
+        Self {
+            rate_latch_source: 0,
+            next_rate: 0,
+            next_zero_rate: false,
+            rate_hi,
+            inc_lo,
+            inc_hi,
+            max_rate,
+            zero_rate: false,
+            counter_state_prev,
+        }
+    }
+}
+
 /// Timer and rate-latch state after one operator slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EnvelopeTimerSnapshot {
