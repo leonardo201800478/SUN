@@ -89,10 +89,14 @@ def main() -> int:
         completed = subprocess.run(
             command,
             cwd=args.repo_root,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
         )
+        if completed.returncode != 0:
+            raise ValueError(
+                "Rust PG example failed:\\n" + completed.stderr[-6000:]
+            )
         rust_rows = [json.loads(line) for line in completed.stdout.splitlines() if line]
         if len(rust_rows) != len(samples):
             raise ValueError(
