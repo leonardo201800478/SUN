@@ -100,6 +100,9 @@ pub(crate) fn render_debugger_contents(
             state.last_refresh = Instant::now();
         }
         ui.ctx().request_repaint_after(Duration::from_millis(100));
+    } else {
+        state.snapshot = None;
+        state.trace_capture_enabled = false;
     }
 
     ui.horizontal_wrapped(|ui| {
