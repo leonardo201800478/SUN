@@ -1,9 +1,11 @@
 # ADR 0012 — política de panic e crash diagnostics
 
-- **Estado:** Aceita; implementação pendente da fatia DP0-F5.
+- **Estado:** Supersedida pela ADR 0013 em 2026-11-20; mantida como histórico da decisão anterior.
 - **Data:** 2026-11-20.
 - **Escopo:** crate `sega-observability` e hosts desktop que autorizam a coleta.
-- **Relacionadas:** ADR 0011, `docs/architecture/observability.md`, auditoria DP-0.
+- **Relacionadas:** ADR 0011, ADR 0013, `docs/architecture/observability.md`, auditoria DP-0.
+
+> Esta ADR registra a política anterior de hook privado consentido. A política vigente remove o hook global e proíbe crash files automáticos para panics comuns; consulte a [ADR 0013](0013-no-automatic-runtime-crash-files.md).
 
 ## Contexto
 

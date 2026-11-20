@@ -1,5 +1,7 @@
 # DP0-F5 — implementação da política de panic/crash
 
+> **Status (20/11/2026): superseded by ADR 0013 and the DP0 consent-base revision.** This audit describes the former consented global panic hook and crash-file implementation at commit `8bedcb3a6956faf3a3bb8351ccdd08a47bc43a11`. The current policy removes the global hook and automatic crash files for ordinary panics; see [ADR 0013](../adr/0013-no-automatic-runtime-crash-files.md) and [current DP0 consent audit](dp0-diagnostics-consent-audit-2026-11-20.md).
+
 - **Data:** 2026-11-20.
 - **Base:** main após PR #1098, merge commit 5f669f4017dae8824ec9e984c00cb697b91489b0.
 - **Branch:** feat/dp0-f5-sanitized-panic-crash-2026-11-20.

@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockReadGuard, TryLockError};
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_subscriber::fmt::writer::MakeWriter;
 
@@ -25,19 +25,25 @@ impl<'a> MakeWriter<'a> for SwitchableMakeWriter {
     type Writer = SwitchableWriter<'a>;
 
     fn make_writer(&'a self) -> Self::Writer {
-        SwitchableWriter {
-            current: self.current.read().unwrap_or_else(PoisonError::into_inner),
-        }
+        // Diagnostic callsites may run on the emulation thread. Never wait for
+        // revocation to finish swapping the writer: dropping one diagnostic
+        // event is preferable to blocking a hardware dispatch boundary.
+        let current = match self.current.try_read() {
+            Ok(guard) => Some(guard),
+            Err(TryLockError::WouldBlock) => None,
+            Err(TryLockError::Poisoned(error)) => Some(error.into_inner()),
+        };
+        SwitchableWriter { current }
     }
 }
 
 pub(super) struct SwitchableWriter<'a> {
-    current: RwLockReadGuard<'a, Option<NonBlocking>>,
+    current: Option<RwLockReadGuard<'a, Option<NonBlocking>>>,
 }
 
 impl Write for SwitchableWriter<'_> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        match self.current.as_ref() {
+        match self.current.as_ref().and_then(|guard| guard.as_ref()) {
             Some(writer) => {
                 let mut writer = NonBlocking::clone(writer);
                 writer.write(buffer)
@@ -47,7 +53,7 @@ impl Write for SwitchableWriter<'_> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        match self.current.as_ref() {
+        match self.current.as_ref().and_then(|guard| guard.as_ref()) {
             Some(writer) => {
                 let mut writer = NonBlocking::clone(writer);
                 writer.flush()
@@ -393,5 +399,24 @@ mod tests {
         assert_eq!(recent.lock().unwrap().len(), 1);
 
         fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod switchable_writer_tests {
+    use super::SwitchableMakeWriter;
+    use std::io::Write;
+    use std::sync::{Arc, RwLock};
+    use tracing_subscriber::fmt::writer::MakeWriter;
+
+    #[test]
+    fn writer_slot_contention_drops_event_instead_of_blocking() {
+        let slot = Arc::new(RwLock::new(None));
+        let make_writer = SwitchableMakeWriter::new(Arc::clone(&slot));
+        let _exclusive = slot.write().unwrap();
+
+        let mut writer = make_writer.make_writer();
+        assert!(writer.current.is_none());
+        assert_eq!(writer.write(b"diagnostic event").unwrap(), 16);
     }
 }

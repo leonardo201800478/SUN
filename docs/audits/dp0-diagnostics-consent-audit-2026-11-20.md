@@ -166,7 +166,7 @@ A auditoria inicial permanece válida como registro da baseline `a58edc2`, mas n
 | DP0-004 / DP0-005 / DP0-006 / DP0-007 — saídas diretas do host Slint | **Corrigido nos caminhos identificados** | Os callsites de diagnóstico do host passaram a usar o canal `tracing` condicionado ao consentimento; falhas operacionais também atualizam o status da UI. Resta um `eprintln!` de falha ao gravar o snapshot final, alcançado somente se o usuário manteve o consentimento ativo e a gravação falhou. |
 | DP0-008 — resolução automática de região no worker SMS | **Corrigido no código atual** | A leitura atual de `rust/runtime/sms-runtime/src/worker.rs` não contém `eprintln!`; os caminhos de fallback emitem `tracing::warn!`. |
 | DP0-009 — API pública `init()` não fail-closed | **Aberto — bloqueante** | `native/observability/src/runtime.rs` ainda cria diretório/arquivo, instala subscriber e panic hook durante `init()`. O filtro padrão permanece `info`. O comportamento seguro continua dependendo de os chamadores invocarem `init()` apenas após opt-in. |
-| DP0-010 — saída do panic hook padrão | **Aberto — decisão de política** | O hook personalizado grava arquivo somente com o flag ativo, mas chama o hook anterior, preservando a saída padrão de panic. Não suprimir sem decisão explícita e teste. |
+| DP0-010 — saída do panic hook padrão | **Corrigido nesta revisão** | O hook genérico foi removido de `init_after_explicit_consent`; inicialização de observabilidade não substitui o hook padrão nem cria arquivo de crash. Teste subprocesso comprova que o hook anterior é chamado e que panic comum não cria `sega-emulator-crash.log`. |
 | DP0-011 — histórico de escritas de porta no estado do barramento | **Aberto — classificação/compatibilidade** | Requer decidir se é estado semântico ou trace diagnóstico; não remover nem alterar snapshots sem análise. |
 | DP0-012 — vetor de trace do core sem limite próprio | **Aberto — limite de API** | A captura começa desabilitada, mas consumidores diretos do core podem reter eventos sem limite enquanto habilitada. |
 | DP0-013 — telemetria do worker SMS sem consentimento | **Corrigido** | PR #1091 condicionou as amostragens de frame/input/pacing ao estado diagnóstico e limpou histórico nas transições de consentimento. |
@@ -177,7 +177,7 @@ A auditoria inicial permanece válida como registro da baseline `a58edc2`, mas n
 - **DP0-F2 — remover saída diagnóstica direta do host:** os callsites de operação normal identificados foram migrados para `tracing` condicionado ao consentimento. O único stderr encontrado no host para esse fluxo é a falha da gravação final após consentimento ativo; pode ser convertido em mensagem de UI numa revisão de UX, mas não representa coleta sem autorização.
 - **DP0-F3 — worker SMS:** os callsites de região não emitem mais diretamente em stderr no HEAD avaliado; eventos estruturados são filtráveis pelo subscriber.
 - **DP0-F4 — API fail-closed:** permanece a próxima fatia bloqueante. A API pública de inicialização e a escrita do snapshot precisam exigir uma fronteira explícita de ativação/autorização, sem efeitos de filesystem, subscriber ou hook antes do opt-in.
-- **DP0-F5 — panic/crash:** pendente de decisão e validação específica; preservar o hook padrão até ADR/decisão documentada.
+- **DP0-F5 — panic/crash:** corrigido para a política atual: o hook genérico foi removido, o hook padrão do Rust permanece intacto e panics comuns não geram arquivo. Não foi criado reporter automático de bootstrap porque ainda não há callsite de falha crítica classificado; qualquer futuro relatório mínimo deve ser chamado apenas por um caminho fatal de inicialização explicitamente auditado.
 - **DP0-F6 — inventário completo de sinks:** não concluído. A busca textual atual encontrou saídas em stubs não-Windows, ferramentas CLI, exemplos e testes, que devem ser classificadas por caminho de execução; busca textual isolada não prova cobertura completa.
 - **DP0-F7 — validação:** não concluída. Os CI dos merges #1091/#1093 validam os testes afetados, mas não substituem testes explícitos de ausência de arquivos sem consentimento, revogação com fila pendente, fila cheia, Debug/Release e overhead.
 
@@ -186,3 +186,90 @@ A auditoria inicial permanece válida como registro da baseline `a58edc2`, mas n
 Implementar DP0-F4 no crate compartilhado `native/observability`: separar preparação side-effect-free da ativação após consentimento, iniciar com filtro `off`, impedir escrita de snapshot sem autorização apropriada e preservar singleton do subscriber, fila limitada, rotação e comportamento de shutdown. Atualizar os dois hosts consumidores de forma coordenada e cobrir o contrato com testes isolados de filesystem e transições de estado.
 
 Esta reavaliação é estática e vinculada ao SHA informado. Não declara DP-0 concluído, não comprova execução física nem afirma overhead zero.
+
+
+## Reauditoria de unificação — 2026-11-20
+
+**Base auditada:** `main` em `137d0859463bfbf6cdbcdde0945b0eca65eee90c`.
+**Branch candidata:** `fix/dp0-unified-debugger-consent-and-passive-trace-removal`.
+
+### Achados confirmados
+
+1. Os eventos estruturados de produção usam a fachada `sega_observability::tracing`; a instalação do subscriber, filtro, fila e writer permanece concentrada em `native/observability`. Não foi encontrado segundo `tracing_subscriber`, `env_logger` ou macro da fachada `log` em caminhos ativos de produção.
+2. Os `println!`/`eprintln!` encontrados pertencem a build scripts, ferramentas, exemplos, testes e stubs não-Windows; não foi identificado um logger de console paralelo no host Slint Windows.
+3. `HOST_DIAGNOSTICS_ENABLED` duplicava o estado de autorização já mantido por `LoggingHandle`. A branch candidata remove esse espelho e consulta o estado do handle central.
+4. O controle de trace podia ativar o coletor independente do consentimento do logger; a revogação de logs não encerrava esse coletor. A branch candidata condiciona snapshots e trace ao consentimento central e encerra trace/métricas na revogação e em falha de ativação.
+5. A descrição do Debugger ainda prometia um snapshot automático no encerramento, embora a remoção dessa gravação já esteja na base. A branch candidata corrige o texto: snapshots/traces só por ação explícita, com coleta autorizada.
+6. `SmsTemporalBus::port_write_trace` registrava continuamente as últimas 64 escritas de I/O, sem opt-in, e serializava esse histórico em `SmsTemporalBusState`. O histórico não tinha consumidores de produção; era usado apenas por testes. A branch candidata remove o buffer passivo e suas validações/cópias de estado. Os testes continuam verificando os efeitos reais das escritas nos latches do I/O, mapper e PSG.
+7. A remoção do campo diagnóstico altera o formato dos snapshots em memória: versão do barramento 20 → 21 e versão da máquina 33 → 34. Os testes de rejeição de versões anteriores foram atualizados.
+
+### Pendências que permanecem abertas
+
+- O panic hook genérico ainda captura panics de runtime somente quando o consentimento está ativo. Isso diverge da política do produto: o único arquivo automático deve ser um relatório mínimo para falha crítica de bootstrap que impeça iniciar. A próxima fatia DP0 deve remover o hook genérico e implementar o reporter explícito de falha de bootstrap, com chamadas apenas nos pontos de inicialização classificados.
+- `SmsTemporalMachine::trace_events` continua sendo uma estrutura de captura de baixo nível. No worker, ela é drenada para um `DiagnosticCollector` limitado; a ativação no host Slint passa a depender do consentimento central. Ainda é necessário revisar os consumidores diretos da API de core e garantir limite/descartar eventos quando não houver publisher ativo.
+- O host legado `native/sega_app` e a ferramenta independente `native/sms_debugger` mantêm interfaces de depuração próprias. Não são o host Slint de destino, mas precisam permanecer identificados como ferramentas/legado e não podem reativar coleta persistente por preferência herdada.
+- O inventário de macros estruturadas deve ser revisto por target e nível em uma próxima etapa, removendo instrumentação temporária sem valor diagnóstico permanente. Os eventos úteis podem permanecer porque todos passam pelo mesmo subscriber, inicialmente desligado.
+
+### Validação desta branch
+
+- Alterações estáticas aplicadas; validação local não executada neste ambiente.
+- Exigir CI Windows x64 Release, testes de `sms_core`, testes do `sms-runtime`, Clippy e regressões de save-state antes de merge.
+- Nenhum resultado `NOT RUN` deve ser tratado como PASS.
+
+## Inventário dos 43 callsites host
+
+Os 43 usos de `diagnostic_log!` no host Slint foram substituídos por `diagnostic_event!`, com target, nível e campos estruturados. O macro consulta o `LoggingHandle` central e não serializa os dados em um único campo `message`. Os dois eventos de telemetria periódica foram classificados como `TRACE`. Inventário completo: [DP0 host diagnostic callsites](dp0-host-diagnostic-callsites-2026-11-20.md).
+
+
+## 11. Fechamento DP0-F6 — inventário de sinks e limites de escopo (20/11/2026)
+
+**Base da revisão:** baseline funcional `main@137d0859463bfbf6cdbcdde0945b0eca65eee90c`; camada de consentimento PR #1107; implementação RAM-first PR #1115.
+
+### 11.1 Matriz final de classificação
+
+A auditoria consolidada nas seções 10.2, 10.6, 10.7 e no inventário `dp0-host-diagnostic-callsites-2026-11-20.md` cobre os seguintes grupos:
+
+| Grupo | Cobertura e decisão |
+|---|---|
+| Host Slint | 43 callsites inventariados por target, nível e campos; eventos estruturados sem campo `message` arbitrário; métricas periódicas em TRACE; gate central via `LoggingHandle`. |
+| Runtime compartilhado | 15 módulos de produção com eventos `tracing` classificados; eventos de Scheduler, Z80, barramento, VDP, PSG, áudio e vídeo ficam inertes com filtro `off` e só são coletados após opt-in. |
+| Writer e fila | `tracing-appender 0.2.5` usa fila non-blocking; fila/arquivo/ring host-side só são ativados após consentimento; revogação fecha o sink e descarta itens pendentes. O `SwitchableMakeWriter` usa `try_read`: se a troca do writer estiver em andamento, descarta o evento em vez de bloquear a thread chamadora. |
+| CLI e debugger standalone | Saída de console classificada como interface explícita de ferramenta; relatório do SMS Debugger somente após diálogo de Save e confirmação do destino. O relatório inclui apenas o nome do arquivo ROM, nunca o diretório local privado. Não é coleta automática do desktop. |
+| Examples, testes e smoke tests | Saídas stdout/stderr, CSV/WAV/trace e arquivos temporários classificados como artefatos de desenvolvimento/validação, fora dos bins do produto. |
+| Build e CI | `cargo:rustc-env`, logs de workflow e artefatos classificados como build/CI, fora do consentimento de runtime. |
+| Persistência funcional | SRAM, firmware, preferências, ROMs recentes e bindings separados de telemetria; cada operação tem finalidade funcional ou ação explícita. Caminhos locais permanecem dados do ambiente e não são copiados para o relatório de diagnóstico do desktop. |
+| Exportações | Snapshot/trace persistente requer consentimento central ativo e gesto separado de exportação; não há exportação automática no shutdown. |
+| Crash/panic | Nenhum panic hook privado é instalado; hook padrão do Rust preservado; panic comum não cria arquivo privado de crash. Não há callsite fatal de bootstrap classificado que justifique reporter adicional. |
+
+### 11.2 Auditoria de wrappers, macros, FFI e subprocessos
+
+- Macros próprias do host e callsites diretos `tracing` foram classificados separadamente; o inventário dos 43 callsites não foi usado como substituto dos sinks dos crates compartilhados.
+- O facade `log` não foi identificado como caminho de produção nos resultados de busca registrados; o subscriber central recebe os eventos `tracing`.
+- Integrações D3D12/Windows registram falhas por eventos estruturados do target de vídeo; não foi identificado writer de arquivo ou stdout/stderr adicional associado diretamente à FFI nos targets de produto.
+- O subprocesso identificado no teste de panic é exclusivamente harness de validação; não foi identificado subprocesso de coleta no ciclo de vida do desktop.
+- Dependências externas de logging permanecem limitadas ao conjunto declarado (`tracing`, `tracing-subscriber`, `tracing-appender`); a aplicação controla o subscriber e o writer. Não se atribui ao inventário capacidade de auditar internals de dependências que não pertencem ao repositório.
+
+### 11.3 Resultado F6 e limitação explicitada
+
+**DP0-F6: PASS no escopo dos targets first-party do produto e das ferramentas distribuídas identificadas.** Os sinks conhecidos estão classificados por finalidade, gatilho, destino e fronteira de consentimento; não foi encontrado sink first-party de produção sem classificação no inventário atualizado.
+
+Limite residual: esta é uma auditoria estática de código-fonte e workflows do repositório. Ela não prova o comportamento interno de bibliotecas de terceiros nem substitui observação física de cada backend de sistema operacional. Nenhum desses limites foi convertido em afirmação de overhead zero ou em alegação de auditoria de código externo. Os bins de ferramenta/teste e o host legado permanecem classificados separadamente do host Slint ativo.
+
+### 11.4 Requisitos de implementação preservados
+
+- O ring essencial de 2.048 eventos pertence a `SmsTemporalMachine`, é sempre ativo, pré-alocado e overwrite-oldest, com contador saturante.
+- O snapshot do ring é não destrutivo; o ring não faz parte de `SmsTemporalMachineState` e começa vazio após restore.
+- A coleta detalhada continua opt-in, com buffer separado e limitado a 2.048 eventos.
+- A gravação do ring essencial não usa I/O, alocação, lock, canal, thread, callback de GUI ou serialização.
+- A troca/revogação do writer não faz a thread chamadora esperar por lock exclusivo; eventos concorrentes são descartados.
+- Não houve alteração deliberada em CPU Z80, Scheduler, WAIT, VDP, PSG, barramentos funcionais, mappers ou timing.
+
+### 11.5 Estado da validação F7
+
+**Benchmark A/B Release: PASS.** Workflow run #27 comparou a base atual #1107 `dd09c136c71bbbf5b998578e80613e93bd07971c` com o head #1116 `7b4f98c78cd51bcf636912af9b59084fdf3755ec`, usando quatro pares A/B alternados e 20 amostras por revisão. Overhead mediano: **+1,14% bus-heavy** e **+1,13% relative-loop**. As contagens de instruções e ticks de máquina foram idênticas em todas as amostras. O workflow resolve a ponta atual da branch base, não o SHA congelado na criação da PR.
+
+**CI integral: PENDING no último checkpoint.** Na base #1107, workspace, Z80, Scheduler, VDP, SDL3, input, PowerShell, SMS Runtime Release e observabilidade Windows x64 Debug/Release concluíram SUCCESS; CPAL e Slint/WGPU/Vulkan Windows ainda estavam em execução. Na PR #1116, documentação, workflow, input, VDP e Scheduler concluíram SUCCESS; workspace, Z80, SDL3, Slint/WGPU/Vulkan Windows e SMS Runtime Release ainda estavam em execução. Jobs SKIPPED não são tratados como PASS quando não aplicáveis.
+
+A validação local no hardware Windows x64 permanece **NOT RUN** e está registrada como follow-up externo; os workflows Windows x64 cobrem compilação/testes automatizados, não substituem medição física no PC do usuário.
+
+**Esta seção supersede a conclusão histórica das seções 10.4, 10.8 e 10.10 para a classificação F6.** As seções anteriores permanecem preservadas como histórico de auditoria e decisões.
