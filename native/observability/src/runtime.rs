@@ -624,25 +624,20 @@ mod tests {
     #[test]
     fn revocation_and_reconsent_clear_recent_events() {
         let writer_gate = RwLock::new(true);
-        let recent_events = Mutex::new(VecDeque::from([
-            "{\\"level\\":\\"INFO\\"}".to_owned(),
-        ]));
+        let recent_events = Mutex::new(VecDeque::from(["stale-event".to_owned()]));
 
         set_writer_gate(&writer_gate, &recent_events, false);
         assert!(!*writer_gate.read().unwrap());
         assert!(recent_events.lock().unwrap().is_empty());
 
-        recent_events.lock().unwrap().push_back(
-            "{\\"level\\":\\"STALE\\"}".to_owned(),
-        );
+        recent_events
+            .lock()
+            .unwrap()
+            .push_back("another-stale-event".to_owned());
         set_writer_gate(&writer_gate, &recent_events, true);
         assert!(*writer_gate.read().unwrap());
         assert!(recent_events.lock().unwrap().is_empty());
     }
-
-
-    #[test]
-    fn diagnostics_snapshot_requires_active_consent() {
         assert_eq!(
             ensure_diagnostics_enabled(false).unwrap_err().kind(),
             std::io::ErrorKind::PermissionDenied
