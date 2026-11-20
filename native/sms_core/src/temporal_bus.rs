@@ -571,7 +571,7 @@ impl SmsTemporalBus {
                     }
                     Z80BusOperation::PortRead => Some(self.read_port(request.address)),
                     Z80BusOperation::PortWrite { value } => {
-                        self.write_port(request.address, value, dispatch.event.timestamp);
+                        self.write_port(request.address, value);
                         None
                     }
                 };
@@ -759,7 +759,7 @@ impl SmsTemporalBus {
         }
     }
 
-    fn write_port(&mut self, port: u16, value: u8, completed_at: MachineTime) {
+    fn write_port(&mut self, port: u16, value: u8) {
         let port_byte = port as u8;
         match port_byte & 0xC1 {
             0x80 | 0x81 => self.vdp.write_port(port, value),
