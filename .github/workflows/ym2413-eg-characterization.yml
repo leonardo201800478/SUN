@@ -61,6 +61,36 @@ jobs:
             --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-sequencer-samples.csv" \
             tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
             > "$RUNNER_TEMP/eg-sequencer-replay.json"
+      - name: Replay the production YM2413 core against the single-channel EG trace
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_core_trace -- "$RUNNER_TEMP/eg-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-single-channel.csv \
+            > "$RUNNER_TEMP/eg-core-replay.json"
+
+      - name: Capture and validate Rhythm Mode EG from register writes twice
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
+            > "$RUNNER_TEMP/eg-rhythm-trace-a.jsonl"
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 30000 \
+            --events tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
+            > "$RUNNER_TEMP/eg-rhythm-trace-b.jsonl"
+          cmp "$RUNNER_TEMP/eg-rhythm-trace-a.jsonl" "$RUNNER_TEMP/eg-rhythm-trace-b.jsonl"
+
+      - name: Extract and replay register-derived Rhythm Mode EG inputs
+        run: |
+          python3 tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py \
+            --trace "$RUNNER_TEMP/eg-rhythm-trace-a.jsonl" \
+            --output "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv"
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
+            > "$RUNNER_TEMP/eg-rhythm-sequencer-replay.json"
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_core_trace -- "$RUNNER_TEMP/eg-rhythm-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-rhythm-mode.csv \
+            > "$RUNNER_TEMP/eg-rhythm-core-replay.json"
 
       - name: Extract complete channel-zero EG control pipeline
         run: |
@@ -149,6 +179,12 @@ jobs:
             --example eg_sequencer_trace -- "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv" \
             tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
             > "$RUNNER_TEMP/eg-matrix-sequencer-replay.json"
+      - name: Replay the integrated core across four channels
+        run: |
+          cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+            --example eg_core_trace -- "$RUNNER_TEMP/eg-matrix-sequencer-samples.csv" \
+            tools/ym2413-nuked-oracle/fixtures/eg-rate-lowbits-matrix.csv \
+            > "$RUNNER_TEMP/eg-matrix-core-replay.json"
 
       - name: Extract rate-matrix operator samples and parameters
         run: |
@@ -235,6 +271,9 @@ jobs:
             cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
               --example eg_sequencer_trace -- "$SEQUENCER_SAMPLES" "$fixture" \
               > "$SWEEP_DIR/$name-sequencer-replay.json"
+            cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
+              --example eg_core_trace -- "$SEQUENCER_SAMPLES" "$fixture" \
+              > "$SWEEP_DIR/$name-core-replay.json"
             python3 tools/ym2413-nuked-oracle/extract_eg_samples.py \
               --trace "$TRACE_A" --output "$SAMPLES" --channels 0,1,2,3
             cargo run --quiet --manifest-path native/ym2413/Cargo.toml \
@@ -263,10 +302,16 @@ jobs:
             ${{ runner.temp }}/eg-control-samples.csv
             ${{ runner.temp }}/eg-sequencer-samples.csv
             ${{ runner.temp }}/eg-sequencer-replay.json
+            ${{ runner.temp }}/eg-core-replay.json
+            ${{ runner.temp }}/eg-rhythm-trace-a.jsonl
+            ${{ runner.temp }}/eg-rhythm-sequencer-samples.csv
+            ${{ runner.temp }}/eg-rhythm-sequencer-replay.json
+            ${{ runner.temp }}/eg-rhythm-core-replay.json
             ${{ runner.temp }}/eg-matrix-control-samples.csv
             ${{ runner.temp }}/eg-matrix-hardware-replay.json
             ${{ runner.temp }}/eg-matrix-sequencer-samples.csv
             ${{ runner.temp }}/eg-matrix-sequencer-replay.json
+            ${{ runner.temp }}/eg-matrix-core-replay.json
             ${{ runner.temp }}/eg-hardware-replay.json
             ${{ runner.temp }}/eg-rust-candidates.jsonl
             ${{ runner.temp }}/eg-matrix-a.jsonl
