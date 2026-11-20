@@ -60,55 +60,71 @@ def mame_phase_step_10_10(
 def main() -> None:
     """Exhaustively compare base PG and PM arithmetic across legal inputs."""
     base_total = 0
-    base_mismatches = 0
+    base_floor_mismatches = 0
+    base_exact_mismatches = 0
+    base_half_unit_cases = 0
     pm_total = 0
-    same_phase_mismatches = 0
-    rotation_mismatches = [0] * 8
+    pm_floor_mismatches = 0
+    pm_exact_mismatches = 0
+    rotation_floor_mismatches = [0] * 8
+    rotation_exact_mismatches = [0] * 8
 
     for fnum in range(512):
         for block in range(8):
             for mul in range(16):
                 rust_base = rust_phase_step(fnum, block, mul, 0)
-                mame_base_normalized = (
-                    mame_phase_step_10_10(fnum, block, mul, 0, False) >> 1
+                mame_base_native = mame_phase_step_10_10(
+                    fnum, block, mul, 0, False
                 )
                 base_total += 1
-                base_mismatches += mame_base_normalized != rust_base
+                base_floor_mismatches += (mame_base_native >> 1) != rust_base
+                base_exact_mismatches += mame_base_native != (2 * rust_base)
+                base_half_unit_cases += mame_base_native & 1
 
                 for rust_position in range(8):
                     rust_step = rust_phase_step(fnum, block, mul, rust_position)
-                    mame_same_position = (
-                        mame_phase_step_10_10(
-                            fnum, block, mul, rust_position, True
-                        )
-                        >> 1
+                    mame_native_same_position = mame_phase_step_10_10(
+                        fnum, block, mul, rust_position, True
                     )
                     pm_total += 1
-                    same_phase_mismatches += mame_same_position != rust_step
+                    pm_floor_mismatches += (mame_native_same_position >> 1) != rust_step
+                    pm_exact_mismatches += mame_native_same_position != (2 * rust_step)
 
                     for rotation in range(8):
                         mame_position = (rust_position + rotation) & 7
-                        mame_step = (
-                            mame_phase_step_10_10(
-                                fnum, block, mul, mame_position, True
-                            )
-                            >> 1
+                        mame_native = mame_phase_step_10_10(
+                            fnum, block, mul, mame_position, True
                         )
-                        rotation_mismatches[rotation] += mame_step != rust_step
+                        rotation_floor_mismatches[rotation] += (
+                            (mame_native >> 1) != rust_step
+                        )
+                        rotation_exact_mismatches[rotation] += (
+                            mame_native != (2 * rust_step)
+                        )
 
-    best_rotation = min(range(8), key=rotation_mismatches.__getitem__)
+    best_rotation = min(range(8), key=rotation_floor_mismatches.__getitem__)
     result = {
         "classification": "SOURCE_LEVEL_STATIC_ARITHMETIC_COMPARISON",
+        "phase_unit_normalization": (
+            "MAME operator phase is 10.10; Rust PG is 19-bit with 9 fractional bits. "
+            "Exact common-unit equality is MAME_step == 2 * Rust_step; floor normalization "
+            "uses MAME_step >> 1 and separately reports discarded half-unit cases."
+        ),
         "base": {
             "tuples": base_total,
-            "mismatches_after_10_10_to_9_fractional_bit_normalization": base_mismatches,
+            "floor_normalized_mismatches": base_floor_mismatches,
+            "exact_common_unit_mismatches": base_exact_mismatches,
+            "half_rust_lsb_cases": base_half_unit_cases,
         },
         "pm": {
             "tuples": pm_total,
-            "mismatches_same_position": same_phase_mismatches,
+            "floor_normalized_same_position_mismatches": pm_floor_mismatches,
+            "exact_common_unit_same_position_mismatches": pm_exact_mismatches,
             "best_cyclic_rotation": best_rotation,
-            "mismatches_at_best_cyclic_rotation": rotation_mismatches[best_rotation],
-            "mismatches_by_rotation": rotation_mismatches,
+            "floor_normalized_mismatches_at_best_rotation": rotation_floor_mismatches[best_rotation],
+            "exact_common_unit_mismatches_at_best_rotation": rotation_exact_mismatches[best_rotation],
+            "floor_normalized_mismatches_by_rotation": rotation_floor_mismatches,
+            "exact_common_unit_mismatches_by_rotation": rotation_exact_mismatches,
         },
         "limitations": [
             "No MAME executable or runtime state was captured.",
@@ -119,7 +135,7 @@ def main() -> None:
     }
     print(json.dumps(result, indent=2))
 
-    if base_mismatches != 0 or rotation_mismatches[best_rotation] == 0:
+    if base_floor_mismatches != 0 or rotation_floor_mismatches[best_rotation] == 0:
         raise SystemExit("unexpected source-level comparison result")
 
 
