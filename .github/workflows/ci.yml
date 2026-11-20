@@ -615,13 +615,11 @@ jobs:
           assert comparison["ares"]["channel_output_nibble_mismatch_count"] >= 0
 
           # Header row is index 0; the first data row is tick 0.
-          # The Gearsystem adapter serializes the channel period in register
-          # units; Rust and Ares expose their internal divider period (<< 4).
-          expected_tone2_register = {1: 7, 121: 8, 241: 0, 361: 1, 481: 7}
+          # Gearsystem GetState(), Rust and Ares all expose channel divider
+          # periods in this fixture. Tone 2's register value is multiplied by 16.
           expected_tone2_divider = {1: 112, 121: 128, 241: 0, 361: 16, 481: 112}
-          for row_index, register_value in expected_tone2_register.items():
-              divider_value = expected_tone2_divider[row_index]
-              assert gear[row_index]["channel_periods_after"][2] == register_value, (
+          for row_index, divider_value in expected_tone2_divider.items():
+              assert gear[row_index]["channel_periods_after"][2] == divider_value, (
                   row_index, gear[row_index]["channel_periods_after"]
               )
               assert core[row_index]["tone_periods_after"][2] == divider_value, (
