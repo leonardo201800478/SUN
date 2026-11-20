@@ -27,6 +27,7 @@ def main() -> int:
     parser.add_argument("--expected-ksr", type=int, default=0)
     parser.add_argument("--expected-eg-type", type=int, default=1)
     parser.add_argument("--expected-sl", type=int, default=4)
+    parser.add_argument("--allow-inactive-eg-slots", action="store_true")
     args = parser.parse_args()
     channels = {int(value) for value in args.channels.split(",")}
     if not channels or any(channel < 0 or channel > 8 for channel in channels):
@@ -116,9 +117,10 @@ def main() -> int:
         previous = sample
 
     expected_slots = [slot for slot, channel in enumerate(CH_OFFSET) if channel in channels]
-    for slot in expected_slots:
-        assert changed_level_slots[slot] > 0, (
-            f"selected channel EG slot {slot} never changed"
+    inactive_eg_slots = [slot for slot in expected_slots if changed_level_slots[slot] == 0]
+    if not args.allow_inactive_eg_slots:
+        assert not inactive_eg_slots, (
+            f"selected channel EG slots never changed: {inactive_eg_slots}"
         )
     assert timer_changes > 0, "Nuked EG timer did not advance"
     assert counter_changes > 0, "Nuked EG counter state did not advance"
@@ -129,6 +131,7 @@ def main() -> int:
         "selected_channels": sorted(channels),
         "keyon_first_call_by_channel": active_first_call,
         "expected_eg_slots": expected_slots,
+        "inactive_eg_slots": inactive_eg_slots,
         "user_patch_rows": len(patch_rows),
         "expected_user_patch": {
             "ar": args.expected_ar,
