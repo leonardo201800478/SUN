@@ -5,11 +5,11 @@
 //! SUS and EG-TYPE values so the same example can replay a rate matrix.
 //! This is a diagnostic candidate harness, not a production integration.
 
+use sega_ym2413::envelope_timer::EnvelopeRatePhase;
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
     EnvelopeParameters, EnvelopeStage,
 };
-use sega_ym2413::envelope_timer::EnvelopeRatePhase;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
