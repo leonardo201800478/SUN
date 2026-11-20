@@ -357,7 +357,6 @@ impl EnvelopeTimer {
             shift_stop: self.state.shift_stop,
             low_lock: self.state.low_lock,
             shift_lock: self.state.shift_lock,
-            rate_phase,
         })
     }
 }
