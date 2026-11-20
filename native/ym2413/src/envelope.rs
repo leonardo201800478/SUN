@@ -6,6 +6,8 @@
 //! 2015-12-24, 2015-12-31 and 2017-01-26). This is a measured software model,
 //! not a claim of transistor-level or absolute phase fidelity.
 
+use crate::envelope_timer::EnvelopeRatePhase;
+
 pub const YM2413_EG_LEVELS: u8 = 128;
 pub const YM2413_EG_MAX_LEVEL: u8 = YM2413_EG_LEVELS - 1;
 pub const YM2413_EG_STATE_VERSION: u16 = 2;
@@ -260,6 +262,82 @@ impl EnvelopeGenerator {
     ///
     /// The event is emitted when the DAMP threshold is reached. The PG itself
     /// remains caller-owned; this method never resets phase or advances clocks.
+    /// Advance one operator EG update using latches from the chip-global timer.
+    ///
+    /// This entry point separates per-operator level/state evolution from
+    /// global rate selection. The supplied phase must be the phase consumed
+    /// by this operator slot, not the rate calculated for the following slot.
+    /// It is intended for the cycle-accurate 18-slot integration and
+    /// differential replay; the ordinary `tick_with_events` API remains a
+    /// standalone measured-rate candidate.
+    pub fn tick_with_rate_phase(
+        &mut self,
+        key_on: bool,
+        is_carrier: bool,
+        parameters: EnvelopeParameters,
+        rate_phase: EnvelopeRatePhase,
+    ) -> Result<EnvelopeTickResult, EnvelopeGeneratorError> {
+        if !parameters.is_valid() {
+            return Err(EnvelopeGeneratorError::InvalidParameters);
+        }
+
+        if key_on && !self.key_on {
+            self.stage = EnvelopeStage::Damp;
+        }
+        self.key_on = key_on;
+
+        let mut phase_reset_required = false;
+
+        if !key_on && is_carrier {
+            self.advance_decay_with_rate_phase(rate_phase);
+            return Ok(EnvelopeTickResult {
+                level: self.level,
+                phase_reset_required: false,
+            });
+        }
+
+        if self.owns_damp_transition(is_carrier)
+            && self.stage == EnvelopeStage::Damp
+            && self.level >= self.damp_config.threshold
+        {
+            self.complete_damp(parameters.attack_rate);
+            phase_reset_required = true;
+        }
+
+        match self.stage {
+            EnvelopeStage::Damp => {
+                self.advance_decay_with_rate_phase(rate_phase);
+                if self.owns_damp_transition(is_carrier) && self.level >= self.damp_config.threshold
+                {
+                    self.complete_damp(parameters.attack_rate);
+                    phase_reset_required = true;
+                }
+            }
+            EnvelopeStage::Attack => {
+                if self.level == 0 {
+                    self.stage = EnvelopeStage::Decay;
+                } else if !phase_reset_required {
+                    self.advance_attack_with_rate_phase(rate_phase);
+                }
+            }
+            EnvelopeStage::Decay => {
+                if (self.level >> 3) == parameters.sustain_level {
+                    self.stage = EnvelopeStage::Sustain;
+                } else {
+                    self.advance_decay_with_rate_phase(rate_phase);
+                }
+            }
+            EnvelopeStage::Sustain => {
+                self.advance_decay_with_rate_phase(rate_phase);
+            }
+        }
+
+        Ok(EnvelopeTickResult {
+            level: self.level,
+            phase_reset_required,
+        })
+    }
+
     pub fn tick_with_events(
         &mut self,
         global_counter: u32,
@@ -394,6 +472,41 @@ impl EnvelopeGenerator {
             key_on: state.key_on,
             damp_config: state.damp_config,
         })
+    }
+
+    fn advance_decay_with_rate_phase(&mut self, phase: EnvelopeRatePhase) {
+        let rate_hi = phase.rate_hi;
+        let inc_hi = phase.inc_hi;
+        let inc_lo = phase.inc_lo;
+        let counter = phase.counter_state_prev;
+
+        let i0 = rate_hi == 15 || (rate_hi == 14 && inc_hi);
+        let i1 = (rate_hi == 14 && !inc_hi)
+            || (rate_hi == 13 && inc_hi)
+            || (rate_hi == 13 && !inc_hi && counter & 1 != 0)
+            || (rate_hi == 12 && inc_hi && counter & 1 != 0)
+            || (rate_hi == 12 && !inc_hi && counter & 3 == 3)
+            || (inc_lo && counter & 3 == 3);
+        let increment = (u8::from(i0) << 1) | u8::from(i1);
+        self.level = self
+            .level
+            .saturating_add(increment)
+            .min(YM2413_EG_MAX_LEVEL);
+    }
+
+    fn advance_attack_with_rate_phase(&mut self, phase: EnvelopeRatePhase) {
+        if phase.max_rate {
+            return;
+        }
+
+        let shift = if phase.rate_hi < 12 {
+            u8::from(phase.inc_lo)
+        } else {
+            phase.rate_hi - 11 + u8::from(phase.inc_hi)
+        };
+        if shift > 0 {
+            self.level = Self::attack_formula(self.level, 5 - shift);
+        }
     }
 
     fn advance_decay(&mut self, counter: u32, rate: u8) {
