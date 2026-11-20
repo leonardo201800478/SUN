@@ -220,7 +220,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         register_input_mismatches += input_bad.len() as u64;
         for field in &input_bad {
-            *input_mismatch_counts.entry(field).or_default() += 1;
+            *input_mismatch_counts.entry(*field).or_default() += 1;
         }
 
         let result = sequencer
