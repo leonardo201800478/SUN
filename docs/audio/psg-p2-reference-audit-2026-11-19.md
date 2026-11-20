@@ -199,4 +199,58 @@ No production PSG code is changed by this audit.
 6. Record reset defaults separately for SG-1000, Japanese SMS, and other Sega integrated profiles.
 7. Build external reference adapters with pinned source commits and license metadata; run them in CI without linking their code into the Rust backend.
 
-**P2 remains PARTIAL.** Source inspection is complete for the references above; executable differential comparison, new tests, Cargo checks, and hardware validation were not run in this documentation-only audit.
+**Status at the initial static-audit commit:** P2 PARTIAL. At that point executable differential comparison and new tests had not yet been run. The subsequent adapter trial is recorded below; it does not close P2 because Ares, Genesis Plus GX and MEKA still lack executable adapters, and no physical-hardware oracle is available.
+
+## 10. Automated differential trial — 2026-11-20
+
+The external trace adapters were exercised by the existing PSG-focused GitHub Actions job in draft PR [#1081](https://github.com/leonardo201800478/sega-emulator/pull/1081), against core commit `e9acb3e4ac5c7a6a864fa6e3af4dd9e3960b7ff4`. The production core was unchanged.
+
+- CrabEmu reference: `3844b46caa926b6494987b97da63092818c4ddef`.
+- Gearsystem reference: `1be9a12b82cae84ddd6f9b7006d546abe2d58bd4`.
+- 600 internal PSG ticks per trace, with writes at ticks 0, 540 and 560.
+- Three traces were repeated and compared byte-for-byte.
+- Comparator uses identical tick indices; no correlation-based alignment.
+- The CI validation and adapter steps passed. Diagnostic traces were uploaded as artifact `psg-audio-ab-reference` from workflow run [44659953063](https://github.com/leonardo201800478/sega-emulator/actions/runs/44659953063).
+
+### Observed shift schedules
+
+| Engine | First shift | Subsequent shifts in this fixture |
+|---|---:|---|
+| SMS Plus GX / CrabEmu | 16 | 48, 80, 112, … |
+| Sega Emulator SMS core | 15 | 47, 79, 111, … |
+| Gearsystem Sms_Apu | 0 | 32, 64, 96, … |
+
+All three traces recorded 19 shifts over the 600-tick fixture. The different first-shift phase is an implementation-level observation, not a hardware verdict.
+
+### Differential counts
+
+| Comparison | Mismatches | First mismatch |
+|---|---:|---:|
+| CrabEmu raw LFSR state vs core LFSR | 57 | tick 15 |
+| CrabEmu sample bit vs core pre-tick LFSR bit | 2 | tick 464 |
+| CrabEmu sample bit vs core latched `noise_output` | 60 | tick 465 |
+| Gearsystem observable bit 0 vs core LFSR bit 0 | 30 | tick 448 |
+| Gearsystem observable bit 0 vs core latched `noise_output` | 64 | tick 448 |
+
+Gearsystem's Galois raw state integers were not compared to the core's Fibonacci state integers. Only observable bit 0 and timestamped shift events were compared.
+
+The result exposes two distinct questions:
+
+1. **Divider phase:** the initial and subsequent shift timestamps differ between implementations.
+2. **Output semantics:** the core's latched `noise_output` remains different from the reference's sampled/current LFSR bit for a substantial interval.
+
+These results justify deeper investigation of the reset divider phase and output-bit boundary. They do not establish that either reference is electrically correct. No PSG production correction is authorized by this trace alone.
+
+### Validation boundary
+
+The following were validated in the PSG-focused CI job: Rust formatting, Clippy, targeted PSG/audio/SMS/SG-1000 tests, both external adapter builds, deterministic repeated traces, trace schema, and the diagnostic schedule. The broader workflow still had its Windows CPAL job running when this audit update was prepared.
+
+Still pending for P2:
+
+- executable Ares, Genesis Plus GX and MEKA traces;
+- tone period 0/1 differential vectors;
+- reset/latch and Noise Rate = Tone 2 phase vectors;
+- a formally documented mapping for Galois/Fibonacci state across every tested reset/write boundary;
+- independent evidence sufficient to choose hardware behavior rather than a majority of emulator implementations.
+
+No production hardware code was modified by this trial.
