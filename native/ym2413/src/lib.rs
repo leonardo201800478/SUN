@@ -8,6 +8,7 @@ pub mod bus_timing;
 pub mod channel;
 pub mod envelope;
 pub mod envelope_operator;
+pub mod envelope_sequencer;
 pub mod envelope_timer;
 pub mod instrument;
 pub mod key_scale;
@@ -40,6 +41,11 @@ pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
     EnvelopeGeneratorError, EnvelopeGeneratorState, EnvelopeParameters, EnvelopeStage,
     EnvelopeTickResult, YM2413_EG_LEVELS, YM2413_EG_MAX_LEVEL, YM2413_EG_STATE_VERSION,
+};
+pub use envelope_sequencer::{
+    EnvelopeSequencer, EnvelopeSequencerError, EnvelopeSequencerState, EnvelopeSequencerTick,
+    EnvelopeSlotInput, YM2413_ENVELOPE_SEQUENCER_SLOTS,
+    YM2413_ENVELOPE_SEQUENCER_STATE_VERSION,
 };
 pub use envelope_operator::{
     EnvelopeControlPhase, EnvelopeOperator, EnvelopeOperatorError, EnvelopeOperatorStage,
