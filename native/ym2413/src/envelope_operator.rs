@@ -107,9 +107,7 @@ impl EnvelopeOperator {
                 control.sustain_level,
             ));
         }
-        if control.rate.rate_hi > 15
-            || control.rate.max_rate != (control.rate.rate_hi == 15)
-        {
+        if control.rate.rate_hi > 15 || control.rate.max_rate != (control.rate.rate_hi == 15) {
             return Err(EnvelopeOperatorError::InvalidRatePhase);
         }
 
@@ -145,10 +143,7 @@ impl EnvelopeOperator {
                 }
             }
             EnvelopeOperatorStage::Decay => {
-                if !control.off
-                    && !control.dokon
-                    && (level_before >> 3) != control.sustain_level
-                {
+                if !control.off && !control.dokon && (level_before >> 3) != control.sustain_level {
                     step = i32::from(decay_increment(control.rate));
                 }
                 if (level_before >> 3) == control.sustain_level {
