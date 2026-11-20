@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fs::{self, File};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
