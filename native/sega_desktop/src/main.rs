@@ -3485,6 +3485,7 @@ mod windows_host {
     ) -> Result<(), String> {
         let rom = read_rom_image(path)?;
         let (next, next_save_context) = create_desktop_session(rom, settings, save_store)?;
+        next.set_sms_diagnostics_enabled(host_diagnostics_enabled());
 
         let previous = worker_slot.borrow_mut().take();
         if let Some(previous) = previous {
@@ -4968,7 +4969,6 @@ mod windows_host {
                 || Err("SMS worker indisponível".to_owned()),
                 |worker| {
                     worker.set_sms_trace_enabled(enabled)?;
-                    worker.set_sms_diagnostics_enabled(enabled);
                     Ok(())
                 },
             );
@@ -4992,6 +4992,7 @@ mod windows_host {
         )?;
         let host_pacing = Arc::new(Mutex::new(HostFramePacingWindow::new()));
         let diagnostics_host_pacing = Arc::clone(&host_pacing);
+        let diagnostics_worker = Rc::clone(&worker);
         let diagnostics_app = app.as_weak();
         app.on_diagnostics_toggle_requested(move |enabled| {
             if enabled {
@@ -5001,6 +5002,9 @@ mod windows_host {
                     HostFramePacingWindow::new();
             }
             HOST_DIAGNOSTICS_ENABLED.store(enabled, Ordering::Release);
+            if let Some(worker) = diagnostics_worker.borrow().as_ref() {
+                worker.set_sms_diagnostics_enabled(enabled);
+            }
             if let Some(app) = diagnostics_app.upgrade() {
                 app.set_debug_status(if enabled {
                     "Coleta diagnóstica autorizada para esta sessão; saída em stderr.".into()
