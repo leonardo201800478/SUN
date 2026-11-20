@@ -72,7 +72,7 @@ Without `--events`, the chip remains in its reset register state.
   `cycles` index is identical to the Rust crate's zero-based slot index
   without a separately tested mapping.
 
-The trace includes PG phase/increment, EG timer and per-operator state,
+The trace includes PG phase/increment, the active channel/operator patch parameters, EG timer and per-operator state,
 LFO counters, feedback histories, operator log/EXP pipeline values, channel
 outputs, register-decoded channel parameters, rhythm/noise state, and MO/RO
 pin values.
