@@ -19,7 +19,8 @@ use sega_input_runtime::{
     sdl3_backend::Sdl3Backend,
 };
 use sega_observability::{
-    LogConfig, SessionMetadata, current as current_logging, init as init_logging,
+    DiagnosticsConsent, LogConfig, SessionMetadata, current as current_logging,
+    init_after_explicit_consent as init_logging,
 };
 use sega_sms_core::ControllerButtons;
 use sega_sms_runtime::SmsTemporalWorker;
@@ -1214,6 +1215,8 @@ impl SegaApp {
 
     fn set_diagnostics_enabled(&mut self, enabled: bool) {
         if enabled {
+            // This callback runs only after the user checks the diagnostics opt-in.
+            let consent = DiagnosticsConsent::from_explicit_user_action();
             let logging = if let Some(logging) = current_logging() {
                 Ok(logging)
             } else {
@@ -1228,10 +1231,10 @@ impl SegaApp {
                     option_env!("SEGA_GIT_SHA").unwrap_or("unknown"),
                     option_env!("SEGA_BUILD_PROFILE").unwrap_or("unknown"),
                 );
-                init_logging(config, session).map_err(|error| error.to_string())
+                init_logging(&consent, config, session).map_err(|error| error.to_string())
             };
             match logging.and_then(|logging| {
-                logging.set_enabled(true)?;
+                logging.enable(&consent)?;
                 Ok(logging)
             }) {
                 Ok(logging) => {
@@ -1255,7 +1258,7 @@ impl SegaApp {
             }
         } else {
             if let Some(logging) = current_logging() {
-                let _ = logging.set_enabled(false);
+                let _ = logging.disable();
             }
             if let Some(worker) = self.native_viewport.worker.as_ref() {
                 worker.set_diagnostics_enabled(false);
