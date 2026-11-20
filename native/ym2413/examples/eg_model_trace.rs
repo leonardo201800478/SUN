@@ -108,7 +108,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut initial_silent_wrapped = make_generators(127)?;
     let mut initial_silent_wrapped_deferred = make_generators(127)?;
     let mut initial_silent_deferred_unwrapped = make_generators(127)?;
-    let mut initial_silent_deferred_decay_wrapped = make_generators(127)?;
+    let mut initial_silent_deferred_decay_phase_minus3 = make_generators(127)?;
 
     let mut sample_count = 0_u64;
     for (line_index, line) in input.lines().enumerate() {
@@ -180,30 +180,30 @@ fn main() -> Result<(), Box<dyn Error>> {
                     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         }
 
-        // Hypothesis: retain the full counter in DAMP/ATTACK, but wrap only
-        // DECAY/SUSTAIN timing to the EG's low eight-bit counter.
-        let decay_wrapped_counter = match initial_silent_deferred_decay_wrapped
+        // Hypothesis: retain the full counter in DAMP/ATTACK, but apply a
+        // three-count phase correction to DECAY/SUSTAIN rate selection.
+        let decay_phase_minus3_counter = match initial_silent_deferred_decay_phase_minus3
             [generator_index]
             .stage()
         {
             EnvelopeStage::Damp | EnvelopeStage::Attack => sample.global_counter,
-            EnvelopeStage::Decay | EnvelopeStage::Sustain => sample.global_counter & 0xff,
+            EnvelopeStage::Decay | EnvelopeStage::Sustain => sample.global_counter.saturating_sub(3),
         };
-        let decay_wrapped_before =
-            initial_silent_deferred_decay_wrapped[generator_index].export_state();
-        let decay_wrapped_result = initial_silent_deferred_decay_wrapped[generator_index]
+        let decay_phase_minus3_before =
+            initial_silent_deferred_decay_phase_minus3[generator_index].export_state();
+        let decay_phase_minus3_result = initial_silent_deferred_decay_phase_minus3[generator_index]
             .tick_with_events(
-                decay_wrapped_counter,
+                decay_phase_minus3_counter,
                 sample.key_on,
                 sample.is_carrier,
                 sample.parameters,
             )
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        if decay_wrapped_result.phase_reset_required {
+        if decay_phase_minus3_result.phase_reset_required {
             let mut state =
-                initial_silent_deferred_decay_wrapped[generator_index].export_state();
-            state.level = decay_wrapped_before.level;
-            initial_silent_deferred_decay_wrapped[generator_index] =
+                initial_silent_deferred_decay_phase_minus3[generator_index].export_state();
+            state.level = decay_phase_minus3_before.level;
+            initial_silent_deferred_decay_phase_minus3[generator_index] =
                 EnvelopeGenerator::restore_state(state)
                     .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         }
@@ -219,8 +219,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "\"candidate_stage_initial_127_wrapped_deferred\":{},",
                 "\"candidate_level_initial_127_deferred_unwrapped\":{},",
                 "\"candidate_stage_initial_127_deferred_unwrapped\":{},",
-                "\"candidate_level_initial_127_deferred_decay_wrapped\":{},",
-                "\"candidate_stage_initial_127_deferred_decay_wrapped\":{}}}"
+                "\"candidate_level_initial_127_deferred_decay_phase_minus3\":{},",
+                "\"candidate_stage_initial_127_deferred_decay_phase_minus3\":{}}}"
             ),
             sample.call_index,
             sample.slot,
@@ -240,8 +240,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             stage_code(initial_silent_wrapped_deferred[generator_index].stage()),
             initial_silent_deferred_unwrapped[generator_index].level(),
             stage_code(initial_silent_deferred_unwrapped[generator_index].stage()),
-            initial_silent_deferred_decay_wrapped[generator_index].level(),
-            stage_code(initial_silent_deferred_decay_wrapped[generator_index].stage()),
+            initial_silent_deferred_decay_phase_minus3[generator_index].level(),
+            stage_code(initial_silent_deferred_decay_phase_minus3[generator_index].stage()),
         );
         sample_count += 1;
     }
