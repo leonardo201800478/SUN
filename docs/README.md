@@ -19,6 +19,7 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Status dos componentes](component-status.md)
 - [Reorganização e reconciliação 2026-11-16](project-reconciliation-2026-11-16.md)
 - [Política de CI e validação](ci-validation-policy.md)
+- [Auditoria inicial DP-0 — consentimento e observabilidade](audits/dp0-diagnostics-consent-audit-2026-11-20.md)
 - [Instruções para agentes](../AGENTS.md)
 - [ADRs normativas](adr/README.md)
 - [Arquitetura geral](architecture.md)
