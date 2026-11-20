@@ -67,6 +67,17 @@ jobs:
             --calls 600 --events "$RUNNER_TEMP/events.csv" \
             > "$RUNNER_TEMP/core.jsonl"
 
+      - name: Repeat both traces and verify deterministic output
+        run: |
+          "$RUNNER_TEMP/psg-crabemu-trace" \
+            --calls 600 --events "$RUNNER_TEMP/events.csv" \
+            > "$RUNNER_TEMP/reference-repeat.jsonl"
+          cargo run --release --locked -p sega-sn76489 --example psg_state_trace -- \
+            --calls 600 --events "$RUNNER_TEMP/events.csv" \
+            > "$RUNNER_TEMP/core-repeat.jsonl"
+          cmp "$RUNNER_TEMP/reference.jsonl" "$RUNNER_TEMP/reference-repeat.jsonl"
+          cmp "$RUNNER_TEMP/core.jsonl" "$RUNNER_TEMP/core-repeat.jsonl"
+
       - name: Compare traces without time alignment
         run: |
           python3 tools/psg-crabemu-oracle/compare.py \
