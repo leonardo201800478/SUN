@@ -93,7 +93,11 @@ impl ChannelSynthesisConfig {
             attack_rate: envelope.attack_rate,
             decay_rate: envelope.decay_rate,
             release_rate: envelope.release_rate,
-            sustain_level: envelope.sustain_level,
+            sustain_level: if envelope.sustained_tone || self.channel.sustain_on {
+                0
+            } else {
+                envelope.sustain_level
+            },
             key_scale_rate: envelope.key_scale_rate,
             ksr_frequency: ((envelope.block << 1) | (envelope.fnum >> 8) as u8) & 0x0f,
             sustain_on: self.channel.sustain_on,
@@ -314,7 +318,15 @@ mod tests {
             assert_eq!(input.attack_rate, selected.attack_rate, "cycle {cycle}");
             assert_eq!(input.decay_rate, selected.decay_rate, "cycle {cycle}");
             assert_eq!(input.release_rate, selected.release_rate, "cycle {cycle}");
-            assert_eq!(input.sustain_level, selected.sustain_level, "cycle {cycle}");
+            assert_eq!(
+                input.sustain_level,
+                if selected.sustained_tone || config.channel.sustain_on {
+                    0
+                } else {
+                    selected.sustain_level
+                },
+                "cycle {cycle}"
+            );
             assert_eq!(input.key_scale_rate, selected.key_scale_rate, "cycle {cycle}");
             assert_eq!(
                 input.ksr_frequency,
