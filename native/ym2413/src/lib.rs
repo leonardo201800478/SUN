@@ -636,8 +636,9 @@ mod tests {
 
         let state = core.export_state();
         assert_eq!(state.registers[0x0e], 0x3f);
-        assert!(state.rm_enable < 0 || state.rm_enable == 0);
-        assert!(state.envelope.timer.next_slot < 18);
+        assert_eq!(state.rm_enable, -1);
+        assert_eq!(state.rm_select, 6);
+        assert_eq!(state.envelope.timer.next_slot, state.slot_index);
     }
 
     #[test]
