@@ -121,10 +121,7 @@ impl Write for FanoutWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let enabled = self
-            .enabled
-            .read()
-            .unwrap_or_else(PoisonError::into_inner);
+        let enabled = self.enabled.read().unwrap_or_else(PoisonError::into_inner);
         if !*enabled {
             self.pending.clear();
             return Ok(());
