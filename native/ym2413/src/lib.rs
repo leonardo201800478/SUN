@@ -1159,7 +1159,9 @@ mod tests {
             let mut core = Ym2413Core::new();
             core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT * u64::from(cycle))
                 .unwrap();
-            core.registers[0x0f] = 0x04;
+            core.write_mode_address = 0x1f;
+            core.write_d_enable = true;
+            core.write_data_latch = 0x04;
             let mut envelope_state = core.envelope.export_state();
             envelope_state.eg_dokon = 0;
             core.envelope = super::EnvelopeSequencer::restore_state(envelope_state).unwrap();
