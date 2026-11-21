@@ -32,7 +32,7 @@ A fundação de registradores, slots, clock, PG-1, PM LFO e EG serial de 18 slot
 |---|---|---|---|
 | FM-1 | PG/EG serial e contrato de eventos | **Parcial** | EG serial publicado; hooks core-owned na PR #1133 aberta. |
 | FM-2 | Serviço PG serial real | **Implementado e diferencial PASS em PR aberta** | PR #1145; 18 acumuladores, latches, PM counter, reset event e comparação serial com Nuked. Ainda não integrado à main. |
-| FM-3 | Operadores, feedback e modulação | **FM-3A diferencial PASS; fechamento da etapa em revisão** | PR #1147: 147.456 chamadas integradas e serial PG contra Nuked; operador, AM LFO, PG/EG, latches e Test Mode. Snapshot/restore, rollback/retry, execução particionada e CI Rust passaram no HEAD registrado. Sem merge; FM-3 completo ainda exige fechamento dos canais e saída digital. |
+| FM-3 | Operadores, feedback e modulação | **FM-3A tecnicamente validada; PRs empilhadas abertas** | PR #1147: 147.456 chamadas integradas e serial PG contra Nuked; operador, AM LFO, PG/EG, latches e Test Mode. Snapshot/restore, rollback/retry, execução particionada, EG characterization, Rustfmt, Clippy e testes do workspace PASS. Sem merge; FM-3 completo ainda exige fechamento dos canais e saída digital. |
 | FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder e presets candidatos existem; falta integração com operadores seriais e validação diferencial completa. |
 | FM-5 | Rhythm Mode | **Parcial** | Mapa/LFSR existem; cinco vozes e roteamento PG/operadores ainda não integrados. |
 | FM-6 | Saída digital FM | **Pendente** | Fechar representação, quantização e PCM digital; sem alegação de fidelidade analógica. |
@@ -111,7 +111,7 @@ A tabela histórica abaixo preserva a numeração anterior do scorecard. Para ex
 
 ## Próxima dependência técnica
 
-A próxima dependência é concluir a revisão técnica da PR #1147 e fechar os últimos critérios temporais de FM-3A: confirmar no CI atual os testes de snapshot/restore, clone, execução particionada e rollback/retry do core junto ao serviço PG; finalizar a caracterização EG ainda em execução; e atualizar esta evidência antes de qualquer merge. O diferencial FM-3 integrado já passou. Não criar um segundo EG nem reabrir FM-1/FM-2 sem regressão demonstrada. Depois da aprovação e integração das PRs empilhadas, prosseguir para fechamento FM-3 completo e, em seguida, FM-4.
+A validação técnica de FM-3A está concluída no código HEAD `b538a6904c344fec5e1c5dc8bb08401d92c4c220`: diferenciais integrados, caracterização EG, snapshots, restauração, execução particionada, clone, rollback/retry e CI Rust passaram. A próxima dependência é a auditoria conjunta das PRs empilhadas #1133 → #1145 → #1147 e a decisão de integração; não fazer merge automaticamente. Após integrar a base aprovada, prosseguir para FM-4 (nove canais e instrumentos). Não criar um segundo EG nem reabrir FM-1/FM-2 sem regressão demonstrada.
 
 Não iniciar a integração SMS ou mixer como substituto da síntese FM ainda inexistente. Não declarar o chip pronto para ROMs até haver PCM FM reproduzível, integração temporal e testes de regressão.
 
