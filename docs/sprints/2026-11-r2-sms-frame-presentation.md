@@ -93,4 +93,4 @@ All machine operations remain coarse-grained worker commands. The GUI does not e
 
 ## R2.3 — preferences and ROM history
 
-The Slint host now restores/saves user presentation preferences under `%APPDATA%\\Sega Emulator\\` and maintains up to ten recent ROM paths. Supported persisted values: region, aspect ratio, FPS visibility, status-footer visibility and FPS text size. ROM history is path-only and does not auto-load a ROM at startup. The menu provides explicit user selection to reopen a recent path. No emulated machine state is serialized.
+The Slint host now restores/saves user presentation preferences under `%APPDATA%\\SUN — Strife Uranus Neptune\\` and maintains up to ten recent ROM paths. Supported persisted values: region, aspect ratio, FPS visibility, status-footer visibility and FPS text size. ROM history is path-only and does not auto-load a ROM at startup. The menu provides explicit user selection to reopen a recent path. No emulated machine state is serialized.
