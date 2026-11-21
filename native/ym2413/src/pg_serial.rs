@@ -238,7 +238,11 @@ fn rhythm_operator_patch2_latches(
 ) -> Ym2413SerialOperatorPatch2Latches {
     let bass_drum_modulator = matches!(selector, EnvelopeRhythmSelect::BassDrumFirst);
     Ym2413SerialOperatorPatch2Latches {
-        feedback: if bass_drum_modulator { voice.feedback } else { 0 },
+        feedback: if bass_drum_modulator {
+            voice.feedback
+        } else {
+            0
+        },
         dc_waveform: voice.carrier.is_some_and(|value| value.patch.half_wave),
         dm_waveform: bass_drum_modulator
             && voice.modulator.is_some_and(|value| value.patch.half_wave),
@@ -1078,8 +1082,7 @@ mod tests {
         for (cycle, selector, expected_feedback, expected_dm) in cases {
             let (voice, operator, _) =
                 super::rhythm_voice_operator(&registers, selector, cycle).unwrap();
-            let latches =
-                super::rhythm_operator_patch2_latches(selector, voice, operator);
+            let latches = super::rhythm_operator_patch2_latches(selector, voice, operator);
             assert_eq!(latches.feedback, expected_feedback, "cycle {cycle}");
             assert_eq!(latches.dm_waveform, expected_dm, "cycle {cycle}");
         }
