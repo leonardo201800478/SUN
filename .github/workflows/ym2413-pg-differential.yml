@@ -276,12 +276,15 @@ jobs:
               events.append((call + 2, 1, value))
 
           base = 0
-          for channel, (fnum, block) in zip((6, 7, 8), ((0x155, 4), (0x0A3, 3), (0x1C1, 5)), strict=True):
-              write_register(0x10 + channel, fnum & 0xFF, base)
-              base += 40
-              write_register(0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1), base)
-              base += 40
-              write_register(0x30 + channel, 0x00, base)
+          # Yamaha application manual Table III-9 rhythm frequency setup:
+          # R#16/17/18 = 20/50/C0 and R#26/27/28 = 05/05/01.
+          # KEY-ON bits in R#26-R#28 remain clear in Rhythm Mode.
+          for address, value in (
+              (0x16, 0x20), (0x17, 0x50), (0x18, 0xC0),
+              (0x26, 0x05), (0x27, 0x05), (0x28, 0x01),
+              (0x36, 0x00), (0x37, 0x00), (0x38, 0x00),
+          ):
+              write_register(address, value, base)
               base += 40
 
           # Rhythm enable plus BD, SD, TOM, TC and HH key-on bits.
@@ -335,12 +338,14 @@ jobs:
               events.append((call + 2, 1, value))
 
           base = 0
-          for channel, (fnum, block) in zip((6, 7, 8), ((0x155, 4), (0x0A3, 3), (0x1C1, 5)), strict=True):
-              write_register(0x10 + channel, fnum & 0xFF, base)
-              base += 16
-              write_register(0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1), base)
-              base += 16
-              write_register(0x30 + channel, 0x00, base)
+          # Yamaha application manual Table III-9 rhythm frequency setup.
+          # R#26-R#28 contain no melodic KEY-ON bit while RHY is active.
+          for address, value in (
+              (0x16, 0x20), (0x17, 0x50), (0x18, 0xC0),
+              (0x26, 0x05), (0x27, 0x05), (0x28, 0x01),
+              (0x36, 0x00), (0x37, 0x00), (0x38, 0x00),
+          ):
+              write_register(address, value, base)
               base += 16
 
           # Rhythm mode with individual percussion triggers, then simultaneous voices.
