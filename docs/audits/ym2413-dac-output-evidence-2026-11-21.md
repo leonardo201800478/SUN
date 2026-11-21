@@ -209,3 +209,15 @@ Uma comparação dos dois arquivos commitados encontrou:
 - As médias ADC dos bins observados são monotônicas em 436 de 436 pares adjacentes.
 
 Isso é consistente com `decode.cc` classificando a amostra ADC em intervalos analógicos ordenados. Não é uma comparação com o código interno do DAC. A diferença de dois índices entre arquivos ainda não tem explicação temporal demonstrada e não deve ser usada para inferir latência ou fase de hardware.
+
+### Clock do fixture de medição versus clock nominal
+
+O fixture de reverse engineering não está operando na frequência nominal do Master System:
+
+- `tool2/timer0.cc` configura Timer0 com `topValue = 48000 / 50`, usando HFPER de 48 MHz, resultando em período de 20 µs (50 kHz).
+- O canal PWM de Timer0 é roteado ao pino PA0; `tool2/ym.cc` mapeia PA0 como XIN do YM2413.
+- `ym::syncTimer1()` declara explicitamente que Timer0 avança uma vez por clock YM2413.
+
+Portanto, as capturas de calibração/volume são feitas com o YM2413 operando a 50 kHz no fixture. Um pulso de três clocks dura aproximadamente 60 µs nesse setup; a 3,579545 MHz, duraria aproximadamente 0,84 µs.
+
+A lógica digital e a sequência de slots podem continuar úteis para caracterização, mas não se pode assumir que os níveis analógicos capturados a 50 kHz representem a transferência analógica em clock nominal. Tempo de acomodação, carga e resposta do estágio de saída podem alterar a tensão medida. A validação de amplitude/DAC para o SMS exige repetição em clock nominal ou uma demonstração explícita de que a resposta analógica é independente da frequência nessa faixa.
