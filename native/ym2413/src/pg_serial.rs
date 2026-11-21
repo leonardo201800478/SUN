@@ -252,7 +252,10 @@ impl Ym2413PgSerialService {
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
         let descriptor = context.event.selected_operator;
-        if context.registers[0x0e] & 0x20 != 0 {
+        if context.registers[0x0e] & 0x20 != 0
+            || context.rm_enable != 0
+            || context.rm_select < 6
+        {
             return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
                 cycle: context.event.cycle,
                 channel: descriptor.channel,
@@ -554,6 +557,23 @@ mod tests {
             })
         );
         assert_eq!(service.export_state(), before);
+    }
+
+    #[test]
+    fn delayed_rhythm_enable_latches_are_rejected_until_they_drain() {
+        for (rm_enable, rm_select) in [(0x40, 6), (0, 2)] {
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            let before = service.export_state();
+            let mut context = context(0, [0; 64], 0);
+            context.rm_enable = rm_enable;
+            context.rm_select = rm_select;
+
+            assert!(matches!(
+                service.before_eg_update(&context),
+                Err(Ym2413PgSerialError::UnsupportedRhythmMode { cycle: 0, .. })
+            ));
+            assert_eq!(service.export_state(), before);
+        }
     }
 
     #[test]
