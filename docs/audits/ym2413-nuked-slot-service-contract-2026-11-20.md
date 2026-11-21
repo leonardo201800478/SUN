@@ -95,7 +95,7 @@ A Rust service must preserve these causal boundaries and snapshot every pending 
 
 The legacy `trace.c` field `calc_rm_enable` captures the latch before `OPLL_Clock` and is insufficient by itself: the pinned source shifts `rm_enable` and applies a pending mode write before `OPLL_PhaseGenerate` evaluates the reset selector.
 
-PR #1133 adds an external-only instrumentation workflow that patches the pinned Nuked source at the actual `OPLL_PhaseGenerate` decision branch, records post-shift `rm_enable`, pre-update `eg_dokon`, cycle, `ismod`, and the resulting reset request, then checks the eight expected decisions for cycles 13 and 14. Workflow **YM2413 Nuked Rhythm reset differential** (run `44851506113`) completed **SUCCESS** on HEAD `e43364910addeb169277be4e1f77ad4f3fcfdbdd`. The Rust unit test independently checks the same selector cases against `nuked_phase_reset_required`.
+The extended external-only instrumentation workflow patches the pinned Nuked source at the actual `OPLL_PhaseGenerate` decision branch and records post-shift `rm_enable`, pre-update `eg_dokon`, `testmode`, cycle, `ismod`, and the resulting reset request. Workflow **YM2413 Nuked Rhythm reset differential** (run `44852046658`) completed **SUCCESS** on code HEAD `4b71a1f3093a3a3a184831a84d83b36abf15751b`, checking 16 actual decisions: eight normal-mode decisions and eight with Test Mode bit `0x04`, across cycles 13 and 14. The Rust helper includes the same Test Mode predicate, and the core supplies the `$0F` register after `DoModeWrite`; its unit test exercises all 18 serial cycles. This is an executable software-oracle differential for the instrumented reset decision, not a full PG/EG serial trace, physical-chip capture, absolute reset-phase measurement, or proof of electrical timing. The instrumentation remains outside the Rust backend.
 
 This is an executable software-oracle differential for the instrumented reset decision, not a full PG/EG serial trace, physical-chip capture, absolute reset-phase measurement, or proof of electrical timing. The instrumentation remains outside the Rust backend.
 
@@ -103,7 +103,7 @@ This is an executable software-oracle differential for the instrumented reset de
 
 The internal `Ym2413Core::advance_input_clocks_with_slot_service` path now exposes two synchronous service boundaries for each completed serial slot:
 
-1. `before_eg_update`: after `rm_enable` shift and pending mode write, with the decoded input, complete pre-update `EnvelopeSequencerState`, register image and `Ym2413SlotServiceEvent`.
+1. `before_eg_update`: after `rm_enable` shift and pending mode write (including `$0F` Test Mode), with the decoded input, complete pre-update `EnvelopeSequencerState`, register image and `Ym2413SlotServiceEvent`.
 2. `after_eg_update`: after exactly one core-owned `EnvelopeSequencer::tick_slot`, with its resulting `EnvelopeSequencerTick` and the complete authoritative post-update `EnvelopeSequencerState`, and before the timed register-write stage.
 
 The public standalone `advance_input_clocks` path retains its no-service slot routine and does not construct the service context. The host still advances the core in input-clock blocks; these are internal Rust service hooks, not GUI or host callbacks.
