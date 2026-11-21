@@ -357,7 +357,8 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             &eg_levels,
             self.serial_am_lfo.output(),
             context.registers[0x0f],
-        )
+        )?;
+        Ok(())
     }
 
     fn after_eg_update(
