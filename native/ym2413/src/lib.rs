@@ -80,11 +80,11 @@ pub use output::{
     YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
     YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION, Ym2413MeasuredOutputAdapter,
     Ym2413MeasuredOutputAdapterError, Ym2413MeasuredOutputAdapterFrame,
-    Ym2413MeasuredOutputAdapterState, Ym2413OutputCycleFrame, Ym2413OutputPin,
-    Ym2413OutputPulse, Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource,
-    Ym2413RhythmOutputFrame, Ym2413RhythmOutputService, Ym2413RhythmOutputServiceError,
-    Ym2413RhythmOutputServiceState, melody_output_for_slot, mo_output_slot_for_nuked_cycle,
-    rhythm_output_event, rhythm_slot_result, ro_output_slot_for_nuked_cycle,
+    Ym2413MeasuredOutputAdapterState, Ym2413OutputCycleFrame, Ym2413OutputPin, Ym2413OutputPulse,
+    Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource, Ym2413RhythmOutputFrame,
+    Ym2413RhythmOutputService, Ym2413RhythmOutputServiceError, Ym2413RhythmOutputServiceState,
+    melody_output_for_slot, mo_output_slot_for_nuked_cycle, rhythm_output_event,
+    rhythm_slot_result, ro_output_slot_for_nuked_cycle,
 };
 pub use output_pipeline::{
     YM2413_CHANNEL_OUTPUT_MAX, YM2413_CHANNEL_OUTPUT_MIN, YM2413_OUTPUT_PIPELINE_STATE_VERSION,
