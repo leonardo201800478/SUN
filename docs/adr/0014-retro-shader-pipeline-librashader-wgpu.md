@@ -12,7 +12,21 @@ O desktop utiliza Slint 1.18, WGPU 30 e backend Vulkan. O host recebe VideoFrame
 
 A UI ainda identifica “Shaders / CRT / NTSC” como não integrado. Não há filtros nativos WGSL, processamento composto Rust ou histórico LCD conectado ao host atual.
 
-## Decisão proposta
+## Objetivo visual: reconstrução CRT em 4K
+
+O objetivo de qualidade visual desta arquitetura é reconstruir a aparência de um CRT de alta qualidade dos anos 1990, e não simplesmente ampliar um framebuffer de baixa resolução ou aplicar scanlines decorativas. A saída UHD (3840×2160) fornece amostragem espacial suficiente para representar com maior precisão a estrutura RGB dos fósforos (shadow mask ou aperture grille), a forma e a intensidade do feixe, a interação entre spot e fósforo, scanlines, blooming controlado, convergência e resposta temporal. A resolução 4K é espaço de reconstrução/apresentação: não aumenta a resolução, a quantidade de cores nem a informação originalmente produzida pelo VDP.
+
+O modelo deve distinguir o sinal de origem (RGB direto ou composto) da reconstrução do display. A paleta limitada do SG-1000/SMS/GG e as regras reais de CRAM continuam sendo a fonte de cor; gamut amplo ou HDR não autorizam inventar cores. Máscara RGB deve ser calculada em coordenadas físicas estáveis da tela de saída, com fase/alinhamento explícitos, para evitar moiré, cintilação e padrões que mudem com resize. O shader deve integrar a energia luminosa em espaço linear e manter controle de headroom, sem elevar artificialmente toda a imagem.
+
+A resolução de origem deve ser descrita por perfil de VDP/região e não generalizada como “240p” para todos os consoles e modos. O pipeline preserva a matriz ativa e os timings originais; somente a reconstrução do CRT é avaliada na resolução final 1080p/1440p/4K. Perfis RGB e composto devem permanecer distintos, pois não representam a mesma cadeia de sinal.
+
+## VRR e cadência dos jogos PAL
+
+O VRR é um recurso de apresentação para acompanhar a cadência real dos frames emulados dentro da faixa suportada pelo monitor, reduzindo tearing e judder decorrentes de desacordo entre produção e atualização do display. Para jogos europeus PAL com cadência nominal próxima de 50 Hz, isso pode tornar a apresentação mais estável e reduzir a sensação de irregularidade/arrasto causada por conversão inadequada para uma tela fixa de 60 Hz.
+
+VRR não acelera a lógica do jogo, não converte 50 Hz em 60 Hz e não remove a menor cadência temporal original. O Scheduler continua executando os clocks e frames PAL originais. O host deve apresentar cada frame conforme pacing medido, sem descartar frames necessários a efeitos temporais e sem alterar áudio ou velocidade emulada. A faixa VRR do monitor, LFC, driver, compositor e modo de janela precisam ser verificados; abaixo da faixa suportada pode haver repetição de frames ou comportamento do driver, não uma garantia de suavidade.
+
+## ## Decisão proposta
 
 Adotar arquitetura híbrida nativa como caminho principal:
 
