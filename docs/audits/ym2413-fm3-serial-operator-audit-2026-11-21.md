@@ -94,7 +94,7 @@ The serial PG differential additionally compares raw `uint32_t` phase accumulato
 
 1. FM-3A differential closure is demonstrated on the recorded HEAD; retain the full differential as a mandatory regression gate.
 2. The Rust workspace CI now passes Rustfmt, Clippy, unit/integration tests, observability-feature tests, workflow validation and documentation hygiene. The integrated core + PG service snapshot/restore, irregular block partitioning, clone independence, transactional rollback and retry tests are included in that CI.
-3. Finish the currently running EG characterization sweep (run 44865109038) and record its terminal result; do not infer PASS while it is in progress.
+3. EG characterization is closed: run 44852382767 passed on the exact PR #1133 HEAD and run 44865109038 passed on the stacked FM-3A code HEAD, each including the complete 38-configuration AR/DR/KSR sweep. The P1 gate on #1133 was answered with these exact run/HEAD references and resolved.
 4. Perform the final dependency audit of PR #1133 → #1145 → #1147. Do not merge any of them until all stacked changes and findings are reviewed together.
 5. FM-3 overall still needs complete nine-channel accumulation, channel output routing and later PCM validation. Rhythm synthesis/routing remains FM-5; do not pull it into FM-3A.
 6. Preserve the distinction between the 19-bit sine phase coordinate and Nuked's raw 32-bit PG ring / 16-bit PG output latch. Do not restore the old 19-bit masks in the serial service or its differential.
