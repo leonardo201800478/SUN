@@ -458,6 +458,7 @@ impl Ym2413RhythmOutputService {
         cycle: u8,
         rhythm_mode_enabled: bool,
         previous_channel_output: Option<i16>,
+        previous_channel_output_is_rhythm: bool,
     ) -> Result<Ym2413OutputCycleFrame, Ym2413RhythmOutputServiceError> {
         let mo_slot_index = mo_output_slot_for_nuked_cycle(cycle)
             .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(cycle))?;
@@ -495,13 +496,16 @@ impl Ym2413RhythmOutputService {
         // percussion source values. Advance the RO cursor but invalidate an
         // original percussion latch when its source slot passes without a
         // rhythm operator result. Suppress all RO pin events while disabled.
-        let original_rhythm_level = (rhythm_mode_enabled && original_rhythm_slot)
+        let rhythm_source_known = rhythm_mode_enabled
+            && previous_channel_output_is_rhythm
+            && previous_channel_output.is_some();
+        let original_rhythm_level = (rhythm_source_known && original_rhythm_slot)
             .then_some(measured_level)
             .flatten();
         let rhythm_result = self.rhythm_delay.process_slot_with_validity(
             ro_slot_index,
             original_rhythm_level,
-            rhythm_mode_enabled && previous_channel_output.is_some(),
+            rhythm_source_known,
         )?;
         let ro = if rhythm_mode_enabled {
             rhythm_slot_result(rhythm_result)?
@@ -704,6 +708,7 @@ impl Ym2413MeasuredOutputAdapter {
         cycle: u8,
         rhythm_mode_enabled: bool,
         previous_channel_output: Option<i16>,
+        previous_channel_output_is_rhythm: bool,
     ) -> Result<Option<Ym2413MeasuredOutputAdapterFrame>, Ym2413MeasuredOutputAdapterError> {
         let expected_cycle = self.next_cycle();
         if cycle != expected_cycle {
@@ -718,6 +723,7 @@ impl Ym2413MeasuredOutputAdapter {
                 cycle,
                 rhythm_mode_enabled,
                 previous_channel_output,
+                previous_channel_output_is_rhythm,
             )?;
         let emitted = self
             .pending_frame
