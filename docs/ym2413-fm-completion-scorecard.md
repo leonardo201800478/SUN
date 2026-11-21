@@ -1923,3 +1923,46 @@ contra Nuked. Não é evidência de silício e ainda não está integrado ao cor
 de produção, ao PCM ou ao serviço de retenção medido. YM2413 permanece aberto.
 
 A PR #1157 continua Draft. Nenhum rebase, merge ou alteração na main foi feito.
+
+
+## Atualização de workflows e limite de integração — 2026-11-21
+
+Status no código HEAD f18848a450f1209c9777cdcc8238a4db1c9c5939:
+- CI #44930418522: SUCCESS após rerun do job cancelado. Rustfmt, Clippy,
+  documentação, testes do workspace e qualidade passaram.
+- PG Differential #44930418468: SUCCESS como execução de workflow. Os dados
+  continuam caracterizados com divergências de candidatos de preset/fase;
+  sucesso do workflow não significa fechamento do PG nem validação de silício.
+- EG Characterization #44930418372: ainda em execução no último checkpoint;
+  a matriz de 38 configurações ainda não tinha publicado o resultado final.
+- MO/RO differential #44930418493: SUCCESS, 1.200 ciclos, comparações exatas.
+- PR #1157 permanece Draft; #1156 permanece Draft; #1154 permanece aberta.
+- main permanece em 7e275424112d60f42b83380b60786fbd640c18b0.
+
+### Fronteira identificada para a próxima integração
+
+A inspeção do core e do serviço PG identificou duas condições que impedem
+uma integração ingênua:
+
+1. Ym2413Core já é a autoridade de rm_enable: mantém o campo assinado e faz
+   seu deslocamento/aplicação de escrita durante a sequência de slots. O
+   pipeline isolado desloca rm_enable para reproduzir o Nuked no differential.
+   A integração de produção deve consumir o valor pós-update fornecido pelo
+   core, sem deslocá-lo uma segunda vez.
+2. Ym2413PgSerialService deliberadamente não executa o operador em slots de
+   Rhythm Mode cujo estado de ruído ainda não foi semeado. Nesses ciclos não
+   existe um próximo ch_out validado. Alimentar zero ou reutilizar o último
+   valor fabricaria uma saída e esconderia a lacuna de fidelidade.
+
+Contrato recomendado para integração:
+- método de processamento que receba rm_enable pós-update do core;
+- entrada opcional para o próximo ch_out, propagando explicitamente saída
+  desconhecida quando o operador de Rhythm Mode não pode ser calculado;
+- frame MO/RO com validade explícita, sem converter desconhecido em silêncio;
+- estado do pipeline incluído no snapshot do serviço serial, com cursor
+  alinhado ao ciclo do core;
+- testes de execução contínua/blocos e restore incluindo transições entre
+  Rhythm Mode desabilitado, habilitado com seed e habilitado sem seed.
+
+Nenhuma integração foi forçada nesta etapa: isso evita duplicar o estado
+temporal do core ou inventar amostras nos slots sem ruído validado.

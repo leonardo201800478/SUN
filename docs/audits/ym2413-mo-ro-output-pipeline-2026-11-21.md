@@ -134,3 +134,29 @@ quality and unit-test steps were still running when this report was written.
 Status: the isolated cycle-ordered digital output pipeline is implemented and
 differentially validated against the pinned software reference. Full MO/RO
 hardware closure and production integration remain open.
+
+
+## Status CI e fronteira de integração
+
+CI #44930418522 terminou SUCCESS após rerun do job cancelado. O código do
+pipeline e o exemplo diferencial passaram por Rustfmt, Clippy e testes do
+workspace. O workflow PG #44930418468 terminou SUCCESS, mas mantém os
+relatórios de candidatos divergentes já caracterizados. EG #44930418372 ainda
+estava executando a matriz de 38 configurações no momento do checkpoint.
+
+A inspeção do core confirmou que Ym2413Core já é a autoridade do rm_enable
+assinado e executa o shift e a escrita de modo por slot. O pipeline isolado
+mantém seu próprio rm_enable apenas para reproduzir a sequência do Nuked no
+differential. A integração de produção deve receber o rm_enable pós-update
+do core, sem duplicar a temporização.
+
+A inspeção do serviço PG também confirmou que slots de Rhythm Mode sem seed de
+ruído são deliberadamente ignorados para não fabricar estado do operador.
+Nesses ciclos, não existe um próximo ch_out validado. A integração correta
+precisa propagar saída desconhecida explicitamente (e não substituí-la por
+zero ou pelo último valor) e incluir essa validade no frame e nos snapshots.
+
+Portanto, a integração ao serviço PG não foi feita nesta etapa. A fronteira
+técnica está identificada; a próxima implementação deve introduzir entrada
+opcional de ch_out e rm_enable externo pós-update, alinhando o cursor do
+pipeline ao cursor de Ym2413Core.
