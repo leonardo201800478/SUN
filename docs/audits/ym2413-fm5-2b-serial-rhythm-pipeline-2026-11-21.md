@@ -509,4 +509,3 @@ As etapas FM-5.2A/B e os serviços de saída subsequentes foram publicados na `m
 A PR #1159 fecha apenas a integração temporal/proveniência do adaptador. O PG fornece `None` para o nível medido até que a conversão do intermediário do operador seja comprovada. A referência Nuked permanece separada e não certifica comportamento físico.
 
 Permanecem abertas as incertezas registradas neste relatório: seed físico do LFSR, ROM interna de patches de percussão, divergência `c_sl`/`eg_sl` (Nuked 4 versus Rust 6) e estados EG associados. A publicação das PRs não transforma esses candidatos em fatos de silício.
-
