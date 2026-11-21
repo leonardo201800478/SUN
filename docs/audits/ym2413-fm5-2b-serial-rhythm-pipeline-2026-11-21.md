@@ -460,3 +460,29 @@ mapping.
 The earlier statement that the YM2413 had 511 measured output levels and that -256 was absent relied on `results/20150209.txt` alone. That note was explicitly corrected by `results/20150305.txt` at the same andete commit: 16x oversampling resolved 512 peaks, including two close central peaks interpreted as -0 and +0. `results/20150311.txt` further identifies both central values in captured output. The author's suggested idealized collapse of the two zeros is tentative. The 2015-02-09 count must not be treated as the final measurement.
 
 FM-5.3 now preserves the two measured central-level tokens in the rhythm retention type, without claiming a raw 9-bit DAC encoding. See `docs/audits/ym2413-dac-output-evidence-2026-11-21.md` for source-by-source qualification and remaining unknowns.
+
+
+### Post signed-zero FM-5.3 validation — PG differential #388
+
+The latest output-retention code commit
+`27650ff687c9495415644bca1db30585ffed21b9` passed the PG differential
+workflow #388:
+
+- 147,456 calls compared across all 18 serial cycles.
+- Strict serial/control/LFSR/timing comparison: PASS.
+- Integrated Rhythm Mode status remains
+  `CHARACTERIZED_WITH_PATCH_CANDIDATE_DIVERGENCE`.
+- The integrated candidate-difference object contains only:
+  - `c_sl`: 8,092 rows, first call 1,815, Nuked=4/Rust=6.
+  - `eg_sl`: 8,092 rows, first call 1,816, Nuked=4/Rust=6.
+  - `eg_state`: 15,984 rows, first call 79,001.
+- No `c_fb` or `c_dm` candidate difference remains in the integrated
+  Rhythm Mode result.
+- Rhythm reset differential #311: SUCCESS.
+- CI #9852: SUCCESS, including workspace tests and observability runtime
+  tests; the negative-zero retention tests are included in the workspace
+  suite.
+- EG characterization #561 remained in progress at this update.
+
+This is software differential evidence. It does not establish the physical
+SD sustain ROM, raw DAC word, or analog output.
