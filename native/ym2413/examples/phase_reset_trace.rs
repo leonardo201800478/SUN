@@ -16,9 +16,9 @@ fn parse<T: std::str::FromStr>(value: &str, field: &str) -> Result<T, Box<dyn Er
 where
     T::Err: Error + 'static,
 {
-    Ok(value.parse::<T>().map_err(|error| {
-        format!("invalid {field} value {value:?}: {error}")
-    })?)
+    value
+        .parse::<T>()
+        .map_err(|error| format!("invalid {field} value {value:?}: {error}").into())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -69,17 +69,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             .into());
         }
 
-        let event = nuked_slot_service_event_with_testmode(
-            cycle,
-            rm_enable,
-            eg_dokon,
-            testmode,
-        )
-        .ok_or_else(|| format!("line {}: Rust rejected cycle {cycle}", line_index + 1))?;
+        let event = nuked_slot_service_event_with_testmode(cycle, rm_enable, eg_dokon, testmode)
+            .ok_or_else(|| format!("line {}: Rust rejected cycle {cycle}", line_index + 1))?;
         let rust_reset_required = if event.phase_reset_required { 1 } else { 0 };
         if rust_reset_required != nuked_reset_required {
             return Err(format!(
-                "line {}: reset decision mismatch: Nuked={} Rust={}                  (cycle={cycle}, rm_enable={rm_enable:#04x},                  eg_dokon={eg_dokon:#010x}, testmode={testmode:#04x})",
+                "line {}: reset decision mismatch: Nuked={} Rust={} (cycle={cycle}, rm_enable={rm_enable:#04x}, eg_dokon={eg_dokon:#010x}, testmode={testmode:#04x})",
                 line_index + 1,
                 nuked_reset_required,
                 rust_reset_required
