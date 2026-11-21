@@ -49,11 +49,13 @@
 - **C-Sync:** readback D7–D5 bloqueado até a exposição de um pulso de hardware verificável.
 - **ROMs reais:** Phantasy Star e Kenseiden foram recebidas e hash-conferidas, mas ainda não há evidência de boot prolongado, jogo, áudio, FPS e estabilidade no emulador.
 
-### Validação exata da main após PR #1170
+### Validação exata da main após PR #1172
 
-- CI run `44962127008`: **SUCCESS** — SMS core/VDP, input, Z80, workspace, SDL3 Windows, Scheduler, lint de workflow e gate de qualidade.
-- SMS Debugger Runtime run `44962126981`: **SUCCESS** — rustfmt, Clippy, testes Release e build Windows x64.
-- O job Windows/CPAL foi corretamente classificado como não aplicável à PR #1170, que não alterou o backend CPAL. A validação do runtime SMS ocorreu separadamente.
+- CI run `44962913515`: **SUCCESS** — SMS core/VDP, input, Z80 (incluindo vetores DD/FD e MEMPTR), workspace, SDL3 Windows, Scheduler, documentação e gate de qualidade.
+- SMS Debugger Runtime run `44962913467`: **SUCCESS** — rustfmt, Clippy, 58 testes Release aprovados e build Windows x64. Os testes `worker_builder_keeps_fm_hardware_independent_of_software_region` e o caminho USA com BIOS passaram.
+- O teste `japanese_fm_hardware_profile_is_independent_of_software_territory` passou, incluindo Save State/Restore com `Territory::Export`.
+- DP0 Release A/B run `44962913477`: **SUCCESS** — bus-heavy +0,18%; relative-loop +1,12%, sem regressão relevante.
+- O job Windows/CPAL foi corretamente classificado como não aplicável: a PR #1172 alterou presença física/território no SMS core e no worker, não o backend CPAL.
 
 ### Próxima sequência recomendada
 
