@@ -229,6 +229,8 @@ fn rhythm_voice_operator(
 /// fields. The pinned Nuked rhythm table models BD-carrier separately with
 /// FB=0 and DM=0. Keep the serial latches operator-specific; this does not
 /// certify the complete physical rhythm ROM or the analog BD transfer.
+/// Evidence and the unresolved SD SL candidate are recorded in
+/// `docs/audits/ym2413-fm5-2b-serial-rhythm-pipeline-2026-11-21.md`.
 fn rhythm_operator_patch2_latches(
     selector: EnvelopeRhythmSelect,
     voice: RhythmVoiceSynthesisConfig,
