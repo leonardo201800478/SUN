@@ -1,6 +1,6 @@
-# Status dos componentes — revisão 2026-11-20
+# Status dos componentes — revisão 2026-11-21
 
-**Baseline:** `main` `8a80fc784c3b9b2563cea248f5c3ba1b4073dfc9`.
+**Baseline:** `main` `eac5f8f49025111372183190b8504f476a994aae`.
 **Regra:** estado integrado na main separado de PRs, testes físicos e relatos manuais.
 
 | Área | Estado na baseline | Pendência real |
@@ -24,6 +24,11 @@
 | 3D Glasses / outros periféricos | Referências técnicas disponíveis | Especificação e implementação na fase P4, por compatibilidade de console |
 | Debugger SMS | Parcial e em evolução | Captura de duração fixa, snapshots CPU/VDP, exportação e usabilidade; não bloqueia hardware |
 | R5 desktop | Parcial | Biblioteca, configurações consolidadas, HUD/telemetria e limpeza segura de legado |
+| RetroAchievements | Planejado; não implementado | ADR Rust/FFI, hash/identificação SMS e SG-1000, memory maps, cliente/rede, integração por frame, UI, Hardcore e validação por título; ver marcos RA-0 a RA-6 no roadmap mestre |
+
+## RetroAchievements — critérios de entrada
+
+Não iniciar a implementação antes de estabilizar os contratos de frame, lifecycle e Save State de SMS/SG-1000. O suporte planejado começa pelos console IDs SMS 11 e SG-1000 33; a identificação usa MD5. A biblioteca de referência `rcheevos` é escrita em C, portanto a integração exige ADR prévia para decidir se uma FFI encapsulada em Rust é compatível com a diretriz Rust-only. Nenhum suporte é considerado disponível enquanto não houver integração e evidência por título. Hardcore permite Save State, mas deve bloquear Load State e outras ações incompatíveis durante a sessão.
 
 ## Estados e proveniência
 

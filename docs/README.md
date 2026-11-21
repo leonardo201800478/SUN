@@ -27,6 +27,10 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Índice de hosts/documentos históricos](architecture/legacy-document-index.md)
 - [Scheduler](architecture/scheduler/README.md)
 
+## Integrações e serviços
+
+- RetroAchievements: trilha planejada e gates RA-0 a RA-6 no [roadmap mestre](project-roadmap.md#retroachievements--integração-transversal-planejada).
+
 ## Referências de interface
 
 - [Tela de configurações de vídeo — referência Light/Dark](ui/settings-screen-transfer.md). Assets visuais; não representam funcionalidades implementadas.
