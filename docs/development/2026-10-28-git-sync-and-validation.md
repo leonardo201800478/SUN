@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Registrar a atualização do clone Windows do Sega Emulator, preservar o trabalho DahJee Type A e documentar as verificações executadas no estado integrado da `main`.
+Registrar a atualização do clone Windows do SUN — Strife Uranus Neptune, preservar o trabalho DahJee Type A e documentar as verificações executadas no estado integrado da `main`.
 
 ## Repositório e estado confirmado
 
