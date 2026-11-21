@@ -184,6 +184,7 @@ fn build_sms_temporal_machine_with_revision_and_sram_size(
     )
 }
 
+#[cfg(test)]
 fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
     rom: Vec<u8>,
     region: &str,
