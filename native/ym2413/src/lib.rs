@@ -31,10 +31,10 @@ pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
 pub use am_lfo::{
-    AmLfo, AmLfoError, AmLfoState, Ym2413SerialAmLfo, Ym2413SerialAmLfoError,
-    Ym2413SerialAmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
+    AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
-    YM2413_SERIAL_AM_LFO_STATE_VERSION,
+    YM2413_SERIAL_AM_LFO_STATE_VERSION, Ym2413SerialAmLfo, Ym2413SerialAmLfoError,
+    Ym2413SerialAmLfoState,
 };
 pub use bus_timing::{
     YM2413_ADDRESS_WRITE_WAIT_CLOCKS, YM2413_BUS_TIMING_STATE_VERSION,
@@ -113,16 +113,16 @@ pub use rhythm_output::{
     Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState, Ym2413RhythmOutputError,
     Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
 };
-pub use serial_operator::{
-    Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorSample,
-    Ym2413SerialOperatorState, YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS,
-    YM2413_SERIAL_OPERATOR_SLOTS, YM2413_SERIAL_OPERATOR_STATE_VERSION,
-};
 pub use rhythm_phase::{
     RhythmNoisePhaseInputs, RhythmPhaseCandidateError, RhythmPhaseSource,
     YM2413_RHYTHM_PHASE_CANDIDATE_SOURCE, YM2413_TOP_CYMBAL_EQUIVALENT_PHASE_VARIANTS,
     hi_hat_phase_candidate, rhythm_noise_phase_candidate, rhythm_phase_mix_bit_candidate,
     snare_drum_phase_candidate, top_cymbal_phase_candidate,
+};
+pub use serial_operator::{
+    Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorSample,
+    Ym2413SerialOperatorState, YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS,
+    YM2413_SERIAL_OPERATOR_SLOTS, YM2413_SERIAL_OPERATOR_STATE_VERSION,
 };
 pub use slot::{
     YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator,
