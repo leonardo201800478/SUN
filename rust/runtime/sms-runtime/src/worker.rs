@@ -1641,6 +1641,7 @@ impl SmsTemporalWorker {
             cartridge_sram_size,
             initial_sram,
             false,
+            SmsFmOutputPolicy::Muted,
         )
     }
 
