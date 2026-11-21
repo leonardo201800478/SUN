@@ -494,3 +494,18 @@ PR #1154 (FM-5.2A) merged into `main` at `50f549cf28da4f268304908ae44717fe402dd7
 PR #1157 adds the separate measured-domain MO/RO service, independent MO/RO cycle coordinates, signed-zero retention and a Nuked differential for the standalone digital reference pipeline. PR #1158 composes the Nuked software-reference pipeline with the core-owned PG service, but does not convert it into the measured physical pin adapter. The exact-head checks for #1158 (CI, PG, EG characterization, Rhythm reset and output-pipeline differential) passed on code HEAD `b7143f07a166932c39801b28126def0c55df4800`.
 
 The remaining integration gate is to connect the measured MO/RO service to the core using independent pin coordinates and explicit unknown validity, while preserving the prior-`ch_out` and output-buffer delays. Neither PR claims raw DAC word, analog voltage, PCM, or physical-chip validation.
+
+
+## Estado de publicação após PR #1159
+
+As etapas FM-5.2A/B e os serviços de saída subsequentes foram publicados na `main`:
+
+- PR #1154 — FM-5.2A, merge `50f549cf28da4f268304908ae44717fe402dd708`.
+- PR #1156 — FM-5.2B, merge `f955bc42dfff6565e4719653c2834bf271884bac`.
+- PR #1157 — serviço medido MO/RO, merge `00d9758a3d67b9f6df9e8cde04bafdb9f7bba36b`.
+- PR #1158 — pipeline de referência Nuked, merge `29c290c334cc53ea70a47d8b9ac1f8cf2192557f`.
+- PR #1159 — adaptador medido MO/RO no PG serial, merge `eb01ca8a7ee6224a98e872143b41f0b28137b292`.
+
+A PR #1159 fecha apenas a integração temporal/proveniência do adaptador. O PG fornece `None` para o nível medido até que a conversão do intermediário do operador seja comprovada. A referência Nuked permanece separada e não certifica comportamento físico.
+
+Permanecem abertas as incertezas registradas neste relatório: seed físico do LFSR, ROM interna de patches de percussão, divergência `c_sl`/`eg_sl` (Nuked 4 versus Rust 6) e estados EG associados. A publicação das PRs não transforma esses candidatos em fatos de silício.

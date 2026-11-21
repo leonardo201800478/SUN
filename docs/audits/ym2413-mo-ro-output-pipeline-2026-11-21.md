@@ -189,3 +189,15 @@ como correção independente.
 CI #44930418522 terminou SUCCESS após rerun do job cancelado. Assim, o código
 do pipeline isolado, seu exemplo e o diferencial estão compilados e cobertos
 pelo CI. A caracterização PG/EG continua sem fechamento.
+
+
+## Atualização após PR #1159 — separação preservada
+
+A PR #1159 foi integrada em `eb01ca8a7ee6224a98e872143b41f0b28137b292`. Ela acrescenta o adaptador do modelo medido ao PG serial, mas mantém os dois modelos de saída separados:
+
+1. **Pipeline de referência Nuked:** continua consumindo o `rm_enable` assinado do core, sem deslocamento adicional. Sua validação diferencial permanece uma validação de software.
+2. **Serviço medido MO/RO:** conserva coordenadas independentes, retenção e signed zero. O adaptador agora valida o limite de latch anterior, procedência, buffer de um ciclo e snapshot.
+
+A integração não deriva `Ym2413DacCode` de `previous_channel_output: i16`. O PG fornece `None` como nível medido enquanto a correspondência operador→nível não tiver evidência independente. Portanto, a integração não produz amplitudes MO/RO conhecidas, palavra bruta do DAC, tensão analógica ou PCM.
+
+O resultado `ModeInactive` não deve ser interpretado como nível elétrico zero. A ausência de nível medido permanece explícita (`mo_known = false`, `UnknownSource` ou `RepeatNotInitialized`, conforme o slot).
