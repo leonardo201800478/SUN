@@ -508,6 +508,12 @@ mod tests {
     use crate::synthesis_tables::YM2413_EXP_TABLE;
 
     #[test]
+    fn reset_state_matches_nuked_initial_eg_output_latch() {
+        assert_eq!(Ym2413SerialOperator::new().export_state().eg_out, 127);
+        assert_eq!(Ym2413SerialOperatorState::default().eg_out, 127);
+    }
+
+    #[test]
     fn exp_rom_reconstruction_matches_the_nuked_2413_table_domain() {
         for index in 0..256 {
             let reconstructed = 1024 + YM2413_EXP_TABLE[255 - index];
