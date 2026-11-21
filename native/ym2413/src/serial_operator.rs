@@ -272,8 +272,8 @@ impl Ym2413SerialOperator {
         self.state.op_neg = self.state.op_neg.wrapping_shl(1) | ((phase >> 9) as u8);
 
         let feedback_index = usize::from((cycle + 3) % 9);
-        let feedback_sum =
-            i32::from(self.state.op_fb1[feedback_index]) + i32::from(self.state.op_fb2[feedback_index]);
+        let feedback_sum = i32::from(self.state.op_fb1[feedback_index])
+            + i32::from(self.state.op_fb2[feedback_index]);
         self.state.op_fbsum = (feedback_sum >> 1) as i16;
 
         if ismod1 {
@@ -321,9 +321,8 @@ impl Ym2413SerialOperator {
         let output_index = usize::from((cycle + 17) % 18);
         let silent_index = usize::from((cycle + 16) % 18);
         let am = if self.state.c_am { am_level } else { 0 };
-        let mut output_level = u16::from(eg_levels[output_index])
-            + self.state.eg_ksltl
-            + u16::from(am);
+        let mut output_level =
+            u16::from(eg_levels[output_index]) + self.state.eg_ksltl + u16::from(am);
         if output_level >= 128 {
             output_level = 127;
         }
@@ -372,8 +371,8 @@ impl Ym2413SerialOperator {
 #[cfg(test)]
 mod tests {
     use super::{
-        Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorState,
-        YM2413_SERIAL_OPERATOR_STATE_VERSION,
+        YM2413_SERIAL_OPERATOR_STATE_VERSION, Ym2413SerialOperator, Ym2413SerialOperatorError,
+        Ym2413SerialOperatorState,
     };
     use crate::synthesis_tables::YM2413_EXP_TABLE;
 
@@ -447,10 +446,14 @@ mod tests {
         let mut continuous = Ym2413SerialOperator::new();
         let mut partitioned = continuous;
         for cycle in 0..18 {
-            continuous.tick_operator(cycle, (cycle as u16) * 17).unwrap();
+            continuous
+                .tick_operator(cycle, (cycle as u16) * 17)
+                .unwrap();
         }
         for cycle in 0..7 {
-            partitioned.tick_operator(cycle, (cycle as u16) * 17).unwrap();
+            partitioned
+                .tick_operator(cycle, (cycle as u16) * 17)
+                .unwrap();
         }
         let saved = partitioned.export_state();
         partitioned = Ym2413SerialOperator::restore_state(saved).unwrap();
