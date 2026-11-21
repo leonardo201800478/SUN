@@ -21,8 +21,14 @@ pub enum Ym2413SerialSlotDispatch {
         voice: Ym2413RhythmVoice,
         selector: EnvelopeRhythmSelect,
     },
-    /// RHY is set, but the delayed selector has not reached this slot's
-    /// expected voice yet. The caller must preserve transition semantics.
+    /// RHY register and serial rm_enable shift latch have not reached a matching stable state.
+    RhythmModeTransition {
+        slot: Ym2413SlotDescriptor,
+        rhythm_mode_enabled: bool,
+        rm_enable: u8,
+        expected_rm_enable: u8,
+    },
+    /// RHY is stable and set, but the delayed selector has not reached this slot's expected voice.
     RhythmTransition {
         slot: Ym2413SlotDescriptor,
         expected: EnvelopeRhythmSelect,
@@ -99,7 +105,7 @@ mod tests {
     fn melodic_mode_keeps_all_eighteen_slots_on_the_canonical_channel_map() {
         let registers = registers(false);
         for cycle in 0..YM2413_SLOT_COUNT as u8 {
-            let dispatch = dispatch_serial_slot(cycle, &registers, Select::None).unwrap();
+            let dispatch = dispatch_serial_slot(cycle, &registers, 0x00, Select::None).unwrap();
             assert_eq!(
                 dispatch,
                 Ym2413SerialSlotDispatch::Melodic {
@@ -125,7 +131,7 @@ mod tests {
 
         for (cycle, selector, voice) in rhythm_cycles {
             assert_eq!(
-                dispatch_serial_slot(cycle, &registers, selector).unwrap(),
+                dispatch_serial_slot(cycle, &registers, 0xff, selector).unwrap(),
                 Ym2413SerialSlotDispatch::Rhythm {
                     slot: YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
                     voice,
@@ -137,7 +143,7 @@ mod tests {
 
         for cycle in (0..YM2413_SLOT_COUNT as u8).filter(|cycle| !(11..=16).contains(cycle)) {
             assert!(matches!(
-                dispatch_serial_slot(cycle, &registers, Select::None).unwrap(),
+                dispatch_serial_slot(cycle, &registers, 0x00, Select::None).unwrap(),
                 Ym2413SerialSlotDispatch::Melodic { .. }
             ));
         }
@@ -149,7 +155,7 @@ mod tests {
         for cycle in 11..=16 {
             for actual_code in 0..=6 {
                 let actual = Select::from_code(actual_code).unwrap();
-                let result = dispatch_serial_slot(cycle, &registers, actual).unwrap();
+                let result = dispatch_serial_slot(cycle, &registers, 0xff, actual).unwrap();
                 let expected = match cycle {
                     11 => Select::BassDrumFirst,
                     12 => Select::HiHat,
@@ -177,13 +183,44 @@ mod tests {
     }
 
     #[test]
+    fn mode_latch_transitions_never_commit_ownership_early() {
+        let enabled = registers(true);
+        for rm_enable in 0x80..=0xfe {
+            let result = dispatch_serial_slot(12, &enabled, rm_enable, Select::HiHat).unwrap();
+            assert_eq!(
+                result,
+                Ym2413SerialSlotDispatch::RhythmModeTransition {
+                    slot: YM2413_SLOT_MAP[13],
+                    rhythm_mode_enabled: true,
+                    rm_enable,
+                    expected_rm_enable: 0xff,
+                }
+            );
+        }
+
+        let disabled = registers(false);
+        for rm_enable in 1..=0x7f {
+            let result = dispatch_serial_slot(12, &disabled, rm_enable, Select::None).unwrap();
+            assert_eq!(
+                result,
+                Ym2413SerialSlotDispatch::RhythmModeTransition {
+                    slot: YM2413_SLOT_MAP[13],
+                    rhythm_mode_enabled: false,
+                    rm_enable,
+                    expected_rm_enable: 0x00,
+                }
+            );
+        }
+    }
+
+    #[test]
     fn invalid_cycle_is_rejected_without_indexing_the_slot_table() {
         assert_eq!(
-            dispatch_serial_slot(18, &registers(true), Select::None),
+            dispatch_serial_slot(18, &registers(true), 0xff, Select::None),
             Err(Ym2413SerialSlotDispatchError::InvalidCycle(18))
         );
         assert_eq!(
-            dispatch_serial_slot(u8::MAX, &registers(false), Select::None),
+            dispatch_serial_slot(u8::MAX, &registers(false), 0x00, Select::None),
             Err(Ym2413SerialSlotDispatchError::InvalidCycle(u8::MAX))
         );
     }
