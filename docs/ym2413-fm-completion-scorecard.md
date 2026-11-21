@@ -5,7 +5,7 @@
 **Main atual após integração FM-3A:** `624bb3dc956080b18b5b924f94f3ab4ce49c83e4` (merge commit da PR #1147, 2026-11-21)
 **HEAD de código FM-3A validado antes do merge:** `c58a4215b81fff27e40a89c32b56f141f99d8964`
 **PR #1154 — FM-5.2A:** HEAD `0422cc85dcb6ceacf58246f97db900b5f23ef2f4`, aberta e validada nos gates aplicáveis.
-**PR #1156 — FM-5.2B:** branch draft empilhada sobre #1154; código validado no HEAD `fbdddebb3cd79930f60e78e3ce8dbbd72a5d33f6` (atualizações documentais posteriores na mesma branch).
+**PR #1156 — FM-5.2B:** branch draft empilhada sobre #1154; código validado no HEAD `6aed8b627b9b84b4459da1b0e65ffeb730b9fe35` (atualizações documentais posteriores na mesma branch).
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -17,7 +17,7 @@ Na `main` permanecem integrados os marcos FM-1, FM-2 e FM-3A: EG serial core-own
 
 A PR #1154 acrescenta o sequenciamento serial do LFSR (FM-5.2A). A PR draft empilhada #1156 acrescenta o primeiro caminho integrado de Rhythm Mode (FM-5.2B): roteamento dos cinco seletores, parâmetros rhythm-derived para PG/operador, equações PG de HH/SD/TCY, avanço LFSR pós-EG e snapshots dos latches de fase/saída. A execução de síntese de percussão continua condicionada a uma seed explícita; o reset físico não foi certificado.
 
-O FM-5.2B já possui diferencial isolado do operador e dos cinco latches de ritmo aprovado, além de caracterização integrada de 147.456 chamadas com estado rígido de controle/temporização/LFSR coincidente com Nuked. A caracterização reporta divergências nos parâmetros de síntese derivados da tabela candidata (`c_fb`, `c_dm`, `c_sl` e estados EG dependentes), sem mascará-las. Ainda faltam certificação física dos patches/seed, saída final MO/RO/DAC/PCM, acumulação dos nove canais, portas FM F0–F2 no SMS e mixer PSG+FM. Não há PCM FM integrado ao runtime SMS nem validação física do chip.
+O FM-5.2B já possui diferencial isolado do operador e dos cinco latches de ritmo aprovado, além de caracterização integrada de 147.456 chamadas com estado rígido de controle/temporização/LFSR coincidente com Nuked. A caracterização reporta divergências nos parâmetros de síntese derivados da tabela candidata (`c_fb`, `c_dm`, `c_sl` e estados EG dependentes), sem mascará-las. A fixture integrada agora usa os valores de frequência da Tabela III-9 do manual Yamaha e a regressão afirma explicitamente os slots físicos BD 13/16, HH 14, TOM 15, SD 17 e TC 18. CI #9825 e PG #361 passaram no HEAD de código validado. Ainda faltam certificação física dos patches/seed, saída final MO/RO/DAC/PCM, acumulação dos nove canais, portas FM F0–F2 no SMS e mixer PSG+FM. Não há PCM FM integrado ao runtime SMS nem validação física do chip.
 
 ## Marcos já publicados
 
