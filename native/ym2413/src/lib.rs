@@ -1099,7 +1099,8 @@ mod tests {
         for cycle in [13_u8, 14_u8] {
             for (eg_dokon, expected) in [(0x8000_u32, false), (0x01_u32, true)] {
                 let mut core = Ym2413Core::new();
-                core.slot_index = cycle;
+                core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT * u64::from(cycle))
+                    .unwrap();
                 core.rm_enable = 0x80_u8 as i8;
                 let mut envelope_state = core.envelope.export_state();
                 envelope_state.eg_dokon = eg_dokon;
