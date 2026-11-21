@@ -3809,6 +3809,7 @@ dependencies = [
  "sega-video",
  "sega-z80-bus",
  "sega-z80-cpu",
+ "sega-ym2413",
 ]
 
 [[package]]
