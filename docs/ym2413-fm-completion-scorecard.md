@@ -4,6 +4,8 @@
 **Repositório:** `leonardo201800478/sega-emulator`
 **Main atual após integração FM-3A:** `624bb3dc956080b18b5b924f94f3ab4ce49c83e4` (merge commit da PR #1147, 2026-11-21)
 **HEAD de código FM-3A validado antes do merge:** `c58a4215b81fff27e40a89c32b56f141f99d8964`
+**PR #1154 — FM-5.2A:** HEAD `0422cc85dcb6ceacf58246f97db900b5f23ef2f4`, aberta e validada nos gates aplicáveis.
+**PR #1156 — FM-5.2B:** branch draft empilhada sobre #1154; HEAD `a71394f294ab30717e36079252fbbe6a1c729bbf`.
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -11,9 +13,11 @@ Este scorecard distingue implementação de componente, integração funcional, 
 
 **Status geral: EM DESENVOLVIMENTO — YM2413 ainda não está pronto para testes de ROM como subsistema de áudio funcional.**
 
-Na `main` estão integrados: core de registradores/18 slots; EG serial core-owned; hooks temporais; serviço PG serial; operador serial FM-3A com feedback, AM LFO serial e snapshots. As PRs #1133, #1145 e #1147 estão integradas. O FM-3A foi validado diferencialmente contra o Nuked-OPLL em 147.456 chamadas `OPLL_Clock`, cobrindo os 18 ciclos seriais; os gates de CI e os diferenciais aplicáveis passaram no HEAD de código `c58a4215`. O merge resultou no HEAD `624bb3dc`, cujo CI e adaptador externo Nuked também passaram.
+Na `main` permanecem integrados os marcos FM-1, FM-2 e FM-3A: EG serial core-owned, serviço PG serial, operador FM, feedback, AM LFO e snapshots. As PRs #1133, #1145 e #1147 estão integradas. O FM-3A foi validado diferencialmente contra o Nuked-OPLL em 147.456 chamadas `OPLL_Clock`.
 
-O progresso de Rhythm Mode é maior do que o registro histórico inicial indicava: existem decoder, configuração das cinco vozes, avaliadores sobre o banco PG/EG, candidatos de fase, sequenciador LFSR, retenção de saídas e roteamento lógico MO/RO. Ainda assim, esses blocos não estão unidos por um dispatcher cycle-accurate dos 18 slots. Permanecem pendentes a acumulação/mistura dos nove canais, a conversão do operador para palavra física do DAC/PCM, o pipeline temporal integrado de Rhythm Mode, a integração das portas FM no SMS e o mixer PSG+FM. Não há validação física do chip nem saída PCM FM integrada ao runtime SMS.
+A PR #1154 acrescenta o sequenciamento serial do LFSR (FM-5.2A). A PR draft empilhada #1156 acrescenta o primeiro caminho integrado de Rhythm Mode (FM-5.2B): roteamento dos cinco seletores, parâmetros rhythm-derived para PG/operador, equações PG de HH/SD/TCY, avanço LFSR pós-EG e snapshots dos latches de fase/saída. A execução de síntese de percussão continua condicionada a uma seed explícita; o reset físico não foi certificado.
+
+O FM-5.2B ainda não fecha o subsistema: faltam diferencial dedicado dos operadores de percussão contra Nuked, saída final MO/RO/DAC/PCM, acumulação dos nove canais, portas FM F0–F2 no SMS e mixer PSG+FM. Não há validação física do chip nem PCM FM integrado ao runtime SMS.
 
 ## Marcos já publicados
 
@@ -32,7 +36,7 @@ O progresso de Rhythm Mode é maior do que o registro histórico inicial indicav
 | Serviço PG serial | Integrado e diferencialmente validado | PR #1145; 18 acumuladores, PG/PM latches, reset event e snapshots |
 | Operador serial FM-3A | Integrado e diferencialmente validado | PR #1147; feedback, AM LFO serial e 147.456 chamadas OPLL_Clock |
 
-## Roadmap vigente de fechamento — estado após PR #1147 (2026-11-21)
+## Roadmap vigente de fechamento — estado após PR #1147 e trabalho empilhado FM-5.2A/B (2026-11-21)
 
 | Gate | Escopo | Estado atual | Evidência / bloqueio real |
 |---|---|---|---|
@@ -40,7 +44,7 @@ O progresso de Rhythm Mode é maior do que o registro histórico inicial indicav
 | FM-2 | PG serial e integração PG↔EG | **Integrado; diferencial de software aprovado** | PR #1145. 18 acumuladores, latches PG/PM, evento de reset de fase e snapshots; diferencial Nuked e limites de restauração aprovados. O alinhamento físico absoluto continua em aberto. |
 | FM-3 | Operadores, feedback e modulação | **FM-3A integrado e validado; FM-3 global parcial** | PR #1147. Operador serial, feedback de dois samples e AM LFO serial com diferencial integrado PASS. Faltam acumulação/roteamento final dos nove canais e PCM. |
 | FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder de registradores, patches candidatos e `evaluate_channel` existem. Ainda falta serviço temporal que percorra os nove canais e acumule uma amostra YM2413 final; presets não certificados por medição física. |
-| FM-5 | Rhythm Mode | **Parcial — blocos digitais implementados** | Decoder/configuração das cinco vozes, avaliação de voz/lote, candidatos de fase HH/SD/TCY, LFSR slot-rate, retenção e roteamento RO existem. Falta dispatcher temporal integrado e validação física da cadência/seed/trigger. |
+| FM-5 | Rhythm Mode | **Parcial — caminho serial integrado em branch draft** | PR #1154: LFSR serial FM-5.2A. PR #1156: roteamento de patch/PG/operador para BD, HH, TOM, SD e TCY; PG especial HH/SD/TCY; snapshots e equivalência contínuo/blocos com seed explícita. Falta diferencial dedicado de operador/saída, seed física, MO/RO/DAC/PCM final e validação em hardware. |
 | FM-6 | Saída digital FM / DAC / PCM | **Parcial — contrato MO/RO isolado** | Roteamento por slot e nível reconstruído de domínio de medição existem. Falta conversão operador→palavra bruta do DAC, definição da janela subclock e PCM final. |
 | FM-7 | Perfis de hardware e integração SMS | **Pendente** | Portas F0–F2, latch/barramento, perfil Mark III/FM Unit e controle FM Auto/Off/On ainda não integrados ao runtime SMS. |
 | FM-8 | Mixer PSG + FM e áudio | **Pendente** | Acumulação determinística, mixer PSG+FM, resampling/saída host e snapshots agregados da máquina ainda não integrados. |
@@ -77,7 +81,7 @@ As seções históricas abaixo registram a evolução por PR e hipótese. Em cas
 | AM LFO | **Serial AM integrado em FM-3A** | Contador/direção/carry/step/output latch comparados contra Nuked; o antigo candidato sample-clocked permanece separado |
 | Instrument ROM | 15 patches candidatos licenciados (MIT) e decodificação do user patch | Valores não são dump físico certificado; revisão de hardware ainda necessária |
 | Channel register decode | FNUM/BLOCK/KEY-ON/SUSTAIN/INST/VOL para nove canais | Ponte estática `channel.rs` alimenta parâmetros por canal e `evaluate_channel`; falta o dispatcher que percorra os nove canais nos slots e acumule a saída final |
-| Rhythm / LFSR | **Parcial; vários blocos digitais implementados** | Decoder, cinco configurações de voz, avaliação das cinco vozes no banco PG/EG, candidatos de fase, sequenciador slot-rate HH/SD, retenção/repetição e roteamento RO. Seed/reset e cadência física não certificados; dispatcher integrado ainda ausente |
+| Rhythm / LFSR | **Parcial; pipeline serial rhythm-derived em branch draft** | PR #1156 conecta os seis slots seriais de percussão aos parâmetros rhythm-derived, PG especial HH/SD/TCY, operador serial e cinco latches de saída HH/TOM/BD/SD/TC. Snapshot e teste de execução contínua/blocos aprovados no CI #9790. Seed física, diferencial dedicado do caminho de operador e MO/RO/DAC/PCM final continuam pendentes. |
 | Portas F0–F2 | Não integradas | Pendente |
 | Mixer FM + PSG | **Pendente** | Nenhuma soma PCM final FM+PSG nem mixer integrado ao runtime |
 | Save State agregado | **Parcial** | Core EG, serviço PG/operador e banco de síntese possuem snapshots próprios e testes de restore/continuação; falta um snapshot único agregado no estado da máquina SMS incluindo scheduler de slots, LFSR, saída e PCM |
@@ -117,9 +121,11 @@ As seções históricas abaixo registram a evolução por PR e hipótese. Em cas
 
 ## Próxima dependência técnica
 
-As PRs #1133, #1145 e #1147 já foram integradas. Não reabrir EG/PG/operador serial sem regressão demonstrada. O próximo gate deve ser FM-4: ligar o decoder dos nove canais e os patches aos serviços seriais existentes, sem duplicar PG/EG nem criar um segundo dono do clock. A seguir, concluir o dispatcher de 18 slots que conecta os estados PG/EG, operadores, LFOs, Rhythm LFSR, avaliação de vozes e eventos MO/RO em ordem determinística.
+As PRs #1133, #1145 e #1147 estão integradas à main. A PR #1154 (FM-5.2A) e a PR draft empilhada #1156 (FM-5.2B) permanecem fora da main. Não reabrir EG/PG/operador FM-3A sem regressão demonstrada.
 
-Somente depois dessa fronteira temporal será correto fechar acumulação/saída PCM, integração F0–F2 no SMS e mixer PSG+FM. Não usar integração SMS ou mixer como substituto da síntese FM ausente. Não declarar o chip pronto para ROMs enquanto não houver PCM FM reproduzível e regressões no runtime SMS/SG-1000.
+Próxima dependência do Rhythm Mode: validar diferencialmente os estados internos de PG/operador e as saídas de cada voz contra a mesma revisão fixada do Nuked-OPLL; depois conectar a retenção/roteamento MO/RO, definir a palavra bruta do DAC e o PCM. Em paralelo, FM-4 ainda precisa de dispatcher e acumulação dos nove canais melódicos.
+
+Somente depois será correto fechar integração F0–F2 no SMS e mixer PSG+FM. Não usar integração SMS ou mixer como substituto da síntese FM ausente. Não declarar o chip pronto para ROMs enquanto não houver PCM FM reproduzível e regressões no runtime SMS/SG-1000.
 
 
 
