@@ -308,3 +308,88 @@ The previous “Next, rerun...” instruction is superseded: PG differential #36
 has now run and verified the FB/DM correction. The next work item remains
 isolating the SD SL/EG candidate difference, not changing the candidate table
 without new hardware evidence.
+
+
+## FM-5.3 investigation and output-service increment — 2026-11-21
+
+The original andete rhythm analysis at commit
+`4893d1c09faa0450b5d3355f19b7682d72822501` gives a measured 18-slot output
+schedule. Each slot is four input clocks; one full rotation is 72 input clocks
+(about 49.7 kHz at 3.57 MHz). The measured table is:
+
+| Physical slot | RO output | MO output |
+|---:|---|---|
+| 0 | HH repeat | — |
+| 1 | TOM repeat | — |
+| 2 | BD repeat | — |
+| 3 | — | melodic channel 0 |
+| 4 | — | melodic channel 1 |
+| 5 | — | melodic channel 2 |
+| 6 | SD repeat | — |
+| 7 | TC repeat | — |
+| 8 | — | — |
+| 9 | — | melodic channel 3 |
+| 10 | — | melodic channel 4 |
+| 11 | — | melodic channel 5 |
+| 12 | — | — |
+| 13 | HH original | — |
+| 14 | TOM original | — |
+| 15 | BD original | — |
+| 16 | SD original | — |
+| 17 | TC original | — |
+
+Andete reports that the five repeated percussion values are identical to
+their original outputs, even when parameters change between the two
+occurrences. The 9-by-5 shift-register topology suggested by the FHB013
+derivative die shot is not treated as proof of the YM2413's physical layout;
+the implementation models only the observed behavior.
+
+The 2015 measurement note reports separate MO and RO analog pins and a
+9-bit digital output domain with 511 observed levels (-255..+255). The
+MSX Resource Center reverse-engineering report independently states that
+each selected output level remains active for three input clocks before the
+pin returns to its neutral position. This supports the existing three-active,
+one-neutral pulse-width contract. It does not determine the sub-clock phase
+or neutral voltage.
+
+### Existing output components and new composition
+
+The following components already existed on `main` and were not duplicated:
+
+- `rhythm_output.rs`: versioned five-value retention, original slots 13..17,
+  repeated slots 0/1/2/6/7, and explicit uninitialized-repeat results.
+- `output.rs`: independent MO/RO routing, measured pulse width and event
+  validation.
+
+The FM-5.3 branch adds `Ym2413RhythmOutputService`, which composes those
+components into one serial slot boundary:
+
+- accepts an explicit measured-domain level for MO only at slots 3/4/5/9/10/11;
+- accepts original percussion levels only at slots 13..17;
+- emits retained duplicate values at slots 0/1/2/6/7 without recomputation;
+- returns MO and RO independently in `Ym2413RhythmOutputFrame`;
+- snapshots the retention values and cursor with a versioned state;
+- rejects invalid slot/input placement without mutating the retention state.
+
+The service accepts `Ym2413DacCode` only. It does not derive this value from
+the signed operator intermediate, create a raw nine-bit DAC word, combine
+MO+RO, generate PCM, choose a sub-clock pulse phase, or advance the master
+clock. The caller must invoke it once per completed slot under the existing
+core/Scheduler timing authority.
+
+### FM-5.3 status
+
+**Implemented as a standalone serial output-service boundary; not yet
+integrated into Ym2413Core or SMS audio.** The remaining gates are:
+
+- run the new six-MO/five-rhythm routing and snapshot/restore tests in CI;
+- verify the output event schedule against the measured table and the pinned
+  oracle's pin mux without treating Nuked as physical proof;
+- define the handoff from the future operator-to-DAC converter to
+  `Ym2413DacCode` without inferring a raw code from the signed intermediate;
+- integrate the service into the core's slot boundary only when that
+  measured-domain source exists;
+- retain unresolved sub-clock pulse phase and neutral electrical level as
+  explicit limitations.
+
+No PCM or DAC conversion is included in this increment.
