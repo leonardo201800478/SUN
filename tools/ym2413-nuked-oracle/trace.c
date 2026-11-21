@@ -19,6 +19,8 @@
 extern uint16_t opll_trace_pg_out_before_operator;
 extern uint16_t opll_trace_operator_phase_index;
 extern int16_t opll_trace_operator_output;
+extern uint8_t opll_trace_selected_instr;
+extern uint8_t opll_trace_selected_op;
 #endif
 
 #define MAX_EVENTS 65536
@@ -272,7 +274,7 @@ int main(int argc, char **argv) {
         print_u32_array(chip.pg_phase, 18);
         printf(",\"pg_out\":%u", (unsigned)chip.pg_out);
         printf(",\"c_instr\":%u,\"c_op\":%u,\"c_tl\":%u,\"c_fb\":%u,\"c_am\":%u,\"c_vib\":%u,\"c_ksr\":%u,\"c_ksl\":%u,\"c_multi\":%u,\"c_fnum\":%u,\"c_block\":%u",
-               (unsigned)chip.c_instr, (unsigned)chip.c_op, (unsigned)chip.c_tl,
+               (unsigned)opll_trace_selected_instr, (unsigned)opll_trace_selected_op, (unsigned)chip.c_tl,
                (unsigned)chip.c_fb, (unsigned)chip.c_am, (unsigned)chip.c_vib,
                (unsigned)chip.c_ksr, (unsigned)chip.c_ksl, (unsigned)chip.c_multi,
                (unsigned)chip.c_fnum, (unsigned)chip.c_block);
