@@ -15,9 +15,7 @@ use crate::key_scale::{KeyScaleError, key_scale_attenuation};
 use crate::operator::{OperatorPairError, OperatorPairParameters};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::rhythm_channel::{RhythmChannelSynthesisError, decode_rhythm_envelope_slot_input};
-use crate::slot::{
-    Ym2413Operator, Ym2413SlotDescriptor, nuked_cycle_selected_slot_descriptor,
-};
+use crate::slot::{Ym2413Operator, Ym2413SlotDescriptor, nuked_cycle_selected_slot_descriptor};
 
 /// Errors produced while resolving one channel's register-derived parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
