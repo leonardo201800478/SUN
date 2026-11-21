@@ -156,8 +156,8 @@ impl Ym2413OutputPipeline {
 
         self.state.rm_enable >>= 1;
         if let Some(data) = qualified_rhythm_write_data {
-            self.state.rm_enable = ((self.state.rm_enable as u8 & 0x7f)
-                | ((data & 0x20) << 2)) as i8;
+            self.state.rm_enable =
+                ((self.state.rm_enable as u8 & 0x7f) | ((data & 0x20) << 2)) as i8;
         }
 
         let mut active = self.state.previous_channel_output;
