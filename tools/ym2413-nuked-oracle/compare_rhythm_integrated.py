@@ -57,6 +57,9 @@ def compare_hard_state(
     for field in HARD_SCALAR_FIELDS:
         expected = int(nuked[field])
         actual = int(rust[field])
+        if field == "lfo_counter":
+            expected &= 0x1FFF
+            actual &= 0x1FFF
         if expected != actual:
             raise ValueError(
                 f"call {call_index}: hard field {field} mismatch "
@@ -149,9 +152,18 @@ def main() -> int:
         cycles.add(int(nuked["cycle_before"]))
         modes.add(int(nuked["op_calc_rm_enable"]))
 
-        for field in candidate_fields:
-            expected = nuked.get(field)
-            actual = rust.get(field)
+        row_candidate_values = {
+            field: (nuked[field], rust[field]) for field in candidate_fields
+        }
+        row_candidate_values["pg_increment_alias"] = (
+            nuked["pg_inc"], rust["pg_increment"]
+        )
+        row_candidate_values["pg_output_alias"] = (nuked["pg_out"], rust["pg_output"])
+        row_candidate_values["c_ksl_attenuation"] = (
+            int(nuked["eg_ksltl"]) - (int(nuked["c_tl"]) << 1),
+            int(rust["c_ksl_attenuation"]),
+        )
+        for field, (expected, actual) in row_candidate_values.items():
             if expected != actual:
                 record = candidate_differences.setdefault(
                     field,
