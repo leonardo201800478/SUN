@@ -1211,7 +1211,7 @@ mod tests {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
         let frame = service
-            .process_nuked_cycle_from_channel_output(0, true, None)
+            .process_nuked_cycle_from_channel_output(0, true, None, false)
             .unwrap();
 
         assert_eq!(frame.mo_slot_index, 3);
@@ -1234,7 +1234,7 @@ mod tests {
         let channel_output = -37_i16;
         let expected = Ym2413DacCode::from_operator_channel_output(channel_output).unwrap();
         let frame = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(channel_output))
+            .process_nuked_cycle_from_channel_output(0, true, Some(channel_output), true)
             .unwrap();
 
         assert!(frame.mo_known);
@@ -1255,17 +1255,17 @@ mod tests {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
         let first = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(41))
+            .process_nuked_cycle_from_channel_output(0, true, Some(41), true)
             .unwrap();
         assert!(matches!(first.ro, Ym2413OutputSlotResult::Pulse(_)));
 
         for cycle in 1..18 {
             let _ = service
-                .process_nuked_cycle_from_channel_output(cycle, true, Some(41))
+                .process_nuked_cycle_from_channel_output(cycle, true, Some(41), true)
                 .unwrap();
         }
         let unknown_source = service
-            .process_nuked_cycle_from_channel_output(0, true, None)
+            .process_nuked_cycle_from_channel_output(0, true, None, false)
             .unwrap();
         assert!(matches!(
             unknown_source.ro,
@@ -1277,11 +1277,11 @@ mod tests {
 
         for cycle in 1..5 {
             let _ = service
-                .process_nuked_cycle_from_channel_output(cycle, true, None)
+                .process_nuked_cycle_from_channel_output(cycle, true, None, false)
                 .unwrap();
         }
         let repeat = service
-            .process_nuked_cycle_from_channel_output(5, true, None)
+            .process_nuked_cycle_from_channel_output(5, true, None, false)
             .unwrap();
         assert_eq!(
             repeat.ro,
@@ -1295,10 +1295,10 @@ mod tests {
     #[test]
     fn measured_adapter_buffers_one_cycle_and_labels_source_and_emission_cycles() {
         let mut adapter = super::Ym2413MeasuredOutputAdapter::new();
-        assert_eq!(adapter.process_cycle(0, true, None), Ok(None));
+        assert_eq!(adapter.process_cycle(0, true, None, false), Ok(None));
         assert_eq!(adapter.output_frame(), None);
 
-        let emitted = adapter.process_cycle(1, true, Some(17)).unwrap().unwrap();
+        let emitted = adapter.process_cycle(1, true, Some(17), true).unwrap().unwrap();
         assert_eq!(emitted.emitted_cycle, 1);
         assert_eq!(emitted.source.cycle, 0);
         assert!(!emitted.source.mo_known);
@@ -1320,19 +1320,19 @@ mod tests {
 
         let mut expected = Vec::new();
         for cycle in 0..18 {
-            expected.push(continuous.process_cycle(cycle, true, input(cycle)).unwrap());
+            expected.push(continuous.process_cycle(cycle, true, input(cycle), input(cycle).is_some()).unwrap());
         }
 
         let mut prefix = Vec::new();
         for cycle in 0..7 {
-            prefix.push(split.process_cycle(cycle, true, input(cycle)).unwrap());
+            prefix.push(split.process_cycle(cycle, true, input(cycle), input(cycle).is_some()).unwrap());
         }
         let snapshot = split.export_state();
         let mut restored =
             super::Ym2413MeasuredOutputAdapter::with_initial_state(snapshot).unwrap();
         let mut resumed = Vec::new();
         for cycle in 7..18 {
-            resumed.push(restored.process_cycle(cycle, true, input(cycle)).unwrap());
+            resumed.push(restored.process_cycle(cycle, true, input(cycle), input(cycle).is_some()).unwrap());
         }
 
         assert_eq!(prefix, expected[..7]);
@@ -1379,13 +1379,13 @@ mod tests {
 
         // Prime a valid percussion value, then disable Rhythm Mode.
         let initial = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(41))
+            .process_nuked_cycle_from_channel_output(0, true, Some(41), true)
             .unwrap();
         assert!(matches!(initial.ro, Ym2413OutputSlotResult::Pulse(_)));
 
         for cycle in 1..18 {
             let frame = service
-                .process_nuked_cycle_from_channel_output(cycle, false, Some(73))
+                .process_nuked_cycle_from_channel_output(cycle, false, Some(73), false)
                 .unwrap();
             assert_eq!(frame.ro, Ym2413OutputSlotResult::ModeInactive);
         }
@@ -1393,7 +1393,7 @@ mod tests {
         // Re-enter Rhythm Mode at the original BD source position. The new
         // rhythm value, not the intervening melodic samples, feeds its repeat.
         let source = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(-19))
+            .process_nuked_cycle_from_channel_output(0, true, Some(-19), true)
             .unwrap();
         assert!(matches!(
             source.ro,
@@ -1402,11 +1402,11 @@ mod tests {
         ));
         for cycle in 1..5 {
             let _ = service
-                .process_nuked_cycle_from_channel_output(cycle, true, Some(7))
+                .process_nuked_cycle_from_channel_output(cycle, true, Some(7), true)
                 .unwrap();
         }
         let repeat = service
-            .process_nuked_cycle_from_channel_output(5, true, Some(7))
+            .process_nuked_cycle_from_channel_output(5, true, Some(7), true)
             .unwrap();
         assert!(matches!(
             repeat.ro,
@@ -1420,7 +1420,7 @@ mod tests {
         let mut rhythm_service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(9)).unwrap();
         let rhythm_frame = rhythm_service
-            .process_nuked_cycle_from_channel_output(12, true, Some(11))
+            .process_nuked_cycle_from_channel_output(12, true, Some(11), false)
             .unwrap();
         assert_eq!(rhythm_frame.mo_slot_index, 15);
         assert!(rhythm_frame.mo.is_none());
@@ -1429,7 +1429,7 @@ mod tests {
         let mut melodic_service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(9)).unwrap();
         let melodic_frame = melodic_service
-            .process_nuked_cycle_from_channel_output(12, false, Some(11))
+            .process_nuked_cycle_from_channel_output(12, false, Some(11), false)
             .unwrap();
         assert!(melodic_frame.mo.is_some());
         assert!(melodic_frame.mo_known);
