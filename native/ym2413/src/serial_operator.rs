@@ -260,8 +260,12 @@ impl Ym2413SerialOperator {
                 latches.ksl_attenuation,
             ));
         }
-        if latches.total_level > 63
-            || latches.ksl > 3
+        if latches.total_level > 63 {
+            return Err(Ym2413SerialOperatorError::InvalidTotalLevel(
+                latches.total_level,
+            ));
+        }
+        if latches.ksl > 3
             || latches.adrr.iter().any(|rate| *rate > 15)
             || latches.key_scale_rate_frequency > 15
             || latches.key_scale_level_frequency > 15
@@ -303,8 +307,12 @@ impl Ym2413SerialOperator {
         &mut self,
         latches: Ym2413SerialOperatorPatch2Latches,
     ) -> Result<(), Ym2413SerialOperatorError> {
-        if latches.feedback > 7
-            || latches.multiplier > 15
+        if latches.feedback > 7 {
+            return Err(Ym2413SerialOperatorError::InvalidFeedback(
+                latches.feedback,
+            ));
+        }
+        if latches.multiplier > 15
             || latches.sustain_level > 15
             || latches.fnum > 0x01ff
             || latches.block > 7
