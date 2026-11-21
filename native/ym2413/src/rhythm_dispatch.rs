@@ -8,7 +8,7 @@
 //! it is never silently routed to a percussion voice.
 
 use crate::envelope_sequencer::EnvelopeRhythmSelect;
-use crate::slot::{nuked_cycle_selected_slot_descriptor, Ym2413RhythmVoice, Ym2413SlotDescriptor};
+use crate::slot::{Ym2413RhythmVoice, Ym2413SlotDescriptor, nuked_cycle_selected_slot_descriptor};
 
 /// Result of resolving one core-owned serial slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,9 +85,7 @@ pub fn dispatch_serial_slot(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError, dispatch_serial_slot,
-    };
+    use super::{Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError, dispatch_serial_slot};
     use crate::envelope_sequencer::EnvelopeRhythmSelect as Select;
     use crate::slot::{YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413RhythmVoice};
 
@@ -105,7 +103,8 @@ mod tests {
             assert_eq!(
                 dispatch,
                 Ym2413SerialSlotDispatch::Melodic {
-                    slot: YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
+                    slot: YM2413_SLOT_MAP
+                                [usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
                 },
                 "cycle {cycle}"
             );
