@@ -16,7 +16,23 @@ Os módulos ficam na camada de vídeo/apresentação, fora dos runtimes de hardw
 
 librashader permanece como alternativa futura para compatibilidade com presets Slang/RetroArch, não como dependência obrigatória. Correção da revisão: a documentação upstream classifica WGPU como suporte completo, não secundário. Mesmo assim, cada preset e a integração real Slint/WGPU/Vulkan precisam de testes.
 
-## 2. Resoluções de saída
+## Objetivo de reconstrução CRT em alta resolução
+
+O alvo visual é aproximar a experiência de um CRT de alta qualidade da década de 1990, aproveitando a resolução física de uma tela 4K para reconstruir com precisão a estrutura luminosa que um framebuffer 240p-like não consegue descrever sozinho. A saída 3840×2160 não cria detalhe do console: ela oferece amostras suficientes para modelar a máscara RGB de fósforos (shadow mask/aperture grille), a distribuição do feixe sobre os fósforos, scanlines, blooming, convergência e resposta temporal com alinhamento subpixel estável.
+
+O shader deve tratar a máscara RGB como estrutura física da tela, em coordenadas de saída, e não como textura decorativa presa aos pixels de origem. A frequência, fase e orientação da máscara precisam ser calibráveis para a densidade física do display; resize, escala fracionária e mudança de resolução não podem introduzir moiré, cintilação ou deriva do padrão. A energia do feixe, o espalhamento e o bloom são calculados em espaço linear, com limites para evitar clipping. O RGB de origem continua limitado pela paleta/CRAM real do sistema: HDR e wide gamut representam luminância e espaço de saída, não expansão artificial da paleta.
+
+A arquitetura separa três conceitos: (1) raster/frame nativo e temporização do VDP; (2) codificação do sinal, incluindo RGB direto ou composto NTSC/PAL-M/PAL; e (3) reconstrução eletro-óptica do CRT. Não presumir que todos os modos dos três sistemas sejam genericamente “240p”: preservar dimensões ativas, totais e cadência de cada perfil de hardware. A reconstrução é calculada na resolução final de apresentação (1080p, 1440p ou 4K), sem alterar o raster emulado.
+
+Perfis de referência devem permitir calibrar shadow mask, aperture grille e monitor profissional, além de intensidade do feixe, largura do spot, scanlines, bloom, convergência, curvatura e resposta temporal. Os parâmetros precisam ser independentes por perfil de sistema/região e não podem modificar VDP, CRAM, Scheduler ou estado da máquina.
+
+## VRR para cadências PAL de 50 Hz
+
+Jogos PAL europeus frequentemente operam em cadência nominal próxima de 50 Hz. Em monitores fixos de 60 Hz, conversões ou pacing inadequados podem produzir repetição irregular de frames, tearing ou judder, reforçando a percepção de movimento lento/irregular. VRR pode acompanhar a cadência real de aproximadamente 50 Hz (quando dentro da faixa operacional do monitor), reduzindo esses artefatos de apresentação e deixando o movimento mais consistente.
+
+Isso não acelera o jogo PAL, não altera sua temporização original e não transforma 50 atualizações por segundo em 60. O MachineScheduler mantém os clocks, totais e sequência originais do perfil PAL; VRR apenas coordena o instante de apresentação. A implementação deve medir frame pacing e validar faixa VRR/LFC, driver, compositor e modo de janela. Fallback fixo precisa manter cadência sem deriva e não pode descartar frames exigidos por filtros temporais. VRR também não substitui correção de áudio nem autoriza servo que altere o período do hardware emulado.
+
+## ## 2. Resoluções de saída
 
 | Perfil | Resolução de saída |
 |---|---:|
