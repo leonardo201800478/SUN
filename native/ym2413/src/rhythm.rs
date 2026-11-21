@@ -326,10 +326,22 @@ pub struct Ym2413RhythmSlotNoiseLfsr {
 impl Ym2413RhythmSlotNoiseLfsr {
     /// Construct from an explicit non-zero 23-bit seed.
     pub const fn with_seed(seed: u32) -> Result<Self, Ym2413RhythmNoiseError> {
-        if seed == 0 || seed & !YM2413_RHYTHM_NOISE_LFSR_MASK != 0 {
+        if seed == 0 {
             return Err(Ym2413RhythmNoiseError::InvalidRegister(seed));
         }
-        Ok(Self { register: seed })
+        Self::with_register(seed)
+    }
+
+    /// Construct from an explicit 23-bit register value, including zero.
+    ///
+    /// Zero is accepted for software-oracle reset characterization: Nuked's
+    /// OPLL_Reset zeroes the chip state and OPLL_DoRhythm applies a lock-up
+    /// escape bit on the first clock. This is not a claim about physical power-on.
+    pub const fn with_register(register: u32) -> Result<Self, Ym2413RhythmNoiseError> {
+        if register & !YM2413_RHYTHM_NOISE_LFSR_MASK != 0 {
+            return Err(Ym2413RhythmNoiseError::InvalidRegister(register));
+        }
+        Ok(Self { register })
     }
 
     /// Return the current 23-bit register.
@@ -344,12 +356,22 @@ impl Ym2413RhythmSlotNoiseLfsr {
 
     /// Emit the current LSB and advance one slot-rate LFSR step.
     ///
-    /// The recurrence is: feedback = bit0 XOR bit14; shift right and insert
-    /// feedback at bit22. This method is one explicit LFSR step, not an input
-    /// clock; the owner must call it at the researched four-clock slot boundary.
+    /// This is the normal-mode recurrence from Nuked's OPLL_DoRhythm. The
+    /// physical model advances once per serial slot, not once per input clock.
     pub fn clock(&mut self) -> u8 {
+        self.clock_with_test_mode(0)
+    }
+
+    /// Advance one slot-rate step with the current four-bit Test Mode value.
+    ///
+    /// Nuked computes feedback as bit0 XOR bit14, ORs in the zero-register
+    /// escape and Test Mode bit 1, then shifts right and inserts at bit22.
+    /// The zero escape reproduces the software reset state; it does not define
+    /// the physical chip's unknown power-on seed.
+    pub fn clock_with_test_mode(&mut self, test_mode: u8) -> u8 {
         let output = self.output_bit();
-        let feedback = (self.register ^ (self.register >> 14)) & 1;
+        let mut feedback = (self.register ^ (self.register >> 14)) & 1;
+        feedback |= u32::from(self.register == 0) | u32::from(test_mode & 0x02 != 0);
         self.register = (self.register >> 1) | (feedback << 22);
         output
     }
@@ -379,7 +401,7 @@ impl Ym2413RhythmSlotNoiseLfsr {
                 actual: state.format_version,
             });
         }
-        Self::with_seed(state.register)
+        Self::with_register(state.register)
     }
 }
 
@@ -441,6 +463,23 @@ impl Ym2413RhythmSlotNoiseSequencer {
         })
     }
 
+    /// Construct from an explicit 23-bit register value (including zero) and slot.
+    pub const fn with_register_at_slot(
+        register: u32,
+        slot_index: u8,
+    ) -> Result<Self, Ym2413RhythmNoiseError> {
+        if slot_index >= YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION {
+            return Err(Ym2413RhythmNoiseError::InvalidSlotIndex(slot_index));
+        }
+        Ok(Self {
+            slot_index,
+            lfsr: match Ym2413RhythmSlotNoiseLfsr::with_register(register) {
+                Ok(lfsr) => lfsr,
+                Err(error) => return Err(error),
+            },
+        })
+    }
+
     /// Return the zero-based slot that the next call will service.
     pub const fn slot_index(&self) -> u8 {
         self.slot_index
@@ -457,6 +496,14 @@ impl Ym2413RhythmSlotNoiseSequencer {
     /// slot 13 and SD at slot 16 observe states separated by exactly three
     /// slot-rate LFSR steps.
     pub fn advance_slot(&mut self) -> Option<Ym2413RhythmNoiseSlotSample> {
+        self.advance_slot_with_test_mode(0)
+    }
+
+    /// Service one slot using the current Test Mode bits for the LFSR feedback.
+    pub fn advance_slot_with_test_mode(
+        &mut self,
+        test_mode: u8,
+    ) -> Option<Ym2413RhythmNoiseSlotSample> {
         let sample = match self.slot_index {
             YM2413_RHYTHM_HIHAT_NOISE_SLOT_INDEX => Some(Ym2413RhythmNoiseSlotSample {
                 slot_index: self.slot_index,
@@ -470,7 +517,7 @@ impl Ym2413RhythmSlotNoiseSequencer {
             }),
             _ => None,
         };
-        let _ = self.lfsr.clock();
+        let _ = self.lfsr.clock_with_test_mode(test_mode);
         self.slot_index = (self.slot_index + 1) % YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION;
         sample
     }
@@ -622,6 +669,32 @@ mod tests {
         assert_ne!(after_47, Some(seed));
         assert_ne!(after_178_481, Some(seed));
         assert_eq!(lfsr.register(), seed);
+    }
+
+    #[test]
+    fn slot_rate_zero_register_uses_the_nuked_lockup_escape() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_register(0).unwrap();
+        assert_eq!(lfsr.clock(), 0);
+        assert_eq!(lfsr.register(), 1 << 22);
+    }
+
+    #[test]
+    fn slot_rate_test_mode_bit_one_forces_feedback_high() {
+        let register = 0x12_3456;
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_register(register).unwrap();
+        let expected = (register >> 1) | (1 << 22);
+        assert_eq!(u32::from(lfsr.clock_with_test_mode(0x02)), register & 1);
+        assert_eq!(lfsr.register(), expected);
+    }
+
+    #[test]
+    fn zero_register_slot_sequencer_state_round_trips_before_first_clock() {
+        let sequencer = Ym2413RhythmSlotNoiseSequencer::with_register_at_slot(0, 0).unwrap();
+        let snapshot = sequencer.export_state();
+        assert_eq!(
+            Ym2413RhythmSlotNoiseSequencer::restore_state(snapshot),
+            Ok(sequencer)
+        );
     }
 
     #[test]
