@@ -1026,6 +1026,10 @@ mod tests {
             .advance_input_clocks_with_slot_service(total, &mut whole_service)
             .unwrap();
 
+        let mut standalone = Ym2413Core::new();
+        standalone.advance_input_clocks(total).unwrap();
+        assert_eq!(whole.export_state(), standalone.export_state());
+
         let mut partitioned = Ym2413Core::new();
         let mut partitioned_service = RecordingSlotService::default();
         let mut remaining = total;
