@@ -8,7 +8,7 @@
 
 use crate::synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 
-pub const YM2413_SERIAL_OPERATOR_STATE_VERSION: u16 = 1;
+pub const YM2413_SERIAL_OPERATOR_STATE_VERSION: u16 = 2;
 pub const YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS: usize = 9;
 pub const YM2413_SERIAL_OPERATOR_SLOTS: u8 = 18;
 
@@ -59,6 +59,34 @@ pub struct Ym2413SerialOperatorState {
     pub c_tl: u8,
     /// PreparePatch1 KSL attenuation, already converted to EG units.
     pub c_ksl_attenuation: u8,
+    /// PreparePatch1 raw two-bit KSL code.
+    pub c_ksl: u8,
+    /// PreparePatch1 AR, DR and RR latches in serial order.
+    pub c_adrr: [u8; 3],
+    /// PreparePatch1 envelope-type latch.
+    pub c_et: bool,
+    /// PreparePatch1 key-scale-rate latch.
+    pub c_ksr: bool,
+    /// PreparePatch1 key-scale-rate frequency code.
+    pub c_ksr_freq: u8,
+    /// PreparePatch1 four-bit FNUM KSL table index.
+    pub c_ksl_freq: u8,
+    /// PreparePatch1 BLOCK KSL table input.
+    pub c_ksl_block: u8,
+    /// PreparePatch2 sustain-level latch.
+    pub c_sl: u8,
+    /// PreparePatch2 FNUM latch.
+    pub c_fnum: u16,
+    /// PreparePatch2 BLOCK latch.
+    pub c_block: u8,
+    /// PreparePatch2 multiplier latch.
+    pub c_multi: u8,
+    /// PreparePatch2 vibrato-enable latch.
+    pub c_vib: bool,
+    /// OPLL_Channel instrument-number latch.
+    pub c_instr: u8,
+    /// OPLL_Channel operator-selection latch (0=modulator, 1=carrier).
+    pub c_op: u8,
     /// PreparePatch2 feedback latch.
     pub c_fb: u8,
     /// PreparePatch2 delayed carrier waveform bits.
@@ -94,6 +122,20 @@ impl Default for Ym2413SerialOperatorState {
             eg_ksltl: 0,
             c_tl: 0,
             c_ksl_attenuation: 0,
+            c_ksl: 0,
+            c_adrr: [0; 3],
+            c_et: false,
+            c_ksr: false,
+            c_ksr_freq: 0,
+            c_ksl_freq: 0,
+            c_ksl_block: 0,
+            c_sl: 0,
+            c_fnum: 0,
+            c_block: 0,
+            c_multi: 0,
+            c_vib: false,
+            c_instr: 0,
+            c_op: 0,
             c_fb: 0,
             c_dc: 0,
             c_dm: 0,
@@ -104,6 +146,34 @@ impl Default for Ym2413SerialOperatorState {
             last_feedback_phase: 0,
         }
     }
+}
+
+/// Parameters captured by the PreparePatch1 serial stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ym2413SerialOperatorPatch1Latches {
+    pub total_level: u8,
+    pub ksl_attenuation: u8,
+    pub ksl: u8,
+    pub adrr: [u8; 3],
+    pub envelope_type: bool,
+    pub key_scale_rate: bool,
+    pub key_scale_rate_frequency: u8,
+    pub key_scale_level_frequency: u8,
+    pub key_scale_level_block: u8,
+}
+
+/// Parameters captured by the PreparePatch2 serial stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ym2413SerialOperatorPatch2Latches {
+    pub feedback: u8,
+    pub dc_waveform: bool,
+    pub dm_waveform: bool,
+    pub am_enabled: bool,
+    pub vibrato_enabled: bool,
+    pub multiplier: u8,
+    pub sustain_level: u8,
+    pub fnum: u16,
+    pub block: u8,
 }
 
 /// Observable result of one serial OPLL_Operator invocation.
@@ -169,40 +239,73 @@ impl Ym2413SerialOperator {
     /// stage; it does not retroactively change the current operator evaluation.
     pub fn prepare_patch1(
         &mut self,
-        ksl_attenuation: u8,
-        total_level: u8,
+        latches: Ym2413SerialOperatorPatch1Latches,
     ) -> Result<(), Ym2413SerialOperatorError> {
-        if ksl_attenuation > 112 {
+        if latches.ksl_attenuation > 112 {
             return Err(Ym2413SerialOperatorError::InvalidKslAttenuation(
-                ksl_attenuation,
+                latches.ksl_attenuation,
             ));
         }
-        if total_level > 63 {
-            return Err(Ym2413SerialOperatorError::InvalidTotalLevel(total_level));
+        if latches.total_level > 63
+            || latches.ksl > 3
+            || latches.adrr.iter().any(|rate| *rate > 15)
+            || latches.key_scale_rate_frequency > 15
+            || latches.key_scale_level_frequency > 15
+            || latches.key_scale_level_block > 7
+        {
+            return Err(Ym2413SerialOperatorError::InvalidState);
         }
-        self.state.c_ksl_attenuation = ksl_attenuation;
-        self.state.c_tl = total_level;
+        self.state.c_tl = latches.total_level;
+        self.state.c_ksl_attenuation = latches.ksl_attenuation;
+        self.state.c_ksl = latches.ksl;
+        self.state.c_adrr = latches.adrr;
+        self.state.c_et = latches.envelope_type;
+        self.state.c_ksr = latches.key_scale_rate;
+        self.state.c_ksr_freq = latches.key_scale_rate_frequency;
+        self.state.c_ksl_freq = latches.key_scale_level_frequency;
+        self.state.c_ksl_block = latches.key_scale_level_block;
         Ok(())
     }
 
-    /// Apply the PreparePatch2 feedback, waveform and AM parameter latches.
+    /// Latch OPLL_Channel's instrument and modulator/carrier selection.
+    pub fn prepare_channel(
+        &mut self,
+        instrument: u8,
+        operator: u8,
+    ) -> Result<(), Ym2413SerialOperatorError> {
+        if instrument > 15 || operator > 1 {
+            return Err(Ym2413SerialOperatorError::InvalidState);
+        }
+        self.state.c_instr = instrument;
+        self.state.c_op = operator;
+        Ok(())
+    }
+
+    /// Apply the PreparePatch2 parameter latches.
     ///
     /// DC/DM are shifted serial latches, not instantaneous booleans. Their
     /// delayed bit 2 is consumed by OPLL_Operator on later serial cycles.
     pub fn prepare_patch2(
         &mut self,
-        feedback: u8,
-        dc_waveform: bool,
-        dm_waveform: bool,
-        am_enabled: bool,
+        latches: Ym2413SerialOperatorPatch2Latches,
     ) -> Result<(), Ym2413SerialOperatorError> {
-        if feedback > 7 {
-            return Err(Ym2413SerialOperatorError::InvalidFeedback(feedback));
+        if latches.feedback > 7
+            || latches.multiplier > 15
+            || latches.sustain_level > 15
+            || latches.fnum > 0x01ff
+            || latches.block > 7
+        {
+            return Err(Ym2413SerialOperatorError::InvalidState);
         }
-        self.state.c_fb = feedback;
-        self.state.c_dc = self.state.c_dc.wrapping_shl(1) | u8::from(dc_waveform);
-        self.state.c_dm = self.state.c_dm.wrapping_shl(1) | u8::from(dm_waveform);
-        self.state.c_am = am_enabled;
+        self.state.c_fb = latches.feedback;
+        self.state.c_dc = self.state.c_dc.wrapping_shl(1) | u8::from(latches.dc_waveform);
+        self.state.c_dm = self.state.c_dm.wrapping_shl(1) | u8::from(latches.dm_waveform);
+        self.state.c_am = latches.am_enabled;
+        self.state.c_vib = latches.vibrato_enabled;
+        self.state.c_multi = latches.multiplier;
+        self.state.c_sl = latches.sustain_level;
+        self.state.c_fnum = latches.fnum;
+        self.state.c_block = latches.block;
         Ok(())
     }
 
@@ -355,6 +458,17 @@ impl Ym2413SerialOperator {
             || state.c_tl > 63
             || state.c_ksl_attenuation > 112
             || state.c_fb > 7
+            || state.c_ksl > 3
+            || state.c_adrr.iter().any(|rate| *rate > 15)
+            || state.c_ksr_freq > 15
+            || state.c_ksl_freq > 15
+            || state.c_ksl_block > 7
+            || state.c_sl > 15
+            || state.c_fnum > 0x01ff
+            || state.c_block > 7
+            || state.c_multi > 15
+            || state.c_instr > 15
+            || state.c_op > 1
             || state.last_phase_index > 0x03ff
         {
             return Err(Ym2413SerialOperatorError::InvalidState);
