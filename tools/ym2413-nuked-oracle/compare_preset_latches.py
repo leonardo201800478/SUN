@@ -74,7 +74,7 @@ def main() -> int:
 
     observed_instruments: set[int] = set()
     cycles: set[int] = set()
-    user_patch_signatures: set[tuple[object, ...]] = set()
+    user_patch_signatures_by_operator: dict[int, set[tuple[object, ...]]] = {0: set(), 1: set()}
     candidate_differences: dict[str, dict[str, object]] = {}
 
     for index, (expected, actual) in enumerate(zip(nuked, rust_rows, strict=True)):
@@ -101,7 +101,7 @@ def main() -> int:
                     f"call {index}: user-patch latch mismatch "
                     f"Nuked={signature} Rust={rust_signature}"
                 )
-            user_patch_signatures.add(signature)
+            user_patch_signatures_by_operator[operator].add(signature)
             continue
 
         for field in PATCH_FIELDS:
@@ -136,8 +136,14 @@ def main() -> int:
         )
     if cycles != set(range(18)):
         raise ValueError(f"serial cycle coverage incomplete: {sorted(cycles)}")
-    if len(user_patch_signatures) < 2:
-        raise ValueError("live user-patch update was not observed in the instrument-0 latches")
+    # Compare signatures per operator: modulator and carrier naturally have
+    # different initial patch values, so a global set can falsely prove that a
+    # live register write occurred. The modulator's TL is patch data (carrier
+    # TL is channel volume), making its signature a direct write witness.
+    if len(user_patch_signatures_by_operator[0]) < 2:
+        raise ValueError(
+            "live user-patch update was not observed for the same modulator operator"
+        )
 
     print(
         json.dumps(
@@ -149,7 +155,10 @@ def main() -> int:
                 "exact_fields": list(EXACT_FIELDS),
                 "user_patch_fields": list(USER_PATCH_FIELDS),
                 "delayed_waveform_fields": ["c_dc", "c_dm"],
-                "user_patch_signatures": len(user_patch_signatures),
+                "user_patch_signatures_by_operator": {
+                    str(operator): len(signatures)
+                    for operator, signatures in user_patch_signatures_by_operator.items()
+                },
                 "preset_candidate_differences": list(candidate_differences.values()),
                 "preset_candidate_difference_count": sum(
                     int(item["mismatch_calls"])
