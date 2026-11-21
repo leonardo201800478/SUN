@@ -3424,8 +3424,8 @@ mod windows_host {
     ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
         let prepared = prepare_cartridge(&rom, save_store)?;
         let bios = load_selected_sms_bios(&rom, settings)?;
-        let worker = match bios {
-            Some(bios) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+        let worker = match (bios, settings.sms_system.as_str()) {
+            (Some(bios), "sms1") => SmsTemporalWorker::new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
                 rom,
                 bios,
                 &settings.region,
@@ -3433,7 +3433,22 @@ mod windows_host {
                 prepared.sram_capacity,
                 prepared.initial_sram,
             )?,
-            None => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+            (None, "sms1") => SmsTemporalWorker::new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+                rom,
+                &settings.region,
+                settings.vdp_revision,
+                prepared.sram_capacity,
+                prepared.initial_sram,
+            )?,
+            (Some(bios), _) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                rom,
+                bios,
+                &settings.region,
+                settings.vdp_revision,
+                prepared.sram_capacity,
+                prepared.initial_sram,
+            )?,
+            (None, _) => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
                 rom,
                 &settings.region,
                 settings.vdp_revision,
