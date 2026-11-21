@@ -216,7 +216,7 @@ impl Ym2413PgSerialService {
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
         let descriptor = context.event.selected_operator;
-        if context.registers[0x0e] & 0x20 != 0 && descriptor.channel >= 6 {
+        if context.registers[0x0e] & 0x20 != 0 {
             return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
                 cycle: context.event.cycle,
                 channel: descriptor.channel,
@@ -239,6 +239,12 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Self::Error> {
+        if context.registers[0x0e] & 0x20 != 0 {
+            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
+                cycle: context.event.cycle,
+                channel: context.event.selected_operator.channel,
+            });
+        }
         self.generate_phase(context)
     }
 
@@ -497,6 +503,23 @@ mod tests {
         service.after_eg_update(&context, tick, post).unwrap();
         assert_eq!(service.lfo_vib_counter(), 0);
         assert_eq!(service.synthesis().pm_lfo_counter(), 0);
+    }
+
+    #[test]
+    fn rhythm_mode_is_rejected_before_any_melodic_pg_state_is_mutated() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+        let before = service.export_state();
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x20;
+        let context = context(0, registers, 0);
+        assert_eq!(
+            service.before_eg_update(&context),
+            Err(Ym2413PgSerialError::UnsupportedRhythmMode {
+                cycle: 0,
+                channel: 1,
+            })
+        );
+        assert_eq!(service.export_state(), before);
     }
 
     #[test]
