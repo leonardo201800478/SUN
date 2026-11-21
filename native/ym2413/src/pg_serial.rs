@@ -1609,6 +1609,37 @@ mod tests {
     }
 
     #[test]
+    fn measured_adapter_buffers_previous_latch_and_rejects_melodic_source_as_ro() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x20;
+
+        for cycle in 0..=1 {
+            let mut slot_context = context(cycle, registers, 0);
+            slot_context.rm_enable = 0xff;
+            service.before_eg_update(&slot_context).unwrap();
+            let (tick, post) = tick(cycle);
+            service.after_eg_update(&slot_context, tick, post).unwrap();
+
+            if cycle == 0 {
+                assert_eq!(service.measured_output_frame(), None);
+            }
+        }
+
+        let frame = service.measured_output_frame().unwrap();
+        assert_eq!(frame.source.cycle, 0);
+        assert_eq!(frame.emitted_cycle, 1);
+        assert_eq!(
+            frame.source.ro,
+            crate::Ym2413OutputSlotResult::UnknownSource {
+                slot_index: 15,
+                voice: crate::Ym2413RhythmVoice::BassDrum,
+            }
+        );
+        assert!(!service.export_state().previous_channel_output_is_rhythm);
+    }
+
+    #[test]
     fn rhythm_owned_slots_use_seeded_rhythm_operator_path_and_reach_do_rhythm() {
         let rhythm_cycles = [
             (11, EnvelopeRhythmSelect::BassDrumFirst),
