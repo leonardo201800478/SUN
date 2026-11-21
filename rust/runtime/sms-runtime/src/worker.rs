@@ -888,6 +888,17 @@ impl WorkerTelemetry {
 
 type AudioSessionFactory = Box<dyn FnOnce() -> Result<Box<dyn AudioSession>, String> + Send>;
 
+/// Resolved host policy for the Japanese SMS FM output pin path.
+/// This never gates YM2413 clocks or changes emulated register state.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SmsFmOutputPolicy {
+    /// Send FM samples to the host mixer.
+    #[default]
+    Enabled,
+    /// Keep the physical chip running but omit FM from host audio output.
+    Muted,
+}
+
 /// SMS digital PSG reconstruction selected for the common audio output path.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AudioRendererMode {
@@ -899,6 +910,7 @@ pub enum AudioRendererMode {
 }
 
 struct AudioRendererState {
+    fm_output_policy: SmsFmOutputPolicy,
     mode: AudioRendererMode,
     h2: Option<H2StreamingRenderer>,
     events: Vec<PsgAmplitudeEvent>,
@@ -916,6 +928,7 @@ struct AudioRendererState {
 impl Default for AudioRendererState {
     fn default() -> Self {
         Self {
+            fm_output_policy: SmsFmOutputPolicy::Enabled,
             mode: AudioRendererMode::Psg,
             h2: None,
             events: Vec::with_capacity(H2_EVENT_CAPTURE_CAPACITY),
@@ -933,6 +946,13 @@ impl Default for AudioRendererState {
 }
 
 impl AudioRendererState {
+    fn with_fm_output_policy(fm_output_policy: SmsFmOutputPolicy) -> Self {
+        Self {
+            fm_output_policy,
+            ..Self::default()
+        }
+    }
+
     fn select(
         &mut self,
         machine: &mut SmsTemporalMachine,
@@ -1020,6 +1040,19 @@ impl AudioRendererState {
             .extend(self.pending_psg_samples.drain(..));
         self.mix_psg_samples.extend(psg_samples.iter().copied());
         self.mix_fm_samples.clear();
+    }
+
+    /// Release PSG PCM without submitting FM to the host mixer. The YM2413
+    /// remains clocked by the machine and its samples are drained by the worker.
+    fn prepare_psg_only(&mut self, psg_samples: &[f64]) {
+        self.fm_resampler = None;
+        self.pending_fm_samples.clear();
+        self.mix_psg_samples.clear();
+        self.mix_psg_samples
+            .extend(self.pending_psg_samples.drain(..));
+        self.mix_psg_samples.extend(psg_samples.iter().copied());
+        self.mix_fm_samples.clear();
+        self.transition_fm_samples.clear();
     }
 
     /// Resample the YM2413 source onto the PSG 48 kHz timeline and return
@@ -1518,6 +1551,7 @@ impl SmsTemporalWorker {
             cartridge_sram_size,
             initial_sram,
             has_integrated_fm,
+            SmsFmOutputPolicy::Muted,
         )
     }
 
@@ -1566,6 +1600,7 @@ impl SmsTemporalWorker {
             cartridge_sram_size,
             initial_sram,
             has_integrated_fm,
+            SmsFmOutputPolicy::Muted,
         )
     }
 
@@ -1585,6 +1620,7 @@ impl SmsTemporalWorker {
             cartridge_sram_size,
             initial_sram,
             false,
+            SmsFmOutputPolicy::Muted,
         )
     }
 
@@ -1632,6 +1668,26 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
+        Self::new_with_japanese_fm_hardware_profile_and_output_policy(
+            rom,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            SmsFmOutputPolicy::Enabled,
+        )
+    }
+
+    /// Select the explicit FM board while independently controlling host output.
+    /// Muted output does not stop the YM2413 clock or change hardware register state.
+    pub fn new_with_japanese_fm_hardware_profile_and_output_policy(
+        rom: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+        fm_output_policy: SmsFmOutputPolicy,
+    ) -> Result<Self, String> {
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             None,
@@ -1640,6 +1696,7 @@ impl SmsTemporalWorker {
             cartridge_sram_size,
             initial_sram,
             true,
+            fm_output_policy,
         )
     }
 
@@ -1653,6 +1710,27 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
+        Self::new_with_japanese_fm_hardware_profile_and_bios_and_output_policy(
+            rom,
+            bios,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            SmsFmOutputPolicy::Enabled,
+        )
+    }
+
+    /// BIOS variant of the explicit FM board/output policy constructor.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_output_policy(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+        fm_output_policy: SmsFmOutputPolicy,
+    ) -> Result<Self, String> {
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             Some(bios),
@@ -1661,6 +1739,7 @@ impl SmsTemporalWorker {
             cartridge_sram_size,
             initial_sram,
             true,
+            fm_output_policy,
         )
     }
 
@@ -1672,6 +1751,7 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
         has_integrated_fm: bool,
+        fm_output_policy: SmsFmOutputPolicy,
     ) -> Result<Self, String> {
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
@@ -1742,6 +1822,7 @@ impl SmsTemporalWorker {
                     worker_vdp_revision,
                     receiver,
                     worker_telemetry,
+                    fm_output_policy,
                 );
             })
             .map_err(|error| format!("could not start SMS machine worker: {error}"))?;
@@ -2385,14 +2466,19 @@ fn execute_frame_with_renderer(
     // immutable borrow of audio_renderer.h2_samples survives across the
     // mutable FM pipeline operations.
     let fm_mix_len = if machine.ym2413().is_some() && !use_h2 {
-        match audio_renderer.prepare_fm_mix(psg_samples.as_slice(), &fm_samples) {
-            Ok(aligned_frames) => aligned_frames,
-            Err(error) => {
-                audio_renderer.prepare_psg_fallback(psg_samples.as_slice());
-                telemetry.set_runtime_error(Some(format!(
-                    "YM2413 PCM resampling unavailable; continuing with PSG: {error}"
-                )));
-                None
+        if audio_renderer.fm_output_policy == SmsFmOutputPolicy::Muted {
+            audio_renderer.prepare_psg_only(psg_samples.as_slice());
+            None
+        } else {
+            match audio_renderer.prepare_fm_mix(psg_samples.as_slice(), &fm_samples) {
+                Ok(aligned_frames) => aligned_frames,
+                Err(error) => {
+                    audio_renderer.prepare_psg_fallback(psg_samples.as_slice());
+                    telemetry.set_runtime_error(Some(format!(
+                        "YM2413 PCM resampling unavailable; continuing with PSG: {error}"
+                    )));
+                    None
+                }
             }
         }
     } else {
@@ -2602,13 +2688,14 @@ fn worker_loop(
     vdp_revision: SmsVdpRevision,
     commands: Receiver<WorkerCommand>,
     telemetry: Arc<WorkerTelemetry>,
+    fm_output_policy: SmsFmOutputPolicy,
 ) {
     let mut running = false;
     let mut breakpoints = BreakpointSet::default();
     let mut trace_publisher: Option<DiagnosticPublisher<SmsTemporalTraceEvent>> = None;
     let mut trace_enabled = false;
     let mut audio_session: Option<Box<dyn AudioSession>> = None;
-    let mut audio_renderer = AudioRendererState::default();
+    let mut audio_renderer = AudioRendererState::with_fm_output_policy(fm_output_policy);
     let mut video_mailbox: Option<FrameMailbox> = None;
     let mut video_sequence = 0_u64;
     let mut frame_deadline = FramePacingDeadline::default();
