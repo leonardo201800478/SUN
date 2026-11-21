@@ -446,6 +446,8 @@ impl SmsTemporalBus {
             memory,
             io: SmsIo::new(territory),
             psg,
+            ym2413: None,
+            fm_control: 0,
             vdp: SmsVdp::new_with_profile(vdp_profile),
             coordinator,
             pending_request: None,
@@ -456,6 +458,33 @@ impl SmsTemporalBus {
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
         })
+    }
+
+    /// Construct a Japanese Master System with BIOS and its integrated YM2413.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalBusError> {
+        if territory != Territory::Japan {
+            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
+        }
+        let mut bus = Self::new_with_hardware_profile_and_bios(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+        )?;
+        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
+        bus.ym2413 = Some(Ym2413Core::new());
+        Ok(bus)
     }
 
     /// Schedule an external TH transition without advancing the machine immediately.
