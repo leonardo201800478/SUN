@@ -3538,37 +3538,65 @@ mod windows_host {
     ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
         let prepared = prepare_cartridge(&rom, save_store)?;
         let bios = load_selected_sms_bios(&rom, settings)?;
-        let worker = match (bios, settings.sms_system.as_str()) {
-            (Some(bios), "sms1") => SmsTemporalWorker::new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
-                rom,
-                bios,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
-            (None, "sms1") => SmsTemporalWorker::new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
-                rom,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
-            (Some(bios), _) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
-                rom,
-                bios,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
-            (None, _) => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
-                rom,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
+        let (has_integrated_fm, fm_output_policy) = resolve_sms_fm_configuration(
+            settings.fm_board_profile,
+            settings.fm_mode,
+            &settings.sms_system,
+            &rom,
+        )?;
+        let worker = if has_integrated_fm {
+            match bios {
+                Some(bios) => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_bios_and_output_policy(
+                    rom,
+                    bios,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                    fm_output_policy,
+                )?,
+                None => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
+                    rom,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                    fm_output_policy,
+                )?,
+            }
+        } else {
+            match (bios, settings.sms_system.as_str()) {
+                (Some(bios), "sms1") => SmsTemporalWorker::new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+                    rom,
+                    bios,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+                (None, "sms1") => SmsTemporalWorker::new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+                    rom,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+                (Some(bios), _) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                    rom,
+                    bios,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+                (None, _) => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                    rom,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+            }
         };
         configure_sms_audio(
             &worker,
@@ -3769,6 +3797,8 @@ mod windows_host {
         dsp_config: AnalogOutputConfig,
         sg1000_dsp_config: AnalogOutputConfig,
         renderer_mode: String,
+        fm_board_profile: SmsFmBoardProfile,
+        fm_mode: FmMode,
     }
 
     /// Load only a catalog-identified conventional 8 KiB BIOS for the resolved
@@ -3916,6 +3946,11 @@ mod windows_host {
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
             sms_system: preferences.selected_system.clone(),
+            fm_board_profile: SmsFmBoardProfile::from_preference(
+                &preferences.sms_fm_board_profile,
+            )
+            .unwrap_or_default(),
+            fm_mode: FmMode::from_preference(&preferences.sms_fm_mode).unwrap_or_default(),
             firmware_directory: preferences.firmware_directory.clone(),
             firmware_boot_enabled: preferences.firmware_boot_enabled,
             firmware_brazil_selected: preferences.firmware_brazil_selected.clone(),
@@ -4372,6 +4407,8 @@ mod windows_host {
                 firmware_europe_selected,
                 firmware_japan_selected,
                 firmware_korea_selected,
+                fm_board_profile,
+                fm_mode,
             ) = open_app
                 .upgrade()
                 .map(|app| {
@@ -4405,6 +4442,8 @@ mod windows_host {
                         app.get_firmware_europe_selected().to_string(),
                         app.get_firmware_japan_selected().to_string(),
                         app.get_firmware_korea_selected().to_string(),
+                        app.get_selected_fm_board_profile().to_string(),
+                        app.get_selected_fm_mode().to_string(),
                     )
                 })
                 .unwrap_or_else(|| {
@@ -4423,6 +4462,8 @@ mod windows_host {
                         String::new(),
                         String::new(),
                         String::new(),
+                        "none".to_owned(),
+                        "auto".to_owned(),
                     )
                 });
             let vdp_revision = match DesktopSystem::from_id(&system) {
@@ -4457,6 +4498,9 @@ mod windows_host {
                 firmware_europe_selected,
                 firmware_japan_selected,
                 firmware_korea_selected,
+                fm_board_profile: SmsFmBoardProfile::from_preference(&fm_board_profile)
+                    .unwrap_or_default(),
+                fm_mode: FmMode::from_preference(&fm_mode).unwrap_or_default(),
                 vdp_revision,
                 audio_volume,
                 dsp_config,
