@@ -16,7 +16,6 @@
 use crate::rhythm_output::{
     Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState, Ym2413RhythmOutputError,
     Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
-    YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
 };
 use crate::slot::{
     YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413Operator, Ym2413RhythmVoice, slot_descriptor,
