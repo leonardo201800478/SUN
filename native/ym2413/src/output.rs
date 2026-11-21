@@ -465,13 +465,23 @@ impl Ym2413RhythmOutputService {
         let original_rhythm_slot = YM2413_RHYTHM_OUTPUT_MAP
             .iter()
             .any(|entry| entry.slot_index == ro_slot_index && !entry.is_delayed_repeat);
-        let original_rhythm_level = original_rhythm_slot.then_some(measured_level).flatten();
+        // Outside Rhythm Mode, channel 7..9 samples are melodic data, never
+        // percussion source values. Advance the RO cursor but invalidate an
+        // original percussion latch when its source slot passes without a
+        // rhythm operator result. Suppress all RO pin events while disabled.
+        let original_rhythm_level = (rhythm_mode_enabled && original_rhythm_slot)
+            .then_some(measured_level)
+            .flatten();
         let rhythm_result = self.rhythm_delay.process_slot_with_validity(
             ro_slot_index,
             original_rhythm_level,
-            previous_channel_output.is_some(),
+            rhythm_mode_enabled && previous_channel_output.is_some(),
         )?;
-        let ro = rhythm_slot_result(rhythm_result)?;
+        let ro = if rhythm_mode_enabled {
+            rhythm_slot_result(rhythm_result)?
+        } else {
+            Ym2413OutputSlotResult::NoOutput
+        };
 
         Ok(Ym2413OutputCycleFrame {
             cycle,
@@ -1303,6 +1313,49 @@ mod tests {
             super::Ym2413MeasuredOutputAdapter::with_initial_state(state),
             Err(super::Ym2413MeasuredOutputAdapterError::InvalidState)
         );
+    }
+
+    #[test]
+    fn channel_output_adapter_suppresses_ro_and_does_not_latch_melody_while_rhythm_is_disabled() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+
+        // Prime a valid percussion value, then disable Rhythm Mode.
+        let initial = service
+            .process_nuked_cycle_from_channel_output(0, true, Some(41))
+            .unwrap();
+        assert!(matches!(initial.ro, Ym2413OutputSlotResult::Pulse(_)));
+
+        for cycle in 1..18 {
+            let frame = service
+                .process_nuked_cycle_from_channel_output(cycle, false, Some(73))
+                .unwrap();
+            assert_eq!(frame.ro, Ym2413OutputSlotResult::NoOutput);
+        }
+
+        // Re-enter Rhythm Mode at the original BD source position. The new
+        // rhythm value, not the intervening melodic samples, feeds its repeat.
+        let source = service
+            .process_nuked_cycle_from_channel_output(0, true, Some(-19))
+            .unwrap();
+        assert!(matches!(
+            source.ro,
+            Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse { level, .. })
+                if level == Ym2413DacCode::from_operator_channel_output(-19).unwrap()
+        ));
+        for cycle in 1..5 {
+            let _ = service
+                .process_nuked_cycle_from_channel_output(cycle, true, Some(7))
+                .unwrap();
+        }
+        let repeat = service
+            .process_nuked_cycle_from_channel_output(5, true, Some(7))
+            .unwrap();
+        assert!(matches!(
+            repeat.ro,
+            Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse { level, .. })
+                if level == level_from_operator(-19)
+        ));
     }
 
     #[test]
