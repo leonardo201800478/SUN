@@ -322,6 +322,28 @@ mod tests {
     }
 
     #[test]
+    fn operator_channel_output_mapping_covers_all_512_measured_codes_bijectively() {
+        let mut seen = [false; 512];
+        for channel_output in -256_i16..=255 {
+            let code = usize::try_from(255 - channel_output).unwrap();
+            assert!(code < seen.len());
+            assert!(!seen[code]);
+            seen[code] = true;
+
+            let measured =
+                Ym2413DacCode::from_operator_channel_output(channel_output).unwrap();
+            if code < 256 {
+                assert_eq!(measured.value(), 255 - code as i16);
+                assert!(!measured.is_negative_zero());
+            } else {
+                assert_eq!(measured.value(), -((code - 256) as i16));
+                assert_eq!(measured.is_negative_zero(), code == 256);
+            }
+        }
+        assert!(seen.into_iter().all(|observed| observed));
+    }
+
+    #[test]
     fn operator_channel_output_rejects_values_outside_nine_bit_one_complement_domain() {
         assert_eq!(
             Ym2413DacCode::from_operator_channel_output(-257),
