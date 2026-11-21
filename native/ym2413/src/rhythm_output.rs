@@ -554,4 +554,63 @@ mod tests {
             Err(Ym2413RhythmOutputError::InvalidState)
         );
     }
+
+    #[test]
+    fn unknown_original_source_invalidates_retained_voice_and_repeat() {
+        let code = level(37);
+        let mut delay =
+            super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
+        assert_eq!(
+            delay.process_slot_with_validity(13, Some(code), true),
+            Ok(Ym2413RhythmOutputSlotResult::Emitted(
+                Ym2413RhythmOutputEvent {
+                    slot_index: 13,
+                    voice: Ym2413RhythmVoice::HiHat,
+                    is_delayed_repeat: false,
+                    code,
+                }
+            ))
+        );
+
+        for slot in (14..18).chain(0..13) {
+            let _ = delay
+                .process_slot_with_validity(slot, None, true)
+                .unwrap();
+        }
+
+        assert_eq!(
+            delay.process_slot_with_validity(13, None, false),
+            Ok(Ym2413RhythmOutputSlotResult::OriginalNotInitialized {
+                slot_index: 13,
+                voice: Ym2413RhythmVoice::HiHat,
+            })
+        );
+
+        for slot in (14..18).chain(0..0) {
+            let _ = delay
+                .process_slot_with_validity(slot, None, false)
+                .unwrap();
+        }
+        assert_eq!(
+            delay.process_slot_with_validity(0, None, false),
+            Ok(Ym2413RhythmOutputSlotResult::RepeatNotInitialized {
+                slot_index: 0,
+                voice: Ym2413RhythmVoice::HiHat,
+            })
+        );
+    }
+
+    #[test]
+    fn strict_original_slot_api_still_rejects_missing_sample() {
+        let mut delay =
+            super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
+        assert_eq!(
+            delay.process_slot(13, None),
+            Err(Ym2413RhythmOutputError::MissingOriginalSample {
+                slot_index: 13,
+                voice: Ym2413RhythmVoice::HiHat,
+            })
+        );
+    }
+
 }
