@@ -27,6 +27,10 @@ O progresso de Rhythm Mode é maior do que o registro histórico inicial indicav
 | EG candidato | Integrado | PR #1001; merge commit `995dce7025b189ba25ce82a2dbf665d9cce9fb14` |
 | Operadores FM e KSL | Integrados como candidatos isolados | PR #1003; merge commit `c9285d2fc2d8e3987197d5186478dae784da1570` |
 | AM LFO | Integrado como candidato sample-clocked | PR #1005; merge commit `daf950d0e0bf3242dfb213d5e9e50a24db19a70e` |
+| EG serial core-owned | Integrado e diferencialmente caracterizado | PR #1084; 18 operadores, 38 combinações AR/DR/KSR e replay do core |
+| Hooks core-owned | Integrados | PR #1133; fronteira serial before/after EG |
+| Serviço PG serial | Integrado e diferencialmente validado | PR #1145; 18 acumuladores, PG/PM latches, reset event e snapshots |
+| Operador serial FM-3A | Integrado e diferencialmente validado | PR #1147; feedback, AM LFO serial e 147.456 chamadas OPLL_Clock |
 
 ## Roadmap vigente de fechamento — estado após PR #1147 (2026-11-21)
 
@@ -66,13 +70,13 @@ As seções históricas abaixo registram a evolução por PR e hipótese. Em cas
 | PG-1 + serviço serial | **Integrado** | PR #1145 na main; 18 acumuladores, latches PG/PM, evento de reset, snapshots/restore e diferencial serial contra Nuked aprovados |
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
 | EG serial (18 operadores) | **Integrado ao `Ym2413Core`** | PR #1084; 18 estados EG, timer compartilhado, KON/OFF/DOKON/SUS, decoder de registradores, snapshots e caracterização de 38 combinações AR/DR/KSR aprovada |
-| Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
+| Log-Sine / EXP | Tabelas inteiras e lookup integrados ao operador serial FM-3A | 256/256 entradas Log-Sine e 256/256 entradas EXP iguais às tabelas reconstruídas do Nuked; uso validado no diferencial FM-3A |
 | Modulator / carrier | **FM-3A integrado** | PR #1147; diferencial integrado PASS em 147.456 chamadas `OPLL_Clock`, cobrindo os 18 ciclos. Acumulação final dos canais e PCM permanecem fora do escopo |
 | Feedback FM | **Integrado e diferencialmente validado em FM-3A** | Histórico de dois samples por canal, seleção serial e comparação contra Nuked; ainda não há mixer/PCM final |
-| KSL | Lookup BLOCK/FNUM e escala KSL=0..3 implementados | Ainda não conectado ao decoder de instrumentos/canais |
+| KSL | Lookup BLOCK/FNUM e escala KSL=0..3 implementados | Consumido pela ponte de parâmetros por canal e pelo caminho de configuração de operadores; presets continuam candidatos |
 | AM LFO | **Serial AM integrado em FM-3A** | Contador/direção/carry/step/output latch comparados contra Nuked; o antigo candidato sample-clocked permanece separado |
 | Instrument ROM | 15 patches candidatos licenciados (MIT) e decodificação do user patch | Valores não são dump físico certificado; revisão de hardware ainda necessária |
-| Channel register decode | FNUM/BLOCK/KEY-ON/SUSTAIN/INST/VOL para nove canais | Ainda não conectado ao pipeline temporal/operadores |
+| Channel register decode | FNUM/BLOCK/KEY-ON/SUSTAIN/INST/VOL para nove canais | Ponte estática `channel.rs` alimenta parâmetros por canal e `evaluate_channel`; falta o dispatcher que percorra os nove canais nos slots e acumule a saída final |
 | Rhythm / LFSR | **Parcial; vários blocos digitais implementados** | Decoder, cinco configurações de voz, avaliação das cinco vozes no banco PG/EG, candidatos de fase, sequenciador slot-rate HH/SD, retenção/repetição e roteamento RO. Seed/reset e cadência física não certificados; dispatcher integrado ainda ausente |
 | Portas F0–F2 | Não integradas | Pendente |
 | Mixer FM + PSG | **Pendente** | Nenhuma soma PCM final FM+PSG nem mixer integrado ao runtime |
