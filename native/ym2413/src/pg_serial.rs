@@ -309,7 +309,6 @@ mod tests {
         Ym2413PgParameterLatch, Ym2413PgSerialError, Ym2413PgSerialPipelineState,
         Ym2413PgSerialService,
     };
-    use crate::channel::OperatorPhaseParameters;
     use crate::envelope::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
