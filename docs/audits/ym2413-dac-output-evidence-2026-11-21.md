@@ -124,3 +124,26 @@ tokens and that negative zero survives the original HH output, delayed RO
 repeat, and version-2 snapshot/restore. This validates the retention
 representation only; it does not validate raw nine-bit code encoding or
 operator-to-DAC conversion.
+
+
+## Atualização após integração do adaptador — limite das capturas
+
+A PR #1159 (`eb01ca8a7ee6224a98e872143b41f0b28137b292`) preserva o bloqueio de conversão: o PG fornece `None` ao adaptador medido. Nenhum nível `Ym2413DacCode` é inferido do `i16` do operador no caminho integrado.
+
+### Inspeção adicional das capturas originais
+
+O repositório de reverse engineering contém a rotina [`analyze/volume/volumes.cc`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/volume/volumes.cc) e os arquivos [`volume0.raw`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/volume/volume0.raw), [`volume0.out`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/volume/volume0.out) e [resultados de 2015-03-11](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/results/20150311.txt).
+
+A rotina configura um patch senoidal, define F-number `0x61`, percorre volumes `0..15`, ativa a nota e captura amostras ADC da saída analógica. O arquivo `.raw` contém amostras ADC, não a palavra digital interna do DAC. O arquivo `.out` é uma sequência de níveis processados; a transformação que o gerou não está implementada pela rotina de captura `volumes.cc`.
+
+Uma inspeção exploratória de `volume0.out` encontrou 20.030 tokens e 437 valores distintos no intervalo 0..511. Isso caracteriza apenas a cobertura dessa sequência processada; não prova a codificação interna, não estabelece a ordem dos códigos do DAC e não é uma tabela de conversão produção. A afirmação de 512 níveis distintos nos resultados de medição continua sendo uma afirmação sobre níveis analógicos observados, não uma captura direta dos bits internos.
+
+### Consequência técnica
+
+- Não usar `volume*.out` como palavra DAC sem documentar e validar a transformação ADC→nível.
+- Não assumir que a representação one's-complement do operador é idêntica à entrada digital do DAC.
+- Não converter o latch `ch_out` em `Ym2413DacCode` por identidade ou fórmula candidata.
+- Manter desconhecidos os níveis medidos no adaptador PG até estabelecer aritmética, polaridade, fase e correspondência com evidência independente.
+
+O próximo trabalho FM-5.4 deve reconstruir a cadeia de medição (ADC, normalização, classificação de níveis e fase da captura) e confrontá-la com a documentação de aplicação Yamaha. Mesmo uma tabela analógica calibrada não substitui a demonstração da palavra digital interna.
+
