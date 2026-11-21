@@ -129,10 +129,21 @@ impl PhaseGenerator {
         u32::try_from(step).map_err(|_| PhaseGeneratorError::InvalidState)
     }
 
+    /// Add one already-latched hardware PG increment to this accumulator.
+    ///
+    /// The serial chip pipeline calculates `pg_inc` in a different stage
+    /// from the delayed phase-array write. Keeping the adder separate avoids
+    /// recalculating FNUM/BLOCK/MUL at the accumulator write boundary.
+    pub fn advance_by_increment(&mut self, increment: u32) -> u32 {
+        self.phase = self.phase.wrapping_add(increment) & YM2413_PHASE_MASK;
+        self.phase
+    }
+
     /// Advance this operator by one output-sample update and return its phase.
     ///
-    /// The accumulator wraps modulo 2^19. The caller determines the precise
-    /// slot and sample boundary; this method does not advance global time.
+    /// This convenience path combines increment calculation and accumulation.
+    /// The serial chip pipeline should use `advance_by_increment` with its
+    /// retained PG increment latch instead.
     pub fn advance(
         &mut self,
         fnum: u16,
@@ -142,8 +153,7 @@ impl PhaseGenerator {
         pm_position: u8,
     ) -> Result<u32, PhaseGeneratorError> {
         let step = Self::phase_step(fnum, block, mul, pm_enabled, pm_position)?;
-        self.phase = self.phase.wrapping_add(step) & YM2413_PHASE_MASK;
-        Ok(self.phase)
+        Ok(self.advance_by_increment(step))
     }
 
     /// Export the complete state of this phase accumulator.

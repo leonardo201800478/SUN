@@ -285,14 +285,56 @@ impl Ym2413SynthesisBank {
         self.am_lfo.current_value()
     }
 
+    /// Advance only the PM counter by completed 18-slot rotations.
+    ///
+    /// This is the PM portion of the serial OPLL LFO stage. It deliberately
+    /// leaves AM untouched because AM has a distinct per-slot shift cadence.
+    pub fn advance_pm_lfo_samples(&mut self, samples: u64) {
+        self.pm_lfo.advance_samples(samples);
+    }
+
+    /// Reset the PM counter to the chip-reset candidate phase.
+    pub fn reset_pm_lfo(&mut self) {
+        self.pm_lfo.reset();
+    }
+
+    /// Return the complete 13-bit PM counter used by the serial LFO stage.
+    pub const fn pm_lfo_counter(&self) -> u16 {
+        self.pm_lfo.counter()
+    }
+
     /// Advance both LFOs by externally completed YM2413 output samples.
     ///
     /// The caller must invoke this exactly at its established output-sample
     /// boundary. This method does not advance input clocks, slots, or EG time.
     pub fn advance_lfo_samples(&mut self, samples: u64) {
-        self.pm_lfo.advance_samples(samples);
+        self.advance_pm_lfo_samples(samples);
         let am_samples = samples % u64::from(YM2413_AM_LFO_PERIOD_SAMPLES);
         self.am_lfo.advance_samples(am_samples as u32);
+    }
+
+    /// Add the serial PG's previously calculated increment to one physical
+    /// operator accumulator. No register decoding or LFO advancement occurs.
+    pub fn advance_operator_phase_by_increment(
+        &mut self,
+        channel: u8,
+        carrier: bool,
+        increment: u32,
+    ) -> Result<u32, Ym2413SynthesisError> {
+        let state = self.channel_mut(channel)?;
+        let operator_index = if carrier { 1 } else { 0 };
+        Ok(state.phase[operator_index].advance_by_increment(increment))
+    }
+
+    /// Return the complete 19-bit phase accumulator for one operator.
+    pub fn phase_accumulator(
+        &self,
+        channel: u8,
+        carrier: bool,
+    ) -> Result<u32, Ym2413SynthesisError> {
+        let state = self.channel(channel)?;
+        let operator_index = if carrier { 1 } else { 0 };
+        Ok(state.phase[operator_index].phase())
     }
 
     /// Advance one selected operator PG and return its ten-bit sine-table index.
