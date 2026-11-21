@@ -888,7 +888,7 @@ mod tests {
     use super::{
         YM2413_PG_SERIAL_PIPELINE_STATE_VERSION, YM2413_PG_SERIAL_STATE_VERSION,
         Ym2413PgParameterLatch, Ym2413PgSerialError, Ym2413PgSerialPipelineState,
-        Ym2413PgSerialService,
+        Ym2413PgSerialService, Ym2413RhythmPhaseLatches,
     };
     use crate::envelope::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
