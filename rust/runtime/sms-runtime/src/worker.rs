@@ -1383,6 +1383,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
+            false,
         )
     }
 
@@ -1402,6 +1403,60 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
+            false,
+        )
+    }
+
+    /// Start the worker with the integrated YM2413 Japanese Master System profile.
+    pub fn new_with_japanese_fm_hardware_profile(
+        rom: Vec<u8>,
+        region: &str,
+    ) -> Result<Self, String> {
+        Self::new_with_japanese_fm_hardware_profile_and_cartridge_sram_size(
+            rom,
+            region,
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+        )
+    }
+
+    /// Start the worker with Japanese integrated FM and an explicit cartridge SRAM profile.
+    pub fn new_with_japanese_fm_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            None,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            true,
+        )
+    }
+
+    /// Start the worker with BIOS, Japanese integrated FM and explicit cartridge SRAM.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            Some(bios),
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            true,
         )
     }
 
@@ -1412,7 +1467,11 @@ impl SmsTemporalWorker {
         vdp_revision: SmsVdpRevision,
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
+        fm_enabled: bool,
     ) -> Result<Self, String> {
+        if fm_enabled && region != "japan" {
+            return Err("integrated YM2413 is selectable only for the Japanese Master System profile".to_owned());
+        }
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
@@ -1449,12 +1508,13 @@ impl SmsTemporalWorker {
         let worker = thread::Builder::new()
             .name("sms-temporal-machine".to_owned())
             .spawn(move || {
-                let machine = match build_sms_temporal_machine_with_revision_bios_and_sram_size(
+                let machine = match build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
                     rom.clone(),
                     &worker_region,
                     worker_vdp_revision,
                     bios.clone(),
                     cartridge_sram_size,
+                    fm_enabled,
                 )
                 .and_then(|mut machine| {
                     if let Some(contents) = initial_sram.as_deref() {
@@ -2565,12 +2625,13 @@ fn handle_command(
                     "cannot replace a cartridge with SRAM through load_rom; persist it and create a new worker".to_owned(),
                 ));
             } else {
-                match build_sms_temporal_machine_with_revision_bios_and_sram_size(
+                match build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
                     new_rom.clone(),
                     region,
                     vdp_revision,
                     bios.clone(),
                     None,
+                    machine.ym2413().is_some(),
                 ) {
                     Ok(new_machine) => {
                         *running = false;
