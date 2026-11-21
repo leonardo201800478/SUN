@@ -240,7 +240,7 @@ impl Ym2413PgSerialService {
         self.pipeline.lfo_vib_counter = self
             .pipeline
             .lfo_vib_counter
-            .wrapping_add(rollover + test_step)
+            .wrapping_add(rollover | test_step)
             & 7;
         self.synthesis.advance_pm_lfo_samples(1);
     }
@@ -508,7 +508,7 @@ mod tests {
         let context = context(17, [0; 64], 0x08);
         let (tick, post) = tick(17);
         service.after_eg_update(&context, tick, post).unwrap();
-        assert_eq!(service.lfo_vib_counter(), 4);
+        assert_eq!(service.lfo_vib_counter(), 3);
         assert_eq!(service.synthesis().pm_lfo_counter(), 0x0400);
     }
 
