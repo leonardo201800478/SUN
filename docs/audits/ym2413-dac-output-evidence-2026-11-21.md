@@ -146,4 +146,3 @@ Uma inspeção exploratória de `volume0.out` encontrou 20.030 tokens e 437 valo
 - Manter desconhecidos os níveis medidos no adaptador PG até estabelecer aritmética, polaridade, fase e correspondência com evidência independente.
 
 O próximo trabalho FM-5.4 deve reconstruir a cadeia de medição (ADC, normalização, classificação de níveis e fase da captura) e confrontá-la com a documentação de aplicação Yamaha. Mesmo uma tabela analógica calibrada não substitui a demonstração da palavra digital interna.
-
