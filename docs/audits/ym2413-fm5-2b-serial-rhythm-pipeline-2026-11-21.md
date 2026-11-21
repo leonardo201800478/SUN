@@ -454,3 +454,9 @@ The following GitHub Actions results apply to code HEAD
 These are software-oracle and regression results. They do not certify the
 physical YM2413 patch ROM, power-on LFSR seed, analog MO/RO levels, or raw DAC
 mapping.
+
+## DAC level-count correction and signed-zero retention — 2026-11-21
+
+The earlier statement that the YM2413 had 511 measured output levels and that -256 was absent relied on `results/20150209.txt` alone. That note was explicitly corrected by `results/20150305.txt` at the same andete commit: 16x oversampling resolved 512 peaks, including two close central peaks interpreted as -0 and +0. `results/20150311.txt` further identifies both central values in captured output. The author's suggested idealized collapse of the two zeros is tentative. The 2015-02-09 count must not be treated as the final measurement.
+
+FM-5.3 now preserves the two measured central-level tokens in the rhythm retention type, without claiming a raw 9-bit DAC encoding. See `docs/audits/ym2413-dac-output-evidence-2026-11-21.md` for source-by-source qualification and remaining unknowns.
