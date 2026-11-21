@@ -27,7 +27,7 @@ void ym2413_trace_phase_reset(
     uint32_t ismod,
     uint32_t reset_required
 ) {
-    if (phase_reset_probe) {
+    if (phase_reset_probe && (cycle == 13 || cycle == 14)) {
         fprintf(stderr, "YM2413_PHASE_RESET,%u,%u,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\n",
                 (unsigned)cycle, (unsigned)rm_enable, eg_dokon, ismod, reset_required);
     }
