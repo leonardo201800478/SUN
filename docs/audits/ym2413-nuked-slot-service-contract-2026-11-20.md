@@ -93,9 +93,26 @@ A Rust service must preserve these causal boundaries and snapshot every pending 
 
 ## 5.1. Oracle instrumentation limitation for Rhythm Mode reset
 
-The current external `trace.c` adapter captures `calc_rm_enable` before calling `OPLL_Clock` and derives its `phase_next_reset` field from that pre-call value. In the pinned Nuked source, `OPLL_Clock` shifts `rm_enable` and applies the pending mode write before `OPLL_PhaseGenerate` evaluates the reset selector. Therefore the adapter's current pre-call `calc_rm_enable` field is not sufficient to validate the cycles-13/14 Rhythm Mode override.
+The legacy `trace.c` field `calc_rm_enable` captures the latch before `OPLL_Clock` and is insufficient by itself: the pinned source shifts `rm_enable` and applies a pending mode write before `OPLL_PhaseGenerate` evaluates the reset selector.
 
-The Rust helper `nuked_phase_reset_required` intentionally accepts the post-shift/post-mode-write value. Its Rhythm Mode branch is source-level derived and unit-tested, but is **not yet an executable differential PASS**. Before claiming that reset-event path is converged, instrument the external oracle at the actual `OPLL_PhaseGenerate` decision point and compare the post-shift `rm_enable`, pre-update `eg_dokon`, cycle and resulting reset request. Keep that instrumentation external to the Rust backend.
+The extended external-only instrumentation workflow patches the pinned Nuked source at the actual `OPLL_PhaseGenerate` decision branch and records post-shift `rm_enable`, pre-update `eg_dokon`, `testmode`, cycle, `ismod`, and the resulting reset request. Workflow **YM2413 Nuked Rhythm reset differential** (run `44852046658`) completed **SUCCESS** on code HEAD `4b71a1f3093a3a3a184831a84d83b36abf15751b`, checking 16 actual decisions: eight normal-mode decisions and eight with Test Mode bit `0x04`, across cycles 13 and 14. The Rust helper includes the same Test Mode predicate, and the core supplies the `$0F` register after `DoModeWrite`; its unit test exercises all 18 serial cycles. This is an executable software-oracle differential for the instrumented reset decision, not a full PG/EG serial trace, physical-chip capture, absolute reset-phase measurement, or proof of electrical timing. The instrumentation remains outside the Rust backend.
+
+This is an executable software-oracle differential for the instrumented reset decision, not a full PG/EG serial trace, physical-chip capture, absolute reset-phase measurement, or proof of electrical timing. The instrumentation remains outside the Rust backend.
+
+## 5.2. Core-owned slot service hook
+
+The internal `Ym2413Core::advance_input_clocks_with_slot_service` path now exposes two synchronous service boundaries for each completed serial slot:
+
+1. `before_eg_update`: after `rm_enable` shift and pending mode write (including `$0F` Test Mode), with the decoded input, complete pre-update `EnvelopeSequencerState`, register image and `Ym2413SlotServiceEvent`.
+2. `after_eg_update`: after exactly one core-owned `EnvelopeSequencer::tick_slot`, with its resulting `EnvelopeSequencerTick` and the complete authoritative post-update `EnvelopeSequencerState`, and before the timed register-write stage.
+
+The public standalone `advance_input_clocks` path retains its no-service slot routine and does not construct the service context. The host still advances the core in input-clock blocks; these are internal Rust service hooks, not GUI or host callbacks.
+
+The pinned Nuked header declares `rm_enable` as `int8_t`, and its `OPLL_Clock` shifts this signed latch right. The oracle's CI compiler preserves the sign bit (`0x80 → 0xC0`); Rust's `i8 >> 1` has the same arithmetic-shift behavior. The helper consumes the post-shift bit pattern through its `u8` view.
+
+The core-level test seeds the signed `rm_enable` latch with `0x80`; after the serial arithmetic shift the context exposes the post-shift `0xC0` bit pattern, including bit `0x40`. For cycles 13 and 14 it verifies that this post-shift bit selects the carrier DOKON path, while the pre-call value would select the modulator path. This validates Rust call ordering against the pinned source formula, not an external Nuked Rhythm Mode runtime trace.
+
+The service receives both the complete pre-update EG state and the complete post-update EG state; it must not reconstruct the serial sequence from isolated operator levels. The core's state is committed only if all slot service calls succeed. The integrated pipeline must stage its own PG/operator/LFO state transactionally as well, because a service error can occur after earlier callbacks in the same block. Continuous and partitioned service advancement must produce identical core and service state.
 
 ## 6. FM-1B implementation constraints
 

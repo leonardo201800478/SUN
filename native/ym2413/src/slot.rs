@@ -322,12 +322,20 @@ pub const fn nuked_eg_output_index(cycle: u8) -> Option<u8> {
 
 /// Return Nuked's phase-reset request for the PG next-phase latch.
 ///
-/// Call with the post-shift/post-mode-write `rm_enable` value and the
-/// pre-update EG `eg_dokon` latch. The request has one consumer: the PG
-/// pipeline's delayed `pg_phase_next` latch.
-pub const fn nuked_phase_reset_required(cycle: u8, rm_enable: u8, eg_dokon: u32) -> Option<bool> {
+/// Call with post-shift/post-mode-write `rm_enable`, pre-update EG
+/// `eg_dokon`, and the current test-mode register. Test bit 2 requests a
+/// reset independently of the selected operator's DOKON bit.
+pub const fn nuked_phase_reset_required_with_testmode(
+    cycle: u8,
+    rm_enable: u8,
+    eg_dokon: u32,
+    testmode: u8,
+) -> Option<bool> {
     if cycle >= YM2413_SLOT_COUNT as u8 {
         return None;
+    }
+    if (testmode & 0x04) != 0 {
+        return Some(true);
     }
 
     let is_modulator = if (rm_enable & 0x40) != 0 && (cycle == 13 || cycle == 14) {
@@ -341,6 +349,11 @@ pub const fn nuked_phase_reset_required(cycle: u8, rm_enable: u8, eg_dokon: u32)
     } else {
         (eg_dokon & 0x01) != 0
     })
+}
+
+/// Return the normal-mode phase-reset request (test mode disabled).
+pub const fn nuked_phase_reset_required(cycle: u8, rm_enable: u8, eg_dokon: u32) -> Option<bool> {
+    nuked_phase_reset_required_with_testmode(cycle, rm_enable, eg_dokon, 0)
 }
 
 /// Immutable description of the distinct Nuked pipeline indices serviced
@@ -362,11 +375,13 @@ pub struct Ym2413SlotServiceEvent {
     pub phase_reset_required: bool,
 }
 
-/// Build the service event from post-shift mode state and pre-update EG latches.
-pub const fn nuked_slot_service_event(
+/// Build a service event from the post-shift mode state, pre-update EG
+/// latches, and current test-mode register.
+pub const fn nuked_slot_service_event_with_testmode(
     cycle: u8,
     rm_enable: u8,
     eg_dokon: u32,
+    testmode: u8,
 ) -> Option<Ym2413SlotServiceEvent> {
     let selected_operator = match nuked_cycle_selected_slot_descriptor(cycle) {
         Some(descriptor) => descriptor,
@@ -388,10 +403,11 @@ pub const fn nuked_slot_service_event(
         Some(index) => index,
         None => return None,
     };
-    let phase_reset_required = match nuked_phase_reset_required(cycle, rm_enable, eg_dokon) {
-        Some(required) => required,
-        None => return None,
-    };
+    let phase_reset_required =
+        match nuked_phase_reset_required_with_testmode(cycle, rm_enable, eg_dokon, testmode) {
+            Some(required) => required,
+            None => return None,
+        };
 
     Some(Ym2413SlotServiceEvent {
         cycle,
@@ -404,14 +420,24 @@ pub const fn nuked_slot_service_event(
     })
 }
 
+/// Build a normal-mode service event (test mode disabled).
+pub const fn nuked_slot_service_event(
+    cycle: u8,
+    rm_enable: u8,
+    eg_dokon: u32,
+) -> Option<Ym2413SlotServiceEvent> {
+    nuked_slot_service_event_with_testmode(cycle, rm_enable, eg_dokon, 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice,
         nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index,
         nuked_eg_output_index, nuked_eg_update_index, nuked_pg_phase_output_index,
-        nuked_pg_phase_write_index, nuked_phase_reset_required, nuked_slot_service_event,
-        slot_descriptor,
+        nuked_pg_phase_write_index, nuked_phase_reset_required,
+        nuked_phase_reset_required_with_testmode, nuked_slot_service_event,
+        nuked_slot_service_event_with_testmode, slot_descriptor,
     };
 
     #[test]
@@ -579,6 +605,23 @@ mod tests {
 
         assert_eq!(nuked_phase_reset_required(18, 0, u32::MAX), None);
         assert_eq!(nuked_phase_reset_required(u8::MAX, 0, u32::MAX), None);
+    }
+
+    #[test]
+    fn testmode_bit_two_forces_phase_reset_for_every_serial_cycle() {
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            assert_eq!(
+                nuked_phase_reset_required_with_testmode(cycle, 0, 0, 0x04),
+                Some(true),
+                "test-mode phase reset at cycle {cycle}"
+            );
+            let event = nuked_slot_service_event_with_testmode(cycle, 0, 0, 0x04).unwrap();
+            assert!(event.phase_reset_required);
+        }
+        assert_eq!(
+            nuked_phase_reset_required_with_testmode(18, 0, 0, 0x04),
+            None
+        );
     }
 
     #[test]
