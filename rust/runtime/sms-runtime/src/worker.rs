@@ -191,10 +191,31 @@ fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
     bios: Option<Vec<u8>>,
     cartridge_sram_size: Option<usize>,
 ) -> Result<SmsTemporalMachine, String> {
+    build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+        rom,
+        region,
+        revision,
+        bios,
+        cartridge_sram_size,
+        false,
+    )
+}
+
+fn build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+    rom: Vec<u8>,
+    region: &str,
+    revision: SmsVdpRevision,
+    bios: Option<Vec<u8>>,
+    cartridge_sram_size: Option<usize>,
+    fm_enabled: bool,
+) -> Result<SmsTemporalMachine, String> {
+    if fm_enabled && region != "japan" {
+        return Err("integrated YM2413 is selectable only for the Japanese Master System profile".to_owned());
+    }
     let (territory, vdp_profile, psg_clock_hz) =
         sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
-    match bios {
-        Some(bios) => SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
+    match (bios, fm_enabled) {
+        (Some(bios), true) => SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
             rom,
             bios,
             SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
@@ -204,7 +225,26 @@ fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
             territory,
             cartridge_sram_size,
         ),
-        None => SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
+        (Some(bios), false) => SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+            psg_clock_hz,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        ),
+        (None, true) => SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_sram_size(
+            rom,
+            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+            psg_clock_hz,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        ),
+        (None, false) => SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
             rom,
             SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
             psg_clock_hz,
@@ -227,8 +267,13 @@ fn rebuild_sms_temporal_machine_preserving_sram(
 ) -> Result<SmsTemporalMachine, String> {
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
-    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_and_sram_size(
-        rom, region, revision, bios, capacity,
+    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+        rom,
+        region,
+        revision,
+        bios,
+        capacity,
+        current.ym2413().is_some(),
     )?;
     if let Some(contents) = sram {
         rebuilt
