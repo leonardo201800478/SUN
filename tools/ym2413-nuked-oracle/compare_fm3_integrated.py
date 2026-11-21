@@ -202,6 +202,20 @@ def main() -> int:
             raise ValueError(f"call sequence discontinuity at row {index}")
         compare_row(index, nuked, rust)
 
+    # The fixed all-channel vector deliberately crosses bit 19 in the
+    # Nuked uint32_t PG ring. Keep this assertion so a 19-bit mask cannot
+    # silently return while the comparator is otherwise fed low phases.
+    if not any(
+        any(int(value) > 0x7FFFF for value in row["pg_phase"])
+        for row in nuked_samples
+    ):
+        raise ValueError("Nuked vector did not exercise full-width PG phase state")
+    if not any(
+        any(int(value) > 0x7FFFF for value in row["pg_phase"])
+        for row in rust_rows
+    ):
+        raise ValueError("Rust PG ring did not preserve phase bits above bit 18")
+
     print(
         json.dumps(
             {
