@@ -40,7 +40,7 @@ The implementation maps these stages as follows:
 | EnvelopeOutput | `advance_envelope_output` reading core EG state | Connected; EG remains core-owned |
 | EnvelopeKSLTL | `advance_envelope_output` updates the delayed KSL/TL latch after output calculation | Connected |
 | EnvelopeGenerate | `Ym2413Core` / `EnvelopeSequencer` | Sole authority; no second EG |
-| DoLFO | Existing PM LFO plus current sample-domain AM LFO candidate | PM retained; AM serial equivalence not yet proven |
+| DoLFO | Existing PM LFO plus `Ym2413SerialAmLfo::clock` | Serial AM shift/carry state implemented; differential pending |
 | DoRhythm | Rhythm pipeline | Explicitly excluded; FM-5 |
 | PreparePatch2 | `latch_next_parameters` and `prepare_patch2` | Connected for melodic PG/FB/DC/DM/AM latches |
 
@@ -80,26 +80,27 @@ This expression was compared against the pinned Nuked `exprom`: **256/256 recons
 
 ## Differential harness
 
-The external Nuked adapter now records the pre-call operator inputs consumed by `OPLL_Operator`:
+The external Nuked adapter now records the pre-call operator inputs consumed by `OPLL_Operator` and `OPLL_DoLFO`:
 
 - `pg_out`;
 - `eg_out` and `eg_silent`;
-- `c_fb`, `c_dc`, and `c_dm`.
+- `c_fb`, `c_dc`, and `c_dm`;
+- the pre-increment `lfo_counter` and `testmode` consumed by the AM LFO.
 
-The post-call trace already exposes the internal operator state and channel output. The new `compare_operator.py` feeds only the oracle's pre-call operator latches into the production Rust operator and compares:
+The post-call trace exposes the internal operator state, channel output, and AM shift/carry state. The new `compare_operator.py` feeds only the oracle's pre-call operator latches into the production Rust operator and compares:
 
 - `op_exp_m`, `op_exp_s`, `op_logsin`, `op_neg`, and `op_mod`;
 - `op_fbsum`;
 - all 18 feedback-history entries;
 - `ch_out`.
 
-The CI fixture programs all nine melodic channels, a user patch with nonzero feedback, AM/VIB and both waveform bits, KEY-ON/KEY-OFF, live parameter changes, and Test Mode bits 0–3. This isolates the operator datapath from independent PG/EG generation. A later integrated differential must additionally prove that Rust itself produces the same pre-call inputs.
+The new `compare_am_lfo.py` replays the serial AM network and compares `lfo_am_counter`, `lfo_am_dir`, `lfo_am_car`, `lfo_am_step`, and `lfo_am_out` after every call. The CI fixture programs all nine melodic channels, a user patch with nonzero feedback, AM/VIB and both waveform bits, KEY-ON/KEY-OFF, live parameter changes, and Test Mode bits 0–3. This isolates the operator datapath from independent PG/EG generation. A later integrated differential must additionally prove that Rust itself produces the same pre-call inputs.
 
 ## Known open work
 
 1. Run the new external operator differential and fix every mismatch.
 2. Compare the integrated Rust PG + operator + core-owned EG pipeline against Nuked without oracle-injected latches.
-3. Prove the exact AM LFO serial shift-register behavior. FM-3A currently uses the existing measured sample-domain AM candidate, advanced at the 18-slot rotation boundary; Test Mode acceleration/reset in this candidate is not yet an independently validated equivalent of Nuked's per-slot AM shift register.
+3. Run the new serial AM LFO differential and prove its integration with the PM counter and Test Mode. The serial slot service now uses a nine-bit shift/carry implementation; the older measured sample-domain AM candidate remains separate and is not consumed by the serial operator.
 4. Add parameter-latch timing cases for FNUM/BLOCK/MUL/FB/KSL/TL/AM/VIB/DC/DM writes during active notes.
 5. Validate continuous versus partitioned service execution, clone independence, snapshot/restore, rollback, and all nine channel mappings.
 6. Resolve any P1/P2 review findings before merge.
