@@ -11,7 +11,7 @@ Este scorecard distingue implementação de componente, integração funcional, 
 
 **Status geral: EM DESENVOLVIMENTO — NÃO PRONTO PARA TESTES CONTROLADOS COM ROMs.**
 
-A fundação de registradores, slots, clock, PG-1 e PM LFO permanece integrada à main. O EG serial de 18 slots está publicado e integrado ao Ym2413Core pela PR #1084. Os hooks core-owned estão na PR #1133 (aberta), e o serviço PG serial integrado a esses hooks está na PR #1145 (aberta, empilhada sobre #1133), com diferencial executável de 147.456 chamadas contra Nuked aprovado. As PRs #1133/#1145 ainda não foram integradas à main. Operadores seriais, Rhythm Mode completo, saída PCM FM e runtime SMS ainda não formam um pipeline FM completo.
+A fundação de registradores, slots, clock, PG-1 e PM LFO permanece integrada à main. O EG serial de 18 slots está publicado e integrado ao Ym2413Core pela PR #1084. Os hooks core-owned foram integrados à main pela PR #1133 (merge commit `f65e13c0e85d103faddd31845324432d8641a308`). O serviço PG serial da PR #1145 foi reconciliado sobre a main atual e aguarda a repetição dos gates diferenciais e de CI no novo HEAD. A evidência diferencial anterior de 147.456 chamadas contra Nuked permanece válida para o HEAD original da PR, mas deve ser confirmada no HEAD reconciliado antes do merge. Operadores seriais, Rhythm Mode completo, saída PCM FM e runtime SMS ainda não formam um pipeline FM completo.
 
 ## Marcos já publicados
 
@@ -30,8 +30,8 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO permanece integrada �
 
 | Gate | Escopo | Estado | Evidência / próxima dependência |
 |---|---|---|---|
-| FM-1 | PG/EG serial e contrato de eventos | **Parcial** | EG serial publicado; hooks core-owned na PR #1133 aberta. |
-| FM-2 | Serviço PG serial real | **Implementado e diferencial PASS em PR aberta** | PR #1145; 18 acumuladores, latches, PM counter, reset event e comparação serial com Nuked. Ainda não integrado à main. |
+| FM-1 | PG/EG serial e contrato de eventos | **Integrado à main** | EG serial publicado; hooks core-owned integrados pela PR #1133. |
+| FM-2 | Serviço PG serial real | **Implementado; gate de integração em andamento** | PR #1145 reconciliada sobre a main; 18 acumuladores, latches, PM counter, reset event e diferencial serial com Nuked aprovado no HEAD original. A repetição dos gates no HEAD reconciliado é obrigatória antes do merge. |
 | FM-3 | Operadores, feedback e modulação | **Pendente de integração serial** | Componentes isolados existem; falta implementar os estágios seriais OPLL_Operator e validar latches/saídas. |
 | FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder e presets candidatos existem; falta integração com operadores seriais e validação diferencial completa. |
 | FM-5 | Rhythm Mode | **Parcial** | Mapa/LFSR existem; cinco vozes e roteamento PG/operadores ainda não integrados. |
@@ -46,7 +46,7 @@ A tabela histórica abaixo preserva a numeração anterior do scorecard. Para ex
 | Etapa | Estado | Entrega existente | Pendência para conclusão |
 |---|---|---|---|
 | FM-0 — Auditoria e consolidação | **Concluída** | Main/PRs auditadas; PR #999 integrada; arquitetura documentada | Manter o scorecard atualizado conforme evidências novas |
-| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG serial de 18 slots publicado pela PR #1084; hooks core-owned na PR #1133; serviço PG serial integrado aos hooks na PR #1145, consumindo o evento de reset uma vez | PRs #1133/#1145 ainda abertas; operadores seriais, Rhythm Mode e pipeline PCM permanecem pendentes |
+| FM-1 — PG e EG | **Parcial** | PG-1; PM LFO global; EG serial de 18 slots publicado pela PR #1084; hooks core-owned integrados à main pela PR #1133; serviço PG serial integrado aos hooks na PR #1145, consumindo o evento de reset uma vez | Repetir os gates no HEAD reconciliado da PR #1145 e integrar o serviço PG; operadores seriais, Rhythm Mode e pipeline PCM permanecem pendentes |
 | FM-2 histórico — Operadores e síntese FM | **Parcial** | Tabelas Log-Sine/EXP; lookup de fase/sinal; par modulator/carrier; feedback de dois samples; KSL BLOCK/FNUM; snapshots locais | A integração serial dos operadores passa a ser FM-3 no roadmap vigente; validar latches e saída contra Nuked antes de PCM |
 | FM-3 — LFO e modulação | **Parcial** | Contador PM global, tabela PM 8×8 e AM LFO de 210 posições/64 amostras, 14 níveis e snapshot | Conectar PM/AM aos operadores; comprovar fase absoluta e alinhamento temporal |
 | FM-4 — Instrumentos | **Parcial** | User patch decoder; 15 presets melódicos candidatos com licença MIT/procedência; decoder FNUM/BLOCK/KEY/SUS/INST/VOL por canal | Validar patches contra hardware; ligar parâmetros ao PG/EG/operadores; confirmar os nove canais; ROM física exata ainda não disponível |
@@ -61,7 +61,7 @@ A tabela histórica abaixo preserva a numeração anterior do scorecard. Para ex
 |---|---|---|
 | Latch e imagem de 64 registradores | Implementados | Integrados ao crate |
 | Máquina de 18 slots | Implementada | Rotação de 72 clocks; pipeline funcional FM ainda pendente |
-| PG-1 + serviço serial | Implementado em componentes/PR aberta | PG arithmetic, 18 acumuladores e serviço serial diferencial contra Nuked; PR #1145 ainda não integrada à main |
+| PG-1 + serviço serial | Implementado; integração em validação | PG arithmetic, 18 acumuladores e serviço serial diferencial contra Nuked; PR #1145 reconciliada sobre main e aguardando gates no novo HEAD |
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
 | EG serial (18 operadores) | Implementado e integrado ao `Ym2413Core`; publicado na main pela PR #1084 | Timer compartilhado, KON/OFF/DOKON/SUS, decodificação de registradores e snapshots no estado do core; replay diferencial do core e do sequenciador aprovado no HEAD `0d7b32b` |
 | Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
@@ -1186,7 +1186,7 @@ No MAME executable/runtime state was captured. This is not an independent MAME o
 
 ### Next gate
 
-FM-1B remains open: connect the serial EG reset event to the unique PG consumer, preserve all delayed latches and prove continuous/partitioned equivalence. The slot-service mapping and offsets were integrated by PR #1124 (merge 8a80fc784c3b9b2563cea248f5c3ba1b4073dfc9). The core-owned pre/post EG service hooks are implemented in open PR #1133 (code HEAD 4b71a1f3093a3a3a184831a84d83b36abf15751b). The current code HEAD has Rust workspace regression/Clippy, PG arithmetic differential, external oracle adapter, and the 16-decision Rhythm/Test Mode reset differential passing. EG characterization is still running. The synthesis bank is not connected yet.
+Historical snapshot before PR #1133 was merged: FM-1B connected the serial EG reset event to the unique PG consumer, preserving delayed latches and continuous/partitioned equivalence. The slot-service mapping and offsets were integrated by PR #1124 (merge 8a80fc784c3b9b2563cea248f5c3ba1b4073dfc9). The core-owned pre/post EG service hooks were subsequently integrated by PR #1133 (merge `f65e13c0e85d103faddd31845324432d8641a308`). The EG characterization and the 16-decision Rhythm/Test Mode reset differential passed on the final PR HEAD. The synthesis bank was not connected at that historical stage.
 
 No PCM FM, complete operator/feedback pipeline, Rhythm Mode PCM, SMS FM ports or PSG+FM mixer is claimed complete.
 
@@ -1196,7 +1196,7 @@ No PCM FM, complete operator/feedback pipeline, Rhythm Mode PCM, SMS FM ports or
 ## Atualização FM-2 — PR #1145 / serviço PG serial
 
 **Branch:** feat/ym2413-fm2-serial-pg-integration
-**PR:** #1145, aberta e empilhada sobre a PR #1133
+**PR:** #1145, aberta e reconciliada sobre `main` após o merge da PR #1133
 **HEAD de código validado:** 56dfe6262d6e98ccae1bd32a3e622050a16ebf20
 
 ### Implementação
@@ -1225,7 +1225,7 @@ Workflow **YM2413 Nuked PG differential**, run 44856572960, **SUCCESS** no HEAD 
 - PG arithmetic differential e PG accumulator differential: **PASS**.
 - Audit MAME/ymfm de normalização aritmética source-level: **PASS**. Não houve execução do binário MAME nem captura de estado runtime; não declarar triangulação de PCM ou de estado interno MAME.
 
-**Limite da conclusão:** FM-2 está implementado e diferencialmente validado na branch da PR #1145, mas não foi integrado à main. Isso não valida ainda os operadores FM, PCM, Rhythm Mode completo, integração SMS ou mixer PSG+FM.
+**Limite da conclusão:** FM-2 está implementado e diferencialmente validado no HEAD original da PR #1145; o HEAD reconciliado sobre `main` aguarda repetição dos gates antes da integração. Isso não valida ainda os operadores FM, PCM, Rhythm Mode completo, integração SMS ou mixer PSG+FM.
 
 ### CI no HEAD de código
 
