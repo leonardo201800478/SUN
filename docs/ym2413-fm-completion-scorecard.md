@@ -2009,4 +2009,3 @@ neste scorecard.
 - PR #1157 contém o serviço medido MO/RO com mapeamentos independentes, retenção e tokens `-0`/`+0`; está em sincronização com a nova base publicada.
 - PR #1158 integra ao serviço PG somente o pipeline de referência digital do Nuked, com CI/PG/EG/reset/output differential aprovados no HEAD de código `b7143f07a166932c39801b28126def0c55df4800`. Esse frame não é o adaptador físico medido.
 - Próxima dependência: conectar o serviço medido MO/RO ao core com coordenadas independentes, propagação de desconhecido e buffer temporal; depois fechar a acumulação dos nove canais, DAC/PCM, portas F0–F2 e mixer PSG+FM.
-
