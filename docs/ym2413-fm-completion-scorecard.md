@@ -1608,3 +1608,35 @@ Full per-run evidence and next experiments:
 **Gate interpretation:** EG #561 closes the characterization workflow gate;
 it does not close EG rate-phase correctness, establish physical timing, or
 make the YM2413 complete. FM-5.3 MO/RO core integration remains separate.
+
+
+## FM-5.4 preliminary output-code mapping finding — 2026-11-21
+
+A review of andete's 2015-03-27 operator model identified the measured-output
+expression `255 - c`, where `c = lookupExp(s2) >> 4`. The author reports
+that this model predicts the measured output data. The 2015-04-09 notes
+describe one's-complement negation and its dual-zero representation; the
+2015-03-11 measurements confirm 512 output levels across 0..511 and distinct
+`-0`/`+0` values.
+
+The Rust serial operator's `channel_output` is `operator_output >> 3`, and
+its negative branch uses one's-complement negation. Therefore
+`255 - channel_output` is a credible **candidate measured-output-code
+mapping** (including positive zero -> 255 and negative zero -> 256). It
+covers 0..511 if the negative full-scale channel value is -256.
+
+This is not a direct capture of the physical operator-to-DAC bus. The Yamaha
+manual establishes a 9-bit DAC but does not specify the raw input encoding.
+Do not relabel this candidate as a proven physical DAC word or merge it into
+the production output service yet. Preserve the distinction between the
+operator's one's-complement i16 bit pattern and the signed measurement-domain
+tokens already retained by `Ym2413DacCode`.
+
+Full investigation and proposed non-production comparator:
+`docs/audits/ym2413-output-code-mapping-investigation-2026-11-21.md`.
+
+**Production decision:** no code change. Next FM-5.4 step is a directed,
+non-oracle-fed arithmetic comparison of operator output, channel output,
+candidate `255 - channel_output`, and the measured-output model, including
+both zeros and negative full scale. Physical DAC-word encoding remains
+unverified until independent digital evidence exists.
