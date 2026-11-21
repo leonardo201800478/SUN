@@ -12,6 +12,7 @@
 //! vector input.
 
 use core::fmt;
+use std::collections::VecDeque;
 
 use crate::{
     CartridgeImage, ControllerButtons, PsgError, SMS_PSG_CLOCK_DOMAIN_ID, SmsCoreError, SmsIo,
@@ -22,10 +23,18 @@ use sega_audio_runtime::{DEFAULT_PCM_SOURCE_RATE_HZ, PsgClockError, ScheduledPsg
 use sega_sn76489::{PsgAmplitudeEvent, PsgEventCaptureError, PsgProfile, Sn76489Core};
 use sega_temporal_core::{HardwarePhase, MachineTime};
 use sega_video::sms::SmsVdpProfile;
-use sega_ym2413::{Ym2413Core, Ym2413Error, Ym2413State};
+use sega_ym2413::{
+    AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
+    YM2413_CHANNEL_OUTPUT_MAX, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOTS_PER_ROTATION,
+    Ym2413ChannelInitialState, Ym2413Core, Ym2413CoreOutputPipelineFrame, Ym2413Error,
+    Ym2413PgSerialAdvanceError, Ym2413PgSerialError, Ym2413PgSerialService,
+    Ym2413PgSerialServiceState, Ym2413State, Ym2413SynthesisError, Ym2413SynthesisInitialState,
+};
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
 
-pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 22;
+pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 23;
+pub const SMS_YM2413_PCM_SOURCE_RATE_HZ: u32 = 49_716;
+const SMS_YM2413_PCM_ACCUMULATOR_STATE_VERSION: u16 = 1;
 const DEFAULT_INTERRUPT_VECTOR: u8 = 0xFF;
 const DEFAULT_SMS_PSG_CLOCK_HZ: u64 = 3_579_545;
 const DEFAULT_AUDIO_SAMPLE_RATE: u64 = DEFAULT_PCM_SOURCE_RATE_HZ as u64;
@@ -105,6 +114,9 @@ pub struct SmsTemporalBusState {
     pub io: SmsIo,
     pub psg: ScheduledPsg,
     pub ym2413: Option<Ym2413State>,
+    pub ym2413_pg_service: Option<Ym2413PgSerialServiceState>,
+    pub pending_fm_samples: VecDeque<Option<f64>>,
+    pub ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState,
     pub fm_control: u8,
     pub vdp: SmsVdp,
     pub coordinator: SmsTemporalCoordinatorState,
@@ -116,6 +128,40 @@ pub struct SmsTemporalBusState {
     pub internal_completion: Option<SmsInternalCycleCompletion>,
 }
 
+/// Snapshot of the partial 18-slot YM2413 mono PCM accumulation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SmsYm2413PcmAccumulatorState {
+    pub format_version: u16,
+    pub next_cycle: u8,
+    pub frame_count: u8,
+    pub sum_mo: i64,
+    pub sum_ro: i64,
+    pub valid: bool,
+}
+
+impl Default for SmsYm2413PcmAccumulatorState {
+    fn default() -> Self {
+        Self {
+            format_version: SMS_YM2413_PCM_ACCUMULATOR_STATE_VERSION,
+            next_cycle: 0,
+            frame_count: 0,
+            sum_mo: 0,
+            sum_ro: 0,
+            valid: true,
+        }
+    }
+}
+
+impl SmsYm2413PcmAccumulatorState {
+    fn is_valid(self) -> bool {
+        self.format_version == SMS_YM2413_PCM_ACCUMULATOR_STATE_VERSION
+            && u64::from(self.next_cycle) < YM2413_SLOTS_PER_ROTATION
+            && self.frame_count == self.next_cycle
+            && self.sum_mo.abs() <= i64::from(YM2413_CHANNEL_OUTPUT_MAX) * i64::from(self.frame_count)
+            && self.sum_ro.abs() <= i64::from(YM2413_CHANNEL_OUTPUT_MAX) * i64::from(self.frame_count)
+    }
+}
+
 /// Errors from the transactional SMS memory-bus adapter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SmsTemporalBusError {
@@ -123,6 +169,9 @@ pub enum SmsTemporalBusError {
     Psg(PsgError),
     PsgClock(PsgClockError),
     Ym2413(Ym2413Error),
+    Ym2413Synthesis(Ym2413SynthesisError),
+    Ym2413PgSerial(Ym2413PgSerialError),
+    Ym2413PgSerialAdvance(Ym2413PgSerialAdvanceError),
     Coordinator(SmsTemporalCoordinatorError),
     Io(SmsIoError),
     Busy,
@@ -141,6 +190,15 @@ impl fmt::Display for SmsTemporalBusError {
             Self::Psg(error) => write!(f, "SMS temporal PSG initialization failed: {error}"),
             Self::PsgClock(error) => write!(f, "SMS temporal PSG clock advance failed: {error}"),
             Self::Ym2413(error) => write!(f, "SMS temporal YM2413 clock advance failed: {error}"),
+            Self::Ym2413Synthesis(error) => {
+                write!(f, "SMS temporal YM2413 synthesis initialization failed: {error}")
+            }
+            Self::Ym2413PgSerial(error) => {
+                write!(f, "SMS temporal YM2413 serial service failed: {error}")
+            }
+            Self::Ym2413PgSerialAdvance(error) => {
+                write!(f, "SMS temporal YM2413 serial advance failed: {error}")
+            }
             Self::Coordinator(error) => write!(f, "SMS temporal coordinator failed: {error}"),
             Self::Io(error) => write!(f, "SMS temporal controller input failed: {error}"),
             Self::Busy => {
@@ -182,6 +240,24 @@ impl From<PsgClockError> for SmsTemporalBusError {
 impl From<Ym2413Error> for SmsTemporalBusError {
     fn from(error: Ym2413Error) -> Self {
         Self::Ym2413(error)
+    }
+}
+
+impl From<Ym2413SynthesisError> for SmsTemporalBusError {
+    fn from(error: Ym2413SynthesisError) -> Self {
+        Self::Ym2413Synthesis(error)
+    }
+}
+
+impl From<Ym2413PgSerialError> for SmsTemporalBusError {
+    fn from(error: Ym2413PgSerialError) -> Self {
+        Self::Ym2413PgSerial(error)
+    }
+}
+
+impl From<Ym2413PgSerialAdvanceError> for SmsTemporalBusError {
+    fn from(error: Ym2413PgSerialAdvanceError) -> Self {
+        Self::Ym2413PgSerialAdvance(error)
     }
 }
 
