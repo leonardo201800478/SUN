@@ -232,3 +232,24 @@ python3 tools/ym2413-nuked-oracle/compare_am_lfo.py \
 This validates the `OPLL_DoLFO` AM shift/carry network independently of the
 operator arithmetic. The integrated PG/PM counter and AM/EG timing still need
 the separate full-pipeline differential.
+
+
+## Integrated FM-3 pipeline differential
+
+The `pg_serial_trace` Rust example emits the complete core-owned EG state,
+serial PG latches, AM LFO state, operator parameter latches, operator
+waveform/feedback state, and channel output after every input-clock call.
+The full Nuked trace is compared by:
+
+```sh
+python3 tools/ym2413-nuked-oracle/compare_fm3_integrated.py \
+  --nuked-trace nuked-operator.jsonl \
+  --rust-trace rust-fm3.jsonl
+```
+
+The integrated comparator checks all 18 EG levels/stages, the shared EG timer
+and rate latches, PG accumulators/increments/output, AM shift/carry state,
+PreparePatch1/2 parameter latches, operator phase index, raw operator output,
+feedback history, and channel output on all 147,456 calls. The isolated
+operator and AM LFO differentials remain separate so a failure can be localized
+to a stage rather than hidden by an end-to-end mismatch.
