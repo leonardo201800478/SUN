@@ -748,6 +748,12 @@ impl Ym2413MeasuredOutputAdapter {
     }
 }
 
+impl Default for Ym2413MeasuredOutputAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
