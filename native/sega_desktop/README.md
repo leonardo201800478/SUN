@@ -57,8 +57,8 @@ A successful build does not prove physical Vulkan presentation. Run on Windows x
 
 ## R2.3 — persistent frontend preferences
 
-- Persists presentation-only preferences in `%APPDATA%\\SUN — Strife Uranus Neptune\\slint_ui_settings.txt`: SMS region, aspect ratio, FPS visibility, footer visibility and FPS text size.
-- Persists up to ten recent ROM paths in `%APPDATA%\\SUN — Strife Uranus Neptune\\recent_roms.txt`, newest first. Selecting a recent entry uses the same safe worker handoff as manual ROM loading.
+- Persists presentation-only preferences in `%APPDATA%\\Sega Emulator\\slint_ui_settings.txt`: SMS region, aspect ratio, FPS visibility, footer visibility and FPS text size.
+- Persists up to ten recent ROM paths in `%APPDATA%\\Sega Emulator\\recent_roms.txt`, newest first. Selecting a recent entry uses the same safe worker handoff as manual ROM loading.
 - Recent ROM history and preferences are saved after UI changes and on application shutdown. They do not contain or serialize machine state.
 - FPS text size offers small, medium and large values. HUD corner placement remains pending because the current Slint composition does not yet have a separately positioned overlay surface.
 
