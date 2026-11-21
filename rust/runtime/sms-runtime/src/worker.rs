@@ -1572,14 +1572,12 @@ impl SmsTemporalWorker {
     ) -> Result<Self, String> {
         if fm_enabled && region != "japan" {
             return Err(
-            "integrated YM2413 is selectable only for the Japanese Master System profile"
-                .to_owned(),
-        );
+                "integrated YM2413 is selectable only for the Japanese Master System profile"
+                    .to_owned(),
+            );
         }
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
-            return Err(
-                "cannot restore SRAM without a verified cartridge RAM profile".to_owned(),
-            );
+            return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
         if let Some(capacity) = cartridge_sram_size
             && !matches!(capacity, 0x2000 | 0x4000 | 0x8000)
