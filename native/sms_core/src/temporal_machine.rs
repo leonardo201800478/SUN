@@ -4039,10 +4039,8 @@ mod temporal_frame_tests {
 
         // PSG tone channel 0, period 4, maximum volume.
         program.extend([
-            0x3E, 0x84, 0xD3, 0x7E,
-            0x3E, 0x00, 0xD3, 0x7E,
-            0x3E, 0x90, 0xD3, 0x7E,
-            0x18, 0xFE, // JR -2
+            0x3E, 0x84, 0xD3, 0x7E, 0x3E, 0x00, 0xD3, 0x7E, 0x3E, 0x90, 0xD3, 0x7E, 0x18,
+            0xFE, // JR -2
         ]);
         rom[..program.len()].copy_from_slice(&program);
 
@@ -4067,7 +4065,10 @@ mod temporal_frame_tests {
 
         let fm_samples = machine.drain_fm_audio_samples(None);
         let psg_samples = machine.drain_audio_samples(None);
-        assert!(!fm_samples.is_empty(), "the test ROM must produce FM rotations");
+        assert!(
+            !fm_samples.is_empty(),
+            "the test ROM must produce FM rotations"
+        );
         assert!(
             fm_samples
                 .iter()
@@ -4076,7 +4077,9 @@ mod temporal_frame_tests {
             "the keyed-on YM2413 note must produce non-zero known PCM"
         );
         assert!(
-            psg_samples.iter().any(|sample| sample.is_finite() && sample.abs() > 1.0e-9),
+            psg_samples
+                .iter()
+                .any(|sample| sample.is_finite() && sample.abs() > 1.0e-9),
             "the PSG tone must remain audible while FM is enabled"
         );
 
