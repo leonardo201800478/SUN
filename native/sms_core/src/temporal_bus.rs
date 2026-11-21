@@ -39,6 +39,32 @@ const DEFAULT_INTERRUPT_VECTOR: u8 = 0xFF;
 const DEFAULT_SMS_PSG_CLOCK_HZ: u64 = 3_579_545;
 const DEFAULT_AUDIO_SAMPLE_RATE: u64 = DEFAULT_PCM_SOURCE_RATE_HZ as u64;
 
+/// Deterministic software reset hypothesis for the Japanese SMS FM path.
+/// These initial conditions are explicit model inputs, not a claim about the
+/// chip's unmeasured physical power-on state.
+fn sms_ym2413_synthesis_initial_state() -> Ym2413SynthesisInitialState {
+    let damp_config = DampTransitionConfig::new(
+        124,
+        DampTransitionCoordination::IndependentPerOperator,
+        AttackRate15Transition::SkipAttackToDecay,
+    )
+    .expect("the static SMS YM2413 DAMP policy is valid");
+    let channels = std::array::from_fn(|channel| Ym2413ChannelInitialState {
+        phase: [channel as u32 * 0x1000, channel as u32 * 0x1800],
+        envelope_level: [127, 127],
+        envelope_stage: [EnvelopeStage::Damp; 2],
+        envelope_key_on: [false; 2],
+        feedback_history: [0; 2],
+        previous_modulator_phase_index: None,
+    });
+    Ym2413SynthesisInitialState {
+        channels,
+        pm_lfo_counter: 0,
+        am_lfo_phase: 0,
+        damp_config,
+    }
+}
+
 fn elapsed_tstates(
     started_at: MachineTime,
     completed_at: MachineTime,
@@ -286,6 +312,9 @@ pub struct SmsTemporalBus {
     io: SmsIo,
     psg: ScheduledPsg,
     ym2413: Option<Ym2413Core>,
+    ym2413_pg_service: Option<Ym2413PgSerialService>,
+    pending_fm_samples: VecDeque<Option<f64>>,
+    ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState,
     fm_control: u8,
     vdp: SmsVdp,
     coordinator: SmsTemporalCoordinator,
@@ -376,9 +405,7 @@ impl SmsTemporalBus {
             vdp_profile,
             territory,
         )?;
-        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
-        bus.ym2413 = Some(Ym2413Core::new());
-        Ok(bus)
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
     /// Construct the Japanese Master System FM profile with explicit cartridge SRAM capacity.
@@ -404,8 +431,20 @@ impl SmsTemporalBus {
             territory,
             cartridge_sram_size,
         )?;
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
+    }
+
+    fn install_japanese_fm_hardware_profile(
+        mut bus: Self,
+        master_ticks_per_tstate: u64,
+    ) -> Result<Self, SmsTemporalBusError> {
         bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
         bus.ym2413 = Some(Ym2413Core::new());
+        bus.ym2413_pg_service = Some(Ym2413PgSerialService::with_initial_state(
+            sms_ym2413_synthesis_initial_state(),
+        )?);
+        bus.pending_fm_samples.clear();
+        bus.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
         Ok(bus)
     }
 
@@ -444,6 +483,9 @@ impl SmsTemporalBus {
             io: SmsIo::new(territory),
             psg,
             ym2413: None,
+            ym2413_pg_service: None,
+            pending_fm_samples: VecDeque::new(),
+            ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState::default(),
             fm_control: 0,
             vdp: SmsVdp::new_with_profile(vdp_profile),
             coordinator,
@@ -525,6 +567,9 @@ impl SmsTemporalBus {
             io: SmsIo::new(territory),
             psg,
             ym2413: None,
+            ym2413_pg_service: None,
+            pending_fm_samples: VecDeque::new(),
+            ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState::default(),
             fm_control: 0,
             vdp: SmsVdp::new_with_profile(vdp_profile),
             coordinator,
@@ -560,9 +605,7 @@ impl SmsTemporalBus {
             vdp_profile,
             territory,
         )?;
-        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
-        bus.ym2413 = Some(Ym2413Core::new());
-        Ok(bus)
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
     /// Construct the Japanese Master System FM profile with BIOS and cartridge SRAM capacity.
@@ -590,9 +633,7 @@ impl SmsTemporalBus {
             territory,
             cartridge_sram_size,
         )?;
-        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
-        bus.ym2413 = Some(Ym2413Core::new());
-        Ok(bus)
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
     /// Schedule an external TH transition without advancing the machine immediately.
