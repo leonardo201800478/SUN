@@ -771,3 +771,305 @@ mod tests {
                 lfsr: Ym2413RhythmSlotNoiseLfsr::with_seed(1)
                     .unwrap()
                     .export_state(),
+            }),
+            Err(Ym2413RhythmNoiseError::InvalidSlotIndex(18))
+        );
+    }
+
+    #[test]
+    fn rhythm_register_decoder_maps_all_trigger_bits_and_volume_nibbles() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        registers[0x36] = 0xa5;
+        registers[0x37] = 0xc4;
+        registers[0x38] = 0x7e;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert!(config.rhythm_mode_enabled);
+        assert_eq!(
+            config.bass_drum,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 5,
+            }
+        );
+        assert_eq!(
+            config.snare_drum,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 4,
+            }
+        );
+        assert_eq!(
+            config.tom_tom,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 7,
+            }
+        );
+        assert_eq!(
+            config.top_cymbal,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 14,
+            }
+        );
+        assert_eq!(
+            config.hi_hat,
+            super::Ym2413RhythmVoiceConfig {
+                key_on: true,
+                volume: 12,
+            }
+        );
+    }
+
+    #[test]
+    fn rhythm_voice_activation_is_gated_by_rhythm_mode_not_raw_trigger_bits() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x1f;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert!(!config.rhythm_mode_enabled);
+        assert!(config.bass_drum.key_on);
+        assert!(!config.bass_drum.is_active(config.rhythm_mode_enabled));
+
+        registers[0x0e] |= super::YM2413_RHYTHM_MODE_BIT;
+        let enabled = super::decode_rhythm_registers(&registers);
+        assert!(enabled.bass_drum.is_active(enabled.rhythm_mode_enabled));
+    }
+
+    #[test]
+    fn rhythm_decoder_preserves_channels_seven_to_nine_frequency_and_key_fields() {
+        let mut registers = [0; 64];
+        registers[0x16] = 0xa5;
+        registers[0x26] = 0x35;
+        registers[0x17] = 0x42;
+        registers[0x27] = 0x0b;
+        registers[0x18] = 0xfe;
+        registers[0x28] = 0x1e;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(
+            config.channel_frequencies[0],
+            super::Ym2413RhythmChannelFrequency {
+                channel: 6,
+                fnum: 0x1a5,
+                block: 2,
+                melodic_key_on: true,
+                sustain_on: true,
+            }
+        );
+        assert_eq!(
+            config.channel_frequencies[1],
+            super::Ym2413RhythmChannelFrequency {
+                channel: 7,
+                fnum: 0x142,
+                block: 5,
+                melodic_key_on: false,
+                sustain_on: false,
+            }
+        );
+        assert_eq!(
+            config.channel_frequencies[2],
+            super::Ym2413RhythmChannelFrequency {
+                channel: 8,
+                fnum: 0x0fe,
+                block: 7,
+                melodic_key_on: true,
+                sustain_on: false,
+            }
+        );
+    }
+
+    #[test]
+    fn rhythm_mode_key_on_warning_reports_channels_without_mutating_raw_fields() {
+        let mut registers = [0; 64];
+        registers[0x0e] = super::YM2413_RHYTHM_MODE_BIT | 0x1f;
+        registers[0x26] = 0x10;
+        registers[0x27] = 0x00;
+        registers[0x28] = 0x10;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.rhythm_mode_melodic_key_on_warning_mask(), 0b101);
+        assert!(config.has_rhythm_mode_melodic_key_on_warning());
+        assert!(config.channel_frequencies[0].melodic_key_on);
+        assert!(!config.channel_frequencies[1].melodic_key_on);
+        assert!(config.channel_frequencies[2].melodic_key_on);
+    }
+
+    #[test]
+    fn rhythm_mode_key_on_warning_is_suppressed_when_rhythm_mode_is_disabled() {
+        let mut registers = [0; 64];
+        registers[0x26] = 0x10;
+        registers[0x27] = 0x10;
+        registers[0x28] = 0x10;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.rhythm_mode_melodic_key_on_warning_mask(), 0);
+        assert!(!config.has_rhythm_mode_melodic_key_on_warning());
+        assert!(
+            config
+                .channel_frequencies
+                .iter()
+                .all(|channel| channel.melodic_key_on)
+        );
+    }
+
+    #[test]
+    fn rhythm_mode_key_on_warning_is_clear_for_recommended_register_setup() {
+        let mut registers = [0; 64];
+        registers[0x0e] = super::YM2413_RHYTHM_MODE_BIT | 0x1f;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.rhythm_mode_melodic_key_on_warning_mask(), 0);
+        assert!(!config.has_rhythm_mode_melodic_key_on_warning());
+    }
+
+    #[test]
+    fn rhythm_volume_registers_are_not_decoded_as_melodic_instruments() {
+        let mut registers = [0; 64];
+        registers[0x36] = 0xf3;
+        registers[0x37] = 0xa6;
+        registers[0x38] = 0x5c;
+
+        let config = super::decode_rhythm_registers(&registers);
+
+        assert_eq!(config.bass_drum.volume, 3);
+        assert_eq!(config.hi_hat.volume, 10);
+        assert_eq!(config.snare_drum.volume, 6);
+        assert_eq!(config.tom_tom.volume, 5);
+        assert_eq!(config.top_cymbal.volume, 12);
+    }
+
+    #[test]
+    fn rhythm_trigger_bits_are_decoded_independently_one_hot() {
+        let cases = [
+            (0x10, 0), // Bass Drum
+            (0x08, 1), // Snare Drum
+            (0x04, 2), // Tom-Tom
+            (0x02, 3), // Top Cymbal
+            (0x01, 4), // Hi-Hat
+        ];
+
+        for (trigger, voice_index) in cases {
+            let mut registers = [0; 64];
+            registers[0x0e] = super::YM2413_RHYTHM_MODE_BIT | trigger;
+            let config = super::decode_rhythm_registers(&registers);
+            let active = [
+                config.bass_drum.key_on,
+                config.snare_drum.key_on,
+                config.tom_tom.key_on,
+                config.top_cymbal.key_on,
+                config.hi_hat.key_on,
+            ];
+
+            for (index, is_triggered) in active.into_iter().enumerate() {
+                assert_eq!(
+                    is_triggered,
+                    index == voice_index,
+                    "trigger bit {trigger:#04x} must select only voice index {voice_index}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn slot_rate_lfsr_uses_the_measured_x23_x9_plus_one_recurrence() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(1).unwrap();
+
+        assert_eq!(lfsr.output_bit(), 1);
+        assert_eq!(lfsr.clock(), 1);
+        assert_eq!(lfsr.register(), 0x40_0000);
+    }
+
+    #[test]
+    fn every_eighteenth_slot_rate_bit_obeys_the_decimated_noise_polynomial() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(1).unwrap();
+        let mut sampled = Vec::with_capacity(128);
+
+        for _ in 0..128 {
+            sampled.push(lfsr.output_bit());
+            lfsr.advance(18);
+        }
+
+        for index in 23..sampled.len() {
+            let expected =
+                sampled[index - 1] ^ sampled[index - 8] ^ sampled[index - 9] ^ sampled[index - 23];
+            assert_eq!(sampled[index], expected, "decimated bit index {index}");
+        }
+    }
+
+    #[test]
+    fn slot_rate_lfsr_matches_measured_three_slot_hh_to_sd_spacing_vector() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(0x12_3457).unwrap();
+
+        // Slot 13: HH samples the current bit.
+        assert_eq!(lfsr.output_bit(), 1);
+        lfsr.advance(3);
+
+        // Slot 16: SD samples the bit after three operator-slot steps.
+        assert_eq!(lfsr.output_bit(), 0);
+        lfsr.advance(15);
+
+        // The next rotation returns to HH at slot 13 after 18 total steps.
+        assert_eq!(lfsr.output_bit(), 0);
+    }
+
+    #[test]
+    fn slot_rate_lfsr_has_the_full_non_zero_23_bit_period() {
+        let seed = 1;
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_seed(seed).unwrap();
+        let mut after_47 = None;
+        let mut after_178_481 = None;
+
+        for step in 1..=YM2413_RHYTHM_NOISE_LFSR_PERIOD {
+            let _ = lfsr.clock();
+            if step == 47 {
+                after_47 = Some(lfsr.register());
+            }
+            if step == 178_481 {
+                after_178_481 = Some(lfsr.register());
+            }
+        }
+
+        // 2^23 - 1 = 47 * 178481. The two checks exclude both
+        // proper prime-factor reductions of the candidate period.
+        assert_ne!(after_47, Some(seed));
+        assert_ne!(after_178_481, Some(seed));
+        assert_eq!(lfsr.register(), seed);
+    }
+
+    #[test]
+    fn slot_rate_lfsr_snapshot_restore_and_chunked_advance_are_equivalent() {
+        let mut continuous = Ym2413RhythmSlotNoiseLfsr::with_seed(0x5a_1234).unwrap();
+        let mut chunked = continuous;
+
+        continuous.advance(100_003);
+        for steps in [1, 7, 64, 3_001, 17, 65_536, 31_377] {
+            chunked.advance(steps);
+        }
+        assert_eq!(continuous.export_state(), chunked.export_state());
+
+        let snapshot = continuous.export_state();
+        assert_eq!(
+            Ym2413RhythmSlotNoiseLfsr::restore_state(snapshot),
+            Ok(continuous)
+        );
+        assert_eq!(
+            Ym2413RhythmSlotNoiseLfsr::restore_state(Ym2413RhythmSlotNoiseState {
+                format_version: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION + 1,
+                register: 1,
+            }),
+            Err(Ym2413RhythmNoiseError::StateVersionMismatch {
+                expected: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION,
+                actual: YM2413_RHYTHM_SLOT_NOISE_STATE_VERSION + 1,
+            })
+        );
+    }
+}
