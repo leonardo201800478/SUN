@@ -69,3 +69,28 @@ The comparator must test the complete range, including both zero encodings and t
 ## Decision
 
 The previous statement that no operator-to-output arithmetic candidate exists is now too strong. A credible measured-output mapping candidate has been identified. The raw physical DAC input word, its electrical latch timing, and analog transfer remain unproven. No production code was changed in this investigation.
+
+
+## Bounded implementation increment — 2026-11-21
+
+The measured-domain conversion is now represented by
+`Ym2413DacCode::from_operator_channel_output(i16)` in
+`native/ym2413/src/rhythm_output.rs`.
+
+- Accepts only the operator channel-output one's-complement domain `-256..=255`.
+- Decodes positive values directly.
+- Decodes negative values by one's-complement magnitude, preserving `-1`
+  as the distinct negative-zero token and mapping `-256` to measured
+  amplitude `-255`.
+- Rejects values outside the documented 9-bit one's-complement domain.
+- Does not return a raw DAC word and does not alter any output-service call
+  site; integration remains a separate timing/ownership task.
+
+An exhaustive unit test checks all 512 bit-pattern values and proves a
+one-to-one mapping to the signed measured domain, including both zero
+encodings and both full-scale endpoints. The test is committed, but exact-head
+CI is still required before this helper is considered validated.
+
+This increment supersedes the earlier sentence above that said no production
+code was changed: a standalone conversion API and tests were added; the
+serial output service is still not wired into the PG/core pipeline.
