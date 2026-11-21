@@ -642,8 +642,9 @@ mod tests {
         slot_service::{
             Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
         },
-        EnvelopeSequencerTick, YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT,
-        YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Core, Ym2413Error, Ym2413State,
+        EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS, YM2413_INPUT_CLOCKS_PER_ROTATION,
+        YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Core,
+        Ym2413Error, Ym2413State, nuked_phase_reset_required,
     };
     use core::convert::Infallible;
 
@@ -966,7 +967,19 @@ mod tests {
             assert_eq!(before.event.cycle, cycle);
             assert_eq!(after.0, cycle);
             assert_eq!(after.1, before.event.eg_update_index);
-            assert_eq!(before.rm_enable, before.event.phase_reset_required as u8 * 0);
+            assert_eq!(
+                before.event.selected_operator.channel,
+                YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]
+            );
+            assert_eq!(
+                before.event.phase_reset_required,
+                nuked_phase_reset_required(
+                    cycle,
+                    before.rm_enable,
+                    before.envelope_state.eg_dokon
+                )
+                .unwrap()
+            );
             assert_eq!(service.order[usize::from(cycle) * 2], (true, cycle));
             assert_eq!(
                 service.order[usize::from(cycle) * 2 + 1],
