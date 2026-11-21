@@ -543,7 +543,6 @@ impl Ym2413PgSerialService {
         }
         if state.rhythm_noise_cursor >= crate::rhythm::YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION
             || state.output_pipeline.next_cycle != state.rhythm_noise_cursor
-            || state.measured_output_adapter.next_cycle != state.rhythm_noise_cursor
             || state.last_output_frame.is_some_and(|frame| {
                 frame.cycle >= 18 || (frame.cycle + 1) % 18 != state.output_pipeline.next_cycle
             })
@@ -565,6 +564,9 @@ impl Ym2413PgSerialService {
         let output_pipeline = Ym2413OutputPipeline::with_initial_state(state.output_pipeline)?;
         let measured_output_adapter =
             Ym2413MeasuredOutputAdapter::with_initial_state(state.measured_output_adapter)?;
+        if measured_output_adapter.next_cycle() != state.rhythm_noise_cursor {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
         Ok(Self {
             synthesis: Ym2413SynthesisBank::restore_state(state.synthesis)?,
             pipeline,
@@ -1150,8 +1152,13 @@ mod tests {
                 voice: crate::Ym2413RhythmVoice::BassDrum,
             }
         );
+        let adapter_state = service.measured_output_adapter_state();
+        let ro_cursor = adapter_state
+            .rhythm_output_service
+            .rhythm_delay
+            .next_slot_index;
         assert_eq!(
-            service.measured_output_adapter_state().next_cycle,
+            (ro_cursor + 3) % crate::slot::YM2413_SLOT_COUNT as u8,
             service.rhythm_noise_cursor()
         );
     }
