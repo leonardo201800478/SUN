@@ -9,6 +9,7 @@ use crate::slot::Ym2413SlotServiceEvent;
 
 /// Read-only snapshot at the serial boundary after mode latches have shifted
 /// and before the core advances the EG operator for this cycle.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Ym2413SlotServiceContext {
     pub event: Ym2413SlotServiceEvent,
@@ -28,6 +29,7 @@ pub(crate) struct Ym2413SlotServiceContext {
 /// Implementations may update PG/operator/feedback/LFO state, but must not tick
 /// or reconstruct the serial EG. The core performs exactly one EG update
 /// between these two callbacks.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) trait Ym2413SlotService {
     type Error;
 
@@ -49,5 +51,6 @@ pub(crate) trait Ym2413SlotService {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Ym2413SlotServiceAdvanceError<E> {
     Core(Ym2413Error),
+    #[cfg_attr(not(test), allow(dead_code))]
     Service(E),
 }
