@@ -136,7 +136,7 @@ Pacing deve usar relógio monotônico e deadlines absolutos para evitar deriva a
 
 Sincronização de áudio não pode ser resolvida alterando silenciosamente período de vídeo enquanto Scheduler produz áudio e vídeo a partir do mesmo clock emulado. Servo PI sobre frame period pode alterar velocidade efetiva da máquina e relação entre áudio e tempo real; não é correto afirmar que preserva pitch automaticamente. Primeiro definir autoridade de pacing, medir ocupação do ring buffer e drift entre clocks, então escolher pacing coordenado, resampling assíncrono ou ajuste explicitamente limitado. Callback CPAL permanece lock-free e não executa controle complexo.
 
-Nenhum ajuste de pacing do host pode mudar sequência de ciclos, master clock emulado ou número de amostras geradas por ciclo de hardware. Métricas de ocupação do ring buffer podem ser publicadas por atomics lock-free a partir do callback CPAL, sem Mutex; uma capacidade de 2048 frames estéreo e alvo de 50% são apenas pontos de partida para experimento, não parâmetros fixados. O callback limita-se a consumir/preencher áudio e publicar métricas; não executa servo, alocação ou espera ativa.
+Nenhum ajuste de pacing do host pode mudar sequência de ciclos, master clock emulado ou número de amostras geradas por ciclo de hardware. Métricas de ocupação do ring buffer podem ser publicadas por atomics lock-free a partir do callback CPAL, sem Mutex; uma capacidade de 2048 frames estéreo e alvo de 50% são apenas pontos de partida para experimento, não parâmetros fixados. O callback limita-se a consumir/preencher áudio e publicar métricas; não executa servo, alocação ou espera ativa. Métricas de ocupação do ring buffer podem ser publicadas por atomics lock-free a partir do callback CPAL, sem Mutex; uma capacidade de 2048 frames estéreo e alvo de 50% são apenas pontos de partida para experimento, não parâmetros fixados. O callback limita-se a consumir/preencher áudio e publicar métricas; não executa servo, alocação ou espera ativa.
 
 ## 10. Benchmarks e aceitação
 
@@ -167,7 +167,7 @@ Não modificar VDP, Scheduler ou runtime para facilitar pós-processamento. Exce
 - WGPU 30 HDR: https://wgpu.rs/doc/wgpu/documentation/color/hdr_surfaces/
 - WGPU 30 SurfaceConfiguration: https://wgpu.rs/doc/wgpu/api/surface/type.SurfaceConfiguration.html
 - librashader APIs: https://github.com/SnowflakePowered/librashader#supported-render-apis
-- Windows 11 windowed optimizations: https://support.microsoft.com/windows/optimizations-for-windowed-games-in-windows-11
+- Windows 11 windowed optimizations: https://support.microsoft.com/en-au/windows/hardware/display-graphics/optimizations-for-windowed-games-in-windows-11
 - TI TVP5147M1: https://www.ti.com/lit/ds/symlink/tvp5147m1.pdf
 - Sega Game Gear Hardware Reference Manual: https://segaretro.org/images/1/16/Sega_Game_Gear_Hardware_Reference_Manual.pdf
 - SMS/Game Gear VDP notes: https://github.com/franckverrot/EmulationResources/blob/master/consoles/sms-gg/Sega%20Master%20System%20VDP%20documentation.txt
