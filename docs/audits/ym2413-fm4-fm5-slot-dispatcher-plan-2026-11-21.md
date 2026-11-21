@@ -224,3 +224,7 @@ FM-5.2A therefore now supports an explicit 23-bit register candidate including z
 
 A new independent differential is added to `.github/workflows/ym2413-rhythm-reset-differential.yml`: 144 consecutive Nuked `rm_noise` states from `OPLL_Reset` are compared with the Rust slot-rate LFSR trace. Unit tests separately cover zero-register escape, Test Mode bit 1, service-level Test Mode propagation, snapshot restoration and full-slot cadence.
 
+### Unseeded cadence state
+
+The serial PG service now also retains a core-aligned DoRhythm slot cursor and cumulative step count when no LFSR register candidate has been selected. Every post-EG slot advances this symbolic cadence, including RHY-disabled slots, while noise samples remain `None`. This preserves the known temporal behavior without fabricating an LFSR seed or output bit. When a candidate register is explicitly configured, the concrete 23-bit LFSR and symbolic cursor advance together and are checked for alignment. Both forms are included in the versioned service snapshot.
+
