@@ -300,7 +300,7 @@ impl Ym2413OperatorSerialService {
     }
 
     /// EnvelopeKSLTL: publish the value prepared by the current PreparePatch1.
-    pub(crate) const fn latch_eg_ksltl(&mut self, value: u16) {
+    pub(crate) fn latch_eg_ksltl(&mut self, value: u16) {
         self.state.eg_ksltl = value;
     }
 
