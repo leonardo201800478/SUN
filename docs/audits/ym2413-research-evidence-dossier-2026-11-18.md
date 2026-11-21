@@ -433,3 +433,18 @@ Este dossiê será considerado suficientemente fechado para iniciar a integraç�
 6. A decisão de clock domain da placa estiver sustentada por evidência, ou permanecer explicitamente isolada como domínio independente no mesmo Scheduler.
 
 **Conclusão atual:** o projeto tem uma fundação real de componentes YM2413, incluindo slot map e primitiva LFSR, mas ainda não tem pipeline FM cycle-accurate, PCM FM, Rhythm Mode sintetizado nem integração SMS. A próxima tarefa técnica prioritária é P1 — pesquisa e especificação temporal do pipeline de 18 slots — e não ampliar a GUI, o mixer ou o Scheduler por suposição.
+
+
+---
+
+## 11. Current-main Nuked PG and serial-slot evidence update — 2026-11-20
+
+The PG integer correction was reapplied and merged through PR #1119 (`fc166cc8cca2e3a4a4d5c3565b5d125d3dc20408`). Its current-main executable evidence is recorded in the PG rounding and phase-accumulator audits.
+
+The pinned Nuked source-level `OPLL_Clock` order and the independent PG/EG array offsets are now recorded in `ym2413-nuked-slot-service-contract-2026-11-20.md`. The contract separates the current logical operator selection, PG phase write/read entries, EG update/output entries and the delayed PG reset request. It explicitly avoids inventing subphases within the four Rust input clocks.
+
+This advances the **software compatibility** path: implementation of the backend pipeline may proceed using the pinned Nuked oracle, reproducible traces and explicit uncertainty labels. Physical capture is not a prerequisite for writing or testing that software path. It remains necessary before claiming measured electrical timing, absolute reset-phase alignment, board-level MO/RO transfer or physical-chip fidelity.
+
+The PG KEY-ON response comparison used reset events captured from Nuked. It did not prove that the Rust serial EG core generates those reset events. The next gate is therefore FM-1B: pass one explicit slot-service event from the core's pre-update EG/mode state into the PG service, consume the reset event exactly once, and compare the resulting trace against Nuked. The combined operator/feedback pipeline and PCM remain subsequent gates.
+
+No changes to Z80, Scheduler, PSG, VDP, SMS runtime or interface are included in this evidence update.
