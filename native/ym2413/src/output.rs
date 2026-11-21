@@ -13,7 +13,10 @@
 //! questions. The supplied Ym2413DacCode is the project's reconstructed
 //! signed measurement-domain level, not a raw DAC input word.
 
-use crate::rhythm_output::{Ym2413DacCode, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult};
+use crate::rhythm_output::{
+    Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState,
+    Ym2413RhythmOutputError, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
+};
 use crate::slot::{
     YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413Operator, Ym2413RhythmVoice, slot_descriptor,
 };
@@ -212,6 +215,115 @@ pub fn rhythm_slot_result(
     }
 }
 
+/// Snapshot format for the combined Rhythm Mode MO/RO output service.
+pub const YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION: u16 = 1;
+
+/// Complete save-state data for the Rhythm Mode output service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmOutputServiceState {
+    pub format_version: u16,
+    pub rhythm_delay: Ym2413RhythmOutputDelayState,
+}
+
+/// Independent MO and RO results for one completed Rhythm Mode slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmOutputFrame {
+    pub slot_index: u8,
+    /// Melody output for channels 0..5. None means MO has no pulse in this slot.
+    pub mo: Option<Ym2413OutputPulse>,
+    /// Rhythm output or explicit absence/uninitialized-repeat result.
+    pub ro: Ym2413OutputSlotResult,
+}
+
+/// Errors from the serial Rhythm Mode MO/RO output service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ym2413RhythmOutputServiceError {
+    InvalidState,
+    Retention(Ym2413RhythmOutputError),
+    Routing(Ym2413OutputRoutingError),
+}
+
+impl core::fmt::Display for Ym2413RhythmOutputServiceError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InvalidState => f.write_str("invalid YM2413 Rhythm Mode output-service state"),
+            Self::Retention(error) => write!(f, "YM2413 rhythm retention error: {error:?}"),
+            Self::Routing(error) => write!(f, "YM2413 output routing error: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for Ym2413RhythmOutputServiceError {}
+
+impl From<Ym2413RhythmOutputError> for Ym2413RhythmOutputServiceError {
+    fn from(value: Ym2413RhythmOutputError) -> Self {
+        Self::Retention(value)
+    }
+}
+
+impl From<Ym2413OutputRoutingError> for Ym2413RhythmOutputServiceError {
+    fn from(value: Ym2413OutputRoutingError) -> Self {
+        Self::Routing(value)
+    }
+}
+
+/// Serial output stage for the six melodic and five repeated Rhythm Mode outputs.
+///
+/// The caller invokes process_slot exactly once per completed 18-slot boundary.
+/// The two input levels are already reconstructed measurement-domain values:
+/// this service never converts the signed operator intermediate to a DAC word.
+/// It also does not advance the chip clock, choose the three-clock pulse's
+/// sub-clock phase, or combine MO and RO into PCM.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413RhythmOutputService {
+    rhythm_delay: Ym2413RhythmOutputDelay,
+}
+
+impl Ym2413RhythmOutputService {
+    /// Restore caller-supplied retention state without guessing physical reset contents.
+    pub const fn with_initial_state(
+        state: Ym2413RhythmOutputServiceState,
+    ) -> Result<Self, Ym2413RhythmOutputServiceError> {
+        if state.format_version != YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION {
+            return Err(Ym2413RhythmOutputServiceError::InvalidState);
+        }
+        let rhythm_delay = match Ym2413RhythmOutputDelay::with_initial_state(state.rhythm_delay) {
+            Ok(delay) => delay,
+            Err(error) => return Err(Ym2413RhythmOutputServiceError::Retention(error)),
+        };
+        Ok(Self { rhythm_delay })
+    }
+
+    /// Export the complete MO/RO service state for deterministic save states.
+    pub const fn export_state(&self) -> Ym2413RhythmOutputServiceState {
+        Ym2413RhythmOutputServiceState {
+            format_version: YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION,
+            rhythm_delay: self.rhythm_delay.export_state(),
+        }
+    }
+
+    /// Route one completed Rhythm Mode slot to independent MO and RO pulse results.
+    ///
+    /// Supply melody_level only at MO carrier slots 3, 4, 5, 9, 10 and 11.
+    /// Supply original_rhythm_level only at source slots 13..17. The five
+    /// repeated RO occurrences are read from retained state at slots 0, 1, 2,
+    /// 6 and 7. Both values must already be in Ym2413DacCode's measured domain.
+    pub fn process_slot(
+        &mut self,
+        slot_index: u8,
+        melody_level: Option<Ym2413DacCode>,
+        original_rhythm_level: Option<Ym2413DacCode>,
+    ) -> Result<Ym2413RhythmOutputFrame, Ym2413RhythmOutputServiceError> {
+        // Validate MO placement before mutating the rhythm retention cursor.
+        let mo = melody_output_for_slot(slot_index, true, melody_level)?;
+        let rhythm_result = self
+            .rhythm_delay
+            .process_slot(slot_index, original_rhythm_level)?;
+        let ro = rhythm_slot_result(rhythm_result)?;
+        Ok(Ym2413RhythmOutputFrame { slot_index, mo, ro })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -226,6 +338,155 @@ mod tests {
 
     fn level(value: i16) -> Ym2413DacCode {
         Ym2413DacCode::new(value).unwrap()
+    }
+
+    fn service_state(next_slot_index: u8) -> super::Ym2413RhythmOutputServiceState {
+        super::Ym2413RhythmOutputServiceState {
+            format_version: super::YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION,
+            rhythm_delay: crate::rhythm_output::Ym2413RhythmOutputDelayState {
+                format_version: crate::rhythm_output::YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
+                next_slot_index,
+                retained_values: [None; 5],
+            },
+        }
+    }
+
+    fn service_level(slot: u8) -> Option<Ym2413DacCode> {
+        match slot {
+            3..=5 | 9..=11 => Some(level(i16::from(slot) - 20)),
+            _ => None,
+        }
+    }
+
+    fn original_rhythm_level(slot: u8) -> Option<Ym2413DacCode> {
+        match slot {
+            13 => Some(level(21)),
+            14 => Some(level(-34)),
+            15 => Some(level(55)),
+            16 => Some(level(-89)),
+            17 => Some(level(144)),
+            _ => None,
+        }
+    }
+
+    fn process_service_slot(
+        service: &mut super::Ym2413RhythmOutputService,
+        slot: u8,
+    ) -> super::Ym2413RhythmOutputFrame {
+        service
+            .process_slot(slot, service_level(slot), original_rhythm_level(slot))
+            .unwrap()
+    }
+
+    #[test]
+    fn rhythm_output_service_routes_mo_and_ro_independently_and_repeats_retained_codes() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(13)).unwrap();
+        let mut frames = Vec::new();
+        for slot in (13..18).chain(0..13) {
+            frames.push(process_service_slot(&mut service, slot));
+        }
+
+        let melody_slots = [3, 4, 5, 9, 10, 11];
+        let rhythm_slots = [13, 14, 15, 16, 17, 0, 1, 2, 6, 7];
+        for frame in &frames {
+            assert_eq!(
+                frame.mo.is_some(),
+                melody_slots.contains(&frame.slot_index),
+                "MO slot {}",
+                frame.slot_index
+            );
+            assert_eq!(
+                matches!(frame.ro, Ym2413OutputSlotResult::Pulse(_)),
+                rhythm_slots.contains(&frame.slot_index),
+                "RO slot {}",
+                frame.slot_index
+            );
+            assert!(
+                !(frame.mo.is_some()
+                    && matches!(frame.ro, Ym2413OutputSlotResult::Pulse(_))),
+                "MO and RO must remain independent at slot {}",
+                frame.slot_index
+            );
+        }
+
+        let repeats: Vec<_> = frames
+            .iter()
+            .filter_map(|frame| match frame.ro {
+                Ym2413OutputSlotResult::Pulse(pulse) if pulse.slot_index < 13 => Some(pulse),
+                _ => None,
+            })
+            .collect();
+        let expected = [
+            (0, Ym2413RhythmVoice::HiHat, 21),
+            (1, Ym2413RhythmVoice::TomTom, -34),
+            (2, Ym2413RhythmVoice::BassDrum, 55),
+            (6, Ym2413RhythmVoice::SnareDrum, -89),
+            (7, Ym2413RhythmVoice::TopCymbal, 144),
+        ];
+        assert_eq!(repeats.len(), expected.len());
+        for (pulse, (slot, voice, value)) in repeats.into_iter().zip(expected) {
+            assert_eq!(pulse.pin, Ym2413OutputPin::Ro);
+            assert_eq!(pulse.slot_index, slot);
+            assert_eq!(pulse.source, Ym2413OutputSource::RhythmVoice(voice));
+            assert_eq!(pulse.level, level(value));
+            assert_eq!(pulse.active_input_clocks(), 3);
+            assert_eq!(pulse.neutral_input_clocks(), 1);
+        }
+    }
+
+    #[test]
+    fn rhythm_output_service_snapshot_restore_preserves_pin_events_across_rotation() {
+        let mut continuous =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(13)).unwrap();
+        let mut split =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(13)).unwrap();
+
+        let mut continuous_frames = Vec::new();
+        for slot in (13..18).chain(0..13) {
+            continuous_frames.push(process_service_slot(&mut continuous, slot));
+        }
+
+        let mut prefix = Vec::new();
+        for slot in 13..18 {
+            prefix.push(process_service_slot(&mut split, slot));
+        }
+        let snapshot = split.export_state();
+        let mut restored =
+            super::Ym2413RhythmOutputService::with_initial_state(snapshot).unwrap();
+        let mut resumed = Vec::new();
+        for slot in 0..13 {
+            resumed.push(process_service_slot(&mut restored, slot));
+        }
+
+        assert_eq!(prefix, continuous_frames[..5]);
+        assert_eq!(resumed, continuous_frames[5..]);
+        assert_eq!(restored.export_state(), continuous.export_state());
+    }
+
+    #[test]
+    fn rhythm_output_service_rejects_invalid_mo_or_rhythm_inputs_transactionally() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(13)).unwrap();
+        let before = service.export_state();
+        assert_eq!(
+            service.process_slot(13, Some(level(1)), Some(level(2))),
+            Err(super::Ym2413RhythmOutputServiceError::Routing(
+                Ym2413OutputRoutingError::UnexpectedMelodyLevel { slot_index: 13 }
+            ))
+        );
+        assert_eq!(service.export_state(), before);
+
+        assert_eq!(
+            service.process_slot(13, None, None),
+            Err(super::Ym2413RhythmOutputServiceError::Retention(
+                Ym2413RhythmOutputError::MissingOriginalSample {
+                    slot_index: 13,
+                    voice: Ym2413RhythmVoice::HiHat,
+                }
+            ))
+        );
+        assert_eq!(service.export_state(), before);
     }
 
     #[test]
