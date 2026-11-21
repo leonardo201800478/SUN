@@ -436,6 +436,34 @@ mod tests {
     }
 
     #[test]
+    fn rhythm_output_service_preserves_negative_zero_on_ro_repeat() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(13)).unwrap();
+        let negative_zero = Ym2413DacCode::negative_zero();
+        let original = service.process_slot(13, None, Some(negative_zero)).unwrap();
+        let Ym2413OutputSlotResult::Pulse(original_pulse) = original.ro else {
+            panic!("slot 13 must emit the original HH value");
+        };
+        assert_eq!(original_pulse.pin, Ym2413OutputPin::Ro);
+        assert!(original_pulse.level.is_negative_zero());
+
+        for (slot, value) in [(14, 1), (15, -1), (16, 2), (17, -2)] {
+            service
+                .process_slot(slot, None, Some(level(value)))
+                .unwrap();
+        }
+        let snapshot = service.export_state();
+        let mut restored = super::Ym2413RhythmOutputService::with_initial_state(snapshot).unwrap();
+        let repeated = restored.process_slot(0, None, None).unwrap();
+        let Ym2413OutputSlotResult::Pulse(repeat_pulse) = repeated.ro else {
+            panic!("slot 0 must emit the retained HH value");
+        };
+        assert_eq!(repeat_pulse.pin, Ym2413OutputPin::Ro);
+        assert_eq!(repeat_pulse.level, negative_zero);
+        assert!(repeat_pulse.level.is_negative_zero());
+    }
+
+    #[test]
     fn rhythm_output_service_snapshot_restore_preserves_pin_events_across_rotation() {
         let mut continuous =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(13)).unwrap();
