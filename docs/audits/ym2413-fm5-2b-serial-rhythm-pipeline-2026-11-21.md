@@ -99,3 +99,20 @@ The rhythm patch values remain software candidates with documented provenance; t
 5. Add aggregated Save State and continuous-versus-block equivalence at the SMS machine boundary.
 
 No merge was performed or authorized by this work.
+
+
+## External Nuked operator differential gate
+
+The pinned Nuked-OPLL workflow now instruments the effective `rm_enable`
+latch immediately before `OPLL_Operator` (after the per-call shift and
+`DoModeWrite`). A dedicated all-five-voice register sequence drives the
+external YM2413 reference. The Rust replay consumes that exact boundary latch
+and compares the serial operator/feedback state plus retained HH, TOM, BD, SD
+and TC outputs after every `OPLL_Clock` call.
+
+The gate requires both rhythm override bits (0x40 and 0x80) to occur and each
+of the five retained Nuked outputs to become nonzero. This is an isolated
+operator/output-latch differential: it does not independently validate Rust
+PG/EG/noise generation, final MO/RO mixing, DAC/PCM conversion, or physical
+chip timing. The broader PG/EG and rhythm-reset workflows remain separate
+gates.
