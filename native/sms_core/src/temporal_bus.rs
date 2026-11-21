@@ -1003,6 +1003,7 @@ impl SmsTemporalBus {
         }
         if state.fm_control & !0x03 != 0
             || (state.ym2413.is_none() && state.fm_control != 0)
+            || (state.ym2413.is_some() && state.io.territory() != Territory::Japan)
             || state.psg.clock_domain() != SMS_PSG_CLOCK_DOMAIN_ID
             || state.psg.core().profile() != PsgProfile::Sms
             || state.psg.core().clock_hz() == 0
