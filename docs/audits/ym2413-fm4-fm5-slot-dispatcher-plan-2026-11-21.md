@@ -1,8 +1,8 @@
 # YM2413 FM-4/FM-5 Integration Plan
 
-**Date:** 2026-11-21  
-**Base `main`:** `94949c680e973c889580588686503c575dbc5c5b` (scorecard PR #1151 merged)  
-**YM2413 implementation baseline:** `624bb3dc956080b18b5b924f94f3ab4ce49c83e4` (FM-3A merge)  
+**Date:** 2026-11-21
+**Base `main`:** `94949c680e973c889580588686503c575dbc5c5b` (scorecard PR #1151 merged)
+**YM2413 implementation baseline:** `624bb3dc956080b18b5b924f94f3ab4ce49c83e4` (FM-3A merge)
 **Working branch:** `feat/ym2413-fm4-fm5-slot-dispatcher`
 
 This document defines the bounded engineering scope for FM-4 and FM-5. It does not authorize SMS bus integration, PCM/mixer work, or changes to the already validated PG/EG/operator semantics without differential evidence.
