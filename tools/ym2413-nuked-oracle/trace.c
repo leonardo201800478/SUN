@@ -191,6 +191,12 @@ int main(int argc, char **argv) {
         uint8_t op_calc_c_fb = chip.c_fb;
         uint8_t op_calc_c_dc = chip.c_dc;
         uint8_t op_calc_c_dm = chip.c_dm;
+        int16_t op_calc_op_mod = chip.op_mod;
+        int16_t op_calc_op_fbsum = chip.op_fbsum;
+        int16_t op_calc_op_fb1[9];
+        int16_t op_calc_op_fb2[9];
+        memcpy(op_calc_op_fb1, chip.op_fb1, sizeof(op_calc_op_fb1));
+        memcpy(op_calc_op_fb2, chip.op_fb2, sizeof(op_calc_op_fb2));
         uint16_t am_calc_lfo_counter = chip.lfo_counter;
         uint8_t am_calc_testmode = chip.testmode;
         uint32_t phase_ismod =
@@ -253,10 +259,13 @@ int main(int argc, char **argv) {
         printf(",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32,
                (unsigned)calc_fnum, (unsigned)calc_block, (unsigned)calc_mul,
                (unsigned)calc_vib, (unsigned)calc_lfo_vib_counter, chip.pg_inc);
-        printf(",\"op_calc_pg_out\":%u,\"op_calc_eg_out\":%u,\"op_calc_eg_silent\":%u,\"op_calc_c_fb\":%u,\"op_calc_c_dc\":%u,\"op_calc_c_dm\":%u",
+        printf(",\"op_calc_pg_out\":%u,\"op_calc_eg_out\":%u,\"op_calc_eg_silent\":%u,\"op_calc_c_fb\":%u,\"op_calc_c_dc\":%u,\"op_calc_c_dm\":%u,\"op_calc_op_mod\":%d,\"op_calc_op_fbsum\":%d",
                (unsigned)op_calc_pg_out, (unsigned)op_calc_eg_out,
                (unsigned)op_calc_eg_silent, (unsigned)op_calc_c_fb,
-               (unsigned)op_calc_c_dc, (unsigned)op_calc_c_dm);
+               (unsigned)op_calc_c_dc, (unsigned)op_calc_c_dm,
+               (int)op_calc_op_mod, (int)op_calc_op_fbsum);
+        printf(",\"op_calc_op_fb1\":"); print_i16_array(op_calc_op_fb1, 9);
+        printf(",\"op_calc_op_fb2\":"); print_i16_array(op_calc_op_fb2, 9);
         printf(",\"output_m\":%" PRId32 ",\"output_r\":%" PRId32, output[0], output[1]);
         printf(",\"pg_inc\":%" PRIu32 ",\"pg_phase_next\":%" PRIu32 ",\"pg_phase\":",
                chip.pg_inc, chip.pg_phase_next);
