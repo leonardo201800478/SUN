@@ -1640,7 +1640,18 @@ mod tests {
             .unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
-            assert!(service.export_state().previous_channel_output_is_rhythm);
+            let rhythm_latch_state = service.export_state();
+            assert!(rhythm_latch_state.previous_channel_output_is_rhythm);
+            let restored =
+                Ym2413PgSerialService::restore_state(rhythm_latch_state).unwrap();
+            assert_eq!(restored.export_state(), rhythm_latch_state);
+
+            let mut invalid_latch_state = rhythm_latch_state;
+            invalid_latch_state.output_pipeline.previous_channel_output_valid = false;
+            assert!(matches!(
+                Ym2413PgSerialService::restore_state(invalid_latch_state),
+                Err(Ym2413PgSerialError::InvalidState)
+            ));
             assert_ne!(service.synthesis().export_state(), synthesis_before);
             assert_ne!(service.operator.export_state(), operator_before);
             let (tick, post) = tick(cycle);
