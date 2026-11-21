@@ -408,7 +408,8 @@ mod tests {
         YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice,
         nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index,
         nuked_eg_output_index, nuked_eg_update_index, nuked_phase_reset_required,
-        nuked_pg_phase_output_index, nuked_pg_phase_write_index, slot_descriptor,
+        nuked_pg_phase_output_index, nuked_pg_phase_write_index, nuked_slot_service_event,
+        slot_descriptor,
     };
 
     #[test]
@@ -578,6 +579,7 @@ mod tests {
         assert_eq!(nuked_phase_reset_required(18, 0, u32::MAX), None);
         assert_eq!(nuked_phase_reset_required(u8::MAX, 0, u32::MAX), None);
     }
+
     #[test]
     fn nuked_slot_service_event_keeps_all_pipeline_boundaries_explicit() {
         for cycle in 0..YM2413_SLOT_COUNT as u8 {
@@ -610,5 +612,4 @@ mod tests {
 
         assert_eq!(nuked_slot_service_event(18, 0, 0), None);
     }
-
 }
