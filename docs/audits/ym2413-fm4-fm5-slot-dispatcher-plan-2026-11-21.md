@@ -132,3 +132,21 @@ The source audit of PR HEAD `3972678ac8b3a4b1e5b083ad05900d43e68cd716` confirms 
 5. Add mode-transition, trigger/volume, partition-equivalence, snapshot/restore, and injected-failure/retry tests before changing the PR's merge status.
 
 No FM-5 production behavior is claimed complete by this audit. No core timing changes are presently justified: the existing core hook already provides the required transactional boundary.
+
+## 9. FM-5.1 — pure serial ownership dispatcher
+
+Commit `72285bcf3ba725b26951ee73e95aa90cc29bc285` introduces `rhythm_dispatch.rs` and exports its typed API.
+
+- `dispatch_serial_slot` resolves the zero-based core cycle through the canonical `YM2413_SLOT_MAP`; it does not maintain a second physical channel/operator table.
+- With RHY clear, all eighteen positions remain melodic, including the channel 7..9 slots.
+- With RHY set, only cycles 11..16 can be reassigned. Their required selector sequence is BD-first, HH, TOM, BD-second, SD, TCY.
+- A selector mismatch is represented as `RhythmTransition`, never silently routed to the wrong percussion voice.
+- Invalid cycles are rejected before table indexing.
+- Four unit tests cover all 18 melodic positions, the six rhythm positions, all 42 selector/cycle combinations (six expected plus mismatches), and invalid cycles.
+
+This is the first production-code FM-5.1 foundation, but it is not yet connected to `Ym2413PgSerialService`. The service still rejects Rhythm Mode. Do not mark percussion synthesis integrated until the typed dispatch is consumed by the serial PG/operator pipeline and all rhythm state is owned by the same transactional service.
+
+### Current validation status
+
+- EG characterization run `44875121085` completed SUCCESS on code-bearing parent `3972678ac8b3a4b1e5b083ad05900d43e68cd716`, including the 38-configuration AR/DR/KSR sweep.
+- New dispatcher commits `ae09660d7a1a9efed206dabc01b8b60160b879f9` and `72285bcf3ba725b26951ee73e95aa90cc29bc285` triggered fresh CI runs. The exact current HEAD gates must complete before this code is considered validated.
