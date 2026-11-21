@@ -32,8 +32,8 @@ pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
 pub use fm_serial::{
-    YM2413_FM_SERIAL_STATE_VERSION, Ym2413FmSerialError, Ym2413FmSerialService,
-    Ym2413FmSerialServiceState,
+    YM2413_FM_SERIAL_STATE_VERSION, Ym2413FmSerialAdvanceError, Ym2413FmSerialError,
+    Ym2413FmSerialService, Ym2413FmSerialServiceState,
 };
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
@@ -444,6 +444,27 @@ impl Ym2413Core {
             }
             Err(slot_service::Ym2413SlotServiceAdvanceError::Service(error)) => {
                 Err(pg_serial::Ym2413PgSerialAdvanceError::Service(error))
+            }
+        }
+    }
+
+    /// Advance the YM2413 core with the complete serial FM service transactionally.
+    ///
+    /// The core owns the EG tick. The FM service surrounds that one tick with
+    /// PG, operator, feedback, EG-output and LFO stages. The caller remains
+    /// coarse-grained and never receives per-slot callbacks.
+    pub fn advance_input_clocks_with_fm_service(
+        &mut self,
+        clocks: u64,
+        service: &mut fm_serial::Ym2413FmSerialService,
+    ) -> Result<u64, fm_serial::Ym2413FmSerialAdvanceError> {
+        match self.advance_input_clocks_with_slot_service(clocks, service) {
+            Ok(rotations) => Ok(rotations),
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => {
+                Err(fm_serial::Ym2413FmSerialAdvanceError::Core(error))
+            }
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Service(error)) => {
+                Err(fm_serial::Ym2413FmSerialAdvanceError::Service(error))
             }
         }
     }
