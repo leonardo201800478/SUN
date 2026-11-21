@@ -21,6 +21,11 @@ use crate::synthesis::{
 pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 1;
 pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 1;
 
+/// Maximum legal serial PG increment over all 9-bit FNUM, 3-bit BLOCK,
+/// 4-bit MUL and PM-LFO positions. Derived from phase_step's integer formula:
+/// ((0x1ff * 2 + 7) * 2^7 / 2) * 30 / 2 = 987_840.
+pub const YM2413_PG_INCREMENT_MAX: u32 = 987_840;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413PgSerialError {
     InvalidState,
@@ -188,6 +193,7 @@ impl Ym2413PgSerialService {
         if state.format_version != YM2413_PG_SERIAL_STATE_VERSION
             || pipeline.format_version != YM2413_PG_SERIAL_PIPELINE_STATE_VERSION
             || pipeline.pg_phase_next > crate::phase::YM2413_PHASE_MASK
+            || pipeline.pg_increment > YM2413_PG_INCREMENT_MAX
             || pipeline.pg_output > 0x03ff
             || pipeline.lfo_vib_counter > 7
             || !pipeline.parameters.is_valid()
@@ -627,6 +633,16 @@ mod tests {
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
         );
+
+        state = service.export_state();
+        state.pipeline.pg_increment = super::YM2413_PG_INCREMENT_MAX + 1;
+        assert_eq!(
+            Ym2413PgSerialService::restore_state(state),
+            Err(Ym2413PgSerialError::InvalidState)
+        );
+
+        state.pipeline.pg_increment = super::YM2413_PG_INCREMENT_MAX;
+        assert!(Ym2413PgSerialService::restore_state(state).is_ok());
     }
 
     #[test]
