@@ -118,6 +118,9 @@ def main() -> int:
         "rhythm_control",
         "rhythm_mode_enabled",
         "rhythm_noise_register",
+        "pg_increment",
+        "pg_output",
+        "c_ksl_attenuation",
         *OPERATOR_INPUT_ARRAY_FIELDS,
         *RHYTHM_OUTPUT_FIELDS,
     )
@@ -210,7 +213,7 @@ def main() -> int:
                     *RHYTHM_HARD_FIELDS,
                     "rhythm_mode_enabled",
                 ],
-                "candidate_fields_compared": list(candidate_fields),
+                "candidate_fields_compared": [*candidate_fields, "pg_increment_alias", "pg_output_alias", "c_ksl_attenuation"],
                 "candidate_patch_differences": candidate_differences,
                 "scope": (
                     "strict serial/control/LFSR/timing comparison; synthesis differences "
