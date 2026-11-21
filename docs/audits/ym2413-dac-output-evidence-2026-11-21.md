@@ -172,3 +172,17 @@ Assim, as capturas de volume existentes não resolvem individualmente os 18 slot
 O utilitário `analyze/ym-histogram.cc` apenas consome valores já quantizados no intervalo 0..511 e calcula um histograma. A transformação ADC→índice está em `analyze/calibrate.cc` e `analyze/decode.cc`. Portanto, os arquivos `.out` são índices de níveis analógicos calibrados, não captura bruta dos 9 bits do DAC.
 
 **Próximo passo de FM-5.4:** reproduzir a calibração ADC→bins→índices e comparar a captura existente Timer1/72 clocks com uma captura Timer0/clock YM2413 via `startCapture72()`. A captura de volume atual é diferencial RO−MO, em uma amostra por rotação; a captura Timer0 melhora a resolução para um ponto por clock, mas ainda não resolve eventos subclock nem separa os pinos. A correlação entre nível analógico e palavra digital interna exige evidência separada.
+
+### Algoritmo de calibração ADC→bin encontrado
+
+A revisão do código de análise encontrou a transformação que gera os índices `.out`:
+
+1. `analyze/calibrate.cc` executa o patch senoidal, chama `startCapture()` e coleta por padrão 60.000 amostras ADC.
+2. `createBins()` grava `.raw`, constrói histograma de 65.536 valores ADC, aplica filtro triangular de largura 30, detecta picos com ajuste parabólico e insere um pico quando a distância entre picos excede 160 unidades.
+3. `intBoundaries()` cria os limites inteiros entre picos consecutivos e grava `.bins`; o programa espera 512 bins.
+4. `analyze/decode.cc` usa `lower_bound` sobre esses limites para transformar cada amostra ADC em um índice de bin.
+5. `analyze/ym-histogram.cc` apenas calcula o histograma dos índices já decodificados.
+
+Portanto, os índices 0..511 são ranks/intervalos da calibração de tensão ADC diferencial. Não são os bits internos do DAC, nem uma prova de que a ordem de bins seja idêntica à codificação do operador.
+
+Os arquivos de calibração gerados (`.bins`, `.histogram`, `.filtered`, `.peaks`) não estão presentes no tree fixado do repositório; o algoritmo está versionado, mas os limites numéricos usados para gerar os `.out` não são reproduzíveis apenas com os arquivos atualmente commitados. Uma reprodução independente exige executar a calibração no hardware ou recuperar os artefatos originais correspondentes.
