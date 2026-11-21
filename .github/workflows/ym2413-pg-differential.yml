@@ -7,7 +7,9 @@ on:
       - "tools/ym2413-nuked-oracle/compare_pg.py"
       - "tools/ym2413-nuked-oracle/compare_pg_serial.py"
       - "tools/ym2413-nuked-oracle/compare_operator.py"
+      - "tools/ym2413-nuked-oracle/compare_am_lfo.py"
       - "native/ym2413/examples/serial_operator_trace.rs"
+      - "native/ym2413/examples/serial_am_lfo_trace.rs"
       - "tools/ym2413-nuked-oracle/trace.c"
       - ".github/workflows/ym2413-pg-differential.yml"
   workflow_dispatch:
@@ -105,6 +107,11 @@ jobs:
       - name: Differentially validate serial operator and feedback state
         run: |
           python3 tools/ym2413-nuked-oracle/compare_operator.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-operator.jsonl"
+
+      - name: Differentially validate serial AM LFO shift/carry state
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_am_lfo.py \
             --nuked-trace "$RUNNER_TEMP/nuked-operator.jsonl"
 
       - name: Generate all-channel melodic register sequence
