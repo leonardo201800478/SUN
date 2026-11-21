@@ -999,6 +999,8 @@ mod tests {
             let before = service.before[usize::from(cycle)];
             let after = service.after[usize::from(cycle)];
             assert_eq!(before.event.cycle, cycle);
+            assert_eq!(before.envelope_input.rhythm_bits, before.registers[0x0e] & 0x3f);
+            assert!(before.rm_select <= 6);
             assert_eq!(after.0, cycle);
             assert_eq!(after.1, before.event.eg_update_index);
             assert_eq!(
