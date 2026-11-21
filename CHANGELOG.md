@@ -26,7 +26,7 @@
 
 - Expõe volume mestre de 0 a 100% e mute no menu Áudio do desktop Slint.
 - Aplica o volume diretamente na sessão DSP/reamostrador já pertencente ao worker SMS, sem reiniciar CPAL, a máquina ou o Scheduler.
-- Persiste volume e mute em `%APPDATA%/SUN — Strife Uranus Neptune/slint_ui_settings.txt`; o volume padrão de uma instalação sem preferência passa a 70%.
+- Persiste volume e mute em `%APPDATA%/Sega Emulator/slint_ui_settings.txt`; o volume padrão de uma instalação sem preferência passa a 70%.
 - Mantém equalização e filtros analógicos fora desta entrega: ainda exigem calibração e validação de resposta antes de serem apresentados como controles de fidelidade.
 
 ## Atualização documental e validação do Scheduler — 2026-11-07
