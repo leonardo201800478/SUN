@@ -54,7 +54,7 @@ O ring buffer mantém os 256 eventos mais recentes para consulta pela GUI. Ele �
 
 No Windows, o diretório padrão é:
 
-`%LOCALAPPDATA%\\Sega Emulator\\logs\\`
+`%LOCALAPPDATA%\\SUN — Strife Uranus Neptune\\logs\\`
 
 Arquivos:
 
