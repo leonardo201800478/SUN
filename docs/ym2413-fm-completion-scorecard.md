@@ -5,7 +5,7 @@
 **Main atual:** `7e275424112d60f42b83380b60786fbd640c18b0`
 **PR #1154 — FM-5.2A:** HEAD `0422cc85dcb6ceacf58246f97db900b5f23ef2f4`, aberta; branch 20 commits à frente e 1 atrás da main (sem rebase ou merge nesta execução).
 **PR #1156 — FM-5.2B:** draft, empilhada sobre #1154; HEAD documental `e7b06bf1a6ba474721541fe198eb57cbf58e8095`.
-**PR #1157 — FM-5.3:** draft, empilhada sobre #1156; HEAD documental `141826481685b8e37a832f654f0930800c9b02d5`; último commit de código `65eb45343ec261d0b760ff287706309699536d97`.
+**PR #1157 — FM-5.3:** draft, empilhada sobre #1156; último HEAD de código `27650ff687c9495415644bca1db30585ffed21b9` (documentação posterior sem alteração de código).
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -17,7 +17,7 @@ Na `main` permanecem integrados os marcos FM-1, FM-2 e FM-3A: EG serial core-own
 
 As PRs #1154, #1156 e #1157 continuam fora da main e empilhadas. FM-5.2C corrigiu a propriedade serial dos campos FB/DM do BD: o diferencial PG #364 eliminou `c_fb`/`c_dm` das divergências integradas. A divergência SD SL=6 (candidato de captura) versus SL=4 (Nuked fixado) e os estados EG dependentes continuam abertos; a tabela candidata não foi alterada para forçar paridade.
 
-A PR draft #1157 acrescenta o serviço serial MO/RO, reutilizando a retenção existente, preservando as seis posições MO melódicas e as cinco saídas RO repetidas. A retenção agora preserva os dois níveis centrais medidos `-0` e `+0`, com snapshots v2. O último código recebeu CI #9849/#9850 e os diferenciais PG #385/#386 em andamento; o reset #309 passou. Não considerar a nova alteração validada até o CI e os diferenciais no HEAD atual terminarem.
+A PR draft #1157 acrescenta o serviço serial MO/RO, reutilizando a retenção existente, preservando as seis posições MO melódicas e as cinco saídas RO repetidas. A retenção agora preserva os dois níveis centrais medidos `-0` e `+0`, com snapshots v2. O último código `27650ff687c9495415644bca1db30585ffed21b9` recebeu CI #9852 **PASS**, PG differential #388 **PASS** e Rhythm reset #311 **PASS**. EG characterization #561 permanece em execução.
 
 A caracterização EG #550 concluiu como replay do Nuked, não como captura física: 506.768 replays de operador, 1.140.000 chamadas de sequenciador e 1.140.000 de timer sem divergências de replay; a matriz de 38 configurações ainda apresenta 44.064 divergências de nível e 71 de estágio para o candidato phase-minus-three. O candidato de fase externa é alimentado por latches e estados extraídos do próprio Nuked, portanto não é independente nem utilizável como correção de produção.
 
@@ -1554,3 +1554,26 @@ The earlier scorecard/audit wording that described only 511 measured YM2413 outp
 FM-5.3 now preserves both measured central-level tokens in `Ym2413DacCode`: `new(0)` is positive zero and `negative_zero()` is the distinct negative-zero candidate. The retention and MO/RO service state versions were advanced to 2. Tests cover distinctness, RO repeat retention and snapshot/restore.
 
 This representation remains a signed measured-output domain, **not** the raw nine-bit DAC word. The exact operator-i16 to DAC-word conversion, binary encoding, sub-clock latch phase and analog neutral level remain unresolved. Full evidence: `docs/audits/ym2413-dac-output-evidence-2026-11-21.md`.
+
+
+## FM-5.3 dual-zero retention — exact-head validation update
+
+Code HEAD: `27650ff687c9495415644bca1db30585ffed21b9`.
+
+- CI #9852: **SUCCESS** — rustfmt, Clippy, workspace unit/integration
+  tests, observability runtime Clippy/tests, and documentation hygiene.
+- PG differential #388: **SUCCESS** — all 147,456 calls and all 18 serial
+  cycles characterized. Strict serial/control/LFSR/timing passed. The
+  integrated Rhythm Mode result remains
+  `CHARACTERIZED_WITH_PATCH_CANDIDATE_DIVERGENCE`; only `c_sl`,
+  `eg_sl` and `eg_state` remain (8,092; 8,092; 15,984 rows).
+  FB/DM are not present in the integrated candidate-difference object.
+- Rhythm reset differential #311: **SUCCESS**.
+- EG characterization #561: still running at this update.
+
+The negative-zero tests pass as part of the workspace unit/integration suite.
+The two signed-zero tokens remain measured-domain values, not raw DAC words.
+No PCM or core integration is implied.
+
+The exact DAC evidence and unresolved binary encoding are documented in
+`docs/audits/ym2413-dac-output-evidence-2026-11-21.md`.
