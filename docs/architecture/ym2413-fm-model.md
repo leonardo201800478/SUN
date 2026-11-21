@@ -1,9 +1,30 @@
 # YM2413 / OPLL — Especificação arquitetural e modelo FM
 
 **Projeto:** SUN — Strife Uranus Neptune — Emulação de Alta Precisão
-**Escopo:** core digital YM2413 independente de console/host; integração futura no perfil físico Japanese Master System.
-**Estado:** modelo M0/M1 reconciliado por M2; a fundação FM-1 de registradores/clock está isolada em `native/ym2413`; não há síntese PCM nem integração de barramento SMS.
+**Escopo:** core digital YM2413 independente de console/host; alvo de integração física Japanese Master System, com adaptador SMS parcialmente integrado ao runtime.
+**Estado atual da implementação (main pós-PR #1170):** o runtime SMS possui portas YM2413, PCM FM derivado da saída digital de referência Nuked e mistura multi-source PSG+FM. Esse caminho é provisório e não representa validação do DAC/rede analógica nem fechamento semântico do chip.
 **Auditoria M2 independente:** [auditoria pré-implementação](../audits/ym2413-pre-implementation-audit-2026-11-17.md).
+
+## Snapshot de implementação atual — main pós-PR #1170 (2026-11-21)
+
+**Main:** `8836ec3f716c19450736bfd4878790c1d6f6ee52`  
+**Scorecard operacional:** [YM2413 FM Completion Scorecard](../ym2413-fm-completion-scorecard.md).
+
+O estado de implementação avançou desde a auditoria M2 de 17/11:
+
+- PRs #1165–#1168 integraram mixer multi-source, portas/clock do Japanese Master System, geração de PCM FM no Scheduler e classificação de impacto de CI.
+- PR #1169 integrou diferencial de reset de fase Rhythm contra Nuked.
+- PR #1170 corrigiu o readback de F2 para preservar D3–D0; somente D1/D0 controlam mute/roteamento. D4 permanece zero e D7–D5 continuam sem C-Sync.
+
+O runtime SMS drena FM e PSG separadamente, reamostra FM da taxa nativa (~49.716 Hz) para 48 kHz, alinha as fontes e envia ambas à sessão multi-source. O teste de integração usa ROM sintética e sink de teste; não prova ainda jogabilidade/áudio de ROMs comerciais nem saída em dispositivo físico CPAL.
+
+**Limite importante:** a amostra mono atual é derivada do pipeline digital Nuked e combina MO/RO com normalização. Isso é um caminho provisório de compatibilidade, não uma medição do DAC nem a rede analógica do Japanese Master System. A regra normativa da seção 7.4 de preservar MO e RO separadamente permanece válida; FM-A02 continua bloqueado até haver evidência da rede de soma/ganho/carga da placa.
+
+Continuam pendentes: divergências PG/PM e EG, seed/patches de Rhythm Mode, perfil físico independente de território, `FmMode::Auto/On/Off` persistente, C-Sync D7–D5, validação de Save State/Restore do pipeline completo e testes prolongados com ROMs reais.
+
+**Precedência:** esta seção descreve a implementação atual. As seções 14.10, 15.1 e 16 contêm snapshots históricos da auditoria M2 pré-integração; suas afirmações de ausência de barramento, PCM ou mixer não descrevem o código atual. As regras de hardware e os limites de evidência das seções 7.3 e 7.4 permanecem normativos.
+
+---
 
 > Convenção de evidência usada neste documento:
 > - **DOCUMENTADO:** descrito no manual Yamaha ou documentação técnica primária.
@@ -613,7 +634,7 @@ A implementação Rust de referência `emu198x_yamaha_ym2413` documenta seguir o
 **Status M1:** PG base e PM têm fórmulas candidatas com suporte de medições; a escala EG de 0,375 dB e a temporização por tabela estão caracterizadas; feedback possui modelo que reproduz medições após sincronização. Pipeline exato, estados iniciais, todos os offsets, integração de slots e vetores completos continuam pendentes. Nenhum core YM2413 foi implementado por esta atualização documental.
 
 
-### 14.10 Auditoria de integração SMS/áudio contra o `main` (SHA `c65594cf840090bad6036810a0df98f22b9d1484`)
+### 14.10 Snapshot histórico de auditoria SMS/áudio pré-integração (SHA `c65594cf840090bad6036810a0df98f22b9d1484`)
 
 A leitura dos fontes ativos confirmou os seguintes limites concretos:
 
@@ -670,7 +691,7 @@ A seção 14.10 permanece preservada como snapshot histórico do SHA `c65594cf84
 **Status atualizado:** a arquitetura geral proposta na seção 14 continua válida (core Rust, máquina SMS existente, Scheduler único, mixer existente). As decisões específicas de domínio de clock, conversão de taxa, decode japonês, C-Sync e mixagem MO/RO ficam condicionadas às evidências registradas na auditoria M2. Nenhum teste YM2413 foi executado.
 
 
-### 15.1 O que bloqueia síntese e o que bloqueia integração
+### 15.1 Matriz histórica de bloqueios M2 — pré-integração
 
 | Item | Síntese digital pura | Integração SMS/aceite físico | Estado |
 |---|---|---|---|
@@ -692,7 +713,7 @@ Uma releitura da página SMS Power — Audio Control Port identificou uma corre�
 
 **Classificação:** DOCUMENTADO pela página SMS Power — Audio Control Port, que referencia as observações de Charles MacDonald; ainda PENDENTE de teste físico do Japanese Master System MK-2000 e das revisões cobertas. A auditoria M2 independente permanece preservada; esta errata atualiza o modelo normativo e não transforma o readback em implementação.
 
-## 16. Scorecard por subsistema
+## 16. Scorecard histórico M2 — pré-integração (supersedido pelo snapshot atual)
 
 **Snapshot de validação:** PR #996 head `b3a78474289994ec4328db47091d5845a1c6fd69`; CI [44213606017](https://github.com/leonardo201800478/sega-emulator/actions/runs/44213606017) ainda estava em andamento no último inventário. SMS runtime [44213606027](https://github.com/leonardo201800478/sega-emulator/actions/runs/44213606027) concluiu o job Release de formato/Clippy/testes com PASS. O próximo commit documental criará outro SHA; nenhum check deste snapshot valida esse novo HEAD.
 
