@@ -5,9 +5,8 @@
 
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
-    Ym2413ChannelInitialState, Ym2413Core, Ym2413Operator, Ym2413PgSerialService,
-    Ym2413SynthesisBank, Ym2413SynthesisInitialState, YM2413_INPUT_CLOCKS_PER_SLOT,
-    slot_descriptor,
+    YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413ChannelInitialState, Ym2413Core, Ym2413Operator,
+    Ym2413PgSerialService, Ym2413SynthesisBank, Ym2413SynthesisInitialState, slot_descriptor,
 };
 use std::error::Error;
 use std::fmt::Write as _;
@@ -138,10 +137,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let cycle_before = core.slot_index();
         let lfo_vib_counter_before = service.lfo_vib_counter();
-        core.advance_input_clocks_with_pg_service(
-            YM2413_INPUT_CLOCKS_PER_SLOT,
-            &mut service,
-        )?;
+        core.advance_input_clocks_with_pg_service(YM2413_INPUT_CLOCKS_PER_SLOT, &mut service)?;
 
         for slot in 0u8..18 {
             let descriptor = slot_descriptor(slot)
