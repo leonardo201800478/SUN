@@ -79,7 +79,7 @@ pub use output::{
     YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION, Ym2413OutputPin, Ym2413OutputPulse,
     Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource, Ym2413RhythmOutputFrame,
     Ym2413RhythmOutputService, Ym2413RhythmOutputServiceError, Ym2413RhythmOutputServiceState,
-    melody_output_for_slot, rhythm_output_event, rhythm_slot_result,
+    melody_output_for_slot, output_slot_for_nuked_cycle, rhythm_output_event, rhythm_slot_result,
 };
 pub use pg_serial::{
     YM2413_PG_SERIAL_PIPELINE_STATE_VERSION, YM2413_PG_SERIAL_STATE_VERSION,
