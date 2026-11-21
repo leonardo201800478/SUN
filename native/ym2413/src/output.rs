@@ -1251,6 +1251,27 @@ mod tests {
     }
 
     #[test]
+    fn rhythm_transition_does_not_reinterpret_a_melodic_latch_as_ro_source() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let transition = service
+            .process_nuked_cycle_from_channel_output(0, true, Some(41), false)
+            .unwrap();
+        assert_eq!(
+            transition.ro,
+            Ym2413OutputSlotResult::UnknownSource {
+                slot_index: 15,
+                voice: Ym2413RhythmVoice::BassDrum,
+            }
+        );
+
+        let settled = service
+            .process_nuked_cycle_from_channel_output(1, true, Some(53), true)
+            .unwrap();
+        assert!(matches!(settled.ro, Ym2413OutputSlotResult::Pulse(_)));
+    }
+
+    #[test]
     fn unknown_rhythm_source_invalidates_the_retained_value_before_repeat() {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
