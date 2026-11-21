@@ -186,3 +186,14 @@ A revisão do código de análise encontrou a transformação que gera os índic
 Portanto, os índices 0..511 são ranks/intervalos da calibração de tensão ADC diferencial. Não são os bits internos do DAC, nem uma prova de que a ordem de bins seja idêntica à codificação do operador.
 
 Os arquivos de calibração gerados (`.bins`, `.histogram`, `.filtered`, `.peaks`) não estão presentes no tree fixado do repositório; o algoritmo está versionado, mas os limites numéricos usados para gerar os `.out` não são reproduzíveis apenas com os arquivos atualmente commitados. Uma reprodução independente exige executar a calibração no hardware ou recuperar os artefatos originais correspondentes.
+
+### Risco de throughput no modo Timer0
+
+O trigger Timer0 está documentado como solicitação de amostra por clock YM2413, mas isso não prova que o ADC complete uma conversão por trigger. O driver usa oversampling 16x e mantém contador/flag de overflow. Antes de tratar `startCapture72()` como uma série válida de 72 amostras por rotação, a execução deve demonstrar:
+
+- contador de overflow igual a zero;
+- número de amostras efetivamente entregues igual ao número de triggers esperados;
+- ausência de perda/reordenação no DMA;
+- fase de Timer0 conhecida em relação ao clock YM2413 e ao slot serial.
+
+Sem essas verificações, Timer0 é apenas uma cadência solicitada, não uma medição temporal certificada.
