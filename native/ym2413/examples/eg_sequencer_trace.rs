@@ -77,6 +77,8 @@ fn parse_sample(line: &str, line_number: usize) -> Result<Sample, Box<dyn Error>
                 || std::io::Error::other(format!("line {line_number}: invalid rhythm selector")),
             )?,
             rhythm_bits: fields[35].parse()?,
+            test_mode: 0,
+            write_data: 0,
         },
         expected_operator_slot: fields[11].parse()?,
         expected_level: fields[12].parse()?,
