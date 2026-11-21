@@ -63,7 +63,7 @@ jobs:
 
       - name: Compile external Nuked trace adapter
         run: |
-          cc -std=c11 -O2 -Wall -Wextra \
+          cc -std=c11 -O2 -Wall -Wextra -DYM2413_TRACE_OPERATOR_BOUNDARY \
             -I"$RUNNER_TEMP/Nuked-OPLL" \
             tools/ym2413-nuked-oracle/trace.c \
             "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
