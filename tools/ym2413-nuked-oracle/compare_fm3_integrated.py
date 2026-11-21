@@ -21,6 +21,8 @@ SCALAR_FIELDS = (
     "op_calc_c_dc",
     "op_calc_c_dm",
     "op_calc_pg_out",
+    "op_calc_op_mod",
+    "op_calc_op_fbsum",
     "lfo_counter",
     "lfo_vib_counter",
     "lfo_am_counter",
@@ -84,6 +86,8 @@ ARRAY_FIELDS = (
     "eg_level",
     "op_fb1",
     "op_fb2",
+    "op_calc_op_fb1",
+    "op_calc_op_fb2",
 )
 
 
