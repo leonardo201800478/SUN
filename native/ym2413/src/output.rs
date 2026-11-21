@@ -1332,13 +1332,11 @@ mod tests {
     }
 
     #[test]
-    fn measured_adapter_restore_rejects_misaligned_ro_cursor() {
+    fn measured_adapter_restore_derives_core_cycle_from_ro_cursor() {
         let mut state = super::Ym2413MeasuredOutputAdapter::new().export_state();
         state.rhythm_output_service.rhythm_delay.next_slot_index = 0;
-        assert_eq!(
-            super::Ym2413MeasuredOutputAdapter::with_initial_state(state),
-            Err(super::Ym2413MeasuredOutputAdapterError::InvalidState)
-        );
+        let restored = super::Ym2413MeasuredOutputAdapter::with_initial_state(state).unwrap();
+        assert_eq!(restored.next_cycle(), 3);
     }
 
     #[test]
