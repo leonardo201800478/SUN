@@ -1,8 +1,12 @@
-# Sega Emulator — Rust / Slint + WGPU + CPAL
+# SUN — Strife Uranus Neptune — Rust / Slint + WGPU + CPAL
 
 Emulador Sega multissistema com runtime de hardware integralmente em Rust. A arquitetura desktop ativa utiliza **Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2**, com SDL3/input runtime para gamepads.
 
 **Baseline remota consultada:** `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434` (2026-11-16).
+
+## Identidade do projeto
+
+**SUN — Strife Uranus Neptune** é um projeto independente de emulação e pesquisa de compatibilidade. Não é afiliado, patrocinado ou endossado pela SEGA. Nomes de consoles, chips e tecnologias de terceiros são utilizados de forma nominativa para identificar os sistemas e a compatibilidade pretendida. O projeto não distribui ROMs comerciais, firmware proprietário ou dumps protegidos. Esta declaração não substitui a análise de licenças, marcas, direitos autorais e proveniência de cada componente.
 
 ## Estado resumido
 
