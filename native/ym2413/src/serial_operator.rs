@@ -417,14 +417,13 @@ mod tests {
 
     #[test]
     fn feedback_uses_two_previous_operator_outputs() {
-        let mut operator = Ym2413SerialOperator::new();
         let state = Ym2413SerialOperatorState {
             op_fb1: [128; 9],
             op_fb2: [64; 9],
             op_fbsum: 0,
             ..Ym2413SerialOperatorState::default()
         };
-        operator = Ym2413SerialOperator::restore_state(state).unwrap();
+        let mut operator = Ym2413SerialOperator::restore_state(state).unwrap();
         operator.prepare_patch2(7, false, false, false).unwrap();
         let sample = operator.tick_operator(0, 0).unwrap();
         assert_eq!(sample.feedback_phase, 0);
@@ -483,16 +482,20 @@ mod tests {
 
     #[test]
     fn snapshot_rejects_unknown_version_and_invalid_latches() {
-        let mut state = Ym2413SerialOperatorState::default();
-        state.format_version = 99;
+        let invalid_version = Ym2413SerialOperatorState {
+            format_version: 99,
+            ..Ym2413SerialOperatorState::default()
+        };
         assert_eq!(
-            Ym2413SerialOperator::restore_state(state),
+            Ym2413SerialOperator::restore_state(invalid_version),
             Err(Ym2413SerialOperatorError::InvalidState)
         );
-        state.format_version = YM2413_SERIAL_OPERATOR_STATE_VERSION;
-        state.op_exp_s = 16;
+        let invalid_latch = Ym2413SerialOperatorState {
+            op_exp_s: 16,
+            ..Ym2413SerialOperatorState::default()
+        };
         assert_eq!(
-            Ym2413SerialOperator::restore_state(state),
+            Ym2413SerialOperator::restore_state(invalid_latch),
             Err(Ym2413SerialOperatorError::InvalidState)
         );
     }
