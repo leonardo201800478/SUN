@@ -1782,8 +1782,8 @@ mod tests {
             0xD3, 0xF1, // OUT ($F1), A — YM2413 data
         ];
         rom[..program.len()].copy_from_slice(&program);
-        rom[8..24].fill(0x00); // NOPs allow the serial register write to reach channel 0.
-        rom[24..29].copy_from_slice(&[
+        rom[8..30].fill(0x00); // NOPs cover the delayed serial register-write window.
+        rom[30..35].copy_from_slice(&[
             0x3E, 0x01, // LD A, $01
             0xD3, 0xF2, // OUT ($F2), A — enable FM output
             0x76, // HALT
@@ -1799,7 +1799,7 @@ mod tests {
         )
         .unwrap();
 
-        for _ in 0..23 {
+        for _ in 0..29 {
             machine.step_instruction(0).unwrap();
         }
 
