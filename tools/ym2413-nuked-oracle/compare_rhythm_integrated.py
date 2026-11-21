@@ -23,7 +23,7 @@ def compare_rhythm_row(call_index: int, nuked: dict[str, object], rust: dict[str
         ("op_calc_rm_enable", "op_calc_rm_enable"),
         ("rm_select", "rm_select"),
         ("rm_noise", "rhythm_noise_register"),
-        ("rhythm", "rhythm"),
+        ("rhythm", "rhythm_control"),
     )
     for expected_field, actual_field in pairs:
         expected = int(nuked[expected_field])
@@ -33,6 +33,14 @@ def compare_rhythm_row(call_index: int, nuked: dict[str, object], rust: dict[str
                 f"call {call_index}: {expected_field}/{actual_field} mismatch "
                 f"Nuked={expected} Rust={actual}"
             )
+
+    expected_rhythm_enabled = int(bool(int(nuked["rhythm"]) & 0x20))
+    actual_rhythm_enabled = int(rust["rhythm_mode_enabled"])
+    if expected_rhythm_enabled != actual_rhythm_enabled:
+        raise ValueError(
+            f"call {call_index}: rhythm mode bit mismatch "
+            f"Nuked={expected_rhythm_enabled} Rust={actual_rhythm_enabled}"
+        )
 
     for field in RHYTHM_OUTPUT_FIELDS:
         expected = int(nuked[field])
@@ -70,7 +78,8 @@ def main() -> int:
             "op_calc_rm_enable",
             "rm_select",
             "rm_noise",
-            "rhythm",
+            "rhythm_control",
+            "rhythm_mode_enabled",
             *RHYTHM_OUTPUT_FIELDS,
         )
         missing = [field for field in required if field not in nuked]
