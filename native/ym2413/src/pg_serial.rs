@@ -252,10 +252,7 @@ impl Ym2413PgSerialService {
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
         let descriptor = context.event.selected_operator;
-        if context.registers[0x0e] & 0x20 != 0
-            || context.rm_enable != 0
-            || context.rm_select < 6
-        {
+        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
             return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
                 cycle: context.event.cycle,
                 channel: descriptor.channel,
