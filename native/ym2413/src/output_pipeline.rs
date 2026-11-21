@@ -15,8 +15,12 @@ pub const YM2413_CHANNEL_OUTPUT_MAX: i16 = 255;
 pub struct Ym2413NukedOutputCode(i16);
 
 impl Ym2413NukedOutputCode {
-    pub const fn new(value: i16) -> Self { Self(value) }
-    pub const fn value(self) -> i16 { self.0 }
+    pub const fn new(value: i16) -> Self {
+        Self(value)
+    }
+    pub const fn value(self) -> i16 {
+        self.0
+    }
 }
 
 /// Values copied to the external buffer at the beginning of one clock.
@@ -50,11 +54,12 @@ impl core::fmt::Display for Ym2413OutputPipelineError {
         match self {
             Self::InvalidState => f.write_str("invalid YM2413 output-pipeline state"),
             Self::InvalidCycle { expected, actual } => write!(
-                f, "unexpected YM2413 output-pipeline cycle: expected {expected}, got {actual}"
+                f,
+                "unexpected YM2413 output-pipeline cycle: expected {expected}, got {actual}"
             ),
-            Self::InvalidChannelOutput(value) => write!(
-                f, "invalid YM2413 one's-complement channel output: {value}"
-            ),
+            Self::InvalidChannelOutput(value) => {
+                write!(f, "invalid YM2413 one's-complement channel output: {value}")
+            }
         }
     }
 }
@@ -73,7 +78,9 @@ pub struct Ym2413OutputPipeline {
 }
 
 impl Default for Ym2413OutputPipeline {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Ym2413OutputPipeline {
@@ -99,15 +106,19 @@ impl Ym2413OutputPipeline {
             || state.next_cycle >= 18
             || state.previous_channel_output < YM2413_CHANNEL_OUTPUT_MIN
             || state.previous_channel_output > YM2413_CHANNEL_OUTPUT_MAX
-            || state.output_m < -256 || state.output_m > 256
-            || state.output_r < -256 || state.output_r > 256
+            || state.output_m < -256
+            || state.output_m > 256
+            || state.output_r < -256
+            || state.output_r > 256
         {
             return Err(Ym2413OutputPipelineError::InvalidState);
         }
         Ok(Self { state })
     }
 
-    pub const fn export_state(&self) -> Ym2413OutputPipelineState { self.state }
+    pub const fn export_state(&self) -> Ym2413OutputPipelineState {
+        self.state
+    }
 
     /// Process one clock. next_channel_output is the operator result to become
     /// the next ch_out latch (-256..=255). The returned frame is the buffer
@@ -126,13 +137,14 @@ impl Ym2413OutputPipeline {
     ) -> Result<Ym2413OutputPipelineFrame, Ym2413OutputPipelineError> {
         if cycle != self.state.next_cycle {
             return Err(Ym2413OutputPipelineError::InvalidCycle {
-                expected: self.state.next_cycle, actual: cycle,
+                expected: self.state.next_cycle,
+                actual: cycle,
             });
         }
-        if !(YM2413_CHANNEL_OUTPUT_MIN..=YM2413_CHANNEL_OUTPUT_MAX)
-            .contains(&next_channel_output)
-        {
-            return Err(Ym2413OutputPipelineError::InvalidChannelOutput(next_channel_output));
+        if !(YM2413_CHANNEL_OUTPUT_MIN..=YM2413_CHANNEL_OUTPUT_MAX).contains(&next_channel_output) {
+            return Err(Ym2413OutputPipelineError::InvalidChannelOutput(
+                next_channel_output,
+            ));
         }
 
         let frame = Ym2413OutputPipelineFrame {
@@ -155,10 +167,9 @@ impl Ym2413OutputPipeline {
         }
 
         let rhythm_pipeline_active = self.state.rm_enable & 0x40 != 0;
-        let mute_m = (cycle / 3) & 1 != 0
-            || (rhythm_pipeline_active && (cycle + 15) % 18 >= 12);
-        let mute_r = !rhythm_pipeline_active
-            || !matches!(cycle, 16 | 17 | 0 | 1 | 2 | 3 | 4 | 5 | 9 | 10);
+        let mute_m = (cycle / 3) & 1 != 0 || (rhythm_pipeline_active && (cycle + 15) % 18 >= 12);
+        let mute_r =
+            !rhythm_pipeline_active || !matches!(cycle, 16 | 17 | 0 | 1 | 2 | 3 | 4 | 5 | 9 | 10);
 
         self.state.output_m = if mute_m { neutral } else { active };
         self.state.output_r = if mute_r { neutral } else { active };
@@ -171,8 +182,8 @@ impl Ym2413OutputPipeline {
 #[cfg(test)]
 mod tests {
     use super::{
-        YM2413_OUTPUT_PIPELINE_STATE_VERSION, Ym2413NukedOutputCode,
-        Ym2413OutputPipeline, Ym2413OutputPipelineError, Ym2413OutputPipelineState,
+        YM2413_OUTPUT_PIPELINE_STATE_VERSION, Ym2413NukedOutputCode, Ym2413OutputPipeline,
+        Ym2413OutputPipelineError, Ym2413OutputPipelineState,
     };
 
     fn tick(p: &mut Ym2413OutputPipeline, c: u8, n: i16, w: Option<u8>) -> (i16, i16) {
@@ -191,9 +202,18 @@ mod tests {
     #[test]
     fn channel_stage_consumes_previous_ch_out_not_current_operator_result() {
         let mut p = Ym2413OutputPipeline::new();
-        assert_eq!(p.process_cycle(0, 19, None).unwrap().mo, Ym2413NukedOutputCode::new(0));
-        assert_eq!(p.process_cycle(1, -11, None).unwrap().mo, Ym2413NukedOutputCode::new(1));
-        assert_eq!(p.process_cycle(2, 0, None).unwrap().mo, Ym2413NukedOutputCode::new(20));
+        assert_eq!(
+            p.process_cycle(0, 19, None).unwrap().mo,
+            Ym2413NukedOutputCode::new(0)
+        );
+        assert_eq!(
+            p.process_cycle(1, -11, None).unwrap().mo,
+            Ym2413NukedOutputCode::new(1)
+        );
+        assert_eq!(
+            p.process_cycle(2, 0, None).unwrap().mo,
+            Ym2413NukedOutputCode::new(20)
+        );
     }
 
     #[test]
@@ -264,9 +284,18 @@ mod tests {
     fn invalid_cycle_and_input_are_transactional() {
         let mut p = Ym2413OutputPipeline::new();
         let before = p.export_state();
-        assert_eq!(p.process_cycle(1, 0, None), Err(Ym2413OutputPipelineError::InvalidCycle { expected: 0, actual: 1 }));
+        assert_eq!(
+            p.process_cycle(1, 0, None),
+            Err(Ym2413OutputPipelineError::InvalidCycle {
+                expected: 0,
+                actual: 1
+            })
+        );
         assert_eq!(p.export_state(), before);
-        assert_eq!(p.process_cycle(0, 256, None), Err(Ym2413OutputPipelineError::InvalidChannelOutput(256)));
+        assert_eq!(
+            p.process_cycle(0, 256, None),
+            Err(Ym2413OutputPipelineError::InvalidChannelOutput(256))
+        );
         assert_eq!(p.export_state(), before);
     }
 
@@ -276,16 +305,32 @@ mod tests {
         let mut split = Ym2413OutputPipeline::new();
         let mut expected = Vec::new();
         for c in 0..18 {
-            expected.push(tick(&mut continuous, c, i16::from(c) - 9, (c == 4).then_some(0x20)));
+            expected.push(tick(
+                &mut continuous,
+                c,
+                i16::from(c) - 9,
+                (c == 4).then_some(0x20),
+            ));
         }
         let mut prefix = Vec::new();
         for c in 0..7 {
-            prefix.push(tick(&mut split, c, i16::from(c) - 9, (c == 4).then_some(0x20)));
+            prefix.push(tick(
+                &mut split,
+                c,
+                i16::from(c) - 9,
+                (c == 4).then_some(0x20),
+            ));
         }
-        let mut restored = Ym2413OutputPipeline::with_initial_state(split.export_state()).unwrap();
+        let mut restored =
+            Ym2413OutputPipeline::with_initial_state(split.export_state()).unwrap();
         let mut resumed = Vec::new();
         for c in 7..18 {
-            resumed.push(tick(&mut restored, c, i16::from(c) - 9, (c == 4).then_some(0x20)));
+            resumed.push(tick(
+                &mut restored,
+                c,
+                i16::from(c) - 9,
+                (c == 4).then_some(0x20),
+            ));
         }
         assert_eq!(prefix, expected[..7]);
         assert_eq!(resumed, expected[7..]);
@@ -296,12 +341,27 @@ mod tests {
     fn restore_rejects_invalid_version_cycle_and_latch_ranges() {
         let valid = Ym2413OutputPipeline::new().export_state();
         for invalid in [
-            Ym2413OutputPipelineState { format_version: YM2413_OUTPUT_PIPELINE_STATE_VERSION + 1, ..valid },
-            Ym2413OutputPipelineState { next_cycle: 18, ..valid },
-            Ym2413OutputPipelineState { previous_channel_output: 256, ..valid },
-            Ym2413OutputPipelineState { output_m: 257, ..valid },
+            Ym2413OutputPipelineState {
+                format_version: YM2413_OUTPUT_PIPELINE_STATE_VERSION + 1,
+                ..valid
+            },
+            Ym2413OutputPipelineState {
+                next_cycle: 18,
+                ..valid
+            },
+            Ym2413OutputPipelineState {
+                previous_channel_output: 256,
+                ..valid
+            },
+            Ym2413OutputPipelineState {
+                output_m: 257,
+                ..valid
+            }
         ] {
-            assert_eq!(Ym2413OutputPipeline::with_initial_state(invalid), Err(Ym2413OutputPipelineError::InvalidState));
+            assert_eq!(
+                Ym2413OutputPipeline::with_initial_state(invalid),
+                Err(Ym2413OutputPipelineError::InvalidState)
+            );
         }
     }
 }
