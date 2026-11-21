@@ -209,6 +209,23 @@ impl Ym2413PgSerialService {
         Ok(self)
     }
 
+    /// Enable an explicit 23-bit LFSR register candidate, including zero.
+    ///
+    /// Zero reproduces the pinned Nuked software reset state only; it is not
+    /// asserted to be the physical YM2413 power-on register value.
+    pub fn with_rhythm_noise_register(
+        mut self,
+        register: u32,
+        next_slot_index: u8,
+    ) -> Result<Self, Ym2413PgSerialError> {
+        self.rhythm_noise = Some(Ym2413RhythmSlotNoiseSequencer::with_register_at_slot(
+            register,
+            next_slot_index,
+        )?);
+        self.rhythm_noise_samples = [None, None];
+        Ok(self)
+    }
+
     /// Return the last sampled Hi-Hat and Snare Drum noise bits, if available.
     pub const fn rhythm_noise_samples(&self) -> [Option<bool>; 2] {
         self.rhythm_noise_samples
@@ -393,7 +410,7 @@ impl Ym2413PgSerialService {
         }
         if let Some(Ym2413RhythmNoiseSlotSample {
             voice, noise_bit, ..
-        }) = sequencer.advance_slot()
+        }) = sequencer.advance_slot_with_test_mode(context.registers[0x0f])
         {
             match voice {
                 crate::slot::Ym2413RhythmVoice::HiHat => {
@@ -1004,6 +1021,29 @@ mod tests {
         assert_eq!(service.rhythm_noise_state(), Some(expected.export_state()));
         assert_eq!(service.rhythm_noise_samples(), expected_samples);
         assert_eq!(service.rhythm_noise_state().unwrap().slot_index, 0);
+    }
+
+    #[test]
+    fn do_rhythm_uses_test_mode_bit_one_and_preserves_zero_register_candidate() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_register(0, 0)
+            .unwrap();
+        let snapshot = service.export_state();
+        assert_eq!(
+            Ym2413PgSerialService::restore_state(snapshot)
+                .unwrap()
+                .export_state(),
+            snapshot
+        );
+
+        let slot_context = context(0, [0; 64], 0x02);
+        service.before_eg_update(&slot_context).unwrap();
+        let (tick, post) = tick(0);
+        service.after_eg_update(&slot_context, tick, post).unwrap();
+        assert_eq!(
+            service.rhythm_noise_state().unwrap().lfsr.register,
+            1 << 22
+        );
     }
 
     #[test]
