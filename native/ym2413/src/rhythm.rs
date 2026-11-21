@@ -683,7 +683,7 @@ mod tests {
         let register = 0x12_3456;
         let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_register(register).unwrap();
         let expected = (register >> 1) | (1 << 22);
-        assert_eq!(lfsr.clock_with_test_mode(0x02), register & 1);
+        assert_eq!(u32::from(lfsr.clock_with_test_mode(0x02)), register & 1);
         assert_eq!(lfsr.register(), expected);
     }
 
