@@ -3,11 +3,9 @@
 //! The host never receives per-slot callbacks. Ym2413Core invokes this service
 //! internally while advancing coarse-grained input-clock blocks.
 
-use crate::envelope_sequencer::{
-    EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput,
-};
-use crate::slot::Ym2413SlotServiceEvent;
 use crate::Ym2413Error;
+use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput};
+use crate::slot::Ym2413SlotServiceEvent;
 
 /// Read-only snapshot at the serial boundary after mode latches have shifted
 /// and before the core advances the EG operator for this cycle.
@@ -35,10 +33,7 @@ pub(crate) trait Ym2413SlotService {
 
     /// Run PG, Operator, phase-increment, EG-output and KSL/TL stages before
     /// the current serial EG operator is advanced.
-    fn before_eg_update(
-        &mut self,
-        context: &Ym2413SlotServiceContext,
-    ) -> Result<(), Self::Error>;
+    fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error>;
 
     /// Run post-EG stages (LFO/rhythm/output preparation) after the one core EG
     /// update and before the timed register write is applied.
