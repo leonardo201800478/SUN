@@ -509,13 +509,7 @@ mod tests {
         let mut bank_state = bank.export_state();
         bank_state.channels[1].modulator_phase.phase = 0x0008_4000;
         bank = Ym2413SynthesisBank::restore_state(bank_state).unwrap();
-        let mut service = service_with_pipeline(
-            bank,
-            0,
-            0,
-            Ym2413PgParameterLatch::RESET,
-            0,
-        );
+        let mut service = service_with_pipeline(bank, 0, 0, Ym2413PgParameterLatch::RESET, 0);
 
         service.before_eg_update(&context(0, [0; 64], 0)).unwrap();
         assert_eq!(service.pg_output(), 0x0420);
