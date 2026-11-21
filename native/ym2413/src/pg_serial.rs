@@ -362,6 +362,10 @@ mod tests {
 
     fn tick(cycle: u8) -> (crate::EnvelopeSequencerTick, crate::EnvelopeSequencerState) {
         let mut eg = EnvelopeSequencer::new();
+        for prior_cycle in 0..cycle {
+            eg.tick_slot(prior_cycle, EnvelopeSlotInput::default())
+                .unwrap();
+        }
         let result = eg.tick_slot(cycle, EnvelopeSlotInput::default()).unwrap();
         (result, eg.export_state())
     }
