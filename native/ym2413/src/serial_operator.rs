@@ -248,7 +248,7 @@ impl Ym2413SerialOperator {
         self.state.op_exp_m = 1024 + YM2413_EXP_TABLE[255 - mantissa_index];
         self.state.op_exp_s = (level >> 8) as u8;
 
-        let mut phase = (op_mod + u32::from(pg_out)) & 0x03ff;
+        let mut phase = op_mod.wrapping_add(u32::from(pg_out)) & 0x03ff;
         if phase & 0x0100 != 0 {
             phase ^= 0x00ff;
         }
