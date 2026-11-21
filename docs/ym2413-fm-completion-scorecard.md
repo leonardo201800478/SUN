@@ -1640,3 +1640,29 @@ non-oracle-fed arithmetic comparison of operator output, channel output,
 candidate `255 - channel_output`, and the measured-output model, including
 both zeros and negative full scale. Physical DAC-word encoding remains
 unverified until independent digital evidence exists.
+
+
+## FM-5.4 measured-domain conversion helper — exact-head CI pending
+
+A bounded conversion API was added:
+`Ym2413DacCode::from_operator_channel_output(i16)`.
+
+It decodes the serial operator's one's-complement `channel_output` domain
+`-256..=255` into the signed measured-output domain `-255..=+255`,
+preserving `-0` (operator value -1) separately from `+0` (operator value
+0). The negative full-scale operator representation -256 maps to measured
+amplitude -255. Inputs outside the 9-bit one's-complement domain are rejected.
+
+An exhaustive test covers all 512 operator output patterns and verifies a
+bijective mapping, including both zero encodings and both endpoints. The
+helper is not yet called by `Ym2413RhythmOutputService` or the PG service;
+no timing or core integration is claimed. It is not a raw physical DAC word.
+
+Code commits:
+- `3092a6069a544bb755e52750fd3076aa2392dbf6` — conversion API and bounds.
+- `c510299c87e74b4c1ba27f7f8cc4d539048dd25e` — exhaustive 512-code test.
+
+Exact-head CI, PG differential, rhythm reset differential and EG
+characterization must be rerun on the final branch HEAD before the helper is
+accepted. The previously validated code HEAD `27650ff...` does not validate
+these new changes.
