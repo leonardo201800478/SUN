@@ -144,8 +144,6 @@ jobs:
               events.append((call, 0, address))
               events.append((call + 2, 1, value))
 
-          # User patch: AM+VIB, nonzero feedback, both waveform bits,
-          # nonzero TL/KSL and distinct AR/DR/SL/RR values.
           patch = (0xE1, 0xA2, 0x55, 0x5D, 0xF3, 0xE4, 0xA5, 0xB6)
           for index, value in enumerate(patch):
               write_register(index, value, index * 40)
@@ -154,32 +152,23 @@ jobs:
           blocks = [min(channel, 7) for channel in range(9)]
           base = 400
           for channel, (fnum, block) in enumerate(zip(fnums, blocks, strict=True)):
-              # Keep the full PG/EG/operator differential on the live user
-              # patch. Candidate preset ROM data is characterized separately.
-              instrument = 0
               writes = (
                   (0x10 + channel, fnum & 0xFF),
                   (0x20 + channel, 0x10 | ((block & 7) << 1) | ((fnum >> 8) & 1)),
-                  (0x30 + channel, instrument << 4),  # instrument + maximum carrier volume
+                  (0x30 + channel, 0x00),  # live user patch, maximum carrier volume
               )
               for address, value in writes:
                   write_register(address, value, base)
                   base += 40
 
-          # Exercise KEY-OFF and a second KEY-ON on all nine channels.
           for channel, (fnum, block) in enumerate(zip(fnums, blocks, strict=True)):
-              write_register(
-                  0x20 + channel,
-                  ((block & 7) << 1) | ((fnum >> 8) & 1),
-                  4000 + channel * 20,
-              )
-              write_register(
-                  0x20 + channel,
-                  0x10 | ((block & 7) << 1) | ((fnum >> 8) & 1),
-                  5000 + channel * 20,
-              )
+              write_register(0x20 + channel,
+                             ((block & 7) << 1) | ((fnum >> 8) & 1),
+                             4000 + channel * 20)
+              write_register(0x20 + channel,
+                             0x10 | ((block & 7) << 1) | ((fnum >> 8) & 1),
+                             5000 + channel * 20)
 
-          # Parameter changes during playback plus each relevant Test Mode bit.
           write_register(0x14, 0x1F, 6000)
           write_register(0x34, 0x0F, 6040)
           write_register(0x0F, 0x01, 7000)
@@ -188,8 +177,6 @@ jobs:
           write_register(0x0F, 0x04, 7600)
           write_register(0x0F, 0x00, 7800)
 
-          # Rewrite the user patch during playback while channel 0 remains on
-          # instrument 0, then change FNUM/BLOCK and carrier volume live.
           live_patch = (0xD1, 0xB2, 0x35, 0x1D, 0xC7, 0xE4, 0xA5, 0x96)
           for index, value in enumerate(live_patch):
               write_register(index, value, 8600 + index * 40)
@@ -201,6 +188,19 @@ jobs:
                              9140 + index * 80)
           write_register(0x30, 0x0D, 9400)
           write_register(0x38, 0x8B, 9440)
+
+          events.sort()
+          if any(events[index][0] >= events[index + 1][0]
+                 for index in range(len(events) - 1)):
+              raise ValueError("operator events must have unique, increasing call indices")
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 \
+            --events "$RUNNER_TEMP/operator-events.csv" \
+            > "$RUNNER_TEMP/nuked-operator.jsonl"
 
       - name: Generate all-preset serial latch characterization sequence
         run: |
@@ -220,13 +220,11 @@ jobs:
           fnums = [32, 64, 128, 192, 256, 320, 384, 448, 511]
           for channel, fnum in enumerate(fnums):
               block = min(channel, 7)
-              instrument = channel
               write_register(0x10 + channel, fnum & 0xFF, 400 + channel * 120)
               write_register(0x20 + channel,
                              0x10 | ((block & 7) << 1) | ((fnum >> 8) & 1),
                              440 + channel * 120)
-              write_register(0x30 + channel, instrument << 4,
-                             480 + channel * 120)
+              write_register(0x30 + channel, channel << 4, 480 + channel * 120)
 
           for instrument in range(9, 16):
               channel = instrument - 8
@@ -258,18 +256,6 @@ jobs:
           python3 tools/ym2413-nuked-oracle/compare_preset_latches.py \
             --nuked-trace "$RUNNER_TEMP/nuked-presets.jsonl" \
             --rust-trace "$RUNNER_TEMP/rust-presets.jsonl"
-
-          events.sort()
-          if any(events[index][0] >= events[index + 1][0] for index in range(len(events) - 1)):
-              raise ValueError("operator events must have unique, increasing call indices")
-          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
-              writer = csv.writer(stream)
-              writer.writerow(("# call_index", "port", "value"))
-              writer.writerows(events)
-          PY
-          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 \
-            --events "$RUNNER_TEMP/operator-events.csv" \
-            > "$RUNNER_TEMP/nuked-operator.jsonl"
 
       - name: Differentially validate serial operator and feedback state
         run: |
