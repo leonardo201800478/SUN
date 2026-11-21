@@ -165,7 +165,6 @@ jobs:
               - 'native/temporal_core/**'
               - 'native/sn76489/**'
               - 'native/ym2413/**'
-              - 'native/observability/**'
             input:
               - 'native/input_runtime/**'
               - 'native/sms_core/src/input.rs'
@@ -1080,6 +1079,3 @@ jobs:
         run: cargo clippy --release --locked --all-targets --manifest-path native/audio_output/Cargo.toml --target x86_64-pc-windows-msvc -- -D warnings
       - name: Test CPAL output crate (Windows x64 Release)
         run: cargo test --release --locked --all-targets --manifest-path native/audio_output/Cargo.toml --target x86_64-pc-windows-msvc
-      # The deprecated eframe shell is intentionally excluded. Its Windows
-      # dependency graph has a separate legacy lockfile; the active Slint desktop
-      # and SMS runtime are validated by their dedicated jobs.
