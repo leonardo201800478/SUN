@@ -227,4 +227,3 @@ A new independent differential is added to `.github/workflows/ym2413-rhythm-rese
 ### Unseeded cadence state
 
 The serial PG service now also retains a core-aligned DoRhythm slot cursor and cumulative step count when no LFSR register candidate has been selected. Every post-EG slot advances this symbolic cadence, including RHY-disabled slots, while noise samples remain `None`. This preserves the known temporal behavior without fabricating an LFSR seed or output bit. When a candidate register is explicitly configured, the concrete 23-bit LFSR and symbolic cursor advance together and are checked for alignment. Both forms are included in the versioned service snapshot.
-
