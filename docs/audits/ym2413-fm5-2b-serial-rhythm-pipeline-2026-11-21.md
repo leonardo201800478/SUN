@@ -5,7 +5,7 @@
 **Parent:** PR #1154 — FM-5.2A serial rhythm LFSR cadence
 **Work branch:** `feat/ym2413-fm5-2b-rhythm-operator-routing`
 **Reference implementation:** Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`
-**Status:** implemented in a draft stacked PR; not merged to `main`.
+**Status:** implemented in PR #1156, now retargeted to `main`; parent PR #1154 (FM-5.2A) has been merged. FM-5.2B remains a software candidate with the documented SD SL/EG differences and no physical-chip certification.
 
 ## Scope delivered
 
@@ -308,3 +308,10 @@ The previous “Next, rerun...” instruction is superseded: PG differential #36
 has now run and verified the FB/DM correction. The next work item remains
 isolating the SD SL/EG candidate difference, not changing the candidate table
 without new hardware evidence.
+
+
+## Publication update — 2026-11-21
+
+PR #1154 was merged into `main` at `50f549cf28da4f268304908ae44717fe402dd708`. PR #1156 was retargeted to `main` and synchronized without file conflicts; its code tree and candidate limitations are unchanged. Exact-head CI, integrated PG differential, Rhythm reset differential and external Nuked adapter passed on the synchronized branch. EG characterization is a separate in-progress sweep and must be reported independently; it is not a physical-silicon validation.
+
+The SD carrier SL candidate remains 6 while the pinned Nuked model uses 4. The associated EG-state divergence remains reported, not normalized. The LFSR seed and internal rhythm patch ROM remain uncertified. This PR can publish the bounded software candidate, but does not close FM-5 hardware validation or FM-6 DAC/PCM.
