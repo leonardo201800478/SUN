@@ -507,9 +507,9 @@ impl Ym2413Core {
             envelope_state.eg_dokon,
             self.registers[0x0f],
         )
-            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
-                Ym2413Error::InvalidState,
-            ))?;
+        .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+            Ym2413Error::InvalidState,
+        ))?;
         let context = slot_service::Ym2413SlotServiceContext {
             event,
             registers: self.registers,
@@ -1167,13 +1167,13 @@ mod tests {
             core.envelope = super::EnvelopeSequencer::restore_state(envelope_state).unwrap();
 
             let mut service = RecordingSlotService::default();
-            core.advance_input_clocks_with_slot_service(
-                YM2413_INPUT_CLOCKS_PER_SLOT,
-                &mut service,
-            )
-            .unwrap();
+            core.advance_input_clocks_with_slot_service(YM2413_INPUT_CLOCKS_PER_SLOT, &mut service)
+                .unwrap();
 
-            assert!(service.before[0].event.phase_reset_required, "cycle {cycle}");
+            assert!(
+                service.before[0].event.phase_reset_required,
+                "cycle {cycle}"
+            );
         }
     }
 
