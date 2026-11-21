@@ -311,7 +311,7 @@ impl Ym2413SerialOperator {
         if cycle >= YM2413_SERIAL_OPERATOR_SLOTS {
             return Err(Ym2413SerialOperatorError::InvalidCycle(cycle));
         }
-        if am_level > 13 {
+        if am_level > 15 {
             return Err(Ym2413SerialOperatorError::InvalidEnvelopeLevel(am_level));
         }
         if let Some(level) = eg_levels.iter().copied().find(|level| *level > 127) {
