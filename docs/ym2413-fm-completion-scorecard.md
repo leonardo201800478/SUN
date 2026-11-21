@@ -1774,3 +1774,37 @@ The combined output service still cannot be called with one raw Nuked cycle:
 MO and RO need separate slot coordinates, and the adapter must preserve the
 previous `ch_out` latch, output-buffer delay and sign-dependent neutral
 values. No PG/core integration is claimed.
+
+
+## MO/RO cycle adapter increment — exact-head validation pending
+
+The production output service now has distinct coordinate helpers and a
+bounded cycle entry point:
+
+- `mo_output_slot_for_nuked_cycle(cycle)`: `(cycle + 3) % 18`.
+- `ro_output_slot_for_nuked_cycle(cycle)`: `(cycle + 15) % 18`.
+- `Ym2413RhythmOutputService::process_nuked_cycle` computes both slots,
+  routes MO at its mapped slot, and advances the RO retention model at its
+  independently mapped slot. The RO retention cursor must be initialized to
+  the first mapped RO slot (for cycle zero, slot 15).
+
+The new cycle frame exposes both slot indices rather than pretending that
+one slot represents both pins. Unit tests cover all 18 mappings, the measured
+Rhythm Mode MO/RO positions, first-rotation uninitialized repeats, and
+transactional rejection of invalid cycles.
+
+This is still a slot-coordinate/retention adapter, not complete pin timing:
+the caller must provide already reconstructed measured-domain values. The
+method does not model the previous-`ch_out` latch, the additional
+`output_m/output_r` buffer delay, the transient `rm_enable` pipeline,
+sign-dependent neutral pin codes, or physical sub-clock phase. No core or
+PCM integration is claimed.
+
+Code commits:
+- `5c23dd51ba2282bf1e26eee4141c0f1ad57e83b2` — separate MO/RO transforms.
+- `4cfbfddbee6cd02059f620e6dcdeacc241545ddf` — public exports.
+- `cc9a632cd20dcca99612202fcf07e6af17538e9a` — cycle adapter and tests.
+- `3f273a2cc409185759dcbf6b2c73bf8c7fe932af` — frame export.
+
+The earlier shared-offset helper was removed. Exact-head CI, PG differential,
+rhythm reset differential and EG characterization are pending for this code.
