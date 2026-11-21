@@ -502,7 +502,7 @@ impl Ym2413SerialOperator {
 #[cfg(test)]
 mod tests {
     use super::{
-        YM2413_SERIAL_OPERATOR_STATE_VERSION, Ym2413SerialOperator, Ym2413SerialOperatorError,
+        Ym2413SerialOperator, Ym2413SerialOperatorError,
         Ym2413SerialOperatorPatch1Latches, Ym2413SerialOperatorPatch2Latches,
         Ym2413SerialOperatorState,
     };
