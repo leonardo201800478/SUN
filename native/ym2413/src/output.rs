@@ -45,8 +45,7 @@ pub const fn mo_output_slot_for_nuked_cycle(cycle: u8) -> Option<u8> {
 
 /// Invert the measured RO slot transform: RO slot = (cycle + 15) % 18.
 fn nuked_cycle_for_ro_output_slot(slot_index: u8) -> Option<u8> {
-    (slot_index < YM2413_SLOT_COUNT as u8)
-        .then_some((slot_index + 3) % YM2413_SLOT_COUNT as u8)
+    (slot_index < YM2413_SLOT_COUNT as u8).then_some((slot_index + 3) % YM2413_SLOT_COUNT as u8)
 }
 
 /// Convert a Nuked-OPLL cycle to the measured RO occurrence-slot coordinate.
