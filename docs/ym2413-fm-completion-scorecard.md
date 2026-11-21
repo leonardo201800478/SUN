@@ -1494,3 +1494,51 @@ No `c_fb` or `c_dm` difference remains in that integrated report.
 The FM-5.3 service code is CI-validated as a standalone boundary. It is not
 yet integrated into `Ym2413Core`, the raw DAC conversion path, PCM, or the
 SMS mixer. Do not mark FM-5.3 complete.
+
+
+## EG #550 final result and evidence correction — 2026-11-21
+
+EG characterization #550 (run `44920956584`) completed successfully on code
+HEAD `4af0e9ad6a0980e8c53fe65d8c224610c46017e0`. Artifact:
+`ym2413-nuked-eg-characterization.zip`, ID `14713567996`,
+SHA-256 `c90a8ead1c272eb7a469ced43c72697c06936be4bfdcbfb3136c91c2b4100d6f`.
+
+**Important correction to earlier wording:** the workflow does not contain
+physical YM2413 capture data. The adapter generates its traces by calling
+the pinned Nuked-OPLL `OPLL_Reset`/`OPLL_Clock` implementation. The
+`eg_hardware_trace.rs` replay compares the Rust operator with Nuked-generated
+pre/post samples. Its 506,768 samples with zero mismatches are software
+differential replay, not physical hardware evidence. Likewise the 1,140,000
+sequencer calls and 1,140,000 timer calls replay Nuked-derived register/latch
+traces. Do not describe these as independent silicon captures.
+
+The exact 38-configuration rate matrix contains 243,884 selected samples:
+
+| Candidate | Level mismatches | Stage mismatches | Max absolute error |
+|---|---:|---:|---:|
+| Initial 127, deferred DAMP, unwrapped counter | 56,270 | 266 | 127 |
+| Initial 127, deferred DAMP, DECAY/SUSTAIN counter minus 3 | 44,064 | 71 | 127 |
+| Initial 127, wrapped counter | 83,586 | 266 | 127 |
+| Oracle-seeded external rate phase | 0 / 243,580 compared | 0 / 243,580 compared | 0 |
+
+The zero-mismatch external-rate candidate is **not an independent candidate**:
+the trace harness seeds each slot from Nuked's first observed post-DAMP level
+and state, excludes that row, then feeds each later update with rate-phase
+latches extracted from the preceding Nuked trace row. Eight seed rows per
+configuration are excluded (304 total). This is an oracle-fed isolation
+experiment, not a production rate-timer implementation. It cannot close
+the rate-phase/timer gate.
+
+For the phase-minus-three candidate, level mismatches by DR are:
+DR 0–4: 0; DR 5: 12,836; DR 6–7: 0; DR 8: 487; DR 9: 1,457;
+DR 10: 3,316; DR 11: 4,468; DR 12: 5,224; DR 13: 5,484;
+DR 14: 5,428; DR 15: 5,364. By KSR: KSR=0, 19,457; KSR=1, 24,607.
+The 12,836 DR=5 mismatches are the two AR=15 configurations (6,418 each).
+
+**Decision:** production EG remains unchanged. The phase-minus-three
+candidate remains mismatched. The oracle-fed external phase result remains
+diagnostic only. The timer/rate-latch generator needs an independent
+slot-phase investigation before any production timing change.
+
+Full audit:
+`docs/audits/ym2413-eg-rate-characterization-2026-11-21.md`.
