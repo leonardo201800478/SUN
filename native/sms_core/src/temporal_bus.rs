@@ -982,12 +982,13 @@ impl SmsTemporalBus {
 
     fn advance_ym2413(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
         let mut remaining = clocks;
+        let mut phase = self
+            .ym2413
+            .as_ref()
+            .ok_or(SmsTemporalBusError::InvalidState)?
+            .export_state()
+            .input_clock_phase;
         while remaining > 0 {
-            let phase = self
-                .ym2413
-                .as_ref()
-                .ok_or(SmsTemporalBusError::InvalidState)?
-                .input_clock_phase();
             if u64::from(phase) >= YM2413_INPUT_CLOCKS_PER_SLOT {
                 return Err(SmsTemporalBusError::InvalidState);
             }
@@ -1006,6 +1007,7 @@ impl SmsTemporalBus {
                 core.advance_input_clocks_with_pg_service(step, service)?;
                 completed_slot.then(|| service.output_frame()).flatten()
             };
+            phase = ((u64::from(phase) + step) % YM2413_INPUT_CLOCKS_PER_SLOT) as u8;
             remaining -= u128::from(step);
             if completed_slot {
                 let frame = output_frame.ok_or(SmsTemporalBusError::InvalidState)?;
