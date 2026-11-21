@@ -485,7 +485,7 @@ impl SmsTemporalMachine {
         )
     }
 
-    /// Construct a Japanese Master System machine with its integrated YM2413.
+    /// Construct an explicit Japanese Master System board profile with integrated YM2413.
     pub fn new_with_japanese_fm_hardware_profile(
         rom: impl Into<Vec<u8>>,
         master_ticks_per_tstate: u64,
@@ -505,7 +505,7 @@ impl SmsTemporalMachine {
         Ok(Self::from_bus(bus))
     }
 
-    /// Construct the Japanese Master System FM profile with explicit cartridge SRAM capacity.
+    /// Construct the Japanese Master System board profile with explicit cartridge SRAM capacity.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_japanese_fm_hardware_profile_and_sram_size(
         rom: impl Into<Vec<u8>>,
@@ -631,7 +631,7 @@ impl SmsTemporalMachine {
         })
     }
 
-    /// Construct a Japanese Master System FM machine that boots through a supplied BIOS.
+    /// Construct the explicit Japanese Master System FM board profile with a supplied BIOS.
     pub fn new_with_japanese_fm_hardware_profile_and_bios(
         rom: impl Into<Vec<u8>>,
         bios: Vec<u8>,
@@ -653,7 +653,7 @@ impl SmsTemporalMachine {
         Ok(Self::from_bus(bus))
     }
 
-    /// Construct a Japanese Master System FM machine with BIOS and explicit cartridge SRAM.
+    /// Construct the explicit Japanese Master System FM board profile with BIOS and cartridge SRAM.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
         rom: impl Into<Vec<u8>>,
