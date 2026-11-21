@@ -1,4 +1,4 @@
-# Documentação do Sega Emulator
+# Documentação do SUN — Strife Uranus Neptune
 
 Este diretório reúne decisões normativas, escopo, roadmap, status, arquitetura, auditorias, evidências e documentos históricos.
 
