@@ -558,7 +558,8 @@ mod tests {
     #[test]
     fn unknown_original_source_invalidates_retained_voice_and_repeat() {
         let code = level(37);
-        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
+        let mut delay =
+            super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
         assert_eq!(
             delay.process_slot_with_validity(13, Some(code), true),
             Ok(Ym2413RhythmOutputSlotResult::Emitted(
