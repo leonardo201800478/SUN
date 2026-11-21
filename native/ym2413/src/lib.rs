@@ -1089,4 +1089,34 @@ mod tests {
         assert_eq!(result, Err(Ym2413SlotServiceAdvanceError::Service(3)));
         assert_eq!(core.export_state(), before);
     }
+    #[test]
+    fn slot_service_phase_reset_uses_post_shift_rhythm_mode_latch() {
+        for cycle in [13_u8, 14_u8] {
+            for (eg_dokon, expected) in [(0x8000_u32, false), (0x01_u32, true)] {
+                let mut core = Ym2413Core::new();
+                core.slot_index = cycle;
+                core.rm_enable = 0x80_u8 as i8;
+                let mut envelope_state = core.envelope.export_state();
+                envelope_state.eg_dokon = eg_dokon;
+                core.envelope =
+                    super::EnvelopeSequencer::restore_state(envelope_state).unwrap();
+
+                let mut service = RecordingSlotService::default();
+                core.advance_input_clocks_with_slot_service(
+                    u64::from(YM2413_INPUT_CLOCKS_PER_SLOT),
+                    &mut service,
+                )
+                .unwrap();
+
+                let context = service.before[0];
+                assert_ne!(context.rm_enable & 0x40, 0);
+                assert_eq!(context.event.phase_reset_required, expected);
+                assert_eq!(
+                    nuked_phase_reset_required(cycle, 0x80, eg_dokon),
+                    Some(eg_dokon & 0x8000 != 0)
+                );
+            }
+        }
+    }
+
 }
