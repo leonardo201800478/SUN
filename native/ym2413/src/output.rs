@@ -510,6 +510,15 @@ impl Ym2413RhythmOutputService {
     }
 }
 
+/// One measured-domain frame after the adapter's output-buffer delay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413MeasuredOutputAdapterFrame {
+    /// Cycle on which the buffered frame is emitted.
+    pub emitted_cycle: u8,
+    /// Pin-slot mapping and measured levels captured from the source cycle.
+    pub source: Ym2413OutputCycleFrame,
+}
+
 /// Snapshot schema for the core-integrated measured-domain MO/RO adapter.
 pub const YM2413_MEASURED_OUTPUT_ADAPTER_STATE_VERSION: u16 = 1;
 
@@ -522,7 +531,7 @@ pub struct Ym2413MeasuredOutputAdapterState {
     /// Frame awaiting the external output-buffer latch.
     pub pending_frame: Option<Ym2413OutputCycleFrame>,
     /// Frame most recently emitted after the output-buffer delay.
-    pub last_frame: Option<Ym2413OutputCycleFrame>,
+    pub last_frame: Option<Ym2413MeasuredOutputAdapterFrame>,
 }
 
 /// Errors from the core-integrated measured-domain MO/RO adapter.
@@ -604,14 +613,16 @@ impl Ym2413MeasuredOutputAdapter {
             frame.cycle >= YM2413_SLOT_COUNT as u8
                 || (frame.cycle + 1) % YM2413_SLOT_COUNT as u8 != state.next_cycle
         }) || state.last_frame.is_some_and(|frame| {
-            frame.cycle >= YM2413_SLOT_COUNT as u8
-                || (frame.cycle + 2) % YM2413_SLOT_COUNT as u8 != state.next_cycle
+            frame.source.cycle >= YM2413_SLOT_COUNT as u8
+                || frame.emitted_cycle >= YM2413_SLOT_COUNT as u8
+                || (frame.source.cycle + 1) % YM2413_SLOT_COUNT as u8 != frame.emitted_cycle
+                || (frame.emitted_cycle + 1) % YM2413_SLOT_COUNT as u8 != state.next_cycle
         }) || (state.last_frame.is_some() && state.pending_frame.is_none())
         {
             return Err(Ym2413MeasuredOutputAdapterError::InvalidState);
         }
         if let (Some(last), Some(pending)) = (state.last_frame, state.pending_frame)
-            && (last.cycle + 1) % YM2413_SLOT_COUNT as u8 != pending.cycle
+            && (last.source.cycle + 1) % YM2413_SLOT_COUNT as u8 != pending.cycle
         {
             return Err(Ym2413MeasuredOutputAdapterError::InvalidState);
         }
@@ -676,7 +687,10 @@ impl Ym2413MeasuredOutputAdapter {
                 rhythm_mode_enabled,
                 previous_channel_output,
             )?;
-        let emitted = self.pending_frame;
+        let emitted = self.pending_frame.map(|source| Ym2413MeasuredOutputAdapterFrame {
+            emitted_cycle: cycle,
+            source,
+        });
         self.pending_frame = Some(current);
         self.last_frame = emitted;
         self.next_cycle = (cycle + 1) % YM2413_SLOT_COUNT as u8;
@@ -684,7 +698,7 @@ impl Ym2413MeasuredOutputAdapter {
     }
 
     /// Return the most recently emitted measured-domain output frame.
-    pub const fn output_frame(&self) -> Option<Ym2413OutputCycleFrame> {
+    pub const fn output_frame(&self) -> Option<Ym2413MeasuredOutputAdapterFrame> {
         self.last_frame
     }
 
