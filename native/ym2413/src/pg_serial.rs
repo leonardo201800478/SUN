@@ -9,14 +9,12 @@
 //! phase combiners and the special channel-7..9 parameter routing remain FM-5.
 
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
-use crate::envelope_sequencer::{
-    EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput,
-};
+use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::slot::{Ym2413Operator, slot_descriptor};
 use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
 use crate::synthesis::{
-    Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
+    Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
     Ym2413SynthesisInitialState,
 };
 
