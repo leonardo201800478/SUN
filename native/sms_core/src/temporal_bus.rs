@@ -782,12 +782,14 @@ impl SmsTemporalBus {
             .find(|advance| advance.domain == SMS_PSG_CLOCK_DOMAIN_ID)
             .ok_or(SmsTemporalBusError::InvalidState)?;
         self.psg.apply_clock_advance(psg_advance)?;
-        let generated_psg_samples = self.psg.core_mut().drain_samples(None);
-        if self.psg_output_enabled() {
-            self.pending_psg_samples.extend(generated_psg_samples);
-        } else {
-            self.pending_psg_samples
-                .extend(std::iter::repeat_n(0.0, generated_psg_samples.len()));
+        if self.ym2413.is_some() {
+            let generated_psg_samples = self.psg.core_mut().drain_samples(None);
+            if self.psg_output_enabled() {
+                self.pending_psg_samples.extend(generated_psg_samples);
+            } else {
+                self.pending_psg_samples
+                    .extend(std::iter::repeat_n(0.0, generated_psg_samples.len()));
+            }
         }
         if self.ym2413.is_some() {
             let advance = dispatch
@@ -1082,6 +1084,9 @@ impl SmsTemporalBus {
 
     /// Drain PSG PCM captured at scheduler dispatch boundaries with the F2 gate applied.
     pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+        if self.ym2413.is_none() {
+            return self.psg.core_mut().drain_samples(max_samples);
+        }
         let count = max_samples
             .unwrap_or(self.pending_psg_samples.len())
             .min(self.pending_psg_samples.len());
@@ -1266,7 +1271,8 @@ impl SmsTemporalBus {
                 .any(|sample| !sample.is_finite())
             || state.pending_psg_samples.iter().any(|sample| !sample.is_finite())
             || (state.ym2413.is_none()
-                && (!state.pending_fm_samples.is_empty()
+                && (!state.pending_psg_samples.is_empty()
+                    || !state.pending_fm_samples.is_empty()
                     || state.ym2413_pcm_accumulator != SmsYm2413PcmAccumulatorState::default()))
             || state.psg.clock_domain() != SMS_PSG_CLOCK_DOMAIN_ID
             || state.psg.core().profile() != PsgProfile::Sms
