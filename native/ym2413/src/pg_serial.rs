@@ -593,7 +593,7 @@ mod tests {
         whole_core
             .advance_input_clocks_with_slot_service(18 * YM2413_INPUT_CLOCKS_PER_SLOT, &mut whole)
             .unwrap();
-        for clocks in [1, 3, 4, 17, 29, 7, 11, 1, 72] {
+        for clocks in [1, 3, 4, 17, 29, 7, 11] {
             split_core
                 .advance_input_clocks_with_slot_service(clocks, &mut split)
                 .unwrap();
