@@ -14,7 +14,7 @@ pub const YM2413_PHASE_MASK: u32 = (1 << YM2413_PHASE_BITS) - 1;
 pub const YM2413_PM_POSITIONS: usize = 8;
 
 /// Version of the standalone phase-generator snapshot.
-pub const YM2413_PG_STATE_VERSION: u16 = 1;
+pub const YM2413_PG_STATE_VERSION: u16 = 2;
 
 /// Errors returned by the candidate Phase Generator model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,14 +72,14 @@ impl PhaseGenerator {
         Self { phase: 0 }
     }
 
-    /// Return the full 19-bit fixed-point phase accumulator.
+    /// Return the raw phase accumulator retained by the serial PG ring.
     pub const fn phase(&self) -> u32 {
         self.phase
     }
 
-    /// Return the upper ten bits used as the sine-table address.
+    /// Return the ten phase bits consumed by the YM2413 sine-table address.
     pub const fn phase_index(&self) -> u16 {
-        (self.phase >> 9) as u16
+        ((self.phase >> 9) & 0x03ff) as u16
     }
 
     /// Reset the phase accumulator to zero.
@@ -138,6 +138,21 @@ impl PhaseGenerator {
         self.phase = phase & YM2413_PHASE_MASK;
     }
 
+    /// Replace the serial PG accumulator with Nuked's full-width phase value.
+    ///
+    /// Nuked stores `pg_phase`, `pg_phase_next`, and their sum as `uint32_t`.
+    /// The phase bits above bit 18 are retained internally even though the
+    /// sine-table address consumes only bits 9..18.
+    pub fn write_serial_phase(&mut self, phase: u32) {
+        self.phase = phase;
+    }
+
+    /// Add one latched PG increment using the serial hardware's u32 arithmetic.
+    pub fn advance_serial_by_increment(&mut self, increment: u32) -> u32 {
+        self.phase = self.phase.wrapping_add(increment);
+        self.phase
+    }
+
     /// Add one already-latched hardware PG increment to this accumulator.
     ///
     /// The serial chip pipeline calculates `pg_inc` in a different stage
@@ -175,7 +190,7 @@ impl PhaseGenerator {
 
     /// Restore a phase accumulator after validating its snapshot.
     pub const fn restore_state(state: PhaseGeneratorState) -> Result<Self, PhaseGeneratorError> {
-        if state.format_version != YM2413_PG_STATE_VERSION || state.phase > YM2413_PHASE_MASK {
+        if state.format_version != YM2413_PG_STATE_VERSION {
             return Err(PhaseGeneratorError::InvalidState);
         }
         Ok(Self { phase: state.phase })
@@ -259,6 +274,15 @@ mod tests {
     }
 
     #[test]
+    fn serial_phase_write_preserves_bits_above_the_nineteen_bit_sine_phase() {
+        let mut pg = PhaseGenerator::new();
+        pg.write_serial_phase(0x0008_4000);
+        assert_eq!(pg.phase(), 0x0008_4000);
+        assert_eq!(pg.phase_index(), 0x20);
+        assert_eq!(pg.advance_serial_by_increment(0x0001_0000), 0x0009_4000);
+    }
+
+    #[test]
     fn snapshot_round_trip_preserves_phase() {
         let mut pg = PhaseGenerator::new();
         pg.advance(0x1c0, 6, 1, true, 2).unwrap();
@@ -267,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn restore_rejects_invalid_version_and_phase() {
+    fn restore_rejects_invalid_version_and_preserves_full_width_serial_phase() {
         assert_eq!(
             PhaseGenerator::restore_state(PhaseGeneratorState {
                 format_version: 99,
@@ -275,13 +299,13 @@ mod tests {
             }),
             Err(PhaseGeneratorError::InvalidState)
         );
-        assert_eq!(
-            PhaseGenerator::restore_state(PhaseGeneratorState {
-                format_version: 1,
-                phase: YM2413_PHASE_MASK + 1,
-            }),
-            Err(PhaseGeneratorError::InvalidState)
-        );
+        let restored = PhaseGenerator::restore_state(PhaseGeneratorState {
+            format_version: YM2413_PG_STATE_VERSION,
+            phase: 0x0008_4000,
+        })
+        .unwrap();
+        assert_eq!(restored.phase(), 0x0008_4000);
+        assert_eq!(restored.phase_index(), 0x20);
     }
 
     #[test]
