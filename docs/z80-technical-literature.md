@@ -1,6 +1,6 @@
 # Base de literatura técnica do Z80
 
-**Projeto:** Sega Emulator — Emulação de Alta Precisão  
+**Projeto:** SUN — Strife Uranus Neptune — Emulação de Alta Precisão  
 **Objetivo:** catálogo curado de fontes primárias, literatura técnica, pesquisa de engenharia reversa e suítes de validação para orientar a implementação do Z80.  
 **Atualização:** 23/10/2026.
 
@@ -115,7 +115,7 @@ Para cada achado, registrar no mínimo:
 
 A página de literatura agrega materiais de autores e titulares diferentes. A licença da wiki não se estende automaticamente a PDFs, artigos, patentes, ROMs de teste ou código externo.
 
-O repositório redcode/Z80 declara licença **GNU Lesser General Public License (LGPL), versão 3 ou posterior**, com condições especiais de licenciamento mencionadas no README. Isso deve ser verificado no arquivo de licença e no estado atual do repositório antes de qualquer vinculação ou reutilização. Para o Sega Emulator, a abordagem padrão permanece reimplementar o comportamento a partir de requisitos e testes independentes; não copiar código C para o núcleo Python/Rust sem revisão de licença e aprovação explícita.
+O repositório redcode/Z80 declara licença **GNU Lesser General Public License (LGPL), versão 3 ou posterior**, com condições especiais de licenciamento mencionadas no README. Isso deve ser verificado no arquivo de licença e no estado atual do repositório antes de qualquer vinculação ou reutilização. Para o SUN — Strife Uranus Neptune, a abordagem padrão permanece reimplementar o comportamento a partir de requisitos e testes independentes; não copiar código C para o núcleo Python/Rust sem revisão de licença e aprovação explícita.
 
 ## 6. Relação com os documentos existentes
 
