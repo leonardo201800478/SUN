@@ -406,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn eleven_bit_pg_output_is_masked_to_ten_bit_phase_address() {
+    fn wide_pg_output_is_masked_to_ten_bit_phase_address() {
         let mut low = Ym2413SerialOperator::new();
         let mut high = Ym2413SerialOperator::new();
         let low_sample = low.tick_operator(0, 0).unwrap();
