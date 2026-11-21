@@ -16,6 +16,7 @@ pub mod envelope_timer;
 pub mod instrument;
 pub mod key_scale;
 pub mod operator;
+pub mod operator_serial;
 pub mod output;
 pub mod pg_serial;
 pub mod phase;
@@ -66,6 +67,10 @@ pub use instrument::{
     resolve_instrument, rhythm_mode_enabled,
 };
 pub use key_scale::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
+pub use operator_serial::{
+    YM2413_OPERATOR_SERIAL_STATE_VERSION, Ym2413OperatorSerialError,
+    Ym2413OperatorSerialService, Ym2413OperatorSerialState,
+};
 pub use operator::{
     OperatorPair, OperatorPairError, OperatorPairParameters, OperatorPairSample, OperatorPairState,
     YM2413_OPERATOR_PAIR_STATE_VERSION, exponential_lookup, log_sine_lookup,
