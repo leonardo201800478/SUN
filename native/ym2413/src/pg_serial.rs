@@ -335,8 +335,9 @@ impl Ym2413SlotService for Ym2413PgSerialService {
                 channel: context.event.selected_operator.channel,
             });
         }
-        // Nuked order: PreparePatch1, PhaseGenerate, Operator,
-        // PhaseCalcIncrement, EnvelopeOutput, then EnvelopeKSLTL.
+        // Nuked order in this pre-EG hook:
+        // PreparePatch1 -> Channel -> PhaseGenerate -> Operator
+        // -> PhaseCalcIncrement -> EnvelopeOutput -> EnvelopeKSLTL.
         let descriptor = context.event.selected_operator;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let (operator_patch, ksl_attenuation, total_level, operator_index) =
@@ -393,7 +394,8 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         _tick: EnvelopeSequencerTick,
         _post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error> {
-        // Nuked order after the core-owned EG tick: DoLFO, then PreparePatch2.
+        // Nuked order after the core-owned EnvelopeGenerate stage:
+        // DoLFO -> DoRhythm (FM-5; rejected here) -> PreparePatch2.
         let testmode = context.registers[0x0f];
         // OPLL_DoLFO advances the serial AM network on every call and
         // derives its cycle-17 step from the PM counter before that counter
