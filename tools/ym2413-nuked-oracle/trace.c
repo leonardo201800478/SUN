@@ -201,7 +201,9 @@ int main(int argc, char **argv) {
         memcpy(op_calc_op_fb1, chip.op_fb1, sizeof(op_calc_op_fb1));
         memcpy(op_calc_op_fb2, chip.op_fb2, sizeof(op_calc_op_fb2));
         uint16_t am_calc_lfo_counter = chip.lfo_counter;
-        uint8_t am_calc_testmode = 0;
+        uint8_t am_calc_testmode = chip.testmode;
+        uint8_t selected_instr = chip.c_instr;
+        uint8_t selected_op = chip.c_op;
         uint32_t phase_ismod =
             ((calc_rm_enable & 0x40) && (cycle_before == 13 || cycle_before == 14))
                 ? 0
@@ -230,7 +232,11 @@ int main(int argc, char **argv) {
         }
 
         OPLL_Clock(&chip, output);
+#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
         am_calc_testmode = opll_trace_testmode_at_dolfo;
+        selected_instr = opll_trace_selected_instr;
+        selected_op = opll_trace_selected_op;
+#endif
 #ifdef YM2413_TRACE_OPERATOR_BOUNDARY
         op_calc_pg_out = opll_trace_pg_out_before_operator;
 #endif
@@ -276,7 +282,7 @@ int main(int argc, char **argv) {
         print_u32_array(chip.pg_phase, 18);
         printf(",\"pg_out\":%u", (unsigned)chip.pg_out);
         printf(",\"c_instr\":%u,\"c_op\":%u,\"c_tl\":%u,\"c_fb\":%u,\"c_am\":%u,\"c_vib\":%u,\"c_ksr\":%u,\"c_ksl\":%u,\"c_multi\":%u,\"c_fnum\":%u,\"c_block\":%u",
-               (unsigned)opll_trace_selected_instr, (unsigned)opll_trace_selected_op, (unsigned)chip.c_tl,
+               (unsigned)selected_instr, (unsigned)selected_op, (unsigned)chip.c_tl,
                (unsigned)chip.c_fb, (unsigned)chip.c_am, (unsigned)chip.c_vib,
                (unsigned)chip.c_ksr, (unsigned)chip.c_ksl, (unsigned)chip.c_multi,
                (unsigned)chip.c_fnum, (unsigned)chip.c_block);
