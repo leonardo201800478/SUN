@@ -1678,6 +1678,14 @@ mod tests {
             .unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
+            assert!(service.export_state().previous_channel_output_is_rhythm);
+            assert_ne!(service.synthesis().export_state(), synthesis_before);
+            assert_ne!(service.operator.export_state(), operator_before);
+            let (tick, post) = tick(cycle);
+            service.after_eg_update(&slot_context, tick, post).unwrap();
+
+            // Save-state snapshots are taken only at completed slot boundaries:
+            // the PG and measured RO cursors must have advanced together.
             let rhythm_latch_state = service.export_state();
             assert!(rhythm_latch_state.previous_channel_output_is_rhythm);
             let restored = Ym2413PgSerialService::restore_state(rhythm_latch_state).unwrap();
@@ -1691,10 +1699,6 @@ mod tests {
                 Ym2413PgSerialService::restore_state(invalid_latch_state),
                 Err(Ym2413PgSerialError::InvalidState)
             ));
-            assert_ne!(service.synthesis().export_state(), synthesis_before);
-            assert_ne!(service.operator.export_state(), operator_before);
-            let (tick, post) = tick(cycle);
-            service.after_eg_update(&slot_context, tick, post).unwrap();
             assert_eq!(
                 service.rhythm_noise_state().unwrap().slot_index,
                 (cycle + 1) % 18
