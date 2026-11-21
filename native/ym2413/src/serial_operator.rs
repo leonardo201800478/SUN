@@ -411,6 +411,16 @@ mod tests {
     }
 
     #[test]
+    fn eleven_bit_pg_output_is_masked_to_ten_bit_phase_address() {
+        let mut low = Ym2413SerialOperator::new();
+        let mut high = Ym2413SerialOperator::new();
+        let low_sample = low.tick_operator(0, 0).unwrap();
+        let high_sample = high.tick_operator(0, 0x0400).unwrap();
+        assert_eq!(low_sample.phase_index, high_sample.phase_index);
+        assert_eq!(low.state().op_logsin, high.state().op_logsin);
+    }
+
+    #[test]
     fn feedback_uses_two_previous_operator_outputs() {
         let mut operator = Ym2413SerialOperator::new();
         let state = Ym2413SerialOperatorState {
