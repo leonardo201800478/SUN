@@ -28,7 +28,7 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 6;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 7;
 pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 3;
 
 /// Maximum increment reachable from the legal FNUM/BLOCK/MUL/PM input domain.
@@ -150,6 +150,10 @@ pub struct Ym2413PgSerialServiceState {
     pub serial_am_lfo: Ym2413SerialAmLfoState,
     /// Explicitly seeded slot-rate noise state; None means physical reset seed is unresolved.
     pub rhythm_noise: Option<Ym2413RhythmSlotNoiseSequencerState>,
+    /// Core-slot cursor for DoRhythm, including the unseeded/unknown-register model.
+    pub rhythm_noise_cursor: u8,
+    /// Number of DoRhythm slot updates since service construction or reset.
+    pub rhythm_noise_steps: u64,
     /// Last sampled Hi-Hat and Snare Drum noise bits, retained for later phase routing.
     pub rhythm_noise_samples: [Option<bool>; 2],
 }
@@ -163,6 +167,8 @@ pub struct Ym2413PgSerialService {
     operator: Ym2413SerialOperator,
     serial_am_lfo: Ym2413SerialAmLfo,
     rhythm_noise: Option<Ym2413RhythmSlotNoiseSequencer>,
+    rhythm_noise_cursor: u8,
+    rhythm_noise_steps: u64,
     rhythm_noise_samples: [Option<bool>; 2],
 }
 
@@ -182,6 +188,8 @@ impl Ym2413PgSerialService {
             operator: Ym2413SerialOperator::new(),
             serial_am_lfo: Ym2413SerialAmLfo::new(),
             rhythm_noise: None,
+            rhythm_noise_cursor: 0,
+            rhythm_noise_steps: 0,
             rhythm_noise_samples: [None, None],
         }
     }
@@ -205,6 +213,7 @@ impl Ym2413PgSerialService {
             seed,
             next_slot_index,
         )?);
+        self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         Ok(self)
     }
@@ -222,6 +231,7 @@ impl Ym2413PgSerialService {
             register,
             next_slot_index,
         )?);
+        self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         Ok(self)
     }
@@ -229,6 +239,16 @@ impl Ym2413PgSerialService {
     /// Return the last sampled Hi-Hat and Snare Drum noise bits, if available.
     pub const fn rhythm_noise_samples(&self) -> [Option<bool>; 2] {
         self.rhythm_noise_samples
+    }
+
+    /// Return the next core-owned DoRhythm slot cursor.
+    pub const fn rhythm_noise_cursor(&self) -> u8 {
+        self.rhythm_noise_cursor
+    }
+
+    /// Return the number of DoRhythm slot updates since service construction.
+    pub const fn rhythm_noise_steps(&self) -> u64 {
+        self.rhythm_noise_steps
     }
 
     /// Return the optional slot-rate noise sequencer state.
@@ -273,6 +293,8 @@ impl Ym2413PgSerialService {
             operator: self.operator.export_state(),
             serial_am_lfo: self.serial_am_lfo.export_state(),
             rhythm_noise: self.rhythm_noise_state(),
+            rhythm_noise_cursor: self.rhythm_noise_cursor,
+            rhythm_noise_steps: self.rhythm_noise_steps,
             rhythm_noise_samples: self.rhythm_noise_samples,
         }
     }
@@ -288,7 +310,16 @@ impl Ym2413PgSerialService {
         {
             return Err(Ym2413PgSerialError::InvalidState);
         }
-        if state.rhythm_noise.is_none() && state.rhythm_noise_samples.iter().any(Option::is_some) {
+        if state.rhythm_noise_cursor >= crate::rhythm::YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION
+            || (state.rhythm_noise.is_none()
+                && state.rhythm_noise_samples.iter().any(Option::is_some))
+        {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
+        if state
+            .rhythm_noise
+            .is_some_and(|noise| noise.slot_index != state.rhythm_noise_cursor)
+        {
             return Err(Ym2413PgSerialError::InvalidState);
         }
         let rhythm_noise = state
@@ -301,6 +332,8 @@ impl Ym2413PgSerialService {
             operator: Ym2413SerialOperator::restore_state(state.operator)?,
             serial_am_lfo: Ym2413SerialAmLfo::restore_state(state.serial_am_lfo)?,
             rhythm_noise,
+            rhythm_noise_cursor: state.rhythm_noise_cursor,
+            rhythm_noise_steps: state.rhythm_noise_steps,
             rhythm_noise_samples: state.rhythm_noise_samples,
         })
     }
@@ -402,26 +435,33 @@ impl Ym2413PgSerialService {
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
-        let Some(sequencer) = self.rhythm_noise.as_mut() else {
-            return Ok(());
-        };
-        if sequencer.slot_index() != context.event.cycle {
+        if self.rhythm_noise_cursor != context.event.cycle {
             return Err(Ym2413PgSerialError::InvalidState);
         }
-        if let Some(Ym2413RhythmNoiseSlotSample {
-            voice, noise_bit, ..
-        }) = sequencer.advance_slot_with_test_mode(context.registers[0x0f])
-        {
-            match voice {
-                crate::slot::Ym2413RhythmVoice::HiHat => {
-                    self.rhythm_noise_samples[0] = Some(noise_bit);
+        if let Some(sequencer) = self.rhythm_noise.as_mut() {
+            if sequencer.slot_index() != context.event.cycle {
+                return Err(Ym2413PgSerialError::InvalidState);
+            }
+            if let Some(Ym2413RhythmNoiseSlotSample {
+                voice, noise_bit, ..
+            }) = sequencer.advance_slot_with_test_mode(context.registers[0x0f])
+            {
+                match voice {
+                    crate::slot::Ym2413RhythmVoice::HiHat => {
+                        self.rhythm_noise_samples[0] = Some(noise_bit);
+                    }
+                    crate::slot::Ym2413RhythmVoice::SnareDrum => {
+                        self.rhythm_noise_samples[1] = Some(noise_bit);
+                    }
+                    _ => return Err(Ym2413PgSerialError::InvalidState),
                 }
-                crate::slot::Ym2413RhythmVoice::SnareDrum => {
-                    self.rhythm_noise_samples[1] = Some(noise_bit);
-                }
-                _ => return Err(Ym2413PgSerialError::InvalidState),
             }
         }
+        // Even without a candidate seed, retain the core-aligned DoRhythm
+        // cadence symbolically; no noise bit is fabricated in that state.
+        self.rhythm_noise_cursor =
+            (self.rhythm_noise_cursor + 1) % crate::rhythm::YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION;
+        self.rhythm_noise_steps = self.rhythm_noise_steps.wrapping_add(1);
         Ok(())
     }
 
@@ -991,6 +1031,18 @@ mod tests {
             PhaseGenerator::phase_step(0x01ff, 7, 15, true, 2),
             Ok(super::YM2413_PG_INCREMENT_MAX)
         );
+    }
+
+    #[test]
+    fn unseeded_do_rhythm_cadence_advances_symbolically_without_fabricating_noise_bits() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut core = Ym2413Core::new();
+        core.advance_input_clocks_with_slot_service(72, &mut service)
+            .unwrap();
+        assert_eq!(service.rhythm_noise_state(), None);
+        assert_eq!(service.rhythm_noise_cursor(), 0);
+        assert_eq!(service.rhythm_noise_steps(), 18);
+        assert_eq!(service.rhythm_noise_samples(), [None, None]);
     }
 
     #[test]
