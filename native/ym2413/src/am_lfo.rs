@@ -453,16 +453,20 @@ mod serial_tests {
 
     #[test]
     fn snapshot_validation_rejects_invalid_counter_and_version() {
-        let mut state = Ym2413SerialAmLfoState::default();
-        state.counter = 0x0200;
+        let invalid_counter = Ym2413SerialAmLfoState {
+            counter: 0x0200,
+            ..Ym2413SerialAmLfoState::default()
+        };
         assert_eq!(
-            Ym2413SerialAmLfo::restore_state(state),
+            Ym2413SerialAmLfo::restore_state(invalid_counter),
             Err(Ym2413SerialAmLfoError::InvalidState)
         );
-        state.counter = 0;
-        state.format_version = YM2413_SERIAL_AM_LFO_STATE_VERSION + 1;
+        let invalid_version = Ym2413SerialAmLfoState {
+            format_version: YM2413_SERIAL_AM_LFO_STATE_VERSION + 1,
+            ..Ym2413SerialAmLfoState::default()
+        };
         assert_eq!(
-            Ym2413SerialAmLfo::restore_state(state),
+            Ym2413SerialAmLfo::restore_state(invalid_version),
             Err(Ym2413SerialAmLfoError::InvalidState)
         );
     }
