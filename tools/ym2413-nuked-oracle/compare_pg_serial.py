@@ -16,7 +16,7 @@ def load_trace(path: Path) -> list[dict[str, object]]:
     """Load and validate the external Nuked serial PG trace."""
     with path.open(encoding="utf-8") as stream:
         rows = [json.loads(line) for line in stream if line.strip()]
-    if len(rows) < 2 or rows[0].get("schema") != "ym2413-nuked-opll-pg-trace-v1":
+    if len(rows) < 2 or rows[0].get("schema") != "ym2413-nuked-opll-pg-phase-trace-v1":
         raise ValueError("input is not a supported Nuked PG trace")
     if rows[0].get("time_unit") != "opll_clock_call":
         raise ValueError("trace time unit must be opll_clock_call")
