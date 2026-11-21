@@ -51,7 +51,9 @@ jobs:
               include
               + "\nuint16_t opll_trace_pg_out_before_operator = 0;"
               + "\nuint16_t opll_trace_operator_phase_index = 0;"
-              + "\nint16_t opll_trace_operator_output = 0;\n",
+              + "\nint16_t opll_trace_operator_output = 0;"
+              + "\nuint8_t opll_trace_selected_instr = 0;"
+              + "\nuint8_t opll_trace_selected_op = 0;\n",
               1,
           )
           stage = "    OPLL_PhaseGenerate(chip);\n\n    OPLL_Operator(chip);"
@@ -62,6 +64,17 @@ jobs:
               "    OPLL_PhaseGenerate(chip);\n"
               "    opll_trace_pg_out_before_operator = chip->pg_out;\n\n"
               "    OPLL_Operator(chip);",
+              1,
+          )
+          selection = "    OPLL_PreparePatch1(chip);\n\n    OPLL_Channel(chip);"
+          if source.count(selection) != 1:
+              raise SystemExit("pinned Nuked PreparePatch1/Channel boundary changed")
+          source = source.replace(
+              selection,
+              "    OPLL_PreparePatch1(chip);\n"
+              "    opll_trace_selected_instr = chip->inst[ch_offset[chip->cycles]];\n"
+              "    opll_trace_selected_op = ((chip->cycles + 1) / 3) & 1;\n\n"
+              "    OPLL_Channel(chip);",
               1,
           )
           phase = (
