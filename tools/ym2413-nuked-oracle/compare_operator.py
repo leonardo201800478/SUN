@@ -38,6 +38,8 @@ OUTPUT_FIELDS = (
     "op_fb1",
     "op_fb2",
     "ch_out",
+    "op_phase_index",
+    "op_output",
 )
 
 
@@ -103,6 +105,8 @@ def main() -> int:
                         *row["op_fb1"],
                         *row["op_fb2"],
                         row["ch_out"],
+                        row["op_phase_index"],
+                        row["op_output"],
                     )
                 )
 
@@ -151,6 +155,8 @@ def main() -> int:
                     "op_fb1[9]",
                     "op_fb2[9]",
                     "ch_out",
+                    "op_phase_index",
+                    "op_output",
                 ],
                 "scope": "Nuked OPLL_Operator stage with oracle-supplied pre-call latches; not integrated EG/PG validation",
             },
