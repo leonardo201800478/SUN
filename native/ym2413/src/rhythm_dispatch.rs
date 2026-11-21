@@ -109,9 +109,7 @@ pub fn dispatch_serial_slot(
 mod tests {
     use super::{Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError, dispatch_serial_slot};
     use crate::envelope_sequencer::EnvelopeRhythmSelect as Select;
-    use crate::slot::{
-        YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice,
-    };
+    use crate::slot::{YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice};
 
     fn registers(rhythm: bool) -> [u8; 64] {
         let mut registers = [0; 64];
@@ -190,8 +188,7 @@ mod tests {
         ];
 
         for (cycle, selector, voice, slot_number, channel, operator) in rhythm_cycles {
-            let dispatch =
-                dispatch_serial_slot(cycle, &registers, 0xff, selector).unwrap();
+            let dispatch = dispatch_serial_slot(cycle, &registers, 0xff, selector).unwrap();
             let Ym2413SerialSlotDispatch::Rhythm {
                 slot,
                 voice: actual_voice,
