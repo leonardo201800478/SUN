@@ -1259,4 +1259,3 @@ A caracterização EG run 44856572947 ainda estava em execução no momento dest
 5. Continuous/partitioned equivalence, clone independence, snapshot/restore, rollback and retry idempotence.
 6. Rust workspace regression, Clippy, formatting, and relevant CI gates PASS.
 7. Independent review with no unresolved P1/P2 findings.
-
