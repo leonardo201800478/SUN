@@ -4,9 +4,9 @@
 //! thread. The host sends only coarse-grained commands; CPU, Scheduler, VDP, PSG,
 //! audio pacing and state transitions remain inside Rust.
 
+use std::collections::VecDeque;
 #[cfg(test)]
 use std::sync::Condvar;
-use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
@@ -15,14 +15,14 @@ use std::time::{Duration, Instant};
 
 use crate::audio::AudioSession;
 use sega_audio_runtime::{
-    AnalogOutputConfig, AudioOutputMetrics, MixSource, PcmResampler, DEFAULT_PCM_SOURCE_RATE_HZ,
+    AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ, MixSource, PcmResampler,
 };
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
-    ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
-    SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
-    Territory, VideoStandard, SMS_YM2413_PCM_SOURCE_RATE_HZ,
+    ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsOverscanMode,
+    SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile,
+    SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
@@ -1062,8 +1062,11 @@ impl AudioRendererState {
         self.mix_psg_samples.clear();
         self.mix_fm_samples.clear();
         for _ in 0..aligned_frames {
-            self.mix_psg_samples
-                .push(self.pending_psg_samples.pop_front().expect("length checked"));
+            self.mix_psg_samples.push(
+                self.pending_psg_samples
+                    .pop_front()
+                    .expect("length checked"),
+            );
             self.mix_fm_samples
                 .push(self.pending_fm_samples.pop_front().expect("length checked"));
         }
@@ -2409,18 +2412,15 @@ fn execute_frame_with_renderer(
                 audio_renderer
                     .transition_fm_samples
                     .extend_from_slice(&audio_renderer.mix_fm_samples);
-                let fade_start =
-                    AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
+                let fade_start = AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
                 for index in 0..aligned_frames {
                     let position = fade_start.saturating_add(index).saturating_add(1);
-                    let gain =
-                        (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
+                    let gain = (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
                     audio_renderer.transition_samples[index] *= gain;
                     audio_renderer.transition_fm_samples[index] *= gain;
                 }
-                audio_renderer.fade_remaining = audio_renderer
-                    .fade_remaining
-                    .saturating_sub(aligned_frames);
+                audio_renderer.fade_remaining =
+                    audio_renderer.fade_remaining.saturating_sub(aligned_frames);
                 multi_sources = Some([
                     MixSource {
                         samples: &audio_renderer.transition_samples,
@@ -3774,12 +3774,13 @@ mod tests {
         let mut renderer = AudioRendererState::default();
         let psg_samples = [0.25, 0.5, 0.75];
 
+        assert_eq!(renderer.prepare_fm_mix(&psg_samples, &[]).unwrap(), Some(0));
         assert_eq!(
-            renderer.prepare_fm_mix(&psg_samples, &[]).unwrap(),
-            Some(0)
-        );
-        assert_eq!(
-            renderer.pending_psg_samples.iter().copied().collect::<Vec<_>>(),
+            renderer
+                .pending_psg_samples
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
             psg_samples
         );
     }
