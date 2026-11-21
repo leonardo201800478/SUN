@@ -22,6 +22,7 @@ pub mod phase;
 pub mod pm_lfo;
 pub mod rhythm;
 pub mod rhythm_channel;
+pub mod rhythm_dispatch;
 pub mod rhythm_output;
 pub mod rhythm_phase;
 pub mod serial_operator;
@@ -44,7 +45,7 @@ pub use bus_timing::{
 pub use channel::{
     ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
     YM2413_EG_CYCLE_CHANNELS, decode_channel_synthesis, decode_envelope_slot_input_for_cycle,
-    envelope_cycle_is_carrier, envelope_slot_input_for_cycle,
+    envelope_cycle_descriptor, envelope_cycle_is_carrier, envelope_slot_input_for_cycle,
 };
 pub use envelope::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeGenerator,
@@ -107,6 +108,9 @@ pub use rhythm::{
 pub use rhythm_channel::{
     RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
     RhythmVoiceSynthesisError, Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
+};
+pub use rhythm_dispatch::{
+    Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError, dispatch_serial_slot,
 };
 pub use rhythm_output::{
     YM2413_DAC_CODE_MAX, YM2413_DAC_CODE_MIN, YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,

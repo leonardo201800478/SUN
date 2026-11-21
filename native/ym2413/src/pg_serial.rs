@@ -12,11 +12,12 @@ use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfo
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
+use crate::rhythm_dispatch::{Ym2413SerialSlotDispatch, dispatch_serial_slot};
 use crate::serial_operator::{
     Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
     Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
 };
-use crate::slot::{Ym2413Operator, nuked_pg_phase_slot_descriptor};
+use crate::slot::{Ym2413Operator, Ym2413SlotDescriptor, nuked_pg_phase_slot_descriptor};
 use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
 use crate::synthesis::{
     Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
@@ -289,19 +290,41 @@ impl Ym2413PgSerialService {
         self.synthesis.advance_pm_lfo_samples(1);
     }
 
+    /// Resolve the core cycle to a melodic slot when this slot is not owned
+    /// by Rhythm Mode. Percussion-owned and transitional slots remain gated
+    /// until their complete PG/operator path is integrated.
+    fn require_melodic_slot(
+        context: &Ym2413SlotServiceContext,
+    ) -> Result<Ym2413SlotDescriptor, Ym2413PgSerialError> {
+        let dispatch = dispatch_serial_slot(
+            context.event.cycle,
+            &context.registers,
+            context.rm_enable,
+            context.envelope_input.rhythm_select,
+        )
+        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
+
+        match dispatch {
+            Ym2413SerialSlotDispatch::Melodic { slot }
+                if slot == context.event.selected_operator =>
+            {
+                Ok(slot)
+            }
+            Ym2413SerialSlotDispatch::Melodic { .. } => Err(Ym2413PgSerialError::InvalidState),
+            _ => Err(Ym2413PgSerialError::UnsupportedRhythmMode {
+                cycle: context.event.cycle,
+                channel: context.event.selected_operator.channel,
+            }),
+        }
+    }
+
     /// Reproduce PreparePatch2's channel/operator parameter selection for the
     /// next serial cycle. Rhythm-specific patch routing is deliberately gated.
     fn latch_next_parameters(
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
-        let descriptor = context.event.selected_operator;
-        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
-            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: descriptor.channel,
-            });
-        }
+        let descriptor = Self::require_melodic_slot(context)?;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let parameters = match descriptor.operator {
             Ym2413Operator::Modulator => config.modulator_phase,
@@ -332,16 +355,10 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
-        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
-            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: context.event.selected_operator.channel,
-            });
-        }
+        let descriptor = Self::require_melodic_slot(context)?;
         // Nuked order in this pre-EG hook:
         // PreparePatch1 -> Channel -> PhaseGenerate -> Operator
         // -> PhaseCalcIncrement -> EnvelopeOutput -> EnvelopeKSLTL.
-        let descriptor = context.event.selected_operator;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let (operator_patch, ksl_attenuation, total_level, operator_index) =
             match descriptor.operator {
@@ -428,7 +445,8 @@ mod tests {
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
     use crate::envelope_sequencer::{
-        EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput,
+        EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick,
+        EnvelopeSlotInput,
     };
     use crate::phase::PhaseGenerator;
     use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
@@ -675,34 +693,81 @@ mod tests {
     }
 
     #[test]
-    fn rhythm_mode_is_rejected_before_any_melodic_pg_state_is_mutated() {
-        let mut service = Ym2413PgSerialService::new(initial_bank(0));
-        let before = service.export_state();
-        let mut registers = [0; 64];
-        registers[0x0e] = 0x20;
-        let context = context(0, registers, 0);
-        assert_eq!(
-            service.before_eg_update(&context),
-            Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: 0,
-                channel: 1,
-            })
-        );
-        assert_eq!(service.export_state(), before);
+    fn rhythm_mode_keeps_unaffected_melodic_slots_on_the_normal_serial_path() {
+        for cycle in (0..18_u8).filter(|cycle| !(11..=16).contains(cycle)) {
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            let before = service.export_state();
+            let mut registers = [0; 64];
+            registers[0x0e] = 0x20;
+            let mut context = context(cycle, registers, 0);
+            context.rm_enable = 0xff;
+            context.rm_select = 6;
+            context.envelope_input.rhythm_select = EnvelopeRhythmSelect::None;
+
+            service.before_eg_update(&context).unwrap();
+            let (tick, post) = tick(cycle);
+            service.after_eg_update(&context, tick, post).unwrap();
+            assert_ne!(
+                service.export_state(),
+                before,
+                "melodic cycle {cycle} did not advance in Rhythm Mode"
+            );
+        }
     }
 
     #[test]
-    fn delayed_rhythm_enable_latches_are_rejected_until_they_drain() {
-        for (rm_enable, rm_select) in [(0x40, 6), (0, 2)] {
+    fn rhythm_owned_slots_remain_gated_until_pg_operator_dispatch_is_integrated() {
+        let rhythm_cycles = [
+            (11, EnvelopeRhythmSelect::BassDrumFirst),
+            (12, EnvelopeRhythmSelect::HiHat),
+            (13, EnvelopeRhythmSelect::TomTom),
+            (14, EnvelopeRhythmSelect::BassDrumSecond),
+            (15, EnvelopeRhythmSelect::SnareDrum),
+            (16, EnvelopeRhythmSelect::TopCymbal),
+        ];
+
+        for (cycle, selector) in rhythm_cycles {
             let mut service = Ym2413PgSerialService::new(initial_bank(0));
             let before = service.export_state();
-            let mut context = context(0, [0; 64], 0);
-            context.rm_enable = rm_enable;
-            context.rm_select = rm_select;
+            let mut registers = [0; 64];
+            registers[0x0e] = 0x20;
+            let mut context = context(cycle, registers, 0);
+            context.rm_enable = 0xff;
+            context.rm_select = selector as u8;
+            context.envelope_input.rhythm_select = selector;
 
             assert!(matches!(
                 service.before_eg_update(&context),
-                Err(Ym2413PgSerialError::UnsupportedRhythmMode { cycle: 0, .. })
+                Err(Ym2413PgSerialError::UnsupportedRhythmMode {
+                    cycle: actual,
+                    ..
+                }) if actual == cycle
+            ));
+            assert_eq!(service.export_state(), before);
+        }
+    }
+
+    #[test]
+    fn rhythm_slot_mode_and_selector_transitions_are_rejected_transactionally() {
+        let cases = [
+            (true, 0x80, EnvelopeRhythmSelect::HiHat),
+            (false, 0x7f, EnvelopeRhythmSelect::None),
+            (true, 0xff, EnvelopeRhythmSelect::None),
+        ];
+
+        for (rhythm_enabled, rm_enable, selector) in cases {
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            let before = service.export_state();
+            let mut registers = [0; 64];
+            registers[0x0e] = if rhythm_enabled { 0x20 } else { 0 };
+            let mut context = context(12, registers, 0);
+            context.rm_enable = rm_enable;
+            context.rm_select = selector as u8;
+            context.envelope_input.rhythm_select = selector;
+
+            assert!(matches!(
+                service.before_eg_update(&context),
+                Err(Ym2413PgSerialError::UnsupportedRhythmMode { cycle: 12, .. })
             ));
             assert_eq!(service.export_state(), before);
         }

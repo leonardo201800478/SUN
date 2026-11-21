@@ -195,6 +195,31 @@ def main() -> int:
     if cycles != set(range(18)):
         raise ValueError("Nuked trace does not cover all eighteen serial cycles")
 
+    # The full arithmetic differential uses the mutable user patch (code 0)
+    # on every channel. Preset-ROM candidates are checked by the separate
+    # candidate-aware latch characterization so their data uncertainty is not
+    # mistaken for a PG/EG/operator timing regression.
+    observed_instruments = {int(row["c_instr"]) for row in nuked_samples}
+    if observed_instruments != {0}:
+        raise ValueError(
+            f"full integrated differential must use only user patch code 0, "
+            f"observed {sorted(observed_instruments)}"
+        )
+
+    # The fixture changes channel FNUM/BLOCK while playback is active. Assert
+    # that the changed values reached Nuked's retained parameter latches.
+    observed_fnums = {int(row["c_fnum"]) for row in nuked_samples}
+    required_fnums = {0x155, 0x0A3, 0x1C1}
+    if not required_fnums.issubset(observed_fnums):
+        missing = sorted(required_fnums - observed_fnums)
+        raise ValueError(f"live FNUM updates did not reach serial latches: {missing}")
+
+    observed_blocks = {int(row["c_block"]) for row in nuked_samples}
+    required_blocks = {2, 5, 6}
+    if not required_blocks.issubset(observed_blocks):
+        missing = sorted(required_blocks - observed_blocks)
+        raise ValueError(f"live BLOCK updates did not reach serial latches: {missing}")
+
     for index, (nuked, rust) in enumerate(
         zip(nuked_samples, rust_rows, strict=True)
     ):
@@ -222,6 +247,9 @@ def main() -> int:
                 "status": "PASS",
                 "compared_calls": len(nuked_samples),
                 "serial_cycles": sorted(cycles),
+                "observed_instrument_codes": sorted(observed_instruments),
+                "observed_live_fnums": sorted(required_fnums),
+                "observed_live_blocks": sorted(required_blocks),
                 "compared_scalar_fields": list(SCALAR_FIELDS),
                 "compared_array_fields": list(ARRAY_FIELDS),
                 "derived_checks": ["c_ksl_attenuation"],
