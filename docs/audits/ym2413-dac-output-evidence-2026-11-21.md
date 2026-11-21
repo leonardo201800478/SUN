@@ -20,11 +20,17 @@ volume settings 14 and 15 the signal takes the four distinct values
 `-1, -0, +0, +1`.
 
 Therefore the old statement “the YM2413 has only 511 measured DAC values and
--256 is absent” is superseded. The evidence supports a 9-bit DAC resolution
-and 512 measured output peaks, including two separate central measured
-levels interpreted as signed zeros. The author's proposed idealized collapse
-of those two levels is explicitly tentative, not a demonstrated raw digital
-encoding.
+-256 is absent” is superseded. The 2015 note reports 512 output peaks,
+including two separate central measured levels interpreted as signed zeros.
+However, the later checked-in calibration implementation uses
+`insertMissing()` to insert a midpoint when adjacent detected peaks are more
+than 160 ADC counts apart. The generated `.peaks`/`.bins` artifacts used for
+the published `.out` sequences are absent from the pinned tree, so the exact
+number of directly observed peaks versus heuristically inserted peaks cannot
+be independently recovered from the committed artifacts. The report supports
+the 512-peak interpretation, but its calibration provenance must remain
+qualified. The author's proposed idealized collapse of the two central levels
+is explicitly tentative, not a demonstrated raw digital encoding.
 
 The 2015-03-05 note also describes a 32x16 switch matrix and thermometer
 decoders inferred from a die image. The SMS Power YM2413 development index
@@ -38,7 +44,7 @@ dual-zero observation.
 ### Supported by the sources
 
 - Yamaha's application manual specifies a built-in 9-bit DAC.
-- Andete's oversampled physical output measurements resolve 512 peaks.
+- Andete's 2015 note reports 512 oversampled output peaks; the calibration code's missing-peak insertion heuristic and absent generated artifacts prevent independent confirmation that all 512 were directly observed.
 - The two central peaks are separately observed and described as `-0` and
   `+0` in the 2015-03-05 and 2015-03-11 notes.
 - The measured volume response includes four distinct values
@@ -57,8 +63,9 @@ dual-zero observation.
 - Whether the two measured zero peaks should remain distinct in an idealized
   digital model or be collapsed at a later analog/output abstraction.
 
-The 512 measured peaks do not, by themselves, reveal the raw DAC input bit
-pattern. In particular, no shift, mask, sign extension or reinterpretation of
+The reported 512 peaks (with directly observed versus inserted peaks
+not independently recoverable from the committed calibration artifacts) do
+not, by themselves, reveal the raw DAC input bit pattern. In particular, no shift, mask, sign extension or reinterpretation of
 the operator's signed `i16` value is justified by these notes.
 
 ## FM-5.3 implementation consequence
