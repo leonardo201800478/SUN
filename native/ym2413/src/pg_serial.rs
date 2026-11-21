@@ -16,7 +16,7 @@ use crate::serial_operator::{
     Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
     Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
 };
-use crate::slot::{Ym2413Operator, nuked_pg_phase_slot_descriptor};
+use crate::slot::{Ym2413Operator, Ym2413SlotDescriptor, nuked_pg_phase_slot_descriptor};
 use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
 use crate::synthesis::{
     Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
@@ -289,19 +289,43 @@ impl Ym2413PgSerialService {
         self.synthesis.advance_pm_lfo_samples(1);
     }
 
+    /// Resolve the core cycle to a melodic slot when this slot is not owned
+    /// by Rhythm Mode. Percussion-owned and transitional slots remain gated
+    /// until their complete PG/operator path is integrated.
+    fn require_melodic_slot(
+        context: &Ym2413SlotServiceContext,
+    ) -> Result<Ym2413SlotDescriptor, Ym2413PgSerialError> {
+        let dispatch = dispatch_serial_slot(
+            context.event.cycle,
+            &context.registers,
+            context.rm_enable,
+            context.envelope_input.rhythm_select,
+        )
+        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
+
+        match dispatch {
+            Ym2413SerialSlotDispatch::Melodic { slot }
+                if slot == context.event.selected_operator =>
+            {
+                Ok(slot)
+            }
+            Ym2413SerialSlotDispatch::Melodic { .. } => {
+                Err(Ym2413PgSerialError::InvalidState)
+            }
+            _ => Err(Ym2413PgSerialError::UnsupportedRhythmMode {
+                cycle: context.event.cycle,
+                channel: context.event.selected_operator.channel,
+            }),
+        }
+    }
+
     /// Reproduce PreparePatch2's channel/operator parameter selection for the
     /// next serial cycle. Rhythm-specific patch routing is deliberately gated.
     fn latch_next_parameters(
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
-        let descriptor = context.event.selected_operator;
-        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
-            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: descriptor.channel,
-            });
-        }
+        let descriptor = Self::require_melodic_slot(context)?;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let parameters = match descriptor.operator {
             Ym2413Operator::Modulator => config.modulator_phase,
@@ -332,16 +356,10 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
-        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
-            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: context.event.selected_operator.channel,
-            });
-        }
+        let descriptor = Self::require_melodic_slot(context)?;
         // Nuked order in this pre-EG hook:
         // PreparePatch1 -> Channel -> PhaseGenerate -> Operator
         // -> PhaseCalcIncrement -> EnvelopeOutput -> EnvelopeKSLTL.
-        let descriptor = context.event.selected_operator;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let (operator_patch, ksl_attenuation, total_level, operator_index) =
             match descriptor.operator {
