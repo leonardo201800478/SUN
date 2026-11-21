@@ -78,8 +78,7 @@ def main() -> int:
             "op_calc_rm_enable",
             "rm_select",
             "rm_noise",
-            "rhythm_control",
-            "rhythm_mode_enabled",
+            "rhythm",
             *RHYTHM_OUTPUT_FIELDS,
         )
         missing = [field for field in required if field not in nuked]
@@ -88,7 +87,8 @@ def main() -> int:
             "op_calc_rm_enable",
             "rm_select",
             "rhythm_noise_register",
-            "rhythm",
+            "rhythm_control",
+            "rhythm_mode_enabled",
             *RHYTHM_OUTPUT_FIELDS,
         )
         missing.extend(field for field in rust_required if field not in rust)
