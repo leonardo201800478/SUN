@@ -1,6 +1,6 @@
 # YM2413 FM Completion Scorecard
 
-**Data de referência:** 2026-11-20
+**Data de referência:** 2026-11-21
 **Repositório:** `leonardo201800478/sega-emulator`
 **Main após publicação do EG (PR #1084, 2026-11-20):** `2a1abf1e9443bd40650f1449da9f309e6d91536c`
 **HEAD validado antes do merge EG:** `0d7b32b2d350019880037422ae8f85b449ad4058`; **merge commit:** `2a1abf1e9443bd40650f1449da9f309e6d91536c` (PR #1084)
@@ -11,7 +11,7 @@ Este scorecard distingue implementação de componente, integração funcional, 
 
 **Status geral: EM DESENVOLVIMENTO — NÃO PRONTO PARA TESTES CONTROLADOS COM ROMs.**
 
-A fundação de registradores, slots, clock, PG-1 e PM LFO permanece integrada à main. O EG serial de 18 slots está publicado e integrado ao Ym2413Core pela PR #1084. Os hooks core-owned estão na PR #1133 (aberta), e o serviço PG serial integrado a esses hooks está na PR #1145 (aberta, empilhada sobre #1133), com diferencial executável de 147.456 chamadas contra Nuked aprovado. As PRs #1133/#1145 ainda não foram integradas à main. Operadores seriais, Rhythm Mode completo, saída PCM FM e runtime SMS ainda não formam um pipeline FM completo.
+A fundação de registradores, slots, clock, PG-1, PM LFO e EG serial de 18 slots permanece integrada à main. Os hooks core-owned estão na PR #1133 e o serviço PG serial na PR #1145; a PR #1147 (aberta, empilhada sobre #1145) acrescenta o operador serial FM-3A. No HEAD `b538a6904c344fec5e1c5dc8bb08401d92c4c220`, o diferencial integrado PG+EG+AM+operador e o diferencial serial PG contra Nuked passaram com 147.456 chamadas; Rustfmt, Clippy e testes do workspace também passaram. As PRs #1133/#1145/#1147 ainda não foram integradas à main. Rhythm Mode completo, acumulação dos nove canais, saída PCM FM e integração SMS ainda não formam um pipeline FM completo.
 
 ## Marcos já publicados
 
@@ -32,7 +32,7 @@ A fundação de registradores, slots, clock, PG-1 e PM LFO permanece integrada �
 |---|---|---|---|
 | FM-1 | PG/EG serial e contrato de eventos | **Parcial** | EG serial publicado; hooks core-owned na PR #1133 aberta. |
 | FM-2 | Serviço PG serial real | **Implementado e diferencial PASS em PR aberta** | PR #1145; 18 acumuladores, latches, PM counter, reset event e comparação serial com Nuked. Ainda não integrado à main. |
-| FM-3 | Operadores, feedback e modulação | **Pendente de integração serial** | Componentes isolados existem; falta implementar os estágios seriais OPLL_Operator e validar latches/saídas. |
+| FM-3 | Operadores, feedback e modulação | **FM-3A diferencial PASS; fechamento da etapa em revisão** | PR #1147: 147.456 chamadas integradas e serial PG contra Nuked; operador, AM LFO, PG/EG, latches e Test Mode. Snapshot/restore, rollback/retry, execução particionada e CI Rust passaram no HEAD registrado. Sem merge; FM-3 completo ainda exige fechamento dos canais e saída digital. |
 | FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder e presets candidatos existem; falta integração com operadores seriais e validação diferencial completa. |
 | FM-5 | Rhythm Mode | **Parcial** | Mapa/LFSR existem; cinco vozes e roteamento PG/operadores ainda não integrados. |
 | FM-6 | Saída digital FM | **Pendente** | Fechar representação, quantização e PCM digital; sem alegação de fidelidade analógica. |
@@ -65,10 +65,10 @@ A tabela histórica abaixo preserva a numeração anterior do scorecard. Para ex
 | PM LFO global | Implementado | Período 8192 amostras; não confundir avanço por amostras com clocks |
 | EG serial (18 operadores) | Implementado e integrado ao `Ym2413Core`; publicado na main pela PR #1084 | Timer compartilhado, KON/OFF/DOKON/SUS, decodificação de registradores e snapshots no estado do core; replay diferencial do core e do sequenciador aprovado no HEAD `0d7b32b` |
 | Log-Sine / EXP | Implementados como tabelas inteiras e funções de lookup isoladas | Ainda não integrados ao pipeline dos 18 slots; modelo matemático candidato |
-| Modulator / carrier | Par de operadores candidato implementado | Recebe PG/EG/KSL/AM externamente; ainda sem instrument ROM e sem slot scheduling |
-| Feedback FM | Histórico p0/p1 e cálculo de fase implementados | Pendente validação independente de PCM e integração ao canal real |
+| Modulator / carrier | Par de operadores integrado ao serviço serial FM-3A na PR #1147 | Differential integrado PASS contra Nuked em 147.456 chamadas; PR aberta e não integrada à main. Instrument ROM e acumulação final de canal permanecem fora do escopo |
+| Feedback FM | Histórico p0/p1, seleção serial e cálculo de fase integrados na PR #1147 | Comparação integrada de feedback e saída do operador PASS; PCM e acumulação final de canal permanecem pendentes |
 | KSL | Lookup BLOCK/FNUM e escala KSL=0..3 implementados | Ainda não conectado ao decoder de instrumentos/canais |
-| AM LFO | Implementado como LFO compartilhado, sample-clocked, 210 posições, 64 amostras/posição, 14 níveis e snapshot | Ainda não conectado aos bits AM dos instrumentos/18 operadores |
+| AM LFO | LFO sample-clocked candidato preservado; AM serial shift/carry integrado ao operador na PR #1147 | Diferencial serial AM PASS — 147.456 chamadas; ligação completa com instrumentos e PCM permanece pendente |
 | Instrument ROM | 15 patches candidatos licenciados (MIT) e decodificação do user patch | Valores não são dump físico certificado; revisão de hardware ainda necessária |
 | Channel register decode | FNUM/BLOCK/KEY-ON/SUSTAIN/INST/VOL para nove canais | Ainda não conectado ao pipeline temporal/operadores |
 | Rhythm / LFSR | Bit RHYTHM de $0E, mapa de seis slots e LFSR de 23 bits implementados como primitiva explicitamente clockada (PRs #1010/#1011) | Cinco vozes, aplicação do ruído, seed/cadência física, envelopes e pipeline rítmico não implementados |
@@ -111,7 +111,7 @@ A tabela histórica abaixo preserva a numeração anterior do scorecard. Para ex
 
 ## Próxima dependência técnica
 
-O próximo desenvolvimento funcional é FM-3: implementar os estágios seriais do operador a partir do estado pré-EG do core e dos latches do banco PG. O decoder de canal deve alimentar os latches temporais de MULTI/PG, KSR/EG, KSL, AM, waveform, TL/VOL e feedback; não avançar um segundo EG no banco de síntese. Os 15 patches continuam candidatos até comparação física.
+A próxima dependência é concluir a revisão técnica da PR #1147 e fechar os últimos critérios temporais de FM-3A: confirmar no CI atual os testes de snapshot/restore, clone, execução particionada e rollback/retry do core junto ao serviço PG; finalizar a caracterização EG ainda em execução; e atualizar esta evidência antes de qualquer merge. O diferencial FM-3 integrado já passou. Não criar um segundo EG nem reabrir FM-1/FM-2 sem regressão demonstrada. Depois da aprovação e integração das PRs empilhadas, prosseguir para fechamento FM-3 completo e, em seguida, FM-4.
 
 Não iniciar a integração SMS ou mixer como substituto da síntese FM ainda inexistente. Não declarar o chip pronto para ROMs até haver PCM FM reproduzível, integração temporal e testes de regressão.
 
@@ -1259,3 +1259,35 @@ A caracterização EG run 44856572947 ainda estava em execução no momento dest
 5. Continuous/partitioned equivalence, clone independence, snapshot/restore, rollback and retry idempotence.
 6. Rust workspace regression, Clippy, formatting, and relevant CI gates PASS.
 7. Independent review with no unresolved P1/P2 findings.
+
+
+## Evidência FM-3A — 2026-11-21
+
+**PR:** [#1147](https://github.com/leonardo201800478/sega-emulator/pull/1147) — branch `feat/ym2413-fm3-serial-operator` — HEAD `b538a6904c344fec5e1c5dc8bb08401d92c4c220`. PR aberta, sem merge. Base empilhada: #1145 sobre #1133.
+
+| Gate | Execução | Resultado |
+|---|---:|---|
+| YM2413 Nuked PG differential | 44865109031 | PASS; operador/feedback, AM LFO, FM-3 integrado, PG serial, 18 acumuladores, KEY-ON/KEY-OFF e auditoria aritmética MAME/ymfm |
+| Rust CI | 44865109035 | PASS; Rustfmt, Clippy, workspace unit/integration tests, observability feature tests, workflow validation e documentation hygiene |
+| External Nuked oracle adapter | 44865109047 | PASS |
+| Rhythm reset differential | 44865109138 | PASS; não implica Rhythm Mode completo |
+| EG characterization | 44865109038 | Em execução no momento desta atualização; não contabilizado como PASS |
+
+### Cobertura diferencial FM-3A
+
+- 147.456 chamadas de `OPLL_Clock`, cobrindo os 18 ciclos seriais.
+- Operador: `op_exp_m`, `op_exp_s`, `op_logsin`, `op_neg`, `op_mod`, feedback, `ch_out`, índice de fase e saída.
+- AM LFO: contador, direção, carry, step e saída; Test Mode 0, 1, 2, 4 e 8.
+- PG serial: acumuladores `uint32_t`, `pg_phase_next`, `pg_inc` e latch `pg_out` `uint16_t`; 2.191.388 observações com bits acima do bit 18; dois eventos de reset de fase e 35 chamadas com DOKON ativo.
+- O diferencial integrado preserva as comparações de `c_instr` e `c_op` na fronteira de seleção efetivamente consumida pelo Nuked.
+- O temporizador EG recebe Test Mode bit 3 e o bit 2 de `write_data` no estágio de atualização correto.
+
+### Evidência temporal e snapshots
+
+- Execução contínua versus blocos irregulares: PASS nos testes do workspace.
+- Snapshot/restauração conjunta de `Ym2413Core` e `Ym2413PgSerialService`, inclusive checkpoint após 37 input clocks: teste adicionado e executado pelo CI.
+- Rollback transacional após falha injetada no ciclo 3 e retry comparado com execução de referência: teste adicionado e executado pelo CI.
+- Clone independente e snapshots do serviço PG: testes existentes preservados e executados pelo CI.
+- Dois findings P2 da revisão da PR #1147 estão resolvidos; nenhum thread de revisão permanece aberto.
+
+**Limite da conclusão:** FM-3A tem equivalência diferencial integrada demonstrada e seus testes Rust passaram. Isso não conclui FM-3 inteiro, FM-4, Rhythm Mode, acumulação digital de canais, PCM, mixer ou integração SMS. Não fazer merge antes da auditoria final das dependências empilhadas e do resultado final da caracterização EG.
