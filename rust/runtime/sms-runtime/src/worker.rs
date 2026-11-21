@@ -899,6 +899,34 @@ pub enum SmsFmOutputPolicy {
     Muted,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SmsFmHardwareConfig {
+    has_integrated_fm: bool,
+    output_policy: SmsFmOutputPolicy,
+}
+
+impl SmsFmHardwareConfig {
+    const fn without_fm() -> Self {
+        Self {
+            has_integrated_fm: false,
+            output_policy: SmsFmOutputPolicy::Muted,
+        }
+    }
+
+    const fn integrated(output_policy: SmsFmOutputPolicy) -> Self {
+        Self {
+            has_integrated_fm: true,
+            output_policy,
+        }
+    }
+}
+
+struct SmsWorkerRuntimeConfig {
+    region: String,
+    vdp_revision: SmsVdpRevision,
+    fm_output_policy: SmsFmOutputPolicy,
+}
+
 /// SMS digital PSG reconstruction selected for the common audio output path.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AudioRendererMode {
@@ -1542,7 +1570,6 @@ impl SmsTemporalWorker {
                 }
             },
         };
-        let has_integrated_fm = false;
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             None,
@@ -1550,8 +1577,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            has_integrated_fm,
-            SmsFmOutputPolicy::Muted,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1591,7 +1617,6 @@ impl SmsTemporalWorker {
                 }
             },
         };
-        let has_integrated_fm = false;
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             Some(bios),
@@ -1599,8 +1624,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            has_integrated_fm,
-            SmsFmOutputPolicy::Muted,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1619,8 +1643,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            false,
-            SmsFmOutputPolicy::Muted,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1696,8 +1719,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            true,
-            fm_output_policy,
+            SmsFmHardwareConfig::integrated(fm_output_policy),
         )
     }
 
@@ -1751,8 +1773,7 @@ impl SmsTemporalWorker {
         vdp_revision: SmsVdpRevision,
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
-        has_integrated_fm: bool,
-        fm_output_policy: SmsFmOutputPolicy,
+        fm_hardware: SmsFmHardwareConfig,
     ) -> Result<Self, String> {
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
@@ -1796,7 +1817,7 @@ impl SmsTemporalWorker {
                     worker_vdp_revision,
                     bios.clone(),
                     cartridge_sram_size,
-                    has_integrated_fm,
+                    fm_hardware.has_integrated_fm,
                 )
                 .and_then(|mut machine| {
                     if let Some(contents) = initial_sram.as_deref() {
@@ -1819,11 +1840,13 @@ impl SmsTemporalWorker {
                     machine,
                     rom,
                     bios,
-                    worker_region,
-                    worker_vdp_revision,
+                    SmsWorkerRuntimeConfig {
+                        region: worker_region,
+                        vdp_revision: worker_vdp_revision,
+                        fm_output_policy: fm_hardware.output_policy,
+                    },
                     receiver,
                     worker_telemetry,
-                    fm_output_policy,
                 );
             })
             .map_err(|error| format!("could not start SMS machine worker: {error}"))?;
@@ -2685,12 +2708,15 @@ fn worker_loop(
     mut machine: SmsTemporalMachine,
     mut rom: Vec<u8>,
     bios: Option<Vec<u8>>,
-    region: String,
-    vdp_revision: SmsVdpRevision,
+    runtime_config: SmsWorkerRuntimeConfig,
     commands: Receiver<WorkerCommand>,
     telemetry: Arc<WorkerTelemetry>,
-    fm_output_policy: SmsFmOutputPolicy,
 ) {
+    let SmsWorkerRuntimeConfig {
+        region,
+        vdp_revision,
+        fm_output_policy,
+    } = runtime_config;
     let mut running = false;
     let mut breakpoints = BreakpointSet::default();
     let mut trace_publisher: Option<DiagnosticPublisher<SmsTemporalTraceEvent>> = None;
@@ -3352,7 +3378,8 @@ mod tests {
     use super::{
         AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
-        Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
+        Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsFmOutputPolicy, SmsTemporalWorker,
+        SpriteLimitMode,
         WorkerTelemetry, build_sms_temporal_machine,
         build_sms_temporal_machine_with_revision_and_sram_size,
         build_sms_temporal_machine_with_revision_bios_sram_size_and_fm,
