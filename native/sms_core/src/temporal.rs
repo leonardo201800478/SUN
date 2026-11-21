@@ -15,12 +15,14 @@ use sega_temporal_core::{
     ClockDomainSnapshot, ClockRatio, HardwarePhase, MachineTime, PlatformPriority,
 };
 
-pub const SMS_TEMPORAL_COORDINATOR_STATE_VERSION: u16 = 5;
+pub const SMS_TEMPORAL_COORDINATOR_STATE_VERSION: u16 = 6;
 pub const SMS_Z80_CLOCK_DOMAIN_ID: ClockDomainId = ClockDomainId(0);
 /// PSG input clock follows the SMS Z80 clock on the supported SMS profiles.
 pub const SMS_PSG_CLOCK_DOMAIN_ID: ClockDomainId = ClockDomainId(1);
 /// Current scanline VDP clock domain, expressed in Z80 T-state units.
 pub const SMS_VDP_CLOCK_DOMAIN_ID: ClockDomainId = ClockDomainId(2);
+/// YM2413 input clock, present only on an explicitly configured Japanese SMS FM board.
+pub const SMS_YM2413_CLOCK_DOMAIN_ID: ClockDomainId = ClockDomainId(3);
 
 /// Typed machine event consumed by the SMS coordinator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,25 +109,36 @@ impl SmsTemporalCoordinator {
     /// scanline-VDP domains with the same cycle ratio and advances them only at
     /// scheduler boundaries.
     pub fn new(master_ticks_per_tstate: u64) -> Result<Self, SmsTemporalCoordinatorError> {
+        Self::new_with_optional_ym2413(master_ticks_per_tstate, false)
+    }
+
+    /// Construct an SMS timeline with the optional Japanese Master System YM2413 clock.
+    pub fn new_with_ym2413(
+        master_ticks_per_tstate: u64,
+    ) -> Result<Self, SmsTemporalCoordinatorError> {
+        Self::new_with_optional_ym2413(master_ticks_per_tstate, true)
+    }
+
+    fn new_with_optional_ym2413(
+        master_ticks_per_tstate: u64,
+        include_ym2413: bool,
+    ) -> Result<Self, SmsTemporalCoordinatorError> {
         if master_ticks_per_tstate == 0 {
             return Err(SmsTemporalCoordinatorError::ZeroTStateScale);
         }
         let mut scheduler = MachineScheduler::new();
-        scheduler.register_clock_domain(
+        let ratio = ClockRatio::new(1, master_ticks_per_tstate)
+            .map_err(|_| SmsTemporalCoordinatorError::InvalidState)?;
+        for domain in [
             SMS_Z80_CLOCK_DOMAIN_ID,
-            ClockRatio::new(1, master_ticks_per_tstate)
-                .map_err(|_| SmsTemporalCoordinatorError::InvalidState)?,
-        )?;
-        scheduler.register_clock_domain(
             SMS_PSG_CLOCK_DOMAIN_ID,
-            ClockRatio::new(1, master_ticks_per_tstate)
-                .map_err(|_| SmsTemporalCoordinatorError::InvalidState)?,
-        )?;
-        scheduler.register_clock_domain(
             SMS_VDP_CLOCK_DOMAIN_ID,
-            ClockRatio::new(1, master_ticks_per_tstate)
-                .map_err(|_| SmsTemporalCoordinatorError::InvalidState)?,
-        )?;
+        ] {
+            scheduler.register_clock_domain(domain, ratio)?;
+        }
+        if include_ym2413 {
+            scheduler.register_clock_domain(SMS_YM2413_CLOCK_DOMAIN_ID, ratio)?;
+        }
         Ok(Self {
             scheduler,
             master_ticks_per_tstate,
@@ -287,6 +300,15 @@ impl SmsTemporalCoordinator {
             .map_err(Into::into)
     }
 
+    /// Inspect the optional YM2413 input-clock domain without changing the timeline.
+    pub fn ym2413_clock_snapshot(
+        &self,
+    ) -> Result<ClockDomainSnapshot, SmsTemporalCoordinatorError> {
+        self.scheduler
+            .clock_snapshot(SMS_YM2413_CLOCK_DOMAIN_ID)
+            .map_err(Into::into)
+    }
+
     /// Export the complete scheduler timeline and the profile scale.
     pub fn export_state(&self) -> SmsTemporalCoordinatorState {
         SmsTemporalCoordinatorState {
@@ -323,7 +345,25 @@ impl SmsTemporalCoordinator {
             .iter()
             .find(|domain| domain.id == SMS_VDP_CLOCK_DOMAIN_ID)
             .ok_or(SmsTemporalCoordinatorError::InvalidState)?;
-        if state.scheduler.clock_domains.len() != 3
+        let ym2413_domain = state
+            .scheduler
+            .clock_domains
+            .iter()
+            .find(|domain| domain.id == SMS_YM2413_CLOCK_DOMAIN_ID);
+        let ym2413_domain_valid = match ym2413_domain {
+            Some(ym) => {
+                state.scheduler.clock_domains.len() == 4
+                    && ym.ratio_numerator == 1
+                    && ym.ratio_denominator == state.master_ticks_per_tstate
+                    && ym.current_time == domain.current_time
+                    && ym.total_cycles == domain.total_cycles
+                    && ym.phase == domain.phase
+                    && ym.registration_start == domain.registration_start
+                    && ym.initial_phase == domain.initial_phase
+            }
+            None => state.scheduler.clock_domains.len() == 3,
+        };
+        if !ym2413_domain_valid
             || domain.ratio_numerator != 1
             || domain.ratio_denominator != state.master_ticks_per_tstate
             || psg_domain.ratio_numerator != 1
