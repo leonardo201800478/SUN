@@ -1692,3 +1692,16 @@ Nuked differential. The measured-domain operator conversion helper does not
 solve this temporal/pin-routing requirement.
 
 Full audit: `docs/audits/ym2413-mo-ro-cycle-alignment-2026-11-21.md`.
+
+
+## Exact-head formatting correction — 2026-11-21
+
+CI #9864 exposed two formatting-only failures:
+- Rustfmt requested a single-line assignment in the exhaustive 512-code test.
+- Documentation hygiene rejected five Markdown hard-break lines with trailing spaces in the EG #561 audit.
+
+Both were corrected without changing conversion semantics or characterization data. The Rust formatting correction is commit
+`05defa8d7f8f0e8c6eba8be759d06d0a0011a126`; the audit whitespace correction is commit
+`909bfea995848f3d925fef55a88fc8e4824045f1`.
+
+All exact-head workflows must be rerun on the final branch HEAD; no pass is claimed from the failed formatting run.
