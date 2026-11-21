@@ -381,10 +381,6 @@ impl Ym2413Core {
     ///
     /// The core state is transactional. An integrated pipeline must also stage
     /// its own service state transactionally if a service callback can fail.
-    #[expect(
-        dead_code,
-        reason = "Staged FM-1B entry point; consumed by the serial synthesis service integration."
-    )]
     pub(crate) fn advance_input_clocks_with_slot_service<S: slot_service::Ym2413SlotService>(
         &mut self,
         clocks: u64,
@@ -473,10 +469,6 @@ impl Ym2413Core {
 
     /// Integrated path: service pre-EG and post-EG stages around exactly one
     /// core-owned serial EG update.
-    #[expect(
-        dead_code,
-        reason = "Staged FM-1B slot hook; consumed by the serial synthesis service integration."
-    )]
     fn clock_one_slot_with_service<S: slot_service::Ym2413SlotService>(
         &mut self,
         service: &mut S,
@@ -987,7 +979,7 @@ mod tests {
 
         assert_eq!(
             core.advance_input_clocks_with_slot_service(
-                u64::from(YM2413_INPUT_CLOCKS_PER_SLOT) * u64::from(YM2413_SLOT_COUNT as u32),
+                YM2413_INPUT_CLOCKS_PER_SLOT * YM2413_SLOT_COUNT as u64,
                 &mut service,
             ),
             Ok(1)
@@ -1026,7 +1018,7 @@ mod tests {
 
     #[test]
     fn internal_slot_service_is_equivalent_for_continuous_and_partitioned_blocks() {
-        let total = u64::from(YM2413_INPUT_CLOCKS_PER_ROTATION) + 7;
+        let total = YM2413_INPUT_CLOCKS_PER_ROTATION + 7;
         let mut whole = Ym2413Core::new();
         let mut whole_service = RecordingSlotService::default();
         whole
@@ -1093,7 +1085,7 @@ mod tests {
         let mut core = Ym2413Core::new();
         let before = core.export_state();
         let result = core.advance_input_clocks_with_slot_service(
-            u64::from(YM2413_INPUT_CLOCKS_PER_SLOT) * 6,
+            YM2413_INPUT_CLOCKS_PER_SLOT * 6,
             &mut FailingService,
         );
 
@@ -1113,7 +1105,7 @@ mod tests {
 
                 let mut service = RecordingSlotService::default();
                 core.advance_input_clocks_with_slot_service(
-                    u64::from(YM2413_INPUT_CLOCKS_PER_SLOT),
+                    YM2413_INPUT_CLOCKS_PER_SLOT,
                     &mut service,
                 )
                 .unwrap();
