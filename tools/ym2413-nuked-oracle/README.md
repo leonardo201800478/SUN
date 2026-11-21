@@ -247,6 +247,23 @@ python3 tools/ym2413-nuked-oracle/compare_fm3_integrated.py \
   --rust-trace rust-fm3.jsonl
 ```
 
+
+## Integrated Rhythm Mode PG/EG/operator differential
+
+The PG differential workflow also drives the production Rust core and serial
+service with the same delayed register-write event stream used by pinned
+Nuked-OPLL. The Rust trace is configured with LFSR register candidate zero to
+match Nuked's software reset state. This is a software-oracle alignment
+candidate only; it is not a claim about the physical YM2413 power-on seed.
+
+The comparator checks the shared integrated PG/EG/AM/operator fields on every
+serial call, plus effective `rm_enable`, `rm_select`, the post-DoRhythm
+23-bit register, and the five retained rhythm operator outputs. The event
+sequence exercises each percussion trigger individually, all five together,
+a release interval and a second simultaneous trigger. It is still a software
+differential and does not establish the operator-to-raw-DAC conversion, analog
+MO/RO voltage, or physical four-clock subphase alignment.
+
 ## Rhythm Mode serial operator differential
 
 The PG differential workflow also creates a separate all-five-voice Rhythm Mode
