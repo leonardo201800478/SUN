@@ -6,6 +6,7 @@ on:
     paths:
       - "native/ym2413/**"
       - "tools/ym2413-nuked-oracle/trace.c"
+      - "tools/ym2413-nuked-oracle/compare_rhythm_noise.py"
       - ".github/workflows/ym2413-rhythm-reset-differential.yml"
   workflow_dispatch:
 
@@ -94,6 +95,19 @@ jobs:
             tools/ym2413-nuked-oracle/trace.c \
             "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
             -o "$RUNNER_TEMP/ym2413-nuked-trace"
+
+      - name: Differentially validate slot-rate DoRhythm LFSR state
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 144 \
+            > "$RUNNER_TEMP/nuked-rhythm-noise.jsonl"
+          cargo run --quiet --locked \
+            --manifest-path native/ym2413/Cargo.toml \
+            --example rhythm_noise_trace -- 144 \
+            > "$RUNNER_TEMP/rust-rhythm-noise.jsonl"
+          python3 tools/ym2413-nuked-oracle/compare_rhythm_noise.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-rhythm-noise.jsonl" \
+            --rust-trace "$RUNNER_TEMP/rust-rhythm-noise.jsonl" \
+            --expected-calls 144
 
       - name: Capture actual post-shift Rhythm Mode reset decisions
         run: |
