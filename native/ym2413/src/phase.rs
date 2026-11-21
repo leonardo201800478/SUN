@@ -294,5 +294,4 @@ mod tests {
 
         assert_eq!(PhaseGenerator::phase_step(64, 1, 2, true, 2), Ok(258));
     }
-
 }
