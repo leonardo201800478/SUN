@@ -1424,3 +1424,51 @@ validated against the pinned oracle, but the SD SL/EG divergence and physical
 patch uncertainty remain open. Do not start FM-5.3 implementation until the
 EG characterization result and exact-head CI are checked; then use the
 measured MO/RO schedule as the basis for a separate serial output stage.
+
+
+## FM-5.3 MO/RO output-service increment — 2026-11-21
+
+**Status: SERIAL OUTPUT SERVICE IMPLEMENTED; CORE INTEGRATION PENDING.**
+
+- Reused the existing main-branch `rhythm_output.rs` retention model and
+  `output.rs` MO/RO routing; no duplicate retention or pulse-width model.
+- Added `Ym2413RhythmOutputService` to compose the five retained percussion
+  values with the six surviving melodic MO slots in Rhythm Mode.
+- Output events preserve independent MO and RO pin identity.
+- The service accepts only explicit `Ym2413DacCode` measurement-domain
+  values, snapshots the retained values/cursor, and does not infer a raw DAC
+  word from the operator's signed intermediate.
+- Directed tests cover the measured 18-slot schedule, five identical repeats,
+  MO/RO independence, 3-active/1-neutral pulse width, transactional rejection,
+  and snapshot/restore across a slot-17 to slot-0 boundary.
+
+**Not complete:** this service is not yet called by `Ym2413Core`; no raw
+DAC-word conversion, neutral voltage, sub-clock pulse phase, PCM, SMS mixer,
+or Scheduler integration is claimed. The core remains the timing authority.
+
+### EG characterization #537 result
+
+The 38-configuration AR/DR/KSR characterization completed successfully as a
+reporting workflow, with important distinctions:
+
+- Hardware-operator replay: 506,768 samples, zero level mismatches and zero
+  stage mismatches.
+- EG sequencer replay: 1,140,000 calls, zero field mismatches.
+- EG timer replay: 1,140,000 calls, zero field mismatches.
+- Baseline rate-matrix candidate: 44,064 level mismatches and 71 stage
+  mismatches across 243,884 samples.
+- The separately evaluated external-rate-phase candidate: zero level and
+  stage mismatches across its compared samples.
+
+The workflow's SUCCESS means the characterization/replays completed; it does
+not mean the baseline candidate has zero mismatches. Do not change the
+production EG timing based only on a Nuked match; preserve the independent
+hardware replay evidence and investigate the candidate-rate phase separately.
+
+### Current validation caveat
+
+The previous CI #9828 failed on rustfmt at code commit `c9a5f731...`.
+Formatting was corrected in `6249ee472cde2f9f3615d5680d7ad0ddcdc3ff7e`.
+A new draft PR for the FM-5.3 service is used to obtain fresh CI on its
+current head. Until that workflow completes, do not mark the new service
+CI-validated.
