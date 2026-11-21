@@ -375,19 +375,35 @@ impl Ym2413Core {
 
     /// Internal serial-slot advancement used by the integrated FM pipeline.
     ///
-    /// The core invokes the service before and after its single EG update for
-    /// each completed slot. The service is synchronous and internal; the host
-    /// still advances the chip in coarse-grained input-clock blocks.
+    /// The core and service are advanced as one transaction: both are staged
+    /// from their current states and committed only after every completed slot
+    /// succeeds. A failed callback therefore leaves both caller-owned states
+    /// unchanged, making a retry deterministic.
     ///
-    /// The core state is transactional. An integrated pipeline must also stage
-    /// its own service state transactionally if a service callback can fail.
+    /// The service must be a cloneable, in-memory state machine. Its callbacks
+    /// must not perform externally visible side effects because cloning cannot
+    /// roll those effects back. The host still advances the chip in
+    /// coarse-grained input-clock blocks; these hooks are not host callbacks.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn advance_input_clocks_with_slot_service<S: slot_service::Ym2413SlotService>(
+    pub(crate) fn advance_input_clocks_with_slot_service<
+        S: slot_service::Ym2413SlotService + Clone,
+    >(
         &mut self,
         clocks: u64,
         service: &mut S,
     ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
-        self.advance_input_clocks_inner(clocks, |core| core.clock_one_slot_with_service(service))
+        let mut staged_service = service.clone();
+        let result = self.advance_input_clocks_inner(clocks, |core| {
+            core.clock_one_slot_with_service(&mut staged_service)
+        });
+
+        match result {
+            Ok(rotations) => {
+                *service = staged_service;
+                Ok(rotations)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     fn advance_input_clocks_inner<E, F>(
@@ -935,7 +951,7 @@ mod tests {
             assert_eq!(restored.elapsed_input_clocks(), offset);
         }
     }
-    #[derive(Default)]
+    #[derive(Clone, Default)]
     struct RecordingSlotService {
         order: Vec<(bool, u8)>,
         before: Vec<Ym2413SlotServiceContext>,
@@ -1057,16 +1073,22 @@ mod tests {
     }
 
     #[test]
-    fn internal_slot_service_error_rolls_back_the_core_state() {
-        struct FailingService;
+    fn internal_slot_service_error_rolls_back_core_and_service_and_retry_is_idempotent() {
+        #[derive(Clone, Default, PartialEq, Eq)]
+        struct MutatingFailingService {
+            before_count: usize,
+            after_count: usize,
+            fail_cycle: Option<u8>,
+        }
 
-        impl Ym2413SlotService for FailingService {
+        impl Ym2413SlotService for MutatingFailingService {
             type Error = u8;
 
             fn before_eg_update(
                 &mut self,
                 _context: &Ym2413SlotServiceContext,
             ) -> Result<(), Self::Error> {
+                self.before_count += 1;
                 Ok(())
             }
 
@@ -1076,23 +1098,47 @@ mod tests {
                 _tick: EnvelopeSequencerTick,
                 _post_state: EnvelopeSequencerState,
             ) -> Result<(), Self::Error> {
-                if context.event.cycle == 3 {
-                    Err(3)
+                self.after_count += 1;
+                if self.fail_cycle == Some(context.event.cycle) {
+                    Err(context.event.cycle)
                 } else {
                     Ok(())
                 }
             }
         }
 
+        let clocks = YM2413_INPUT_CLOCKS_PER_SLOT * 6;
         let mut core = Ym2413Core::new();
-        let before = core.export_state();
-        let result = core.advance_input_clocks_with_slot_service(
-            YM2413_INPUT_CLOCKS_PER_SLOT * 6,
-            &mut FailingService,
-        );
+        let mut service = MutatingFailingService {
+            fail_cycle: Some(3),
+            ..MutatingFailingService::default()
+        };
+        let before_core = core.export_state();
+        let before_service = service.clone();
+
+        let result = core.advance_input_clocks_with_slot_service(clocks, &mut service);
 
         assert_eq!(result, Err(Ym2413SlotServiceAdvanceError::Service(3)));
-        assert_eq!(core.export_state(), before);
+        assert_eq!(core.export_state(), before_core);
+        assert_eq!(service, before_service);
+
+        // Disable the injected fault and retry from the exact pre-call state.
+        service.fail_cycle = None;
+        assert_eq!(
+            core.advance_input_clocks_with_slot_service(clocks, &mut service),
+            Ok(1)
+        );
+
+        let mut reference_core = Ym2413Core::new();
+        let mut reference_service = MutatingFailingService::default();
+        assert_eq!(
+            reference_core.advance_input_clocks_with_slot_service(clocks, &mut reference_service),
+            Ok(1)
+        );
+        assert_eq!(core.export_state(), reference_core.export_state());
+        assert_eq!(service, reference_service);
+        assert_eq!(service.before_count, 6);
+        assert_eq!(service.after_count, 6);
     }
     #[test]
     fn slot_service_phase_reset_uses_post_shift_rhythm_mode_latch() {
