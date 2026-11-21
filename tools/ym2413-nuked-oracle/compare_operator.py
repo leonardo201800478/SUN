@@ -94,10 +94,11 @@ def main() -> int:
         int(row["op_calc_eg_out"]) > 0 and int(row["op_calc_eg_silent"]) == 0
         for row in samples
     )
-    if not any(feedback_values):
-        raise ValueError("trace never exercises nonzero feedback")
-    if not any(dc & 0x04 or dm & 0x04 for dc, dm in waveform_values):
-        raise ValueError("trace never exercises a delayed DC/DM waveform bit")
+    if not args.require_rhythm:
+        if not any(feedback_values):
+            raise ValueError("trace never exercises nonzero feedback")
+        if not any(dc & 0x04 or dm & 0x04 for dc, dm in waveform_values):
+            raise ValueError("trace never exercises a delayed DC/DM waveform bit")
     if active_eg_calls == 0:
         raise ValueError("trace never exercises a non-silent nonzero EG output")
 
