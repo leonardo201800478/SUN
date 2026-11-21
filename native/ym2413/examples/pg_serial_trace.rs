@@ -132,7 +132,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut service = reset_service()?;
     let mut event_index = 0usize;
     let mut phases = [0u32; 18];
-    let mut phase_json = String::with_capacity(18 * 7);
 
     for call_index in 0..calls {
         while event_index < events.len() && events[event_index].call_index == call_index {
