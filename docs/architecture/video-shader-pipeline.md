@@ -47,7 +47,7 @@ O componente de shader é consumidor da imagem concluída. Ele não é uma nova 
 
 ## 3. Runtime e API gráfica
 
-O candidato principal é `librashader 0.12.1` com o recurso Rust `runtime-wgpu`. A API documenta o fluxo `ShaderPreset → FilterChain → FilterChain::frame`, além de módulos para presets, pré-processamento, reflexão e runtime.
+O candidato principal é `librashader 0.12.1` com o recurso Cargo `wgpu`. A API documenta o fluxo `ShaderPreset → FilterChain → FilterChain::frame`, além de módulos para presets, pré-processamento, reflexão e runtime.
 
 A integração deve compartilhar o device/queue WGPU que Slint já utiliza. O uso do runtime Vulkan direto de librashader exigiria uma ponte de ownership/handles entre Vulkan e o device gerido por WGPU; não introduzir essa ponte nem um segundo device sem um estudo específico.
 

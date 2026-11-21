@@ -4,7 +4,7 @@ upstream_repository = "https://github.com/libretro/slang-shaders"
 upstream_ref = "master"
 upstream_revision = "02bf134555c4595bd6b69be89feaff923da83754"
 verified_at = "2026-11-21"
-runtime_candidate = "librashader 0.12.1 / runtime-wgpu"
+runtime_candidate = "librashader 0.12.1 / Cargo feature `wgpu`"
 wgpu_target = "30.x"
 asset_policy = "Do not redistribute until each referenced file and dependency has a verified license notice."
 
