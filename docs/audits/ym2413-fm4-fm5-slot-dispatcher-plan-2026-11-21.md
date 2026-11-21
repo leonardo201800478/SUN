@@ -110,3 +110,25 @@ FM-4/FM-5 are not complete when the crate compiles. Completion requires:
 - the multi-rotation Nuked differential passes on the exact PR HEAD;
 - CI runs the YM2413-specific differential and Rust regression gates on that exact HEAD;
 - no SMS bus or PCM/mixer work is smuggled into the FM-4/FM-5 PR.
+
+## 8. FM-5 implementation audit — 2026-11-21
+
+The source audit of PR HEAD `3972678ac8b3a4b1e5b083ad05900d43e68cd716` confirms the following integration facts:
+
+- `Ym2413Core::begin_slot` is the authoritative mode boundary: it shifts `rm_enable`, applies the delayed mode write, advances `rm_select`, then resolves the cycle's EG input. The service receives the resulting register image and post-preamble mode latches. A host-queued write to `$0E` is therefore not an immediate ownership switch.
+- `clock_one_slot_with_service` already enforces the required sequence: pre-EG service, exactly one core-owned `EnvelopeSequencer::tick_slot`, post-EG service, then the ordinary timed register-write stage. The service receives both pre-EG and post-EG EG snapshots.
+- `advance_input_clocks_with_slot_service` stages a deep clone of the service together with the staged core. A service error rolls back both and permits deterministic retry. FM-5 must preserve this contract; no externally visible side effects may occur inside either hook.
+- The core's ordinary EG decoder already receives the six rhythm selectors through `rm_select` and `rhythm_bits`. FM-5 must not introduce a second EG sequencer or bypass the core's selector pipeline.
+- `Ym2413PgSerialService::before_eg_update` currently rejects when RHY is active, when the shifted `rm_enable` latch is nonzero, or while `rm_select < 6`. Its `after_eg_update` currently clocks LFO state and then calls `latch_next_parameters`, which repeats the same Rhythm Mode rejection. These are the concrete FM-5 integration points; the rejection is deliberate gating, not a missing core clock.
+- `decode_rhythm_synthesis` already maps BD to slots 13/16, HH to 14, TOM to 15, SD to 17 and TCY to 18. `decode_rhythm_envelope_slot_input` maps EG cycles 11..16 to BD0, HH, TOM, BD1, SD and TCY. The static mapping exists, but it is not yet connected to the PG/operator service.
+- The rhythm LFSR and output-retention components require explicit caller-supplied initial state. Rhythm phase equations and rhythm patch data retain candidate status. FM-5 must preserve that uncertainty in state metadata and tests rather than selecting an undocumented seed, reset phase, or physical DAC interpretation.
+
+### Required implementation order
+
+1. Add a typed rhythm-mode/slot dispatch decision derived only from the service context; test all 18 slots in melodic mode, active rhythm mode, and transition boundaries.
+2. Extend the serial service snapshot with the complete rhythm-owned mutable state (noise sequencer, rhythm voice/operator state, phase inputs/latches, and output retention where integrated). Validate versions and every cursor/slot relationship on restore.
+3. Implement pre-EG rhythm parameter/PG/operator routing while retaining the existing single core EG update.
+4. Implement post-EG order as LFO, Rhythm processing, then next-parameter latch. Keep the DoRhythm action at this post-EG boundary.
+5. Add mode-transition, trigger/volume, partition-equivalence, snapshot/restore, and injected-failure/retry tests before changing the PR's merge status.
+
+No FM-5 production behavior is claimed complete by this audit. No core timing changes are presently justified: the existing core hook already provides the required transactional boundary.
