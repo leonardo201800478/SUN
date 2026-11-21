@@ -118,7 +118,9 @@ fn reset_service(rhythm_register: Option<u32>) -> Result<Ym2413PgSerialService, 
     match rhythm_register {
         Some(register) => service
             .with_rhythm_noise_register(register, 0)
-            .map_err(|error| invalid_data(format!("invalid rhythm register candidate: {error:?}")).into()),
+            .map_err(|error| {
+                invalid_data(format!("invalid rhythm register candidate: {error:?}")).into()
+            }),
         None => Ok(service),
     }
 }
