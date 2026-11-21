@@ -68,6 +68,8 @@ Rust exposes these as `nuked_pg_phase_write_index`, `nuked_pg_phase_output_index
 
 The EG output is a retained latch: Operator consumes the previous `eg_out`; the current call computes a new `eg_out` only after Operator. Similarly, PhaseGenerate applies the previously calculated `pg_inc` and `pg_phase_next`, while PhaseCalcIncrement computes the next increment later in the same call.
 
+The PG next-phase reset request is selected from the pre-update EG `eg_dokon` latch. Nuked uses bit `0x8000` when its PG selector classifies the cycle as a modulator, otherwise bit `0x01`. In Rhythm Mode, cycles 13 and 14 force the selector to the carrier path when `rm_enable & 0x40` is set. The Rust helper `nuked_phase_reset_required` encodes this predicate and must be called with post-shift/post-mode-write `rm_enable` and pre-update `eg_dokon`. Its sole future consumer is the PG `pg_phase_next` latch.
+
 The offsets do not define subphases within the four input clocks of a Rust slot. No physical sub-clock position is inferred.
 
 ## 4. LFO and register-latch implications
