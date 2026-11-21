@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 EXACT_FIELDS = (
@@ -103,6 +102,12 @@ def main() -> int:
             left, right = normalized(expected[field]), normalized(actual[field])
             if left == right:
                 continue
+            # Carrier TL is channel volume, not a preset-ROM field.
+            if field == "c_tl" and operator == 1:
+                raise ValueError(
+                    f"call {index}: carrier volume latch mismatch "
+                    f"Nuked={left} Rust={right}"
+                )
             key = f"instrument_{instrument}_operator_{operator}_{field}"
             entry = candidate_differences.setdefault(
                 key,
