@@ -298,6 +298,17 @@ impl Ym2413SynthesisBank {
         self.pm_lfo.reset();
     }
 
+    /// Advance only the AM LFO at the caller's completed serial rotation boundary.
+    pub fn advance_am_lfo_samples(&mut self, samples: u64) {
+        let delta = samples % u64::from(YM2413_AM_LFO_PERIOD_SAMPLES);
+        self.am_lfo.advance_samples(delta as u32);
+    }
+
+    /// Reset the AM LFO candidate phase without changing the PM counter.
+    pub fn reset_am_lfo(&mut self) {
+        self.am_lfo.reset();
+    }
+
     /// Return the complete 13-bit PM counter used by the serial LFO stage.
     pub const fn pm_lfo_counter(&self) -> u16 {
         self.pm_lfo.counter()
@@ -309,8 +320,7 @@ impl Ym2413SynthesisBank {
     /// boundary. This method does not advance input clocks, slots, or EG time.
     pub fn advance_lfo_samples(&mut self, samples: u64) {
         self.advance_pm_lfo_samples(samples);
-        let am_samples = samples % u64::from(YM2413_AM_LFO_PERIOD_SAMPLES);
-        self.am_lfo.advance_samples(am_samples as u32);
+        self.advance_am_lfo_samples(samples);
     }
 
     /// Replace one physical operator accumulator with a serial PG phase-array write.
