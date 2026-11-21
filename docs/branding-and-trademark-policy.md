@@ -1,7 +1,7 @@
 # Identidade, nomenclatura e independência do SUN
 
 **Nome oficial do projeto e do emulador:** SUN — Strife Uranus Neptune
-**Forma curta:** SUN  
+**Forma curta:** SUN
 **Status:** identidade adotada para a documentação e para as próximas entregas do produto.
 
 ## Política de nomenclatura
