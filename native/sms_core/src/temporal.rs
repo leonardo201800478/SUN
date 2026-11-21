@@ -394,10 +394,37 @@ impl SmsTemporalCoordinator {
 #[cfg(test)]
 mod tests {
     use super::{
-        SMS_PSG_CLOCK_DOMAIN_ID, SMS_VDP_CLOCK_DOMAIN_ID, SMS_Z80_CLOCK_DOMAIN_ID,
-        SmsTemporalCoordinator, SmsTemporalCoordinatorError, SmsTemporalEvent,
+        SMS_PSG_CLOCK_DOMAIN_ID, SMS_VDP_CLOCK_DOMAIN_ID, SMS_YM2413_CLOCK_DOMAIN_ID,
+        SMS_Z80_CLOCK_DOMAIN_ID, SmsTemporalCoordinator, SmsTemporalCoordinatorError,
+        SmsTemporalEvent,
     };
     use sega_temporal_core::MachineTime;
+
+    #[test]
+    fn optional_ym2413_domain_advances_with_machine_time_and_restores() {
+        let mut machine = SmsTemporalCoordinator::new_with_ym2413(3).unwrap();
+        machine.schedule_internal_cycle(91, 72).unwrap();
+        let dispatch = machine.dispatch_next().unwrap().unwrap();
+        let advance = dispatch
+            .clock_advances
+            .iter()
+            .find(|advance| advance.domain == SMS_YM2413_CLOCK_DOMAIN_ID)
+            .expect("the configured YM2413 domain advances with the SMS machine");
+        assert_eq!(advance.elapsed_cycles, 72);
+
+        let state = machine.export_state();
+        let restored = SmsTemporalCoordinator::restore_state(state).unwrap();
+        assert_eq!(
+            restored.ym2413_clock_snapshot().unwrap(),
+            machine.ym2413_clock_snapshot().unwrap()
+        );
+    }
+
+    #[test]
+    fn base_sms_profile_does_not_register_the_optional_ym2413_domain() {
+        let machine = SmsTemporalCoordinator::new(3).unwrap();
+        assert!(machine.ym2413_clock_snapshot().is_err());
+    }
 
     #[test]
     fn external_th_transition_is_ordered_after_same_timestamp_bus_completion() {
