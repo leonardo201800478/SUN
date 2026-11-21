@@ -1526,6 +1526,7 @@ mod tests {
             Territory::Japan,
         )
         .unwrap();
+        uninterrupted.write_port(0xF2, 0x01);
         advance_internal_cycle(&mut uninterrupted, 100, 216);
         let expected = uninterrupted.drain_fm_audio_samples(None);
         assert_eq!(expected.len(), 3);
@@ -1546,6 +1547,7 @@ mod tests {
             Territory::Japan,
         )
         .unwrap();
+        split.write_port(0xF2, 0x01);
         advance_internal_cycle(&mut split, 101, 84);
         let snapshot = split.export_state();
         let mut restored = SmsTemporalBus::restore_state(snapshot).unwrap();
