@@ -27,6 +27,13 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Índice de hosts/documentos históricos](architecture/legacy-document-index.md)
 - [Scheduler](architecture/scheduler/README.md)
 
+## Vídeo e shaders
+
+- [Contrato atual de apresentação de vídeo e filtros](architecture/video-presentation-filters-sync.md)
+- [Arquitetura do pipeline de shaders](architecture/video-shader-pipeline.md)
+- [Catálogo inicial de presets Slang](shaders/README.md)
+- [ADR 0014 — pipeline de shaders retro com Slang/WGPU](adr/0014-retro-shader-pipeline-librashader-wgpu.md)
+
 ## Integrações e serviços
 
 - RetroAchievements: trilha planejada e gates RA-0 a RA-6 no [roadmap mestre](project-roadmap.md#retroachievements--integração-transversal-planejada).
