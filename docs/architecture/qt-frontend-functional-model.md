@@ -5,7 +5,7 @@
 # Modelo funcional do frontend Qt
 
 **Estado:** DESIGN / MODELING — especificação inicial, sem implementação nesta proposta.  
-**Escopo:** interface desktop Qt/PySide6 do SUN — Strife Uranus Neptune, inicialmente SG-1000 e Master System (SMS).  
+**Escopo:** interface desktop Qt/PySide6 do SUN — Strife Uranus Neptune, inicialmente SG-1000 e Master System (SMS).
 **Runtime:** Rust permanece como único runtime de hardware. Python/PySide6 cuida da interface, preferências, carregamento de mídia e orquestração pela fronteira PyO3.
 
 ## 1. Objetivo e princípios
