@@ -11,7 +11,9 @@
 
 use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState};
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
-use crate::envelope_sequencer::{EnvelopeRhythmSelect, EnvelopeSequencerState, EnvelopeSequencerTick};
+use crate::envelope_sequencer::{
+    EnvelopeRhythmSelect, EnvelopeSequencerState, EnvelopeSequencerTick,
+};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::rhythm::{
     Ym2413RhythmNoiseError, Ym2413RhythmNoiseSlotSample, Ym2413RhythmSlotNoiseSequencer,
@@ -188,7 +190,14 @@ fn rhythm_voice_operator(
     registers: &[u8; 64],
     selector: EnvelopeRhythmSelect,
     cycle: u8,
-) -> Result<(RhythmVoiceSynthesisConfig, RhythmOperatorSynthesisConfig, bool), Ym2413PgSerialError> {
+) -> Result<
+    (
+        RhythmVoiceSynthesisConfig,
+        RhythmOperatorSynthesisConfig,
+        bool,
+    ),
+    Ym2413PgSerialError,
+> {
     let config = decode_rhythm_synthesis(registers)
         .map_err(|error| Ym2413PgSerialError::Channel(ChannelSynthesisError::Rhythm(error)))?;
     let (voice_index, carrier) = match selector {
@@ -199,21 +208,20 @@ fn rhythm_voice_operator(
         EnvelopeRhythmSelect::SnareDrum => (2, true),
         EnvelopeRhythmSelect::TopCymbal => (4, true),
         EnvelopeRhythmSelect::None => {
-            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle,
-                channel: 0,
-            });
+            return Err(Ym2413PgSerialError::UnsupportedRhythmMode { cycle, channel: 0 });
         }
     };
     let voice = config.voices[voice_index];
-    let operator = (if carrier { voice.carrier } else { voice.modulator })
-        .ok_or_else(|| {
-            Ym2413PgSerialError::Channel(ChannelSynthesisError::Rhythm(
-                crate::rhythm_channel::RhythmChannelSynthesisError::MissingEnvelopeOperator {
-                    cycle,
-                },
-            ))
-        })?;
+    let operator = (if carrier {
+        voice.carrier
+    } else {
+        voice.modulator
+    })
+    .ok_or_else(|| {
+        Ym2413PgSerialError::Channel(ChannelSynthesisError::Rhythm(
+            crate::rhythm_channel::RhythmChannelSynthesisError::MissingEnvelopeOperator { cycle },
+        ))
+    })?;
     Ok((voice, operator, carrier))
 }
 
@@ -698,8 +706,7 @@ impl Ym2413PgSerialService {
                 ],
                 envelope_type: operator.patch.sustained_envelope,
                 key_scale_rate: operator.patch.key_scale_rate,
-                key_scale_rate_frequency: (channel.block << 1)
-                    | ((channel.fnum >> 8) as u8 & 1),
+                key_scale_rate_frequency: (channel.block << 1) | ((channel.fnum >> 8) as u8 & 1),
                 key_scale_level_frequency: (channel.fnum >> 5) as u8,
                 key_scale_level_block: channel.block,
             })?;
@@ -734,8 +741,7 @@ impl Ym2413PgSerialService {
             operator_rm_enable,
         )?;
         self.calculate_increment()?;
-        let eg_levels =
-            std::array::from_fn(|index| context.envelope_state.operators[index].level);
+        let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
             context.event.cycle,
             &eg_levels,
@@ -773,9 +779,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             {
                 return self.before_rhythm_operator_update(context, selector);
             }
-            Ym2413SerialSlotDispatch::Rhythm { .. }
-                if self.rhythm_noise.is_some() =>
-            {
+            Ym2413SerialSlotDispatch::Rhythm { .. } if self.rhythm_noise.is_some() => {
                 return Err(Ym2413PgSerialError::InvalidState);
             }
             _ => {
@@ -885,8 +889,9 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             {
                 self.latch_next_rhythm_parameters(context, selector)
             }
-            Ym2413SerialSlotDispatch::Rhythm { .. }
-                if self.rhythm_noise.is_some() => Err(Ym2413PgSerialError::InvalidState),
+            Ym2413SerialSlotDispatch::Rhythm { .. } if self.rhythm_noise.is_some() => {
+                Err(Ym2413PgSerialError::InvalidState)
+            }
             // Unknown-seed and unsettled transitions remain explicitly gated.
             _ => Ok(()),
         }
@@ -963,8 +968,7 @@ mod tests {
     ) -> Ym2413SlotServiceContext {
         let eg = EnvelopeSequencer::new();
         let state = eg.export_state();
-        let event =
-            nuked_slot_service_event_with_testmode(cycle, 0xff, state.eg_dokon, 0).unwrap();
+        let event = nuked_slot_service_event_with_testmode(cycle, 0xff, state.eg_dokon, 0).unwrap();
         let mut registers = registers;
         registers[0x0f] = 0;
         let mut envelope_input = EnvelopeSlotInput::default();
@@ -1000,17 +1004,11 @@ mod tests {
         }
     }
 
-    fn advance_rhythm_slot(
-        service: &mut Ym2413PgSerialService,
-        cycle: u8,
-        registers: [u8; 64],
-    ) {
+    fn advance_rhythm_slot(service: &mut Ym2413PgSerialService, cycle: u8, registers: [u8; 64]) {
         let context = rhythm_context(cycle, registers, rhythm_selector(cycle));
         service.before_eg_update(&context).unwrap();
         let (tick, post_state) = tick(cycle);
-        service
-            .after_eg_update(&context, tick, post_state)
-            .unwrap();
+        service.after_eg_update(&context, tick, post_state).unwrap();
     }
 
     fn tick(cycle: u8) -> (crate::EnvelopeSequencerTick, crate::EnvelopeSequencerState) {
