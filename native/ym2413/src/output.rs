@@ -16,6 +16,7 @@
 use crate::rhythm_output::{
     Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState, Ym2413RhythmOutputError,
     Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
+    YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
 };
 use crate::slot::{
     YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413Operator, Ym2413RhythmVoice, slot_descriptor,
@@ -84,6 +85,11 @@ pub enum Ym2413OutputSlotResult {
     Pulse(Ym2413OutputPulse),
     /// A delayed-repeat slot was reached before its source value was observed.
     RepeatNotInitialized {
+        slot_index: u8,
+        voice: Ym2413RhythmVoice,
+    },
+    /// The original rhythm source slot was reached while its input was unknown.
+    UnknownSource {
         slot_index: u8,
         voice: Ym2413RhythmVoice,
     },
@@ -240,6 +246,9 @@ pub fn rhythm_slot_result(
         Ym2413RhythmOutputSlotResult::RepeatNotInitialized { slot_index, voice } => {
             Ok(Ym2413OutputSlotResult::RepeatNotInitialized { slot_index, voice })
         }
+        Ym2413RhythmOutputSlotResult::OriginalNotInitialized { slot_index, voice } => {
+            Ok(Ym2413OutputSlotResult::UnknownSource { slot_index, voice })
+        }
     }
 }
 
@@ -275,6 +284,8 @@ pub struct Ym2413OutputCycleFrame {
     pub mo_slot_index: u8,
     pub ro_slot_index: u8,
     pub mo: Option<Ym2413OutputPulse>,
+    /// False means an active MO slot was reached without a validated input level.
+    pub mo_known: bool,
     pub ro: Ym2413OutputSlotResult,
 }
 
@@ -341,6 +352,19 @@ impl Ym2413RhythmOutputService {
         Ok(Self { rhythm_delay })
     }
 
+    /// Re-align the RO retention cursor to the next Nuked-compatible cycle.
+    /// Retained voice values are preserved; only the serial cursor changes.
+    pub fn with_next_nuked_cycle(
+        self,
+        next_cycle: u8,
+    ) -> Result<Self, Ym2413RhythmOutputServiceError> {
+        let next_slot_index = ro_output_slot_for_nuked_cycle(next_cycle)
+            .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(next_cycle))?;
+        let mut state = self.export_state();
+        state.rhythm_delay.next_slot_index = next_slot_index;
+        Self::with_initial_state(state)
+    }
+
     /// Export the complete MO/RO service state for deterministic save states.
     pub const fn export_state(&self) -> Ym2413RhythmOutputServiceState {
         Ym2413RhythmOutputServiceState {
@@ -385,6 +409,70 @@ impl Ym2413RhythmOutputService {
             mo_slot_index,
             ro_slot_index,
             mo,
+            mo_known: true,
+            ro,
+        })
+    }
+
+    /// Route a cycle using the previous operator channel-output latch.
+    ///
+    /// The conversion is the project's measured-domain candidate mapping;
+    /// it is not a raw DAC-word conversion and does not apply the separate
+    /// Nuked OPLL_Channel positive increment/neutral-code stage. Unknown
+    /// input invalidates an original RO retention value and is never replaced
+    /// with digital zero or a stale source sample.
+    pub fn process_nuked_cycle_from_channel_output(
+        &mut self,
+        cycle: u8,
+        rhythm_mode_enabled: bool,
+        previous_channel_output: Option<i16>,
+    ) -> Result<Ym2413OutputCycleFrame, Ym2413RhythmOutputServiceError> {
+        let mo_slot_index = mo_output_slot_for_nuked_cycle(cycle)
+            .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(cycle))?;
+        let ro_slot_index = ro_output_slot_for_nuked_cycle(cycle)
+            .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(cycle))?;
+
+        let measured_level = previous_channel_output
+            .map(Ym2413DacCode::from_operator_channel_output)
+            .transpose()?;
+        let descriptor = slot_descriptor(mo_slot_index)
+            .ok_or(Ym2413OutputRoutingError::InvalidSlotIndex(mo_slot_index))?;
+        let mo_active = descriptor.operator == Ym2413Operator::Carrier
+            && (!rhythm_mode_enabled || descriptor.channel < 6);
+        let (mo, mo_known) = if mo_active {
+            match measured_level {
+                Some(level) => (
+                    Some(Ym2413OutputPulse {
+                        pin: Ym2413OutputPin::Mo,
+                        slot_index: mo_slot_index,
+                        source: Ym2413OutputSource::MelodyChannel(descriptor.channel),
+                        level,
+                    }),
+                    true,
+                ),
+                None => (None, false),
+            }
+        } else {
+            (None, true)
+        };
+
+        let original_rhythm_slot = YM2413_RHYTHM_OUTPUT_MAP
+            .iter()
+            .any(|entry| entry.slot_index == ro_slot_index && !entry.is_delayed_repeat);
+        let original_rhythm_level = original_rhythm_slot.then_some(measured_level).flatten();
+        let rhythm_result = self.rhythm_delay.process_slot_with_validity(
+            ro_slot_index,
+            original_rhythm_level,
+            previous_channel_output.is_some(),
+        )?;
+        let ro = rhythm_slot_result(rhythm_result)?;
+
+        Ok(Ym2413OutputCycleFrame {
+            cycle,
+            mo_slot_index,
+            ro_slot_index,
+            mo,
+            mo_known,
             ro,
         })
     }
