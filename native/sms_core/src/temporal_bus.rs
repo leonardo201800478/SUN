@@ -889,8 +889,7 @@ impl SmsTemporalBus {
     /// The two-bit mode is 00 = PSG only, 01 = FM only, 10 = both muted,
     /// and 11 = FM plus PSG. The bit pair is not two independent enable bits.
     pub const fn psg_output_enabled(&self) -> bool {
-        self.ym2413.is_none()
-            || (self.fm_control & 0x01) == ((self.fm_control >> 1) & 0x01)
+        self.ym2413.is_none() || (self.fm_control & 0x01) == ((self.fm_control >> 1) & 0x01)
     }
 
     /// Enable bounded observation of the existing PSG's digital mix transitions.
