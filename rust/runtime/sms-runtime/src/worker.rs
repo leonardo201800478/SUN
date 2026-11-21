@@ -1023,7 +1023,11 @@ impl AudioRendererState {
         psg_samples: &[f64],
         fm_samples: &[Option<f64>],
     ) -> Result<Option<usize>, String> {
-        if fm_samples.is_empty() || fm_samples.iter().any(Option::is_none) {
+        if fm_samples.is_empty() {
+            self.pending_psg_samples.extend(psg_samples.iter().copied());
+            return Ok(Some(0));
+        }
+        if fm_samples.iter().any(Option::is_none) {
             self.reset_fm_pipeline();
             return Ok(None);
         }
@@ -3762,6 +3766,21 @@ mod tests {
                 .mix_fm_samples
                 .iter()
                 .any(|sample| sample.is_finite() && sample.abs() > 1.0e-6)
+        );
+    }
+
+    #[test]
+    fn ym2413_audio_renderer_buffers_psg_until_a_complete_fm_rotation_arrives() {
+        let mut renderer = AudioRendererState::default();
+        let psg_samples = [0.25, 0.5, 0.75];
+
+        assert_eq!(
+            renderer.prepare_fm_mix(&psg_samples, &[]).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            renderer.pending_psg_samples.iter().copied().collect::<Vec<_>>(),
+            psg_samples
         );
     }
 
