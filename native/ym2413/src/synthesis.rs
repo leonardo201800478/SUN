@@ -335,7 +335,7 @@ impl Ym2413SynthesisBank {
     ) -> Result<(), Ym2413SynthesisError> {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
-        state.phase[operator_index].write_phase(phase);
+        state.phase[operator_index].write_serial_phase(phase);
         Ok(())
     }
 
@@ -349,10 +349,10 @@ impl Ym2413SynthesisBank {
     ) -> Result<u32, Ym2413SynthesisError> {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
-        Ok(state.phase[operator_index].advance_by_increment(increment))
+        Ok(state.phase[operator_index].advance_serial_by_increment(increment))
     }
 
-    /// Return the complete 19-bit phase accumulator for one operator.
+    /// Return the raw 32-bit phase accumulator retained for one serial operator.
     pub fn phase_accumulator(
         &self,
         channel: u8,
