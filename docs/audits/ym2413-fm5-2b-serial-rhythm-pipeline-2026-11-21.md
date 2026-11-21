@@ -153,3 +153,121 @@ operator/output-latch differential: it does not independently validate Rust
 PG/EG/noise generation, final MO/RO mixing, DAC/PCM conversion, or physical
 chip timing. The broader PG/EG and rhythm-reset workflows remain separate
 gates.
+
+
+## FM-5.2C investigation — andete evidence and candidate reconciliation (2026-11-21)
+
+Sources were retrieved at the requested immutable andete revision
+`4893d1c09faa0450b5d3355f19b7682d72822501`:
+
+- `results/rhythm/rhythm.md`
+- `results/lfsr/lfsr.txt`
+- `results/20151212/fb.txt`
+- `results/20151216/ksl.txt`
+- `results/20151231/envelope.txt`
+- `results/rhythm/sweep.cc`
+- `results/rhythm/model6.cc`
+- `results/20150209.txt`
+
+The source is measurement-driven engineering work, but it is explicit about uncertainty. It is not a complete dump of the YM2413 rhythm ROM.
+
+### Evidence that is usable
+
+1. **BD is a two-operator sound.** The measured capture-derived custom patch is
+   `01 01 18 0F DF F8 6A 6D`. The measured BD and custom-patch waveforms are
+   described as a close match, not an exact match: the custom patch is delayed
+   by one sample and has a slightly higher peak. The article attributes part
+   of the amplitude difference as potentially caused by the shared EG counter
+   and the one-sample alignment. Therefore this is a strong candidate, not a
+   certified ROM image.
+
+2. **Feedback belongs to the modulator path.** The feedback measurements
+   report FB=0 as no feedback and fit a model using the average of the previous
+   two modulator outputs, shifted by the FB code. The application-manual
+   modulation-index table gives the exponential FB scale. The BD candidate's
+   R#3 value `0x0F` therefore supports FB=7 for the BD modulator. It does
+   not justify copying that modulator feedback field into the BD carrier slot.
+
+3. **Per-slot patch data is not one undifferentiated BD patch.** The andete
+   rhythm analysis separates BD modulator and carrier, HH, TOM, SD and TCY
+   operator roles. Its comparison table for Nuke.YKT likewise has six
+   separate rhythm entries. In the pinned Nuked source
+   `1269cf5a783b65583b50fa2464d08be75830aaa0`, the BD-carrier entry has
+   FB=0 and DM=0, while the BD-modulator entry has FB=7 and DM=1.
+   The previous Rust latch builder reused the merged BD patch's FB/DM values
+   for both BD slots. FM-5.2C now restricts those two modulator-specific
+   latches to `BassDrumFirst`; the BD-carrier slot receives FB=0 and DM=0.
+   This is a correction to per-slot field ownership, not a claim that the
+   complete internal rhythm ROM has been physically dumped.
+
+4. **Rhythm noise cadence is better constrained than its seed.** The 2018
+   LFSR note derives the decimated sequence polynomial
+   `x^23 + x^9 + x^8 + x + 1`. Its 2020 update explains that the physical
+   generator advances 18 times per 72-clock rotation, using the slot-rate
+   recurrence `x^23 + x^9 + 1`. HH consumes the current noise bit, the
+   generator advances three times, SD consumes the resulting bit, then it
+   advances fifteen times. The note also flags interaction with Test Mode
+   bit 1. This supports the current slot-rate/call-order model; it does not
+   identify the physical power-on seed.
+
+5. **KSL and envelope measurements remain useful but do not settle the
+   rhythm patch disagreement.** The KSL article provides measured attenuation
+   points and confirms the YM2413 scale ordering 0, 1.5, 3 and 6 dB/octave.
+   The envelope article gives `internal sustain level = 8 * SL`, measures
+   DAMP as base rate 12, and explicitly leaves the DAMP-to-ATTACK threshold
+   near -45 dB uncertain. These findings do not license changing a rhythm
+   operator's SL merely to match a software reference.
+
+6. **MO/RO and DAC evidence has a boundary.** The 2015 capture note describes
+   separate MO and RO analog pins and a calibrated measurement path intended
+   to reconstruct a 9-bit digital output. It reports 511 observed levels
+   from -255 through +255, with -256 absent. This establishes the measured
+   output domain, not the exact internal operator-to-DAC bit mapping or the
+   analog transfer curve. The rhythm article reports that percussion outputs
+   are repeated and measured as identical at their two time positions. The
+   suggested 9-by-5 shift-register topology comes from an FHB013 derivative
+   die shot, not a YM2413 die shot; it remains a structural hypothesis.
+
+### Remaining candidate divergence — do not normalize
+
+The pinned Nuked revision and the andete article are not identical sources
+for every patch byte. In particular, the article's named Nuke.YKT rhythm
+table shows the SD carrier SL byte as `0x68` (SL=6), while the pinned
+`opll.c` rhythm table at the requested commit selects SL=4 for the SD
+carrier. The Rust capture-derived candidate remains SL=6. The measured
+candidate and the pinned software table therefore disagree by two SL codes.
+No physical evidence in the retrieved files resolves this version-specific
+difference. **Keep the Rust candidate at SL=6 and preserve the differential
+mismatch.**
+
+The earlier integrated trace's `c_sl`/ `eg_sl` differences and later
+`eg_state` divergence must remain visible. The available material does not
+prove that every EG-array mismatch is caused solely by SD SL; that requires
+an isolated per-voice trace and should be tested separately. No global patch
+table rewrite is justified.
+
+### Code change and directed regression
+
+Commit `c9a5f73176ee34e585c5b912f4b705256ba84afd` introduced
+`rhythm_operator_patch2_latches` and a six-selector regression. It ensures
+that FB=7 and DM=1 from the merged BD capture candidate are latched only for
+the BD-modulator selector; BD carrier and the other four single-operator
+rhythm selectors use FB=0 and DM=0. The subsequent documentation-only
+commit qualifies the evidence boundary.
+
+The change does not alter any candidate AR/DR/RR/SL values, the LFSR seed,
+the LFSR polynomial, phase equations, output retention timing, or DAC mapping.
+
+### FM-5.2C status
+
+- **Resolved at the software field-ownership level:** BD modulator-only FB/DM
+  propagation into the BD-carrier serial slot.
+- **Still open:** SD carrier SL (candidate 6 versus pinned Nuked 4), its
+  downstream EG-state divergence, exact physical rhythm patch ROM, and
+  hardware validation.
+- **Not claimed:** full patch-ROM reconciliation or FM-5.2C completion.
+
+Next, rerun the isolated and integrated Nuked differentials on the new code
+HEAD. If the FB/DM rows converge, retain the SD SL/EG mismatches as separate
+diagnostics. Only then proceed to FM-5.3 MO/RO pin-event routing and repeated
+output retention, keeping MO and RO as independent serial outputs.
