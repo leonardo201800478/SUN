@@ -430,6 +430,8 @@ mod tests {
                     key_on: false,
                     rhythm_select: super::EnvelopeRhythmSelect::None,
                     rhythm_bits: 0,
+                    test_mode: 0,
+                    write_data: 0,
                 },
             )
             .unwrap();
