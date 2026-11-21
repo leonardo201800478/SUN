@@ -162,3 +162,21 @@ uses the `+15` coordinate. The earlier interpretation of
 `rm_enable & 0x40` as a persistent mode flag is also withdrawn. Separate
 per-pin cycle mapping is required before the existing combined output
 service can be adapted safely. No core integration is made by this audit.
+
+
+### Atualização após PR #1159 — integração temporal publicada
+
+A PR #1159 (`eb01ca8a7ee6224a98e872143b41f0b28137b292`) integrou o adaptador medido ao PG serial com as seguintes garantias:
+
+- O adaptador processa o ciclo no limite serial antes de o pipeline de referência instalar o próximo `ch_out`.
+- O adaptador consome a procedência do latch anterior; ela é derivada do dispatch anterior concluído, não de uma cópia de `rm_enable`.
+- `previous_channel_output_is_rhythm` só é verdadeiro quando o resultado anterior veio de um dispatch `Rhythm` estável. Dispatch `Melodic`, transição e origem desconhecida não habilitam uma origem RO.
+- O adaptador mantém um buffer de um ciclo e distingue ciclo de origem de ciclo de emissão.
+- O ciclo esperado do adaptador é derivado do cursor RO; não foi criado um contador serial independente.
+- A procedência do latch é incluída no snapshot PG versão 12; o estado do adaptador é versão 2.
+- Snapshots são validados no limite de slot concluído, quando os cursores PG/RO estão alinhados.
+
+O valor numérico do latch `ch_out` não é convertido em nível medido nesta integração. O adaptador recebe `Option<Ym2413DacCode>`; o PG fornece `None` até existir uma conversão independente. Assim, a validação atual fecha temporização/proveniência/estado, não amplitude física.
+
+`ModeInactive` significa que o modelo não fornece um nível RO medido naquele estado; não é uma afirmação de silêncio elétrico. `UnknownSource` e `RepeatNotInitialized` permanecem estados explícitos e não são convertidos em zero.
+
