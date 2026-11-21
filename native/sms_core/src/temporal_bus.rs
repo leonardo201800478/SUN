@@ -1043,8 +1043,7 @@ impl SmsTemporalBus {
             }
 
             accumulator.frame_count += 1;
-            accumulator.next_cycle =
-                (frame.cycle + 1) % YM2413_SLOTS_PER_ROTATION as u8;
+            accumulator.next_cycle = (frame.cycle + 1) % YM2413_SLOTS_PER_ROTATION as u8;
             if frame.cycle == (YM2413_SLOTS_PER_ROTATION - 1) as u8 {
                 completed_sample = Some(accumulator.valid.then(|| {
                     (accumulator.sum_mo + accumulator.sum_ro) as f64
@@ -1246,11 +1245,14 @@ impl SmsTemporalBus {
             || state.ym2413.is_some() != state.ym2413_pg_service.is_some()
             || (state.ym2413.is_some() && state.io.territory() != Territory::Japan)
             || !state.ym2413_pcm_accumulator.is_valid()
-            || state.pending_fm_samples.iter().flatten().any(|sample| !sample.is_finite())
+            || state
+                .pending_fm_samples
+                .iter()
+                .flatten()
+                .any(|sample| !sample.is_finite())
             || (state.ym2413.is_none()
                 && (!state.pending_fm_samples.is_empty()
-                    || state.ym2413_pcm_accumulator
-                        != SmsYm2413PcmAccumulatorState::default()))
+                    || state.ym2413_pcm_accumulator != SmsYm2413PcmAccumulatorState::default()))
             || state.psg.clock_domain() != SMS_PSG_CLOCK_DOMAIN_ID
             || state.psg.core().profile() != PsgProfile::Sms
             || state.psg.core().clock_hz() == 0
@@ -1526,10 +1528,12 @@ mod tests {
         let expected = uninterrupted.drain_fm_audio_samples(None);
         assert_eq!(expected.len(), 3);
         assert!(expected.iter().any(Option::is_some));
-        assert!(expected
-            .iter()
-            .flatten()
-            .all(|sample| sample.is_finite() && sample.abs() <= 1.0));
+        assert!(
+            expected
+                .iter()
+                .flatten()
+                .all(|sample| sample.is_finite() && sample.abs() <= 1.0)
+        );
 
         let mut split = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
             vec![0; 0x4000],
