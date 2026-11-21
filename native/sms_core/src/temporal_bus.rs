@@ -489,6 +489,36 @@ impl SmsTemporalBus {
         Ok(bus)
     }
 
+    /// Construct the Japanese Master System FM profile with BIOS and cartridge SRAM capacity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalBusError> {
+        if territory != Territory::Japan {
+            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
+        }
+        let mut bus = Self::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        )?;
+        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
+        bus.ym2413 = Some(Ym2413Core::new());
+        Ok(bus)
+    }
+
     /// Schedule an external TH transition without advancing the machine immediately.
     pub fn schedule_external_th_transition(
         &mut self,
