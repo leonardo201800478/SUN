@@ -15,6 +15,12 @@ SCALAR_FIELDS = (
     "pg_inc",
     "pg_phase_next",
     "pg_out",
+    "op_calc_eg_out",
+    "op_calc_eg_silent",
+    "op_calc_c_fb",
+    "op_calc_c_dc",
+    "op_calc_c_dm",
+    "op_calc_pg_out",
     "lfo_counter",
     "lfo_vib_counter",
     "lfo_am_counter",
@@ -137,6 +143,8 @@ def compare_row(
             f"Nuked-derived={expected_ksl} Rust={actual_ksl}"
         )
 
+    if int(rust["op_calc_pg_out"]) != int(nuked["op_calc_pg_out"]):
+        raise ValueError(f"call {call_index}: pre-operator PG output latch mismatch")
     if int(rust["pg_increment"]) != int(nuked["pg_inc"]):
         raise ValueError(f"call {call_index}: pg_increment alias mismatch")
     if int(rust["pg_output"]) != int(nuked["pg_out"]):
