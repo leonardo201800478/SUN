@@ -1072,6 +1072,19 @@ mod tests {
             continuous_service.output_frame()
         );
         assert_eq!(
+            restored_service.measured_output_frame(),
+            continuous_service.measured_output_frame()
+        );
+        assert_eq!(
+            restored_service.measured_output_adapter_state(),
+            continuous_service.measured_output_adapter_state()
+        );
+        let measured_frame = continuous_service.measured_output_frame().unwrap();
+        assert_eq!(
+            measured_frame.emitted_cycle,
+            continuous_service.output_frame().unwrap().cycle
+        );
+        assert_eq!(
             restored_service.export_state(),
             continuous_service.export_state()
         );
@@ -1107,6 +1120,37 @@ mod tests {
         let frame = service.output_frame().unwrap();
         assert_eq!(frame.mo, None);
         assert_eq!(frame.ro, None);
+    }
+
+    #[test]
+    fn unseeded_rhythm_mode_propagates_unknown_measured_mo_ro_frame() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_cursor(11)
+            .unwrap();
+
+        for cycle in (11..18).chain(0..2) {
+            advance_rhythm_slot(&mut service, cycle, registers);
+        }
+
+        let frame = service.measured_output_frame().unwrap();
+        assert_eq!(frame.emitted_cycle, 1);
+        assert_eq!(frame.source.cycle, 0);
+        assert_eq!(frame.source.mo_slot_index, 3);
+        assert!(frame.source.mo.is_none());
+        assert!(!frame.source.mo_known);
+        assert_eq!(
+            frame.source.ro,
+            crate::Ym2413OutputSlotResult::UnknownSource {
+                slot_index: 15,
+                voice: crate::Ym2413RhythmVoice::BassDrum,
+            }
+        );
+        assert_eq!(
+            service.measured_output_adapter_state().next_cycle,
+            service.rhythm_noise_cursor()
+        );
     }
 
     fn initial_bank(pm_lfo_counter: u16) -> Ym2413SynthesisBank {
