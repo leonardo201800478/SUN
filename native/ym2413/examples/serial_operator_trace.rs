@@ -141,7 +141,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     println!(
-        "{{\"status\":\"PASS\",\"compared_calls\":{compared},\"fields\":[\"op_exp_m\",\"op_exp_s\",\"op_logsin\",\"op_neg\",\"op_mod\",\"op_fbsum\",\"op_fb1[9]\",\"op_fb2[9]\",\"ch_out\"],\"scope\":\"serial OPLL_Operator arithmetic and feedback state with Nuked pre-call latches\"}}"
+        "{{\"status\":\"PASS\",\"compared_calls\":{compared},\"fields\":[\"op_exp_m\",\"op_exp_s\",\"op_logsin\",\"op_neg\",\"op_mod\",\"op_fbsum\",\"op_fb1[9]\",\"op_fb2[9]\",\"ch_out\",\"phase_index\",\"operator_output\"],\"scope\":\"serial OPLL_Operator arithmetic and feedback state with Nuked pre-call latches\"}}"
     );
     Ok(())
 }
