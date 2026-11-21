@@ -558,7 +558,8 @@ mod tests {
     #[test]
     fn unknown_original_source_invalidates_retained_voice_and_repeat() {
         let measured_code = code(37);
-        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        let mut delay =
+            super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
         assert_eq!(
             delay.process_slot_with_validity(13, Some(measured_code), true),
             Ok(Ym2413RhythmOutputSlotResult::Emitted(
@@ -603,7 +604,8 @@ mod tests {
 
     #[test]
     fn strict_original_slot_api_still_rejects_missing_sample() {
-        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        let mut delay =
+            super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
         assert_eq!(
             delay.process_slot(13, None),
             Err(Ym2413RhythmOutputError::MissingOriginalSample {
