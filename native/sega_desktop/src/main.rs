@@ -507,6 +507,8 @@ mod windows_host {
             in-out property <string> active-menu: "none";
             in-out property <string> selected-region: "auto";
             in-out property <string> selected-system: "sms1";
+            in-out property <string> selected-fm-board-profile: "none";
+            in-out property <string> selected-fm-mode: "auto";
             in-out property <string> firmware-directory: "";
             in-out property <string> firmware-scan-status: "Selecione a pasta de firmware e execute a varredura.";
             in-out property <string> firmware-scan-results: "Nenhuma varredura realizada.";
@@ -760,7 +762,7 @@ mod windows_host {
                         }
                         Rectangle {
                             background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
-                            height: 92px;
+                            height: 122px;
                             VerticalLayout {
                                 padding: 14px; spacing: 5px;
                                 Text { text: "Sistema selecionado"; color: #B4C0D0; font-size: 11px; }
@@ -769,6 +771,8 @@ mod windows_host {
                                     color: #F1F5FA; font-size: 14px; font-weight: 600;
                                 }
                                 Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: rgb(142, 171, 255); font-size: 11px; }
+                                Text { text: root.selected-fm-board-profile == "japanese-integrated" ? "Placa FM: YM2413 integrado" : "Placa FM: sem chip integrado"; color: #8bd5ca; font-size: 11px; }
+                                Text { text: root.selected-fm-mode == "auto" ? "Saída FM: Auto" : root.selected-fm-mode == "on" ? "Saída FM: On" : "Saída FM: Off"; color: #8bd5ca; font-size: 11px; }
                             }
                         }
                         Text { text: root.rom-status; color: #B4C0D0; font-size: 11px; wrap: word-wrap; }
@@ -794,16 +798,16 @@ mod windows_host {
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 1020px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 1020px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             spacing: 12px;
                             Text { font-size: 24px; text: "Sistema"; color: #F1F5FA; }
-                            Text { font-size: 12px; text: "Modelo do console e região utilizados na próxima sessão."; color: #B4C0D0; }
+                            Text { font-size: 12px; text: "Modelo do console, placa FM física e região da próxima sessão."; color: #B4C0D0; }
                             Rectangle {
                                 height: 164px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
@@ -811,8 +815,8 @@ mod windows_host {
                                     Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sg1000" ? "Em execução: SG-1000 · TMS9918A" : root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sg1000" ? "Selecionado: SG-1000 · TMS9918A" : root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
                                     FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
                                         CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                        CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                        CompactButton { text: root.selected-system == "sg1000" ? "✓ SG-1000" : "SG-1000"; enabled: !root.has-rom; clicked => { root.selected-system = "sg1000"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.selected-fm-board-profile = "none"; if (root.selected-fm-mode == "on") { root.selected-fm-mode = "auto"; } root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                        CompactButton { text: root.selected-system == "sg1000" ? "✓ SG-1000" : "SG-1000"; enabled: !root.has-rom; clicked => { root.selected-system = "sg1000"; root.selected-fm-board-profile = "none"; if (root.selected-fm-mode == "on") { root.selected-fm-mode = "auto"; } root.preferences-changed(); } }
                                     }
                                     Text { font-size: 10px; text: root.has-rom ? "A ROM atual mantém o hardware já construído; a seleção vale para a próxima ROM." : "O hardware selecionado será construído ao carregar a ROM."; color: #B4C0D0; wrap: word-wrap; }
                                 }
@@ -831,6 +835,30 @@ mod windows_host {
                                         CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
                                     }
                                     Text { font-size: 10px; text: root.selected-region == "auto" ? "Automático: World → USA; múltiplas regiões: Brasil → USA → Europa → Japão → Coreia; sem evidência confiável: USA." : "A preferência regional será aplicada ao carregar a próxima ROM."; color: #B4C0D0; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 176px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Placa FM (hardware físico)"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "A região do software não detecta o YM2413. Selecione somente se a placa real possuir o chip integrado."; color: #B4C0D0; wrap: word-wrap; }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-fm-board-profile == "none" ? "✓ SMS genérico · sem FM" : "SMS genérico · sem FM"; enabled: !root.has-rom; clicked => { root.selected-fm-board-profile = "none"; if (root.selected-fm-mode == "on") { root.selected-fm-mode = "auto"; } root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-fm-board-profile == "japanese-integrated" ? "✓ Japanese SMS · YM2413" : "Japanese SMS · YM2413"; enabled: !root.has-rom && root.selected-system == "sms1"; clicked => { root.selected-fm-board-profile = "japanese-integrated"; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: root.selected-fm-board-profile == "japanese-integrated" ? "Placa FM integrada selecionada; a região do software continua independente." : root.selected-system == "sms1" ? "Perfil genérico: sem chip FM instalado." : "O perfil Japanese SMS FM só está disponível para SMS1."; color: #B4C0D0; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 166px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Modo de saída FM"; color: #F1F5FA; }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-fm-mode == "auto" ? "✓ Auto" : "Auto"; enabled: !root.has-rom; clicked => { root.selected-fm-mode = "auto"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-fm-mode == "on" ? "✓ On" : "On"; enabled: !root.has-rom && root.selected-system == "sms1" && root.selected-fm-board-profile == "japanese-integrated"; clicked => { root.selected-fm-mode = "on"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-fm-mode == "off" ? "✓ Off" : "Off"; enabled: !root.has-rom; clicked => { root.selected-fm-mode = "off"; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: root.selected-fm-mode == "auto" ? "Auto exige hash exato no catálogo de ROMs FM verificadas. O catálogo ainda não possui entradas; a saída FM permanece mutada." : root.selected-fm-mode == "on" ? "On força FM somente na placa com YM2413; não injeta writes nem cria hardware." : "Off silencia FM no host, mas mantém o YM2413 clockado e sincronizado."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
                             Rectangle {
