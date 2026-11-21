@@ -38,7 +38,7 @@ A lista e os caminhos upstream exatos estão em [catalog.toml](../shaders/catalo
 ## Fases e gates
 
 - **SH-0 — esta PR:** decisão, inventário de presets, revisão de licenças e contrato arquitetural. Nenhuma dependência ou shader é embarcado.
-- **SH-1 — spike WGPU:** feature isolada com `librashader 0.12.1/runtime-wgpu`; construir e executar um preset simples no device/queue Slint. Confirmar Vulkan efetivo, lifecycle, resize, falhas e shutdown. Comparar o resultado com um caminho de referência.
+- **SH-1 — spike WGPU:** feature isolada com `librashader 0.12.1` com o recurso Cargo `wgpu`; construir e executar um preset simples no device/queue Slint. Confirmar Vulkan efetivo, lifecycle, resize, falhas e shutdown. Comparar o resultado com um caminho de referência.
 - **SH-2 — assets e catálogo:** selecionar presets suportados, copiar dependências completas, fixar revisão upstream e gerar notices de licença.
 - **SH-3 — filtros espaciais:** Nearest, sharp-bilinear, bilinear e CRT RGB/NTSC; testes de pixels, escala, cor, viewport e custo de GPU.
 - **SH-4 — filtros temporais:** feedback/history, Game Gear LCD e `mix_frames`; validar sequência de frames, perda de frames, reset de histórico e estabilidade de estado.
