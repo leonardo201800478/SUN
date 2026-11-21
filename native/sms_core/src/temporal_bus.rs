@@ -1141,9 +1141,10 @@ impl SmsTemporalBus {
 
     fn read_port(&mut self, port: u16) -> u8 {
         if port as u8 == 0xF2 && self.ym2413.is_some() {
-            // Low two bits are the readable audio-control latch. The C-Sync
-            // counter in bits 7..5 is not yet part of this temporal VDP slice.
-            return self.fm_control & 0x03;
+            // D3-D0 read back the last written nibble. D7-D5 remain zero until
+            // the temporal machine exposes the physical C-Sync input; D4 is
+            // reserved and always reads zero.
+            return self.fm_control & 0x0F;
         }
         match (port as u8) & 0xC1 {
             0x40 => self.vdp.read_v_counter(),
@@ -1166,7 +1167,7 @@ impl SmsTemporalBus {
                     return;
                 }
                 0xF2 => {
-                    self.fm_control = value & 0x03;
+                    self.fm_control = value & 0x0F;
                     return;
                 }
                 _ => {}
@@ -1259,7 +1260,7 @@ impl SmsTemporalBus {
         if state.format_version != SMS_TEMPORAL_BUS_STATE_VERSION {
             return Err(SmsTemporalBusError::InvalidState);
         }
-        if state.fm_control & !0x03 != 0
+        if state.fm_control & !0x0F != 0
             || (state.ym2413.is_none() && state.fm_control != 0)
             || state.ym2413.is_some() != state.ym2413_pg_service.is_some()
             || (state.ym2413.is_some() && state.io.territory() != Territory::Japan)
@@ -1515,18 +1516,25 @@ mod tests {
         assert_eq!(bus.ym2413().unwrap().export_state().registers[0x10], 0xA5);
         bus.acknowledge_internal_completion(91).unwrap();
 
-        bus.write_port(0xF2, 0x03);
-        assert_eq!(bus.read_port(0xF2), 0x03);
-        assert!(bus.fm_output_enabled());
-        assert!(bus.psg_output_enabled());
+        // D3-D2 are readable latch bits but do not affect the two routing
+        // controls in D1-D0. Exercise all four output modes with D3-D2 set.
+        for (value, fm_enabled, psg_enabled) in [
+            (0x0C, false, true),
+            (0x0D, true, false),
+            (0x0E, false, false),
+            (0x0F, true, true),
+        ] {
+            bus.write_port(0xF2, value);
+            assert_eq!(bus.read_port(0xF2), value);
+            assert_eq!(bus.fm_output_enabled(), fm_enabled);
+            assert_eq!(bus.psg_output_enabled(), psg_enabled);
+        }
 
-        bus.write_port(0xF2, 0x02);
-        assert!(!bus.fm_output_enabled());
-        assert!(!bus.psg_output_enabled());
-
-        bus.write_port(0xF2, 0x01);
-        assert!(!bus.psg_output_enabled());
+        // The write port does not latch C-Sync/reserved upper bits.
+        bus.write_port(0xF2, 0xFD);
+        assert_eq!(bus.read_port(0xF2), 0x0D);
         assert!(bus.fm_output_enabled());
+        assert!(!bus.psg_output_enabled());
 
         let state = bus.export_state();
         let mut restored = SmsTemporalBus::restore_state(state).unwrap();
@@ -1534,7 +1542,7 @@ mod tests {
             restored.ym2413().unwrap().export_state(),
             bus.ym2413().unwrap().export_state()
         );
-        assert_eq!(restored.read_port(0xF2), 0x01);
+        assert_eq!(restored.read_port(0xF2), 0x0D);
     }
 
     #[test]
