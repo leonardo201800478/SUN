@@ -1875,3 +1875,51 @@ O Nuked fixado confirma a ordem observável: copiar `output_m/output_r` para o b
 Decisão: não encaixar esse comportamento em `Ym2413DacCode`, que continua sendo token de amplitude medida. A próxima implementação deve introduzir um tipo separado para o código digital/comportamental do pino e um estado serial versionado que preserve as duas fronteiras de pipeline. A retenção medida MO/RO existente deve continuar isolada até que a conversão e a fase de observação tenham contrato explícito. Nenhuma integração ao core ou PCM deve ser inferida deste adaptador.
 
 **Status:** auditoria de estado concluída; pipeline temporal MO/RO ainda não implementado. Nenhuma alteração de runtime, rebase, merge ou atualização da `main` foi realizada nesta atualização.
+
+
+## Atualização supersedente — pipeline MO/RO implementado e diferencialmente validado (2026-11-21)
+
+HEAD da branch: f18848a450f1209c9777cdcc8238a4db1c9c5939.
+
+A antiga seção que classificava o pipeline temporal como ainda não implementado
+foi supersedida por esta entrega. O serviço de retenção medido continua
+separado; o novo módulo digital está em native/ym2413/src/output_pipeline.rs.
+
+Implementado:
+- Latches independentes para ch_out anterior e output_m/output_r anteriores.
+- Ordem de OPLL_Clock: cópia do buffer, shift assinado de rm_enable, escrita
+  qualificada de modo, estágio de canal e latch do próximo resultado do operador.
+- Código neutro dependente do sinal e incremento do caminho positivo.
+- Gate de MO/RO conforme a sequência do Nuked original.
+- Estado serial versionado e restauração determinística.
+- Testes unitários para sequência, sinal, zero, 0x0e, shift assinado, mute,
+  ciclo 18 e snapshot/restore.
+
+Descoberta relevante: rm_enable é int8_t no opll.h. O shift negativo do Nuked
+é aritmético no compilador usado pelo workflow; o modelo Rust passou a usar
+i8, reproduzindo a extensão de sinal observada. Não tratar rm_enable como
+u8 com shift lógico nem como booleano persistente.
+
+Diferencial dedicado:
+- Workflow #44930418493: SUCCESS, 1.200 ciclos.
+- Dois traces do Nuked foram byte-idênticos.
+- Escritas qualificadas 0x0e: 0x3f e 0x00.
+- 181 amostras com ch_out não zero.
+- Buffer MO/RO, latches pós-ciclo, rm_enable assinado, ch_out anterior/próximo
+  e cursor serial coincidiram.
+- Workflow do adaptador externo #44930418525: SUCCESS.
+- Rhythm reset differential #44930418590: SUCCESS.
+
+O relatório detalhado está em
+docs/audits/ym2413-mo-ro-output-pipeline-2026-11-21.md.
+
+CI #44930236424 passou para o primeiro commit da implementação e diferencial.
+No HEAD mais recente, CI #44930418522: rustfmt e documentação passaram; Clippy,
+testes gerais e validação final ainda estavam em execução no momento desta
+atualização. PG #44930418468 e EG #44930418372 também permaneciam em execução.
+
+**Classificação:** pipeline digital isolado validado por differential testing
+contra Nuked. Não é evidência de silício e ainda não está integrado ao core
+de produção, ao PCM ou ao serviço de retenção medido. YM2413 permanece aberto.
+
+A PR #1157 continua Draft. Nenhum rebase, merge ou alteração na main foi feito.
