@@ -468,6 +468,104 @@ mod tests {
     }
 
     #[test]
+    fn core_owned_rm_enable_is_consumed_without_a_second_shift() {
+        let mut pipeline = Ym2413OutputPipeline::new();
+        let frame = pipeline
+            .process_cycle_with_core_state(0, -64, Some(12))
+            .unwrap();
+        assert_eq!(frame.mo, Some(Ym2413NukedOutputCode::new(0)));
+        assert_eq!(pipeline.export_state().rm_enable, -64);
+
+        pipeline
+            .process_cycle_with_core_state(1, 0x40, Some(0))
+            .unwrap();
+        assert_eq!(pipeline.export_state().rm_enable, 0x40);
+    }
+
+    #[test]
+    fn unknown_operator_result_propagates_without_fabricating_zero_or_stale_output() {
+        let mut pipeline = Ym2413OutputPipeline::new_unknown();
+        let first = pipeline
+            .process_cycle_with_core_state(0, 0, None)
+            .unwrap();
+        assert_eq!(first.mo, None);
+        assert_eq!(first.ro, None);
+        assert!(!pipeline.export_state().previous_channel_output_valid);
+
+        let second = pipeline
+            .process_cycle_with_core_state(1, 0, Some(17))
+            .unwrap();
+        assert_eq!(second.mo, None);
+        assert_eq!(second.ro, None);
+        assert!(pipeline.export_state().previous_channel_output_valid);
+        assert!(!pipeline.export_state().output_m_valid);
+        assert!(!pipeline.export_state().output_r_valid);
+
+        let third = pipeline
+            .process_cycle_with_core_state(2, 0, Some(-9))
+            .unwrap();
+        assert_eq!(third.mo, Some(Ym2413NukedOutputCode::new(18)));
+        assert_eq!(third.ro, Some(Ym2413NukedOutputCode::new(18)));
+    }
+
+    #[test]
+    fn unknown_validity_survives_snapshot_restore_and_block_partitioning() {
+        let mut continuous = Ym2413OutputPipeline::new_unknown();
+        let mut split = Ym2413OutputPipeline::new_unknown();
+        let inputs = [
+            None,
+            None,
+            Some(4),
+            Some(-7),
+            Some(0),
+            None,
+            Some(12),
+            Some(3),
+        ];
+        let mut expected = Vec::new();
+        for (cycle, output) in inputs.into_iter().enumerate() {
+            expected.push(
+                continuous
+                    .process_cycle_with_core_state(cycle as u8, 0, output)
+                    .unwrap(),
+            );
+        }
+
+        let mut prefix = Vec::new();
+        for (cycle, output) in inputs[..4].iter().copied().enumerate() {
+            prefix.push(
+                split
+                    .process_cycle_with_core_state(cycle as u8, 0, output)
+                    .unwrap(),
+            );
+        }
+        let mut restored =
+            Ym2413OutputPipeline::with_initial_state(split.export_state()).unwrap();
+        let mut resumed = Vec::new();
+        for (offset, output) in inputs[4..].iter().copied().enumerate() {
+            resumed.push(
+                restored
+                    .process_cycle_with_core_state((offset + 4) as u8, 0, output)
+                    .unwrap(),
+            );
+        }
+        assert_eq!(prefix, expected[..4]);
+        assert_eq!(resumed, expected[4..]);
+        assert_eq!(restored.export_state(), continuous.export_state());
+    }
+
+    #[test]
+    fn standalone_api_rejects_unknown_output_transactionally() {
+        let mut pipeline = Ym2413OutputPipeline::new_unknown();
+        let before = pipeline.export_state();
+        assert_eq!(
+            pipeline.process_cycle(0, 0, None),
+            Err(Ym2413OutputPipelineError::OutputUnknown)
+        );
+        assert_eq!(pipeline.export_state(), before);
+    }
+
+    #[test]
     fn restore_rejects_invalid_version_cycle_and_latch_ranges() {
         let valid = Ym2413OutputPipeline::new().export_state();
         for invalid in [
