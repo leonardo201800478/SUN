@@ -12,7 +12,7 @@ use crate::slot::{Ym2413RhythmVoice, Ym2413SlotDescriptor, nuked_cycle_selected_
 
 /// Result of resolving one core-owned serial slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub pub enum Ym2413SerialSlotDispatch {
+pub enum Ym2413SerialSlotDispatch {
     /// Ordinary melodic ownership, including channels 7..9 when RHY is clear.
     Melodic {
         slot: Ym2413SlotDescriptor,
