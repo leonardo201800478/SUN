@@ -83,7 +83,7 @@ jobs:
 
           # User patch: AM+VIB, nonzero feedback, both waveform bits,
           # nonzero TL/KSL and distinct AR/DR/SL/RR values.
-          patch = (0xC1, 0x82, 0x55, 0x5D, 0xF3, 0xE4, 0xA5, 0xB6)
+          patch = (0xE1, 0xA2, 0x55, 0x5D, 0xF3, 0xE4, 0xA5, 0xB6)
           for index, value in enumerate(patch):
               write_register(index, value, index * 40)
 
