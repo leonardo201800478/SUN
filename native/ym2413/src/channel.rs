@@ -242,7 +242,6 @@ const fn build_eg_cycle_channels() -> [u8; 18] {
 /// Compatibility view of Nuked's selected channel for each serial EG cycle.
 ///
 /// This array is derived from `YM2413_SLOT_MAP`, not maintained independently.
-#[deprecated(note = "use envelope_cycle_descriptor; this channel-only view is compatibility-only")]
 pub const YM2413_EG_CYCLE_CHANNELS: [u8; 18] = build_eg_cycle_channels();
 
 /// Resolve the current cycle's channel/operator register inputs.
