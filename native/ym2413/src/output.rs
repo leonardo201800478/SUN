@@ -695,7 +695,8 @@ impl Ym2413MeasuredOutputAdapter {
         Ok(self)
     }
 
-    /// Process one serial cycle using the core's previous channel-output latch.
+    /// Process one serial cycle using an optional measured level and the
+    /// previous channel-output latch's dispatch provenance.
     ///
     /// The current frame is buffered; the return value is the frame emitted from
     /// the previous cycle, or None during initial buffer fill.
