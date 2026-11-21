@@ -1,6 +1,6 @@
 # Política permanente de desenvolvimento, fidelidade e entrega
 
-**Status:** normativa para todo trabalho futuro no SUN — Strife Uranus Neptune.  
+**Status:** normativa para todo trabalho futuro no SUN — Strife Uranus Neptune.
 **Repositório:** https://github.com/leonardo201800478/sega-emulator  
 **Decisão de fidelidade:** [ADR-0016 — fidelidade observável e precisão proporcional](architecture/adr/0016-observable-fidelity-and-proportional-timing.md).
 
