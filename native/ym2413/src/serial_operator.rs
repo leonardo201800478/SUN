@@ -468,7 +468,9 @@ mod tests {
         let saved = partitioned.export_state();
         partitioned = Ym2413SerialOperator::restore_state(saved).unwrap();
         for cycle in 7..18 {
-            partitioned.tick_operator(cycle, (cycle as u16) * 17).unwrap();
+            partitioned
+                .tick_operator(cycle, (cycle as u16) * 17)
+                .unwrap();
         }
         assert_eq!(continuous, partitioned);
     }
