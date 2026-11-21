@@ -18,8 +18,8 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 1;
-pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 1;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 2;
+pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413PgSerialError {
