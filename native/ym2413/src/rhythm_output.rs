@@ -558,8 +558,7 @@ mod tests {
     #[test]
     fn unknown_original_source_invalidates_retained_voice_and_repeat() {
         let code = level(37);
-        let mut delay =
-            super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
+        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
         assert_eq!(
             delay.process_slot_with_validity(13, Some(code), true),
             Ok(Ym2413RhythmOutputSlotResult::Emitted(
@@ -579,9 +578,7 @@ mod tests {
                 .unwrap();
         }
         for slot in 0..13 {
-            let _ = delay
-                .process_slot_with_validity(slot, None, true)
-                .unwrap();
+            let _ = delay.process_slot_with_validity(slot, None, true).unwrap();
         }
 
         assert_eq!(
@@ -593,9 +590,7 @@ mod tests {
         );
 
         for slot in (14..18).chain(0..0) {
-            let _ = delay
-                .process_slot_with_validity(slot, None, false)
-                .unwrap();
+            let _ = delay.process_slot_with_validity(slot, None, false).unwrap();
         }
         assert_eq!(
             delay.process_slot_with_validity(0, None, false),
@@ -618,5 +613,4 @@ mod tests {
             })
         );
     }
-
 }
