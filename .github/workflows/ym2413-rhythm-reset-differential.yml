@@ -2,6 +2,7 @@ name: YM2413 Nuked Rhythm reset differential
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - "native/ym2413/**"
       - "tools/ym2413-nuked-oracle/trace.c"
