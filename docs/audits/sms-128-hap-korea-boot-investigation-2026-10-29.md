@@ -8,10 +8,10 @@
 
 - ROM identificada pelo usuário como `128 Hap (Korea) (Unl)`.
 - O jogo inicia no GearSystem.
-- O jogo não dá boot no Sega Emulator.
+- O jogo não dá boot no SUN — Strife Uranus Neptune.
 - O jogo também não dá boot no Ares.
 
-A falha compartilhada pelo Sega Emulator e pelo Ares torna prioritário verificar características do dump e o caminho de inicialização/cartucho, sem presumir que o defeito seja necessariamente do CPU, do VDP ou do mapeador. O funcionamento no GearSystem é um sinal comparativo útil, mas não prova por si só qual comportamento está correto.
+A falha compartilhada pelo SUN — Strife Uranus Neptune e pelo Ares torna prioritário verificar características do dump e o caminho de inicialização/cartucho, sem presumir que o defeito seja necessariamente do CPU, do VDP ou do mapeador. O funcionamento no GearSystem é um sinal comparativo útil, mas não prova por si só qual comportamento está correto.
 
 ## Objetivo
 
@@ -24,7 +24,7 @@ Determinar a primeira divergência reproduzível entre o carregamento da ROM, o 
 3. **Inicialização do cartucho:** estado inicial dos registradores de banco, RAM de cartucho, espelhamento e leitura dos endereços de reset podem divergir.
 4. **Reset e execução inicial do Z80:** PC/SP/flags, leitura do vetor de reset, fetch inicial, interrupções ou instruções executadas antes de qualquer acesso de vídeo.
 5. **Configuração do sistema:** região NTSC/PAL, modelo SMS/compatibilidade de console e estado inicial dos dispositivos.
-6. **Diferença de tolerância/heurísticas entre emuladores:** GearSystem pode reconhecer ou acomodar uma variante que o Sega Emulator e o Ares não tratam da mesma forma; isso precisa ser verificado no código e nos logs, não presumido.
+6. **Diferença de tolerância/heurísticas entre emuladores:** GearSystem pode reconhecer ou acomodar uma variante que o SUN — Strife Uranus Neptune e o Ares não tratam da mesma forma; isso precisa ser verificado no código e nos logs, não presumido.
 
 ## Plano de investigação
 
@@ -75,7 +75,7 @@ Só adicionar uma regressão derivada do jogo se a fixture for legalmente redist
 
 - [ ] Registrar tamanho e SHA-256 da cópia testada localmente, sem publicar a ROM.
 - [ ] Confirmar que os três emuladores testaram exatamente o mesmo artefato e configuração relevante.
-- [ ] Identificar o primeiro endereço/etapa em que o caminho do Sega Emulator diverge do comportamento esperado.
+- [ ] Identificar o primeiro endereço/etapa em que o caminho do SUN — Strife Uranus Neptune diverge do comportamento esperado.
 - [ ] Confirmar por evidência se a causa está no parser/detecção de mapper, no mapeamento, no reset/Z80, ou em outra camada.
 - [ ] Implementar uma correção pequena e coesa em PR/fatia separada, apenas depois de identificar a causa.
 - [ ] Adicionar teste determinístico independente que falhe antes e passe depois da correção.
@@ -103,7 +103,7 @@ Só adicionar uma regressão derivada do jogo se a fixture for legalmente redist
 
 ## Fontes técnicas a consultar
 
-- Código do Sega Emulator no SHA-base registrado acima, especialmente carregamento de ROM, mapper, bus/memória e estado inicial do SMS/Z80.
+- Código do SUN — Strife Uranus Neptune no SHA-base registrado acima, especialmente carregamento de ROM, mapper, bus/memória e estado inicial do SMS/Z80.
 - GearSystem: https://github.com/drhelius/Gearsystem
 - Ares: https://github.com/ares-emulator/ares
 - Documentação técnica do Sega Master System e especificações do Z80, usadas para confirmar os contratos de reset, mapeamento e acessos de barramento.
