@@ -1272,14 +1272,13 @@ impl SmsTemporalBus {
         if ym2413_domain_present != state.ym2413.is_some() {
             return Err(SmsTemporalBusError::InvalidState);
         }
-        if let (Some(core_state), Some(service_state)) = (&state.ym2413, &state.ym2413_pg_service) {
-            if core_state.slot_index != service_state.rhythm_noise_cursor
+        if let (Some(core_state), Some(service_state)) = (&state.ym2413, &state.ym2413_pg_service)
+            && (core_state.slot_index != service_state.rhythm_noise_cursor
                 || core_state.slot_index != service_state.output_pipeline.next_cycle
                 || core_state.slot_index != state.ym2413_pcm_accumulator.next_cycle
-                || u64::from(core_state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT
-            {
-                return Err(SmsTemporalBusError::InvalidState);
-            }
+                || u64::from(core_state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT)
+        {
+            return Err(SmsTemporalBusError::InvalidState);
         }
         let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
         let ym2413_pg_service = state
