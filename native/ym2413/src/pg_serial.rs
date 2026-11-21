@@ -424,7 +424,7 @@ mod tests {
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
     use crate::envelope_sequencer::{EnvelopeSequencer, EnvelopeSlotInput};
-    use crate::phase::{PhaseGenerator, YM2413_PHASE_MASK};
+    use crate::phase::PhaseGenerator;
     use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
     use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
     use crate::synthesis::{
