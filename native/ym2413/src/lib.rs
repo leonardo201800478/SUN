@@ -25,6 +25,7 @@ pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
+mod slot_service;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
@@ -360,31 +361,61 @@ impl Ym2413Core {
     /// Returns the number of complete 18-slot rotations crossed by this call.
     /// The result and complete state are independent of block partitioning.
     pub fn advance_input_clocks(&mut self, clocks: u64) -> Result<u64, Ym2413Error> {
+        let mut service = slot_service::NoopYm2413SlotService;
+        match self.advance_input_clocks_with_slot_service(clocks, &mut service) {
+            Ok(rotations) => Ok(rotations),
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => Err(error),
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Service(never)) => match never {},
+        }
+    }
+
+    /// Internal serial-slot advancement used by the integrated FM pipeline.
+    ///
+    /// The core invokes the service before and after its single EG update for
+    /// each completed slot. The service is synchronous and internal; the host
+    /// still advances the chip in coarse-grained input-clock blocks.
+    ///
+    /// The core state is transactional. An integrated pipeline must also stage
+    /// its own service state transactionally if a service callback can fail.
+    pub(crate) fn advance_input_clocks_with_slot_service<S: slot_service::Ym2413SlotService>(
+        &mut self,
+        clocks: u64,
+        service: &mut S,
+    ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
         let next_elapsed = self
             .elapsed_input_clocks
             .checked_add(clocks)
-            .ok_or(Ym2413Error::ClockOverflow)?;
+            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::ClockOverflow,
+            ))?;
 
         let total_slot_clocks = u128::from(self.input_clock_phase) + u128::from(clocks);
         let completed_slots = total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
         let next_clock_phase =
-            u8::try_from(total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT))
-                .map_err(|_| Ym2413Error::InvalidState)?;
+            u8::try_from(total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT)).map_err(
+                |_| slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::InvalidState),
+            )?;
 
         let total_slots = u128::from(self.slot_index) + completed_slots;
         let rotations = u64::try_from(total_slots / u128::from(YM2413_SLOTS_PER_ROTATION))
-            .map_err(|_| Ym2413Error::ClockOverflow)?;
+            .map_err(|_| {
+                slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow)
+            })?;
         let next_completed_rotations = self
             .completed_rotations
             .checked_add(rotations)
-            .ok_or(Ym2413Error::ClockOverflow)?;
+            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::ClockOverflow,
+            ))?;
         let next_slot = u8::try_from(total_slots % u128::from(YM2413_SLOTS_PER_ROTATION))
-            .map_err(|_| Ym2413Error::InvalidState)?;
+            .map_err(|_| {
+                slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::InvalidState)
+            })?;
 
         let mut next = self.clone();
         let mut slots_remaining = completed_slots;
         while slots_remaining != 0 {
-            next.clock_one_slot()?;
+            next.clock_one_slot_with_service(service)?;
             next.slot_index = (next.slot_index + 1) % YM2413_SLOTS_PER_ROTATION as u8;
             slots_remaining -= 1;
         }
@@ -398,11 +429,15 @@ impl Ym2413Core {
         Ok(rotations)
     }
 
-    /// Service one completed serial slot: mode latches, EG, register writes, IO latches.
-    fn clock_one_slot(&mut self) -> Result<(), Ym2413Error> {
+    /// Service one completed slot around the core-owned serial EG update.
+    fn clock_one_slot_with_service<S: slot_service::Ym2413SlotService>(
+        &mut self,
+        service: &mut S,
+    ) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
         let cycle = self.slot_index;
 
-        // Nuked's serial mode selector shifts before the current EG update.
+        // Nuked's serial mode selector shifts and applies mode writes before
+        // patch selection, PG/Operator service and the current EG update.
         self.rm_enable >>= 1;
         self.apply_mode_write();
         self.rm_select = (self.rm_select + 1).min(6);
@@ -410,12 +445,43 @@ impl Ym2413Core {
             self.rm_select = 0;
         }
 
-        let mut input = decode_envelope_slot_input_for_cycle(&self.registers, cycle)?;
-        input.rhythm_select =
-            EnvelopeRhythmSelect::from_code(self.rm_select).ok_or(Ym2413Error::InvalidState)?;
+        let mut input = decode_envelope_slot_input_for_cycle(&self.registers, cycle)
+            .map_err(|error| slot_service::Ym2413SlotServiceAdvanceError::Core(error.into()))?;
+        input.rhythm_select = EnvelopeRhythmSelect::from_code(self.rm_select)
+            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::InvalidState,
+            ))?;
         input.rhythm_bits = self.registers[0x0e] & 0x3f;
-        self.envelope.tick_slot(cycle, input)?;
 
+        let envelope_state = self.envelope.export_state();
+        let event = nuked_slot_service_event(cycle, self.rm_enable as u8, envelope_state.eg_dokon)
+            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::InvalidState,
+            ))?;
+        let context = slot_service::Ym2413SlotServiceContext {
+            event,
+            registers: self.registers,
+            envelope_input: input,
+            envelope_state,
+            rm_enable: self.rm_enable as u8,
+            rm_select: self.rm_select,
+        };
+
+        service
+            .before_eg_update(&context)
+            .map_err(slot_service::Ym2413SlotServiceAdvanceError::Service)?;
+
+        let tick = self
+            .envelope
+            .tick_slot(cycle, input)
+            .map_err(|error| slot_service::Ym2413SlotServiceAdvanceError::Core(error.into()))?;
+
+        service
+            .after_eg_update(&context, tick)
+            .map_err(slot_service::Ym2413SlotServiceAdvanceError::Service)?;
+
+        // The ordinary timed write stage remains last, after both service
+        // hooks and the single EG update.
         self.apply_register_write(cycle);
         Ok(())
     }
