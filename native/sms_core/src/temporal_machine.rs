@@ -2291,8 +2291,8 @@ mod tests {
     fn vdp_testrom_timing_snapshot_version_rejects_previous_semantics() {
         let machine = SmsTemporalMachine::new(vec![0; 0x4000], 3).unwrap();
         let mut state = machine.export_state();
-        assert_eq!(state.format_version, 34);
-        assert_eq!(state.bus.format_version, 21);
+        assert_eq!(state.format_version, 35);
+        assert_eq!(state.bus.format_version, 22);
 
         state.format_version = 33;
         assert!(matches!(
