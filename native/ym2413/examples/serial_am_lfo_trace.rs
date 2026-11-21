@@ -54,8 +54,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         let testmode: u8 = parse(&fields, 3)?;
         lfo.capture_output(cycle)
             .map_err(|error| format!("line {}: capture failed: {error:?}", line_number + 1))?;
-        lfo.clock(cycle, lfo_counter, testmode)
-            .map_err(|error| format!("line {}: serial AM clock failed: {error:?}", line_number + 1))?;
+        lfo.clock(cycle, lfo_counter, testmode).map_err(|error| {
+            format!(
+                "line {}: serial AM clock failed: {error:?}",
+                line_number + 1
+            )
+        })?;
 
         let actual = lfo.export_state();
         let expected_counter: u16 = parse(&fields, 4)?;
