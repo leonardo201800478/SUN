@@ -1663,8 +1663,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            false,
-            SmsFmOutputPolicy::Muted,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1761,8 +1760,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            true,
-            fm_output_policy,
+            SmsFmHardwareConfig::integrated(fm_output_policy),
         )
     }
 
