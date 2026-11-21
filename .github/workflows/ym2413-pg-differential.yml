@@ -264,6 +264,46 @@ jobs:
           python3 tools/ym2413-nuked-oracle/compare_operator.py \
             --nuked-trace "$RUNNER_TEMP/nuked-operator.jsonl"
 
+      - name: Generate all-five-voice Rhythm Mode operator sequence
+        run: |
+          python3 - "$RUNNER_TEMP/rhythm-events.csv" <<'PY'
+          import csv
+          import sys
+
+          events = []
+          def write_register(address, value, call):
+              events.append((call, 0, address))
+              events.append((call + 2, 1, value))
+
+          base = 0
+          for channel, (fnum, block) in zip((6, 7, 8), ((0x155, 4), (0x0A3, 3), (0x1C1, 5)), strict=True):
+              write_register(0x10 + channel, fnum & 0xFF, base)
+              base += 40
+              write_register(0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1), base)
+              base += 40
+              write_register(0x30 + channel, 0x00, base)
+              base += 40
+
+          # Rhythm enable plus BD, SD, TOM, TC and HH key-on bits.
+          write_register(0x0E, 0x3F, base + 200)
+          events.sort()
+          if any(events[i][0] >= events[i + 1][0] for i in range(len(events) - 1)):
+              raise ValueError("rhythm events must have unique increasing call indices")
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 \
+            --events "$RUNNER_TEMP/rhythm-events.csv" \
+            > "$RUNNER_TEMP/nuked-rhythm-operator.jsonl"
+
+      - name: Differentially validate all five serial rhythm output latches
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_operator.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-rhythm-operator.jsonl" \
+            --require-rhythm
+
       - name: Differentially validate serial AM LFO shift/carry state
         run: |
           python3 tools/ym2413-nuked-oracle/compare_am_lfo.py \
