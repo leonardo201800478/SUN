@@ -1,14 +1,15 @@
 //! Candidate YM2413 Phase Generator (PG) model.
 //!
-//! This module implements the measured 19-bit phase accumulator and PM
-//! correction described in the project's M1 research notes. It deliberately
+//! This module implements the measured 19-bit phase coordinate and PM
+//! correction described in the project's M1 research notes. The serial PG
+//! additionally preserves Nuked's full-width `uint32_t` phase-ring values. It deliberately
 //! does not own the global LFO/sample counter or slot scheduler: callers must
 //! provide the PM position at the exact operator update boundary. Reset
 //! alignment, register-write sampling and slot pipeline timing remain open.
 
-/// Number of significant bits in the measured YM2413 phase accumulator.
+/// Number of phase-coordinate bits consumed by the measured YM2413 sine path.
 pub const YM2413_PHASE_BITS: u32 = 19;
-/// Mask for the 19-bit phase accumulator.
+/// Mask for the 19-bit phase coordinate used by the standalone candidate.
 pub const YM2413_PHASE_MASK: u32 = (1 << YM2413_PHASE_BITS) - 1;
 /// Number of positions in the measured phase-modulation sequence.
 pub const YM2413_PM_POSITIONS: usize = 8;
@@ -55,12 +56,12 @@ pub struct PhaseGeneratorState {
     pub phase: u32,
 }
 
-/// One operator's 19-bit phase accumulator.
+/// One operator's phase state, including full-width serial PG intermediates.
 ///
-/// This is a digital candidate, not a complete cycle-accurate PG/slot model.
-/// The owner supplies current channel parameters and PM position at each
-/// operator update. This keeps the unresolved global-LFO alignment outside
-/// the PG until it is established by independent vectors.
+/// The standalone convenience update remains a 19-bit candidate. The serial
+/// hardware path uses `write_serial_phase` and `advance_serial_by_increment`
+/// to preserve Nuked's full-width `uint32_t` ring state. The owner supplies
+/// channel parameters and PM position at the established operator boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PhaseGenerator {
     phase: u32,
