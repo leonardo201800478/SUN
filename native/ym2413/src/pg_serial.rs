@@ -391,8 +391,9 @@ impl Ym2413PgSerialService {
         self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         self.output_pipeline = self.output_pipeline.with_next_cycle(next_slot_index)?;
-        self.measured_output_adapter =
-            self.measured_output_adapter.with_next_cycle(next_slot_index)?;
+        self.measured_output_adapter = self
+            .measured_output_adapter
+            .with_next_cycle(next_slot_index)?;
         Ok(self)
     }
 
@@ -412,8 +413,9 @@ impl Ym2413PgSerialService {
         self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         self.output_pipeline = self.output_pipeline.with_next_cycle(next_slot_index)?;
-        self.measured_output_adapter =
-            self.measured_output_adapter.with_next_cycle(next_slot_index)?;
+        self.measured_output_adapter = self
+            .measured_output_adapter
+            .with_next_cycle(next_slot_index)?;
         Ok(self)
     }
 
@@ -435,8 +437,9 @@ impl Ym2413PgSerialService {
         self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         self.output_pipeline = self.output_pipeline.with_next_cycle(next_slot_index)?;
-        self.measured_output_adapter =
-            self.measured_output_adapter.with_next_cycle(next_slot_index)?;
+        self.measured_output_adapter = self
+            .measured_output_adapter
+            .with_next_cycle(next_slot_index)?;
         Ok(self)
     }
 
