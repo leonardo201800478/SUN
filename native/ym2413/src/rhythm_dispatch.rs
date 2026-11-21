@@ -73,9 +73,12 @@ pub fn dispatch_serial_slot(
         });
     }
 
+    let Some(voice) = slot.rhythm_voice else {
+        return Ok(Ym2413SerialSlotDispatch::Melodic { slot });
+    };
     Ok(Ym2413SerialSlotDispatch::Rhythm {
         slot,
-        voice: slot.rhythm_voice.expect("rhythm slot checked above"),
+        voice,
         selector: rhythm_select,
     })
 }
