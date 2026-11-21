@@ -1832,3 +1832,21 @@ Both were corrected with rustfmt-equivalent edits. No behavior or test data chan
 - `51723854e724eefe9487c2d420a1fd1930fa1bcd`
 
 The CI failure was formatting-only. A fresh CI run is requested against the current PR head after the correction.
+
+
+## Latest exact-head validation status — 2026-11-21
+
+Current PR head: `fe7a774b4c4451515d8fb410dd0e5b5dfbdc70a7`.
+
+- CI #9888 (run `44926109073`): change classification and documentation
+  hygiene passed; Rust workspace regression is still running in the
+  observability runtime-feature validation step.
+- PG differential #424 (run `44926109082`): in progress at the integrated
+  core-owned serial PG comparison.
+- Rhythm reset differential #347 (run `44926109104`): **SUCCESS**.
+- EG characterization #597 (run `44926109099`): in progress at the complete
+  38-configuration AR/DR/KSR sweep.
+
+The earlier CI #9887 cancellation and the preceding formatting-only failure
+are not treated as passing validations. No final code-validation claim is
+made until CI #9888 and the PG/EG jobs complete.
