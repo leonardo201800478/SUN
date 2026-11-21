@@ -228,3 +228,15 @@ O fixture de reverse engineering não está operando na frequência nominal do M
 Portanto, as capturas de calibração/volume são feitas com o YM2413 operando a 50 kHz no fixture. Um pulso de três clocks dura aproximadamente 60 µs nesse setup; a 3,579545 MHz, duraria aproximadamente 0,84 µs.
 
 A lógica digital e a sequência de slots podem continuar úteis para caracterização, mas não se pode assumir que os níveis analógicos capturados a 50 kHz representem a transferência analógica em clock nominal. Tempo de acomodação, carga e resposta do estágio de saída podem alterar a tensão medida. A validação de amplitude/DAC para o SMS exige repetição em clock nominal ou uma demonstração explícita de que a resposta analógica é independente da frequência nessa faixa.
+
+### Tentativa de reprodução com o `volume0.raw` commitado
+
+Foi feita uma reprodução exploratória do algoritmo de `calibrate.cc` sobre o arquivo `analyze/volume/volume0.raw`:
+
+- O arquivo contém 20.032 amostras ADC; `calibrate.cc` usa por padrão 60.000 amostras para a calibração.
+- Aplicando histograma de 65.536 posições, filtro triangular de largura 30, detecção de máximos parabólica e a regra `insertMissing()` (>160 ADC counts), o arquivo `volume0.raw` produziu 28 picos detectados, 15 pontos médios inseridos e 43 bins resultantes.
+- Isso não reproduz os 512 bins esperados pela rotina de calibração.
+
+Esse resultado não refuta a nota de 2015: `volume0.raw` é uma captura de varredura de volume, não o `calibrate.raw` de 60.000 amostras usado para gerar os limites publicados. Ele demonstra que não é válido substituir o artefato de calibração ausente por `volume0.raw` e declarar a tabela reproduzida.
+
+Para fechar a evidência de 512 bins é necessário recuperar o `calibrate.raw`, `.peaks` e `.bins` originais ou repetir a calibração no hardware, registrando explicitamente quantos picos foram observados e quantos foram inseridos pela heurística.
