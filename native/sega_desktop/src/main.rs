@@ -1529,14 +1529,17 @@ mod windows_host {
 
     /// Carrega preferências com fallback individual para valores seguros e conhecidos.
     fn load_desktop_preferences() -> DesktopPreferences {
-        let mut preferences = DesktopPreferences::default();
         let Some(directory) = app_data_directory() else {
-            return preferences;
+            return DesktopPreferences::default();
         };
         let Ok(contents) = fs::read_to_string(directory.join("slint_ui_settings.txt")) else {
-            return preferences;
+            return DesktopPreferences::default();
         };
+        parse_desktop_preferences(&contents)
+    }
 
+    fn parse_desktop_preferences(contents: &str) -> DesktopPreferences {
+        let mut preferences = DesktopPreferences::default();
         for line in contents.lines() {
             let Some((key, value)) = line.split_once('=') else {
                 continue;
@@ -1715,7 +1718,15 @@ mod windows_host {
         let directory =
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-        let contents = format!(
+        fs::write(
+            directory.join("slint_ui_settings.txt"),
+            serialize_desktop_preferences(preferences),
+        )
+        .map_err(|error| error.to_string())
+    }
+
+    fn serialize_desktop_preferences(preferences: &DesktopPreferences) -> String {
+        format!(
             "region={}\nselected_system={}\nsms_fm_board_profile={}\nsms_fm_mode={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nsg1000_audio_hpf_enabled={}\nsg1000_audio_hpf_cutoff_hz={}\nsg1000_audio_lpf_enabled={}\nsg1000_audio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
             preferences.selected_system,
@@ -1751,9 +1762,7 @@ mod windows_host {
             encode_key_token(&preferences.keyboard_right_key),
             encode_key_token(&preferences.keyboard_button1_key),
             encode_key_token(&preferences.keyboard_button2_key)
-        );
-        fs::write(directory.join("slint_ui_settings.txt"), contents)
-            .map_err(|error| error.to_string())
+        )
     }
 
     /// Encodes each key character as a hexadecimal Unicode code point for safe text-file persistence.
