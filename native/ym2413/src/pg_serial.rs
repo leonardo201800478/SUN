@@ -23,7 +23,7 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 3;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 4;
 pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
