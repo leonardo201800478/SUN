@@ -18,11 +18,11 @@ use crate::{
     SmsIoError, SmsMemory, SmsTemporalCoordinator, SmsTemporalCoordinatorError,
     SmsTemporalCoordinatorState, SmsTemporalEvent, SmsVdp, Territory,
 };
-use sega_ym2413::{Ym2413Core, Ym2413Error, Ym2413State};
 use sega_audio_runtime::{DEFAULT_PCM_SOURCE_RATE_HZ, PsgClockError, ScheduledPsg};
 use sega_sn76489::{PsgAmplitudeEvent, PsgEventCaptureError, PsgProfile, Sn76489Core};
 use sega_temporal_core::{HardwarePhase, MachineTime};
 use sega_video::sms::SmsVdpProfile;
+use sega_ym2413::{Ym2413Core, Ym2413Error, Ym2413State};
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
 
 pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 22;
@@ -1011,9 +1011,12 @@ impl SmsTemporalBus {
             return Err(SmsTemporalBusError::InvalidState);
         }
         let coordinator = SmsTemporalCoordinator::restore_state(state.coordinator.clone())?;
-        let ym2413_domain_present = state.coordinator.scheduler.clock_domains.iter().any(|domain| {
-            domain.id == crate::SMS_YM2413_CLOCK_DOMAIN_ID
-        });
+        let ym2413_domain_present = state
+            .coordinator
+            .scheduler
+            .clock_domains
+            .iter()
+            .any(|domain| domain.id == crate::SMS_YM2413_CLOCK_DOMAIN_ID);
         if ym2413_domain_present != state.ym2413.is_some() {
             return Err(SmsTemporalBusError::InvalidState);
         }
@@ -1210,7 +1213,10 @@ mod tests {
             bus.dispatch_next().unwrap(),
             Some(SmsTemporalDispatch::InternalCycleComplete(_))
         ));
-        assert_eq!(bus.ym2413().unwrap().export_state().elapsed_input_clocks, 72);
+        assert_eq!(
+            bus.ym2413().unwrap().export_state().elapsed_input_clocks,
+            72
+        );
         bus.acknowledge_internal_completion(91).unwrap();
 
         let state = bus.export_state();
