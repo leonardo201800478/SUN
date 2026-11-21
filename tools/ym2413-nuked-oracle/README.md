@@ -193,3 +193,25 @@ These results are documented in
 diagnostic only and do not authorize a production change. The counter-truncate
 candidate was materially worse, so the low-eight-bit equality is a phase
 observation, not evidence that the Rust global counter should wrap.
+
+
+## Serial operator differential trace
+
+The full trace now also records the pre-call values consumed by
+`OPLL_Operator`: `pg_out`, `eg_out`, `eg_silent`, `c_fb`, `c_dc` and
+`c_dm`. These are deliberately captured before `OPLL_Clock`, while
+`op_exp_m`, `op_exp_s`, `op_logsin`, `op_neg`, `op_mod`, `op_fbsum`,
+`op_fb1[9]`, `op_fb2[9]` and `ch_out` are compared after the call.
+
+Run the production Rust operator replay and comparator with:
+
+```sh
+python3 tools/ym2413-nuked-oracle/compare_operator.py \
+  --nuked-trace nuked-operator.jsonl
+```
+
+The comparator feeds only Nuked's pre-call operator inputs to Rust. It
+therefore isolates the serial operator arithmetic and feedback pipeline from
+the separate PG, EG, register-decoder and LFO generation paths. A PASS does
+not establish that Rust independently generated those inputs correctly; the
+integrated serial pipeline requires its own differential gate.
