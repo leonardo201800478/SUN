@@ -179,4 +179,3 @@ A PR #1159 (`eb01ca8a7ee6224a98e872143b41f0b28137b292`) integrou o adaptador med
 O valor numérico do latch `ch_out` não é convertido em nível medido nesta integração. O adaptador recebe `Option<Ym2413DacCode>`; o PG fornece `None` até existir uma conversão independente. Assim, a validação atual fecha temporização/proveniência/estado, não amplitude física.
 
 `ModeInactive` significa que o modelo não fornece um nível RO medido naquele estado; não é uma afirmação de silêncio elétrico. `UnknownSource` e `RepeatNotInitialized` permanecem estados explícitos e não são convertidos em zero.
-
