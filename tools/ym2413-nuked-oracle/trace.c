@@ -21,6 +21,7 @@ extern uint16_t opll_trace_operator_phase_index;
 extern int16_t opll_trace_operator_output;
 extern uint8_t opll_trace_selected_instr;
 extern uint8_t opll_trace_selected_op;
+extern uint8_t opll_trace_testmode_at_dolfo;
 #endif
 
 #define MAX_EVENTS 65536
@@ -200,7 +201,7 @@ int main(int argc, char **argv) {
         memcpy(op_calc_op_fb1, chip.op_fb1, sizeof(op_calc_op_fb1));
         memcpy(op_calc_op_fb2, chip.op_fb2, sizeof(op_calc_op_fb2));
         uint16_t am_calc_lfo_counter = chip.lfo_counter;
-        uint8_t am_calc_testmode = chip.testmode;
+        uint8_t am_calc_testmode = 0;
         uint32_t phase_ismod =
             ((calc_rm_enable & 0x40) && (cycle_before == 13 || cycle_before == 14))
                 ? 0
@@ -229,6 +230,7 @@ int main(int argc, char **argv) {
         }
 
         OPLL_Clock(&chip, output);
+        am_calc_testmode = opll_trace_testmode_at_dolfo;
 #ifdef YM2413_TRACE_OPERATOR_BOUNDARY
         op_calc_pg_out = opll_trace_pg_out_before_operator;
 #endif
