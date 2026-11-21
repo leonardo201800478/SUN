@@ -386,7 +386,7 @@ impl SmsTemporalBus {
         )
     }
 
-    /// Construct the Japanese Master System profile with its integrated YM2413.
+    /// Construct an explicit Japanese Master System board profile with integrated YM2413.
     ///
     /// This selects an explicit physical board profile, independent of the
     /// software territory. Territory configures console I/O; it does not imply FM.
@@ -409,7 +409,7 @@ impl SmsTemporalBus {
         Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
-    /// Construct the Japanese Master System FM profile with explicit cartridge SRAM capacity.
+    /// Construct the Japanese Master System FM board profile with explicit cartridge SRAM capacity.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_japanese_fm_hardware_profile_and_sram_size(
         rom: impl Into<Vec<u8>>,
@@ -583,7 +583,7 @@ impl SmsTemporalBus {
         })
     }
 
-    /// Construct a Japanese Master System with BIOS and its integrated YM2413.
+    /// Construct an explicit Japanese Master System board profile with BIOS and YM2413.
     pub fn new_with_japanese_fm_hardware_profile_and_bios(
         rom: impl Into<Vec<u8>>,
         bios: Vec<u8>,
@@ -605,7 +605,7 @@ impl SmsTemporalBus {
         Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
-    /// Construct the Japanese Master System FM profile with BIOS and cartridge SRAM capacity.
+    /// Construct the Japanese Master System FM board profile with BIOS and cartridge SRAM capacity.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
         rom: impl Into<Vec<u8>>,
