@@ -97,6 +97,21 @@ Candidate-dependent differences reported over the 147,456-call trace:
 
 These differences are reported, not normalized away. In particular, the first feedback/waveform/sustain-level differences occur as the rhythm patch profile is selected. They must be reconciled against physical patch evidence before the candidate table is certified. The zero LFSR register used in the trace matches Nuked's software reset state only; it is not evidence for the physical YM2413 power-on seed.
 
+## Hardware reference alignment
+
+The serial dispatcher regression now asserts the rhythm ownership documented
+in Table III-9 of the [YM2413 application manual](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual):
+one-based physical slots 13/16 = BD modulator/carrier, 14 = HH, 15 = TOM,
+17 = SD and 18 = TC. The integrated oracle fixtures use the manual's rhythm
+frequency setup: R#16/17/18 = 0x20/0x50/0xC0 and R#26/27/28 =
+0x05/0x05/0x01, keeping melodic KEY-ON bits clear.
+
+The [SMS Power reverse-engineering notes of 2015-12-16](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-16)
+explicitly describe the six rhythm-ROM decoder lines as a best guess and state
+that rhythm behavior had not yet been reverse-engineered in that work. This is
+why the current patch table remains a candidate and why its differences from
+Nuked are reported rather than forcibly normalized.
+
 ## Explicitly not delivered
 
 - Full integrated synthesis equality for the rhythm patch candidates; the current oracle characterization reports candidate-dependent PG/EG/operator differences rather than treating them as a pass.
