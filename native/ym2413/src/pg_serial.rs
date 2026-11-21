@@ -72,6 +72,8 @@ pub struct Ym2413PgParameterLatch {
     pub block: u8,
     pub multiplier: u8,
     pub pm_enabled: bool,
+    pub feedback: u8,
+    pub am_enabled: bool,
 }
 
 impl Ym2413PgParameterLatch {
@@ -80,19 +82,30 @@ impl Ym2413PgParameterLatch {
         block: 0,
         multiplier: 0,
         pm_enabled: false,
+        feedback: 0,
+        am_enabled: false,
     };
 
-    fn from_operator(parameters: OperatorPhaseParameters) -> Self {
+    fn from_operator(
+        parameters: OperatorPhaseParameters,
+        feedback: u8,
+        am_enabled: bool,
+    ) -> Self {
         Self {
             fnum: parameters.fnum,
             block: parameters.block,
             multiplier: parameters.multiplier,
             pm_enabled: parameters.pm_enabled,
+            feedback,
+            am_enabled,
         }
     }
 
     const fn is_valid(self) -> bool {
-        self.fnum <= 0x01ff && self.block <= 7 && self.multiplier <= 0x0f
+        self.fnum <= 0x01ff
+            && self.block <= 7
+            && self.multiplier <= 0x0f
+            && self.feedback <= 7
     }
 }
 
@@ -168,6 +181,16 @@ impl Ym2413PgSerialService {
         self.pipeline.lfo_vib_counter
     }
 
+    /// Return the retained operator/PG parameter latch from PreparePatch2.
+    pub const fn parameter_latch(&self) -> Ym2413PgParameterLatch {
+        self.pipeline.parameters
+    }
+
+    /// Return the current PM LFO sample counter before its next serial update.
+    pub const fn pm_lfo_counter(&self) -> u16 {
+        self.synthesis.pm_lfo_counter()
+    }
+
     /// Borrow the eighteen-operator synthesis bank.
     pub const fn synthesis(&self) -> &Ym2413SynthesisBank {
         &self.synthesis
@@ -201,7 +224,7 @@ impl Ym2413PgSerialService {
     }
 
     /// Consume one PG phase-array write and one delayed output/reset decision.
-    fn generate_phase(
+    pub(crate) fn generate_phase(
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
@@ -236,7 +259,7 @@ impl Ym2413PgSerialService {
     }
 
     /// Calculate pg_inc from the previous cycle's retained c_* parameter latches.
-    fn calculate_increment(&mut self) -> Result<(), Ym2413PgSerialError> {
+    pub(crate) fn calculate_increment(&mut self) -> Result<(), Ym2413PgSerialError> {
         self.pipeline.pg_increment = PhaseGenerator::phase_step(
             self.pipeline.parameters.fnum,
             self.pipeline.parameters.block,
@@ -248,7 +271,7 @@ impl Ym2413PgSerialService {
     }
 
     /// Advance the PM counters at cycle 17, matching the OPLL_DoLFO stage.
-    fn clock_pm_lfo(&mut self, testmode: u8) {
+    pub(crate) fn clock_pm_lfo(&mut self, testmode: u8) {
         let counter = self.synthesis.pm_lfo_counter();
         let rollover = u8::from((counter & 0x03ff) == 0x03ff);
         let test_step = (testmode >> 3) & 1;
@@ -262,7 +285,7 @@ impl Ym2413PgSerialService {
 
     /// Reproduce PreparePatch2's channel/operator parameter selection for the
     /// next serial cycle. Rhythm-specific patch routing is deliberately gated.
-    fn latch_next_parameters(
+    pub(crate) fn latch_next_parameters(
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
@@ -278,7 +301,15 @@ impl Ym2413PgSerialService {
             Ym2413Operator::Modulator => config.modulator_phase,
             Ym2413Operator::Carrier => config.carrier_phase,
         };
-        self.pipeline.parameters = Ym2413PgParameterLatch::from_operator(parameters);
+        let am_enabled = match descriptor.operator {
+            Ym2413Operator::Modulator => config.operator_pair.modulator_am != 0,
+            Ym2413Operator::Carrier => config.operator_pair.carrier_am != 0,
+        };
+        self.pipeline.parameters = Ym2413PgParameterLatch::from_operator(
+            parameters,
+            config.operator_pair.feedback,
+            am_enabled,
+        );
         Ok(())
     }
 }
