@@ -220,7 +220,10 @@ impl fmt::Display for SmsTemporalBusError {
             Self::PsgClock(error) => write!(f, "SMS temporal PSG clock advance failed: {error}"),
             Self::Ym2413(error) => write!(f, "SMS temporal YM2413 clock advance failed: {error}"),
             Self::Ym2413Synthesis(error) => {
-                write!(f, "SMS temporal YM2413 synthesis initialization failed: {error:?}")
+                write!(
+                    f,
+                    "SMS temporal YM2413 synthesis initialization failed: {error:?}"
+                )
             }
             Self::Ym2413PgSerial(error) => {
                 write!(f, "SMS temporal YM2413 serial service failed: {error:?}")
