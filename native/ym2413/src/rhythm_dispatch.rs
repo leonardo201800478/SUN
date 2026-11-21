@@ -12,16 +12,11 @@ use crate::slot::{Ym2413RhythmVoice, Ym2413SlotDescriptor, nuked_cycle_selected_
 
 /// Result of resolving one core-owned serial slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Ym2413SerialSlotDispatch {
+pub pub enum Ym2413SerialSlotDispatch {
     /// Ordinary melodic ownership, including channels 7..9 when RHY is clear.
-    Melodic { slot: Ym2413SlotDescriptor     /// RHY register and serial rm_enable shift latch have not reached a matching stable state.
-    RhythmModeTransition {
+    Melodic {
         slot: Ym2413SlotDescriptor,
-        rhythm_mode_enabled: bool,
-        rm_enable: u8,
-        expected_rm_enable: u8,
     },
-},
     /// A rhythm selector agrees with the canonical slot and voice assignment.
     Rhythm {
         slot: Ym2413SlotDescriptor,
