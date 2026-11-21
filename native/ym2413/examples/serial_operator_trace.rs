@@ -66,12 +66,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         state.c_fb = c_fb;
         state.c_dc = c_dc;
         state.c_dm = c_dm;
-        operator = Ym2413SerialOperator::restore_state(state)
-            .map_err(|error| format!("line {}: invalid pre-call latches: {error:?}", line_number + 1))?;
+        operator = Ym2413SerialOperator::restore_state(state).map_err(|error| {
+            format!(
+                "line {}: invalid pre-call latches: {error:?}",
+                line_number + 1
+            )
+        })?;
 
-        let sample = operator
-            .tick_operator(cycle, pg_out)
-            .map_err(|error| format!("line {}: operator stage failed: {error:?}", line_number + 1))?;
+        let sample = operator.tick_operator(cycle, pg_out).map_err(|error| {
+            format!("line {}: operator stage failed: {error:?}", line_number + 1)
+        })?;
         let actual = operator.export_state();
 
         let expected_exp_m: u16 = parse(&fields, 8)?;
@@ -81,10 +85,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         let expected_mod: u16 = parse(&fields, 12)?;
         let expected_fbsum: i16 = parse(&fields, 13)?;
         let expected_fb1: [i16; 9] = std::array::from_fn(|index| {
-            fields[14 + index].parse().expect("validated signed feedback input")
+            fields[14 + index]
+                .parse()
+                .expect("validated signed feedback input")
         });
         let expected_fb2: [i16; 9] = std::array::from_fn(|index| {
-            fields[23 + index].parse().expect("validated signed feedback input")
+            fields[23 + index]
+                .parse()
+                .expect("validated signed feedback input")
         });
         let expected_ch_out: i16 = parse(&fields, 32)?;
 
