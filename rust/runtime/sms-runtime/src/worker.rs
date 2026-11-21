@@ -2335,6 +2335,7 @@ fn execute_frame_with_renderer(
     // Keep the legacy PSG FIFO bounded in both modes. H2 consumes events from
     // this same Scheduler-driven PSG instance; it never runs a second PSG.
     let psg_samples = machine.drain_audio_samples(None);
+    let fm_samples = machine.drain_fm_audio_samples(None);
     let mut use_h2 = false;
     if audio_renderer.mode == AudioRendererMode::H2Experimental {
         machine.drain_psg_amplitude_events(&mut audio_renderer.events);
@@ -2372,32 +2373,118 @@ fn execute_frame_with_renderer(
     } else {
         psg_samples.as_slice()
     };
-    let samples = if audio_renderer.fade_remaining > 0 && !source_samples.is_empty() {
-        audio_renderer.transition_samples.clear();
-        audio_renderer
-            .transition_samples
-            .extend_from_slice(source_samples);
-        let fade_start = AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
-        for (index, sample) in audio_renderer.transition_samples.iter_mut().enumerate() {
-            let position = fade_start.saturating_add(index).saturating_add(1);
-            let gain = (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
-            *sample *= gain;
+    let fm_mix_len = if machine.ym2413().is_some() && !use_h2 {
+        match audio_renderer.prepare_fm_mix(source_samples, &fm_samples) {
+            Ok(aligned_frames) => aligned_frames,
+            Err(error) => {
+                audio_renderer.reset_fm_pipeline();
+                telemetry.set_runtime_error(Some(format!(
+                    "YM2413 PCM resampling unavailable; continuing with PSG: {error}"
+                )));
+                None
+            }
         }
-        audio_renderer.fade_remaining = audio_renderer
-            .fade_remaining
-            .saturating_sub(audio_renderer.transition_samples.len());
-        audio_renderer.transition_samples.as_slice()
     } else {
-        source_samples
+        None
     };
 
-    let diagnostic_audio_start = diagnostics_enabled.then(Instant::now);
-    let audio_result = audio_session.as_mut().map(|session| {
-        if publish_audio && frame_completed {
-            session.process_samples(samples)
+    let mut multi_sources: Option<[MixSource<'_>; 2]> = None;
+    let single_source_samples: Option<&[f64]>;
+    let sample_count;
+    if let Some(aligned_frames) = fm_mix_len {
+        if aligned_frames == 0 {
+            single_source_samples = None;
+            sample_count = 0;
         } else {
-            session.process_samples_discarding_output(samples)
+            if audio_renderer.fade_remaining > 0 {
+                audio_renderer.transition_samples.clear();
+                audio_renderer
+                    .transition_samples
+                    .extend_from_slice(&audio_renderer.mix_psg_samples);
+                audio_renderer.transition_fm_samples.clear();
+                audio_renderer
+                    .transition_fm_samples
+                    .extend_from_slice(&audio_renderer.mix_fm_samples);
+                let fade_start =
+                    AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
+                for index in 0..aligned_frames {
+                    let position = fade_start.saturating_add(index).saturating_add(1);
+                    let gain =
+                        (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
+                    audio_renderer.transition_samples[index] *= gain;
+                    audio_renderer.transition_fm_samples[index] *= gain;
+                }
+                audio_renderer.fade_remaining = audio_renderer
+                    .fade_remaining
+                    .saturating_sub(aligned_frames);
+                multi_sources = Some([
+                    MixSource {
+                        samples: &audio_renderer.transition_samples,
+                        gain: 1.0,
+                    },
+                    MixSource {
+                        samples: &audio_renderer.transition_fm_samples,
+                        gain: 1.0,
+                    },
+                ]);
+            } else {
+                multi_sources = Some([
+                    MixSource {
+                        samples: &audio_renderer.mix_psg_samples,
+                        gain: 1.0,
+                    },
+                    MixSource {
+                        samples: &audio_renderer.mix_fm_samples,
+                        gain: 1.0,
+                    },
+                ]);
+            }
+            single_source_samples = None;
+            sample_count = aligned_frames;
         }
+    } else {
+        let samples = if audio_renderer.fade_remaining > 0 && !source_samples.is_empty() {
+            audio_renderer.transition_samples.clear();
+            audio_renderer
+                .transition_samples
+                .extend_from_slice(source_samples);
+            let fade_start = AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
+            for (index, sample) in audio_renderer.transition_samples.iter_mut().enumerate() {
+                let position = fade_start.saturating_add(index).saturating_add(1);
+                let gain = (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
+                *sample *= gain;
+            }
+            audio_renderer.fade_remaining = audio_renderer
+                .fade_remaining
+                .saturating_sub(audio_renderer.transition_samples.len());
+            audio_renderer.transition_samples.as_slice()
+        } else {
+            source_samples
+        };
+        sample_count = samples.len();
+        single_source_samples = Some(samples);
+    }
+
+    let diagnostic_audio_start = diagnostics_enabled.then(Instant::now);
+    let audio_result = audio_session.as_mut().and_then(|session| {
+        if sample_count == 0 {
+            return None;
+        }
+        let result = if let Some(sources) = multi_sources.as_ref() {
+            if publish_audio && frame_completed {
+                session.process_sources(sources)
+            } else {
+                session.process_sources_discarding_output(sources)
+            }
+        } else {
+            let samples = single_source_samples.expect("single-source audio batch is present");
+            if publish_audio && frame_completed {
+                session.process_samples(samples)
+            } else {
+                session.process_samples_discarding_output(samples)
+            }
+        };
+        Some(result)
     });
     let audio_submit_elapsed =
         diagnostic_audio_start.map_or(Duration::ZERO, |started| started.elapsed());
@@ -2419,7 +2506,6 @@ fn execute_frame_with_renderer(
         None => {}
     }
 
-    let sample_count = samples.len();
     let machine_ticks_per_frame = machine_time_end_ticks.saturating_sub(machine_time_start_ticks);
     let machine_clock_hz = telemetry.machine_clock_hz.load(Ordering::Acquire);
     // The source-sample fallback is retained for isolated tests that construct telemetry
