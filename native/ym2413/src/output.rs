@@ -263,10 +263,26 @@ pub struct Ym2413RhythmOutputFrame {
     pub ro: Ym2413OutputSlotResult,
 }
 
+/// Output-pin results for one Nuked-compatible serial cycle.
+///
+/// MO and RO retain their own measured slot coordinates because their
+/// cycle-to-slot transforms differ. The values are already reconstructed
+/// measured-domain levels; this frame does not model the previous-`ch_out`
+/// latch, pin-neutral code or output-buffer delay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413OutputCycleFrame {
+    pub cycle: u8,
+    pub mo_slot_index: u8,
+    pub ro_slot_index: u8,
+    pub mo: Option<Ym2413OutputPulse>,
+    pub ro: Ym2413OutputSlotResult,
+}
+
 /// Errors from the serial Rhythm Mode MO/RO output service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413RhythmOutputServiceError {
     InvalidState,
+    InvalidNukedCycle(u8),
     Retention(Ym2413RhythmOutputError),
     Routing(Ym2413OutputRoutingError),
 }
@@ -275,6 +291,9 @@ impl core::fmt::Display for Ym2413RhythmOutputServiceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::InvalidState => f.write_str("invalid YM2413 Rhythm Mode output-service state"),
+            Self::InvalidNukedCycle(cycle) => {
+                write!(f, "invalid Nuked-OPLL output cycle: {cycle}")
+            }
             Self::Retention(error) => write!(f, "YM2413 rhythm retention error: {error:?}"),
             Self::Routing(error) => write!(f, "YM2413 output routing error: {error}"),
         }
@@ -330,7 +349,51 @@ impl Ym2413RhythmOutputService {
         }
     }
 
-    /// Route one completed Rhythm Mode slot to independent MO and RO pulse results.
+    /// Route one Nuked-compatible cycle through the independently mapped MO and RO slots.
+    ///
+    /// MO uses `(cycle + 3) % 18`; RO uses `(cycle + 15) % 18`.
+    /// The rhythm retention cursor therefore follows RO's slot order, and
+    /// its initial `next_slot_index` must match the first RO slot to process.
+    ///
+    /// Supply melody_level only when the mapped MO slot is an active carrier
+    /// in the selected persistent mode. Supply original_rhythm_level only
+    /// when the mapped RO slot is 13..17. Both inputs must already be in the
+    /// signed measured-output domain. The caller owns the prior-`ch_out`
+    /// latch, delayed mode-write state, pin-neutral value and output-buffer
+    /// timing; this method only maps slots and applies measured retention.
+    pub fn process_nuked_cycle(
+        &mut self,
+        cycle: u8,
+        rhythm_mode_enabled: bool,
+        melody_level: Option<Ym2413DacCode>,
+        original_rhythm_level: Option<Ym2413DacCode>,
+    ) -> Result<Ym2413OutputCycleFrame, Ym2413RhythmOutputServiceError> {
+        let mo_slot_index = mo_output_slot_for_nuked_cycle(cycle)
+            .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(cycle))?;
+        let ro_slot_index = ro_output_slot_for_nuked_cycle(cycle)
+            .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(cycle))?;
+
+        // Validate MO placement before mutating the RO retention cursor.
+        let mo = melody_output_for_slot(mo_slot_index, rhythm_mode_enabled, melody_level)?;
+        let rhythm_result = self
+            .rhythm_delay
+            .process_slot(ro_slot_index, original_rhythm_level)?;
+        let ro = rhythm_slot_result(rhythm_result)?;
+
+        Ok(Ym2413OutputCycleFrame {
+            cycle,
+            mo_slot_index,
+            ro_slot_index,
+            mo,
+            ro,
+        })
+    }
+
+    /// Route one completed measured slot to MO and RO using a shared slot index.
+    ///
+    /// This lower-level API is retained for callers that already operate in
+    /// measured-slot coordinates. Nuked-cycle callers must use
+    /// `process_nuked_cycle` because the two pin offsets differ.
     ///
     /// Supply melody_level only at MO carrier slots 3, 4, 5, 9, 10 and 11.
     /// Supply original_rhythm_level only at source slots 13..17. The five
@@ -358,7 +421,7 @@ mod tests {
         YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
         Ym2413OutputPin, Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource,
         melody_output_for_slot, mo_output_slot_for_nuked_cycle, rhythm_output_event,
-        rhythm_slot_result, ro_output_slot_for_nuked_cycle,
+        rhythm_slot_result, ro_output_slot_for_nuked_cycle, Ym2413OutputCycleFrame,
     };
     use crate::rhythm_output::{
         Ym2413DacCode, Ym2413RhythmOutputError, Ym2413RhythmOutputEvent,
@@ -582,6 +645,84 @@ mod tests {
         for (cycle, slot) in ro_cycles.into_iter().zip(expected_ro_slots) {
             assert_eq!(ro_output_slot_for_nuked_cycle(cycle), Some(slot));
         }
+    }
+
+    #[test]
+    fn nuked_cycle_output_service_uses_independent_pin_slots_and_ro_retention_cursor() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let mut frames = Vec::new();
+
+        for cycle in 0..18_u8 {
+            let mo_slot = mo_output_slot_for_nuked_cycle(cycle).unwrap();
+            let ro_slot = ro_output_slot_for_nuked_cycle(cycle).unwrap();
+            let melody_level = if [3, 4, 5, 9, 10, 11].contains(&mo_slot) {
+                Some(level(i16::from(mo_slot)))
+            } else {
+                None
+            };
+            let rhythm_level = if (13..=17).contains(&ro_slot) {
+                Some(level(i16::from(ro_slot)))
+            } else {
+                None
+            };
+            frames.push(
+                service
+                    .process_nuked_cycle(cycle, true, melody_level, rhythm_level)
+                    .unwrap(),
+            );
+        }
+
+        assert_eq!(frames.len(), 18);
+        for frame in &frames {
+            assert_eq!(
+                frame.mo_slot_index,
+                mo_output_slot_for_nuked_cycle(frame.cycle).unwrap()
+            );
+            assert_eq!(
+                frame.ro_slot_index,
+                ro_output_slot_for_nuked_cycle(frame.cycle).unwrap()
+            );
+        }
+
+        let cycle_zero = frames[0];
+        assert_eq!(cycle_zero.mo_slot_index, 3);
+        assert!(cycle_zero.mo.is_some());
+        assert_eq!(cycle_zero.ro_slot_index, 15);
+        assert!(matches!(
+            cycle_zero.ro,
+            Ym2413OutputSlotResult::Pulse(pulse)
+                if pulse.source == Ym2413OutputSource::RhythmVoice(Ym2413RhythmVoice::BassDrum)
+        ));
+
+        // The first rotation begins at RO slot 15, so HH/TOM repeats at
+        // slots 0/1 precede their source slots 13/14 and remain uninitialized.
+        assert!(matches!(
+            frames[3].ro,
+            Ym2413OutputSlotResult::RepeatNotInitialized {
+                slot_index: 0,
+                voice: Ym2413RhythmVoice::HiHat
+            }
+        ));
+        assert!(matches!(
+            frames[4].ro,
+            Ym2413OutputSlotResult::RepeatNotInitialized {
+                slot_index: 1,
+                voice: Ym2413RhythmVoice::TomTom
+            }
+        ));
+    }
+
+    #[test]
+    fn nuked_cycle_output_service_rejects_invalid_cycle_without_mutating_state() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let before = service.export_state();
+        assert_eq!(
+            service.process_nuked_cycle(18, true, None, None),
+            Err(super::Ym2413RhythmOutputServiceError::InvalidNukedCycle(18))
+        );
+        assert_eq!(service.export_state(), before);
     }
 
     #[test]
