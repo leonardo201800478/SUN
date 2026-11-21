@@ -509,8 +509,14 @@ mod tests {
         let third = pipeline
             .process_cycle_with_core_state(2, 0, Some(-9))
             .unwrap();
-        assert_eq!(third.mo, Some(Ym2413NukedOutputCode::new(18)));
-        assert_eq!(third.ro, Some(Ym2413NukedOutputCode::new(1)));
+        assert_eq!(third.mo, None);
+        assert_eq!(third.ro, None);
+
+        let fourth = pipeline
+            .process_cycle_with_core_state(3, 0, Some(0))
+            .unwrap();
+        assert_eq!(fourth.mo, Some(Ym2413NukedOutputCode::new(18)));
+        assert_eq!(fourth.ro, Some(Ym2413NukedOutputCode::new(1)));
     }
 
     #[test]
