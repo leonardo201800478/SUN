@@ -146,3 +146,17 @@ Uma inspeção exploratória de `volume0.out` encontrou 20.030 tokens e 437 valo
 - Manter desconhecidos os níveis medidos no adaptador PG até estabelecer aritmética, polaridade, fase e correspondência com evidência independente.
 
 O próximo trabalho FM-5.4 deve reconstruir a cadeia de medição (ADC, normalização, classificação de níveis e fase da captura) e confrontá-la com a documentação de aplicação Yamaha. Mesmo uma tabela analógica calibrada não substitui a demonstração da palavra digital interna.
+
+### Detalhes do driver ADC e limite temporal
+
+Na revisão do firmware de captura, `tool2/adc0.cc` configura o ADC0 com entrada diferencial `adcSingleInpCh0Ch1`, anotada no código como `RO-MO`, e `diff = true`. A configuração usa clock ADC de 12 MHz, oversampling 16x, referência VDD e trigger PRS no canal 5.
+
+O driver oferece duas fontes de trigger:
+- Timer0 overflow: documentado no código como uma amostra por clock YM2413.
+- Timer1 overflow: documentado no código como uma amostra a cada 72 clocks YM2413.
+
+A seleção efetiva usada pelo comando de captura da varredura de volume ainda precisa ser rastreada no handler USB; não se deve assumir Timer0 ou Timer1 apenas pela existência dessas funções. O ponto já demonstrado é que a captura é uma medição ADC diferencial analógica RO−MO, não uma leitura dos bits internos do DAC.
+
+O utilitário `analyze/ym-histogram.cc` apenas consome valores já quantizados no intervalo 0..511 e calcula um histograma. Ele não contém a transformação ADC→nível. Portanto, os arquivos `.out` não podem ser tratados como captura bruta dos 9 bits do DAC sem localizar e validar a etapa que os produziu.
+
+**Próximo passo de FM-5.4:** rastrear o comando USB que seleciona a fonte PRS, reconstruir a transformação ADC→nível e alinhar a fase das amostras com os slots MO/RO. Mesmo depois disso, a correlação entre nível analógico e palavra digital interna exige evidência separada.
