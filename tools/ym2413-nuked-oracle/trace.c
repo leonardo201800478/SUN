@@ -17,6 +17,23 @@
 
 #define MAX_EVENTS 65536
 
+static int phase_reset_probe = 0;
+
+#ifdef YM2413_TRACE_PHASE_RESET
+void ym2413_trace_phase_reset(
+    uint32_t cycle,
+    uint8_t rm_enable,
+    uint32_t eg_dokon,
+    uint32_t ismod,
+    uint32_t reset_required
+) {
+    if (phase_reset_probe) {
+        fprintf(stderr, "YM2413_PHASE_RESET,%u,%u,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\\n",
+                (unsigned)cycle, (unsigned)rm_enable, eg_dokon, ismod, reset_required);
+    }
+}
+#endif
+
 typedef struct {
     uint64_t call_index;
     uint32_t port;
@@ -115,6 +132,8 @@ int main(int argc, char **argv) {
             pg_only = 1;
         } else if (!strcmp(argv[i], "--pg-phase-only")) {
             pg_phase_only = 1;
+        } else if (!strcmp(argv[i], "--phase-reset-probe")) {
+            phase_reset_probe = 1;
         } else {
             fprintf(stderr, "usage: %s --calls N [--events file.csv] [--chip-type 0] [--pg-only]\n", argv[0]);
             free(events);
@@ -173,6 +192,15 @@ int main(int argc, char **argv) {
             fprintf(stderr, "event call index was skipped\n");
             free(events);
             return 3;
+        }
+
+        if (phase_reset_probe && (chip.cycles == 13 || chip.cycles == 14)) {
+            static const uint32_t eg_dokon_probes[4] = {
+                0x8000u, 0x0001u, 0x0000u, 0x8001u
+            };
+            chip.rm_enable = (int8_t)0x80;
+            chip.eg_dokon = eg_dokon_probes[(tick / 18u) % 4u];
+            chip.testmode = 0;
         }
 
         OPLL_Clock(&chip, output);
