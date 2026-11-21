@@ -1628,6 +1628,8 @@ mod tests {
         let frame = service.measured_output_frame().unwrap();
         assert_eq!(frame.source.cycle, 0);
         assert_eq!(frame.emitted_cycle, 1);
+        assert!(frame.source.mo.is_none());
+        assert!(!frame.source.mo_known);
         assert_eq!(
             frame.source.ro,
             crate::Ym2413OutputSlotResult::UnknownSource {
