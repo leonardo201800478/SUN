@@ -42,7 +42,7 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 11;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 12;
 pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 4;
 
 /// Maximum increment reachable from the legal FNUM/BLOCK/MUL/PM input domain.
@@ -205,6 +205,9 @@ pub struct Ym2413PgSerialServiceState {
     pub rhythm_noise_samples: [Option<bool>; 2],
     /// Digital MO/RO pipeline, including explicit output-validity state.
     pub output_pipeline: Ym2413OutputPipelineState,
+    /// Provenance of the previous ch_out latch: true only when the prior
+    /// operator result came from the core's settled Rhythm Mode dispatch.
+    pub previous_channel_output_is_rhythm: bool,
     /// Most recently emitted output-buffer frame, retained for exact resumption.
     pub last_output_frame: Option<Ym2413CoreOutputPipelineFrame>,
     /// Measured-domain MO/RO routing and its independent output-buffer state.
@@ -339,6 +342,7 @@ pub struct Ym2413PgSerialService {
     rhythm_noise_steps: u64,
     rhythm_noise_samples: [Option<bool>; 2],
     output_pipeline: Ym2413OutputPipeline,
+    previous_channel_output_is_rhythm: bool,
     last_output_frame: Option<Ym2413CoreOutputPipelineFrame>,
     measured_output_adapter: Ym2413MeasuredOutputAdapter,
 }
@@ -364,6 +368,7 @@ impl Ym2413PgSerialService {
             rhythm_noise_steps: 0,
             rhythm_noise_samples: [None, None],
             output_pipeline: Ym2413OutputPipeline::new(),
+            previous_channel_output_is_rhythm: false,
             last_output_frame: None,
             measured_output_adapter: Ym2413MeasuredOutputAdapter::new(),
         }
@@ -525,6 +530,7 @@ impl Ym2413PgSerialService {
             rhythm_noise_steps: self.rhythm_noise_steps,
             rhythm_noise_samples: self.rhythm_noise_samples,
             output_pipeline: self.output_pipeline.export_state(),
+            previous_channel_output_is_rhythm: self.previous_channel_output_is_rhythm,
             last_output_frame: self.last_output_frame,
             measured_output_adapter: self.measured_output_adapter.export_state(),
         }
@@ -543,6 +549,8 @@ impl Ym2413PgSerialService {
         }
         if state.rhythm_noise_cursor >= crate::rhythm::YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION
             || state.output_pipeline.next_cycle != state.rhythm_noise_cursor
+            || (state.previous_channel_output_is_rhythm
+                && !state.output_pipeline.previous_channel_output_valid)
             || state.last_output_frame.is_some_and(|frame| {
                 frame.cycle >= 18 || (frame.cycle + 1) % 18 != state.output_pipeline.next_cycle
             })
@@ -577,6 +585,7 @@ impl Ym2413PgSerialService {
             rhythm_noise_steps: state.rhythm_noise_steps,
             rhythm_noise_samples: state.rhythm_noise_samples,
             output_pipeline,
+            previous_channel_output_is_rhythm: state.previous_channel_output_is_rhythm,
             last_output_frame: state.last_output_frame,
             measured_output_adapter,
         })
@@ -822,7 +831,11 @@ impl Ym2413PgSerialService {
         &mut self,
         context: &Ym2413SlotServiceContext,
         next_channel_output: Option<i16>,
+        next_channel_output_is_rhythm: bool,
     ) -> Result<(), Ym2413PgSerialError> {
+        if next_channel_output_is_rhythm && next_channel_output.is_none() {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
         let output_state = self.output_pipeline.export_state();
         let previous_channel_output = output_state
             .previous_channel_output_valid
@@ -832,12 +845,15 @@ impl Ym2413PgSerialService {
             context.event.cycle,
             rhythm_mode_enabled,
             previous_channel_output,
+            self.previous_channel_output_is_rhythm,
         )?;
         self.last_output_frame = Some(self.output_pipeline.process_cycle_with_core_state(
             context.event.cycle,
             context.rm_enable as i8,
             next_channel_output,
         )?);
+        self.previous_channel_output_is_rhythm =
+            next_channel_output_is_rhythm && next_channel_output.is_some();
         Ok(())
     }
 
@@ -866,7 +882,7 @@ impl Ym2413PgSerialService {
             self.pipeline.pg_output,
             operator_rm_enable,
         )?;
-        self.clock_output_pipeline(context, Some(sample.channel_output))?;
+        self.clock_output_pipeline(context, Some(sample.channel_output), true)?;
         self.calculate_increment()?;
         let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
@@ -911,7 +927,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             }
             _ => {
                 self.serial_am_lfo.capture_output(context.event.cycle)?;
-                self.clock_output_pipeline(context, None)?;
+                self.clock_output_pipeline(context, None, false)?;
                 return Ok(());
             }
         };
