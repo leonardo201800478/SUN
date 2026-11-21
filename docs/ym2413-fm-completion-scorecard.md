@@ -1808,3 +1808,14 @@ Code commits:
 
 The earlier shared-offset helper was removed. Exact-head CI, PG differential,
 rhythm reset differential and EG characterization are pending for this code.
+
+
+## Test-source correction before exact-head rerun
+
+The first workflow attempt on the new adapter exposed an unclosed test-module
+delimiter caused by a duplicated test attribute/signature in
+`output.rs`. The duplicate was removed and an unused test import was
+dropped. This was a source-structure error, not a behavioral test failure.
+The failing reset differential stopped at Rust compilation before executing
+its comparison. Exact-head CI and all YM2413 differentials are rerun after
+this correction; no pass is claimed for the failed attempt.
