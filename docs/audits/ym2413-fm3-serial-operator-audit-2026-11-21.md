@@ -1,8 +1,8 @@
-# YM2413 FM-3 — serial operator pipeline audit
+# YM2413 FM-3 — serial operator pipeline audi
 
-**Date:** 2026-11-21  
-**Rust base:** FM-2 serial PG service, PR #1145 HEAD `45877480d824b558c0a708bd5a2a30732bff67f8`  
-**Implementation branch:** `feat/ym2413-fm3-serial-operator`  
+**Date:** 2026-11-21
+**Rust base:** FM-2 serial PG service, PR #1145 HEAD `45877480d824b558c0a708bd5a2a30732bff67f8`
+**Implementation branch:** `feat/ym2413-fm3-serial-operator`
 **Primary software oracle:** Nuked-OPLL commit `1269cf5a783b65583b50fa2464d08be75830aaa0`
 
 ## Scope and claim boundary
@@ -68,7 +68,7 @@ The feedback ring index and delayed feedback-sum selection follow the serial cyc
 The phase path uses Nuked's ten-bit effective phase:
 `phase = (op_mod + pg_out) & 0x3ff`, followed by the half-wave mirror when bit 8 is set. The 32-bit addition is wrapping before the ten-bit mask.
 
-## ROM transform audit
+## ROM transform audi
 
 The Rust log-sine table contains 256 values and was compared against the pinned Nuked `logsinrom`: **256/256 values equal**.
 
