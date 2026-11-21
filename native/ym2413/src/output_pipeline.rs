@@ -505,7 +505,7 @@ mod tests {
             .process_cycle_with_core_state(2, 0, Some(-9))
             .unwrap();
         assert_eq!(third.mo, Some(Ym2413NukedOutputCode::new(18)));
-        assert_eq!(third.ro, Some(Ym2413NukedOutputCode::new(18)));
+        assert_eq!(third.ro, Some(Ym2413NukedOutputCode::new(1)));
     }
 
     #[test]
