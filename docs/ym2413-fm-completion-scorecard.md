@@ -1195,8 +1195,8 @@ No PCM FM, complete operator/feedback pipeline, Rhythm Mode PCM, SMS FM ports or
 
 ## Atualização FM-2 — PR #1145 / serviço PG serial
 
-**Branch:** feat/ym2413-fm2-serial-pg-integration  
-**PR:** #1145, aberta e empilhada sobre a PR #1133  
+**Branch:** feat/ym2413-fm2-serial-pg-integration
+**PR:** #1145, aberta e empilhada sobre a PR #1133
 **HEAD de código validado:** 56dfe6262d6e98ccae1bd32a3e622050a16ebf20
 
 ### Implementação
