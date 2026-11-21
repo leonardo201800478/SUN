@@ -1705,3 +1705,40 @@ Both were corrected without changing conversion semantics or characterization da
 `909bfea995848f3d925fef55a88fc8e4824045f1`.
 
 All exact-head workflows must be rerun on the final branch HEAD; no pass is claimed from the failed formatting run.
+
+
+## Corrected MO/RO cycle alignment and exact-head validation — 2026-11-21
+
+The previous MO/RO audit contained two interpretation errors and is
+superseded by the corrected report
+`docs/audits/ym2413-mo-ro-cycle-alignment-2026-11-21.md`.
+
+1. MO and RO use the **same** measured-slot coordinate:
+   `(nuked_cycle + 15) % 18`. The earlier MO `+3` transform was an
+   inverse-offset error. Independent per-pin cursors are not required merely
+   to compensate for different offsets.
+2. `rm_enable & 0x40` is a delayed mode-write pipeline bit, not a persistent
+   Rhythm Mode flag. Nuked shifts `rm_enable` every clock and loads its
+   upper bit during a register 0x0e write. The conditional MO/RO gating in
+   `OPLL_Channel` must be interpreted using that transient state. Nuked's
+   RO gating is explicitly marked as possibly incorrect in the pinned source.
+
+The new public helper `output_slot_for_nuked_cycle(cycle)` implements the
+shared 18-slot coordinate and rejects cycles outside 0..17. Unit tests cover
+all 18 cycle mappings and specifically prove alignment of the six measured
+Rhythm Mode MO slots and ten measured RO occurrences. This is only a
+coordinate conversion: it does not implement previous-`ch_out` timing,
+the extra output-buffer delay, `rm_enable` transition state, pin-neutral
+codes, or physical timing.
+
+Exact-head validations for pre-helper HEAD
+`1d0b9f09aabccb73d87620327ac27a7da6d328b7` all completed successfully:
+- CI #9868 (run `44924445269`): **SUCCESS**.
+- PG differential #404 (run `44924445347`): **SUCCESS**.
+- Rhythm reset differential #327 (run `44924445256`): **SUCCESS**.
+- EG characterization #577 (run `44924445358`): **SUCCESS**.
+
+These successes validate the prior conversion helper and code at that exact
+HEAD, not the new cycle-mapping helper. The current helper and export require
+fresh exact-head CI and differential runs. No core integration or YM2413
+completion is implied.
