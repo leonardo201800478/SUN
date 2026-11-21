@@ -17,8 +17,6 @@ pub const YM2413_SERIAL_OPERATOR_SLOTS: u8 = 18;
 pub enum Ym2413SerialOperatorError {
     /// The Nuked-compatible serial cycle must be in 0..18.
     InvalidCycle(u8),
-    /// PG output is the eleven-bit value produced by PhaseGenerate.
-    InvalidPgOutput(u16),
     /// KSL attenuation must be in the 0..112 EG domain.
     InvalidKslAttenuation(u8),
     /// The TL latch is six bits wide.
@@ -221,9 +219,6 @@ impl Ym2413SerialOperator {
     ) -> Result<Ym2413SerialOperatorSample, Ym2413SerialOperatorError> {
         if cycle >= YM2413_SERIAL_OPERATOR_SLOTS {
             return Err(Ym2413SerialOperatorError::InvalidCycle(cycle));
-        }
-        if pg_out > 0x07ff {
-            return Err(Ym2413SerialOperatorError::InvalidPgOutput(pg_out));
         }
 
         let ismod1 = ((cycle + 1) / 3) & 1 != 0;
@@ -482,10 +477,6 @@ mod tests {
         assert_eq!(
             operator.tick_operator(18, 0),
             Err(Ym2413SerialOperatorError::InvalidCycle(18))
-        );
-        assert_eq!(
-            operator.tick_operator(0, 2048),
-            Err(Ym2413SerialOperatorError::InvalidPgOutput(2048))
         );
         assert_eq!(operator, before);
     }
