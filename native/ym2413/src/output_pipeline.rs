@@ -321,8 +321,7 @@ mod tests {
                 (c == 4).then_some(0x20),
             ));
         }
-        let mut restored =
-            Ym2413OutputPipeline::with_initial_state(split.export_state()).unwrap();
+        let mut restored = Ym2413OutputPipeline::with_initial_state(split.export_state()).unwrap();
         let mut resumed = Vec::new();
         for c in 7..18 {
             resumed.push(tick(
@@ -356,7 +355,7 @@ mod tests {
             Ym2413OutputPipelineState {
                 output_m: 257,
                 ..valid
-            }
+            },
         ] {
             assert_eq!(
                 Ym2413OutputPipeline::with_initial_state(invalid),
