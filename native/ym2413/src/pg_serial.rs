@@ -723,10 +723,15 @@ impl Ym2413PgSerialService {
             None
         };
         self.generate_phase(context, noise_bit)?;
+        let operator_rm_enable = if self.rhythm_noise.is_some() {
+            context.rm_enable
+        } else {
+            0
+        };
         self.operator.tick_operator_with_rhythm_mode(
             context.event.cycle,
             self.pipeline.pg_output,
-            context.rm_enable,
+            operator_rm_enable,
         )?;
         self.calculate_increment()?;
         let eg_levels =
