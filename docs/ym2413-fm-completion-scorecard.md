@@ -1171,6 +1171,6 @@ No MAME executable/runtime state was captured. This is not an independent MAME o
 
 ### Next gate
 
-FM-1B remains open: integrate the explicit slot-service event, connect the serial EG reset event to the unique PG consumer, preserve all delayed latches and prove continuous/partitioned equivalence. The slot-service mapping and offsets were integrated by PR #1124 (merge 8a80fc784c3b9b2563cea248f5c3ba1b4073dfc9). The core-owned pre/post EG service hooks are under PR #1126; the synthesis bank is not connected yet.
+FM-1B remains open: connect the serial EG reset event to the unique PG consumer, preserve all delayed latches and prove continuous/partitioned equivalence. The slot-service mapping and offsets were integrated by PR #1124 (merge 8a80fc784c3b9b2563cea248f5c3ba1b4073dfc9). The core-owned pre/post EG service hooks are implemented in open PR #1133 (HEAD 4384bcedc0932b6111a255668f9008271e413e9a); the synthesis bank is not connected yet.
 
 No PCM FM, complete operator/feedback pipeline, Rhythm Mode PCM, SMS FM ports or PSG+FM mixer is claimed complete.
