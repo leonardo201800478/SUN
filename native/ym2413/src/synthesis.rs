@@ -816,6 +816,19 @@ mod tests {
     }
 
     #[test]
+    fn serial_pg_accumulator_preserves_full_width_phase_across_snapshot() {
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
+        bank.write_operator_phase(6, true, 0x0008_4000).unwrap();
+        assert_eq!(bank.phase_accumulator(6, true).unwrap(), 0x0008_4000);
+        assert_eq!(bank.phase_index(6, true).unwrap(), 0x20);
+
+        let snapshot = bank.export_state();
+        let restored = Ym2413SynthesisBank::restore_state(snapshot).unwrap();
+        assert_eq!(restored.phase_accumulator(6, true).unwrap(), 0x0008_4000);
+        assert_eq!(restored.export_state(), snapshot);
+    }
+
+    #[test]
     fn per_operator_updates_and_channel_evaluation_are_deterministic() {
         let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
         let config = configuration(0);
