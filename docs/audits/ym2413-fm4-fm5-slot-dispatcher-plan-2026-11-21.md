@@ -211,3 +211,16 @@ This increment connects the already characterized slot-rate noise sequencer to t
 - Expand the independent Nuked/hardware-capture differential before claiming any instrument complete.
 
 The LFSR seed/reset phase, rhythm patch parameter candidates, and physical DAC interpretation remain explicitly unresolved. Nuked remains a software reference rather than proof of physical silicon behavior.
+
+### Nuked DoRhythm arithmetic refinement
+
+The pinned source at commit `1269cf5a783b65583b50fa2464d08be75830aaa0` was inspected directly:
+
+- `OPLL_Reset` zeroes the complete `opll_t`, including `rm_noise`.
+- `OPLL_DoRhythm` computes feedback as bit 0 XOR bit 14, ORs the zero-register escape bit, ORs Test Mode bit 1, then shifts right and inserts the feedback at bit 22.
+- `OPLL_Clock` calls `OPLL_DoLFO`, then `OPLL_DoRhythm`, then `OPLL_PreparePatch2` on every call.
+
+FM-5.2A therefore now supports an explicit 23-bit register candidate including zero, reproduces the zero-lock escape and Test Mode bit-1 feedback injection, and passes the current Test Mode register into the post-EG DoRhythm step. The nonzero-seed constructor remains available for hardware-candidate experiments. Neither zero nor any nonzero value is claimed as the physical chip's power-on seed.
+
+A new independent differential is added to `.github/workflows/ym2413-rhythm-reset-differential.yml`: 144 consecutive Nuked `rm_noise` states from `OPLL_Reset` are compared with the Rust slot-rate LFSR trace. Unit tests separately cover zero-register escape, Test Mode bit 1, service-level Test Mode propagation, snapshot restoration and full-slot cadence.
+
