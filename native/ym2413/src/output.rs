@@ -1436,8 +1436,9 @@ mod tests {
             .unwrap();
         assert!(matches!(
             source.ro,
-            Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse { level, .. })
-                if level == level(-19)
+            Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse {
+                level: actual_level, ..
+            }) if actual_level == level(-19)
         ));
         for cycle in 1..5 {
             let _ = service
@@ -1449,8 +1450,9 @@ mod tests {
             .unwrap();
         assert!(matches!(
             repeat.ro,
-            Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse { level, .. })
-                if level == level(-19)
+            Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse {
+                level: actual_level, ..
+            }) if actual_level == level(-19)
         ));
     }
 
