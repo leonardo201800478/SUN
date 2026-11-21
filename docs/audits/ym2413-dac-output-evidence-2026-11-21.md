@@ -134,18 +134,24 @@ A PR #1159 (`eb01ca8a7ee6224a98e872143b41f0b28137b292`) preserva o bloqueio de c
 
 O repositório de reverse engineering contém a rotina [`analyze/volume/volumes.cc`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/volume/volumes.cc) e os arquivos [`volume0.raw`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/volume/volume0.raw), [`volume0.out`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/volume/volume0.out) e [resultados de 2015-03-11](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/results/20150311.txt).
 
-A rotina configura um patch senoidal, define F-number `0x61`, percorre volumes `0..15`, ativa a nota e captura amostras ADC da saída analógica. O arquivo `.raw` contém amostras ADC, não a palavra digital interna do DAC. O arquivo `.out` é uma sequência de níveis processados; a transformação que o gerou não está implementada pela rotina de captura `volumes.cc`.
+A rotina configura um patch senoidal, define F-number `0x61`, percorre volumes `0..15`, ativa a nota e captura amostras ADC da saída analógica. O arquivo `.raw` contém amostras ADC, não a palavra digital interna do DAC. O arquivo `.out` é uma sequência de índices de bins analógicos. A cadeia está no mesmo repositório: `analyze/calibrate.cc` identifica picos ADC e grava limites em `.bins`; `analyze/decode.cc` usa `lower_bound` nesses limites para converter cada amostra ADC em um índice 0..511. O índice representa a posição na calibração analógica, não o código digital aplicado ao DAC.
 
 Uma inspeção exploratória de `volume0.out` encontrou 20.030 tokens e 437 valores distintos no intervalo 0..511. Isso caracteriza apenas a cobertura dessa sequência processada; não prova a codificação interna, não estabelece a ordem dos códigos do DAC e não é uma tabela de conversão produção. A afirmação de 512 níveis distintos nos resultados de medição continua sendo uma afirmação sobre níveis analógicos observados, não uma captura direta dos bits internos.
 
 ### Consequência técnica
 
-- Não usar `volume*.out` como palavra DAC sem documentar e validar a transformação ADC→nível.
+- Não usar `volume*.out` como palavra DAC: são índices de bins analógicos produzidos pela calibração ADC.
 - Não assumir que a representação one's-complement do operador é idêntica à entrada digital do DAC.
 - Não converter o latch `ch_out` em `Ym2413DacCode` por identidade ou fórmula candidata.
 - Manter desconhecidos os níveis medidos no adaptador PG até estabelecer aritmética, polaridade, fase e correspondência com evidência independente.
 
-O próximo trabalho FM-5.4 deve reconstruir a cadeia de medição (ADC, normalização, classificação de níveis e fase da captura) e confrontá-la com a documentação de aplicação Yamaha. Mesmo uma tabela analógica calibrada não substitui a demonstração da palavra digital interna.
+O próximo trabalho FM-5.4 deve reconstruir e reproduzir a cadeia ADC→bins→índices, validar a fase de captura e confrontá-la com a documentação de aplicação Yamaha. Mesmo uma tabela analógica calibrada não substitui a demonstração da palavra digital interna.
+
+
+Fontes de calibração e decodificação:
+- [`analyze/calibrate.cc`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/calibrate.cc) — detecção dos picos ADC e geração dos limites de bins.
+- [`analyze/decode.cc`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/decode.cc) — conversão de cada amostra ADC para índice de bin por `lower_bound`.
+- [`analyze/ym-histogram.cc`](https://github.com/andete/ym2413/blob/4893d1c09faa0450b5d3355f19b7682d72822501/analyze/ym-histogram.cc) — histograma dos índices já decodificados.
 
 ### Detalhes do driver ADC e limite temporal
 
@@ -163,6 +169,6 @@ A seleção efetiva da varredura de volume foi rastreada:
 
 Assim, as capturas de volume existentes não resolvem individualmente os 18 slots nem os quatro clocks de cada slot. Elas medem o sinal diferencial analógico RO−MO em uma fase de Timer1 por rotação. O código `ym::syncTimer1()` calibra a fase do Timer1 em relação ao Timer0, mas a correspondência dessa fase com as janelas MO/RO medidas ainda precisa ser estabelecida.
 
-O utilitário `analyze/ym-histogram.cc` apenas consome valores já quantizados no intervalo 0..511 e calcula um histograma. Ele não contém a transformação ADC→nível. Portanto, os arquivos `.out` não podem ser tratados como captura bruta dos 9 bits do DAC sem localizar e validar a etapa que os produziu.
+O utilitário `analyze/ym-histogram.cc` apenas consome valores já quantizados no intervalo 0..511 e calcula um histograma. A transformação ADC→índice está em `analyze/calibrate.cc` e `analyze/decode.cc`. Portanto, os arquivos `.out` são índices de níveis analógicos calibrados, não captura bruta dos 9 bits do DAC.
 
-**Próximo passo de FM-5.4:** comparar a captura existente Timer1/72 clocks com uma captura Timer0/clock YM2413 via `startCapture72()`, reconstruir a transformação ADC→nível e alinhar a fase com os slots MO/RO. Uma amostra por clock ainda não resolve eventos subclock; para isso será necessário demonstrar a largura/janela ou obter uma captura analógica de resolução temporal suficiente. Mesmo depois disso, a correlação entre nível analógico e palavra digital interna exige evidência separada.
+**Próximo passo de FM-5.4:** reproduzir a calibração ADC→bins→índices e comparar a captura existente Timer1/72 clocks com uma captura Timer0/clock YM2413 via `startCapture72()`. A captura de volume atual é diferencial RO−MO, em uma amostra por rotação; a captura Timer0 melhora a resolução para um ponto por clock, mas ainda não resolve eventos subclock nem separa os pinos. A correlação entre nível analógico e palavra digital interna exige evidência separada.
