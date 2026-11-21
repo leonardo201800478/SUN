@@ -4,14 +4,16 @@
 
 This audit reconciles the measured MO/RO output-slot maps with the pinned
 Nuked-OPLL software schedule at commit
-`1269cf5a783b65583b50fa2464d08be75830aaa0`. It corrects an earlier
-interpretation that incorrectly assigned different cycle offsets to MO and
-RO and treated `rm_enable & 0x40` as a persistent Rhythm Mode flag.
+`1269cf5a783b65583b50fa2464d08be75830aaa0`. It corrects the intermediate
+claim that both pins share one cycle-to-slot transform. MO and RO use
+different offsets. It also corrects the interpretation of
+`rm_enable & 0x40`: it is a delayed mode-write pipeline bit, not a
+persistent Rhythm Mode flag.
 
-The measured slot map comes from the project's reverse-engineering evidence.
-Nuked's `output_m/output_r` behavior is a software model and is not itself
-physical timing evidence. The RO switch in this source is explicitly marked
-`TODO: This might be incorrect`.
+The measured slot maps come from the project's reverse-engineering evidence.
+Nuked's `output_m/output_r` behavior is a software model, not physical
+timing evidence. Its RO switch is explicitly marked `TODO: This might be
+incorrect`.
 
 ## Clock order and pipeline
 
@@ -32,42 +34,7 @@ Consequences:
 Pinned source:
 https://github.com/nukeykt/Nuked-OPLL/blob/1269cf5a783b65583b50fa2464d08be75830aaa0/opll.c
 
-## Shared Nuked-cycle to measured-slot coordinate
-
-The measured 18-slot rotation uses one coordinate transform for both pins:
-
-```text
-measured_slot = (nuked_cycle + 15) % 18
-```
-
-The full cycle map is:
-
-| Nuked cycle | Measured slot | Nuked cycle | Measured slot |
-|---:|---:|---:|---:|
-| 0 | 15 | 9 | 6 |
-| 1 | 16 | 10 | 7 |
-| 2 | 17 | 11 | 8 |
-| 3 | 0 | 12 | 9 |
-| 4 | 1 | 13 | 10 |
-| 5 | 2 | 14 | 11 |
-| 6 | 3 | 15 | 12 |
-| 7 | 4 | 16 | 13 |
-| 8 | 5 | 17 | 14 |
-
-This coordinate transform aligns the existing measured slot maps:
-
-- MO in Rhythm Mode: measured slots 3, 4, 5, 9, 10 and 11. These
-  correspond to Nuked cycles 6, 7, 8, 12, 13 and 14.
-- MO in melodic mode: slots 3..5, 9..11 and 15..17.
-- RO measured occurrences: original slots 13..17 and delayed repeats at
-  slots 0, 1, 2, 6 and 7. These correspond to Nuked cycles 16, 17, 0, 1,
-  2, 3, 4, 5, 9 and 10.
-
-The earlier claim that MO used `(cycle + 3) % 18` was an inverse-offset
-error. MO and RO share the `+15` coordinate transform; their active windows,
-source selection and retained state remain distinct.
-
-## What the pinned Nuked gating does — and does not — establish
+## MO cycle-to-slot transform
 
 Nuked computes:
 
@@ -76,28 +43,49 @@ ismod = (cycles / 3) & 1;
 mute_m = ismod || ((rm_enable & 0x40) && (cycles + 15) % 18 >= 12);
 ```
 
-The base `ismod` schedule is active on cycles 0..2, 6..8 and 12..14,
-which maps to measured slots 15..17, 3..5 and 9..11 respectively.
+Ignoring the separate transition mask for a moment, the base MO active
+windows are cycles 0..2, 6..8 and 12..14. These align with the nine measured
+melodic carrier positions 3..5, 9..11 and 15..17 using:
 
-However, `rm_enable & 0x40` must not be treated as a persistent Rhythm Mode
-boolean. In `OPLL_Clock`, `rm_enable` is shifted right every call; the
-mode-write handler loads its upper pipeline bit when register 0x0e is
-written. Bit 6 is therefore a delayed write-pipeline state. It can affect
-the transition schedule but does not, by itself, establish steady-state
-Rhythm Mode MO gating.
+```text
+mo_slot = (nuked_cycle + 3) % 18
+```
 
-For RO, Nuked enables `mute_r = 0` on cycles 16, 17, 0..5, 9 and 10 only
-when `rm_enable & 0x40` is set. Under the shared `+15` transform those
-cycles line up with the ten measured RO occurrence positions. This is a
-useful software schedule correspondence, but the conditional is tied to
-the delayed write pipeline and the source itself marks the RO switch as
-possibly incorrect. It is not proof of steady-state physical pin gating.
+In measured Rhythm Mode, channels 7..9 are repurposed for percussion and MO
+retains only measured slots 3..5 and 9..11. These correspond to Nuked cycles
+0..2 and 6..8 under the same `+3` coordinate. The persistent six-channel
+restriction must be sourced from the actual Rhythm Mode register/state and
+the measured output map; the transient `rm_enable & 0x40` mask in Nuked
+does not establish that persistent gate.
 
-The operator's rhythm-source selection is separately affected by
-`rm_enable & 0x80`; this is another delayed pipeline bit, not a substitute
-for the persistent rhythm-register state. The adapter must consume the
-actual delayed state and the correct previously latched source rather than
-synthesizing a constant "stable rm_enable" value.
+## RO cycle-to-slot transform
+
+Nuked's conditional `mute_r` switch selects cycles 16, 17, 0..5, 9 and 10
+when `rm_enable & 0x40` is set. These correspond to the measured RO
+occurrence positions 13..17, 0..2, 6 and 7 using:
+
+```text
+ro_slot = (nuked_cycle + 15) % 18
+```
+
+This matches the measured occurrence map: original outputs at slots 13..17
+and delayed repeats at slots 0, 1, 2, 6 and 7. The source labels its RO
+switch as potentially incorrect, and the condition is tied to the delayed
+mode-write pipeline. Therefore this is a software schedule correspondence,
+not proof of steady-state physical RO gating.
+
+## Why rm_enable is not a stable mode flag
+
+At the start of every `OPLL_Clock`, Nuked shifts `rm_enable` right by one.
+The mode-write handler loads its upper pipeline bit when register 0x0e is
+written. Consequently bit 6 is a delayed write-pipeline state; it is not a
+persistent Rhythm Mode boolean. Bit 7 is likewise a delayed pipeline bit
+used by the operator's rhythm-source path. The persistent register image
+and the delayed `rm_enable` pipeline must remain separate inputs to any
+adapter.
+
+Do not synthesize a constant `rm_enable=0x40` or `0x80` to represent
+steady Rhythm Mode.
 
 ## Sign-dependent neutral output
 
@@ -115,9 +103,9 @@ output_pin = muted ? sign : ch_out;
 
 Thus the software neutral token is `-1` when the prior `ch_out` is
 negative and `+1` when it is nonnegative. Active positive values are also
-incremented before being assigned to the pin. This is a signed software
-representation; it must not be confused with the signed measurement-domain
-amplitude token or claimed as a proven physical raw DAC input word.
+incremented before assignment. This is a signed software representation;
+it must not be confused with the signed measurement-domain amplitude token
+or claimed as a proven physical raw DAC input word.
 
 The current `Ym2413DacCode::from_operator_channel_output` helper performs
 only a one's-complement-to-signed-measured-amplitude conversion. It does
@@ -127,48 +115,50 @@ conversion helper and is not a pin adapter.
 
 ## Integration consequence
 
-A single shared 18-slot cursor is structurally compatible with the measured
-MO and RO maps because both use the same `(cycle + 15) % 18` coordinate.
-The existing `Ym2413RhythmOutputService::process_slot` therefore does not
-need separate per-pin slot cursors solely to compensate for different
-offsets.
+MO and RO require independent cycle-to-slot transforms:
 
-It is nevertheless **not ready for direct PG/core integration**. The service
-currently emits active pulse events and no-event results; it does not model
-the per-clock sign-dependent neutral pin value, the previous-`ch_out`
-latch, the output-buffer delay, or the transient `rm_enable` pipeline.
-Its MO/RO inputs must be sourced from the correct prior operator latch and
-delayed rhythm values at the mapped slot.
+- MO: `(cycle + 3) % 18`.
+- RO: `(cycle + 15) % 18`.
+
+The current `Ym2413RhythmOutputService::process_slot` accepts one shared
+slot index and produces both pin results. It cannot be called once with a
+single raw Nuked cycle and correctly align both pins. A future adapter must
+route the MO event using the MO coordinate and service the RO retention path
+using the RO coordinate. The two pin schedules and their mode gates remain
+independent; the RO retention cursor must advance only on the RO schedule.
+
+The adapter must also preserve the previous-`ch_out` latch, the additional
+output-buffer delay, the delayed `rm_enable` pipeline, and the
+sign-dependent neutral token. No core integration is made by this audit.
 
 ## Required adapter design
 
-1. Convert the 0..17 Nuked/core cycle to the shared measured slot with
-   `output_slot_for_nuked_cycle(cycle)`.
-2. Preserve the `OPLL_Clock` ordering: consume the prior `ch_out` at the
-   channel stage; update the next `ch_out` only after the current operator
-   stage; preserve the additional output-buffer delay where the host-facing
-   pin sample is captured.
-3. Keep MO and RO source selection and active/muted gating independent,
-   while using the same slot coordinate.
-4. Model `rm_enable` as a shift-register/write-pipeline state. Do not pass
-   a persistent Rhythm Mode boolean in its place.
-5. Represent the original YM2413 sign-dependent neutral token and the
-   positive active-value increment explicitly. Keep this software pin-code
+1. Convert cycle to MO slot with `mo_output_slot_for_nuked_cycle(cycle)`.
+2. Convert cycle to RO slot with `ro_output_slot_for_nuked_cycle(cycle)`.
+3. Consume the prior `ch_out` latch at the channel stage; update the next
+   `ch_out` only after the current operator stage; preserve the extra output
+   buffer delay when capturing host-facing pin samples.
+4. Keep persistent Rhythm Mode register state separate from transient
+   `rm_enable` bits. Apply MO's six-channel gate from the persistent mode
+   state and measured MO map; do not infer it from bit 6.
+5. Keep RO source selection and active/muted gating separate. Treat Nuked's
+   RO gate as a candidate software behavior because the source itself marks
+   it uncertain.
+6. Represent the original YM2413 sign-dependent neutral token and positive
+   active-value increment explicitly. Keep this software pin-code
    representation separate from `Ym2413DacCode` measured amplitudes and
    from any raw nine-bit DAC-word hypothesis.
-6. Differentially compare the complete `output_m/output_r` traces across
+7. Differentially compare complete `output_m/output_r` traces across
    register writes, mode transitions, all 18 cycles and both output-buffer
    phases. Treat Nuked agreement as software-model compatibility, not
    physical timing certification.
-7. Preserve the measured MO/RO slot evidence independently of Nuked's
+8. Preserve the measured MO/RO slot evidence independently of Nuked's
    uncertain RO gating implementation.
 
 ## Decision
 
-The prior "different MO/RO cycle transforms and independent cursors" claim
-is withdrawn. The corrected shared coordinate is `(cycle + 15) % 18`.
-The previous audit's interpretation of `rm_enable & 0x40` as a stable
-mode flag is also withdrawn. A shared cursor may be used, but the adapter
-must still model prior-`ch_out`, pin-specific gating/source, sign-dependent
-neutral values and output-buffer delay. No core integration is made by this
-audit.
+The shared-offset claim is withdrawn. MO uses the `+3` coordinate and RO
+uses the `+15` coordinate. The earlier interpretation of
+`rm_enable & 0x40` as a persistent mode flag is also withdrawn. Separate
+per-pin cycle mapping is required before the existing combined output
+service can be adapted safely. No core integration is made by this audit.
