@@ -888,6 +888,45 @@ impl WorkerTelemetry {
 
 type AudioSessionFactory = Box<dyn FnOnce() -> Result<Box<dyn AudioSession>, String> + Send>;
 
+/// Resolved host policy for the Japanese SMS FM output pin path.
+/// This never gates YM2413 clocks or changes emulated register state.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SmsFmOutputPolicy {
+    /// Send FM samples to the host mixer.
+    #[default]
+    Enabled,
+    /// Keep the physical chip running but omit FM from host audio output.
+    Muted,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SmsFmHardwareConfig {
+    has_integrated_fm: bool,
+    output_policy: SmsFmOutputPolicy,
+}
+
+impl SmsFmHardwareConfig {
+    const fn without_fm() -> Self {
+        Self {
+            has_integrated_fm: false,
+            output_policy: SmsFmOutputPolicy::Muted,
+        }
+    }
+
+    const fn integrated(output_policy: SmsFmOutputPolicy) -> Self {
+        Self {
+            has_integrated_fm: true,
+            output_policy,
+        }
+    }
+}
+
+struct SmsWorkerRuntimeConfig {
+    region: String,
+    vdp_revision: SmsVdpRevision,
+    fm_output_policy: SmsFmOutputPolicy,
+}
+
 /// SMS digital PSG reconstruction selected for the common audio output path.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AudioRendererMode {
@@ -899,6 +938,7 @@ pub enum AudioRendererMode {
 }
 
 struct AudioRendererState {
+    fm_output_policy: SmsFmOutputPolicy,
     mode: AudioRendererMode,
     h2: Option<H2StreamingRenderer>,
     events: Vec<PsgAmplitudeEvent>,
@@ -916,6 +956,7 @@ struct AudioRendererState {
 impl Default for AudioRendererState {
     fn default() -> Self {
         Self {
+            fm_output_policy: SmsFmOutputPolicy::Enabled,
             mode: AudioRendererMode::Psg,
             h2: None,
             events: Vec::with_capacity(H2_EVENT_CAPTURE_CAPACITY),
@@ -933,6 +974,13 @@ impl Default for AudioRendererState {
 }
 
 impl AudioRendererState {
+    fn with_fm_output_policy(fm_output_policy: SmsFmOutputPolicy) -> Self {
+        Self {
+            fm_output_policy,
+            ..Self::default()
+        }
+    }
+
     fn select(
         &mut self,
         machine: &mut SmsTemporalMachine,
@@ -1020,6 +1068,19 @@ impl AudioRendererState {
             .extend(self.pending_psg_samples.drain(..));
         self.mix_psg_samples.extend(psg_samples.iter().copied());
         self.mix_fm_samples.clear();
+    }
+
+    /// Release PSG PCM without submitting FM to the host mixer. The YM2413
+    /// remains clocked by the machine and its samples are drained by the worker.
+    fn prepare_psg_only(&mut self, psg_samples: &[f64]) {
+        self.fm_resampler = None;
+        self.pending_fm_samples.clear();
+        self.mix_psg_samples.clear();
+        self.mix_psg_samples
+            .extend(self.pending_psg_samples.drain(..));
+        self.mix_psg_samples.extend(psg_samples.iter().copied());
+        self.mix_fm_samples.clear();
+        self.transition_fm_samples.clear();
     }
 
     /// Resample the YM2413 source onto the PSG 48 kHz timeline and return
@@ -1509,7 +1570,6 @@ impl SmsTemporalWorker {
                 }
             },
         };
-        let has_integrated_fm = false;
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             None,
@@ -1517,7 +1577,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            has_integrated_fm,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1557,7 +1617,6 @@ impl SmsTemporalWorker {
                 }
             },
         };
-        let has_integrated_fm = false;
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             Some(bios),
@@ -1565,7 +1624,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            has_integrated_fm,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1584,7 +1643,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            false,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1604,7 +1663,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            false,
+            SmsFmHardwareConfig::without_fm(),
         )
     }
 
@@ -1632,6 +1691,26 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
+        Self::new_with_japanese_fm_hardware_profile_and_output_policy(
+            rom,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            SmsFmOutputPolicy::Enabled,
+        )
+    }
+
+    /// Select the explicit FM board while independently controlling host output.
+    /// Muted output does not stop the YM2413 clock or change hardware register state.
+    pub fn new_with_japanese_fm_hardware_profile_and_output_policy(
+        rom: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+        fm_output_policy: SmsFmOutputPolicy,
+    ) -> Result<Self, String> {
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             None,
@@ -1639,7 +1718,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            true,
+            SmsFmHardwareConfig::integrated(fm_output_policy),
         )
     }
 
@@ -1653,6 +1732,27 @@ impl SmsTemporalWorker {
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
     ) -> Result<Self, String> {
+        Self::new_with_japanese_fm_hardware_profile_and_bios_and_output_policy(
+            rom,
+            bios,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            SmsFmOutputPolicy::Enabled,
+        )
+    }
+
+    /// BIOS variant of the explicit FM board/output policy constructor.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_output_policy(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+        fm_output_policy: SmsFmOutputPolicy,
+    ) -> Result<Self, String> {
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             Some(bios),
@@ -1660,7 +1760,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            true,
+            SmsFmHardwareConfig::integrated(fm_output_policy),
         )
     }
 
@@ -1671,7 +1771,7 @@ impl SmsTemporalWorker {
         vdp_revision: SmsVdpRevision,
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
-        has_integrated_fm: bool,
+        fm_hardware: SmsFmHardwareConfig,
     ) -> Result<Self, String> {
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
@@ -1715,7 +1815,7 @@ impl SmsTemporalWorker {
                     worker_vdp_revision,
                     bios.clone(),
                     cartridge_sram_size,
-                    has_integrated_fm,
+                    fm_hardware.has_integrated_fm,
                 )
                 .and_then(|mut machine| {
                     if let Some(contents) = initial_sram.as_deref() {
@@ -1738,8 +1838,11 @@ impl SmsTemporalWorker {
                     machine,
                     rom,
                     bios,
-                    worker_region,
-                    worker_vdp_revision,
+                    SmsWorkerRuntimeConfig {
+                        region: worker_region,
+                        vdp_revision: worker_vdp_revision,
+                        fm_output_policy: fm_hardware.output_policy,
+                    },
                     receiver,
                     worker_telemetry,
                 );
@@ -2385,14 +2488,19 @@ fn execute_frame_with_renderer(
     // immutable borrow of audio_renderer.h2_samples survives across the
     // mutable FM pipeline operations.
     let fm_mix_len = if machine.ym2413().is_some() && !use_h2 {
-        match audio_renderer.prepare_fm_mix(psg_samples.as_slice(), &fm_samples) {
-            Ok(aligned_frames) => aligned_frames,
-            Err(error) => {
-                audio_renderer.prepare_psg_fallback(psg_samples.as_slice());
-                telemetry.set_runtime_error(Some(format!(
-                    "YM2413 PCM resampling unavailable; continuing with PSG: {error}"
-                )));
-                None
+        if audio_renderer.fm_output_policy == SmsFmOutputPolicy::Muted {
+            audio_renderer.prepare_psg_only(psg_samples.as_slice());
+            None
+        } else {
+            match audio_renderer.prepare_fm_mix(psg_samples.as_slice(), &fm_samples) {
+                Ok(aligned_frames) => aligned_frames,
+                Err(error) => {
+                    audio_renderer.prepare_psg_fallback(psg_samples.as_slice());
+                    telemetry.set_runtime_error(Some(format!(
+                        "YM2413 PCM resampling unavailable; continuing with PSG: {error}"
+                    )));
+                    None
+                }
             }
         }
     } else {
@@ -2598,17 +2706,21 @@ fn worker_loop(
     mut machine: SmsTemporalMachine,
     mut rom: Vec<u8>,
     bios: Option<Vec<u8>>,
-    region: String,
-    vdp_revision: SmsVdpRevision,
+    runtime_config: SmsWorkerRuntimeConfig,
     commands: Receiver<WorkerCommand>,
     telemetry: Arc<WorkerTelemetry>,
 ) {
+    let SmsWorkerRuntimeConfig {
+        region,
+        vdp_revision,
+        fm_output_policy,
+    } = runtime_config;
     let mut running = false;
     let mut breakpoints = BreakpointSet::default();
     let mut trace_publisher: Option<DiagnosticPublisher<SmsTemporalTraceEvent>> = None;
     let mut trace_enabled = false;
     let mut audio_session: Option<Box<dyn AudioSession>> = None;
-    let mut audio_renderer = AudioRendererState::default();
+    let mut audio_renderer = AudioRendererState::with_fm_output_policy(fm_output_policy);
     let mut video_mailbox: Option<FrameMailbox> = None;
     let mut video_sequence = 0_u64;
     let mut frame_deadline = FramePacingDeadline::default();
@@ -3264,8 +3376,8 @@ mod tests {
     use super::{
         AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
-        Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
-        WorkerTelemetry, build_sms_temporal_machine,
+        Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsFmOutputPolicy, SmsTemporalWorker,
+        SpriteLimitMode, WorkerTelemetry, build_sms_temporal_machine,
         build_sms_temporal_machine_with_revision_and_sram_size,
         build_sms_temporal_machine_with_revision_bios_sram_size_and_fm,
         calculate_next_frame_deadline, execute_frame, execute_frame_with_renderer,
@@ -4524,6 +4636,94 @@ mod tests {
         assert!(
             blocks.iter().flatten().any(|sample| *sample != 0.0),
             "the submitted FM+PSG mix must not be silent"
+        );
+        assert_eq!(telemetry.audio_underruns.load(Ordering::Acquire), 0);
+        assert_eq!(telemetry.audio_dropped_blocks.load(Ordering::Acquire), 0);
+        drop(blocks);
+        audio_session.as_mut().unwrap().close();
+    }
+
+    #[test]
+    fn muted_fm_output_keeps_ym2413_clocked_and_submits_psg_only() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let mut rom = vec![0; 0x4000];
+        let mut program = vec![
+            0xF3, // DI
+            0x31, 0xF0, 0xDF, // LD SP,$DFF0
+            0x3E, 0x03, 0xD3, 0xF2, // Enable hardware FM and PSG.
+        ];
+        for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+            program.extend([0x3E, address, 0xD3, 0xF0, 0x3E, data, 0xD3, 0xF1]);
+            program.extend([0x00; 22]);
+        }
+        program.extend([
+            0x3E, 0x84, 0xD3, 0x7E, 0x3E, 0x00, 0xD3, 0x7E, 0x3E, 0x90, 0xD3, 0x7E, 0x18, 0xFE,
+        ]);
+        rom[..program.len()].copy_from_slice(&program);
+
+        let mut machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            rom,
+            "usa",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        let initial_fm_state = machine.ym2413().unwrap().export_state();
+        let sink = RecordingSink::default();
+        let captured_blocks = Arc::clone(&sink.0);
+        let session = NativeAudioSession::new(
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            100,
+            sink,
+        )
+        .unwrap();
+        let mut audio_session: Option<Box<dyn super::AudioSession>> = Some(Box::new(session));
+        let mut renderer = AudioRendererState::with_fm_output_policy(SmsFmOutputPolicy::Muted);
+        let telemetry = WorkerTelemetry::default();
+        let mut video_mailbox = None;
+        let mut video_sequence = 0;
+
+        for _ in 0..2 {
+            let (instructions, _, _) = execute_frame_with_renderer(
+                &mut machine,
+                &BreakpointSet::default(),
+                DEFAULT_MAX_FRAME_INSTRUCTIONS,
+                true,
+                &mut audio_session,
+                &mut renderer,
+                &mut video_mailbox,
+                &mut video_sequence,
+                &telemetry,
+                None,
+            )
+            .unwrap();
+            assert!(instructions > 0);
+        }
+
+        assert!(
+            machine.ym2413().is_some(),
+            "the physical FM chip must remain installed"
+        );
+        assert_ne!(
+            machine.ym2413().unwrap().export_state(),
+            initial_fm_state,
+            "muting host output must not stop the YM2413 clock or state progression"
+        );
+        assert!(renderer.mix_fm_samples.is_empty());
+        assert!(
+            renderer.mix_psg_samples.iter().any(|sample| *sample != 0.0),
+            "PSG output must remain audible while host FM output is muted"
+        );
+
+        let blocks = captured_blocks.lock().unwrap();
+        assert!(!blocks.is_empty());
+        assert!(
+            blocks.iter().flatten().any(|sample| *sample != 0.0),
+            "the PSG-only block submitted to NativeAudioSession must not be silent"
         );
         assert_eq!(telemetry.audio_underruns.load(Ordering::Acquire), 0);
         assert_eq!(telemetry.audio_dropped_blocks.load(Ordering::Acquire), 0);
