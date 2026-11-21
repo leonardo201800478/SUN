@@ -401,6 +401,25 @@ pub struct SmsTemporalMachine {
 }
 
 impl SmsTemporalMachine {
+    fn from_bus(bus: SmsTemporalBus) -> Self {
+        Self {
+            cpu: Z80MicroSequencer::default(),
+            bus,
+            external_int_line: None,
+            last_effective_int_line: None,
+            instruction_started_at: None,
+            next_internal_cycle_id: 0,
+            pending_internal_cycle_id: None,
+            pending_internal_tstates: None,
+            m1: None,
+            m1_fixture_wait_tstates: None,
+            trace_enabled: false,
+            trace_events: VecDeque::new(),
+            trace_dropped: 0,
+            essential_trace: SmsTemporalTraceBuffer::new(),
+        }
+    }
+
     /// Construct the temporal slice from a cartridge and explicit time scale.
     pub fn new(
         rom: impl Into<Vec<u8>>,
@@ -463,6 +482,49 @@ impl SmsTemporalMachine {
             territory,
             None,
         )
+    }
+
+    /// Construct a Japanese Master System machine with its integrated YM2413.
+    pub fn new_with_japanese_fm_hardware_profile(
+        rom: impl Into<Vec<u8>>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalMachineError> {
+        let bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            rom,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+        )?;
+        Ok(Self::from_bus(bus))
+    }
+
+    /// Construct the Japanese Master System FM profile with explicit cartridge SRAM capacity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_japanese_fm_hardware_profile_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalMachineError> {
+        let bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile_and_sram_size(
+            rom,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        )?;
+        Ok(Self::from_bus(bus))
     }
 
     /// Construct the temporal machine with an explicit cartridge SRAM hardware capacity.
@@ -566,6 +628,54 @@ impl SmsTemporalMachine {
             trace_dropped: 0,
             essential_trace: SmsTemporalTraceBuffer::new(),
         })
+    }
+
+    /// Construct a Japanese Master System FM machine that boots through a supplied BIOS.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalMachineError> {
+        let bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile_and_bios(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+        )?;
+        Ok(Self::from_bus(bus))
+    }
+
+    /// Construct a Japanese Master System FM machine with BIOS and explicit cartridge SRAM.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalMachineError> {
+        let bus =
+            SmsTemporalBus::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
+                rom,
+                bios,
+                master_ticks_per_tstate,
+                psg_clock_hz,
+                sample_rate,
+                vdp_profile,
+                territory,
+                cartridge_sram_size,
+            )?;
+        Ok(Self::from_bus(bus))
     }
 
     /// Queue a timestamped external TH transition on the shared machine timeline.
@@ -1382,6 +1492,21 @@ impl SmsTemporalMachine {
     /// Inspect the SMS-profile PSG without advancing machine time.
     pub fn psg(&self) -> &Sn76489Core {
         self.bus.psg()
+    }
+
+    /// Return the installed Japanese Master System YM2413, if present.
+    pub fn ym2413(&self) -> Option<&Ym2413Core> {
+        self.bus.ym2413()
+    }
+
+    /// Whether the integrated YM2413 output is enabled by port $F2.
+    pub fn fm_output_enabled(&self) -> bool {
+        self.bus.fm_output_enabled()
+    }
+
+    /// Whether the SN76489 output is enabled by port $F2 on the Japanese SMS FM profile.
+    pub fn psg_output_enabled(&self) -> bool {
+        self.bus.psg_output_enabled()
     }
 
     /// Current normalized digital PSG mix before the production FIR.
@@ -2824,6 +2949,7 @@ mod tests {
 mod base_absolute_transfer_temporal_tests {
     use super::SmsTemporalMachine;
     use sega_temporal_core::MachineTime;
+use sega_ym2413::Ym2413Core;
     use sega_z80_cpu::Z80MicroStep;
 
     #[test]
