@@ -1368,6 +1368,100 @@ impl SmsTemporalWorker {
         )
     }
 
+    /// Select the SMS1 hardware model and enable integrated FM only when ROM/region
+    /// resolution identifies the Japanese Master System.
+    pub fn new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    sega_observability::tracing::info!(
+                        target: "sega::rom",
+                        event = "sms_region_resolved",
+                        region = resolution.region.key(),
+                        source = ?resolution.source,
+                        dat_title = resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    sega_observability::tracing::warn!(
+                        target: "sega::rom",
+                        event = "sms_region_catalog_fallback",
+                        error = %error,
+                        fallback = "usa"
+                    );
+                    "usa".to_owned()
+                }
+            },
+        };
+        let fm_enabled = region == "japan";
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            None,
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            fm_enabled,
+        )
+    }
+
+    /// BIOS variant of the SMS1 regional profile; integrated FM is selected only for Japan.
+    pub fn new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    sega_observability::tracing::info!(
+                        target: "sega::rom",
+                        event = "sms_region_resolved",
+                        region = resolution.region.key(),
+                        source = ?resolution.source,
+                        dat_title = resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    sega_observability::tracing::warn!(
+                        target: "sega::rom",
+                        event = "sms_region_catalog_fallback",
+                        error = %error,
+                        fallback = "usa"
+                    );
+                    "usa".to_owned()
+                }
+            },
+        };
+        let fm_enabled = region == "japan";
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            Some(bios),
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            fm_enabled,
+        )
+    }
+
     /// Start the worker with an explicit VDP ASIC, regional timing, and cartridge SRAM profile.
     pub fn new_with_hardware_profile_and_cartridge_sram_size(
         rom: Vec<u8>,
