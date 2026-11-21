@@ -24,6 +24,7 @@ pub mod rhythm;
 pub mod rhythm_channel;
 pub mod rhythm_output;
 pub mod rhythm_phase;
+pub mod serial_operator;
 pub mod slot;
 mod slot_service;
 pub mod synthesis;
@@ -109,6 +110,11 @@ pub use rhythm_output::{
     YM2413_DAC_CODE_MAX, YM2413_DAC_CODE_MIN, YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
     Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState, Ym2413RhythmOutputError,
     Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
+};
+pub use serial_operator::{
+    Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorSample,
+    Ym2413SerialOperatorState, YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS,
+    YM2413_SERIAL_OPERATOR_SLOTS, YM2413_SERIAL_OPERATOR_STATE_VERSION,
 };
 pub use rhythm_phase::{
     RhythmNoisePhaseInputs, RhythmPhaseCandidateError, RhythmPhaseSource,
