@@ -248,7 +248,7 @@ impl Ym2413RhythmOutputDelay {
                         slot_index,
                         voice: entry.voice,
                         is_delayed_repeat: true,
-                        code: measured_code,
+                        code,
                     }),
                     None => Ym2413RhythmOutputSlotResult::RepeatNotInitialized {
                         slot_index,
@@ -276,7 +276,7 @@ impl Ym2413RhythmOutputDelay {
                     slot_index,
                     voice: entry.voice,
                     is_delayed_repeat: false,
-                    code: measured_code,
+                    code,
                 })
             }
         };
