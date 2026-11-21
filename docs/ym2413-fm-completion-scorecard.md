@@ -1,7 +1,7 @@
 # YM2413 FM Completion Scorecard
 
-**Data de referência:** 2026-11-21  
-**Repositório:** `leonardo201800478/SUN`  
+**Data de referência:** 2026-11-21
+**Repositório:** `leonardo201800478/SUN`
 **Main atual:** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 
 **PRs FM integradas:**
