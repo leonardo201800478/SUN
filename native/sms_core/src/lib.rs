@@ -1,8 +1,10 @@
 //! Scheduler-driven temporal Sega Master System core.
 //!
 //! The Scheduler-driven SMS path now combines the shared Z80 microsequencer,
-//! mapper-backed memory, controller I/O, SN76489, and the shared SMS1 VDP with
-//! scanline/frame output. It remains a staged temporal implementation: dot-level
+//! mapper-backed memory, controller I/O, SN76489, the optional Japanese SMS
+//! YM2413 register/clock path, and the shared SMS1 VDP with scanline/frame output.
+//! YM2413 PCM synthesis and mixing remain separate acceptance gates. It remains
+//! a staged temporal implementation: dot-level
 //! raster/fetch arbitration, physical WAIT wiring, complete machine interrupt
 //! integration, host audio output, and persistent serialized save states remain
 //! separate acceptance gates. The instruction-stepping atomic SMS machine is no longer part of this crate.
