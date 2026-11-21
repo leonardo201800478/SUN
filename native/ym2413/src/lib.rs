@@ -115,7 +115,8 @@ pub use slot::{
     Ym2413RhythmOutputOccurrence, Ym2413RhythmVoice, Ym2413SlotDescriptor, Ym2413SlotServiceEvent,
     nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index, nuked_eg_output_index,
     nuked_eg_update_index, nuked_pg_phase_output_index, nuked_pg_phase_write_index,
-    nuked_phase_reset_required, nuked_slot_service_event, slot_descriptor,
+    nuked_phase_reset_required, nuked_phase_reset_required_with_testmode, nuked_slot_service_event,
+    nuked_slot_service_event_with_testmode, slot_descriptor,
 };
 pub use synthesis::{
     YM2413_MELODIC_CHANNELS, YM2413_OPERATORS_PER_CHANNEL, YM2413_SYNTHESIS_STATE_VERSION,
@@ -500,7 +501,12 @@ impl Ym2413Core {
             .map_err(slot_service::Ym2413SlotServiceAdvanceError::Core)?;
 
         let envelope_state = self.envelope.export_state();
-        let event = nuked_slot_service_event(cycle, self.rm_enable as u8, envelope_state.eg_dokon)
+        let event = nuked_slot_service_event_with_testmode(
+            cycle,
+            self.rm_enable as u8,
+            envelope_state.eg_dokon,
+            self.registers[0x0f],
+        )
             .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
                 Ym2413Error::InvalidState,
             ))?;
@@ -1144,6 +1150,28 @@ mod tests {
         assert_eq!(service.before_count, 6);
         assert_eq!(service.after_count, 6);
     }
+    #[test]
+    fn slot_service_phase_reset_includes_testmode_register_bit_two() {
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            let mut core = Ym2413Core::new();
+            core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT * u64::from(cycle))
+                .unwrap();
+            core.registers[0x0f] = 0x04;
+            let mut envelope_state = core.envelope.export_state();
+            envelope_state.eg_dokon = 0;
+            core.envelope = super::EnvelopeSequencer::restore_state(envelope_state).unwrap();
+
+            let mut service = RecordingSlotService::default();
+            core.advance_input_clocks_with_slot_service(
+                YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut service,
+            )
+            .unwrap();
+
+            assert!(service.before[0].event.phase_reset_required, "cycle {cycle}");
+        }
+    }
+
     #[test]
     fn slot_service_phase_reset_uses_post_shift_rhythm_mode_latch() {
         for cycle in [13_u8, 14_u8] {
