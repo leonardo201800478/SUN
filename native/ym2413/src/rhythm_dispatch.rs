@@ -157,7 +157,7 @@ mod tests {
 
         for cycle in (0..YM2413_SLOT_COUNT as u8).filter(|cycle| !(11..=16).contains(cycle)) {
             assert!(matches!(
-                dispatch_serial_slot(cycle, &registers, 0x00, Select::None).unwrap(),
+                dispatch_serial_slot(cycle, &registers, 0xff, Select::None).unwrap(),
                 Ym2413SerialSlotDispatch::Melodic { .. }
             ));
         }
