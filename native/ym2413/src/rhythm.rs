@@ -672,6 +672,32 @@ mod tests {
     }
 
     #[test]
+    fn slot_rate_zero_register_uses_the_nuked_lockup_escape() {
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_register(0).unwrap();
+        assert_eq!(lfsr.clock(), 0);
+        assert_eq!(lfsr.register(), 1 << 22);
+    }
+
+    #[test]
+    fn slot_rate_test_mode_bit_one_forces_feedback_high() {
+        let register = 0x12_3456;
+        let mut lfsr = Ym2413RhythmSlotNoiseLfsr::with_register(register).unwrap();
+        let expected = (register >> 1) | (1 << 22);
+        assert_eq!(lfsr.clock_with_test_mode(0x02), register & 1);
+        assert_eq!(lfsr.register(), expected);
+    }
+
+    #[test]
+    fn zero_register_slot_sequencer_state_round_trips_before_first_clock() {
+        let sequencer = Ym2413RhythmSlotNoiseSequencer::with_register_at_slot(0, 0).unwrap();
+        let snapshot = sequencer.export_state();
+        assert_eq!(
+            Ym2413RhythmSlotNoiseSequencer::restore_state(snapshot),
+            Ok(sequencer)
+        );
+    }
+
+    #[test]
     fn slot_sequencer_samples_hihat_and_snare_three_lfsr_steps_apart() {
         let seed = 0x5a_1234;
         let mut sequencer = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(seed, 13).unwrap();
