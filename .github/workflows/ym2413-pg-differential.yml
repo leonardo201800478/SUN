@@ -5,6 +5,8 @@ on:
     paths:
       - "native/ym2413/**"
       - "tools/ym2413-nuked-oracle/compare_pg.py"
+      - "tools/ym2413-nuked-oracle/compare_pg_serial.py"
+      - "tools/ym2413-nuked-oracle/trace.c"
       - ".github/workflows/ym2413-pg-differential.yml"
   workflow_dispatch:
 
@@ -72,6 +74,56 @@ jobs:
         run: |
           python3 tools/ym2413-nuked-oracle/compare_pg_phase.py \
             --nuked-trace "$RUNNER_TEMP/nuked-pg-phase.jsonl"
+
+      - name: Generate serial PG events using the user instrument patch
+        run: |
+          python3 - "$RUNNER_TEMP/serial-events.csv" <<'PY'
+          import csv
+          import sys
+
+          fnums = [32, 64, 128, 192, 256, 320, 384, 448, 511]
+          events = []
+          call_index = 0
+
+          # User patch: modulator MUL=1 + VIB, carrier MUL=2.
+          patch = (0x41, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+          for address, value in enumerate(patch):
+              events.append((call_index, 0, address))
+              events.append((call_index + 2, 1, value))
+              call_index += 40
+
+          for channel, fnum in enumerate(fnums):
+              block = min(channel, 7)
+              writes = (
+                  (0x10 + channel, fnum & 0xFF),
+                  (0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1)),
+                  (0x30 + channel, 0x00),
+              )
+              for address, value in writes:
+                  events.append((call_index, 0, address))
+                  events.append((call_index + 2, 1, value))
+                  call_index += 40
+
+          # Exercise serial EG -> DOKON -> delayed PG phase reset on channel 8.
+          events.extend(
+              (
+                  (5000, 0, 0x28),
+                  (5002, 1, 0x1F),
+                  (5200, 0, 0x28),
+                  (5202, 1, 0x0F),
+              )
+          )
+
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 --pg-phase-only --events "$RUNNER_TEMP/serial-events.csv" > "$RUNNER_TEMP/nuked-pg-serial.jsonl"
+
+      - name: Compare integrated core-owned serial PG service with Nuked
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_pg_serial.py --nuked-trace "$RUNNER_TEMP/nuked-pg-serial.jsonl" --events "$RUNNER_TEMP/serial-events.csv"
 
       - name: Generate controlled KEY-ON and KEY-OFF events
         run: |
