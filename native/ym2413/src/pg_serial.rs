@@ -640,6 +640,7 @@ impl Ym2413PgSerialService {
             })?;
         Ok(())
     }
+
     /// Latch the rhythm patch parameters selected by the current serial cycle.
     fn latch_next_rhythm_parameters(
         &mut self,
@@ -738,7 +739,6 @@ impl Ym2413PgSerialService {
         )?;
         Ok(())
     }
-
 }
 
 impl Ym2413SlotService for Ym2413PgSerialService {
@@ -763,10 +763,15 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             }
             // Unknown-seed Rhythm Mode and unsettled transitions still pass
             // through core EG and DoRhythm, but do not fabricate synthesis state.
-            Ym2413SerialSlotDispatch::Rhythm { selector, .. }
-                if self.rhythm_noise.is_some() =>
+            Ym2413SerialSlotDispatch::Rhythm { slot, selector, .. }
+                if self.rhythm_noise.is_some() && slot == context.event.selected_operator =>
             {
                 return self.before_rhythm_operator_update(context, selector);
+            }
+            Ym2413SerialSlotDispatch::Rhythm { .. }
+                if self.rhythm_noise.is_some() =>
+            {
+                return Err(Ym2413PgSerialError::InvalidState);
             }
             _ => {
                 self.serial_am_lfo.capture_output(context.event.cycle)?;
@@ -812,7 +817,11 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         self.operator
             .prepare_channel(config.channel.instrument, operator_index)?;
         self.serial_am_lfo.capture_output(context.event.cycle)?;
-        let noise_bit = self.current_rhythm_noise_bit(context.event.cycle)?;
+        let noise_bit = if self.rhythm_noise.is_some() {
+            self.current_rhythm_noise_bit(context.event.cycle)?
+        } else {
+            None
+        };
         self.generate_phase(context, noise_bit)?;
         self.operator.tick_operator_with_rhythm_mode(
             context.event.cycle,
@@ -861,11 +870,13 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?
         {
             Ym2413SerialSlotDispatch::Melodic { .. } => self.latch_next_parameters(context),
-            Ym2413SerialSlotDispatch::Rhythm { selector, .. }
-                if self.rhythm_noise.is_some() =>
+            Ym2413SerialSlotDispatch::Rhythm { slot, selector, .. }
+                if self.rhythm_noise.is_some() && slot == context.event.selected_operator =>
             {
                 self.latch_next_rhythm_parameters(context, selector)
             }
+            Ym2413SerialSlotDispatch::Rhythm { .. }
+                if self.rhythm_noise.is_some() => Err(Ym2413PgSerialError::InvalidState),
             // Unknown-seed and unsettled transitions remain explicitly gated.
             _ => Ok(()),
         }
