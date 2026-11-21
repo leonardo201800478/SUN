@@ -28,51 +28,61 @@ jobs:
 
       - name: Instrument the actual OPLL_PhaseGenerate decision in the external oracle
         run: |
-          python3 - "$RUNNER_TEMP/Nuked-OPLL/opll.c" <<'PY'
-          from pathlib import Path
-          import sys
+          perl - "$RUNNER_TEMP/Nuked-OPLL/opll.c" <<'PERL'
+          use strict;
+          use warnings;
 
-          path = Path(sys.argv[1])
-          source = path.read_text(encoding="utf-8")
-          include = '#include "opll.h"'
-          declaration = include + """
+          my $path = shift @ARGV or die "missing opll.c path\n";
+          open my $input, '<', $path or die "open $path: $!\n";
+          local $/;
+          my $source = <$input>;
+          close $input;
+
+          my $include = '#include "opll.h"';
+          my $declaration = $include . <<'DECL';
+
           #ifdef YM2413_TRACE_PHASE_RESET
           extern void ym2413_trace_phase_reset(
               uint32_t cycle, uint8_t rm_enable, uint32_t eg_dokon,
               uint32_t ismod, uint32_t reset_required);
           #endif
-          """
-          if source.count(include) != 1:
-              raise SystemExit("pinned Nuked include anchor changed")
-          source = source.replace(include, declaration, 1)
+          DECL
+          my $include_count = () = $source =~ /\Q$include\E/g;
+          die "pinned Nuked include anchor changed\n" unless $include_count == 1;
+          $source =~ s/\Q$include\E/$declaration/;
 
-          old = (
-              "    if ((chip->testmode & 0x04)\n"
-              "     || (ismod && (chip->eg_dokon & 0x8000)) || (!ismod && (chip->eg_dokon & 0x01))) {\n"
-              "        chip->pg_phase_next = 0;\n"
-              "    } else {\n"
-              "        chip->pg_phase_next = phase;\n"
-              "    }"
-          )
-          new = (
-              "    uint32_t phase_reset_required =\n"
-              "        (chip->testmode & 0x04)\n"
-              "        || (ismod && (chip->eg_dokon & 0x8000))\n"
-              "        || (!ismod && (chip->eg_dokon & 0x01));\n"
-              "    if (phase_reset_required) {\n"
-              "        chip->pg_phase_next = 0;\n"
-              "    } else {\n"
-              "        chip->pg_phase_next = phase;\n"
-              "    }\n"
-              "    #ifdef YM2413_TRACE_PHASE_RESET\n"
-              "    ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,\n"
-              "                             chip->eg_dokon, ismod, phase_reset_required);\n"
-              "    #endif"
-          )
-          if source.count(old) != 1:
-              raise SystemExit("pinned OPLL_PhaseGenerate reset branch anchor changed")
-          path.write_text(source.replace(old, new, 1), encoding="utf-8")
-          PY
+          my $old = <<'OLD';
+              if ((chip->testmode & 0x04)
+               || (ismod && (chip->eg_dokon & 0x8000)) || (!ismod && (chip->eg_dokon & 0x01))) {
+                  chip->pg_phase_next = 0;
+              } else {
+                  chip->pg_phase_next = phase;
+              }
+          OLD
+          my $new = <<'NEW';
+              uint32_t phase_reset_required =
+                  (chip->testmode & 0x04)
+                  || (ismod && (chip->eg_dokon & 0x8000))
+                  || (!ismod && (chip->eg_dokon & 0x01));
+              if (phase_reset_required) {
+                  chip->pg_phase_next = 0;
+              } else {
+                  chip->pg_phase_next = phase;
+              }
+              #ifdef YM2413_TRACE_PHASE_RESET
+              ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,
+                                       chip->eg_dokon, ismod, phase_reset_required);
+              #endif
+          NEW
+          my $branch_count = () = $source =~ /\Q$old\E/g;
+          die "pinned OPLL_PhaseGenerate reset branch anchor changed\n"
+              unless $branch_count == 1;
+          $source =~ s/\Q$old\E/$new/;
+
+          open my $output, '>', $path or die "write $path: $!\n";
+          print {$output} $source or die "write $path: $!\n";
+          close $output or die "close $path: $!\n";
+          PERL
 
       - name: Compile the external trace adapter and instrumented reference
         run: |
@@ -89,26 +99,33 @@ jobs:
 
       - name: Compare captured decision inputs and outputs
         run: |
-          python3 - "$RUNNER_TEMP/rhythm-reset.csv" <<'PY'
-          from pathlib import Path
-          import sys
-
-          rows = []
-          for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
-              if line.startswith("YM2413_PHASE_RESET,"):
-                  _, cycle, rm_enable, eg_dokon, ismod, reset = line.split(",")
-                  rows.append(tuple(map(int, (cycle, rm_enable, eg_dokon, ismod, reset))))
-
-          probes = (0x8000, 0x0001, 0x0000, 0x8001)
-          expected = [
-              (cycle, 0xC0, eg_dokon, 0, int(bool(eg_dokon & 0x01)))
-              for eg_dokon in probes
-              for cycle in (13, 14)
-          ]
-          if rows != expected:
-              raise SystemExit(
-                  "Nuked Rhythm reset mismatch:\\n"
-                  f"expected={expected!r}\\nactual={rows!r}"
-              )
-          print(f"PASS: {len(rows)} actual OPLL_PhaseGenerate Rhythm reset decisions")
-          PY
+          awk -F, '
+            BEGIN {
+              expected_eg[1] = 32768
+              expected_eg[2] = 1
+              expected_eg[3] = 0
+              expected_eg[4] = 32769
+              count = 0
+              failed = 0
+            }
+            /^YM2413_PHASE_RESET,/ {
+              count++
+              probe = int((count - 1) / 2) + 1
+              cycle = (count % 2 == 1) ? 13 : 14
+              eg = expected_eg[probe]
+              reset = (eg % 2 == 1) ? 1 : 0
+              if (count > 8 || $2 != cycle || $3 != 192 ||
+                  $4 != eg || $5 != 0 || $6 != reset) {
+                printf "Mismatch row %d: %s\n", count, $0 > "/dev/stderr"
+                failed = 1
+              }
+            }
+            END {
+              if (count != 8) {
+                printf "Expected 8 actual reset decisions, got %d\n", count > "/dev/stderr"
+                failed = 1
+              }
+              if (failed) exit 1
+              printf "PASS: %d actual OPLL_PhaseGenerate Rhythm reset decisions\n", count
+            }
+          ' "$RUNNER_TEMP/rhythm-reset.csv"
