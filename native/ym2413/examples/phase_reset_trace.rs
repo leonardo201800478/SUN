@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             testmode,
         )
         .ok_or_else(|| format!("line {}: Rust rejected cycle {cycle}", line_index + 1))?;
-        let rust_reset_required = u32::from(event.phase_reset_required);
+        let rust_reset_required = if event.phase_reset_required { 1 } else { 0 };
         if rust_reset_required != nuked_reset_required {
             return Err(format!(
                 "line {}: reset decision mismatch: Nuked={} Rust={}                  (cycle={cycle}, rm_enable={rm_enable:#04x},                  eg_dokon={eg_dokon:#010x}, testmode={testmode:#04x})",
