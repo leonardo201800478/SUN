@@ -10,6 +10,7 @@ on:
       - "tools/ym2413-nuked-oracle/compare_operator.py"
       - "tools/ym2413-nuked-oracle/compare_am_lfo.py"
       - "tools/ym2413-nuked-oracle/compare_fm3_integrated.py"
+      - "tools/ym2413-nuked-oracle/compare_preset_latches.py"
       - "native/ym2413/examples/serial_operator_trace.rs"
       - "native/ym2413/examples/serial_am_lfo_trace.rs"
       - "native/ym2413/examples/pg_serial_trace.rs"
@@ -153,9 +154,9 @@ jobs:
           blocks = [min(channel, 7) for channel in range(9)]
           base = 400
           for channel, (fnum, block) in enumerate(zip(fnums, blocks, strict=True)):
-              # Channel 0 exercises the live user patch; channels 1..8 exercise
-              # preset instruments 1..8 through the production serial latches.
-              instrument = channel
+              # Keep the full PG/EG/operator differential on the live user
+              # patch. Candidate preset ROM data is characterized separately.
+              instrument = 0
               writes = (
                   (0x10 + channel, fnum & 0xFF),
                   (0x20 + channel, 0x10 | ((block & 7) << 1) | ((fnum >> 8) & 1)),
@@ -187,15 +188,6 @@ jobs:
           write_register(0x0F, 0x04, 7600)
           write_register(0x0F, 0x00, 7800)
 
-          # Dynamically select presets 9..15 on active channels. Together with
-          # the initial 0..8 setup this forces every instrument code through
-          # PreparePatch1/PreparePatch2 while the serial operator pipeline runs.
-          for instrument in range(9, 16):
-              channel = instrument - 8
-              volume = (instrument * 3) & 0x0F
-              write_register(0x30 + channel, (instrument << 4) | volume,
-                             8200 + (instrument - 9) * 40)
-
           # Rewrite the user patch during playback while channel 0 remains on
           # instrument 0, then change FNUM/BLOCK and carrier volume live.
           live_patch = (0xD1, 0xB2, 0x35, 0x1D, 0xC7, 0xE4, 0xA5, 0x96)
@@ -209,6 +201,63 @@ jobs:
                              9140 + index * 80)
           write_register(0x30, 0x0D, 9400)
           write_register(0x38, 0x8B, 9440)
+
+      - name: Generate all-preset serial latch characterization sequence
+        run: |
+          python3 - "$RUNNER_TEMP/preset-events.csv" <<'PY'
+          import csv
+          import sys
+
+          events = []
+          def write_register(address, value, call):
+              events.append((call, 0, address))
+              events.append((call + 2, 1, value))
+
+          patch = (0xE1, 0xA2, 0x55, 0x5D, 0xF3, 0xE4, 0xA5, 0xB6)
+          for index, value in enumerate(patch):
+              write_register(index, value, index * 40)
+
+          fnums = [32, 64, 128, 192, 256, 320, 384, 448, 511]
+          for channel, fnum in enumerate(fnums):
+              block = min(channel, 7)
+              instrument = channel
+              write_register(0x10 + channel, fnum & 0xFF, 400 + channel * 120)
+              write_register(0x20 + channel,
+                             0x10 | ((block & 7) << 1) | ((fnum >> 8) & 1),
+                             440 + channel * 120)
+              write_register(0x30 + channel, instrument << 4,
+                             480 + channel * 120)
+
+          for instrument in range(9, 16):
+              channel = instrument - 8
+              volume = (instrument * 3) & 0x0F
+              write_register(0x30 + channel, (instrument << 4) | volume,
+                             8200 + (instrument - 9) * 40)
+
+          live_patch = (0xD1, 0xB2, 0x35, 0x1D, 0xC7, 0xE4, 0xA5, 0x96)
+          for index, value in enumerate(live_patch):
+              write_register(index, value, 8600 + index * 40)
+
+          events.sort()
+          if any(events[index][0] >= events[index + 1][0]
+                 for index in range(len(events) - 1)):
+              raise ValueError("preset events must have unique increasing call indices")
+          with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
+              writer = csv.writer(stream)
+              writer.writerow(("# call_index", "port", "value"))
+              writer.writerows(events)
+          PY
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 \
+            --events "$RUNNER_TEMP/preset-events.csv" \
+            > "$RUNNER_TEMP/nuked-presets.jsonl"
+          cargo run --quiet --locked \
+            --manifest-path native/ym2413/Cargo.toml \
+            --example pg_serial_trace -- \
+            "$RUNNER_TEMP/preset-events.csv" 147456 \
+            > "$RUNNER_TEMP/rust-presets.jsonl"
+          python3 tools/ym2413-nuked-oracle/compare_preset_latches.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-presets.jsonl" \
+            --rust-trace "$RUNNER_TEMP/rust-presets.jsonl"
 
           events.sort()
           if any(events[index][0] >= events[index + 1][0] for index in range(len(events) - 1)):
