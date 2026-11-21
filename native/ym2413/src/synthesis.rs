@@ -313,6 +313,22 @@ impl Ym2413SynthesisBank {
         self.am_lfo.advance_samples(am_samples as u32);
     }
 
+    /// Replace one physical operator accumulator with a serial PG phase-array write.
+    ///
+    /// The serial PG ring writes `pg_phase_next + pg_inc` into the selected
+    /// slot; this is a replacement, not an addition to that slot's old phase.
+    pub fn write_operator_phase(
+        &mut self,
+        channel: u8,
+        carrier: bool,
+        phase: u32,
+    ) -> Result<(), Ym2413SynthesisError> {
+        let state = self.channel_mut(channel)?;
+        let operator_index = if carrier { 1 } else { 0 };
+        state.phase[operator_index].write_phase(phase);
+        Ok(())
+    }
+
     /// Add the serial PG's previously calculated increment to one physical
     /// operator accumulator. No register decoding or LFO advancement occurs.
     pub fn advance_operator_phase_by_increment(

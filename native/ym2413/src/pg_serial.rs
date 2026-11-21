@@ -213,11 +213,8 @@ impl Ym2413PgSerialService {
             .pipeline
             .pg_phase_next
             .wrapping_add(self.pipeline.pg_increment);
-        self.synthesis.advance_operator_phase_by_increment(
-            write.channel,
-            write_carrier,
-            phase_write,
-        )?;
+        self.synthesis
+            .write_operator_phase(write.channel, write_carrier, phase_write)?;
 
         let output = slot_descriptor(context.event.pg_phase_output_index).ok_or(
             Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_output_index),
@@ -433,7 +430,7 @@ mod tests {
                     matches!(written.operator, crate::Ym2413Operator::Carrier),
                 )
                 .unwrap(),
-            0xf000
+            0x3000
         );
         assert_eq!(
             service
@@ -481,7 +478,7 @@ mod tests {
                     matches!(written.operator, crate::Ym2413Operator::Carrier),
                 )
                 .unwrap(),
-            0xd200
+            0x1200
         );
         assert_eq!(service.pg_phase_next(), 0);
     }

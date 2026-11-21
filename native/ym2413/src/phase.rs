@@ -129,6 +129,15 @@ impl PhaseGenerator {
         u32::try_from(step).map_err(|_| PhaseGeneratorError::InvalidState)
     }
 
+    /// Replace the accumulator with a serial PG phase-array write.
+    ///
+    /// Nuked's `pg_phase[(cycle + 17) % 18]` stage assigns
+    /// `pg_phase_next + pg_inc`; it does not add that value to the previous
+    /// contents of the selected phase-array entry.
+    pub fn write_phase(&mut self, phase: u32) {
+        self.phase = phase & YM2413_PHASE_MASK;
+    }
+
     /// Add one already-latched hardware PG increment to this accumulator.
     ///
     /// The serial chip pipeline calculates `pg_inc` in a different stage
