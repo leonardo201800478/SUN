@@ -37,6 +37,7 @@ jobs:
           local $/;
           my $source = <$input>;
           close $input;
+          $source =~ s/\r\n/\n/g;
 
           my $include = '#include "opll.h"';
           my $declaration = $include . <<'DECL';
