@@ -167,6 +167,17 @@ pub struct Ym2413RhythmOutputDelay {
 }
 
 impl Ym2413RhythmOutputDelay {
+    /// Construct an empty retention model at a caller-validated serial slot.
+    pub(crate) const fn new_with_next_slot(next_slot_index: u8) -> Self {
+        Self {
+            state: Ym2413RhythmOutputDelayState {
+                format_version: YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
+                next_slot_index,
+                retained_values: [None; 5],
+            },
+        }
+    }
+
     /// Restore from caller-supplied initial conditions; no latch reset value is guessed.
     pub const fn with_initial_state(
         state: Ym2413RhythmOutputDelayState,
