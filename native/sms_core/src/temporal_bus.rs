@@ -1249,7 +1249,7 @@ mod tests {
         assert!(bus.fm_output_enabled());
 
         let state = bus.export_state();
-        let restored = SmsTemporalBus::restore_state(state).unwrap();
+        let mut restored = SmsTemporalBus::restore_state(state).unwrap();
         assert_eq!(
             restored.ym2413().unwrap().export_state(),
             bus.ym2413().unwrap().export_state()
