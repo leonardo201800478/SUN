@@ -41,7 +41,7 @@ The capacity is supplied by the verified profile, not inferred from a save file.
 The save directory on Windows is:
 
 ```text
-%APPDATA%\SUN — Strife Uranus Neptune\saves
+%APPDATA%\Sega Emulator\saves
 ```
 
 Each file is named from the lowercase SHA-256 of the loaded ROM bytes:
