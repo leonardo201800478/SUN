@@ -278,7 +278,9 @@ impl Ym2413SlotService for Ym2413PgSerialService {
                 channel: context.event.selected_operator.channel,
             });
         }
-        self.generate_phase(context)
+        // Nuked order: PhaseGenerate, Operator (FM-3), PhaseCalcIncrement.
+        self.generate_phase(context)?;
+        self.calculate_increment()
     }
 
     fn after_eg_update(
@@ -287,8 +289,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         _tick: EnvelopeSequencerTick,
         _post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error> {
-        // Nuked order: PhaseCalcIncrement, then DoLFO, then PreparePatch2.
-        self.calculate_increment()?;
+        // Nuked order after the core-owned EG tick: DoLFO, then PreparePatch2.
         let testmode = context.registers[0x0f];
         if testmode & 0x02 != 0 {
             // Nuked applies this reset in DoLFO on every serial cycle, not
@@ -483,6 +484,7 @@ mod tests {
         };
         let mut service = service_with_pipeline(initial_bank(0), 0, 0, parameters, 3);
         let context = context(0, registers, 0);
+        service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(0);
         service.after_eg_update(&context, tick, post).unwrap();
 
@@ -506,6 +508,7 @@ mod tests {
         let mut service =
             service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 2);
         let context = context(17, [0; 64], 0x08);
+        service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(17);
         service.after_eg_update(&context, tick, post).unwrap();
         assert_eq!(service.lfo_vib_counter(), 3);
@@ -517,6 +520,7 @@ mod tests {
         let mut service =
             service_with_pipeline(initial_bank(0x0555), 0, 0, Ym2413PgParameterLatch::RESET, 6);
         let context = context(3, [0; 64], 0x02);
+        service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(3);
         service.after_eg_update(&context, tick, post).unwrap();
         assert_eq!(service.lfo_vib_counter(), 0);
@@ -528,6 +532,7 @@ mod tests {
         let mut service =
             service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 6);
         let context = context(17, [0; 64], 0x0a);
+        service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(17);
         service.after_eg_update(&context, tick, post).unwrap();
         assert_eq!(service.lfo_vib_counter(), 0);
