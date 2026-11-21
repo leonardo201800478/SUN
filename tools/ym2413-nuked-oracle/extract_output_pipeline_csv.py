@@ -27,12 +27,14 @@ def main() -> int:
             [
                 "call_index",
                 "cycle_before",
+                "ch_out_before",
                 "ch_out_after",
                 "mode_write_data",
                 "buffer_m",
                 "buffer_r",
                 "pin_m_after",
                 "pin_r_after",
+                "rm_enable_signed_before",
                 "rm_enable_signed_after",
             ]
         )
@@ -67,22 +69,27 @@ def main() -> int:
             if channel_output != 0:
                 nonzero_channel_outputs += 1
 
-            rm_enable_raw = int(record["rm_enable"]) & 0xFF
-            rm_enable_signed = (
-                rm_enable_raw if rm_enable_raw < 0x80 else rm_enable_raw - 0x100
+            rm_enable_before = int(record["output_pipe_rm_enable_before"])
+            rm_enable_raw_after = int(record["rm_enable"]) & 0xFF
+            rm_enable_after = (
+                rm_enable_raw_after
+                if rm_enable_raw_after < 0x80
+                else rm_enable_raw_after - 0x100
             )
 
             writer.writerow(
                 [
                     call_index,
                     cycle,
+                    int(record["output_pipe_ch_out_before"]),
                     channel_output,
                     mode_write,
                     int(record["output_m"]),
                     int(record["output_r"]),
                     int(record["output_pins_m"]),
                     int(record["output_pins_r"]),
-                    rm_enable_signed,
+                    rm_enable_before,
+                    rm_enable_after,
                 ]
             )
             calls += 1

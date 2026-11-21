@@ -330,3 +330,9 @@ enable write and a qualified disable write. The workflow captures the same
 Nuked trace twice and requires byte-identical output before differential
 replay. This is a strict software-reference comparison, not a physical
 silicon measurement or proof of analog pin voltage.
+
+
+The comparator also records the pre-call ch_out and signed rm_enable values.
+On divergence it reports call/cycle, independent MO and RO slot coordinates,
+register-0x0e write data, both ch_out boundaries, expected/actual buffered
+outputs, expected/actual pin latches, and rm_enable before/after the call.
