@@ -16,7 +16,17 @@ A UI mantém “Shaders / CRT / NTSC” como **Não integrado**. Não há filtro
 
 Arquitetura híbrida: filtros de sinal e resposta temporal na CPU Rust, na resolução de origem; filtros espaciais e dependentes da resolução de saída em WGSL embarcado. Consulte [Arquitetura híbrida nativa](native-video-filters-hybrid-pipeline.md).
 
-## O que não deve ser considerado implementado
+## Objetivo visual e resolução de reconstrução
+
+A saída em 4K é escolhida para reconstruir melhor a estrutura RGB dos fósforos de um CRT de alta qualidade, não para alegar que o console produzia resolução 4K. O shader deve usar a densidade de pixels físicos para modelar shadow mask/aperture grille, spot do feixe, scanlines, espalhamento luminoso e convergência, preservando a resolução e a paleta nativas. A máscara é ancorada em coordenadas físicas da saída e validada contra moiré, cintilação e mudanças de escala. RGB direto e sinal composto são perfis distintos; nenhum deve ser confundido com o outro.
+
+O pipeline não assume que todo modo dos consoles seja exatamente 240p. Dimensões ativas e cadência vêm do perfil real do VDP/região. HDR pode representar níveis luminosos e headroom de forma mais ampla, mas não amplia artificialmente a paleta original nem substitui calibração.
+
+## VRR e jogos PAL
+
+Para jogos europeus PAL de aproximadamente 50 Hz, VRR pode sincronizar a apresentação à cadência nativa e reduzir tearing/judder de uma tela fixa de 60 Hz, melhorando a regularidade percebida do movimento. Não acelera a execução nem elimina a diferença temporal entre 50 Hz e 60 Hz. Scheduler, áudio e clocks emulados permanecem inalterados; o VRR atua exclusivamente no host de apresentação e precisa ser validado dentro da faixa operacional do monitor.
+
+## ## O que não deve ser considerado implementado
 
 - NTSC/PAL-M composto por subportadora.
 - Ghosting LCD do Game Gear.
