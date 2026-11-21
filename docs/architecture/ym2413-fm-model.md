@@ -7,7 +7,8 @@
 
 ## Snapshot de implementação atual — main pós-PR #1170 (2026-11-21)
 
-**Main:** `8836ec3f716c19450736bfd4878790c1d6f6ee52`  
+**Main:** `8836ec3f716c19450736bfd4878790c1d6f6ee52`
+
 **Scorecard operacional:** [YM2413 FM Completion Scorecard](../ym2413-fm-completion-scorecard.md).
 
 O estado de implementação avançou desde a auditoria M2 de 17/11:
