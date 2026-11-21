@@ -305,3 +305,28 @@ and reports every candidate-dependent synthesis field that differs from
 Nuked, including its first call and mismatch count. The isolated operator and
 AM LFO differentials remain strict gates so their results are not hidden by
 candidate patch differences.
+
+
+## MO/RO output-pipeline differential
+
+The workflow ym2413-output-pipeline-differential.yml captures the original
+YM2413 output path from the pinned Nuked-OPLL commit and replays it through the
+Rust Ym2413OutputPipeline.
+
+The trace adapter records the pre-call mode-write address, data-enable and
+write-data latches. The extractor identifies the exact OPLL_DoModeWrite
+qualification for register 0x0e, then supplies the accepted write to the Rust
+pipeline at the same OPLL_Clock boundary. Each call compares:
+
+- MO/RO values copied to the external buffer at the beginning of the call;
+- post-call output_m/output_r latches;
+- post-call signed rm_enable state;
+- the previous ch_out consumed by the channel stage and the next ch_out
+  produced by the operator stage;
+- the 18-cycle serial cursor.
+
+The fixture includes user-patch/channel activity, a qualified Rhythm Mode
+enable write and a qualified disable write. The workflow captures the same
+Nuked trace twice and requires byte-identical output before differential
+replay. This is a strict software-reference comparison, not a physical
+silicon measurement or proof of analog pin voltage.

@@ -5,8 +5,11 @@
 //! model, or proof of silicon timing. The supplied next_channel_output is the
 //! operator-stage result latched after the channel-output stage.
 
+/// Version of the serial MO/RO output-pipeline snapshot format.
 pub const YM2413_OUTPUT_PIPELINE_STATE_VERSION: u16 = 1;
+/// Lowest valid one's-complement operator channel-output latch value.
 pub const YM2413_CHANNEL_OUTPUT_MIN: i16 = -256;
+/// Highest valid one's-complement operator channel-output latch value.
 pub const YM2413_CHANNEL_OUTPUT_MAX: i16 = 255;
 
 /// Exact signed integer emitted by the pinned software reference.
@@ -15,9 +18,11 @@ pub const YM2413_CHANNEL_OUTPUT_MAX: i16 = 255;
 pub struct Ym2413NukedOutputCode(i16);
 
 impl Ym2413NukedOutputCode {
+    /// Wrap an exact signed integer from the Nuked software output buffer.
     pub const fn new(value: i16) -> Self {
         Self(value)
     }
+    /// Return the wrapped signed software-reference output integer.
     pub const fn value(self) -> i16 {
         self.0
     }
@@ -26,27 +31,39 @@ impl Ym2413NukedOutputCode {
 /// Values copied to the external buffer at the beginning of one clock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413OutputPipelineFrame {
+    /// Serial cycle whose output-buffer values were copied.
     pub cycle: u8,
+    /// MO output-buffer value copied at the start of this clock.
     pub mo: Ym2413NukedOutputCode,
+    /// RO output-buffer value copied at the start of this clock.
     pub ro: Ym2413NukedOutputCode,
 }
 
 /// Complete serial pipeline state, including both latches and rm_enable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413OutputPipelineState {
+    /// Snapshot schema version.
     pub format_version: u16,
+    /// Serial cycle required by the next process_cycle call.
     pub next_cycle: u8,
+    /// Previous operator result consumed by the next channel stage.
     pub previous_channel_output: i16,
+    /// Channel-stage MO value copied to the external buffer next clock.
     pub output_m: i16,
+    /// Channel-stage RO value copied to the external buffer next clock.
     pub output_r: i16,
     /// Signed Nuked int8_t mode-write shift register; right shifts are arithmetic.
     pub rm_enable: i8,
 }
 
+/// Validation failures from the serial output pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413OutputPipelineError {
+    /// Snapshot version, cycle cursor or latch range is invalid.
     InvalidState,
+    /// Caller supplied a cycle other than the state cursor.
     InvalidCycle { expected: u8, actual: u8 },
+    /// Operator channel output is outside the nine-bit one's-complement range.
     InvalidChannelOutput(i16),
 }
 
@@ -100,6 +117,7 @@ impl Ym2413OutputPipeline {
         }
     }
 
+    /// Restore a validated snapshot, preserving both latches and signed rm_enable.
     pub const fn with_initial_state(
         state: Ym2413OutputPipelineState,
     ) -> Result<Self, Ym2413OutputPipelineError> {
@@ -117,6 +135,7 @@ impl Ym2413OutputPipeline {
         Ok(Self { state })
     }
 
+    /// Return a complete copy of the state required for deterministic restoration.
     pub const fn export_state(&self) -> Ym2413OutputPipelineState {
         self.state
     }
