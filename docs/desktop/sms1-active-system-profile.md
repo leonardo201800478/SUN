@@ -31,6 +31,15 @@ O modelo/ASIC selecionado controla a revisão do VDP:
 
 `sms_temporal_hardware_profile(region, revision)` resolve as duas dimensões sem derivar o ASIC da região, do CRC ou da extensão da ROM.
 
+## Perfil físico FM e região do software
+
+A região do software **não** seleciona a presença física do YM2413:
+
+- Os construtores regionais SMS usados pelo desktop criam o perfil genérico sem FM, inclusive quando a região selecionada é Japão.
+- O construtor explícito `new_with_japanese_fm_hardware_profile` seleciona uma placa Japanese Master System com YM2413 e aceita qualquer região de software suportada (USA, Brasil, Europa, Japão ou Coreia).
+- A seleção física FM não altera o VDP/ASIC, o padrão de vídeo ou o clock regional.
+- O desktop ainda não expõe nem persiste essa seleção de placa. O perfil físico e `FmMode::Auto/On/Off` permanecem pendentes na GUI.
+
 ## Propagação até o runtime
 
 `SmsWorkerSettings` carrega a revisão escolhida até `SmsTemporalWorker::new_with_hardware_profile_and_cartridge_sram_size`.

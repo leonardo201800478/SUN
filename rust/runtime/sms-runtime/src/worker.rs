@@ -211,17 +211,11 @@ fn build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
     revision: SmsVdpRevision,
     bios: Option<Vec<u8>>,
     cartridge_sram_size: Option<usize>,
-    fm_enabled: bool,
+    has_integrated_fm: bool,
 ) -> Result<SmsTemporalMachine, String> {
-    if fm_enabled && region != "japan" {
-        return Err(
-            "integrated YM2413 is selectable only for the Japanese Master System profile"
-                .to_owned(),
-        );
-    }
     let (territory, vdp_profile, psg_clock_hz) =
         sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
-    match (bios, fm_enabled) {
+    match (bios, has_integrated_fm) {
         (Some(bios), true) => {
             SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
                 rom,
@@ -1479,8 +1473,9 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Select the SMS1 hardware model and enable integrated FM only when ROM/region
-    /// resolution identifies the Japanese Master System.
+    /// Select the SMS1 VDP ASIC and resolve software territory. This constructor
+    /// does not infer an integrated YM2413 from the ROM region; FM board presence
+    /// requires the explicit Japanese Master System hardware-profile constructor.
     pub fn new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
         rom: Vec<u8>,
         region_preference: &str,
@@ -1514,7 +1509,7 @@ impl SmsTemporalWorker {
                 }
             },
         };
-        let fm_enabled = region == "japan";
+        let has_integrated_fm = false;
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             None,
@@ -1522,11 +1517,12 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            fm_enabled,
+            has_integrated_fm,
         )
     }
 
-    /// BIOS variant of the SMS1 regional profile; integrated FM is selected only for Japan.
+    /// BIOS variant of the SMS1 VDP profile. Software territory does not select
+    /// the physical YM2413 board; use the explicit FM hardware-profile constructor.
     pub fn new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
         rom: Vec<u8>,
         bios: Vec<u8>,
@@ -1561,7 +1557,7 @@ impl SmsTemporalWorker {
                 }
             },
         };
-        let fm_enabled = region == "japan";
+        let has_integrated_fm = false;
         Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
             rom,
             Some(bios),
@@ -1569,7 +1565,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
-            fm_enabled,
+            has_integrated_fm,
         )
     }
 
@@ -1612,7 +1608,8 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Start the worker with the integrated YM2413 Japanese Master System profile.
+    /// Start the worker with an explicit Japanese Master System board containing YM2413.
+    /// The region argument configures software territory/timing independently.
     pub fn new_with_japanese_fm_hardware_profile(
         rom: Vec<u8>,
         region: &str,
@@ -1626,7 +1623,8 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Start the worker with Japanese integrated FM and an explicit cartridge SRAM profile.
+    /// Start the worker with the explicit FM board profile and cartridge SRAM capacity.
+    /// Software territory remains an independent configuration.
     pub fn new_with_japanese_fm_hardware_profile_and_cartridge_sram_size(
         rom: Vec<u8>,
         region: &str,
@@ -1645,7 +1643,8 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Start the worker with BIOS, Japanese integrated FM and explicit cartridge SRAM.
+    /// Start the worker with BIOS, the explicit FM board profile and cartridge SRAM.
+    /// Software territory remains an independent configuration.
     pub fn new_with_japanese_fm_hardware_profile_and_bios_and_cartridge_sram_size(
         rom: Vec<u8>,
         bios: Vec<u8>,
@@ -1672,14 +1671,8 @@ impl SmsTemporalWorker {
         vdp_revision: SmsVdpRevision,
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
-        fm_enabled: bool,
+        has_integrated_fm: bool,
     ) -> Result<Self, String> {
-        if fm_enabled && region != "japan" {
-            return Err(
-                "integrated YM2413 is selectable only for the Japanese Master System profile"
-                    .to_owned(),
-            );
-        }
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
@@ -1722,7 +1715,7 @@ impl SmsTemporalWorker {
                     worker_vdp_revision,
                     bios.clone(),
                     cartridge_sram_size,
-                    fm_enabled,
+                    has_integrated_fm,
                 )
                 .and_then(|mut machine| {
                     if let Some(contents) = initial_sram.as_deref() {
@@ -3334,7 +3327,7 @@ mod tests {
     }
 
     #[test]
-    fn worker_builder_requires_explicit_japanese_integrated_fm_profile() {
+    fn worker_builder_keeps_fm_hardware_independent_of_software_region() {
         use sega_sms_core::SmsVdpRevision;
 
         let fm_machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
@@ -3361,17 +3354,41 @@ mod tests {
         .unwrap();
         assert!(standard_japan.ym2413().is_none());
 
-        assert!(
+        let export_software_on_fm_board =
             build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
                 vec![0; 0x4000],
-                "korea",
+                "usa",
                 SmsVdpRevision::Sega3155124,
                 None,
                 None,
                 true,
             )
-            .is_err()
-        );
+            .unwrap();
+        assert!(export_software_on_fm_board.ym2413().is_some());
+
+        let export_software_on_fm_board_with_bios =
+            build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+                vec![0; 0x4000],
+                "usa",
+                SmsVdpRevision::Sega3155124,
+                Some(vec![0; 0x2000]),
+                None,
+                true,
+            )
+            .unwrap();
+        assert!(export_software_on_fm_board_with_bios.ym2413().is_some());
+
+        let export_software_without_fm_board =
+            build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+                vec![0; 0x4000],
+                "usa",
+                SmsVdpRevision::Sega3155124,
+                None,
+                None,
+                false,
+            )
+            .unwrap();
+        assert!(export_software_without_fm_board.ym2413().is_none());
     }
 
     #[test]
