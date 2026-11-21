@@ -232,6 +232,22 @@ impl EnvelopeTimer {
         next_rate: u8,
         next_zero_rate: bool,
     ) -> Result<EnvelopeTimerSnapshot, EnvelopeTimerError> {
+        self.tick_slot_with_testmode(slot_index, next_rate, next_zero_rate, 0, 0)
+    }
+
+    /// Advance one EG timer slot with the live Test Mode and write-data bus.
+    ///
+    /// Nuked applies Test Mode bit 3 after shifting the timer and before
+    /// observing its high phase. The write-data bit 2 is injected into timer
+    /// bit 16 at this exact boundary.
+    pub fn tick_slot_with_testmode(
+        &mut self,
+        slot_index: u8,
+        next_rate: u8,
+        next_zero_rate: bool,
+        test_mode: u8,
+        write_data: u8,
+    ) -> Result<EnvelopeTimerSnapshot, EnvelopeTimerError> {
         if slot_index >= SLOT_COUNT {
             return Err(EnvelopeTimerError::InvalidSlot(slot_index));
         }
@@ -243,6 +259,11 @@ impl EnvelopeTimer {
         }
         if next_rate > 63 {
             return Err(EnvelopeTimerError::InvalidRate(next_rate));
+        }
+        if test_mode > 0x0f {
+            return Err(EnvelopeTimerError::InvalidState(
+                "Test Mode exceeds its four-bit register",
+            ));
         }
 
         let rate_latch_source = self.state.pending_rate;
@@ -269,6 +290,10 @@ impl EnvelopeTimer {
         let timer_bit = (self.state.timer & 1) + u32::from(timer_increment);
         self.state.carry = (timer_bit >> 1) as u8;
         self.state.timer = (((timer_bit & 1) << 17) | (self.state.timer >> 1)) & TIMER_MASK;
+        if test_mode & 0x08 != 0 {
+            self.state.timer &= 0x2ffff;
+            self.state.timer |= (u32::from(write_data) << 14) & 0x10000;
+        }
 
         let timer_high_phase = (self.state.timer & (1 << 16)) != 0;
         if !self.state.shift_stop && timer_high_phase {
@@ -362,6 +387,29 @@ impl EnvelopeTimer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_mode_bit_three_injects_write_data_into_timer_bit_sixteen() {
+        let mut timer = EnvelopeTimer::new();
+        timer.state.timer = 0x2_000c;
+
+        let cleared = timer
+            .tick_slot_with_testmode(0, 0, false, 0x08, 0x08)
+            .unwrap();
+        assert_eq!(cleared.timer, 0x0000_0006);
+
+        let mut timer = EnvelopeTimer::new();
+        timer.state.timer = 0x2_000c;
+        let set = timer
+            .tick_slot_with_testmode(0, 0, false, 0x08, 0x04)
+            .unwrap();
+        assert_eq!(set.timer, 0x0001_0006);
+
+        let mut timer = EnvelopeTimer::new();
+        timer.state.timer = 0x2_000c;
+        let untouched = timer.tick_slot(0, 0, false).unwrap();
+        assert_eq!(untouched.timer, 0x0001_0006);
+    }
 
     #[test]
     fn reset_state_is_zeroed_and_starts_at_slot_zero() {

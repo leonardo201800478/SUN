@@ -8,22 +8,25 @@
 //! This first integration gate covers normal melodic mode. Rhythm-specific PG
 //! phase combiners and the special channel-7..9 parameter routing remain FM-5.
 
+use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState};
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
-use crate::slot::{Ym2413Operator, slot_descriptor};
+use crate::serial_operator::{
+    Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
+    Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
+};
+use crate::slot::{Ym2413Operator, nuked_pg_phase_slot_descriptor};
 use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
 use crate::synthesis::{
     Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 1;
-pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 1;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 5;
+pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 3;
 
-/// Maximum legal serial PG increment over all 9-bit FNUM, 3-bit BLOCK,
-/// 4-bit MUL and PM-LFO positions. Derived from phase_step's integer formula:
-/// ((0x1ff * 2 + 7) * 2^7 / 2) * 30 / 2 = 987_840.
+/// Maximum increment reachable from the legal FNUM/BLOCK/MUL/PM input domain.
 pub const YM2413_PG_INCREMENT_MAX: u32 = 987_840;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +37,8 @@ pub enum Ym2413PgSerialError {
     Channel(ChannelSynthesisError),
     Phase(PhaseGeneratorError),
     Synthesis(Ym2413SynthesisError),
+    Operator(Ym2413SerialOperatorError),
+    AmLfo(Ym2413SerialAmLfoError),
 }
 
 /// Error returned by the public coarse-grained core + PG advancement API.
@@ -67,6 +72,16 @@ impl From<PhaseGeneratorError> for Ym2413PgSerialError {
 impl From<Ym2413SynthesisError> for Ym2413PgSerialError {
     fn from(value: Ym2413SynthesisError) -> Self {
         Self::Synthesis(value)
+    }
+}
+impl From<Ym2413SerialOperatorError> for Ym2413PgSerialError {
+    fn from(value: Ym2413SerialOperatorError) -> Self {
+        Self::Operator(value)
+    }
+}
+impl From<Ym2413SerialAmLfoError> for Ym2413PgSerialError {
+    fn from(value: Ym2413SerialAmLfoError) -> Self {
+        Self::AmLfo(value)
     }
 }
 
@@ -120,6 +135,8 @@ pub struct Ym2413PgSerialServiceState {
     pub format_version: u16,
     pub pipeline: Ym2413PgSerialPipelineState,
     pub synthesis: Ym2413SynthesisBankState,
+    pub operator: Ym2413SerialOperatorState,
+    pub serial_am_lfo: Ym2413SerialAmLfoState,
 }
 
 /// Cloneable serial PG state machine. Its Clone is deep: all mutable state is
@@ -128,6 +145,8 @@ pub struct Ym2413PgSerialServiceState {
 pub struct Ym2413PgSerialService {
     synthesis: Ym2413SynthesisBank,
     pipeline: Ym2413PgSerialPipelineState,
+    operator: Ym2413SerialOperator,
+    serial_am_lfo: Ym2413SerialAmLfo,
 }
 
 impl Ym2413PgSerialService {
@@ -143,6 +162,8 @@ impl Ym2413PgSerialService {
                 lfo_vib_counter: 0,
                 parameters: Ym2413PgParameterLatch::RESET,
             },
+            operator: Ym2413SerialOperator::new(),
+            serial_am_lfo: Ym2413SerialAmLfo::new(),
         }
     }
 
@@ -184,6 +205,8 @@ impl Ym2413PgSerialService {
             format_version: YM2413_PG_SERIAL_STATE_VERSION,
             pipeline: self.pipeline,
             synthesis: self.synthesis.export_state(),
+            operator: self.operator.export_state(),
+            serial_am_lfo: self.serial_am_lfo.export_state(),
         }
     }
 
@@ -192,10 +215,8 @@ impl Ym2413PgSerialService {
         let pipeline = state.pipeline;
         if state.format_version != YM2413_PG_SERIAL_STATE_VERSION
             || pipeline.format_version != YM2413_PG_SERIAL_PIPELINE_STATE_VERSION
-            || pipeline.pg_phase_next > crate::phase::YM2413_PHASE_MASK
-            || pipeline.pg_increment > YM2413_PG_INCREMENT_MAX
-            || pipeline.pg_output > 0x03ff
             || pipeline.lfo_vib_counter > 7
+            || pipeline.pg_increment > YM2413_PG_INCREMENT_MAX
             || !pipeline.parameters.is_valid()
         {
             return Err(Ym2413PgSerialError::InvalidState);
@@ -203,6 +224,8 @@ impl Ym2413PgSerialService {
         Ok(Self {
             synthesis: Ym2413SynthesisBank::restore_state(state.synthesis)?,
             pipeline,
+            operator: Ym2413SerialOperator::restore_state(state.operator)?,
+            serial_am_lfo: Ym2413SerialAmLfo::restore_state(state.serial_am_lfo)?,
         })
     }
 
@@ -211,7 +234,7 @@ impl Ym2413PgSerialService {
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
-        let write = slot_descriptor(context.event.pg_phase_write_index).ok_or(
+        let write = nuked_pg_phase_slot_descriptor(context.event.pg_phase_write_index).ok_or(
             Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_write_index),
         )?;
         let write_carrier = matches!(write.operator, Ym2413Operator::Carrier);
@@ -222,7 +245,7 @@ impl Ym2413PgSerialService {
         self.synthesis
             .write_operator_phase(write.channel, write_carrier, phase_write)?;
 
-        let output = slot_descriptor(context.event.pg_phase_output_index).ok_or(
+        let output = nuked_pg_phase_slot_descriptor(context.event.pg_phase_output_index).ok_or(
             Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_output_index),
         )?;
         let output_carrier = matches!(output.operator, Ym2413Operator::Carrier);
@@ -237,7 +260,7 @@ impl Ym2413PgSerialService {
         } else {
             phase
         };
-        self.pipeline.pg_output = ((phase >> 9) & 0x03ff) as u16;
+        self.pipeline.pg_output = (phase >> 9) as u16;
         Ok(())
     }
 
@@ -285,6 +308,22 @@ impl Ym2413PgSerialService {
             Ym2413Operator::Carrier => config.carrier_phase,
         };
         self.pipeline.parameters = Ym2413PgParameterLatch::from_operator(parameters);
+        let operator_patch = match descriptor.operator {
+            Ym2413Operator::Modulator => config.patch.modulator,
+            Ym2413Operator::Carrier => config.patch.carrier,
+        };
+        self.operator
+            .prepare_patch2(Ym2413SerialOperatorPatch2Latches {
+                feedback: config.patch.feedback,
+                dc_waveform: config.patch.carrier.half_wave,
+                dm_waveform: config.patch.modulator.half_wave,
+                am_enabled: operator_patch.am_enabled,
+                vibrato_enabled: operator_patch.vibrato_enabled,
+                multiplier: operator_patch.multiplier,
+                sustain_level: operator_patch.sustain_level,
+                fnum: config.channel.fnum,
+                block: config.channel.block,
+            })?;
         Ok(())
     }
 }
@@ -299,9 +338,58 @@ impl Ym2413SlotService for Ym2413PgSerialService {
                 channel: context.event.selected_operator.channel,
             });
         }
-        // Nuked order: PhaseGenerate, Operator (FM-3), PhaseCalcIncrement.
+        // Nuked order in this pre-EG hook:
+        // PreparePatch1 -> Channel -> PhaseGenerate -> Operator
+        // -> PhaseCalcIncrement -> EnvelopeOutput -> EnvelopeKSLTL.
+        let descriptor = context.event.selected_operator;
+        let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
+        let (operator_patch, ksl_attenuation, total_level, operator_index) =
+            match descriptor.operator {
+                Ym2413Operator::Modulator => (
+                    config.patch.modulator,
+                    config.modulator_ksl,
+                    config.patch.modulator.total_level,
+                    0,
+                ),
+                Ym2413Operator::Carrier => (
+                    config.patch.carrier,
+                    config.carrier_ksl,
+                    config.channel.volume << 2,
+                    1,
+                ),
+            };
+        self.operator
+            .prepare_patch1(Ym2413SerialOperatorPatch1Latches {
+                total_level,
+                ksl_attenuation,
+                ksl: operator_patch.key_scale_level,
+                adrr: [
+                    operator_patch.attack_rate,
+                    operator_patch.decay_rate,
+                    operator_patch.release_rate,
+                ],
+                envelope_type: operator_patch.sustained_envelope,
+                key_scale_rate: operator_patch.key_scale_rate,
+                key_scale_rate_frequency: (config.channel.block << 1)
+                    | ((config.channel.fnum >> 8) as u8 & 1),
+                key_scale_level_frequency: (config.channel.fnum >> 5) as u8,
+                key_scale_level_block: config.channel.block,
+            })?;
+        self.operator
+            .prepare_channel(config.channel.instrument, operator_index)?;
+        self.serial_am_lfo.capture_output(context.event.cycle)?;
         self.generate_phase(context)?;
-        self.calculate_increment()
+        self.operator
+            .tick_operator(context.event.cycle, self.pipeline.pg_output)?;
+        self.calculate_increment()?;
+        let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
+        self.operator.advance_envelope_output(
+            context.event.cycle,
+            &eg_levels,
+            self.serial_am_lfo.output(),
+            context.registers[0x0f],
+        )?;
+        Ok(())
     }
 
     fn after_eg_update(
@@ -310,11 +398,16 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         _tick: EnvelopeSequencerTick,
         _post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error> {
-        // Nuked order after the core-owned EG tick: DoLFO, then PreparePatch2.
+        // Nuked order after the core-owned EnvelopeGenerate stage:
+        // DoLFO -> DoRhythm (FM-5; rejected here) -> PreparePatch2.
         let testmode = context.registers[0x0f];
+        // OPLL_DoLFO advances the serial AM network on every call and
+        // derives its cycle-17 step from the PM counter before that counter
+        // is advanced by the PM stage.
+        let pm_counter = self.synthesis.pm_lfo_counter();
+        self.serial_am_lfo
+            .clock(context.event.cycle, pm_counter, testmode)?;
         if testmode & 0x02 != 0 {
-            // Nuked applies this reset in DoLFO on every serial cycle, not
-            // only at the cycle-17 PM counter increment boundary.
             self.pipeline.lfo_vib_counter = 0;
             self.synthesis.reset_pm_lfo();
         } else if context.event.cycle == 17 {
@@ -334,10 +427,14 @@ mod tests {
     use crate::envelope::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
-    use crate::envelope_sequencer::{EnvelopeSequencer, EnvelopeSlotInput};
-    use crate::phase::{PhaseGenerator, YM2413_PHASE_MASK};
-    use crate::slot::{nuked_slot_service_event_with_testmode, slot_descriptor};
-    use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
+    use crate::envelope_sequencer::{
+        EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput,
+    };
+    use crate::phase::PhaseGenerator;
+    use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
+    use crate::slot_service::{
+        Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
+    };
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
@@ -415,6 +512,23 @@ mod tests {
     }
 
     #[test]
+    fn pg_output_latch_preserves_bits_above_the_ten_bit_sine_address() {
+        let mut bank = initial_bank(0);
+        let mut bank_state = bank.export_state();
+        bank_state.channels[1].modulator_phase.phase = 0x0008_4000;
+        bank = Ym2413SynthesisBank::restore_state(bank_state).unwrap();
+        let mut service = service_with_pipeline(bank, 0, 0, Ym2413PgParameterLatch::RESET, 0);
+
+        service.before_eg_update(&context(0, [0; 64], 0)).unwrap();
+        assert_eq!(service.pg_output(), 0x0420);
+
+        let snapshot = service.export_state();
+        let restored = Ym2413PgSerialService::restore_state(snapshot).unwrap();
+        assert_eq!(restored.pg_output(), 0x0420);
+        assert_eq!(restored.export_state(), snapshot);
+    }
+
+    #[test]
     fn phase_write_and_phase_output_use_distinct_physical_slot_indices() {
         let mut service = service_with_pipeline(
             initial_bank(0),
@@ -426,8 +540,8 @@ mod tests {
         let context = context(0, [0; 64], 0);
         service.before_eg_update(&context).unwrap();
 
-        let written = slot_descriptor(17).unwrap();
-        let output = slot_descriptor(0).unwrap();
+        let written = nuked_pg_phase_slot_descriptor(17).unwrap();
+        let output = nuked_pg_phase_slot_descriptor(0).unwrap();
         assert_eq!(
             service
                 .synthesis()
@@ -446,10 +560,10 @@ mod tests {
                     matches!(output.operator, crate::Ym2413Operator::Carrier),
                 )
                 .unwrap(),
-            0
+            0x1000
         );
-        assert_eq!(service.pg_phase_next(), 0);
-        assert_eq!(service.pg_output(), 0);
+        assert_eq!(service.pg_phase_next(), 0x1000);
+        assert_eq!(service.pg_output(), 8);
     }
 
     #[test]
@@ -464,8 +578,8 @@ mod tests {
         let context = context(0, [0; 64], 0x04);
         service.before_eg_update(&context).unwrap();
 
-        let output = slot_descriptor(0).unwrap();
-        let written = slot_descriptor(17).unwrap();
+        let output = nuked_pg_phase_slot_descriptor(0).unwrap();
+        let written = nuked_pg_phase_slot_descriptor(17).unwrap();
         assert_eq!(
             service
                 .synthesis()
@@ -474,7 +588,7 @@ mod tests {
                     matches!(output.operator, crate::Ym2413Operator::Carrier),
                 )
                 .unwrap(),
-            0
+            0x1000
         );
         assert_eq!(
             service
@@ -619,44 +733,151 @@ mod tests {
     }
 
     #[test]
-    fn maximum_restored_pg_increment_is_reachable_from_legal_parameters() {
-        // FNUM=511 selects PM row 7; position 2 contributes +7.
-        // ((511 * 2 + 7) * 2^7 / 2) * 30 / 2 = 987_840.
-        assert_eq!(
-            PhaseGenerator::phase_step(0x01ff, 7, 14, true, 2),
-            Ok(super::YM2413_PG_INCREMENT_MAX)
-        );
-        assert_eq!(
-            PhaseGenerator::phase_step(0x01ff, 7, 15, true, 2),
-            Ok(super::YM2413_PG_INCREMENT_MAX)
-        );
-    }
-
-    #[test]
     fn service_rejects_invalid_pipeline_snapshot_fields() {
         let service = Ym2413PgSerialService::new(initial_bank(0));
         let mut state = service.export_state();
-        state.pipeline.pg_phase_next = YM2413_PHASE_MASK + 1;
-        assert_eq!(
-            Ym2413PgSerialService::restore_state(state),
-            Err(Ym2413PgSerialError::InvalidState)
-        );
-        state = service.export_state();
         state.pipeline.lfo_vib_counter = 8;
         assert_eq!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
         );
-
         state = service.export_state();
-        state.pipeline.pg_increment = super::YM2413_PG_INCREMENT_MAX + 1;
+        state.pipeline.parameters.fnum = 0x0200;
+        assert_eq!(
+            Ym2413PgSerialService::restore_state(state),
+            Err(Ym2413PgSerialError::InvalidState)
+        );
+    }
+
+    #[test]
+    fn restore_state_enforces_the_reachable_pg_increment_bound() {
+        let service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut state = service.export_state();
+        state.pipeline.pg_increment = YM2413_PG_INCREMENT_MAX + 1;
         assert_eq!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
         );
 
-        state.pipeline.pg_increment = super::YM2413_PG_INCREMENT_MAX;
+        let mut state = service.export_state();
+        state.pipeline.pg_increment = YM2413_PG_INCREMENT_MAX;
         assert!(Ym2413PgSerialService::restore_state(state).is_ok());
+    }
+
+    #[test]
+    fn maximum_pg_increment_is_reachable_from_legal_parameters() {
+        // FNUM=511 selects PM row 7; position 2 contributes +7.
+        // ((511 * 2 + 7) * 2^7 / 2) * 30 / 2 = 987_840.
+        assert_eq!(
+            PhaseGenerator::phase_step(0x01ff, 7, 14, true, 2),
+            Ok(YM2413_PG_INCREMENT_MAX)
+        );
+        assert_eq!(
+            PhaseGenerator::phase_step(0x01ff, 7, 15, true, 2),
+            Ok(YM2413_PG_INCREMENT_MAX)
+        );
+    }
+
+    #[derive(Clone)]
+    struct FailingPgService {
+        inner: Ym2413PgSerialService,
+        fail_cycle: Option<u8>,
+    }
+
+    impl Ym2413SlotService for FailingPgService {
+        type Error = u8;
+
+        fn before_eg_update(
+            &mut self,
+            context: &Ym2413SlotServiceContext,
+        ) -> Result<(), Self::Error> {
+            self.inner
+                .before_eg_update(context)
+                .map_err(|_| context.event.cycle)
+        }
+
+        fn after_eg_update(
+            &mut self,
+            context: &Ym2413SlotServiceContext,
+            tick: EnvelopeSequencerTick,
+            post_state: EnvelopeSequencerState,
+        ) -> Result<(), Self::Error> {
+            self.inner
+                .after_eg_update(context, tick, post_state)
+                .map_err(|_| context.event.cycle)?;
+            if self.fail_cycle == Some(context.event.cycle) {
+                Err(context.event.cycle)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn core_and_pg_service_snapshot_restore_and_transactional_retry_are_equivalent() {
+        let initial = initial_bank(0);
+        let mut whole_core = Ym2413Core::new();
+        let mut whole_service = Ym2413PgSerialService::new(initial.clone());
+        let total_clocks = 18 * YM2413_INPUT_CLOCKS_PER_SLOT;
+        whole_core
+            .advance_input_clocks_with_slot_service(total_clocks, &mut whole_service)
+            .unwrap();
+
+        let mut checkpoint_core = Ym2413Core::new();
+        let mut checkpoint_service = Ym2413PgSerialService::new(initial.clone());
+        checkpoint_core
+            .advance_input_clocks_with_slot_service(37, &mut checkpoint_service)
+            .unwrap();
+        let mut restored_core = Ym2413Core::restore_state(checkpoint_core.export_state()).unwrap();
+        let mut restored_service =
+            Ym2413PgSerialService::restore_state(checkpoint_service.export_state()).unwrap();
+        restored_core
+            .advance_input_clocks_with_slot_service(total_clocks - 37, &mut restored_service)
+            .unwrap();
+        assert_eq!(whole_core.export_state(), restored_core.export_state());
+        assert_eq!(
+            whole_service.export_state(),
+            restored_service.export_state()
+        );
+
+        let mut rollback_core = Ym2413Core::new();
+        let mut rollback_service = FailingPgService {
+            inner: Ym2413PgSerialService::new(initial.clone()),
+            fail_cycle: Some(3),
+        };
+        let core_before = rollback_core.export_state();
+        let service_before = rollback_service.inner.export_state();
+        assert_eq!(
+            rollback_core.advance_input_clocks_with_slot_service(
+                4 * YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut rollback_service,
+            ),
+            Err(Ym2413SlotServiceAdvanceError::Service(3))
+        );
+        assert_eq!(rollback_core.export_state(), core_before);
+        assert_eq!(rollback_service.inner.export_state(), service_before);
+
+        rollback_service.fail_cycle = None;
+        rollback_core
+            .advance_input_clocks_with_slot_service(
+                4 * YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut rollback_service,
+            )
+            .unwrap();
+
+        let mut reference_core = Ym2413Core::new();
+        let mut reference_service = Ym2413PgSerialService::new(initial);
+        reference_core
+            .advance_input_clocks_with_slot_service(
+                4 * YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut reference_service,
+            )
+            .unwrap();
+        assert_eq!(rollback_core.export_state(), reference_core.export_state());
+        assert_eq!(
+            rollback_service.inner.export_state(),
+            reference_service.export_state()
+        );
     }
 
     #[test]

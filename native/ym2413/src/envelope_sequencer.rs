@@ -92,6 +92,10 @@ pub struct EnvelopeSlotInput {
     pub rhythm_select: EnvelopeRhythmSelect,
     /// Raw register $0E rhythm bits (RHY plus the five drum triggers).
     pub rhythm_bits: u8,
+    /// Four-bit Test Mode register after the serial mode-write stage.
+    pub test_mode: u8,
+    /// Most recently presented data-port value consumed by Test Mode.
+    pub write_data: u8,
 }
 
 /// Complete serializable state of the 18-slot EG sequencer.
@@ -231,6 +235,7 @@ impl EnvelopeSequencer {
             || input.ksr_frequency > 15
             || input.sustain_level > 15
             || input.rhythm_bits > 0x3f
+            || input.test_mode > 0x0f
             || self.eg_sl > 15
             || self.pending_sustain_level > 15
         {
@@ -296,7 +301,13 @@ impl EnvelopeSequencer {
             composed_rate as u8
         };
 
-        let timer = self.timer.tick_slot(cycle, next_rate, next_zero_rate)?;
+        let timer = self.timer.tick_slot_with_testmode(
+            cycle,
+            next_rate,
+            next_zero_rate,
+            input.test_mode,
+            input.write_data,
+        )?;
         let operator_slot = (cycle + 16) % YM2413_ENVELOPE_SEQUENCER_SLOTS as u8;
         let operator = self.operators[usize::from(operator_slot)]
             .tick(EnvelopeControlPhase {
@@ -419,6 +430,8 @@ mod tests {
                     key_on: false,
                     rhythm_select: super::EnvelopeRhythmSelect::None,
                     rhythm_bits: 0,
+                    test_mode: 0,
+                    write_data: 0,
                 },
             )
             .unwrap();
@@ -529,6 +542,8 @@ mod tests {
                         key_on: cycle < 4,
                         rhythm_select: super::EnvelopeRhythmSelect::None,
                         rhythm_bits: 0,
+                        test_mode: 0,
+                        write_data: 0,
                     },
                 )
                 .unwrap();

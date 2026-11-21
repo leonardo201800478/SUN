@@ -2,6 +2,7 @@ name: YM2413 Nuked EG characterization
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - "tools/ym2413-nuked-oracle/**"
       - "native/ym2413/**"

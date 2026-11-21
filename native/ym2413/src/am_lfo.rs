@@ -54,6 +54,11 @@ impl AmLfo {
         self.phase
     }
 
+    /// Reset the candidate AM LFO phase to its deterministic reset origin.
+    pub fn reset(&mut self) {
+        self.phase = 0;
+    }
+
     /// Advance by one YM2413 output sample.
     pub fn advance_one(&mut self) {
         self.advance_samples(1);
@@ -201,6 +206,268 @@ mod tests {
                 phase: 0,
             }),
             Err(AmLfoError::InvalidState)
+        );
+    }
+}
+
+/// Version of the exact serial AM shift-register state.
+pub const YM2413_SERIAL_AM_LFO_STATE_VERSION: u16 = 1;
+
+/// Errors returned by the serial AM LFO state machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ym2413SerialAmLfoError {
+    /// The serial cycle must be in the range 0..18.
+    InvalidCycle(u8),
+    /// The saved AM shift-register state is invalid.
+    InvalidState,
+}
+
+/// Complete snapshot of Nuked-compatible serial AM LFO state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413SerialAmLfoState {
+    pub format_version: u16,
+    /// Nine-bit serial AM shift register.
+    pub counter: u16,
+    /// Direction latch used by the AM incrementer.
+    pub direction: bool,
+    /// Carry latch between adjacent AM shift operations.
+    pub carry: bool,
+    /// AM step event generated at serial cycle 17.
+    pub step: bool,
+    /// Four-bit AM output captured at cycle 0 before the shift stage.
+    pub output: u8,
+}
+
+impl Default for Ym2413SerialAmLfoState {
+    fn default() -> Self {
+        Self {
+            format_version: YM2413_SERIAL_AM_LFO_STATE_VERSION,
+            counter: 0,
+            direction: false,
+            carry: false,
+            step: false,
+            output: 0,
+        }
+    }
+}
+
+/// YM2413 AM LFO modeled as the serial shift/carry network used by OPLL_DoLFO.
+///
+/// Unlike the measured sample-domain AM candidate above, this state advances
+/// once per OPLL serial cycle and latches its four-bit output at cycle 0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ym2413SerialAmLfo {
+    state: Ym2413SerialAmLfoState,
+}
+
+impl Ym2413SerialAmLfo {
+    /// Construct the deterministic zeroed shift-register candidate.
+    pub const fn new() -> Self {
+        Self {
+            state: Ym2413SerialAmLfoState {
+                format_version: YM2413_SERIAL_AM_LFO_STATE_VERSION,
+                counter: 0,
+                direction: false,
+                carry: false,
+                step: false,
+                output: 0,
+            },
+        }
+    }
+
+    /// Return the current four-bit AM output latch.
+    pub const fn output(&self) -> u8 {
+        self.state.output
+    }
+
+    /// Return the current serial AM state.
+    pub const fn state(&self) -> &Ym2413SerialAmLfoState {
+        &self.state
+    }
+
+    /// Capture the shift-register output at the beginning of serial cycle 0.
+    ///
+    /// Nuked performs this before OPLL_DoLFO shifts the AM register for the
+    /// current call. Other cycles retain the value captured for this rotation.
+    pub fn capture_output(&mut self, cycle: u8) -> Result<(), Ym2413SerialAmLfoError> {
+        if cycle >= 18 {
+            return Err(Ym2413SerialAmLfoError::InvalidCycle(cycle));
+        }
+        if cycle == 0 {
+            self.state.output = ((self.state.counter >> 3) & 0x0f) as u8;
+        }
+        Ok(())
+    }
+
+    /// Execute one OPLL_DoLFO AM substage using the pre-increment PM counter.
+    ///
+    /// The PM counter is supplied by the serial PG service. At cycle 17 this
+    /// method derives the next AM step before the caller advances that shared
+    /// counter, matching Nuked's order. Test Mode bit 3 forces AM shifts during
+    /// the first nine cycles; bit 1 resets the direction and high counter bit
+    /// after the current shift, as in the reference implementation.
+    pub fn clock(
+        &mut self,
+        cycle: u8,
+        lfo_counter: u16,
+        testmode: u8,
+    ) -> Result<(), Ym2413SerialAmLfoError> {
+        if cycle >= 18 {
+            return Err(Ym2413SerialAmLfoError::InvalidCycle(cycle));
+        }
+        if cycle == 17 {
+            self.state.step = ((lfo_counter & 0x003f) + 1) >> 6 != 0;
+        }
+
+        let mut am_increment = 0_u8;
+        if (self.state.step || testmode & 0x08 != 0) && cycle < 9 {
+            am_increment = u8::from(self.state.direction || cycle == 0);
+        }
+
+        if cycle >= 9 {
+            self.state.carry = false;
+        }
+
+        if cycle == 0 {
+            if self.state.direction && self.state.counter & 0x007f == 0 {
+                self.state.direction = false;
+            } else if !self.state.direction && self.state.counter & 0x0069 == 0x0069 {
+                self.state.direction = true;
+            }
+        }
+
+        let am_bit = (self.state.counter & 1) as u8 + am_increment + u8::from(self.state.carry);
+        self.state.carry = am_bit >> 1 != 0;
+        self.state.counter = (u16::from(am_bit & 1) << 8) | (self.state.counter >> 1);
+
+        if testmode & 0x02 != 0 {
+            self.state.direction = false;
+            self.state.counter &= 0x00ff;
+        }
+        Ok(())
+    }
+
+    /// Export the exact shift, direction, carry, step and output latches.
+    pub const fn export_state(&self) -> Ym2413SerialAmLfoState {
+        self.state
+    }
+
+    /// Restore a serial AM LFO snapshot after validating its register widths.
+    pub const fn restore_state(
+        state: Ym2413SerialAmLfoState,
+    ) -> Result<Self, Ym2413SerialAmLfoError> {
+        if state.format_version != YM2413_SERIAL_AM_LFO_STATE_VERSION
+            || state.counter > 0x01ff
+            || state.output > 0x0f
+        {
+            return Err(Ym2413SerialAmLfoError::InvalidState);
+        }
+        Ok(Self { state })
+    }
+}
+
+#[cfg(test)]
+mod serial_tests {
+    use super::{
+        YM2413_SERIAL_AM_LFO_STATE_VERSION, Ym2413SerialAmLfo, Ym2413SerialAmLfoError,
+        Ym2413SerialAmLfoState,
+    };
+
+    #[test]
+    fn output_is_captured_before_the_cycle_zero_shift() {
+        let state = Ym2413SerialAmLfoState {
+            counter: 0x01a8,
+            ..Ym2413SerialAmLfoState::default()
+        };
+        let mut lfo = Ym2413SerialAmLfo::restore_state(state).unwrap();
+        lfo.capture_output(0).unwrap();
+        assert_eq!(lfo.output(), 5);
+        lfo.clock(0, 0, 0).unwrap();
+        assert_eq!(lfo.output(), 5);
+    }
+
+    #[test]
+    fn cycle_seventeen_derives_the_next_step_from_the_preincrement_pm_counter() {
+        let mut lfo = Ym2413SerialAmLfo::new();
+        lfo.clock(17, 63, 0).unwrap();
+        assert!(lfo.state().step);
+        lfo.clock(0, 64, 0).unwrap();
+        assert_eq!(lfo.state().counter, 0x0100);
+    }
+
+    #[test]
+    fn test_mode_bit_three_forces_the_first_nine_serial_shifts() {
+        let mut lfo = Ym2413SerialAmLfo::new();
+        for cycle in 0..9 {
+            lfo.clock(cycle, 0, 0x08).unwrap();
+        }
+        assert_ne!(lfo.state().counter, 0);
+        assert!(!lfo.state().carry);
+    }
+
+    #[test]
+    fn test_mode_bit_one_resets_direction_and_high_counter_bit_after_shift() {
+        let state = Ym2413SerialAmLfoState {
+            counter: 0x01ff,
+            direction: true,
+            carry: true,
+            ..Ym2413SerialAmLfoState::default()
+        };
+        let mut lfo = Ym2413SerialAmLfo::restore_state(state).unwrap();
+        lfo.clock(0, 0, 0x02).unwrap();
+        assert!(!lfo.state().direction);
+        assert_eq!(lfo.state().counter & 0x0100, 0);
+    }
+
+    #[test]
+    fn continuous_and_partitioned_serial_advancement_are_equivalent() {
+        let mut continuous = Ym2413SerialAmLfo::new();
+        let mut partitioned = continuous;
+        let mut pm_counter = 0_u16;
+        for cycle_index in 0..360_u16 {
+            let cycle = (cycle_index % 18) as u8;
+            continuous.clock(cycle, pm_counter, 0).unwrap();
+            if cycle == 17 {
+                pm_counter = (pm_counter + 1) & 0x1fff;
+            }
+        }
+        pm_counter = 0;
+        for cycle_index in 0..117_u16 {
+            let cycle = (cycle_index % 18) as u8;
+            partitioned.clock(cycle, pm_counter, 0).unwrap();
+            if cycle == 17 {
+                pm_counter = (pm_counter + 1) & 0x1fff;
+            }
+        }
+        let saved = partitioned.export_state();
+        partitioned = Ym2413SerialAmLfo::restore_state(saved).unwrap();
+        for cycle_index in 117..360_u16 {
+            let cycle = (cycle_index % 18) as u8;
+            partitioned.clock(cycle, pm_counter, 0).unwrap();
+            if cycle == 17 {
+                pm_counter = (pm_counter + 1) & 0x1fff;
+            }
+        }
+        assert_eq!(continuous, partitioned);
+    }
+
+    #[test]
+    fn snapshot_validation_rejects_invalid_counter_and_version() {
+        let invalid_counter = Ym2413SerialAmLfoState {
+            counter: 0x0200,
+            ..Ym2413SerialAmLfoState::default()
+        };
+        assert_eq!(
+            Ym2413SerialAmLfo::restore_state(invalid_counter),
+            Err(Ym2413SerialAmLfoError::InvalidState)
+        );
+        let invalid_version = Ym2413SerialAmLfoState {
+            format_version: YM2413_SERIAL_AM_LFO_STATE_VERSION + 1,
+            ..Ym2413SerialAmLfoState::default()
+        };
+        assert_eq!(
+            Ym2413SerialAmLfo::restore_state(invalid_version),
+            Err(Ym2413SerialAmLfoError::InvalidState)
         );
     }
 }

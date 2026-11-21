@@ -110,6 +110,8 @@ impl ChannelSynthesisConfig {
             key_on: self.channel.key_on,
             rhythm_select: crate::envelope_sequencer::EnvelopeRhythmSelect::None,
             rhythm_bits: 0,
+            test_mode: 0,
+            write_data: 0,
         }
     }
 
