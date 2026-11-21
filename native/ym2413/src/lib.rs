@@ -948,7 +948,7 @@ mod tests {
     struct RecordingSlotService {
         order: Vec<(bool, u8)>,
         before: Vec<Ym2413SlotServiceContext>,
-        after: Vec<(u8, u8, u8, u8, u8)>,
+        after: Vec<(u8, u8, u8, u8, u8, u8)>,
     }
 
     impl Ym2413SlotService for RecordingSlotService {
@@ -976,6 +976,7 @@ mod tests {
                 tick.operator_slot,
                 tick.operator.level,
                 post_operator.level,
+                (tick.eg_dokon & 0xff) as u8,
                 (post_state.eg_dokon & 0xff) as u8,
             ));
             Ok(())
@@ -1008,6 +1009,7 @@ mod tests {
             assert_eq!(after.0, cycle);
             assert_eq!(after.1, before.event.eg_update_index);
             assert_eq!(after.2, after.3);
+            assert_eq!(after.4, after.5);
             assert_eq!(
                 before.event.selected_operator.channel,
                 YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]
