@@ -14,9 +14,7 @@ use crate::slot::{Ym2413RhythmVoice, Ym2413SlotDescriptor, nuked_cycle_selected_
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413SerialSlotDispatch {
     /// Ordinary melodic ownership, including channels 7..9 when RHY is clear.
-    Melodic {
-        slot: Ym2413SlotDescriptor,
-    },
+    Melodic { slot: Ym2413SlotDescriptor },
     /// A rhythm selector agrees with the canonical slot and voice assignment.
     Rhythm {
         slot: Ym2413SlotDescriptor,
@@ -150,8 +148,7 @@ mod tests {
             assert_eq!(
                 dispatch_serial_slot(cycle, &registers, 0xff, selector).unwrap(),
                 Ym2413SerialSlotDispatch::Rhythm {
-                    slot: YM2413_SLOT_MAP
-                                [usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
+                    slot: YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
                     voice,
                     selector,
                 },
@@ -189,7 +186,8 @@ mod tests {
                     assert_eq!(
                         result,
                         Ym2413SerialSlotDispatch::RhythmTransition {
-                            slot: YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
+                            slot: YM2413_SLOT_MAP
+                                [usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
                             expected,
                             actual,
                         },
