@@ -16,7 +16,7 @@ use crate::serial_operator::{
     Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
     Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
 };
-use crate::slot::{Ym2413Operator, slot_descriptor};
+use crate::slot::{Ym2413Operator, nuked_pg_phase_slot_descriptor};
 use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
 use crate::synthesis::{
     Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
@@ -232,7 +232,7 @@ impl Ym2413PgSerialService {
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
-        let write = slot_descriptor(context.event.pg_phase_write_index).ok_or(
+        let write = nuked_pg_phase_slot_descriptor(context.event.pg_phase_write_index).ok_or(
             Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_write_index),
         )?;
         let write_carrier = matches!(write.operator, Ym2413Operator::Carrier);
@@ -243,7 +243,7 @@ impl Ym2413PgSerialService {
         self.synthesis
             .write_operator_phase(write.channel, write_carrier, phase_write)?;
 
-        let output = slot_descriptor(context.event.pg_phase_output_index).ok_or(
+        let output = nuked_pg_phase_slot_descriptor(context.event.pg_phase_output_index).ok_or(
             Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_output_index),
         )?;
         let output_carrier = matches!(output.operator, Ym2413Operator::Carrier);
