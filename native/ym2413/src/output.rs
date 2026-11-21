@@ -610,11 +610,12 @@ mod tests {
 
     #[test]
     fn nuked_cycle_maps_to_measured_mo_carrier_slots() {
-        let expected = [
-            3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0, 1, 2,
-        ];
+        let expected = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0, 1, 2];
         for (cycle, expected_slot) in expected.into_iter().enumerate() {
-            assert_eq!(mo_output_slot_for_nuked_cycle(cycle as u8), Some(expected_slot));
+            assert_eq!(
+                mo_output_slot_for_nuked_cycle(cycle as u8),
+                Some(expected_slot)
+            );
         }
         assert_eq!(mo_output_slot_for_nuked_cycle(18), None);
         assert_eq!(mo_output_slot_for_nuked_cycle(u8::MAX), None);
@@ -622,11 +623,12 @@ mod tests {
 
     #[test]
     fn nuked_cycle_maps_to_measured_ro_occurrence_slots() {
-        let expected = [
-            15, 16, 17, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-        ];
+        let expected = [15, 16, 17, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
         for (cycle, expected_slot) in expected.into_iter().enumerate() {
-            assert_eq!(ro_output_slot_for_nuked_cycle(cycle as u8), Some(expected_slot));
+            assert_eq!(
+                ro_output_slot_for_nuked_cycle(cycle as u8),
+                Some(expected_slot)
+            );
         }
         assert_eq!(ro_output_slot_for_nuked_cycle(18), None);
         assert_eq!(ro_output_slot_for_nuked_cycle(u8::MAX), None);
