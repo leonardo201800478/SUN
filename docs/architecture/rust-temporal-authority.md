@@ -1,7 +1,7 @@
 # Diretiva obrigatória — autoridade temporal exclusiva em Rust
 
 **Status:** decisão arquitetural normativa do projeto.  
-**Escopo:** todos os sistemas, máquinas, CPUs, barramentos, dispositivos, periféricos e subsistemas atuais e futuros do SUN — Strife Uranus Neptune.  
+**Escopo:** todos os sistemas, máquinas, CPUs, barramentos, dispositivos, periféricos e subsistemas atuais e futuros do SUN — Strife Uranus Neptune.
 **Runtime de hardware:** exclusivamente Rust.
 
 ## 1. Regra central
