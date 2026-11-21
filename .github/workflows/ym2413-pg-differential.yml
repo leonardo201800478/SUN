@@ -55,7 +55,8 @@ jobs:
               + "\nint16_t opll_trace_operator_output = 0;"
               + "\nuint8_t opll_trace_selected_instr = 0;"
               + "\nuint8_t opll_trace_selected_op = 0;"
-              + "\nuint8_t opll_trace_testmode_at_dolfo = 0;\n",
+              + "\nuint8_t opll_trace_testmode_at_dolfo = 0;"
+              + "\nuint8_t opll_trace_rm_enable_before_operator = 0;\n",
               1,
           )
           stage = "    OPLL_PhaseGenerate(chip);\n\n    OPLL_Operator(chip);"
@@ -64,7 +65,8 @@ jobs:
           source = source.replace(
               stage,
               "    OPLL_PhaseGenerate(chip);\n"
-              "    opll_trace_pg_out_before_operator = chip->pg_out;\n\n"
+              "    opll_trace_pg_out_before_operator = chip->pg_out;\n"
+              "    opll_trace_rm_enable_before_operator = (uint8_t)chip->rm_enable;\n\n"
               "    OPLL_Operator(chip);",
               1,
           )
