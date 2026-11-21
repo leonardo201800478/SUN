@@ -17,6 +17,7 @@ pub mod instrument;
 pub mod key_scale;
 pub mod operator;
 pub mod output;
+pub mod output_pipeline;
 pub mod pg_serial;
 pub mod phase;
 pub mod pm_lfo;
@@ -73,6 +74,12 @@ pub use key_scale::{KeyScaleError, YM2413_KSL1_TABLE, key_scale_attenuation};
 pub use operator::{
     OperatorPair, OperatorPairError, OperatorPairParameters, OperatorPairSample, OperatorPairState,
     YM2413_OPERATOR_PAIR_STATE_VERSION, exponential_lookup, log_sine_lookup,
+};
+pub use output_pipeline::{
+    YM2413_CHANNEL_OUTPUT_MAX, YM2413_CHANNEL_OUTPUT_MIN,
+    YM2413_OUTPUT_PIPELINE_STATE_VERSION, Ym2413NukedOutputCode,
+    Ym2413OutputPipeline, Ym2413OutputPipelineError, Ym2413OutputPipelineFrame,
+    Ym2413OutputPipelineState,
 };
 pub use output::{
     YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
