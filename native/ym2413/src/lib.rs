@@ -4,6 +4,8 @@
 //! advances at the existing four-input-clock slot boundary. PG/FM synthesis
 //! and PCM output remain separate candidate components.
 
+use core::convert::Infallible;
+
 pub mod am_lfo;
 pub mod bus_timing;
 pub mod channel;
@@ -25,6 +27,7 @@ pub mod slot;
 pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
+mod slot_service;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
@@ -360,31 +363,78 @@ impl Ym2413Core {
     /// Returns the number of complete 18-slot rotations crossed by this call.
     /// The result and complete state are independent of block partitioning.
     pub fn advance_input_clocks(&mut self, clocks: u64) -> Result<u64, Ym2413Error> {
+        match self.advance_input_clocks_inner(clocks, |core| {
+            core.clock_one_slot()
+                .map_err(slot_service::Ym2413SlotServiceAdvanceError::<Infallible>::Core)
+        }) {
+            Ok(rotations) => Ok(rotations),
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => Err(error),
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Service(never)) => match never {},
+        }
+    }
+
+    /// Internal serial-slot advancement used by the integrated FM pipeline.
+    ///
+    /// The core invokes the service before and after its single EG update for
+    /// each completed slot. The service is synchronous and internal; the host
+    /// still advances the chip in coarse-grained input-clock blocks.
+    ///
+    /// The core state is transactional. An integrated pipeline must also stage
+    /// its own service state transactionally if a service callback can fail.
+    pub(crate) fn advance_input_clocks_with_slot_service<S: slot_service::Ym2413SlotService>(
+        &mut self,
+        clocks: u64,
+        service: &mut S,
+    ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
+        self.advance_input_clocks_inner(clocks, |core| {
+            core.clock_one_slot_with_service(service)
+        })
+    }
+
+    fn advance_input_clocks_inner<E, F>(
+        &mut self,
+        clocks: u64,
+        mut service_slot: F,
+    ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<E>>
+    where
+        F: FnMut(
+            &mut Self,
+        ) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<E>>,
+    {
         let next_elapsed = self
             .elapsed_input_clocks
             .checked_add(clocks)
-            .ok_or(Ym2413Error::ClockOverflow)?;
+            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::ClockOverflow,
+            ))?;
 
         let total_slot_clocks = u128::from(self.input_clock_phase) + u128::from(clocks);
         let completed_slots = total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
         let next_clock_phase =
-            u8::try_from(total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT))
-                .map_err(|_| Ym2413Error::InvalidState)?;
+            u8::try_from(total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT)).map_err(
+                |_| slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::InvalidState),
+            )?;
 
         let total_slots = u128::from(self.slot_index) + completed_slots;
         let rotations = u64::try_from(total_slots / u128::from(YM2413_SLOTS_PER_ROTATION))
-            .map_err(|_| Ym2413Error::ClockOverflow)?;
+            .map_err(|_| {
+                slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow)
+            })?;
         let next_completed_rotations = self
             .completed_rotations
             .checked_add(rotations)
-            .ok_or(Ym2413Error::ClockOverflow)?;
+            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::ClockOverflow,
+            ))?;
         let next_slot = u8::try_from(total_slots % u128::from(YM2413_SLOTS_PER_ROTATION))
-            .map_err(|_| Ym2413Error::InvalidState)?;
+            .map_err(|_| {
+                slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::InvalidState)
+            })?;
 
         let mut next = self.clone();
         let mut slots_remaining = completed_slots;
         while slots_remaining != 0 {
-            next.clock_one_slot()?;
+            service_slot(&mut next)?;
             next.slot_index = (next.slot_index + 1) % YM2413_SLOTS_PER_ROTATION as u8;
             slots_remaining -= 1;
         }
@@ -398,11 +448,13 @@ impl Ym2413Core {
         Ok(rotations)
     }
 
-    /// Service one completed serial slot: mode latches, EG, register writes, IO latches.
-    fn clock_one_slot(&mut self) -> Result<(), Ym2413Error> {
+    /// Apply the serial mode/rhythm preamble and decode the EG input for the
+    /// current cycle. Both service paths share this exact boundary.
+    fn begin_slot(&mut self) -> Result<(u8, EnvelopeSlotInput), Ym2413Error> {
         let cycle = self.slot_index;
 
-        // Nuked's serial mode selector shifts before the current EG update.
+        // Nuked's serial mode selector shifts and applies mode writes before
+        // patch selection, PG/Operator service and the current EG update.
         self.rm_enable >>= 1;
         self.apply_mode_write();
         self.rm_select = (self.rm_select + 1).min(6);
@@ -414,8 +466,56 @@ impl Ym2413Core {
         input.rhythm_select =
             EnvelopeRhythmSelect::from_code(self.rm_select).ok_or(Ym2413Error::InvalidState)?;
         input.rhythm_bits = self.registers[0x0e] & 0x3f;
-        self.envelope.tick_slot(cycle, input)?;
+        Ok((cycle, input))
+    }
 
+    /// Standalone core path: one EG update and the timed register-write stage.
+    fn clock_one_slot(&mut self) -> Result<(), Ym2413Error> {
+        let (cycle, input) = self.begin_slot()?;
+        self.envelope.tick_slot(cycle, input)?;
+        self.apply_register_write(cycle);
+        Ok(())
+    }
+
+    /// Integrated path: service pre-EG and post-EG stages around exactly one
+    /// core-owned serial EG update.
+    fn clock_one_slot_with_service<S: slot_service::Ym2413SlotService>(
+        &mut self,
+        service: &mut S,
+    ) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
+        let (cycle, input) = self
+            .begin_slot()
+            .map_err(slot_service::Ym2413SlotServiceAdvanceError::Core)?;
+
+        let envelope_state = self.envelope.export_state();
+        let event = nuked_slot_service_event(cycle, self.rm_enable as u8, envelope_state.eg_dokon)
+            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::InvalidState,
+            ))?;
+        let context = slot_service::Ym2413SlotServiceContext {
+            event,
+            registers: self.registers,
+            envelope_input: input,
+            envelope_state,
+            rm_enable: self.rm_enable as u8,
+            rm_select: self.rm_select,
+        };
+
+        service
+            .before_eg_update(&context)
+            .map_err(slot_service::Ym2413SlotServiceAdvanceError::Service)?;
+
+        let tick = self
+            .envelope
+            .tick_slot(cycle, input)
+            .map_err(|error| slot_service::Ym2413SlotServiceAdvanceError::Core(error.into()))?;
+
+        service
+            .after_eg_update(&context, tick, self.envelope.export_state())
+            .map_err(slot_service::Ym2413SlotServiceAdvanceError::Service)?;
+
+        // The ordinary timed write stage remains last, after both service
+        // hooks and the single EG update.
         self.apply_register_write(cycle);
         Ok(())
     }
@@ -573,9 +673,15 @@ impl Ym2413Core {
 #[cfg(test)]
 mod tests {
     use super::{
-        YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT,
-        YM2413_SLOT_MAP, Ym2413Core, Ym2413Error, Ym2413State,
+        slot_service::{
+            Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
+        },
+        EnvelopeSequencerState, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
+        YM2413_INPUT_CLOCKS_PER_ROTATION,
+        YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Core,
+        Ym2413Error, Ym2413State, nuked_phase_reset_required,
     };
+    use core::convert::Infallible;
 
     #[test]
     fn address_latch_masks_to_six_bits() {
@@ -838,4 +944,167 @@ mod tests {
             assert_eq!(restored.elapsed_input_clocks(), offset);
         }
     }
+    #[derive(Default)]
+    struct RecordingSlotService {
+        order: Vec<(bool, u8)>,
+        before: Vec<Ym2413SlotServiceContext>,
+        after: Vec<(u8, u8, u8, u8, u8, u8)>,
+    }
+
+    impl Ym2413SlotService for RecordingSlotService {
+        type Error = Infallible;
+
+        fn before_eg_update(
+            &mut self,
+            context: &Ym2413SlotServiceContext,
+        ) -> Result<(), Self::Error> {
+            self.order.push((true, context.event.cycle));
+            self.before.push(*context);
+            Ok(())
+        }
+
+        fn after_eg_update(
+            &mut self,
+            context: &Ym2413SlotServiceContext,
+            tick: EnvelopeSequencerTick,
+            post_state: EnvelopeSequencerState,
+        ) -> Result<(), Self::Error> {
+            self.order.push((false, context.event.cycle));
+            let post_operator = post_state.operators[usize::from(tick.operator_slot)];
+            self.after.push((
+                context.event.cycle,
+                tick.operator_slot,
+                tick.operator.level,
+                post_operator.level,
+                (tick.eg_dokon & 0xff) as u8,
+                (post_state.eg_dokon & 0xff) as u8,
+            ));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn internal_slot_service_runs_before_and_after_exactly_one_core_eg_update() {
+        let mut core = Ym2413Core::new();
+        let mut service = RecordingSlotService::default();
+
+        assert_eq!(
+            core.advance_input_clocks_with_slot_service(
+                u64::from(YM2413_INPUT_CLOCKS_PER_SLOT) * u64::from(YM2413_SLOT_COUNT as u32),
+                &mut service,
+            ),
+            Ok(1)
+        );
+
+        assert_eq!(service.before.len(), YM2413_SLOT_COUNT);
+        assert_eq!(service.after.len(), YM2413_SLOT_COUNT);
+        assert_eq!(service.order.len(), YM2413_SLOT_COUNT * 2);
+
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            let before = service.before[usize::from(cycle)];
+            let after = service.after[usize::from(cycle)];
+            assert_eq!(before.event.cycle, cycle);
+            assert_eq!(before.envelope_input.rhythm_bits, before.registers[0x0e] & 0x3f);
+            assert!(before.rm_select <= 6);
+            assert_eq!(after.0, cycle);
+            assert_eq!(after.1, before.event.eg_update_index);
+            assert_eq!(after.2, after.3);
+            assert_eq!(after.4, after.5);
+            assert_eq!(
+                before.event.selected_operator.channel,
+                YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]
+            );
+            assert_eq!(
+                before.event.phase_reset_required,
+                nuked_phase_reset_required(
+                    cycle,
+                    before.rm_enable,
+                    before.envelope_state.eg_dokon
+                )
+                .unwrap()
+            );
+            assert_eq!(service.order[usize::from(cycle) * 2], (true, cycle));
+            assert_eq!(
+                service.order[usize::from(cycle) * 2 + 1],
+                (false, cycle)
+            );
+        }
+    }
+
+    #[test]
+    fn internal_slot_service_is_equivalent_for_continuous_and_partitioned_blocks() {
+        let total = u64::from(YM2413_INPUT_CLOCKS_PER_ROTATION) + 7;
+        let mut whole = Ym2413Core::new();
+        let mut whole_service = RecordingSlotService::default();
+        whole
+            .advance_input_clocks_with_slot_service(total, &mut whole_service)
+            .unwrap();
+
+        let mut partitioned = Ym2413Core::new();
+        let mut partitioned_service = RecordingSlotService::default();
+        let mut remaining = total;
+        for block in [1_u64, 2, 3, 5, 8, 13, 21, 27] {
+            if remaining == 0 {
+                break;
+            }
+            let count = block.min(remaining);
+            partitioned
+                .advance_input_clocks_with_slot_service(count, &mut partitioned_service)
+                .unwrap();
+            remaining -= count;
+        }
+        if remaining != 0 {
+            partitioned
+                .advance_input_clocks_with_slot_service(remaining, &mut partitioned_service)
+                .unwrap();
+        }
+
+        assert_eq!(partitioned.export_state(), whole.export_state());
+        assert_eq!(partitioned_service.order, whole_service.order);
+        assert_eq!(partitioned_service.before, whole_service.before);
+        assert_eq!(partitioned_service.after, whole_service.after);
+    }
+
+    #[test]
+    fn internal_slot_service_error_rolls_back_the_core_state() {
+        struct FailingService;
+
+        impl Ym2413SlotService for FailingService {
+            type Error = u8;
+
+            fn before_eg_update(
+                &mut self,
+                context: &Ym2413SlotServiceContext,
+            ) -> Result<(), Self::Error> {
+                if context.event.cycle == 3 {
+                    Err(3)
+                } else {
+                    Ok(())
+                }
+            }
+
+            fn after_eg_update(
+                &mut self,
+                _context: &Ym2413SlotServiceContext,
+                _tick: EnvelopeSequencerTick,
+                _post_state: EnvelopeSequencerState,
+            ) -> Result<(), Self::Error> {
+                Ok(())
+            }
+        }
+
+        let mut core = Ym2413Core::new();
+        let before = core.export_state();
+        let result = core.advance_input_clocks_with_slot_service(
+            u64::from(YM2413_INPUT_CLOCKS_PER_SLOT) * 6,
+            &mut FailingService,
+        );
+
+        assert_eq!(
+            result,
+            Err(Ym2413SlotServiceAdvanceError::Service(3))
+        );
+        assert_eq!(core.export_state(), before);
+    }
+
 }
