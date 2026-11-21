@@ -1247,7 +1247,7 @@ A caracterização EG run 44856572947 ainda estava em execução no momento dest
 - Log-sine table comparison against pinned Nuked `logsinrom`: 256/256 values equal. EXP reconstruction `1024 + YM2413_EXP_TABLE[255-index]` against pinned Nuked `exprom`: 256/256 values equal.
 - Added pre-call operator latch capture to the external Nuked trace adapter, a Rust replay example, and `compare_operator.py`. The workflow fixture covers nine melodic channels, a user patch with feedback/AM/VIB/DC/DM, KEY-ON/KEY-OFF, live writes, and Test Mode bits 0–3.
 - The independent operator differential has **not yet run to PASS** on an FM-3 HEAD. No operator or integrated-pipeline differential success is claimed.
-- Added `Ym2413SerialAmLfo` with the nine-bit AM counter, direction, carry, step and cycle-0 output latch. The operator accepts the full eleven-bit `pg_out` latch and masks the combined phase to ten bits, matching Nuked. It advances once per serial slot and implements Test Mode bits 1 and 3 from `OPLL_DoLFO`; the independent differential is pending. The older measured sample-domain AM candidate remains separate and is not used by the serial service.
+- Added `Ym2413SerialAmLfo` with the nine-bit AM counter, direction, carry, step and cycle-0 output latch. The operator preserves the full `u16` `pg_out` bus and masks the combined phase to ten bits, matching Nuked. It advances once per serial slot and implements Test Mode bits 1 and 3 from `OPLL_DoLFO`; the independent differential is pending. The older measured sample-domain AM candidate remains separate and is not used by the serial service.
 - Rhythm Mode, PCM channel accumulation, digital output, DAC mapping, SMS FM ports, and PSG+FM mixing remain later roadmap stages.
 
 ### Required FM-3 closure gates
