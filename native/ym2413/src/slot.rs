@@ -261,10 +261,157 @@ pub const fn slot_descriptor(slot_index: u8) -> Option<Ym2413SlotDescriptor> {
     }
 }
 
+/// Map Nuked-OPLL's serial `cycles` value to the selected logical operator
+/// in the canonical Yamaha slot map.
+///
+/// The pinned Nuked schedule selects `ch_offset[cycle]` and
+/// `mcsel=((cycle+1)/3)&1`. Across all eighteen cycles this is the
+/// canonical `YM2413_SLOT_MAP` rotated by one position. This mapping is a
+/// software-oracle compatibility contract, not a measured reset-phase claim.
+pub const fn nuked_cycle_selected_slot_index(cycle: u8) -> Option<u8> {
+    if cycle < YM2413_SLOT_COUNT as u8 {
+        Some((cycle + 1) % YM2413_SLOT_COUNT as u8)
+    } else {
+        None
+    }
+}
+
+/// Resolve the logical channel/operator selected by one Nuked serial cycle.
+pub const fn nuked_cycle_selected_slot_descriptor(cycle: u8) -> Option<Ym2413SlotDescriptor> {
+    match nuked_cycle_selected_slot_index(cycle) {
+        Some(index) => slot_descriptor(index),
+        None => None,
+    }
+}
+
+/// PG phase-array entry written by Nuked `OPLL_PhaseGenerate` this cycle.
+pub const fn nuked_pg_phase_write_index(cycle: u8) -> Option<u8> {
+    if cycle < YM2413_SLOT_COUNT as u8 {
+        Some((cycle + 17) % YM2413_SLOT_COUNT as u8)
+    } else {
+        None
+    }
+}
+
+/// PG phase-array entry read to form the current `pg_out`.
+pub const fn nuked_pg_phase_output_index(cycle: u8) -> Option<u8> {
+    if cycle < YM2413_SLOT_COUNT as u8 {
+        Some(cycle)
+    } else {
+        None
+    }
+}
+
+/// EG operator-array entry updated by Nuked `OPLL_EnvelopeGenerate`.
+pub const fn nuked_eg_update_index(cycle: u8) -> Option<u8> {
+    if cycle < YM2413_SLOT_COUNT as u8 {
+        Some((cycle + 16) % YM2413_SLOT_COUNT as u8)
+    } else {
+        None
+    }
+}
+
+/// EG operator-array entry sampled by Nuked `OPLL_EnvelopeOutput`.
+pub const fn nuked_eg_output_index(cycle: u8) -> Option<u8> {
+    if cycle < YM2413_SLOT_COUNT as u8 {
+        Some((cycle + 17) % YM2413_SLOT_COUNT as u8)
+    } else {
+        None
+    }
+}
+
+/// Return Nuked's phase-reset request for the PG next-phase latch.
+///
+/// Call with the post-shift/post-mode-write `rm_enable` value and the
+/// pre-update EG `eg_dokon` latch. The request has one consumer: the PG
+/// pipeline's delayed `pg_phase_next` latch.
+pub const fn nuked_phase_reset_required(cycle: u8, rm_enable: u8, eg_dokon: u32) -> Option<bool> {
+    if cycle >= YM2413_SLOT_COUNT as u8 {
+        return None;
+    }
+
+    let is_modulator = if (rm_enable & 0x40) != 0 && (cycle == 13 || cycle == 14) {
+        false
+    } else {
+        ((cycle + 3) / 3) & 1 != 0
+    };
+
+    Some(if is_modulator {
+        (eg_dokon & 0x8000) != 0
+    } else {
+        (eg_dokon & 0x01) != 0
+    })
+}
+
+/// Immutable description of the distinct Nuked pipeline indices serviced
+/// during one serial cycle. The EG sequencer remains owned by Ym2413Core.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413SlotServiceEvent {
+    pub cycle: u8,
+    /// Current patch/EG operator selected by Nuked's channel and operator latches.
+    pub selected_operator: Ym2413SlotDescriptor,
+    /// PG accumulator entry updated with the previous call's PG latches.
+    pub pg_phase_write_index: u8,
+    /// PG phase entry consumed by the current PhaseGenerate/Operator stages.
+    pub pg_phase_output_index: u8,
+    /// Pre-update EG level consumed by the current Operator and advanced afterward.
+    pub eg_update_index: u8,
+    /// EG level entry sampled after Operator to produce the next call's eg_out latch.
+    pub eg_output_index: u8,
+    /// Reset request consumed only by the delayed PG next-phase latch.
+    pub phase_reset_required: bool,
+}
+
+/// Build the service event from post-shift mode state and pre-update EG latches.
+pub const fn nuked_slot_service_event(
+    cycle: u8,
+    rm_enable: u8,
+    eg_dokon: u32,
+) -> Option<Ym2413SlotServiceEvent> {
+    let selected_operator = match nuked_cycle_selected_slot_descriptor(cycle) {
+        Some(descriptor) => descriptor,
+        None => return None,
+    };
+    let pg_phase_write_index = match nuked_pg_phase_write_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let pg_phase_output_index = match nuked_pg_phase_output_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let eg_update_index = match nuked_eg_update_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let eg_output_index = match nuked_eg_output_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let phase_reset_required = match nuked_phase_reset_required(cycle, rm_enable, eg_dokon) {
+        Some(required) => required,
+        None => return None,
+    };
+
+    Some(Ym2413SlotServiceEvent {
+        cycle,
+        selected_operator,
+        pg_phase_write_index,
+        pg_phase_output_index,
+        eg_update_index,
+        eg_output_index,
+        phase_reset_required,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, slot_descriptor,
+        YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice,
+        nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index,
+        nuked_eg_output_index, nuked_eg_update_index, nuked_pg_phase_output_index,
+        nuked_pg_phase_write_index, nuked_phase_reset_required, nuked_slot_service_event,
+        slot_descriptor,
     };
 
     #[test]
@@ -355,5 +502,109 @@ mod tests {
     fn invalid_slot_indices_are_rejected_without_wrapping() {
         assert_eq!(slot_descriptor(18), None);
         assert_eq!(slot_descriptor(u8::MAX), None);
+    }
+    #[test]
+    fn nuked_cycle_selection_maps_bijectively_to_the_yamaha_slot_map() {
+        use crate::channel::{YM2413_EG_CYCLE_CHANNELS, envelope_cycle_is_carrier};
+
+        let mut seen = [false; YM2413_SLOT_COUNT];
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            let slot_index = nuked_cycle_selected_slot_index(cycle).unwrap();
+            let descriptor = nuked_cycle_selected_slot_descriptor(cycle).unwrap();
+            let carrier = envelope_cycle_is_carrier(cycle).unwrap();
+
+            assert_eq!(slot_index, (cycle + 1) % YM2413_SLOT_COUNT as u8);
+            assert_eq!(descriptor, YM2413_SLOT_MAP[usize::from(slot_index)]);
+            assert_eq!(
+                descriptor.channel,
+                YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]
+            );
+            assert_eq!(
+                matches!(descriptor.operator, Ym2413Operator::Carrier),
+                carrier
+            );
+            assert!(!seen[usize::from(slot_index)]);
+            seen[usize::from(slot_index)] = true;
+        }
+        assert!(seen.into_iter().all(|selected| selected));
+    }
+
+    #[test]
+    fn nuked_pg_and_eg_array_offsets_are_distinct_and_wrap_exactly() {
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            assert_eq!(
+                nuked_pg_phase_write_index(cycle),
+                Some((cycle + 17) % YM2413_SLOT_COUNT as u8)
+            );
+            assert_eq!(nuked_pg_phase_output_index(cycle), Some(cycle));
+            assert_eq!(
+                nuked_eg_update_index(cycle),
+                Some((cycle + 16) % YM2413_SLOT_COUNT as u8)
+            );
+            assert_eq!(
+                nuked_eg_output_index(cycle),
+                Some((cycle + 17) % YM2413_SLOT_COUNT as u8)
+            );
+        }
+        for invalid in [18, u8::MAX] {
+            assert_eq!(nuked_cycle_selected_slot_index(invalid), None);
+            assert_eq!(nuked_cycle_selected_slot_descriptor(invalid), None);
+            assert_eq!(nuked_pg_phase_write_index(invalid), None);
+            assert_eq!(nuked_pg_phase_output_index(invalid), None);
+            assert_eq!(nuked_eg_update_index(invalid), None);
+            assert_eq!(nuked_eg_output_index(invalid), None);
+        }
+    }
+
+    #[test]
+    fn nuked_phase_reset_uses_serial_dokon_bit_and_rhythm_override() {
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            let is_modulator = ((cycle + 3) / 3) & 1 != 0;
+            assert_eq!(
+                nuked_phase_reset_required(cycle, 0, 0x8000),
+                Some(is_modulator),
+                "modulator DOKON selector at cycle {cycle}"
+            );
+            assert_eq!(
+                nuked_phase_reset_required(cycle, 0, 1),
+                Some(!is_modulator),
+                "carrier DOKON selector at cycle {cycle}"
+            );
+        }
+
+        for cycle in [13, 14] {
+            assert_eq!(nuked_phase_reset_required(cycle, 0x40, 0x8000), Some(false));
+            assert_eq!(nuked_phase_reset_required(cycle, 0x40, 1), Some(true));
+        }
+
+        assert_eq!(nuked_phase_reset_required(18, 0, u32::MAX), None);
+        assert_eq!(nuked_phase_reset_required(u8::MAX, 0, u32::MAX), None);
+    }
+
+    #[test]
+    fn nuked_slot_service_event_keeps_all_pipeline_boundaries_explicit() {
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            let event = nuked_slot_service_event(cycle, 0, 0x8001).unwrap();
+            assert_eq!(
+                event.selected_operator,
+                nuked_cycle_selected_slot_descriptor(cycle).unwrap()
+            );
+            assert_eq!(
+                event.pg_phase_write_index,
+                nuked_pg_phase_write_index(cycle).unwrap()
+            );
+            assert_eq!(
+                event.pg_phase_output_index,
+                nuked_pg_phase_output_index(cycle).unwrap()
+            );
+            assert_eq!(event.eg_update_index, nuked_eg_update_index(cycle).unwrap());
+            assert_eq!(event.eg_output_index, nuked_eg_output_index(cycle).unwrap());
+            assert_eq!(
+                event.phase_reset_required,
+                nuked_phase_reset_required(cycle, 0, 0x8001).unwrap()
+            );
+        }
+
+        assert_eq!(nuked_slot_service_event(18, 0, 0), None);
     }
 }
