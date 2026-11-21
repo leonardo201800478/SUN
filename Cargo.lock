@@ -3807,9 +3807,9 @@ dependencies = [
  "sega-sn76489",
  "sega-temporal-core",
  "sega-video",
+ "sega-ym2413",
  "sega-z80-bus",
  "sega-z80-cpu",
- "sega-ym2413",
 ]
 
 [[package]]
