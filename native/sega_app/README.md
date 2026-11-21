@@ -7,7 +7,7 @@
 ## Current vertical slice
 
 - Opens the native Windows file picker for `.sms` and `.zip` ROMs, while keeping the path field editable and enabling Windows clipboard paste (`eframe/clipboard`). Raw `.bin` paths remain accepted for compatibility.
-- Remembers the last selected ROM directory in `%APPDATA%\\SUN — Strife Uranus Neptune\\last_rom_directory.txt`.
+- Remembers the last selected ROM directory in `%APPDATA%\\Sega Emulator\\last_rom_directory.txt`.
 - Loads raw `.sms` / `.bin` files or the only `.sms` entry inside a ZIP archive; archives with zero or multiple SMS entries are rejected explicitly.
 - Selects the machine region (USA/NTSC, Brazil/PAL-M, Europe/PAL, Japan/NTSC).
 - Creates the existing `SmsTemporalWorker`; it does not implement a second machine or scheduler.
@@ -15,7 +15,7 @@
 - Connects completed RGB888 VDP frames through the external `FrameMailbox` to the D3D12 child-window presenter.
 - Shows frame/instruction/video telemetry and runtime errors.
 - Opens a separate, movable and resizable SMS Debugger native window attached to the same running machine worker.
-- Auto-saves frontend preferences every five seconds and on shutdown to `%APPDATA%\\SUN — Strife Uranus Neptune\\ui_settings.txt`; restores the main/debugger window geometry and user choices on startup. Debugger breakpoints are associated with the ROM path and restored when that same ROM is loaded; the ROM itself is not auto-loaded.
+- Auto-saves frontend preferences every five seconds and on shutdown to `%APPDATA%\\Sega Emulator\\ui_settings.txt`; restores the main/debugger window geometry and user choices on startup. Debugger breakpoints are associated with the ROM path and restored when that same ROM is loaded; the ROM itself is not auto-loaded.
 - Stops and joins the machine worker, detaches its mailbox, then shuts down D3D12 before destroying the child HWND.
 
 ## Current limitations
