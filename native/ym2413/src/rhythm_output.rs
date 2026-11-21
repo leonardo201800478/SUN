@@ -248,7 +248,7 @@ impl Ym2413RhythmOutputDelay {
                         slot_index,
                         voice: entry.voice,
                         is_delayed_repeat: true,
-                        code,
+                        code: measured_code,
                     }),
                     None => Ym2413RhythmOutputSlotResult::RepeatNotInitialized {
                         slot_index,
@@ -276,7 +276,7 @@ impl Ym2413RhythmOutputDelay {
                     slot_index,
                     voice: entry.voice,
                     is_delayed_repeat: false,
-                    code,
+                    code: measured_code,
                 })
             }
         };
@@ -301,7 +301,7 @@ mod tests {
     use super::{
         YM2413_DAC_CODE_MAX, YM2413_DAC_CODE_MIN, YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
         Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState,
-        Ym2413RhythmOutputError, Ym2413RhythmOutputSlotResult,
+        Ym2413RhythmOutputError, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
     };
     use crate::slot::Ym2413RhythmVoice;
 
@@ -557,22 +557,22 @@ mod tests {
 
     #[test]
     fn unknown_original_source_invalidates_retained_voice_and_repeat() {
-        let code = level(37);
-        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
+        let measured_code = code(37);
+        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
         assert_eq!(
-            delay.process_slot_with_validity(13, Some(code), true),
+            delay.process_slot_with_validity(13, Some(measured_code), true),
             Ok(Ym2413RhythmOutputSlotResult::Emitted(
                 Ym2413RhythmOutputEvent {
                     slot_index: 13,
                     voice: Ym2413RhythmVoice::HiHat,
                     is_delayed_repeat: false,
-                    code,
+                    code: measured_code,
                 }
             ))
         );
 
         for slot in 14..18 {
-            let source = [14, 15, 16, 17].contains(&slot).then_some(code);
+            let source = [14, 15, 16, 17].contains(&slot).then_some(measured_code);
             let _ = delay
                 .process_slot_with_validity(slot, source, true)
                 .unwrap();
@@ -603,7 +603,7 @@ mod tests {
 
     #[test]
     fn strict_original_slot_api_still_rejects_missing_sample() {
-        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(state(13)).unwrap();
+        let mut delay = super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
         assert_eq!(
             delay.process_slot(13, None),
             Err(Ym2413RhythmOutputError::MissingOriginalSample {
