@@ -54,6 +54,11 @@ impl AmLfo {
         self.phase
     }
 
+    /// Reset the candidate AM LFO phase to its deterministic reset origin.
+    pub fn reset(&mut self) {
+        self.phase = 0;
+    }
+
     /// Advance by one YM2413 output sample.
     pub fn advance_one(&mut self) {
         self.advance_samples(1);
