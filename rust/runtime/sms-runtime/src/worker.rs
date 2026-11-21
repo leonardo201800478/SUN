@@ -2975,6 +2975,7 @@ mod tests {
         WorkerTelemetry, build_sms_temporal_machine,
         build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
         execute_frame, execute_frame_with_renderer, frame_duration_from_machine_ticks,
+        build_sms_temporal_machine_with_revision_bios_sram_size_and_fm,
         sms_temporal_hardware_profile, sms_temporal_region_profile,
     };
     use crate::SmsTemporalWorkerDebugHandle;
@@ -3029,6 +3030,47 @@ mod tests {
             SmsVdpRevision::Sega3155246
         );
         assert_eq!(machine.vdp().visible_height(), 192);
+    }
+
+    #[test]
+    fn worker_builder_requires_explicit_japanese_integrated_fm_profile() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let fm_machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            vec![0; 0x4000],
+            "japan",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        assert!(fm_machine.ym2413().is_some());
+        assert!(!fm_machine.fm_output_enabled());
+        assert!(fm_machine.psg_output_enabled());
+
+        let standard_japan = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            vec![0; 0x4000],
+            "japan",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+        assert!(standard_japan.ym2413().is_none());
+
+        assert!(
+            build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+                vec![0; 0x4000],
+                "korea",
+                SmsVdpRevision::Sega3155124,
+                None,
+                None,
+                true,
+            )
+            .is_err()
+        );
     }
 
     #[test]
