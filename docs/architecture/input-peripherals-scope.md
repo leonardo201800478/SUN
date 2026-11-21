@@ -202,4 +202,4 @@ Cada fatia exige critérios, testes Rust, testes de integração e validação f
 - https://gendev.spritesmind.net/forum/viewtopic.php?t=1083
 
 ---
-**Nota de licença:** Genesis Plus GX deve ser usado como referência de comportamento e pesquisa. Não copiar/portar código. Verificar licenças e procedência de cada fonte antes de incorporar qualquer material ao Sega Emulator.
+**Nota de licença:** Genesis Plus GX deve ser usado como referência de comportamento e pesquisa. Não copiar/portar código. Verificar licenças e procedência de cada fonte antes de incorporar qualquer material ao SUN — Strife Uranus Neptune.
