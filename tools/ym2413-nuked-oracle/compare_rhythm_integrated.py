@@ -12,6 +12,7 @@ from compare_fm3_integrated import ARRAY_FIELDS, SCALAR_FIELDS, load_jsonl
 
 
 RHYTHM_OUTPUT_FIELDS = ("ch_out_hh", "ch_out_tm", "ch_out_bd", "ch_out_sd", "ch_out_tc")
+OPERATOR_INPUT_ARRAY_FIELDS = ("op_calc_op_fb1", "op_calc_op_fb2")
 HARD_SCALAR_FIELDS = (
     "cycle_before",
     "cycle_after",
@@ -116,6 +117,7 @@ def main() -> int:
         "rhythm_control",
         "rhythm_mode_enabled",
         "rhythm_noise_register",
+        *OPERATOR_INPUT_ARRAY_FIELDS,
         *RHYTHM_OUTPUT_FIELDS,
     )
     nuked_fields = (
@@ -125,12 +127,13 @@ def main() -> int:
         "rm_select",
         "rhythm",
         "rm_noise",
+        *OPERATOR_INPUT_ARRAY_FIELDS,
         *RHYTHM_OUTPUT_FIELDS,
     )
 
     candidate_fields = tuple(
         field
-        for field in (*SCALAR_FIELDS, *ARRAY_FIELDS, *RHYTHM_OUTPUT_FIELDS)
+        for field in (*SCALAR_FIELDS, *ARRAY_FIELDS, *OPERATOR_INPUT_ARRAY_FIELDS, *RHYTHM_OUTPUT_FIELDS)
         if field not in HARD_SCALAR_FIELDS and field not in RHYTHM_HARD_FIELDS
     )
     candidate_differences: dict[str, dict[str, object]] = {}
