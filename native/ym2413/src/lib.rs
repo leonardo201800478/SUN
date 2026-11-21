@@ -511,7 +511,7 @@ impl Ym2413Core {
             .map_err(|error| slot_service::Ym2413SlotServiceAdvanceError::Core(error.into()))?;
 
         service
-            .after_eg_update(&context, tick)
+            .after_eg_update(&context, tick, self.envelope.export_state())
             .map_err(slot_service::Ym2413SlotServiceAdvanceError::Service)?;
 
         // The ordinary timed write stage remains last, after both service
@@ -947,7 +947,7 @@ mod tests {
     struct RecordingSlotService {
         order: Vec<(bool, u8)>,
         before: Vec<Ym2413SlotServiceContext>,
-        after: Vec<(u8, u8, u8, u8)>,
+        after: Vec<(u8, u8, u8, u8, u8)>,
     }
 
     impl Ym2413SlotService for RecordingSlotService {
@@ -966,13 +966,16 @@ mod tests {
             &mut self,
             context: &Ym2413SlotServiceContext,
             tick: EnvelopeSequencerTick,
+            post_state: EnvelopeSequencerState,
         ) -> Result<(), Self::Error> {
             self.order.push((false, context.event.cycle));
+            let post_operator = post_state.operators[usize::from(tick.operator_slot)];
             self.after.push((
                 context.event.cycle,
                 tick.operator_slot,
                 tick.operator.level,
-                (tick.eg_dokon & 0xff) as u8,
+                post_operator.level,
+                (post_state.eg_dokon & 0xff) as u8,
             ));
             Ok(())
         }
@@ -1003,6 +1006,7 @@ mod tests {
             assert!(before.rm_select <= 6);
             assert_eq!(after.0, cycle);
             assert_eq!(after.1, before.event.eg_update_index);
+            assert_eq!(after.2, after.3);
             assert_eq!(
                 before.event.selected_operator.channel,
                 YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]
@@ -1080,6 +1084,7 @@ mod tests {
                 &mut self,
                 _context: &Ym2413SlotServiceContext,
                 _tick: EnvelopeSequencerTick,
+                _post_state: EnvelopeSequencerState,
             ) -> Result<(), Self::Error> {
                 Ok(())
             }
