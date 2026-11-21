@@ -2,8 +2,69 @@
 
 **Data de referência:** 2026-11-21
 **Repositório:** `leonardo201800478/SUN`
-**Main com a integração de código da PR #1159:** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
+**Main atual pós-PR #1170:** `8836ec3f716c19450736bfd4878790c1d6f6ee52`  
+**Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
+
+## Estado executivo atual — main pós-PR #1170 (2026-11-21)
+
+<badge color="success">Integração de runtime publicada; fidelidade física ainda aberta</badge>
+
+**Status geral:** o runtime SMS já possui um caminho de PCM FM derivado do pipeline digital de referência Nuked, resampling para 48 kHz e mistura simultânea com PSG. Isso fecha a existência de uma rota funcional de áudio no código, mas **não fecha a síntese YM2413 nem a saída analógica/DAC do hardware**.
+
+### Integrações publicadas após o checkpoint #1159
+
+| PR | Entrega | Merge |
+|---|---|---|
+| #1165 | API de mixer multi-source com fontes alinhadas | `6708a9deef1099c9c6634d13c3f5dfade011e649` |
+| #1166 | Portas YM2413 do Japanese Master System e clock no barramento temporal | `a8cd0234e1a597b8186b43648ba1eb957c1a4b64` |
+| #1167 | Geração de amostras PCM mono FM no Scheduler | `0e3e58ef2a43bdcb98cd616af0fc382443e941727a` |
+| #1168 | Classificação de impacto de CI para o áudio do runtime SMS | `0e4cc8a19c4f758fff46956463a30bb3dda2f1fc` |
+| #1169 | Diferencial do reset de fase Rhythm contra Nuked | `6ab2722ccc996fe252475af0fc382443e941727a` |
+| #1170 | Readback F2 preserva D3–D0 e valida os quatro modos PSG/FM | `8836ec3f716c19450736bfd4878790c1d6f6ee52` |
+
+### Estado real do caminho de áudio
+
+- `SmsTemporalBus` avança o YM2413 no domínio temporal da máquina e acumula as saídas digitais MO/RO por rotação de 18 slots.
+- O PCM atual é uma **conversão de compatibilidade baseada no output digital Nuked**. O código combina MO e RO e normaliza a média para uma amostra mono por rotação. Essa conversão não é uma medição do DAC nem prova da rede elétrica de soma/ganho da placa SMS.
+- `SmsTemporalWorker` drena FM e PSG separadamente; o FM é reamostrado da taxa nativa de aproximadamente 49.716 Hz para 48 kHz, alinhado ao FIFO PSG e enviado à sessão multi-source.
+- Existe teste de integração com ROM sintética que configura YM2413 e PSG via instruções Z80, verifica amostras não nulas das duas fontes e a submissão do bloco ao sink de teste. Isso **não equivale a testar Phantasy Star/Kenseiden, nem a abrir um dispositivo CPAL físico**.
+- O estado do barramento inclui chip, serviço PG serial, nibble F2, amostras FM pendentes e acumulador PCM parcial. A equivalência completa de Save State/Restore incluindo filas/resampler do worker e continuidade da saída ainda precisa de validação explícita.
+
+### Portas F0/F1/F2
+
+- F0/F1 estão conectadas ao YM2413 no perfil japonês.
+- F2 preserva D3–D0 da última escrita; D1/D0 controlam o roteamento PSG/FM. A PR #1170 corrige a perda anterior de D3–D2.
+- D4 permanece zero. D7–D5 continuam sem o contador C-Sync: o runtime não expõe um sinal C-Sync verificável vindo do caminho de vídeo/315-5297. Não derivar esses bits de VCounter, scanline ou relógio do host.
+
+### Bloqueios de fidelidade que permanecem
+
+- **PG/PM:** divergências diferenciais ainda não explicadas; não declarar fechamento semântico.
+- **EG:** matriz de 38 configurações permanece com 44.064 divergências de nível e 71 de estágio.
+- **Rhythm Mode:** seed físico e ROM de patches não certificados; divergências de EG/SL continuam abertas.
+- **MO/RO e DAC:** o PCM mono atual combina as saídas digitais de referência. A rede analógica específica do Japanese Master System, ganhos relativos, carga, filtragem, codificação DAC e fase subclock continuam sem evidência suficiente. A regra normativa de preservar MO/RO separadamente permanece válida; o PCM atual deve ser tratado como caminho provisório de compatibilidade, não como modelo elétrico final.
+- **Perfil físico e FmMode:** há construtor explícito de máquina japonesa com YM2413, mas o desktop ainda não possui perfil de placa persistido independente de território nem `FmMode::Auto/On/Off` persistente. Auto exige catálogo por título/revisão/hash; sem correspondência comprovada deve permanecer desligado.
+- **C-Sync:** readback D7–D5 bloqueado até a exposição de um pulso de hardware verificável.
+- **ROMs reais:** Phantasy Star e Kenseiden foram recebidas e hash-conferidas, mas ainda não há evidência de boot prolongado, jogo, áudio, FPS e estabilidade no emulador.
+
+### Validação exata da main após PR #1170
+
+- CI run `44962127008`: **SUCCESS** — SMS core/VDP, input, Z80, workspace, SDL3 Windows, Scheduler, lint de workflow e gate de qualidade.
+- SMS Debugger Runtime run `44962126981`: **SUCCESS** — rustfmt, Clippy, testes Release e build Windows x64.
+- O job Windows/CPAL foi corretamente classificado como não aplicável à PR #1170, que não alterou o backend CPAL. A validação do runtime SMS ocorreu separadamente.
+
+### Próxima sequência recomendada
+
+1. Resolver a divergência entre o PCM mono atual e o contrato de preservar MO/RO separadamente; manter o caminho de compatibilidade explicitamente identificado até haver modelo de placa.
+2. Implementar perfil físico SMS independente de território e `FmMode::Auto/On/Off` persistente, com Auto conservador e catálogo exato.
+3. Expor a origem temporal de C-Sync pelo caminho de vídeo/315-5297 antes de implementar D7–D5.
+4. Fechar PG/PM/EG e Rhythm com diferenciais e evidência independente, sem teacher-forcing.
+5. Validar Phantasy Star e Kenseiden com e sem BIOS, incluindo boot, jogo, áudio, FPS, underruns, estabilidade e Save State/Restore.
+6. Atualizar os workflows conforme cada componente alterado. Não iniciar E8 do Z80.
+
+**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1170. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
+
+---
 
 **PRs FM integradas:**
 - **#1154 — FM-5.2A:** merge `50f549cf28da4f268304908ae44717fe402dd708`; cadência do ruído Rhythm Mode, ainda baseada em seed-candidate.
@@ -14,7 +75,7 @@
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Um workflow PASS comprova a execução do teste declarado, não a fidelidade física do chip.
 
-## Estado executivo
+## Estado executivo histórico — checkpoint pós-PR #1159 (supersedido pelo snapshot atual acima)
 
 **Status geral: EM DESENVOLVIMENTO — YM2413 ainda não fornece PCM FM funcional integrado ao runtime SMS.**
 
@@ -50,7 +111,7 @@ A procedência do latch anterior é derivada do dispatch serial concluído, pers
 | FM-5.3 — referência Nuked MO/RO | Integrada | PR #1158; pipeline de software separado do modelo medido |
 | Adaptador medido MO/RO no PG | Integrado em temporização/procedência | PR #1159; snapshot PG v12, adaptador v2, buffer de um ciclo; nível medido deliberadamente desconhecido |
 
-## Roadmap vigente de fechamento — estado após PR #1159 (2026-11-21)
+## Roadmap histórico de fechamento — estado após PR #1159 (supersedido pelo snapshot atual acima)
 
 | Gate | Escopo | Estado atual | Evidência / bloqueio real |
 |---|---|---|---|
@@ -63,7 +124,7 @@ A procedência do latch anterior é derivada do dispatch serial concluído, pers
 | FM-7 | Perfis de hardware e integração SMS | **Pendente** | Portas F0–F2, latch/barramento, perfil Mark III/FM Unit e controle FM Auto/Off/On ainda não integrados ao runtime SMS. |
 | FM-8 | Mixer PSG + FM e áudio | **Pendente** | Acumulação determinística, mixer PSG+FM, resampling/saída host e snapshots agregados da máquina ainda não integrados. |
 
-## Inventário funcional consolidado (código em main após PR #1159 `eb01ca8a`, 2026-11-21)
+## Inventário funcional histórico — main após PR #1159 (supersedido pelo snapshot atual acima)
 
 | Recurso | Implementação | Integração / validação |
 |---|---|---|
@@ -89,7 +150,7 @@ A procedência do latch anterior é derivada do dispatch serial concluído, pers
 | Save State agregado | Parcial | PG serial v12 e adaptador v2 preservam procedência/cursor em limite de slot concluído; falta snapshot único da máquina SMS incluindo scheduler, canais, saída e PCM |
 | PCM FM | **Não disponível** | Não há amostra PCM FM final integrada; `Ym2413DacCode` representa nível do domínio de medição, não palavra bruta do DAC |
 
-## Validação publicada da integração MO/RO — PR #1159
+## Validação histórica da integração MO/RO — PR #1159
 
 | Workflow | Run | Resultado | Interpretação |
 |---|---:|---|---|
