@@ -1984,6 +1984,22 @@ mod tests {
     }
 
     #[test]
+    fn restore_rejects_measured_ro_cursor_out_of_alignment_with_core_cycle() {
+        let service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut state = service.export_state();
+        state
+            .measured_output_adapter
+            .rhythm_output_service
+            .rhythm_delay
+            .next_slot_index = 0;
+
+        assert_eq!(
+            Ym2413PgSerialService::restore_state(state),
+            Err(Ym2413PgSerialError::InvalidState)
+        );
+    }
+
+    #[test]
     fn core_and_serial_pg_service_are_equivalent_across_block_partitions() {
         let initial = initial_bank(0);
         let mut whole_core = Ym2413Core::new();
