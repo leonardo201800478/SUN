@@ -409,8 +409,8 @@ mod tests {
     use super::{
         YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice,
         nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index,
-        nuked_eg_output_index, nuked_eg_update_index, nuked_phase_reset_required,
-        nuked_pg_phase_output_index, nuked_pg_phase_write_index, nuked_slot_service_event,
+        nuked_eg_output_index, nuked_eg_update_index, nuked_pg_phase_output_index,
+        nuked_pg_phase_write_index, nuked_phase_reset_required, nuked_slot_service_event,
         slot_descriptor,
     };
 
@@ -573,10 +573,7 @@ mod tests {
         }
 
         for cycle in [13, 14] {
-            assert_eq!(
-                nuked_phase_reset_required(cycle, 0x40, 0x8000),
-                Some(false)
-            );
+            assert_eq!(nuked_phase_reset_required(cycle, 0x40, 0x8000), Some(false));
             assert_eq!(nuked_phase_reset_required(cycle, 0x40, 1), Some(true));
         }
 
@@ -600,14 +597,8 @@ mod tests {
                 event.pg_phase_output_index,
                 nuked_pg_phase_output_index(cycle).unwrap()
             );
-            assert_eq!(
-                event.eg_update_index,
-                nuked_eg_update_index(cycle).unwrap()
-            );
-            assert_eq!(
-                event.eg_output_index,
-                nuked_eg_output_index(cycle).unwrap()
-            );
+            assert_eq!(event.eg_update_index, nuked_eg_update_index(cycle).unwrap());
+            assert_eq!(event.eg_output_index, nuked_eg_output_index(cycle).unwrap());
             assert_eq!(
                 event.phase_reset_required,
                 nuked_phase_reset_required(cycle, 0, 0x8001).unwrap()
@@ -616,5 +607,4 @@ mod tests {
 
         assert_eq!(nuked_slot_service_event(18, 0, 0), None);
     }
-
 }
