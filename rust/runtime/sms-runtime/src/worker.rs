@@ -2375,13 +2375,12 @@ fn execute_frame_with_renderer(
         }
     }
 
-    let source_samples = if use_h2 {
-        audio_renderer.h2_samples.as_slice()
-    } else {
-        psg_samples.as_slice()
-    };
+    // The integrated Japanese FM profile cannot use H2 (selection is rejected
+    // at the renderer boundary). Feed the owned PSG FIFO directly here so no
+    // immutable borrow of audio_renderer.h2_samples survives across the
+    // mutable FM pipeline operations.
     let fm_mix_len = if machine.ym2413().is_some() && !use_h2 {
-        match audio_renderer.prepare_fm_mix(source_samples, &fm_samples) {
+        match audio_renderer.prepare_fm_mix(psg_samples.as_slice(), &fm_samples) {
             Ok(aligned_frames) => aligned_frames,
             Err(error) => {
                 audio_renderer.reset_fm_pipeline();
@@ -2393,6 +2392,14 @@ fn execute_frame_with_renderer(
         }
     } else {
         None
+    };
+
+    // Borrow the selected legacy source only after all mutable renderer work
+    // above has completed.
+    let source_samples = if use_h2 {
+        audio_renderer.h2_samples.as_slice()
+    } else {
+        psg_samples.as_slice()
     };
 
     let mut multi_sources: Option<[MixSource<'_>; 2]> = None;
