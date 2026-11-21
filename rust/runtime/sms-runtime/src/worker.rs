@@ -3738,6 +3738,72 @@ mod tests {
     }
 
     #[test]
+    fn ym2413_audio_renderer_resamples_and_aligns_psg_and_fm_sources() {
+        let mut renderer = AudioRendererState::default();
+        let psg_samples = vec![0.25; 1_024];
+        let fm_samples = vec![Some(0.5); 1_061];
+
+        let aligned_frames = renderer
+            .prepare_fm_mix(&psg_samples, &fm_samples)
+            .unwrap()
+            .unwrap();
+
+        assert!(aligned_frames > 0);
+        assert_eq!(renderer.mix_psg_samples.len(), aligned_frames);
+        assert_eq!(renderer.mix_fm_samples.len(), aligned_frames);
+        assert!(
+            renderer
+                .mix_psg_samples
+                .iter()
+                .all(|sample| (*sample - 0.25).abs() < 1.0e-12)
+        );
+        assert!(
+            renderer
+                .mix_fm_samples
+                .iter()
+                .any(|sample| sample.is_finite() && sample.abs() > 1.0e-6)
+        );
+    }
+
+    #[test]
+    fn unknown_ym2413_rotations_are_not_converted_to_silence() {
+        let mut renderer = AudioRendererState::default();
+        let psg_samples = vec![0.25; 32];
+        let fm_samples = [Some(0.5), None, Some(0.5)];
+
+        assert_eq!(
+            renderer.prepare_fm_mix(&psg_samples, &fm_samples).unwrap(),
+            None
+        );
+        assert!(renderer.fm_resampler.is_none());
+        assert!(renderer.pending_psg_samples.is_empty());
+        assert!(renderer.pending_fm_samples.is_empty());
+    }
+
+    #[test]
+    fn h2_renderer_is_rejected_for_japanese_integrated_fm_profile() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let mut machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            vec![0; 0x4000],
+            "japan",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        let mut renderer = AudioRendererState::default();
+
+        let error = renderer
+            .select(&mut machine, AudioRendererMode::H2Experimental)
+            .unwrap_err();
+
+        assert!(error.contains("YM2413"));
+        assert_eq!(renderer.mode, AudioRendererMode::Psg);
+    }
+
+    #[test]
     fn h2_renderer_is_selected_at_worker_boundary_and_consumes_real_psg_events() {
         let mut rom = vec![0; 0x4000];
         let program = [
