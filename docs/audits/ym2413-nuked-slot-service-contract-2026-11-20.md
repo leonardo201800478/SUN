@@ -91,6 +91,12 @@ A Rust service must preserve these causal boundaries and snapshot every pending 
 - Invalid-cycle rejection tests.
 - No changes to PG/EG arithmetic, Scheduler, PSG, VDP, Z80, SMS runtime, or PCM.
 
+## 5.1. Oracle instrumentation limitation for Rhythm Mode reset
+
+The current external `trace.c` adapter captures `calc_rm_enable` before calling `OPLL_Clock` and derives its `phase_next_reset` field from that pre-call value. In the pinned Nuked source, `OPLL_Clock` shifts `rm_enable` and applies the pending mode write before `OPLL_PhaseGenerate` evaluates the reset selector. Therefore the adapter's current pre-call `calc_rm_enable` field is not sufficient to validate the cycles-13/14 Rhythm Mode override.
+
+The Rust helper `nuked_phase_reset_required` intentionally accepts the post-shift/post-mode-write value. Its Rhythm Mode branch is source-level derived and unit-tested, but is **not yet an executable differential PASS**. Before claiming that reset-event path is converged, instrument the external oracle at the actual `OPLL_PhaseGenerate` decision point and compare the post-shift `rm_enable`, pre-update `eg_dokon`, cycle and resulting reset request. Keep that instrumentation external to the Rust backend.
+
 ## 6. FM-1B implementation constraints
 
 The next implementation must:
