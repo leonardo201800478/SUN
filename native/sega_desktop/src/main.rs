@@ -4040,6 +4040,8 @@ mod windows_host {
         app.set_lifecycle_status("Renderer setup: 0 | teardown: 0".into());
         app.set_selected_region(region.clone().into());
         app.set_selected_system(preferences.selected_system.clone().into());
+        app.set_selected_fm_board_profile(preferences.sms_fm_board_profile.clone().into());
+        app.set_selected_fm_mode(preferences.sms_fm_mode.clone().into());
         app.set_firmware_directory(preferences.firmware_directory.clone().into());
         app.set_firmware_boot_enabled(preferences.firmware_boot_enabled);
         app.set_firmware_brazil_selected(preferences.firmware_brazil_selected.clone().into());
