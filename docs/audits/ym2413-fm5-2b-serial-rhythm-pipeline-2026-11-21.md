@@ -424,3 +424,33 @@ experimental model's operator-to-output conversion or infer raw DAC bits.
 The three-active-clock pulse claim is cross-checked against the 2015
 MSX Resource Center reverse-engineering report:
 https://www.msx.org/pt-br/photoshoots/ym2413-reverse-engineering-progress
+
+
+### Exact-head validation — FM-5.3 service code commit 4af0e9a
+
+The following GitHub Actions results apply to code HEAD
+`4af0e9ad6a0980e8c53fe65d8c224610c46017e0`:
+
+- CI #9841: **SUCCESS**. Formatting, workspace Clippy, workspace unit and
+  integration tests, observability-feature Clippy/tests, and documentation
+  hygiene completed successfully. The new MO/RO service unit tests are part
+  of the workspace test run.
+- PG differential #377: **SUCCESS**. The serial operator, all five rhythm
+  latches, AM LFO, integrated FM-3 and integrated Rhythm Mode comparisons
+  completed. The Rhythm Mode report remains
+  `CHARACTERIZED_WITH_PATCH_CANDIDATE_DIVERGENCE`, with only:
+  - `c_sl`: 8,092 rows, first call 1,815, Nuked=4/Rust=6;
+  - `eg_sl`: 8,092 rows, first call 1,816, Nuked=4/Rust=6;
+  - `eg_state`: 15,984 rows, first call 79,001.
+  No `c_fb` or `c_dm` entry remains in the integrated Rhythm Mode
+  `candidate_patch_differences` object.
+- Rhythm reset differential #300: **SUCCESS**.
+- EG characterization #550: still running its final 38-configuration
+  AR/DR/KSR sweep at the time of this update. All earlier capture, reset,
+  single-/four-channel replay, KSR, and sequencer replay steps completed
+  successfully. Do not claim the complete characterization run until its
+  final sweep and artifact-retention steps finish.
+
+These are software-oracle and regression results. They do not certify the
+physical YM2413 patch ROM, power-on LFSR seed, analog MO/RO levels, or raw DAC
+mapping.
