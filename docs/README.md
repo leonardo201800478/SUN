@@ -48,6 +48,7 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 - [Plano Modern Hi-Fi — SMS e SG-1000](audio/modern-hifi-audio-roadmap.md)
 - [Estudo PSG H2](audio/psg-h2-reconstruction-study.md)
 - [Scorecard de confiabilidade](audio/audio-reliability-scorecard.md)
+- [YM2413 — estratégia equilibrada de execução e áudio](architecture/ym2413-balanced-execution-audio.md). Proposta complementar, subordinada ao modelo canônico e ao scorecard.
 
 ## Z80
 
