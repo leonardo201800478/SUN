@@ -28,7 +28,6 @@ pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
 mod slot_service;
-mod slot_service;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
@@ -664,12 +663,12 @@ impl Ym2413Core {
 #[cfg(test)]
 mod tests {
     use super::{
-        slot_service::{
-            Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
-        },
         EnvelopeSequencerState, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
         YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT,
         YM2413_SLOT_MAP, Ym2413Core, Ym2413Error, Ym2413State, nuked_phase_reset_required,
+        slot_service::{
+            Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
+        },
     };
     use core::convert::Infallible;
 
@@ -1102,8 +1101,7 @@ mod tests {
                 core.rm_enable = 0x80_u8 as i8;
                 let mut envelope_state = core.envelope.export_state();
                 envelope_state.eg_dokon = eg_dokon;
-                core.envelope =
-                    super::EnvelopeSequencer::restore_state(envelope_state).unwrap();
+                core.envelope = super::EnvelopeSequencer::restore_state(envelope_state).unwrap();
 
                 let mut service = RecordingSlotService::default();
                 core.advance_input_clocks_with_slot_service(
@@ -1122,5 +1120,4 @@ mod tests {
             }
         }
     }
-
 }
