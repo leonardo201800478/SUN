@@ -210,7 +210,6 @@ mod tests {
     }
 }
 
-
 /// Version of the exact serial AM shift-register state.
 pub const YM2413_SERIAL_AM_LFO_STATE_VERSION: u16 = 1;
 
@@ -337,12 +336,9 @@ impl Ym2413SerialAmLfo {
             }
         }
 
-        let am_bit = (self.state.counter & 1) as u8
-            + am_increment
-            + u8::from(self.state.carry);
+        let am_bit = (self.state.counter & 1) as u8 + am_increment + u8::from(self.state.carry);
         self.state.carry = am_bit >> 1 != 0;
-        self.state.counter =
-            (u16::from(am_bit & 1) << 8) | (self.state.counter >> 1);
+        self.state.counter = (u16::from(am_bit & 1) << 8) | (self.state.counter >> 1);
 
         if testmode & 0x02 != 0 {
             self.state.direction = false;
@@ -373,8 +369,8 @@ impl Ym2413SerialAmLfo {
 #[cfg(test)]
 mod serial_tests {
     use super::{
-        Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState,
-        YM2413_SERIAL_AM_LFO_STATE_VERSION,
+        YM2413_SERIAL_AM_LFO_STATE_VERSION, Ym2413SerialAmLfo, Ym2413SerialAmLfoError,
+        Ym2413SerialAmLfoState,
     };
 
     #[test]
