@@ -2,7 +2,7 @@
 
 # Especificação documental do Z80 — manuais ZiLOG
 
-**Projeto:** Sega Emulator — Emulação de Alta Precisão
+**Projeto:** SUN — Strife Uranus Neptune — Emulação de Alta Precisão
 **Status:** síntese documental inicial, orientada à implementação e aos testes; não representa certificação do núcleo.
 **Data:** 23/10/2026.
 

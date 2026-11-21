@@ -1,4 +1,4 @@
-# Sega Emulator — instruções permanentes
+# SUN — Strife Uranus Neptune — instruções permanentes
 
 **Repositório:** https://github.com/leonardo201800478/sega-emulator
 **Referência técnica:** https://www.smspower.org/

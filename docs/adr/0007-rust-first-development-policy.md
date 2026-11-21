@@ -2,7 +2,7 @@
 
 - **Status:** aprovado.
 - **Data:** 2026-10-26.
-- **Escopo:** desenvolvimento futuro e evolução incremental do Sega Emulator.
+- **Escopo:** desenvolvimento futuro e evolução incremental do SUN — Strife Uranus Neptune.
 
 ## Contexto
 

@@ -6,9 +6,9 @@
 **Baseline:** `main` at `0e8025e476eee12135f4c0f7def9dead7dfcaa14`.
 **Core blob:** `native/sn76489/src/psg.rs`, blob `cfccd43bf9178c5204464dd8057ac964d8429d4c`.
 
-This document records source-level behavior, not physical-chip validation. A reference implementation is evidence about that implementation's model; it is not automatically a hardware oracle. No third-party production code is copied into Sega Emulator.
+This document records source-level behavior, not physical-chip validation. A reference implementation is evidence about that implementation's model; it is not automatically a hardware oracle. No third-party production code is copied into SUN — Strife Uranus Neptune.
 
-## 1. Existing Sega Emulator coverage
+## 1. Existing SUN — Strife Uranus Neptune coverage
 
 The existing A1 audit is in [psg-sn76489-a1-audit.md](psg-sn76489-a1-audit.md). PR #784 is merged and already provides:
 
@@ -79,7 +79,7 @@ MEKA is an outlier: its PSG source sets `NoiseInitialState = 0x4000`, while its 
 
 ### 3.2 Gearsystem state representation is not directly comparable
 
-Gearsystem converts the 0/3 polynomial to a Galois feedback mask (`0x9000`) and updates the register as a conditional XOR after shifting right. Sega Emulator uses the equivalent Fibonacci recurrence, calculating parity of bits 0 and 3 and inserting the result at bit 15.
+Gearsystem converts the 0/3 polynomial to a Galois feedback mask (`0x9000`) and updates the register as a conditional XOR after shifting right. SUN — Strife Uranus Neptune uses the equivalent Fibonacci recurrence, calculating parity of bits 0 and 3 and inserting the result at bit 15.
 
 For seed `0x8000`, the two internal state sequences diverge after the first several shifts, but their observable bit-0 streams match. Therefore:
 
@@ -99,7 +99,7 @@ The references disagree about which bit is presented to the mixer at the exact s
 
 | Reference | Observed convention |
 |---|---|
-| Sega Emulator current core | Captures old bit 0 before shifting |
+| SUN — Strife Uranus Neptune current core | Captures old bit 0 before shifting |
 | Ares | Assigns output from old bit 0, then shifts |
 | MAME Sega VDP | Shifts, then assigns output from the new bit 0 |
 | Genesis Plus GX | Computes the output delta from new bit 0 minus old bit 0 |
@@ -152,7 +152,7 @@ Equal average frequency does not establish equal phase after reset, a Tone 2 wri
 
 The reset models are not converged.
 
-| State | Sega Emulator current | MAME Sega VDP | Genesis Plus GX integrated | SMS Power |
+| State | SUN — Strife Uranus Neptune current | MAME Sega VDP | Genesis Plus GX integrated | SMS Power |
 |---|---|---|---|---|
 | Tone registers | 0 | 0 | 0 | Integrated versions described as zero |
 | Volume registers | 15 (silent) | 15 (silent) | 0, but output accumulators start at zero | 15 (silent) |
@@ -217,7 +217,7 @@ The external trace adapters were exercised by the existing PSG-focused GitHub Ac
 | Engine | First shift | Subsequent shifts in this fixture |
 |---|---:|---|
 | SMS Plus GX / CrabEmu | 16 | 48, 80, 112, … |
-| Sega Emulator SMS core | 15 | 47, 79, 111, … |
+| SUN — Strife Uranus Neptune SMS core | 15 | 47, 79, 111, … |
 | Gearsystem Sms_Apu | 0 | 32, 64, 96, … |
 
 All three traces recorded 19 shifts over the 600-tick fixture. The different first-shift phase is an implementation-level observation, not a hardware verdict.
@@ -261,7 +261,7 @@ No production hardware code was modified by this trial.
 A fixture de fronteira de tom usa o mesmo registrador Tone 2 nos três motores, mas os campos de estado observados não têm a mesma unidade temporal:
 
 - **Gearsystem `Sms_Apu`:** `Sms_Apu::GetState()` copia `squares[i].period`. O oscilador Gearsystem avança em T-states e o período é expresso nessa unidade. Para o valor de registrador 7, o campo exposto é 112 T-states (7 × 16).
-- **Sega Emulator Rust:** `Sn76489::tone_periods()` expõe o valor de 10 bits do registrador. Para o mesmo valor programado, o campo é 7.
+- **SUN — Strife Uranus Neptune Rust:** `Sn76489::tone_periods()` expõe o valor de 10 bits do registrador. Para o mesmo valor programado, o campo é 7.
 - **Ares:** `SN76489::Tone::pitch` é um campo `n10` de pitch do componente, exposto na unidade do clock interno do SN76489. Para o mesmo valor programado, o campo é 7.
 
 O vetor Gearsystem `channel_periods_after` tem quatro canais na ordem Tone 0, Tone 1, Tone 2 e Noise. O índice `[2]` é Tone 2. O trace observado no tick inicial contém Tone 2 = 112; a asserção Gearsystem passou. A falha CI #9045 ocorreu na asserção seguinte, que comparava o valor Gearsystem 112 com o campo Rust `tone_periods_after[2]`, cujo valor correto é 7. Portanto, a falha era uma comparação entre unidades diferentes, não uma divergência de comportamento do Gearsystem.
@@ -292,7 +292,7 @@ The comparator does not align traces by correlation and does not treat mismatch 
 
 | Engine | First shift tick | Shift count in 1,400 ticks | First 20 shift ticks |
 |---|---:|---:|---|
-| Sega Emulator SMS core | 15 | 76 | 15, 47, 79, 111, 143, 175, 207, 239, 271, 335, 399, 463, 527, 655, 783, 797, 812, 828, 837, 839 |
+| SUN — Strife Uranus Neptune SMS core | 15 | 76 | 15, 47, 79, 111, 143, 175, 207, 239, 271, 335, 399, 463, 527, 655, 783, 797, 812, 828, 837, 839 |
 | SMS Plus GX / CrabEmu | 16 | 79 | 16, 48, 80, 112, 144, 176, 208, 240, 256, 288, 352, 416, 480, 576, 704, 770, 784, 798, 813, 829 |
 | Gearsystem | 0 | 86 | 0, 32, 64, 96, 128, 160, 192, 224, 256, 320, 384, 448, 512, 640, 768, 782, 796, 810, 826, 842 |
 

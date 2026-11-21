@@ -1,4 +1,4 @@
-# Roadmap mestre — Sega Emulator
+# Roadmap mestre — SUN — Strife Uranus Neptune
 
 **Revisão:** 2026-11-21
 **Baseline consultada:** `main` `eac5f8f49025111372183190b8504f476a994aae`.

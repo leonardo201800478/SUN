@@ -1,4 +1,4 @@
-# Instruções para agentes de código — Sega Emulator
+# Instruções para agentes de código — SUN — Strife Uranus Neptune
 
 A fonte da verdade é a `main` remota, seus commits, testes e workflows. Antes de cada tarefa, consulte o HEAD, PRs, branches, diffs e CI atuais. Não reutilize SHAs ou conclusões antigas sem revalidação.
 

@@ -103,7 +103,7 @@ pin values.
    The 72-XIN-clock rotation belongs to separate hardware timing evidence and
    must be mapped explicitly before combining the traces.
 5. The reference is GPL-2.0. Keep the reference checkout and linked executable
-   outside the Sega Emulator distribution. This repository contains only the
+   outside the SUN — Strife Uranus Neptune distribution. This repository contains only the
    independently authored adapter source and build instructions. Review
    licensing before redistributing binaries or derivative fixtures.
 
@@ -247,6 +247,12 @@ python3 tools/ym2413-nuked-oracle/compare_fm3_integrated.py \
   --rust-trace rust-fm3.jsonl
 ```
 
+The integrated comparator checks all 18 EG levels/stages, the shared EG timer
+and rate latches, PG accumulators/increments/output, AM shift/carry state,
+PreparePatch1/2 parameter latches, operator phase index, raw operator output,
+feedback history, and channel output on all 147,456 calls. The isolated
+operator and AM LFO differentials remain separate so a failure can be localized
+to a stage rather than hidden by an end-to-end mismatch.
 
 ## Integrated Rhythm Mode PG/EG/operator differential
 

@@ -10,7 +10,7 @@
 
 O projeto acumulou propostas que tratavam a reprodução integral de M-cycles, T-states, fases de clock, sinais físicos, pinos e pipelines internos como requisitos universais. Essa abordagem amplia custo, estado, eventos, serialização e trabalho de validação mesmo quando o console ou os jogos não observam tais detalhes.
 
-O objetivo do Sega Emulator é emular consoles com fidelidade comportamental e temporal próxima ao hardware original. Não é construir uma réplica elétrica, analógica ou transistor a transistor dos componentes.
+O objetivo do SUN — Strife Uranus Neptune é emular consoles com fidelidade comportamental e temporal próxima ao hardware original. Não é construir uma réplica elétrica, analógica ou transistor a transistor dos componentes.
 
 ## Modelo normativo de precisão: temporal para gameplay, atômica para o restante
 

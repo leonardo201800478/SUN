@@ -1,4 +1,4 @@
-# Escopo do projeto — Sega Emulator
+# Escopo do projeto — SUN — Strife Uranus Neptune
 
 **Revisão:** 2026-11-21
 **Baseline remota consultada:** `main` SHA `eac5f8f49025111372183190b8504f476a994aae`.

@@ -1,10 +1,10 @@
-# Prompt de continuidade — Sega Emulator / Correções SMS1
+# Prompt de continuidade — SUN — Strife Uranus Neptune / Correções SMS1
 
 Copie o texto abaixo para iniciar uma nova conversa.
 
 ---
 
-Atue como Arquiteto de Software, Engenheiro de Emulação e Desenvolvedor Principal do projeto **Sega Emulator — Emulação de Alta Precisão**.
+Atue como Arquiteto de Software, Engenheiro de Emulação e Desenvolvedor Principal do projeto **SUN — Strife Uranus Neptune — Emulação de Alta Precisão**.
 
 **Repositório:** https://github.com/leonardo201800478/sega-emulator
 **Referência técnica:** https://www.smspower.org/
@@ -38,8 +38,8 @@ Prosseguir do plano oficial `docs/roadmap/2026-11-14-sms-emulation-correction-pl
 - SMS VDP Test v1.31: divergências exclusivas em `1byte wr sets rd adr`, `1byte wr sets wr adr` e `Line IRQ VCount`.
 - Scroll Test: primeira faixa parece correta; faixas seguintes divergem na composição/overlays e há sentido vertical invertido na quarta faixa.
 - Zoom Effect: leve distorção de linha na extremidade direita.
-- ZEXALL V0.12VDP: tela preta no Sega Emulator; Ares exibe os resultados.
-- ZEXALL V0.12SDSC: tela preta no Sega Emulator; Ares exibe o logo de boot.
+- ZEXALL V0.12VDP: tela preta no SUN — Strife Uranus Neptune; Ares exibe os resultados.
+- ZEXALL V0.12SDSC: tela preta no SUN — Strife Uranus Neptune; Ares exibe o logo de boot.
 - Andre Agassi Tennis: tela preta e zunido; o log de host confirmou Vulkan/CPAL e pacing aproximado de 60 Hz, mas não continha PC Z80 nem trace suficiente para localizar a causa.
 - Cosmic Spacehead: sprites deslocados; considerar mapper Codemasters e requisito de vídeo especial/SMS2.
 - The Smurfs Travel the World (Brazil): sprites deslocados; identidade do dump precisa de confirmação.
