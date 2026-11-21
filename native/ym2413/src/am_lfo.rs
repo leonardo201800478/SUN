@@ -219,8 +219,6 @@ pub const YM2413_SERIAL_AM_LFO_STATE_VERSION: u16 = 1;
 pub enum Ym2413SerialAmLfoError {
     /// The serial cycle must be in the range 0..18.
     InvalidCycle(u8),
-    /// Nuked's shared PM/LFO counter is thirteen bits wide.
-    InvalidLfoCounter(u16),
     /// The saved AM shift-register state is invalid.
     InvalidState,
 }
@@ -318,10 +316,6 @@ impl Ym2413SerialAmLfo {
         if cycle >= 18 {
             return Err(Ym2413SerialAmLfoError::InvalidCycle(cycle));
         }
-        if lfo_counter > 0x1fff {
-            return Err(Ym2413SerialAmLfoError::InvalidLfoCounter(lfo_counter));
-        }
-
         if cycle == 17 {
             self.state.step = ((lfo_counter & 0x003f) + 1) >> 6 != 0;
         }
