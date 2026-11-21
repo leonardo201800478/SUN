@@ -74,9 +74,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         })?;
 
         let rm_enable: u8 = parse(&fields, 35)?;
-        let sample = operator.tick_operator_with_rhythm_mode(cycle, pg_out, rm_enable).map_err(|error| {
-            format!("line {}: operator stage failed: {error:?}", line_number + 1)
-        })?;
+        let sample = operator
+            .tick_operator_with_rhythm_mode(cycle, pg_out, rm_enable)
+            .map_err(|error| {
+                format!("line {}: operator stage failed: {error:?}", line_number + 1)
+            })?;
         let actual = operator.export_state();
 
         let expected_exp_m: u16 = parse(&fields, 8)?;
