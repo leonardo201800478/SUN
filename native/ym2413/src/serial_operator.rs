@@ -308,9 +308,7 @@ impl Ym2413SerialOperator {
         latches: Ym2413SerialOperatorPatch2Latches,
     ) -> Result<(), Ym2413SerialOperatorError> {
         if latches.feedback > 7 {
-            return Err(Ym2413SerialOperatorError::InvalidFeedback(
-                latches.feedback,
-            ));
+            return Err(Ym2413SerialOperatorError::InvalidFeedback(latches.feedback));
         }
         if latches.multiplier > 15
             || latches.sustain_level > 15
@@ -481,7 +479,9 @@ impl Ym2413SerialOperator {
             || state.c_ksl_attenuation > 112
             || state.c_fb > 7
             || state.c_ksl > 3
-            || state.c_adrr.iter().any(|rate| *rate > 15)
+            || state.c_adrr[0] > 15
+            || state.c_adrr[1] > 15
+            || state.c_adrr[2] > 15
             || state.c_ksr_freq > 15
             || state.c_ksl_freq > 15
             || state.c_ksl_block > 7
