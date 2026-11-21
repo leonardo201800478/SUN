@@ -256,6 +256,12 @@ Nuked-OPLL. The Rust trace is configured with LFSR register candidate zero to
 match Nuked's software reset state. This is a software-oracle alignment
 candidate only; it is not a claim about the physical YM2413 power-on seed.
 
+The fixture uses the rhythm-channel frequency values from Table III-9 of
+the YM2413 application manual: R#16/17/18 = 0x20/0x50/0xC0 and
+R#26/27/28 = 0x05/0x05/0x01, with melodic KEY-ON bits clear. The serial
+dispatcher test also asserts the documented one-based physical slots:
+BD 13/16, HH 14, TOM 15, SD 17 and TC 18.
+
 The comparator strictly checks serial cycle order, effective `rm_enable`,
 `rm_select`, rhythm control, LFSR state, global LFO/EG timer state and
 register-derived channel/slot identity on every call. Synthesis fields that
@@ -267,6 +273,8 @@ trigger individually, all five together, a release interval and a second
 simultaneous trigger. This remains a software characterization and does not
 establish operator-to-raw-DAC conversion, analog MO/RO voltage, or physical
 four-clock subphase alignment.
+
+Reference: [YM2413 application manual](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual).
 
 ## Rhythm Mode serial operator differential
 
