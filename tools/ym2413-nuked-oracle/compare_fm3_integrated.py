@@ -15,6 +15,7 @@ SCALAR_FIELDS = (
     "pg_inc",
     "pg_phase_next",
     "pg_out",
+    "lfo_counter",
     "lfo_vib_counter",
     "lfo_am_counter",
     "lfo_am_dir",
