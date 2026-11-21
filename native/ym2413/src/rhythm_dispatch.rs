@@ -139,16 +139,59 @@ mod tests {
         let registers = registers(true);
         // Yamaha Application Manual Table III-9: one-based physical slots.
         let rhythm_cycles = [
-            (11, Select::BassDrumFirst, Ym2413RhythmVoice::BassDrum, 13, 6, Ym2413Operator::Modulator),
-            (12, Select::HiHat, Ym2413RhythmVoice::HiHat, 14, 7, Ym2413Operator::Modulator),
-            (13, Select::TomTom, Ym2413RhythmVoice::TomTom, 15, 8, Ym2413Operator::Modulator),
-            (14, Select::BassDrumSecond, Ym2413RhythmVoice::BassDrum, 16, 6, Ym2413Operator::Carrier),
-            (15, Select::SnareDrum, Ym2413RhythmVoice::SnareDrum, 17, 7, Ym2413Operator::Carrier),
-            (16, Select::TopCymbal, Ym2413RhythmVoice::TopCymbal, 18, 8, Ym2413Operator::Carrier),
+            (
+                11,
+                Select::BassDrumFirst,
+                Ym2413RhythmVoice::BassDrum,
+                13,
+                6,
+                Ym2413Operator::Modulator,
+            ),
+            (
+                12,
+                Select::HiHat,
+                Ym2413RhythmVoice::HiHat,
+                14,
+                7,
+                Ym2413Operator::Modulator,
+            ),
+            (
+                13,
+                Select::TomTom,
+                Ym2413RhythmVoice::TomTom,
+                15,
+                8,
+                Ym2413Operator::Modulator,
+            ),
+            (
+                14,
+                Select::BassDrumSecond,
+                Ym2413RhythmVoice::BassDrum,
+                16,
+                6,
+                Ym2413Operator::Carrier,
+            ),
+            (
+                15,
+                Select::SnareDrum,
+                Ym2413RhythmVoice::SnareDrum,
+                17,
+                7,
+                Ym2413Operator::Carrier,
+            ),
+            (
+                16,
+                Select::TopCymbal,
+                Ym2413RhythmVoice::TopCymbal,
+                18,
+                8,
+                Ym2413Operator::Carrier,
+            ),
         ];
 
         for (cycle, selector, voice, slot_number, channel, operator) in rhythm_cycles {
-            let dispatch = dispatch_serial_slot(cycle, &registers, 0xff, selector).unwrap();
+            let dispatch =
+                dispatch_serial_slot(cycle, &registers, 0xff, selector).unwrap();
             let Ym2413SerialSlotDispatch::Rhythm {
                 slot,
                 voice: actual_voice,
@@ -157,7 +200,10 @@ mod tests {
             else {
                 panic!("cycle {cycle} must dispatch to a rhythm voice");
             };
-            assert_eq!(slot, YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)]);
+            assert_eq!(
+                slot,
+                YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)]
+            );
             assert_eq!(slot.slot_number, slot_number, "cycle {cycle}");
             assert_eq!(slot.channel, channel, "cycle {cycle}");
             assert_eq!(slot.operator, operator, "cycle {cycle}");
