@@ -400,6 +400,8 @@ pub fn decode_rhythm_envelope_slot_input(
         key_on: channel.melodic_key_on,
         rhythm_select: selector,
         rhythm_bits: registers[0x0e] & 0x3f,
+        test_mode: 0,
+        write_data: 0,
     })
 }
 
