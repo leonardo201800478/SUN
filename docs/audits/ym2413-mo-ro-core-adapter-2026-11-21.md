@@ -1,9 +1,9 @@
 # YM2413 — Auditoria da integração do adaptador MO/RO ao PG serial
 
-**Data:** 2026-11-21  
-**Repositório:** `leonardo201800478/SUN`  
-**PR:** [#1159 — measured MO/RO core adapter](https://github.com/leonardo201800478/SUN/pull/1159)  
-**Merge commit:** `eb01ca8a7ee6224a98e872143b41f0b28137b292`  
+**Data:** 2026-11-21
+**Repositório:** `leonardo201800478/SUN`
+**PR:** [#1159 — measured MO/RO core adapter](https://github.com/leonardo201800478/SUN/pull/1159)
+**Merge commit:** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Estado:** integração temporal/proveniência publicada; níveis medidos, palavra DAC e PCM continuam bloqueados.
 
 ## 1. Escopo efetivamente integrado
