@@ -1,7 +1,7 @@
 # Ordem direta de arquitetura — áudio exclusivamente em Rust
 
 **Classificação:** ORDEM ARQUITETURAL OBRIGATÓRIA  
-**Aplicação:** toda implementação presente e futura de áudio no SUN — Strife Uranus Neptune, em todas as plataformas e expansões Sega previstas no projeto.  
+**Aplicação:** toda implementação presente e futura de áudio no SUN — Strife Uranus Neptune, em todas as plataformas e expansões Sega previstas no projeto.
 **Autoridade:** esta ordem complementa e torna explícita a política Rust-first do projeto. Em caso de ambiguidade em documentos de áudio, prevalece a regra aqui definida.
 
 ## 1. Ordem direta
