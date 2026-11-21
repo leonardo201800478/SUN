@@ -23,8 +23,8 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 4;
-pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 2;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 5;
+pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413PgSerialError {
@@ -213,7 +213,6 @@ impl Ym2413PgSerialService {
         if state.format_version != YM2413_PG_SERIAL_STATE_VERSION
             || pipeline.format_version != YM2413_PG_SERIAL_PIPELINE_STATE_VERSION
             || pipeline.pg_phase_next > crate::phase::YM2413_PHASE_MASK
-            || pipeline.pg_output > 0x03ff
             || pipeline.lfo_vib_counter > 7
             || !pipeline.parameters.is_valid()
         {
@@ -258,7 +257,7 @@ impl Ym2413PgSerialService {
         } else {
             phase
         };
-        self.pipeline.pg_output = ((phase >> 9) & 0x03ff) as u16;
+        self.pipeline.pg_output = (phase >> 9) as u16;
         Ok(())
     }
 
