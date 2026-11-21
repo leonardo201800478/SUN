@@ -175,3 +175,40 @@ For code-bearing HEAD `9f024e691be1c770b906db9ea36e25482c8481d0`:
 - Rhythm reset differential `44876497140`: SUCCESS.
 - External Nuked adapter `44876497172`: SUCCESS.
 - EG characterization `44876497153`: still running its 38-configuration AR/DR/KSR sweep at the time of this update.
+
+## 11. FM-5.2A — serial rhythm-noise cadence integration
+
+Branch `feat/ym2413-fm5-2-serial-rhythm-state`, commit `7f6a2f0223b54f1295088abaf2f8859483a97ce7`.
+
+This increment connects the already characterized slot-rate noise sequencer to the existing transactional PG service at the post-EG DoRhythm boundary. It is deliberately a bounded FM-5.2A foundation, not a claim that the five percussion instruments are synthesized end-to-end.
+
+### Production changes
+
+- `Ym2413PgSerialService` now optionally owns `Ym2413RhythmSlotNoiseSequencer` and includes its complete cursor/LFSR state in the versioned service snapshot.
+- The physical reset seed remains unknown. No implicit seed is introduced: callers must opt into a candidate seed through `with_rhythm_noise_seed(seed, next_slot_index)`. A service created with `new` retains an explicitly uninitialized noise model.
+- When configured, the noise sequencer advances exactly once at every post-EG serial slot, independent of RHY enablement. Its cursor is checked against the core-owned cycle before mutation; mismatch returns an error and relies on the existing staged core/service transaction for rollback.
+- The sequencer's measured HH and SD sample bits are retained in service state for subsequent phase routing.
+- Stable rhythm-owned slots and unsettled rhythm selector/mode transitions no longer execute the melodic PG/operator path. They still pass through the core-owned EG update, serial LFO stage and DoRhythm noise step. Rhythm-specific PG/operator evaluation and PreparePatch2 remain intentionally unimplemented in this increment.
+- Melodic slots continue through the existing path. The service still does not create a second clock, scheduler or EG sequencer.
+
+### Validation added
+
+- All 18 slots advance the explicitly seeded LFSR once in melodic mode.
+- HH and SD noise samples are captured at their configured serial positions.
+- Rhythm-owned cycles 11..16 skip melodic operator mutation while reaching DoRhythm.
+- Mode-latch and selector-transition cycles preserve melodic PG/operator state while still advancing the configured noise state.
+- Snapshot/restore after a partial slot and across multiple rotations.
+- Continuous versus partitioned input-clock execution equivalence.
+- Seeded-noise cursor mismatch rejects the staged service transaction without committing core or service state.
+
+### Remaining FM-5.2 work
+
+- Route the five instruments' patch parameters and channel 7..9 source registers into the correct serial PG/EG/operator latches.
+- Implement Bass Drum's two-operator feedback path and the single-operator HH, TOM, SD and TCY paths at their measured slot boundaries.
+- Integrate HH/SD sampled noise and the channel-7/channel-8 phase combiners without inventing initial PG phases.
+- Integrate per-voice trigger/key transitions, attenuation and output retention MO/RO.
+- Extend snapshots for every new dynamic voice/phase/output latch and validate them in the composite transaction.
+- Expand the independent Nuked/hardware-capture differential before claiming any instrument complete.
+
+The LFSR seed/reset phase, rhythm patch parameter candidates, and physical DAC interpretation remain explicitly unresolved. Nuked remains a software reference rather than proof of physical silicon behavior.
+
