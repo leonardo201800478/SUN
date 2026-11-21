@@ -1472,3 +1472,25 @@ Formatting was corrected in `6249ee472cde2f9f3615d5680d7ad0ddcdc3ff7e`.
 A new draft PR for the FM-5.3 service is used to obtain fresh CI on its
 current head. Until that workflow completes, do not mark the new service
 CI-validated.
+
+
+### Exact-head validation update — 2026-11-21
+
+For code commit `4af0e9ad6a0980e8c53fe65d8c224610c46017e0`:
+
+- CI #9841: **SUCCESS** — rustfmt, Clippy, workspace unit/integration tests,
+  observability runtime checks and documentation patch hygiene passed.
+- PG differential #377: **SUCCESS** — serial PG/operator, five rhythm latches,
+  AM LFO, FM-3 and integrated Rhythm Mode characterization completed.
+- Rhythm reset differential #300: **SUCCESS**.
+- EG characterization #550: final 38-configuration AR/DR/KSR sweep still
+  running; all preceding capture/replay/KSR/sequencer steps passed.
+
+The integrated Rhythm Mode differential retains only `c_sl`, `eg_sl` and
+`eg_state` candidate differences (8,092; 8,092; and 15,984 rows
+respectively). The SD SL candidate remains 6 versus pinned Nuked's 4.
+No `c_fb` or `c_dm` difference remains in that integrated report.
+
+The FM-5.3 service code is CI-validated as a standalone boundary. It is not
+yet integrated into `Ym2413Core`, the raw DAC conversion path, PCM, or the
+SMS mixer. Do not mark FM-5.3 complete.
