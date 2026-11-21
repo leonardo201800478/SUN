@@ -31,6 +31,12 @@ PATCH_FIELDS = (
     "c_dm",
 )
 
+# DC/DM are two-stage shift latches and can still contain the preceding slot's
+# preset bits when the current selected instrument is the live user patch.
+USER_PATCH_FIELDS = tuple(
+    field for field in PATCH_FIELDS if field not in ("c_dc", "c_dm")
+)
+
 
 def load_rows(path: Path, label: str) -> list[dict[str, object]]:
     """Load a non-empty JSONL trace."""
@@ -87,9 +93,9 @@ def main() -> int:
         observed_instruments.add(instrument)
         cycles.add(int(expected["cycle_before"]))
 
-        signature = tuple(normalized(expected[field]) for field in PATCH_FIELDS)
+        signature = tuple(normalized(expected[field]) for field in USER_PATCH_FIELDS)
         if instrument == 0:
-            rust_signature = tuple(normalized(actual[field]) for field in PATCH_FIELDS)
+            rust_signature = tuple(normalized(actual[field]) for field in USER_PATCH_FIELDS)
             if signature != rust_signature:
                 raise ValueError(
                     f"call {index}: user-patch latch mismatch "
@@ -141,7 +147,8 @@ def main() -> int:
                 "serial_cycles": sorted(cycles),
                 "observed_instrument_codes": sorted(observed_instruments),
                 "exact_fields": list(EXACT_FIELDS),
-                "user_patch_fields": list(PATCH_FIELDS),
+                "user_patch_fields": list(USER_PATCH_FIELDS),
+                "delayed_waveform_fields": ["c_dc", "c_dm"],
                 "user_patch_signatures": len(user_patch_signatures),
                 "preset_candidate_differences": list(candidate_differences.values()),
                 "preset_candidate_difference_count": sum(
