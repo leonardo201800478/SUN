@@ -2,7 +2,7 @@
 
 ## 1. Identificação e escopo
 
-- Projeto: Sega Emulator — Emulação de Alta Precisão.
+- Projeto: SUN — Strife Uranus Neptune — Emulação de Alta Precisão.
 - Ambiente: Windows x64, PowerShell, toolchain MSVC; Rust reportado como 1.99.1.
 - Branch auditada: `main`.
 - HEAD local e remoto confirmado durante a auditoria: `ae90f82b991dc6c85d7386ef7d4b11594473af51`.

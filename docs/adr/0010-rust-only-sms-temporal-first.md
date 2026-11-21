@@ -10,7 +10,7 @@
 
 ## 1. Decisão definitiva
 
-O Sega Emulator será um produto integralmente Rust. Python deixa de ser linguagem de produção, integração, teste, tooling ou referência versionada do projeto. A interface desktop será egui/eframe. PySide6/Qt, PyO3, Maturin, pytest, Ruff, setuptools, uv e todo o empacotamento Python serão removidos.
+O SUN — Strife Uranus Neptune será um produto integralmente Rust. Python deixa de ser linguagem de produção, integração, teste, tooling ou referência versionada do projeto. A interface desktop será egui/eframe. PySide6/Qt, PyO3, Maturin, pytest, Ruff, setuptools, uv e todo o empacotamento Python serão removidos.
 
 Não haverá frontend legado nem frontend de biblioteca nesta etapa. O executável nativo terá somente uma interface operacional mínima em egui: menus do emulador, abertura/carregamento de mídia quando a sessão SMS estiver integrada, comandos de ciclo de vida e apresentação de estado. Não implementar agora biblioteca visual, scraper, catálogo visual ou painéis de configuração extensos.
 

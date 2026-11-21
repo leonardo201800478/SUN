@@ -1,4 +1,4 @@
-# Arquitetura — Sega Emulator
+# Arquitetura — SUN — Strife Uranus Neptune
 
 **Baseline:** `main` `be883792025de3db7eaf4e7b8243293ea90b7e06` (2026-11-17).
 **Decisões normativas:** ADR 0010 (runtime Rust), ADR 0011 (desktop Slint/WGPU/CPAL) e ADR-0016 (fidelidade observável).
