@@ -753,14 +753,14 @@ mod tests {
     fn restore_state_enforces_the_reachable_pg_increment_bound() {
         let service = Ym2413PgSerialService::new(initial_bank(0));
         let mut state = service.export_state();
-        state.pipeline.pg_increment = YM2413_PG_INCREMENT_MAX + 1;
+        state.pipeline.pg_increment = super::YM2413_PG_INCREMENT_MAX + 1;
         assert_eq!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
         );
 
         let mut state = service.export_state();
-        state.pipeline.pg_increment = YM2413_PG_INCREMENT_MAX;
+        state.pipeline.pg_increment = super::YM2413_PG_INCREMENT_MAX;
         assert!(Ym2413PgSerialService::restore_state(state).is_ok());
     }
 
@@ -770,11 +770,11 @@ mod tests {
         // ((511 * 2 + 7) * 2^7 / 2) * 30 / 2 = 987_840.
         assert_eq!(
             PhaseGenerator::phase_step(0x01ff, 7, 14, true, 2),
-            Ok(YM2413_PG_INCREMENT_MAX)
+            Ok(super::YM2413_PG_INCREMENT_MAX)
         );
         assert_eq!(
             PhaseGenerator::phase_step(0x01ff, 7, 15, true, 2),
-            Ok(YM2413_PG_INCREMENT_MAX)
+            Ok(super::YM2413_PG_INCREMENT_MAX)
         );
     }
 
