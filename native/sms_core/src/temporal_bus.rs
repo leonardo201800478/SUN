@@ -1570,6 +1570,36 @@ mod tests {
     }
 
     #[test]
+    fn japanese_fm_profile_applies_psg_gate_at_scheduler_boundaries() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        bus.write_port(0x7F, 0x81);
+        bus.write_port(0x7F, 0x00);
+        bus.write_port(0x7F, 0x90);
+
+        bus.write_port(0xF2, 0x01);
+        assert!(!bus.psg_output_enabled());
+        advance_internal_cycle(&mut bus, 110, 12_000);
+        let muted = bus.drain_audio_samples(None);
+        assert!(!muted.is_empty());
+        assert!(muted.iter().all(|sample| *sample == 0.0));
+
+        bus.write_port(0xF2, 0x00);
+        assert!(bus.psg_output_enabled());
+        advance_internal_cycle(&mut bus, 111, 12_000);
+        let audible = bus.drain_audio_samples(None);
+        assert!(!audible.is_empty());
+        assert!(audible.iter().any(|sample| sample.abs() > 1.0e-9));
+    }
+
+    #[test]
     fn japanese_fm_profile_cannot_be_selected_for_export_territory() {
         let result = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
             vec![0; 0x4000],
