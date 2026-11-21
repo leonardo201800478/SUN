@@ -619,6 +619,20 @@ mod tests {
     }
 
     #[test]
+    fn maximum_restored_pg_increment_is_reachable_from_legal_parameters() {
+        // FNUM=511 selects PM row 7; position 2 contributes +7.
+        // ((511 * 2 + 7) * 2^7 / 2) * 30 / 2 = 987_840.
+        assert_eq!(
+            PhaseGenerator::phase_step(0x01ff, 7, 14, true, 2),
+            Ok(super::YM2413_PG_INCREMENT_MAX)
+        );
+        assert_eq!(
+            PhaseGenerator::phase_step(0x01ff, 7, 15, true, 2),
+            Ok(super::YM2413_PG_INCREMENT_MAX)
+        );
+    }
+
+    #[test]
     fn service_rejects_invalid_pipeline_snapshot_fields() {
         let service = Ym2413PgSerialService::new(initial_bank(0));
         let mut state = service.export_state();
