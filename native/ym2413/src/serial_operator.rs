@@ -215,6 +215,20 @@ impl Ym2413SerialOperator {
                 eg_ksltl: 0,
                 c_tl: 0,
                 c_ksl_attenuation: 0,
+                c_ksl: 0,
+                c_adrr: [0; 3],
+                c_et: false,
+                c_ksr: false,
+                c_ksr_freq: 0,
+                c_ksl_freq: 0,
+                c_ksl_block: 0,
+                c_sl: 0,
+                c_fnum: 0,
+                c_block: 0,
+                c_multi: 0,
+                c_vib: false,
+                c_instr: 0,
+                c_op: 0,
                 c_fb: 0,
                 c_dc: 0,
                 c_dm: 0,
@@ -232,11 +246,11 @@ impl Ym2413SerialOperator {
         &self.state
     }
 
-    /// Apply the PreparePatch1 KSL/TL latches for the selected operator.
+    /// Apply all PreparePatch1 parameter latches for the selected operator.
     ///
-    /// The caller supplies KSL already converted by the shared channel decoder.
-    /// The resulting EG attenuation is consumed only by a later EnvelopeOutput
-    /// stage; it does not retroactively change the current operator evaluation.
+    /// KSL is supplied both as its raw two-bit code and as the decoded EG
+    /// attenuation. These values are consumed by later EnvelopeOutput/EG
+    /// stages and never retroactively change the current operator evaluation.
     pub fn prepare_patch1(
         &mut self,
         latches: Ym2413SerialOperatorPatch1Latches,
