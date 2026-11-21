@@ -986,7 +986,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             self.pipeline.pg_output,
             operator_rm_enable,
         )?;
-        self.clock_output_pipeline(context, Some(sample.channel_output))?;
+        self.clock_output_pipeline(context, Some(sample.channel_output), false)?;
         self.calculate_increment()?;
         let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
@@ -1640,6 +1640,7 @@ mod tests {
             .unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
+            assert!(service.export_state().previous_channel_output_is_rhythm);
             assert_ne!(service.synthesis().export_state(), synthesis_before);
             assert_ne!(service.operator.export_state(), operator_before);
             let (tick, post) = tick(cycle);
@@ -1673,6 +1674,7 @@ mod tests {
             slot_context.envelope_input.rhythm_select = selector;
 
             service.before_eg_update(&slot_context).unwrap();
+            assert!(!service.export_state().previous_channel_output_is_rhythm);
             assert_eq!(service.synthesis().export_state(), synthesis_before);
             assert_eq!(service.operator.export_state(), operator_before);
             let (tick, post) = tick(12);
