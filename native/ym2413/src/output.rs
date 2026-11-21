@@ -453,11 +453,11 @@ impl Ym2413RhythmOutputService {
     /// Nuked OPLL_Channel positive increment/neutral-code stage. Unknown
     /// input invalidates an original RO retention value and is never replaced
     /// with digital zero or a stale source sample.
-    pub fn process_nuked_cycle_from_channel_output(
+    pub fn process_nuked_cycle_from_measured_level(
         &mut self,
         cycle: u8,
         rhythm_mode_enabled: bool,
-        previous_channel_output: Option<i16>,
+        measured_level: Option<Ym2413DacCode>,
         previous_channel_output_is_rhythm: bool,
     ) -> Result<Ym2413OutputCycleFrame, Ym2413RhythmOutputServiceError> {
         let mo_slot_index = mo_output_slot_for_nuked_cycle(cycle)
@@ -465,9 +465,6 @@ impl Ym2413RhythmOutputService {
         let ro_slot_index = ro_output_slot_for_nuked_cycle(cycle)
             .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(cycle))?;
 
-        let measured_level = previous_channel_output
-            .map(Ym2413DacCode::from_operator_channel_output)
-            .transpose()?;
         let descriptor = slot_descriptor(mo_slot_index)
             .ok_or(Ym2413OutputRoutingError::InvalidSlotIndex(mo_slot_index))?;
         let mo_active = descriptor.operator == Ym2413Operator::Carrier
@@ -498,7 +495,7 @@ impl Ym2413RhythmOutputService {
         // rhythm operator result. Suppress all RO pin events while disabled.
         let rhythm_source_known = rhythm_mode_enabled
             && previous_channel_output_is_rhythm
-            && previous_channel_output.is_some();
+            && measured_level.is_some();
         let original_rhythm_level = (rhythm_source_known && original_rhythm_slot)
             .then_some(measured_level)
             .flatten();
@@ -601,15 +598,15 @@ impl From<Ym2413RhythmOutputServiceError> for Ym2413MeasuredOutputAdapterError {
     }
 }
 
-/// Applies the core-owned prior-ch_out latch and one-cycle output-buffer delay
-/// to the independent measured-domain MO/RO slot service.
+/// Applies the core-owned prior-ch_out provenance and one-cycle output-buffer
+/// delay to the independent measured-domain MO/RO slot service.
 ///
-/// The adapter consumes the prior operator channel-output value supplied by
-/// the core's serial output pipeline. It converts that value to the project's
-/// measured-domain candidate, routes MO and RO with their independent slot
-/// coordinates, and delays the resulting frame by one serial cycle. It does
-/// not convert to a raw DAC word or analog voltage, and does not replace the
-/// separate Nuked software-reference output pipeline.
+/// The caller supplies an optional measured-domain level only after its
+/// operator-to-level conversion has been independently validated. The
+/// adapter does not convert the signed operator intermediate. The current
+/// PG integration deliberately supplies None while that conversion remains
+/// unproven. The adapter does not replace the separate Nuked software-
+/// reference output pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413MeasuredOutputAdapter {
     rhythm_output_service: Ym2413RhythmOutputService,
@@ -707,7 +704,7 @@ impl Ym2413MeasuredOutputAdapter {
         &mut self,
         cycle: u8,
         rhythm_mode_enabled: bool,
-        previous_channel_output: Option<i16>,
+        measured_level: Option<Ym2413DacCode>,
         previous_channel_output_is_rhythm: bool,
     ) -> Result<Option<Ym2413MeasuredOutputAdapterFrame>, Ym2413MeasuredOutputAdapterError> {
         let expected_cycle = self.next_cycle();
@@ -719,10 +716,10 @@ impl Ym2413MeasuredOutputAdapter {
         }
         let current = self
             .rhythm_output_service
-            .process_nuked_cycle_from_channel_output(
+            .process_nuked_cycle_from_measured_level(
                 cycle,
                 rhythm_mode_enabled,
-                previous_channel_output,
+                measured_level,
                 previous_channel_output_is_rhythm,
             )?;
         let emitted = self
