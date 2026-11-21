@@ -2,7 +2,7 @@
 
 ## Reproducibility record
 
-- Sega Emulator branch: tools/ym2413-nuked-oracle-trace
+- SUN — Strife Uranus Neptune branch: tools/ym2413-nuked-oracle-trace
 - Captured HEAD: 474e32ed1d48c093c4e2965a3e3380623bc6fac3
 - Production base commit: 0e8025e476eee12135f4c0f7def9dead7dfcaa14
 - Production EG source blob: 1b97fb803b8bcefb1d9243dbb96f71cef5ff3503

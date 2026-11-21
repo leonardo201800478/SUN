@@ -4,7 +4,7 @@
 
 ## Objetivo deste registro
 
-Preservar o estado confirmado do projeto Sega Emulator ao encerrar a sessão, para que a próxima sessão continue deste ponto sem repetir a sincronização nem recomeçar a auditoria.
+Preservar o estado confirmado do projeto SUN — Strife Uranus Neptune ao encerrar a sessão, para que a próxima sessão continue deste ponto sem repetir a sincronização nem recomeçar a auditoria.
 
 ## Repositório e estado Git confirmado
 

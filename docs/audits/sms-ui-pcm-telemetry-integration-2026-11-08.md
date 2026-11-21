@@ -58,7 +58,7 @@ A aplicação mantém uma lista limitada às dez ROMs carregadas com sucesso. A 
 - remove duplicatas e move a ROM reaberta para o início;
 - ignora entradas cujo arquivo não existe mais;
 - limita o histórico a dez entradas;
-- usa o diretório de dados da aplicação em `APPDATA/Sega Emulator/recent_roms.txt`.
+- usa o diretório de dados da aplicação em `APPDATA/SUN — Strife Uranus Neptune/recent_roms.txt`.
 
 Foi adicionado teste unitário para ordenação, deduplicação e limite da lista. O carregamento pelo menu de recentes reutiliza o fluxo normal de abertura da ROM.
 

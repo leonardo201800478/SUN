@@ -1,4 +1,4 @@
-# Documentação do Sega Emulator
+# Documentação do SUN — Strife Uranus Neptune
 
 Este diretório reúne decisões normativas, escopo, roadmap, status, arquitetura, auditorias, evidências e documentos históricos.
 
@@ -13,6 +13,8 @@ Este diretório reúne decisões normativas, escopo, roadmap, status, arquitetur
 PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o estado integrado da main.
 
 ## Documentos de controle
+
+- [Identidade, nomenclatura e independência do SUN](branding-and-trademark-policy.md)
 
 - [Escopo do projeto](project-scope.md)
 - [Roadmap mestre](project-roadmap.md)

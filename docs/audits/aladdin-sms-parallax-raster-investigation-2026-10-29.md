@@ -30,7 +30,7 @@ Investigação relacionada: PR #261 — https://github.com/leonardo201800478/seg
 ## Plano de investigação
 
 1. Registrar identificação local da ROM (tamanho e SHA-256) apenas em ambiente local, sem incluir a ROM nem dados que permitam reconstruí-la no Git.
-2. Reproduzir a primeira fase desde o mesmo ponto e capturar a mesma sequência no Sega Emulator e em um emulador de referência, preferencialmente Ares; registrar versão, região e padrão de vídeo.
+2. Reproduzir a primeira fase desde o mesmo ponto e capturar a mesma sequência no SUN — Strife Uranus Neptune e em um emulador de referência, preferencialmente Ares; registrar versão, região e padrão de vídeo.
 3. Distinguir erro dentro de um frame (pixels/linhas deslocados) de erro entre frames (cadência/judder).
 4. Instrumentar, apenas em execução de diagnóstico, escritas relevantes nos registradores do VDP e eventos de avanço raster: frame, scanline, T-state na linha, porta/registrador e valor. Evitar logs contínuos no caminho crítico fora da reprodução controlada.
 5. Determinar se a divergência aparece após uma escrita intra-scanline, na mudança de linha, na leitura de VRAM/sprites ou somente na apresentação.

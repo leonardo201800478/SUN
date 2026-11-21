@@ -242,7 +242,7 @@ Não implementar ainda. A auditoria Z80/barramento identificou que a CPU atual n
 - [ ] Testes HINT/R10, status read/ack e linha INT em ordem temporal.
 - [ ] Regressões de scroll fino, scroll vertical, coluna fixa, sprites, CRAM, PAL/NTSC e modos 192/224/240.
 - [ ] CI no SHA candidato exato.
-- [ ] Teste manual no Windows com capturas equivalentes de referência e do Sega Emulator.
+- [ ] Teste manual no Windows com capturas equivalentes de referência e do SUN — Strife Uranus Neptune.
 - [ ] Evidência do caso Aladdin ou outro caso sintético que reproduza a classe de defeito.
 - [ ] `TEMPORAL_PASS` somente após cobertura e evidência apropriadas.
 
