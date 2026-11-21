@@ -13,7 +13,7 @@ use crate::slot::Ym2413SlotServiceEvent;
 pub(crate) struct Ym2413SlotServiceContext {
     pub event: Ym2413SlotServiceEvent,
     /// Register image after the mode-write stage and before the normal write stage.
-    pub registers: [u8; 64],
+    pub registers: [u8; crate::YM2413_REGISTER_COUNT],
     /// Decoded input that will be consumed by the core-owned serial EG.
     pub envelope_input: EnvelopeSlotInput,
     /// Complete pre-update serial EG state, including DOKON and key pipelines.
