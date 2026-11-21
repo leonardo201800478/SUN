@@ -576,7 +576,7 @@ pub struct Ym2413MeasuredOutputAdapter {
     next_cycle: u8,
     rhythm_output_service: Ym2413RhythmOutputService,
     pending_frame: Option<Ym2413OutputCycleFrame>,
-    last_frame: Option<Ym2413OutputCycleFrame>,
+    last_frame: Option<Ym2413MeasuredOutputAdapterFrame>,
 }
 
 impl Ym2413MeasuredOutputAdapter {
@@ -672,7 +672,7 @@ impl Ym2413MeasuredOutputAdapter {
         cycle: u8,
         rhythm_mode_enabled: bool,
         previous_channel_output: Option<i16>,
-    ) -> Result<Option<Ym2413OutputCycleFrame>, Ym2413MeasuredOutputAdapterError> {
+    ) -> Result<Option<Ym2413MeasuredOutputAdapterFrame>, Ym2413MeasuredOutputAdapterError> {
         if cycle != self.next_cycle {
             return Err(Ym2413MeasuredOutputAdapterError::InvalidCycle {
                 expected: self.next_cycle,
