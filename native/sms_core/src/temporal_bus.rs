@@ -1175,6 +1175,68 @@ mod tests {
     }
 
     #[test]
+    fn japanese_fm_profile_routes_register_ports_control_and_clock_state() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+
+        assert!(bus.ym2413().is_some());
+        assert!(!bus.fm_output_enabled());
+        assert!(bus.psg_output_enabled());
+
+        bus.write_port(0xF0, 0x10);
+        bus.write_port(0xF1, 0xA5);
+        assert_eq!(bus.ym2413().unwrap().export_state().registers[0x10], 0xA5);
+
+        bus.write_port(0xF2, 0x03);
+        assert_eq!(bus.read_port(0xF2), 0x03);
+        assert!(bus.fm_output_enabled());
+        assert!(bus.psg_output_enabled());
+
+        bus.write_port(0xF2, 0x01);
+        assert!(!bus.psg_output_enabled());
+        assert!(bus.fm_output_enabled());
+
+        bus.schedule_internal_cycle(91, 72).unwrap();
+        assert!(matches!(
+            bus.dispatch_next().unwrap(),
+            Some(SmsTemporalDispatch::InternalCycleComplete(_))
+        ));
+        assert_eq!(bus.ym2413().unwrap().export_state().elapsed_input_clocks, 72);
+        bus.acknowledge_internal_completion(91).unwrap();
+
+        let state = bus.export_state();
+        let restored = SmsTemporalBus::restore_state(state).unwrap();
+        assert_eq!(
+            restored.ym2413().unwrap().export_state(),
+            bus.ym2413().unwrap().export_state()
+        );
+        assert_eq!(restored.read_port(0xF2), 0x01);
+    }
+
+    #[test]
+    fn japanese_fm_profile_cannot_be_selected_for_export_territory() {
+        let result = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Export,
+        );
+        assert!(matches!(
+            result,
+            Err(SmsTemporalBusError::UnsupportedFmHardwareProfile)
+        ));
+    }
+
+    #[test]
     fn sms1_offscreen_vertical_border_collision_crosses_scheduler_frame_boundary_and_restores() {
         const FRAME_TSTATES: u32 = 262 * 228;
 
