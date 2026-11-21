@@ -12,7 +12,19 @@
 
 Não há filtros nativos Rust/WGSL conectados ao host atual. Não há runtime librashader integrado.
 
-## 2. Arquitetura-alvo
+## Objetivo visual: CRT de referência reconstruído em 4K
+
+O objetivo não é fazer upscale convencional de um jogo de baixa resolução. É usar a densidade de amostragem de 4K para reconstruir os fenômenos espaciais de um CRT de alta qualidade: máscara RGB de fósforos (shadow mask/aperture grille), perfil do feixe/spot, scanlines, espalhamento e bloom controlados, convergência e resposta temporal. O framebuffer original permanece intacto; a resolução 4K pertence apenas à etapa de reconstrução e apresentação.
+
+A máscara RGB deve ser posicionada em coordenadas físicas do display, com alinhamento e frequência estáveis, evitando moiré e cintilação em escalas fracionárias. A energia luminosa deve ser processada em espaço linear. A paleta de origem permanece estritamente determinada pelo VDP/CRAM do SG-1000, SMS ou Game Gear. Wide gamut/HDR não deve inventar cores inexistentes no hardware.
+
+Não generalizar todos os modos como 240p: dimensões ativas, totais e cadência devem vir do perfil de hardware e região. Manter perfis separados para RGB direto e vídeo composto.
+
+## VRR para PAL europeu
+
+VRR pode acompanhar a cadência próxima de 50 Hz dos jogos PAL quando a frequência estiver dentro da faixa suportada pelo display. Isso reduz tearing e irregularidade de frame pacing ao evitar a conversão forçada para uma atualização fixa de 60 Hz, podendo amenizar a sensação de movimento irregular ou arrastado. Não aumenta a velocidade do jogo nem remove a cadência original de 50 Hz. O Scheduler e o áudio permanecem vinculados ao tempo emulado; VRR altera somente a apresentação.
+
+## ## 2. Arquitetura-alvo
 
     VDP / runtime (frame completo, imutável)
                      |
