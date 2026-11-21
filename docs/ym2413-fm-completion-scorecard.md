@@ -1271,7 +1271,11 @@ A caracterização EG run 44856572947 ainda estava em execução no momento dest
 | Rust CI | 44865109035 | PASS; Rustfmt, Clippy, workspace unit/integration tests, observability feature tests, workflow validation e documentation hygiene |
 | External Nuked oracle adapter | 44865109047 | PASS |
 | Rhythm reset differential | 44865109138 | PASS; não implica Rhythm Mode completo |
-| EG characterization | 44865109038 | Em execução no momento desta atualização; não contabilizado como PASS |
+| EG characterization | 44852382767 / 44865109038 | PASS no HEAD exato de #1133 (`c25511a7`) e no código FM-3A empilhado (`b538a690`); sweep de 38 configurações AR/DR/KSR completo |
+
+- EG characterization no HEAD exato da PR #1133: run `44852382767` (run #258) **SUCCESS**, incluindo 38 configurações AR/DR/KSR.
+- EG characterization no código FM-3A empilhado: run `44865109038` (run #402) **SUCCESS**.
+- CI após a atualização documental: run `44865413665` **SUCCESS**; PG differential no mesmo HEAD documental: run `44865413667` **SUCCESS**.
 
 ### Cobertura diferencial FM-3A
 
@@ -1288,6 +1292,6 @@ A caracterização EG run 44856572947 ainda estava em execução no momento dest
 - Snapshot/restauração conjunta de `Ym2413Core` e `Ym2413PgSerialService`, inclusive checkpoint após 37 input clocks: teste adicionado e executado pelo CI.
 - Rollback transacional após falha injetada no ciclo 3 e retry comparado com execução de referência: teste adicionado e executado pelo CI.
 - Clone independente e snapshots do serviço PG: testes existentes preservados e executados pelo CI.
-- Dois findings P2 da revisão da PR #1147 estão resolvidos; nenhum thread de revisão permanece aberto.
+- Findings: P1 da PR #1133 (aguardar EG characterization), P1 da PR #1145 e dois P2 da PR #1147 estão resolvidos com evidências e respostas. Nenhum thread de revisão permanece aberto nas três PRs empilhadas.
 
 **Limite da conclusão:** FM-3A tem equivalência diferencial integrada demonstrada e seus testes Rust passaram. Isso não conclui FM-3 inteiro, FM-4, Rhythm Mode, acumulação digital de canais, PCM, mixer ou integração SMS. Não fazer merge antes da auditoria final das dependências empilhadas e do resultado final da caracterização EG.
