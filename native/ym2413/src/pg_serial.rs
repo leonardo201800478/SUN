@@ -555,8 +555,8 @@ mod tests {
         let context = context(0, [0; 64], 0x04);
         service.before_eg_update(&context).unwrap();
 
-        let output = slot_descriptor(0).unwrap();
-        let written = slot_descriptor(17).unwrap();
+        let output = nuked_pg_phase_slot_descriptor(0).unwrap();
+        let written = nuked_pg_phase_slot_descriptor(17).unwrap();
         assert_eq!(
             service
                 .synthesis()
