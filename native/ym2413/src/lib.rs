@@ -380,9 +380,13 @@ impl Ym2413Core {
     /// succeeds. A failed callback therefore leaves both caller-owned states
     /// unchanged, making a retry deterministic.
     ///
-    /// The service must be a cloneable, in-memory state machine. Its callbacks
-    /// must not perform externally visible side effects because cloning cannot
-    /// roll those effects back. The host still advances the chip in
+    /// The service must be a cloneable, in-memory state machine. `Clone` must
+    /// produce an independent copy of every mutable field that callbacks can
+    /// change; shallowly shared mutation through `Arc<Mutex<_>>`, atomics, or
+    /// external handles violates this transaction contract unless mutations are
+    /// independently staged/copy-on-write. Callbacks must not perform externally
+    /// visible side effects because cloning cannot roll those effects back.
+    /// The host still advances the chip in
     /// coarse-grained input-clock blocks; these hooks are not host callbacks.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn advance_input_clocks_with_slot_service<
