@@ -1,59 +1,139 @@
 # YM2413 FM Completion Scorecard
 
-**Data de referência:** 2026-11-21
-**Repositório:** `leonardo201800478/SUN`
-**Main atual:** `7e275424112d60f42b83380b60786fbd640c18b0`
-**PR #1154 — FM-5.2A:** merged into `main` at `50f549cf28da4f268304908ae44717fe402dd708`; the LFSR cadence increment remains explicitly seed-candidate based.
-**PR #1156 — FM-5.2B:** merged into `main` at `f955bc42dfff6565e4719653c2834bf271884bac`; candidate synthesis differences and physical seed/patch uncertainty remain documented.
-**PR #1157 — FM-5.3:** open draft, being synchronized with the published `main`; contains the independent measured-domain MO/RO service and signed-zero retention.
+**Data de referência:** 2026-11-21  
+**Repositório:** `leonardo201800478/SUN`  
+**Main atual:** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 
-Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
+**PRs FM integradas:**
+- **#1154 — FM-5.2A:** merge `50f549cf28da4f268304908ae44717fe402dd708`; cadência do ruído Rhythm Mode, ainda baseada em seed-candidate.
+- **#1156 — FM-5.2B:** merge `f955bc42dfff6565e4719653c2834bf271884bac`; roteamento serial dos operadores de percussão.
+- **#1157 — FM-5.3:** merge `00d9758a3d67b9f6df9e8cde04bafdb9f7bba36b`; serviço medido MO/RO independente, retenção e signed zero.
+- **#1158 — FM-5.3:** merge `29c290c334cc53ea70a47d8b9ac1f8cf2192557f`; pipeline de referência MO/RO do Nuked integrado ao serviço PG.
+- **#1159 — adaptador MO/RO medido:** merge `eb01ca8a7ee6224a98e872143b41f0b28137b292`; integração temporal, procedência do latch, buffer e snapshots.
+
+Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Um workflow PASS comprova a execução do teste declarado, não a fidelidade física do chip.
 
 ## Estado executivo
 
-**Status geral: EM DESENVOLVIMENTO — YM2413 ainda não está pronto para testes de ROM como subsistema de áudio funcional.**
+**Status geral: EM DESENVOLVIMENTO — YM2413 ainda não fornece PCM FM funcional integrado ao runtime SMS.**
 
-Na `main` permanecem integrados os marcos FM-1, FM-2 e FM-3A: EG serial core-owned, serviço PG serial, operador FM, feedback, AM LFO e snapshots. As PRs #1133, #1145 e #1147 estão integradas. O FM-3A foi validado diferencialmente contra o Nuked-OPLL em 147.456 chamadas `OPLL_Clock`.
+FM-1, FM-2 e FM-3A permanecem integrados. FM-5.2A/B, o serviço medido MO/RO, o pipeline de referência Nuked e o adaptador medido ao PG serial estão publicados na `main`.
 
-As PRs #1154, #1156 e #1157 continuam fora da main e empilhadas. FM-5.2C corrigiu a propriedade serial dos campos FB/DM do BD: o diferencial PG #364 eliminou `c_fb`/`c_dm` das divergências integradas. A divergência SD SL=6 (candidato de captura) versus SL=4 (Nuked fixado) e os estados EG dependentes continuam abertos; a tabela candidata não foi alterada para forçar paridade.
+A PR #1159 fecha a integração temporal e de procedência do adaptador, não a conversão de amplitude. O adaptador recebe um nível explícito do domínio de medição (`Option<Ym2413DacCode>`). O PG integrado fornece deliberadamente `None` enquanto não houver prova independente da correspondência entre o latch `ch_out` e os níveis medidos. Não há conversão de produção do `i16` do operador para nível medido, palavra DAC ou PCM.
 
-A PR draft #1157 acrescenta o serviço serial MO/RO, reutilizando a retenção existente, preservando as seis posições MO melódicas e as cinco saídas RO repetidas. A retenção agora preserva os dois níveis centrais medidos `-0` e `+0`, com snapshots v2. O último código `27650ff687c9495415644bca1db30585ffed21b9` recebeu CI #9852 **PASS**, PG differential #388 **PASS** e Rhythm reset #311 **PASS**. EG characterization #561 permanece em execução.
+A procedência do latch anterior é derivada do dispatch serial concluído, persistida no snapshot PG versão 12. O adaptador usa estado versão 2 e deriva o ciclo esperado do cursor RO, sem criar um segundo cursor serial. O buffer de um ciclo mantém ciclo de origem e ciclo de emissão separados. `ModeInactive` não significa silêncio elétrico; `UnknownSource` e `RepeatNotInitialized` não são convertidos em zero.
 
-A caracterização EG #550 concluiu como replay do Nuked, não como captura física: 506.768 replays de operador, 1.140.000 chamadas de sequenciador e 1.140.000 de timer sem divergências de replay; a matriz de 38 configurações ainda apresenta 44.064 divergências de nível e 71 de estágio para o candidato phase-minus-three. O candidato de fase externa é alimentado por latches e estados extraídos do próprio Nuked, portanto não é independente nem utilizável como correção de produção.
+### Estado de fechamento por subsistema
 
-Ainda faltam validação física de patches/seed, integração MO/RO ao core, palavra bruta do DAC e sua fase subclock, PCM, acumulação dos nove canais, portas FM F0–F2 no SMS e mixer PSG+FM. Não há PCM FM integrado ao runtime SMS nem validação física do chip.
+- **PG/PM:** caracterização diferencial de software executada; divergências remanescentes ainda não explicadas. Não declarar PG/PM semanticamente fechados.
+- **EG:** matriz de 38 configurações ainda apresenta 44.064 divergências de nível e 71 de estágio. Os replays sem divergência são caracterização/replay, não prova física. Não declarar EG concluído.
+- **Rhythm Mode:** PRs #1154/#1156 integradas; seed físico e ROM interna de patches continuam incertos. Divergência candidata `c_sl`/ `eg_sl` (Nuked 4 versus Rust 6) e estados EG associados permanecem documentados.
+- **MO/RO medido:** coordenadas independentes, retenção, signed zero, procedência do latch e buffer integrados. Níveis MO/RO no core continuam desconhecidos até validação da conversão.
+- **Pipeline Nuked:** referência de software separada e diferencialmente validada; não é prova de pinos físicos.
+- **DAC/PCM:** palavra digital bruta de 9 bits, codificação/sinal, fase subclock e PCM ainda não definidos.
+- **Runtime SMS/áudio:** faltam acumulação dos nove canais, integração FM temporal no runtime, mixer PSG+FM e saída PCM ao host CPAL.
 
 ## Marcos já publicados
 
 | Marco | Resultado | Evidência |
 |---|---|---|
-| Auditoria inicial | Integrada | PR #994; `docs/audits/ym2413-pre-implementation-audit-2026-11-17.md` |
-| Fundação YM2413 | Integrada | PR #996; latch, registradores, 18 slots, 4 clocks/slot, rotação de 72 clocks, snapshot base |
-| PG-1 | Integrada | PR #997; commit `a6adda38cc7db9317e93ca3c072f980fb5d239ec` |
-| PM LFO global | Integrado | PR #998; commit `fc383defbe035e699f33b07e7a525cfdb5b7fa5a` |
-| Auditoria de alinhamento PM | Integrada | PR #999; merge commit `1ce082a950ce2940b3f3de4c56dc7dbf37c536f9` |
-| EG candidato | Integrado | PR #1001; merge commit `995dce7025b189ba25ce82a2dbf665d9cce9fb14` |
-| Operadores FM e KSL | Integrados como candidatos isolados | PR #1003; merge commit `c9285d2fc2d8e3987197d5186478dae784da1570` |
-| AM LFO | Integrado como candidato sample-clocked | PR #1005; merge commit `daf950d0e0bf3242dfb213d5e9e50a24db19a70e` |
-| EG serial core-owned | Integrado e diferencialmente caracterizado | PR #1084; 18 operadores, 38 combinações AR/DR/KSR e replay do core |
+| Auditoria inicial e fundação YM2413 | Integradas | PRs #994/#996; latch, registradores, 18 slots, 4 clocks/slot e snapshots base |
+| PG-1 e PM LFO global | Integrados como candidatos caracterizados | PRs #997/#998/#999; diferenças de fase ainda exigem evidência independente |
+| EG serial core-owned | Integrado, sem fechamento semântico | PR #1084; 18 EGs, timer, KON/OFF/DOKON/SUS e snapshots |
 | Hooks core-owned | Integrados | PR #1133; fronteira serial before/after EG |
-| Serviço PG serial | Integrado e diferencialmente validado | PR #1145; 18 acumuladores, PG/PM latches, reset event e snapshots |
-| Operador serial FM-3A | Integrado e diferencialmente validado | PR #1147; feedback, AM LFO serial e 147.456 chamadas OPLL_Clock |
+| Serviço PG serial | Integrado | PR #1145; 18 acumuladores, PG/PM latches, reset e snapshots |
+| Operador FM-3A | Integrado e diferencialmente caracterizado | PR #1147; feedback, AM LFO serial e 147.456 chamadas OPLL_Clock |
+| FM-5.2A — ruído Rhythm | Integrado como candidato | PR #1154; cadência e seed físico ainda não certificados |
+| FM-5.2B — operadores de percussão | Integrado como candidato | PR #1156; roteamento serial; incertezas de patch/EG preservadas |
+| FM-5.3 — serviço medido MO/RO | Integrado | PR #1157; coordenadas independentes, retenção e signed zero |
+| FM-5.3 — referência Nuked MO/RO | Integrada | PR #1158; pipeline de software separado do modelo medido |
+| Adaptador medido MO/RO no PG | Integrado em temporização/procedência | PR #1159; snapshot PG v12, adaptador v2, buffer de um ciclo; nível medido deliberadamente desconhecido |
 
-## Roadmap vigente de fechamento — estado após PR #1147 e trabalho empilhado FM-5.2A/B (2026-11-21)
+## Roadmap vigente de fechamento — estado após PR #1159 (2026-11-21)
 
 | Gate | Escopo | Estado atual | Evidência / bloqueio real |
 |---|---|---|---|
-| FM-1 | EG serial core-owned e contrato de eventos | **Integrado; diferencial de software aprovado** | PRs #1084 e #1133. O core mantém os 18 EGs e fornece os hooks before/after slot; não há certificação elétrica das subfases internas. |
-| FM-2 | PG serial e integração PG↔EG | **Integrado; diferencial de software aprovado** | PR #1145. 18 acumuladores, latches PG/PM, evento de reset de fase e snapshots; diferencial Nuked e limites de restauração aprovados. O alinhamento físico absoluto continua em aberto. |
-| FM-3 | Operadores, feedback e modulação | **FM-3A integrado e validado; FM-3 global parcial** | PR #1147. Operador serial, feedback de dois samples e AM LFO serial com diferencial integrado PASS. Faltam acumulação/roteamento final dos nove canais e PCM. |
-| FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder de registradores, patches candidatos e `evaluate_channel` existem. Ainda falta serviço temporal que percorra os nove canais e acumule uma amostra YM2413 final; presets não certificados por medição física. |
-| FM-5 | Rhythm Mode | **Parcial — FM-5.2A/5.2B publicados como candidatos; FM-5.3 em integração** | PRs #1154 e #1156 integradas à main. O candidato mantém `c_sl`/`eg_sl` (Nuked 4 vs Rust 6) e `eg_state` documentados; seed físico e patch ROM não certificados. PR #1157 contém o serviço medido MO/RO; PR #1158 contém o pipeline de referência Nuked, sem equivaler ao adaptador físico. |
-| FM-6 | Saída digital FM / DAC / PCM | **Parcial — MO/RO medido e referência Nuked separados; DAC/PCM pendentes** | PR #1157 implementa coordenadas MO/RO independentes e retenção dos níveis medidos, preservando `-0`/`+0`. PR #1158 integra apenas o pipeline digital de referência Nuked. Falta integração do adaptador medido ao core, palavra bruta do DAC, janela subclock e PCM. |
+| FM-1 | EG serial core-owned e contrato de eventos | **Integrado; sem fechamento físico/semântico** | PRs #1084/#1133. Divergências da matriz EG continuam abertas. |
+| FM-2 | PG serial e integração PG↔EG | **Integrado; caracterização diferencial executada** | PR #1145. PG/PM ainda têm diferenças não explicadas e alinhamento físico absoluto não comprovado. |
+| FM-3 | Operadores, feedback e modulação | **FM-3A integrado; FM-3 global parcial** | PR #1147. Falta acumulação/roteamento final dos nove canais e saída PCM. |
+| FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder e patches candidatos existem; falta serviço temporal dos nove canais e acumulação final. Presets não certificados por hardware. |
+| FM-5 | Rhythm Mode | **Parcial — FM-5.2A/B e serviço MO/RO publicados** | PRs #1154/#1156/#1157/#1159. Seed físico, patch ROM, divergência `c_sl`/`eg_sl` e estados EG permanecem abertos. |
+| FM-6 | Saída digital FM / DAC / PCM | **Parcial — agenda/proveniência MO/RO integrada; níveis/DAC/PCM pendentes** | PR #1157 serviço medido; #1158 referência Nuked; #1159 adaptador temporal. PG fornece `None` até conversão validada. Falta palavra DAC, fase subclock e PCM. |
 | FM-7 | Perfis de hardware e integração SMS | **Pendente** | Portas F0–F2, latch/barramento, perfil Mark III/FM Unit e controle FM Auto/Off/On ainda não integrados ao runtime SMS. |
 | FM-8 | Mixer PSG + FM e áudio | **Pendente** | Acumulação determinística, mixer PSG+FM, resampling/saída host e snapshots agregados da máquina ainda não integrados. |
 
-As seções históricas abaixo registram a evolução por PR e hipótese. Em caso de divergência, esta tabela e a seção final de estado consolidado prevalecem.
+## Inventário funcional consolidado (main `eb01ca8a`, 2026-11-21)
+
+| Recurso | Implementação | Integração / validação |
+|---|---|---|
+| Latch e imagem de 64 registradores | Implementados | Integrados ao crate |
+| Máquina de 18 slots | Implementada | Rotação de 72 clocks; pipeline funcional FM ainda pendente |
+| PG-1 + serviço serial | Integrado | PR #1145; 18 acumuladores, latches PG/PM, reset e snapshots |
+| PM LFO global | Implementado | Período 8192 amostras; alinhamento absoluto continua em investigação |
+| EG serial (18 operadores) | Integrado ao core | PR #1084; matriz de 38 configurações ainda apresenta divergências de nível/estágio |
+| Log-Sine / EXP | Tabelas inteiras e lookup | Diferencial de software; não implica validação física independente |
+| Modulator / carrier | FM-3A integrado | PR #1147; falta acumulação final dos canais e PCM |
+| Feedback FM | Integrado em FM-3A | Histórico de dois samples por canal; sem mixer/PCM final |
+| KSL | Lookup BLOCK/FNUM e escala KSL=0..3 | Consumido pelo caminho de parâmetros; presets continuam candidatos |
+| AM LFO | Serial AM integrado em FM-3A | Diferencial de software aprovado; não certifica fase física absoluta |
+| Instrument ROM | 15 patches candidatos e user patch decoder | Valores não são dump físico certificado |
+| Channel register decode | FNUM/BLOCK/KEY-ON/SUSTAIN/INST/VOL | Ponte estática existe; falta dispatcher temporal dos nove canais |
+| Rhythm / LFSR | Parcial; FM-5.2A/B integradas | Seed físico e patch ROM não certificados; diferenças de SL/EG permanecem |
+| Serviço medido MO/RO | Integrado | PR #1157; offsets independentes, retenção, `-0`/`+0` e snapshots |
+| Adaptador MO/RO no PG | Integrado em temporização/proveniência | PR #1159; buffer de um ciclo, procedência do latch e snapshots; níveis desconhecidos (`None`) |
+| Pipeline de referência Nuked | Integrado | PR #1158; referência de software, não comportamento físico medido |
+| Palavra digital bruta do DAC | **Não definida** | Datasheet especifica conversor DA de 9 bits; medições mostram 512 níveis analógicos, mas não estabelecem a palavra interna nem a correspondência com `ch_out` |
+| Portas F0–F2 | Não integradas | Pendente |
+| Mixer FM + PSG | Pendente | Nenhuma soma PCM final FM+PSG nem mixer integrado ao runtime |
+| Save State agregado | Parcial | PG serial v12 e adaptador v2 preservam procedência/cursor em limite de slot concluído; falta snapshot único da máquina SMS incluindo scheduler, canais, saída e PCM |
+| PCM FM | **Não disponível** | Não há amostra PCM FM final integrada; `Ym2413DacCode` representa nível do domínio de medição, não palavra bruta do DAC |
+
+## Validação publicada da integração MO/RO — PR #1159
+
+| Workflow | Run | Resultado | Interpretação |
+|---|---:|---|---|
+| Rust workspace / quality / unit regression | #44939611035 | **PASS** | Rustfmt, Clippy e testes aplicáveis aprovados |
+| YM2413 PG differential | #44939611011 | **PASS** | Comparação executada; divergências PG/PM continuam caracterizadas |
+| EG characterization | #44939611021 | **PASS** | Execução concluída; EG continua semanticamente aberto |
+| Output pipeline differential | #44939611027 | **PASS** | 1.200 chamadas OPLL_Clock, sem divergência no pipeline de referência |
+| Rhythm reset differential | #44939611036 | **PASS** | 144 chamadas e 16 decisões de reset de fase verificadas |
+
+### PG/PM — resultados do diferencial
+
+- PG: 65.536 tuplas-base; zero divergências após normalização por floor; 256 diferenças exatas de unidade comum/meio LSB.
+- PM: 524.288 tuplas; 404.965 divergências de floor na comparação sem rotação.
+- Melhor alinhamento cíclico observado: deslocamento 6; ainda restam 135.136 divergências de floor.
+- O workflow PASS significa que a comparação foi executada e o relatório foi produzido; não significa equivalência física nem fechamento semântico.
+
+### EG — resultados da caracterização
+
+- Matriz de 38 configurações: 243.884 amostras, 44.064 divergências de nível e 71 divergências de estágio.
+- Replay de operador: 506.768 amostras sem divergências de nível/estágio.
+- Replay de sequenciador: 1.140.000 chamadas sem divergências de campos.
+- Replay de timer: 1.140.000 chamadas sem divergências de campos.
+- A fase externa caracterizada depende de latches/estados derivados do Nuked; não é oracle físico independente e não autoriza correção teacher-forced.
+
+## Limitações e próximo gate
+
+1. Estabelecer independentemente a correspondência entre o intermediário do operador e os níveis medidos.
+2. Determinar palavra digital bruta do DAC, largura, codificação e sinal.
+3. Determinar fase/janela subclock da saída.
+4. Implementar conversão digital para PCM e relação exata com master clock.
+5. Implementar acumulação temporal dos nove canais.
+6. Integrar FM ao runtime SMS sem transferir lógica de hardware para Slint/WGPU/CPAL.
+7. Integrar mixer PSG+FM e saída host sem permitir que o host controle o relógio do hardware.
+8. Fechar seed físico/patch ROM de Rhythm Mode e divergências PG/PM/EG.
+
+**Próxima etapa recomendada: FM-5.4 — investigação da saída DAC com as capturas físicas originais e a documentação de aplicação Yamaha.** As capturas ADC da saída analógica não são captura direta da palavra digital interna. Não reativar `from_operator_channel_output` no caminho de produção até que a correspondência aritmética e a fronteira temporal sejam demonstradas independentemente.
+
+## Auditoria detalhada da integração MO/RO
+
+- [YM2413 — Auditoria da integração do adaptador MO/RO ao PG serial](audits/ym2413-mo-ro-core-adapter-2026-11-21.md)
+- [Evidências da saída DAC](audits/ym2413-dac-output-evidence-2026-11-21.md)
+- [Alinhamento de ciclos MO/RO](audits/ym2413-mo-ro-cycle-alignment-2026-11-21.md)
+- [Pipeline de saída MO/RO](audits/ym2413-mo-ro-output-pipeline-2026-11-21.md)
+
+As seções históricas abaixo registram a evolução por PR e hipótese. Em caso de divergência, esta seção consolidada e a auditoria de integração MO/RO prevalecem.
 
 ## Scorecard histórico por etapa (numeração anterior — registro arquivado; não representa o estado atual)
 
