@@ -13,8 +13,8 @@ use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_chan
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::rhythm::{
-    Ym2413RhythmNoiseError, Ym2413RhythmNoiseSlotSample,
-    Ym2413RhythmSlotNoiseSequencer, Ym2413RhythmSlotNoiseSequencerState,
+    Ym2413RhythmNoiseError, Ym2413RhythmNoiseSlotSample, Ym2413RhythmSlotNoiseSequencer,
+    Ym2413RhythmSlotNoiseSequencerState,
 };
 use crate::rhythm_dispatch::{Ym2413SerialSlotDispatch, dispatch_serial_slot};
 use crate::serial_operator::{
@@ -271,9 +271,7 @@ impl Ym2413PgSerialService {
         {
             return Err(Ym2413PgSerialError::InvalidState);
         }
-        if state.rhythm_noise.is_none()
-            && state.rhythm_noise_samples.iter().any(Option::is_some)
-        {
+        if state.rhythm_noise.is_none() && state.rhythm_noise_samples.iter().any(Option::is_some) {
             return Err(Ym2413PgSerialError::InvalidState);
         }
         let rhythm_noise = state
@@ -393,8 +391,9 @@ impl Ym2413PgSerialService {
         if sequencer.slot_index() != context.event.cycle {
             return Err(Ym2413PgSerialError::InvalidState);
         }
-        if let Some(Ym2413RhythmNoiseSlotSample { voice, noise_bit, .. }) =
-            sequencer.advance_slot()
+        if let Some(Ym2413RhythmNoiseSlotSample {
+            voice, noise_bit, ..
+        }) = sequencer.advance_slot()
         {
             match voice {
                 crate::slot::Ym2413RhythmVoice::HiHat => {
@@ -455,7 +454,10 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
         let descriptor = match dispatch {
             Ym2413SerialSlotDispatch::Melodic { slot }
-                if slot == context.event.selected_operator => slot,
+                if slot == context.event.selected_operator =>
+            {
+                slot
+            }
             Ym2413SerialSlotDispatch::Melodic { .. } => {
                 return Err(Ym2413PgSerialError::InvalidState);
             }
@@ -867,7 +869,10 @@ mod tests {
             assert_eq!(service.operator.export_state(), operator_before);
             let (tick, post) = tick(cycle);
             service.after_eg_update(&slot_context, tick, post).unwrap();
-            assert_eq!(service.rhythm_noise_state().unwrap().slot_index, (cycle + 1) % 18);
+            assert_eq!(
+                service.rhythm_noise_state().unwrap().slot_index,
+                (cycle + 1) % 18
+            );
         }
     }
 
@@ -980,7 +985,8 @@ mod tests {
             .with_rhythm_noise_seed(seed, 0)
             .unwrap();
         let mut core = Ym2413Core::new();
-        core.advance_input_clocks_with_slot_service(72, &mut service).unwrap();
+        core.advance_input_clocks_with_slot_service(72, &mut service)
+            .unwrap();
 
         let mut expected = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(seed, 0).unwrap();
         let mut expected_samples = [None, None];
@@ -988,7 +994,9 @@ mod tests {
             if let Some(sample) = expected.advance_slot() {
                 match sample.voice {
                     crate::Ym2413RhythmVoice::HiHat => expected_samples[0] = Some(sample.noise_bit),
-                    crate::Ym2413RhythmVoice::SnareDrum => expected_samples[1] = Some(sample.noise_bit),
+                    crate::Ym2413RhythmVoice::SnareDrum => {
+                        expected_samples[1] = Some(sample.noise_bit)
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -1005,19 +1013,27 @@ mod tests {
         let mut whole_service = Ym2413PgSerialService::new(initial_bank(0))
             .with_rhythm_noise_seed(seed, 0)
             .unwrap();
-        whole_core.advance_input_clocks_with_slot_service(18 * 72, &mut whole_service).unwrap();
+        whole_core
+            .advance_input_clocks_with_slot_service(18 * 72, &mut whole_service)
+            .unwrap();
 
         let mut split_core = Ym2413Core::new();
         let mut split_service = Ym2413PgSerialService::new(initial_bank(0))
             .with_rhythm_noise_seed(seed, 0)
             .unwrap();
-        for clocks in [1, 3, 4, 17, 29, 7, 11, 53, 72, 91, 8, 101, 17, 29, 37, 61, 23, 103, 201, 417] {
-            split_core.advance_input_clocks_with_slot_service(clocks, &mut split_service).unwrap();
+        for clocks in [
+            1, 3, 4, 17, 29, 7, 11, 53, 72, 91, 8, 101, 17, 29, 37, 61, 23, 103, 201, 417,
+        ] {
+            split_core
+                .advance_input_clocks_with_slot_service(clocks, &mut split_service)
+                .unwrap();
         }
         let elapsed = split_core.elapsed_input_clocks();
         let total = 18 * 72;
         if elapsed < total {
-            split_core.advance_input_clocks_with_slot_service(total - elapsed, &mut split_service).unwrap();
+            split_core
+                .advance_input_clocks_with_slot_service(total - elapsed, &mut split_service)
+                .unwrap();
         }
         assert_eq!(whole_core.export_state(), split_core.export_state());
         assert_eq!(whole_service.export_state(), split_service.export_state());
@@ -1026,16 +1042,23 @@ mod tests {
         let mut checkpoint_service = Ym2413PgSerialService::new(initial_bank(0))
             .with_rhythm_noise_seed(seed, 0)
             .unwrap();
-        checkpoint_core.advance_input_clocks_with_slot_service(4 * 13 + 2, &mut checkpoint_service).unwrap();
+        checkpoint_core
+            .advance_input_clocks_with_slot_service(4 * 13 + 2, &mut checkpoint_service)
+            .unwrap();
         let mut restored_core = Ym2413Core::restore_state(checkpoint_core.export_state()).unwrap();
-        let mut restored_service = Ym2413PgSerialService::restore_state(checkpoint_service.export_state()).unwrap();
+        let mut restored_service =
+            Ym2413PgSerialService::restore_state(checkpoint_service.export_state()).unwrap();
         let remaining = 18 * 72 - checkpoint_core.elapsed_input_clocks();
-        restored_core.advance_input_clocks_with_slot_service(remaining, &mut restored_service).unwrap();
+        restored_core
+            .advance_input_clocks_with_slot_service(remaining, &mut restored_service)
+            .unwrap();
         let mut reference_core = Ym2413Core::new();
         let mut reference_service = Ym2413PgSerialService::new(initial_bank(0))
             .with_rhythm_noise_seed(seed, 0)
             .unwrap();
-        reference_core.advance_input_clocks_with_slot_service(18 * 72, &mut reference_service).unwrap();
+        reference_core
+            .advance_input_clocks_with_slot_service(18 * 72, &mut reference_service)
+            .unwrap();
         assert_eq!(reference_core.export_state(), restored_core.export_state());
         assert_eq!(reference_service.export_state(), restored_service.export_state());
     }
