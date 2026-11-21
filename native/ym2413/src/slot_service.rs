@@ -46,6 +46,7 @@ pub(crate) trait Ym2413SlotService {
         &mut self,
         context: &Ym2413SlotServiceContext,
         tick: EnvelopeSequencerTick,
+        post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error>;
 }
 
