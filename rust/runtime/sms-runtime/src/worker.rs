@@ -6,6 +6,7 @@
 
 #[cfg(test)]
 use std::sync::Condvar;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
@@ -13,13 +14,15 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::audio::AudioSession;
-use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
+use sega_audio_runtime::{
+    AnalogOutputConfig, AudioOutputMetrics, MixSource, PcmResampler, DEFAULT_PCM_SOURCE_RATE_HZ,
+};
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
     SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
-    Territory, VideoStandard,
+    Territory, VideoStandard, SMS_YM2413_PCM_SOURCE_RATE_HZ,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
@@ -907,6 +910,12 @@ struct AudioRendererState {
     events: Vec<PsgAmplitudeEvent>,
     h2_samples: Vec<f64>,
     transition_samples: Vec<f64>,
+    transition_fm_samples: Vec<f64>,
+    fm_resampler: Option<PcmResampler>,
+    pending_psg_samples: VecDeque<f64>,
+    pending_fm_samples: VecDeque<f64>,
+    mix_psg_samples: Vec<f64>,
+    mix_fm_samples: Vec<f64>,
     fade_remaining: usize,
 }
 
@@ -918,6 +927,12 @@ impl Default for AudioRendererState {
             events: Vec::with_capacity(H2_EVENT_CAPTURE_CAPACITY),
             h2_samples: Vec::with_capacity(2_048),
             transition_samples: Vec::with_capacity(2_048),
+            transition_fm_samples: Vec::with_capacity(2_048),
+            fm_resampler: None,
+            pending_psg_samples: VecDeque::new(),
+            pending_fm_samples: VecDeque::new(),
+            mix_psg_samples: Vec::with_capacity(2_048),
+            mix_fm_samples: Vec::with_capacity(2_048),
             fade_remaining: 0,
         }
     }
@@ -929,9 +944,16 @@ impl AudioRendererState {
         machine: &mut SmsTemporalMachine,
         mode: AudioRendererMode,
     ) -> Result<(), String> {
+        if mode == AudioRendererMode::H2Experimental && machine.ym2413().is_some() {
+            return Err(
+                "H2 experimental rendering is not enabled for the Japanese SMS YM2413 profile"
+                    .to_owned(),
+            );
+        }
         if self.mode == mode {
             return Ok(());
         }
+        self.reset_fm_pipeline();
         match mode {
             AudioRendererMode::Psg => {
                 machine.disable_psg_event_capture();
@@ -968,6 +990,7 @@ impl AudioRendererState {
         machine: &mut SmsTemporalMachine,
         telemetry: &WorkerTelemetry,
     ) {
+        self.reset_fm_pipeline();
         if self.mode == AudioRendererMode::H2Experimental {
             // The machine was rebuilt; discard the previous renderer epoch even
             // though the user-visible mode remains H2.
@@ -980,6 +1003,67 @@ impl AudioRendererState {
                 )));
             }
         }
+    }
+
+    fn reset_fm_pipeline(&mut self) {
+        if let Some(resampler) = self.fm_resampler.as_mut() {
+            resampler.reset();
+        }
+        self.pending_psg_samples.clear();
+        self.pending_fm_samples.clear();
+        self.mix_psg_samples.clear();
+        self.mix_fm_samples.clear();
+        self.transition_fm_samples.clear();
+    }
+
+    /// Resample the YM2413 source onto the PSG 48 kHz timeline and return
+    /// equally sized source blocks. Unknown FM rotations are never fed as zero.
+    fn prepare_fm_mix(
+        &mut self,
+        psg_samples: &[f64],
+        fm_samples: &[Option<f64>],
+    ) -> Result<Option<usize>, String> {
+        if fm_samples.is_empty() || fm_samples.iter().any(Option::is_none) {
+            self.reset_fm_pipeline();
+            return Ok(None);
+        }
+
+        if self.fm_resampler.is_none() {
+            self.fm_resampler = Some(
+                PcmResampler::new(
+                    SMS_YM2413_PCM_SOURCE_RATE_HZ,
+                    SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+                    100,
+                )
+                .map_err(|error| format!("could not initialize YM2413 resampler: {error}"))?,
+            );
+        }
+
+        self.pending_psg_samples.extend(psg_samples.iter().copied());
+        let fm_input = fm_samples
+            .iter()
+            .map(|sample| sample.expect("unknown FM samples were rejected above"))
+            .collect::<Vec<_>>();
+        let resampled = self
+            .fm_resampler
+            .as_mut()
+            .expect("YM2413 resampler was initialized")
+            .process(&fm_input);
+        self.pending_fm_samples.extend(resampled);
+
+        let aligned_frames = self
+            .pending_psg_samples
+            .len()
+            .min(self.pending_fm_samples.len());
+        self.mix_psg_samples.clear();
+        self.mix_fm_samples.clear();
+        for _ in 0..aligned_frames {
+            self.mix_psg_samples
+                .push(self.pending_psg_samples.pop_front().expect("length checked"));
+            self.mix_fm_samples
+                .push(self.pending_fm_samples.pop_front().expect("length checked"));
+        }
+        Ok(Some(aligned_frames))
     }
 }
 
