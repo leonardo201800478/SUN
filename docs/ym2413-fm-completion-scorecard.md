@@ -1432,4 +1432,3 @@ measured MO/RO schedule as the basis for a separate serial output stage.
 - PR #1156 (FM-5.2B) está retargeted para `main`, sincronizada com o HEAD publicado e permanece candidata: controle/temporização/LFSR passam no diferencial; diferenças de síntese permanecem visíveis e documentadas.
 - PR #1157 contém o serviço serial independente MO/RO; PR #1158 integra esse pipeline ao serviço PG core-owned. Ambas continuam em validação e não representam DAC/PCM concluído.
 - A conclusão geral continua bloqueada pela acumulação temporal dos nove canais, mapeamento operador→DAC, PCM FM reproduzível, portas F0–F2, mixer PSG+FM e validação integrada no runtime SMS/SG-1000.
-
