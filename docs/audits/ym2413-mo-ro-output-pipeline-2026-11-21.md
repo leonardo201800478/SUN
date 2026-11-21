@@ -201,4 +201,3 @@ A PR #1159 foi integrada em `eb01ca8a7ee6224a98e872143b41f0b28137b292`. Ela acre
 A integração não deriva `Ym2413DacCode` de `previous_channel_output: i16`. O PG fornece `None` como nível medido enquanto a correspondência operador→nível não tiver evidência independente. Portanto, a integração não produz amplitudes MO/RO conhecidas, palavra bruta do DAC, tensão analógica ou PCM.
 
 O resultado `ModeInactive` não deve ser interpretado como nível elétrico zero. A ausência de nível medido permanece explícita (`mo_known = false`, `UnknownSource` ou `RepeatNotInitialized`, conforme o slot).
-
