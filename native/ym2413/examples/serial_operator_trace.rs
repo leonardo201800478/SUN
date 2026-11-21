@@ -2,7 +2,7 @@
 //!
 //! Input CSV columns:
 //! call,cycle,pg_out,eg_out,eg_silent,c_fb,c_dc,c_dm,exp_m,exp_s,logsin,neg,op_mod,op_fbsum,
-//! fb1[0..8],fb2[0..8],ch_out
+//! fb1[0..8],fb2[0..8],ch_out,phase_index,operator_output
 //!
 //! The comparator supplies only the pre-call inputs consumed by OPLL_Operator.
 //! All operator pipeline outputs and feedback histories are produced by the
@@ -36,9 +36,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             continue;
         }
         let fields: Vec<&str> = trimmed.split(',').map(str::trim).collect();
-        if fields.len() != 33 {
+        if fields.len() != 35 {
             return Err(format!(
-                "line {}: expected 33 CSV columns, got {}",
+                "line {}: expected 35 CSV columns, got {}",
                 line_number + 1,
                 fields.len()
             )
@@ -95,6 +95,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .expect("validated signed feedback input")
         });
         let expected_ch_out: i16 = parse(&fields, 32)?;
+        let expected_phase_index: u16 = parse(&fields, 33)?;
+        let expected_operator_output: i16 = parse(&fields, 34)?;
 
         if actual.op_exp_m != expected_exp_m
             || actual.op_exp_s != expected_exp_s
@@ -105,9 +107,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             || actual.op_fb1 != expected_fb1
             || actual.op_fb2 != expected_fb2
             || sample.channel_output != expected_ch_out
+            || sample.phase_index != expected_phase_index
+            || sample.operator_output != expected_operator_output
         {
             return Err(format!(
-                "call {call} cycle {cycle}: Nuked operator mismatch:                  exp_m {}/{} exp_s {}/{} logsin {}/{} neg {}/{} mod {}/{}                  fbsum {}/{} fb1 {:?}/{:?} fb2 {:?}/{:?} ch_out {}/{}",
+                "call {call} cycle {cycle}: Nuked operator mismatch:                  exp_m {}/{} exp_s {}/{} logsin {}/{} neg {}/{} mod {}/{}                  fbsum {}/{} fb1 {:?}/{:?} fb2 {:?}/{:?} ch_out {}/{} phase_index {}/{} operator_output {}/{}",
                 actual.op_exp_m,
                 expected_exp_m,
                 actual.op_exp_s,
@@ -125,7 +129,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 actual.op_fb2,
                 expected_fb2,
                 sample.channel_output,
-                expected_ch_out
+                expected_ch_out,
+                sample.phase_index,
+                expected_phase_index,
+                sample.operator_output,
+                expected_operator_output
             )
             .into());
         }
