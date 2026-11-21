@@ -432,9 +432,7 @@ mod tests {
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
-    use crate::{
-        Ym2413Core, Ym2413SlotServiceAdvanceError, YM2413_INPUT_CLOCKS_PER_SLOT,
-    };
+    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413SlotServiceAdvanceError};
 
     fn initial_bank(pm_lfo_counter: u16) -> Ym2413SynthesisBank {
         let initial = Ym2413SynthesisInitialState {
@@ -795,18 +793,17 @@ mod tests {
         checkpoint_core
             .advance_input_clocks_with_slot_service(37, &mut checkpoint_service)
             .unwrap();
-        let mut restored_core =
-            Ym2413Core::restore_state(checkpoint_core.export_state()).unwrap();
+        let mut restored_core = Ym2413Core::restore_state(checkpoint_core.export_state()).unwrap();
         let mut restored_service =
             Ym2413PgSerialService::restore_state(checkpoint_service.export_state()).unwrap();
         restored_core
-            .advance_input_clocks_with_slot_service(
-                total_clocks - 37,
-                &mut restored_service,
-            )
+            .advance_input_clocks_with_slot_service(total_clocks - 37, &mut restored_service)
             .unwrap();
         assert_eq!(whole_core.export_state(), restored_core.export_state());
-        assert_eq!(whole_service.export_state(), restored_service.export_state());
+        assert_eq!(
+            whole_service.export_state(),
+            restored_service.export_state()
+        );
 
         let mut rollback_core = Ym2413Core::new();
         let mut rollback_service = FailingPgService {
