@@ -6,7 +6,7 @@
 
 ## Sintoma reportado
 
-A ROM identificada como `Ace of Aces (Europe, Brazil) (En)` não inicia no Sega Emulator. O usuário suspeita de configuração/região.
+A ROM identificada como `Ace of Aces (Europe, Brazil) (En)` não inicia no SUN — Strife Uranus Neptune. O usuário suspeita de configuração/região.
 
 O nome do dump sugere uma edição europeia/brasileira, mas o nome do arquivo não é evidência suficiente para definir o hardware esperado, o conteúdo do cabeçalho ou o modo de vídeo correto. A região é uma hipótese prioritária, não uma conclusão.
 
@@ -108,7 +108,7 @@ Se a causa for a política regional, adicionar testes para Automatic/Europe/USA/
 
 ## Fontes técnicas a consultar
 
-- Fluxo de seleção de região e perfil SMS no repositório Sega Emulator.
+- Fluxo de seleção de região e perfil SMS no repositório SUN — Strife Uranus Neptune.
 - Documentação técnica do Sega Master System para regiões, temporização e comportamento do cabeçalho de ROM.
 - Código público do GearSystem e Ares para comparar o comportamento, sem copiar código nem presumir independência dos oráculos.
 
