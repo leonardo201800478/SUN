@@ -152,11 +152,17 @@ O próximo trabalho FM-5.4 deve reconstruir a cadeia de medição (ADC, normaliz
 Na revisão do firmware de captura, `tool2/adc0.cc` configura o ADC0 com entrada diferencial `adcSingleInpCh0Ch1`, anotada no código como `RO-MO`, e `diff = true`. A configuração usa clock ADC de 12 MHz, oversampling 16x, referência VDD e trigger PRS no canal 5.
 
 O driver oferece duas fontes de trigger:
-- Timer0 overflow: documentado no código como uma amostra por clock YM2413.
-- Timer1 overflow: documentado no código como uma amostra a cada 72 clocks YM2413.
+- Timer0 overflow (`adc0::start0`): documentado no código como uma amostra por clock YM2413.
+- Timer1 overflow (`adc0::start1`): documentado no código como uma amostra a cada 72 clocks YM2413.
 
-A seleção efetiva usada pelo comando de captura da varredura de volume ainda precisa ser rastreada no handler USB; não se deve assumir Timer0 ou Timer1 apenas pela existência dessas funções. O ponto já demonstrado é que a captura é uma medição ADC diferencial analógica RO−MO, não uma leitura dos bits internos do DAC.
+A seleção efetiva da varredura de volume foi rastreada:
+- `analyze/volume/volumes.cc` chama `startCapture()`.
+- `analyze/common.cc` implementa `startCapture()` enviando o comando USB `'S'`.
+- `tool2/event.cc` trata `'S'` chamando `adc0::start1(true)`, portanto a varredura de volume amostra a cada 72 clocks YM2413, uma vez por rotação serial completa de 18 slots.
+- O caminho alternativo `startCapture72()` envia `'D'`; `tool2/event.cc` trata `'D'` chamando `adc0::start0(true)`, amostrando a cada clock YM2413. Esse caminho não é o usado por `volumes.cc`.
+
+Assim, as capturas de volume existentes não resolvem individualmente os 18 slots nem os quatro clocks de cada slot. Elas medem o sinal diferencial analógico RO−MO em uma fase de Timer1 por rotação. O código `ym::syncTimer1()` calibra a fase do Timer1 em relação ao Timer0, mas a correspondência dessa fase com as janelas MO/RO medidas ainda precisa ser estabelecida.
 
 O utilitário `analyze/ym-histogram.cc` apenas consome valores já quantizados no intervalo 0..511 e calcula um histograma. Ele não contém a transformação ADC→nível. Portanto, os arquivos `.out` não podem ser tratados como captura bruta dos 9 bits do DAC sem localizar e validar a etapa que os produziu.
 
-**Próximo passo de FM-5.4:** rastrear o comando USB que seleciona a fonte PRS, reconstruir a transformação ADC→nível e alinhar a fase das amostras com os slots MO/RO. Mesmo depois disso, a correlação entre nível analógico e palavra digital interna exige evidência separada.
+**Próximo passo de FM-5.4:** comparar a captura existente Timer1/72 clocks com uma captura Timer0/clock YM2413 via `startCapture72()`, reconstruir a transformação ADC→nível e alinhar a fase com os slots MO/RO. Uma amostra por clock ainda não resolve eventos subclock; para isso será necessário demonstrar a largura/janela ou obter uma captura analógica de resolução temporal suficiente. Mesmo depois disso, a correlação entre nível analógico e palavra digital interna exige evidência separada.
