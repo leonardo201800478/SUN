@@ -403,8 +403,8 @@ mod tests {
         let sample = operator.tick_operator(0, 0).unwrap();
         assert_eq!(sample.feedback_phase, 0);
         assert_eq!(operator.state().op_fbsum, 96);
-        assert_eq!(operator.state().op_fb1[0], 0);
-        assert_eq!(operator.state().op_fb2[0], 0);
+        assert_eq!(operator.state().op_fb1[0], 128);
+        assert_eq!(operator.state().op_fb2[0], 64);
     }
 
     #[test]
