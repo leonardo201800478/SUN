@@ -123,8 +123,7 @@ mod tests {
             assert_eq!(
                 dispatch,
                 Ym2413SerialSlotDispatch::Melodic {
-                    slot: YM2413_SLOT_MAP
-                                [usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
+                    slot: YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
                 },
                 "cycle {cycle}"
             );
@@ -147,7 +146,8 @@ mod tests {
             assert_eq!(
                 dispatch_serial_slot(cycle, &registers, 0xff, selector).unwrap(),
                 Ym2413SerialSlotDispatch::Rhythm {
-                    slot: YM2413_SLOT_MAP[usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
+                    slot: YM2413_SLOT_MAP
+                                [usize::from((cycle + 1) % YM2413_SLOT_COUNT as u8)],
                     voice,
                     selector,
                 },
