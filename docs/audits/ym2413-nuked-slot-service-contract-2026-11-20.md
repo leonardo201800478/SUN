@@ -106,6 +106,8 @@ The internal `Ym2413Core::advance_input_clocks_with_slot_service` path now expos
 
 The public standalone `advance_input_clocks` path retains its no-service slot routine and does not construct the service context. The host still advances the core in input-clock blocks; these are internal Rust service hooks, not GUI or host callbacks.
 
+The pinned Nuked header declares `rm_enable` as `int8_t`, and its `OPLL_Clock` shifts this signed latch right. The oracle's CI compiler preserves the sign bit (`0x80 → 0xC0`); Rust's `i8 >> 1` has the same arithmetic-shift behavior. The helper consumes the post-shift bit pattern through its `u8` view.
+
 The core-level test seeds the signed `rm_enable` latch with `0x80`; after the serial arithmetic shift the context exposes the post-shift `0xC0` bit pattern, including bit `0x40`. For cycles 13 and 14 it verifies that this post-shift bit selects the carrier DOKON path, while the pre-call value would select the modulator path. This validates Rust call ordering against the pinned source formula, not an external Nuked Rhythm Mode runtime trace.
 
 The service receives both the complete pre-update EG state and the complete post-update EG state; it must not reconstruct the serial sequence from isolated operator levels. The core's state is committed only if all slot service calls succeed. The integrated pipeline must stage its own PG/operator/LFO state transactionally as well, because a service error can occur after earlier callbacks in the same block. Continuous and partitioned service advancement must produce identical core and service state.
