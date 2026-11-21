@@ -2,6 +2,7 @@ name: YM2413 Nuked PG differential
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - "native/ym2413/**"
       - "tools/ym2413-nuked-oracle/compare_pg.py"
