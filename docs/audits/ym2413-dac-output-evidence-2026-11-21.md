@@ -106,3 +106,21 @@ References:
   https://www.waveguide.se/?article=46&file=ym2413am.pdf
 - SMS Power YM2413 development index (die-shot provenance note):
   https://www.smspower.org/Development/YM2413
+
+
+## Implementation validation update
+
+The dual-zero retention increment is present at code commit
+`27650ff687c9495415644bca1db30585ffed21b9`.
+
+- CI #9852: SUCCESS — Rustfmt, workspace Clippy, workspace tests,
+  observability Clippy/tests and documentation hygiene.
+- PG differential #388: SUCCESS — 147,456 calls, strict serial/control/
+  LFSR/timing PASS; candidate differences remain limited to SD SL/EG.
+- Rhythm reset differential #311: SUCCESS.
+
+The new tests verify that positive and negative zero are distinct measured
+tokens and that negative zero survives the original HH output, delayed RO
+repeat, and version-2 snapshot/restore. This validates the retention
+representation only; it does not validate raw nine-bit code encoding or
+operator-to-DAC conversion.
