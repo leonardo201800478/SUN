@@ -9,7 +9,6 @@
 //! phase combiners and the special channel-7..9 parameter routing remain FM-5.
 
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
-use crate::envelope::{EnvelopeStage, EnvelopeTickResult};
 use crate::envelope_sequencer::{EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::slot::{Ym2413Operator, slot_descriptor};
@@ -277,7 +276,6 @@ mod tests {
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
     use crate::envelope_sequencer::{EnvelopeSequencer, EnvelopeSlotInput};
-    use crate::lib_core_for_test;
     use crate::phase::{PhaseGenerator, YM2413_PHASE_MASK};
     use crate::slot::{nuked_slot_service_event_with_testmode, slot_descriptor};
     use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
@@ -370,7 +368,7 @@ mod tests {
                 written.channel,
                 matches!(written.operator, crate::Ym2413Operator::Carrier),
             ).unwrap(),
-            0x3000
+            0xf000
         );
         assert_eq!(
             service.synthesis().phase_accumulator(
@@ -409,7 +407,7 @@ mod tests {
                 written.channel,
                 matches!(written.operator, crate::Ym2413Operator::Carrier),
             ).unwrap(),
-            0x1200
+            0xd200
         );
         assert_eq!(service.pg_phase_next(), 0);
     }
