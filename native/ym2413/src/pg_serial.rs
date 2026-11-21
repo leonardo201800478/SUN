@@ -13,7 +13,8 @@ use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_chan
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::serial_operator::{
-    Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorState,
+    Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
+    Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
 };
 use crate::slot::{Ym2413Operator, slot_descriptor};
 use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
@@ -305,16 +306,21 @@ impl Ym2413PgSerialService {
             Ym2413Operator::Carrier => config.carrier_phase,
         };
         self.pipeline.parameters = Ym2413PgParameterLatch::from_operator(parameters);
-        let am_enabled = match descriptor.operator {
-            Ym2413Operator::Modulator => config.patch.modulator.am_enabled,
-            Ym2413Operator::Carrier => config.patch.carrier.am_enabled,
+        let operator_patch = match descriptor.operator {
+            Ym2413Operator::Modulator => config.patch.modulator,
+            Ym2413Operator::Carrier => config.patch.carrier,
         };
-        self.operator.prepare_patch2(
-            config.patch.feedback,
-            config.patch.carrier.half_wave,
-            config.patch.modulator.half_wave,
-            am_enabled,
-        )?;
+        self.operator.prepare_patch2(Ym2413SerialOperatorPatch2Latches {
+            feedback: config.patch.feedback,
+            dc_waveform: config.patch.carrier.half_wave,
+            dm_waveform: config.patch.modulator.half_wave,
+            am_enabled: operator_patch.am_enabled,
+            vibrato_enabled: operator_patch.vibrato_enabled,
+            multiplier: operator_patch.multiplier,
+            sustain_level: operator_patch.sustain_level,
+            fnum: config.channel.fnum,
+            block: config.channel.block,
+        })?;
         Ok(())
     }
 }
@@ -333,11 +339,39 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         // PhaseCalcIncrement, EnvelopeOutput, then EnvelopeKSLTL.
         let descriptor = context.event.selected_operator;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
-        let (ksl, total_level) = match descriptor.operator {
-            Ym2413Operator::Modulator => (config.modulator_ksl, config.patch.modulator.total_level),
-            Ym2413Operator::Carrier => (config.carrier_ksl, config.channel.volume << 2),
-        };
-        self.operator.prepare_patch1(ksl, total_level)?;
+        let (operator_patch, ksl_attenuation, total_level, operator_index) =
+            match descriptor.operator {
+                Ym2413Operator::Modulator => (
+                    config.patch.modulator,
+                    config.modulator_ksl,
+                    config.patch.modulator.total_level,
+                    0,
+                ),
+                Ym2413Operator::Carrier => (
+                    config.patch.carrier,
+                    config.carrier_ksl,
+                    config.channel.volume << 2,
+                    1,
+                ),
+            };
+        self.operator.prepare_patch1(Ym2413SerialOperatorPatch1Latches {
+            total_level,
+            ksl_attenuation,
+            ksl: operator_patch.key_scale_level,
+            adrr: [
+                operator_patch.attack_rate,
+                operator_patch.decay_rate,
+                operator_patch.release_rate,
+            ],
+            envelope_type: operator_patch.sustained_envelope,
+            key_scale_rate: operator_patch.key_scale_rate,
+            key_scale_rate_frequency: (config.channel.block << 1)
+                | ((config.channel.fnum >> 8) as u8 & 1),
+            key_scale_level_frequency: (config.channel.fnum >> 5) as u8,
+            key_scale_level_block: config.channel.block,
+        })?;
+        self.operator
+            .prepare_channel(config.channel.instrument, operator_index)?;
         self.serial_am_lfo.capture_output(context.event.cycle)?;
         self.generate_phase(context)?;
         self.operator
