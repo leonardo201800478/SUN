@@ -206,7 +206,7 @@ fn rhythm_voice_operator(
         }
     };
     let voice = config.voices[voice_index];
-    let operator = if carrier { voice.carrier } else { voice.modulator }
+    let operator = (if carrier { voice.carrier } else { voice.modulator })
         .ok_or_else(|| {
             Ym2413PgSerialError::Channel(ChannelSynthesisError::Rhythm(
                 crate::rhythm_channel::RhythmChannelSynthesisError::MissingEnvelopeOperator {
@@ -246,18 +246,18 @@ fn rhythm_pg_output(
             Some(noise) => {
                 let phase_bit = latches.rhythm_mix_bit();
                 let low = if phase_bit ^ noise { 0x0d0 } else { 0x034 };
-                (u16::from(phase_bit) << 9) | low
+                (if phase_bit { 0x0200 } else { 0 }) | low
             }
             None => (phase >> 9) as u16,
         },
         16 => match noise_bit {
             Some(noise) => {
-                (u16::from(latches.hh_bit8) << 9)
-                    | (u16::from(latches.hh_bit8 ^ noise) << 8)
+                (if latches.hh_bit8 { 0x0200 } else { 0 })
+                    | (if latches.hh_bit8 ^ noise { 0x0100 } else { 0 })
             }
             None => (phase >> 9) as u16,
         },
-        17 => (u16::from(latches.rhythm_mix_bit()) << 9) | 0x100,
+        17 => (if latches.rhythm_mix_bit() { 0x0200 } else { 0 }) | 0x0100,
         _ => (phase >> 9) as u16,
     }
 }
