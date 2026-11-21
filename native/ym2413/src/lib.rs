@@ -13,6 +13,7 @@ pub mod envelope;
 pub mod envelope_operator;
 pub mod envelope_sequencer;
 pub mod envelope_timer;
+pub mod fm_serial;
 pub mod instrument;
 pub mod key_scale;
 pub mod operator;
@@ -30,6 +31,10 @@ mod slot_service;
 pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
+pub use fm_serial::{
+    YM2413_FM_SERIAL_STATE_VERSION, Ym2413FmSerialError, Ym2413FmSerialService,
+    Ym2413FmSerialServiceState,
+};
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
