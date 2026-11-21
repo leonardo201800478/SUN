@@ -201,14 +201,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let _ = write!(
             &mut trace_line,
-            ",\"op_calc_eg_out\":{},\"op_calc_eg_silent\":{},\"op_calc_c_fb\":{},\"op_calc_c_dc\":{},\"op_calc_c_dm\":{},\"op_calc_pg_out\":{}",
+            ",\"op_calc_eg_out\":{},\"op_calc_eg_silent\":{},\"op_calc_c_fb\":{},\"op_calc_c_dc\":{},\"op_calc_c_dm\":{},\"op_calc_pg_out\":{},\"op_calc_op_mod\":{},\"op_calc_op_fbsum\":{}",
             operator_before.eg_out,
             u8::from(operator_before.eg_silent),
             operator_before.c_fb,
             operator_before.c_dc,
             operator_before.c_dm,
-            service_state.pipeline.pg_output
+            service_state.pipeline.pg_output,
+            operator_before.op_mod,
+            operator_before.op_fbsum
         );
+        trace_line.push_str(",\"op_calc_op_fb1\":");
+        write_json_array(&mut trace_line, operator_before.op_fb1);
+        trace_line.push_str(",\"op_calc_op_fb2\":");
+        write_json_array(&mut trace_line, operator_before.op_fb2);
         let _ = write!(
             &mut trace_line,
             ",\"lfo_am_counter\":{},\"lfo_am_dir\":{},\"lfo_am_car\":{},\"lfo_am_step\":{},\"lfo_am_out\":{}",
