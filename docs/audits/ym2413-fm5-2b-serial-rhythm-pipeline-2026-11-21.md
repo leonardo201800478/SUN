@@ -393,3 +393,34 @@ integrated into Ym2413Core or SMS audio.** The remaining gates are:
   explicit limitations.
 
 No PCM or DAC conversion is included in this increment.
+
+
+### Source-quality qualification: sweep.cc and model6.cc
+
+The two C++ files are engineering tools/models, not independent ROM dumps:
+
+- `sweep.cc` searches model state and parameters to minimize squared error
+  against a previously captured `gold` vector. It includes random search
+  for large parameter spaces and exposes candidate variables such as the
+  noise state, phase offsets and phase-update ordering. Most instrument
+  register sweep rows are commented out. Its best-fit output is therefore a
+  model-fit result conditional on its fixture and assumptions, not a
+  direct measurement of an internal YM2413 register or ROM byte.
+- `model6.cc` is an experimental behavioral model. It explicitly marks
+  phase update/reset ordering as uncertain ("seems better"), contains TODOs
+  for the actual HH/TCY patches and phase sources, and initializes its
+  instrument table from an earlier software implementation with a
+  verification TODO. Its HH/SD/TCY Boolean equations are useful hypotheses
+  and cross-checks, not proof of the physical truth table.
+- `results/20150209.txt` describes a measurement pipeline that used a
+  shaping board and ADC. It documents noise, nonlinearities, peak fitting,
+  calibration drift and uncertain assignments for ADC samples halfway
+  between reconstructed output levels. The measured -255..+255 domain is
+  useful, but the document explicitly presents itself as work in progress.
+
+Accordingly, the FM-5.3 service uses the measured output slot schedule and
+verbatim repeated measurement-domain values. It does not import the
+experimental model's operator-to-output conversion or infer raw DAC bits.
+The three-active-clock pulse claim is cross-checked against the 2015
+MSX Resource Center reverse-engineering report:
+https://www.msx.org/pt-br/photoshoots/ym2413-reverse-engineering-progress
