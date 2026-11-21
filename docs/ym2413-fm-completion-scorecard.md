@@ -1666,3 +1666,29 @@ Exact-head CI, PG differential, rhythm reset differential and EG
 characterization must be rerun on the final branch HEAD before the helper is
 accepted. The previously validated code HEAD `27650ff...` does not validate
 these new changes.
+
+
+## MO/RO temporal integration audit — 2026-11-21
+
+Pinned Nuked source confirms `OPLL_Channel` executes before
+`OPLL_Operator` and consumes the previous `ch_out` latch. More importantly,
+MO and RO use different cycle-to-measured-slot transforms:
+
+- MO: `(nuked_cycle + 3) % 18`; stable melodic mode has nine carrier outputs,
+  while stable Rhythm Mode has six MO outputs.
+- RO: `(nuked_cycle + 15) % 18`; its ten measured positions match the five
+  original and five repeated RO events. Stable active RO also depends on both
+  delayed `rm_enable` bits (bit 6 routing and bit 7 rhythm-source selection).
+
+For the original YM2413 branch, Nuked's muted pin value is sign-dependent;
+it is not a constant numeric zero. The current combined
+`Ym2413RhythmOutputService::process_slot` assumes one slot cursor for both
+pins and does not expose the sign-dependent neutral token. It must not be
+wired directly to the PG service with the raw core cycle.
+
+**Decision:** keep MO and RO integration blocked pending a separate per-pin
+adapter/cursor design, explicit neutral-token representation, and exact-cycle
+Nuked differential. The measured-domain operator conversion helper does not
+solve this temporal/pin-routing requirement.
+
+Full audit: `docs/audits/ym2413-mo-ro-cycle-alignment-2026-11-21.md`.
