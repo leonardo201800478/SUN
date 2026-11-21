@@ -332,7 +332,8 @@ mod tests {
         melody_output_for_slot, rhythm_output_event, rhythm_slot_result,
     };
     use crate::rhythm_output::{
-        Ym2413DacCode, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
+        Ym2413DacCode, Ym2413RhythmOutputError, Ym2413RhythmOutputEvent,
+        Ym2413RhythmOutputSlotResult,
     };
     use crate::slot::Ym2413RhythmVoice;
 
