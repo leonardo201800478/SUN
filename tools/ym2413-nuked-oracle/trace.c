@@ -178,6 +178,13 @@ int main(int argc, char **argv) {
         uint32_t calc_eg_dokon = chip.eg_dokon;
         uint8_t calc_testmode = chip.testmode;
         uint8_t calc_rm_enable = chip.rm_enable;
+        /* Inputs consumed by OPLL_Operator during this call. */
+        uint16_t op_calc_pg_out = chip.pg_out;
+        uint8_t op_calc_eg_out = chip.eg_out;
+        uint8_t op_calc_eg_silent = chip.eg_silent;
+        uint8_t op_calc_c_fb = chip.c_fb;
+        uint8_t op_calc_c_dc = chip.c_dc;
+        uint8_t op_calc_c_dm = chip.c_dm;
         uint32_t phase_ismod =
             ((calc_rm_enable & 0x40) && (cycle_before == 13 || cycle_before == 14))
                 ? 0
@@ -235,6 +242,10 @@ int main(int argc, char **argv) {
         printf(",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32,
                (unsigned)calc_fnum, (unsigned)calc_block, (unsigned)calc_mul,
                (unsigned)calc_vib, (unsigned)calc_lfo_vib_counter, chip.pg_inc);
+        printf(",\"op_calc_pg_out\":%u,\"op_calc_eg_out\":%u,\"op_calc_eg_silent\":%u,\"op_calc_c_fb\":%u,\"op_calc_c_dc\":%u,\"op_calc_c_dm\":%u",
+               (unsigned)op_calc_pg_out, (unsigned)op_calc_eg_out,
+               (unsigned)op_calc_eg_silent, (unsigned)op_calc_c_fb,
+               (unsigned)op_calc_c_dc, (unsigned)op_calc_c_dm);
         printf(",\"output_m\":%" PRId32 ",\"output_r\":%" PRId32, output[0], output[1]);
         printf(",\"pg_inc\":%" PRIu32 ",\"pg_phase_next\":%" PRIu32 ",\"pg_phase\":",
                chip.pg_inc, chip.pg_phase_next);
