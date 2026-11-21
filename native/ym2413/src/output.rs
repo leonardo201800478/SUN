@@ -216,7 +216,7 @@ pub fn rhythm_slot_result(
 }
 
 /// Snapshot format for the combined Rhythm Mode MO/RO output service.
-pub const YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION: u16 = 1;
+pub const YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION: u16 = 2;
 
 /// Complete save-state data for the Rhythm Mode output service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
