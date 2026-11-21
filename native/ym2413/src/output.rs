@@ -14,8 +14,8 @@
 //! signed measurement-domain level, not a raw DAC input word.
 
 use crate::rhythm_output::{
-    Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState,
-    Ym2413RhythmOutputError, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
+    Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState, Ym2413RhythmOutputError,
+    Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
 };
 use crate::slot::{
     YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413Operator, Ym2413RhythmVoice, slot_descriptor,
@@ -404,8 +404,7 @@ mod tests {
                 frame.slot_index
             );
             assert!(
-                !(frame.mo.is_some()
-                    && matches!(frame.ro, Ym2413OutputSlotResult::Pulse(_))),
+                !(frame.mo.is_some() && matches!(frame.ro, Ym2413OutputSlotResult::Pulse(_))),
                 "MO and RO must remain independent at slot {}",
                 frame.slot_index
             );
@@ -453,8 +452,7 @@ mod tests {
             prefix.push(process_service_slot(&mut split, slot));
         }
         let snapshot = split.export_state();
-        let mut restored =
-            super::Ym2413RhythmOutputService::with_initial_state(snapshot).unwrap();
+        let mut restored = super::Ym2413RhythmOutputService::with_initial_state(snapshot).unwrap();
         let mut resumed = Vec::new();
         for slot in 0..13 {
             resumed.push(process_service_slot(&mut restored, slot));
