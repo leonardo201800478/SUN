@@ -3825,9 +3825,18 @@ mod tests {
         assert!(renderer.fm_resampler.is_none());
         assert!(renderer.pending_psg_samples.is_empty());
         assert!(renderer.pending_fm_samples.is_empty());
-        assert_eq!(renderer.mix_psg_samples.len(), buffered_psg.len() + current_psg.len());
-        assert_eq!(&renderer.mix_psg_samples[..buffered_psg.len()], &buffered_psg);
-        assert_eq!(&renderer.mix_psg_samples[buffered_psg.len()..], current_psg.as_slice());
+        assert_eq!(
+            renderer.mix_psg_samples.len(),
+            buffered_psg.len() + current_psg.len()
+        );
+        assert_eq!(
+            &renderer.mix_psg_samples[..buffered_psg.len()],
+            &buffered_psg
+        );
+        assert_eq!(
+            &renderer.mix_psg_samples[buffered_psg.len()..],
+            current_psg.as_slice()
+        );
     }
 
     #[test]
