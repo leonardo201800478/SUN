@@ -1586,8 +1586,8 @@ mod tests {
             Territory::Japan,
         )
         .unwrap();
-        bus.write_port(0x7F, 0x81);
-        bus.write_port(0x7F, 0x00);
+        bus.write_port(0x7F, 0x80);
+        bus.write_port(0x7F, 0x04);
         bus.write_port(0x7F, 0x90);
 
         bus.write_port(0xF2, 0x01);
