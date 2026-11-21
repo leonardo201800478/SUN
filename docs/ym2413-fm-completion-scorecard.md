@@ -2,7 +2,8 @@
 
 **Data de referência:** 2026-11-21
 **Repositório:** `leonardo201800478/SUN`
-**Main atual:** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
+**Main com a integração de código da PR #1159:** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
+**Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
 **PRs FM integradas:**
 - **#1154 — FM-5.2A:** merge `50f549cf28da4f268304908ae44717fe402dd708`; cadência do ruído Rhythm Mode, ainda baseada em seed-candidate.
@@ -62,7 +63,7 @@ A procedência do latch anterior é derivada do dispatch serial concluído, pers
 | FM-7 | Perfis de hardware e integração SMS | **Pendente** | Portas F0–F2, latch/barramento, perfil Mark III/FM Unit e controle FM Auto/Off/On ainda não integrados ao runtime SMS. |
 | FM-8 | Mixer PSG + FM e áudio | **Pendente** | Acumulação determinística, mixer PSG+FM, resampling/saída host e snapshots agregados da máquina ainda não integrados. |
 
-## Inventário funcional consolidado (main `eb01ca8a`, 2026-11-21)
+## Inventário funcional consolidado (código em main após PR #1159 `eb01ca8a`, 2026-11-21)
 
 | Recurso | Implementação | Integração / validação |
 |---|---|---|
