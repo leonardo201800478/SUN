@@ -628,7 +628,7 @@ mod tests {
             assert_eq!(melodic.tick_operator(cycle, 0).unwrap().feedback_phase, 64);
             assert_eq!(
                 rhythm
-                    .tick_operator_with_rhythm_mode(cycle, 0, true)
+                    .tick_operator_with_rhythm_mode(cycle, 0, 0xff)
                     .unwrap()
                     .feedback_phase,
                 0,
