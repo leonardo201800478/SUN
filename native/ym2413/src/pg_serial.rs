@@ -223,12 +223,12 @@ fn rhythm_voice_operator(
     Ok((voice, operator, carrier))
 }
 
-/// Resolve the per-slot patch fields that are not shared by the two BD operators.
+/// Resolve per-slot patch fields that are not shared by the two BD operators.
 ///
-/// The measured BD custom-patch candidate encodes feedback and the modulator
-/// half-wave in its modulator fields. The serial rhythm ROM has a distinct
-/// BD-carrier entry: its feedback and modulator-waveform bits are zero. Do not
-/// copy the merged two-operator patch's FB/DM fields into the BD-carrier slot.
+/// The capture-derived BD candidate stores FB and DM in modulator-specific
+/// fields. The pinned Nuked rhythm table models BD-carrier separately with
+/// FB=0 and DM=0. Keep the serial latches operator-specific; this does not
+/// certify the complete physical rhythm ROM or the analog BD transfer.
 fn rhythm_operator_patch2_latches(
     selector: EnvelopeRhythmSelect,
     voice: RhythmVoiceSynthesisConfig,
