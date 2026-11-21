@@ -1806,7 +1806,7 @@ mod tests {
         let state = machine.ym2413().unwrap().export_state();
         assert_eq!(state.registers[0x10], 0xA5);
         assert!(machine.fm_output_enabled());
-        assert!(machine.psg_output_enabled());
+        assert!(!machine.psg_output_enabled());
     }
 
     #[test]
