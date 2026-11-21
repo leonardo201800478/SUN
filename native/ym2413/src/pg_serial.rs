@@ -12,6 +12,7 @@ use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfo
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
+use crate::rhythm_dispatch::{Ym2413SerialSlotDispatch, dispatch_serial_slot};
 use crate::serial_operator::{
     Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
     Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
