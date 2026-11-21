@@ -1819,3 +1819,16 @@ dropped. This was a source-structure error, not a behavioral test failure.
 The failing reset differential stopped at Rust compilation before executing
 its comparison. Exact-head CI and all YM2413 differentials are rerun after
 this correction; no pass is claimed for the failed attempt.
+
+
+## Rustfmt correction for the MO/RO cycle adapter
+
+The first CI attempt on the adapter found only formatting differences:
+- public re-export ordering/line wrapping in `native/ym2413/src/lib.rs`;
+- line wrapping in the two 18-entry mapping tests in `native/ym2413/src/output.rs`.
+
+Both were corrected with rustfmt-equivalent edits. No behavior or test data changed. Formatting commits:
+- `8dd7c754ad1a4021da0087fcef69e00cafcbe37b`
+- `51723854e724eefe9487c2d420a1fd1930fa1bcd`
+
+The CI failure was formatting-only. A fresh CI run is requested against the current PR head after the correction.
