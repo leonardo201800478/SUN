@@ -352,11 +352,17 @@ pub const fn nuked_phase_reset_required(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413SlotServiceEvent {
     pub cycle: u8,
+    /// Current patch/EG operator selected by Nuked's channel and operator latches.
     pub selected_operator: Ym2413SlotDescriptor,
+    /// PG accumulator entry updated with the previous call's PG latches.
     pub pg_phase_write_index: u8,
+    /// PG phase entry consumed by the current PhaseGenerate/Operator stages.
     pub pg_phase_output_index: u8,
+    /// Pre-update EG level consumed by the current Operator and advanced afterward.
     pub eg_update_index: u8,
+    /// EG level entry sampled after Operator to produce the next call's eg_out latch.
     pub eg_output_index: u8,
+    /// Reset request consumed only by the delayed PG next-phase latch.
     pub phase_reset_required: bool,
 }
 
