@@ -1742,3 +1742,35 @@ These successes validate the prior conversion helper and code at that exact
 HEAD, not the new cycle-mapping helper. The current helper and export require
 fresh exact-head CI and differential runs. No core integration or YM2413
 completion is implied.
+
+
+## Final correction to MO/RO cycle coordinates — 2026-11-21
+
+The immediately preceding shared-offset correction was itself incorrect and
+is superseded by the final audit
+`docs/audits/ym2413-mo-ro-cycle-alignment-2026-11-21.md`.
+
+The pin schedules use distinct coordinate transforms:
+
+- MO: `(nuked_cycle + 3) % 18`. The base Nuked MO windows 0..2, 6..8
+  and 12..14 align with measured melodic carrier slots 3..5, 9..11 and
+  15..17. Persistent Rhythm Mode restricts the measured MO map to slots
+  3..5 and 9..11; that six-channel restriction must come from persistent
+  mode state, not transient `rm_enable & 0x40`.
+- RO: `(nuked_cycle + 15) % 18`. The conditional Nuked RO cycles align
+  with measured originals 13..17 and repeats 0,1,2,6,7. Nuked labels this
+  RO gate potentially incorrect, so this remains software schedule
+  correspondence only.
+
+`rm_enable` is shifted every `OPLL_Clock` and register 0x0e writes load
+its upper pipeline bit. Bit 6/7 are delayed transition state, not persistent
+Rhythm Mode flags. The previous shared helper was replaced with two public
+coordinate functions:
+`mo_output_slot_for_nuked_cycle` and
+`ro_output_slot_for_nuked_cycle`. Tests exhaustively verify all 18
+coordinates and the measured Rhythm Mode MO/RO positions.
+
+The combined output service still cannot be called with one raw Nuked cycle:
+MO and RO need separate slot coordinates, and the adapter must preserve the
+previous `ch_out` latch, output-buffer delay and sign-dependent neutral
+values. No PG/core integration is claimed.
