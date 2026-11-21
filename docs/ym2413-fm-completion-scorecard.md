@@ -124,7 +124,7 @@ A procedência do latch anterior é derivada do dispatch serial concluído, pers
 7. Integrar mixer PSG+FM e saída host sem permitir que o host controle o relógio do hardware.
 8. Fechar seed físico/patch ROM de Rhythm Mode e divergências PG/PM/EG.
 
-**Próxima etapa recomendada: FM-5.4 — investigação da saída DAC com as capturas físicas originais e a documentação de aplicação Yamaha.** A varredura de volume existente usa Timer1 a cada 72 clocks YM2413 (uma amostra por rotação de 18 slots); o firmware também oferece `startCapture72()` com Timer0 a cada clock YM2413, mas isso ainda não resolve subclock. As capturas ADC da saída analógica não são captura direta da palavra digital interna. Não reativar `from_operator_channel_output` no caminho de produção até que a correspondência aritmética e a fronteira temporal sejam demonstradas independentemente.
+**Próxima etapa recomendada: FM-5.4 — investigação da saída DAC com as capturas físicas originais e a documentação de aplicação Yamaha.** A varredura de volume e a calibração existentes usam Timer1 a cada 72 clocks YM2413 (uma amostra por rotação de 18 slots); o firmware oferece `startCapture72()` com Timer0 como trigger por clock, mas essa cadência solicitada ainda exige comprovação de zero overflows/nenhuma perda DMA e não resolve subclock. As capturas ADC da saída analógica não são captura direta da palavra digital interna. Não reativar `from_operator_channel_output` no caminho de produção até que a correspondência aritmética e a fronteira temporal sejam demonstradas independentemente.
 
 ## Auditoria detalhada da integração MO/RO
 
