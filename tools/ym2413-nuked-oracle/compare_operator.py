@@ -56,8 +56,8 @@ def load_trace(path: Path) -> list[dict[str, object]]:
         missing = [field for field in required if field not in row]
         if missing:
             raise ValueError(f"call {row.get('call_index')}: missing {missing}")
-        if int(row["rm_enable"]) & 0x80:
-            raise ValueError("operator-only differential currently excludes Rhythm Mode")
+        if int(row.get("calc_rm_enable", row["rm_enable"])) != 0:
+            raise ValueError("operator-only differential currently excludes all Rhythm Mode slot overrides")
     if {int(row["cycle_before"]) for row in samples} != set(range(18)):
         raise ValueError("trace must cover all eighteen serial operator cycles")
     return samples
