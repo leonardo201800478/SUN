@@ -455,7 +455,10 @@ mod tests {
         assert_eq!(phase_15.channel, 7);
         assert_eq!(phase_15.operator, super::Ym2413Operator::Carrier);
         assert_eq!(super::slot_descriptor(15).unwrap().channel, 6);
-        assert_eq!(super::slot_descriptor(15).unwrap().operator, super::Ym2413Operator::Carrier);
+        assert_eq!(
+            super::slot_descriptor(15).unwrap().operator,
+            super::Ym2413Operator::Carrier
+        );
     }
 
     #[test]
