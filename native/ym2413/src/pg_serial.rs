@@ -223,6 +223,32 @@ fn rhythm_voice_operator(
     Ok((voice, operator, carrier))
 }
 
+/// Resolve the per-slot patch fields that are not shared by the two BD operators.
+///
+/// The measured BD custom-patch candidate encodes feedback and the modulator
+/// half-wave in its modulator fields. The serial rhythm ROM has a distinct
+/// BD-carrier entry: its feedback and modulator-waveform bits are zero. Do not
+/// copy the merged two-operator patch's FB/DM fields into the BD-carrier slot.
+fn rhythm_operator_patch2_latches(
+    selector: EnvelopeRhythmSelect,
+    voice: RhythmVoiceSynthesisConfig,
+    operator: RhythmOperatorSynthesisConfig,
+) -> Ym2413SerialOperatorPatch2Latches {
+    let bass_drum_modulator = matches!(selector, EnvelopeRhythmSelect::BassDrumFirst);
+    Ym2413SerialOperatorPatch2Latches {
+        feedback: if bass_drum_modulator { voice.feedback } else { 0 },
+        dc_waveform: voice.carrier.is_some_and(|value| value.patch.half_wave),
+        dm_waveform: bass_drum_modulator
+            && voice.modulator.is_some_and(|value| value.patch.half_wave),
+        am_enabled: operator.patch.am_enabled,
+        vibrato_enabled: operator.patch.vibrato_enabled,
+        multiplier: operator.phase.multiplier,
+        sustain_level: operator.patch.sustain_level,
+        fnum: voice.channel_frequency.fnum,
+        block: voice.channel_frequency.block,
+    }
+}
+
 /// Capture the special HH/TCY phase bits and form the corresponding PG address.
 /// The equations and capture cycles mirror Nuked-OPLL OPLL_PhaseGenerate.
 fn rhythm_pg_output(
@@ -657,17 +683,7 @@ impl Ym2413PgSerialService {
             rhythm_voice_operator(&context.registers, selector, context.event.cycle)?;
         self.pipeline.parameters = Ym2413PgParameterLatch::from_operator(operator.phase);
         self.operator
-            .prepare_patch2(Ym2413SerialOperatorPatch2Latches {
-                feedback: voice.feedback,
-                dc_waveform: voice.carrier.is_some_and(|value| value.patch.half_wave),
-                dm_waveform: voice.modulator.is_some_and(|value| value.patch.half_wave),
-                am_enabled: operator.patch.am_enabled,
-                vibrato_enabled: operator.patch.vibrato_enabled,
-                multiplier: operator.phase.multiplier,
-                sustain_level: operator.patch.sustain_level,
-                fnum: voice.channel_frequency.fnum,
-                block: voice.channel_frequency.block,
-            })?;
+            .prepare_patch2(rhythm_operator_patch2_latches(selector, voice, operator))?;
         Ok(())
     }
 
@@ -1042,6 +1058,29 @@ mod tests {
         state.format_version = YM2413_PG_SERIAL_STATE_VERSION;
         service = Ym2413PgSerialService::restore_state(state).unwrap();
         service
+    }
+
+    #[test]
+    fn rhythm_patch2_keeps_bd_modulator_fb_and_dm_out_of_the_bd_carrier_slot() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x20;
+        let cases = [
+            (11, EnvelopeRhythmSelect::BassDrumFirst, 7, true),
+            (12, EnvelopeRhythmSelect::HiHat, 0, false),
+            (13, EnvelopeRhythmSelect::TomTom, 0, false),
+            (14, EnvelopeRhythmSelect::BassDrumSecond, 0, false),
+            (15, EnvelopeRhythmSelect::SnareDrum, 0, false),
+            (16, EnvelopeRhythmSelect::TopCymbal, 0, false),
+        ];
+
+        for (cycle, selector, expected_feedback, expected_dm) in cases {
+            let (voice, operator, _) =
+                super::rhythm_voice_operator(&registers, selector, cycle).unwrap();
+            let latches =
+                super::rhythm_operator_patch2_latches(selector, voice, operator);
+            assert_eq!(latches.feedback, expected_feedback, "cycle {cycle}");
+            assert_eq!(latches.dm_waveform, expected_dm, "cycle {cycle}");
+        }
     }
 
     #[test]
