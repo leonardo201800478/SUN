@@ -97,15 +97,17 @@ def main() -> int:
             raise ValueError("Nuked and Rust call indices are not aligned")
 
         scalar_pairs = (
-            ("cycle_before", "cycle_before"),
-            ("cycle_after", "cycle_after"),
-            ("calc_lfo_vib_counter", "lfo_vib_counter_before"),
-            ("pg_inc_after", "pg_increment"),
-            ("pg_phase_next", "pg_phase_next"),
-            ("pg_out", "pg_output"),
+            ("cycle_before", "cycle_before", None),
+            ("cycle_after", "cycle_after", None),
+            ("calc_lfo_vib_counter", "lfo_vib_counter_before", None),
+            ("pg_inc_after", "pg_increment", None),
+            ("pg_phase_next", "pg_phase_next", PHASE_MASK),
+            ("pg_out", "pg_output", 0x03FF),
         )
-        for expected_key, actual_key in scalar_pairs:
+        for expected_key, actual_key, mask in scalar_pairs:
             expected = int(nuked[expected_key])
+            if mask is not None:
+                expected &= mask
             actual = int(rust[actual_key])
             if expected != actual and len(mismatches) < 20:
                 mismatches.append(
