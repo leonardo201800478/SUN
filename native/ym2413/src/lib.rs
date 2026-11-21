@@ -24,10 +24,10 @@ pub mod rhythm_channel;
 pub mod rhythm_output;
 pub mod rhythm_phase;
 pub mod slot;
+mod slot_service;
 pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
-mod slot_service;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
