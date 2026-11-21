@@ -1319,7 +1319,10 @@ mod tests {
         assert_eq!(adapter.process_cycle(0, true, None, false), Ok(None));
         assert_eq!(adapter.output_frame(), None);
 
-        let emitted = adapter.process_cycle(1, true, Some(17), true).unwrap().unwrap();
+        let emitted = adapter
+            .process_cycle(1, true, Some(17), true)
+            .unwrap()
+            .unwrap();
         assert_eq!(emitted.emitted_cycle, 1);
         assert_eq!(emitted.source.cycle, 0);
         assert!(!emitted.source.mo_known);
@@ -1341,19 +1344,31 @@ mod tests {
 
         let mut expected = Vec::new();
         for cycle in 0..18 {
-            expected.push(continuous.process_cycle(cycle, true, input(cycle), input(cycle).is_some()).unwrap());
+            expected.push(
+                continuous
+                    .process_cycle(cycle, true, input(cycle), input(cycle).is_some())
+                    .unwrap(),
+            );
         }
 
         let mut prefix = Vec::new();
         for cycle in 0..7 {
-            prefix.push(split.process_cycle(cycle, true, input(cycle), input(cycle).is_some()).unwrap());
+            prefix.push(
+                split
+                    .process_cycle(cycle, true, input(cycle), input(cycle).is_some())
+                    .unwrap(),
+            );
         }
         let snapshot = split.export_state();
         let mut restored =
             super::Ym2413MeasuredOutputAdapter::with_initial_state(snapshot).unwrap();
         let mut resumed = Vec::new();
         for cycle in 7..18 {
-            resumed.push(restored.process_cycle(cycle, true, input(cycle), input(cycle).is_some()).unwrap());
+            resumed.push(
+                restored
+                    .process_cycle(cycle, true, input(cycle), input(cycle).is_some())
+                    .unwrap(),
+            );
         }
 
         assert_eq!(prefix, expected[..7]);
@@ -1394,7 +1409,8 @@ mod tests {
     }
 
     #[test]
-    fn channel_output_adapter_marks_ro_inactive_and_does_not_latch_melody_while_rhythm_is_disabled() {
+    fn channel_output_adapter_marks_ro_inactive_and_does_not_latch_melody_while_rhythm_is_disabled()
+    {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
 
