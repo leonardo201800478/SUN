@@ -74,7 +74,7 @@ Implementado parcialmente e em evolução. Melhorar captura, retenção/exporta�
 ### BIOS
 
 O boot por BIOS convencional de 8 KiB foi integrado pela PR #928. Validação física com firmware real, handoff e primeiro código do cartucho permanece pendente. Não declarar boot físico validado.
- 
+
 ### RetroAchievements — integração transversal planejada
 
 **Estado:** PLANEJADO / NÃO IMPLEMENTADO. Esta trilha não altera a ordem das plataformas nem faz parte da Sprint P0 de estabilização desktop.
