@@ -1269,7 +1269,10 @@ impl SmsTemporalBus {
                 .iter()
                 .flatten()
                 .any(|sample| !sample.is_finite())
-            || state.pending_psg_samples.iter().any(|sample| !sample.is_finite())
+            || state
+                .pending_psg_samples
+                .iter()
+                .any(|sample| !sample.is_finite())
             || (state.ym2413.is_none()
                 && (!state.pending_psg_samples.is_empty()
                     || !state.pending_fm_samples.is_empty()
