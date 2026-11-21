@@ -6,7 +6,7 @@
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413ChannelInitialState, Ym2413Core, Ym2413Operator,
-    Ym2413PgSerialService, Ym2413SynthesisBank, Ym2413SynthesisInitialState, slot_descriptor,
+    Ym2413PgSerialService, Ym2413SynthesisBank, Ym2413SynthesisInitialState, nuked_pg_phase_slot_descriptor,
 };
 use std::error::Error;
 use std::fmt::Write as _;
@@ -154,7 +154,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         core.advance_input_clocks_with_pg_service(YM2413_INPUT_CLOCKS_PER_SLOT, &mut service)?;
 
         for slot in 0u8..18 {
-            let descriptor = slot_descriptor(slot)
+            let descriptor = nuked_pg_phase_slot_descriptor(slot)
                 .ok_or_else(|| invalid_data(format!("invalid physical PG slot {slot}")))?;
             let carrier = matches!(descriptor.operator, Ym2413Operator::Carrier);
             phases[usize::from(slot)] = service
