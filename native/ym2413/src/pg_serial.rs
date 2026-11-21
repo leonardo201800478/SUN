@@ -217,11 +217,9 @@ fn rhythm_voice_operator(
     } else {
         voice.modulator
     })
-    .ok_or_else(|| {
-        Ym2413PgSerialError::Channel(ChannelSynthesisError::Rhythm(
-            crate::rhythm_channel::RhythmChannelSynthesisError::MissingEnvelopeOperator { cycle },
-        ))
-    })?;
+    .ok_or(Ym2413PgSerialError::Channel(ChannelSynthesisError::Rhythm(
+        crate::rhythm_channel::RhythmChannelSynthesisError::MissingEnvelopeOperator { cycle },
+    )))?;
     Ok((voice, operator, carrier))
 }
 
