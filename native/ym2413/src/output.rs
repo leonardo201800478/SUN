@@ -760,9 +760,8 @@ mod tests {
     use super::{
         YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
         Ym2413OutputPin, Ym2413OutputPulse, Ym2413OutputRoutingError, Ym2413OutputSlotResult,
-        Ym2413OutputSource,
-        melody_output_for_slot, mo_output_slot_for_nuked_cycle, rhythm_output_event,
-        rhythm_slot_result, ro_output_slot_for_nuked_cycle,
+        Ym2413OutputSource, melody_output_for_slot, mo_output_slot_for_nuked_cycle,
+        rhythm_output_event, rhythm_slot_result, ro_output_slot_for_nuked_cycle,
     };
     use crate::rhythm_output::{
         Ym2413DacCode, Ym2413RhythmOutputError, Ym2413RhythmOutputEvent,
