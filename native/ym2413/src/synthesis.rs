@@ -179,6 +179,13 @@ impl Ym2413ChannelSynthesis {
         initial: Ym2413ChannelInitialState,
         damp_config: DampTransitionConfig,
     ) -> Result<Self, Ym2413SynthesisError> {
+        if initial
+            .phase
+            .iter()
+            .any(|phase| *phase > crate::phase::YM2413_PHASE_MASK)
+        {
+            return Err(Ym2413SynthesisError::Phase(PhaseGeneratorError::InvalidState));
+        }
         let phase = [
             PhaseGenerator::restore_state(PhaseGeneratorState {
                 format_version: crate::phase::YM2413_PG_STATE_VERSION,
