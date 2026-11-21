@@ -15,6 +15,8 @@
 #include <string.h>
 #include "opll.h"
 
+extern uint16_t opll_trace_pg_out_before_operator;
+
 #define MAX_EVENTS 65536
 
 static int phase_reset_probe = 0;
@@ -215,6 +217,7 @@ int main(int argc, char **argv) {
         }
 
         OPLL_Clock(&chip, output);
+        op_calc_pg_out = opll_trace_pg_out_before_operator;
         if (pg_phase_only) {
             printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32
                    ",\"cycle_after\":%" PRIu32 ",\"calc_fnum\":%u,\"calc_block\":%u"
