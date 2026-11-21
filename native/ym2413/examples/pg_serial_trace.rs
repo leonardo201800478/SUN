@@ -182,7 +182,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let eg_states: [u8; 18] =
             std::array::from_fn(|index| envelope.operators[index].stage as u8);
         let rm_enable = core_state.rm_enable as u8;
-        let rhythm_mode_enabled = u8::from(core_state.registers[0x0e] & 0x20 != 0);
+        let rhythm_control = core_state.registers[0x0e];
+        let rhythm_mode_enabled = u8::from(rhythm_control & 0x20 != 0);
         let rhythm_noise_register = service_state
             .rhythm_noise
             .map_or(-1_i64, |noise| i64::from(noise.lfsr.register));
@@ -324,13 +325,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
         let _ = write!(
             &mut trace_line,
-            ",\"eg_pending_rate\":{},\"eg_pending_zero_rate\":{},\"eg_next_slot\":{},\"rm_enable\":{},\"op_calc_rm_enable\":{},\"rm_select\":{},\"rhythm\":{},\"rm_noise\":{},\"rhythm_noise_register\":{},\"rhythm_noise_cursor\":{},\"rhythm_noise_steps\":{},\"rhythm_hh_bit2\":{},\"rhythm_hh_bit3\":{},\"rhythm_hh_bit7\":{},\"rhythm_hh_bit8\":{},\"rhythm_tc_bit3\":{},\"rhythm_tc_bit5\":{},\"ch_out_hh\":{},\"ch_out_tm\":{},\"ch_out_bd\":{},\"ch_out_sd\":{},\"ch_out_tc\":{}}}",
+            ",\"eg_pending_rate\":{},\"eg_pending_zero_rate\":{},\"eg_next_slot\":{},\"rm_enable\":{},\"op_calc_rm_enable\":{},\"rm_select\":{},\"rhythm_control\":{},\"rhythm_mode_enabled\":{},\"rm_noise\":{},\"rhythm_noise_register\":{},\"rhythm_noise_cursor\":{},\"rhythm_noise_steps\":{},\"rhythm_hh_bit2\":{},\"rhythm_hh_bit3\":{},\"rhythm_hh_bit7\":{},\"rhythm_hh_bit8\":{},\"rhythm_tc_bit3\":{},\"rhythm_tc_bit5\":{},\"ch_out_hh\":{},\"ch_out_tm\":{},\"ch_out_bd\":{},\"ch_out_sd\":{},\"ch_out_tc\":{}}}",
             timer.pending_rate,
             u8::from(timer.pending_zero_rate),
             timer.next_slot,
             rm_enable,
             rm_enable,
             core_state.rm_select,
+            rhythm_control,
             rhythm_mode_enabled,
             rhythm_noise_register,
             rhythm_noise_register,
