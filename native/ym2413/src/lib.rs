@@ -1074,7 +1074,7 @@ mod tests {
 
     #[test]
     fn internal_slot_service_error_rolls_back_core_and_service_and_retry_is_idempotent() {
-        #[derive(Clone, Default, PartialEq, Eq)]
+        #[derive(Clone, Debug, Default, PartialEq, Eq)]
         struct MutatingFailingService {
             before_count: usize,
             after_count: usize,
