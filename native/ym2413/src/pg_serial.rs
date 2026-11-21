@@ -836,15 +836,14 @@ impl Ym2413PgSerialService {
         if next_channel_output_is_rhythm && next_channel_output.is_none() {
             return Err(Ym2413PgSerialError::InvalidState);
         }
-        let output_state = self.output_pipeline.export_state();
-        let previous_channel_output = output_state
-            .previous_channel_output_valid
-            .then_some(output_state.previous_channel_output);
         let rhythm_mode_enabled = context.registers[0x0e] & 0x20 != 0;
+        // No independently validated operator-to-measured-level conversion
+        // exists yet. Preserve the timing/provenance path but keep the level
+        // unknown instead of applying the candidate one's-complement mapping.
         self.measured_output_adapter.process_cycle(
             context.event.cycle,
             rhythm_mode_enabled,
-            previous_channel_output,
+            None,
             self.previous_channel_output_is_rhythm,
         )?;
         self.last_output_frame = Some(self.output_pipeline.process_cycle_with_core_state(
