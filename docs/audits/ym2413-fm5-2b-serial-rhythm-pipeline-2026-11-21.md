@@ -1,10 +1,10 @@
 # YM2413 FM-5.2B — serial Rhythm Mode integration
 
-**Data:** 2026-11-21  
-**Repository:** `leonardo201800478/SUN`  
-**Parent:** PR #1154 — FM-5.2A serial rhythm LFSR cadence  
-**Work branch:** `feat/ym2413-fm5-2b-rhythm-operator-routing`  
-**Reference implementation:** Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`  
+**Data:** 2026-11-21
+**Repository:** `leonardo201800478/SUN`
+**Parent:** PR #1154 — FM-5.2A serial rhythm LFSR cadence
+**Work branch:** `feat/ym2413-fm5-2b-rhythm-operator-routing`
+**Reference implementation:** Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`
 **Status:** implemented in a draft stacked PR; not merged to `main`.
 
 ## Scope delivered
