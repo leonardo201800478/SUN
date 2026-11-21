@@ -48,23 +48,23 @@ jobs:
 
           old = """    if ((chip->testmode & 0x04)
            || (ismod && (chip->eg_dokon & 0x8000)) || (!ismod && (chip->eg_dokon & 0x01))) {
-              chip->pg_phase_next = 0;
-          } else {
-              chip->pg_phase_next = phase;
-          }"""
+                  chip->pg_phase_next = 0;
+              } else {
+                  chip->pg_phase_next = phase;
+              }"""
           new = """    uint32_t phase_reset_required =
-          (chip->testmode & 0x04)
-          || (ismod && (chip->eg_dokon & 0x8000))
-          || (!ismod && (chip->eg_dokon & 0x01));
-          if (phase_reset_required) {
-              chip->pg_phase_next = 0;
-          } else {
-              chip->pg_phase_next = phase;
-          }
-          #ifdef YM2413_TRACE_PHASE_RESET
-          ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,
-                                   chip->eg_dokon, ismod, phase_reset_required);
-          #endif"""
+        (chip->testmode & 0x04)
+        || (ismod && (chip->eg_dokon & 0x8000))
+        || (!ismod && (chip->eg_dokon & 0x01));
+    if (phase_reset_required) {
+        chip->pg_phase_next = 0;
+    } else {
+        chip->pg_phase_next = phase;
+    }
+    #ifdef YM2413_TRACE_PHASE_RESET
+    ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,
+                             chip->eg_dokon, ismod, phase_reset_required);
+    #endif"
           if source.count(old) != 1:
               raise SystemExit("pinned OPLL_PhaseGenerate reset branch anchor changed")
           path.write_text(source.replace(old, new, 1), encoding="utf-8")
