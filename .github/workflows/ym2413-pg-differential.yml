@@ -187,7 +187,7 @@ jobs:
                              0x10 | ((block & 7) << 1) | ((fnum >> 8) & 1),
                              9140 + index * 80)
           write_register(0x30, 0x0D, 9400)
-          write_register(0x38, 0x8B, 9440)
+          write_register(0x38, 0x0B, 9440)
 
           events.sort()
           if any(events[index][0] >= events[index + 1][0]
