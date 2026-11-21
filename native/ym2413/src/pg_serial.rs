@@ -5,8 +5,9 @@
 //! counter in one cloneable state machine. The core remains the sole owner of
 //! input clocks and the serial EG sequencer.
 //!
-//! This first integration gate covers normal melodic mode. Rhythm-specific PG
-//! phase combiners and the special channel-7..9 parameter routing remain FM-5.
+//! Melodic and explicitly seeded Rhythm Mode slots share this serial PG/operator
+//! service. Unknown physical LFSR reset state and unsettled mode transitions
+//! remain gated rather than being filled with guessed noise or patch state.
 
 use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState};
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
@@ -222,6 +223,7 @@ fn rhythm_pg_output(
     cycle: u8,
     phase: u32,
     rm_enable: u8,
+    rhythm_noise_available: bool,
     noise_bit: Option<bool>,
     latches: &mut Ym2413RhythmPhaseLatches,
 ) -> u16 {
@@ -235,7 +237,7 @@ fn rhythm_pg_output(
         latches.tc_bit5 = (phase >> 14) & 1 != 0;
     }
 
-    if rm_enable & 0x80 == 0 {
+    if rm_enable & 0x80 == 0 || !rhythm_noise_available {
         return (phase >> 9) as u16;
     }
 
@@ -497,6 +499,7 @@ impl Ym2413PgSerialService {
             context.event.cycle,
             phase,
             context.rm_enable,
+            self.rhythm_noise.is_some(),
             noise_bit,
             &mut self.pipeline.rhythm_phase_latches,
         );
@@ -528,9 +531,8 @@ impl Ym2413PgSerialService {
         self.synthesis.advance_pm_lfo_samples(1);
     }
 
-    /// Resolve the core cycle to a melodic slot when this slot is not owned
-    /// by Rhythm Mode. Percussion-owned and transitional slots remain gated
-    /// until their complete PG/operator path is integrated.
+    /// Resolve the core cycle to a melodic slot. Rhythm-owned slots use the
+    /// dedicated rhythm decoder and never borrow channels 7–9 as melodic inputs.
     fn require_melodic_slot(
         context: &Ym2413SlotServiceContext,
     ) -> Result<Ym2413SlotDescriptor, Ym2413PgSerialError> {
@@ -714,7 +716,11 @@ impl Ym2413PgSerialService {
     ) -> Result<(), Ym2413PgSerialError> {
         self.prepare_rhythm_patch1(context, selector)?;
         self.serial_am_lfo.capture_output(context.event.cycle)?;
-        let noise_bit = self.current_rhythm_noise_bit(context.event.cycle)?;
+        let noise_bit = if self.rhythm_noise.is_some() {
+            self.current_rhythm_noise_bit(context.event.cycle)?
+        } else {
+            None
+        };
         self.generate_phase(context, noise_bit)?;
         self.operator.tick_operator_with_rhythm_mode(
             context.event.cycle,
@@ -755,8 +761,8 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             Ym2413SerialSlotDispatch::Melodic { .. } => {
                 return Err(Ym2413PgSerialError::InvalidState);
             }
-            // Rhythm-owned and unsettled cycles still pass through the core EG
-            // and post-EG DoRhythm stage. Their PG/operator path is FM-5.2B.
+            // Unknown-seed Rhythm Mode and unsettled transitions still pass
+            // through core EG and DoRhythm, but do not fabricate synthesis state.
             Ym2413SerialSlotDispatch::Rhythm { selector, .. }
                 if self.rhythm_noise.is_some() =>
             {
@@ -960,6 +966,51 @@ mod tests {
         state.format_version = YM2413_PG_SERIAL_STATE_VERSION;
         service = Ym2413PgSerialService::restore_state(state).unwrap();
         service
+    }
+
+    #[test]
+    fn rhythm_pg_phase_outputs_match_nuked_hihat_snare_and_cymbal_equations() {
+        let mut latches = super::Ym2413RhythmPhaseLatches {
+            tc_bit3: true,
+            tc_bit5: false,
+            ..super::Ym2413RhythmPhaseLatches::default()
+        };
+        let hihat_phase = (1_u32 << 11) | (1_u32 << 17);
+        assert_eq!(
+            super::rhythm_pg_output(13, hihat_phase, 0xff, true, Some(false), &mut latches),
+            0x2d0
+        );
+        assert!(latches.hh_bit2);
+        assert!(latches.hh_bit8);
+        assert!(!latches.hh_bit3);
+        assert!(!latches.hh_bit7);
+
+        assert_eq!(
+            super::rhythm_pg_output(16, 0, 0xff, true, Some(true), &mut latches),
+            0x200
+        );
+
+        let cymbal_phase = (1_u32 << 12) | (1_u32 << 14);
+        assert_eq!(
+            super::rhythm_pg_output(17, cymbal_phase, 0xff, true, None, &mut latches),
+            0x300
+        );
+        assert!(latches.tc_bit3);
+        assert!(latches.tc_bit5);
+    }
+
+    #[test]
+    fn rhythm_pg_phase_output_is_not_fabricated_without_an_explicit_noise_state() {
+        let mut latches = super::Ym2413RhythmPhaseLatches::default();
+        let phase = 0x12_3456;
+        assert_eq!(
+            super::rhythm_pg_output(13, phase, 0xff, false, None, &mut latches),
+            (phase >> 9) as u16
+        );
+        assert_eq!(
+            super::rhythm_pg_output(17, phase, 0xff, false, None, &mut latches),
+            (phase >> 9) as u16
+        );
     }
 
     #[test]
