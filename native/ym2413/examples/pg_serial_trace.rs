@@ -10,6 +10,7 @@ use sega_ym2413::{
     slot_descriptor,
 };
 use std::error::Error;
+use std::fmt::Write as _;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error as IoError, ErrorKind};
 use std::path::Path;
@@ -117,6 +118,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut core = Ym2413Core::new();
     let mut service = reset_service()?;
     let mut event_index = 0usize;
+    let mut phases = [0u32; 18];
+    let mut phase_json = String::with_capacity(18 * 7);
 
     for call_index in 0..calls {
         while event_index < events.len() && events[event_index].call_index == call_index {
@@ -140,23 +143,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             &mut service,
         )?;
 
-        let mut phases = Vec::with_capacity(18);
-        for slot in 0..18 {
+        for slot in 0u8..18 {
             let descriptor = slot_descriptor(slot)
                 .ok_or_else(|| invalid_data(format!("invalid physical PG slot {slot}")))?;
             let carrier = matches!(descriptor.operator, Ym2413Operator::Carrier);
-            phases.push(
-                service
-                    .synthesis()
-                    .phase_accumulator(descriptor.channel, carrier)
-                    .map_err(|error| invalid_data(format!("invalid PG accumulator: {error:?}")))?,
-            );
+            phases[usize::from(slot)] = service
+                .synthesis()
+                .phase_accumulator(descriptor.channel, carrier)
+                .map_err(|error| invalid_data(format!("invalid PG accumulator: {error:?}")))?;
         }
-        let phase_json = phases
-            .iter()
-            .map(u32::to_string)
-            .collect::<Vec<_>>()
-            .join(",");
+        phase_json.clear();
+        for (index, phase) in phases.iter().enumerate() {
+            if index != 0 {
+                phase_json.push(',');
+            }
+            let _ = write!(&mut phase_json, "{phase}");
+        }
 
         println!(
             "{{\"call_index\":{},\"cycle_before\":{},\"cycle_after\":{},\"lfo_vib_counter_before\":{},\"lfo_vib_counter_after\":{},\"pg_increment\":{},\"pg_phase_next\":{},\"pg_output\":{},\"phases\":[{}]}}",
