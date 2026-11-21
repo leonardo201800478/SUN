@@ -1771,6 +1771,45 @@ mod tests {
     }
 
     #[test]
+    fn z80_out_instructions_reach_the_japanese_sms_ym2413_ports() {
+        use crate::{SmsVdpProfile, Territory};
+
+        let mut rom = vec![0; 0x4000];
+        let program = [
+            0x3E, 0x10, // LD A, $10
+            0xD3, 0xF0, // OUT ($F0), A — YM2413 address
+            0x3E, 0xA5, // LD A, $A5
+            0xD3, 0xF1, // OUT ($F1), A — YM2413 data
+        ];
+        rom[..program.len()].copy_from_slice(&program);
+        rom[8..24].fill(0x00); // NOPs allow the serial register write to reach channel 0.
+        rom[24..29].copy_from_slice(&[
+            0x3E, 0x01, // LD A, $01
+            0xD3, 0xF2, // OUT ($F2), A — enable FM output
+            0x76, // HALT
+        ]);
+
+        let mut machine = SmsTemporalMachine::new_with_japanese_fm_hardware_profile(
+            rom,
+            3,
+            3_579_545,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+
+        for _ in 0..23 {
+            machine.step_instruction(0).unwrap();
+        }
+
+        let state = machine.ym2413().unwrap().export_state();
+        assert_eq!(state.registers[0x10], 0xA5);
+        assert!(machine.fm_output_enabled());
+        assert!(machine.psg_output_enabled());
+    }
+
+    #[test]
     fn external_th_transition_is_consumed_on_the_cpu_scheduler_timeline_and_restores() {
         let mut machine = SmsTemporalMachine::new(vec![0x00; 0x4000], 3).unwrap();
         machine
