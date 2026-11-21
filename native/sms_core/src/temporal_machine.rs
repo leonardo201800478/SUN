@@ -4035,9 +4035,9 @@ mod temporal_frame_tests {
                 0x3E, address, 0xD3, 0xF0, // LD A,address; OUT ($F0),A
                 0x3E, data, 0xD3, 0xF1, // LD A,data; OUT ($F1),A
             ]);
-            // Allow the serial register-write pipeline to commit before the
-            // next address selection, as required by the YM2413 bus timing.
-            program.extend([0x00; 8]); // Eight Z80 NOPs.
+            // Match the established bus test's conservative delayed-write
+            // window before selecting the next register address.
+            program.extend([0x00; 22]); // Twenty-two Z80 NOPs.
         }
 
         // PSG tone channel 0, period 4, maximum volume.
