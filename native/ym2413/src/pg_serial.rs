@@ -552,10 +552,10 @@ mod tests {
                     matches!(output.operator, crate::Ym2413Operator::Carrier),
                 )
                 .unwrap(),
-            0
+            0x1000
         );
-        assert_eq!(service.pg_phase_next(), 0);
-        assert_eq!(service.pg_output(), 0);
+        assert_eq!(service.pg_phase_next(), 0x1000);
+        assert_eq!(service.pg_output(), 8);
     }
 
     #[test]
@@ -580,7 +580,7 @@ mod tests {
                     matches!(output.operator, crate::Ym2413Operator::Carrier),
                 )
                 .unwrap(),
-            0
+            0x1000
         );
         assert_eq!(
             service
@@ -728,13 +728,13 @@ mod tests {
     fn service_rejects_invalid_pipeline_snapshot_fields() {
         let service = Ym2413PgSerialService::new(initial_bank(0));
         let mut state = service.export_state();
-        state.pipeline.pg_phase_next = YM2413_PHASE_MASK + 1;
+        state.pipeline.lfo_vib_counter = 8;
         assert_eq!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
         );
         state = service.export_state();
-        state.pipeline.lfo_vib_counter = 8;
+        state.pipeline.parameters.fnum = 0x0200;
         assert_eq!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
