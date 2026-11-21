@@ -397,7 +397,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile(
+        let bus = Self::new_with_hardware_profile(
             rom,
             master_ticks_per_tstate,
             psg_clock_hz,
@@ -422,7 +422,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile_and_sram_size(
+        let bus = Self::new_with_hardware_profile_and_sram_size(
             rom,
             master_ticks_per_tstate,
             psg_clock_hz,
@@ -596,7 +596,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile_and_bios(
+        let bus = Self::new_with_hardware_profile_and_bios(
             rom,
             bios,
             master_ticks_per_tstate,
@@ -623,7 +623,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile_and_bios_and_sram_size(
+        let bus = Self::new_with_hardware_profile_and_bios_and_sram_size(
             rom,
             bios,
             master_ticks_per_tstate,
