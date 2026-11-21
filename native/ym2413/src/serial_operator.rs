@@ -97,7 +97,7 @@ pub struct Ym2413SerialOperatorState {
     pub c_am: bool,
     /// Last raw signed operator output produced by OPLL_Operator.
     pub last_operator_output: i16,
-    /// Last melodic channel-output latch produced by OPLL_Operator.
+    /// Last channel-output latch produced by OPLL_Operator.
     pub last_channel_output: i16,
     /// Last mirrored ten-bit phase address.
     pub last_phase_index: u16,
@@ -184,7 +184,7 @@ pub struct Ym2413SerialOperatorPatch2Latches {
 pub struct Ym2413SerialOperatorSample {
     /// Raw signed EXP-stage output before channel scaling.
     pub operator_output: i16,
-    /// The normal melodic ch_out value; rhythm routing is intentionally separate.
+    /// Channel output after melodic muting or rhythm-latch routing.
     pub channel_output: i16,
     /// Ten-bit phase address after modulation and waveform mirroring.
     pub phase_index: u16,
@@ -365,12 +365,11 @@ impl Ym2413SerialOperator {
 
         let rhythm_operator_select = rm_enable & 0x40 != 0;
         let rhythm_output_select = rm_enable & 0x80 != 0;
-        let ismod1 = !(rhythm_output_select && matches!(cycle, 15 | 16))
-            && ((cycle + 1) / 3) & 1 != 0;
-        let ismod2 = !(rhythm_operator_select && matches!(cycle, 13 | 14))
-            && ((cycle + 3) / 3) & 1 != 0;
-        let ismod3 = !(rhythm_operator_select && matches!(cycle, 16 | 17))
-            && (cycle / 3) & 1 != 0;
+        let ismod1 =
+            !(rhythm_output_select && matches!(cycle, 15 | 16)) && ((cycle + 1) / 3) & 1 != 0;
+        let ismod2 =
+            !(rhythm_operator_select && matches!(cycle, 13 | 14)) && ((cycle + 3) / 3) & 1 != 0;
+        let ismod3 = !(rhythm_operator_select && matches!(cycle, 16 | 17)) && (cycle / 3) & 1 != 0;
 
         let mut op_mod = if ismod3 {
             u32::from(self.state.op_mod) << 1
@@ -437,7 +436,11 @@ impl Ym2413SerialOperator {
             _ => 0,
         };
         let channel_output = if ismod1 {
-            if rhythm_output_select { rhythm_output } else { 0 }
+            if rhythm_output_select {
+                rhythm_output
+            } else {
+                0
+            }
         } else {
             output >> 3
         };
@@ -586,9 +589,7 @@ mod tests {
         assert_eq!(operator.state().rhythm_channel_outputs[0], 255);
 
         // Cycle 2 consumes the retained HH value, not the current operator.
-        let routed = operator
-            .tick_operator_with_rhythm_mode(2, 0, 0xff)
-            .unwrap();
+        let routed = operator.tick_operator_with_rhythm_mode(2, 0, 0xff).unwrap();
         assert_eq!(routed.channel_output, 255);
 
         // The legacy melodic entry point must continue to mute rhythm returns.
