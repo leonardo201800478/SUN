@@ -495,6 +495,7 @@ impl Ym2413SerialOperator {
 mod tests {
     use super::{
         YM2413_SERIAL_OPERATOR_STATE_VERSION, Ym2413SerialOperator, Ym2413SerialOperatorError,
+        Ym2413SerialOperatorPatch1Latches, Ym2413SerialOperatorPatch2Latches,
         Ym2413SerialOperatorState,
     };
     use crate::synthesis_tables::YM2413_EXP_TABLE;
@@ -512,12 +513,51 @@ mod tests {
     #[test]
     fn prepare_patch_latches_are_delayed_and_snapshot_safe() {
         let mut operator = Ym2413SerialOperator::new();
-        operator.prepare_patch1(28, 31).unwrap();
-        operator.prepare_patch2(5, true, false, true).unwrap();
+        operator
+            .prepare_patch1(Ym2413SerialOperatorPatch1Latches {
+                total_level: 31,
+                ksl_attenuation: 28,
+                ksl: 2,
+                adrr: [15, 10, 5],
+                envelope_type: true,
+                key_scale_rate: true,
+                key_scale_rate_frequency: 15,
+                key_scale_level_frequency: 14,
+                key_scale_level_block: 7,
+            })
+            .unwrap();
+        operator.prepare_channel(3, 1).unwrap();
+        operator
+            .prepare_patch2(Ym2413SerialOperatorPatch2Latches {
+                feedback: 5,
+                dc_waveform: true,
+                dm_waveform: false,
+                am_enabled: true,
+                vibrato_enabled: true,
+                multiplier: 12,
+                sustain_level: 10,
+                fnum: 0x01ff,
+                block: 7,
+            })
+            .unwrap();
         let state = operator.export_state();
         assert_eq!(state.c_ksl_attenuation, 28);
         assert_eq!(state.c_tl, 31);
+        assert_eq!(state.c_ksl, 2);
+        assert_eq!(state.c_adrr, [15, 10, 5]);
+        assert!(state.c_et);
+        assert!(state.c_ksr);
+        assert_eq!(state.c_ksr_freq, 15);
+        assert_eq!(state.c_ksl_freq, 14);
+        assert_eq!(state.c_ksl_block, 7);
+        assert_eq!(state.c_instr, 3);
+        assert_eq!(state.c_op, 1);
         assert_eq!(state.c_fb, 5);
+        assert_eq!(state.c_multi, 12);
+        assert_eq!(state.c_sl, 10);
+        assert_eq!(state.c_fnum, 0x01ff);
+        assert_eq!(state.c_block, 7);
+        assert!(state.c_vib);
         assert_eq!(state.c_dc & 1, 1);
         assert_eq!(state.c_dm & 1, 0);
         assert!(state.c_am);
@@ -527,8 +567,18 @@ mod tests {
     #[test]
     fn waveform_bits_shift_through_the_serial_latch() {
         let mut operator = Ym2413SerialOperator::new();
-        operator.prepare_patch2(0, true, false, false).unwrap();
-        operator.prepare_patch2(0, false, true, false).unwrap();
+        operator
+            .prepare_patch2(Ym2413SerialOperatorPatch2Latches {
+                dc_waveform: true,
+                ..Ym2413SerialOperatorPatch2Latches::default()
+            })
+            .unwrap();
+        operator
+            .prepare_patch2(Ym2413SerialOperatorPatch2Latches {
+                dm_waveform: true,
+                ..Ym2413SerialOperatorPatch2Latches::default()
+            })
+            .unwrap();
         assert_eq!(operator.state().c_dc, 2);
         assert_eq!(operator.state().c_dm, 1);
     }
@@ -552,7 +602,12 @@ mod tests {
             ..Ym2413SerialOperatorState::default()
         };
         let mut operator = Ym2413SerialOperator::restore_state(state).unwrap();
-        operator.prepare_patch2(7, false, false, false).unwrap();
+        operator
+            .prepare_patch2(Ym2413SerialOperatorPatch2Latches {
+                feedback: 7,
+                ..Ym2413SerialOperatorPatch2Latches::default()
+            })
+            .unwrap();
         let sample = operator.tick_operator(0, 0).unwrap();
         assert_eq!(sample.feedback_phase, 0);
         assert_eq!(operator.state().op_fbsum, 96);
@@ -563,7 +618,13 @@ mod tests {
     #[test]
     fn envelope_output_uses_old_ksl_tl_before_latching_new_value() {
         let mut operator = Ym2413SerialOperator::new();
-        operator.prepare_patch1(28, 10).unwrap();
+        operator
+            .prepare_patch1(Ym2413SerialOperatorPatch1Latches {
+                ksl_attenuation: 28,
+                total_level: 10,
+                ..Ym2413SerialOperatorPatch1Latches::default()
+            })
+            .unwrap();
         let mut levels = [0_u8; 18];
         levels[17] = 12;
         operator.advance_envelope_output(0, &levels, 0, 0).unwrap();
