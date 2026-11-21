@@ -130,11 +130,10 @@ impl PhaseGenerator {
         u32::try_from(step).map_err(|_| PhaseGeneratorError::InvalidState)
     }
 
-    /// Replace the accumulator with a serial PG phase-array write.
+    /// Replace the standalone 19-bit phase candidate.
     ///
-    /// Nuked's `pg_phase[(cycle + 17) % 18]` stage assigns
-    /// `pg_phase_next + pg_inc`; it does not add that value to the previous
-    /// contents of the selected phase-array entry.
+    /// The cycle-accurate serial service must use `write_serial_phase` so
+    /// Nuked's full-width `uint32_t` phase-ring value is not truncated.
     pub fn write_phase(&mut self, phase: u32) {
         self.phase = phase & YM2413_PHASE_MASK;
     }
@@ -154,11 +153,10 @@ impl PhaseGenerator {
         self.phase
     }
 
-    /// Add one already-latched hardware PG increment to this accumulator.
+    /// Advance the standalone 19-bit candidate by a precomputed increment.
     ///
-    /// The serial chip pipeline calculates `pg_inc` in a different stage
-    /// from the delayed phase-array write. Keeping the adder separate avoids
-    /// recalculating FNUM/BLOCK/MUL at the accumulator write boundary.
+    /// The serial chip pipeline instead uses `advance_serial_by_increment`
+    /// and retains the full-width `uint32_t` phase state.
     pub fn advance_by_increment(&mut self, increment: u32) -> u32 {
         self.phase = self.phase.wrapping_add(increment) & YM2413_PHASE_MASK;
         self.phase
@@ -167,8 +165,8 @@ impl PhaseGenerator {
     /// Advance this operator by one output-sample update and return its phase.
     ///
     /// This convenience path combines increment calculation and accumulation.
-    /// The serial chip pipeline should use `advance_by_increment` with its
-    /// retained PG increment latch instead.
+    /// The serial chip pipeline uses `write_serial_phase` and
+    /// `advance_serial_by_increment` to preserve Nuked's full-width state.
     pub fn advance(
         &mut self,
         fnum: u16,
