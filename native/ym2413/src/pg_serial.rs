@@ -946,6 +946,63 @@ mod tests {
         }
     }
 
+    fn rhythm_context(
+        cycle: u8,
+        registers: [u8; 64],
+        selector: EnvelopeRhythmSelect,
+    ) -> Ym2413SlotServiceContext {
+        let eg = EnvelopeSequencer::new();
+        let state = eg.export_state();
+        let event =
+            nuked_slot_service_event_with_testmode(cycle, 0xff, state.eg_dokon, 0).unwrap();
+        let mut registers = registers;
+        registers[0x0f] = 0;
+        let mut envelope_input = EnvelopeSlotInput::default();
+        envelope_input.rhythm_select = selector;
+        envelope_input.rhythm_bits = registers[0x0e] & 0x3f;
+        Ym2413SlotServiceContext {
+            event,
+            registers,
+            envelope_input,
+            envelope_state: state,
+            rm_enable: 0xff,
+            rm_select: match selector {
+                EnvelopeRhythmSelect::BassDrumFirst => 0,
+                EnvelopeRhythmSelect::HiHat => 1,
+                EnvelopeRhythmSelect::TomTom => 2,
+                EnvelopeRhythmSelect::BassDrumSecond => 3,
+                EnvelopeRhythmSelect::SnareDrum => 4,
+                EnvelopeRhythmSelect::TopCymbal => 5,
+                EnvelopeRhythmSelect::None => 6,
+            },
+        }
+    }
+
+    fn rhythm_selector(cycle: u8) -> EnvelopeRhythmSelect {
+        match cycle {
+            11 => EnvelopeRhythmSelect::BassDrumFirst,
+            12 => EnvelopeRhythmSelect::HiHat,
+            13 => EnvelopeRhythmSelect::TomTom,
+            14 => EnvelopeRhythmSelect::BassDrumSecond,
+            15 => EnvelopeRhythmSelect::SnareDrum,
+            16 => EnvelopeRhythmSelect::TopCymbal,
+            _ => EnvelopeRhythmSelect::None,
+        }
+    }
+
+    fn advance_rhythm_slot(
+        service: &mut Ym2413PgSerialService,
+        cycle: u8,
+        registers: [u8; 64],
+    ) {
+        let context = rhythm_context(cycle, registers, rhythm_selector(cycle));
+        service.before_eg_update(&context).unwrap();
+        let (tick, post_state) = tick(cycle);
+        service
+            .after_eg_update(&context, tick, post_state)
+            .unwrap();
+    }
+
     fn tick(cycle: u8) -> (crate::EnvelopeSequencerTick, crate::EnvelopeSequencerState) {
         let mut eg = EnvelopeSequencer::new();
         for prior_cycle in 0..cycle {
@@ -977,6 +1034,42 @@ mod tests {
         state.format_version = YM2413_PG_SERIAL_STATE_VERSION;
         service = Ym2413PgSerialService::restore_state(state).unwrap();
         service
+    }
+
+    #[test]
+    fn seeded_rhythm_pg_operator_path_is_snapshot_and_block_partition_deterministic() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        registers[0x36] = 0xa5;
+        registers[0x37] = 0xb6;
+        registers[0x38] = 0xc7;
+
+        let mut continuous = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(0x5a_1234, 0)
+            .unwrap();
+        for cycle in 0..18 {
+            advance_rhythm_slot(&mut continuous, cycle, registers);
+        }
+
+        let final_state = continuous.export_state();
+        assert_eq!(final_state.rhythm_noise_steps, 18);
+        assert_eq!(final_state.rhythm_noise_cursor, 0);
+        assert!(final_state.rhythm_noise_samples.iter().all(Option::is_some));
+        let restored = Ym2413PgSerialService::restore_state(final_state).unwrap();
+        assert_eq!(restored.export_state(), final_state);
+
+        let mut partitioned = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(0x5a_1234, 0)
+            .unwrap();
+        for cycle in 0..9 {
+            advance_rhythm_slot(&mut partitioned, cycle, registers);
+        }
+        let midpoint = partitioned.export_state();
+        partitioned = Ym2413PgSerialService::restore_state(midpoint).unwrap();
+        for cycle in 9..18 {
+            advance_rhythm_slot(&mut partitioned, cycle, registers);
+        }
+        assert_eq!(partitioned.export_state(), final_state);
     }
 
     #[test]
