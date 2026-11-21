@@ -31,8 +31,10 @@ pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
 pub use am_lfo::{
-    AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
+    AmLfo, AmLfoError, AmLfoState, Ym2413SerialAmLfo, Ym2413SerialAmLfoError,
+    Ym2413SerialAmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
+    YM2413_SERIAL_AM_LFO_STATE_VERSION,
 };
 pub use bus_timing::{
     YM2413_ADDRESS_WRITE_WAIT_CLOCKS, YM2413_BUS_TIMING_STATE_VERSION,
