@@ -5469,6 +5469,75 @@ mod windows_host {
         use super::*;
 
         #[test]
+        fn fm_preferences_default_to_generic_board_and_conservative_auto() {
+            let preferences = DesktopPreferences::default();
+            assert_eq!(preferences.sms_fm_board_profile, "none");
+            assert_eq!(preferences.sms_fm_mode, "auto");
+            assert_eq!(SmsFmBoardProfile::from_preference("japanese-integrated"), Some(SmsFmBoardProfile::JapaneseIntegrated));
+            assert_eq!(FmMode::from_preference("off"), Some(FmMode::Off));
+            assert_eq!(FmMode::from_preference("invalid"), None);
+        }
+
+        #[test]
+        fn fm_auto_requires_an_exact_verified_catalog_entry() {
+            let rom = vec![0; 0x4000];
+            assert!(!fm_auto_catalog_matches(&rom));
+
+            let (has_integrated_fm, policy) = resolve_sms_fm_configuration(
+                SmsFmBoardProfile::JapaneseIntegrated,
+                FmMode::Auto,
+                "sms1",
+                &rom,
+            )
+            .unwrap();
+
+            assert!(has_integrated_fm);
+            assert_eq!(policy, SmsFmOutputPolicy::Muted);
+        }
+
+        #[test]
+        fn fm_on_requires_physical_hardware_and_off_keeps_the_chip_installed() {
+            let rom = vec![0; 0x4000];
+            assert!(
+                resolve_sms_fm_configuration(
+                    SmsFmBoardProfile::Generic,
+                    FmMode::On,
+                    "sms1",
+                    &rom,
+                )
+                .is_err()
+            );
+            assert!(
+                resolve_sms_fm_configuration(
+                    SmsFmBoardProfile::JapaneseIntegrated,
+                    FmMode::On,
+                    "sms2",
+                    &rom,
+                )
+                .is_err()
+            );
+
+            let (has_integrated_fm, policy) = resolve_sms_fm_configuration(
+                SmsFmBoardProfile::JapaneseIntegrated,
+                FmMode::Off,
+                "sms1",
+                &rom,
+            )
+            .unwrap();
+            assert!(has_integrated_fm);
+            assert_eq!(policy, SmsFmOutputPolicy::Muted);
+
+            let (_, policy) = resolve_sms_fm_configuration(
+                SmsFmBoardProfile::JapaneseIntegrated,
+                FmMode::On,
+                "sms1",
+                &rom,
+            )
+            .unwrap();
+            assert_eq!(policy, SmsFmOutputPolicy::Enabled);
+        }
+
+        #[test]
         fn keyboard_key_token_round_trips_unicode() {
             for key in ["w", "Z", "↑"] {
                 let encoded = encode_key_token(key);
