@@ -1160,4 +1160,169 @@ mod tests {
             Ok(Ym2413OutputSlotResult::NoOutput)
         );
     }
+
+    #[test]
+    fn channel_output_adapter_marks_unknown_active_mo_and_original_ro_explicitly() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let frame = service
+            .process_nuked_cycle_from_channel_output(0, true, None)
+            .unwrap();
+
+        assert_eq!(frame.mo_slot_index, 3);
+        assert!(frame.mo.is_none());
+        assert!(!frame.mo_known);
+        assert_eq!(frame.ro_slot_index, 15);
+        assert_eq!(
+            frame.ro,
+            Ym2413OutputSlotResult::UnknownSource {
+                slot_index: 15,
+                voice: Ym2413RhythmVoice::BassDrum,
+            }
+        );
+    }
+
+    #[test]
+    fn channel_output_adapter_converts_known_level_and_preserves_pin_domains() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let channel_output = -37_i16;
+        let expected = Ym2413DacCode::from_operator_channel_output(channel_output).unwrap();
+        let frame = service
+            .process_nuked_cycle_from_channel_output(0, true, Some(channel_output))
+            .unwrap();
+
+        assert!(frame.mo_known);
+        assert_eq!(frame.mo.unwrap().level, expected);
+        assert_eq!(
+            frame.ro,
+            Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse {
+                pin: Ym2413OutputPin::Ro,
+                slot_index: 15,
+                source: Ym2413OutputSource::RhythmVoice(Ym2413RhythmVoice::BassDrum),
+                level: expected,
+            })
+        );
+    }
+
+    #[test]
+    fn unknown_rhythm_source_invalidates_the_retained_value_before_repeat() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let first = service
+            .process_nuked_cycle_from_channel_output(0, true, Some(41))
+            .unwrap();
+        assert!(matches!(first.ro, Ym2413OutputSlotResult::Pulse(_)));
+
+        for cycle in 1..18 {
+            let _ = service
+                .process_nuked_cycle_from_channel_output(cycle, true, Some(41))
+                .unwrap();
+        }
+        let unknown_source = service
+            .process_nuked_cycle_from_channel_output(0, true, None)
+            .unwrap();
+        assert!(matches!(
+            unknown_source.ro,
+            Ym2413OutputSlotResult::UnknownSource {
+                slot_index: 15,
+                voice: Ym2413RhythmVoice::BassDrum
+            }
+        ));
+
+        for cycle in 1..4 {
+            let _ = service
+                .process_nuked_cycle_from_channel_output(cycle, true, None)
+                .unwrap();
+        }
+        let repeat = service
+            .process_nuked_cycle_from_channel_output(4, true, None)
+            .unwrap();
+        assert_eq!(
+            repeat.ro,
+            Ym2413OutputSlotResult::RepeatNotInitialized {
+                slot_index: 1,
+                voice: Ym2413RhythmVoice::TomTom,
+            }
+        );
+    }
+
+    #[test]
+    fn measured_adapter_buffers_one_cycle_and_labels_source_and_emission_cycles() {
+        let mut adapter = super::Ym2413MeasuredOutputAdapter::new();
+        assert_eq!(adapter.process_cycle(0, true, None), Ok(None));
+        assert_eq!(adapter.output_frame(), None);
+
+        let emitted = adapter.process_cycle(1, true, Some(17)).unwrap().unwrap();
+        assert_eq!(emitted.emitted_cycle, 1);
+        assert_eq!(emitted.source.cycle, 0);
+        assert!(!emitted.source.mo_known);
+        assert_eq!(adapter.output_frame(), Some(emitted));
+        assert_eq!(adapter.next_cycle(), 2);
+    }
+
+    #[test]
+    fn measured_adapter_snapshot_restore_is_block_equivalent_across_rotation() {
+        let mut continuous = super::Ym2413MeasuredOutputAdapter::new();
+        let mut split = super::Ym2413MeasuredOutputAdapter::new();
+        let input = |cycle: u8| {
+            if cycle == 2 || cycle == 16 {
+                None
+            } else {
+                Some(i16::from(cycle) - 8)
+            }
+        };
+
+        let mut expected = Vec::new();
+        for cycle in 0..18 {
+            expected.push(continuous.process_cycle(cycle, true, input(cycle)).unwrap());
+        }
+
+        let mut prefix = Vec::new();
+        for cycle in 0..7 {
+            prefix.push(split.process_cycle(cycle, true, input(cycle)).unwrap());
+        }
+        let snapshot = split.export_state();
+        let mut restored =
+            super::Ym2413MeasuredOutputAdapter::with_initial_state(snapshot).unwrap();
+        let mut resumed = Vec::new();
+        for cycle in 7..18 {
+            resumed.push(restored.process_cycle(cycle, true, input(cycle)).unwrap());
+        }
+
+        assert_eq!(prefix, expected[..7]);
+        assert_eq!(resumed, expected[7..]);
+        assert_eq!(restored.export_state(), continuous.export_state());
+    }
+
+    #[test]
+    fn measured_adapter_restore_rejects_misaligned_ro_cursor() {
+        let mut state = super::Ym2413MeasuredOutputAdapter::new().export_state();
+        state.rhythm_output_service.rhythm_delay.next_slot_index = 0;
+        assert_eq!(
+            super::Ym2413MeasuredOutputAdapter::with_initial_state(state),
+            Err(super::Ym2413MeasuredOutputAdapterError::InvalidState)
+        );
+    }
+
+    #[test]
+    fn channel_output_adapter_uses_persistent_rhythm_mode_for_mo_gate() {
+        let mut rhythm_service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(9)).unwrap();
+        let rhythm_frame = rhythm_service
+            .process_nuked_cycle_from_channel_output(12, true, Some(11))
+            .unwrap();
+        assert_eq!(rhythm_frame.mo_slot_index, 15);
+        assert!(rhythm_frame.mo.is_none());
+        assert!(rhythm_frame.mo_known);
+
+        let mut melodic_service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(9)).unwrap();
+        let melodic_frame = melodic_service
+            .process_nuked_cycle_from_channel_output(12, false, Some(11))
+            .unwrap();
+        assert!(melodic_frame.mo.is_some());
+        assert!(melodic_frame.mo_known);
+    }
+
 }
