@@ -1143,7 +1143,12 @@ mod tests {
     #[test]
     fn slot_service_phase_reset_uses_post_shift_rhythm_mode_latch() {
         for cycle in [13_u8, 14_u8] {
-            for (eg_dokon, expected) in [(0x8000_u32, false), (0x01_u32, true)] {
+            for (eg_dokon, expected) in [
+                (0x8000_u32, false),
+                (0x0001, true),
+                (0x0000, false),
+                (0x8001, true),
+            ] {
                 let mut core = Ym2413Core::new();
                 core.advance_input_clocks(YM2413_INPUT_CLOCKS_PER_SLOT * u64::from(cycle))
                     .unwrap();
@@ -1162,6 +1167,12 @@ mod tests {
                 let context = service.before[0];
                 assert_ne!(context.rm_enable & 0x40, 0);
                 assert_eq!(context.event.phase_reset_required, expected);
+                assert_eq!(
+                    nuked_phase_reset_required(cycle, context.rm_enable, eg_dokon),
+                    Some(expected)
+                );
+                // The pre-shift latch selects the opposite operator path in this
+                // probe; retain it as a guard against accidentally sampling early.
                 assert_eq!(
                     nuked_phase_reset_required(cycle, 0x80, eg_dokon),
                     Some(eg_dokon & 0x8000 != 0)
