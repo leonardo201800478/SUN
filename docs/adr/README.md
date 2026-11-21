@@ -13,6 +13,7 @@ Este diretório contém as decisões arquiteturais que definem o produto e sua e
 | [0011 — Slint + WGPU + CPAL](0011-slint-wgpu-cpal-desktop-platform.md) | Nova plataforma desktop e adaptadores de host | **Normativa para a replataforma; produção condicionada ao POC** |
 | [0012 — política anterior de panic/crash](0012-panic-crash-diagnostics-policy.md) | Hook privado consentido para crash diagnostics | **Supersedida pela ADR 0013** |
 | [0013 — diagnóstico RAM-first sem crash files automáticos](0013-no-automatic-runtime-crash-files.md) | Trace essencial em RAM, consentimento para persistência/export e preservação do panic hook padrão | **Normativa; política vigente de DP0** |
+| [0014 — pipeline de shaders retro com Slang/WGPU](0014-retro-shader-pipeline-librashader-wgpu.md) | Preparação da camada de pós-processamento com librashader, presets Slang e contrato temporal/licenças | **Proposta SH-0; implementação depende de SH-1 e aceite da ADR** |
 | [Z80-001 — execução retomável](ADR-Z80-001-resumable-execution.md) | Contrato de execução suspensível/retomável do Z80 | Aplicar conforme o caminho temporal observável e ADR-0016 |
 
 ## Precedência
@@ -21,7 +22,8 @@ Este diretório contém as decisões arquiteturais que definem o produto e sua e
 2. ADR 0011 define a tecnologia da aplicação desktop, API gráfica, saída de áudio, fronteiras host e sequência de replataforma.
 3. ADR-0016 (`docs/architecture/adr/0016-observable-fidelity-and-proportional-timing.md`) define a política de fidelidade e granularidade temporal.
 4. ADR 0013 define a política vigente de diagnóstico RAM-first, consentimento e ausência de crash files automáticos.
-5. Roadmap mestre define fases e gates de hardware/plataforma.
-6. ADRs antigas preservam decisões e contexto; quando conflitarem com decisões mais recentes, não prevalecem.
+5. A proposta ADR 0014 define somente o futuro pós-processamento de vídeo; não altera runtime, hardware, Scheduler ou ownership temporal e não é normativa antes do aceite.
+6. Roadmap mestre define fases e gates de hardware/plataforma.
+7. ADRs antigas preservam decisões e contexto; quando conflitarem com decisões mais recentes, não prevalecem.
 
 Uma ADR aceita não comprova implementação. Para o estado efetivo, consultar [status atual](../project-status-2026-11-07.md), [roadmap](../project-roadmap.md) e [status dos componentes](../component-status.md).

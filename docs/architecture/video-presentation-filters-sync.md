@@ -1,35 +1,45 @@
-# Contrato de filtros de apresentação e sincronização de vídeo
+# Contrato de apresentação de vídeo e filtros
 
-## Fronteira determinística
+**Baseline verificada:** main `f65e13c0e85d103faddd31845324432d8641a308` — 2026-11-21.
 
-O VDP produz o framebuffer original. O pipeline de apresentação recebe somente uma cópia concluída e não pode alterar registradores, VRAM, clocks, interrupções, sequência de eventos ou estado determinístico da máquina.
+## Caminho de vídeo implementado
 
-## Modos de filtro
+1. O runtime publica um `VideoFrame` completo, imutável e com metadados de formato/dimensões/stride.
+2. `FrameMailbox` mantém o frame mais recente para apresentação. Se o host não consumir o frame pendente, um frame concluído mais novo pode substituí-lo. Essa coalescência não altera a execução do Scheduler.
+3. O host desktop Slint 1.18 obtém o device/queue WGPU 30 do renderer e confirma o backend Vulkan.
+4. O host converte RGB888 em RGBA8 e atualiza uma textura importada pelo Slint com `queue.write_texture`.
+5. Slint compõe a imagem com a UI.
 
-- **Nativo / Nearest (implementado):** pixels sem suavização; referência de comparação digital.
-- **Bilinear (implementado):** interpolação na escala de apresentação.
-- **Dither Blending (implementado):** detector conservador de padrões 2×2 em xadrez. Os pares diagonais precisam ser semelhantes e ter contraste entre si; somente tiles aceitos são substituídos pela média das quatro cores. Não há desfoque global. Padrões desalinhados com a grade de 2×2 podem não ser detectados.
-- **CRT / NTSC (implementado, aproximação espacial):** scanlines, máscara triádica de fósforo, curvatura e seleção RGB/Composite/RF. Composite usa um low-pass horizontal simples de crominância em espaço YIQ; RF acrescenta suavização de luminância e reduz crominância. A implementação é determinística e compartilhada pelos backends, via CPU/NumPy, sem shader específico.
+A UI mantém o item “Shaders / CRT / NTSC” marcado como **Não integrado**. Nesta baseline, não existe carregador de presets `.slangp`, runtime librashader, cadeia multi-pass ou shader CRT/NTSC conectado ao host Rust.
 
-**Limitações do CRT/NTSC:** não modela subportadora e fase por linha, burst de cor, comb filtering temporal, persistência de fósforo, sincronismo, ruído RF aleatório ou a cadeia elétrica real. Composite/RF são efeitos visuais aproximados, não simulação fisicamente precisa. Curvatura pode criar bordas pretas. O caminho de filtro só recebe cópias RGB concluídas e nunca altera framebuffer, VDP, clocks ou estado da máquina.
+## O que não deve ser considerado implementado
 
-## Validação
+- Presets RetroArch/Slang ou carregamento de `.slangp`.
+- Filtros selecionáveis Nearest, Sharp Bilinear, Bilinear, CRT RGB, NTSC ou PAL.
+- Máscara de fósforo, scanlines, curvatura, simulação de subportadora composta ou PAL-M.
+- LCD grid ou ghosting temporal do Game Gear.
+- Parâmetros dinâmicos de shader expostos à UI.
 
-Os testes sintéticos cobrem xadrez, bordas sólidas, cópia do framebuffer, modos de sinal, scanlines, máscara, curvatura, determinismo e rejeição de parâmetros inválidos. A equivalência visual entre APIs gráficas e o custo no Windows ainda requer execução manual nos backends reais.
+Referências históricas a filtros CPU/NumPy ou hosts Qt pertencem a caminhos anteriores e não comprovam suporte no caminho nativo Slint/WGPU.
 
-## Backends e sincronização
+## Invariantes de apresentação
 
-A configuração é backend-independente; o backend efetivo precisa ser reportado separadamente da preferência. A superfície Qt Quick usa o RHI do Qt e o caminho conhecido de fallback é Qt Raster. Não declarar D3D11/D3D12 ou qualquer modo de apresentação como validado sem selecionar e testar realmente esses backends.
+- O pipeline recebe somente frames concluídos e não muta o frame original.
+- Nenhum filtro pode alterar registradores, VRAM, interrupções, clocks, barramentos, sequência de eventos ou estado do runtime.
+- A GUI não controla ciclos de hardware e não faz callbacks por instrução.
+- Resize/recriação de recursos afeta somente a apresentação.
+- Falhas de shader devem voltar ao caminho de apresentação direta, sem interromper a máquina.
 
-- **Pacing:** regula quando o frontend começa o próximo quadro; não é sinônimo de VSync.
-- **VSync:** controla apresentação/swapchain; requer suporte explícito do Qt/backend.
-- **VRR/G-Sync:** o driver e o monitor negociam a taxa variável. A preferência da aplicação não demonstra ativação.
-- **Sincronismo A/V:** modo de baixa latência mantém a política atual. O modo pelo relógio de áudio só pode controlar apresentação quando existirem telemetria do endpoint WASAPI, underruns/overflows e timestamps de apresentação. Não alterar o scheduler ou clocks de hardware para compensar o host.
+## Histórico temporal
 
-## Validação necessária
+O `FrameMailbox` é latest-only. Efeitos que usam feedback do frame anterior precisam acompanhar `VideoFrame.sequence` e definir comportamento para lacunas. Se o host perder frames, o histórico não representa todos os frames emulados. Não declarar ghosting físico fiel sem uma política que trate explicitamente frames descartados, troca de preset e reset de histórico.
 
-1. Testar valores padrão, enumerações inválidas, persistência e valores antigos/corrompidos.
-2. Testes Qt offscreen verificam controles e restauração dos padrões.
-3. Para filtros a implementar: padrões sintéticos de pixels alternados, xadrez, bordas, texto, gradientes e movimento.
-4. No Windows: comparar VSync On/Off/Adaptive com timings de apresentação, tearing observado, refresh nativo e VRR no driver; medir underruns e deriva A/V por 10 minutos ou mais.
-5. Distinguir sempre preferência solicitada, suporte detectado e modo efetivo. Não afirmar G-Sync ativo sem evidência do runtime/driver.
+## Próxima arquitetura
+
+A proposta para integrar presets Slang através de librashader/WGPU, com catálogo fixado, histórico, parâmetros, licenças e gates de validação, está em:
+
+- [ADR 0014 — pipeline de shaders retro](../adr/0014-retro-shader-pipeline-librashader-wgpu.md)
+- [Arquitetura do pipeline de shaders](video-shader-pipeline.md)
+- [Catálogo de candidatos](../shaders/catalog.toml)
+
+A etapa SH-0 é documental. Nenhuma dependência, asset ou funcionalidade de shader foi adicionada ao binário.
