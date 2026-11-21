@@ -23,7 +23,7 @@ def compare_rhythm_row(call_index: int, nuked: dict[str, object], rust: dict[str
         ("op_calc_rm_enable", "op_calc_rm_enable"),
         ("rm_select", "rm_select"),
         ("rm_noise", "rhythm_noise_register"),
-        ("rhythm", "rhythm_mode_enabled"),
+        ("rhythm", "rhythm"),
     )
     for expected_field, actual_field in pairs:
         expected = int(nuked[expected_field])
@@ -79,7 +79,7 @@ def main() -> int:
             "op_calc_rm_enable",
             "rm_select",
             "rhythm_noise_register",
-            "rhythm_mode_enabled",
+            "rhythm",
             *RHYTHM_OUTPUT_FIELDS,
         )
         missing.extend(field for field in rust_required if field not in rust)
