@@ -256,13 +256,17 @@ Nuked-OPLL. The Rust trace is configured with LFSR register candidate zero to
 match Nuked's software reset state. This is a software-oracle alignment
 candidate only; it is not a claim about the physical YM2413 power-on seed.
 
-The comparator checks the shared integrated PG/EG/AM/operator fields on every
-serial call, plus effective `rm_enable`, `rm_select`, the post-DoRhythm
-23-bit register, and the five retained rhythm operator outputs. The event
-sequence exercises each percussion trigger individually, all five together,
-a release interval and a second simultaneous trigger. It is still a software
-differential and does not establish the operator-to-raw-DAC conversion, analog
-MO/RO voltage, or physical four-clock subphase alignment.
+The comparator strictly checks serial cycle order, effective `rm_enable`,
+`rm_select`, rhythm control, LFSR state, global LFO/EG timer state and
+register-derived channel/slot identity on every call. Synthesis fields that
+depend on the non-hardware-certified rhythm patch candidates (PG increment and
+phase, EG rates/levels, operator feedback/waveform and output latches) are
+compared and reported as per-field divergences rather than silently ignored or
+treated as a hardware pass. The event sequence exercises each percussion
+trigger individually, all five together, a release interval and a second
+simultaneous trigger. This remains a software characterization and does not
+establish operator-to-raw-DAC conversion, analog MO/RO voltage, or physical
+four-clock subphase alignment.
 
 ## Rhythm Mode serial operator differential
 
@@ -285,9 +289,11 @@ python3 tools/ym2413-nuked-oracle/compare_operator.py \
   --require-rhythm
 ```
 
-The integrated comparator checks all 18 EG levels/stages, the shared EG timer
-and rate latches, PG accumulators/increments/output, AM shift/carry state,
-PreparePatch1/2 parameter latches, operator phase index, raw operator output,
-feedback history, and channel output on all 147,456 calls. The isolated
-operator and AM LFO differentials remain separate so a failure can be localized
-to a stage rather than hidden by an end-to-end mismatch.
+The melodic FM-3 integrated comparator remains a strict field-by-field
+differential. The Rhythm Mode comparator deliberately separates hard serial
+control/timing state from synthesis fields derived from the candidate rhythm
+patch table. It fails on control, selector, LFSR or global-timing divergence
+and reports every candidate-dependent synthesis field that differs from
+Nuked, including its first call and mismatch count. The isolated operator and
+AM LFO differentials remain strict gates so their results are not hidden by
+candidate patch differences.
