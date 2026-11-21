@@ -101,13 +101,15 @@ The serial PG differential additionally compares raw `uint32_t` phase accumulato
 
 ## CI provenance
 
-FM-3A PR #1147, branch `feat/ym2413-fm3-serial-operator`, HEAD at this audit: `b538a6904c344fec5e1c5dc8bb08401d92c4c220`. The PR is open and stacked on #1145; no merge was made.
+FM-3A PR #1147, branch `feat/ym2413-fm3-serial-operator`, validated code HEAD: `b538a6904c344fec5e1c5dc8bb08401d92c4c220`; subsequent scorecard/audit-only commits are documentation follow-ups. The PR is open and stacked on #1145; no merge was made.
 
 - YM2413 Nuked PG differential workflow run `44865109031`: **SUCCESS**. This includes the integrated FM-3 differential (147,456 calls), isolated operator/feedback and AM LFO differentials, all 18 PG accumulators, raw serial PG service, KEY-ON/KEY-OFF reset checks and MAME/ymfm arithmetic audit.
 - Rust CI run `44865109035`: **SUCCESS**. Rustfmt, Clippy, workspace unit/integration tests, observability feature Clippy/tests, workflow validation and documentation hygiene passed.
 - External Nuked oracle adapter run `44865109047`: **SUCCESS**.
 - Rhythm reset differential run `44865109138`: **SUCCESS**; this is not evidence that Rhythm Mode synthesis is complete.
-- EG characterization run `44865109038`: **IN_PROGRESS** at the time of this audit; not counted as PASS.
-- Two P2 review threads on #1147 (effective carrier/rhythm output scope and Test Mode capture boundary) are resolved. No review thread remains open.
+- EG characterization run `44852382767` on the exact PR #1133 HEAD `c25511a71752f475b57c47b5e73b76e84b163a9b`: **SUCCESS**, including the complete 38-configuration AR/DR/KSR sweep.
+- EG characterization run `44865109038` on the stacked FM-3A code HEAD `b538a6904c344fec5e1c5dc8bb08401d92c4c220`: **SUCCESS**, including the same 38-configuration sweep.
+- Follow-up CI on the documentation-updated branch HEAD: run `44865413665` **SUCCESS**; follow-up PG differential run `44865413667` **SUCCESS**.
+- Two P2 review threads on #1147 (effective carrier/rhythm output scope and Test Mode capture boundary), the P1 EG-characterization gate on #1133, and the P1 PG phase-write finding on #1145 are resolved with evidence. No review thread remains open across #1133/#1145/#1147.
 
 Windows/desktop, Scheduler stress, SDL3, PSG, VDP and unrelated console gates were SKIPPED and are not approvals. The differential PASS closes the FM-3A operator datapath only; it does not close all FM-3, PCM, Rhythm Mode or SMS integration.
