@@ -380,7 +380,7 @@ jobs:
             "$RUNNER_TEMP/rhythm-integrated-events.csv" 147456 0 \
             > "$RUNNER_TEMP/rust-rhythm-integrated.jsonl"
 
-      - name: Differentially validate integrated Rhythm Mode PG EG and operator
+      - name: Characterize integrated Rhythm Mode control and synthesis against Nuked
         run: |
           python3 tools/ym2413-nuked-oracle/compare_rhythm_integrated.py \
             --nuked-trace "$RUNNER_TEMP/nuked-rhythm-integrated.jsonl" \
