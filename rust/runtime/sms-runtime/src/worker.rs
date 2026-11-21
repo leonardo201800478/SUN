@@ -4620,6 +4620,92 @@ mod tests {
     }
 
     #[test]
+    fn muted_fm_output_keeps_ym2413_clocked_and_submits_psg_only() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let mut rom = vec![0; 0x4000];
+        let mut program = vec![
+            0xF3, // DI
+            0x31, 0xF0, 0xDF, // LD SP,$DFF0
+            0x3E, 0x03, 0xD3, 0xF2, // Enable hardware FM and PSG.
+        ];
+        for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+            program.extend([0x3E, address, 0xD3, 0xF0, 0x3E, data, 0xD3, 0xF1]);
+            program.extend([0x00; 22]);
+        }
+        program.extend([
+            0x3E, 0x84, 0xD3, 0x7E, 0x3E, 0x00, 0xD3, 0x7E, 0x3E, 0x90, 0xD3, 0x7E, 0x18, 0xFE,
+        ]);
+        rom[..program.len()].copy_from_slice(&program);
+
+        let mut machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            rom,
+            "usa",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        let initial_fm_state = machine.ym2413().unwrap().export_state();
+        let sink = RecordingSink::default();
+        let captured_blocks = Arc::clone(&sink.0);
+        let session = NativeAudioSession::new(
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            100,
+            sink,
+        )
+        .unwrap();
+        let mut audio_session: Option<Box<dyn super::AudioSession>> = Some(Box::new(session));
+        let mut renderer =
+            AudioRendererState::with_fm_output_policy(SmsFmOutputPolicy::Muted);
+        let telemetry = WorkerTelemetry::default();
+        let mut video_mailbox = None;
+        let mut video_sequence = 0;
+
+        for _ in 0..2 {
+            let (instructions, _, _) = execute_frame_with_renderer(
+                &mut machine,
+                &BreakpointSet::default(),
+                DEFAULT_MAX_FRAME_INSTRUCTIONS,
+                true,
+                &mut audio_session,
+                &mut renderer,
+                &mut video_mailbox,
+                &mut video_sequence,
+                &telemetry,
+                None,
+            )
+            .unwrap();
+            assert!(instructions > 0);
+        }
+
+        assert!(machine.ym2413().is_some(), "the physical FM chip must remain installed");
+        assert_ne!(
+            machine.ym2413().unwrap().export_state(),
+            initial_fm_state,
+            "muting host output must not stop the YM2413 clock or state progression"
+        );
+        assert!(renderer.mix_fm_samples.is_empty());
+        assert!(
+            renderer.mix_psg_samples.iter().any(|sample| *sample != 0.0),
+            "PSG output must remain audible while host FM output is muted"
+        );
+
+        let blocks = captured_blocks.lock().unwrap();
+        assert!(!blocks.is_empty());
+        assert!(
+            blocks.iter().flatten().any(|sample| *sample != 0.0),
+            "the PSG-only block submitted to NativeAudioSession must not be silent"
+        );
+        assert_eq!(telemetry.audio_underruns.load(Ordering::Acquire), 0);
+        assert_eq!(telemetry.audio_dropped_blocks.load(Ordering::Acquire), 0);
+        drop(blocks);
+        audio_session.as_mut().unwrap().close();
+    }
+
+    #[test]
     fn dropping_worker_does_not_close_externally_owned_video_mailbox() {
         let mailbox = FrameMailbox::new();
         {
