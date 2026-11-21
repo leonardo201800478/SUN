@@ -1060,7 +1060,10 @@ mod tests {
             .advance_input_clocks_with_slot_service(18 * 72, &mut reference_service)
             .unwrap();
         assert_eq!(reference_core.export_state(), restored_core.export_state());
-        assert_eq!(reference_service.export_state(), restored_service.export_state());
+        assert_eq!(
+            reference_service.export_state(),
+            restored_service.export_state()
+        );
     }
 
     #[test]
@@ -1072,7 +1075,9 @@ mod tests {
         let mut core = Ym2413Core::new();
         assert!(matches!(
             core.advance_input_clocks_with_slot_service(4, &mut service),
-            Err(Ym2413SlotServiceAdvanceError::Service(Ym2413PgSerialError::InvalidState))
+            Err(Ym2413SlotServiceAdvanceError::Service(
+                Ym2413PgSerialError::InvalidState
+            ))
         ));
         assert_eq!(service.export_state(), before);
         assert_eq!(core.slot_index(), 0);
