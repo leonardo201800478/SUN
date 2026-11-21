@@ -136,34 +136,51 @@ impl<S: PcmSink> NativeAudioSession<S> {
 
     /// Mix, resample and enqueue one native hardware sample batch.
     pub fn process_samples(&mut self, samples: &[f64]) -> Result<(), String> {
-        self.process_samples_with_policy(samples, true)
+        self.process_sources(&[MixSource { samples, gain: 1.0 }])
+    }
+
+    /// Mix aligned mono hardware sources in one batch before the shared DSP path.
+    ///
+    /// Sources must already have the same frame count and sample rate. Devices
+    /// with different native rates must be resampled onto the machine PCM
+    /// timeline before they are submitted here.
+    pub fn process_sources(&mut self, sources: &[MixSource<'_>]) -> Result<(), String> {
+        self.process_sources_with_policy(sources, true)
     }
 
     /// Advance the same mixer/resampler state without publishing PCM to the
     /// physical endpoint. Used by deterministic debugger StepFrame execution.
     pub fn process_samples_discarding_output(&mut self, samples: &[f64]) -> Result<(), String> {
-        if samples.is_empty() {
+        self.process_sources_discarding_output(&[MixSource { samples, gain: 1.0 }])
+    }
+
+    /// Mix aligned sources and advance DSP state without publishing host PCM.
+    pub fn process_sources_discarding_output(
+        &mut self,
+        sources: &[MixSource<'_>],
+    ) -> Result<(), String> {
+        if sources.iter().all(|source| source.samples.is_empty()) {
             return Ok(());
         }
-        self.process_samples_with_policy(samples, false)?;
+        self.process_sources_with_policy(sources, false)?;
         self.discarded_since_suspend = true;
         Ok(())
     }
 
-    fn process_samples_with_policy(
+    fn process_sources_with_policy(
         &mut self,
-        samples: &[f64],
+        sources: &[MixSource<'_>],
         publish: bool,
     ) -> Result<(), String> {
         if self.closed {
             return Err("native audio session is closed".to_owned());
         }
-        if samples.is_empty() {
+        self.mixer
+            .mix_mono_into(sources, &mut self.mixed_samples)
+            .map_err(|error| error.to_string())?;
+        if self.mixed_samples.is_empty() {
             return Ok(());
         }
-        self.mixer
-            .mix_mono_into(&[MixSource { samples, gain: 1.0 }], &mut self.mixed_samples)
-            .map_err(|error| error.to_string())?;
         let samples = if self.analog_output.config().enabled {
             self.analog_output
                 .process_block(&self.mixed_samples, &mut self.analog_samples);
@@ -300,8 +317,32 @@ pub trait AudioSession {
     /// Process one machine-generated mono sample batch.
     fn process_samples(&mut self, samples: &[f64]) -> Result<(), String>;
 
+    /// Mix aligned mono sources in one batch. Legacy implementations retain
+    /// source-compatible behavior for the existing single-source path.
+    fn process_sources(&mut self, sources: &[MixSource<'_>]) -> Result<(), String> {
+        match sources {
+            [] => Ok(()),
+            [source] if source.gain == 1.0 => self.process_samples(source.samples),
+            _ => Err("audio session does not support multi-source mixing".to_owned()),
+        }
+    }
+
     /// Advance DSP state while discarding output (paused debugger frame step).
     fn process_samples_discarding_output(&mut self, samples: &[f64]) -> Result<(), String>;
+
+    /// Mix aligned sources while discarding host output.
+    fn process_sources_discarding_output(
+        &mut self,
+        sources: &[MixSource<'_>],
+    ) -> Result<(), String> {
+        match sources {
+            [] => Ok(()),
+            [source] if source.gain == 1.0 => {
+                self.process_samples_discarding_output(source.samples)
+            }
+            _ => Err("audio session does not support multi-source mixing".to_owned()),
+        }
+    }
 
     /// Suspend the endpoint and invalidate its queued audio epoch.
     fn suspend_and_flush(&mut self) -> Result<(), String>;
@@ -330,8 +371,19 @@ impl<S: PcmSink> AudioSession for NativeAudioSession<S> {
         NativeAudioSession::process_samples(self, samples)
     }
 
+    fn process_sources(&mut self, sources: &[MixSource<'_>]) -> Result<(), String> {
+        NativeAudioSession::process_sources(self, sources)
+    }
+
     fn process_samples_discarding_output(&mut self, samples: &[f64]) -> Result<(), String> {
         NativeAudioSession::process_samples_discarding_output(self, samples)
+    }
+
+    fn process_sources_discarding_output(
+        &mut self,
+        sources: &[MixSource<'_>],
+    ) -> Result<(), String> {
+        NativeAudioSession::process_sources_discarding_output(self, sources)
     }
 
     fn suspend_and_flush(&mut self) -> Result<(), String> {
