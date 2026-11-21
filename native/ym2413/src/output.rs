@@ -364,8 +364,9 @@ impl Ym2413RhythmOutputService {
         self,
         next_cycle: u8,
     ) -> Result<Self, Ym2413RhythmOutputServiceError> {
-        let next_slot_index = ro_output_slot_for_nuked_cycle(next_cycle)
-            .ok_or(Ym2413RhythmOutputServiceError::InvalidNukedCycle(next_cycle))?;
+        let next_slot_index = ro_output_slot_for_nuked_cycle(next_cycle).ok_or(
+            Ym2413RhythmOutputServiceError::InvalidNukedCycle(next_cycle),
+        )?;
         let mut state = self.export_state();
         state.rhythm_delay.next_slot_index = next_slot_index;
         Self::with_initial_state(state)
@@ -624,7 +625,12 @@ impl Ym2413MeasuredOutputAdapter {
             .ok_or(Ym2413MeasuredOutputAdapterError::InvalidState)?;
         let rhythm_output_service =
             Ym2413RhythmOutputService::with_initial_state(state.rhythm_output_service)?;
-        if rhythm_output_service.export_state().rhythm_delay.next_slot_index != expected_ro_slot {
+        if rhythm_output_service
+            .export_state()
+            .rhythm_delay
+            .next_slot_index
+            != expected_ro_slot
+        {
             return Err(Ym2413MeasuredOutputAdapterError::InvalidState);
         }
         if state.pending_frame.is_some_and(|frame| {
@@ -705,10 +711,12 @@ impl Ym2413MeasuredOutputAdapter {
                 rhythm_mode_enabled,
                 previous_channel_output,
             )?;
-        let emitted = self.pending_frame.map(|source| Ym2413MeasuredOutputAdapterFrame {
-            emitted_cycle: cycle,
-            source,
-        });
+        let emitted = self
+            .pending_frame
+            .map(|source| Ym2413MeasuredOutputAdapterFrame {
+                emitted_cycle: cycle,
+                source,
+            });
         self.pending_frame = Some(current);
         self.last_frame = emitted;
         self.next_cycle = (cycle + 1) % YM2413_SLOT_COUNT as u8;
@@ -1386,5 +1394,4 @@ mod tests {
         assert!(melodic_frame.mo.is_some());
         assert!(melodic_frame.mo_known);
     }
-
 }
