@@ -26,6 +26,23 @@ A integração com runtime permanece coarse-grained: `load_rom()`, `start()`, `p
 - Renderização, áudio físico e input não podem avançar nem corrigir clocks do hardware.
 - Não criar Scheduler, CPU, PSG, VDP, worker ou pipeline paralelo por conveniência.
 
+## Escopo orientado ao console — regra prioritária
+
+O produto a emular é o **console Sega alvo**, não a especificação universal de cada chip isoladamente. O comportamento implementado deve ser determinado pelo hardware efetivamente presente no console e pelos usos necessários para executar corretamente seus jogos e periféricos suportados.
+
+- Implementar primeiro e prioritariamente as funções que o console e seus jogos realmente utilizam.
+- Não perseguir compatibilidade universal do chip, recursos genéricos, modos não utilizados pelo console, possibilidades teóricas ou comportamento de outros produtos que compartilham o mesmo componente.
+- Antes de implementar uma função, exigir vínculo concreto com o console alvo: uso por jogos/periféricos suportados, documentação do hardware da plataforma ou evidência reproduzível de incompatibilidade. Sem esse vínculo, a função fica fora do escopo.
+- Não iniciar pesquisa, caracterização, modelagem elétrica ou abstrações que não removam um bloqueio funcional ou melhorem de forma demonstrável a compatibilidade, o áudio, o vídeo, a entrada ou o desempenho do console.
+- Preservar código e estudos excedentes já existentes quando não prejudicarem desempenho, estabilidade, manutenção ou clareza. Não ampliar, completar ou aprofundar esse trabalho apenas porque existe.
+- Não remover trabalho existente por ser excedente sem demonstrar custo ou prejuízo concreto. A correção é interromper a expansão desnecessária e concentrar novos esforços na meta do console.
+- Preferir a menor implementação correta que satisfaça o hardware e os jogos alvo. Generalização, reutilização entre produtos e abstrações só entram quando reduzem complexidade real sem ampliar o escopo.
+- Medir conclusão pelo funcionamento verificável do console em jogos reais e testes pertinentes, nunca pela cobertura de todas as capacidades teóricas de seus chips.
+
+### Aplicação imediata — YM2413
+
+O YM2413 é implementado para reproduzir o áudio FM dos jogos compatíveis do Japanese Master System com YM2413 integrado. Não transformar o projeto em emulador universal de OPLL nem implementar funções de outros equipamentos ou aplicações que não sejam necessárias a esse perfil. Recursos do chip sem uso demonstrado nos jogos SMS ficam fora da prioridade e não podem bloquear a entrega de áudio FM in-game. A investigação elétrica/analógica e a paridade física absoluta são opcionais e posteriores; só serão retomadas se resolverem uma diferença audível concreta.
+
 ## Roadmap de plataformas
 
 1. SMS1/SMS2.
