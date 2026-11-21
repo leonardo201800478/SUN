@@ -121,7 +121,11 @@ impl PhaseGenerator {
         };
         let corrected_fnum = u64::try_from(i64::from(fnum) * 2 + pm)
             .map_err(|_| PhaseGeneratorError::InvalidState)?;
-        let step = ((corrected_fnum * ml) << block) >> 2;
+        // Preserve Nuked-OPLL's two integer truncation points: block scaling
+        // precedes multiplier application. Combining these shifts is not
+        // equivalent for odd PM-adjusted frequencies.
+        let block_adjusted_frequency = (corrected_fnum << block) >> 1;
+        let step = (block_adjusted_frequency * ml) >> 1;
         u32::try_from(step).map_err(|_| PhaseGeneratorError::InvalidState)
     }
 
@@ -265,5 +269,29 @@ mod tests {
     fn zero_fnum_and_zero_base_increment_remain_zero() {
         assert_eq!(PhaseGenerator::phase_step(0, 7, 15, true, 7), Ok(0));
         assert_eq!(PhaseGenerator::phase_step(1, 0, 0, false, 0), Ok(0));
+    }
+    #[test]
+    fn phase_step_preserves_nuked_rounding_at_positive_and_negative_pm_boundaries() {
+        let positive_pm = [
+            32, 64, 128, 192, 256, 320, 384, 448, 512, 576, 640, 640, 768, 768, 960, 960,
+        ];
+        let negative_pm = [
+            31, 63, 126, 189, 252, 315, 378, 441, 504, 567, 630, 630, 756, 756, 945, 945,
+        ];
+
+        for mul in 0..=15_u8 {
+            assert_eq!(
+                PhaseGenerator::phase_step(64, 0, mul, true, 2),
+                Ok(positive_pm[usize::from(mul)]),
+                "positive PM, MUL={mul}"
+            );
+            assert_eq!(
+                PhaseGenerator::phase_step(64, 0, mul, true, 6),
+                Ok(negative_pm[usize::from(mul)]),
+                "negative PM, MUL={mul}"
+            );
+        }
+
+        assert_eq!(PhaseGenerator::phase_step(64, 1, 2, true, 2), Ok(258));
     }
 }
