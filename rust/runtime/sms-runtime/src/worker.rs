@@ -210,31 +210,38 @@ fn build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
     fm_enabled: bool,
 ) -> Result<SmsTemporalMachine, String> {
     if fm_enabled && region != "japan" {
-        return Err("integrated YM2413 is selectable only for the Japanese Master System profile".to_owned());
+        return Err(
+            "integrated YM2413 is selectable only for the Japanese Master System profile"
+                .to_owned(),
+        );
     }
     let (territory, vdp_profile, psg_clock_hz) =
         sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
     match (bios, fm_enabled) {
-        (Some(bios), true) => SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
-            rom,
-            bios,
-            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
-            psg_clock_hz,
-            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
-            vdp_profile,
-            territory,
-            cartridge_sram_size,
-        ),
-        (Some(bios), false) => SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
-            rom,
-            bios,
-            SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
-            psg_clock_hz,
-            SMS_INTERNAL_AUDIO_SAMPLE_RATE,
-            vdp_profile,
-            territory,
-            cartridge_sram_size,
-        ),
+        (Some(bios), true) => {
+            SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
+                rom,
+                bios,
+                SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+                psg_clock_hz,
+                SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+                vdp_profile,
+                territory,
+                cartridge_sram_size,
+            )
+        }
+        (Some(bios), false) => {
+            SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
+                rom,
+                bios,
+                SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+                psg_clock_hz,
+                SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+                vdp_profile,
+                territory,
+                cartridge_sram_size,
+            )
+        }
         (None, true) => SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_sram_size(
             rom,
             SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
@@ -1564,10 +1571,15 @@ impl SmsTemporalWorker {
         fm_enabled: bool,
     ) -> Result<Self, String> {
         if fm_enabled && region != "japan" {
-            return Err("integrated YM2413 is selectable only for the Japanese Master System profile".to_owned());
+            return Err(
+            "integrated YM2413 is selectable only for the Japanese Master System profile"
+                .to_owned(),
+        );
         }
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
-            return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
+            return Err(
+                "cannot restore SRAM without a verified cartridge RAM profile".to_owned(),
+            );
         }
         if let Some(capacity) = cartridge_sram_size
             && !matches!(capacity, 0x2000 | 0x4000 | 0x8000)
@@ -3067,10 +3079,11 @@ mod tests {
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
         Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
         WorkerTelemetry, build_sms_temporal_machine,
-        build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
-        execute_frame, execute_frame_with_renderer, frame_duration_from_machine_ticks,
+        build_sms_temporal_machine_with_revision_and_sram_size,
         build_sms_temporal_machine_with_revision_bios_sram_size_and_fm,
-        sms_temporal_hardware_profile, sms_temporal_region_profile,
+        calculate_next_frame_deadline, execute_frame, execute_frame_with_renderer,
+        frame_duration_from_machine_ticks, sms_temporal_hardware_profile,
+        sms_temporal_region_profile,
     };
     use crate::SmsTemporalWorkerDebugHandle;
     use sega_audio_runtime::{AudioOutputMetrics, NativeAudioSession, PcmSink};
