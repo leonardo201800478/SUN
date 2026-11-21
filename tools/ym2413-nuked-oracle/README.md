@@ -247,6 +247,27 @@ python3 tools/ym2413-nuked-oracle/compare_fm3_integrated.py \
   --rust-trace rust-fm3.jsonl
 ```
 
+## Rhythm Mode serial operator differential
+
+The PG differential workflow also creates a separate all-five-voice Rhythm Mode
+sequence and captures the effective `rm_enable` value at the actual
+`OPLL_Operator` boundary, after the per-call shift and mode-write stage. The
+Rust replay uses that boundary value rather than the pre-call register image.
+
+The comparator checks the serial operator/feedback state and the five retained
+rhythm outputs (HH, TOM, BD, SD, TC) against Nuked after every call. The fixture
+requires both rhythm override bits to be observed and each of the five Nuked
+output latches to become nonzero. This isolates the operator and delayed-output
+latch behavior; it does not claim a full PG/EG/noise/PCM or MO/RO pin differential.
+
+Run the rhythm case from the repository root after generating a full trace:
+
+```sh
+python3 tools/ym2413-nuked-oracle/compare_operator.py \
+  --nuked-trace nuked-rhythm-operator.jsonl \
+  --require-rhythm
+```
+
 The integrated comparator checks all 18 EG levels/stages, the shared EG timer
 and rate latches, PG accumulators/increments/output, AM shift/carry state,
 PreparePatch1/2 parameter latches, operator phase index, raw operator output,
