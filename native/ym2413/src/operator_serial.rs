@@ -6,7 +6,8 @@
 
 use crate::channel::{ChannelSynthesisError, decode_channel_synthesis};
 use crate::operator::{serial_exponential_mantissa, serial_exponential_shift, serial_log_sine};
-use crate::slot::{Ym2413Operator, Ym2413SlotServiceContext};
+use crate::slot::Ym2413Operator;
+use crate::slot_service::Ym2413SlotServiceContext;
 
 pub const YM2413_OPERATOR_SERIAL_STATE_VERSION: u16 = 1;
 
@@ -160,7 +161,7 @@ impl Ym2413OperatorSerialService {
     }
 
     /// Sample the AM-LFO output latch at the beginning of serial cycle zero.
-    pub fn sample_am_lfo_output(&mut self, cycle: u8) -> Result<(), Ym2413OperatorSerialError> {
+    pub(crate) fn sample_am_lfo_output(&mut self, cycle: u8) -> Result<(), Ym2413OperatorSerialError> {
         if cycle >= 18 {
             return Err(Ym2413OperatorSerialError::InvalidCycle(cycle));
         }
@@ -172,7 +173,7 @@ impl Ym2413OperatorSerialService {
 
     /// PreparePatch1: calculate the KSL/TL value that will be latched after
     /// the current operator and EnvelopeOutput stages.
-    pub fn prepare_patch1(
+    pub(crate) fn prepare_patch1(
         &self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<u16, Ym2413OperatorSerialError> {
@@ -188,7 +189,7 @@ impl Ym2413OperatorSerialService {
 
     /// OPLL_Operator: consume the previous EXP/EG/feedback latches and current
     /// PG output, then advance the serial operator's internal latches.
-    pub fn clock_operator(
+    pub(crate) fn clock_operator(
         &mut self,
         cycle: u8,
         pg_output: u16,
@@ -258,7 +259,7 @@ impl Ym2413OperatorSerialService {
 
     /// EnvelopeOutput: latch the next operator attenuation from the core-owned
     /// pre-update EG state, the previous KSL/TL latch and the previous AM latch.
-    pub fn clock_envelope_output(
+    pub(crate) fn clock_envelope_output(
         &mut self,
         context: &Ym2413SlotServiceContext,
         am_enabled: bool,
@@ -284,7 +285,7 @@ impl Ym2413OperatorSerialService {
     }
 
     /// Capture the EG silence latch from the core-owned pre-update operator.
-    pub fn clock_eg_silent(
+    pub(crate) fn clock_eg_silent(
         &mut self,
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413OperatorSerialError> {
@@ -299,13 +300,13 @@ impl Ym2413OperatorSerialService {
     }
 
     /// EnvelopeKSLTL: publish the value prepared by the current PreparePatch1.
-    pub const fn latch_eg_ksltl(&mut self, value: u16) {
+    pub(crate) const fn latch_eg_ksltl(&mut self, value: u16) {
         self.state.eg_ksltl = value;
     }
 
     /// DoLFO AM: advance the serial AM shift register after the core EG tick.
     /// pm_counter is sampled before the PG service increments it at cycle 17.
-    pub fn clock_am_lfo(
+    pub(crate) fn clock_am_lfo(
         &mut self,
         cycle: u8,
         testmode: u8,
