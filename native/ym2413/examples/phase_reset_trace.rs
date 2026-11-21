@@ -16,9 +16,9 @@ fn parse<T: std::str::FromStr>(value: &str, field: &str) -> Result<T, Box<dyn Er
 where
     T::Err: Error + 'static,
 {
-    value
+    Ok(value
         .parse::<T>()
-        .map_err(|error| format!("invalid {field} value {value:?}: {error}").into())
+        .map_err(|error| format!("invalid {field} value {value:?}: {error}"))?)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
