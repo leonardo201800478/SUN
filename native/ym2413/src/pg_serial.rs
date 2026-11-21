@@ -14,6 +14,10 @@ use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_chan
 use crate::envelope_sequencer::{
     EnvelopeRhythmSelect, EnvelopeSequencerState, EnvelopeSequencerTick,
 };
+use crate::output::{
+    Ym2413MeasuredOutputAdapter, Ym2413MeasuredOutputAdapterError,
+    Ym2413MeasuredOutputAdapterFrame, Ym2413MeasuredOutputAdapterState,
+};
 use crate::output_pipeline::{
     Ym2413CoreOutputPipelineFrame, Ym2413OutputPipeline, Ym2413OutputPipelineError,
     Ym2413OutputPipelineState,
@@ -38,7 +42,7 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 10;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 12;
 pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 4;
 
 /// Maximum increment reachable from the legal FNUM/BLOCK/MUL/PM input domain.
@@ -56,6 +60,7 @@ pub enum Ym2413PgSerialError {
     AmLfo(Ym2413SerialAmLfoError),
     RhythmNoise(Ym2413RhythmNoiseError),
     OutputPipeline(Ym2413OutputPipelineError),
+    MeasuredOutputAdapter(Ym2413MeasuredOutputAdapterError),
 }
 
 /// Error returned by the public coarse-grained core + PG advancement API.
@@ -109,6 +114,11 @@ impl From<Ym2413RhythmNoiseError> for Ym2413PgSerialError {
 impl From<Ym2413OutputPipelineError> for Ym2413PgSerialError {
     fn from(value: Ym2413OutputPipelineError) -> Self {
         Self::OutputPipeline(value)
+    }
+}
+impl From<Ym2413MeasuredOutputAdapterError> for Ym2413PgSerialError {
+    fn from(value: Ym2413MeasuredOutputAdapterError) -> Self {
+        Self::MeasuredOutputAdapter(value)
     }
 }
 
@@ -195,8 +205,13 @@ pub struct Ym2413PgSerialServiceState {
     pub rhythm_noise_samples: [Option<bool>; 2],
     /// Digital MO/RO pipeline, including explicit output-validity state.
     pub output_pipeline: Ym2413OutputPipelineState,
+    /// Provenance of the previous ch_out latch: true only when the prior
+    /// operator result came from the core's settled Rhythm Mode dispatch.
+    pub previous_channel_output_is_rhythm: bool,
     /// Most recently emitted output-buffer frame, retained for exact resumption.
     pub last_output_frame: Option<Ym2413CoreOutputPipelineFrame>,
+    /// Measured-domain MO/RO routing and its independent output-buffer state.
+    pub measured_output_adapter: Ym2413MeasuredOutputAdapterState,
 }
 
 /// Resolve one serial rhythm selector to its static voice/operator configuration.
@@ -327,7 +342,9 @@ pub struct Ym2413PgSerialService {
     rhythm_noise_steps: u64,
     rhythm_noise_samples: [Option<bool>; 2],
     output_pipeline: Ym2413OutputPipeline,
+    previous_channel_output_is_rhythm: bool,
     last_output_frame: Option<Ym2413CoreOutputPipelineFrame>,
+    measured_output_adapter: Ym2413MeasuredOutputAdapter,
 }
 
 impl Ym2413PgSerialService {
@@ -351,7 +368,9 @@ impl Ym2413PgSerialService {
             rhythm_noise_steps: 0,
             rhythm_noise_samples: [None, None],
             output_pipeline: Ym2413OutputPipeline::new(),
+            previous_channel_output_is_rhythm: false,
             last_output_frame: None,
+            measured_output_adapter: Ym2413MeasuredOutputAdapter::new(),
         }
     }
 
@@ -377,6 +396,9 @@ impl Ym2413PgSerialService {
         self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         self.output_pipeline = self.output_pipeline.with_next_cycle(next_slot_index)?;
+        self.measured_output_adapter = self
+            .measured_output_adapter
+            .with_next_cycle(next_slot_index)?;
         Ok(self)
     }
 
@@ -396,6 +418,9 @@ impl Ym2413PgSerialService {
         self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         self.output_pipeline = self.output_pipeline.with_next_cycle(next_slot_index)?;
+        self.measured_output_adapter = self
+            .measured_output_adapter
+            .with_next_cycle(next_slot_index)?;
         Ok(self)
     }
 
@@ -417,6 +442,9 @@ impl Ym2413PgSerialService {
         self.rhythm_noise_cursor = next_slot_index;
         self.rhythm_noise_samples = [None, None];
         self.output_pipeline = self.output_pipeline.with_next_cycle(next_slot_index)?;
+        self.measured_output_adapter = self
+            .measured_output_adapter
+            .with_next_cycle(next_slot_index)?;
         Ok(self)
     }
 
@@ -468,9 +496,20 @@ impl Ym2413PgSerialService {
         &self.synthesis
     }
 
-    /// Return the most recently emitted digital MO/RO output-buffer frame.
+    /// Return the most recently emitted Nuked-reference digital MO/RO frame.
     pub const fn output_frame(&self) -> Option<Ym2413CoreOutputPipelineFrame> {
         self.last_output_frame
+    }
+
+    /// Return the most recently emitted measured-domain MO/RO candidate frame.
+    pub const fn measured_output_frame(&self) -> Option<Ym2413MeasuredOutputAdapterFrame> {
+        self.measured_output_adapter.output_frame()
+    }
+
+    /// Export the measured-domain MO/RO adapter state independently of the
+    /// Nuked-reference output pipeline.
+    pub const fn measured_output_adapter_state(&self) -> Ym2413MeasuredOutputAdapterState {
+        self.measured_output_adapter.export_state()
     }
 
     /// Return the complete digital MO/RO pipeline state.
@@ -491,7 +530,9 @@ impl Ym2413PgSerialService {
             rhythm_noise_steps: self.rhythm_noise_steps,
             rhythm_noise_samples: self.rhythm_noise_samples,
             output_pipeline: self.output_pipeline.export_state(),
+            previous_channel_output_is_rhythm: self.previous_channel_output_is_rhythm,
             last_output_frame: self.last_output_frame,
+            measured_output_adapter: self.measured_output_adapter.export_state(),
         }
     }
 
@@ -508,6 +549,8 @@ impl Ym2413PgSerialService {
         }
         if state.rhythm_noise_cursor >= crate::rhythm::YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION
             || state.output_pipeline.next_cycle != state.rhythm_noise_cursor
+            || (state.previous_channel_output_is_rhythm
+                && !state.output_pipeline.previous_channel_output_valid)
             || state.last_output_frame.is_some_and(|frame| {
                 frame.cycle >= 18 || (frame.cycle + 1) % 18 != state.output_pipeline.next_cycle
             })
@@ -527,6 +570,11 @@ impl Ym2413PgSerialService {
             .map(Ym2413RhythmSlotNoiseSequencer::restore_state)
             .transpose()?;
         let output_pipeline = Ym2413OutputPipeline::with_initial_state(state.output_pipeline)?;
+        let measured_output_adapter =
+            Ym2413MeasuredOutputAdapter::with_initial_state(state.measured_output_adapter)?;
+        if measured_output_adapter.next_cycle() != state.rhythm_noise_cursor {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
         Ok(Self {
             synthesis: Ym2413SynthesisBank::restore_state(state.synthesis)?,
             pipeline,
@@ -537,7 +585,9 @@ impl Ym2413PgSerialService {
             rhythm_noise_steps: state.rhythm_noise_steps,
             rhythm_noise_samples: state.rhythm_noise_samples,
             output_pipeline,
+            previous_channel_output_is_rhythm: state.previous_channel_output_is_rhythm,
             last_output_frame: state.last_output_frame,
+            measured_output_adapter,
         })
     }
 
@@ -777,16 +827,38 @@ impl Ym2413PgSerialService {
 
     /// Advance the digital output pipeline using the core-owned post-update
     /// rm_enable value and an optional, validated next operator result.
+    /// Advance the two output paths at the established serial slot boundary.
+    ///
+    /// The measured adapter observes the previous latch's dispatch provenance
+    /// before the Nuked reference pipeline installs the next channel output.
+    /// The measured level remains unknown until operator-to-level conversion
+    /// has independent evidence.
     fn clock_output_pipeline(
         &mut self,
         context: &Ym2413SlotServiceContext,
         next_channel_output: Option<i16>,
+        next_channel_output_is_rhythm: bool,
     ) -> Result<(), Ym2413PgSerialError> {
+        if next_channel_output_is_rhythm && next_channel_output.is_none() {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
+        let rhythm_mode_enabled = context.registers[0x0e] & 0x20 != 0;
+        // No independently validated operator-to-measured-level conversion
+        // exists yet. Preserve the timing/provenance path but keep the level
+        // unknown instead of applying the candidate one's-complement mapping.
+        self.measured_output_adapter.process_cycle(
+            context.event.cycle,
+            rhythm_mode_enabled,
+            None,
+            self.previous_channel_output_is_rhythm,
+        )?;
         self.last_output_frame = Some(self.output_pipeline.process_cycle_with_core_state(
             context.event.cycle,
             context.rm_enable as i8,
             next_channel_output,
         )?);
+        self.previous_channel_output_is_rhythm =
+            next_channel_output_is_rhythm && next_channel_output.is_some();
         Ok(())
     }
 
@@ -815,7 +887,7 @@ impl Ym2413PgSerialService {
             self.pipeline.pg_output,
             operator_rm_enable,
         )?;
-        self.clock_output_pipeline(context, Some(sample.channel_output))?;
+        self.clock_output_pipeline(context, Some(sample.channel_output), true)?;
         self.calculate_increment()?;
         let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
@@ -860,7 +932,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             }
             _ => {
                 self.serial_am_lfo.capture_output(context.event.cycle)?;
-                self.clock_output_pipeline(context, None)?;
+                self.clock_output_pipeline(context, None, false)?;
                 return Ok(());
             }
         };
@@ -919,7 +991,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             self.pipeline.pg_output,
             operator_rm_enable,
         )?;
-        self.clock_output_pipeline(context, Some(sample.channel_output))?;
+        self.clock_output_pipeline(context, Some(sample.channel_output), false)?;
         self.calculate_increment()?;
         let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
@@ -1026,6 +1098,19 @@ mod tests {
             continuous_service.output_frame()
         );
         assert_eq!(
+            restored_service.measured_output_frame(),
+            continuous_service.measured_output_frame()
+        );
+        assert_eq!(
+            restored_service.measured_output_adapter_state(),
+            continuous_service.measured_output_adapter_state()
+        );
+        let measured_frame = continuous_service.measured_output_frame().unwrap();
+        assert_eq!(
+            measured_frame.emitted_cycle,
+            continuous_service.output_frame().unwrap().cycle
+        );
+        assert_eq!(
             restored_service.export_state(),
             continuous_service.export_state()
         );
@@ -1061,6 +1146,42 @@ mod tests {
         let frame = service.output_frame().unwrap();
         assert_eq!(frame.mo, None);
         assert_eq!(frame.ro, None);
+    }
+
+    #[test]
+    fn unseeded_rhythm_mode_propagates_unknown_measured_mo_ro_frame() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_cursor(11)
+            .unwrap();
+
+        for cycle in (11..18).chain(0..2) {
+            advance_rhythm_slot(&mut service, cycle, registers);
+        }
+
+        let frame = service.measured_output_frame().unwrap();
+        assert_eq!(frame.emitted_cycle, 1);
+        assert_eq!(frame.source.cycle, 0);
+        assert_eq!(frame.source.mo_slot_index, 3);
+        assert!(frame.source.mo.is_none());
+        assert!(!frame.source.mo_known);
+        assert_eq!(
+            frame.source.ro,
+            crate::Ym2413OutputSlotResult::UnknownSource {
+                slot_index: 15,
+                voice: crate::Ym2413RhythmVoice::BassDrum,
+            }
+        );
+        let adapter_state = service.measured_output_adapter_state();
+        let ro_cursor = adapter_state
+            .rhythm_output_service
+            .rhythm_delay
+            .next_slot_index;
+        assert_eq!(
+            (ro_cursor + 3) % crate::slot::YM2413_SLOT_COUNT as u8,
+            service.rhythm_noise_cursor()
+        );
     }
 
     fn initial_bank(pm_lfo_counter: u16) -> Ym2413SynthesisBank {
@@ -1493,6 +1614,39 @@ mod tests {
     }
 
     #[test]
+    fn measured_adapter_buffers_previous_latch_and_rejects_melodic_source_as_ro() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x20;
+
+        for cycle in 0..=1 {
+            let mut slot_context = context(cycle, registers, 0);
+            slot_context.rm_enable = 0xff;
+            service.before_eg_update(&slot_context).unwrap();
+            let (tick, post) = tick(cycle);
+            service.after_eg_update(&slot_context, tick, post).unwrap();
+
+            if cycle == 0 {
+                assert_eq!(service.measured_output_frame(), None);
+            }
+        }
+
+        let frame = service.measured_output_frame().unwrap();
+        assert_eq!(frame.source.cycle, 0);
+        assert_eq!(frame.emitted_cycle, 1);
+        assert!(frame.source.mo.is_none());
+        assert!(!frame.source.mo_known);
+        assert_eq!(
+            frame.source.ro,
+            crate::Ym2413OutputSlotResult::UnknownSource {
+                slot_index: 15,
+                voice: crate::Ym2413RhythmVoice::BassDrum,
+            }
+        );
+        assert!(!service.export_state().previous_channel_output_is_rhythm);
+    }
+
+    #[test]
     fn rhythm_owned_slots_use_seeded_rhythm_operator_path_and_reach_do_rhythm() {
         let rhythm_cycles = [
             (11, EnvelopeRhythmSelect::BassDrumFirst),
@@ -1524,10 +1678,27 @@ mod tests {
             .unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
+            assert!(service.export_state().previous_channel_output_is_rhythm);
             assert_ne!(service.synthesis().export_state(), synthesis_before);
             assert_ne!(service.operator.export_state(), operator_before);
             let (tick, post) = tick(cycle);
             service.after_eg_update(&slot_context, tick, post).unwrap();
+
+            // Save-state snapshots are taken only at completed slot boundaries:
+            // the PG and measured RO cursors must have advanced together.
+            let rhythm_latch_state = service.export_state();
+            assert!(rhythm_latch_state.previous_channel_output_is_rhythm);
+            let restored = Ym2413PgSerialService::restore_state(rhythm_latch_state).unwrap();
+            assert_eq!(restored.export_state(), rhythm_latch_state);
+
+            let mut invalid_latch_state = rhythm_latch_state;
+            invalid_latch_state
+                .output_pipeline
+                .previous_channel_output_valid = false;
+            assert!(matches!(
+                Ym2413PgSerialService::restore_state(invalid_latch_state),
+                Err(Ym2413PgSerialError::InvalidState)
+            ));
             assert_eq!(
                 service.rhythm_noise_state().unwrap().slot_index,
                 (cycle + 1) % 18
@@ -1557,6 +1728,7 @@ mod tests {
             slot_context.envelope_input.rhythm_select = selector;
 
             service.before_eg_update(&slot_context).unwrap();
+            assert!(!service.export_state().previous_channel_output_is_rhythm);
             assert_eq!(service.synthesis().export_state(), synthesis_before);
             assert_eq!(service.operator.export_state(), operator_before);
             let (tick, post) = tick(12);
@@ -1594,10 +1766,10 @@ mod tests {
         let service = Ym2413PgSerialService::new(initial_bank(0));
         let mut state = service.export_state();
         state.pipeline.lfo_vib_counter = 8;
-        assert_eq!(
+        assert!(matches!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
-        );
+        ));
         state = service.export_state();
         state.pipeline.parameters.fnum = 0x0200;
         assert_eq!(
@@ -1880,6 +2052,22 @@ mod tests {
         assert_eq!(
             rollback_service.inner.export_state(),
             reference_service.export_state()
+        );
+    }
+
+    #[test]
+    fn restore_rejects_measured_ro_cursor_out_of_alignment_with_core_cycle() {
+        let service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut state = service.export_state();
+        state
+            .measured_output_adapter
+            .rhythm_output_service
+            .rhythm_delay
+            .next_slot_index = 0;
+
+        assert_eq!(
+            Ym2413PgSerialService::restore_state(state),
+            Err(Ym2413PgSerialError::InvalidState)
         );
     }
 

@@ -115,6 +115,11 @@ pub enum Ym2413RhythmOutputSlotResult {
         slot_index: u8,
         voice: Ym2413RhythmVoice,
     },
+    /// The original source slot was reached while its operator output was unknown.
+    OriginalNotInitialized {
+        slot_index: u8,
+        voice: Ym2413RhythmVoice,
+    },
 }
 
 /// Errors from the rhythm output-retention model.
@@ -162,6 +167,17 @@ pub struct Ym2413RhythmOutputDelay {
 }
 
 impl Ym2413RhythmOutputDelay {
+    /// Construct an empty retention model at a caller-validated serial slot.
+    pub(crate) const fn new_with_next_slot(next_slot_index: u8) -> Self {
+        Self {
+            state: Ym2413RhythmOutputDelayState {
+                format_version: YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
+                next_slot_index,
+                retained_values: [None; 5],
+            },
+        }
+    }
+
     /// Restore from caller-supplied initial conditions; no latch reset value is guessed.
     pub const fn with_initial_state(
         state: Ym2413RhythmOutputDelayState,
@@ -188,6 +204,18 @@ impl Ym2413RhythmOutputDelay {
         &mut self,
         slot_index: u8,
         original_code: Option<Ym2413DacCode>,
+    ) -> Result<Ym2413RhythmOutputSlotResult, Ym2413RhythmOutputError> {
+        self.process_slot_with_validity(slot_index, original_code, true)
+    }
+
+    /// Process one slot when the caller can distinguish a known sample from an
+    /// unknown operator result. An unknown original source invalidates that
+    /// voice's retained value; later repeats remain explicitly uninitialized.
+    pub fn process_slot_with_validity(
+        &mut self,
+        slot_index: u8,
+        original_code: Option<Ym2413DacCode>,
+        original_known: bool,
     ) -> Result<Ym2413RhythmOutputSlotResult, Ym2413RhythmOutputError> {
         if slot_index as usize >= YM2413_SLOT_COUNT {
             return Err(Ym2413RhythmOutputError::InvalidSlotIndex(slot_index));
@@ -228,6 +256,16 @@ impl Ym2413RhythmOutputDelay {
                     },
                 }
             }
+            Some(entry) if !original_known => {
+                if original_code.is_some() {
+                    return Err(Ym2413RhythmOutputError::UnexpectedOriginalSample { slot_index });
+                }
+                self.state.retained_values[voice_index(entry.voice)] = None;
+                Ym2413RhythmOutputSlotResult::OriginalNotInitialized {
+                    slot_index,
+                    voice: entry.voice,
+                }
+            }
             Some(entry) => {
                 let code = original_code.ok_or(Ym2413RhythmOutputError::MissingOriginalSample {
                     slot_index,
@@ -263,7 +301,7 @@ mod tests {
     use super::{
         YM2413_DAC_CODE_MAX, YM2413_DAC_CODE_MIN, YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
         Ym2413DacCode, Ym2413RhythmOutputDelay, Ym2413RhythmOutputDelayState,
-        Ym2413RhythmOutputError, Ym2413RhythmOutputSlotResult,
+        Ym2413RhythmOutputError, Ym2413RhythmOutputEvent, Ym2413RhythmOutputSlotResult,
     };
     use crate::slot::Ym2413RhythmVoice;
 
@@ -514,6 +552,66 @@ mod tests {
         assert_eq!(
             Ym2413RhythmOutputDelay::with_initial_state(state),
             Err(Ym2413RhythmOutputError::InvalidState)
+        );
+    }
+
+    #[test]
+    fn unknown_original_source_invalidates_retained_voice_and_repeat() {
+        let measured_code = code(37);
+        let mut delay =
+            super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        assert_eq!(
+            delay.process_slot_with_validity(13, Some(measured_code), true),
+            Ok(Ym2413RhythmOutputSlotResult::Emitted(
+                Ym2413RhythmOutputEvent {
+                    slot_index: 13,
+                    voice: Ym2413RhythmVoice::HiHat,
+                    is_delayed_repeat: false,
+                    code: measured_code,
+                }
+            ))
+        );
+
+        for slot in 14..18 {
+            let source = [14, 15, 16, 17].contains(&slot).then_some(measured_code);
+            let _ = delay
+                .process_slot_with_validity(slot, source, true)
+                .unwrap();
+        }
+        for slot in 0..13 {
+            let _ = delay.process_slot_with_validity(slot, None, true).unwrap();
+        }
+
+        assert_eq!(
+            delay.process_slot_with_validity(13, None, false),
+            Ok(Ym2413RhythmOutputSlotResult::OriginalNotInitialized {
+                slot_index: 13,
+                voice: Ym2413RhythmVoice::HiHat,
+            })
+        );
+
+        for slot in (14..18).chain(0..0) {
+            let _ = delay.process_slot_with_validity(slot, None, false).unwrap();
+        }
+        assert_eq!(
+            delay.process_slot_with_validity(0, None, false),
+            Ok(Ym2413RhythmOutputSlotResult::RepeatNotInitialized {
+                slot_index: 0,
+                voice: Ym2413RhythmVoice::HiHat,
+            })
+        );
+    }
+
+    #[test]
+    fn strict_original_slot_api_still_rejects_missing_sample() {
+        let mut delay =
+            super::Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        assert_eq!(
+            delay.process_slot(13, None),
+            Err(Ym2413RhythmOutputError::MissingOriginalSample {
+                slot_index: 13,
+                voice: Ym2413RhythmVoice::HiHat,
+            })
         );
     }
 }
