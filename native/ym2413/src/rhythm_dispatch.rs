@@ -216,7 +216,23 @@ mod tests {
             );
         }
 
+        // Slots outside the channel 7..9 reassignment region remain melodic
+        // even while the global mode shift latch is crossing its transition.
+        for cycle in (0..YM2413_SLOT_COUNT as u8).filter(|cycle| !(11..=16).contains(cycle)) {
+            assert!(matches!(
+                dispatch_serial_slot(cycle, &enabled, 0x80, Select::None).unwrap(),
+                Ym2413SerialSlotDispatch::Melodic { .. }
+            ));
+        }
+
         let disabled = registers(false);
+        for cycle in (0..YM2413_SLOT_COUNT as u8).filter(|cycle| !(11..=16).contains(cycle)) {
+            assert!(matches!(
+                dispatch_serial_slot(cycle, &disabled, 0x7f, Select::None).unwrap(),
+                Ym2413SerialSlotDispatch::Melodic { .. }
+            ));
+        }
+
         for rm_enable in 1..=0x7f {
             let result = dispatch_serial_slot(12, &disabled, rm_enable, Select::None).unwrap();
             assert_eq!(
