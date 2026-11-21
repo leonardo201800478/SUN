@@ -1,10 +1,10 @@
 # YM2413 EG characterization #561 — final result
 
-**Date:** 2026-11-21  
-**Repository:** `leonardo201800478/SUN`  
-**Workflow run:** [#44922913393](https://github.com/leonardo201800478/SUN/actions/runs/44922913393)  
-**Code HEAD tested:** `27650ff687c9495415644bca1db30585ffed21b9`  
-**Artifact:** `ym2413-nuked-eg-characterization.zip`, ID `14714641687`  
+**Date:** 2026-11-21
+**Repository:** `leonardo201800478/SUN`
+**Workflow run:** [#44922913393](https://github.com/leonardo201800478/SUN/actions/runs/44922913393)
+**Code HEAD tested:** `27650ff687c9495415644bca1db30585ffed21b9`
+**Artifact:** `ym2413-nuked-eg-characterization.zip`, ID `14714641687`
 **Artifact SHA-256:** `d29183dbcba6a52ea46612d4be6aaf05d949234210b7280108878d1296dc2f94`
 
 ## Gate result
