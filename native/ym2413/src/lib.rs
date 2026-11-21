@@ -22,6 +22,7 @@ pub mod phase;
 pub mod pm_lfo;
 pub mod rhythm;
 pub mod rhythm_channel;
+pub mod rhythm_dispatch;
 pub mod rhythm_output;
 pub mod rhythm_phase;
 pub mod serial_operator;
@@ -103,6 +104,9 @@ pub use rhythm::{
     Ym2413RhythmNoiseState, Ym2413RhythmSlotNoiseLfsr, Ym2413RhythmSlotNoiseSequencer,
     Ym2413RhythmSlotNoiseSequencerState, Ym2413RhythmSlotNoiseState, Ym2413RhythmVoiceConfig,
     decode_rhythm_registers,
+};
+pub use rhythm_dispatch::{
+    Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError, dispatch_serial_slot,
 };
 pub use rhythm_channel::{
     RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
