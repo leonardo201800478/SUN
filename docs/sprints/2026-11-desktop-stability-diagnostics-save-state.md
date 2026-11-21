@@ -112,8 +112,8 @@ A Sprint não autoriza reescrita de hardware, CPU, VDP, PSG, barramentos, mapper
 | Janela | Foco | Saída verificável |
 |---|---|---|
 | 20/11 — kickoff | Congelar requisitos, revisar baseline, abrir rastreamento | Sprint documentada e backlog priorizado |
-| 23–24/11 | DP4 + Save State/Load State | Lifecycle e round-trip demonstrados |
-| 25–26/11 | DP4 + Save/Load State | Lifecycle e round-trip demonstrados |
+| 23–24/11 | DP4 — lifecycle da sessão | Stop/Reset/Descarregar ROM/Fechar com transições e erros verificáveis |
+| 25–26/11 | Save State/Load State | Inventário, round-trip, corrupção e retomada determinística |
 | 27–30/11 | DP2 | Persistência atômica e diretórios |
 | 01–02/12 | DP3 + DP1 | Matriz de loaders e capacidades |
 | 03/12 | DP5 + DP6 | Medições, auditoria CLI e sinks |
@@ -135,7 +135,7 @@ A ordem é uma sequência-alvo, não autorização para declarar etapas concluí
 ## 6. Riscos e dependências
 
 - **DP0:** PR #1107 e PR #1117 estão integradas; F6–F10 foram registrados como PASS na auditoria DP0. Não reabrir sem regressão reproduzível.
-- **Issue #1103:** contém uma política de diagnóstico anterior que precisa ser reconciliada com a política RAM-first desta Sprint; não aplicar literalmente critérios que desabilitem o trace essencial em RAM.
+- **Issue #1103:** política RAM-first atualizada e implementada pelas PRs #1107/#1117; manter a separação entre ring essencial em RAM, coleta detalhada opt-in e exportação explícita.
 - **Save State:** depende de inventário real do estado serializado e dos contratos de workers; não presumir cobertura completa.
 - **SRAM:** persistência agrupada reduz desgaste, mas uma queda abrupta pode perder alterações ainda não descarregadas; a janela deve ser explícita.
 - **Hardware timing:** qualquer regressão temporal bloqueia aceite mesmo que GUI e build funcionem.
@@ -165,7 +165,8 @@ Atualizar este bloco a cada checkpoint com PRs, commits, workflows, evidências,
 ### 8.1 Evidências iniciais — 2026-11-20
 
 - **Sprint tracking:** issue [#1108](https://github.com/leonardo201800478/sega-emulator/issues/1108).
-- **Documento:** PR [#1109](https://github.com/leonardo201800478/sega-emulator/pull/1109).
+- **Documento original:** PR [#1109](https://github.com/leonardo201800478/sega-emulator/pull/1109), baseada no kickoff.
+- **Reconciliação sobre a main atual:** PR [#1134](https://github.com/leonardo201800478/sega-emulator/pull/1134).
 - **Primeiro item técnico:** issue [#1110](https://github.com/leonardo201800478/sega-emulator/issues/1110).
 - **DP0 policy:** issue [#1103](https://github.com/leonardo201800478/sega-emulator/issues/1103) atualizada para RAM-first; o trace essencial não é revogado junto com coleta detalhada.
 - **PR #1107:** integrada em `bc4664d9f44f6791ad8f8520a57c8744dd647dbf` (20/11/2026), estabelecendo a base de consentimento e sinks.
