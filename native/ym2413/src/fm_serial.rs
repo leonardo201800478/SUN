@@ -50,6 +50,24 @@ impl fmt::Display for Ym2413FmSerialError {
 
 impl std::error::Error for Ym2413FmSerialError {}
 
+/// Core/service error boundary for coarse-grained serial FM advancement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ym2413FmSerialAdvanceError {
+    Core(crate::Ym2413Error),
+    Service(Ym2413FmSerialError),
+}
+
+impl fmt::Display for Ym2413FmSerialAdvanceError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Core(error) => write!(formatter, "YM2413 core error: {error}"),
+            Self::Service(error) => write!(formatter, "YM2413 FM service error: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for Ym2413FmSerialAdvanceError {}
+
 /// Complete resumable state for the composed PG + operator serial service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413FmSerialServiceState {
