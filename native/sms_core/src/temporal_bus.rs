@@ -1210,6 +1210,12 @@ impl SmsTemporalBus {
             io: self.io.clone(),
             psg: self.psg.clone(),
             ym2413: self.ym2413.as_ref().map(Ym2413Core::export_state),
+            ym2413_pg_service: self
+                .ym2413_pg_service
+                .as_ref()
+                .map(Ym2413PgSerialService::export_state),
+            pending_fm_samples: self.pending_fm_samples.clone(),
+            ym2413_pcm_accumulator: self.ym2413_pcm_accumulator,
             fm_control: self.fm_control,
             vdp: self.vdp.clone(),
             coordinator: self.coordinator.export_state(),
@@ -1229,7 +1235,14 @@ impl SmsTemporalBus {
         }
         if state.fm_control & !0x03 != 0
             || (state.ym2413.is_none() && state.fm_control != 0)
+            || state.ym2413.is_some() != state.ym2413_pg_service.is_some()
             || (state.ym2413.is_some() && state.io.territory() != Territory::Japan)
+            || !state.ym2413_pcm_accumulator.is_valid()
+            || state.pending_fm_samples.iter().flatten().any(|sample| !sample.is_finite())
+            || (state.ym2413.is_none()
+                && (!state.pending_fm_samples.is_empty()
+                    || state.ym2413_pcm_accumulator
+                        != SmsYm2413PcmAccumulatorState::default()))
             || state.psg.clock_domain() != SMS_PSG_CLOCK_DOMAIN_ID
             || state.psg.core().profile() != PsgProfile::Sms
             || state.psg.core().clock_hz() == 0
@@ -1248,6 +1261,19 @@ impl SmsTemporalBus {
             return Err(SmsTemporalBusError::InvalidState);
         }
         let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
+        let ym2413_pg_service = state
+            .ym2413_pg_service
+            .map(Ym2413PgSerialService::restore_state)
+            .transpose()?;
+        if let (Some(core_state), Some(service_state)) = (&state.ym2413, &state.ym2413_pg_service) {
+            if core_state.slot_index != service_state.rhythm_noise_cursor
+                || core_state.slot_index != service_state.output_pipeline.next_cycle
+                || core_state.slot_index != state.ym2413_pcm_accumulator.next_cycle
+                || u64::from(core_state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT
+            {
+                return Err(SmsTemporalBusError::InvalidState);
+            }
+        }
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
         let scale = state.coordinator.master_ticks_per_tstate;
         let now = coordinator.now();
@@ -1346,6 +1372,9 @@ impl SmsTemporalBus {
             io: state.io,
             psg: state.psg,
             ym2413,
+            ym2413_pg_service,
+            pending_fm_samples: state.pending_fm_samples,
+            ym2413_pcm_accumulator: state.ym2413_pcm_accumulator,
             fm_control: state.fm_control,
             vdp: state.vdp,
             coordinator,
