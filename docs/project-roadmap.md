@@ -1,7 +1,7 @@
 # Roadmap mestre — Sega Emulator
 
-**Revisão:** 2026-11-20
-**Baseline consultada:** `main` `8a80fc784c3b9b2563cea248f5c3ba1b4073dfc9`.
+**Revisão:** 2026-11-21
+**Baseline consultada:** `main` `7bcbdb244a307f73c39ea1540afde7a8427f1e44`.
 **Autoridade temporal:** MachineScheduler.
 **Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
@@ -74,6 +74,33 @@ Implementado parcialmente e em evolução. Melhorar captura, retenção/exporta�
 ### BIOS
 
 O boot por BIOS convencional de 8 KiB foi integrado pela PR #928. Validação física com firmware real, handoff e primeiro código do cartucho permanece pendente. Não declarar boot físico validado.
+ 
+### RetroAchievements — integração transversal planejada
+
+**Estado:** PLANEJADO / NÃO IMPLEMENTADO. Esta trilha não altera a ordem das plataformas nem faz parte da Sprint P0 de estabilização desktop.
+
+A integração deve começar somente quando SMS e SG-1000 tiverem runtime de frame estável, lifecycle e contratos de Save State suficientemente consolidados. O trabalho deve ser incremental, sem introduzir callbacks por instrução, leituras concorrentes inconsistentes ou trabalho de rede no caminho crítico do MachineScheduler.
+
+| Marco | Escopo | Critério de saída |
+|---|---|---|
+| RA-0 — decisão arquitetural | ADR sobre consumo do runtime oficial `rcheevos` (C) via FFI segura ou alternativa compatível com a diretriz Rust-only; licença, build, ownership, threading, User-Agent e política de credenciais | Decisão explícita aprovada; wrapper Rust isolado; nenhuma dependência de UI ou hardware em C |
+| RA-1 — identidade e memória | Hash MD5 e identificação SMS (console ID 11) / SG-1000 (console ID 33); mapa de memória legível pelo serviço de achievements, incluindo ROM/banks, RAM e regiões mapeadas relevantes | Hash reproduzível e memory map validado por console, sem expor ponteiros instáveis ou memória fora do contrato |
+| RA-2 — cliente e rede | Autenticação, armazenamento seguro de token, HTTP assíncrono, identificação/carregamento do jogo e tratamento de erros/eventos | Login/logout, falhas e respostas de servidor testados; nenhuma chamada de rede bloqueia Scheduler ou GUI |
+| RA-3 — integração por frame | Atualização do runtime de achievements uma vez por frame emulado concluído, inclusive quando o frame não é renderizado; leitura consistente do estado daquele frame | Mesmo resultado em execução contínua, fast-forward e renderização descartada; pausa não avança achievements; leitura thread-safe e sem corrida |
+| RA-4 — experiência de conquistas | Lista, progresso, notificações, leaderboards e Rich Presence na camada Slint | Eventos do serviço chegam à GUI por mensagens coarse-grained; apresentação não interfere no timing |
+| RA-5 — Hardcore e estados | Regras de Hardcore para Load State, cheats, rewind, slow motion/frame advance e debugger; Save State permitido; serialização/restauração do estado de sessão RA quando suportado | Política aplicada centralmente; Load State bloqueado em Hardcore sem corromper sessão; Save State permitido; transições de modo e reset testados |
+| RA-6 — aceite por sistema | Validação de SMS e SG-1000, títulos identificados, memory maps, achievements/leaderboards e User-Agent reconhecido | Evidências por título e SHA; validação oficial do cliente quando exigida pelo serviço; limitações documentadas |
+
+**Invariantes de integração:**
+- O ponto de atualização é a conclusão do frame emulado no runtime/worker, nunca o frame renderizado nem cada instrução. Pausado, usar apenas o mecanismo de idle apropriado, sem avançar o jogo.
+- A leitura de memória pode ocorrer em thread de serviço; fornecer snapshot consistente ou contrato de leitura thread-safe, sem acessar estado mutável do Scheduler de forma concorrente.
+- Não executar HTTP, espera de rede, UI callback ou alocação não limitada no caminho crítico temporal.
+- Hardcore é política de sessão: Save State permanece permitido; Load State e demais ações proibidas devem ser bloqueadas pela camada de comandos do runtime, não apenas ocultadas na GUI.
+- Credenciais/API tokens não podem ser versionados nem registrados em logs; usar armazenamento seguro do sistema operacional.
+- A decisão de FFI deve respeitar a arquitetura Rust-only do produto e ser registrada em ADR antes de qualquer dependência C ser introduzida.
+
+Referências primárias: [RetroAchievements Integration Docs](https://docs.retroachievements.org/developer-docs/), [rcheevos](https://github.com/RetroAchievements/rcheevos), [rc_client integration](https://github-wiki-see.page/m/RetroAchievements/rcheevos/wiki/rc_client-integration), [Game identification](https://docs.retroachievements.org/developer-docs/game-identification.html).
+
 
 ## 6. Estado operacional da baseline
 
