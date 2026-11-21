@@ -232,7 +232,7 @@ A implementação Rust enviada como proposta no material de entrada **não foi i
 | Adaptador 44→50 pinos permite boot de qualquer jogo japonês | Não afirmar; depende de conectividade, cabeçalho, hardware e revisão de BIOS. Não é consequência automática do código de região. |
 | Nibble de região deve selecionar FM e framerate do emulador | Não implementar: região do cabeçalho é metadado da mídia, não autoridade para configurar hardware físico. FM e padrão de vídeo pertencem ao MachineProfile explícito. |
 
-## 11. Consequências para a arquitetura Sega Emulator
+## 11. Consequências para a arquitetura SUN — Strife Uranus Neptune
 
 - **Z80:** executa instruções e transações; não conhece BIOS, validade de cartucho ou handoff.
 - **SMS bus/memory:** resolve BIOS, Card, Cartridge, Expansion e RAM conforme os latches/enable reais, incluindo prioridades e estados iniciais.
