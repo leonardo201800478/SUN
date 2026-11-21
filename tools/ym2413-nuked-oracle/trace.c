@@ -185,6 +185,8 @@ int main(int argc, char **argv) {
         uint8_t op_calc_c_fb = chip.c_fb;
         uint8_t op_calc_c_dc = chip.c_dc;
         uint8_t op_calc_c_dm = chip.c_dm;
+        uint16_t am_calc_lfo_counter = chip.lfo_counter;
+        uint8_t am_calc_testmode = chip.testmode;
         uint32_t phase_ismod =
             ((calc_rm_enable & 0x40) && (cycle_before == 13 || cycle_before == 14))
                 ? 0
@@ -282,6 +284,10 @@ int main(int argc, char **argv) {
         printf(",\"lfo_counter\":%u,\"lfo_vib_counter\":%u,\"lfo_am_counter\":%u,\"lfo_am_out\":%u",
                (unsigned)chip.lfo_counter, (unsigned)chip.lfo_vib_counter,
                (unsigned)chip.lfo_am_counter, (unsigned)chip.lfo_am_out);
+        printf(",\"am_calc_lfo_counter\":%u,\"am_calc_testmode\":%u,\"lfo_am_dir\":%u,\"lfo_am_car\":%u,\"lfo_am_step\":%u",
+               (unsigned)am_calc_lfo_counter, (unsigned)am_calc_testmode,
+               (unsigned)chip.lfo_am_dir, (unsigned)chip.lfo_am_car,
+               (unsigned)chip.lfo_am_step);
         printf(",\"op_fb1\":"); print_i16_array(chip.op_fb1, 9);
         printf(",\"op_fb2\":"); print_i16_array(chip.op_fb2, 9);
         printf(",\"op_fbsum\":%d,\"op_mod\":%d,\"op_neg\":%u,\"op_logsin\":%u,\"op_exp_m\":%u,\"op_exp_s\":%u",
