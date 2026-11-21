@@ -9,6 +9,7 @@ use crate::slot::Ym2413SlotServiceEvent;
 
 /// Read-only snapshot at the serial boundary after mode latches have shifted
 /// and before the core advances the EG operator for this cycle.
+#[expect(dead_code, reason = "Staged FM-1B context; consumed by the serial synthesis service integration.")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Ym2413SlotServiceContext {
     pub event: Ym2413SlotServiceEvent,
@@ -28,6 +29,7 @@ pub(crate) struct Ym2413SlotServiceContext {
 /// Implementations may update PG/operator/feedback/LFO state, but must not tick
 /// or reconstruct the serial EG. The core performs exactly one EG update
 /// between these two callbacks.
+#[expect(dead_code, reason = "Staged FM-1B service seam; consumed by the serial synthesis service integration.")]
 pub(crate) trait Ym2413SlotService {
     type Error;
 
@@ -49,5 +51,6 @@ pub(crate) trait Ym2413SlotService {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Ym2413SlotServiceAdvanceError<E> {
     Core(Ym2413Error),
+    #[expect(dead_code, reason = "Constructed by the staged serial synthesis service hook.")]
     Service(E),
 }
