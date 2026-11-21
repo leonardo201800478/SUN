@@ -9,8 +9,10 @@ on:
       - "tools/ym2413-nuked-oracle/compare_pg_serial.py"
       - "tools/ym2413-nuked-oracle/compare_operator.py"
       - "tools/ym2413-nuked-oracle/compare_am_lfo.py"
+      - "tools/ym2413-nuked-oracle/compare_fm3_integrated.py"
       - "native/ym2413/examples/serial_operator_trace.rs"
       - "native/ym2413/examples/serial_am_lfo_trace.rs"
+      - "native/ym2413/examples/pg_serial_trace.rs"
       - "tools/ym2413-nuked-oracle/trace.c"
       - ".github/workflows/ym2413-pg-differential.yml"
   workflow_dispatch:
@@ -180,6 +182,20 @@ jobs:
         run: |
           python3 tools/ym2413-nuked-oracle/compare_am_lfo.py \
             --nuked-trace "$RUNNER_TEMP/nuked-operator.jsonl"
+
+      - name: Replay integrated Rust PG EG AM and operator pipeline
+        run: |
+          cargo run --quiet --locked \
+            --manifest-path native/ym2413/Cargo.toml \
+            --example pg_serial_trace -- \
+            "$RUNNER_TEMP/operator-events.csv" 147456 \
+            > "$RUNNER_TEMP/rust-fm3.jsonl"
+
+      - name: Differentially validate integrated FM-3 pipeline
+        run: |
+          python3 tools/ym2413-nuked-oracle/compare_fm3_integrated.py \
+            --nuked-trace "$RUNNER_TEMP/nuked-operator.jsonl" \
+            --rust-trace "$RUNNER_TEMP/rust-fm3.jsonl"
 
       - name: Generate all-channel melodic register sequence
         run: |
