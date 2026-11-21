@@ -347,6 +347,61 @@ pub const fn nuked_phase_reset_required(
     })
 }
 
+/// Immutable description of the distinct Nuked pipeline indices serviced
+/// during one serial cycle. The EG sequencer remains owned by Ym2413Core.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ym2413SlotServiceEvent {
+    pub cycle: u8,
+    pub selected_operator: Ym2413SlotDescriptor,
+    pub pg_phase_write_index: u8,
+    pub pg_phase_output_index: u8,
+    pub eg_update_index: u8,
+    pub eg_output_index: u8,
+    pub phase_reset_required: bool,
+}
+
+/// Build the service event from post-shift mode state and pre-update EG latches.
+pub const fn nuked_slot_service_event(
+    cycle: u8,
+    rm_enable: u8,
+    eg_dokon: u32,
+) -> Option<Ym2413SlotServiceEvent> {
+    let selected_operator = match nuked_cycle_selected_slot_descriptor(cycle) {
+        Some(descriptor) => descriptor,
+        None => return None,
+    };
+    let pg_phase_write_index = match nuked_pg_phase_write_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let pg_phase_output_index = match nuked_pg_phase_output_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let eg_update_index = match nuked_eg_update_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let eg_output_index = match nuked_eg_output_index(cycle) {
+        Some(index) => index,
+        None => return None,
+    };
+    let phase_reset_required = match nuked_phase_reset_required(cycle, rm_enable, eg_dokon) {
+        Some(required) => required,
+        None => return None,
+    };
+
+    Some(Ym2413SlotServiceEvent {
+        cycle,
+        selected_operator,
+        pg_phase_write_index,
+        pg_phase_output_index,
+        eg_update_index,
+        eg_output_index,
+        phase_reset_required,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -523,4 +578,37 @@ mod tests {
         assert_eq!(nuked_phase_reset_required(18, 0, u32::MAX), None);
         assert_eq!(nuked_phase_reset_required(u8::MAX, 0, u32::MAX), None);
     }
+    #[test]
+    fn nuked_slot_service_event_keeps_all_pipeline_boundaries_explicit() {
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            let event = nuked_slot_service_event(cycle, 0, 0x8001).unwrap();
+            assert_eq!(
+                event.selected_operator,
+                nuked_cycle_selected_slot_descriptor(cycle).unwrap()
+            );
+            assert_eq!(
+                event.pg_phase_write_index,
+                nuked_pg_phase_write_index(cycle).unwrap()
+            );
+            assert_eq!(
+                event.pg_phase_output_index,
+                nuked_pg_phase_output_index(cycle).unwrap()
+            );
+            assert_eq!(
+                event.eg_update_index,
+                nuked_eg_update_index(cycle).unwrap()
+            );
+            assert_eq!(
+                event.eg_output_index,
+                nuked_eg_output_index(cycle).unwrap()
+            );
+            assert_eq!(
+                event.phase_reset_required,
+                nuked_phase_reset_required(cycle, 0, 0x8001).unwrap()
+            );
+        }
+
+        assert_eq!(nuked_slot_service_event(18, 0, 0), None);
+    }
+
 }
