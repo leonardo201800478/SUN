@@ -223,6 +223,23 @@ impl Ym2413PgSerialService {
         })
     }
 
+    /// Reject rhythm-mode and transition states until the dedicated rhythm pipeline.
+    pub(crate) fn ensure_melodic_mode(
+        &self,
+        context: &Ym2413SlotServiceContext,
+    ) -> Result<(), Ym2413PgSerialError> {
+        if context.registers[0x0e] & 0x20 != 0
+            || context.rm_enable != 0
+            || context.rm_select < 6
+        {
+            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
+                cycle: context.event.cycle,
+                channel: context.event.selected_operator.channel,
+            });
+        }
+        Ok(())
+    }
+
     /// Consume one PG phase-array write and one delayed output/reset decision.
     pub(crate) fn generate_phase(
         &mut self,
@@ -290,12 +307,7 @@ impl Ym2413PgSerialService {
         context: &Ym2413SlotServiceContext,
     ) -> Result<(), Ym2413PgSerialError> {
         let descriptor = context.event.selected_operator;
-        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
-            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: descriptor.channel,
-            });
-        }
+        self.ensure_melodic_mode(context)?;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let parameters = match descriptor.operator {
             Ym2413Operator::Modulator => config.modulator_phase,
@@ -318,13 +330,8 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
-        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
-            return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: context.event.selected_operator.channel,
-            });
-        }
-        // Nuked order: PhaseGenerate, Operator (FM-3), PhaseCalcIncrement.
+        self.ensure_melodic_mode(context)?;
+        // FM-2 PG-only order. FM-3 composes the Operator stage between these calls.
         self.generate_phase(context)?;
         self.calculate_increment()
     }
