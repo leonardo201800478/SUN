@@ -423,14 +423,18 @@ mod tests {
     use crate::envelope::{
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
-    use crate::envelope_sequencer::{EnvelopeSequencer, EnvelopeSlotInput};
+    use crate::envelope_sequencer::{
+        EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput,
+    };
     use crate::phase::PhaseGenerator;
     use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
     use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
-    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core};
+    use crate::{
+        Ym2413Core, Ym2413SlotServiceAdvanceError, YM2413_INPUT_CLOCKS_PER_SLOT,
+    };
 
     fn initial_bank(pm_lfo_counter: u16) -> Ym2413SynthesisBank {
         let initial = Ym2413SynthesisInitialState {
@@ -738,6 +742,109 @@ mod tests {
         assert_eq!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
+        );
+    }
+
+    #[derive(Clone)]
+    struct FailingPgService {
+        inner: Ym2413PgSerialService,
+        fail_cycle: Option<u8>,
+    }
+
+    impl Ym2413SlotService for FailingPgService {
+        type Error = u8;
+
+        fn before_eg_update(
+            &mut self,
+            context: &Ym2413SlotServiceContext,
+        ) -> Result<(), Self::Error> {
+            self.inner
+                .before_eg_update(context)
+                .map_err(|_| context.event.cycle)
+        }
+
+        fn after_eg_update(
+            &mut self,
+            context: &Ym2413SlotServiceContext,
+            tick: EnvelopeSequencerTick,
+            post_state: EnvelopeSequencerState,
+        ) -> Result<(), Self::Error> {
+            self.inner
+                .after_eg_update(context, tick, post_state)
+                .map_err(|_| context.event.cycle)?;
+            if self.fail_cycle == Some(context.event.cycle) {
+                Err(context.event.cycle)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn core_and_pg_service_snapshot_restore_and_transactional_retry_are_equivalent() {
+        let initial = initial_bank(0);
+        let mut whole_core = Ym2413Core::new();
+        let mut whole_service = Ym2413PgSerialService::new(initial.clone());
+        let total_clocks = 18 * YM2413_INPUT_CLOCKS_PER_SLOT;
+        whole_core
+            .advance_input_clocks_with_slot_service(total_clocks, &mut whole_service)
+            .unwrap();
+
+        let mut checkpoint_core = Ym2413Core::new();
+        let mut checkpoint_service = Ym2413PgSerialService::new(initial.clone());
+        checkpoint_core
+            .advance_input_clocks_with_slot_service(37, &mut checkpoint_service)
+            .unwrap();
+        let mut restored_core =
+            Ym2413Core::restore_state(checkpoint_core.export_state()).unwrap();
+        let mut restored_service =
+            Ym2413PgSerialService::restore_state(checkpoint_service.export_state()).unwrap();
+        restored_core
+            .advance_input_clocks_with_slot_service(
+                total_clocks - 37,
+                &mut restored_service,
+            )
+            .unwrap();
+        assert_eq!(whole_core.export_state(), restored_core.export_state());
+        assert_eq!(whole_service.export_state(), restored_service.export_state());
+
+        let mut rollback_core = Ym2413Core::new();
+        let mut rollback_service = FailingPgService {
+            inner: Ym2413PgSerialService::new(initial.clone()),
+            fail_cycle: Some(3),
+        };
+        let core_before = rollback_core.export_state();
+        let service_before = rollback_service.inner.export_state();
+        assert_eq!(
+            rollback_core.advance_input_clocks_with_slot_service(
+                4 * YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut rollback_service,
+            ),
+            Err(Ym2413SlotServiceAdvanceError::Service(3))
+        );
+        assert_eq!(rollback_core.export_state(), core_before);
+        assert_eq!(rollback_service.inner.export_state(), service_before);
+
+        rollback_service.fail_cycle = None;
+        rollback_core
+            .advance_input_clocks_with_slot_service(
+                4 * YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut rollback_service,
+            )
+            .unwrap();
+
+        let mut reference_core = Ym2413Core::new();
+        let mut reference_service = Ym2413PgSerialService::new(initial);
+        reference_core
+            .advance_input_clocks_with_slot_service(
+                4 * YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut reference_service,
+            )
+            .unwrap();
+        assert_eq!(rollback_core.export_state(), reference_core.export_state());
+        assert_eq!(
+            rollback_service.inner.export_state(),
+            reference_service.export_state()
         );
     }
 
