@@ -330,8 +330,7 @@ mod tests {
             assert!(!seen[code]);
             seen[code] = true;
 
-            let measured =
-                Ym2413DacCode::from_operator_channel_output(channel_output).unwrap();
+            let measured = Ym2413DacCode::from_operator_channel_output(channel_output).unwrap();
             if code < 256 {
                 assert_eq!(measured.value(), 255 - code as i16);
                 assert!(!measured.is_negative_zero());
