@@ -15,6 +15,9 @@ use crate::key_scale::{KeyScaleError, key_scale_attenuation};
 use crate::operator::{OperatorPairError, OperatorPairParameters};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::rhythm_channel::{RhythmChannelSynthesisError, decode_rhythm_envelope_slot_input};
+use crate::slot::{
+    Ym2413Operator, Ym2413SlotDescriptor, nuked_cycle_selected_slot_descriptor,
+};
 
 /// Errors produced while resolving one channel's register-derived parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -203,18 +206,44 @@ fn phase_parameters(
     }
 }
 
-/// Nuked-OPLL channel selected by each of the 18 serial EG cycles.
-pub const YM2413_EG_CYCLE_CHANNELS: [u8; 18] =
-    [1, 2, 0, 1, 2, 3, 4, 5, 3, 4, 5, 6, 7, 8, 6, 7, 8, 0];
+/// Resolve the logical operator selected by one Nuked serial EG cycle.
+///
+/// This delegates to the canonical slot map. Nuked's cycle-to-slot rotation
+/// remains centralized in `slot.rs`; the EG bridge does not maintain a
+/// second channel/operator schedule.
+pub const fn envelope_cycle_descriptor(cycle: u8) -> Option<Ym2413SlotDescriptor> {
+    nuked_cycle_selected_slot_descriptor(cycle)
+}
 
 /// Return whether a serial EG cycle selects the carrier operator.
 pub const fn envelope_cycle_is_carrier(cycle: u8) -> Option<bool> {
-    if cycle >= 18 {
-        None
-    } else {
-        Some(((cycle + 1) / 3) & 1 != 0)
+    match envelope_cycle_descriptor(cycle) {
+        Some(descriptor) => Some(matches!(descriptor.operator, Ym2413Operator::Carrier)),
+        None => None,
     }
 }
+
+/// Build the legacy channel-only view from the canonical operator descriptors.
+///
+/// Kept for source compatibility; production selection must use
+/// `envelope_cycle_descriptor` so channel and operator role cannot diverge.
+const fn build_eg_cycle_channels() -> [u8; 18] {
+    let mut channels = [0; 18];
+    let mut cycle = 0;
+    while cycle < 18 {
+        if let Some(descriptor) = envelope_cycle_descriptor(cycle as u8) {
+            channels[cycle] = descriptor.channel;
+        }
+        cycle += 1;
+    }
+    channels
+}
+
+/// Compatibility view of Nuked's selected channel for each serial EG cycle.
+///
+/// This array is derived from `YM2413_SLOT_MAP`, not maintained independently.
+#[deprecated(note = "use envelope_cycle_descriptor; this channel-only view is compatibility-only")]
+pub const YM2413_EG_CYCLE_CHANNELS: [u8; 18] = build_eg_cycle_channels();
 
 /// Resolve the current cycle's channel/operator register inputs.
 ///
@@ -225,12 +254,10 @@ pub fn envelope_slot_input_for_cycle(
     channels: &[ChannelSynthesisConfig; 9],
     cycle: u8,
 ) -> Result<EnvelopeSlotInput, ChannelSynthesisError> {
-    let channel = *YM2413_EG_CYCLE_CHANNELS
-        .get(usize::from(cycle))
+    let descriptor = envelope_cycle_descriptor(cycle)
         .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
-    let carrier = envelope_cycle_is_carrier(cycle)
-        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
-    Ok(channels[usize::from(channel)].envelope_slot_input(carrier))
+    let carrier = matches!(descriptor.operator, Ym2413Operator::Carrier);
+    Ok(channels[usize::from(descriptor.channel)].envelope_slot_input(carrier))
 }
 
 /// Decode only the channel/operator selected by this serial EG cycle.
@@ -238,17 +265,15 @@ pub fn decode_envelope_slot_input_for_cycle(
     registers: &[u8; 64],
     cycle: u8,
 ) -> Result<EnvelopeSlotInput, ChannelSynthesisError> {
-    let channel = *YM2413_EG_CYCLE_CHANNELS
-        .get(usize::from(cycle))
+    let descriptor = envelope_cycle_descriptor(cycle)
         .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
-    let carrier = envelope_cycle_is_carrier(cycle)
-        .ok_or(ChannelSynthesisError::InvalidEnvelopeCycle { cycle })?;
+    let carrier = matches!(descriptor.operator, Ym2413Operator::Carrier);
 
     if rhythm_mode_enabled(registers) && (11..=16).contains(&cycle) {
         return Ok(decode_rhythm_envelope_slot_input(registers, cycle)?);
     }
 
-    let config = decode_channel_synthesis(registers, channel)?;
+    let config = decode_channel_synthesis(registers, descriptor.channel)?;
     Ok(config.envelope_slot_input(carrier))
 }
 
@@ -296,7 +321,7 @@ pub fn decode_channel_synthesis(
 mod tests {
     use super::{
         ChannelSynthesisError, YM2413_EG_CYCLE_CHANNELS, decode_channel_synthesis,
-        decode_envelope_slot_input_for_cycle, envelope_cycle_is_carrier,
+        decode_envelope_slot_input_for_cycle, envelope_cycle_descriptor, envelope_cycle_is_carrier,
         envelope_slot_input_for_cycle,
     };
     use crate::instrument::{InstrumentError, decode_patch_registers, resolve_instrument};
@@ -367,6 +392,37 @@ mod tests {
             );
             assert_eq!(input.key_on, config.channel.key_on, "cycle {cycle}");
         }
+    }
+
+    #[test]
+    fn eg_cycle_mapping_is_derived_from_the_canonical_slot_descriptors() {
+        use crate::slot::{Ym2413Operator, nuked_cycle_selected_slot_descriptor};
+
+        let mut visited = [false; 18];
+        for cycle in 0..18_u8 {
+            let descriptor = envelope_cycle_descriptor(cycle).unwrap();
+            assert_eq!(
+                Some(descriptor),
+                nuked_cycle_selected_slot_descriptor(cycle),
+                "cycle {cycle}"
+            );
+            assert_eq!(
+                YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)],
+                descriptor.channel,
+                "compatibility channel view at cycle {cycle}"
+            );
+            assert_eq!(
+                envelope_cycle_is_carrier(cycle),
+                Some(matches!(descriptor.operator, Ym2413Operator::Carrier)),
+                "operator role at cycle {cycle}"
+            );
+
+            let slot_index = usize::from((cycle + 1) % 18);
+            assert!(!visited[slot_index], "slot {slot_index} visited twice");
+            visited[slot_index] = true;
+        }
+        assert!(visited.into_iter().all(|seen| seen));
+        assert_eq!(envelope_cycle_descriptor(18), None);
     }
 
     #[test]
