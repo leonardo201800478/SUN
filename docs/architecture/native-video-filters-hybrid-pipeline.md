@@ -24,7 +24,7 @@ librashader permanece como alternativa futura para compatibilidade com presets S
 | QHD | 2560 × 1440 |
 | UHD / 4K | 3840 × 2160 |
 
-A resolução de origem não muda. SMS/SG-1000 usam o framebuffer lógico definido pelo VDP; Game Gear usa a janela ativa 160×144. A resolução de saída determina somente viewport e densidade espacial dos efeitos.
+A resolução de origem não muda. SMS/SG-1000 usam o framebuffer lógico definido pelo VDP; Game Gear usa a janela ativa 160×144. A resolução de saída determina somente viewport e densidade espacial dos efeitos. SMS/SG-1000 preservam aspect ratio 4:3. No Game Gear, 160×144 em pixels quadrados resulta em 10:9; considerando PAR horizontal 1,2:1, a área física resulta em 4:3. Se o host usar framebuffer compartilhado 256×192, o crop proposto é offset (48/256, 24/192) e scale (160/256, 144/192), ainda sujeito à confirmação do contrato real do renderer GG.
 
 Não dimensionar buffers de sinal composto para 1080p/1440p/4K. O sinal composto e o ghosting são calculados na matriz de origem; shaders operam no viewport final. Preservar aspect ratio, overscan e bordas, sem esticar a imagem.
 
@@ -48,7 +48,7 @@ A divisão é uma hipótese de arquitetura, não uma medição. Valores como men
 
 O filtro composto opera sobre uma cópia RGBA8 do frame concluído, com buffers de linha pré-alocados e sem alocação por frame. O modelo experimental contém conversão RGB para YUV/YIQ, modulação em quadratura, fase horizontal/por linha/por campo, separação Y/C, filtragem horizontal, demodulação e reconstrução RGB.
 
-Referências de frequência: 3,579545 MHz para NTSC-M e aproximadamente 3,575611 MHz para PAL-M. A relação entre clock de pixel e subportadora deve ser derivada do perfil real do VDP/encoder e do modelo de amostragem. A razão matemática isolada não determina toda a fase: blanking, burst, sincronismo, alinhamento de linha/campo e origem temporal também importam.
+Referências de frequência: 3,579545 MHz para NTSC-M e aproximadamente 3,575611 MHz para PAL-M. O clock de pixel nominal citado para SMS é aproximadamente 5,369317 MHz; em relação à subportadora NTSC isso corresponde a 1,5 amostra de pixel por ciclo e avanço nominal de 240° por pixel. Para PAL-M, calcular a relação com a frequência PAL-M efetiva, sem arredondar a sequência de fase para um ciclo idêntico ao NTSC. A relação entre clock de pixel e subportadora deve ser derivada do perfil real do VDP/encoder e do modelo de amostragem. A razão matemática isolada não determina toda a fase: blanking, burst, sincronismo, alinhamento de linha/campo e origem temporal também importam.
 
 **NTSC:** especificar fase da subportadora por linha/campo, burst e política de separação Y/C. Alternar fase arbitrariamente por linha/quadro não basta para declarar fidelidade NTSC.
 
@@ -136,7 +136,7 @@ Pacing deve usar relógio monotônico e deadlines absolutos para evitar deriva a
 
 Sincronização de áudio não pode ser resolvida alterando silenciosamente período de vídeo enquanto Scheduler produz áudio e vídeo a partir do mesmo clock emulado. Servo PI sobre frame period pode alterar velocidade efetiva da máquina e relação entre áudio e tempo real; não é correto afirmar que preserva pitch automaticamente. Primeiro definir autoridade de pacing, medir ocupação do ring buffer e drift entre clocks, então escolher pacing coordenado, resampling assíncrono ou ajuste explicitamente limitado. Callback CPAL permanece lock-free e não executa controle complexo.
 
-Nenhum ajuste de pacing do host pode mudar sequência de ciclos, master clock emulado ou número de amostras geradas por ciclo de hardware.
+Nenhum ajuste de pacing do host pode mudar sequência de ciclos, master clock emulado ou número de amostras geradas por ciclo de hardware. Métricas de ocupação do ring buffer podem ser publicadas por atomics lock-free a partir do callback CPAL, sem Mutex; uma capacidade de 2048 frames estéreo e alvo de 50% são apenas pontos de partida para experimento, não parâmetros fixados. O callback limita-se a consumir/preencher áudio e publicar métricas; não executa servo, alocação ou espera ativa.
 
 ## 10. Benchmarks e aceitação
 
