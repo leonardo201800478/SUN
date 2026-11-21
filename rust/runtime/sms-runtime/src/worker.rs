@@ -3366,6 +3366,18 @@ mod tests {
             .unwrap();
         assert!(export_software_on_fm_board.ym2413().is_some());
 
+        let export_software_on_fm_board_with_bios =
+            build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+                vec![0; 0x4000],
+                "usa",
+                SmsVdpRevision::Sega3155124,
+                Some(vec![0; 0x2000]),
+                None,
+                true,
+            )
+            .unwrap();
+        assert!(export_software_on_fm_board_with_bios.ym2413().is_some());
+
         let export_software_without_fm_board =
             build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
                 vec![0; 0x4000],
