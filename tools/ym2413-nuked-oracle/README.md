@@ -103,7 +103,7 @@ pin values.
    The 72-XIN-clock rotation belongs to separate hardware timing evidence and
    must be mapped explicitly before combining the traces.
 5. The reference is GPL-2.0. Keep the reference checkout and linked executable
-   outside the Sega Emulator distribution. This repository contains only the
+   outside the SUN — Strife Uranus Neptune distribution. This repository contains only the
    independently authored adapter source and build instructions. Review
    licensing before redistributing binaries or derivative fixtures.
 
