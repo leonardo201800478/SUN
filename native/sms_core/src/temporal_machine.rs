@@ -28,7 +28,7 @@ use sega_z80_cpu::{
     Z80MicroSequencerError, Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep,
 };
 
-pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 35;
+pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 37;
 
 /// Runtime event trace emitted from actual Scheduler/bus dispatch boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1514,6 +1514,12 @@ impl SmsTemporalMachine {
         self.bus.psg_mixed_amplitude()
     }
 
+    /// Drain YM2413 mono PCM samples at SMS_YM2413_PCM_SOURCE_RATE_HZ.
+    /// None marks a rotation whose software-reference MO/RO output was unknown.
+    pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
+        self.bus.drain_fm_audio_samples(max_samples)
+    }
+
     /// Drain audio samples already produced by scheduler-owned PSG clocks.
     pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
         self.bus.drain_audio_samples(max_samples)
@@ -2291,8 +2297,8 @@ mod tests {
     fn vdp_testrom_timing_snapshot_version_rejects_previous_semantics() {
         let machine = SmsTemporalMachine::new(vec![0; 0x4000], 3).unwrap();
         let mut state = machine.export_state();
-        assert_eq!(state.format_version, 35);
-        assert_eq!(state.bus.format_version, 22);
+        assert_eq!(state.format_version, 37);
+        assert_eq!(state.bus.format_version, 24);
 
         state.format_version = 33;
         assert!(matches!(
@@ -4011,6 +4017,89 @@ mod temporal_frame_tests {
         assert!(machine.drain_psg_amplitude_events(&mut events) > 0);
         assert!(events.windows(2).all(|pair| pair[0].clock <= pair[1].clock));
         assert!(!machine.psg_event_capture_overflowed());
+    }
+
+    #[test]
+    fn japanese_sms_test_rom_generates_concurrent_fm_and_psg_pcm_and_restores() {
+        let mut rom = vec![0; 0x4000];
+        let mut program = vec![
+            0xF3, // DI
+            0x31, 0xF0, 0xDF, // LD SP,$DFF0
+            0x3E, 0x03, 0xD3, 0xF2, // Enable both FM and PSG outputs.
+        ];
+
+        // Instrument 1, maximum channel volume, and a keyed-on melodic note.
+        // Every address/data pair is emitted by real Z80 OUT instructions.
+        for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+            program.extend([
+                0x3E, address, 0xD3, 0xF0, // LD A,address; OUT ($F0),A
+                0x3E, data, 0xD3, 0xF1, // LD A,data; OUT ($F1),A
+            ]);
+            // Match the established bus test's conservative delayed-write
+            // window before selecting the next register address.
+            program.extend([0x00; 22]); // Twenty-two Z80 NOPs.
+        }
+
+        // PSG tone channel 0, period 4, maximum volume.
+        program.extend([
+            0x3E, 0x84, 0xD3, 0x7E, 0x3E, 0x00, 0xD3, 0x7E, 0x3E, 0x90, 0xD3, 0x7E, 0x18,
+            0xFE, // JR -2
+        ]);
+        rom[..program.len()].copy_from_slice(&program);
+
+        let mut machine = SmsTemporalMachine::new_with_japanese_fm_hardware_profile(
+            rom,
+            3,
+            3_579_545,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+
+        machine.step_frame(100_000).unwrap();
+
+        let ym_state = machine.ym2413().unwrap().export_state();
+        assert_eq!(ym_state.registers[0x30], 0x10);
+        assert_eq!(ym_state.registers[0x10], 0x80);
+        assert_eq!(ym_state.registers[0x20], 0x15);
+        assert!(machine.fm_output_enabled());
+        assert!(machine.psg_output_enabled());
+
+        let fm_samples = machine.drain_fm_audio_samples(None);
+        let psg_samples = machine.drain_audio_samples(None);
+        assert!(
+            !fm_samples.is_empty(),
+            "the test ROM must produce FM rotations"
+        );
+        assert!(
+            fm_samples
+                .iter()
+                .filter_map(|sample| *sample)
+                .any(|sample| sample.is_finite() && sample.abs() > 1.0e-9),
+            "the keyed-on YM2413 note must produce non-zero known PCM"
+        );
+        assert!(
+            psg_samples
+                .iter()
+                .any(|sample| sample.is_finite() && sample.abs() > 1.0e-9),
+            "the PSG tone must remain audible while FM is enabled"
+        );
+
+        // Snapshot while the FM note and PSG tone are active. Both source queues
+        // and the serial YM2413 pipeline must continue identically after restore.
+        let snapshot = machine.export_state();
+        let mut restored = SmsTemporalMachine::restore_state(snapshot).unwrap();
+        machine.step_frame(100_000).unwrap();
+        restored.step_frame(100_000).unwrap();
+        assert_eq!(
+            machine.drain_fm_audio_samples(None),
+            restored.drain_fm_audio_samples(None)
+        );
+        assert_eq!(
+            machine.drain_audio_samples(None),
+            restored.drain_audio_samples(None)
+        );
     }
 
     #[test]

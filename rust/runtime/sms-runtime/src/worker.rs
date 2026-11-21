@@ -4,6 +4,7 @@
 //! thread. The host sends only coarse-grained commands; CPU, Scheduler, VDP, PSG,
 //! audio pacing and state transitions remain inside Rust.
 
+use std::collections::VecDeque;
 #[cfg(test)]
 use std::sync::Condvar;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
@@ -13,13 +14,15 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::audio::AudioSession;
-use sega_audio_runtime::{AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ};
+use sega_audio_runtime::{
+    AnalogOutputConfig, AudioOutputMetrics, DEFAULT_PCM_SOURCE_RATE_HZ, MixSource, PcmResampler,
+};
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
-    ControllerButtons, PsgAmplitudeEvent, SmsOverscanMode, SmsTemporalMachine,
-    SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode,
-    Territory, VideoStandard,
+    ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsOverscanMode,
+    SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile,
+    SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
@@ -907,6 +910,12 @@ struct AudioRendererState {
     events: Vec<PsgAmplitudeEvent>,
     h2_samples: Vec<f64>,
     transition_samples: Vec<f64>,
+    transition_fm_samples: Vec<f64>,
+    fm_resampler: Option<PcmResampler>,
+    pending_psg_samples: VecDeque<f64>,
+    pending_fm_samples: VecDeque<f64>,
+    mix_psg_samples: Vec<f64>,
+    mix_fm_samples: Vec<f64>,
     fade_remaining: usize,
 }
 
@@ -918,6 +927,12 @@ impl Default for AudioRendererState {
             events: Vec::with_capacity(H2_EVENT_CAPTURE_CAPACITY),
             h2_samples: Vec::with_capacity(2_048),
             transition_samples: Vec::with_capacity(2_048),
+            transition_fm_samples: Vec::with_capacity(2_048),
+            fm_resampler: None,
+            pending_psg_samples: VecDeque::new(),
+            pending_fm_samples: VecDeque::new(),
+            mix_psg_samples: Vec::with_capacity(2_048),
+            mix_fm_samples: Vec::with_capacity(2_048),
             fade_remaining: 0,
         }
     }
@@ -929,9 +944,16 @@ impl AudioRendererState {
         machine: &mut SmsTemporalMachine,
         mode: AudioRendererMode,
     ) -> Result<(), String> {
+        if mode == AudioRendererMode::H2Experimental && machine.ym2413().is_some() {
+            return Err(
+                "H2 experimental rendering is not enabled for the Japanese SMS YM2413 profile"
+                    .to_owned(),
+            );
+        }
         if self.mode == mode {
             return Ok(());
         }
+        self.reset_fm_pipeline();
         match mode {
             AudioRendererMode::Psg => {
                 machine.disable_psg_event_capture();
@@ -968,6 +990,7 @@ impl AudioRendererState {
         machine: &mut SmsTemporalMachine,
         telemetry: &WorkerTelemetry,
     ) {
+        self.reset_fm_pipeline();
         if self.mode == AudioRendererMode::H2Experimental {
             // The machine was rebuilt; discard the previous renderer epoch even
             // though the user-visible mode remains H2.
@@ -980,6 +1003,86 @@ impl AudioRendererState {
                 )));
             }
         }
+    }
+
+    fn reset_fm_pipeline(&mut self) {
+        if let Some(resampler) = self.fm_resampler.as_mut() {
+            resampler.reset();
+        }
+        self.pending_psg_samples.clear();
+        self.pending_fm_samples.clear();
+        self.mix_psg_samples.clear();
+        self.mix_fm_samples.clear();
+        self.transition_fm_samples.clear();
+    }
+
+    /// Discard only the invalid FM epoch and release all queued PSG samples in
+    /// FIFO order. A missing/unknown FM rotation must never erase valid PSG PCM.
+    fn prepare_psg_fallback(&mut self, psg_samples: &[f64]) {
+        self.fm_resampler = None;
+        self.pending_fm_samples.clear();
+        self.mix_psg_samples.clear();
+        self.mix_psg_samples
+            .extend(self.pending_psg_samples.drain(..));
+        self.mix_psg_samples.extend(psg_samples.iter().copied());
+        self.mix_fm_samples.clear();
+    }
+
+    /// Resample the YM2413 source onto the PSG 48 kHz timeline and return
+    /// equally sized source blocks. Unknown FM rotations are never fed as zero.
+    fn prepare_fm_mix(
+        &mut self,
+        psg_samples: &[f64],
+        fm_samples: &[Option<f64>],
+    ) -> Result<Option<usize>, String> {
+        if fm_samples.is_empty() {
+            self.pending_psg_samples.extend(psg_samples.iter().copied());
+            return Ok(Some(0));
+        }
+        if fm_samples.iter().any(Option::is_none) {
+            self.prepare_psg_fallback(psg_samples);
+            return Ok(None);
+        }
+
+        if self.fm_resampler.is_none() {
+            self.fm_resampler = Some(
+                PcmResampler::new(
+                    SMS_YM2413_PCM_SOURCE_RATE_HZ,
+                    SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+                    100,
+                )
+                .map_err(|error| format!("could not initialize YM2413 resampler: {error}"))?,
+            );
+        }
+
+        self.pending_psg_samples.extend(psg_samples.iter().copied());
+        let fm_input = fm_samples
+            .iter()
+            .map(|sample| sample.expect("unknown FM samples were rejected above"))
+            .collect::<Vec<_>>();
+        let resampled = self
+            .fm_resampler
+            .as_mut()
+            .expect("YM2413 resampler was initialized")
+            .process(&fm_input);
+        self.pending_fm_samples.extend(resampled);
+
+        let aligned_frames = self
+            .pending_psg_samples
+            .len()
+            .min(self.pending_fm_samples.len());
+        self.mix_psg_samples.clear();
+        self.mix_fm_samples.clear();
+        for _ in 0..aligned_frames {
+            self.mix_psg_samples.push(
+                self.pending_psg_samples
+                    .pop_front()
+                    .expect("length checked"),
+            );
+            self.mix_fm_samples
+                .push(self.pending_fm_samples.pop_front().expect("length checked"));
+        }
+        Ok(Some(aligned_frames))
     }
 }
 
@@ -2251,6 +2354,7 @@ fn execute_frame_with_renderer(
     // Keep the legacy PSG FIFO bounded in both modes. H2 consumes events from
     // this same Scheduler-driven PSG instance; it never runs a second PSG.
     let psg_samples = machine.drain_audio_samples(None);
+    let fm_samples = machine.drain_fm_audio_samples(None);
     let mut use_h2 = false;
     if audio_renderer.mode == AudioRendererMode::H2Experimental {
         machine.drain_psg_amplitude_events(&mut audio_renderer.events);
@@ -2283,37 +2387,129 @@ fn execute_frame_with_renderer(
         }
     }
 
-    let source_samples = if use_h2 {
+    // The integrated Japanese FM profile cannot use H2 (selection is rejected
+    // at the renderer boundary). Feed the owned PSG FIFO directly here so no
+    // immutable borrow of audio_renderer.h2_samples survives across the
+    // mutable FM pipeline operations.
+    let fm_mix_len = if machine.ym2413().is_some() && !use_h2 {
+        match audio_renderer.prepare_fm_mix(psg_samples.as_slice(), &fm_samples) {
+            Ok(aligned_frames) => aligned_frames,
+            Err(error) => {
+                audio_renderer.prepare_psg_fallback(psg_samples.as_slice());
+                telemetry.set_runtime_error(Some(format!(
+                    "YM2413 PCM resampling unavailable; continuing with PSG: {error}"
+                )));
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Borrow the selected legacy source only after all mutable renderer work
+    // above has completed.
+    let source_samples = if machine.ym2413().is_some() && !use_h2 && fm_mix_len.is_none() {
+        audio_renderer.mix_psg_samples.as_slice()
+    } else if use_h2 {
         audio_renderer.h2_samples.as_slice()
     } else {
         psg_samples.as_slice()
     };
-    let samples = if audio_renderer.fade_remaining > 0 && !source_samples.is_empty() {
-        audio_renderer.transition_samples.clear();
-        audio_renderer
-            .transition_samples
-            .extend_from_slice(source_samples);
-        let fade_start = AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
-        for (index, sample) in audio_renderer.transition_samples.iter_mut().enumerate() {
-            let position = fade_start.saturating_add(index).saturating_add(1);
-            let gain = (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
-            *sample *= gain;
+
+    let mut multi_sources: Option<[MixSource<'_>; 2]> = None;
+    let single_source_samples: Option<&[f64]>;
+    let sample_count;
+    if let Some(aligned_frames) = fm_mix_len {
+        if aligned_frames == 0 {
+            single_source_samples = None;
+            sample_count = 0;
+        } else {
+            if audio_renderer.fade_remaining > 0 {
+                audio_renderer.transition_samples.clear();
+                audio_renderer
+                    .transition_samples
+                    .extend_from_slice(&audio_renderer.mix_psg_samples);
+                audio_renderer.transition_fm_samples.clear();
+                audio_renderer
+                    .transition_fm_samples
+                    .extend_from_slice(&audio_renderer.mix_fm_samples);
+                let fade_start = AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
+                for index in 0..aligned_frames {
+                    let position = fade_start.saturating_add(index).saturating_add(1);
+                    let gain = (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
+                    audio_renderer.transition_samples[index] *= gain;
+                    audio_renderer.transition_fm_samples[index] *= gain;
+                }
+                audio_renderer.fade_remaining =
+                    audio_renderer.fade_remaining.saturating_sub(aligned_frames);
+                multi_sources = Some([
+                    MixSource {
+                        samples: &audio_renderer.transition_samples,
+                        gain: 1.0,
+                    },
+                    MixSource {
+                        samples: &audio_renderer.transition_fm_samples,
+                        gain: 1.0,
+                    },
+                ]);
+            } else {
+                multi_sources = Some([
+                    MixSource {
+                        samples: &audio_renderer.mix_psg_samples,
+                        gain: 1.0,
+                    },
+                    MixSource {
+                        samples: &audio_renderer.mix_fm_samples,
+                        gain: 1.0,
+                    },
+                ]);
+            }
+            single_source_samples = None;
+            sample_count = aligned_frames;
         }
-        audio_renderer.fade_remaining = audio_renderer
-            .fade_remaining
-            .saturating_sub(audio_renderer.transition_samples.len());
-        audio_renderer.transition_samples.as_slice()
     } else {
-        source_samples
-    };
+        let samples = if audio_renderer.fade_remaining > 0 && !source_samples.is_empty() {
+            audio_renderer.transition_samples.clear();
+            audio_renderer
+                .transition_samples
+                .extend_from_slice(source_samples);
+            let fade_start = AUDIO_RENDERER_FADE_SAMPLES - audio_renderer.fade_remaining;
+            for (index, sample) in audio_renderer.transition_samples.iter_mut().enumerate() {
+                let position = fade_start.saturating_add(index).saturating_add(1);
+                let gain = (position as f64 / AUDIO_RENDERER_FADE_SAMPLES as f64).min(1.0);
+                *sample *= gain;
+            }
+            audio_renderer.fade_remaining = audio_renderer
+                .fade_remaining
+                .saturating_sub(audio_renderer.transition_samples.len());
+            audio_renderer.transition_samples.as_slice()
+        } else {
+            source_samples
+        };
+        sample_count = samples.len();
+        single_source_samples = Some(samples);
+    }
 
     let diagnostic_audio_start = diagnostics_enabled.then(Instant::now);
-    let audio_result = audio_session.as_mut().map(|session| {
-        if publish_audio && frame_completed {
-            session.process_samples(samples)
-        } else {
-            session.process_samples_discarding_output(samples)
+    let audio_result = audio_session.as_mut().and_then(|session| {
+        if sample_count == 0 {
+            return None;
         }
+        let result = if let Some(sources) = multi_sources.as_ref() {
+            if publish_audio && frame_completed {
+                session.process_sources(sources)
+            } else {
+                session.process_sources_discarding_output(sources)
+            }
+        } else {
+            let samples = single_source_samples.expect("single-source audio batch is present");
+            if publish_audio && frame_completed {
+                session.process_samples(samples)
+            } else {
+                session.process_samples_discarding_output(samples)
+            }
+        };
+        Some(result)
     });
     let audio_submit_elapsed =
         diagnostic_audio_start.map_or(Duration::ZERO, |started| started.elapsed());
@@ -2335,7 +2531,6 @@ fn execute_frame_with_renderer(
         None => {}
     }
 
-    let sample_count = samples.len();
     let machine_ticks_per_frame = machine_time_end_ticks.saturating_sub(machine_time_start_ticks);
     let machine_clock_hz = telemetry.machine_clock_hz.load(Ordering::Acquire);
     // The source-sample fallback is retained for isolated tests that construct telemetry
@@ -3568,6 +3763,106 @@ mod tests {
     }
 
     #[test]
+    fn ym2413_audio_renderer_resamples_and_aligns_psg_and_fm_sources() {
+        let mut renderer = AudioRendererState::default();
+        let psg_samples = vec![0.25; 1_024];
+        let fm_samples = vec![Some(0.5); 1_061];
+
+        let aligned_frames = renderer
+            .prepare_fm_mix(&psg_samples, &fm_samples)
+            .unwrap()
+            .unwrap();
+
+        assert!(aligned_frames > 0);
+        assert_eq!(renderer.mix_psg_samples.len(), aligned_frames);
+        assert_eq!(renderer.mix_fm_samples.len(), aligned_frames);
+        assert!(
+            renderer
+                .mix_psg_samples
+                .iter()
+                .all(|sample| (*sample - 0.25).abs() < 1.0e-12)
+        );
+        assert!(
+            renderer
+                .mix_fm_samples
+                .iter()
+                .any(|sample| sample.is_finite() && sample.abs() > 1.0e-6)
+        );
+    }
+
+    #[test]
+    fn ym2413_audio_renderer_buffers_psg_until_a_complete_fm_rotation_arrives() {
+        let mut renderer = AudioRendererState::default();
+        let psg_samples = [0.25, 0.5, 0.75];
+
+        assert_eq!(renderer.prepare_fm_mix(&psg_samples, &[]).unwrap(), Some(0));
+        assert_eq!(
+            renderer
+                .pending_psg_samples
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            psg_samples
+        );
+    }
+
+    #[test]
+    fn unknown_ym2413_rotations_are_not_converted_to_silence_or_drop_psg_pcm() {
+        let mut renderer = AudioRendererState::default();
+        let buffered_psg = [0.125, 0.25];
+        let current_psg = vec![0.5; 32];
+        let fm_samples = [Some(0.5), None, Some(0.5)];
+
+        assert_eq!(
+            renderer.prepare_fm_mix(&buffered_psg, &[]).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            renderer.prepare_fm_mix(&current_psg, &fm_samples).unwrap(),
+            None
+        );
+
+        assert!(renderer.fm_resampler.is_none());
+        assert!(renderer.pending_psg_samples.is_empty());
+        assert!(renderer.pending_fm_samples.is_empty());
+        assert_eq!(
+            renderer.mix_psg_samples.len(),
+            buffered_psg.len() + current_psg.len()
+        );
+        assert_eq!(
+            &renderer.mix_psg_samples[..buffered_psg.len()],
+            &buffered_psg
+        );
+        assert_eq!(
+            &renderer.mix_psg_samples[buffered_psg.len()..],
+            current_psg.as_slice()
+        );
+    }
+
+    #[test]
+    fn h2_renderer_is_rejected_for_japanese_integrated_fm_profile() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let mut machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            vec![0; 0x4000],
+            "japan",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        let mut renderer = AudioRendererState::default();
+
+        let error = renderer
+            .select(&mut machine, AudioRendererMode::H2Experimental)
+            .unwrap_err();
+
+        assert!(error.contains("YM2413"));
+        assert_eq!(renderer.mode, AudioRendererMode::Psg);
+    }
+
+    #[test]
     fn h2_renderer_is_selected_at_worker_boundary_and_consumes_real_psg_events() {
         let mut rom = vec![0; 0x4000];
         let program = [
@@ -4124,6 +4419,98 @@ mod tests {
         );
         drop(blocks_before_close);
 
+        audio_session.as_mut().unwrap().close();
+    }
+
+    #[test]
+    fn japanese_fm_rom_reaches_native_audio_session_as_aligned_fm_and_psg_sources() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let mut rom = vec![0; 0x4000];
+        let mut program = vec![
+            0xF3, // DI
+            0x31, 0xF0, 0xDF, // LD SP,$DFF0
+            0x3E, 0x03, 0xD3, 0xF2, // Enable FM and PSG.
+        ];
+        for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+            program.extend([0x3E, address, 0xD3, 0xF0, 0x3E, data, 0xD3, 0xF1]);
+            // Let the serial register-write pipeline commit before the next
+            // address selection.
+            program.extend([0x00; 22]);
+        }
+        program.extend([
+            0x3E, 0x84, 0xD3, 0x7E, 0x3E, 0x00, 0xD3, 0x7E, 0x3E, 0x90, 0xD3, 0x7E, 0x18, 0xFE,
+        ]);
+        rom[..program.len()].copy_from_slice(&program);
+
+        let mut machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            rom,
+            "japan",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        let sink = RecordingSink::default();
+        let captured_blocks = Arc::clone(&sink.0);
+        let session = NativeAudioSession::new(
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            SMS_INTERNAL_AUDIO_SAMPLE_RATE as u32,
+            100,
+            sink,
+        )
+        .unwrap();
+        let mut audio_session: Option<Box<dyn super::AudioSession>> = Some(Box::new(session));
+        let mut renderer = AudioRendererState::default();
+        let telemetry = WorkerTelemetry::default();
+        let mut video_mailbox = None;
+        let mut video_sequence = 0;
+
+        for _ in 0..2 {
+            let (instructions, _, _) = execute_frame_with_renderer(
+                &mut machine,
+                &BreakpointSet::default(),
+                DEFAULT_MAX_FRAME_INSTRUCTIONS,
+                true,
+                &mut audio_session,
+                &mut renderer,
+                &mut video_mailbox,
+                &mut video_sequence,
+                &telemetry,
+                None,
+            )
+            .unwrap();
+            assert!(instructions > 0);
+        }
+
+        assert_eq!(
+            renderer.mix_psg_samples.len(),
+            renderer.mix_fm_samples.len(),
+            "FM and PSG must be aligned to equal-length source blocks"
+        );
+        assert!(!renderer.mix_fm_samples.is_empty());
+        assert!(
+            renderer.mix_fm_samples.iter().any(|sample| *sample != 0.0),
+            "the real YM2413 source must reach the FM resampler"
+        );
+        assert!(
+            renderer.mix_psg_samples.iter().any(|sample| *sample != 0.0),
+            "the PSG source must remain active alongside FM"
+        );
+
+        let blocks = captured_blocks.lock().unwrap();
+        assert!(
+            !blocks.is_empty(),
+            "NativeAudioSession must submit the mixed block to its PCM sink"
+        );
+        assert!(
+            blocks.iter().flatten().any(|sample| *sample != 0.0),
+            "the submitted FM+PSG mix must not be silent"
+        );
+        assert_eq!(telemetry.audio_underruns.load(Ordering::Acquire), 0);
+        assert_eq!(telemetry.audio_dropped_blocks.load(Ordering::Acquire), 0);
+        drop(blocks);
         audio_session.as_mut().unwrap().close();
     }
 

@@ -12,6 +12,7 @@
 //! vector input.
 
 use core::fmt;
+use std::collections::VecDeque;
 
 use crate::{
     CartridgeImage, ControllerButtons, PsgError, SMS_PSG_CLOCK_DOMAIN_ID, SmsCoreError, SmsIo,
@@ -22,13 +23,47 @@ use sega_audio_runtime::{DEFAULT_PCM_SOURCE_RATE_HZ, PsgClockError, ScheduledPsg
 use sega_sn76489::{PsgAmplitudeEvent, PsgEventCaptureError, PsgProfile, Sn76489Core};
 use sega_temporal_core::{HardwarePhase, MachineTime};
 use sega_video::sms::SmsVdpProfile;
-use sega_ym2413::{Ym2413Core, Ym2413Error, Ym2413State};
+use sega_ym2413::{
+    AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
+    YM2413_CHANNEL_OUTPUT_MAX, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOTS_PER_ROTATION,
+    Ym2413ChannelInitialState, Ym2413Core, Ym2413CoreOutputPipelineFrame, Ym2413Error,
+    Ym2413PgSerialAdvanceError, Ym2413PgSerialError, Ym2413PgSerialService,
+    Ym2413PgSerialServiceState, Ym2413State, Ym2413SynthesisError, Ym2413SynthesisInitialState,
+};
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
 
-pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 22;
+pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 24;
+pub const SMS_YM2413_PCM_SOURCE_RATE_HZ: u32 = 49_716;
+const SMS_YM2413_PCM_ACCUMULATOR_STATE_VERSION: u16 = 1;
 const DEFAULT_INTERRUPT_VECTOR: u8 = 0xFF;
 const DEFAULT_SMS_PSG_CLOCK_HZ: u64 = 3_579_545;
 const DEFAULT_AUDIO_SAMPLE_RATE: u64 = DEFAULT_PCM_SOURCE_RATE_HZ as u64;
+
+/// Deterministic software reset hypothesis for the Japanese SMS FM path.
+/// These initial conditions are explicit model inputs, not a claim about the
+/// chip's unmeasured physical power-on state.
+fn sms_ym2413_synthesis_initial_state() -> Ym2413SynthesisInitialState {
+    let damp_config = DampTransitionConfig::new(
+        124,
+        DampTransitionCoordination::IndependentPerOperator,
+        AttackRate15Transition::SkipAttackToDecay,
+    )
+    .expect("the static SMS YM2413 DAMP policy is valid");
+    let channels = std::array::from_fn(|channel| Ym2413ChannelInitialState {
+        phase: [channel as u32 * 0x1000, channel as u32 * 0x1800],
+        envelope_level: [127, 127],
+        envelope_stage: [EnvelopeStage::Damp; 2],
+        envelope_key_on: [false; 2],
+        feedback_history: [0; 2],
+        previous_modulator_phase_index: None,
+    });
+    Ym2413SynthesisInitialState {
+        channels,
+        pm_lfo_counter: 0,
+        am_lfo_phase: 0,
+        damp_config,
+    }
+}
 
 fn elapsed_tstates(
     started_at: MachineTime,
@@ -104,7 +139,11 @@ pub struct SmsTemporalBusState {
     pub memory: SmsMemory,
     pub io: SmsIo,
     pub psg: ScheduledPsg,
+    pub pending_psg_samples: VecDeque<f64>,
     pub ym2413: Option<Ym2413State>,
+    pub ym2413_pg_service: Option<Ym2413PgSerialServiceState>,
+    pub pending_fm_samples: VecDeque<Option<f64>>,
+    pub ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState,
     pub fm_control: u8,
     pub vdp: SmsVdp,
     pub coordinator: SmsTemporalCoordinatorState,
@@ -116,6 +155,42 @@ pub struct SmsTemporalBusState {
     pub internal_completion: Option<SmsInternalCycleCompletion>,
 }
 
+/// Snapshot of the partial 18-slot YM2413 mono PCM accumulation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SmsYm2413PcmAccumulatorState {
+    pub format_version: u16,
+    pub next_cycle: u8,
+    pub frame_count: u8,
+    pub sum_mo: i64,
+    pub sum_ro: i64,
+    pub valid: bool,
+}
+
+impl Default for SmsYm2413PcmAccumulatorState {
+    fn default() -> Self {
+        Self {
+            format_version: SMS_YM2413_PCM_ACCUMULATOR_STATE_VERSION,
+            next_cycle: 0,
+            frame_count: 0,
+            sum_mo: 0,
+            sum_ro: 0,
+            valid: true,
+        }
+    }
+}
+
+impl SmsYm2413PcmAccumulatorState {
+    fn is_valid(self) -> bool {
+        self.format_version == SMS_YM2413_PCM_ACCUMULATOR_STATE_VERSION
+            && u64::from(self.next_cycle) < YM2413_SLOTS_PER_ROTATION
+            && self.frame_count == self.next_cycle
+            && self.sum_mo.unsigned_abs()
+                <= ((i64::from(YM2413_CHANNEL_OUTPUT_MAX) + 1) * i64::from(self.frame_count)) as u64
+            && self.sum_ro.unsigned_abs()
+                <= ((i64::from(YM2413_CHANNEL_OUTPUT_MAX) + 1) * i64::from(self.frame_count)) as u64
+    }
+}
+
 /// Errors from the transactional SMS memory-bus adapter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SmsTemporalBusError {
@@ -123,6 +198,9 @@ pub enum SmsTemporalBusError {
     Psg(PsgError),
     PsgClock(PsgClockError),
     Ym2413(Ym2413Error),
+    Ym2413Synthesis(Ym2413SynthesisError),
+    Ym2413PgSerial(Ym2413PgSerialError),
+    Ym2413PgSerialAdvance(Ym2413PgSerialAdvanceError),
     Coordinator(SmsTemporalCoordinatorError),
     Io(SmsIoError),
     Busy,
@@ -141,6 +219,15 @@ impl fmt::Display for SmsTemporalBusError {
             Self::Psg(error) => write!(f, "SMS temporal PSG initialization failed: {error}"),
             Self::PsgClock(error) => write!(f, "SMS temporal PSG clock advance failed: {error}"),
             Self::Ym2413(error) => write!(f, "SMS temporal YM2413 clock advance failed: {error}"),
+            Self::Ym2413Synthesis(error) => {
+                write!(f, "SMS temporal YM2413 synthesis initialization failed: {error:?}")
+            }
+            Self::Ym2413PgSerial(error) => {
+                write!(f, "SMS temporal YM2413 serial service failed: {error:?}")
+            }
+            Self::Ym2413PgSerialAdvance(error) => {
+                write!(f, "SMS temporal YM2413 serial advance failed: {error:?}")
+            }
             Self::Coordinator(error) => write!(f, "SMS temporal coordinator failed: {error}"),
             Self::Io(error) => write!(f, "SMS temporal controller input failed: {error}"),
             Self::Busy => {
@@ -185,6 +272,24 @@ impl From<Ym2413Error> for SmsTemporalBusError {
     }
 }
 
+impl From<Ym2413SynthesisError> for SmsTemporalBusError {
+    fn from(error: Ym2413SynthesisError) -> Self {
+        Self::Ym2413Synthesis(error)
+    }
+}
+
+impl From<Ym2413PgSerialError> for SmsTemporalBusError {
+    fn from(error: Ym2413PgSerialError) -> Self {
+        Self::Ym2413PgSerial(error)
+    }
+}
+
+impl From<Ym2413PgSerialAdvanceError> for SmsTemporalBusError {
+    fn from(error: Ym2413PgSerialAdvanceError) -> Self {
+        Self::Ym2413PgSerialAdvance(error)
+    }
+}
+
 impl From<PsgError> for SmsTemporalBusError {
     fn from(error: PsgError) -> Self {
         Self::Psg(error)
@@ -209,7 +314,11 @@ pub struct SmsTemporalBus {
     memory: SmsMemory,
     io: SmsIo,
     psg: ScheduledPsg,
+    pending_psg_samples: VecDeque<f64>,
     ym2413: Option<Ym2413Core>,
+    ym2413_pg_service: Option<Ym2413PgSerialService>,
+    pending_fm_samples: VecDeque<Option<f64>>,
+    ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState,
     fm_control: u8,
     vdp: SmsVdp,
     coordinator: SmsTemporalCoordinator,
@@ -292,7 +401,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile(
+        let bus = Self::new_with_hardware_profile(
             rom,
             master_ticks_per_tstate,
             psg_clock_hz,
@@ -300,9 +409,7 @@ impl SmsTemporalBus {
             vdp_profile,
             territory,
         )?;
-        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
-        bus.ym2413 = Some(Ym2413Core::new());
-        Ok(bus)
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
     /// Construct the Japanese Master System FM profile with explicit cartridge SRAM capacity.
@@ -319,7 +426,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile_and_sram_size(
+        let bus = Self::new_with_hardware_profile_and_sram_size(
             rom,
             master_ticks_per_tstate,
             psg_clock_hz,
@@ -328,8 +435,20 @@ impl SmsTemporalBus {
             territory,
             cartridge_sram_size,
         )?;
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
+    }
+
+    fn install_japanese_fm_hardware_profile(
+        mut bus: Self,
+        master_ticks_per_tstate: u64,
+    ) -> Result<Self, SmsTemporalBusError> {
         bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
         bus.ym2413 = Some(Ym2413Core::new());
+        bus.ym2413_pg_service = Some(Ym2413PgSerialService::with_initial_state(
+            sms_ym2413_synthesis_initial_state(),
+        )?);
+        bus.pending_fm_samples.clear();
+        bus.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
         Ok(bus)
     }
 
@@ -367,7 +486,11 @@ impl SmsTemporalBus {
             memory,
             io: SmsIo::new(territory),
             psg,
+            pending_psg_samples: VecDeque::new(),
             ym2413: None,
+            ym2413_pg_service: None,
+            pending_fm_samples: VecDeque::new(),
+            ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState::default(),
             fm_control: 0,
             vdp: SmsVdp::new_with_profile(vdp_profile),
             coordinator,
@@ -448,7 +571,11 @@ impl SmsTemporalBus {
             memory,
             io: SmsIo::new(territory),
             psg,
+            pending_psg_samples: VecDeque::new(),
             ym2413: None,
+            ym2413_pg_service: None,
+            pending_fm_samples: VecDeque::new(),
+            ym2413_pcm_accumulator: SmsYm2413PcmAccumulatorState::default(),
             fm_control: 0,
             vdp: SmsVdp::new_with_profile(vdp_profile),
             coordinator,
@@ -475,7 +602,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile_and_bios(
+        let bus = Self::new_with_hardware_profile_and_bios(
             rom,
             bios,
             master_ticks_per_tstate,
@@ -484,9 +611,7 @@ impl SmsTemporalBus {
             vdp_profile,
             territory,
         )?;
-        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
-        bus.ym2413 = Some(Ym2413Core::new());
-        Ok(bus)
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
     /// Construct the Japanese Master System FM profile with BIOS and cartridge SRAM capacity.
@@ -504,7 +629,7 @@ impl SmsTemporalBus {
         if territory != Territory::Japan {
             return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
         }
-        let mut bus = Self::new_with_hardware_profile_and_bios_and_sram_size(
+        let bus = Self::new_with_hardware_profile_and_bios_and_sram_size(
             rom,
             bios,
             master_ticks_per_tstate,
@@ -514,9 +639,7 @@ impl SmsTemporalBus {
             territory,
             cartridge_sram_size,
         )?;
-        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
-        bus.ym2413 = Some(Ym2413Core::new());
-        Ok(bus)
+        Self::install_japanese_fm_hardware_profile(bus, master_ticks_per_tstate)
     }
 
     /// Schedule an external TH transition without advancing the machine immediately.
@@ -659,18 +782,22 @@ impl SmsTemporalBus {
             .find(|advance| advance.domain == SMS_PSG_CLOCK_DOMAIN_ID)
             .ok_or(SmsTemporalBusError::InvalidState)?;
         self.psg.apply_clock_advance(psg_advance)?;
-        if let Some(ym2413) = self.ym2413.as_mut() {
+        if self.ym2413.is_some() {
+            let generated_psg_samples = self.psg.core_mut().drain_samples(None);
+            if self.psg_output_enabled() {
+                self.pending_psg_samples.extend(generated_psg_samples);
+            } else {
+                self.pending_psg_samples
+                    .extend(std::iter::repeat_n(0.0, generated_psg_samples.len()));
+            }
+        }
+        if self.ym2413.is_some() {
             let advance = dispatch
                 .clock_advances
                 .iter()
                 .find(|advance| advance.domain == crate::SMS_YM2413_CLOCK_DOMAIN_ID)
                 .ok_or(SmsTemporalBusError::InvalidState)?;
-            let mut remaining = advance.elapsed_cycles;
-            while remaining > u128::from(u64::MAX) {
-                ym2413.advance_input_clocks(u64::MAX)?;
-                remaining -= u128::from(u64::MAX);
-            }
-            ym2413.advance_input_clocks(remaining as u64)?;
+            self.advance_ym2413(advance.elapsed_cycles)?;
         }
         let z80_advance = dispatch
             .clock_advances
@@ -866,12 +993,104 @@ impl SmsTemporalBus {
         self.psg.core().mixed_amplitude()
     }
 
-    /// Consume samples already generated by scheduler-driven PSG clocks.
+    fn advance_ym2413(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
+        let mut remaining = clocks;
+        let mut phase = self
+            .ym2413
+            .as_ref()
+            .ok_or(SmsTemporalBusError::InvalidState)?
+            .export_state()
+            .input_clock_phase;
+        while remaining > 0 {
+            if u64::from(phase) >= YM2413_INPUT_CLOCKS_PER_SLOT {
+                return Err(SmsTemporalBusError::InvalidState);
+            }
+            let clocks_to_slot = YM2413_INPUT_CLOCKS_PER_SLOT - u64::from(phase);
+            let step = remaining.min(u128::from(clocks_to_slot)) as u64;
+            let completed_slot = step == clocks_to_slot;
+            let output_frame = {
+                let core = self
+                    .ym2413
+                    .as_mut()
+                    .ok_or(SmsTemporalBusError::InvalidState)?;
+                let service = self
+                    .ym2413_pg_service
+                    .as_mut()
+                    .ok_or(SmsTemporalBusError::InvalidState)?;
+                core.advance_input_clocks_with_pg_service(step, service)?;
+                completed_slot.then(|| service.output_frame()).flatten()
+            };
+            phase = ((u64::from(phase) + step) % YM2413_INPUT_CLOCKS_PER_SLOT) as u8;
+            remaining -= u128::from(step);
+            if completed_slot {
+                let frame = output_frame.ok_or(SmsTemporalBusError::InvalidState)?;
+                self.capture_ym2413_output_frame(frame)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn capture_ym2413_output_frame(
+        &mut self,
+        frame: Ym2413CoreOutputPipelineFrame,
+    ) -> Result<(), SmsTemporalBusError> {
+        let fm_enabled = self.fm_output_enabled();
+        let mut completed_sample = None;
+        {
+            let accumulator = &mut self.ym2413_pcm_accumulator;
+            if !accumulator.is_valid()
+                || frame.cycle != accumulator.next_cycle
+                || accumulator.frame_count >= YM2413_SLOTS_PER_ROTATION as u8
+            {
+                return Err(SmsTemporalBusError::InvalidState);
+            }
+
+            // The F2 FM gate is applied at each completed serial slot. Muted slots
+            // contribute known zero; an enabled slot with unknown MO/RO stays unknown.
+            if fm_enabled {
+                match (frame.mo, frame.ro) {
+                    (Some(mo), Some(ro)) => {
+                        accumulator.sum_mo += i64::from(mo.value());
+                        accumulator.sum_ro += i64::from(ro.value());
+                    }
+                    _ => accumulator.valid = false,
+                }
+            }
+
+            accumulator.frame_count += 1;
+            accumulator.next_cycle = (frame.cycle + 1) % YM2413_SLOTS_PER_ROTATION as u8;
+            if frame.cycle == (YM2413_SLOTS_PER_ROTATION - 1) as u8 {
+                completed_sample = Some(accumulator.valid.then(|| {
+                    (accumulator.sum_mo + accumulator.sum_ro) as f64
+                        / (2.0 * YM2413_SLOTS_PER_ROTATION as f64 * 256.0)
+                }));
+                *accumulator = SmsYm2413PcmAccumulatorState::default();
+            }
+        }
+        if let Some(sample) = completed_sample {
+            self.pending_fm_samples.push_back(sample);
+        }
+        Ok(())
+    }
+
+    /// Drain complete YM2413 mono PCM samples at the SMS YM2413 source rate.
+    /// None marks a rotation whose software-reference MO/RO output was unknown.
+    pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
+        let count = max_samples
+            .unwrap_or(self.pending_fm_samples.len())
+            .min(self.pending_fm_samples.len());
+        self.pending_fm_samples.drain(..count).collect()
+    }
+
+    /// Drain PSG PCM captured at scheduler dispatch boundaries with the F2 gate applied.
     pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
-        // The F2 PSG gate is exposed separately. Do not mute this already-buffered
-        // batch here: it may contain samples generated on both sides of the F2
-        // write boundary, and retroactively muting it would violate bus timing.
-        self.psg.core_mut().drain_samples(max_samples)
+        if self.ym2413.is_none() {
+            return self.psg.core_mut().drain_samples(max_samples);
+        }
+        let count = max_samples
+            .unwrap_or(self.pending_psg_samples.len())
+            .min(self.pending_psg_samples.len());
+        self.pending_psg_samples.drain(..count).collect()
     }
 
     /// Return the installed Japanese Master System YM2413, if present.
@@ -1015,7 +1234,14 @@ impl SmsTemporalBus {
             memory: self.memory.clone(),
             io: self.io.clone(),
             psg: self.psg.clone(),
+            pending_psg_samples: self.pending_psg_samples.clone(),
             ym2413: self.ym2413.as_ref().map(Ym2413Core::export_state),
+            ym2413_pg_service: self
+                .ym2413_pg_service
+                .as_ref()
+                .map(Ym2413PgSerialService::export_state),
+            pending_fm_samples: self.pending_fm_samples.clone(),
+            ym2413_pcm_accumulator: self.ym2413_pcm_accumulator,
             fm_control: self.fm_control,
             vdp: self.vdp.clone(),
             coordinator: self.coordinator.export_state(),
@@ -1035,7 +1261,22 @@ impl SmsTemporalBus {
         }
         if state.fm_control & !0x03 != 0
             || (state.ym2413.is_none() && state.fm_control != 0)
+            || state.ym2413.is_some() != state.ym2413_pg_service.is_some()
             || (state.ym2413.is_some() && state.io.territory() != Territory::Japan)
+            || !state.ym2413_pcm_accumulator.is_valid()
+            || state
+                .pending_fm_samples
+                .iter()
+                .flatten()
+                .any(|sample| !sample.is_finite())
+            || state
+                .pending_psg_samples
+                .iter()
+                .any(|sample| !sample.is_finite())
+            || (state.ym2413.is_none()
+                && (!state.pending_psg_samples.is_empty()
+                    || !state.pending_fm_samples.is_empty()
+                    || state.ym2413_pcm_accumulator != SmsYm2413PcmAccumulatorState::default()))
             || state.psg.clock_domain() != SMS_PSG_CLOCK_DOMAIN_ID
             || state.psg.core().profile() != PsgProfile::Sms
             || state.psg.core().clock_hz() == 0
@@ -1053,7 +1294,19 @@ impl SmsTemporalBus {
         if ym2413_domain_present != state.ym2413.is_some() {
             return Err(SmsTemporalBusError::InvalidState);
         }
+        if let (Some(core_state), Some(service_state)) = (&state.ym2413, &state.ym2413_pg_service)
+            && (core_state.slot_index != service_state.rhythm_noise_cursor
+                || core_state.slot_index != service_state.output_pipeline.next_cycle
+                || core_state.slot_index != state.ym2413_pcm_accumulator.next_cycle
+                || u64::from(core_state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT)
+        {
+            return Err(SmsTemporalBusError::InvalidState);
+        }
         let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
+        let ym2413_pg_service = state
+            .ym2413_pg_service
+            .map(Ym2413PgSerialService::restore_state)
+            .transpose()?;
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
         let scale = state.coordinator.master_ticks_per_tstate;
         let now = coordinator.now();
@@ -1151,7 +1404,11 @@ impl SmsTemporalBus {
             memory: state.memory,
             io: state.io,
             psg: state.psg,
+            pending_psg_samples: state.pending_psg_samples,
             ym2413,
+            ym2413_pg_service,
+            pending_fm_samples: state.pending_fm_samples,
+            ym2413_pcm_accumulator: state.ym2413_pcm_accumulator,
             fm_control: state.fm_control,
             vdp: state.vdp,
             coordinator,
@@ -1184,6 +1441,15 @@ mod tests {
             address,
             base_tstates: tstates,
         }
+    }
+
+    fn advance_internal_cycle(bus: &mut SmsTemporalBus, id: u64, tstates: u32) {
+        bus.schedule_internal_cycle(id, tstates).unwrap();
+        assert!(matches!(
+            bus.dispatch_next().unwrap(),
+            Some(SmsTemporalDispatch::InternalCycleComplete(_))
+        ));
+        bus.acknowledge_internal_completion(id).unwrap();
     }
 
     fn patterned_rom(bank_count: usize) -> Vec<u8> {
@@ -1269,6 +1535,77 @@ mod tests {
             bus.ym2413().unwrap().export_state()
         );
         assert_eq!(restored.read_port(0xF2), 0x01);
+    }
+
+    #[test]
+    fn japanese_fm_serial_pcm_samples_restore_deterministically() {
+        let mut uninterrupted = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        uninterrupted.write_port(0xF2, 0x01);
+        advance_internal_cycle(&mut uninterrupted, 100, 216);
+        let expected = uninterrupted.drain_fm_audio_samples(None);
+        assert_eq!(expected.len(), 3);
+        assert!(expected.iter().any(Option::is_some));
+        assert!(
+            expected
+                .iter()
+                .flatten()
+                .all(|sample| sample.is_finite() && sample.abs() <= 1.0)
+        );
+
+        let mut split = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        split.write_port(0xF2, 0x01);
+        advance_internal_cycle(&mut split, 101, 84);
+        let snapshot = split.export_state();
+        let mut restored = SmsTemporalBus::restore_state(snapshot).unwrap();
+        advance_internal_cycle(&mut restored, 102, 132);
+
+        assert_eq!(restored.drain_fm_audio_samples(None), expected);
+    }
+
+    #[test]
+    fn japanese_fm_profile_applies_psg_gate_at_scheduler_boundaries() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        bus.write_port(0x7F, 0x80);
+        bus.write_port(0x7F, 0x04);
+        bus.write_port(0x7F, 0x90);
+
+        bus.write_port(0xF2, 0x01);
+        assert!(!bus.psg_output_enabled());
+        advance_internal_cycle(&mut bus, 110, 12_000);
+        let muted = bus.drain_audio_samples(None);
+        assert!(!muted.is_empty());
+        assert!(muted.iter().all(|sample| *sample == 0.0));
+
+        bus.write_port(0xF2, 0x00);
+        assert!(bus.psg_output_enabled());
+        advance_internal_cycle(&mut bus, 111, 12_000);
+        let audible = bus.drain_audio_samples(None);
+        assert!(!audible.is_empty());
+        assert!(audible.iter().any(|sample| sample.abs() > 1.0e-9));
     }
 
     #[test]
@@ -2391,7 +2728,7 @@ mod temporal_vdp_tests {
         // Two direct four-T-state bus writes complete at T8 (HPos 12).
         assert_eq!(captured, 0xEE);
         let mut snapshot = bus.export_state();
-        assert_eq!(snapshot.format_version, 22);
+        assert_eq!(snapshot.format_version, 24);
 
         let restored = SmsTemporalBus::restore_state(snapshot.clone()).unwrap();
         assert_eq!(restored.vdp().read_h_counter(), captured);
