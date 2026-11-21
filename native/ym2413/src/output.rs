@@ -412,6 +412,13 @@ impl Ym2413RhythmOutputService {
                 .process_slot(ro_slot_index, original_rhythm_level)?;
             rhythm_slot_result(result)?
         } else {
+            if original_rhythm_level.is_some() {
+                return Err(Ym2413RhythmOutputServiceError::Retention(
+                    Ym2413RhythmOutputError::UnexpectedOriginalSample {
+                        slot_index: ro_slot_index,
+                    },
+                ));
+            }
             // No percussion operator is selected outside Rhythm Mode. Advance
             // the independent RO cursor without consuming melodic data as a
             // percussion source, and keep the pin inactive.
@@ -1330,6 +1337,30 @@ mod tests {
             super::Ym2413MeasuredOutputAdapter::with_initial_state(state),
             Err(super::Ym2413MeasuredOutputAdapterError::InvalidState)
         );
+    }
+
+    #[test]
+    fn measured_cycle_service_suppresses_ro_and_rejects_percussion_input_outside_rhythm_mode() {
+        let mut service =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let frame = service
+            .process_nuked_cycle(0, false, Some(level(21)), None)
+            .unwrap();
+        assert_eq!(frame.mo_slot_index, 3);
+        assert!(frame.mo.is_some());
+        assert_eq!(frame.ro_slot_index, 15);
+        assert_eq!(frame.ro, Ym2413OutputSlotResult::NoOutput);
+
+        let mut invalid =
+            super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
+        let before = invalid.export_state();
+        assert_eq!(
+            invalid.process_nuked_cycle(0, false, Some(level(21)), Some(level(33))),
+            Err(super::Ym2413RhythmOutputServiceError::Retention(
+                Ym2413RhythmOutputError::UnexpectedOriginalSample { slot_index: 15 }
+            ))
+        );
+        assert_eq!(invalid.export_state(), before);
     }
 
     #[test]
