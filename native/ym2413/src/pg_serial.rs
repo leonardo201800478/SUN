@@ -310,9 +310,7 @@ impl Ym2413PgSerialService {
             {
                 Ok(slot)
             }
-            Ym2413SerialSlotDispatch::Melodic { .. } => {
-                Err(Ym2413PgSerialError::InvalidState)
-            }
+            Ym2413SerialSlotDispatch::Melodic { .. } => Err(Ym2413PgSerialError::InvalidState),
             _ => Err(Ym2413PgSerialError::UnsupportedRhythmMode {
                 cycle: context.event.cycle,
                 channel: context.event.selected_operator.channel,
