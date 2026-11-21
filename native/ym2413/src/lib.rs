@@ -76,8 +76,11 @@ pub use operator::{
     YM2413_OPERATOR_PAIR_STATE_VERSION, exponential_lookup, log_sine_lookup,
 };
 pub use output::{
-    YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
-    YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION, Ym2413OutputCycleFrame, Ym2413OutputPin,
+    YM2413_MEASURED_OUTPUT_ADAPTER_STATE_VERSION, YM2413_OUTPUT_ACTIVE_CLOCKS,
+    YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
+    YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION, Ym2413MeasuredOutputAdapter,
+    Ym2413MeasuredOutputAdapterError, Ym2413MeasuredOutputAdapterFrame,
+    Ym2413MeasuredOutputAdapterState, Ym2413OutputCycleFrame, Ym2413OutputPin,
     Ym2413OutputPulse, Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource,
     Ym2413RhythmOutputFrame, Ym2413RhythmOutputService, Ym2413RhythmOutputServiceError,
     Ym2413RhythmOutputServiceState, melody_output_for_slot, mo_output_slot_for_nuked_cycle,
