@@ -418,7 +418,7 @@ impl<S: PcmSink> AudioSession for NativeAudioSession<S> {
 #[cfg(test)]
 mod tests {
     use super::{AudioOutputMetrics, NativeAudioSession, PcmSink};
-    use crate::AnalogOutputConfig;
+    use crate::{AnalogOutputConfig, MixSource};
 
     #[derive(Default)]
     struct RecordingSink {
@@ -473,6 +473,76 @@ mod tests {
         session.close();
         assert_eq!(session.sink.blocks, vec![vec![0.0, 0.5, -0.5]]);
         assert!(session.sink.closed);
+    }
+
+    #[test]
+    fn session_mixes_aligned_psg_and_fm_sources_in_one_pcm_batch() {
+        let mut session =
+            NativeAudioSession::new(48_000, 48_000, 100, RecordingSink::default()).unwrap();
+        let psg = [0.25, -0.25, 0.125];
+        let fm = [0.5, 0.25, -0.25];
+        let sources = [
+            MixSource {
+                samples: &psg,
+                gain: 1.0,
+            },
+            MixSource {
+                samples: &fm,
+                gain: 0.5,
+            },
+        ];
+
+        session.process_sources(&sources).unwrap();
+        session.close();
+
+        assert_eq!(session.sink.blocks, vec![vec![0.5, -0.125, 0.0]]);
+    }
+
+    #[test]
+    fn session_rejects_unaligned_source_lengths_without_publishing_audio() {
+        let mut session =
+            NativeAudioSession::new(48_000, 48_000, 100, RecordingSink::default()).unwrap();
+        let psg = [0.25, -0.25];
+        let fm = [0.5];
+        let sources = [
+            MixSource {
+                samples: &psg,
+                gain: 1.0,
+            },
+            MixSource {
+                samples: &fm,
+                gain: 1.0,
+            },
+        ];
+
+        assert!(session.process_sources(&sources).is_err());
+        assert!(session.sink.blocks.is_empty());
+    }
+
+    #[test]
+    fn discarded_multi_source_step_does_not_publish_host_pcm() {
+        let mut session =
+            NativeAudioSession::new(48_000, 48_000, 100, RecordingSink::default()).unwrap();
+        let psg = [0.25, -0.25];
+        let fm = [0.5, 0.25];
+        let sources = [
+            MixSource {
+                samples: &psg,
+                gain: 1.0,
+            },
+            MixSource {
+                samples: &fm,
+                gain: 1.0,
+            },
+        ];
+
+        session.process_sources_discarding_output(&sources).unwrap();
+        assert!(session.sink.blocks.is_empty());
+        session.resume().unwrap();
+        session.process_sources(&sources).unwrap();
+        session.close();
+
+        assert_eq!(session.sink.blocks, vec![vec![0.75, 0.0]]);
     }
 
     #[test]
