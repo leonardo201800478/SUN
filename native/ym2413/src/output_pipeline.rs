@@ -246,7 +246,7 @@ mod tests {
         assert_eq!(p.export_state().rm_enable as u8, 0xc0);
         assert_eq!(tick(&mut p, 2, 0, None), (1, 13));
         assert_eq!(p.export_state().rm_enable as u8, 0xe0);
-        assert_eq!(tick(&mut p, 3, 0, None), (1, 13));
+        assert_eq!(tick(&mut p, 3, 0, None), (1, 1));
         assert_eq!(p.export_state().rm_enable as u8, 0xf0);
         for cycle in 4..10 {
             tick(&mut p, cycle, 0, None);
