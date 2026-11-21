@@ -1850,3 +1850,28 @@ Current PR head: `fe7a774b4c4451515d8fb410dd0e5b5dfbdc70a7`.
 The earlier CI #9887 cancellation and the preceding formatting-only failure
 are not treated as passing validations. No final code-validation claim is
 made until CI #9888 and the PG/EG jobs complete.
+
+
+## Atualização de validação exata — 2026-11-21 (HEAD `77c7dbae414a0f99a4a47afde4947a5be52774c1`)
+
+Estado GitHub confirmado:
+- `main`: `7e275424112d60f42b83380b60786fbd640c18b0` (inalterada).
+- PR #1157: aberta, draft, branch `feat/ym2413-fm5-3-mo-ro-output-service`, base #1156; sem merge.
+- PR #1156: aberta, draft, empilhada sobre #1154; sem merge.
+- PR #1154: aberta, não draft, direcionada à `main`; sem merge.
+- A cadeia #1154 → #1156 → #1157 permanece empilhada. Não rebasear nem alterar a base automaticamente.
+
+Workflows do checkpoint:
+- PG differential #425, run `44926303535`: **workflow SUCCESS**, executado no HEAD `77c7dbae...`. O sucesso confirma execução e geração dos relatórios, não equivalência física nem fechamento da saída MO/RO. O job também registra divergências de dados candidatos de preset e diagnóstico de fase; esses dados devem permanecer caracterizados, sem promover hipótese de alinhamento a correção.
+- EG characterization #598, run `44926303531`: **workflow SUCCESS**, executado no mesmo HEAD. O relatório registra 243.884 amostras na matriz de 38 configurações, com 44.064 divergências de nível e 71 de estágio no candidato phase-minus-three. Os 506.768 replays de operador, 1.140.000 chamadas do sequenciador e 1.140.000 chamadas do timer não tiveram divergências de replay. São replays contra traços gerados pelo Nuked fixado, não capturas independentes de silício. O candidato external-rate continua teacher-forced e não pode ser promovido.
+- CI #9888, run `44926109073`: **SUCCESS** no HEAD `fe7a774b4c4451515d8fb410dd0e5b5dfbdc70a7`. O HEAD atual `77c7dbae...` contém somente atualização documental posterior, conforme histórico da PR; portanto, o runtime validado pelo CI não mudou. O CI #9888 não é uma validação do novo pipeline de pinos, que ainda não existe.
+
+## Próxima implementação bloqueante — pipeline temporal de pinos
+
+A inspeção de `output.rs` confirma que `Ym2413RhythmOutputService` ainda recebe níveis já reconstruídos no domínio medido. O serviço não possui estado para `ch_out` anterior, código neutro assinado, incremento positivo de `OPLL_Channel`, estágio de saída/buffer anterior nem pipeline temporal de `rm_enable`. Os testes atuais cobrem roteamento por slots, offsets independentes, retenção, zero negativo e snapshots; não cobrem a sequência completa `OPLL_Clock`.
+
+O Nuked fixado confirma a ordem observável: copiar `output_m/output_r` para o buffer; deslocar `rm_enable`; aplicar escrita pendente do modo; executar `OPLL_Channel` consumindo o `ch_out` anterior; executar `OPLL_Operator` para atualizar o próximo `ch_out`. Para o YM2413 original, o estágio de canal aplica incremento a `ch_out` não negativo e usa `ch_out >> 8` como código neutro com incremento correspondente quando não negativo. O comportamento RO do Nuked permanece explicitamente marcado como possivelmente incorreto.
+
+Decisão: não encaixar esse comportamento em `Ym2413DacCode`, que continua sendo token de amplitude medida. A próxima implementação deve introduzir um tipo separado para o código digital/comportamental do pino e um estado serial versionado que preserve as duas fronteiras de pipeline. A retenção medida MO/RO existente deve continuar isolada até que a conversão e a fase de observação tenham contrato explícito. Nenhuma integração ao core ou PCM deve ser inferida deste adaptador.
+
+**Status:** auditoria de estado concluída; pipeline temporal MO/RO ainda não implementado. Nenhuma alteração de runtime, rebase, merge ou atualização da `main` foi realizada nesta atualização.
