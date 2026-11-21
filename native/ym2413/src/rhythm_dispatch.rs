@@ -14,7 +14,14 @@ use crate::slot::{Ym2413RhythmVoice, Ym2413SlotDescriptor, nuked_cycle_selected_
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413SerialSlotDispatch {
     /// Ordinary melodic ownership, including channels 7..9 when RHY is clear.
-    Melodic { slot: Ym2413SlotDescriptor },
+    Melodic { slot: Ym2413SlotDescriptor     /// RHY register and serial rm_enable shift latch have not reached a matching stable state.
+    RhythmModeTransition {
+        slot: Ym2413SlotDescriptor,
+        rhythm_mode_enabled: bool,
+        rm_enable: u8,
+        expected_rm_enable: u8,
+    },
+},
     /// A rhythm selector agrees with the canonical slot and voice assignment.
     Rhythm {
         slot: Ym2413SlotDescriptor,
@@ -46,18 +53,30 @@ pub enum Ym2413SerialSlotDispatchError {
 /// Resolve the logical owner of a serial cycle from the core's delayed
 /// register image and rhythm selector.
 ///
-/// cycle is the zero-based cycle supplied by Ym2413Core. registers must be
-/// the post-mode-write register image from Ym2413SlotServiceContext.
-/// The function is pure: it does not mutate or infer the core's mode latches.
+/// cycle is the zero-based cycle supplied by Ym2413Core. registers and rm_enable
+/// must be post-mode-write values from Ym2413SlotServiceContext. The signed
+/// rm_enable shift latch settles to 0x00 in melodic mode and 0xFF in Rhythm Mode;
+/// intermediate values are explicit mode transitions. This function is pure.
 pub fn dispatch_serial_slot(
     cycle: u8,
     registers: &[u8; 64],
+    rm_enable: u8,
     rhythm_select: EnvelopeRhythmSelect,
 ) -> Result<Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError> {
     let slot = nuked_cycle_selected_slot_descriptor(cycle)
         .ok_or(Ym2413SerialSlotDispatchError::InvalidCycle(cycle))?;
 
-    if registers[0x0e] & 0x20 == 0 || slot.rhythm_voice.is_none() {
+    let rhythm_mode_enabled = registers[0x0e] & 0x20 != 0;
+    let expected_rm_enable = if rhythm_mode_enabled { 0xff } else { 0x00 };
+    if rm_enable != expected_rm_enable {
+        return Ok(Ym2413SerialSlotDispatch::RhythmModeTransition {
+            slot,
+            rhythm_mode_enabled,
+            rm_enable,
+            expected_rm_enable,
+        });
+    }
+    if !rhythm_mode_enabled || slot.rhythm_voice.is_none() {
         return Ok(Ym2413SerialSlotDispatch::Melodic { slot });
     }
 
