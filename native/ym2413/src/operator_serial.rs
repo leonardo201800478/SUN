@@ -338,7 +338,7 @@ impl Ym2413OperatorSerialService {
 
         let mut am_bit = (self.state.lfo_am_counter & 1)
             + u16::from(am_increment)
-            + u16::from(self.state.lfo_am_car);
+            + if self.state.lfo_am_car { 1 } else { 0 };
         self.state.lfo_am_car = am_bit >> 1 != 0;
         am_bit &= 1;
         self.state.lfo_am_counter = (am_bit << 8) | (self.state.lfo_am_counter >> 1);
