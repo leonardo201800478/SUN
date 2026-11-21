@@ -167,8 +167,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let service_state = service.export_state();
         let operator = service_state.operator;
         let serial_am = service_state.serial_am_lfo;
-        let eg_levels: [u8; 18] =
-            std::array::from_fn(|index| envelope.operators[index].level);
+        let eg_levels: [u8; 18] = std::array::from_fn(|index| envelope.operators[index].level);
         let eg_states: [u8; 18] =
             std::array::from_fn(|index| envelope.operators[index].stage as u8);
 
@@ -270,9 +269,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let _ = write!(
             &mut trace_line,
             ",\"eg_out\":{},\"eg_ksltl\":{},\"c_ksl_attenuation\":{}",
-            operator.eg_out,
-            operator.eg_ksltl,
-            operator.c_ksl_attenuation
+            operator.eg_out, operator.eg_ksltl, operator.c_ksl_attenuation
         );
         trace_line.push_str(",\"op_fb1\":");
         write_json_array(&mut trace_line, operator.op_fb1);
