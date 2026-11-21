@@ -184,7 +184,9 @@ impl Ym2413ChannelSynthesis {
             .iter()
             .any(|phase| *phase > crate::phase::YM2413_PHASE_MASK)
         {
-            return Err(Ym2413SynthesisError::Phase(PhaseGeneratorError::InvalidState));
+            return Err(Ym2413SynthesisError::Phase(
+                PhaseGeneratorError::InvalidState,
+            ));
         }
         let phase = [
             PhaseGenerator::restore_state(PhaseGeneratorState {
