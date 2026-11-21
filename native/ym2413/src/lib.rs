@@ -122,6 +122,7 @@ pub use rhythm_phase::{
 pub use serial_operator::{
     YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS, YM2413_SERIAL_OPERATOR_SLOTS,
     YM2413_SERIAL_OPERATOR_STATE_VERSION, Ym2413SerialOperator, Ym2413SerialOperatorError,
+    Ym2413SerialOperatorPatch1Latches, Ym2413SerialOperatorPatch2Latches,
     Ym2413SerialOperatorSample, Ym2413SerialOperatorState,
 };
 pub use slot::{
