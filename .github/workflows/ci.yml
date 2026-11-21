@@ -155,6 +155,11 @@ jobs:
               - 'native/sg1000_core/src/vdp.rs'
               - 'native/observability/**'
             audio:
+              # The integrated Japanese SMS FM/PSG output is produced in the
+              # SMS temporal machine and consumed by the SMS runtime audio path.
+              - 'native/sms_core/src/io.rs'
+              - 'native/sms_core/src/temporal*.rs'
+              - 'rust/runtime/sms-runtime/**'
               - 'native/sn76489/**'
               - 'native/sg1000_core/src/psg.rs'
               - 'native/audio_output/**'
