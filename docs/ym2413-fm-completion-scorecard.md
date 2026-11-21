@@ -2,13 +2,14 @@
 
 **Data de referência:** 2026-11-21
 **Repositório:** `leonardo201800478/SUN`
-**Main atual pós-PR #1170:** `8836ec3f716c19450736bfd4878790c1d6f6ee52`  
+**Main atual pós-PR #1170:** `8836ec3f716c19450736bfd4878790c1d6f6ee52`
+
 **Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
 ## Estado executivo atual — main pós-PR #1170 (2026-11-21)
 
-<badge color="success">Integração de runtime publicada; fidelidade física ainda aberta</badge>
+**Integração de runtime publicada; fidelidade física ainda aberta.**
 
 **Status geral:** o runtime SMS já possui um caminho de PCM FM derivado do pipeline digital de referência Nuked, resampling para 48 kHz e mistura simultânea com PSG. Isso fecha a existência de uma rota funcional de áudio no código, mas **não fecha a síntese YM2413 nem a saída analógica/DAC do hardware**.
 
