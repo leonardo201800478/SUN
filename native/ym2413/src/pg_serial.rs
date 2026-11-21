@@ -8,9 +8,7 @@
 //! This first integration gate covers normal melodic mode. Rhythm-specific PG
 //! phase combiners and the special channel-7..9 parameter routing remain FM-5.
 
-use crate::am_lfo::{
-    Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState,
-};
+use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState};
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
@@ -336,14 +334,8 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         let descriptor = context.event.selected_operator;
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let (ksl, total_level) = match descriptor.operator {
-            Ym2413Operator::Modulator => (
-                config.modulator_ksl,
-                config.patch.modulator.total_level,
-            ),
-            Ym2413Operator::Carrier => (
-                config.carrier_ksl,
-                config.channel.volume << 2,
-            ),
+            Ym2413Operator::Modulator => (config.modulator_ksl, config.patch.modulator.total_level),
+            Ym2413Operator::Carrier => (config.carrier_ksl, config.channel.volume << 2),
         };
         self.operator.prepare_patch1(ksl, total_level)?;
         self.serial_am_lfo.capture_output(context.event.cycle)?;
