@@ -1204,11 +1204,11 @@ mod tests {
     }
 
     #[test]
-    fn channel_output_adapter_marks_unknown_active_mo_and_original_ro_explicitly() {
+    fn measured_level_adapter_marks_unknown_active_mo_and_original_ro_explicitly() {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
         let frame = service
-            .process_nuked_cycle_from_channel_output(0, true, None, false)
+            .process_nuked_cycle_from_measured_level(0, true, None, false)
             .unwrap();
 
         assert_eq!(frame.mo_slot_index, 3);
@@ -1225,13 +1225,12 @@ mod tests {
     }
 
     #[test]
-    fn channel_output_adapter_converts_known_level_and_preserves_pin_domains() {
+    fn measured_level_adapter_routes_explicit_level_and_preserves_pin_domains() {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
-        let channel_output = -37_i16;
-        let expected = Ym2413DacCode::from_operator_channel_output(channel_output).unwrap();
+        let expected = level(-37);
         let frame = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(channel_output), true)
+            .process_nuked_cycle_from_measured_level(0, true, Some(expected), true)
             .unwrap();
 
         assert!(frame.mo_known);
@@ -1252,7 +1251,7 @@ mod tests {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
         let transition = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(41), false)
+            .process_nuked_cycle_from_measured_level(0, true, Some(level(41)), false)
             .unwrap();
         assert_eq!(
             transition.ro,
@@ -1263,7 +1262,7 @@ mod tests {
         );
 
         let settled = service
-            .process_nuked_cycle_from_channel_output(1, true, Some(53), true)
+            .process_nuked_cycle_from_measured_level(1, true, Some(level(53)), true)
             .unwrap();
         assert!(matches!(settled.ro, Ym2413OutputSlotResult::Pulse(_)));
     }
@@ -1273,17 +1272,17 @@ mod tests {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
         let first = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(41), true)
+            .process_nuked_cycle_from_measured_level(0, true, Some(level(41)), true)
             .unwrap();
         assert!(matches!(first.ro, Ym2413OutputSlotResult::Pulse(_)));
 
         for cycle in 1..18 {
             let _ = service
-                .process_nuked_cycle_from_channel_output(cycle, true, Some(41), true)
+                .process_nuked_cycle_from_measured_level(cycle, true, Some(level(41)), true)
                 .unwrap();
         }
         let unknown_source = service
-            .process_nuked_cycle_from_channel_output(0, true, None, false)
+            .process_nuked_cycle_from_measured_level(0, true, None, false)
             .unwrap();
         assert!(matches!(
             unknown_source.ro,
@@ -1295,11 +1294,11 @@ mod tests {
 
         for cycle in 1..5 {
             let _ = service
-                .process_nuked_cycle_from_channel_output(cycle, true, None, false)
+                .process_nuked_cycle_from_measured_level(cycle, true, None, false)
                 .unwrap();
         }
         let repeat = service
-            .process_nuked_cycle_from_channel_output(5, true, None, false)
+            .process_nuked_cycle_from_measured_level(5, true, None, false)
             .unwrap();
         assert_eq!(
             repeat.ro,
@@ -1317,7 +1316,7 @@ mod tests {
         assert_eq!(adapter.output_frame(), None);
 
         let emitted = adapter
-            .process_cycle(1, true, Some(17), true)
+            .process_cycle(1, true, Some(level(17)), true)
             .unwrap()
             .unwrap();
         assert_eq!(emitted.emitted_cycle, 1);
@@ -1335,7 +1334,7 @@ mod tests {
             if cycle == 2 || cycle == 16 {
                 None
             } else {
-                Some(i16::from(cycle) - 8)
+                Some(level(i16::from(cycle) - 8))
             }
         };
 
@@ -1406,20 +1405,20 @@ mod tests {
     }
 
     #[test]
-    fn channel_output_adapter_marks_ro_inactive_and_does_not_latch_melody_while_rhythm_is_disabled()
+    fn measured_level_adapter_marks_ro_inactive_and_does_not_latch_melody_while_rhythm_is_disabled()
     {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
 
         // Prime a valid percussion value, then disable Rhythm Mode.
         let initial = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(41), true)
+            .process_nuked_cycle_from_measured_level(0, true, Some(level(41)), true)
             .unwrap();
         assert!(matches!(initial.ro, Ym2413OutputSlotResult::Pulse(_)));
 
         for cycle in 1..18 {
             let frame = service
-                .process_nuked_cycle_from_channel_output(cycle, false, Some(73), false)
+                .process_nuked_cycle_from_measured_level(cycle, false, Some(level(73)), false)
                 .unwrap();
             assert_eq!(frame.ro, Ym2413OutputSlotResult::ModeInactive);
         }
@@ -1427,34 +1426,34 @@ mod tests {
         // Re-enter Rhythm Mode at the original BD source position. The new
         // rhythm value, not the intervening melodic samples, feeds its repeat.
         let source = service
-            .process_nuked_cycle_from_channel_output(0, true, Some(-19), true)
+            .process_nuked_cycle_from_measured_level(0, true, Some(level(-19)), true)
             .unwrap();
         assert!(matches!(
             source.ro,
             Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse { level, .. })
-                if level == Ym2413DacCode::from_operator_channel_output(-19).unwrap()
+                if level == level(-19)
         ));
         for cycle in 1..5 {
             let _ = service
-                .process_nuked_cycle_from_channel_output(cycle, true, Some(7), true)
+                .process_nuked_cycle_from_measured_level(cycle, true, Some(level(7)), true)
                 .unwrap();
         }
         let repeat = service
-            .process_nuked_cycle_from_channel_output(5, true, Some(7), true)
+            .process_nuked_cycle_from_measured_level(5, true, Some(level(7)), true)
             .unwrap();
         assert!(matches!(
             repeat.ro,
             Ym2413OutputSlotResult::Pulse(Ym2413OutputPulse { level, .. })
-                if level == level_from_operator(-19)
+                if level == level(-19)
         ));
     }
 
     #[test]
-    fn channel_output_adapter_uses_persistent_rhythm_mode_for_mo_gate() {
+    fn measured_level_adapter_uses_persistent_rhythm_mode_for_mo_gate() {
         let mut rhythm_service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(9)).unwrap();
         let rhythm_frame = rhythm_service
-            .process_nuked_cycle_from_channel_output(12, true, Some(11), false)
+            .process_nuked_cycle_from_measured_level(12, true, Some(level(11)), false)
             .unwrap();
         assert_eq!(rhythm_frame.mo_slot_index, 15);
         assert!(rhythm_frame.mo.is_none());
@@ -1463,7 +1462,7 @@ mod tests {
         let mut melodic_service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(9)).unwrap();
         let melodic_frame = melodic_service
-            .process_nuked_cycle_from_channel_output(12, false, Some(11), false)
+            .process_nuked_cycle_from_measured_level(12, false, Some(level(11)), false)
             .unwrap();
         assert!(melodic_frame.mo.is_some());
         assert!(melodic_frame.mo_known);
