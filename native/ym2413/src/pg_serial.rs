@@ -428,11 +428,13 @@ mod tests {
     };
     use crate::phase::PhaseGenerator;
     use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
-    use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
+    use crate::slot_service::{
+        Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
+    };
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
-    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413SlotServiceAdvanceError};
+    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core};
 
     fn initial_bank(pm_lfo_counter: u16) -> Ym2413SynthesisBank {
         let initial = Ym2413SynthesisInitialState {
