@@ -14,6 +14,8 @@ PR Draft, branch, documento candidato ou CI parcialmente SKIPPED não alteram o 
 
 ## Documentos de controle
 
+- [Identidade, nomenclatura e independência do SUN](branding-and-trademark-policy.md)
+
 - [Escopo do projeto](project-scope.md)
 - [Roadmap mestre](project-roadmap.md)
 - [Roadmap de produto desktop — capacidades, UX, mídia e diagnóstico](desktop-product-roadmap.md)
