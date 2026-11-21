@@ -47,26 +47,26 @@ jobs:
           source = source.replace(include, declaration, 1)
 
           old = (
-              "    if ((chip->testmode & 0x04)\\n"
-              "     || (ismod && (chip->eg_dokon & 0x8000)) || (!ismod && (chip->eg_dokon & 0x01))) {\\n"
-              "        chip->pg_phase_next = 0;\\n"
-              "    } else {\\n"
-              "        chip->pg_phase_next = phase;\\n"
+              "    if ((chip->testmode & 0x04)\n"
+              "     || (ismod && (chip->eg_dokon & 0x8000)) || (!ismod && (chip->eg_dokon & 0x01))) {\n"
+              "        chip->pg_phase_next = 0;\n"
+              "    } else {\n"
+              "        chip->pg_phase_next = phase;\n"
               "    }"
           )
           new = (
-              "    uint32_t phase_reset_required =\\n"
-              "        (chip->testmode & 0x04)\\n"
-              "        || (ismod && (chip->eg_dokon & 0x8000))\\n"
-              "        || (!ismod && (chip->eg_dokon & 0x01));\\n"
-              "    if (phase_reset_required) {\\n"
-              "        chip->pg_phase_next = 0;\\n"
-              "    } else {\\n"
-              "        chip->pg_phase_next = phase;\\n"
-              "    }\\n"
-              "    #ifdef YM2413_TRACE_PHASE_RESET\\n"
-              "    ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,\\n"
-              "                             chip->eg_dokon, ismod, phase_reset_required);\\n"
+              "    uint32_t phase_reset_required =\n"
+              "        (chip->testmode & 0x04)\n"
+              "        || (ismod && (chip->eg_dokon & 0x8000))\n"
+              "        || (!ismod && (chip->eg_dokon & 0x01));\n"
+              "    if (phase_reset_required) {\n"
+              "        chip->pg_phase_next = 0;\n"
+              "    } else {\n"
+              "        chip->pg_phase_next = phase;\n"
+              "    }\n"
+              "    #ifdef YM2413_TRACE_PHASE_RESET\n"
+              "    ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,\n"
+              "                             chip->eg_dokon, ismod, phase_reset_required);\n"
               "    #endif"
           )
           if source.count(old) != 1:
