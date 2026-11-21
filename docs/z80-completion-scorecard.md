@@ -649,7 +649,7 @@ A observação X/Y = bits 5/3 do novo A é testada como comportamento de referê
 - Foi identificada a suíte pública [raxoft/z80test](https://github.com/raxoft/z80test), cujo README declara que os resultados esperados foram obtidos em um ZX Spectrum 48K com Zilog Z80 real.
 - A variante `z80memptr` executa `BIT 0,(HL)` após cada instrução para tornar observáveis flags relacionadas ao MEMPTR/WZ. Os grupos `RLD` e `RRD` registram CRC MEMPTR esperado `0x670a95ea` cada em `src/tests.asm`.
 - **Limite explícito da própria suíte:** o autor informa que os vetores atuais não foram projetados especificamente para estressar MEMPTR e podem deixar defeitos sem detecção. Portanto, é uma fonte complementar de evidência hardware-derived, não uma prova isolada nem fechamento de WZ.
-- Integração/execução da variante MEMPTR no core Sega Emulator: NOT RUN. X/Y e WZ ainda não têm evidência física específica e independente no projeto. CMOS/clones permanecem NOT_VERIFIED.
+- Integração/execução da variante MEMPTR no core SUN — Strife Uranus Neptune: NOT RUN. X/Y e WZ ainda não têm evidência física específica e independente no projeto. CMOS/clones permanecem NOT_VERIFIED.
 
 ### Estado E7 após a reconciliação
 
@@ -680,7 +680,7 @@ A observação X/Y = bits 5/3 do novo A é testada como comportamento de referê
 
 - Além da suíte raxoft/z80test registrada na seção 43, foi identificada a suíte de Mark Woodmass listada no README do projeto [redcode/Z80](https://github.com/redcode/Z80). O README descreve que ela verifica os documentos MEMPTR e compara resultados com um NEC D780C-1; também relata testes adicionais em outros clones.
 - O runner upstream registra entradas `TEST_FORMAT_WOODMASS` e CRCs/ciclos esperados para `Z80 Test Suite (2008)(Woodmass, Mark)[!].tap`.
-- O artefato TAP é referenciado pelo upstream via Wayback Machine; a recuperação do binário expirou por timeout nesta auditoria. Portanto, a suíte é apenas uma fonte candidata identificada, **não executada** no Sega Emulator e não fecha F-023.
+- O artefato TAP é referenciado pelo upstream via Wayback Machine; a recuperação do binário expirou por timeout nesta auditoria. Portanto, a suíte é apenas uma fonte candidata identificada, **não executada** no SUN — Strife Uranus Neptune e não fecha F-023.
 - F-023 permanece AUDIT_PARTIAL: WZ após RRD/RLD ainda precisa de execução independente no core e confronto verificável com um artefato hardware-derived. X/Y e variantes NMOS/CMOS também não são promovidos por inferência.
 
 ### Estado após PR #932

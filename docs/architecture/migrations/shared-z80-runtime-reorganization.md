@@ -9,7 +9,7 @@
 
 ## 1. Objetivo
 
-Consolidar a arquitetura do Sega Emulator para que todo hardware emulado seja executado por um runtime Rust determinístico, modular e testável. Python/PySide6 permanece como frontend e camada de ferramentas, sem implementar CPU, memória, barramento, VDP, PSG, temporização ou execução de máquina.
+Consolidar a arquitetura do SUN — Strife Uranus Neptune para que todo hardware emulado seja executado por um runtime Rust determinístico, modular e testável. Python/PySide6 permanece como frontend e camada de ferramentas, sem implementar CPU, memória, barramento, VDP, PSG, temporização ou execução de máquina.
 
 A reorganização cobre:
 

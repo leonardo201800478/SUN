@@ -7,7 +7,7 @@
 
 ## 1. Objetivo
 
-Definir como o Sega Emulator representará processadores especializados que ampliam a capacidade de um console, especialmente chips programáveis instalados em cartuchos ou módulos de expansão. O exemplo de referência é o **Sega Virtua Processor (SVP)** do cartucho de *Virtua Racing* para Mega Drive.
+Definir como o SUN — Strife Uranus Neptune representará processadores especializados que ampliam a capacidade de um console, especialmente chips programáveis instalados em cartuchos ou módulos de expansão. O exemplo de referência é o **Sega Virtua Processor (SVP)** do cartucho de *Virtua Racing* para Mega Drive.
 
 Esta categoria não se refere aos chips convencionais de vídeo, áudio ou I/O. Também não significa que toda ALU ou multiplicador integrado a uma CPU deva virar um dispositivo independente.
 
@@ -298,4 +298,4 @@ Nenhum código, teste, ROM, dump de BIOS ou asset dessas referências deve ser c
 
 ---
 
-**Decisão arquitetural:** o Sega Emulator terá suporte extensível a coprocessadores e processadores especializados como dispositivos Rust independentes, integrados ao barramento e ao scheduler mestre da plataforma. O SVP será o primeiro estudo de caso quando a trilha Mega Drive estiver pronta; esta especificação não declara o SVP implementado.
+**Decisão arquitetural:** o SUN — Strife Uranus Neptune terá suporte extensível a coprocessadores e processadores especializados como dispositivos Rust independentes, integrados ao barramento e ao scheduler mestre da plataforma. O SVP será o primeiro estudo de caso quando a trilha Mega Drive estiver pronta; esta especificação não declara o SVP implementado.

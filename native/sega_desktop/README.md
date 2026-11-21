@@ -1,4 +1,4 @@
-# Sega Desktop — R2 SMS / Slint / WGPU 30 / Vulkan
+# SUN Desktop — R2 SMS / Slint / WGPU 30 / Vulkan
 
 The Slint host presents real SMS VDP frames from the Rust runtime. R2.2 migrates the legacy menu groups and ports worker operations and UI settings that are safe before R3/R4.
 

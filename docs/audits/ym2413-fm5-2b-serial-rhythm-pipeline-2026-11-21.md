@@ -486,3 +486,11 @@ workflow #388:
 
 This is software differential evidence. It does not establish the physical
 SD sustain ROM, raw DAC word, or analog output.
+
+## Publication update — 2026-11-21
+
+PR #1154 (FM-5.2A) merged into `main` at `50f549cf28da4f268304908ae44717fe402dd708`. PR #1156 (FM-5.2B) merged into `main` at `f955bc42dfff6565e4719653c2834bf271884bac`. The SD carrier SL candidate remains 6 while pinned Nuked uses 4; associated EG-state divergence, physical LFSR seed and internal rhythm patch ROM remain unverified and are not normalized.
+
+PR #1157 adds the separate measured-domain MO/RO service, independent MO/RO cycle coordinates, signed-zero retention and a Nuked differential for the standalone digital reference pipeline. PR #1158 composes the Nuked software-reference pipeline with the core-owned PG service, but does not convert it into the measured physical pin adapter. The exact-head checks for #1158 (CI, PG, EG characterization, Rhythm reset and output-pipeline differential) passed on code HEAD `b7143f07a166932c39801b28126def0c55df4800`.
+
+The remaining integration gate is to connect the measured MO/RO service to the core using independent pin coordinates and explicit unknown validity, while preserving the prior-`ch_out` and output-buffer delays. Neither PR claims raw DAC word, analog voltage, PCM, or physical-chip validation.
