@@ -1,5 +1,6 @@
 //! Compare the actual Nuked OPLL_PhaseGenerate reset decision with the
-//! production Rust serial-slot selector for Rhythm Mode cycles 13 and 14.
+//! production Rust serial-slot selector for Rhythm Mode cycles 13 and 14,
+//! using the post-shift mode latch and pre-update EG DOKON state.
 //!
 //! Input is the external oracle's YM2413_PHASE_RESET CSV stream. Nuked source
 //! remains an external CI-only reference; this example invokes only the
