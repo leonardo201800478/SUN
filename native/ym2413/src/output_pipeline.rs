@@ -163,7 +163,7 @@ impl Ym2413OutputPipeline {
     }
 
     /// Align the next serial cycle when constructing a service for a restored core.
-    pub const fn with_next_cycle(
+    pub(crate) const fn with_next_cycle(
         mut self,
         next_cycle: u8,
     ) -> Result<Self, Ym2413OutputPipelineError> {
