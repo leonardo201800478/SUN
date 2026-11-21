@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
     } else if (pg_only) {
         puts("{\"schema\":\"ym2413-nuked-opll-pg-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"pg_increment_after_OPLL_Clock\"}");
     } else {
-        puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9}}");
+        puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9,\"op_calc_op_fb1\":9,\"op_calc_op_fb2\":9}}");
     }
 
     for (uint64_t tick = 0; tick < calls; ++tick) {
