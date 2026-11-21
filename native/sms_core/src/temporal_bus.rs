@@ -884,9 +884,13 @@ impl SmsTemporalBus {
         self.ym2413.is_some() && self.fm_control & 0x01 != 0
     }
 
-    /// Whether the PSG output path is enabled by the Japanese SMS audio-control port.
+    /// Whether the PSG output path is enabled by the Japanese SMS audio-control mode.
+    ///
+    /// The two-bit mode is 00 = PSG only, 01 = FM only, 10 = both muted,
+    /// and 11 = FM plus PSG. The bit pair is not two independent enable bits.
     pub const fn psg_output_enabled(&self) -> bool {
-        self.ym2413.is_none() || self.fm_control & 0x02 == 0
+        self.ym2413.is_none()
+            || (self.fm_control & 0x01) == ((self.fm_control >> 1) & 0x01)
     }
 
     /// Enable bounded observation of the existing PSG's digital mix transitions.
@@ -1250,6 +1254,10 @@ mod tests {
         assert_eq!(bus.read_port(0xF2), 0x03);
         assert!(bus.fm_output_enabled());
         assert!(bus.psg_output_enabled());
+
+        bus.write_port(0xF2, 0x02);
+        assert!(!bus.fm_output_enabled());
+        assert!(!bus.psg_output_enabled());
 
         bus.write_port(0xF2, 0x01);
         assert!(!bus.psg_output_enabled());
