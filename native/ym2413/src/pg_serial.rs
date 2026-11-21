@@ -272,7 +272,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
-        if context.registers[0x0e] & 0x20 != 0 {
+        if context.registers[0x0e] & 0x20 != 0 || context.rm_enable != 0 || context.rm_select < 6 {
             return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
                 cycle: context.event.cycle,
                 channel: context.event.selected_operator.channel,
