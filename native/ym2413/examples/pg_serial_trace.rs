@@ -82,7 +82,8 @@ fn reset_service() -> Result<Ym2413PgSerialService, Box<dyn Error>> {
         124,
         DampTransitionCoordination::IndependentPerOperator,
         AttackRate15Transition::SkipAttackToDecay,
-    )?;
+    )
+    .map_err(|error| invalid_data(format!("invalid damp configuration: {error:?}")))?;
     let initial = Ym2413SynthesisInitialState {
         channels: std::array::from_fn(|_| Ym2413ChannelInitialState {
             phase: [0; 2],
@@ -96,7 +97,8 @@ fn reset_service() -> Result<Ym2413PgSerialService, Box<dyn Error>> {
         am_lfo_phase: 0,
         damp_config,
     };
-    let bank = Ym2413SynthesisBank::with_initial_state(initial)?;
+    let bank = Ym2413SynthesisBank::with_initial_state(initial)
+        .map_err(|error| invalid_data(format!("invalid synthesis bank state: {error:?}")))?;
     Ok(Ym2413PgSerialService::new(bank))
 }
 
@@ -146,7 +148,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             phases.push(
                 service
                     .synthesis()
-                    .phase_accumulator(descriptor.channel, carrier)?,
+                    .phase_accumulator(descriptor.channel, carrier)
+                    .map_err(|error| invalid_data(format!("invalid PG accumulator: {error:?}")))?,
             );
         }
         let phase_json = phases
