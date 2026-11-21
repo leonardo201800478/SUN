@@ -50,6 +50,32 @@ impl Ym2413DacCode {
         }
     }
 
+    /// Decode the serial operator's one's-complement channel-output latch into
+    /// the signed measured-output domain.
+    ///
+    /// The operator latch spans -256..=255 as an i16 bit-pattern: -1 is the
+    /// distinct negative-zero encoding and -256 represents negative full
+    /// scale (-255 amplitude). This conversion preserves both zeros and does
+    /// not expose or claim the physical DAC's raw input word.
+    pub const fn from_operator_channel_output(
+        channel_output: i16,
+    ) -> Result<Self, Ym2413RhythmOutputError> {
+        if channel_output < -256 || channel_output > 255 {
+            return Err(Ym2413RhythmOutputError::InvalidOperatorChannelOutput(
+                channel_output,
+            ));
+        }
+        if channel_output >= 0 {
+            return Self::new(channel_output);
+        }
+        let magnitude = !channel_output;
+        if magnitude == 0 {
+            Ok(Self::negative_zero())
+        } else {
+            Self::new(-magnitude)
+        }
+    }
+
     /// Return the signed reconstructed amplitude; negative zero returns numeric zero.
     pub const fn value(self) -> i16 {
         self.value
@@ -96,6 +122,8 @@ pub enum Ym2413RhythmOutputSlotResult {
 pub enum Ym2413RhythmOutputError {
     /// A value is outside the signed measured output-level domain.
     InvalidDacCode(i16),
+    /// The serial operator channel-output latch is outside -256..=255.
+    InvalidOperatorChannelOutput(i16),
     /// The supplied slot index is outside 0..18.
     InvalidSlotIndex(u8),
     /// The slot is not the next slot expected by this state.
@@ -274,6 +302,35 @@ mod tests {
         assert!(!positive_zero.is_negative_zero());
         assert!(negative_zero.is_negative_zero());
         assert_ne!(positive_zero, negative_zero);
+    }
+
+    #[test]
+    fn operator_channel_output_decodes_one_complement_levels_and_both_zeros() {
+        let positive_zero = Ym2413DacCode::from_operator_channel_output(0).unwrap();
+        let negative_zero = Ym2413DacCode::from_operator_channel_output(-1).unwrap();
+        let positive_full_scale = Ym2413DacCode::from_operator_channel_output(255).unwrap();
+        let negative_full_scale = Ym2413DacCode::from_operator_channel_output(-256).unwrap();
+        let negative_one = Ym2413DacCode::from_operator_channel_output(-2).unwrap();
+
+        assert_eq!(positive_zero, Ym2413DacCode::new(0).unwrap());
+        assert_eq!(negative_zero, Ym2413DacCode::negative_zero());
+        assert_eq!(positive_full_scale.value(), 255);
+        assert_eq!(negative_full_scale.value(), -255);
+        assert_eq!(negative_one.value(), -1);
+        assert!(negative_zero.is_negative_zero());
+        assert!(!positive_zero.is_negative_zero());
+    }
+
+    #[test]
+    fn operator_channel_output_rejects_values_outside_nine_bit_one_complement_domain() {
+        assert_eq!(
+            Ym2413DacCode::from_operator_channel_output(-257),
+            Err(Ym2413RhythmOutputError::InvalidOperatorChannelOutput(-257))
+        );
+        assert_eq!(
+            Ym2413DacCode::from_operator_channel_output(256),
+            Err(Ym2413RhythmOutputError::InvalidOperatorChannelOutput(256))
+        );
     }
 
     #[test]
