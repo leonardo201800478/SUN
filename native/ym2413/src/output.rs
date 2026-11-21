@@ -29,6 +29,21 @@ pub const YM2413_OUTPUT_ACTIVE_CLOCKS: u8 = 3;
 pub const YM2413_OUTPUT_NEUTRAL_CLOCKS: u8 =
     YM2413_OUTPUT_SLOT_CLOCKS - YM2413_OUTPUT_ACTIVE_CLOCKS;
 
+/// Convert a Nuked-OPLL cycle index to the shared measured 18-slot output
+/// rotation used by the MO carrier map and RO occurrence map.
+///
+/// Nuked cycle zero corresponds to measured output slot 15. This is a
+/// schedule-coordinate conversion only; it does not model the delayed
+/// `ch_out` latch, `rm_enable` write pipeline, pin neutral value, or pulse
+/// sub-clock phase.
+pub const fn output_slot_for_nuked_cycle(cycle: u8) -> Option<u8> {
+    if cycle < YM2413_SLOT_COUNT as u8 {
+        Some((cycle + 15) % YM2413_SLOT_COUNT as u8)
+    } else {
+        None
+    }
+}
+
 /// Physical analog output pin selected by the YM2413 output routing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413OutputPin {
@@ -329,7 +344,7 @@ mod tests {
     use super::{
         YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
         Ym2413OutputPin, Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource,
-        melody_output_for_slot, rhythm_output_event, rhythm_slot_result,
+        melody_output_for_slot, output_slot_for_nuked_cycle, rhythm_output_event, rhythm_slot_result,
     };
     use crate::rhythm_output::{
         Ym2413DacCode, Ym2413RhythmOutputError, Ym2413RhythmOutputEvent,
@@ -516,6 +531,38 @@ mod tests {
         assert_eq!(service.export_state(), before);
     }
 
+    #[test]
+    fn nuked_cycle_maps_to_the_shared_measured_output_slot_rotation() {
+        let expected = [
+            15, 16, 17, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+        ];
+        for (cycle, expected_slot) in expected.into_iter().enumerate() {
+            assert_eq!(
+                output_slot_for_nuked_cycle(cycle as u8),
+                Some(expected_slot)
+            );
+        }
+        assert_eq!(output_slot_for_nuked_cycle(18), None);
+        assert_eq!(output_slot_for_nuked_cycle(u8::MAX), None);
+    }
+
+    #[test]
+    fn shared_cycle_mapping_aligns_mo_carriers_and_measured_ro_occurrences() {
+        let mo_cycles = [6, 7, 8, 12, 13, 14];
+        let expected_mo_slots = [3, 4, 5, 9, 10, 11];
+        for (cycle, slot) in mo_cycles.into_iter().zip(expected_mo_slots) {
+            assert_eq!(output_slot_for_nuked_cycle(cycle), Some(slot));
+        }
+
+        let ro_cycles = [16, 17, 0, 1, 2, 3, 4, 5, 9, 10];
+        let expected_ro_slots = [13, 14, 15, 16, 17, 0, 1, 2, 6, 7];
+        for (cycle, slot) in ro_cycles.into_iter().zip(expected_ro_slots) {
+            assert_eq!(output_slot_for_nuked_cycle(cycle), Some(slot));
+        }
+    }
+
+    #[test]
+    fn measured_output_window_is_three_active_clocks_in_each_four_clock_slot() {
     #[test]
     fn measured_output_window_is_three_active_clocks_in_each_four_clock_slot() {
         assert_eq!(YM2413_OUTPUT_ACTIVE_CLOCKS, 3);
