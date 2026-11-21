@@ -24,12 +24,14 @@ void ym2413_trace_phase_reset(
     uint32_t cycle,
     uint8_t rm_enable,
     uint32_t eg_dokon,
+    uint8_t testmode,
     uint32_t ismod,
     uint32_t reset_required
 ) {
     if (phase_reset_probe && (cycle == 13 || cycle == 14)) {
-        fprintf(stderr, "YM2413_PHASE_RESET,%u,%u,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\n",
-                (unsigned)cycle, (unsigned)rm_enable, eg_dokon, ismod, reset_required);
+        fprintf(stderr, "YM2413_PHASE_RESET,%u,%u,%" PRIu32 ",%u,%" PRIu32 ",%" PRIu32 "\n",
+                (unsigned)cycle, (unsigned)rm_enable, eg_dokon, (unsigned)testmode,
+                ismod, reset_required);
     }
 }
 #endif
@@ -200,7 +202,7 @@ int main(int argc, char **argv) {
             };
             chip.rm_enable = (int8_t)0x80;
             chip.eg_dokon = eg_dokon_probes[(tick / 18u) % 4u];
-            chip.testmode = 0;
+            chip.testmode = (tick / 72u) % 2u ? 0x04 : 0;
         }
 
         OPLL_Clock(&chip, output);
