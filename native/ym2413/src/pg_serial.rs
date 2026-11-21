@@ -12,6 +12,10 @@ use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfo
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
+use crate::rhythm::{
+    Ym2413RhythmNoiseError, Ym2413RhythmNoiseSlotSample,
+    Ym2413RhythmSlotNoiseSequencer, Ym2413RhythmSlotNoiseSequencerState,
+};
 use crate::rhythm_dispatch::{Ym2413SerialSlotDispatch, dispatch_serial_slot};
 use crate::serial_operator::{
     Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
@@ -24,7 +28,7 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 5;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 6;
 pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 3;
 
 /// Maximum increment reachable from the legal FNUM/BLOCK/MUL/PM input domain.
@@ -40,6 +44,7 @@ pub enum Ym2413PgSerialError {
     Synthesis(Ym2413SynthesisError),
     Operator(Ym2413SerialOperatorError),
     AmLfo(Ym2413SerialAmLfoError),
+    RhythmNoise(Ym2413RhythmNoiseError),
 }
 
 /// Error returned by the public coarse-grained core + PG advancement API.
@@ -83,6 +88,11 @@ impl From<Ym2413SerialOperatorError> for Ym2413PgSerialError {
 impl From<Ym2413SerialAmLfoError> for Ym2413PgSerialError {
     fn from(value: Ym2413SerialAmLfoError) -> Self {
         Self::AmLfo(value)
+    }
+}
+impl From<Ym2413RhythmNoiseError> for Ym2413PgSerialError {
+    fn from(value: Ym2413RhythmNoiseError) -> Self {
+        Self::RhythmNoise(value)
     }
 }
 
@@ -138,6 +148,10 @@ pub struct Ym2413PgSerialServiceState {
     pub synthesis: Ym2413SynthesisBankState,
     pub operator: Ym2413SerialOperatorState,
     pub serial_am_lfo: Ym2413SerialAmLfoState,
+    /// Explicitly seeded slot-rate noise state; None means physical reset seed is unresolved.
+    pub rhythm_noise: Option<Ym2413RhythmSlotNoiseSequencerState>,
+    /// Last sampled Hi-Hat and Snare Drum noise bits, retained for later phase routing.
+    pub rhythm_noise_samples: [Option<bool>; 2],
 }
 
 /// Cloneable serial PG state machine. Its Clone is deep: all mutable state is
@@ -148,6 +162,8 @@ pub struct Ym2413PgSerialService {
     pipeline: Ym2413PgSerialPipelineState,
     operator: Ym2413SerialOperator,
     serial_am_lfo: Ym2413SerialAmLfo,
+    rhythm_noise: Option<Ym2413RhythmSlotNoiseSequencer>,
+    rhythm_noise_samples: [Option<bool>; 2],
 }
 
 impl Ym2413PgSerialService {
@@ -165,6 +181,8 @@ impl Ym2413PgSerialService {
             },
             operator: Ym2413SerialOperator::new(),
             serial_am_lfo: Ym2413SerialAmLfo::new(),
+            rhythm_noise: None,
+            rhythm_noise_samples: [None, None],
         }
     }
 
@@ -173,6 +191,35 @@ impl Ym2413PgSerialService {
         initial: Ym2413SynthesisInitialState,
     ) -> Result<Self, Ym2413SynthesisError> {
         Ok(Self::new(Ym2413SynthesisBank::with_initial_state(initial)?))
+    }
+
+    /// Enable the slot-rate rhythm-noise candidate with an explicit seed and
+    /// the core slot that will be serviced next. The physical power-on seed
+    /// is unknown; this API deliberately has no default seed.
+    pub fn with_rhythm_noise_seed(
+        mut self,
+        seed: u32,
+        next_slot_index: u8,
+    ) -> Result<Self, Ym2413PgSerialError> {
+        self.rhythm_noise = Some(Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(
+            seed,
+            next_slot_index,
+        )?);
+        self.rhythm_noise_samples = [None, None];
+        Ok(self)
+    }
+
+    /// Return the last sampled Hi-Hat and Snare Drum noise bits, if available.
+    pub const fn rhythm_noise_samples(&self) -> [Option<bool>; 2] {
+        self.rhythm_noise_samples
+    }
+
+    /// Return the optional slot-rate noise sequencer state.
+    pub const fn rhythm_noise_state(&self) -> Option<Ym2413RhythmSlotNoiseSequencerState> {
+        match self.rhythm_noise {
+            Some(sequencer) => Some(sequencer.export_state()),
+            None => None,
+        }
     }
 
     /// Return the current ten-bit PG output latch.
@@ -208,6 +255,8 @@ impl Ym2413PgSerialService {
             synthesis: self.synthesis.export_state(),
             operator: self.operator.export_state(),
             serial_am_lfo: self.serial_am_lfo.export_state(),
+            rhythm_noise: self.rhythm_noise_state(),
+            rhythm_noise_samples: self.rhythm_noise_samples,
         }
     }
 
@@ -222,11 +271,22 @@ impl Ym2413PgSerialService {
         {
             return Err(Ym2413PgSerialError::InvalidState);
         }
+        if state.rhythm_noise.is_none()
+            && state.rhythm_noise_samples.iter().any(Option::is_some)
+        {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
+        let rhythm_noise = state
+            .rhythm_noise
+            .map(Ym2413RhythmSlotNoiseSequencer::restore_state)
+            .transpose()?;
         Ok(Self {
             synthesis: Ym2413SynthesisBank::restore_state(state.synthesis)?,
             pipeline,
             operator: Ym2413SerialOperator::restore_state(state.operator)?,
             serial_am_lfo: Ym2413SerialAmLfo::restore_state(state.serial_am_lfo)?,
+            rhythm_noise,
+            rhythm_noise_samples: state.rhythm_noise_samples,
         })
     }
 
@@ -318,6 +378,37 @@ impl Ym2413PgSerialService {
         }
     }
 
+    /// Execute the DoRhythm noise step at the post-EG boundary.
+    ///
+    /// The seeded candidate advances once on every serial slot, irrespective
+    /// of RHY mode. The sequencer cursor must match the core-owned slot index;
+    /// a mismatch rejects the staged service transaction without partial state.
+    fn clock_rhythm_noise(
+        &mut self,
+        context: &Ym2413SlotServiceContext,
+    ) -> Result<(), Ym2413PgSerialError> {
+        let Some(sequencer) = self.rhythm_noise.as_mut() else {
+            return Ok(());
+        };
+        if sequencer.slot_index() != context.event.cycle {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
+        if let Some(Ym2413RhythmNoiseSlotSample { voice, noise_bit, .. }) =
+            sequencer.advance_slot()
+        {
+            match voice {
+                crate::slot::Ym2413RhythmVoice::HiHat => {
+                    self.rhythm_noise_samples[0] = Some(noise_bit);
+                }
+                crate::slot::Ym2413RhythmVoice::SnareDrum => {
+                    self.rhythm_noise_samples[1] = Some(noise_bit);
+                }
+                _ => return Err(Ym2413PgSerialError::InvalidState),
+            }
+        }
+        Ok(())
+    }
+
     /// Reproduce PreparePatch2's channel/operator parameter selection for the
     /// next serial cycle. Rhythm-specific patch routing is deliberately gated.
     fn latch_next_parameters(
@@ -355,7 +446,26 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
-        let descriptor = Self::require_melodic_slot(context)?;
+        let dispatch = dispatch_serial_slot(
+            context.event.cycle,
+            &context.registers,
+            context.rm_enable,
+            context.envelope_input.rhythm_select,
+        )
+        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
+        let descriptor = match dispatch {
+            Ym2413SerialSlotDispatch::Melodic { slot }
+                if slot == context.event.selected_operator => slot,
+            Ym2413SerialSlotDispatch::Melodic { .. } => {
+                return Err(Ym2413PgSerialError::InvalidState);
+            }
+            // Rhythm-owned and unsettled cycles still pass through the core EG
+            // and post-EG DoRhythm stage. Their PG/operator path is FM-5.2B.
+            _ => {
+                self.serial_am_lfo.capture_output(context.event.cycle)?;
+                return Ok(());
+            }
+        };
         // Nuked order in this pre-EG hook:
         // PreparePatch1 -> Channel -> PhaseGenerate -> Operator
         // -> PhaseCalcIncrement -> EnvelopeOutput -> EnvelopeKSLTL.
@@ -416,7 +526,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         _post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error> {
         // Nuked order after the core-owned EnvelopeGenerate stage:
-        // DoLFO -> DoRhythm (FM-5; rejected here) -> PreparePatch2.
+        // DoLFO -> DoRhythm -> PreparePatch2.
         let testmode = context.registers[0x0f];
         // OPLL_DoLFO advances the serial AM network on every call and
         // derives its cycle-17 step from the PM counter before that counter
@@ -430,7 +540,20 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         } else if context.event.cycle == 17 {
             self.clock_pm_lfo(testmode);
         }
-        self.latch_next_parameters(context)
+        self.clock_rhythm_noise(context)?;
+        match dispatch_serial_slot(
+            context.event.cycle,
+            &context.registers,
+            context.rm_enable,
+            context.envelope_input.rhythm_select,
+        )
+        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?
+        {
+            Ym2413SerialSlotDispatch::Melodic { .. } => self.latch_next_parameters(context),
+            // The rhythm-specific patch/PG/operator latches are intentionally
+            // not borrowed from the melodic channels in this stage.
+            _ => Ok(()),
+        }
     }
 }
 
@@ -716,7 +839,7 @@ mod tests {
     }
 
     #[test]
-    fn rhythm_owned_slots_remain_gated_until_pg_operator_dispatch_is_integrated() {
+    fn rhythm_owned_slots_skip_melodic_operator_mutation_but_reach_do_rhythm() {
         let rhythm_cycles = [
             (11, EnvelopeRhythmSelect::BassDrumFirst),
             (12, EnvelopeRhythmSelect::HiHat),
@@ -727,28 +850,29 @@ mod tests {
         ];
 
         for (cycle, selector) in rhythm_cycles {
-            let mut service = Ym2413PgSerialService::new(initial_bank(0));
-            let before = service.export_state();
+            let mut service = Ym2413PgSerialService::new(initial_bank(0))
+                .with_rhythm_noise_seed(0x5a_1234, cycle)
+                .unwrap();
+            let synthesis_before = service.synthesis().export_state();
+            let operator_before = service.operator.export_state();
             let mut registers = [0; 64];
             registers[0x0e] = 0x20;
-            let mut context = context(cycle, registers, 0);
-            context.rm_enable = 0xff;
-            context.rm_select = selector as u8;
-            context.envelope_input.rhythm_select = selector;
+            let mut slot_context = context(cycle, registers, 0);
+            slot_context.rm_enable = 0xff;
+            slot_context.rm_select = selector as u8;
+            slot_context.envelope_input.rhythm_select = selector;
 
-            assert!(matches!(
-                service.before_eg_update(&context),
-                Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                    cycle: actual,
-                    ..
-                }) if actual == cycle
-            ));
-            assert_eq!(service.export_state(), before);
+            service.before_eg_update(&slot_context).unwrap();
+            assert_eq!(service.synthesis().export_state(), synthesis_before);
+            assert_eq!(service.operator.export_state(), operator_before);
+            let (tick, post) = tick(cycle);
+            service.after_eg_update(&slot_context, tick, post).unwrap();
+            assert_eq!(service.rhythm_noise_state().unwrap().slot_index, (cycle + 1) % 18);
         }
     }
 
     #[test]
-    fn rhythm_slot_mode_and_selector_transitions_are_rejected_transactionally() {
+    fn rhythm_mode_and_selector_transitions_do_not_reassign_melodic_latches() {
         let cases = [
             (true, 0x80, EnvelopeRhythmSelect::HiHat),
             (false, 0x7f, EnvelopeRhythmSelect::None),
@@ -756,20 +880,24 @@ mod tests {
         ];
 
         for (rhythm_enabled, rm_enable, selector) in cases {
-            let mut service = Ym2413PgSerialService::new(initial_bank(0));
-            let before = service.export_state();
+            let mut service = Ym2413PgSerialService::new(initial_bank(0))
+                .with_rhythm_noise_seed(0x5a_1234, 12)
+                .unwrap();
+            let synthesis_before = service.synthesis().export_state();
+            let operator_before = service.operator.export_state();
             let mut registers = [0; 64];
             registers[0x0e] = if rhythm_enabled { 0x20 } else { 0 };
-            let mut context = context(12, registers, 0);
-            context.rm_enable = rm_enable;
-            context.rm_select = selector as u8;
-            context.envelope_input.rhythm_select = selector;
+            let mut slot_context = context(12, registers, 0);
+            slot_context.rm_enable = rm_enable;
+            slot_context.rm_select = selector as u8;
+            slot_context.envelope_input.rhythm_select = selector;
 
-            assert!(matches!(
-                service.before_eg_update(&context),
-                Err(Ym2413PgSerialError::UnsupportedRhythmMode { cycle: 12, .. })
-            ));
-            assert_eq!(service.export_state(), before);
+            service.before_eg_update(&slot_context).unwrap();
+            assert_eq!(service.synthesis().export_state(), synthesis_before);
+            assert_eq!(service.operator.export_state(), operator_before);
+            let (tick, post) = tick(12);
+            service.after_eg_update(&slot_context, tick, post).unwrap();
+            assert_eq!(service.rhythm_noise_state().unwrap().slot_index, 13);
         }
     }
 
@@ -841,6 +969,90 @@ mod tests {
             PhaseGenerator::phase_step(0x01ff, 7, 15, true, 2),
             Ok(super::YM2413_PG_INCREMENT_MAX)
         );
+    }
+
+    #[test]
+    fn seeded_rhythm_noise_advances_once_on_all_eighteen_slots_in_melodic_mode() {
+        use crate::rhythm::Ym2413RhythmSlotNoiseSequencer;
+
+        let seed = 0x5a_1234;
+        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(seed, 0)
+            .unwrap();
+        let mut core = Ym2413Core::new();
+        core.advance_input_clocks_with_slot_service(72, &mut service).unwrap();
+
+        let mut expected = Ym2413RhythmSlotNoiseSequencer::with_seed_at_slot(seed, 0).unwrap();
+        let mut expected_samples = [None, None];
+        for _ in 0..18 {
+            if let Some(sample) = expected.advance_slot() {
+                match sample.voice {
+                    crate::Ym2413RhythmVoice::HiHat => expected_samples[0] = Some(sample.noise_bit),
+                    crate::Ym2413RhythmVoice::SnareDrum => expected_samples[1] = Some(sample.noise_bit),
+                    _ => unreachable!(),
+                }
+            }
+        }
+        assert_eq!(service.rhythm_noise_state(), Some(expected.export_state()));
+        assert_eq!(service.rhythm_noise_samples(), expected_samples);
+        assert_eq!(service.rhythm_noise_state().unwrap().slot_index, 0);
+    }
+
+    #[test]
+    fn seeded_rhythm_noise_snapshot_restore_and_block_partitioning_are_equivalent() {
+        let seed = 0x31_4567;
+        let mut whole_core = Ym2413Core::new();
+        let mut whole_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(seed, 0)
+            .unwrap();
+        whole_core.advance_input_clocks_with_slot_service(18 * 72, &mut whole_service).unwrap();
+
+        let mut split_core = Ym2413Core::new();
+        let mut split_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(seed, 0)
+            .unwrap();
+        for clocks in [1, 3, 4, 17, 29, 7, 11, 53, 72, 91, 8, 101, 17, 29, 37, 61, 23, 103, 201, 417] {
+            split_core.advance_input_clocks_with_slot_service(clocks, &mut split_service).unwrap();
+        }
+        let elapsed = split_core.elapsed_input_clocks();
+        let total = 18 * 72;
+        if elapsed < total {
+            split_core.advance_input_clocks_with_slot_service(total - elapsed, &mut split_service).unwrap();
+        }
+        assert_eq!(whole_core.export_state(), split_core.export_state());
+        assert_eq!(whole_service.export_state(), split_service.export_state());
+
+        let mut checkpoint_core = Ym2413Core::new();
+        let mut checkpoint_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(seed, 0)
+            .unwrap();
+        checkpoint_core.advance_input_clocks_with_slot_service(4 * 13 + 2, &mut checkpoint_service).unwrap();
+        let mut restored_core = Ym2413Core::restore_state(checkpoint_core.export_state()).unwrap();
+        let mut restored_service = Ym2413PgSerialService::restore_state(checkpoint_service.export_state()).unwrap();
+        let remaining = 18 * 72 - checkpoint_core.elapsed_input_clocks();
+        restored_core.advance_input_clocks_with_slot_service(remaining, &mut restored_service).unwrap();
+        let mut reference_core = Ym2413Core::new();
+        let mut reference_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(seed, 0)
+            .unwrap();
+        reference_core.advance_input_clocks_with_slot_service(18 * 72, &mut reference_service).unwrap();
+        assert_eq!(reference_core.export_state(), restored_core.export_state());
+        assert_eq!(reference_service.export_state(), restored_service.export_state());
+    }
+
+    #[test]
+    fn rhythm_noise_slot_cursor_mismatch_rejects_the_staged_service_transaction() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_seed(0x5a_1234, 1)
+            .unwrap();
+        let before = service.export_state();
+        let mut core = Ym2413Core::new();
+        assert!(matches!(
+            core.advance_input_clocks_with_slot_service(4, &mut service),
+            Err(Ym2413SlotServiceAdvanceError::Service(Ym2413PgSerialError::InvalidState))
+        ));
+        assert_eq!(service.export_state(), before);
+        assert_eq!(core.slot_index(), 0);
     }
 
     #[derive(Clone)]
