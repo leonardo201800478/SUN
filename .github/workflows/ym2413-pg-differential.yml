@@ -47,9 +47,9 @@ jobs:
           source = source.replace(
               include,
               include
-              + "\\nuint16_t opll_trace_pg_out_before_operator = 0;"
-              + "\\nuint16_t opll_trace_operator_phase_index = 0;"
-              + "\\nint16_t opll_trace_operator_output = 0;\\n",
+              + "\nuint16_t opll_trace_pg_out_before_operator = 0;"
+              + "\nuint16_t opll_trace_operator_phase_index = 0;"
+              + "\nint16_t opll_trace_operator_output = 0;\n",
               1,
           )
           stage = "    OPLL_PhaseGenerate(chip);\n\n    OPLL_Operator(chip);"
@@ -63,36 +63,36 @@ jobs:
               1,
           )
           phase = (
-              "    if (phase & 0x100) {\\n"
-              "        phase ^= 0xff;\\n"
-              "    }\\n"
+              "    if (phase & 0x100) {\n"
+              "        phase ^= 0xff;\n"
+              "    }\n"
               "    chip->op_logsin = logsinrom[phase & 0xff];"
           )
           if source.count(phase) != 1:
               raise SystemExit("pinned Nuked operator phase mirror anchor changed")
           source = source.replace(
               phase,
-              "    if (phase & 0x100) {\\n"
-              "        phase ^= 0xff;\\n"
-              "    }\\n"
-              "    opll_trace_operator_phase_index = (uint16_t)phase;\\n"
+              "    if (phase & 0x100) {\n"
+              "        phase ^= 0xff;\n"
+              "    }\n"
+              "    opll_trace_operator_phase_index = (uint16_t)phase;\n"
               "    chip->op_logsin = logsinrom[phase & 0xff];",
               1,
           )
           output = (
-              "    if (!chip->eg_silent && (chip->op_neg&2)) {\\n"
-              "        output = ~output;\\n"
-              "    }\\n\\n"
+              "    if (!chip->eg_silent && (chip->op_neg&2)) {\n"
+              "        output = ~output;\n"
+              "    }\n\n"
               "    level = chip->op_logsin+(chip->eg_out<<4);"
           )
           if source.count(output) != 1:
               raise SystemExit("pinned Nuked operator output boundary anchor changed")
           source = source.replace(
               output,
-              "    if (!chip->eg_silent && (chip->op_neg&2)) {\\n"
-              "        output = ~output;\\n"
-              "    }\\n"
-              "    opll_trace_operator_output = output;\\n\\n"
+              "    if (!chip->eg_silent && (chip->op_neg&2)) {\n"
+              "        output = ~output;\n"
+              "    }\n"
+              "    opll_trace_operator_output = output;\n\n"
               "    level = chip->op_logsin+(chip->eg_out<<4);",
               1,
           )
