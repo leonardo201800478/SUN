@@ -277,9 +277,7 @@ pub const fn nuked_cycle_selected_slot_index(cycle: u8) -> Option<u8> {
 }
 
 /// Resolve the logical channel/operator selected by one Nuked serial cycle.
-pub const fn nuked_cycle_selected_slot_descriptor(
-    cycle: u8,
-) -> Option<Ym2413SlotDescriptor> {
+pub const fn nuked_cycle_selected_slot_descriptor(cycle: u8) -> Option<Ym2413SlotDescriptor> {
     match nuked_cycle_selected_slot_index(cycle) {
         Some(index) => slot_descriptor(index),
         None => None,
@@ -429,7 +427,10 @@ mod tests {
 
             assert_eq!(slot_index, (cycle + 1) % YM2413_SLOT_COUNT as u8);
             assert_eq!(descriptor, YM2413_SLOT_MAP[usize::from(slot_index)]);
-            assert_eq!(descriptor.channel, YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]);
+            assert_eq!(
+                descriptor.channel,
+                YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]
+            );
             assert_eq!(
                 matches!(descriptor.operator, Ym2413Operator::Carrier),
                 carrier
@@ -466,5 +467,4 @@ mod tests {
             assert_eq!(nuked_eg_output_index(invalid), None);
         }
     }
-
 }
