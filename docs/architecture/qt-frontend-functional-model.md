@@ -5,7 +5,7 @@
 # Modelo funcional do frontend Qt
 
 **Estado:** DESIGN / MODELING — especificação inicial, sem implementação nesta proposta.  
-**Escopo:** interface desktop Qt/PySide6 do Sega Emulator, inicialmente SG-1000 e Master System (SMS).  
+**Escopo:** interface desktop Qt/PySide6 do SUN — Strife Uranus Neptune, inicialmente SG-1000 e Master System (SMS).  
 **Runtime:** Rust permanece como único runtime de hardware. Python/PySide6 cuida da interface, preferências, carregamento de mídia e orquestração pela fronteira PyO3.
 
 ## 1. Objetivo e princípios
@@ -158,7 +158,7 @@ Manter seletor de região atual. Cada sistema oferece somente opções regionais
 - SRAM é persistência do jogo; Save State é snapshot do estado interno da máquina.
 
 ### 3.10 Sobre
-Exibir nome Sega Emulator, versão obtida automaticamente dos metadados oficiais do build e identificação do projeto. Manter simples.
+Exibir nome SUN — Strife Uranus Neptune, versão obtida automaticamente dos metadados oficiais do build e identificação do projeto. Manter simples.
 
 ## 4. Seletor de sistema
 Disponível somente quando o emulador estiver encerrado, sem ROM e sem sessão ativa.
