@@ -105,12 +105,12 @@ pub use rhythm::{
     Ym2413RhythmSlotNoiseSequencerState, Ym2413RhythmSlotNoiseState, Ym2413RhythmVoiceConfig,
     decode_rhythm_registers,
 };
-pub use rhythm_dispatch::{
-    Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError, dispatch_serial_slot,
-};
 pub use rhythm_channel::{
     RhythmChannelSynthesisError, RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig,
     RhythmVoiceSynthesisError, Ym2413RhythmSynthesisConfig, decode_rhythm_synthesis,
+};
+pub use rhythm_dispatch::{
+    Ym2413SerialSlotDispatch, Ym2413SerialSlotDispatchError, dispatch_serial_slot,
 };
 pub use rhythm_output::{
     YM2413_DAC_CODE_MAX, YM2413_DAC_CODE_MIN, YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION,
