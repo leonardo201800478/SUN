@@ -98,6 +98,10 @@ pub enum Ym2413OutputSlotResult {
         slot_index: u8,
         voice: Ym2413RhythmVoice,
     },
+    /// Rhythm Mode is disabled; no measured-domain RO level is asserted.
+    ///
+    /// This is not a claim that the physical RO pin is electrically silent.
+    ModeInactive,
 }
 
 /// One slot's measured-domain output pulse.
@@ -425,12 +429,12 @@ impl Ym2413RhythmOutputService {
                     },
                 ));
             }
-            // No percussion operator is selected outside Rhythm Mode. Advance
-            // the independent RO cursor without consuming melodic data as a
-            // percussion source, and keep the pin inactive.
+            // No percussion source is available outside Rhythm Mode. Advance
+            // the independent RO cursor and invalidate source latches as their
+            // slots pass, but do not claim an electrical neutral/silent RO pin.
             self.rhythm_delay
                 .process_slot_with_validity(ro_slot_index, None, false)?;
-            Ym2413OutputSlotResult::NoOutput
+            Ym2413OutputSlotResult::ModeInactive
         };
 
         Ok(Ym2413OutputCycleFrame {
@@ -503,7 +507,7 @@ impl Ym2413RhythmOutputService {
         let ro = if rhythm_mode_enabled {
             rhythm_slot_result(rhythm_result)?
         } else {
-            Ym2413OutputSlotResult::NoOutput
+            Ym2413OutputSlotResult::ModeInactive
         };
 
         Ok(Ym2413OutputCycleFrame {
@@ -1340,7 +1344,7 @@ mod tests {
     }
 
     #[test]
-    fn measured_cycle_service_suppresses_ro_and_rejects_percussion_input_outside_rhythm_mode() {
+    fn measured_cycle_service_marks_ro_inactive_and_rejects_percussion_input_outside_rhythm_mode() {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
         let frame = service
@@ -1349,7 +1353,7 @@ mod tests {
         assert_eq!(frame.mo_slot_index, 3);
         assert!(frame.mo.is_some());
         assert_eq!(frame.ro_slot_index, 15);
-        assert_eq!(frame.ro, Ym2413OutputSlotResult::NoOutput);
+        assert_eq!(frame.ro, Ym2413OutputSlotResult::ModeInactive);
 
         let mut invalid =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
@@ -1364,7 +1368,7 @@ mod tests {
     }
 
     #[test]
-    fn channel_output_adapter_suppresses_ro_and_does_not_latch_melody_while_rhythm_is_disabled() {
+    fn channel_output_adapter_marks_ro_inactive_and_does_not_latch_melody_while_rhythm_is_disabled() {
         let mut service =
             super::Ym2413RhythmOutputService::with_initial_state(service_state(15)).unwrap();
 
@@ -1378,7 +1382,7 @@ mod tests {
             let frame = service
                 .process_nuked_cycle_from_channel_output(cycle, false, Some(73))
                 .unwrap();
-            assert_eq!(frame.ro, Ym2413OutputSlotResult::NoOutput);
+            assert_eq!(frame.ro, Ym2413OutputSlotResult::ModeInactive);
         }
 
         // Re-enter Rhythm Mode at the original BD source position. The new
