@@ -8,6 +8,34 @@
 use crate::synthesis_tables::{YM2413_EXP_TABLE, YM2413_LOG_SINE_TABLE};
 
 pub const YM2413_PHASE_INDEX_MASK: u16 = 0x03ff;
+
+/// Return Nuked's serial log-sine ROM value for the current ten-bit phase.
+///
+/// The ROM address mirrors the lower eight phase bits when phase bit 8 is set;
+/// phase bit 9 is retained separately by the serial operator's sign pipeline.
+pub const fn serial_log_sine(phase: u16) -> u16 {
+    let mut address = phase & YM2413_PHASE_INDEX_MASK;
+    if address & 0x0100 != 0 {
+        address ^= 0x00ff;
+    }
+    YM2413_LOG_SINE_TABLE[(address & 0x00ff) as usize]
+}
+
+/// Return the serial EXP-ROM mantissa latch for the low eight level bits.
+///
+/// The generated EXP curve is represented in a complementary, doubled domain
+/// for the sample-oriented evaluator. Converting it here yields the eleven-bit
+/// mantissa used by the serial OPLL operator pipeline.
+pub const fn serial_exponential_mantissa(level: u16) -> u16 {
+    let address = (level & 0x00ff) as usize;
+    let generated = YM2413_EXP_TABLE[255 - address];
+    ((generated << 1) | 0x0800) >> 1
+}
+
+/// Return the serial EXP-ROM exponent latch for a twelve-bit level.
+pub const fn serial_exponential_shift(level: u16) -> u8 {
+    ((level >> 8) & 0x0f) as u8
+}
 pub const YM2413_OPERATOR_PAIR_STATE_VERSION: u16 = 2;
 
 /// Errors produced by the candidate operator synthesis path.
@@ -427,6 +455,34 @@ mod tests {
 
     fn pair() -> OperatorPair {
         OperatorPair::with_feedback_history([0, 0])
+    }
+
+    #[test]
+    fn serial_log_sine_matches_the_phase_mirror_and_sign_split() {
+        for phase in 0..=YM2413_PHASE_INDEX_MASK {
+            let mut address = phase;
+            if address & 0x0100 != 0 {
+                address ^= 0x00ff;
+            }
+            assert_eq!(
+                serial_log_sine(phase),
+                YM2413_LOG_SINE_TABLE[(address & 0x00ff) as usize],
+                "serial log-sine phase {phase:#05x}"
+            );
+        }
+    }
+
+    #[test]
+    fn serial_exp_latches_split_the_generated_curve_without_rounding_changes() {
+        for level in 0..=0x0fff {
+            let address = (level & 0x00ff) as usize;
+            let generated = YM2413_EXP_TABLE[255 - address];
+            assert_eq!(
+                serial_exponential_mantissa(level),
+                ((generated << 1) | 0x0800) >> 1
+            );
+            assert_eq!(serial_exponential_shift(level), (level >> 8) as u8);
+        }
     }
 
     #[test]
