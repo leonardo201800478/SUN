@@ -39,7 +39,8 @@ pub struct Ym2413OutputPipelineState {
     pub previous_channel_output: i16,
     pub output_m: i16,
     pub output_r: i16,
-    pub rm_enable: u8,
+    /// Signed Nuked int8_t mode-write shift register; right shifts are arithmetic.
+    pub rm_enable: i8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,8 +156,8 @@ impl Ym2413OutputPipeline {
 
         self.state.rm_enable >>= 1;
         if let Some(data) = qualified_rhythm_write_data {
-            self.state.rm_enable =
-                (self.state.rm_enable & 0x7f) | (u8::from(data & 0x20 != 0) << 7);
+            self.state.rm_enable = ((self.state.rm_enable as u8 & 0x7f)
+                | ((data & 0x20) << 2)) as i8;
         }
 
         let mut active = self.state.previous_channel_output;
@@ -237,20 +238,24 @@ mod tests {
     }
 
     #[test]
-    fn register_0e_write_shifts_bit_seven_into_bit_six_then_out() {
+    fn register_0e_write_sign_extends_through_nuked_signed_rm_enable() {
         let mut p = Ym2413OutputPipeline::new();
         assert_eq!(tick(&mut p, 0, 12, Some(0x20)), (0, 0));
-        assert_eq!(p.export_state().rm_enable, 0x80);
+        assert_eq!(p.export_state().rm_enable as u8, 0x80);
         assert_eq!(tick(&mut p, 1, 0, None), (1, 1));
-        assert_eq!(p.export_state().rm_enable, 0x40);
+        assert_eq!(p.export_state().rm_enable as u8, 0xc0);
         assert_eq!(tick(&mut p, 2, 0, None), (1, 13));
-        assert_eq!(p.export_state().rm_enable, 0x20);
-        assert_eq!(tick(&mut p, 3, 0, None), (1, 1));
-        assert_eq!(p.export_state().rm_enable, 0x10);
+        assert_eq!(p.export_state().rm_enable as u8, 0xe0);
+        assert_eq!(tick(&mut p, 3, 0, None), (1, 13));
+        assert_eq!(p.export_state().rm_enable as u8, 0xf0);
+        for cycle in 4..10 {
+            tick(&mut p, cycle, 0, None);
+        }
+        assert_eq!(p.export_state().rm_enable, -1);
     }
 
     #[test]
-    fn disabling_rhythm_does_not_cancel_bit_six_already_in_flight() {
+    fn disabling_rhythm_clears_sign_extension_after_one_final_bit_six_cycle() {
         let mut p = Ym2413OutputPipeline::new();
         tick(&mut p, 0, 0, Some(0x20));
         tick(&mut p, 1, 0, Some(0x00));
@@ -260,14 +265,15 @@ mod tests {
     }
 
     #[test]
-    fn ro_gate_is_transient_and_visible_through_the_output_buffer() {
+    fn ro_gate_remains_active_while_signed_rm_enable_is_set() {
         let mut p = Ym2413OutputPipeline::new();
         tick(&mut p, 0, 5, Some(0x20));
         assert_eq!(p.process_cycle(1, 0, None).unwrap().ro.value(), 1);
-        assert_eq!(p.export_state().rm_enable, 0x40);
+        assert_eq!(p.export_state().rm_enable as u8, 0xc0);
         assert_eq!(p.process_cycle(2, 0, None).unwrap().ro.value(), 6);
-        assert_eq!(p.export_state().rm_enable, 0x20);
+        assert_eq!(p.export_state().rm_enable as u8, 0xe0);
         assert_eq!(p.process_cycle(3, 0, None).unwrap().ro.value(), 1);
+        assert_eq!(p.export_state().rm_enable as u8, 0xf0);
     }
 
     #[test]
