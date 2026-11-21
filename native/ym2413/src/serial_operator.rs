@@ -502,9 +502,8 @@ impl Ym2413SerialOperator {
 #[cfg(test)]
 mod tests {
     use super::{
-        Ym2413SerialOperator, Ym2413SerialOperatorError,
-        Ym2413SerialOperatorPatch1Latches, Ym2413SerialOperatorPatch2Latches,
-        Ym2413SerialOperatorState,
+        Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
+        Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
     };
     use crate::synthesis_tables::YM2413_EXP_TABLE;
 
