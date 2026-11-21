@@ -15,15 +15,6 @@
 #include <string.h>
 #include "opll.h"
 
-#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
-extern uint16_t opll_trace_pg_out_before_operator;
-extern uint16_t opll_trace_operator_phase_index;
-extern int16_t opll_trace_operator_output;
-extern uint8_t opll_trace_selected_instr;
-extern uint8_t opll_trace_selected_op;
-extern uint8_t opll_trace_testmode_at_dolfo;
-#endif
-
 #define MAX_EVENTS 65536
 
 static int phase_reset_probe = 0;
@@ -172,7 +163,7 @@ int main(int argc, char **argv) {
     } else if (pg_only) {
         puts("{\"schema\":\"ym2413-nuked-opll-pg-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"pg_increment_after_OPLL_Clock\"}");
     } else {
-        puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9,\"op_calc_op_fb1\":9,\"op_calc_op_fb2\":9}}");
+        puts("{\"schema\":\"ym2413-nuked-opll-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\",\"arrays\":{\"pg_phase\":18,\"eg_state\":18,\"eg_level\":18,\"op_fb1\":9,\"op_fb2\":9}}");
     }
 
     for (uint64_t tick = 0; tick < calls; ++tick) {
@@ -187,23 +178,6 @@ int main(int argc, char **argv) {
         uint32_t calc_eg_dokon = chip.eg_dokon;
         uint8_t calc_testmode = chip.testmode;
         uint8_t calc_rm_enable = chip.rm_enable;
-        /* Inputs consumed by OPLL_Operator during this call. */
-        uint16_t op_calc_pg_out = chip.pg_out;
-        uint8_t op_calc_eg_out = chip.eg_out;
-        uint8_t op_calc_eg_silent = chip.eg_silent;
-        uint8_t op_calc_c_fb = chip.c_fb;
-        uint8_t op_calc_c_dc = chip.c_dc;
-        uint8_t op_calc_c_dm = chip.c_dm;
-        int16_t op_calc_op_mod = chip.op_mod;
-        int16_t op_calc_op_fbsum = chip.op_fbsum;
-        int16_t op_calc_op_fb1[9];
-        int16_t op_calc_op_fb2[9];
-        memcpy(op_calc_op_fb1, chip.op_fb1, sizeof(op_calc_op_fb1));
-        memcpy(op_calc_op_fb2, chip.op_fb2, sizeof(op_calc_op_fb2));
-        uint16_t am_calc_lfo_counter = chip.lfo_counter;
-        uint8_t am_calc_testmode = chip.testmode;
-        uint8_t selected_instr = chip.c_instr;
-        uint8_t selected_op = chip.c_op;
         uint32_t phase_ismod =
             ((calc_rm_enable & 0x40) && (cycle_before == 13 || cycle_before == 14))
                 ? 0
@@ -232,14 +206,6 @@ int main(int argc, char **argv) {
         }
 
         OPLL_Clock(&chip, output);
-#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
-        am_calc_testmode = opll_trace_testmode_at_dolfo;
-        selected_instr = opll_trace_selected_instr;
-        selected_op = opll_trace_selected_op;
-#endif
-#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
-        op_calc_pg_out = opll_trace_pg_out_before_operator;
-#endif
         if (pg_phase_only) {
             printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32
                    ",\"cycle_after\":%" PRIu32 ",\"calc_fnum\":%u,\"calc_block\":%u"
@@ -253,7 +219,7 @@ int main(int argc, char **argv) {
                    (unsigned)calc_testmode, (unsigned)calc_rm_enable,
                    (unsigned)phase_next_reset, chip.pg_inc, chip.pg_phase_next);
             print_u32_array(chip.pg_phase, 18);
-            printf(",\"pg_out\":%u}\n", (unsigned)chip.pg_out);
+            puts("}");
             continue;
         }
         if (pg_only) {
@@ -269,27 +235,17 @@ int main(int argc, char **argv) {
         printf(",\"calc_fnum\":%u,\"calc_block\":%u,\"calc_mul\":%u,\"calc_vib\":%u,\"calc_lfo_vib_counter\":%u,\"pg_inc_after\":%" PRIu32,
                (unsigned)calc_fnum, (unsigned)calc_block, (unsigned)calc_mul,
                (unsigned)calc_vib, (unsigned)calc_lfo_vib_counter, chip.pg_inc);
-        printf(",\"op_calc_pg_out\":%u,\"op_calc_eg_out\":%u,\"op_calc_eg_silent\":%u,\"op_calc_c_fb\":%u,\"op_calc_c_dc\":%u,\"op_calc_c_dm\":%u,\"op_calc_op_mod\":%d,\"op_calc_op_fbsum\":%d",
-               (unsigned)op_calc_pg_out, (unsigned)op_calc_eg_out,
-               (unsigned)op_calc_eg_silent, (unsigned)op_calc_c_fb,
-               (unsigned)op_calc_c_dc, (unsigned)op_calc_c_dm,
-               (int)op_calc_op_mod, (int)op_calc_op_fbsum);
-        printf(",\"op_calc_op_fb1\":"); print_i16_array(op_calc_op_fb1, 9);
-        printf(",\"op_calc_op_fb2\":"); print_i16_array(op_calc_op_fb2, 9);
         printf(",\"output_m\":%" PRId32 ",\"output_r\":%" PRId32, output[0], output[1]);
         printf(",\"pg_inc\":%" PRIu32 ",\"pg_phase_next\":%" PRIu32 ",\"pg_phase\":",
                chip.pg_inc, chip.pg_phase_next);
         print_u32_array(chip.pg_phase, 18);
         printf(",\"pg_out\":%u", (unsigned)chip.pg_out);
         printf(",\"c_instr\":%u,\"c_op\":%u,\"c_tl\":%u,\"c_fb\":%u,\"c_am\":%u,\"c_vib\":%u,\"c_ksr\":%u,\"c_ksl\":%u,\"c_multi\":%u,\"c_fnum\":%u,\"c_block\":%u",
-               (unsigned)selected_instr, (unsigned)selected_op, (unsigned)chip.c_tl,
+               (unsigned)chip.c_instr, (unsigned)chip.c_op, (unsigned)chip.c_tl,
                (unsigned)chip.c_fb, (unsigned)chip.c_am, (unsigned)chip.c_vib,
                (unsigned)chip.c_ksr, (unsigned)chip.c_ksl, (unsigned)chip.c_multi,
                (unsigned)chip.c_fnum, (unsigned)chip.c_block);
         printf(",\"c_adrr\":"); print_u8_array(chip.c_adrr, 3);
-        printf(",\"c_dc\":%u,\"c_dm\":%u,\"c_ksl_freq\":%u,\"c_ksl_block\":%u",
-               (unsigned)chip.c_dc, (unsigned)chip.c_dm,
-               (unsigned)chip.c_ksl_freq, (unsigned)chip.c_ksl_block);
         printf(",\"c_et\":%u,\"c_sl\":%u,\"c_ksr_freq\":%u",
                (unsigned)chip.c_et, (unsigned)chip.c_sl, (unsigned)chip.c_ksr_freq);
         printf(",\"eg_counter_state\":%u,\"eg_counter_state_prev\":%u"
@@ -311,25 +267,15 @@ int main(int argc, char **argv) {
                (unsigned)chip.eg_sl, (unsigned)chip.eg_silent);
         printf(",\"eg_state\":"); print_u8_array(chip.eg_state, 18);
         printf(",\"eg_level\":"); print_u8_array(chip.eg_level, 18);
-        printf(",\"eg_out\":%u,\"eg_ksltl\":%u",
-               (unsigned)chip.eg_out, (unsigned)chip.eg_ksltl);
+        printf(",\"eg_out\":%u", (unsigned)chip.eg_out);
         printf(",\"lfo_counter\":%u,\"lfo_vib_counter\":%u,\"lfo_am_counter\":%u,\"lfo_am_out\":%u",
                (unsigned)chip.lfo_counter, (unsigned)chip.lfo_vib_counter,
                (unsigned)chip.lfo_am_counter, (unsigned)chip.lfo_am_out);
-        printf(",\"am_calc_lfo_counter\":%u,\"am_calc_testmode\":%u,\"lfo_am_dir\":%u,\"lfo_am_car\":%u,\"lfo_am_step\":%u",
-               (unsigned)am_calc_lfo_counter, (unsigned)am_calc_testmode,
-               (unsigned)chip.lfo_am_dir, (unsigned)chip.lfo_am_car,
-               (unsigned)chip.lfo_am_step);
         printf(",\"op_fb1\":"); print_i16_array(chip.op_fb1, 9);
         printf(",\"op_fb2\":"); print_i16_array(chip.op_fb2, 9);
         printf(",\"op_fbsum\":%d,\"op_mod\":%d,\"op_neg\":%u,\"op_logsin\":%u,\"op_exp_m\":%u,\"op_exp_s\":%u",
                (int)chip.op_fbsum, (int)chip.op_mod, (unsigned)chip.op_neg,
                (unsigned)chip.op_logsin, (unsigned)chip.op_exp_m, (unsigned)chip.op_exp_s);
-#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
-        printf(",\"op_phase_index\":%u,\"op_output\":%d",
-               (unsigned)opll_trace_operator_phase_index,
-               (int)opll_trace_operator_output);
-#endif
         printf(",\"ch_out\":%d,\"ch_out_hh\":%d,\"ch_out_tm\":%d,\"ch_out_bd\":%d,\"ch_out_sd\":%d,\"ch_out_tc\":%d",
                (int)chip.ch_out, (int)chip.ch_out_hh, (int)chip.ch_out_tm,
                (int)chip.ch_out_bd, (int)chip.ch_out_sd, (int)chip.ch_out_tc);
