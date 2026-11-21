@@ -1232,3 +1232,31 @@ Workflow **YM2413 Nuked PG differential**, run 44856572960, **SUCCESS** no HEAD 
 Workflow CI run 44856572957: Rustfmt, Clippy workspace, testes unitários/integração do workspace e Clippy/testes da feature observability concluídos com **SUCCESS**. As validações não relacionadas de Windows/desktop/console permanecem SKIPPED e não são consideradas PASS.
 
 A caracterização EG run 44856572947 ainda estava em execução no momento desta atualização.
+
+
+---
+
+## FM-3 — serial operator pipeline (2026-11-21)
+
+**Status: IN PROGRESS — FM-3A implementation present; differential and integrated validation pending.**
+
+- Added `native/ym2413/src/serial_operator.rs` with serial `OPLL_Operator` state, two-sample feedback arrays for nine channels, operator modulation, log-sine/EXP pipeline, waveform delay latches, EG output, and KSL/TL latches.
+- Connected the operator stage to the core-owned slot hooks in Nuked order: PreparePatch1 → PhaseGenerate → Operator → PhaseCalcIncrement → EnvelopeOutput → EnvelopeKSLTL → core-owned EG update → DoLFO → PreparePatch2.
+- `Ym2413Core` remains the only owner and updater of the 18-slot EG. The serial operator reads the core's envelope levels and does not create a second EG.
+- Serial operator state and output latches are included in the PG service snapshot; PG service snapshot format is now version 2 on the FM-3 branch.
+- Log-sine table comparison against pinned Nuked `logsinrom`: 256/256 values equal. EXP reconstruction `1024 + YM2413_EXP_TABLE[255-index]` against pinned Nuked `exprom`: 256/256 values equal.
+- Added pre-call operator latch capture to the external Nuked trace adapter, a Rust replay example, and `compare_operator.py`. The workflow fixture covers nine melodic channels, a user patch with feedback/AM/VIB/DC/DM, KEY-ON/KEY-OFF, live writes, and Test Mode bits 0–3.
+- The independent operator differential has **not yet run to PASS** on an FM-3 HEAD. No operator or integrated-pipeline differential success is claimed.
+- AM currently consumes the existing measured sample-domain LFO candidate at the serial rotation boundary. Its equivalence to Nuked's per-slot AM shift-register behavior remains open and must be resolved before FM-3 closure.
+- Rhythm Mode, PCM channel accumulation, digital output, DAC mapping, SMS FM ports, and PSG+FM mixing remain later roadmap stages.
+
+### Required FM-3 closure gates
+
+1. Operator internal-state differential PASS against pinned Nuked on the exact final HEAD.
+2. Integrated PG + operator + core-owned EG differential with Rust-generated inputs, not oracle-injected inputs.
+3. Latch timing and active-note parameter-write coverage for all nine channels.
+4. Test Mode and AM LFO serial behavior differential.
+5. Continuous/partitioned equivalence, clone independence, snapshot/restore, rollback and retry idempotence.
+6. Rust workspace regression, Clippy, formatting, and relevant CI gates PASS.
+7. Independent review with no unresolved P1/P2 findings.
+
