@@ -207,13 +207,6 @@ impl Ym2413PgSerialService {
         self.pipeline.lfo_vib_counter =
             self.pipeline.lfo_vib_counter.wrapping_add(rollover + test_step) & 7;
         self.synthesis.advance_pm_lfo_samples(1);
-
-        // Test Mode bit 1 resets the PM counter and the independent vibrato
-        // phase latch after the normal cycle-17 update.
-        if testmode & 0x02 != 0 {
-            self.pipeline.lfo_vib_counter = 0;
-            self.synthesis.reset_pm_lfo();
-        }
     }
 
     /// Reproduce PreparePatch2's channel/operator parameter selection for the
@@ -257,8 +250,14 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     ) -> Result<(), Self::Error> {
         // Nuked order: PhaseCalcIncrement, then DoLFO, then PreparePatch2.
         self.calculate_increment()?;
-        if context.event.cycle == 17 {
-            self.clock_pm_lfo(context.registers[0x0f]);
+        let testmode = context.registers[0x0f];
+        if testmode & 0x02 != 0 {
+            // Nuked applies this reset in DoLFO on every serial cycle, not
+            // only at the cycle-17 PM counter increment boundary.
+            self.pipeline.lfo_vib_counter = 0;
+            self.synthesis.reset_pm_lfo();
+        } else if context.event.cycle == 17 {
+            self.clock_pm_lfo(testmode);
         }
         self.latch_next_parameters(context)
     }
@@ -466,6 +465,22 @@ mod tests {
         service.after_eg_update(&context, tick, post).unwrap();
         assert_eq!(service.lfo_vib_counter(), 4);
         assert_eq!(service.synthesis().pm_lfo_counter(), 0x0400);
+    }
+
+    #[test]
+    fn test_mode_lfo_reset_is_applied_on_each_serial_cycle() {
+        let mut service = service_with_pipeline(
+            initial_bank(0x0555),
+            0,
+            0,
+            Ym2413PgParameterLatch::RESET,
+            6,
+        );
+        let context = context(3, [0; 64], 0x02);
+        let (tick, post) = tick(3);
+        service.after_eg_update(&context, tick, post).unwrap();
+        assert_eq!(service.lfo_vib_counter(), 0);
+        assert_eq!(service.synthesis().pm_lfo_counter(), 0);
     }
 
     #[test]
