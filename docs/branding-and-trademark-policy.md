@@ -10,7 +10,7 @@
 - Não utilizar o nome anterior do projeto como identidade atual em títulos, descrições, documentação normativa, instruções de desenvolvimento ou materiais de apresentação.
 - Manter nomes técnicos de plataformas, fabricantes, chips e protocolos quando forem necessários para descrever compatibilidade, arquitetura, testes ou comportamento de hardware.
 - Nomes como Sega Master System, Master System, Mark III, SG-1000, Game Gear, Mega Drive, Sega CD, 32X, YM2413 e SN76489 são referências técnicas ao hardware e não devem ser substituídos por SUN.
-- Identificadores históricos de diretórios, crates, pacotes, scripts, caminhos de dados e URLs devem permanecer documentados como identificadores legados até que uma migração de código e compatibilidade seja implementada separadamente. Não alterar esses identificadores apenas por substituição textual.
+- Identificadores históricos de diretórios, crates, pacotes, scripts, caminhos de dados e URLs devem permanecer documentados como identificadores legados até que uma migração de código e compatibilidade seja implementada separadamente. Em particular, o diretório de dados atualmente usado pelo aplicativo continua sendo `%APPDATA%/Sega Emulator/` (e os caminhos equivalentes em `%LOCALAPPDATA%`) até uma migração explícita, com fallback e preservação dos dados existentes. Não alterar esses identificadores apenas por substituição textual.
 
 ## Independência e marcas de terceiros
 
