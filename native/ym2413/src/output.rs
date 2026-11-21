@@ -269,7 +269,7 @@ impl From<Ym2413OutputRoutingError> for Ym2413RhythmOutputServiceError {
 
 /// Serial output stage for the six melodic and five repeated Rhythm Mode outputs.
 ///
-/// The caller invokes process_slot exactly once per completed 18-slot boundary.
+/// The caller invokes process_slot exactly once per completed slot in the 18-slot rotation.
 /// The two input levels are already reconstructed measurement-domain values:
 /// this service never converts the signed operator intermediate to a DAC word.
 /// It also does not advance the chip clock, choose the three-clock pulse's
