@@ -4658,8 +4658,7 @@ mod tests {
         )
         .unwrap();
         let mut audio_session: Option<Box<dyn super::AudioSession>> = Some(Box::new(session));
-        let mut renderer =
-            AudioRendererState::with_fm_output_policy(SmsFmOutputPolicy::Muted);
+        let mut renderer = AudioRendererState::with_fm_output_policy(SmsFmOutputPolicy::Muted);
         let telemetry = WorkerTelemetry::default();
         let mut video_mailbox = None;
         let mut video_sequence = 0;
@@ -4681,7 +4680,10 @@ mod tests {
             assert!(instructions > 0);
         }
 
-        assert!(machine.ym2413().is_some(), "the physical FM chip must remain installed");
+        assert!(
+            machine.ym2413().is_some(),
+            "the physical FM chip must remain installed"
+        );
         assert_ne!(
             machine.ym2413().unwrap().export_state(),
             initial_fm_state,
