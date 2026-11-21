@@ -197,3 +197,15 @@ O trigger Timer0 está documentado como solicitação de amostra por clock YM241
 - fase de Timer0 conhecida em relação ao clock YM2413 e ao slot serial.
 
 Sem essas verificações, Timer0 é apenas uma cadência solicitada, não uma medição temporal certificada.
+
+### Verificação exploratória de `volume0.raw` versus `volume0.out`
+
+Uma comparação dos dois arquivos commitados encontrou:
+
+- `volume0.raw`: 20.032 amostras inteiras ADC.
+- `volume0.out`: 20.030 índices de bins.
+- Melhor alinhamento exploratório: diferença de dois índices entre as sequências; correlação de Pearson ADC bruto↔índice decodificado `r = 0,999917`.
+- A sequência observada cobre 437 bins distintos, com índices no intervalo 0..511.
+- As médias ADC dos bins observados são monotônicas em 436 de 436 pares adjacentes.
+
+Isso é consistente com `decode.cc` classificando a amostra ADC em intervalos analógicos ordenados. Não é uma comparação com o código interno do DAC. A diferença de dois índices entre arquivos ainda não tem explicação temporal demonstrada e não deve ser usada para inferir latência ou fase de hardware.
