@@ -86,8 +86,6 @@ ARRAY_FIELDS = (
     "eg_level",
     "op_fb1",
     "op_fb2",
-    "op_calc_op_fb1",
-    "op_calc_op_fb2",
 )
 
 
@@ -113,6 +111,19 @@ def compare_row(
     ]
     if missing:
         raise ValueError(f"call {call_index}: missing integrated fields {missing}")
+
+    for field in ("op_calc_op_fb1", "op_calc_op_fb2"):
+        expected_values = [int(value) for value in nuked[field]]
+        actual_values = [int(value) for value in rust[field]]
+        if expected_values != actual_values:
+            for index, (expected, actual) in enumerate(
+                zip(expected_values, actual_values, strict=True)
+            ):
+                if expected != actual:
+                    raise ValueError(
+                        f"call {call_index}: {field}[{index}] mismatch "
+                        f"Nuked={expected} Rust={actual}"
+                    )
 
     for field in SCALAR_FIELDS:
         expected = int(nuked[field])
