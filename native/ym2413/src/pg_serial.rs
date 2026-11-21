@@ -306,7 +306,7 @@ mod tests {
     use super::{
         YM2413_PG_SERIAL_PIPELINE_STATE_VERSION, YM2413_PG_SERIAL_STATE_VERSION,
         Ym2413PgParameterLatch, Ym2413PgSerialError, Ym2413PgSerialPipelineState,
-        Ym2413PgSerialService, Ym2413PgSerialServiceState,
+        Ym2413PgSerialService,
     };
     use crate::channel::OperatorPhaseParameters;
     use crate::envelope::{
