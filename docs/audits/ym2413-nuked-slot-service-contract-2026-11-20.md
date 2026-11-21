@@ -97,6 +97,17 @@ The current external `trace.c` adapter captures `calc_rm_enable` before calling 
 
 The Rust helper `nuked_phase_reset_required` intentionally accepts the post-shift/post-mode-write value. Its Rhythm Mode branch is source-level derived and unit-tested, but is **not yet an executable differential PASS**. Before claiming that reset-event path is converged, instrument the external oracle at the actual `OPLL_PhaseGenerate` decision point and compare the post-shift `rm_enable`, pre-update `eg_dokon`, cycle and resulting reset request. Keep that instrumentation external to the Rust backend.
 
+## 5.2. Core-owned slot service hook
+
+The internal `Ym2413Core::advance_input_clocks_with_slot_service` path now exposes two synchronous service boundaries for each completed serial slot:
+
+1. `before_eg_update`: after `rm_enable` shift and pending mode write, with the decoded input, complete pre-update `EnvelopeSequencerState`, register image and `Ym2413SlotServiceEvent`.
+2. `after_eg_update`: after exactly one core-owned `EnvelopeSequencer::tick_slot`, with its resulting `EnvelopeSequencerTick`, and before the timed register-write stage.
+
+The public standalone `advance_input_clocks` path retains its no-service slot routine and does not construct the service context. The host still advances the core in input-clock blocks; these are internal Rust service hooks, not GUI or host callbacks.
+
+The core's state is committed only if all slot service calls succeed. The integrated pipeline must stage its own PG/operator/LFO state transactionally as well, because a service error can occur after earlier callbacks in the same block. Continuous and partitioned service advancement must produce identical core and service state.
+
 ## 6. FM-1B implementation constraints
 
 The next implementation must:
