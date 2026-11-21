@@ -1,7 +1,7 @@
 # Escopo do projeto — Sega Emulator
 
-**Revisão:** 2026-11-16
-**Baseline remota consultada:** `main` SHA `bb155bdfe1a188ccc8f5b4a01896b23a0cfde808`.
+**Revisão:** 2026-11-21
+**Baseline remota consultada:** `main` SHA `7bcbdb244a307f73c39ea1540afde7a8427f1e44`.
 **Arquitetura desktop ativa:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + input SDL3 integrado em fatias.
 **Runtime:** Rust; MachineScheduler como autoridade temporal.
 
@@ -44,6 +44,16 @@ A fase 4 é transversal apenas aos consoles Sega explicitamente incluídos neste
 - **R3 áudio:** CPAL 0.18.2 integrado em software; validação física prolongada, hotplug e recuperação continuam gates separados.
 - **R4 input:** primeira fatia SDL3/Slint integrada; controles físicos, hotplug real e configuração avançada permanecem pendentes.
 - **R5 desktop:** launcher/biblioteca/configurações/HUD/telemetria e retirada de código legado ainda exigem consolidação.
+
+## RetroAchievements — capacidade planejada
+
+O projeto planeja integração com RetroAchievements para SMS e SG-1000 como trilha transversal, após estabilização do runtime por frame, lifecycle e Save States. A primeira decisão obrigatória será uma ADR para avaliar o uso do runtime oficial `rcheevos` (C) por FFI encapsulada em Rust, mantendo o produto e toda lógica de integração sob ownership Rust. Não introduzir dependência C sem essa decisão.
+
+A implementação deverá cobrir identificação de jogos (SMS console ID 11; SG-1000 console ID 33; MD5), memory maps corretos, cliente/rede assíncronos, processamento por frame emulado, UI Slint, leaderboards e política Hardcore. A atualização ocorrerá no frame emulado concluído, não no render loop nem por instrução. Acesso à memória deverá ser consistente e thread-safe, sem bloquear o MachineScheduler.
+
+Hardcore permite Save State, mas bloqueia Load State e outras operações incompatíveis. A política deve ser aplicada na camada de comandos/runtime. Credenciais devem permanecer em armazenamento seguro do sistema operacional. O recurso está planejado e não deve ser apresentado como implementado ou disponível.
+
+Detalhamento e gates: [Roadmap mestre — RetroAchievements](project-roadmap.md#retroachievements--integração-transversal-planejada).
 
 ## Invariantes temporais
 
