@@ -427,7 +427,7 @@ mod tests {
     };
     use crate::envelope_sequencer::{EnvelopeSequencer, EnvelopeSlotInput};
     use crate::phase::{PhaseGenerator, YM2413_PHASE_MASK};
-    use crate::slot::{nuked_slot_service_event_with_testmode, slot_descriptor};
+    use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
     use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
@@ -517,8 +517,8 @@ mod tests {
         let context = context(0, [0; 64], 0);
         service.before_eg_update(&context).unwrap();
 
-        let written = slot_descriptor(17).unwrap();
-        let output = slot_descriptor(0).unwrap();
+        let written = nuked_pg_phase_slot_descriptor(17).unwrap();
+        let output = nuked_pg_phase_slot_descriptor(0).unwrap();
         assert_eq!(
             service
                 .synthesis()
