@@ -49,4 +49,3 @@
 - **DP0:** PR #1107 merge `bc4664d9f44f6791ad8f8520a57c8744dd647dbf`; PR #1117 merge `eac1d2463637a65d40621066d4ec889d2e062884`. CI push #9431 e SMS Runtime #1716 passaram no merge DP0; CPAL possui validação independente na CI #9418. A auditoria DP0 registra F6–F10 PASS e mantém benchmark físico Windows e smoke test local como NOT RUN.
 - A main atual está seis commits à frente do merge #1117. A consulta desta reconciliação não encontrou execução push identificável para o SHA atual; não transferir automaticamente resultados de SHAs anteriores.
 - `SKIPPED` e `NOT RUN` nunca são PASS. Esta atualização não declara auditoria integral dos documentos nem validação física do SG-1000.
-
