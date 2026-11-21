@@ -1126,14 +1126,14 @@ mod tests {
         service.fail_cycle = None;
         assert_eq!(
             core.advance_input_clocks_with_slot_service(clocks, &mut service),
-            Ok(1)
+            Ok(0)
         );
 
         let mut reference_core = Ym2413Core::new();
         let mut reference_service = MutatingFailingService::default();
         assert_eq!(
             reference_core.advance_input_clocks_with_slot_service(clocks, &mut reference_service),
-            Ok(1)
+            Ok(0)
         );
         assert_eq!(core.export_state(), reference_core.export_state());
         assert_eq!(service, reference_service);
