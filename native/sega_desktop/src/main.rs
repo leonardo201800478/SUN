@@ -4816,6 +4816,18 @@ mod windows_host {
                 let prefs = DesktopPreferences {
                     region: app.get_selected_region().to_string(),
                     selected_system: app.get_selected_system().to_string(),
+                    sms_fm_board_profile: SmsFmBoardProfile::from_preference(
+                        &app.get_selected_fm_board_profile().to_string(),
+                    )
+                    .unwrap_or_default()
+                    .preference_id()
+                    .to_owned(),
+                    sms_fm_mode: FmMode::from_preference(
+                        &app.get_selected_fm_mode().to_string(),
+                    )
+                    .unwrap_or_default()
+                    .preference_id()
+                    .to_owned(),
                     firmware_directory: app.get_firmware_directory().to_string(),
                     firmware_boot_enabled: app.get_firmware_boot_enabled(),
                     firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -4948,6 +4960,16 @@ mod windows_host {
             let prefs = DesktopPreferences {
                 region: app.get_selected_region().to_string(),
                 selected_system: app.get_selected_system().to_string(),
+                sms_fm_board_profile: SmsFmBoardProfile::from_preference(
+                    &app.get_selected_fm_board_profile().to_string(),
+                )
+                .unwrap_or_default()
+                .preference_id()
+                .to_owned(),
+                sms_fm_mode: FmMode::from_preference(&app.get_selected_fm_mode().to_string())
+                    .unwrap_or_default()
+                    .preference_id()
+                    .to_owned(),
                 firmware_directory: app.get_firmware_directory().to_string(),
                 firmware_boot_enabled: app.get_firmware_boot_enabled(),
                 firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -5321,6 +5343,16 @@ mod windows_host {
         let final_preferences = DesktopPreferences {
             region: app.get_selected_region().to_string(),
             selected_system: app.get_selected_system().to_string(),
+            sms_fm_board_profile: SmsFmBoardProfile::from_preference(
+                &app.get_selected_fm_board_profile().to_string(),
+            )
+            .unwrap_or_default()
+            .preference_id()
+            .to_owned(),
+            sms_fm_mode: FmMode::from_preference(&app.get_selected_fm_mode().to_string())
+                .unwrap_or_default()
+                .preference_id()
+                .to_owned(),
             firmware_directory: app.get_firmware_directory().to_string(),
             firmware_boot_enabled: app.get_firmware_boot_enabled(),
             firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
