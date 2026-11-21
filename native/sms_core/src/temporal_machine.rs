@@ -28,7 +28,7 @@ use sega_z80_cpu::{
     Z80MicroSequencerError, Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep,
 };
 
-pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 36;
+pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 37;
 
 /// Runtime event trace emitted from actual Scheduler/bus dispatch boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2297,8 +2297,8 @@ mod tests {
     fn vdp_testrom_timing_snapshot_version_rejects_previous_semantics() {
         let machine = SmsTemporalMachine::new(vec![0; 0x4000], 3).unwrap();
         let mut state = machine.export_state();
-        assert_eq!(state.format_version, 36);
-        assert_eq!(state.bus.format_version, 23);
+        assert_eq!(state.format_version, 37);
+        assert_eq!(state.bus.format_version, 24);
 
         state.format_version = 33;
         assert!(matches!(
