@@ -1577,3 +1577,34 @@ No PCM or core integration is implied.
 
 The exact DAC evidence and unresolved binary encoding are documented in
 `docs/audits/ym2413-dac-output-evidence-2026-11-21.md`.
+
+
+## EG #561 final result — 2026-11-21
+
+EG characterization run `44922913393` completed **SUCCESS** on code HEAD
+`27650ff687c9495415644bca1db30585ffed21b9`. All 32 job steps passed,
+including the complete 38-configuration AR/DR/KSR sweep. Artifact
+`14714641687` (SHA-256
+`d29183dbcba6a52ea46612d4be6aaf05d949234210b7280108878d1296dc2f94`).
+
+The four-channel EG hardware-model replay passed 13,336 samples with zero
+level/stage mismatches; the sequencer replay passed 30,000 calls with zero
+field mismatches; and the integrated core replay passed 30,000 calls with
+zero field mismatches. These are software-oracle replay results, not physical
+silicon captures.
+
+The 38-configuration rate matrix still contains 44,064 level mismatches and
+71 stage mismatches for the deferred-DAMP/DECAY-phase-minus-three candidate
+across 243,884 samples. DR=5 contributes 12,836 level mismatches, all in
+AR=15 configurations; the first divergence shows Nuked's `maxrate` path
+transitioning level 127/state 3 to level 0/state 0 while the Rust candidate
+remains at 127/DECAY. DR 8–15 retain the remaining rate-dependent
+divergences. The phase-minus-three candidate is not accepted as a production
+fix, and the production EG algorithm remains unchanged.
+
+Full per-run evidence and next experiments:
+`docs/audits/ym2413-eg-rate-characterization-2026-11-21-run-561.md`.
+
+**Gate interpretation:** EG #561 closes the characterization workflow gate;
+it does not close EG rate-phase correctness, establish physical timing, or
+make the YM2413 complete. FM-5.3 MO/RO core integration remains separate.
