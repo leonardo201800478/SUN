@@ -8,6 +8,9 @@
 //! This first integration gate covers normal melodic mode. Rhythm-specific PG
 //! phase combiners and the special channel-7..9 parameter routing remain FM-5.
 
+use crate::am_lfo::{
+    Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState,
+};
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
 use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
@@ -33,6 +36,7 @@ pub enum Ym2413PgSerialError {
     Phase(PhaseGeneratorError),
     Synthesis(Ym2413SynthesisError),
     Operator(Ym2413SerialOperatorError),
+    AmLfo(Ym2413SerialAmLfoError),
 }
 
 /// Error returned by the public coarse-grained core + PG advancement API.
@@ -71,6 +75,11 @@ impl From<Ym2413SynthesisError> for Ym2413PgSerialError {
 impl From<Ym2413SerialOperatorError> for Ym2413PgSerialError {
     fn from(value: Ym2413SerialOperatorError) -> Self {
         Self::Operator(value)
+    }
+}
+impl From<Ym2413SerialAmLfoError> for Ym2413PgSerialError {
+    fn from(value: Ym2413SerialAmLfoError) -> Self {
+        Self::AmLfo(value)
     }
 }
 
@@ -115,8 +124,6 @@ pub struct Ym2413PgSerialPipelineState {
     /// Nuked's three-bit lfo_vib_counter, which can diverge from lfo_counter
     /// while Test Mode bit 3 is active.
     pub lfo_vib_counter: u8,
-    /// AM output captured at cycle 0 and consumed by all slots in this rotation.
-    pub am_lfo_output: u8,
     pub parameters: Ym2413PgParameterLatch,
 }
 
@@ -127,6 +134,7 @@ pub struct Ym2413PgSerialServiceState {
     pub pipeline: Ym2413PgSerialPipelineState,
     pub synthesis: Ym2413SynthesisBankState,
     pub operator: Ym2413SerialOperatorState,
+    pub serial_am_lfo: Ym2413SerialAmLfoState,
 }
 
 /// Cloneable serial PG state machine. Its Clone is deep: all mutable state is
@@ -136,6 +144,7 @@ pub struct Ym2413PgSerialService {
     synthesis: Ym2413SynthesisBank,
     pipeline: Ym2413PgSerialPipelineState,
     operator: Ym2413SerialOperator,
+    serial_am_lfo: Ym2413SerialAmLfo,
 }
 
 impl Ym2413PgSerialService {
@@ -149,10 +158,10 @@ impl Ym2413PgSerialService {
                 pg_phase_next: 0,
                 pg_output: 0,
                 lfo_vib_counter: 0,
-                am_lfo_output: 0,
                 parameters: Ym2413PgParameterLatch::RESET,
             },
             operator: Ym2413SerialOperator::new(),
+            serial_am_lfo: Ym2413SerialAmLfo::new(),
         }
     }
 
@@ -195,6 +204,7 @@ impl Ym2413PgSerialService {
             pipeline: self.pipeline,
             synthesis: self.synthesis.export_state(),
             operator: self.operator.export_state(),
+            serial_am_lfo: self.serial_am_lfo.export_state(),
         }
     }
 
@@ -206,7 +216,6 @@ impl Ym2413PgSerialService {
             || pipeline.pg_phase_next > crate::phase::YM2413_PHASE_MASK
             || pipeline.pg_output > 0x03ff
             || pipeline.lfo_vib_counter > 7
-            || pipeline.am_lfo_output > 13
             || !pipeline.parameters.is_valid()
         {
             return Err(Ym2413PgSerialError::InvalidState);
@@ -215,6 +224,7 @@ impl Ym2413PgSerialService {
             synthesis: Ym2413SynthesisBank::restore_state(state.synthesis)?,
             pipeline,
             operator: Ym2413SerialOperator::restore_state(state.operator)?,
+            serial_am_lfo: Ym2413SerialAmLfo::restore_state(state.serial_am_lfo)?,
         })
     }
 
@@ -336,9 +346,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             ),
         };
         self.operator.prepare_patch1(ksl, total_level)?;
-        if context.event.cycle == 0 {
-            self.pipeline.am_lfo_output = self.synthesis.am_level();
-        }
+        self.serial_am_lfo.capture_output(context.event.cycle)?;
         self.generate_phase(context)?;
         self.operator
             .tick_operator(context.event.cycle, self.pipeline.pg_output)?;
@@ -347,7 +355,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         self.operator.advance_envelope_output(
             context.event.cycle,
             &eg_levels,
-            self.pipeline.am_lfo_output,
+            self.serial_am_lfo.output(),
             context.registers[0x0f],
         )
     }
@@ -360,16 +368,17 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     ) -> Result<(), Self::Error> {
         // Nuked order after the core-owned EG tick: DoLFO, then PreparePatch2.
         let testmode = context.registers[0x0f];
+        // OPLL_DoLFO advances the serial AM network on every call and
+        // derives its cycle-17 step from the PM counter before that counter
+        // is advanced by the PM stage.
+        let pm_counter = self.synthesis.pm_lfo_counter();
+        self.serial_am_lfo
+            .clock(context.event.cycle, pm_counter, testmode)?;
         if testmode & 0x02 != 0 {
-            // Nuked applies this reset in DoLFO on every serial cycle, not
-            // only at the cycle-17 PM counter increment boundary.
             self.pipeline.lfo_vib_counter = 0;
             self.synthesis.reset_pm_lfo();
-            self.synthesis.reset_am_lfo();
         } else if context.event.cycle == 17 {
             self.clock_pm_lfo(testmode);
-            self.synthesis
-                .advance_am_lfo_samples(if testmode & 0x08 != 0 { 64 } else { 1 });
         }
         self.latch_next_parameters(context)
     }
@@ -458,7 +467,6 @@ mod tests {
             pg_phase_next,
             pg_output: 0,
             lfo_vib_counter,
-            am_lfo_output: 0,
             parameters,
         };
         state.format_version = YM2413_PG_SERIAL_STATE_VERSION;
