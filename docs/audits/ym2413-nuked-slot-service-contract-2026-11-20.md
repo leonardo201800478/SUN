@@ -93,9 +93,11 @@ A Rust service must preserve these causal boundaries and snapshot every pending 
 
 ## 5.1. Oracle instrumentation limitation for Rhythm Mode reset
 
-The current external `trace.c` adapter captures `calc_rm_enable` before calling `OPLL_Clock` and derives its `phase_next_reset` field from that pre-call value. In the pinned Nuked source, `OPLL_Clock` shifts `rm_enable` and applies the pending mode write before `OPLL_PhaseGenerate` evaluates the reset selector. Therefore the adapter's current pre-call `calc_rm_enable` field is not sufficient to validate the cycles-13/14 Rhythm Mode override.
+The legacy `trace.c` field `calc_rm_enable` captures the latch before `OPLL_Clock` and is insufficient by itself: the pinned source shifts `rm_enable` and applies a pending mode write before `OPLL_PhaseGenerate` evaluates the reset selector.
 
-The Rust helper `nuked_phase_reset_required` intentionally accepts the post-shift/post-mode-write value. Its Rhythm Mode branch is source-level derived and unit-tested, but is **not yet an executable differential PASS**. Before claiming that reset-event path is converged, instrument the external oracle at the actual `OPLL_PhaseGenerate` decision point and compare the post-shift `rm_enable`, pre-update `eg_dokon`, cycle and resulting reset request. Keep that instrumentation external to the Rust backend.
+PR #1133 adds an external-only instrumentation workflow that patches the pinned Nuked source at the actual `OPLL_PhaseGenerate` decision branch, records post-shift `rm_enable`, pre-update `eg_dokon`, cycle, `ismod`, and the resulting reset request, then checks the eight expected decisions for cycles 13 and 14. Workflow **YM2413 Nuked Rhythm reset differential** (run `44851506113`) completed **SUCCESS** on HEAD `e43364910addeb169277be4e1f77ad4f3fcfdbdd`. The Rust unit test independently checks the same selector cases against `nuked_phase_reset_required`.
+
+This is an executable software-oracle differential for the instrumented reset decision, not a full PG/EG serial trace, physical-chip capture, absolute reset-phase measurement, or proof of electrical timing. The instrumentation remains outside the Rust backend.
 
 ## 5.2. Core-owned slot service hook
 
