@@ -16,8 +16,6 @@ OPERATOR_INPUT_ARRAY_FIELDS = ("op_calc_op_fb1", "op_calc_op_fb2")
 HARD_SCALAR_FIELDS = (
     "cycle_before",
     "cycle_after",
-    "lfo_vib_counter_before",
-    "lfo_vib_counter_after",
     "lfo_vib_counter",
     "lfo_counter",
     "lfo_am_counter",
@@ -142,8 +140,8 @@ def main() -> int:
     for index, (nuked, rust) in enumerate(zip(nuked_samples, rust_rows, strict=True)):
         if int(nuked["call_index"]) != index or int(rust["call_index"]) != index:
             raise ValueError(f"call sequence discontinuity at row {index}")
-        missing = [field for field in nuked_fields if field not in nuked]
-        missing.extend(field for field in rust_fields if field not in rust)
+        missing = [field for field in (*nuked_fields, *candidate_fields) if field not in nuked]
+        missing.extend(field for field in (*rust_fields, *candidate_fields) if field not in rust)
         if missing:
             raise ValueError(f"call {index}: missing required fields {missing}")
 
