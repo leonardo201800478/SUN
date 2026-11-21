@@ -218,9 +218,7 @@ impl Ym2413OutputPipeline {
                 actual: cycle,
             });
         }
-        if !(YM2413_CHANNEL_OUTPUT_MIN..=YM2413_CHANNEL_OUTPUT_MAX)
-            .contains(&next_channel_output)
-        {
+        if !(YM2413_CHANNEL_OUTPUT_MIN..=YM2413_CHANNEL_OUTPUT_MAX).contains(&next_channel_output) {
             return Err(Ym2413OutputPipelineError::InvalidChannelOutput(
                 next_channel_output,
             ));
@@ -233,11 +231,8 @@ impl Ym2413OutputPipeline {
         if let Some(data) = qualified_rhythm_write_data {
             rm_enable = ((rm_enable as u8 & 0x7f) | ((data & 0x20) << 2)) as i8;
         }
-        let frame = self.process_cycle_with_core_state(
-            cycle,
-            rm_enable,
-            Some(next_channel_output),
-        )?;
+        let frame =
+            self.process_cycle_with_core_state(cycle, rm_enable, Some(next_channel_output))?;
         Ok(Ym2413OutputPipelineFrame {
             cycle,
             mo: frame.mo.ok_or(Ym2413OutputPipelineError::OutputUnknown)?,
@@ -497,9 +492,7 @@ mod tests {
     #[test]
     fn unknown_operator_result_propagates_without_fabricating_zero_or_stale_output() {
         let mut pipeline = Ym2413OutputPipeline::new_unknown();
-        let first = pipeline
-            .process_cycle_with_core_state(0, 0, None)
-            .unwrap();
+        let first = pipeline.process_cycle_with_core_state(0, 0, None).unwrap();
         assert_eq!(first.mo, None);
         assert_eq!(first.ro, None);
         assert!(!pipeline.export_state().previous_channel_output_valid);
@@ -551,8 +544,7 @@ mod tests {
                     .unwrap(),
             );
         }
-        let mut restored =
-            Ym2413OutputPipeline::with_initial_state(split.export_state()).unwrap();
+        let mut restored = Ym2413OutputPipeline::with_initial_state(split.export_state()).unwrap();
         let mut resumed = Vec::new();
         for (offset, output) in inputs[4..].iter().copied().enumerate() {
             resumed.push(
