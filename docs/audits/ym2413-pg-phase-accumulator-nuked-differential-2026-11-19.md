@@ -102,3 +102,32 @@ generation.
 - physical silicon fidelity.
 
 No production YM2413 runtime code was changed by this phase-array comparison. The new Rust example and Python comparator are validation tooling only.
+
+
+## Re-execution on current main — PR #1119 (2026-11-20)
+
+The phase-array comparison was rerun after the PG arithmetic correction was reapplied to current main.
+
+### Continuous 18-slot accumulator trace
+
+- Calls: **147,456**.
+- Phase values: **2,654,208** (18 per call).
+- Low-19-bit phase mismatches: **0**.
+- Rust 19-bit wrap events: **5,076**.
+- Active phase slots: **all 18**.
+- PM-enabled calls in the regenerated trace: **146,885**.
+- Workflow: run `44840972144`, job `136648936949` — SUCCESS.
+
+### KEY-ON phase-reset response trace
+
+- Calls: **2,600**.
+- Phase values: **46,800** (18 per call).
+- Low-19-bit phase mismatches: **0**.
+- Rust 19-bit wrap events: **54**.
+- Nonzero `eg_dokon` observations: **35**.
+- Phase-next reset events supplied from the Nuked trace: **2**.
+- Workflow: run `44840972144`, job `136648936949` — SUCCESS.
+
+The KEY-ON trace validates the PG accumulator's response to the oracle-observed reset event and its delayed application. The reset event is supplied from Nuked's pre-call state; this does **not** yet validate that `Ym2413Core` independently generates the same event from its serial EG state. That EG→PG connection remains an FM-1B requirement.
+
+The complete Rust workspace and Rust quality/unit gates also passed on PR #1119 (CI run `44840972118`). Unrelated SMS, Z80, Scheduler, Windows audio and UI jobs were SKIPPED and remain unvalidated by this change.
