@@ -663,11 +663,6 @@ impl Ym2413Core {
     }
 
     /// Export the complete register bus, serial EG and slot-clock state.
-    /// Current input-clock phase within the four-clock serial slot.
-    pub const fn input_clock_phase(&self) -> u8 {
-        self.input_clock_phase
-    }
-
     pub fn export_state(&self) -> Ym2413State {
         Ym2413State {
             format_version: YM2413_STATE_FORMAT_VERSION,
