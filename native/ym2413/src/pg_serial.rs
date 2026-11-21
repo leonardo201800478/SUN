@@ -526,8 +526,7 @@ impl Ym2413PgSerialService {
             .rhythm_noise
             .map(Ym2413RhythmSlotNoiseSequencer::restore_state)
             .transpose()?;
-        let output_pipeline =
-            Ym2413OutputPipeline::with_initial_state(state.output_pipeline)?;
+        let output_pipeline = Ym2413OutputPipeline::with_initial_state(state.output_pipeline)?;
         Ok(Self {
             synthesis: Ym2413SynthesisBank::restore_state(state.synthesis)?,
             pipeline,
@@ -1022,8 +1021,14 @@ mod tests {
             .advance_input_clocks_with_pg_service(4 * 8, &mut restored_service)
             .unwrap();
 
-        assert_eq!(restored_service.output_frame(), continuous_service.output_frame());
-        assert_eq!(restored_service.export_state(), continuous_service.export_state());
+        assert_eq!(
+            restored_service.output_frame(),
+            continuous_service.output_frame()
+        );
+        assert_eq!(
+            restored_service.export_state(),
+            continuous_service.export_state()
+        );
         assert_eq!(restored_core.export_state(), continuous_core.export_state());
     }
 
@@ -1038,7 +1043,11 @@ mod tests {
         let first = rhythm_context(11, registers, EnvelopeRhythmSelect::BassDrumFirst);
         service.before_eg_update(&first).unwrap();
         assert!(service.output_frame().unwrap().mo.is_some());
-        assert!(!service.output_pipeline_state().previous_channel_output_valid);
+        assert!(
+            !service
+                .output_pipeline_state()
+                .previous_channel_output_valid
+        );
         assert_eq!(service.output_pipeline_state().rm_enable, -1);
 
         let second = rhythm_context(12, registers, EnvelopeRhythmSelect::HiHat);
