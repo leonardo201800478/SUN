@@ -211,4 +211,3 @@ This increment connects the already characterized slot-rate noise sequencer to t
 - Expand the independent Nuked/hardware-capture differential before claiming any instrument complete.
 
 The LFSR seed/reset phase, rhythm patch parameter candidates, and physical DAC interpretation remain explicitly unresolved. Nuked remains a software reference rather than proof of physical silicon behavior.
-
