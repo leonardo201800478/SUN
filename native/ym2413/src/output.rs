@@ -29,14 +29,27 @@ pub const YM2413_OUTPUT_ACTIVE_CLOCKS: u8 = 3;
 pub const YM2413_OUTPUT_NEUTRAL_CLOCKS: u8 =
     YM2413_OUTPUT_SLOT_CLOCKS - YM2413_OUTPUT_ACTIVE_CLOCKS;
 
-/// Convert a Nuked-OPLL cycle index to the shared measured 18-slot output
-/// rotation used by the MO carrier map and RO occurrence map.
+/// Convert a Nuked-OPLL cycle to the measured MO carrier-slot coordinate.
 ///
-/// Nuked cycle zero corresponds to measured output slot 15. This is a
-/// schedule-coordinate conversion only; it does not model the delayed
-/// `ch_out` latch, `rm_enable` write pipeline, pin neutral value, or pulse
-/// sub-clock phase.
-pub const fn output_slot_for_nuked_cycle(cycle: u8) -> Option<u8> {
+/// The base `OPLL_Channel` melody window is active on cycles 0..2, 6..8
+/// and 12..14. These correspond to measured carrier slots 3..5, 9..11
+/// and 15..17. Rhythm Mode's six-channel restriction is a separate persistent
+/// mode gate; Nuked's transient `rm_enable` write pipeline is not that gate.
+pub const fn mo_output_slot_for_nuked_cycle(cycle: u8) -> Option<u8> {
+    if cycle < YM2413_SLOT_COUNT as u8 {
+        Some((cycle + 3) % YM2413_SLOT_COUNT as u8)
+    } else {
+        None
+    }
+}
+
+/// Convert a Nuked-OPLL cycle to the measured RO occurrence-slot coordinate.
+///
+/// The conditional RO schedule in the pinned Nuked model maps cycles
+/// 16, 17, 0..5, 9 and 10 to the measured original/repeat RO positions using
+/// an offset of 15. Nuked marks this RO gate as possibly incorrect, so this
+/// is a software schedule correspondence, not physical timing certification.
+pub const fn ro_output_slot_for_nuked_cycle(cycle: u8) -> Option<u8> {
     if cycle < YM2413_SLOT_COUNT as u8 {
         Some((cycle + 15) % YM2413_SLOT_COUNT as u8)
     } else {
@@ -344,7 +357,8 @@ mod tests {
     use super::{
         YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
         Ym2413OutputPin, Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource,
-        melody_output_for_slot, output_slot_for_nuked_cycle, rhythm_output_event, rhythm_slot_result,
+        melody_output_for_slot, mo_output_slot_for_nuked_cycle, rhythm_output_event,
+        rhythm_slot_result, ro_output_slot_for_nuked_cycle,
     };
     use crate::rhythm_output::{
         Ym2413DacCode, Ym2413RhythmOutputError, Ym2413RhythmOutputEvent,
@@ -532,32 +546,41 @@ mod tests {
     }
 
     #[test]
-    fn nuked_cycle_maps_to_the_shared_measured_output_slot_rotation() {
+    fn nuked_cycle_maps_to_measured_mo_carrier_slots() {
+        let expected = [
+            3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0, 1, 2,
+        ];
+        for (cycle, expected_slot) in expected.into_iter().enumerate() {
+            assert_eq!(mo_output_slot_for_nuked_cycle(cycle as u8), Some(expected_slot));
+        }
+        assert_eq!(mo_output_slot_for_nuked_cycle(18), None);
+        assert_eq!(mo_output_slot_for_nuked_cycle(u8::MAX), None);
+    }
+
+    #[test]
+    fn nuked_cycle_maps_to_measured_ro_occurrence_slots() {
         let expected = [
             15, 16, 17, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
         ];
         for (cycle, expected_slot) in expected.into_iter().enumerate() {
-            assert_eq!(
-                output_slot_for_nuked_cycle(cycle as u8),
-                Some(expected_slot)
-            );
+            assert_eq!(ro_output_slot_for_nuked_cycle(cycle as u8), Some(expected_slot));
         }
-        assert_eq!(output_slot_for_nuked_cycle(18), None);
-        assert_eq!(output_slot_for_nuked_cycle(u8::MAX), None);
+        assert_eq!(ro_output_slot_for_nuked_cycle(18), None);
+        assert_eq!(ro_output_slot_for_nuked_cycle(u8::MAX), None);
     }
 
     #[test]
-    fn shared_cycle_mapping_aligns_mo_carriers_and_measured_ro_occurrences() {
-        let mo_cycles = [6, 7, 8, 12, 13, 14];
+    fn independent_cycle_maps_align_measured_rhythm_mo_and_ro_positions() {
+        let mo_cycles = [0, 1, 2, 6, 7, 8];
         let expected_mo_slots = [3, 4, 5, 9, 10, 11];
         for (cycle, slot) in mo_cycles.into_iter().zip(expected_mo_slots) {
-            assert_eq!(output_slot_for_nuked_cycle(cycle), Some(slot));
+            assert_eq!(mo_output_slot_for_nuked_cycle(cycle), Some(slot));
         }
 
         let ro_cycles = [16, 17, 0, 1, 2, 3, 4, 5, 9, 10];
         let expected_ro_slots = [13, 14, 15, 16, 17, 0, 1, 2, 6, 7];
         for (cycle, slot) in ro_cycles.into_iter().zip(expected_ro_slots) {
-            assert_eq!(output_slot_for_nuked_cycle(cycle), Some(slot));
+            assert_eq!(ro_output_slot_for_nuked_cycle(cycle), Some(slot));
         }
     }
 
