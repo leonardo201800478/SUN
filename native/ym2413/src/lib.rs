@@ -1088,6 +1088,7 @@ mod tests {
         struct MutatingFailingService {
             before_count: usize,
             after_count: usize,
+            history: Vec<(u8, bool)>,
             fail_cycle: Option<u8>,
         }
 
@@ -1096,9 +1097,10 @@ mod tests {
 
             fn before_eg_update(
                 &mut self,
-                _context: &Ym2413SlotServiceContext,
+                context: &Ym2413SlotServiceContext,
             ) -> Result<(), Self::Error> {
                 self.before_count += 1;
+                self.history.push((context.event.cycle, false));
                 Ok(())
             }
 
@@ -1109,6 +1111,7 @@ mod tests {
                 _post_state: EnvelopeSequencerState,
             ) -> Result<(), Self::Error> {
                 self.after_count += 1;
+                self.history.push((context.event.cycle, true));
                 if self.fail_cycle == Some(context.event.cycle) {
                     Err(context.event.cycle)
                 } else {
