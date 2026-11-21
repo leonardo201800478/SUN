@@ -1230,19 +1230,19 @@ mod tests {
             }
         ));
 
-        for cycle in 1..4 {
+        for cycle in 1..5 {
             let _ = service
                 .process_nuked_cycle_from_channel_output(cycle, true, None)
                 .unwrap();
         }
         let repeat = service
-            .process_nuked_cycle_from_channel_output(4, true, None)
+            .process_nuked_cycle_from_channel_output(5, true, None)
             .unwrap();
         assert_eq!(
             repeat.ro,
             Ym2413OutputSlotResult::RepeatNotInitialized {
-                slot_index: 1,
-                voice: Ym2413RhythmVoice::TomTom,
+                slot_index: 2,
+                voice: Ym2413RhythmVoice::BassDrum,
             }
         );
     }
