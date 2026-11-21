@@ -1,6 +1,6 @@
 # SUN — Strife Uranus Neptune — Rust / Slint + WGPU + CPAL
 
-Emulador Sega multissistema com runtime de hardware integralmente em Rust. A arquitetura desktop ativa utiliza **Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2**, com SDL3/input runtime para gamepads.
+Emulador multissistema independente para plataformas clássicas de 8 e 16 bits, com runtime de hardware integralmente em Rust. A arquitetura desktop ativa utiliza **Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2**, com SDL3/input runtime para gamepads.
 
 **Baseline remota consultada:** `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434` (2026-11-16).
 
