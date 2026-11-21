@@ -97,30 +97,33 @@ jobs:
               writes = (
                   (0x10 + channel, fnum & 0xFF),
                   (0x20 + channel, ((block & 7) << 1) | ((fnum >> 8) & 1)),
-                  (0x30 + channel, 0x00),  # instrument 0: use the programmed user patch
+                  (0x30 + channel, 0x00),
               )
               for address, value in writes:
                   events.append((call_index, 0, address))
                   events.append((call_index + 2, 1, value))
                   call_index += 40
 
-          # Exercise the serial EG -> DOKON -> delayed PG phase-reset path on channel 8.
-          events.extend(((5000, 0, 0x28), (5002, 1, 0x1F),
-                         (5200, 0, 0x28), (5202, 1, 0x0F)))
+          # Exercise serial EG -> DOKON -> delayed PG phase reset on channel 8.
+          events.extend(
+              (
+                  (5000, 0, 0x28),
+                  (5002, 1, 0x1F),
+                  (5200, 0, 0x28),
+                  (5202, 1, 0x0F),
+              )
+          )
 
           with open(sys.argv[1], "w", newline="", encoding="utf-8") as stream:
               writer = csv.writer(stream)
               writer.writerow(("# call_index", "port", "value"))
               writer.writerows(events)
           PY
-          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 --pg-phase-only \\
-            --events "$RUNNER_TEMP/serial-events.csv" > "$RUNNER_TEMP/nuked-pg-serial.jsonl"
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 147456 --pg-phase-only --events "$RUNNER_TEMP/serial-events.csv" > "$RUNNER_TEMP/nuked-pg-serial.jsonl"
 
       - name: Compare integrated core-owned serial PG service with Nuked
         run: |
-          python3 tools/ym2413-nuked-oracle/compare_pg_serial.py \\
-            --nuked-trace "$RUNNER_TEMP/nuked-pg-serial.jsonl" \\
-            --events "$RUNNER_TEMP/serial-events.csv"
+          python3 tools/ym2413-nuked-oracle/compare_pg_serial.py --nuked-trace "$RUNNER_TEMP/nuked-pg-serial.jsonl" --events "$RUNNER_TEMP/serial-events.csv"
 
       - name: Generate controlled KEY-ON and KEY-OFF events
         run: |
