@@ -493,9 +493,8 @@ impl Ym2413RhythmOutputService {
         // percussion source values. Advance the RO cursor but invalidate an
         // original percussion latch when its source slot passes without a
         // rhythm operator result. Suppress all RO pin events while disabled.
-        let rhythm_source_known = rhythm_mode_enabled
-            && previous_channel_output_is_rhythm
-            && measured_level.is_some();
+        let rhythm_source_known =
+            rhythm_mode_enabled && previous_channel_output_is_rhythm && measured_level.is_some();
         let original_rhythm_level = (rhythm_source_known && original_rhythm_slot)
             .then_some(measured_level)
             .flatten();
