@@ -1260,11 +1260,6 @@ impl SmsTemporalBus {
         if ym2413_domain_present != state.ym2413.is_some() {
             return Err(SmsTemporalBusError::InvalidState);
         }
-        let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
-        let ym2413_pg_service = state
-            .ym2413_pg_service
-            .map(Ym2413PgSerialService::restore_state)
-            .transpose()?;
         if let (Some(core_state), Some(service_state)) = (&state.ym2413, &state.ym2413_pg_service) {
             if core_state.slot_index != service_state.rhythm_noise_cursor
                 || core_state.slot_index != service_state.output_pipeline.next_cycle
@@ -1274,6 +1269,11 @@ impl SmsTemporalBus {
                 return Err(SmsTemporalBusError::InvalidState);
             }
         }
+        let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
+        let ym2413_pg_service = state
+            .ym2413_pg_service
+            .map(Ym2413PgSerialService::restore_state)
+            .transpose()?;
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
         let scale = state.coordinator.master_ticks_per_tstate;
         let now = coordinator.now();
