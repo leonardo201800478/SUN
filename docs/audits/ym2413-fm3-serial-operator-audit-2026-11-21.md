@@ -100,7 +100,7 @@ The new `compare_am_lfo.py` replays the serial AM network and compares `lfo_am_c
 
 1. Run the new external operator differential and fix every mismatch.
 2. Compare the integrated Rust PG + operator + core-owned EG pipeline against Nuked without oracle-injected latches.
-3. Run the new serial AM LFO differential and prove its integration with the PM counter and Test Mode. The serial slot service now uses a nine-bit shift/carry implementation; the older measured sample-domain AM candidate remains separate and is not consumed by the serial operator.
+3. The isolated operator and serial AM LFO differentials now pass 147,456 calls each. The integrated PG/EG/AM/operator differential has been added and must pass before FM-3A closure. The serial slot service uses a nine-bit shift/carry implementation; the older measured sample-domain AM candidate remains separate and is not consumed by the serial operator.
 4. Add parameter-latch timing cases for FNUM/BLOCK/MUL/FB/KSL/TL/AM/VIB/DC/DM writes during active notes.
 5. Validate continuous versus partitioned service execution, clone independence, snapshot/restore, rollback, and all nine channel mappings.
 6. Resolve any P1/P2 review findings before merge.
