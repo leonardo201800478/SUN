@@ -24,6 +24,7 @@ pub mod rhythm;
 pub mod rhythm_channel;
 pub mod rhythm_output;
 pub mod rhythm_phase;
+pub mod serial_operator;
 pub mod slot;
 mod slot_service;
 pub mod synthesis;
@@ -32,6 +33,8 @@ pub mod timed_bus;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
+    YM2413_SERIAL_AM_LFO_STATE_VERSION, Ym2413SerialAmLfo, Ym2413SerialAmLfoError,
+    Ym2413SerialAmLfoState,
 };
 pub use bus_timing::{
     YM2413_ADDRESS_WRITE_WAIT_CLOCKS, YM2413_BUS_TIMING_STATE_VERSION,
@@ -116,12 +119,19 @@ pub use rhythm_phase::{
     hi_hat_phase_candidate, rhythm_noise_phase_candidate, rhythm_phase_mix_bit_candidate,
     snare_drum_phase_candidate, top_cymbal_phase_candidate,
 };
+pub use serial_operator::{
+    YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS, YM2413_SERIAL_OPERATOR_SLOTS,
+    YM2413_SERIAL_OPERATOR_STATE_VERSION, Ym2413SerialOperator, Ym2413SerialOperatorError,
+    Ym2413SerialOperatorPatch1Latches, Ym2413SerialOperatorPatch2Latches,
+    Ym2413SerialOperatorSample, Ym2413SerialOperatorState,
+};
 pub use slot::{
     YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator,
     Ym2413RhythmOutputOccurrence, Ym2413RhythmVoice, Ym2413SlotDescriptor, Ym2413SlotServiceEvent,
     nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index, nuked_eg_output_index,
-    nuked_eg_update_index, nuked_pg_phase_output_index, nuked_pg_phase_write_index,
-    nuked_phase_reset_required, nuked_phase_reset_required_with_testmode, nuked_slot_service_event,
+    nuked_eg_update_index, nuked_pg_phase_output_index, nuked_pg_phase_slot_descriptor,
+    nuked_pg_phase_write_index, nuked_phase_reset_required,
+    nuked_phase_reset_required_with_testmode, nuked_slot_service_event,
     nuked_slot_service_event_with_testmode, slot_descriptor,
 };
 pub use synthesis::{
@@ -505,6 +515,8 @@ impl Ym2413Core {
         input.rhythm_select =
             EnvelopeRhythmSelect::from_code(self.rm_select).ok_or(Ym2413Error::InvalidState)?;
         input.rhythm_bits = self.registers[0x0e] & 0x3f;
+        input.test_mode = self.registers[0x0f] & 0x0f;
+        input.write_data = self.write_data_latch;
         Ok((cycle, input))
     }
 

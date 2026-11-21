@@ -6,7 +6,8 @@
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413ChannelInitialState, Ym2413Core, Ym2413Operator,
-    Ym2413PgSerialService, Ym2413SynthesisBank, Ym2413SynthesisInitialState, slot_descriptor,
+    Ym2413PgSerialService, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
+    nuked_pg_phase_slot_descriptor,
 };
 use std::error::Error;
 use std::fmt::Write as _;
@@ -77,6 +78,20 @@ fn load_events(path: &Path, calls: u64) -> Result<Vec<Event>, Box<dyn Error>> {
     Ok(events)
 }
 
+fn write_json_array<T: std::fmt::Display>(
+    output: &mut String,
+    values: impl IntoIterator<Item = T>,
+) {
+    output.push('[');
+    for (index, value) in values.into_iter().enumerate() {
+        if index != 0 {
+            output.push(',');
+        }
+        let _ = write!(output, "{value}");
+    }
+    output.push(']');
+}
+
 fn reset_service() -> Result<Ym2413PgSerialService, Box<dyn Error>> {
     let damp_config = DampTransitionConfig::new(
         124,
@@ -118,7 +133,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut service = reset_service()?;
     let mut event_index = 0usize;
     let mut phases = [0u32; 18];
-    let mut phase_json = String::with_capacity(18 * 7);
 
     for call_index in 0..calls {
         while event_index < events.len() && events[event_index].call_index == call_index {
@@ -137,10 +151,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let cycle_before = core.slot_index();
         let lfo_vib_counter_before = service.lfo_vib_counter();
+        let operator_before = service.export_state().operator;
         core.advance_input_clocks_with_pg_service(YM2413_INPUT_CLOCKS_PER_SLOT, &mut service)?;
 
         for slot in 0u8..18 {
-            let descriptor = slot_descriptor(slot)
+            let descriptor = nuked_pg_phase_slot_descriptor(slot)
                 .ok_or_else(|| invalid_data(format!("invalid physical PG slot {slot}")))?;
             let carrier = matches!(descriptor.operator, Ym2413Operator::Carrier);
             phases[usize::from(slot)] = service
@@ -148,26 +163,158 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .phase_accumulator(descriptor.channel, carrier)
                 .map_err(|error| invalid_data(format!("invalid PG accumulator: {error:?}")))?;
         }
-        phase_json.clear();
-        for (index, phase) in phases.iter().enumerate() {
-            if index != 0 {
-                phase_json.push(',');
-            }
-            let _ = write!(&mut phase_json, "{phase}");
-        }
+        let core_state = core.export_state();
+        let envelope = core_state.envelope;
+        let timer = envelope.timer;
+        let service_state = service.export_state();
+        let operator = service_state.operator;
+        let serial_am = service_state.serial_am_lfo;
+        let eg_levels: [u8; 18] = std::array::from_fn(|index| envelope.operators[index].level);
+        let eg_states: [u8; 18] =
+            std::array::from_fn(|index| envelope.operators[index].stage as u8);
 
-        println!(
-            "{{\"call_index\":{},\"cycle_before\":{},\"cycle_after\":{},\"lfo_vib_counter_before\":{},\"lfo_vib_counter_after\":{},\"pg_increment\":{},\"pg_phase_next\":{},\"pg_output\":{},\"phases\":[{}]}}",
-            call_index,
-            cycle_before,
-            core.slot_index(),
-            lfo_vib_counter_before,
-            service.lfo_vib_counter(),
-            service.pg_increment(),
-            service.pg_phase_next(),
-            service.pg_output(),
-            phase_json
+        let mut trace_line = String::with_capacity(4096);
+        let _ = write!(
+            &mut trace_line,
+            "{{\"call_index\":{call_index},\"cycle_before\":{cycle_before},\"cycle_after\":{},",
+            core.slot_index()
         );
+        let _ = write!(
+            &mut trace_line,
+            "\"lfo_vib_counter_before\":{lfo_vib_counter_before},\"lfo_vib_counter_after\":{},\"lfo_vib_counter\":{},\"lfo_counter\":{},",
+            service.lfo_vib_counter(),
+            service_state.pipeline.lfo_vib_counter,
+            service.synthesis().pm_lfo_counter()
+        );
+        let _ = write!(
+            &mut trace_line,
+            "\"pg_increment\":{},\"pg_inc\":{},\"pg_phase_next\":{},\"pg_output\":{},\"pg_out\":{},",
+            service_state.pipeline.pg_increment,
+            service_state.pipeline.pg_increment,
+            service_state.pipeline.pg_phase_next,
+            service_state.pipeline.pg_output,
+            service_state.pipeline.pg_output
+        );
+        trace_line.push_str("\"phases\":");
+        write_json_array(&mut trace_line, phases);
+        trace_line.push_str(",\"pg_phase\":");
+        write_json_array(&mut trace_line, phases);
+
+        let _ = write!(
+            &mut trace_line,
+            ",\"op_calc_eg_out\":{},\"op_calc_eg_silent\":{},\"op_calc_c_fb\":{},\"op_calc_c_dc\":{},\"op_calc_c_dm\":{},\"op_calc_pg_out\":{},\"op_calc_op_mod\":{},\"op_calc_op_fbsum\":{}",
+            operator_before.eg_out,
+            u8::from(operator_before.eg_silent),
+            operator_before.c_fb,
+            operator_before.c_dc,
+            operator_before.c_dm,
+            service_state.pipeline.pg_output,
+            operator_before.op_mod,
+            operator_before.op_fbsum
+        );
+        trace_line.push_str(",\"op_calc_op_fb1\":");
+        write_json_array(&mut trace_line, operator_before.op_fb1);
+        trace_line.push_str(",\"op_calc_op_fb2\":");
+        write_json_array(&mut trace_line, operator_before.op_fb2);
+        let _ = write!(
+            &mut trace_line,
+            ",\"lfo_am_counter\":{},\"lfo_am_dir\":{},\"lfo_am_car\":{},\"lfo_am_step\":{},\"lfo_am_out\":{}",
+            serial_am.counter,
+            u8::from(serial_am.direction),
+            u8::from(serial_am.carry),
+            u8::from(serial_am.step),
+            serial_am.output
+        );
+        let _ = write!(
+            &mut trace_line,
+            ",\"c_instr\":{},\"c_op\":{},\"c_tl\":{},\"c_fb\":{},\"c_am\":{},\"c_vib\":{},\"c_ksr\":{},\"c_ksl\":{},\"c_multi\":{},\"c_fnum\":{},\"c_block\":{}",
+            operator.c_instr,
+            operator.c_op,
+            operator.c_tl,
+            operator.c_fb,
+            u8::from(operator.c_am),
+            u8::from(operator.c_vib),
+            u8::from(operator.c_ksr),
+            operator.c_ksl,
+            operator.c_multi,
+            operator.c_fnum,
+            operator.c_block
+        );
+        trace_line.push_str(",\"c_adrr\":");
+        write_json_array(&mut trace_line, operator.c_adrr);
+        let _ = write!(
+            &mut trace_line,
+            ",\"c_et\":{},\"c_sl\":{},\"c_ksr_freq\":{},\"c_dc\":{},\"c_dm\":{},\"c_ksl_freq\":{},\"c_ksl_block\":{}",
+            u8::from(operator.c_et),
+            operator.c_sl,
+            operator.c_ksr_freq,
+            operator.c_dc,
+            operator.c_dm,
+            operator.c_ksl_freq,
+            operator.c_ksl_block
+        );
+        let _ = write!(
+            &mut trace_line,
+            ",\"eg_counter_state\":{},\"eg_counter_state_prev\":{},\"eg_timer\":{},\"eg_timer_carry\":{},\"eg_timer_low_lock\":{},\"eg_timer_shift\":{},\"eg_timer_shift_lock\":{},\"eg_timer_shift_stop\":{}",
+            timer.counter_state,
+            timer.counter_state_prev,
+            timer.timer,
+            timer.carry,
+            timer.low_lock,
+            timer.shift,
+            timer.shift_lock,
+            u8::from(timer.shift_stop)
+        );
+        let _ = write!(
+            &mut trace_line,
+            ",\"eg_kon\":{},\"eg_dokon\":{},\"eg_off\":{},\"eg_rate\":{},\"eg_rate_hi\":{},\"eg_maxrate\":{},\"eg_zerorate\":{},\"eg_inc_lo\":{},\"eg_inc_hi\":{},\"eg_sl\":{},\"eg_silent\":{}",
+            envelope.eg_kon,
+            envelope.eg_dokon,
+            envelope.eg_off,
+            timer.pending_rate,
+            timer.latched_rate_hi,
+            u8::from(timer.latched_max_rate),
+            u8::from(timer.pending_zero_rate),
+            u8::from(timer.latched_inc_lo),
+            u8::from(timer.latched_inc_hi),
+            envelope.eg_sl,
+            u8::from(operator.eg_silent)
+        );
+        trace_line.push_str(",\"eg_state\":");
+        write_json_array(&mut trace_line, eg_states);
+        trace_line.push_str(",\"eg_level\":");
+        write_json_array(&mut trace_line, eg_levels);
+        let _ = write!(
+            &mut trace_line,
+            ",\"eg_out\":{},\"eg_ksltl\":{},\"c_ksl_attenuation\":{}",
+            operator.eg_out, operator.eg_ksltl, operator.c_ksl_attenuation
+        );
+        trace_line.push_str(",\"op_fb1\":");
+        write_json_array(&mut trace_line, operator.op_fb1);
+        trace_line.push_str(",\"op_fb2\":");
+        write_json_array(&mut trace_line, operator.op_fb2);
+        let _ = write!(
+            &mut trace_line,
+            ",\"op_fbsum\":{},\"op_mod\":{},\"op_neg\":{},\"op_logsin\":{},\"op_exp_m\":{},\"op_exp_s\":{},\"op_phase_index\":{},\"op_output\":{},\"ch_out\":{},\"op_feedback_phase\":{}",
+            operator.op_fbsum,
+            operator.op_mod,
+            operator.op_neg,
+            operator.op_logsin,
+            operator.op_exp_m,
+            operator.op_exp_s,
+            operator.last_phase_index,
+            operator.last_operator_output,
+            operator.last_channel_output,
+            operator.last_feedback_phase
+        );
+        let _ = write!(
+            &mut trace_line,
+            ",\"eg_pending_rate\":{},\"eg_pending_zero_rate\":{},\"eg_next_slot\":{}}}",
+            timer.pending_rate,
+            u8::from(timer.pending_zero_rate),
+            timer.next_slot
+        );
+        println!("{trace_line}");
     }
 
     if event_index != events.len() {

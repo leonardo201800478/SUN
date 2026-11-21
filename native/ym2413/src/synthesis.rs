@@ -179,6 +179,15 @@ impl Ym2413ChannelSynthesis {
         initial: Ym2413ChannelInitialState,
         damp_config: DampTransitionConfig,
     ) -> Result<Self, Ym2413SynthesisError> {
+        if initial
+            .phase
+            .iter()
+            .any(|phase| *phase > crate::phase::YM2413_PHASE_MASK)
+        {
+            return Err(Ym2413SynthesisError::Phase(
+                PhaseGeneratorError::InvalidState,
+            ));
+        }
         let phase = [
             PhaseGenerator::restore_state(PhaseGeneratorState {
                 format_version: crate::phase::YM2413_PG_STATE_VERSION,
@@ -298,6 +307,17 @@ impl Ym2413SynthesisBank {
         self.pm_lfo.reset();
     }
 
+    /// Advance only the AM LFO at the caller's completed serial rotation boundary.
+    pub fn advance_am_lfo_samples(&mut self, samples: u64) {
+        let delta = samples % u64::from(YM2413_AM_LFO_PERIOD_SAMPLES);
+        self.am_lfo.advance_samples(delta as u32);
+    }
+
+    /// Reset the AM LFO candidate phase without changing the PM counter.
+    pub fn reset_am_lfo(&mut self) {
+        self.am_lfo.reset();
+    }
+
     /// Return the complete 13-bit PM counter used by the serial LFO stage.
     pub const fn pm_lfo_counter(&self) -> u16 {
         self.pm_lfo.counter()
@@ -309,8 +329,7 @@ impl Ym2413SynthesisBank {
     /// boundary. This method does not advance input clocks, slots, or EG time.
     pub fn advance_lfo_samples(&mut self, samples: u64) {
         self.advance_pm_lfo_samples(samples);
-        let am_samples = samples % u64::from(YM2413_AM_LFO_PERIOD_SAMPLES);
-        self.am_lfo.advance_samples(am_samples as u32);
+        self.advance_am_lfo_samples(samples);
     }
 
     /// Replace one physical operator accumulator with a serial PG phase-array write.
@@ -325,7 +344,7 @@ impl Ym2413SynthesisBank {
     ) -> Result<(), Ym2413SynthesisError> {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
-        state.phase[operator_index].write_phase(phase);
+        state.phase[operator_index].write_serial_phase(phase);
         Ok(())
     }
 
@@ -339,10 +358,10 @@ impl Ym2413SynthesisBank {
     ) -> Result<u32, Ym2413SynthesisError> {
         let state = self.channel_mut(channel)?;
         let operator_index = if carrier { 1 } else { 0 };
-        Ok(state.phase[operator_index].advance_by_increment(increment))
+        Ok(state.phase[operator_index].advance_serial_by_increment(increment))
     }
 
-    /// Return the complete 19-bit phase accumulator for one operator.
+    /// Return the raw 32-bit phase accumulator retained for one serial operator.
     pub fn phase_accumulator(
         &self,
         channel: u8,
@@ -803,6 +822,19 @@ mod tests {
             assert_eq!(bank.envelope_level(channel, false).unwrap(), 127);
             assert_eq!(bank.envelope_level(channel, true).unwrap(), 127);
         }
+    }
+
+    #[test]
+    fn serial_pg_accumulator_preserves_full_width_phase_across_snapshot() {
+        let mut bank = Ym2413SynthesisBank::with_initial_state(initial_state()).unwrap();
+        bank.write_operator_phase(6, true, 0x0008_4000).unwrap();
+        assert_eq!(bank.phase_accumulator(6, true).unwrap(), 0x0008_4000);
+        assert_eq!(bank.phase_index(6, true).unwrap(), 0x20);
+
+        let snapshot = bank.export_state();
+        let restored = Ym2413SynthesisBank::restore_state(snapshot).unwrap();
+        assert_eq!(restored.phase_accumulator(6, true).unwrap(), 0x0008_4000);
+        assert_eq!(restored.export_state(), snapshot);
     }
 
     #[test]

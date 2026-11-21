@@ -193,3 +193,63 @@ These results are documented in
 diagnostic only and do not authorize a production change. The counter-truncate
 candidate was materially worse, so the low-eight-bit equality is a phase
 observation, not evidence that the Rust global counter should wrap.
+
+
+## Serial operator differential trace
+
+The full trace now also records the pre-call values consumed by
+`OPLL_Operator`: `pg_out`, `eg_out`, `eg_silent`, `c_fb`, `c_dc` and
+`c_dm`. These are deliberately captured before `OPLL_Clock`, while
+`op_exp_m`, `op_exp_s`, `op_logsin`, `op_neg`, `op_mod`, `op_fbsum`,
+`op_fb1[9]`, `op_fb2[9]` and `ch_out` are compared after the call.
+
+Run the production Rust operator replay and comparator with:
+
+```sh
+python3 tools/ym2413-nuked-oracle/compare_operator.py \
+  --nuked-trace nuked-operator.jsonl
+```
+
+The comparator feeds only Nuked's pre-call operator inputs to Rust. It
+therefore isolates the serial operator arithmetic and feedback pipeline from
+the separate PG, EG, register-decoder and LFO generation paths. A PASS does
+not establish that Rust independently generated those inputs correctly; the
+integrated serial pipeline requires its own differential gate.
+
+
+## Serial AM LFO differential
+
+The trace adapter captures the pre-increment shared `lfo_counter` and
+`testmode`, then records the post-call AM counter, direction, carry, step,
+and output latches. Run the production serial AM state machine against the
+full Nuked trace with:
+
+```sh
+python3 tools/ym2413-nuked-oracle/compare_am_lfo.py \
+  --nuked-trace nuked-operator.jsonl
+```
+
+This validates the `OPLL_DoLFO` AM shift/carry network independently of the
+operator arithmetic. The integrated PG/PM counter and AM/EG timing still need
+the separate full-pipeline differential.
+
+
+## Integrated FM-3 pipeline differential
+
+The `pg_serial_trace` Rust example emits the complete core-owned EG state,
+serial PG latches, AM LFO state, operator parameter latches, operator
+waveform/feedback state, and channel output after every input-clock call.
+The full Nuked trace is compared by:
+
+```sh
+python3 tools/ym2413-nuked-oracle/compare_fm3_integrated.py \
+  --nuked-trace nuked-operator.jsonl \
+  --rust-trace rust-fm3.jsonl
+```
+
+The integrated comparator checks all 18 EG levels/stages, the shared EG timer
+and rate latches, PG accumulators/increments/output, AM shift/carry state,
+PreparePatch1/2 parameter latches, operator phase index, raw operator output,
+feedback history, and channel output on all 147,456 calls. The isolated
+operator and AM LFO differentials remain separate so a failure can be localized
+to a stage rather than hidden by an end-to-end mismatch.
