@@ -1400,3 +1400,27 @@ validation is claimed.
 **Next dependency:** FM-5.3 — independently model the serial MO and RO output
 events and retained/repeated rhythm outputs. Keep the two pins separate;
 do not infer PCM or DAC codes from the signed operator intermediate.
+
+
+### FM-5.2C post-change differential update — 2026-11-21
+
+- PG differential #364: **SUCCESS** on code commit
+  `c9a5f73176ee34e585c5b912f4b705256ba84afd`.
+- Integrated Rhythm Mode trace: 147,456 calls across all 18 cycles.
+- The corrected BD modulator-only FB/DM latches remove `c_fb` and `c_dm`
+  from the integrated report's candidate-difference set.
+- Remaining: `c_sl` (8,092 rows; Nuked 4 vs Rust 6),
+  `eg_sl` (8,092 rows; Nuked 4 vs Rust 6), and
+  `eg_state` (15,984 rows; first divergence at call 79,001).
+- The SD SL candidate remains 6. The pinned Nuked model uses 4. This is
+  unresolved and intentionally not normalized.
+- CI #9828 failed only at rustfmt on code commit `c9a5f731...`; formatting
+  was corrected in `6249ee472cde2f9f3615d5680d7ad0ddcdc3ff7e`. No fresh CI
+  result exists yet for the updated branch HEAD.
+- EG characterization #537 was still in progress at this update.
+
+**FM-5.2C remains PARTIAL.** The per-slot FB/DM ownership correction is
+validated against the pinned oracle, but the SD SL/EG divergence and physical
+patch uncertainty remain open. Do not start FM-5.3 implementation until the
+EG characterization result and exact-head CI are checked; then use the
+measured MO/RO schedule as the basis for a separate serial output stage.
