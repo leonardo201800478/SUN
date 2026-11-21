@@ -212,7 +212,6 @@ impl Ym2413PgSerialService {
         let pipeline = state.pipeline;
         if state.format_version != YM2413_PG_SERIAL_STATE_VERSION
             || pipeline.format_version != YM2413_PG_SERIAL_PIPELINE_STATE_VERSION
-            || pipeline.pg_phase_next > crate::phase::YM2413_PHASE_MASK
             || pipeline.lfo_vib_counter > 7
             || !pipeline.parameters.is_valid()
         {
