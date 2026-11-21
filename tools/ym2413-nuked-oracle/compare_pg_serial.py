@@ -9,7 +9,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-PHASE_MASK = (1 << 19) - 1
 
 
 def load_trace(path: Path) -> list[dict[str, object]]:
@@ -88,9 +87,8 @@ def main() -> int:
         raise ValueError(f"Rust emitted {len(rust_rows)} rows for {len(samples)} Nuked calls")
 
     mismatches: list[dict[str, object]] = []
-    wrap_events = 0
+    full_width_phase_samples = 0
     active_slots: set[int] = set()
-    previous_phases = [0] * 18
 
     for index, (nuked, rust) in enumerate(zip(samples, rust_rows, strict=True)):
         if int(nuked["call_index"]) != int(rust["call_index"]):
@@ -101,8 +99,8 @@ def main() -> int:
             ("cycle_after", "cycle_after", None),
             ("calc_lfo_vib_counter", "lfo_vib_counter_before", None),
             ("pg_inc_after", "pg_increment", None),
-            ("pg_phase_next", "pg_phase_next", PHASE_MASK),
-            ("pg_out", "pg_output", 0x03FF),
+            ("pg_phase_next", "pg_phase_next", None),
+            ("pg_out", "pg_output", None),
         )
         for expected_key, actual_key, mask in scalar_pairs:
             expected = int(nuked[expected_key])
@@ -126,12 +124,12 @@ def main() -> int:
         for slot, (expected_raw, actual_raw) in enumerate(
             zip(nuked_phases, rust_phases, strict=True)
         ):
-            expected = int(expected_raw) & PHASE_MASK
+            expected = int(expected_raw)
             actual = int(actual_raw)
             if actual != 0:
                 active_slots.add(slot)
-            if actual < previous_phases[slot]:
-                wrap_events += 1
+            if actual > 0x7FFFF:
+                full_width_phase_samples += 1
             if expected != actual and len(mismatches) < 20:
                 mismatches.append(
                     {
@@ -142,7 +140,6 @@ def main() -> int:
                         "rust": actual,
                     }
                 )
-        previous_phases = [int(value) for value in rust_phases]
 
         if index + 1 < len(samples):
             next_nuked_vib = int(samples[index + 1]["calc_lfo_vib_counter"])
@@ -159,8 +156,8 @@ def main() -> int:
 
     if active_slots != set(range(18)):
         raise ValueError(f"serial PG trace did not activate all 18 slots: {sorted(active_slots)}")
-    if wrap_events == 0:
-        raise ValueError("serial PG trace did not exercise any 19-bit accumulator wrap")
+    if full_width_phase_samples == 0:
+        raise ValueError("serial PG trace did not exercise phase bits above bit 18")
 
     if mismatches:
         print(
@@ -182,12 +179,12 @@ def main() -> int:
                 "compared_calls": len(samples),
                 "phase_values_compared": len(samples) * 18,
                 "active_phase_slots": sorted(active_slots),
-                "rust_19_bit_wrap_events": wrap_events,
+                "full_width_phase_samples": full_width_phase_samples,
                 "phase_reset_events": reset_events,
                 "eg_dokon_nonzero_calls": eg_key_events,
                 "comparison": (
                     "integrated Rust core-owned serial PG service vs Nuked: "
-                    "18 accumulators, pg_inc, pg_phase_next, pg_out, cycle and PM counter"
+                    "raw uint32 PG accumulators, pg_inc, pg_phase_next, uint16 pg_out, cycle and PM counter"
                 ),
             },
             indent=2,
