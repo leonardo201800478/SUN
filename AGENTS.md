@@ -54,4 +54,4 @@ O Z80 compartilhado está encerrado no escopo praticável do perfil NMOS clássi
 7. Auditar diff e preservar evidências históricas; nunca atribuir teste a SHA diferente.
 8. Não fazer merge sem CI aplicável verde no HEAD final e autorização explícita.
 
-Não usar Python, Qt, PyO3 ou Maturin no runtime, frontend, CI ou tooling obrigatório. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
+Não incorporar Python ao código-fonte de produção compilado do runtime ou frontend, nem criar dependência de Python para executar o produto. O runtime/hardware e o frontend de produção permanecem em Rust. Python é permitido exclusivamente em testes, instrumentação externa, scripts auxiliares e validações de CI, desde que essas ferramentas não sejam incorporadas ao binário nem exigidas para executar o emulador. Qt, PyO3 e Maturin não devem ser introduzidos no runtime ou frontend de produção sem decisão arquitetural explícita. Não versionar ROMs comerciais, BIOS proprietárias ou dumps protegidos.
