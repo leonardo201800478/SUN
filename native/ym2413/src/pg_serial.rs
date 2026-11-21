@@ -1298,8 +1298,16 @@ mod tests {
         bank = Ym2413SynthesisBank::restore_state(bank_state).unwrap();
         let mut service = service_with_pipeline(bank, 0, 0, Ym2413PgParameterLatch::RESET, 0);
 
-        service.before_eg_update(&context(0, [0; 64], 0)).unwrap();
+        let context = context(0, [0; 64], 0);
+        service.before_eg_update(&context).unwrap();
         assert_eq!(service.pg_output(), 0x0420);
+
+        let mut eg = EnvelopeSequencer::new();
+        let tick = eg.tick_slot(context.event.cycle, context.envelope_input).unwrap();
+        let post_state = eg.export_state();
+        service
+            .after_eg_update(&context, tick, post_state)
+            .unwrap();
 
         let snapshot = service.export_state();
         let restored = Ym2413PgSerialService::restore_state(snapshot).unwrap();
