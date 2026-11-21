@@ -17,6 +17,8 @@
 
 #ifdef YM2413_TRACE_OPERATOR_BOUNDARY
 extern uint16_t opll_trace_pg_out_before_operator;
+extern uint16_t opll_trace_operator_phase_index;
+extern int16_t opll_trace_operator_output;
 #endif
 
 #define MAX_EVENTS 65536
@@ -266,6 +268,9 @@ int main(int argc, char **argv) {
                (unsigned)chip.c_ksr, (unsigned)chip.c_ksl, (unsigned)chip.c_multi,
                (unsigned)chip.c_fnum, (unsigned)chip.c_block);
         printf(",\"c_adrr\":"); print_u8_array(chip.c_adrr, 3);
+        printf(",\"c_dc\":%u,\"c_dm\":%u,\"c_ksl_freq\":%u,\"c_ksl_block\":%u",
+               (unsigned)chip.c_dc, (unsigned)chip.c_dm,
+               (unsigned)chip.c_ksl_freq, (unsigned)chip.c_ksl_block);
         printf(",\"c_et\":%u,\"c_sl\":%u,\"c_ksr_freq\":%u",
                (unsigned)chip.c_et, (unsigned)chip.c_sl, (unsigned)chip.c_ksr_freq);
         printf(",\"eg_counter_state\":%u,\"eg_counter_state_prev\":%u"
@@ -287,7 +292,8 @@ int main(int argc, char **argv) {
                (unsigned)chip.eg_sl, (unsigned)chip.eg_silent);
         printf(",\"eg_state\":"); print_u8_array(chip.eg_state, 18);
         printf(",\"eg_level\":"); print_u8_array(chip.eg_level, 18);
-        printf(",\"eg_out\":%u", (unsigned)chip.eg_out);
+        printf(",\"eg_out\":%u,\"eg_ksltl\":%u",
+               (unsigned)chip.eg_out, (unsigned)chip.eg_ksltl);
         printf(",\"lfo_counter\":%u,\"lfo_vib_counter\":%u,\"lfo_am_counter\":%u,\"lfo_am_out\":%u",
                (unsigned)chip.lfo_counter, (unsigned)chip.lfo_vib_counter,
                (unsigned)chip.lfo_am_counter, (unsigned)chip.lfo_am_out);
@@ -300,6 +306,11 @@ int main(int argc, char **argv) {
         printf(",\"op_fbsum\":%d,\"op_mod\":%d,\"op_neg\":%u,\"op_logsin\":%u,\"op_exp_m\":%u,\"op_exp_s\":%u",
                (int)chip.op_fbsum, (int)chip.op_mod, (unsigned)chip.op_neg,
                (unsigned)chip.op_logsin, (unsigned)chip.op_exp_m, (unsigned)chip.op_exp_s);
+#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
+        printf(",\"op_phase_index\":%u,\"op_output\":%d",
+               (unsigned)opll_trace_operator_phase_index,
+               (int)opll_trace_operator_output);
+#endif
         printf(",\"ch_out\":%d,\"ch_out_hh\":%d,\"ch_out_tm\":%d,\"ch_out_bd\":%d,\"ch_out_sd\":%d,\"ch_out_tc\":%d",
                (int)chip.ch_out, (int)chip.ch_out_hh, (int)chip.ch_out_tm,
                (int)chip.ch_out_bd, (int)chip.ch_out_sd, (int)chip.ch_out_tc);
