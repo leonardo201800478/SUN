@@ -120,9 +120,9 @@ pub use rhythm_phase::{
     snare_drum_phase_candidate, top_cymbal_phase_candidate,
 };
 pub use serial_operator::{
-    Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorSample,
-    Ym2413SerialOperatorState, YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS,
-    YM2413_SERIAL_OPERATOR_SLOTS, YM2413_SERIAL_OPERATOR_STATE_VERSION,
+    YM2413_SERIAL_OPERATOR_FEEDBACK_SLOTS, YM2413_SERIAL_OPERATOR_SLOTS,
+    YM2413_SERIAL_OPERATOR_STATE_VERSION, Ym2413SerialOperator, Ym2413SerialOperatorError,
+    Ym2413SerialOperatorSample, Ym2413SerialOperatorState,
 };
 pub use slot::{
     YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator,
