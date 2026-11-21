@@ -110,8 +110,8 @@ pub use rhythm_phase::{
 pub use slot::{
     YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Operator, Ym2413RhythmVoice, Ym2413SlotDescriptor,
     nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index, nuked_eg_output_index,
-    nuked_eg_update_index, nuked_pg_phase_output_index, nuked_pg_phase_write_index,
-    slot_descriptor,
+    nuked_eg_update_index, nuked_phase_reset_required, nuked_pg_phase_output_index,
+    nuked_pg_phase_write_index, slot_descriptor,
 };
 pub use synthesis::{
     YM2413_MELODIC_CHANNELS, YM2413_OPERATORS_PER_CHANNEL, YM2413_SYNTHESIS_STATE_VERSION,
