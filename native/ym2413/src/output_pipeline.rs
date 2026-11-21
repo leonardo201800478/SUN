@@ -259,10 +259,10 @@ impl Ym2413OutputPipeline {
                 actual: cycle,
             });
         }
-        if let Some(value) = next_channel_output {
-            if !(YM2413_CHANNEL_OUTPUT_MIN..=YM2413_CHANNEL_OUTPUT_MAX).contains(&value) {
-                return Err(Ym2413OutputPipelineError::InvalidChannelOutput(value));
-            }
+        if let Some(value) = next_channel_output
+            && !(YM2413_CHANNEL_OUTPUT_MIN..=YM2413_CHANNEL_OUTPUT_MAX).contains(&value)
+        {
+            return Err(Ym2413OutputPipelineError::InvalidChannelOutput(value));
         }
 
         let frame = Ym2413CoreOutputPipelineFrame {
