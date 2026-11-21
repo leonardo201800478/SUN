@@ -676,7 +676,8 @@ mod tests {
         slot_service::{
             Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
         },
-        EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS, YM2413_INPUT_CLOCKS_PER_ROTATION,
+        EnvelopeSequencerState, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
+        YM2413_INPUT_CLOCKS_PER_ROTATION,
         YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Core,
         Ym2413Error, Ym2413State, nuked_phase_reset_required,
     };
