@@ -67,6 +67,11 @@ impl PhaseModulationLfo {
         (self.counter >> 10) as u8
     }
 
+    /// Reset the counter to the explicit chip-reset candidate phase zero.
+    pub fn reset(&mut self) {
+        self.counter = 0;
+    }
+
     /// Advance by completed YM2413 output samples and return the new PM position.
     ///
     /// The counter wraps modulo 8192. This method does not advance chip clocks;
