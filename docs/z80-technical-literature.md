@@ -1,6 +1,6 @@
 # Base de literatura técnica do Z80
 
-**Projeto:** SUN — Strife Uranus Neptune — Emulação de Alta Precisão  
+**Projeto:** SUN — Strife Uranus Neptune — Emulação de Alta Precisão
 **Objetivo:** catálogo curado de fontes primárias, literatura técnica, pesquisa de engenharia reversa e suítes de validação para orientar a implementação do Z80.  
 **Atualização:** 23/10/2026.
 
