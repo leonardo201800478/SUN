@@ -130,8 +130,8 @@ pub use slot::{
     Ym2413RhythmOutputOccurrence, Ym2413RhythmVoice, Ym2413SlotDescriptor, Ym2413SlotServiceEvent,
     nuked_cycle_selected_slot_descriptor, nuked_cycle_selected_slot_index, nuked_eg_output_index,
     nuked_eg_update_index, nuked_pg_phase_output_index, nuked_pg_phase_slot_descriptor,
-    nuked_pg_phase_write_index,
-    nuked_phase_reset_required, nuked_phase_reset_required_with_testmode, nuked_slot_service_event,
+    nuked_pg_phase_write_index, nuked_phase_reset_required,
+    nuked_phase_reset_required_with_testmode, nuked_slot_service_event,
     nuked_slot_service_event_with_testmode, slot_descriptor,
 };
 pub use synthesis::{
