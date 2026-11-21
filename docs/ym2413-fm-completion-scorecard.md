@@ -1119,3 +1119,58 @@ A varredura mantém métricas de candidatos de fase-base que ainda divergem: 44.
 - Não há ainda validação com ROMs no runtime SMS, pois o chip não produz PCM FM integrado.
 
 **Conclusão da etapa:** o escopo de EG serial digital integrado ao core está publicado na main e possui CI diferencial aprovado no HEAD validado. A etapa FM-1 como um todo permanece PARCIAL, pois PG/EG ainda não formam um pipeline temporal conjunto. O fechamento do EG não autoriza declarar o YM2413 completo nem iniciar validação de ROMs como se houvesse saída FM funcional.
+
+
+---
+
+## Current-main PG convergence — PR #1119 (2026-11-20)
+
+**Estado:** PG integer increment and tested 18-slot accumulator path — SOFTWARE DIFFERENTIAL PASS. YM2413 pipeline — STILL IN DEVELOPMENT.
+
+**Main merge:** `fc166cc8cca2e3a4a4d5c3565b5d125d3dc20408`.
+
+### Production correction
+
+`PhaseGenerator::phase_step` now preserves the two integer truncation points from the pinned Nuked-OPLL `OPLL_PhaseCalcIncrement` path:
+
+```rust
+freq = (corrected_fnum << block) >> 1;
+pg_inc = (freq * pg_multi[mul]) >> 1;
+```
+
+This is not interchangeable with combining the shifts for odd PM-adjusted frequencies.
+
+### Current-main Nuked differential
+
+Workflow `44840972144`, job `136648936949` — SUCCESS:
+
+- PG increments: 147,456 calls; 146,885 PM-enabled calls; PM positions 0..7; FNUM high rows 0..7; BLOCK 0..7; zero mismatches.
+- 18-slot phase accumulator: 2,654,208 values; zero low-19-bit mismatches; all 18 slots active; 5,076 19-bit wrap events.
+- KEY-ON response: 2,600 calls; 46,800 phase values; zero mismatches; 54 wrap events; 35 nonzero `eg_dokon` observations; two reset events supplied from the Nuked trace.
+
+**Important boundary:** the KEY-ON comparison validates PG's response to oracle-supplied reset events. It does not yet validate reset-event generation from the Rust serial EG core or the integrated EG→PG pipeline.
+
+### MAME/ymfm secondary audit
+
+The same workflow completed a static source-level arithmetic comparison:
+
+- Base/no-PM: 65,536 tuples; zero floor-normalized mismatches; 256 exact common-unit half-LSB cases.
+- PM: 524,288 tuples; the quantized PM table matches after cyclic phase-origin offset 6 and truncation toward zero.
+- Final PM increments still differ: 135,136 floor-normalized and 140,625 exact common-unit mismatches at the best rotation.
+
+No MAME executable/runtime state was captured. This is not an independent MAME output PASS and does not override Nuked as the primary software oracle.
+
+### CI gates
+
+- CI run `44840972118`: SUCCESS — Rust workspace regression, Rust quality/unit regression, workflow validation and documentation patch hygiene passed.
+- Nuked PG differential run `44840972144`: SUCCESS.
+- External Nuked oracle adapter run `44840972169`: SUCCESS.
+- Existing EG characterization run `44840972157`: SUCCESS.
+- Unrelated Z80, Scheduler, SMS integration, Windows audio/input and Slint/WGPU jobs were SKIPPED; they remain SKIPPED, not PASS.
+- No physical Windows or real-chip test was performed.
+
+### Next gate
+
+FM-1B remains open: integrate the explicit slot-service event, connect the serial EG reset event to the unique PG consumer, preserve all delayed latches and prove continuous/partitioned equivalence. The slot-service mapping and offsets are under PR #1122.
+
+No PCM FM, complete operator/feedback pipeline, Rhythm Mode PCM, SMS FM ports or PSG+FM mixer is claimed complete.

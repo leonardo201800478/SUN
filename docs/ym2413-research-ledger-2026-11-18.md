@@ -264,3 +264,27 @@ A PR #1053 adicionou cobertura de regressão para o comportamento KEY-OFF descri
 A cobertura confirma a implementação candidata nas combinações testadas; não resolve a divergência de seleção de taxa do carrier para EG-TYPE=1 e SUS=ON/OFF. Essa questão permanece aberta na Issue #1051 e não deve ser ocultada por estes testes.
 
 **CI:** #44513838591 (run #8840) SUCCESS para Rustfmt, Clippy workspace, testes unitários/integração e Clippy/testes observability. Os gates não relacionados foram SKIPPED.
+
+
+---
+
+## 9. PG integer arithmetic and 18-slot accumulator convergence — current-main re-run (2026-11-20)
+
+PR #1119 reapplied the staged Nuked integer truncation in `PhaseGenerator::phase_step` and was squash-merged to main as `fc166cc8cca2e3a4a4d5c3565b5d125d3dc20408`.
+
+Current-main differential evidence against Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`:
+
+- 147,456 `OPLL_Clock` calls; 146,885 PM-enabled calls; all PM positions, FNUM high rows and BLOCK values covered; zero PG increment mismatches.
+- 2,654,208 phase accumulator values compared across all 18 slots; zero low-19-bit mismatches; 5,076 Rust wrap events.
+- Separate KEY-ON phase-reset response trace: 2,600 calls, 46,800 phase values, 54 wraps, two oracle-supplied reset events and zero phase mismatches.
+- The phase-reset response trace does not yet validate event generation by the Rust serial EG core; that remains an integration requirement.
+- MAME/ymfm source-level static audit completed in the same workflow. It supports base/no-PM agreement after unit normalization and documents unresolved PM fractional-rounding differences; no MAME executable/runtime differential was performed.
+
+CI evidence:
+- Rust workspace regression and Rust quality/unit regression: SUCCESS.
+- Nuked PG differential: SUCCESS.
+- External Nuked oracle adapter: SUCCESS.
+- Existing serial EG characterization: SUCCESS.
+- Unrelated Z80, SMS, Scheduler, Windows audio/input and Slint/WGPU jobs were SKIPPED; they are not promoted to PASS.
+
+**Research conclusion:** the PG integer increment and the tested 18-slot accumulator path now have reproducible software-oracle evidence. This does not close FM-1B: the Rust EG reset event is not yet connected to PG, and the combined PG/EG/operator/feedback pipeline, Rhythm Mode output, DAC and PCM remain incomplete. The next implementation unit is the explicit slot-service contract, tracked by PR #1122.

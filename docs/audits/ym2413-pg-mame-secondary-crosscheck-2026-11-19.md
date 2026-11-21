@@ -68,3 +68,18 @@ Project decision remains unchanged:
 ## Validation boundary
 
 The script is deterministic and exhaustive for the formulas and tables listed above. It does not establish full PG phase-accumulator equivalence, slot/subphase alignment, EG, feedback, PCM, or physical chip fidelity. No MAME or Nuked implementation source is copied into the Rust backend.
+
+
+## Re-execution in the current-main PG workflow (2026-11-20)
+
+The static source-level audit was rerun by the PG differential workflow on PR #1119, run `44840972144`, job `136648936949` — SUCCESS.
+
+The regenerated report retained the same classifications:
+
+- Base/no-PM: 65,536 tuples; zero floor-normalized mismatches; 256 exact common-unit differences, all half-Rust-LSB cases.
+- PM: 524,288 tuples; 404,965 same-position floor-normalized mismatches before phase-origin normalization.
+- Best cyclic PM phase-origin rotation: 6.
+- At rotation 6, the quantized MAME PM table matches the Rust table after truncation toward zero.
+- Final PM increment comparison still differs: 135,136 floor-normalized mismatches and 140,625 exact common-unit mismatches at the best rotation.
+
+This remains a source-level arithmetic comparison. No MAME executable or runtime state was captured. The result is not a MAME PASS for the production PG increment and does not supersede Nuked as the primary software compatibility oracle.

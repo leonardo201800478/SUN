@@ -97,3 +97,22 @@ physical instant, correspondence between Nuked's 18 serial steps and the
 Rust 18-slot/four-input-clock representation, reset alignment, PG service
 subphase, EG timing, feedback timing, PCM output, or physical silicon fidelity.
 MAME/ymfm triangulation remains pending.
+
+
+## Re-execution on current main — PR #1119 (2026-11-20)
+
+The correction and executable comparator were reapplied on the current mainline and rerun against the same pinned Nuked-OPLL commit. PR #1119 was squash-merged as `fc166cc8cca2e3a4a4d5c3565b5d125d3dc20408`.
+
+- Nuked `OPLL_Clock` calls: **147,456**.
+- PM-enabled calls in this re-execution: **146,885**.
+- PM positions: **0..7**.
+- FNUM high rows: **0..7**.
+- BLOCK values: **0..7**.
+- Increment mismatches: **0**.
+- Workflow: run `44840972144`, job `136648936949` — SUCCESS.
+
+The PM-enabled count differs from the historical 2026-11-19 run (16,373) because the executable trace/event sequence was regenerated for this re-execution. Both runs independently report zero increment mismatches; the counts are retained as separate run metadata rather than silently rewritten.
+
+The same workflow also ran the source-level MAME/ymfm arithmetic audit. It found zero floor-normalized base/no-PM mismatches across 65,536 tuples, 256 exact common-unit half-LSB cases, and PM arithmetic differences after phase-origin normalization. This is not a MAME executable/runtime differential; details remain in `ym2413-pg-mame-secondary-crosscheck-2026-11-19.md`.
+
+This re-execution validates the production PG integer increment against the pinned Nuked software oracle. It does not establish physical slot alignment, EG-to-PG reset-event generation, complete PG/EG integration, PCM or physical silicon fidelity.
