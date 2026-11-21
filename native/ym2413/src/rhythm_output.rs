@@ -293,7 +293,10 @@ mod tests {
         };
         assert_eq!(event.code, negative_zero);
         assert!(event.code.is_negative_zero());
-        assert_eq!(restored.export_state().retained_values[1], Some(negative_zero));
+        assert_eq!(
+            restored.export_state().retained_values[1],
+            Some(negative_zero)
+        );
     }
 
     #[test]
