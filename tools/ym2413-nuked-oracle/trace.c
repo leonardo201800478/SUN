@@ -15,7 +15,9 @@
 #include <string.h>
 #include "opll.h"
 
+#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
 extern uint16_t opll_trace_pg_out_before_operator;
+#endif
 
 #define MAX_EVENTS 65536
 
@@ -217,7 +219,9 @@ int main(int argc, char **argv) {
         }
 
         OPLL_Clock(&chip, output);
+#ifdef YM2413_TRACE_OPERATOR_BOUNDARY
         op_calc_pg_out = opll_trace_pg_out_before_operator;
+#endif
         if (pg_phase_only) {
             printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32
                    ",\"cycle_after\":%" PRIu32 ",\"calc_fnum\":%u,\"calc_block\":%u"
