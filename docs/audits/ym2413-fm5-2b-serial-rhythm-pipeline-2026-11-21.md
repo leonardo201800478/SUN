@@ -68,18 +68,20 @@ Restore validation continues to reject incompatible versions and invalid retaine
 
 ## Validation evidence and limits
 
-At code HEAD `fbdddebb3cd79930f60e78e3ce8dbbd72a5d33f6`:
+At code HEAD `6aed8b627b9b84b4459da1b0e65ffeb730b9fe35`:
 
-- Rust CI #9816: **SUCCESS**. Change-impact classification, documentation hygiene, workflow validation, Rustfmt, Clippy, workspace unit/integration tests, observability Clippy and observability tests passed. Unrelated platform/runtime gates were skipped by impact classification.
-- Nuked PG differential #352: **SUCCESS**.
+- Rust CI #9825: **SUCCESS**. Change-impact classification, documentation hygiene, workflow validation, Rustfmt, Clippy, workspace unit/integration tests, observability Clippy and observability tests passed. Unrelated platform/runtime gates were skipped by impact classification.
+- Nuked PG differential #361: **SUCCESS**.
   - Isolated operator differential: all five rhythm output latches compared against Nuked after each serial call; effective `rm_enable` was captured immediately before `OPLL_Operator`.
-  - Integrated Rhythm Mode characterization: 147,456 calls, all 18 serial cycles, individual percussion triggers, simultaneous voices, release and retrigger.
+  - Integrated Rhythm Mode characterization: 147,456 calls, all 18 serial cycles, individual percussion triggers, simultaneous voices, release and retrigger. The fixture uses Table III-9 frequency values and the dispatcher regression asserts the documented physical slot ownership.
   - Strict control/timing state matched: cycle order, LFO/EG global timers, key-on control, channel/slot identity, `rm_enable`, `rm_select`, rhythm control and the 23-bit LFSR state.
   - All five retained output latches (HH/TOM/BD/SD/TC) became nonzero in both traces and had no reported candidate divergence.
-- Nuked Rhythm reset differential #275: **SUCCESS**.
-- External Nuked oracle adapter #448: **SUCCESS**.
-- Nuked EG characterization #525: the 38-configuration AR/DR/KSR sweep completed successfully; final deterministic trace retention was still running at the time of this audit update.
+- Nuked Rhythm reset differential #284: **SUCCESS**.
+- External Nuked oracle adapter #457: **SUCCESS**.
+- Nuked EG characterization #534: the 38-configuration AR/DR/KSR sweep was still running at the time of this audit update.
 - Hardware/chip validation: **NOT RUN**.
+
+The same PG workflow also passed the integrated PG service, all 18 accumulated phases, KEY-ON phase reset and pinned MAME/ymfm arithmetic audit.
 
 The integrated Rhythm Mode characterization deliberately separates strict serial/control/timing evidence from synthesis fields derived from the un-certified rhythm patch candidates. It does not claim full synthesis equality with Nuked or physical chip accuracy.
 
