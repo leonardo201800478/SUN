@@ -1025,24 +1025,28 @@ mod tests {
 
     #[test]
     fn do_rhythm_uses_test_mode_bit_one_and_preserves_zero_register_candidate() {
-        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+        let zero_service = Ym2413PgSerialService::new(initial_bank(0))
             .with_rhythm_noise_register(0, 0)
             .unwrap();
-        let snapshot = service.export_state();
+        let zero_snapshot = zero_service.export_state();
         assert_eq!(
-            Ym2413PgSerialService::restore_state(snapshot)
+            Ym2413PgSerialService::restore_state(zero_snapshot)
                 .unwrap()
                 .export_state(),
-            snapshot
+            zero_snapshot
         );
 
+        let register = 0x12_3456;
+        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_register(register, 0)
+            .unwrap();
         let slot_context = context(0, [0; 64], 0x02);
         service.before_eg_update(&slot_context).unwrap();
         let (tick, post) = tick(0);
         service.after_eg_update(&slot_context, tick, post).unwrap();
         assert_eq!(
             service.rhythm_noise_state().unwrap().lfsr.register,
-            1 << 22
+            (register >> 1) | (1 << 22)
         );
     }
 
