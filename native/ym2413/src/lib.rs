@@ -381,6 +381,7 @@ impl Ym2413Core {
     ///
     /// The core state is transactional. An integrated pipeline must also stage
     /// its own service state transactionally if a service callback can fail.
+    #[expect(dead_code, reason = "Staged FM-1B entry point; consumed by the serial synthesis service integration.")]
     pub(crate) fn advance_input_clocks_with_slot_service<S: slot_service::Ym2413SlotService>(
         &mut self,
         clocks: u64,
@@ -469,6 +470,7 @@ impl Ym2413Core {
 
     /// Integrated path: service pre-EG and post-EG stages around exactly one
     /// core-owned serial EG update.
+    #[expect(dead_code, reason = "Staged FM-1B slot hook; consumed by the serial synthesis service integration.")]
     fn clock_one_slot_with_service<S: slot_service::Ym2413SlotService>(
         &mut self,
         service: &mut S,
