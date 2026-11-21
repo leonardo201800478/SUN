@@ -1409,6 +1409,15 @@ mod tests {
         }
     }
 
+    fn advance_internal_cycle(bus: &mut SmsTemporalBus, id: u64, tstates: u64) {
+        bus.schedule_internal_cycle(id, tstates).unwrap();
+        assert!(matches!(
+            bus.dispatch_next().unwrap(),
+            Some(SmsTemporalDispatch::InternalCycleComplete(_))
+        ));
+        bus.acknowledge_internal_completion(id).unwrap();
+    }
+
     fn patterned_rom(bank_count: usize) -> Vec<u8> {
         let mut rom = vec![0; bank_count * 0x4000];
         for bank in 0..bank_count {
@@ -1492,6 +1501,43 @@ mod tests {
             bus.ym2413().unwrap().export_state()
         );
         assert_eq!(restored.read_port(0xF2), 0x01);
+    }
+
+    #[test]
+    fn japanese_fm_serial_pcm_samples_restore_deterministically() {
+        let mut uninterrupted = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        advance_internal_cycle(&mut uninterrupted, 100, 216);
+        let expected = uninterrupted.drain_fm_audio_samples(None);
+        assert_eq!(expected.len(), 3);
+        assert!(expected.iter().any(Option::is_some));
+        assert!(expected
+            .iter()
+            .flatten()
+            .all(|sample| sample.is_finite() && sample.abs() <= 1.0));
+
+        let mut split = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        advance_internal_cycle(&mut split, 101, 84);
+        let snapshot = split.export_state();
+        let mut restored = SmsTemporalBus::restore_state(snapshot).unwrap();
+        advance_internal_cycle(&mut restored, 102, 132);
+
+        assert_eq!(restored.drain_fm_audio_samples(None), expected);
     }
 
     #[test]
