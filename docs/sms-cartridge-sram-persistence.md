@@ -41,7 +41,7 @@ The capacity is supplied by the verified profile, not inferred from a save file.
 The save directory on Windows is:
 
 ```text
-%APPDATA%\Sega Emulator\saves
+%APPDATA%\SUN — Strife Uranus Neptune\saves
 ```
 
 Each file is named from the lowercase SHA-256 of the loaded ROM bytes:
@@ -103,7 +103,7 @@ For an uncompressed `.sms` ROM, the following derives the expected filename from
 
 ```powershell
 $romPath = 'C:\ROMs\Phantasy Star.sms'
-$saveDir = Join-Path $env:APPDATA 'Sega Emulator\saves'
+$saveDir = Join-Path $env:APPDATA 'SUN — Strife Uranus Neptune\saves'
 $romSha256 = (Get-FileHash -LiteralPath $romPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $srmPath = Join-Path $saveDir "$romSha256.srm"
 
