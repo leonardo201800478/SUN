@@ -1247,7 +1247,7 @@ A caracterização EG run 44856572947 ainda estava em execução no momento dest
 - Log-sine table comparison against pinned Nuked `logsinrom`: 256/256 values equal. EXP reconstruction `1024 + YM2413_EXP_TABLE[255-index]` against pinned Nuked `exprom`: 256/256 values equal.
 - Added pre-call operator latch capture to the external Nuked trace adapter, a Rust replay example, and `compare_operator.py`. The workflow fixture covers nine melodic channels, a user patch with feedback/AM/VIB/DC/DM, KEY-ON/KEY-OFF, live writes, and Test Mode bits 0–3.
 - The independent operator differential has **not yet run to PASS** on an FM-3 HEAD. No operator or integrated-pipeline differential success is claimed.
-- AM currently consumes the existing measured sample-domain LFO candidate at the serial rotation boundary. Its equivalence to Nuked's per-slot AM shift-register behavior remains open and must be resolved before FM-3 closure.
+- Added `Ym2413SerialAmLfo` with the nine-bit AM counter, direction, carry, step and cycle-0 output latch. It advances once per serial slot and implements Test Mode bits 1 and 3 from `OPLL_DoLFO`; the independent differential is pending. The older measured sample-domain AM candidate remains separate and is not used by the serial service.
 - Rhythm Mode, PCM channel accumulation, digital output, DAC mapping, SMS FM ports, and PSG+FM mixing remain later roadmap stages.
 
 ### Required FM-3 closure gates
@@ -1255,7 +1255,7 @@ A caracterização EG run 44856572947 ainda estava em execução no momento dest
 1. Operator internal-state differential PASS against pinned Nuked on the exact final HEAD.
 2. Integrated PG + operator + core-owned EG differential with Rust-generated inputs, not oracle-injected inputs.
 3. Latch timing and active-note parameter-write coverage for all nine channels.
-4. Test Mode and AM LFO serial behavior differential.
+4. Test Mode and AM LFO serial behavior differential (the serial AM comparator is now part of the Nuked workflow).
 5. Continuous/partitioned equivalence, clone independence, snapshot/restore, rollback and retry idempotence.
 6. Rust workspace regression, Clippy, formatting, and relevant CI gates PASS.
 7. Independent review with no unresolved P1/P2 findings.
