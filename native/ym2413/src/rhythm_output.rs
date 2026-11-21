@@ -572,7 +572,13 @@ mod tests {
             ))
         );
 
-        for slot in (14..18).chain(0..13) {
+        for slot in 14..18 {
+            let source = [14, 15, 16, 17].contains(&slot).then_some(code);
+            let _ = delay
+                .process_slot_with_validity(slot, source, true)
+                .unwrap();
+        }
+        for slot in 0..13 {
             let _ = delay
                 .process_slot_with_validity(slot, None, true)
                 .unwrap();
