@@ -1694,10 +1694,10 @@ mod tests {
         let service = Ym2413PgSerialService::new(initial_bank(0));
         let mut state = service.export_state();
         state.pipeline.lfo_vib_counter = 8;
-        assert_eq!(
+        assert!(matches!(
             Ym2413PgSerialService::restore_state(state),
             Err(Ym2413PgSerialError::InvalidState)
-        );
+        ));
         state = service.export_state();
         state.pipeline.parameters.fnum = 0x0200;
         assert_eq!(
