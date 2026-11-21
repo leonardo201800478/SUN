@@ -381,6 +381,7 @@ impl Ym2413Core {
     ///
     /// The core state is transactional. An integrated pipeline must also stage
     /// its own service state transactionally if a service callback can fail.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn advance_input_clocks_with_slot_service<S: slot_service::Ym2413SlotService>(
         &mut self,
         clocks: u64,
@@ -469,6 +470,7 @@ impl Ym2413Core {
 
     /// Integrated path: service pre-EG and post-EG stages around exactly one
     /// core-owned serial EG update.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn clock_one_slot_with_service<S: slot_service::Ym2413SlotService>(
         &mut self,
         service: &mut S,
