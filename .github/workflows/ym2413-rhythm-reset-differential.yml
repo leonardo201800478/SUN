@@ -1,0 +1,110 @@
+name: YM2413 Nuked Rhythm reset differential
+
+on:
+  pull_request:
+    paths:
+      - "native/ym2413/**"
+      - "tools/ym2413-nuked-oracle/trace.c"
+      - ".github/workflows/ym2413-rhythm-reset-differential.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rhythm-reset-differential:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Rust implementation
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Nuked-OPLL reference
+        env:
+          NUKED_SHA: 1269cf5a783b65583b50fa2464d08be75830aaa0
+        run: |
+          git clone https://github.com/nukeykt/Nuked-OPLL.git "$RUNNER_TEMP/Nuked-OPLL"
+          git -C "$RUNNER_TEMP/Nuked-OPLL" checkout "$NUKED_SHA"
+          test "$(git -C "$RUNNER_TEMP/Nuked-OPLL" rev-parse HEAD)" = "$NUKED_SHA"
+
+      - name: Instrument the actual OPLL_PhaseGenerate decision in the external oracle
+        run: |
+          python3 - "$RUNNER_TEMP/Nuked-OPLL/opll.c" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          source = path.read_text(encoding="utf-8")
+          include = '#include "opll.h"'
+          declaration = include + """
+          #ifdef YM2413_TRACE_PHASE_RESET
+          extern void ym2413_trace_phase_reset(
+              uint32_t cycle, uint8_t rm_enable, uint32_t eg_dokon,
+              uint32_t ismod, uint32_t reset_required);
+          #endif
+          """
+          if source.count(include) != 1:
+              raise SystemExit("pinned Nuked include anchor changed")
+          source = source.replace(include, declaration, 1)
+
+          old = """    if ((chip->testmode & 0x04)
+           || (ismod && (chip->eg_dokon & 0x8000)) || (!ismod && (chip->eg_dokon & 0x01))) {
+              chip->pg_phase_next = 0;
+          } else {
+              chip->pg_phase_next = phase;
+          }"""
+          new = """    uint32_t phase_reset_required =
+          (chip->testmode & 0x04)
+          || (ismod && (chip->eg_dokon & 0x8000))
+          || (!ismod && (chip->eg_dokon & 0x01));
+          if (phase_reset_required) {
+              chip->pg_phase_next = 0;
+          } else {
+              chip->pg_phase_next = phase;
+          }
+          #ifdef YM2413_TRACE_PHASE_RESET
+          ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,
+                                   chip->eg_dokon, ismod, phase_reset_required);
+          #endif"""
+          if source.count(old) != 1:
+              raise SystemExit("pinned OPLL_PhaseGenerate reset branch anchor changed")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Compile the external trace adapter and instrumented reference
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -DYM2413_TRACE_PHASE_RESET \
+            -I"$RUNNER_TEMP/Nuked-OPLL" \
+            tools/ym2413-nuked-oracle/trace.c \
+            "$RUNNER_TEMP/Nuked-OPLL/opll.c" \
+            -o "$RUNNER_TEMP/ym2413-nuked-trace"
+
+      - name: Capture actual post-shift Rhythm Mode reset decisions
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 72 --phase-reset-probe \
+            > /dev/null 2> "$RUNNER_TEMP/rhythm-reset.csv"
+
+      - name: Compare captured decision inputs and outputs
+        run: |
+          python3 - "$RUNNER_TEMP/rhythm-reset.csv" <<'PY'
+          from pathlib import Path
+          import sys
+
+          rows = []
+          for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+              if line.startswith("YM2413_PHASE_RESET,"):
+                  _, cycle, rm_enable, eg_dokon, ismod, reset = line.split(",")
+                  rows.append(tuple(map(int, (cycle, rm_enable, eg_dokon, ismod, reset))))
+
+          probes = (0x8000, 0x0001, 0x0000, 0x8001)
+          expected = [
+              (cycle, 0xC0, eg_dokon, 0, int(bool(eg_dokon & 0x01)))
+              for eg_dokon in probes
+              for cycle in (13, 14)
+          ]
+          if rows != expected:
+              raise SystemExit(
+                  "Nuked Rhythm reset mismatch:\\n"
+                  f"expected={expected!r}\\nactual={rows!r}"
+              )
+          print(f"PASS: {len(rows)} actual OPLL_PhaseGenerate Rhythm reset decisions")
+          PY
