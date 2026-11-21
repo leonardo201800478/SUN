@@ -65,7 +65,7 @@ The new `Ym2413SerialOperatorState` retains:
 The feedback ring index and delayed feedback-sum selection follow the serial cycle:
 `op_fbsum ← (op_fb1[(cycle+3)%9] + op_fb2[(cycle+3)%9]) >> 1`, with the two-sample history updated only on the carrier-selection cycles defined by Nuked's `ismod1` expression.
 
-The phase path uses Nuked's ten-bit effective phase:
+Nuked's PhaseGenerate output is an eleven-bit `uint16_t` value (`phase >> 9`). OPLL_Operator adds it to the modulation value and masks the sum to ten bits. The Rust input therefore accepts the full eleven-bit PG latch and applies the ten-bit mask only at the operator phase boundary. The phase path uses Nuked's ten-bit effective phase:
 `phase = (op_mod + pg_out) & 0x3ff`, followed by the half-wave mirror when bit 8 is set. The 32-bit addition is wrapping before the ten-bit mask.
 
 ## ROM transform audi
