@@ -78,7 +78,7 @@ At code HEAD `fbdddebb3cd79930f60e78e3ce8dbbd72a5d33f6`:
   - All five retained output latches (HH/TOM/BD/SD/TC) became nonzero in both traces and had no reported candidate divergence.
 - Nuked Rhythm reset differential #275: **SUCCESS**.
 - External Nuked oracle adapter #448: **SUCCESS**.
-- Nuked EG characterization #525: the 38-configuration AR/DR/KSR sweep was still running at the time of this audit update.
+- Nuked EG characterization #525: the 38-configuration AR/DR/KSR sweep completed successfully; final deterministic trace retention was still running at the time of this audit update.
 - Hardware/chip validation: **NOT RUN**.
 
 The integrated Rhythm Mode characterization deliberately separates strict serial/control/timing evidence from synthesis fields derived from the un-certified rhythm patch candidates. It does not claim full synthesis equality with Nuked or physical chip accuracy.
