@@ -271,3 +271,40 @@ Next, rerun the isolated and integrated Nuked differentials on the new code
 HEAD. If the FB/DM rows converge, retain the SD SL/EG mismatches as separate
 diagnostics. Only then proceed to FM-5.3 MO/RO pin-event routing and repeated
 output retention, keeping MO and RO as independent serial outputs.
+
+
+### Post-change validation — PG differential #364
+
+The directed per-slot FB/DM correction was exercised by the pinned Nuked PG
+workflow on code commit `c9a5f73176ee34e585c5b912f4b705256ba84afd`.
+
+- Workflow #364: **SUCCESS**.
+- Integrated Rhythm Mode: 147,456 calls, all 18 serial cycles.
+- Strict serial/control/LFSR/timing comparison: PASS.
+- The integrated report no longer lists `c_fb` or `c_dm` in
+  `candidate_patch_differences`; those two divergences are resolved for this
+  test sequence.
+- Remaining integrated candidate differences:
+  - `c_sl`: 8,092 rows; first call 1,815; Nuked=4, Rust=6.
+  - `eg_sl`: 8,092 rows; first call 1,816; Nuked=4, Rust=6.
+  - `eg_state`: 15,984 rows; first call 79,001; the complete arrays differ.
+- The comparator reports `CHARACTERIZED_WITH_PATCH_CANDIDATE_DIVERGENCE`,
+  not full synthesis equivalence.
+
+The test's 147,456-call trace uses the explicit Nuked software-reset seed
+candidate 0. It is not evidence for the physical YM2413 power-on seed.
+
+The first CI run for the code commit (#9828) failed at `cargo fmt --all
+-- --check`, solely on formatting in `pg_serial.rs`. The formatting was
+corrected in commit `6249ee472cde2f9f3615d5680d7ad0ddcdc3ff7e`. That later
+commit has not yet received a new exact-head CI result; do not report CI as
+passing on the updated branch until a fresh run confirms it.
+
+The Nuked EG characterization workflow #537 was still running at the time of
+this audit update. Its final result must be checked before closing the
+characterization gate.
+
+The previous “Next, rerun...” instruction is superseded: PG differential #364
+has now run and verified the FB/DM correction. The next work item remains
+isolating the SD SL/EG candidate difference, not changing the candidate table
+without new hardware evidence.
