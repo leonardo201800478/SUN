@@ -55,6 +55,11 @@ impl SmsIo {
         }
     }
 
+    /// Return the territory profile used by this console I/O device.
+    pub const fn territory(&self) -> Territory {
+        self.territory
+    }
+
     pub fn input(&self) -> SmsInputState {
         self.input
     }

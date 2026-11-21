@@ -2,8 +2,10 @@
 //!
 //! Memory and port transactions become visible only at their scheduled
 //! completion boundary. Controller/control-port effects, the shared
-//! scheduler-driven PSG, and SMS1 VDP port effects are applied there. The VDP
-//! scanline clock advances from Scheduler-dispatched Z80 cycles; dot/fetch
+//! scheduler-driven PSG, optional Japanese SMS YM2413 register writes, and
+//! SMS1 VDP port effects are applied there. The YM2413 input clock advances
+//! from the same Scheduler timeline as the Z80/PSG. The VDP scanline clock
+//! advances from Scheduler-dispatched Z80 cycles; dot/fetch
 //! arbitration and mid-scanline effects remain outside this slice.
 //! Unconnected reads return open bus, port writes are retained in a bounded
 //! diagnostic trace, and INT acknowledge data comes from an explicit external
@@ -20,9 +22,10 @@ use sega_audio_runtime::{DEFAULT_PCM_SOURCE_RATE_HZ, PsgClockError, ScheduledPsg
 use sega_sn76489::{PsgAmplitudeEvent, PsgEventCaptureError, PsgProfile, Sn76489Core};
 use sega_temporal_core::{HardwarePhase, MachineTime};
 use sega_video::sms::SmsVdpProfile;
+use sega_ym2413::{Ym2413Core, Ym2413Error, Ym2413State};
 use sega_z80_cpu::{Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80BusRequest};
 
-pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 21;
+pub const SMS_TEMPORAL_BUS_STATE_VERSION: u16 = 22;
 const DEFAULT_INTERRUPT_VECTOR: u8 = 0xFF;
 const DEFAULT_SMS_PSG_CLOCK_HZ: u64 = 3_579_545;
 const DEFAULT_AUDIO_SAMPLE_RATE: u64 = DEFAULT_PCM_SOURCE_RATE_HZ as u64;
@@ -101,6 +104,8 @@ pub struct SmsTemporalBusState {
     pub memory: SmsMemory,
     pub io: SmsIo,
     pub psg: ScheduledPsg,
+    pub ym2413: Option<Ym2413State>,
+    pub fm_control: u8,
     pub vdp: SmsVdp,
     pub coordinator: SmsTemporalCoordinatorState,
     pub pending_request: Option<Z80BusRequest>,
@@ -117,6 +122,7 @@ pub enum SmsTemporalBusError {
     Core(SmsCoreError),
     Psg(PsgError),
     PsgClock(PsgClockError),
+    Ym2413(Ym2413Error),
     Coordinator(SmsTemporalCoordinatorError),
     Io(SmsIoError),
     Busy,
@@ -124,6 +130,7 @@ pub enum SmsTemporalBusError {
     WrongRequestId { expected: u64, received: u64 },
     UnsupportedOperation,
     UnsupportedBiosHardwareProfile,
+    UnsupportedFmHardwareProfile,
     InvalidState,
 }
 
@@ -133,6 +140,7 @@ impl fmt::Display for SmsTemporalBusError {
             Self::Core(error) => write!(f, "SMS memory initialization failed: {error}"),
             Self::Psg(error) => write!(f, "SMS temporal PSG initialization failed: {error}"),
             Self::PsgClock(error) => write!(f, "SMS temporal PSG clock advance failed: {error}"),
+            Self::Ym2413(error) => write!(f, "SMS temporal YM2413 clock advance failed: {error}"),
             Self::Coordinator(error) => write!(f, "SMS temporal coordinator failed: {error}"),
             Self::Io(error) => write!(f, "SMS temporal controller input failed: {error}"),
             Self::Busy => {
@@ -148,6 +156,9 @@ impl fmt::Display for SmsTemporalBusError {
             ),
             Self::UnsupportedBiosHardwareProfile => f.write_str(
                 "the conventional 8 KiB BIOS mapping is currently validated only for SMS1 hardware",
+            ),
+            Self::UnsupportedFmHardwareProfile => f.write_str(
+                "the integrated YM2413 profile is supported only for an explicitly selected Japanese Master System",
             ),
             Self::InvalidState => f.write_str("SMS temporal bus snapshot is inconsistent"),
         }
@@ -165,6 +176,12 @@ impl From<SmsCoreError> for SmsTemporalBusError {
 impl From<PsgClockError> for SmsTemporalBusError {
     fn from(error: PsgClockError) -> Self {
         Self::PsgClock(error)
+    }
+}
+
+impl From<Ym2413Error> for SmsTemporalBusError {
+    fn from(error: Ym2413Error) -> Self {
+        Self::Ym2413(error)
     }
 }
 
@@ -192,6 +209,8 @@ pub struct SmsTemporalBus {
     memory: SmsMemory,
     io: SmsIo,
     psg: ScheduledPsg,
+    ym2413: Option<Ym2413Core>,
+    fm_control: u8,
     vdp: SmsVdp,
     coordinator: SmsTemporalCoordinator,
     pending_request: Option<Z80BusRequest>,
@@ -258,6 +277,62 @@ impl SmsTemporalBus {
         )
     }
 
+    /// Construct the Japanese Master System profile with its integrated YM2413.
+    ///
+    /// This is explicit rather than inferred from Territory::Japan: territory
+    /// alone does not prove that a particular board contains FM.
+    pub fn new_with_japanese_fm_hardware_profile(
+        rom: impl Into<Vec<u8>>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalBusError> {
+        if territory != Territory::Japan {
+            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
+        }
+        let mut bus = Self::new_with_hardware_profile(
+            rom,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+        )?;
+        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
+        bus.ym2413 = Some(Ym2413Core::new());
+        Ok(bus)
+    }
+
+    /// Construct the Japanese Master System FM profile with explicit cartridge SRAM capacity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_japanese_fm_hardware_profile_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalBusError> {
+        if territory != Territory::Japan {
+            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
+        }
+        let mut bus = Self::new_with_hardware_profile_and_sram_size(
+            rom,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        )?;
+        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
+        bus.ym2413 = Some(Ym2413Core::new());
+        Ok(bus)
+    }
+
     /// Construct the temporal bus with an explicit cartridge SRAM hardware capacity.
     /// Capacity comes from the cartridge profile, never from ROM or save-file size.
     pub fn new_with_hardware_profile_and_sram_size(
@@ -292,6 +367,8 @@ impl SmsTemporalBus {
             memory,
             io: SmsIo::new(territory),
             psg,
+            ym2413: None,
+            fm_control: 0,
             vdp: SmsVdp::new_with_profile(vdp_profile),
             coordinator,
             pending_request: None,
@@ -371,6 +448,8 @@ impl SmsTemporalBus {
             memory,
             io: SmsIo::new(territory),
             psg,
+            ym2413: None,
+            fm_control: 0,
             vdp: SmsVdp::new_with_profile(vdp_profile),
             coordinator,
             pending_request: None,
@@ -381,6 +460,63 @@ impl SmsTemporalBus {
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
         })
+    }
+
+    /// Construct a Japanese Master System with BIOS and its integrated YM2413.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+    ) -> Result<Self, SmsTemporalBusError> {
+        if territory != Territory::Japan {
+            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
+        }
+        let mut bus = Self::new_with_hardware_profile_and_bios(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+        )?;
+        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
+        bus.ym2413 = Some(Ym2413Core::new());
+        Ok(bus)
+    }
+
+    /// Construct the Japanese Master System FM profile with BIOS and cartridge SRAM capacity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
+        rom: impl Into<Vec<u8>>,
+        bios: Vec<u8>,
+        master_ticks_per_tstate: u64,
+        psg_clock_hz: u64,
+        sample_rate: u64,
+        vdp_profile: SmsVdpProfile,
+        territory: Territory,
+        cartridge_sram_size: Option<usize>,
+    ) -> Result<Self, SmsTemporalBusError> {
+        if territory != Territory::Japan {
+            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
+        }
+        let mut bus = Self::new_with_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        )?;
+        bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
+        bus.ym2413 = Some(Ym2413Core::new());
+        Ok(bus)
     }
 
     /// Schedule an external TH transition without advancing the machine immediately.
@@ -523,6 +659,19 @@ impl SmsTemporalBus {
             .find(|advance| advance.domain == SMS_PSG_CLOCK_DOMAIN_ID)
             .ok_or(SmsTemporalBusError::InvalidState)?;
         self.psg.apply_clock_advance(psg_advance)?;
+        if let Some(ym2413) = self.ym2413.as_mut() {
+            let advance = dispatch
+                .clock_advances
+                .iter()
+                .find(|advance| advance.domain == crate::SMS_YM2413_CLOCK_DOMAIN_ID)
+                .ok_or(SmsTemporalBusError::InvalidState)?;
+            let mut remaining = advance.elapsed_cycles;
+            while remaining > u128::from(u64::MAX) {
+                ym2413.advance_input_clocks(u64::MAX)?;
+                remaining -= u128::from(u64::MAX);
+            }
+            ym2413.advance_input_clocks(remaining as u64)?;
+        }
         let z80_advance = dispatch
             .clock_advances
             .iter()
@@ -719,7 +868,28 @@ impl SmsTemporalBus {
 
     /// Consume samples already generated by scheduler-driven PSG clocks.
     pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+        // The F2 PSG gate is exposed separately. Do not mute this already-buffered
+        // batch here: it may contain samples generated on both sides of the F2
+        // write boundary, and retroactively muting it would violate bus timing.
         self.psg.core_mut().drain_samples(max_samples)
+    }
+
+    /// Return the installed Japanese Master System YM2413, if present.
+    pub fn ym2413(&self) -> Option<&Ym2413Core> {
+        self.ym2413.as_ref()
+    }
+
+    /// Whether the FM output path is enabled by the Japanese SMS audio-control port.
+    pub const fn fm_output_enabled(&self) -> bool {
+        self.ym2413.is_some() && self.fm_control & 0x01 != 0
+    }
+
+    /// Whether the PSG output path is enabled by the Japanese SMS audio-control mode.
+    ///
+    /// The two-bit mode is 00 = PSG only, 01 = FM only, 10 = both muted,
+    /// and 11 = FM plus PSG. The bit pair is not two independent enable bits.
+    pub const fn psg_output_enabled(&self) -> bool {
+        self.ym2413.is_none() || (self.fm_control & 0x01) == ((self.fm_control >> 1) & 0x01)
     }
 
     /// Enable bounded observation of the existing PSG's digital mix transitions.
@@ -751,6 +921,11 @@ impl SmsTemporalBus {
     }
 
     fn read_port(&mut self, port: u16) -> u8 {
+        if port as u8 == 0xF2 && self.ym2413.is_some() {
+            // Low two bits are the readable audio-control latch. The C-Sync
+            // counter in bits 7..5 is not yet part of this temporal VDP slice.
+            return self.fm_control & 0x03;
+        }
         match (port as u8) & 0xC1 {
             0x40 => self.vdp.read_v_counter(),
             0x41 => self.vdp.read_h_counter(),
@@ -761,6 +936,23 @@ impl SmsTemporalBus {
 
     fn write_port(&mut self, port: u16, value: u8) {
         let port_byte = port as u8;
+        if let Some(ym2413) = self.ym2413.as_mut() {
+            match port_byte {
+                0xF0 => {
+                    ym2413.write_address(value);
+                    return;
+                }
+                0xF1 => {
+                    ym2413.write_data(value);
+                    return;
+                }
+                0xF2 => {
+                    self.fm_control = value & 0x03;
+                    return;
+                }
+                _ => {}
+            }
+        }
         match port_byte & 0xC1 {
             0x80 | 0x81 => self.vdp.write_port(port, value),
             _ if (port_byte & 0xC0) == 0x40 => self.psg.write_at_dispatch(value),
@@ -823,6 +1015,8 @@ impl SmsTemporalBus {
             memory: self.memory.clone(),
             io: self.io.clone(),
             psg: self.psg.clone(),
+            ym2413: self.ym2413.as_ref().map(Ym2413Core::export_state),
+            fm_control: self.fm_control,
             vdp: self.vdp.clone(),
             coordinator: self.coordinator.export_state(),
             pending_request: self.pending_request,
@@ -839,7 +1033,10 @@ impl SmsTemporalBus {
         if state.format_version != SMS_TEMPORAL_BUS_STATE_VERSION {
             return Err(SmsTemporalBusError::InvalidState);
         }
-        if state.psg.clock_domain() != SMS_PSG_CLOCK_DOMAIN_ID
+        if state.fm_control & !0x03 != 0
+            || (state.ym2413.is_none() && state.fm_control != 0)
+            || (state.ym2413.is_some() && state.io.territory() != Territory::Japan)
+            || state.psg.clock_domain() != SMS_PSG_CLOCK_DOMAIN_ID
             || state.psg.core().profile() != PsgProfile::Sms
             || state.psg.core().clock_hz() == 0
             || state.psg.core().sample_rate() == 0
@@ -847,6 +1044,16 @@ impl SmsTemporalBus {
             return Err(SmsTemporalBusError::InvalidState);
         }
         let coordinator = SmsTemporalCoordinator::restore_state(state.coordinator.clone())?;
+        let ym2413_domain_present = state
+            .coordinator
+            .scheduler
+            .clock_domains
+            .iter()
+            .any(|domain| domain.id == crate::SMS_YM2413_CLOCK_DOMAIN_ID);
+        if ym2413_domain_present != state.ym2413.is_some() {
+            return Err(SmsTemporalBusError::InvalidState);
+        }
+        let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
         let pending_events = &state.coordinator.scheduler.event_queue.pending;
         let scale = state.coordinator.master_ticks_per_tstate;
         let now = coordinator.now();
@@ -944,6 +1151,8 @@ impl SmsTemporalBus {
             memory: state.memory,
             io: state.io,
             psg: state.psg,
+            ym2413,
+            fm_control: state.fm_control,
             vdp: state.vdp,
             coordinator,
             pending_request: state.pending_request,
@@ -1001,6 +1210,81 @@ mod tests {
         vdp.write_port(0xBF, address as u8);
         vdp.write_port(0xBF, ((address >> 8) as u8 & 0x3F) | 0xC0);
         vdp.write_port(0xBE, value);
+    }
+
+    #[test]
+    fn japanese_fm_profile_routes_register_ports_control_and_clock_state() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+
+        assert!(bus.ym2413().is_some());
+        assert!(!bus.fm_output_enabled());
+        assert!(bus.psg_output_enabled());
+
+        bus.write_port(0xF0, 0x10);
+        bus.schedule_internal_cycle(90, 12).unwrap();
+        assert!(matches!(
+            bus.dispatch_next().unwrap(),
+            Some(SmsTemporalDispatch::InternalCycleComplete(_))
+        ));
+        bus.acknowledge_internal_completion(90).unwrap();
+
+        bus.write_port(0xF1, 0xA5);
+        bus.schedule_internal_cycle(91, 72).unwrap();
+        assert!(matches!(
+            bus.dispatch_next().unwrap(),
+            Some(SmsTemporalDispatch::InternalCycleComplete(_))
+        ));
+        assert_eq!(
+            bus.ym2413().unwrap().export_state().elapsed_input_clocks,
+            84
+        );
+        assert_eq!(bus.ym2413().unwrap().export_state().registers[0x10], 0xA5);
+        bus.acknowledge_internal_completion(91).unwrap();
+
+        bus.write_port(0xF2, 0x03);
+        assert_eq!(bus.read_port(0xF2), 0x03);
+        assert!(bus.fm_output_enabled());
+        assert!(bus.psg_output_enabled());
+
+        bus.write_port(0xF2, 0x02);
+        assert!(!bus.fm_output_enabled());
+        assert!(!bus.psg_output_enabled());
+
+        bus.write_port(0xF2, 0x01);
+        assert!(!bus.psg_output_enabled());
+        assert!(bus.fm_output_enabled());
+
+        let state = bus.export_state();
+        let mut restored = SmsTemporalBus::restore_state(state).unwrap();
+        assert_eq!(
+            restored.ym2413().unwrap().export_state(),
+            bus.ym2413().unwrap().export_state()
+        );
+        assert_eq!(restored.read_port(0xF2), 0x01);
+    }
+
+    #[test]
+    fn japanese_fm_profile_cannot_be_selected_for_export_territory() {
+        let result = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Export,
+        );
+        assert!(matches!(
+            result,
+            Err(SmsTemporalBusError::UnsupportedFmHardwareProfile)
+        ));
     }
 
     #[test]
@@ -2107,7 +2391,7 @@ mod temporal_vdp_tests {
         // Two direct four-T-state bus writes complete at T8 (HPos 12).
         assert_eq!(captured, 0xEE);
         let mut snapshot = bus.export_state();
-        assert_eq!(snapshot.format_version, 21);
+        assert_eq!(snapshot.format_version, 22);
 
         let restored = SmsTemporalBus::restore_state(snapshot.clone()).unwrap();
         assert_eq!(restored.vdp().read_h_counter(), captured);

@@ -184,6 +184,7 @@ fn build_sms_temporal_machine_with_revision_and_sram_size(
     )
 }
 
+#[cfg(test)]
 fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
     rom: Vec<u8>,
     region: &str,
@@ -191,12 +192,59 @@ fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
     bios: Option<Vec<u8>>,
     cartridge_sram_size: Option<usize>,
 ) -> Result<SmsTemporalMachine, String> {
+    build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+        rom,
+        region,
+        revision,
+        bios,
+        cartridge_sram_size,
+        false,
+    )
+}
+
+fn build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+    rom: Vec<u8>,
+    region: &str,
+    revision: SmsVdpRevision,
+    bios: Option<Vec<u8>>,
+    cartridge_sram_size: Option<usize>,
+    fm_enabled: bool,
+) -> Result<SmsTemporalMachine, String> {
+    if fm_enabled && region != "japan" {
+        return Err(
+            "integrated YM2413 is selectable only for the Japanese Master System profile"
+                .to_owned(),
+        );
+    }
     let (territory, vdp_profile, psg_clock_hz) =
         sms_temporal_hardware_profile(region, revision).map_err(str::to_owned)?;
-    match bios {
-        Some(bios) => SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
+    match (bios, fm_enabled) {
+        (Some(bios), true) => {
+            SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
+                rom,
+                bios,
+                SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+                psg_clock_hz,
+                SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+                vdp_profile,
+                territory,
+                cartridge_sram_size,
+            )
+        }
+        (Some(bios), false) => {
+            SmsTemporalMachine::new_with_hardware_profile_and_bios_and_sram_size(
+                rom,
+                bios,
+                SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
+                psg_clock_hz,
+                SMS_INTERNAL_AUDIO_SAMPLE_RATE,
+                vdp_profile,
+                territory,
+                cartridge_sram_size,
+            )
+        }
+        (None, true) => SmsTemporalMachine::new_with_japanese_fm_hardware_profile_and_sram_size(
             rom,
-            bios,
             SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
             psg_clock_hz,
             SMS_INTERNAL_AUDIO_SAMPLE_RATE,
@@ -204,7 +252,7 @@ fn build_sms_temporal_machine_with_revision_bios_and_sram_size(
             territory,
             cartridge_sram_size,
         ),
-        None => SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
+        (None, false) => SmsTemporalMachine::new_with_hardware_profile_and_sram_size(
             rom,
             SMS_TEMPORAL_MASTER_TICKS_PER_TSTATE,
             psg_clock_hz,
@@ -227,8 +275,13 @@ fn rebuild_sms_temporal_machine_preserving_sram(
 ) -> Result<SmsTemporalMachine, String> {
     let sram = current.memory().cartridge_sram().map(<[u8]>::to_vec);
     let capacity = sram.as_ref().map(Vec::len);
-    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_and_sram_size(
-        rom, region, revision, bios, capacity,
+    let mut rebuilt = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+        rom,
+        region,
+        revision,
+        bios,
+        capacity,
+        current.ym2413().is_some(),
     )?;
     if let Some(contents) = sram {
         rebuilt
@@ -1323,6 +1376,100 @@ impl SmsTemporalWorker {
         )
     }
 
+    /// Select the SMS1 hardware model and enable integrated FM only when ROM/region
+    /// resolution identifies the Japanese Master System.
+    pub fn new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    sega_observability::tracing::info!(
+                        target: "sega::rom",
+                        event = "sms_region_resolved",
+                        region = resolution.region.key(),
+                        source = ?resolution.source,
+                        dat_title = resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    sega_observability::tracing::warn!(
+                        target: "sega::rom",
+                        event = "sms_region_catalog_fallback",
+                        error = %error,
+                        fallback = "usa"
+                    );
+                    "usa".to_owned()
+                }
+            },
+        };
+        let fm_enabled = region == "japan";
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            None,
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            fm_enabled,
+        )
+    }
+
+    /// BIOS variant of the SMS1 regional profile; integrated FM is selected only for Japan.
+    pub fn new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, &rom, &catalog);
+                    sega_observability::tracing::info!(
+                        target: "sega::rom",
+                        event = "sms_region_resolved",
+                        region = resolution.region.key(),
+                        source = ?resolution.source,
+                        dat_title = resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    sega_observability::tracing::warn!(
+                        target: "sega::rom",
+                        event = "sms_region_catalog_fallback",
+                        error = %error,
+                        fallback = "usa"
+                    );
+                    "usa".to_owned()
+                }
+            },
+        };
+        let fm_enabled = region == "japan";
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            Some(bios),
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            fm_enabled,
+        )
+    }
+
     /// Start the worker with an explicit VDP ASIC, regional timing, and cartridge SRAM profile.
     pub fn new_with_hardware_profile_and_cartridge_sram_size(
         rom: Vec<u8>,
@@ -1338,6 +1485,7 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
+            false,
         )
     }
 
@@ -1357,6 +1505,60 @@ impl SmsTemporalWorker {
             vdp_revision,
             cartridge_sram_size,
             initial_sram,
+            false,
+        )
+    }
+
+    /// Start the worker with the integrated YM2413 Japanese Master System profile.
+    pub fn new_with_japanese_fm_hardware_profile(
+        rom: Vec<u8>,
+        region: &str,
+    ) -> Result<Self, String> {
+        Self::new_with_japanese_fm_hardware_profile_and_cartridge_sram_size(
+            rom,
+            region,
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+        )
+    }
+
+    /// Start the worker with Japanese integrated FM and an explicit cartridge SRAM profile.
+    pub fn new_with_japanese_fm_hardware_profile_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            None,
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            true,
+        )
+    }
+
+    /// Start the worker with BIOS, Japanese integrated FM and explicit cartridge SRAM.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_cartridge_sram_size(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+    ) -> Result<Self, String> {
+        Self::new_with_optional_bios_and_hardware_profile_and_cartridge_sram_size(
+            rom,
+            Some(bios),
+            region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            true,
         )
     }
 
@@ -1367,7 +1569,14 @@ impl SmsTemporalWorker {
         vdp_revision: SmsVdpRevision,
         cartridge_sram_size: Option<usize>,
         initial_sram: Option<Vec<u8>>,
+        fm_enabled: bool,
     ) -> Result<Self, String> {
+        if fm_enabled && region != "japan" {
+            return Err(
+                "integrated YM2413 is selectable only for the Japanese Master System profile"
+                    .to_owned(),
+            );
+        }
         if initial_sram.is_some() && cartridge_sram_size.is_none() {
             return Err("cannot restore SRAM without a verified cartridge RAM profile".to_owned());
         }
@@ -1404,12 +1613,13 @@ impl SmsTemporalWorker {
         let worker = thread::Builder::new()
             .name("sms-temporal-machine".to_owned())
             .spawn(move || {
-                let machine = match build_sms_temporal_machine_with_revision_bios_and_sram_size(
+                let machine = match build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
                     rom.clone(),
                     &worker_region,
                     worker_vdp_revision,
                     bios.clone(),
                     cartridge_sram_size,
+                    fm_enabled,
                 )
                 .and_then(|mut machine| {
                     if let Some(contents) = initial_sram.as_deref() {
@@ -2520,12 +2730,13 @@ fn handle_command(
                     "cannot replace a cartridge with SRAM through load_rom; persist it and create a new worker".to_owned(),
                 ));
             } else {
-                match build_sms_temporal_machine_with_revision_bios_and_sram_size(
+                match build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
                     new_rom.clone(),
                     region,
                     vdp_revision,
                     bios.clone(),
                     None,
+                    machine.ym2413().is_some(),
                 ) {
                     Ok(new_machine) => {
                         *running = false;
@@ -2867,9 +3078,11 @@ mod tests {
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
         Ordering, SMS_INTERNAL_AUDIO_SAMPLE_RATE, SmsTemporalWorker, SpriteLimitMode,
         WorkerTelemetry, build_sms_temporal_machine,
-        build_sms_temporal_machine_with_revision_and_sram_size, calculate_next_frame_deadline,
-        execute_frame, execute_frame_with_renderer, frame_duration_from_machine_ticks,
-        sms_temporal_hardware_profile, sms_temporal_region_profile,
+        build_sms_temporal_machine_with_revision_and_sram_size,
+        build_sms_temporal_machine_with_revision_bios_sram_size_and_fm,
+        calculate_next_frame_deadline, execute_frame, execute_frame_with_renderer,
+        frame_duration_from_machine_ticks, sms_temporal_hardware_profile,
+        sms_temporal_region_profile,
     };
     use crate::SmsTemporalWorkerDebugHandle;
     use sega_audio_runtime::{AudioOutputMetrics, NativeAudioSession, PcmSink};
@@ -2923,6 +3136,47 @@ mod tests {
             SmsVdpRevision::Sega3155246
         );
         assert_eq!(machine.vdp().visible_height(), 192);
+    }
+
+    #[test]
+    fn worker_builder_requires_explicit_japanese_integrated_fm_profile() {
+        use sega_sms_core::SmsVdpRevision;
+
+        let fm_machine = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            vec![0; 0x4000],
+            "japan",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        assert!(fm_machine.ym2413().is_some());
+        assert!(!fm_machine.fm_output_enabled());
+        assert!(fm_machine.psg_output_enabled());
+
+        let standard_japan = build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+            vec![0; 0x4000],
+            "japan",
+            SmsVdpRevision::Sega3155124,
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+        assert!(standard_japan.ym2413().is_none());
+
+        assert!(
+            build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
+                vec![0; 0x4000],
+                "korea",
+                SmsVdpRevision::Sega3155124,
+                None,
+                None,
+                true,
+            )
+            .is_err()
+        );
     }
 
     #[test]
