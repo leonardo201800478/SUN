@@ -9,13 +9,15 @@
 //! phase combiners and the special channel-7..9 parameter routing remain FM-5.
 
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
-use crate::envelope_sequencer::{EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput};
+use crate::envelope_sequencer::{
+    EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput,
+};
 use crate::phase::{PhaseGenerator, PhaseGeneratorError};
 use crate::slot::{Ym2413Operator, slot_descriptor};
 use crate::slot_service::{Ym2413SlotService, Ym2413SlotServiceContext};
 use crate::synthesis::{
-    Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisBankState,
-    Ym2413SynthesisError, Ym2413SynthesisInitialState,
+    Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisBankState, Ym2413SynthesisError,
+    Ym2413SynthesisInitialState,
 };
 
 pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 1;
@@ -32,13 +34,19 @@ pub enum Ym2413PgSerialError {
 }
 
 impl From<ChannelSynthesisError> for Ym2413PgSerialError {
-    fn from(value: ChannelSynthesisError) -> Self { Self::Channel(value) }
+    fn from(value: ChannelSynthesisError) -> Self {
+        Self::Channel(value)
+    }
 }
 impl From<PhaseGeneratorError> for Ym2413PgSerialError {
-    fn from(value: PhaseGeneratorError) -> Self { Self::Phase(value) }
+    fn from(value: PhaseGeneratorError) -> Self {
+        Self::Phase(value)
+    }
 }
 impl From<Ym2413SynthesisError> for Ym2413PgSerialError {
-    fn from(value: Ym2413SynthesisError) -> Self { Self::Synthesis(value) }
+    fn from(value: Ym2413SynthesisError) -> Self {
+        Self::Synthesis(value)
+    }
 }
 
 /// Parameters retained by Nuked's c_fnum/c_block/c_multi/c_vib latches.
@@ -51,7 +59,12 @@ pub struct Ym2413PgParameterLatch {
 }
 
 impl Ym2413PgParameterLatch {
-    const RESET: Self = Self { fnum: 0, block: 0, multiplier: 0, pm_enabled: false };
+    const RESET: Self = Self {
+        fnum: 0,
+        block: 0,
+        multiplier: 0,
+        pm_enabled: false,
+    };
 
     fn from_operator(parameters: OperatorPhaseParameters) -> Self {
         Self {
@@ -120,19 +133,29 @@ impl Ym2413PgSerialService {
     }
 
     /// Return the current ten-bit PG output latch.
-    pub const fn pg_output(&self) -> u16 { self.pipeline.pg_output }
+    pub const fn pg_output(&self) -> u16 {
+        self.pipeline.pg_output
+    }
 
     /// Return the retained PG increment.
-    pub const fn pg_increment(&self) -> u32 { self.pipeline.pg_increment }
+    pub const fn pg_increment(&self) -> u32 {
+        self.pipeline.pg_increment
+    }
 
     /// Return the delayed PG next-phase latch.
-    pub const fn pg_phase_next(&self) -> u32 { self.pipeline.pg_phase_next }
+    pub const fn pg_phase_next(&self) -> u32 {
+        self.pipeline.pg_phase_next
+    }
 
     /// Return the current three-bit vibrato LFO counter.
-    pub const fn lfo_vib_counter(&self) -> u8 { self.pipeline.lfo_vib_counter }
+    pub const fn lfo_vib_counter(&self) -> u8 {
+        self.pipeline.lfo_vib_counter
+    }
 
     /// Borrow the eighteen-operator synthesis bank.
-    pub const fn synthesis(&self) -> &Ym2413SynthesisBank { &self.synthesis }
+    pub const fn synthesis(&self) -> &Ym2413SynthesisBank {
+        &self.synthesis
+    }
 
     /// Export every accumulator, latch and LFO state needed for exact resumption.
     pub const fn export_state(&self) -> Ym2413PgSerialServiceState {
@@ -144,9 +167,7 @@ impl Ym2413PgSerialService {
     }
 
     /// Restore the serial PG service after validating its complete state.
-    pub fn restore_state(
-        state: Ym2413PgSerialServiceState,
-    ) -> Result<Self, Ym2413PgSerialError> {
+    pub fn restore_state(state: Ym2413PgSerialServiceState) -> Result<Self, Ym2413PgSerialError> {
         let pipeline = state.pipeline;
         if state.format_version != YM2413_PG_SERIAL_STATE_VERSION
             || pipeline.format_version != YM2413_PG_SERIAL_PIPELINE_STATE_VERSION
@@ -164,9 +185,13 @@ impl Ym2413PgSerialService {
     }
 
     /// Consume one PG phase-array write and one delayed output/reset decision.
-    fn generate_phase(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Ym2413PgSerialError> {
-        let write = slot_descriptor(context.event.pg_phase_write_index)
-            .ok_or(Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_write_index))?;
+    fn generate_phase(
+        &mut self,
+        context: &Ym2413SlotServiceContext,
+    ) -> Result<(), Ym2413PgSerialError> {
+        let write = slot_descriptor(context.event.pg_phase_write_index).ok_or(
+            Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_write_index),
+        )?;
         let write_carrier = matches!(write.operator, Ym2413Operator::Carrier);
         let phase_write = self.pipeline.pg_phase_next.wrapping_add(self.pipeline.pg_increment);
         self.synthesis.advance_operator_phase_by_increment(
@@ -175,14 +200,21 @@ impl Ym2413PgSerialService {
             phase_write,
         )?;
 
-        let output = slot_descriptor(context.event.pg_phase_output_index)
-            .ok_or(Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_output_index))?;
+        let output = slot_descriptor(context.event.pg_phase_output_index).ok_or(
+            Ym2413PgSerialError::InvalidSlotIndex(context.event.pg_phase_output_index),
+        )?;
         let output_carrier = matches!(output.operator, Ym2413Operator::Carrier);
-        let phase = self.synthesis.phase_accumulator(output.channel, output_carrier)?;
+        let phase = self
+            .synthesis
+            .phase_accumulator(output.channel, output_carrier)?;
 
         // Nuked stores the reset decision in pg_phase_next. It does not reset
         // the current output accumulator or the phase array entry just written.
-        self.pipeline.pg_phase_next = if context.event.phase_reset_required { 0 } else { phase };
+        self.pipeline.pg_phase_next = if context.event.phase_reset_required {
+            0
+        } else {
+            phase
+        };
         self.pipeline.pg_output = ((phase >> 9) & 0x03ff) as u16;
         Ok(())
     }
@@ -204,8 +236,11 @@ impl Ym2413PgSerialService {
         let counter = self.synthesis.pm_lfo_counter();
         let rollover = u8::from((counter & 0x03ff) == 0x03ff);
         let test_step = (testmode >> 3) & 1;
-        self.pipeline.lfo_vib_counter =
-            self.pipeline.lfo_vib_counter.wrapping_add(rollover + test_step) & 7;
+        self.pipeline.lfo_vib_counter = self
+            .pipeline
+            .lfo_vib_counter
+            .wrapping_add(rollover + test_step)
+            & 7;
         self.synthesis.advance_pm_lfo_samples(1);
     }
 
@@ -235,10 +270,7 @@ impl Ym2413PgSerialService {
 impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
-    fn before_eg_update(
-        &mut self,
-        context: &Ym2413SlotServiceContext,
-    ) -> Result<(), Self::Error> {
+    fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
         if context.registers[0x0e] & 0x20 != 0 {
             return Err(Ym2413PgSerialError::UnsupportedRhythmMode {
                 cycle: context.event.cycle,
@@ -272,9 +304,9 @@ impl Ym2413SlotService for Ym2413PgSerialService {
 #[cfg(test)]
 mod tests {
     use super::{
+        YM2413_PG_SERIAL_PIPELINE_STATE_VERSION, YM2413_PG_SERIAL_STATE_VERSION,
         Ym2413PgParameterLatch, Ym2413PgSerialError, Ym2413PgSerialPipelineState,
-        Ym2413PgSerialService, Ym2413PgSerialServiceState, YM2413_PG_SERIAL_PIPELINE_STATE_VERSION,
-        YM2413_PG_SERIAL_STATE_VERSION,
+        Ym2413PgSerialService, Ym2413PgSerialServiceState,
     };
     use crate::channel::OperatorPhaseParameters;
     use crate::envelope::{
@@ -287,7 +319,7 @@ mod tests {
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
-    use crate::{Ym2413Core, YM2413_INPUT_CLOCKS_PER_SLOT};
+    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core};
 
     fn initial_bank(pm_lfo_counter: u16) -> Ym2413SynthesisBank {
         let initial = Ym2413SynthesisInitialState {
@@ -305,7 +337,8 @@ mod tests {
                 124,
                 DampTransitionCoordination::IndependentPerOperator,
                 AttackRate15Transition::SkipAttackToDecay,
-            ).unwrap(),
+            )
+            .unwrap(),
         };
         Ym2413SynthesisBank::with_initial_state(initial).unwrap()
     }
@@ -313,7 +346,8 @@ mod tests {
     fn context(cycle: u8, registers: [u8; 64], testmode: u8) -> Ym2413SlotServiceContext {
         let eg = EnvelopeSequencer::new();
         let state = eg.export_state();
-        let event = nuked_slot_service_event_with_testmode(cycle, 0, state.eg_dokon, testmode).unwrap();
+        let event =
+            nuked_slot_service_event_with_testmode(cycle, 0, state.eg_dokon, testmode).unwrap();
         let mut registers = registers;
         registers[0x0f] = testmode;
         Ym2413SlotServiceContext {
@@ -369,17 +403,23 @@ mod tests {
         let written = slot_descriptor(17).unwrap();
         let output = slot_descriptor(0).unwrap();
         assert_eq!(
-            service.synthesis().phase_accumulator(
-                written.channel,
-                matches!(written.operator, crate::Ym2413Operator::Carrier),
-            ).unwrap(),
+            service
+                .synthesis()
+                .phase_accumulator(
+                    written.channel,
+                    matches!(written.operator, crate::Ym2413Operator::Carrier),
+                )
+                .unwrap(),
             0xf000
         );
         assert_eq!(
-            service.synthesis().phase_accumulator(
-                output.channel,
-                matches!(output.operator, crate::Ym2413Operator::Carrier),
-            ).unwrap(),
+            service
+                .synthesis()
+                .phase_accumulator(
+                    output.channel,
+                    matches!(output.operator, crate::Ym2413Operator::Carrier),
+                )
+                .unwrap(),
             0
         );
         assert_eq!(service.pg_phase_next(), 0);
@@ -431,13 +471,7 @@ mod tests {
             multiplier: 2,
             pm_enabled: true,
         };
-        let mut service = service_with_pipeline(
-            initial_bank(0),
-            0,
-            0,
-            parameters,
-            3,
-        );
+        let mut service = service_with_pipeline(initial_bank(0), 0, 0, parameters, 3);
         let context = context(0, registers, 0);
         let (tick, post) = tick(0);
         service.after_eg_update(&context, tick, post).unwrap();
@@ -459,13 +493,8 @@ mod tests {
 
     #[test]
     fn cycle_seventeen_advances_vibrato_and_pm_latches_after_increment() {
-        let mut service = service_with_pipeline(
-            initial_bank(0x03ff),
-            0,
-            0,
-            Ym2413PgParameterLatch::RESET,
-            2,
-        );
+        let mut service =
+            service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 2);
         let context = context(17, [0; 64], 0x08);
         let (tick, post) = tick(17);
         service.after_eg_update(&context, tick, post).unwrap();
@@ -475,13 +504,8 @@ mod tests {
 
     #[test]
     fn test_mode_lfo_reset_is_applied_on_each_serial_cycle() {
-        let mut service = service_with_pipeline(
-            initial_bank(0x0555),
-            0,
-            0,
-            Ym2413PgParameterLatch::RESET,
-            6,
-        );
+        let mut service =
+            service_with_pipeline(initial_bank(0x0555), 0, 0, Ym2413PgParameterLatch::RESET, 6);
         let context = context(3, [0; 64], 0x02);
         let (tick, post) = tick(3);
         service.after_eg_update(&context, tick, post).unwrap();
@@ -491,13 +515,8 @@ mod tests {
 
     #[test]
     fn test_mode_lfo_reset_occurs_after_cycle_seventeen_update() {
-        let mut service = service_with_pipeline(
-            initial_bank(0x03ff),
-            0,
-            0,
-            Ym2413PgParameterLatch::RESET,
-            6,
-        );
+        let mut service =
+            service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 6);
         let context = context(17, [0; 64], 0x0a);
         let (tick, post) = tick(17);
         service.after_eg_update(&context, tick, post).unwrap();
@@ -528,7 +547,12 @@ mod tests {
             initial_bank(1234),
             0x12345,
             0x23456,
-            Ym2413PgParameterLatch { fnum: 0x1c0, block: 6, multiplier: 2, pm_enabled: true },
+            Ym2413PgParameterLatch {
+                fnum: 0x1c0,
+                block: 6,
+                multiplier: 2,
+                pm_enabled: true,
+            },
             5,
         );
         let snapshot = service.export_state();
@@ -566,17 +590,20 @@ mod tests {
         let mut whole = Ym2413PgSerialService::new(initial.clone());
         let mut split = Ym2413PgSerialService::new(initial);
 
-        whole_core.advance_input_clocks_with_slot_service(
-            18 * YM2413_INPUT_CLOCKS_PER_SLOT,
-            &mut whole,
-        ).unwrap();
+        whole_core
+            .advance_input_clocks_with_slot_service(18 * YM2413_INPUT_CLOCKS_PER_SLOT, &mut whole)
+            .unwrap();
         for clocks in [1, 3, 4, 17, 29, 7, 11, 1, 72] {
-            split_core.advance_input_clocks_with_slot_service(clocks, &mut split).unwrap();
+            split_core
+                .advance_input_clocks_with_slot_service(clocks, &mut split)
+                .unwrap();
         }
         let elapsed = split_core.elapsed_input_clocks();
         let total = 18 * YM2413_INPUT_CLOCKS_PER_SLOT;
         if elapsed < total {
-            split_core.advance_input_clocks_with_slot_service(total - elapsed, &mut split).unwrap();
+            split_core
+                .advance_input_clocks_with_slot_service(total - elapsed, &mut split)
+                .unwrap();
         }
 
         assert_eq!(whole_core.export_state(), split_core.export_state());
