@@ -515,6 +515,8 @@ impl Ym2413Core {
         input.rhythm_select =
             EnvelopeRhythmSelect::from_code(self.rm_select).ok_or(Ym2413Error::InvalidState)?;
         input.rhythm_bits = self.registers[0x0e] & 0x3f;
+        input.test_mode = self.registers[0x0f] & 0x0f;
+        input.write_data = self.write_data_latch;
         Ok((cycle, input))
     }
 
