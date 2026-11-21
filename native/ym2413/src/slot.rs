@@ -614,7 +614,7 @@ mod tests {
                 Some(true),
                 "test-mode phase reset at cycle {cycle}"
             );
-            let event = nuked_slot_service_event_with_testmode(cycle, 0, 0, 0, 0x04).unwrap();
+            let event = nuked_slot_service_event_with_testmode(cycle, 0, 0, 0x04).unwrap();
             assert!(event.phase_reset_required);
         }
         assert_eq!(
