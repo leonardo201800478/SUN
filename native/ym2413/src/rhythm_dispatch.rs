@@ -61,6 +61,10 @@ pub fn dispatch_serial_slot(
     let slot = nuked_cycle_selected_slot_descriptor(cycle)
         .ok_or(Ym2413SerialSlotDispatchError::InvalidCycle(cycle))?;
 
+    if slot.rhythm_voice.is_none() {
+        return Ok(Ym2413SerialSlotDispatch::Melodic { slot });
+    }
+
     let rhythm_mode_enabled = registers[0x0e] & 0x20 != 0;
     let expected_rm_enable = if rhythm_mode_enabled { 0xff } else { 0x00 };
     if rm_enable != expected_rm_enable {
@@ -71,7 +75,7 @@ pub fn dispatch_serial_slot(
             expected_rm_enable,
         });
     }
-    if !rhythm_mode_enabled || slot.rhythm_voice.is_none() {
+    if !rhythm_mode_enabled {
         return Ok(Ym2413SerialSlotDispatch::Melodic { slot });
     }
 
