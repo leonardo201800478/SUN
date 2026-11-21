@@ -860,15 +860,10 @@ mod tests {
 
     #[test]
     fn cycle_seventeen_advances_vibrato_and_pm_latches_after_increment() {
-        let mut service = service_with_pipeline(
-            initial_bank(0x03ff),
-            0,
-            0,
-            Ym2413PgParameterLatch::RESET,
-            2,
-        )
-        .with_rhythm_noise_cursor(17)
-        .unwrap();
+        let mut service =
+            service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 2)
+                .with_rhythm_noise_cursor(17)
+                .unwrap();
         let context = context(17, [0; 64], 0x08);
         service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(17);
@@ -879,15 +874,10 @@ mod tests {
 
     #[test]
     fn test_mode_lfo_reset_is_applied_on_each_serial_cycle() {
-        let mut service = service_with_pipeline(
-            initial_bank(0x0555),
-            0,
-            0,
-            Ym2413PgParameterLatch::RESET,
-            6,
-        )
-        .with_rhythm_noise_cursor(3)
-        .unwrap();
+        let mut service =
+            service_with_pipeline(initial_bank(0x0555), 0, 0, Ym2413PgParameterLatch::RESET, 6)
+                .with_rhythm_noise_cursor(3)
+                .unwrap();
         let context = context(3, [0; 64], 0x02);
         service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(3);
@@ -898,15 +888,10 @@ mod tests {
 
     #[test]
     fn test_mode_lfo_reset_occurs_after_cycle_seventeen_update() {
-        let mut service = service_with_pipeline(
-            initial_bank(0x03ff),
-            0,
-            0,
-            Ym2413PgParameterLatch::RESET,
-            6,
-        )
-        .with_rhythm_noise_cursor(17)
-        .unwrap();
+        let mut service =
+            service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 6)
+                .with_rhythm_noise_cursor(17)
+                .unwrap();
         let context = context(17, [0; 64], 0x0a);
         service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(17);
