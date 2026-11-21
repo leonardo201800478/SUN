@@ -969,9 +969,11 @@ mod tests {
         let event = nuked_slot_service_event_with_testmode(cycle, 0xff, state.eg_dokon, 0).unwrap();
         let mut registers = registers;
         registers[0x0f] = 0;
-        let mut envelope_input = EnvelopeSlotInput::default();
-        envelope_input.rhythm_select = selector;
-        envelope_input.rhythm_bits = registers[0x0e] & 0x3f;
+        let envelope_input = EnvelopeSlotInput {
+            rhythm_select: selector,
+            rhythm_bits: registers[0x0e] & 0x3f,
+            ..EnvelopeSlotInput::default()
+        };
         Ym2413SlotServiceContext {
             event,
             registers,
