@@ -2,7 +2,7 @@
 
 ## Saída de áudio
 
-O menu **Áudio** oferece volume mestre de 0 a 100%, mute independente, atalhos de 50%/70%, estado da saída e persistência em `%APPDATA%/Sega Emulator/slint_ui_settings.txt`.
+O menu **Áudio** oferece volume mestre de 0 a 100%, mute independente, atalhos de 50%/70%, estado da saída e persistência em `%APPDATA%/SUN — Strife Uranus Neptune/slint_ui_settings.txt`.
 
 Volume e DSP são encaminhados por comandos coarse-grained ao runtime selecionado por `DesktopSession`. O frontend não possui nem manipula diretamente a sessão CPAL. Alterações não reiniciam a máquina, não avançam nem pausam o Scheduler e não modificam registradores ou clocks do PSG.
 
