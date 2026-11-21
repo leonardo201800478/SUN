@@ -45,7 +45,7 @@ jobs:
           #ifdef YM2413_TRACE_PHASE_RESET
           extern void ym2413_trace_phase_reset(
               uint32_t cycle, uint8_t rm_enable, uint32_t eg_dokon,
-              uint32_t ismod, uint32_t reset_required);
+              uint8_t testmode, uint32_t ismod, uint32_t reset_required);
           #endif
           DECL
           my $include_count = () = $source =~ /\Q$include\E/g;
@@ -72,7 +72,8 @@ jobs:
               }
               #ifdef YM2413_TRACE_PHASE_RESET
               ym2413_trace_phase_reset(chip->cycles, (uint8_t)chip->rm_enable,
-                                       chip->eg_dokon, ismod, phase_reset_required);
+                                       chip->eg_dokon, chip->testmode,
+                                       ismod, phase_reset_required);
               #endif
           NEW
           my $branch_count = () = $source =~ /\Q$old\E/g;
@@ -95,7 +96,7 @@ jobs:
 
       - name: Capture actual post-shift Rhythm Mode reset decisions
         run: |
-          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 72 --phase-reset-probe \
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 144 --phase-reset-probe \
             > /dev/null 2> "$RUNNER_TEMP/rhythm-reset.csv"
 
       - name: Compare captured decision inputs and outputs
@@ -111,22 +112,24 @@ jobs:
             }
             /^YM2413_PHASE_RESET,/ {
               count++
-              probe = int((count - 1) / 2) + 1
+              mode_group = int((count - 1) / 8)
+              probe = int(((count - 1) % 8) / 2) + 1
               cycle = (count % 2 == 1) ? 13 : 14
               eg = expected_eg[probe]
-              reset = (eg % 2 == 1) ? 1 : 0
-              if (count > 8 || $2 != cycle || $3 != 192 ||
-                  $4 != eg || $5 != 0 || $6 != reset) {
+              testmode = mode_group == 0 ? 0 : 4
+              reset = testmode != 0 || (eg % 2 == 1)
+              if (count > 16 || $2 != cycle || $3 != 192 ||
+                  $4 != eg || $5 != testmode || $6 != 0 || $7 != reset) {
                 printf "Mismatch row %d: %s\n", count, $0 > "/dev/stderr"
                 failed = 1
               }
             }
             END {
-              if (count != 8) {
-                printf "Expected 8 actual reset decisions, got %d\n", count > "/dev/stderr"
+              if (count != 16) {
+                printf "Expected 16 actual reset decisions, got %d\n", count > "/dev/stderr"
                 failed = 1
               }
               if (failed) exit 1
-              printf "PASS: %d actual OPLL_PhaseGenerate Rhythm reset decisions\n", count
+              printf "PASS: %d actual OPLL_PhaseGenerate reset decisions (normal + Test Mode)\n", count
             }
           ' "$RUNNER_TEMP/rhythm-reset.csv"
