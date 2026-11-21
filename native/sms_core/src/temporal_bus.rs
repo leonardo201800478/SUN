@@ -245,7 +245,7 @@ impl fmt::Display for SmsTemporalBusError {
                 "the conventional 8 KiB BIOS mapping is currently validated only for SMS1 hardware",
             ),
             Self::UnsupportedFmHardwareProfile => f.write_str(
-                "the integrated YM2413 profile is supported only for an explicitly selected Japanese Master System",
+                "the selected SMS board profile does not provide integrated YM2413 hardware",
             ),
             Self::InvalidState => f.write_str("SMS temporal bus snapshot is inconsistent"),
         }
@@ -388,8 +388,8 @@ impl SmsTemporalBus {
 
     /// Construct the Japanese Master System profile with its integrated YM2413.
     ///
-    /// This is explicit rather than inferred from Territory::Japan: territory
-    /// alone does not prove that a particular board contains FM.
+    /// This selects an explicit physical board profile, independent of the
+    /// software territory. Territory configures console I/O; it does not imply FM.
     pub fn new_with_japanese_fm_hardware_profile(
         rom: impl Into<Vec<u8>>,
         master_ticks_per_tstate: u64,
@@ -398,9 +398,6 @@ impl SmsTemporalBus {
         vdp_profile: SmsVdpProfile,
         territory: Territory,
     ) -> Result<Self, SmsTemporalBusError> {
-        if territory != Territory::Japan {
-            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
-        }
         let bus = Self::new_with_hardware_profile(
             rom,
             master_ticks_per_tstate,
@@ -423,9 +420,6 @@ impl SmsTemporalBus {
         territory: Territory,
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalBusError> {
-        if territory != Territory::Japan {
-            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
-        }
         let bus = Self::new_with_hardware_profile_and_sram_size(
             rom,
             master_ticks_per_tstate,
@@ -599,9 +593,6 @@ impl SmsTemporalBus {
         vdp_profile: SmsVdpProfile,
         territory: Territory,
     ) -> Result<Self, SmsTemporalBusError> {
-        if territory != Territory::Japan {
-            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
-        }
         let bus = Self::new_with_hardware_profile_and_bios(
             rom,
             bios,
@@ -626,9 +617,6 @@ impl SmsTemporalBus {
         territory: Territory,
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalBusError> {
-        if territory != Territory::Japan {
-            return Err(SmsTemporalBusError::UnsupportedFmHardwareProfile);
-        }
         let bus = Self::new_with_hardware_profile_and_bios_and_sram_size(
             rom,
             bios,
@@ -1263,7 +1251,6 @@ impl SmsTemporalBus {
         if state.fm_control & !0x0F != 0
             || (state.ym2413.is_none() && state.fm_control != 0)
             || state.ym2413.is_some() != state.ym2413_pg_service.is_some()
-            || (state.ym2413.is_some() && state.io.territory() != Territory::Japan)
             || !state.ym2413_pcm_accumulator.is_valid()
             || state
                 .pending_fm_samples
@@ -1617,19 +1604,23 @@ mod tests {
     }
 
     #[test]
-    fn japanese_fm_profile_cannot_be_selected_for_export_territory() {
-        let result = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+    fn japanese_fm_hardware_profile_is_independent_of_software_territory() {
+        let bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
             vec![0; 0x4000],
             3,
             DEFAULT_SMS_PSG_CLOCK_HZ,
             48_000,
             SmsVdpProfile::sms1_t0_ntsc(),
             Territory::Export,
-        );
-        assert!(matches!(
-            result,
-            Err(SmsTemporalBusError::UnsupportedFmHardwareProfile)
-        ));
+        )
+        .unwrap();
+
+        assert!(bus.ym2413().is_some());
+        assert_eq!(bus.io.territory(), Territory::Export);
+
+        let restored = SmsTemporalBus::restore_state(bus.export_state()).unwrap();
+        assert!(restored.ym2413().is_some());
+        assert_eq!(restored.io.territory(), Territory::Export);
     }
 
     #[test]
