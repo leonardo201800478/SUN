@@ -542,6 +542,8 @@ mod tests {
                         key_on: cycle < 4,
                         rhythm_select: super::EnvelopeRhythmSelect::None,
                         rhythm_bits: 0,
+                        test_mode: 0,
+                        write_data: 0,
                     },
                 )
                 .unwrap();
