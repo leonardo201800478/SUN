@@ -2,12 +2,12 @@
 
 **Projeto:** SUN — Strife Uranus Neptune — Emulação de Alta Precisão
 **Escopo:** core digital YM2413 independente de console/host; alvo de integração física Japanese Master System, com adaptador SMS parcialmente integrado ao runtime.
-**Estado atual da implementação (main pós-PR #1170):** o runtime SMS possui portas YM2413, PCM FM derivado da saída digital de referência Nuked e mistura multi-source PSG+FM. Esse caminho é provisório e não representa validação do DAC/rede analógica nem fechamento semântico do chip.
+**Estado atual da implementação (main pós-PR #1172):** o runtime SMS possui portas YM2413, PCM FM derivado da saída digital de referência Nuked e mistura multi-source PSG+FM. Esse caminho é provisório e não representa validação do DAC/rede analógica nem fechamento semântico do chip.
 **Auditoria M2 independente:** [auditoria pré-implementação](../audits/ym2413-pre-implementation-audit-2026-11-17.md).
 
-## Snapshot de implementação atual — main pós-PR #1170 (2026-11-21)
+## Snapshot de implementação atual — main pós-PR #1172 (2026-11-21)
 
-**Main:** `8836ec3f716c19450736bfd4878790c1d6f6ee52`
+**Main:** `67752c9d4ff32cc7162b5045ddfad61dbc1a9075`
 
 **Scorecard operacional:** [YM2413 FM Completion Scorecard](../ym2413-fm-completion-scorecard.md).
 
@@ -16,12 +16,13 @@ O estado de implementação avançou desde a auditoria M2 de 17/11:
 - PRs #1165–#1168 integraram mixer multi-source, portas/clock do Japanese Master System, geração de PCM FM no Scheduler e classificação de impacto de CI.
 - PR #1169 integrou diferencial de reset de fase Rhythm contra Nuked.
 - PR #1170 corrigiu o readback de F2 para preservar D3–D0; somente D1/D0 controlam mute/roteamento. D4 permanece zero e D7–D5 continuam sem C-Sync.
+- PR #1172 separou presença física do YM2413 do território: os construtores regionais genéricos não inferem FM para Japão, enquanto o perfil de placa FM explicitamente selecionado aceita qualquer região suportada e é preservado no Save State/Restore.
 
 O runtime SMS drena FM e PSG separadamente, reamostra FM da taxa nativa (~49.716 Hz) para 48 kHz, alinha as fontes e envia ambas à sessão multi-source. O teste de integração usa ROM sintética e sink de teste; não prova ainda jogabilidade/áudio de ROMs comerciais nem saída em dispositivo físico CPAL.
 
 **Limite importante:** a amostra mono atual é derivada do pipeline digital Nuked e combina MO/RO com normalização. Isso é um caminho provisório de compatibilidade, não uma medição do DAC nem a rede analógica do Japanese Master System. A regra normativa da seção 7.4 de preservar MO e RO separadamente permanece válida; FM-A02 continua bloqueado até haver evidência da rede de soma/ganho/carga da placa.
 
-Continuam pendentes: divergências PG/PM e EG, seed/patches de Rhythm Mode, perfil físico independente de território, `FmMode::Auto/On/Off` persistente, C-Sync D7–D5, validação de Save State/Restore do pipeline completo e testes prolongados com ROMs reais.
+Continuam pendentes: divergências PG/PM e EG, seed/patches de Rhythm Mode, seleção/persistência do perfil físico no desktop, `FmMode::Auto/On/Off` persistente, C-Sync D7–D5, validação de Save State/Restore do pipeline completo e testes prolongados com ROMs reais.
 
 **Precedência:** esta seção descreve a implementação atual. As seções 14.10, 15.1 e 16 contêm snapshots históricos da auditoria M2 pré-integração; suas afirmações de ausência de barramento, PCM ou mixer não descrevem o código atual. As regras de hardware e os limites de evidência das seções 7.3 e 7.4 permanecem normativos.
 
