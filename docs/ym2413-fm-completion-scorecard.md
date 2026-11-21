@@ -1542,3 +1542,11 @@ slot-phase investigation before any production timing change.
 
 Full audit:
 `docs/audits/ym2413-eg-rate-characterization-2026-11-21.md`.
+
+## FM-5.3 dual-zero retention and DAC evidence correction — 2026-11-21
+
+The earlier scorecard/audit wording that described only 511 measured YM2413 output levels and said -256 was absent was based on the initial 2015-02-09 histogram and is superseded by andete's 2015-03-05 oversampled follow-up. That follow-up resolved 512 peaks, including two unusually close central peaks interpreted as -0 and +0; the 2015-03-11 note further documents both levels. The author's proposal to collapse them in an idealized model is tentative.
+
+FM-5.3 now preserves both measured central-level tokens in `Ym2413DacCode`: `new(0)` is positive zero and `negative_zero()` is the distinct negative-zero candidate. The retention and MO/RO service state versions were advanced to 2. Tests cover distinctness, RO repeat retention and snapshot/restore.
+
+This representation remains a signed measured-output domain, **not** the raw nine-bit DAC word. The exact operator-i16 to DAC-word conversion, binary encoding, sub-clock latch phase and analog neutral level remain unresolved. Full evidence: `docs/audits/ym2413-dac-output-evidence-2026-11-21.md`.
