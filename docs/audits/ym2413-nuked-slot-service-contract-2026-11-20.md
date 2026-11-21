@@ -103,4 +103,6 @@ The next implementation must:
 
 The immutable `Ym2413SlotServiceEvent` combines these stage-specific indices with the selected logical operator and the PG reset request. `nuked_slot_service_event` rejects cycles outside 0..17. This event is the intended hand-off object for FM-1B; it does not advance either core or synthesis state.
 
+The immutable `Ym2413SlotServiceEvent` combines these stage-specific indices with the selected logical operator and the PG reset request. `nuked_slot_service_event` rejects cycles outside 0..17. This event is the intended hand-off object for FM-1B; it does not advance either core or synthesis state.
+
 The exact reset origin on physical silicon, electrical MO/RO transfer, and analog board response remain unmeasured. This contract does not claim hardware corroboration.
