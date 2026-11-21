@@ -22,6 +22,7 @@ use sega_temporal_core::{
     MCycleIndex, MachineTime, TStateIndex,
 };
 use sega_video::sms::SmsVdpProfile;
+use sega_ym2413::Ym2413Core;
 use sega_z80_cpu::{
     Z80_INT_ACK_AUTOMATIC_WAIT_TSTATES, Z80BusOperation, Z80M1Phase, Z80M1Pins, Z80MicroSequencer,
     Z80MicroSequencerError, Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep,
@@ -664,17 +665,16 @@ impl SmsTemporalMachine {
         territory: Territory,
         cartridge_sram_size: Option<usize>,
     ) -> Result<Self, SmsTemporalMachineError> {
-        let bus =
-            SmsTemporalBus::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
-                rom,
-                bios,
-                master_ticks_per_tstate,
-                psg_clock_hz,
-                sample_rate,
-                vdp_profile,
-                territory,
-                cartridge_sram_size,
-            )?;
+        let bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile_and_bios_and_sram_size(
+            rom,
+            bios,
+            master_ticks_per_tstate,
+            psg_clock_hz,
+            sample_rate,
+            vdp_profile,
+            territory,
+            cartridge_sram_size,
+        )?;
         Ok(Self::from_bus(bus))
     }
 
@@ -2949,7 +2949,6 @@ mod tests {
 mod base_absolute_transfer_temporal_tests {
     use super::SmsTemporalMachine;
     use sega_temporal_core::MachineTime;
-use sega_ym2413::Ym2413Core;
     use sega_z80_cpu::Z80MicroStep;
 
     #[test]
