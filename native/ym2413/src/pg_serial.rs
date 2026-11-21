@@ -509,9 +509,7 @@ impl Ym2413PgSerialService {
         if state.rhythm_noise_cursor >= crate::rhythm::YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION
             || state.output_pipeline.next_cycle != state.rhythm_noise_cursor
             || state.last_output_frame.is_some_and(|frame| {
-                frame.cycle >= crate::slot::YM2413_SLOT_COUNT
-                    || (frame.cycle + 1) % crate::slot::YM2413_SLOT_COUNT
-                        != state.output_pipeline.next_cycle
+                frame.cycle >= 18 || (frame.cycle + 1) % 18 != state.output_pipeline.next_cycle
             })
             || (state.rhythm_noise.is_none()
                 && state.rhythm_noise_samples.iter().any(Option::is_some))
@@ -1002,6 +1000,59 @@ mod tests {
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
     use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core};
+
+    #[test]
+    fn core_and_pg_output_pipeline_snapshot_restore_is_block_equivalent() {
+        let mut continuous_core = Ym2413Core::new();
+        let mut continuous_service = Ym2413PgSerialService::new(initial_bank(0));
+        continuous_core
+            .advance_input_clocks_with_pg_service(4 * 11, &mut continuous_service)
+            .unwrap();
+
+        let mut split_core = Ym2413Core::new();
+        let mut split_service = Ym2413PgSerialService::new(initial_bank(0));
+        split_core
+            .advance_input_clocks_with_pg_service(4 * 3, &mut split_service)
+            .unwrap();
+        let core_state = split_core.export_state();
+        let service_state = split_service.export_state();
+        let mut restored_core = Ym2413Core::restore_state(core_state).unwrap();
+        let mut restored_service = Ym2413PgSerialService::restore_state(service_state).unwrap();
+        restored_core
+            .advance_input_clocks_with_pg_service(4 * 8, &mut restored_service)
+            .unwrap();
+
+        assert_eq!(restored_service.output_frame(), continuous_service.output_frame());
+        assert_eq!(restored_service.export_state(), continuous_service.export_state());
+        assert_eq!(restored_core.export_state(), continuous_core.export_state());
+    }
+
+    #[test]
+    fn unseeded_rhythm_slots_propagate_unknown_output_through_core_pipeline() {
+        let mut registers = [0; 64];
+        registers[0x0e] = 0x3f;
+        let mut service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_cursor(11)
+            .unwrap();
+
+        let first = rhythm_context(11, registers, EnvelopeRhythmSelect::BassDrumFirst);
+        service.before_eg_update(&first).unwrap();
+        assert!(service.output_frame().unwrap().mo.is_some());
+        assert!(!service.output_pipeline_state().previous_channel_output_valid);
+        assert_eq!(service.output_pipeline_state().rm_enable, -1);
+
+        let second = rhythm_context(12, registers, EnvelopeRhythmSelect::HiHat);
+        service.before_eg_update(&second).unwrap();
+        assert!(service.output_frame().unwrap().mo.is_some());
+        assert!(!service.output_pipeline_state().output_m_valid);
+        assert!(!service.output_pipeline_state().output_r_valid);
+
+        let third = rhythm_context(13, registers, EnvelopeRhythmSelect::TomTom);
+        service.before_eg_update(&third).unwrap();
+        let frame = service.output_frame().unwrap();
+        assert_eq!(frame.mo, None);
+        assert_eq!(frame.ro, None);
+    }
 
     fn initial_bank(pm_lfo_counter: u16) -> Ym2413SynthesisBank {
         let initial = Ym2413SynthesisInitialState {
