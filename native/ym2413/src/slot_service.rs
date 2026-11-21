@@ -3,8 +3,6 @@
 //! The host never receives per-slot callbacks. Ym2413Core invokes this service
 //! internally while advancing coarse-grained input-clock blocks.
 
-use core::convert::Infallible;
-
 use crate::envelope_sequencer::{
     EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput,
 };
@@ -56,27 +54,4 @@ pub(crate) trait Ym2413SlotService {
 pub(crate) enum Ym2413SlotServiceAdvanceError<E> {
     Core(Ym2413Error),
     Service(E),
-}
-
-/// No-op service used by the standalone core API until a synthesis service is
-/// attached by the integrated FM pipeline.
-pub(crate) struct NoopYm2413SlotService;
-
-impl Ym2413SlotService for NoopYm2413SlotService {
-    type Error = Infallible;
-
-    fn before_eg_update(
-        &mut self,
-        _context: &Ym2413SlotServiceContext,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    fn after_eg_update(
-        &mut self,
-        _context: &Ym2413SlotServiceContext,
-        _tick: EnvelopeSequencerTick,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
 }
