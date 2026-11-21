@@ -162,6 +162,18 @@ impl Ym2413OutputPipeline {
         }
     }
 
+    /// Align the next serial cycle when constructing a service for a restored core.
+    pub const fn with_next_cycle(
+        mut self,
+        next_cycle: u8,
+    ) -> Result<Self, Ym2413OutputPipelineError> {
+        if next_cycle >= 18 {
+            return Err(Ym2413OutputPipelineError::InvalidState);
+        }
+        self.state.next_cycle = next_cycle;
+        Ok(self)
+    }
+
     /// Restore a validated snapshot, preserving both latches and signed rm_enable.
     pub const fn with_initial_state(
         state: Ym2413OutputPipelineState,
