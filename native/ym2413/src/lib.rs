@@ -77,10 +77,9 @@ pub use operator::{
 pub use output::{
     YM2413_OUTPUT_ACTIVE_CLOCKS, YM2413_OUTPUT_NEUTRAL_CLOCKS, YM2413_OUTPUT_SLOT_CLOCKS,
     YM2413_RHYTHM_OUTPUT_SERVICE_STATE_VERSION, Ym2413OutputPin, Ym2413OutputPulse,
-    Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource,
-    Ym2413RhythmOutputFrame, Ym2413RhythmOutputService, Ym2413RhythmOutputServiceError,
-    Ym2413RhythmOutputServiceState, melody_output_for_slot, rhythm_output_event,
-    rhythm_slot_result,
+    Ym2413OutputRoutingError, Ym2413OutputSlotResult, Ym2413OutputSource, Ym2413RhythmOutputFrame,
+    Ym2413RhythmOutputService, Ym2413RhythmOutputServiceError, Ym2413RhythmOutputServiceState,
+    melody_output_for_slot, rhythm_output_event, rhythm_slot_result,
 };
 pub use pg_serial::{
     YM2413_PG_SERIAL_PIPELINE_STATE_VERSION, YM2413_PG_SERIAL_STATE_VERSION,
