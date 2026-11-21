@@ -150,3 +150,28 @@ This is the first production-code FM-5.1 foundation, but it is not yet connected
 
 - EG characterization run `44875121085` completed SUCCESS on code-bearing parent `3972678ac8b3a4b1e5b083ad05900d43e68cd716`, including the 38-configuration AR/DR/KSR sweep.
 - New dispatcher commits `ae09660d7a1a9efed206dabc01b8b60160b879f9` and `72285bcf3ba725b26951ee73e95aa90cc29bc285` triggered fresh CI runs. The exact current HEAD gates must complete before this code is considered validated.
+
+## 10. FM-5.1 — PG service ownership routing
+
+Commit `9f024e691be1c770b906db9ea36e25482c8481d0` adds `Ym2413PgSerialService::require_melodic_slot`, which consumes the pure dispatcher at both pre-EG PG/operator preparation and post-EG next-parameter latching.
+
+- Melodic slots outside the channel 7..9 reassignment range continue through the existing PG/operator path even while RHY is active or its shift latch is transitioning.
+- The six reassigned cycles (Nuked cycles 11..16) remain explicitly rejected before any PG/operator latch mutation. Stable rhythm ownership, a mode-shift transition, or a selector mismatch all retain the existing `UnsupportedRhythmMode` error boundary.
+- The returned canonical descriptor is checked against the slot event descriptor. A disagreement is an invalid service state, not a fallback to another channel.
+- Tests cover all unaffected melodic cycles under active RHY, all six percussion cycles, mode enable/disable transition values, selector mismatch, and unchanged service state on rejection.
+- The core still performs exactly one EG update between the service hooks. No clock, scheduler or EG ownership was added.
+
+### Pinned Nuked source observation for the next stage
+
+At pinned Nuked-OPLL commit `1269cf5a783b65583b50fa2464d08be75830aaa0`, `OPLL_Clock` invokes `OPLL_DoLFO`, then `OPLL_DoRhythm`, then `OPLL_PreparePatch2` on every serial call. `OPLL_DoRhythm` advances the noise register unconditionally; it is not called only for cycles 11..16 or only while RHY is active. Therefore a future Rust rhythm-noise sequencer must preserve one advancement per serial slot across the full rotation, including melodic slots and periods when rhythm mode is disabled. The seed/reset phase remains a separate unknown and must stay explicitly supplied/candidate; do not invent a default seed.
+
+The service currently does not own or advance this LFSR. FM-5.1 therefore enables unaffected melodic channels but does not claim rhythm-noise integration or complete percussion output.
+
+### Current exact-HEAD validation
+
+For code-bearing HEAD `9f024e691be1c770b906db9ea36e25482c8481d0`:
+- Rust workspace CI `44876497128`: SUCCESS (format, Clippy, workspace tests, observability Clippy and tests).
+- YM2413 PG differential `44876497115`: SUCCESS.
+- Rhythm reset differential `44876497140`: SUCCESS.
+- External Nuked adapter `44876497172`: SUCCESS.
+- EG characterization `44876497153`: still running its 38-configuration AR/DR/KSR sweep at the time of this update.
