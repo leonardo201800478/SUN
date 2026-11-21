@@ -69,6 +69,14 @@ pub struct Ym2413SerialOperatorState {
     pub c_dm: u8,
     /// PreparePatch2 AM-enable latch for the currently selected operator.
     pub c_am: bool,
+    /// Last raw signed operator output produced by OPLL_Operator.
+    pub last_operator_output: i16,
+    /// Last melodic channel-output latch produced by OPLL_Operator.
+    pub last_channel_output: i16,
+    /// Last mirrored ten-bit phase address.
+    pub last_phase_index: u16,
+    /// Last effective feedback phase contribution before PG addition.
+    pub last_feedback_phase: i32,
 }
 
 impl Default for Ym2413SerialOperatorState {
