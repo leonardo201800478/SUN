@@ -527,6 +527,8 @@ mod tests {
             block: 6,
             multiplier: 2,
             pm_enabled: true,
+            feedback: 0,
+            am_enabled: false,
         };
         let mut service = service_with_pipeline(initial_bank(0), 0, 0, parameters, 3);
         let context = context(0, registers, 0);
@@ -545,6 +547,8 @@ mod tests {
                 block: 6,
                 multiplier: 1,
                 pm_enabled: true,
+            feedback: 0,
+            am_enabled: false,
             }
         );
     }
@@ -630,6 +634,8 @@ mod tests {
                 block: 6,
                 multiplier: 2,
                 pm_enabled: true,
+            feedback: 0,
+            am_enabled: false,
             },
             5,
         );
