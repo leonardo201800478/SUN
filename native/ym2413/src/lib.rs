@@ -17,8 +17,8 @@ pub mod instrument;
 pub mod key_scale;
 pub mod operator;
 pub mod output;
-pub mod phase;
 pub mod pg_serial;
+pub mod phase;
 pub mod pm_lfo;
 pub mod rhythm;
 pub mod rhythm_channel;
@@ -75,15 +75,15 @@ pub use output::{
     Ym2413OutputPin, Ym2413OutputPulse, Ym2413OutputRoutingError, Ym2413OutputSlotResult,
     Ym2413OutputSource, melody_output_for_slot, rhythm_output_event, rhythm_slot_result,
 };
-pub use phase::{
-    PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
-    YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
-    YM2413_PM_TABLE,
-};
 pub use pg_serial::{
     YM2413_PG_SERIAL_PIPELINE_STATE_VERSION, YM2413_PG_SERIAL_STATE_VERSION,
     Ym2413PgParameterLatch, Ym2413PgSerialError, Ym2413PgSerialPipelineState,
     Ym2413PgSerialService, Ym2413PgSerialServiceState,
+};
+pub use phase::{
+    PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
+    YM2413_PG_STATE_VERSION, YM2413_PHASE_BITS, YM2413_PHASE_MASK, YM2413_PM_POSITIONS,
+    YM2413_PM_TABLE,
 };
 pub use pm_lfo::{
     PhaseModulationLfo, PhaseModulationLfoError, PhaseModulationLfoState,
