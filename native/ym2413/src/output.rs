@@ -43,6 +43,11 @@ pub const fn mo_output_slot_for_nuked_cycle(cycle: u8) -> Option<u8> {
     }
 }
 
+/// Invert the measured RO slot transform: RO slot = (cycle + 15) % 18.
+fn nuked_cycle_for_ro_output_slot(slot_index: u8) -> Option<u8> {
+    (slot_index < YM2413_SLOT_COUNT as u8).then_some((slot_index + 3) % YM2413_SLOT_COUNT as u8)
+}
+
 /// Convert a Nuked-OPLL cycle to the measured RO occurrence-slot coordinate.
 ///
 /// The conditional RO schedule in the pinned Nuked model maps cycles
@@ -546,13 +551,12 @@ pub struct Ym2413MeasuredOutputAdapterFrame {
 }
 
 /// Snapshot schema for the core-integrated measured-domain MO/RO adapter.
-pub const YM2413_MEASURED_OUTPUT_ADAPTER_STATE_VERSION: u16 = 1;
+pub const YM2413_MEASURED_OUTPUT_ADAPTER_STATE_VERSION: u16 = 2;
 
 /// Complete adapter state, including the one-cycle output buffer and RO retention.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413MeasuredOutputAdapterState {
     pub format_version: u16,
-    pub next_cycle: u8,
     pub rhythm_output_service: Ym2413RhythmOutputServiceState,
     /// Frame awaiting the external output-buffer latch.
     pub pending_frame: Option<Ym2413OutputCycleFrame>,
@@ -600,7 +604,6 @@ impl From<Ym2413RhythmOutputServiceError> for Ym2413MeasuredOutputAdapterError {
 /// separate Nuked software-reference output pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413MeasuredOutputAdapter {
-    next_cycle: u8,
     rhythm_output_service: Ym2413RhythmOutputService,
     pending_frame: Option<Ym2413OutputCycleFrame>,
     last_frame: Option<Ym2413MeasuredOutputAdapterFrame>,
@@ -611,7 +614,6 @@ impl Ym2413MeasuredOutputAdapter {
     /// rhythm values; no physical reset latch contents are assumed.
     pub const fn new() -> Self {
         Self {
-            next_cycle: 0,
             rhythm_output_service: Ym2413RhythmOutputService::new_for_nuked_cycle_zero(),
             pending_frame: None,
             last_frame: None,
@@ -623,31 +625,28 @@ impl Ym2413MeasuredOutputAdapter {
     pub fn with_initial_state(
         state: Ym2413MeasuredOutputAdapterState,
     ) -> Result<Self, Ym2413MeasuredOutputAdapterError> {
-        if state.format_version != YM2413_MEASURED_OUTPUT_ADAPTER_STATE_VERSION
-            || state.next_cycle >= YM2413_SLOT_COUNT as u8
-        {
+        if state.format_version != YM2413_MEASURED_OUTPUT_ADAPTER_STATE_VERSION {
             return Err(Ym2413MeasuredOutputAdapterError::InvalidState);
         }
-        let expected_ro_slot = ro_output_slot_for_nuked_cycle(state.next_cycle)
-            .ok_or(Ym2413MeasuredOutputAdapterError::InvalidState)?;
         let rhythm_output_service =
             Ym2413RhythmOutputService::with_initial_state(state.rhythm_output_service)?;
-        if rhythm_output_service
-            .export_state()
-            .rhythm_delay
-            .next_slot_index
-            != expected_ro_slot
-        {
-            return Err(Ym2413MeasuredOutputAdapterError::InvalidState);
-        }
+        // The independent RO retention cursor is the adapter's sole temporal
+        // cursor. Derive the expected core cycle from its measured coordinate.
+        let next_cycle = nuked_cycle_for_ro_output_slot(
+            rhythm_output_service
+                .export_state()
+                .rhythm_delay
+                .next_slot_index,
+        )
+        .ok_or(Ym2413MeasuredOutputAdapterError::InvalidState)?;
         if state.pending_frame.is_some_and(|frame| {
             frame.cycle >= YM2413_SLOT_COUNT as u8
-                || (frame.cycle + 1) % YM2413_SLOT_COUNT as u8 != state.next_cycle
+                || (frame.cycle + 1) % YM2413_SLOT_COUNT as u8 != next_cycle
         }) || state.last_frame.is_some_and(|frame| {
             frame.source.cycle >= YM2413_SLOT_COUNT as u8
                 || frame.emitted_cycle >= YM2413_SLOT_COUNT as u8
                 || (frame.source.cycle + 1) % YM2413_SLOT_COUNT as u8 != frame.emitted_cycle
-                || (frame.emitted_cycle + 1) % YM2413_SLOT_COUNT as u8 != state.next_cycle
+                || (frame.emitted_cycle + 1) % YM2413_SLOT_COUNT as u8 != next_cycle
         }) || (state.last_frame.is_some() && state.pending_frame.is_none())
         {
             return Err(Ym2413MeasuredOutputAdapterError::InvalidState);
@@ -659,7 +658,6 @@ impl Ym2413MeasuredOutputAdapter {
         }
 
         Ok(Self {
-            next_cycle: state.next_cycle,
             rhythm_output_service,
             pending_frame: state.pending_frame,
             last_frame: state.last_frame,
@@ -670,7 +668,6 @@ impl Ym2413MeasuredOutputAdapter {
     pub const fn export_state(&self) -> Ym2413MeasuredOutputAdapterState {
         Ym2413MeasuredOutputAdapterState {
             format_version: YM2413_MEASURED_OUTPUT_ADAPTER_STATE_VERSION,
-            next_cycle: self.next_cycle,
             rhythm_output_service: self.rhythm_output_service.export_state(),
             pending_frame: self.pending_frame,
             last_frame: self.last_frame,
@@ -689,7 +686,6 @@ impl Ym2413MeasuredOutputAdapter {
         self.rhythm_output_service = self
             .rhythm_output_service
             .with_next_nuked_cycle(next_cycle)?;
-        self.next_cycle = next_cycle;
         self.pending_frame = None;
         self.last_frame = None;
         Ok(self)
@@ -705,9 +701,10 @@ impl Ym2413MeasuredOutputAdapter {
         rhythm_mode_enabled: bool,
         previous_channel_output: Option<i16>,
     ) -> Result<Option<Ym2413MeasuredOutputAdapterFrame>, Ym2413MeasuredOutputAdapterError> {
-        if cycle != self.next_cycle {
+        let expected_cycle = self.next_cycle();
+        if cycle != expected_cycle {
             return Err(Ym2413MeasuredOutputAdapterError::InvalidCycle {
-                expected: self.next_cycle,
+                expected: expected_cycle,
                 actual: cycle,
             });
         }
@@ -726,7 +723,6 @@ impl Ym2413MeasuredOutputAdapter {
             });
         self.pending_frame = Some(current);
         self.last_frame = emitted;
-        self.next_cycle = (cycle + 1) % YM2413_SLOT_COUNT as u8;
         Ok(emitted)
     }
 
@@ -736,8 +732,13 @@ impl Ym2413MeasuredOutputAdapter {
     }
 
     /// Return the next cycle required by the adapter.
-    pub const fn next_cycle(&self) -> u8 {
-        self.next_cycle
+    pub fn next_cycle(&self) -> u8 {
+        let ro_slot = self
+            .rhythm_output_service
+            .export_state()
+            .rhythm_delay
+            .next_slot_index;
+        (ro_slot + 3) % YM2413_SLOT_COUNT as u8
     }
 }
 
