@@ -104,9 +104,15 @@ def compare_row(
     rust: dict[str, object],
 ) -> None:
     """Compare all integrated serial state fields for one OPLL_Clock call."""
+    required_fields = (
+        *SCALAR_FIELDS,
+        *ARRAY_FIELDS,
+        "op_calc_op_fb1",
+        "op_calc_op_fb2",
+    )
     missing = [
         field
-        for field in (*SCALAR_FIELDS, *ARRAY_FIELDS)
+        for field in required_fields
         if field not in nuked or field not in rust
     ]
     if missing:
