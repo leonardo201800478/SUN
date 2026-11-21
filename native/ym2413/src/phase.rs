@@ -202,7 +202,7 @@ impl PhaseGenerator {
 mod tests {
     use super::{
         PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
-        YM2413_PHASE_MASK, YM2413_PG_STATE_VERSION,
+        YM2413_PG_STATE_VERSION, YM2413_PHASE_MASK,
     };
 
     #[test]
