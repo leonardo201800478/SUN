@@ -222,10 +222,10 @@ impl fmt::Display for SmsTemporalBusError {
                 write!(f, "SMS temporal YM2413 synthesis initialization failed: {error}")
             }
             Self::Ym2413PgSerial(error) => {
-                write!(f, "SMS temporal YM2413 serial service failed: {error}")
+                write!(f, "SMS temporal YM2413 serial service failed: {error:?}")
             }
             Self::Ym2413PgSerialAdvance(error) => {
-                write!(f, "SMS temporal YM2413 serial advance failed: {error}")
+                write!(f, "SMS temporal YM2413 serial advance failed: {error:?}")
             }
             Self::Coordinator(error) => write!(f, "SMS temporal coordinator failed: {error}"),
             Self::Io(error) => write!(f, "SMS temporal controller input failed: {error}"),
@@ -1421,7 +1421,7 @@ mod tests {
         }
     }
 
-    fn advance_internal_cycle(bus: &mut SmsTemporalBus, id: u64, tstates: u64) {
+    fn advance_internal_cycle(bus: &mut SmsTemporalBus, id: u64, tstates: u32) {
         bus.schedule_internal_cycle(id, tstates).unwrap();
         assert!(matches!(
             bus.dispatch_next().unwrap(),
