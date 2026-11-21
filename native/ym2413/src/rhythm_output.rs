@@ -115,6 +115,11 @@ pub enum Ym2413RhythmOutputSlotResult {
         slot_index: u8,
         voice: Ym2413RhythmVoice,
     },
+    /// The original source slot was reached while its operator output was unknown.
+    OriginalNotInitialized {
+        slot_index: u8,
+        voice: Ym2413RhythmVoice,
+    },
 }
 
 /// Errors from the rhythm output-retention model.
@@ -189,6 +194,18 @@ impl Ym2413RhythmOutputDelay {
         slot_index: u8,
         original_code: Option<Ym2413DacCode>,
     ) -> Result<Ym2413RhythmOutputSlotResult, Ym2413RhythmOutputError> {
+        self.process_slot_with_validity(slot_index, original_code, true)
+    }
+
+    /// Process one slot when the caller can distinguish a known sample from an
+    /// unknown operator result. An unknown original source invalidates that
+    /// voice's retained value; later repeats remain explicitly uninitialized.
+    pub fn process_slot_with_validity(
+        &mut self,
+        slot_index: u8,
+        original_code: Option<Ym2413DacCode>,
+        original_known: bool,
+    ) -> Result<Ym2413RhythmOutputSlotResult, Ym2413RhythmOutputError> {
         if slot_index as usize >= YM2413_SLOT_COUNT {
             return Err(Ym2413RhythmOutputError::InvalidSlotIndex(slot_index));
         }
@@ -226,6 +243,16 @@ impl Ym2413RhythmOutputDelay {
                         slot_index,
                         voice: entry.voice,
                     },
+                }
+            }
+            Some(entry) if !original_known => {
+                if original_code.is_some() {
+                    return Err(Ym2413RhythmOutputError::UnexpectedOriginalSample { slot_index });
+                }
+                self.state.retained_values[voice_index(entry.voice)] = None;
+                Ym2413RhythmOutputSlotResult::OriginalNotInitialized {
+                    slot_index,
+                    voice: entry.voice,
                 }
             }
             Some(entry) => {
