@@ -44,7 +44,7 @@ O FM-5.2B já possui diferencial isolado do operador e dos cinco latches de ritm
 | FM-2 | PG serial e integração PG↔EG | **Integrado; diferencial de software aprovado** | PR #1145. 18 acumuladores, latches PG/PM, evento de reset de fase e snapshots; diferencial Nuked e limites de restauração aprovados. O alinhamento físico absoluto continua em aberto. |
 | FM-3 | Operadores, feedback e modulação | **FM-3A integrado e validado; FM-3 global parcial** | PR #1147. Operador serial, feedback de dois samples e AM LFO serial com diferencial integrado PASS. Faltam acumulação/roteamento final dos nove canais e PCM. |
 | FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder de registradores, patches candidatos e `evaluate_channel` existem. Ainda falta serviço temporal que percorra os nove canais e acumule uma amostra YM2413 final; presets não certificados por medição física. |
-| FM-5 | Rhythm Mode | **Parcial — caminho serial e caracterização de software integrados em branch draft** | PR #1154: LFSR serial FM-5.2A. PR #1156: roteamento BD/HH/TOM/SD/TCY, PG especial, operador e cinco latches. Diferencial isolado dos cinco latches PASS; caracterização integrada de 147.456 chamadas confirma controle/temporização/LFSR e reporta divergências da tabela candidata em `c_fb`, `c_dm`, `c_sl` e EG. Seed/patch físicos, MO/RO/DAC/PCM final e validação em hardware permanecem pendentes. |
+| FM-5 | Rhythm Mode | **Parcial — FM-5.2A publicado; FM-5.2B candidato sincronizado e validado por software** | PR #1154 foi integrada à main. PR #1156 está aberta contra main; CI, PG diferencial, reset de Rhythm e adaptador Nuked passaram no HEAD `99e836a`. A caracterização EG segue em execução. O relatório integrado mantém divergências candidatas `c_sl`/`eg_sl` (Nuked 4 vs Rust 6) e `eg_state`; seed físico e patch ROM não certificados. MO/RO integrado, DAC/PCM e hardware continuam pendentes. |
 | FM-6 | Saída digital FM / DAC / PCM | **Parcial — contrato MO/RO isolado** | Roteamento por slot e nível reconstruído de domínio de medição existem. Falta conversão operador→palavra bruta do DAC, definição da janela subclock e PCM final. |
 | FM-7 | Perfis de hardware e integração SMS | **Pendente** | Portas F0–F2, latch/barramento, perfil Mark III/FM Unit e controle FM Auto/Off/On ainda não integrados ao runtime SMS. |
 | FM-8 | Mixer PSG + FM e áudio | **Pendente** | Acumulação determinística, mixer PSG+FM, resampling/saída host e snapshots agregados da máquina ainda não integrados. |
@@ -121,9 +121,9 @@ As seções históricas abaixo registram a evolução por PR e hipótese. Em cas
 
 ## Próxima dependência técnica
 
-As PRs #1133, #1145 e #1147 estão integradas à main. A PR #1154 (FM-5.2A) e a PR draft empilhada #1156 (FM-5.2B) permanecem fora da main. Não reabrir EG/PG/operador FM-3A sem regressão demonstrada.
+As PRs #1133, #1145, #1147 e #1154 estão integradas à main. A PR #1156 (FM-5.2B) foi retargeted para main e sincronizada; no HEAD `99e836a6984e20431a7634e9f7bd378db44ca6f9`, CI #9913, PG #448, Rhythm reset #371 e adaptador Nuked #475 passaram. EG #621 permanece em caracterização. As PRs #1157 e #1158 continuam empilhadas para o fechamento do caminho MO/RO.
 
-Próxima dependência do Rhythm Mode: reconciliar as divergências candidatas de `c_fb`, `c_dm`, `c_sl` e EG com evidência física, sem alterar parâmetros apenas para forçar paridade com Nuked; validar seed/patch em hardware; depois conectar retenção/roteamento MO/RO e definir palavra bruta do DAC/PCM. Em paralelo, FM-4 ainda precisa de dispatcher e acumulação dos nove canais melódicos.
+Próxima dependência do Rhythm Mode: manter explícitas as divergências candidatas `c_sl`/`eg_sl` e `eg_state`; não alterar parâmetros apenas para forçar paridade com Nuked. A certificação física de seed/patch permanece pendente. Em paralelo, FM-4 ainda precisa de serviço temporal dos nove canais e acumulação da amostra final.
 
 Somente depois será correto fechar integração F0–F2 no SMS e mixer PSG+FM. Não usar integração SMS ou mixer como substituto da síntese FM ausente. Não declarar o chip pronto para ROMs enquanto não houver PCM FM reproduzível e regressões no runtime SMS/SG-1000.
 
@@ -1424,3 +1424,12 @@ validated against the pinned oracle, but the SD SL/EG divergence and physical
 patch uncertainty remain open. Do not start FM-5.3 implementation until the
 EG characterization result and exact-head CI are checked; then use the
 measured MO/RO schedule as the basis for a separate serial output stage.
+
+
+## Publicação e estado da pilha FM — 2026-11-21
+
+- PR #1154 (FM-5.2A) foi integrada à `main` pelo merge commit `50f549cf28da4f268304908ae44717fe402dd708`.
+- PR #1156 (FM-5.2B) está retargeted para `main`, sincronizada com o HEAD publicado e permanece candidata: controle/temporização/LFSR passam no diferencial; diferenças de síntese permanecem visíveis e documentadas.
+- PR #1157 contém o serviço serial independente MO/RO; PR #1158 integra esse pipeline ao serviço PG core-owned. Ambas continuam em validação e não representam DAC/PCM concluído.
+- A conclusão geral continua bloqueada pela acumulação temporal dos nove canais, mapeamento operador→DAC, PCM FM reproduzível, portas F0–F2, mixer PSG+FM e validação integrada no runtime SMS/SG-1000.
+
