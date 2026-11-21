@@ -183,8 +183,10 @@ impl SmsYm2413PcmAccumulatorState {
         self.format_version == SMS_YM2413_PCM_ACCUMULATOR_STATE_VERSION
             && u64::from(self.next_cycle) < YM2413_SLOTS_PER_ROTATION
             && self.frame_count == self.next_cycle
-            && self.sum_mo.abs() <= i64::from(YM2413_CHANNEL_OUTPUT_MAX) * i64::from(self.frame_count)
-            && self.sum_ro.abs() <= i64::from(YM2413_CHANNEL_OUTPUT_MAX) * i64::from(self.frame_count)
+            && self.sum_mo.unsigned_abs()
+                <= ((i64::from(YM2413_CHANNEL_OUTPUT_MAX) + 1) * i64::from(self.frame_count)) as u64
+            && self.sum_ro.unsigned_abs()
+                <= ((i64::from(YM2413_CHANNEL_OUTPUT_MAX) + 1) * i64::from(self.frame_count)) as u64
     }
 }
 
@@ -1018,35 +1020,42 @@ impl SmsTemporalBus {
         &mut self,
         frame: Ym2413CoreOutputPipelineFrame,
     ) -> Result<(), SmsTemporalBusError> {
-        let accumulator = &mut self.ym2413_pcm_accumulator;
-        if !accumulator.is_valid()
-            || frame.cycle != accumulator.next_cycle
-            || accumulator.frame_count >= YM2413_SLOTS_PER_ROTATION as u8
+        let fm_enabled = self.fm_output_enabled();
+        let mut completed_sample = None;
         {
-            return Err(SmsTemporalBusError::InvalidState);
-        }
+            let accumulator = &mut self.ym2413_pcm_accumulator;
+            if !accumulator.is_valid()
+                || frame.cycle != accumulator.next_cycle
+                || accumulator.frame_count >= YM2413_SLOTS_PER_ROTATION as u8
+            {
+                return Err(SmsTemporalBusError::InvalidState);
+            }
 
-        // The F2 FM gate is applied at each completed serial slot. Muted slots
-        // contribute known zero; an enabled slot with unknown MO/RO stays unknown.
-        if self.fm_output_enabled() {
-            match (frame.mo, frame.ro) {
-                (Some(mo), Some(ro)) => {
-                    accumulator.sum_mo += i64::from(mo.value());
-                    accumulator.sum_ro += i64::from(ro.value());
+            // The F2 FM gate is applied at each completed serial slot. Muted slots
+            // contribute known zero; an enabled slot with unknown MO/RO stays unknown.
+            if fm_enabled {
+                match (frame.mo, frame.ro) {
+                    (Some(mo), Some(ro)) => {
+                        accumulator.sum_mo += i64::from(mo.value());
+                        accumulator.sum_ro += i64::from(ro.value());
+                    }
+                    _ => accumulator.valid = false,
                 }
-                _ => accumulator.valid = false,
+            }
+
+            accumulator.frame_count += 1;
+            accumulator.next_cycle =
+                (frame.cycle + 1) % YM2413_SLOTS_PER_ROTATION as u8;
+            if frame.cycle == (YM2413_SLOTS_PER_ROTATION - 1) as u8 {
+                completed_sample = Some(accumulator.valid.then(|| {
+                    (accumulator.sum_mo + accumulator.sum_ro) as f64
+                        / (2.0 * YM2413_SLOTS_PER_ROTATION as f64 * 256.0)
+                }));
+                *accumulator = SmsYm2413PcmAccumulatorState::default();
             }
         }
-
-        accumulator.frame_count += 1;
-        accumulator.next_cycle = (frame.cycle + 1) % YM2413_SLOTS_PER_ROTATION as u8;
-        if frame.cycle == (YM2413_SLOTS_PER_ROTATION - 1) as u8 {
-            let sample = accumulator.valid.then(|| {
-                (accumulator.sum_mo + accumulator.sum_ro) as f64
-                    / (2.0 * YM2413_SLOTS_PER_ROTATION as f64 * 256.0)
-            });
+        if let Some(sample) = completed_sample {
             self.pending_fm_samples.push_back(sample);
-            self.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
         }
         Ok(())
     }
