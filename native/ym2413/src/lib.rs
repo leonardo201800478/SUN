@@ -28,6 +28,7 @@ pub mod synthesis;
 pub mod synthesis_tables;
 pub mod timed_bus;
 mod slot_service;
+mod slot_service;
 pub use am_lfo::{
     AmLfo, AmLfoError, AmLfoState, YM2413_AM_LFO_LEVELS, YM2413_AM_LFO_PERIOD_SAMPLES,
     YM2413_AM_LFO_SAMPLES_PER_STEP, YM2413_AM_LFO_STATE_VERSION, YM2413_AM_LFO_TABLE_LENGTH,
@@ -386,9 +387,7 @@ impl Ym2413Core {
         clocks: u64,
         service: &mut S,
     ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
-        self.advance_input_clocks_inner(clocks, |core| {
-            core.clock_one_slot_with_service(service)
-        })
+        self.advance_input_clocks_inner(clocks, |core| core.clock_one_slot_with_service(service))
     }
 
     fn advance_input_clocks_inner<E, F>(
@@ -397,16 +396,11 @@ impl Ym2413Core {
         mut service_slot: F,
     ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<E>>
     where
-        F: FnMut(
-            &mut Self,
-        ) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<E>>,
+        F: FnMut(&mut Self) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<E>>,
     {
-        let next_elapsed = self
-            .elapsed_input_clocks
-            .checked_add(clocks)
-            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
-                Ym2413Error::ClockOverflow,
-            ))?;
+        let next_elapsed = self.elapsed_input_clocks.checked_add(clocks).ok_or(
+            slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow),
+        )?;
 
         let total_slot_clocks = u128::from(self.input_clock_phase) + u128::from(clocks);
         let completed_slots = total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
@@ -420,14 +414,11 @@ impl Ym2413Core {
             .map_err(|_| {
                 slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow)
             })?;
-        let next_completed_rotations = self
-            .completed_rotations
-            .checked_add(rotations)
-            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
-                Ym2413Error::ClockOverflow,
-            ))?;
-        let next_slot = u8::try_from(total_slots % u128::from(YM2413_SLOTS_PER_ROTATION))
-            .map_err(|_| {
+        let next_completed_rotations = self.completed_rotations.checked_add(rotations).ok_or(
+            slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow),
+        )?;
+        let next_slot =
+            u8::try_from(total_slots % u128::from(YM2413_SLOTS_PER_ROTATION)).map_err(|_| {
                 slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::InvalidState)
             })?;
 
@@ -677,9 +668,8 @@ mod tests {
             Ym2413SlotService, Ym2413SlotServiceAdvanceError, Ym2413SlotServiceContext,
         },
         EnvelopeSequencerState, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
-        YM2413_INPUT_CLOCKS_PER_ROTATION,
-        YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT, YM2413_SLOT_MAP, Ym2413Core,
-        Ym2413Error, Ym2413State, nuked_phase_reset_required,
+        YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT,
+        YM2413_SLOT_MAP, Ym2413Core, Ym2413Error, Ym2413State, nuked_phase_reset_required,
     };
     use core::convert::Infallible;
 
@@ -1004,7 +994,10 @@ mod tests {
             let before = service.before[usize::from(cycle)];
             let after = service.after[usize::from(cycle)];
             assert_eq!(before.event.cycle, cycle);
-            assert_eq!(before.envelope_input.rhythm_bits, before.registers[0x0e] & 0x3f);
+            assert_eq!(
+                before.envelope_input.rhythm_bits,
+                before.registers[0x0e] & 0x3f
+            );
             assert!(before.rm_select <= 6);
             assert_eq!(after.0, cycle);
             assert_eq!(after.1, before.event.eg_update_index);
@@ -1016,18 +1009,11 @@ mod tests {
             );
             assert_eq!(
                 before.event.phase_reset_required,
-                nuked_phase_reset_required(
-                    cycle,
-                    before.rm_enable,
-                    before.envelope_state.eg_dokon
-                )
-                .unwrap()
+                nuked_phase_reset_required(cycle, before.rm_enable, before.envelope_state.eg_dokon)
+                    .unwrap()
             );
             assert_eq!(service.order[usize::from(cycle) * 2], (true, cycle));
-            assert_eq!(
-                service.order[usize::from(cycle) * 2 + 1],
-                (false, cycle)
-            );
+            assert_eq!(service.order[usize::from(cycle) * 2 + 1], (false, cycle));
         }
     }
 
@@ -1100,11 +1086,7 @@ mod tests {
             &mut FailingService,
         );
 
-        assert_eq!(
-            result,
-            Err(Ym2413SlotServiceAdvanceError::Service(3))
-        );
+        assert_eq!(result, Err(Ym2413SlotServiceAdvanceError::Service(3)));
         assert_eq!(core.export_state(), before);
     }
-
 }
