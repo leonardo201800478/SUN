@@ -827,6 +827,12 @@ impl Ym2413PgSerialService {
 
     /// Advance the digital output pipeline using the core-owned post-update
     /// rm_enable value and an optional, validated next operator result.
+    /// Advance the two output paths at the established serial slot boundary.
+    ///
+    /// The measured adapter observes the previous latch's dispatch provenance
+    /// before the Nuked reference pipeline installs the next channel output.
+    /// The measured level remains unknown until operator-to-level conversion
+    /// has independent evidence.
     fn clock_output_pipeline(
         &mut self,
         context: &Ym2413SlotServiceContext,
