@@ -1357,3 +1357,46 @@ O diferencial integrado comparou 147.456 chamadas `OPLL_Clock` nos 18 ciclos ser
 5. FM-8: mixer determinístico PSG+FM, snapshots agregados e validação no runtime SMS/SG-1000.
 
 **Critério de conclusão geral:** não marcar YM2413 como concluído nem iniciar campanha de ROMs como validação de áudio funcional antes de haver PCM FM determinístico, integração ao Scheduler/runtime SMS, snapshots agregados e regressões reproduzíveis. A aprovação de FM-3A não substitui esses gates.
+
+---
+
+## FM-5.2C evidence reconciliation update — 2026-11-21
+
+**Current investigation result: PARTIAL; candidate table intentionally unchanged.**
+
+- Retrieved and reviewed the requested andete files at commit
+  `4893d1c09faa0450b5d3355f19b7682d72822501`, including Rhythm Mode,
+  LFSR, feedback, KSL, envelope, sweep/model6 and DAC measurement notes.
+- Confirmed that the BD capture-derived patch is a close match, not an exact
+  match; the source reports a one-sample alignment and peak-amplitude residual.
+- Confirmed that the BD candidate's FB/DM bits are modulator-specific. The
+  pinned Nuked rhythm patch model has separate BD modulator and carrier
+  entries. Rust now latches FB=7/DM=1 only for the BD-modulator selector and
+  FB=0/DM=0 for BD carrier and the other single-operator rhythm selectors.
+- Added a directed six-selector regression for this per-slot latch contract.
+- **Unresolved and preserved:** the measured SD carrier candidate is SL=6,
+  while the pinned Nuked commit selects SL=4. The source material does not
+  justify changing the Rust candidate. The associated EG-state divergence
+  remains visible and has not been attributed exclusively to this SL mismatch.
+- LFSR slot cadence is supported by the 2020 andete update: x^23+x^9+1,
+  one step per operator slot, HH sample, three steps, SD sample, fifteen
+  steps. The physical reset seed remains unknown.
+- MO/RO measurements support two separate analog outputs, a 9-bit measured
+  domain with 511 observed values (-255..+255), and repeated percussion
+  outputs. They do not establish the internal DAC mapping. The suggested
+  9x5 retention structure is inferred from an FHB013 derivative die shot,
+  not a YM2413 die shot.
+
+**Implementation commit:** `c9a5f73176ee34e585c5b912f4b705256ba84afd`.
+**Audit:** `docs/audits/ym2413-fm5-2b-serial-rhythm-pipeline-2026-11-21.md`,
+section “FM-5.2C investigation”.
+
+**Gate status:** do not mark FM-5.2C complete until the new code HEAD passes
+the isolated operator and integrated Rhythm Mode differential workflows,
+and the remaining SD SL/EG divergence is either physically resolved or
+explicitly carried as an accepted, documented limitation. No physical-chip
+validation is claimed.
+
+**Next dependency:** FM-5.3 — independently model the serial MO and RO output
+events and retained/repeated rhythm outputs. Keep the two pins separate;
+do not infer PCM or DAC codes from the signed operator intermediate.
