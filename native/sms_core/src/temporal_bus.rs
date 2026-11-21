@@ -1226,6 +1226,13 @@ mod tests {
         assert!(bus.psg_output_enabled());
 
         bus.write_port(0xF0, 0x10);
+        bus.schedule_internal_cycle(90, 12).unwrap();
+        assert!(matches!(
+            bus.dispatch_next().unwrap(),
+            Some(SmsTemporalDispatch::InternalCycleComplete(_))
+        ));
+        bus.acknowledge_internal_completion(90).unwrap();
+
         bus.write_port(0xF1, 0xA5);
         bus.schedule_internal_cycle(91, 72).unwrap();
         assert!(matches!(
@@ -1234,7 +1241,7 @@ mod tests {
         ));
         assert_eq!(
             bus.ym2413().unwrap().export_state().elapsed_input_clocks,
-            72
+            84
         );
         assert_eq!(bus.ym2413().unwrap().export_state().registers[0x10], 0xA5);
         bus.acknowledge_internal_completion(91).unwrap();
