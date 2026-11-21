@@ -215,3 +215,20 @@ therefore isolates the serial operator arithmetic and feedback pipeline from
 the separate PG, EG, register-decoder and LFO generation paths. A PASS does
 not establish that Rust independently generated those inputs correctly; the
 integrated serial pipeline requires its own differential gate.
+
+
+## Serial AM LFO differential
+
+The trace adapter captures the pre-increment shared `lfo_counter` and
+`testmode`, then records the post-call AM counter, direction, carry, step,
+and output latches. Run the production serial AM state machine against the
+full Nuked trace with:
+
+```sh
+python3 tools/ym2413-nuked-oracle/compare_am_lfo.py \
+  --nuked-trace nuked-operator.jsonl
+```
+
+This validates the `OPLL_DoLFO` AM shift/carry network independently of the
+operator arithmetic. The integrated PG/PM counter and AM/EG timing still need
+the separate full-pipeline differential.
