@@ -284,6 +284,15 @@ pub const fn nuked_cycle_selected_slot_descriptor(cycle: u8) -> Option<Ym2413Slo
     }
 }
 
+/// Resolve a Nuked PG phase-array index to its logical operator.
+///
+/// The PG ring is indexed by Nuked cycle order (`ch_offset`), which is the
+/// canonical Yamaha slot map rotated by one position. It is not indexed by
+/// `YM2413_SLOT_MAP` directly.
+pub const fn nuked_pg_phase_slot_descriptor(index: u8) -> Option<Ym2413SlotDescriptor> {
+    nuked_cycle_selected_slot_descriptor(index)
+}
+
 /// PG phase-array entry written by Nuked `OPLL_PhaseGenerate` this cycle.
 pub const fn nuked_pg_phase_write_index(cycle: u8) -> Option<u8> {
     if cycle < YM2413_SLOT_COUNT as u8 {
@@ -439,6 +448,15 @@ mod tests {
         nuked_phase_reset_required_with_testmode, nuked_slot_service_event,
         nuked_slot_service_event_with_testmode, slot_descriptor,
     };
+
+    #[test]
+    fn pg_phase_array_uses_nuked_cycle_order_not_canonical_slot_order() {
+        let phase_15 = super::nuked_pg_phase_slot_descriptor(15).unwrap();
+        assert_eq!(phase_15.channel, 7);
+        assert_eq!(phase_15.operator, super::Ym2413Operator::Carrier);
+        assert_eq!(super::slot_descriptor(15).unwrap().channel, 6);
+        assert_eq!(super::slot_descriptor(15).unwrap().operator, super::Ym2413Operator::Carrier);
+    }
 
     #[test]
     fn serial_order_matches_yamaha_channel_and_operator_table() {
