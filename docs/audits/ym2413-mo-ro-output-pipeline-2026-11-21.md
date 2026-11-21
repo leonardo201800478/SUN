@@ -160,3 +160,32 @@ Portanto, a integração ao serviço PG não foi feita nesta etapa. A fronteira
 técnica está identificada; a próxima implementação deve introduzir entrada
 opcional de ch_out e rm_enable externo pós-update, alinhando o cursor do
 pipeline ao cursor de Ym2413Core.
+
+
+## Resultados finais PG/EG no mesmo checkpoint
+
+PG Differential #425, run 44930418468, terminou SUCCESS:
+2.600 chamadas e 46.800 valores de fase. A comparação PG base reportou zero
+divergências após floor normalization, mas 256 diferenças em unidade comum
+exata/half-LSB. PM teve 404.965 diferenças na posição sem rotação em 524.288
+tuplas; a melhor rotação cíclica foi 6. A coincidência da tabela MAME com o
+candidato Rust após offset 6 e truncamento em direção a zero é uma
+caracterização, não evidência de alinhamento físico definitivo.
+
+EG Characterization #598, run 44930418372, terminou SUCCESS na matriz de 38
+configurações AR/DR/KSR:
+- 243.884 amostras;
+- 44.064 divergências de nível;
+- 71 divergências de estágio;
+- 1.140.000 replays de sequenciador e 1.140.000 replays de timer sem
+  divergências de campo;
+- 506.768 amostras de replay do operador sem divergências de nível/estágio.
+
+O controle baseline registrou 56.270 divergências de nível e 266 de estágio.
+O candidato external_rate_phase eliminou divergências nessa caracterização,
+mas usa fase externa/oráculo e permanece teacher-forced; não pode ser aceito
+como correção independente.
+
+CI #44930418522 terminou SUCCESS após rerun do job cancelado. Assim, o código
+do pipeline isolado, seu exemplo e o diferencial estão compilados e cobertos
+pelo CI. A caracterização PG/EG continua sem fechamento.

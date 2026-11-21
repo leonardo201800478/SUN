@@ -1966,3 +1966,39 @@ Contrato recomendado para integração:
 
 Nenhuma integração foi forçada nesta etapa: isso evita duplicar o estado
 temporal do core ou inventar amostras nos slots sem ruído validado.
+
+
+## Resultado final dos workflows de caracterização — 2026-11-21
+
+Após o checkpoint anterior, os workflows pendentes terminaram:
+
+**PG Differential #425 — run 44930418468: SUCCESS**
+- 2.600 chamadas, 46.800 valores de fase comparados.
+- PG base: 65.536 tuplas; zero divergências após floor normalization,
+  mas 256 divergências em unidade comum exata e 256 casos de meio LSB Rust.
+- PM: 524.288 tuplas; 404.965 divergências na posição sem rotação.
+- Melhor rotação cíclica observada: 6.
+- A tabela PM do MAME coincide com o candidato Rust após offset 6 e truncamento
+  em direção a zero. Isso é caracterização de candidato, não prova de origem
+  física da fase nem justificativa para alterar a implementação sem evidência.
+
+**EG Characterization #598 — run 44930418372: SUCCESS**
+- Matriz de 38 configurações AR/DR/KSR.
+- 243.884 amostras; 44.064 divergências de nível e 71 de estágio no candidato
+  initial_127_deferred_decay_phase_minus3.
+- Controle baseline: 56.270 divergências de nível e 266 de estágio.
+- Replays do sequenciador e timer: zero divergências de campo em 1.140.000
+  chamadas cada.
+- Replay do operador: zero divergências de nível/estágio em 506.768 amostras.
+- O candidato external_rate_phase apresentou zero divergências, mas continua
+  teacher-forced com fase externa/oráculo e não é uma correção independente.
+- O sucesso do workflow significa que a caracterização foi executada; EG não
+  está fechado.
+
+**CI #44930418522: SUCCESS** após rerun do job cancelado pela atualização da
+branch. Rustfmt, Clippy, higiene documental e testes do workspace passaram.
+
+**Estado global:** saída MO/RO digital isolada aprovada contra Nuked; PG e EG
+continuam em caracterização com divergências/candidatos não certificados.
+A integração de produção permanece pendente conforme a fronteira descrita
+neste scorecard.
