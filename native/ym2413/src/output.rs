@@ -405,21 +405,19 @@ impl Ym2413RhythmOutputService {
 
         // Validate MO placement before mutating the RO retention cursor.
         let mo = melody_output_for_slot(mo_slot_index, rhythm_mode_enabled, melody_level)?;
-        let (rhythm_result, ro) = if rhythm_mode_enabled {
+        let ro = if rhythm_mode_enabled {
             let result = self
                 .rhythm_delay
                 .process_slot(ro_slot_index, original_rhythm_level)?;
-            (result, rhythm_slot_result(result)?)
+            rhythm_slot_result(result)?
         } else {
             // No percussion operator is selected outside Rhythm Mode. Advance
             // the independent RO cursor without consuming melodic data as a
             // percussion source, and keep the pin inactive.
-            let result = self
-                .rhythm_delay
+            self.rhythm_delay
                 .process_slot_with_validity(ro_slot_index, None, false)?;
-            (result, Ym2413OutputSlotResult::NoOutput)
+            Ym2413OutputSlotResult::NoOutput
         };
-        let _ = rhythm_result;
 
         Ok(Ym2413OutputCycleFrame {
             cycle,
