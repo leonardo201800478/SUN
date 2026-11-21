@@ -5505,6 +5505,31 @@ mod windows_host {
         }
 
         #[test]
+        fn fm_preferences_round_trip_through_the_persisted_settings_format() {
+            let preferences = DesktopPreferences {
+                sms_fm_board_profile: "japanese-integrated".to_owned(),
+                sms_fm_mode: "off".to_owned(),
+                ..DesktopPreferences::default()
+            };
+
+            let encoded = serialize_desktop_preferences(&preferences);
+            let decoded = parse_desktop_preferences(&encoded);
+
+            assert_eq!(decoded.sms_fm_board_profile, "japanese-integrated");
+            assert_eq!(decoded.sms_fm_mode, "off");
+        }
+
+        #[test]
+        fn invalid_fm_preferences_are_sanitized_for_non_sms1_systems() {
+            let decoded = parse_desktop_preferences(
+                "selected_system=sms2\nsms_fm_board_profile=japanese-integrated\nsms_fm_mode=on",
+            );
+
+            assert_eq!(decoded.sms_fm_board_profile, "none");
+            assert_eq!(decoded.sms_fm_mode, "auto");
+        }
+
+        #[test]
         fn fm_on_requires_physical_hardware_and_off_keeps_the_chip_installed() {
             let rom = vec![0; 0x4000];
             assert!(
