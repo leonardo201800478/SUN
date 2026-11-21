@@ -167,7 +167,7 @@ A lista histórica do MEKA é um índice útil para ampliar a matriz: aliases de
 
 ## Licenciamento e reutilização
 
-Esta pesquisa é uma análise de comportamento e arquitetura; **não copia código-fonte desses projetos para o Sega Emulator**.
+Esta pesquisa é uma análise de comportamento e arquitetura; **não copia código-fonte desses projetos para o SUN — Strife Uranus Neptune**.
 
 - Gearsystem está sob GPL-3.0. Copiar código pode impor obrigações de copyleft e distribuição compatível.
 - Os arquivos históricos de CPU do MEKA incluem avisos específicos de Marat Fayzullin que proíbem distribuição comercial; não reutilizar esse código sem autorização/licença inequívoca.

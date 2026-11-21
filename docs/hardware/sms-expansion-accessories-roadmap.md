@@ -51,7 +51,7 @@ O Mark III FM Sound Unit fica documentado como hardware histórico fora do escop
 
 ## SC-3000 — limite de escopo
 
-**SC-3000 está integralmente fora do escopo do Sega Emulator como plataforma-alvo.** Não implementar o computador SC-3000, seus modos de execução, software de computador, BASIC, teclado SK-1100, cassette/data recorder, printer ou periféricos específicos. A existência de jogos SC/SG não altera essa decisão: somente títulos comprovadamente compatíveis com o hardware SG-1000 poderão ser carregados pelo perfil SG-1000. Isso não representa emulação ou compatibilidade geral com SC-3000.
+**SC-3000 está integralmente fora do escopo do SUN — Strife Uranus Neptune como plataforma-alvo.** Não implementar o computador SC-3000, seus modos de execução, software de computador, BASIC, teclado SK-1100, cassette/data recorder, printer ou periféricos específicos. A existência de jogos SC/SG não altera essa decisão: somente títulos comprovadamente compatíveis com o hardware SG-1000 poderão ser carregados pelo perfil SG-1000. Isso não representa emulação ou compatibilidade geral com SC-3000.
 
 ## Periféricos de controle
 

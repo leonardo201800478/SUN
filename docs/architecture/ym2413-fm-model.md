@@ -1,6 +1,6 @@
 # YM2413 / OPLL — Especificação arquitetural e modelo FM
 
-**Projeto:** Sega Emulator — Emulação de Alta Precisão  
+**Projeto:** SUN — Strife Uranus Neptune — Emulação de Alta Precisão
 **Escopo:** core digital YM2413 independente de console/host; integração futura no perfil físico Japanese Master System.
 **Estado:** modelo M0/M1 reconciliado por M2; a fundação FM-1 de registradores/clock está isolada em `native/ym2413`; não há síntese PCM nem integração de barramento SMS.
 **Auditoria M2 independente:** [auditoria pré-implementação](../audits/ym2413-pre-implementation-audit-2026-11-17.md).
@@ -583,7 +583,7 @@ O caminho de lookup usa espelhamento de quadrante e sinal; a conversão EXP usa 
 
 A entrada é dividida por quatro; cada clock interno processa um dos 18 slots. O pipeline não deve ser interpretado como 18 operadores físicos paralelos: PG, EG e operador/DAC são estágios sequenciais com offsets de slot, trabalhando em contextos de slots distintos no mesmo clock interno. Um período completo contém 18 clocks internos, ou 72 clocks de entrada.
 
-A implementação Rust de referência `emu198x_yamaha_ym2413` documenta seguir o pipeline e os offsets de Nuked-OPLL 1.0.2 (commit `1269cf5a`) e comparar os pinos com Nuked clock a clock. É uma referência técnica útil para ordenar os estágios, não prova independente de silício. O crate e Nuked-OPLL são GPL-2.0-or-later: não copiar código ou tabelas para o projeto sem decisão explícita de compatibilidade de licença. A arquitetura do Sega Emulator deve manter implementação própria e vetores de validação independentes.
+A implementação Rust de referência `emu198x_yamaha_ym2413` documenta seguir o pipeline e os offsets de Nuked-OPLL 1.0.2 (commit `1269cf5a`) e comparar os pinos com Nuked clock a clock. É uma referência técnica útil para ordenar os estágios, não prova independente de silício. O crate e Nuked-OPLL são GPL-2.0-or-later: não copiar código ou tabelas para o projeto sem decisão explícita de compatibilidade de licença. A arquitetura do SUN — Strife Uranus Neptune deve manter implementação própria e vetores de validação independentes.
 
 ### 14.8 Critérios de aceitação M1 adicionais
 

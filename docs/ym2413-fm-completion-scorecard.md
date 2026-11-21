@@ -3,9 +3,9 @@
 **Data de referência:** 2026-11-21
 **Repositório:** `leonardo201800478/SUN`
 **Main atual:** `7e275424112d60f42b83380b60786fbd640c18b0`
-**PR #1154 — FM-5.2A:** HEAD `0422cc85dcb6ceacf58246f97db900b5f23ef2f4`, aberta; branch 20 commits à frente e 1 atrás da main (sem rebase ou merge nesta execução).
-**PR #1156 — FM-5.2B:** draft, empilhada sobre #1154; HEAD documental `e7b06bf1a6ba474721541fe198eb57cbf58e8095`.
-**PR #1157 — FM-5.3:** draft, empilhada sobre #1156; último HEAD de código `27650ff687c9495415644bca1db30585ffed21b9` (documentação posterior sem alteração de código).
+**PR #1154 — FM-5.2A:** merged into `main` at `50f549cf28da4f268304908ae44717fe402dd708`; the LFSR cadence increment remains explicitly seed-candidate based.
+**PR #1156 — FM-5.2B:** merged into `main` at `f955bc42dfff6565e4719653c2834bf271884bac`; candidate synthesis differences and physical seed/patch uncertainty remain documented.
+**PR #1157 — FM-5.3:** open draft, being synchronized with the published `main`; contains the independent measured-domain MO/RO service and signed-zero retention.
 
 Este scorecard distingue implementação de componente, integração funcional, validação temporal e evidência física. Uma etapa só é considerada concluída quando seus critérios próprios estão demonstrados.
 
@@ -48,8 +48,8 @@ Ainda faltam validação física de patches/seed, integração MO/RO ao core, pa
 | FM-2 | PG serial e integração PG↔EG | **Integrado; diferencial de software aprovado** | PR #1145. 18 acumuladores, latches PG/PM, evento de reset de fase e snapshots; diferencial Nuked e limites de restauração aprovados. O alinhamento físico absoluto continua em aberto. |
 | FM-3 | Operadores, feedback e modulação | **FM-3A integrado e validado; FM-3 global parcial** | PR #1147. Operador serial, feedback de dois samples e AM LFO serial com diferencial integrado PASS. Faltam acumulação/roteamento final dos nove canais e PCM. |
 | FM-4 | Nove canais melódicos e instrumentos | **Parcial** | Decoder de registradores, patches candidatos e `evaluate_channel` existem. Ainda falta serviço temporal que percorra os nove canais e acumule uma amostra YM2413 final; presets não certificados por medição física. |
-| FM-5 | Rhythm Mode | **Parcial — FM-5.2C e serviço MO/RO FM-5.3 em PRs draft** | #1154 LFSR; #1156 roteamento/PG/operador de ritmo; #1157 serviço MO/RO e retenção de `-0`/`+0`. FB/DM corrigidos e PG diferencial #364 aprovado. SD SL/EG e seed/patch físicos continuam abertos. CI do último incremento pendente. |
-| FM-6 | Saída digital FM / DAC / PCM | **Parcial — MO/RO isolado; DAC bruto bloqueado por evidência** | Serviço MO/RO por slot e retenção de níveis medidos existem. A evidência andete 2015-03-05/11 corrige 511 para 512 picos medidos, incluindo dois zeros centrais. Falta codificação binária bruta, conversão operador→DAC, fase subclock, nível neutro e PCM. |
+| FM-5 | Rhythm Mode | **Parcial — FM-5.2A/5.2B publicados como candidatos; FM-5.3 em integração** | PRs #1154 e #1156 integradas à main. O candidato mantém `c_sl`/`eg_sl` (Nuked 4 vs Rust 6) e `eg_state` documentados; seed físico e patch ROM não certificados. PR #1157 contém o serviço medido MO/RO; PR #1158 contém o pipeline de referência Nuked, sem equivaler ao adaptador físico. |
+| FM-6 | Saída digital FM / DAC / PCM | **Parcial — MO/RO medido e referência Nuked separados; DAC/PCM pendentes** | PR #1157 implementa coordenadas MO/RO independentes e retenção dos níveis medidos, preservando `-0`/`+0`. PR #1158 integra apenas o pipeline digital de referência Nuked. Falta integração do adaptador medido ao core, palavra bruta do DAC, janela subclock e PCM. |
 | FM-7 | Perfis de hardware e integração SMS | **Pendente** | Portas F0–F2, latch/barramento, perfil Mark III/FM Unit e controle FM Auto/Off/On ainda não integrados ao runtime SMS. |
 | FM-8 | Mixer PSG + FM e áudio | **Pendente** | Acumulação determinística, mixer PSG+FM, resampling/saída host e snapshots agregados da máquina ainda não integrados. |
 
@@ -125,9 +125,9 @@ As seções históricas abaixo registram a evolução por PR e hipótese. Em cas
 
 ## Próxima dependência técnica
 
-As PRs #1133, #1145 e #1147 estão integradas à main. A PR #1154 (FM-5.2A) e a PR draft empilhada #1156 (FM-5.2B) permanecem fora da main. Não reabrir EG/PG/operador FM-3A sem regressão demonstrada.
+As PRs #1133, #1145, #1147, #1154 e #1156 estão integradas à main. PR #1157 permanece aberta e draft; PR #1158 contém a integração do pipeline de referência Nuked ao serviço PG, também ainda não publicada.
 
-Próxima dependência do Rhythm Mode: concluir a validação exata do código FM-5.3 no CI atual; manter a divergência SD SL/EG caracterizada; integrar o serviço MO/RO ao core somente quando existir uma fonte de nível medido/digital temporalmente definida. Em FM-5.4, investigar a codificação bruta do DAC sem converter o intermediário do operador por suposição. Em paralelo, FM-4 ainda precisa de dispatcher e acumulação dos nove canais melódicos.
+Próxima dependência do Rhythm Mode: manter explícitas as divergências candidatas `c_sl`/`eg_sl` e `eg_state`, sem forçar paridade com Nuked. A certificação física do seed/patch permanece pendente. A próxima etapa de saída é integrar ao core o adaptador medido MO/RO, mantendo os offsets independentes e a validade explícita; não usar o frame Nuked como saída física. Em paralelo, FM-4 ainda precisa do serviço temporal dos nove canais e da acumulação determinística da amostra.
 
 Somente depois será correto fechar integração F0–F2 no SMS e mixer PSG+FM. Não usar integração SMS ou mixer como substituto da síntese FM ausente. Não declarar o chip pronto para ROMs enquanto não houver PCM FM reproduzível e regressões no runtime SMS/SG-1000.
 
@@ -1922,7 +1922,7 @@ atualização. PG #44930418468 e EG #44930418372 também permaneciam em execuç�
 contra Nuked. Não é evidência de silício e ainda não está integrado ao core
 de produção, ao PCM ou ao serviço de retenção medido. YM2413 permanece aberto.
 
-A PR #1157 continua Draft. Nenhum rebase, merge ou alteração na main foi feito.
+**Estado histórico supersedido:** a PR #1157 continua Draft; a main já recebeu as PRs #1154 e #1156. A sincronização da branch #1157 com a main está sendo executada separadamente.
 
 
 ## Atualização de workflows e limite de integração — 2026-11-21
@@ -1936,7 +1936,7 @@ Status no código HEAD f18848a450f1209c9777cdcc8238a4db1c9c5939:
 - EG Characterization #44930418372: ainda em execução no último checkpoint;
   a matriz de 38 configurações ainda não tinha publicado o resultado final.
 - MO/RO differential #44930418493: SUCCESS, 1.200 ciclos, comparações exatas.
-- PR #1157 permanece Draft; #1156 permanece Draft; #1154 permanece aberta.
+- PR #1157 permanece Draft e depende da sincronização com a main; #1154 e #1156 já foram integradas.
 - main permanece em 7e275424112d60f42b83380b60786fbd640c18b0.
 
 ### Fronteira identificada para a próxima integração
@@ -2002,3 +2002,10 @@ branch. Rustfmt, Clippy, higiene documental e testes do workspace passaram.
 continuam em caracterização com divergências/candidatos não certificados.
 A integração de produção permanece pendente conforme a fronteira descrita
 neste scorecard.
+
+## Publicação e estado atual da pilha FM — 2026-11-21
+
+- PR #1154 (FM-5.2A) merged em `main`; PR #1156 (FM-5.2B) também merged. Ambos preservam a natureza de candidato e as limitações físicas documentadas.
+- PR #1157 contém o serviço medido MO/RO com mapeamentos independentes, retenção e tokens `-0`/`+0`; está em sincronização com a nova base publicada.
+- PR #1158 integra ao serviço PG somente o pipeline de referência digital do Nuked, com CI/PG/EG/reset/output differential aprovados no HEAD de código `b7143f07a166932c39801b28126def0c55df4800`. Esse frame não é o adaptador físico medido.
+- Próxima dependência: conectar o serviço medido MO/RO ao core com coordenadas independentes, propagação de desconhecido e buffer temporal; depois fechar a acumulação dos nove canais, DAC/PCM, portas F0–F2 e mixer PSG+FM.

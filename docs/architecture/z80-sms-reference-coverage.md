@@ -30,7 +30,7 @@
 
 ## Proveniência e independência do corpus
 
-O README do corpus SingleStepTests/Z80 no commit fixado informa que os vetores foram criados por tradução do núcleo Z80 do Ares, seguida de correções de bugs. Portanto, os vetores são externos ao repositório Sega Emulator e úteis para regressão/diferencial, mas **não contam como oráculo de implementação independente do Ares**. A linhagem comum reduz a força da evidência quando o comportamento comparado também veio do Ares. Fonte: [README no commit fixado](https://github.com/SingleStepTests/z80/blob/ebe1875d48f374bcfd4b505d8eb8ee751568b5f7/README.MD).
+O README do corpus SingleStepTests/Z80 no commit fixado informa que os vetores foram criados por tradução do núcleo Z80 do Ares, seguida de correções de bugs. Portanto, os vetores são externos ao repositório SUN — Strife Uranus Neptune e úteis para regressão/diferencial, mas **não contam como oráculo de implementação independente do Ares**. A linhagem comum reduz a força da evidência quando o comportamento comparado também veio do Ares. Fonte: [README no commit fixado](https://github.com/SingleStepTests/z80/blob/ebe1875d48f374bcfd4b505d8eb8ee751568b5f7/README.MD).
 
 ## Níveis de evidência
 

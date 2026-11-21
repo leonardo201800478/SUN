@@ -1,4 +1,4 @@
-# Auditoria consolidada de integração de PRs — Sega Emulator
+# Auditoria consolidada de integração de PRs — SUN — Strife Uranus Neptune
 
 **Data da fotografia:** 2026-11-06  
 **Repositório:** `leonardo201800478/sega-emulator`  

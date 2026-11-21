@@ -7,7 +7,7 @@ ROM no repositório: **não**
 
 ## Relato
 
-O usuário relata que **Andre Agassi Tennis (Europe, Brazil) (En)** para Sega Master System não inicia no Sega Emulator: a tela permanece preta e há um chiado/ruído de fundo.
+O usuário relata que **Andre Agassi Tennis (Europe, Brazil) (En)** para Sega Master System não inicia no SUN — Strife Uranus Neptune: a tela permanece preta e há um chiado/ruído de fundo.
 
 O sintoma não foi reproduzido independentemente nesta fatia. O áudio audível pode indicar que parte do runtime e do PSG está ativa, mas não prova que a CPU executa corretamente, que o VDP recebe a inicialização esperada ou que a ROM está íntegra. Também não é possível concluir, apenas pelo ruído, que o problema seja exclusivamente de áudio.
 

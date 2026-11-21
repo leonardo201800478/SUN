@@ -20,7 +20,7 @@ SmsTemporalMachine / temporal bus
   -> CPAL
 ```
 
-The scheduler supplies PSG clock advances and dispatch timestamps. `ScheduledPsg::apply_clock_advance` advances the existing core; `write_at_dispatch` applies register writes at dispatched boundaries. The worker drains the PSG PCM queue once per frame, including the discard path for partial frames. The desktop preferences already persist volume, mute and analog DSP configuration in `%APPDATA%/Sega Emulator/slint_ui_settings.txt`.
+The scheduler supplies PSG clock advances and dispatch timestamps. `ScheduledPsg::apply_clock_advance` advances the existing core; `write_at_dispatch` applies register writes at dispatched boundaries. The worker drains the PSG PCM queue once per frame, including the discard path for partial frames. The desktop preferences already persist volume, mute and analog DSP configuration in `%APPDATA%/SUN — Strife Uranus Neptune/slint_ui_settings.txt`.
 
 The H2 study in `native/sn76489/src/psg_h2_model.rs` is nested under the PSG module's test configuration. It constructs its own PSG in an offline test harness, captures amplitude deltas and renders a complete trace into full-session vectors. It is not a production renderer and is not called by the runtime.
 

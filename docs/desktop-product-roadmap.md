@@ -17,7 +17,7 @@ Precedência:
 4. Registro de capacidades e inventário de implementação, a serem criados nesta trilha.
 5. Código, testes e evidências vinculados ao SHA efetivamente validado.
 
-O Gear System é uma referência de clareza funcional: menus explícitos, opções identificáveis e funções organizadas. Não é um requisito de copiar sua aparência rústica, nem de priorizar seu debugger avançado. O objetivo é uma interface simples, organizada, consistente e que exponha somente capacidades reais do Sega Emulator.
+O Gear System é uma referência de clareza funcional: menus explícitos, opções identificáveis e funções organizadas. Não é um requisito de copiar sua aparência rústica, nem de priorizar seu debugger avançado. O objetivo é uma interface simples, organizada, consistente e que exponha somente capacidades reais do SUN — Strife Uranus Neptune.
 
 ## 2. Objetivo
 
