@@ -1016,6 +1016,18 @@ impl AudioRendererState {
         self.transition_fm_samples.clear();
     }
 
+    /// Discard only the invalid FM epoch and release all queued PSG samples in
+    /// FIFO order. A missing/unknown FM rotation must never erase valid PSG PCM.
+    fn prepare_psg_fallback(&mut self, psg_samples: &[f64]) {
+        self.fm_resampler = None;
+        self.pending_fm_samples.clear();
+        self.mix_psg_samples.clear();
+        self.mix_psg_samples
+            .extend(self.pending_psg_samples.drain(..));
+        self.mix_psg_samples.extend(psg_samples.iter().copied());
+        self.mix_fm_samples.clear();
+    }
+
     /// Resample the YM2413 source onto the PSG 48 kHz timeline and return
     /// equally sized source blocks. Unknown FM rotations are never fed as zero.
     fn prepare_fm_mix(
@@ -1028,7 +1040,7 @@ impl AudioRendererState {
             return Ok(Some(0));
         }
         if fm_samples.iter().any(Option::is_none) {
-            self.reset_fm_pipeline();
+            self.prepare_psg_fallback(psg_samples);
             return Ok(None);
         }
 
@@ -2383,7 +2395,7 @@ fn execute_frame_with_renderer(
         match audio_renderer.prepare_fm_mix(psg_samples.as_slice(), &fm_samples) {
             Ok(aligned_frames) => aligned_frames,
             Err(error) => {
-                audio_renderer.reset_fm_pipeline();
+                audio_renderer.prepare_psg_fallback(psg_samples.as_slice());
                 telemetry.set_runtime_error(Some(format!(
                     "YM2413 PCM resampling unavailable; continuing with PSG: {error}"
                 )));
@@ -2396,7 +2408,9 @@ fn execute_frame_with_renderer(
 
     // Borrow the selected legacy source only after all mutable renderer work
     // above has completed.
-    let source_samples = if use_h2 {
+    let source_samples = if machine.ym2413().is_some() && !use_h2 && fm_mix_len.is_none() {
+        audio_renderer.mix_psg_samples.as_slice()
+    } else if use_h2 {
         audio_renderer.h2_samples.as_slice()
     } else {
         psg_samples.as_slice()
@@ -3793,18 +3807,27 @@ mod tests {
     }
 
     #[test]
-    fn unknown_ym2413_rotations_are_not_converted_to_silence() {
+    fn unknown_ym2413_rotations_are_not_converted_to_silence_or_drop_psg_pcm() {
         let mut renderer = AudioRendererState::default();
-        let psg_samples = vec![0.25; 32];
+        let buffered_psg = [0.125, 0.25];
+        let current_psg = vec![0.5; 32];
         let fm_samples = [Some(0.5), None, Some(0.5)];
 
         assert_eq!(
-            renderer.prepare_fm_mix(&psg_samples, &fm_samples).unwrap(),
+            renderer.prepare_fm_mix(&buffered_psg, &[]).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            renderer.prepare_fm_mix(&current_psg, &fm_samples).unwrap(),
             None
         );
+
         assert!(renderer.fm_resampler.is_none());
         assert!(renderer.pending_psg_samples.is_empty());
         assert!(renderer.pending_fm_samples.is_empty());
+        assert_eq!(renderer.mix_psg_samples.len(), buffered_psg.len() + current_psg.len());
+        assert_eq!(&renderer.mix_psg_samples[..buffered_psg.len()], &buffered_psg);
+        assert_eq!(&renderer.mix_psg_samples[buffered_psg.len()..], current_psg.as_slice());
     }
 
     #[test]
