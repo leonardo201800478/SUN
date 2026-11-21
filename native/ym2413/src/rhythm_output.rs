@@ -12,29 +12,52 @@ pub const YM2413_DAC_CODE_MIN: i16 = -255;
 /// Highest signed output-level value reconstructed from YM2413 measurements.
 pub const YM2413_DAC_CODE_MAX: i16 = 255;
 /// Version of the rhythm output-retention snapshot.
-pub const YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION: u16 = 1;
+pub const YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION: u16 = 2;
 
-/// One signed, measurement-domain YM2413 output level.
+/// One measured-domain YM2413 output level, including the distinct negative zero.
 ///
-/// This wrapper stores the reconstructed amplitude domain `-255..=+255`.
-/// It is not the raw nine-bit DAC input word and does not preserve the two
-/// distinct one's-complement zero encodings. No conversion from the operator's
-/// `i16` representation is defined here.
+/// The measured amplitude values span `-255..=+255`. Andete's 2015-03-05
+/// oversampled capture resolved two separate central peaks, interpreted in
+/// the follow-up as `-0` and `+0`. This token preserves that distinction for
+/// output retention. It is not the raw nine-bit DAC input word, and it does
+/// not define a conversion from the operator's one's-complement `i16` value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Ym2413DacCode(i16);
+pub struct Ym2413DacCode {
+    value: i16,
+    negative_zero: bool,
+}
 
 impl Ym2413DacCode {
     /// Construct a signed measured-domain output level, rejecting values outside its range.
+    ///
+    /// Passing zero constructs the positive-zero token. Use negative_zero()
+    /// when the measured negative-zero level is the source value.
     pub const fn new(value: i16) -> Result<Self, Ym2413RhythmOutputError> {
         if value < YM2413_DAC_CODE_MIN || value > YM2413_DAC_CODE_MAX {
             return Err(Ym2413RhythmOutputError::InvalidDacCode(value));
         }
-        Ok(Self(value))
+        Ok(Self {
+            value,
+            negative_zero: false,
+        })
     }
 
-    /// Return the signed reconstructed output-level value.
+    /// Construct the separately observed negative-zero measurement token.
+    pub const fn negative_zero() -> Self {
+        Self {
+            value: 0,
+            negative_zero: true,
+        }
+    }
+
+    /// Return the signed reconstructed amplitude; negative zero returns numeric zero.
     pub const fn value(self) -> i16 {
-        self.0
+        self.value
+    }
+
+    /// Report whether this token preserves the separately observed negative zero.
+    pub const fn is_negative_zero(self) -> bool {
+        self.negative_zero
     }
 }
 
@@ -240,6 +263,37 @@ mod tests {
             Ym2413DacCode::new(256),
             Err(Ym2413RhythmOutputError::InvalidDacCode(256))
         );
+    }
+
+    #[test]
+    fn measured_positive_and_negative_zero_remain_distinct() {
+        let positive_zero = code(0);
+        let negative_zero = Ym2413DacCode::negative_zero();
+        assert_eq!(positive_zero.value(), 0);
+        assert_eq!(negative_zero.value(), 0);
+        assert!(!positive_zero.is_negative_zero());
+        assert!(negative_zero.is_negative_zero());
+        assert_ne!(positive_zero, negative_zero);
+    }
+
+    #[test]
+    fn negative_zero_is_retained_and_repeated_verbatim_across_snapshot_restore() {
+        let mut delay = Ym2413RhythmOutputDelay::with_initial_state(initial_state(13)).unwrap();
+        let negative_zero = Ym2413DacCode::negative_zero();
+        delay.process_slot(13, Some(negative_zero)).unwrap();
+        for (slot, value) in [(14, 1), (15, -1), (16, 2), (17, -2)] {
+            delay.process_slot(slot, Some(code(value))).unwrap();
+        }
+
+        let snapshot = delay.export_state();
+        let mut restored = Ym2413RhythmOutputDelay::with_initial_state(snapshot).unwrap();
+        let repeat = restored.process_slot(0, None).unwrap();
+        let Ym2413RhythmOutputSlotResult::Emitted(event) = repeat else {
+            panic!("slot 0 must repeat the retained HH value");
+        };
+        assert_eq!(event.code, negative_zero);
+        assert!(event.code.is_negative_zero());
+        assert_eq!(restored.export_state().retained_values[1], Some(negative_zero));
     }
 
     #[test]
