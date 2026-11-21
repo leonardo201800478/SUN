@@ -92,6 +92,10 @@ impl Default for Ym2413SerialOperatorState {
             c_dc: 0,
             c_dm: 0,
             c_am: false,
+            last_operator_output: 0,
+            last_channel_output: 0,
+            last_phase_index: 0,
+            last_feedback_phase: 0,
         }
     }
 }
@@ -139,6 +143,10 @@ impl Ym2413SerialOperator {
                 c_dc: 0,
                 c_dm: 0,
                 c_am: false,
+                last_operator_output: 0,
+                last_channel_output: 0,
+                last_phase_index: 0,
+                last_feedback_phase: 0,
             },
         }
     }
@@ -267,12 +275,17 @@ impl Ym2413SerialOperator {
         }
         self.state.op_mod = (output as u16) & 0x01ff;
 
-        Ok(Ym2413SerialOperatorSample {
+        let sample = Ym2413SerialOperatorSample {
             operator_output: output,
             channel_output: if ismod1 { 0 } else { output >> 3 },
             phase_index: phase as u16,
             feedback_phase: op_mod as i32,
-        })
+        };
+        self.state.last_operator_output = sample.operator_output;
+        self.state.last_channel_output = sample.channel_output;
+        self.state.last_phase_index = sample.phase_index;
+        self.state.last_feedback_phase = sample.feedback_phase;
+        Ok(sample)
     }
 
     /// Execute the EnvelopeOutput and EnvelopeKSLTL latches after Operator and
@@ -340,6 +353,7 @@ impl Ym2413SerialOperator {
             || state.c_tl > 63
             || state.c_ksl_attenuation > 112
             || state.c_fb > 7
+            || state.last_phase_index > 0x03ff
         {
             return Err(Ym2413SerialOperatorError::InvalidState);
         }
