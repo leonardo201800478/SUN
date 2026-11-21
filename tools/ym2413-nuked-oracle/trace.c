@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
                    (unsigned)calc_testmode, (unsigned)calc_rm_enable,
                    (unsigned)phase_next_reset, chip.pg_inc, chip.pg_phase_next);
             print_u32_array(chip.pg_phase, 18);
-            puts("}");
+            printf(",\"pg_out\":%u}\\n", (unsigned)chip.pg_out);
             continue;
         }
         if (pg_only) {

@@ -77,8 +77,8 @@ pub use output::{
 };
 pub use pg_serial::{
     YM2413_PG_SERIAL_PIPELINE_STATE_VERSION, YM2413_PG_SERIAL_STATE_VERSION,
-    Ym2413PgParameterLatch, Ym2413PgSerialError, Ym2413PgSerialPipelineState,
-    Ym2413PgSerialService, Ym2413PgSerialServiceState,
+    Ym2413PgParameterLatch, Ym2413PgSerialAdvanceError, Ym2413PgSerialError,
+    Ym2413PgSerialPipelineState, Ym2413PgSerialService, Ym2413PgSerialServiceState,
 };
 pub use phase::{
     PhaseGenerator, PhaseGeneratorError, PhaseGeneratorState, YM2413_ML_TABLE,
@@ -414,6 +414,27 @@ impl Ym2413Core {
                 Ok(rotations)
             }
             Err(error) => Err(error),
+        }
+    }
+
+    /// Advance the YM2413 core and its serial PG service in one transaction.
+    ///
+    /// The caller supplies a coarse-grained input-clock block. The core invokes
+    /// the PG service internally at serial slot boundaries; no host-side
+    /// per-slot or per-instruction callback is exposed.
+    pub fn advance_input_clocks_with_pg_service(
+        &mut self,
+        clocks: u64,
+        service: &mut pg_serial::Ym2413PgSerialService,
+    ) -> Result<u64, pg_serial::Ym2413PgSerialAdvanceError> {
+        match self.advance_input_clocks_with_slot_service(clocks, service) {
+            Ok(rotations) => Ok(rotations),
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => {
+                Err(pg_serial::Ym2413PgSerialAdvanceError::Core(error))
+            }
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Service(error)) => {
+                Err(pg_serial::Ym2413PgSerialAdvanceError::Service(error))
+            }
         }
     }
 

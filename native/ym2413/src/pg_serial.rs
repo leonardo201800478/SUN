@@ -31,6 +31,24 @@ pub enum Ym2413PgSerialError {
     Synthesis(Ym2413SynthesisError),
 }
 
+/// Error returned by the public coarse-grained core + PG advancement API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ym2413PgSerialAdvanceError {
+    Core(crate::Ym2413Error),
+    Service(Ym2413PgSerialError),
+}
+
+impl std::fmt::Display for Ym2413PgSerialAdvanceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Core(error) => write!(f, "YM2413 core error: {error}"),
+            Self::Service(error) => write!(f, "YM2413 PG service error: {error:?}"),
+        }
+    }
+}
+
+impl std::error::Error for Ym2413PgSerialAdvanceError {}
+
 impl From<ChannelSynthesisError> for Ym2413PgSerialError {
     fn from(value: ChannelSynthesisError) -> Self {
         Self::Channel(value)
