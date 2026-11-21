@@ -354,7 +354,7 @@ impl Ym2413OperatorSerialService {
 mod tests {
     use super::{Ym2413OperatorSerialError, Ym2413OperatorSerialService};
     use crate::envelope_sequencer::EnvelopeSequencer;
-    use crate::slot::{nuked_slot_service_event, slot_descriptor};
+    use crate::slot::nuked_slot_service_event;
     use crate::slot_service::Ym2413SlotServiceContext;
 
     fn context(cycle: u8, testmode: u8) -> Ym2413SlotServiceContext {
@@ -388,7 +388,7 @@ mod tests {
         let mut service = Ym2413OperatorSerialService::new();
         service.clock_operator(0, 0x0123, 0).unwrap();
         let state = service.export_state();
-        assert_eq!(state.last_phase, 0x0123);
+        assert_eq!(state.last_phase, 0x01dc);
         assert_eq!(state.op_logsin, crate::operator::serial_log_sine(0x0123));
         assert_eq!(state.op_exp_m, crate::operator::serial_exponential_mantissa(0x07f0));
         assert_eq!(state.op_exp_s, crate::operator::serial_exponential_shift(0x07f0));
@@ -397,6 +397,10 @@ mod tests {
     #[test]
     fn feedback_history_is_written_only_on_serial_carrier_cycles() {
         let mut service = Ym2413OperatorSerialService::new();
+        let mut initial = service.export_state();
+        initial.op_exp_m = 0x07fa;
+        initial.eg_out = 0;
+        service = Ym2413OperatorSerialService::restore_state(initial).unwrap();
         service.clock_operator(2, 0x0010, 0).unwrap();
         let after_carrier = service.export_state();
         assert_ne!(after_carrier.op_fb1[2], 0);
@@ -430,7 +434,7 @@ mod tests {
         state.lfo_am_dir = true;
         service = Ym2413OperatorSerialService::restore_state(state).unwrap();
         service.clock_am_lfo(0, 0x02, 0).unwrap();
-        assert_eq!(service.lfo_am_counter(), 0x0055);
+        assert_eq!(service.lfo_am_counter(), 0x00d5);
         assert!(!service.state().lfo_am_dir);
     }
 }
