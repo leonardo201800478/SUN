@@ -1320,7 +1320,7 @@ mod tests {
     }
 
     #[test]
-    fn rhythm_owned_slots_skip_melodic_operator_mutation_but_reach_do_rhythm() {
+    fn rhythm_owned_slots_use_seeded_rhythm_operator_path_and_reach_do_rhythm() {
         let rhythm_cycles = [
             (11, EnvelopeRhythmSelect::BassDrumFirst),
             (12, EnvelopeRhythmSelect::HiHat),
@@ -1342,10 +1342,17 @@ mod tests {
             slot_context.rm_enable = 0xff;
             slot_context.rm_select = selector as u8;
             slot_context.envelope_input.rhythm_select = selector;
+            slot_context.event = nuked_slot_service_event_with_testmode(
+                cycle,
+                0xff,
+                slot_context.envelope_state.eg_dokon,
+                0,
+            )
+            .unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
-            assert_eq!(service.synthesis().export_state(), synthesis_before);
-            assert_eq!(service.operator.export_state(), operator_before);
+            assert_ne!(service.synthesis().export_state(), synthesis_before);
+            assert_ne!(service.operator.export_state(), operator_before);
             let (tick, post) = tick(cycle);
             service.after_eg_update(&slot_context, tick, post).unwrap();
             assert_eq!(
