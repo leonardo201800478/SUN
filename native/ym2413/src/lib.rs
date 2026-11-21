@@ -1064,22 +1064,22 @@ mod tests {
 
             fn before_eg_update(
                 &mut self,
+                _context: &Ym2413SlotServiceContext,
+            ) -> Result<(), Self::Error> {
+                Ok(())
+            }
+
+            fn after_eg_update(
+                &mut self,
                 context: &Ym2413SlotServiceContext,
+                _tick: EnvelopeSequencerTick,
+                _post_state: EnvelopeSequencerState,
             ) -> Result<(), Self::Error> {
                 if context.event.cycle == 3 {
                     Err(3)
                 } else {
                     Ok(())
                 }
-            }
-
-            fn after_eg_update(
-                &mut self,
-                _context: &Ym2413SlotServiceContext,
-                _tick: EnvelopeSequencerTick,
-                _post_state: EnvelopeSequencerState,
-            ) -> Result<(), Self::Error> {
-                Ok(())
             }
         }
 
