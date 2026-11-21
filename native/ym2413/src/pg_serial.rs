@@ -236,6 +236,26 @@ impl Ym2413PgSerialService {
         Ok(self)
     }
 
+    /// Align the unseeded symbolic DoRhythm cursor to a core-owned next slot.
+    ///
+    /// This is useful when constructing a service for a restored core whose
+    /// LFSR register remains unknown. It does not choose a seed or fabricate
+    /// the noise output bits.
+    pub fn with_rhythm_noise_cursor(
+        mut self,
+        next_slot_index: u8,
+    ) -> Result<Self, Ym2413PgSerialError> {
+        if next_slot_index >= crate::rhythm::YM2413_RHYTHM_NOISE_SLOTS_PER_ROTATION {
+            return Err(Ym2413PgSerialError::InvalidSlotIndex(next_slot_index));
+        }
+        if self.rhythm_noise.is_some() {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
+        self.rhythm_noise_cursor = next_slot_index;
+        self.rhythm_noise_samples = [None, None];
+        Ok(self)
+    }
+
     /// Return the last sampled Hi-Hat and Snare Drum noise bits, if available.
     pub const fn rhythm_noise_samples(&self) -> [Option<bool>; 2] {
         self.rhythm_noise_samples
@@ -840,8 +860,15 @@ mod tests {
 
     #[test]
     fn cycle_seventeen_advances_vibrato_and_pm_latches_after_increment() {
-        let mut service =
-            service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 2);
+        let mut service = service_with_pipeline(
+            initial_bank(0x03ff),
+            0,
+            0,
+            Ym2413PgParameterLatch::RESET,
+            2,
+        )
+        .with_rhythm_noise_cursor(17)
+        .unwrap();
         let context = context(17, [0; 64], 0x08);
         service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(17);
@@ -852,8 +879,15 @@ mod tests {
 
     #[test]
     fn test_mode_lfo_reset_is_applied_on_each_serial_cycle() {
-        let mut service =
-            service_with_pipeline(initial_bank(0x0555), 0, 0, Ym2413PgParameterLatch::RESET, 6);
+        let mut service = service_with_pipeline(
+            initial_bank(0x0555),
+            0,
+            0,
+            Ym2413PgParameterLatch::RESET,
+            6,
+        )
+        .with_rhythm_noise_cursor(3)
+        .unwrap();
         let context = context(3, [0; 64], 0x02);
         service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(3);
@@ -864,8 +898,15 @@ mod tests {
 
     #[test]
     fn test_mode_lfo_reset_occurs_after_cycle_seventeen_update() {
-        let mut service =
-            service_with_pipeline(initial_bank(0x03ff), 0, 0, Ym2413PgParameterLatch::RESET, 6);
+        let mut service = service_with_pipeline(
+            initial_bank(0x03ff),
+            0,
+            0,
+            Ym2413PgParameterLatch::RESET,
+            6,
+        )
+        .with_rhythm_noise_cursor(17)
+        .unwrap();
         let context = context(17, [0; 64], 0x0a);
         service.before_eg_update(&context).unwrap();
         let (tick, post) = tick(17);
@@ -877,7 +918,9 @@ mod tests {
     #[test]
     fn rhythm_mode_keeps_unaffected_melodic_slots_on_the_normal_serial_path() {
         for cycle in (0..18_u8).filter(|cycle| !(11..=16).contains(cycle)) {
-            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            let mut service = Ym2413PgSerialService::new(initial_bank(0))
+                .with_rhythm_noise_cursor(cycle)
+                .unwrap();
             let before = service.export_state();
             let mut registers = [0; 64];
             registers[0x0e] = 0x20;
