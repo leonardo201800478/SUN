@@ -320,6 +320,33 @@ pub const fn nuked_eg_output_index(cycle: u8) -> Option<u8> {
     }
 }
 
+/// Return Nuked's phase-reset request for the PG next-phase latch.
+///
+/// Call with the post-shift/post-mode-write `rm_enable` value and the
+/// pre-update EG `eg_dokon` latch. The request has one consumer: the PG
+/// pipeline's delayed `pg_phase_next` latch.
+pub const fn nuked_phase_reset_required(
+    cycle: u8,
+    rm_enable: u8,
+    eg_dokon: u32,
+) -> Option<bool> {
+    if cycle >= YM2413_SLOT_COUNT as u8 {
+        return None;
+    }
+
+    let is_modulator = if (rm_enable & 0x40) != 0 && (cycle == 13 || cycle == 14) {
+        false
+    } else {
+        ((cycle + 3) / 3) & 1 != 0
+    };
+
+    Some(if is_modulator {
+        (eg_dokon & 0x8000) != 0
+    } else {
+        (eg_dokon & 0x01) != 0
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -467,4 +494,29 @@ mod tests {
             assert_eq!(nuked_eg_output_index(invalid), None);
         }
     }
+    #[test]
+    fn nuked_phase_reset_uses_serial_dokon_bit_and_rhythm_override() {
+        for cycle in 0..YM2413_SLOT_COUNT as u8 {
+            let is_modulator = ((cycle + 3) / 3) & 1 != 0;
+            assert_eq!(
+                nuked_phase_reset_required(cycle, 0, 0x8000),
+                Some(is_modulator),
+                "modulator DOKON selector at cycle {cycle}"
+            );
+            assert_eq!(
+                nuked_phase_reset_required(cycle, 0, 1),
+                Some(!is_modulator),
+                "carrier DOKON selector at cycle {cycle}"
+            );
+        }
+
+        for cycle in [13, 14] {
+            assert_eq!(nuked_phase_reset_required(cycle, 0x40, 0x8000), Some(false));
+            assert_eq!(nuked_phase_reset_required(cycle, 0x40, 1), Some(true));
+        }
+
+        assert_eq!(nuked_phase_reset_required(18, 0, u32::MAX), None);
+        assert_eq!(nuked_phase_reset_required(u8::MAX, 0, u32::MAX), None);
+    }
+
 }
