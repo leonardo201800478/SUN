@@ -28,7 +28,7 @@ use sega_z80_cpu::{
     Z80MicroSequencerError, Z80MicroSequencerPhase, Z80MicroSequencerState, Z80MicroStep,
 };
 
-pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 35;
+pub const SMS_TEMPORAL_MACHINE_STATE_VERSION: u16 = 36;
 
 /// Runtime event trace emitted from actual Scheduler/bus dispatch boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1514,6 +1514,12 @@ impl SmsTemporalMachine {
         self.bus.psg_mixed_amplitude()
     }
 
+    /// Drain YM2413 mono PCM samples at SMS_YM2413_PCM_SOURCE_RATE_HZ.
+    /// None marks a rotation whose software-reference MO/RO output was unknown.
+    pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
+        self.bus.drain_fm_audio_samples(max_samples)
+    }
+
     /// Drain audio samples already produced by scheduler-owned PSG clocks.
     pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
         self.bus.drain_audio_samples(max_samples)
@@ -2291,8 +2297,8 @@ mod tests {
     fn vdp_testrom_timing_snapshot_version_rejects_previous_semantics() {
         let machine = SmsTemporalMachine::new(vec![0; 0x4000], 3).unwrap();
         let mut state = machine.export_state();
-        assert_eq!(state.format_version, 35);
-        assert_eq!(state.bus.format_version, 22);
+        assert_eq!(state.format_version, 36);
+        assert_eq!(state.bus.format_version, 23);
 
         state.format_version = 33;
         assert!(matches!(
