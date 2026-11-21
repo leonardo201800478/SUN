@@ -1608,7 +1608,8 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Start the worker with the integrated YM2413 Japanese Master System profile.
+    /// Start the worker with an explicit Japanese Master System board containing YM2413.
+    /// The region argument configures software territory/timing independently.
     pub fn new_with_japanese_fm_hardware_profile(
         rom: Vec<u8>,
         region: &str,
@@ -1622,7 +1623,8 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Start the worker with Japanese integrated FM and an explicit cartridge SRAM profile.
+    /// Start the worker with the explicit FM board profile and cartridge SRAM capacity.
+    /// Software territory remains an independent configuration.
     pub fn new_with_japanese_fm_hardware_profile_and_cartridge_sram_size(
         rom: Vec<u8>,
         region: &str,
@@ -1641,7 +1643,8 @@ impl SmsTemporalWorker {
         )
     }
 
-    /// Start the worker with BIOS, Japanese integrated FM and explicit cartridge SRAM.
+    /// Start the worker with BIOS, the explicit FM board profile and cartridge SRAM.
+    /// Software territory remains an independent configuration.
     pub fn new_with_japanese_fm_hardware_profile_and_bios_and_cartridge_sram_size(
         rom: Vec<u8>,
         bios: Vec<u8>,
