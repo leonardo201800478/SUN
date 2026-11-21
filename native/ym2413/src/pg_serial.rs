@@ -28,7 +28,7 @@ use crate::synthesis::{
     Ym2413SynthesisInitialState,
 };
 
-pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 7;
+pub const YM2413_PG_SERIAL_STATE_VERSION: u16 = 8;
 pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 3;
 
 /// Maximum increment reachable from the legal FNUM/BLOCK/MUL/PM input domain.
