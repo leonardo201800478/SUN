@@ -4,6 +4,8 @@
 //! advances at the existing four-input-clock slot boundary. PG/FM synthesis
 //! and PCM output remain separate candidate components.
 
+use core::convert::Infallible;
+
 pub mod am_lfo;
 pub mod bus_timing;
 pub mod channel;
@@ -361,8 +363,10 @@ impl Ym2413Core {
     /// Returns the number of complete 18-slot rotations crossed by this call.
     /// The result and complete state are independent of block partitioning.
     pub fn advance_input_clocks(&mut self, clocks: u64) -> Result<u64, Ym2413Error> {
-        let mut service = slot_service::NoopYm2413SlotService;
-        match self.advance_input_clocks_with_slot_service(clocks, &mut service) {
+        match self.advance_input_clocks_inner(clocks, |core| {
+            core.clock_one_slot()
+                .map_err(slot_service::Ym2413SlotServiceAdvanceError::<Infallible>::Core)
+        }) {
             Ok(rotations) => Ok(rotations),
             Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => Err(error),
             Err(slot_service::Ym2413SlotServiceAdvanceError::Service(never)) => match never {},
@@ -382,6 +386,21 @@ impl Ym2413Core {
         clocks: u64,
         service: &mut S,
     ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
+        self.advance_input_clocks_inner(clocks, |core| {
+            core.clock_one_slot_with_service(service)
+        })
+    }
+
+    fn advance_input_clocks_inner<E, F>(
+        &mut self,
+        clocks: u64,
+        mut service_slot: F,
+    ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<E>>
+    where
+        F: FnMut(
+            &mut Self,
+        ) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<E>>,
+    {
         let next_elapsed = self
             .elapsed_input_clocks
             .checked_add(clocks)
@@ -415,7 +434,7 @@ impl Ym2413Core {
         let mut next = self.clone();
         let mut slots_remaining = completed_slots;
         while slots_remaining != 0 {
-            next.clock_one_slot_with_service(service)?;
+            service_slot(&mut next)?;
             next.slot_index = (next.slot_index + 1) % YM2413_SLOTS_PER_ROTATION as u8;
             slots_remaining -= 1;
         }
@@ -429,11 +448,9 @@ impl Ym2413Core {
         Ok(rotations)
     }
 
-    /// Service one completed slot around the core-owned serial EG update.
-    fn clock_one_slot_with_service<S: slot_service::Ym2413SlotService>(
-        &mut self,
-        service: &mut S,
-    ) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
+    /// Apply the serial mode/rhythm preamble and decode the EG input for the
+    /// current cycle. Both service paths share this exact boundary.
+    fn begin_slot(&mut self) -> Result<(u8, EnvelopeSlotInput), Ym2413Error> {
         let cycle = self.slot_index;
 
         // Nuked's serial mode selector shifts and applies mode writes before
@@ -445,13 +462,30 @@ impl Ym2413Core {
             self.rm_select = 0;
         }
 
-        let mut input = decode_envelope_slot_input_for_cycle(&self.registers, cycle)
-            .map_err(|error| slot_service::Ym2413SlotServiceAdvanceError::Core(error.into()))?;
-        input.rhythm_select = EnvelopeRhythmSelect::from_code(self.rm_select)
-            .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
-                Ym2413Error::InvalidState,
-            ))?;
+        let mut input = decode_envelope_slot_input_for_cycle(&self.registers, cycle)?;
+        input.rhythm_select =
+            EnvelopeRhythmSelect::from_code(self.rm_select).ok_or(Ym2413Error::InvalidState)?;
         input.rhythm_bits = self.registers[0x0e] & 0x3f;
+        Ok((cycle, input))
+    }
+
+    /// Standalone core path: one EG update and the timed register-write stage.
+    fn clock_one_slot(&mut self) -> Result<(), Ym2413Error> {
+        let (cycle, input) = self.begin_slot()?;
+        self.envelope.tick_slot(cycle, input)?;
+        self.apply_register_write(cycle);
+        Ok(())
+    }
+
+    /// Integrated path: service pre-EG and post-EG stages around exactly one
+    /// core-owned serial EG update.
+    fn clock_one_slot_with_service<S: slot_service::Ym2413SlotService>(
+        &mut self,
+        service: &mut S,
+    ) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
+        let (cycle, input) = self
+            .begin_slot()
+            .map_err(slot_service::Ym2413SlotServiceAdvanceError::Core)?;
 
         let envelope_state = self.envelope.export_state();
         let event = nuked_slot_service_event(cycle, self.rm_enable as u8, envelope_state.eg_dokon)
