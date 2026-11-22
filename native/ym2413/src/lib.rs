@@ -429,6 +429,28 @@ impl Ym2413Core {
         clocks: u64,
         service: &mut S,
     ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
+        // The SMS scheduler commonly advances the YM2413 one input clock at a
+        // time. Three out of every four such calls end inside the current
+        // four-clock slot and cannot invoke the serial service. Commit those
+        // clock/phase changes directly: cloning the complete PG service for a
+        // call that cannot reach a slot boundary is unnecessary.
+        if self.input_clock_phase >= YM2413_INPUT_CLOCKS_PER_SLOT as u8 {
+            return Err(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::InvalidState,
+            ));
+        }
+        let next_elapsed = self.elapsed_input_clocks.checked_add(clocks).ok_or(
+            slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow),
+        )?;
+        let total_slot_clocks = u128::from(self.input_clock_phase) + u128::from(clocks);
+        let completed_slots = total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
+        if completed_slots == 0 {
+            self.elapsed_input_clocks = next_elapsed;
+            self.input_clock_phase =
+                (total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT)) as u8;
+            return Ok(0);
+        }
+
         let mut staged_service = service.clone();
         let result = self.advance_input_clocks_inner(clocks, |core| {
             core.clock_one_slot_with_service(&mut staged_service)
