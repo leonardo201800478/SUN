@@ -1154,9 +1154,10 @@ mod tests {
 
         let transactional_median = transactional_samples[SAMPLES / 2];
         let in_place_median = in_place_samples[SAMPLES / 2];
-        let frame_scale = u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
-        let transactional_frame_ns = transactional_median * frame_scale;
-        let in_place_frame_ns = in_place_median * frame_scale;
+        let transactional_frame_ns =
+            transactional_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let in_place_frame_ns =
+            in_place_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
         let speedup = transactional_median as f64 / in_place_median as f64;
 
         println!(
