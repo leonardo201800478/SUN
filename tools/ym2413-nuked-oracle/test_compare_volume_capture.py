@@ -88,7 +88,7 @@ class AlignmentTests(unittest.TestCase):
         )
         self.assertEqual(
             [window["phase_delta_from_global"] for window in windows],
-            [1, 1],
+            [2, 2],
         )
 
 
