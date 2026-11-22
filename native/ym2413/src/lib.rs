@@ -443,12 +443,11 @@ impl Ym2413Core {
             slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow),
         )?;
         let total_slot_clocks = u128::from(self.input_clock_phase) + u128::from(clocks);
-        let completed_slots =
-            total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
+        let completed_slots = total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
         if completed_slots == 0 {
             self.elapsed_input_clocks = next_elapsed;
-            self.input_clock_phase = (total_slot_clocks
-                % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT)) as u8;
+            self.input_clock_phase =
+                (total_slot_clocks % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT)) as u8;
             return Ok(0);
         }
 
