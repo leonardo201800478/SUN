@@ -3,13 +3,15 @@
 //! This exercises the real ROM -> Z80/Scheduler -> YM2413 -> FM/PSG alignment ->
 //! NativeAudioSession mixer/resampler -> PCM sink path. The capture sink is
 //! deterministic and headless; no CPAL device is required for this software-path
-//! acceptance test. Physical CPAL playback remains a separate manual check.
+//! diagnostic test, not an audio-quality acceptance test. Physical CPAL playback
+//! remains a separate manual check. Nonzero PCM alone does not establish fidelity.
 //!
 //! PowerShell:
 //!   $env:SEGA_SMS_FM_TEST_ROM_DIR = "D:\ROMs\SMS-FM"
 //!   $env:SEGA_SMS_FM_TEST_REGION = "japan"
 //!   $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1" # sms1|sms2
 //!   $env:SEGA_SMS_FM_TEST_FRAMES = "1800" # optional; default 1800
+//!   $env:SEGA_SMS_FM_TEST_WAV_DIR = "D:\\SUN-FM-Captures" # optional; writes FM, PSG and mixed float WAVs
 //!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
 //!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns -- --ignored --nocapture
 //!
@@ -212,7 +214,10 @@ struct SignalSummary {
 }
 
 fn summarize_signal(samples: &[f64]) -> SignalSummary {
-    let mut summary = SignalSummary { samples: samples.len() as u64, ..SignalSummary::default() };
+    let mut summary = SignalSummary {
+        samples: samples.len() as u64,
+        ..SignalSummary::default()
+    };
     let mut sum = 0.0_f64;
     let mut sum_squares = 0.0_f64;
     for &sample in samples {
@@ -243,12 +248,15 @@ fn summarize_signal(samples: &[f64]) -> SignalSummary {
 fn write_wav_f32(path: &Path, samples: &[f64], sample_rate: u32) -> Result<(), String> {
     let data_len = u32::try_from(samples.len().saturating_mul(4))
         .map_err(|_| format!("WAV is too large: {}", path.display()))?;
-    let riff_len = 36_u32.checked_add(data_len)
+    let riff_len = 36_u32
+        .checked_add(data_len)
         .ok_or_else(|| format!("WAV is too large: {}", path.display()))?;
-    let byte_rate = sample_rate.checked_mul(4)
+    let byte_rate = sample_rate
+        .checked_mul(4)
         .ok_or_else(|| format!("invalid WAV sample rate: {sample_rate}"))?;
     let mut file = File::create(path).map_err(|error| format!("{}: {error}", path.display()))?;
-    file.write_all(b"RIFF").and_then(|_| file.write_all(&riff_len.to_le_bytes()))
+    file.write_all(b"RIFF")
+        .and_then(|_| file.write_all(&riff_len.to_le_bytes()))
         .and_then(|_| file.write_all(b"WAVEfmt "))
         .and_then(|_| file.write_all(&16_u32.to_le_bytes()))
         .and_then(|_| file.write_all(&3_u16.to_le_bytes())) // IEEE float
@@ -279,11 +287,24 @@ fn write_game_audio_captures(
     };
     let directory = PathBuf::from(directory);
     fs::create_dir_all(&directory).map_err(|error| format!("{}: {error}", directory.display()))?;
-    let stem = fixture_name.to_ascii_lowercase().replace(' ', "-").replace('(', "").replace(')', "").replace("--", "-");
-    for (suffix, samples) in [("fm-source", fm), ("psg-source", psg), ("mixed-output", mixed)] {
+    let stem = fixture_name
+        .to_ascii_lowercase()
+        .replace(' ', "-")
+        .replace('(', "")
+        .replace(')', "")
+        .replace("--", "-");
+    for (suffix, samples) in [
+        ("fm-source", fm),
+        ("psg-source", psg),
+        ("mixed-output", mixed),
+    ] {
         let path = directory.join(format!("{stem}-{suffix}.wav"));
         write_wav_f32(&path, samples, 48_000)?;
-        println!("SMS_FM_WAV path={} signal={:?}", path.display(), summarize_signal(samples));
+        println!(
+            "SMS_FM_WAV path={} signal={:?}",
+            path.display(),
+            summarize_signal(samples)
+        );
     }
     Ok(())
 }
@@ -443,8 +464,14 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         worker
             .pause()
             .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
-        let fm_bus_writes = worker.debug_snapshot()
-            .unwrap_or_else(|error| panic!("{}: cannot snapshot FM bus counters: {error}", path.display()))
+        let fm_bus_writes = worker
+            .debug_snapshot()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{}: cannot snapshot FM bus counters: {error}",
+                    path.display()
+                )
+            })
             .fm_port_writes;
         worker.close_audio_output().unwrap_or_else(|error| {
             panic!("{}: cannot close native mixer: {error}", path.display())
@@ -462,7 +489,13 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             &sources.fm_samples_f64,
             &sources.psg_samples_f64,
             &pcm.samples_f64,
-        ).unwrap_or_else(|error| panic!("{}: cannot write diagnostic WAV: {error}", path.display()));
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "{}: cannot write diagnostic WAV: {error}",
+                path.display()
+            )
+        });
 
         assert!(
             sources.dual_source_blocks > 0,
@@ -482,7 +515,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         );
         assert!(
             sources.fm_nonzero_samples > 0 && sources.fm_peak > NONZERO_EPSILON,
-            "{}: YM2413 source remained silent; startup FM bus writes: {:?}",
+            "{}: YM2413 source remained silent; committed FM bus writes: {:?}",
             path.display(),
             fm_bus_writes
         );
