@@ -1,6 +1,6 @@
 # SUN V2 — Performance targets and acceptance protocol
 
-- **Status:** PROPOSED — targets approved by the project owner; normative after PR merge.
+- **Status:** APPROVED BY OWNER — targets are effective after merge of the documentation PR.
 - **Scope:** 8-bit SMS performance and the future integrated Mega Drive + Sega CD + 32X Megazord.
 - **Principle:** throughput targets provide engineering headroom; stable real-time gameplay remains the product requirement.
 
