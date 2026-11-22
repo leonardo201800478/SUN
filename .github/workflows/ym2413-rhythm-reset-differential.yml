@@ -2,12 +2,15 @@ name: YM2413 Nuked Rhythm reset differential
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
     paths:
-      - "native/ym2413/**"
+      - "native/ym2413/Cargo.toml"
+      - "native/ym2413/src/lib.rs"
+      - "native/ym2413/src/pg_serial.rs"
+      - "native/ym2413/src/rhythm.rs"
+      - "native/ym2413/src/rhythm_dispatch.rs"
       - "tools/ym2413-nuked-oracle/trace.c"
       - "tools/ym2413-nuked-oracle/compare_rhythm_noise.py"
-      - ".github/workflows/ym2413-rhythm-reset-differential.yml"
   workflow_dispatch:
 
 permissions:

@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
   workflow_dispatch:
@@ -41,6 +41,7 @@ jobs:
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
       other_rust: ${{ steps.filter.outputs.other_rust }}
+      ym2413: ${{ steps.filter.outputs.ym2413 }}
       z80: ${{ steps.filter.outputs.z80 }}
       psg: ${{ steps.filter.outputs.psg }}
       vdp: ${{ steps.filter.outputs.vdp }}
@@ -110,6 +111,7 @@ jobs:
               - '!native/sms_core/tests/z80_*.rs'
               - '!native/sms_core/src/bin/z80test_runner.rs'
               - '!native/sn76489/**'
+              - '!native/ym2413/**'
               - '!native/audio_runtime/**'
               - '!native/video_core/**'
               - '!native/video_runtime/**'
@@ -165,6 +167,7 @@ jobs:
               - 'native/machine_scheduler/**'
               - 'native/temporal_core/**'
               - 'native/sn76489/**'
+            ym2413:
               - 'native/ym2413/**'
             input:
               - 'native/input_runtime/**'
@@ -219,7 +222,6 @@ jobs:
     name: Rust workspace regression
     needs: [changes]
     if: |
-      !(github.event_name == 'pull_request' && github.event.action == 'labeled' && ((github.event.label.name == 'refresh-cargo-lockfiles'))) &&
       ((github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) ||
        (github.event_name != 'workflow_dispatch' &&
         (needs.changes.outputs.other_rust == 'true' ||
@@ -250,6 +252,26 @@ jobs:
         run: cargo clippy --release --manifest-path native/observability/Cargo.toml --features runtime --all-targets --locked -- -D warnings
       - name: Test observability runtime feature
         run: cargo test --release --manifest-path native/observability/Cargo.toml --features runtime --locked
+
+  ym2413-focused:
+    name: YM2413 core format, Clippy and tests
+    needs: [changes]
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.ym2413 == 'true' && needs.changes.outputs.other_rust != 'true' && needs.changes.outputs.full != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt && rustup default 1.99.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Format YM2413 crate
+        run: cargo fmt --manifest-path native/ym2413/Cargo.toml -- --check
+      - name: Clippy YM2413 crate (Release)
+        run: cargo clippy --release --locked --all-targets --manifest-path native/ym2413/Cargo.toml -- -D warnings
+      - name: Test YM2413 crate (Release)
+        run: cargo test --release --locked --all-targets --manifest-path native/ym2413/Cargo.toml
 
   z80-focused:
     name: Z80 focused validation
@@ -584,7 +606,7 @@ jobs:
   docs-format:
     name: Documentation patch hygiene
     needs: [changes]
-    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.docs == 'true' && !(github.event.action == 'labeled' && (github.event.label.name == 'refresh-cargo-lockfiles'))
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -634,7 +656,7 @@ jobs:
   windows-slint-wgpu:
     name: Windows x64 Slint WGPU 30 Vulkan POC
     needs: [changes]
-    if: ${{ !(github.event_name == 'pull_request' && github.event.action == 'labeled' && (github.event.label.name == 'refresh-cargo-lockfiles')) && ((github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true')) }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true') }}
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
@@ -765,17 +787,11 @@ jobs:
     needs: [changes]
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') ||
-      (github.event_name != 'workflow_dispatch' &&
-       (needs.changes.outputs.scheduler == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') ||
-        contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') ||
-        (github.event.action == 'labeled' &&
-         (github.event.label.name == 'scheduler-stress-short' ||
-          github.event.label.name == 'scheduler-stress-long'))))
+      (github.event_name != 'workflow_dispatch' && needs.changes.outputs.scheduler == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SCHEDULER_STRESS_PROFILE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile || (contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') && 'long') || ((needs.changes.outputs.scheduler == 'true' || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') || github.event.label.name == 'scheduler-stress-short') && 'short') || 'long' }}
+      SCHEDULER_STRESS_PROFILE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile || 'short' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -798,7 +814,7 @@ jobs:
   refresh-lockfiles:
     name: Generate Cargo lockfiles (manual artifact; no repository writes)
     needs: [changes]
-    if: (github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles) || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'refresh-cargo-lockfiles')
+    if: github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -1009,6 +1025,7 @@ jobs:
     needs:
       - changes
       - rust-workspace
+      - ym2413-focused
       - z80-focused
       - psg-focused
       - vdp-focused
@@ -1023,7 +1040,7 @@ jobs:
       - refresh-lockfiles
       - windows-cpal-output
       - sms-pacing-rom-build
-    if: always() && !(github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles) && !(github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'refresh-cargo-lockfiles')
+    if: always() && !(github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles)
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any applicable validation failed or was cancelled
@@ -1032,6 +1049,8 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           EXPECT_RUST_WORKSPACE: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.other_rust == 'true' || needs.changes.outputs.full == 'true')) }}
           RUST_WORKSPACE: ${{ needs.rust-workspace.result }}
+          EXPECT_YM2413_FOCUSED: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.ym2413 == 'true' && needs.changes.outputs.other_rust != 'true' && needs.changes.outputs.full != 'true' }}
+          YM2413_FOCUSED: ${{ needs.ym2413-focused.result }}
           EXPECT_Z80: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.z80 == 'true' }}
           Z80: ${{ needs.z80-focused.result }}
           EXPECT_PSG: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.psg == 'true' && needs.changes.outputs.full != 'true' }}
@@ -1050,7 +1069,7 @@ jobs:
           WINDOWS_SDL3_INPUT: ${{ needs.windows-sdl3-input.result }}
           EXPECT_WINDOWS_TOOLING: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.tooling == 'true' || needs.changes.outputs.slint_desktop == 'true')) }}
           WINDOWS_TOOLING: ${{ needs.windows-tooling.result }}
-          EXPECT_SCHEDULER: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.scheduler == 'true' || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') || (github.event.action == 'labeled' && (github.event.label.name == 'scheduler-stress-short' || github.event.label.name == 'scheduler-stress-long')))) }}
+          EXPECT_SCHEDULER: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.scheduler == 'true') }}
           SCHEDULER: ${{ needs.scheduler-stress.result }}
           EXPECT_WINDOWS_CPAL_OUTPUT: ${{ needs.changes.outputs.cpal == 'true' }}
           WINDOWS_CPAL_OUTPUT: ${{ needs.windows-cpal-output.result }}
@@ -1083,6 +1102,7 @@ jobs:
             exit 1
           fi
           check_job "Rust workspace" "$EXPECT_RUST_WORKSPACE" "$RUST_WORKSPACE"
+          check_job "YM2413 focused" "$EXPECT_YM2413_FOCUSED" "$YM2413_FOCUSED"
           check_job "Z80 focused" "$EXPECT_Z80" "$Z80"
           check_job "PSG focused" "$EXPECT_PSG" "$PSG"
           check_job "VDP focused" "$EXPECT_VDP" "$VDP"

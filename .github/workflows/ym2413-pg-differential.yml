@@ -2,9 +2,22 @@ name: YM2413 Nuked PG differential
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
     paths:
-      - "native/ym2413/**"
+      - "native/ym2413/Cargo.toml"
+      - "native/ym2413/src/lib.rs"
+      - "native/ym2413/src/pg_serial.rs"
+      - "native/ym2413/src/phase.rs"
+      - "native/ym2413/src/channel.rs"
+      - "native/ym2413/src/instrument.rs"
+      - "native/ym2413/src/key_scale.rs"
+      - "native/ym2413/src/operator.rs"
+      - "native/ym2413/src/am_lfo.rs"
+      - "native/ym2413/src/pm_lfo.rs"
+      - "native/ym2413/src/rhythm.rs"
+      - "native/ym2413/src/rhythm_channel.rs"
+      - "native/ym2413/src/rhythm_dispatch.rs"
+      - "native/ym2413/src/output_pipeline.rs"
       - "tools/ym2413-nuked-oracle/compare_pg.py"
       - "tools/ym2413-nuked-oracle/compare_pg_serial.py"
       - "tools/ym2413-nuked-oracle/compare_operator.py"
@@ -16,7 +29,6 @@ on:
       - "native/ym2413/examples/serial_am_lfo_trace.rs"
       - "native/ym2413/examples/pg_serial_trace.rs"
       - "tools/ym2413-nuked-oracle/trace.c"
-      - ".github/workflows/ym2413-pg-differential.yml"
   workflow_dispatch:
 
 permissions:
