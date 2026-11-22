@@ -3583,7 +3583,7 @@ mod windows_host {
         )?;
         let worker = if has_integrated_fm {
             match bios {
-                Some(bios) => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_bios_and_output_policy(
+                Some(bios) => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_bios_and_region_preference_and_output_policy(
                     rom,
                     bios,
                     &settings.region,
@@ -3592,7 +3592,7 @@ mod windows_host {
                     prepared.initial_sram,
                     fm_output_policy,
                 )?,
-                None => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
+                None => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_region_preference_and_output_policy(
                     rom,
                     &settings.region,
                     settings.vdp_revision,
