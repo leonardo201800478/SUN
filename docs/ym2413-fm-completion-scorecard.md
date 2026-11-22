@@ -2,16 +2,16 @@
 
 **Data de referência:** 2026-11-22
 **Repositório:** `leonardo201800478/SUN`
-**Main atual pós-PR #1182:** `40cf4be51ab99bc55b2d79ea37b490a0bcca0f64`
+**Main atual pós-PR #1185:** `b180b25762b3bd589ce07d0aeb164a469d062ba9`
 
 **Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
-## Estado executivo atual — main pós-PR #1182 (2026-11-22)
+## Estado executivo atual — main pós-PR #1185 (2026-11-22)
 
-**Integração de runtime publicada; fidelidade física ainda aberta.**
+**Pipeline digital e adaptador MO medido integrados; fidelidade física e validação dos jogos ainda abertas.**
 
-**Status geral:** o runtime SMS já possui um caminho de PCM FM derivado do pipeline digital de referência Nuked, resampling para 48 kHz e mistura simultânea com PSG. Isso fecha a existência de uma rota funcional de áudio no código, mas **não fecha a síntese YM2413 nem a saída analógica/DAC do hardware**.
+**Status geral:** o runtime SMS possui uma rota PCM FM de compatibilidade baseada no pipeline digital de referência Nuked, reamostragem para 48 kHz e mistura simultânea com PSG. O pipeline digital MO/RO e o adaptador de amplitude medida agora estão integrados ao serviço PG serial e comparados com Nuked. O adaptador medido permanece separado do PCM de compatibilidade. Isso **não fecha a transferência elétrica do DAC, a ROM física de instrumentos, a fidelidade completa do YM2413 nem a reprodução estável dos jogos**.
 
 ### Integrações publicadas após o checkpoint #1159
 
@@ -30,6 +30,9 @@
 | #1179 | Reconcilia os `volume*.out`, offsets de sequência, 511 bins observados e 509 intervalos de fronteira; atualiza o dossiê DAC | `33f02c01f7092c6e3ccbcb2252bf283e245a4087` |
 | #1180 | Ferramenta reproduzível para auditar os 16 pares raw/output e CI com upstream fixado, consistência global e snapshot JSON | `cda89ac49d08690a6507b2ba5e021255ba38d30a` |
 | #1182 | Caracterização temporal do MO do Nuked contra `volume0.out`/`volume1.out`; trace compacto, fixtures sequenciais e validação de continuidade JSONL | `40cf4be51ab99bc55b2d79ea37b490a0bcca0f64` |
+| #1183 | Registra os resultados da caracterização de volume MO e suas limitações físicas | `8fc000eaba4eae2485258703aee3bd4e94dcc773` |
+| #1184 | Diferencial integrado do pipeline digital MO/RO: pinos, buffers, `ch_out` e `rm_enable` | `7986ec9f5b...` |
+| #1185 | Conecta o adaptador MO medido ao latch `ch_out` anterior; preserva `-0` e valida atraso/slot contra Nuked | `b180b25762b3bd589ce07d0aeb164a469d062ba9` |
 
 ### Validação exata após PR #1182
 
@@ -41,6 +44,32 @@
 - Ambos os mapeamentos empíricos tiveram zero violações de monotonicidade; a inversão da polaridade apresentou MAE de 310,44 bins (volume 0) e 153,73 bins (volume 1).
 - A validação estrita do comparador rejeita índices ausentes, ciclo inconsistente, sample point inválido e janela de identificação incompleta. A captura de volume 1 mantém a sequência volume 0 → volume 1 sem reset/key-off explícito.
 - Interpretação: evidência temporal forte para o mapeamento digital candidato e polaridade do MO nas duas capturas históricas. **Não comprova** transferência elétrica do DAC, carga/filtragem da placa, fase subclock, equivalência do runtime Rust ou reprodução nos jogos.
+
+### Validação exata após PR #1184 e PR #1185
+
+**PR #1184 — pipeline digital MO/RO**
+- Merge squash: 7986ec9f...; workflow dedicado PG #44973295911: **SUCCESS**.
+- O diferencial integrado comparou 147.456 chamadas OPLL_Clock(), cobrindo 18 slots, estados PG/EG/AM, operador, feedback, ch_out, rm_enable, pinos MO/RO e buffers atrasados.
+- Workflow separado do pipeline de saída #44973295936: **SUCCESS**, 1.200 ciclos.
+- CI #44973295873: **SUCCESS**.
+
+**PR #1185 — adaptador MO no domínio medido**
+- Merge squash: b180b25762b3bd589ce07d0aeb164a469d062ba9.
+- PG differential #44974692468: **SUCCESS**; o trace integrado comparou 147.456 chamadas, 147.456 amostras de pinos, 147.456 amostras de buffers, 147.455 frames do adaptador medido e 73.727 níveis MO ativos.
+- O comparador verificou o latch ch_out anterior, atraso de uma chamada, mapeamento de slots MO, sinal, zero negativo distinto e RO inativo no fixture melódico.
+- CI #44974692471: **SUCCESS**; Rust workspace, testes unitários/integração, Rust quality, CPAL Windows x64 e higiene documental passaram.
+- Adaptador externo #44974692444: **SUCCESS**, 28 testes Python; a auditoria das capturas preservou a polaridade candidata e não encontrou violações de monotonicidade.
+- Pipeline de saída #44974692466 e Rhythm reset differential #44974692473: **SUCCESS**.
+- A caracterização EG #44974692461 permanecia em execução no último checkpoint; não é declarada concluída por esta atualização.
+
+**Interpretação e limites**
+- A captura volume 0: 20.030 amostras; 7.017 correspondências exatas (35,03%), MAE 0,7358 bins, P95=2 e máximo=3.
+- A captura volume 1: 20.032 amostras; 14.803 correspondências exatas (73,90%), MAE 0,2630 bins, P95=1 e máximo=17. O maior resíduo é um outlier da primeira amostra; as seguintes têm erro absoluto máximo de 2 bins.
+- Ambos os mapeamentos empíricos são monotônicos; o controle de polaridade invertida apresenta MAE de 310,44 e 153,73 bins. A relação candidata measured_bin = 255 - ch_out é suportada pelos dados, mas não identifica a palavra física de entrada do DAC.
+- O diferencial FM-3 integrado usa o patch personalizado (instrument code 0). A caracterização de presets observou códigos 0–15 e 21 divergências de campos candidatos; não certifica a ROM física dos instrumentos.
+- O diferencial integrado Rhythm Mode comparou 147.456 chamadas sem divergências nos campos de estado rígido. Permanecem diferenças candidatas em c_sl, eg_sl e eg_state; seed e ROM física de patches não estão certificados.
+- O adaptador MO medido agora consome o latch anterior e mantém o primeiro nível desconhecido. Ele **não** define palavra DAC bruta, função de transferência analógica, tensão, carga, filtragem ou ganho.
+- O PCM entregue ao worker/CPAL continua baseado no pipeline digital Nuked; o novo adaptador medido não foi usado para substituir esse PCM.
 
 ### Validação exata após PR #1180
 
@@ -57,7 +86,7 @@
 - O PCM atual é uma **conversão de compatibilidade baseada no output digital Nuked**. O código combina MO e RO e normaliza a média para uma amostra mono por rotação. Essa conversão não é uma medição do DAC nem prova da rede elétrica de soma/ganho da placa SMS.
 - `SmsTemporalWorker` drena FM e PSG separadamente; o FM é reamostrado da taxa nativa de aproximadamente 49.716 Hz para 48 kHz, alinhado ao FIFO PSG e enviado à sessão multi-source.
 - Existe teste de integração com ROM sintética que configura YM2413 e PSG via instruções Z80, verifica amostras não nulas das duas fontes e a submissão do bloco ao sink de teste. Isso **não equivale a testar Phantasy Star/Kenseiden, nem a abrir um dispositivo CPAL físico**.
-- O estado do barramento inclui chip, serviço PG serial, nibble F2, amostras FM pendentes e acumulador PCM parcial. A equivalência completa de Save State/Restore incluindo filas/resampler do worker e continuidade da saída ainda precisa de validação explícita.
+- O estado do barramento inclui chip, serviço PG serial, nibble F2, amostras FM pendentes e acumulador PCM parcial. O teste core_and_pg_output_pipeline_snapshot_restore_is_block_equivalent verifica a continuidade do serviço e do adaptador medido após snapshot/restore. A equivalência completa de Save State/Restore incluindo filas/resampler do worker e continuidade do PCM ainda precisa de validação explícita.
 
 ### Portas F0/F1/F2
 
@@ -67,11 +96,12 @@
 
 ### Bloqueios de fidelidade que permanecem
 
-- **PG/PM:** divergências diferenciais ainda não explicadas; não declarar fechamento semântico.
-- **EG:** matriz de 38 configurações permanece com 44.064 divergências de nível e 71 de estágio.
-- **Rhythm Mode:** seed físico e ROM de patches não certificados; divergências de EG/SL continuam abertas.
-- **MO/RO e DAC:** o PCM mono atual combina as saídas digitais de referência. A rede analógica específica do Japanese Master System, ganhos relativos, carga, filtragem, codificação DAC e fase subclock continuam sem evidência suficiente. A regra normativa de preservar MO/RO separadamente permanece válida; o PCM atual deve ser tratado como caminho provisório de compatibilidade, não como modelo elétrico final.
-- **Mapeamento de saída candidato:** o inverso `channel_output = 255 - bin_index` tem um cross-check de conjuntos contra `results/20150409/predicted-sine.txt`: para volumes 1–15, todos os níveis previstos aparecem nos conjuntos medidos; volume 0 sobrepõe 390/400 níveis. Isso apoia a correspondência aritmética, mas não é comparação temporal; a proveniência do gerador do artefato contém uma divergência não resolvida, e a palavra física do DAC continua não comprovada.
+- **PG/PM:** os campos PG/PM coincidem com Nuked no trace integrado de 147.456 chamadas para o patch personalizado. A caracterização ampla independente ainda contém diferenças de fase/candidato; não declarar fechamento para todas as configurações nem alinhamento físico absoluto.
+- **EG:** o EG de produção coincide com Nuked no trace integrado do patch personalizado. A matriz separada de 38 configurações do modelo diagnóstico EnvelopeGenerator continua com 44.064 divergências de nível e 71 de estágio; não promover o candidato nem declarar cobertura geral fechada.
+- **Instrumentos:** os códigos 0–15 foram observados na caracterização de latches. Permanecem 21 divergências de campos na tabela de patches candidata; a ROM física de presets não está certificada.
+- **Rhythm Mode:** os campos de estado rígido coincidem em 147.456 chamadas. Permanecem divergências candidatas em c_sl, eg_sl e eg_state; seed físico e ROM de patches não certificados.
+- **MO/RO e DAC:** o pipeline digital de pinos/buffers e o adaptador MO medido coincidem com Nuked no escopo testado. O PCM mono atual continua sendo compatibilidade digital baseada em Nuked. A rede analógica do Japanese Master System, ganhos relativos, carga, filtragem, palavra física do DAC e fase subclock continuam sem evidência suficiente.
+- **Calibração física:** calibrate.raw e os limites originais .peaks/.bins continuam ausentes. As capturas volume*.raw/.out sustentam a correspondência candidata de amplitude, mas não substituem a aquisição de calibração nem revelam a palavra DAC.
 - **Perfil físico e FmMode:** o runtime separa presença física do YM2413 do território. Construtores regionais genéricos não instalam FM automaticamente, inclusive para região Japão; o construtor explícito da placa FM aceita software de qualquer região suportada e o Save State/Restore preserva essa combinação. A PR #1175 expõe e persiste no desktop o perfil físico e `FmMode::Auto/On/Off`. Auto continua conservador: sem correspondência exata de ROM verificada, a saída FM permanece mutada; On exige placa com YM2413.
 - **C-Sync:** readback D7–D5 bloqueado até a exposição de um pulso de hardware verificável.
 - **ROMs reais:** Phantasy Star e Kenseiden foram recebidas e hash-conferidas, mas ainda não há evidência de boot prolongado, jogo, áudio, FPS e estabilidade no emulador.
@@ -85,7 +115,9 @@
 
 ### Próxima sequência recomendada
 
-1. Recuperar o artefato original `calibrate.raw` e os limites `.peaks/.bins` da revisão fixada, ou repetir a calibração no hardware. Os arquivos `volume*.raw` não substituem a captura de 60.000 amostras usada na calibração.
+1. Estender o diferencial integrado com snapshot/restore em ponto intermediário e comparar o trace restaurado byte a byte com execução contínua e com Nuked.
+2. Expandir a cobertura integrada dos 15 payloads candidatos de patch como patches personalizados, separando fidelidade do operador da identidade ainda incerta da ROM de presets.
+3. Recuperar o artefato original `calibrate.raw` e os limites `.peaks/.bins` da revisão fixada, ou repetir a calibração no hardware. Os arquivos `volume*.raw` não substituem a captura de 60.000 amostras usada na calibração.
 
 Os 16 arquivos públicos `volume*.raw` foram auditados quantitativamente na revisão fixada; consulte [a auditoria das capturas públicas](audits/ym2413-public-volume-capture-audit-2026-11-22.md). Nenhum atinge os 60.000 samples da aquisição de calibração. `volume0.raw` reconstrói 296 bins (183 picos detectados + 113 midpoints inseridos); `volume1.raw` e `volume2.raw` reconstróem 329 e 255 bins, respectivamente, e os demais ficam entre 182 e 4 bins. Isso confirma que não substituem a captura de calibração. Reproduzir a cadeia com `tools/ym2413-dac-capture-audit/` e registrar separadamente picos detectados e midpoint inserido.
 2. Validar a aquisição Timer0 por clock: zero ADC overflow, contagem de amostras igual à de triggers, ausência de perda/reordenação DMA e fase conhecida. As capturas atuais a 50 kHz e Timer1/72 não resolvem os 18 slots nem os subclocks.
@@ -95,7 +127,7 @@ Os 16 arquivos públicos `volume*.raw` foram auditados quantitativamente na revi
 6. Validar Phantasy Star e Kenseiden com boot prolongado, jogo, áudio FM, FPS, underruns, estabilidade e Save State/Restore. A certificação final continua condicionada aos dois jogos.
 7. Expor a origem temporal de C-Sync pelo caminho de vídeo/315-5297 antes de implementar readback D7–D5. Não iniciar E8 do Z80.
 
-**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1182. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
+**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1185. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
 
 ---
 
