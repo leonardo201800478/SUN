@@ -777,12 +777,12 @@ impl Ym2413PgSerialService {
         Ok(())
     }
 
-    /// Reproduce PreparePatch2's channel/operator parameter selection for the
-    /// next serial cycle in melodic mode.
+    /// Apply PreparePatch2 values captured from the pre-EG channel decode.
     fn latch_next_parameters(
         &mut self,
         context: &Ym2413SlotServiceContext,
         descriptor: Ym2413SlotDescriptor,
+        pending: Ym2413PendingPatch2,
     ) -> Result<(), Ym2413PgSerialError> {
         if descriptor != context.event.selected_operator {
             return Err(Ym2413PgSerialError::InvalidState);
@@ -801,28 +801,15 @@ impl Ym2413PgSerialService {
                 _ => return Err(Ym2413PgSerialError::InvalidState),
             }
         }
-        let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
-        let parameters = match descriptor.operator {
-            Ym2413Operator::Modulator => config.modulator_phase,
-            Ym2413Operator::Carrier => config.carrier_phase,
-        };
-        self.pipeline.parameters = Ym2413PgParameterLatch::from_operator(parameters);
-        let operator_patch = match descriptor.operator {
-            Ym2413Operator::Modulator => config.patch.modulator,
-            Ym2413Operator::Carrier => config.patch.carrier,
-        };
-        self.operator
-            .prepare_patch2(Ym2413SerialOperatorPatch2Latches {
-                feedback: config.patch.feedback,
-                dc_waveform: config.patch.carrier.half_wave,
-                dm_waveform: config.patch.modulator.half_wave,
-                am_enabled: operator_patch.am_enabled,
-                vibrato_enabled: operator_patch.vibrato_enabled,
-                multiplier: operator_patch.multiplier,
-                sustain_level: operator_patch.sustain_level,
-                fnum: config.channel.fnum,
-                block: config.channel.block,
-            })?;
+        #[cfg(test)]
+        if self.benchmark_duplicate_channel_decode {
+            std::hint::black_box(decode_channel_synthesis(
+                &context.registers,
+                descriptor.channel,
+            )?);
+        }
+        self.pipeline.parameters = pending.parameters;
+        self.operator.prepare_patch2(pending.latches)?;
         Ok(())
     }
 
@@ -975,6 +962,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
         self.pending_dispatch = None;
+        self.pending_patch2 = None;
         let dispatch = dispatch_serial_slot(
             context.event.cycle,
             &context.registers,
@@ -1014,6 +1002,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         // PreparePatch1 -> Channel -> PhaseGenerate -> Operator
         // -> PhaseCalcIncrement -> EnvelopeOutput -> EnvelopeKSLTL.
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
+        let pending_patch2 = Ym2413PendingPatch2::from_config(config, descriptor.operator);
         let (operator_patch, ksl_attenuation, total_level, operator_index) =
             match descriptor.operator {
                 Ym2413Operator::Modulator => (
@@ -1074,6 +1063,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             context.registers[0x0f],
         )?;
         self.pending_dispatch = Some(dispatch);
+        self.pending_patch2 = Some(pending_patch2);
         Ok(())
     }
 
@@ -1086,6 +1076,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             .pending_dispatch
             .take()
             .ok_or(Ym2413PgSerialError::InvalidState)?;
+        let pending_patch2 = self.pending_patch2.take();
         // Nuked order after the core-owned EnvelopeGenerate stage:
         // DoLFO -> DoRhythm -> PreparePatch2.
         let testmode = context.registers[0x0f];
@@ -1108,19 +1099,28 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             Ym2413SerialSlotDispatch::Melodic { slot }
                 if slot == context.event.selected_operator =>
             {
-                self.latch_next_parameters(context, slot)
+                self.latch_next_parameters(
+                    context,
+                    slot,
+                    pending_patch2.ok_or(Ym2413PgSerialError::InvalidState)?,
+                )
             }
             Ym2413SerialSlotDispatch::Melodic { .. } => Err(Ym2413PgSerialError::InvalidState),
             Ym2413SerialSlotDispatch::Rhythm { slot, selector, .. }
                 if self.rhythm_noise.is_some() && slot == context.event.selected_operator =>
             {
-                self.latch_next_rhythm_parameters(context, selector)
+                if pending_patch2.is_some() {
+                    Err(Ym2413PgSerialError::InvalidState)
+                } else {
+                    self.latch_next_rhythm_parameters(context, selector)
+                }
             }
             Ym2413SerialSlotDispatch::Rhythm { .. } if self.rhythm_noise.is_some() => {
                 Err(Ym2413PgSerialError::InvalidState)
             }
             // Unknown-seed and unsettled transitions remain explicitly gated.
-            _ => Ok(()),
+            _ if pending_patch2.is_none() => Ok(()),
+            _ => Err(Ym2413PgSerialError::InvalidState),
         }
     }
 }
