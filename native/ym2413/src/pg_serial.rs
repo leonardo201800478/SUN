@@ -910,10 +910,9 @@ impl Ym2413PgSerialService {
         )?;
         self.clock_output_pipeline(context, Some(sample.channel_output), true)?;
         self.calculate_increment()?;
-        let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
             context.event.cycle,
-            &eg_levels,
+            &context.envelope_levels,
             self.serial_am_lfo.output(),
             context.registers[0x0f],
         )?;
@@ -1028,7 +1027,6 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         &mut self,
         context: &Ym2413SlotServiceContext,
         _tick: EnvelopeSequencerTick,
-        _post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error> {
         // Nuked order after the core-owned EnvelopeGenerate stage:
         // DoLFO -> DoRhythm -> PreparePatch2.
@@ -1087,8 +1085,7 @@ mod tests {
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
     use crate::envelope_sequencer::{
-        EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick,
-        EnvelopeSlotInput,
+        EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSequencerTick, EnvelopeSlotInput,
     };
     use crate::phase::PhaseGenerator;
     use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
@@ -1473,16 +1470,16 @@ mod tests {
 
     fn context(cycle: u8, registers: [u8; 64], testmode: u8) -> Ym2413SlotServiceContext {
         let eg = EnvelopeSequencer::new();
-        let state = eg.export_state();
+        let eg_dokon = eg.eg_dokon();
         let event =
-            nuked_slot_service_event_with_testmode(cycle, 0, state.eg_dokon, testmode).unwrap();
+            nuked_slot_service_event_with_testmode(cycle, 0, eg_dokon, testmode).unwrap();
         let mut registers = registers;
         registers[0x0f] = testmode;
         Ym2413SlotServiceContext {
             event,
             registers,
             envelope_input: EnvelopeSlotInput::default(),
-            envelope_state: state,
+            envelope_levels: eg.operator_levels(),
             rm_enable: 0,
             rm_select: 6,
         }
@@ -1494,8 +1491,8 @@ mod tests {
         selector: EnvelopeRhythmSelect,
     ) -> Ym2413SlotServiceContext {
         let eg = EnvelopeSequencer::new();
-        let state = eg.export_state();
-        let event = nuked_slot_service_event_with_testmode(cycle, 0xff, state.eg_dokon, 0).unwrap();
+        let eg_dokon = eg.eg_dokon();
+        let event = nuked_slot_service_event_with_testmode(cycle, 0xff, eg_dokon, 0).unwrap();
         let mut registers = registers;
         registers[0x0f] = 0;
         let envelope_input = EnvelopeSlotInput {
@@ -1507,7 +1504,7 @@ mod tests {
             event,
             registers,
             envelope_input,
-            envelope_state: state,
+            envelope_levels: eg.operator_levels(),
             rm_enable: 0xff,
             rm_select: match selector {
                 EnvelopeRhythmSelect::BassDrumFirst => 0,
@@ -1536,18 +1533,17 @@ mod tests {
     fn advance_rhythm_slot(service: &mut Ym2413PgSerialService, cycle: u8, registers: [u8; 64]) {
         let context = rhythm_context(cycle, registers, rhythm_selector(cycle));
         service.before_eg_update(&context).unwrap();
-        let (tick, post_state) = tick(cycle);
-        service.after_eg_update(&context, tick, post_state).unwrap();
+        let tick = tick(cycle);
+        service.after_eg_update(&context, tick).unwrap();
     }
 
-    fn tick(cycle: u8) -> (crate::EnvelopeSequencerTick, crate::EnvelopeSequencerState) {
+    fn tick(cycle: u8) -> crate::EnvelopeSequencerTick {
         let mut eg = EnvelopeSequencer::new();
         for prior_cycle in 0..cycle {
             eg.tick_slot(prior_cycle, EnvelopeSlotInput::default())
                 .unwrap();
         }
-        let result = eg.tick_slot(cycle, EnvelopeSlotInput::default()).unwrap();
-        (result, eg.export_state())
+        eg.tick_slot(cycle, EnvelopeSlotInput::default()).unwrap()
     }
 
     fn service_with_pipeline(
@@ -1692,8 +1688,7 @@ mod tests {
         let tick = eg
             .tick_slot(context.event.cycle, context.envelope_input)
             .unwrap();
-        let post_state = eg.export_state();
-        service.after_eg_update(&context, tick, post_state).unwrap();
+        service.after_eg_update(&context, tick).unwrap();
 
         let snapshot = service.export_state();
         let restored = Ym2413PgSerialService::restore_state(snapshot).unwrap();
@@ -1793,8 +1788,8 @@ mod tests {
         let mut service = service_with_pipeline(initial_bank(0), 0, 0, parameters, 3);
         let context = context(0, registers, 0);
         service.before_eg_update(&context).unwrap();
-        let (tick, post) = tick(0);
-        service.after_eg_update(&context, tick, post).unwrap();
+        let tick = tick(0);
+        service.after_eg_update(&context, tick).unwrap();
 
         assert_eq!(
             service.pg_increment(),
@@ -1929,7 +1924,7 @@ mod tests {
             slot_context.rm_enable = 0xff;
             service.before_eg_update(&slot_context).unwrap();
             let (tick, post) = tick(cycle);
-            service.after_eg_update(&slot_context, tick, post).unwrap();
+            service.after_eg_update(&slot_context, tick).unwrap();
 
             if cycle == 0 {
                 assert_eq!(service.measured_output_frame(), None);
@@ -1977,7 +1972,7 @@ mod tests {
             slot_context.event = nuked_slot_service_event_with_testmode(
                 cycle,
                 0xff,
-                slot_context.envelope_state.eg_dokon,
+                slot_context.event.eg_dokon,
                 0,
             )
             .unwrap();
@@ -2280,10 +2275,9 @@ mod tests {
             &mut self,
             context: &Ym2413SlotServiceContext,
             tick: EnvelopeSequencerTick,
-            post_state: EnvelopeSequencerState,
         ) -> Result<(), Self::Error> {
             self.inner
-                .after_eg_update(context, tick, post_state)
+                .after_eg_update(context, tick)
                 .map_err(|_| context.event.cycle)?;
             if self.fail_cycle == Some(context.event.cycle) {
                 Err(context.event.cycle)
