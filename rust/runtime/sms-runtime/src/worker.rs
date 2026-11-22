@@ -4820,6 +4820,10 @@ mod tests {
         );
         assert!(renderer.mix_fm_samples.is_empty());
         assert!(
+            machine.drain_fm_audio_samples(None).is_empty(),
+            "muted host output must discard queued FM PCM without retaining a backlog"
+        );
+        assert!(
             renderer.mix_psg_samples.iter().any(|sample| *sample != 0.0),
             "PSG output must remain audible while host FM output is muted"
         );
