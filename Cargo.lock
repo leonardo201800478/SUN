@@ -3798,6 +3798,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sega-sg1000-runtime"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "sega-audio-runtime",
+ "sega-sg1000-core",
+ "sega-video-runtime",
+ "sha2",
+]
+
+[[package]]
 name = "sega-sms-core"
 version = "0.1.0"
 dependencies = [
@@ -3813,24 +3824,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "sega-sg1000-runtime"
-version = "0.1.0"
-dependencies = [
- "crc32fast",
- "sega-audio-runtime",
- "sega-sg1000-core",
- "sega-video-runtime",
- "sha2",
-]
-
-[[package]]
 name = "sega-sms-runtime"
 version = "0.1.0"
 dependencies = [
  "sega-audio-output",
  "sega-audio-runtime",
- "sega-media",
  "sega-debugger-core",
+ "sega-media",
  "sega-observability",
  "sega-sms-core",
  "sega-sn76489",
@@ -3844,10 +3844,6 @@ version = "0.1.0"
 dependencies = [
  "sega-observability",
 ]
-
-[[package]]
-name = "sega-ym2413"
-version = "0.1.0"
 
 [[package]]
 name = "sega-temporal-core"
@@ -3870,6 +3866,10 @@ dependencies = [
  "sega-observability",
  "windows",
 ]
+
+[[package]]
+name = "sega-ym2413"
+version = "0.1.0"
 
 [[package]]
 name = "sega-z80-alu"
