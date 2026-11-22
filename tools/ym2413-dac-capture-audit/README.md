@@ -48,3 +48,20 @@ loss/reordering and known trigger phase.
 Synthetic unit fixtures validate the ported algorithm and error handling only.
 They do not validate the YM2413 hardware, DAC encoding, analog response, PCM
 conversion, or game playback.
+
+
+## Paired volume-capture audit
+
+`audit_volume_pairs.py` audits the 16 historical `volumeN.raw` / `volumeN.out` pairs from the pinned `andete/ym2413` revision. It searches a bounded file-sequence offset, requiring each selected pair to have a deterministic ADC-code→bin mapping and monotonic ordering. The offsets are data-file alignment corrections; they are not YM2413 clock or subclock measurements.
+
+The tool aggregates the observed ADC minimum/maximum for each calibrated bin and derives the allowed integer interval for each boundary between adjacent bins. A boundary interval is a constraint, not necessarily the original exact `calibrate.bins` value. Missing bins leave their adjacent boundaries unconstrained. The `.out` values remain calibrated analog ADC-bin indices, not raw 9-bit DAC words.
+
+Run against the pinned upstream capture directory:
+
+```sh
+python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \\
+  --capture-dir /path/to/andete/ym2413/analyze/volume \\
+  --output volume-bin-observations.json
+```
+
+The reproducible result is committed at `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`. The CI job checks that the pinned upstream files regenerate that exact report.
