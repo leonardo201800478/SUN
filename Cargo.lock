@@ -3827,6 +3827,8 @@ dependencies = [
 name = "sega-sms-runtime"
 version = "0.1.0"
 dependencies = [
+ "sega-audio-output",
+ "sega-z80-cpu",
  "sega-audio-runtime",
  "sega-media",
  "sega-debugger-core",
