@@ -2,12 +2,12 @@
 
 **Data de referência:** 2026-11-22
 **Repositório:** `leonardo201800478/SUN`
-**Main atual pós-PR #1180:** `cda89ac49d08690a6507b2ba5e021255ba38d30a`
+**Main atual pós-PR #1182:** `40cf4be51ab99bc55b2d79ea37b490a0bcca0f64`
 
 **Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
-## Estado executivo atual — main pós-PR #1180 (2026-11-22)
+## Estado executivo atual — main pós-PR #1182 (2026-11-22)
 
 **Integração de runtime publicada; fidelidade física ainda aberta.**
 
@@ -29,6 +29,18 @@
 | #1178 | Auditoria quantitativa das 16 capturas públicas `volume*.raw` e proveniência dos dados | `f936de437483d934e21c7807ceff560292a8c472` |
 | #1179 | Reconcilia os `volume*.out`, offsets de sequência, 511 bins observados e 509 intervalos de fronteira; atualiza o dossiê DAC | `33f02c01f7092c6e3ccbcb2252bf283e245a4087` |
 | #1180 | Ferramenta reproduzível para auditar os 16 pares raw/output e CI com upstream fixado, consistência global e snapshot JSON | `cda89ac49d08690a6507b2ba5e021255ba38d30a` |
+| #1182 | Caracterização temporal do MO do Nuked contra `volume0.out`/`volume1.out`; trace compacto, fixtures sequenciais e validação de continuidade JSONL | `40cf4be51ab99bc55b2d79ea37b490a0bcca0f64` |
+
+### Validação exata após PR #1182
+
+- PR #1182: [caracterização temporal da saída MO](https://github.com/leonardo201800478/SUN/pull/1182), merge squash `40cf4be51ab99bc55b2d79ea37b490a0bcca0f64`.
+- Workflow dedicado `44972480223`: **SUCCESS** — adaptador C compilado contra Nuked-OPLL `1269cf5a783b65583b50fa2464d08be75830aaa0`; modo completo e `--output-only` produziram JSONL válido; `--from-call` validado; 14 testes Python passaram; `compileall` passou; comparação de volume 0 e 1 concluída.
+- CI geral `44972480299`: **SUCCESS** — validação de workflows, higiene documental e quality/unit regression passaram. Os jobs de runtime SMS/CPAL foram corretamente classificados como não aplicáveis, pois a PR não alterou runtime.
+- Captura 0: 20.030 amostras, fase 1.011, 7.017 correspondências exatas (35,03%), MAE 0,7358 bins, P95=2, máximo=3.
+- Captura 1: 20.032 amostras, fase 1.461, 14.803 correspondências exatas (73,90%), MAE 0,2630 bins, P95=1, máximo=17. O erro máximo ocorre na amostra 0 (bin medido 295 versus modelo 278); as amostras seguintes têm erro absoluto máximo de 2 bins.
+- Ambos os mapeamentos empíricos tiveram zero violações de monotonicidade; a inversão da polaridade apresentou MAE de 310,44 bins (volume 0) e 153,73 bins (volume 1).
+- A validação estrita do comparador rejeita índices ausentes, ciclo inconsistente, sample point inválido e janela de identificação incompleta. A captura de volume 1 mantém a sequência volume 0 → volume 1 sem reset/key-off explícito.
+- Interpretação: evidência temporal forte para o mapeamento digital candidato e polaridade do MO nas duas capturas históricas. **Não comprova** transferência elétrica do DAC, carga/filtragem da placa, fase subclock, equivalência do runtime Rust ou reprodução nos jogos.
 
 ### Validação exata após PR #1180
 
@@ -83,7 +95,7 @@ Os 16 arquivos públicos `volume*.raw` foram auditados quantitativamente na revi
 6. Validar Phantasy Star e Kenseiden com boot prolongado, jogo, áudio FM, FPS, underruns, estabilidade e Save State/Restore. A certificação final continua condicionada aos dois jogos.
 7. Expor a origem temporal de C-Sync pelo caminho de vídeo/315-5297 antes de implementar readback D7–D5. Não iniciar E8 do Z80.
 
-**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1176. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
+**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1182. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
 
 ---
 
