@@ -4,7 +4,6 @@ Este diretório contém as decisões arquiteturais que definem o produto e sua e
 
 | ADR | Decisão | Estado |
 |---|---|---|
-| [0001 — apresentação Vulkan nativa](0001-native-vulkan-presentation.md) | Decisão histórica de Vulkan via ash | **Supersedida pela ADR 0011** |
 | [0006 — SG-1000 Rust standalone](0006-standalone-rust-sg1000-core.md) | Registro histórico da implementação SG-1000 standalone | Histórica; não define runtime ativo inicial |
 | [0007 — política Rust-first](0007-rust-first-development-policy.md) | Política de desenvolvimento Rust-first | Referência histórica; aplicar as regras mais recentes da ADR 0010 e ADR 0011 |
 | [0008 — hardware nativo Rust](0008-rust-native-hardware-only.md) | Hardware e lógica de emulação em Rust | Vigente naquilo que não conflita com ADR 0010/0011 |
