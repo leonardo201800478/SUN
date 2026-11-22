@@ -744,7 +744,7 @@ jobs:
             }
             $paths = git diff --name-only $range -- scripts
             if ($LASTEXITCODE -ne 0) { throw "Could not discover changed PowerShell scripts" }
-            $files = @($paths | Where-Object { $_.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase) })
+            $files = @($paths | Where-Object { $_.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $_ -PathType Leaf) })
             if (-not $files) { Write-Host "No PowerShell scripts changed."; exit 0 }
           }
           foreach ($file in $files) {
