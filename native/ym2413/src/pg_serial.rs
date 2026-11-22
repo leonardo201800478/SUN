@@ -10,7 +10,10 @@
 //! remain gated rather than being filled with guessed noise or patch state.
 
 use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState};
-use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
+use crate::channel::{
+    ChannelSynthesisConfig, ChannelSynthesisError, OperatorPhaseParameters,
+    decode_channel_synthesis,
+};
 use crate::envelope_sequencer::{EnvelopeRhythmSelect, EnvelopeSequencerTick};
 use crate::output::{
     Ym2413MeasuredOutputAdapter, Ym2413MeasuredOutputAdapterError,
@@ -46,6 +49,39 @@ pub const YM2413_PG_SERIAL_PIPELINE_STATE_VERSION: u16 = 4;
 
 /// Maximum increment reachable from the legal FNUM/BLOCK/MUL/PM input domain.
 pub const YM2413_PG_INCREMENT_MAX: u32 = 987_840;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Ym2413PendingPatch2 {
+    parameters: Ym2413PgParameterLatch,
+    latches: Ym2413SerialOperatorPatch2Latches,
+}
+
+impl Ym2413PendingPatch2 {
+    fn from_config(config: ChannelSynthesisConfig, operator: Ym2413Operator) -> Self {
+        let parameters = match operator {
+            Ym2413Operator::Modulator => config.modulator_phase,
+            Ym2413Operator::Carrier => config.carrier_phase,
+        };
+        let operator_patch = match operator {
+            Ym2413Operator::Modulator => config.patch.modulator,
+            Ym2413Operator::Carrier => config.patch.carrier,
+        };
+        Self {
+            parameters: Ym2413PgParameterLatch::from_operator(parameters),
+            latches: Ym2413SerialOperatorPatch2Latches {
+                feedback: config.patch.feedback,
+                dc_waveform: config.patch.carrier.half_wave,
+                dm_waveform: config.patch.modulator.half_wave,
+                am_enabled: operator_patch.am_enabled,
+                vibrato_enabled: operator_patch.vibrato_enabled,
+                multiplier: operator_patch.multiplier,
+                sustain_level: operator_patch.sustain_level,
+                fnum: config.channel.fnum,
+                block: config.channel.block,
+            },
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ym2413PgSerialError {
@@ -347,10 +383,15 @@ pub struct Ym2413PgSerialService {
     /// Slot ownership resolved before EG and consumed by the post-EG hook.
     /// This is transient because both hooks execute synchronously in one slot.
     pending_dispatch: Option<Ym2413SerialSlotDispatch>,
+    /// PreparePatch2 values derived from the same immutable pre-EG channel config.
+    pending_patch2: Option<Ym2413PendingPatch2>,
     /// Test-only switch that restores the pre-optimization duplicate dispatch
     /// for an in-process Release A/B measurement.
     #[cfg(test)]
     benchmark_duplicate_dispatch: bool,
+    /// Test-only switch that restores the pre-optimization duplicate channel decode.
+    #[cfg(test)]
+    benchmark_duplicate_channel_decode: bool,
 }
 
 impl Ym2413PgSerialService {
@@ -378,8 +419,11 @@ impl Ym2413PgSerialService {
             last_output_frame: None,
             measured_output_adapter: Ym2413MeasuredOutputAdapter::new(),
             pending_dispatch: None,
+            pending_patch2: None,
             #[cfg(test)]
             benchmark_duplicate_dispatch: false,
+            #[cfg(test)]
+            benchmark_duplicate_channel_decode: false,
         }
     }
 
@@ -606,8 +650,11 @@ impl Ym2413PgSerialService {
             last_output_frame: state.last_output_frame,
             measured_output_adapter,
             pending_dispatch: None,
+            pending_patch2: None,
             #[cfg(test)]
             benchmark_duplicate_dispatch: false,
+            #[cfg(test)]
+            benchmark_duplicate_channel_decode: false,
         })
     }
 
