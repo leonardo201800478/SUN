@@ -1088,6 +1088,31 @@ mod tests {
     use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
 
     #[test]
+    fn in_place_advance_matches_transactional_state_and_pcm_across_partitioned_blocks() {
+        let mut transactional_core = Ym2413Core::new();
+        let mut transactional_service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut fast_core = Ym2413Core::new();
+        let mut fast_service = Ym2413PgSerialService::new(initial_bank(0));
+
+        for clocks in [1, 3, 4, 17, 55, 72, 1, 287, 4 * 37, 2 * 72 + 3] {
+            transactional_core
+                .advance_input_clocks_with_pg_service(clocks, &mut transactional_service)
+                .unwrap();
+            fast_core
+                .advance_input_clocks_with_pg_service_in_place(clocks, &mut fast_service)
+                .unwrap();
+
+            assert_eq!(fast_core.export_state(), transactional_core.export_state());
+            assert_eq!(fast_service.export_state(), transactional_service.export_state());
+            assert_eq!(fast_service.output_frame(), transactional_service.output_frame());
+            assert_eq!(
+                fast_service.measured_output_frame(),
+                transactional_service.measured_output_frame()
+            );
+        }
+    }
+
+    #[test]
     fn core_and_pg_output_pipeline_snapshot_restore_is_block_equivalent() {
         let mut continuous_core = Ym2413Core::new();
         let mut continuous_service = Ym2413PgSerialService::new(initial_bank(0));
