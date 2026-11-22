@@ -1213,6 +1213,7 @@ impl AudioRendererState {
 
 enum WorkerCommand {
     Start(SyncSender<Result<(), String>>),
+    SetFramePacingEnabled(bool, SyncSender<Result<(), String>>),
     Pause(SyncSender<Result<(), String>>),
     Stop(SyncSender<Result<(), String>>),
     Reset(SyncSender<Result<(), String>>),
@@ -1247,6 +1248,7 @@ impl WorkerCommand {
     fn kind(&self) -> &'static str {
         match self {
             Self::Start(_) => "start",
+            Self::SetFramePacingEnabled(_, _) => "set_frame_pacing_enabled",
             Self::Pause(_) => "pause",
             Self::Stop(_) => "stop",
             Self::Reset(_) => "reset",
@@ -2061,6 +2063,13 @@ impl SmsTemporalWorker {
 
     pub fn start(&self) -> Result<(), String> {
         self.request_unit(WorkerCommand::Start)
+    }
+
+    /// Enable or disable host frame pacing; disabled means uncapped execution.
+    pub fn set_frame_pacing_enabled(&self, enabled: bool) -> Result<(), String> {
+        let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
+        enqueue_worker_command(&self.commands, WorkerCommand::SetFramePacingEnabled(enabled, reply_sender))?;
+        receive_worker_reply(reply_receiver, "changing frame pacing")?
     }
 
     pub fn pause(&self) -> Result<(), String> {
@@ -2908,6 +2917,7 @@ fn worker_loop(
     let mut video_mailbox: Option<FrameMailbox> = None;
     let mut video_sequence = 0_u64;
     let mut frame_deadline = FramePacingDeadline::default();
+    let mut frame_pacing_enabled = true;
 
     loop {
         if telemetry.shutdown.load(Ordering::Acquire) {
@@ -2915,9 +2925,11 @@ fn worker_loop(
         }
         let mut pacing_wait_active = false;
         let command = if running {
-            let timeout = frame_deadline
-                .remaining(Instant::now())
-                .unwrap_or(Duration::ZERO);
+            let timeout = if frame_pacing_enabled {
+                frame_deadline.remaining(Instant::now()).unwrap_or(Duration::ZERO)
+            } else {
+                Duration::ZERO
+            };
             let wait_deadline = frame_deadline.deadline;
             pacing_wait_active = !timeout.is_zero();
             let wait_started = Instant::now();
@@ -2977,6 +2989,7 @@ fn worker_loop(
                 &region,
                 vdp_revision,
                 &mut running,
+                &mut frame_pacing_enabled,
                 &mut audio_session,
                 &mut audio_renderer,
                 &mut video_mailbox,
@@ -3019,7 +3032,7 @@ fn worker_loop(
             &mut video_mailbox,
             &mut video_sequence,
             &telemetry,
-            frame_deadline.deadline,
+            frame_pacing_enabled.then_some(frame_deadline.deadline).flatten(),
         ) {
             Ok((_, next_frame_deadline, breakpoint_hit)) => {
                 drain_machine_trace(&mut machine, trace_publisher.as_ref());
@@ -3036,7 +3049,7 @@ fn worker_loop(
                         }
                     }
                 }
-                if running {
+                if running && frame_pacing_enabled {
                     frame_deadline.set(next_frame_deadline);
                 } else {
                     frame_deadline.clear();
@@ -3090,6 +3103,7 @@ fn handle_command(
     region: &str,
     vdp_revision: SmsVdpRevision,
     running: &mut bool,
+    frame_pacing_enabled: &mut bool,
     audio_session: &mut Option<Box<dyn AudioSession>>,
     audio_renderer: &mut AudioRendererState,
     video_mailbox: &mut Option<FrameMailbox>,
@@ -3117,6 +3131,10 @@ fn handle_command(
                     let _ = reply.send(Err(error));
                 }
             }
+        }
+        WorkerCommand::SetFramePacingEnabled(enabled, reply) => {
+            *frame_pacing_enabled = enabled;
+            let _ = reply.send(Ok(()));
         }
         WorkerCommand::Pause(reply) => {
             *running = false;
