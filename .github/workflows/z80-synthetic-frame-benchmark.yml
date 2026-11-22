@@ -1,0 +1,71 @@
+name: Z80 Synthetic Frame Benchmark
+
+on:
+  pull_request:
+    paths:
+      - "native/z80_cpu/**"
+      - "native/z80_alu/**"
+      - "native/z80_bus/**"
+      - "native/sms_core/**"
+      - "native/machine_scheduler/**"
+      - "native/temporal_core/**"
+      - "native/video_core/**"
+      - "native/sn76489/**"
+      - "native/audio_runtime/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/z80-synthetic-frame-benchmark.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-frame-benchmark:
+    name: Linux x64 Release profile comparison
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustc --version --verbose
+          cargo --version
+          rustup show active-toolchain
+
+      - name: Build stock Release benchmark
+        run: cargo bench --no-run --locked -p sega-sms-core --bench z80_frame_throughput --profile release
+
+      - name: Build ThinLTO candidate benchmark
+        run: cargo bench --no-run --locked -p sega-sms-core --bench z80_frame_throughput --profile release-llvm
+
+      - name: Run ABBA profile comparison
+        shell: bash
+        env:
+          SUN_PERF_WARMUP_FRAMES: "5"
+          SUN_PERF_MEASURE_FRAMES: "60"
+          SUN_PERF_REPEATS: "5"
+        run: |
+          set -euo pipefail
+          {
+            echo "=== Release (A1) ==="
+            SUN_PERF_PROFILE=release cargo bench --locked -p sega-sms-core --bench z80_frame_throughput --profile release
+            echo "=== Release-LLVM (B1) ==="
+            SUN_PERF_PROFILE=release-llvm cargo bench --locked -p sega-sms-core --bench z80_frame_throughput --profile release-llvm
+            echo "=== Release-LLVM (B2) ==="
+            SUN_PERF_PROFILE=release-llvm cargo bench --locked -p sega-sms-core --bench z80_frame_throughput --profile release-llvm
+            echo "=== Release (A2) ==="
+            SUN_PERF_PROFILE=release cargo bench --locked -p sega-sms-core --bench z80_frame_throughput --profile release
+          } 2>&1 | tee z80-frame-benchmark.log
+
+      - name: Preserve benchmark output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: z80-synthetic-frame-benchmark
+          path: z80-frame-benchmark.log
+          if-no-files-found: ignore
+          retention-days: 14
