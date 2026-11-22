@@ -312,8 +312,7 @@ fn write_game_audio_captures(
     let stem = fixture_name
         .to_ascii_lowercase()
         .replace(' ', "-")
-        .replace('(', "")
-        .replace(')', "")
+        .replace(['(', ')'], "")
         .replace("--", "-");
     for (suffix, samples) in [
         ("fm-source", fm),
