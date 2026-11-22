@@ -53,7 +53,7 @@ Use compile-time/static lookup tables for stable mappings and arithmetic where t
 
 ### 3.5 CPU execution strategy
 
-Start with an optimized instruction interpreter. Benchmark realistic instruction mixes, bus activity and interrupts. Consider decoded-block caching or JIT only after profiling proves the interpreter is the bottleneck and an ADR approves:
+Start with an optimized instruction interpreter. Benchmark realistic instruction mixes, bus activity and interrupts. The current repository policy does not authorize JIT. Do not implement decoded-block caching or a dynamic recompiler under this policy. Reconsider either only through a superseding, owner-approved ADR after profiling proves the optimized interpreter cannot meet the gameplay performance gate. Any future proposal must address:
 - code invalidation for writable/executable memory;
 - exits on MMIO, interrupts, WAIT and timing boundaries;
 - precise cycle accounting;
