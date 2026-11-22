@@ -125,6 +125,8 @@ function Get-RunSummary {
     }
 
     $frameEvents = 0
+    $overBudgetFrames = 0
+    $frameBudgetSamples = 0
     $fallbackFrames = 0
     $fmSourceSamplesTotal = 0.0
     $fmUnknownSamplesTotal = 0.0
@@ -179,6 +181,15 @@ function Get-RunSummary {
                     $value = ConvertTo-NullableDouble (Get-FieldValue -Fields $fields -Name $metricName)
                     if ($null -ne $value) {
                         $metricValues[$metricName].Add([double]$value)
+                    }
+                }
+
+                $processingNs = ConvertTo-NullableDouble (Get-FieldValue -Fields $fields -Name "frame_processing_elapsed_ns")
+                $budgetNs = ConvertTo-NullableDouble (Get-FieldValue -Fields $fields -Name "pacing_budget_ns")
+                if ($null -ne $processingNs -and $null -ne $budgetNs -and $budgetNs -gt 0) {
+                    $frameBudgetSamples += 1
+                    if ($processingNs -gt $budgetNs) {
+                        $overBudgetFrames += 1
                     }
                 }
 
@@ -251,6 +262,18 @@ function Get-RunSummary {
         $unknownPercent = 100.0 * ($fmUnknownSamplesTotal + $fmNonFiniteSamplesTotal) / $fmSourceSamplesTotal
     }
 
+    $overBudgetPercent = $null
+    if ($frameBudgetSamples -gt 0) {
+        $overBudgetPercent = 100.0 * $overBudgetFrames / $frameBudgetSamples
+    }
+    $frameIntervalMeanMs = $null
+    $workerFrameRateEstimateHz = $null
+    $frameIntervalDistribution = $distributions["frame_interval_ns"]
+    if ($null -ne $frameIntervalDistribution -and $frameIntervalDistribution.mean -gt 0) {
+        $frameIntervalMeanMs = $frameIntervalDistribution.mean / 1_000_000.0
+        $workerFrameRateEstimateHz = 1_000_000_000.0 / $frameIntervalDistribution.mean
+    }
+
     $fallbackPercent = $null
     $invalidPercent = $null
     $reportedFallbackFrames = $null
@@ -278,6 +301,10 @@ function Get-RunSummary {
         capture_end_utc = $metadata.capture_end_utc
         capture_seconds = $metadata.capture_seconds
         frame_events = $frameEvents
+        frame_processing_over_budget_frames = $overBudgetFrames
+        frame_processing_over_budget_percent = $overBudgetPercent
+        worker_frame_interval_mean_ms = $frameIntervalMeanMs
+        worker_frame_rate_estimate_hz = $workerFrameRateEstimateHz
         fm_diagnostics_available = $fmDiagnosticsAvailable
         fm_fallback_frames = $reportedFallbackFrames
         fm_fallback_percent = $fallbackPercent
