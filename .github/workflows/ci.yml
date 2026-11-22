@@ -122,7 +122,6 @@ jobs:
               - '!native/sg1000_core/src/input.rs'
               - '!native/sms_core/src/input.rs'
               - '!native/audio_output/**'
-              - '!native/sms_debugger/**'
               - '!rust/runtime/sms-runtime/**'
             z80:
               - 'native/z80_cpu/**'
@@ -190,7 +189,6 @@ jobs:
               - 'native/sg1000_core/src/temporal*.rs'
             tooling:
               - 'scripts/**/*.ps1'
-              - 'atualizar_recompilar_sega_emulator.ps1'
             ym2413_dac_audit:
               - 'tools/ym2413-dac-capture-audit/**'
             sms_pacing:
