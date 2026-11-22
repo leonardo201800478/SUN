@@ -95,7 +95,6 @@ impl PcmSink for RecordingSink {
 #[derive(Debug, Default)]
 struct FmSourceCapture {
     dual_source_blocks: u64,
-    single_source_blocks: u64,
     psg_samples: u64,
     fm_samples: u64,
     fm_nonzero_samples: u64,
@@ -116,7 +115,6 @@ impl CapturingAudioSession {
             .map_err(|_| "FM source capture mutex was poisoned".to_owned())?;
 
         if sources.len() < 2 {
-            capture.single_source_blocks = capture.single_source_blocks.saturating_add(1);
             return Ok(());
         }
 
