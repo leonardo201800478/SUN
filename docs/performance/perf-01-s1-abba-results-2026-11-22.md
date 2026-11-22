@@ -70,13 +70,42 @@ No cenário C, `audio_prepare` p99 médio foi 1,316 ms, com média de 0,091 ms; 
 4. **O resultado não atende aos gates de desempenho.** O cenário C alcançou 56,7438 FPS de throughput headless, abaixo de 60 FPS em tempo real e muito abaixo da meta PERF-01 de 120 frames/s uncapped/headless com FM ativo.
 5. O diagnóstico registra que `Ym2413Core::advance_input_clocks_with_pg_service_in_place` é o caminho integrado. A autoridade temporal deve permanecer no MachineScheduler/barramento; não criar thread de clock FM independente.
 
-## Próxima ação técnica
+## Próxima ação técnica — PERF-01 transversal
 
-- Manter `release-llvm` como perfil candidato opt-in; não trocar o perfil padrão `release` ainda.
-- Investigar o caminho serial YM2413 por função, começando por `SmsTemporalBus::advance_ym2413_inner`, `Ym2413Core::clock_one_slot_with_service`, `Ym2413PgSerialService::before_eg_update` e `after_eg_update`.
-- Examinar o trabalho repetido de dispatch/decodificação por slot e o custo do pipeline PG/operador/EG. Qualquer remoção de cálculo ou cópia deve preservar a ordem serial e os testes diferenciais.
-- Não mexer no mixer, não adicionar SIMD/fast-math e não alterar a causalidade temporal sem evidência.
-- Nenhum novo teste local Windows será solicitado nesta fase. Validar alterações por testes focados e CI; declarar limitações onde a medição física não puder ser repetida.
+O YM2413 é um hotspot relevante nesta configuração, mas não define sozinho a estratégia de desempenho do SUN. A próxima etapa deve construir um perfil comparável do caminho completo de emulação e do frontend, priorizando pelo custo agregado e pela frequência real de execução, não por preferência por um componente.
+
+### Matriz de profiling
+
+| Domínio | O que medir | Exemplos de candidatos (não defeitos presumidos) |
+|---|---|---|
+| Z80 | custo por instrução/M-cycle, dispatch, fetch/decode, WAIT/IRQ e tempo agregado por frame | dispatch de opcode/prefixo, acesso ao barramento e caminhos quentes |
+| MachineScheduler e barramentos | custo por evento, conversões de clock, dispatch, sincronização e tempo de espera | trabalho repetido, chamadas indiretas e eventos sem efeito observável |
+| VDP e vídeo | tempo de renderização, atualização de registradores, framebuffer, cópias, conversão RGB/RGBA e upload WGPU | alocações/cópias por frame e publicação de textura |
+| PSG e YM2413 | custo de avanço por frame/slot, geração de amostras e integração temporal | custo de síntese e trabalho repetido; preservar serialidade e causalidade |
+| Audio runtime | preparo/mixagem, resampler, buffers, conversões, FIFO e callback CPAL | alocações por bloco, cópias, underruns/overruns e ocupação da fila |
+| Memória e dados | alocações, clones, cópias, acessos e pressão de cache nos hot paths | buffers temporários e estruturas recriadas a cada frame |
+| Frontend Slint/WGPU | frame time de apresentação, conversão/upload, sincronização e espera da GPU | cópias CPU→GPU, bloqueios e composição |
+| Integração completa | tempo de frame end-to-end, pacing, estabilidade e interação áudio/vídeo | contenção e custos que não aparecem no benchmark headless |
+
+### Sequência de trabalho
+
+1. Preservar o ABBA Release × ThinLTO como evidência de ganho de compilação geral. `release-llvm` continua opt-in até os gates globais; não alterar o perfil padrão por causa de uma única ROM.
+2. Consolidar a instrumentação existente (`step_frame_elapsed_ns`, `frame_processing_elapsed_ns`, `ym2413_advance_elapsed_ns`, `audio_prepare_elapsed_ns`, `audio_submit_elapsed_ns` e `video_publish_elapsed_ns`) e identificar os trechos ainda sem atribuição.
+3. Produzir baseline por workload: OutRun, Kenseiden e Phantasy Star, com ROM/configuração/SHA registrados. Comparar execução headless sem pacing com a execução integrada Slint/WGPU/CPAL; não misturar as métricas.
+4. Usar ETW/WPA ou profiling equivalente para atribuição por função nos componentes dominantes. Instrumentação diagnóstica e throughput principal devem permanecer em campanhas separadas.
+5. Ordenar hotspots por custo total estimado por frame (tempo médio × frequência), p95/p99 e impacto nos jogos. Otimizar primeiro o maior custo comprovado, seja Z80, Scheduler, VDP, áudio, memória ou host.
+6. Para cada otimização, registrar hipótese, custo antes/depois, ganho em jogo real, testes diferenciais e regressões. Preservar estados, M-cycles/T-states, WAIT/IRQ, ordem causal, fidelidade audiovisual e determinismo.
+7. Só avaliar PGO/SIMD explícito quando a matriz identificar código adequado. SIMD deve ter fallback escalar e equivalência testada; não vetorizar sequências temporais dependentes.
+
+### Metas e gates que não devem ser confundidos
+
+- **Throughput do runtime:** meta PERF-01 de pelo menos 120 frames/s uncapped/headless em OutRun com FM ativo.
+- **Produto integrado:** manter 60 FPS estáveis, com orçamento de 16,67 ms por frame, sem underruns recorrentes nem degradação de áudio/vídeo.
+- **Correção:** nenhuma otimização pode alterar semântica de hardware, ordem temporal, resultados de registradores ou determinismo para ganhar FPS.
+
+O resultado atual de 56,7438 FPS em C é uma referência inicial para o runtime headless, não um diagnóstico global nem evidência de que o YM2413 deva ser o único próximo alvo.
+
+O perfil `release-llvm` permanece candidato opt-in. Não alterar o perfil padrão `release` até avaliação da matriz completa. Nenhum novo teste local Windows será solicitado nesta fase; as alterações devem ser validadas com testes focados e CI, e limitações de medição física devem ser declaradas.
 
 ## Limitações
 
