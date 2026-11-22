@@ -5,6 +5,8 @@ import unittest
 from compare_volume_capture import (
     candidate_bin_from_channel_output,
     candidate_bin_from_output_pin,
+    local_phase_alignment,
+    residual_profile,
     score_alignment,
     select_sample_cycle,
 )
@@ -70,6 +72,24 @@ class AlignmentTests(unittest.TestCase):
         )
         self.assertEqual(result["full_exact_matches"], 0)
         self.assertGreater(result["mean_absolute_error"], 0)
+
+    def test_residual_profile_detects_a_monotonic_offset_mapping(self) -> None:
+        measured = [101, 102, 104, 105]
+        model = [100, 101, 103, 104]
+        result = residual_profile(measured, model, 0)
+        self.assertEqual(result["median_signed_error"], 1)
+        self.assertEqual(result["empirical_mapping_monotonicity_violations"], 0)
+
+    def test_local_phase_alignment_finds_window_offset(self) -> None:
+        measured = [2, 3, 4, 5, 6, 7, 8, 9]
+        model = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        windows = local_phase_alignment(
+            measured, model, 0, window_size=4, search_radius=2
+        )
+        self.assertEqual(
+            [window["phase_delta_from_global"] for window in windows],
+            [1, 1],
+        )
 
 
 if __name__ == "__main__":
