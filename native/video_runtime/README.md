@@ -6,7 +6,6 @@ This crate defines the immutable frame contract used by the SMS runtime and desk
 
 - `VideoFrame` owns immutable pixel storage and carries dimensions, pixel format, stride and sequence.
 - `FrameMailbox` is a single-slot latest-frame mailbox. A newer completed frame may replace an older frame not yet consumed by the host.
-- `FrameQueue` is a bounded FIFO for consumers that must preserve every accepted frame.
 
 The active desktop presentation path is Slint 1.18 with WGPU 30 and Vulkan on Windows x64. The GUI consumes completed frames; it never advances the emulated machine or the MachineScheduler.
 
