@@ -261,6 +261,8 @@ The 16 `volume*.raw` / `volume*.out` pairs were compared at the same sample inde
 | 12 | 20,031 | 20,032 | 2,424 | 16,395 |
 | 14 | 20,032 | 20,030 | 594 | 11,739 |
 
-The 13 clean pairs support deterministic sample-index correspondence within those files. The three failed pairs must be treated as unaligned or from differing capture/calibration generations; the repository does not identify which. The clean pairs cover calibrated bin indices 74..437, not the full 0..511 range. Although `volume0.out` spans 0..511, its `.raw` partner fails pairing, so it cannot be used to reconstruct the full calibration boundaries.
+The three apparent pairing failures are resolved by file-sequence offsets: volume0=-2, volume12=+1 and volume14=-2 (pairing `raw[i]` with `out[i+offset]`). The other 13 files use offset 0. After alignment, all 16 pairs are monotonic and have zero repeated-ADC-code mapping conflicts. These are data-file offsets only, not hardware timing offsets.
 
-This is a data-provenance limitation, not evidence of a YM2413 runtime defect. Do not use the mismatched pairs to train or validate an operator-to-DAC conversion.
+Across 320,635 paired samples, 511 of 512 bins are observed (0..511 except bin 57). The observations constrain 509 adjacent-bin boundaries with no contradictions; 147 boundaries are exact, while the remaining intervals have p50 width 32 ADC codes, p90 84, p99 92 and maximum 157. The two boundaries adjacent to missing bin 57 remain unconstrained. The machine-readable intervals are stored in `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`.
+
+This is a near-complete constraint reconstruction of the historical ADC-bin table, not the original calibration file. Most boundaries are intervals rather than exact values, and no raw 9-bit DAC word is exposed. It is useful evidence for analog output-level analysis, not proof of the operator-to-DAC conversion.
