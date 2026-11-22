@@ -946,6 +946,9 @@ struct AudioRendererState {
     transition_samples: Vec<f64>,
     transition_fm_samples: Vec<f64>,
     fm_resampler: Option<PcmResampler>,
+    /// Reusable per-frame source buffers; no per-frame PCM Vec allocation.
+    frame_psg_samples: Vec<f64>,
+    frame_fm_samples: Vec<Option<f64>>,
     /// Reusable conversion buffers for the YM2413-to-48 kHz path.
     fm_input_samples: Vec<f64>,
     fm_resampled_samples: Vec<f64>,
@@ -967,6 +970,8 @@ impl Default for AudioRendererState {
             transition_samples: Vec::with_capacity(2_048),
             transition_fm_samples: Vec::with_capacity(2_048),
             fm_resampler: None,
+            frame_psg_samples: Vec::with_capacity(2_048),
+            frame_fm_samples: Vec::with_capacity(2_048),
             fm_input_samples: Vec::with_capacity(2_048),
             fm_resampled_samples: Vec::with_capacity(2_048),
             pending_psg_samples: VecDeque::new(),
@@ -2448,9 +2453,8 @@ fn execute_frame_with_renderer(
     previous_deadline: Option<Instant>,
 ) -> Result<(usize, Option<Instant>, bool), String> {
     let frame_started = Instant::now();
-    machine.set_fm_audio_capture_enabled(
-        audio_renderer.fm_output_policy != SmsFmOutputPolicy::Muted,
-    );
+    machine
+        .set_fm_audio_capture_enabled(audio_renderer.fm_output_policy != SmsFmOutputPolicy::Muted);
     let diagnostics_enabled = telemetry.diagnostics_enabled();
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
@@ -2536,15 +2540,17 @@ fn execute_frame_with_renderer(
 
     // Keep the legacy PSG FIFO bounded in both modes. H2 consumes events from
     // this same Scheduler-driven PSG instance; it never runs a second PSG.
-    let psg_samples = machine.drain_audio_samples(None);
-    let fm_samples = if machine.ym2413().is_some()
+    machine.drain_audio_samples_into(&mut audio_renderer.frame_psg_samples, None);
+    if machine.ym2413().is_some()
         && audio_renderer.fm_output_policy == SmsFmOutputPolicy::Muted
     {
         machine.discard_fm_audio_samples();
-        Vec::new()
+        audio_renderer.frame_fm_samples.clear();
     } else {
-        machine.drain_fm_audio_samples(None)
-    };
+        machine.drain_fm_audio_samples_into(&mut audio_renderer.frame_fm_samples, None);
+    }
+    let psg_samples = audio_renderer.frame_psg_samples.as_slice();
+    let fm_samples = audio_renderer.frame_fm_samples.as_slice();
     let mut use_h2 = false;
     if audio_renderer.mode == AudioRendererMode::H2Experimental {
         machine.drain_psg_amplitude_events(&mut audio_renderer.events);
