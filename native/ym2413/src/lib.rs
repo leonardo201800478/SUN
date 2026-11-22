@@ -625,11 +625,11 @@ impl Ym2413Core {
             .begin_slot()
             .map_err(slot_service::Ym2413SlotServiceAdvanceError::Core)?;
 
-        let envelope_state = self.envelope.export_state();
+        let eg_dokon = self.envelope.eg_dokon();
         let event = nuked_slot_service_event_with_testmode(
             cycle,
             self.rm_enable as u8,
-            envelope_state.eg_dokon,
+            eg_dokon,
             self.registers[0x0f],
         )
         .ok_or(slot_service::Ym2413SlotServiceAdvanceError::Core(
@@ -639,7 +639,7 @@ impl Ym2413Core {
             event,
             registers: self.registers,
             envelope_input: input,
-            envelope_state,
+            envelope_levels: self.envelope.operator_levels(),
             rm_enable: self.rm_enable as u8,
             rm_select: self.rm_select,
         };
@@ -654,7 +654,7 @@ impl Ym2413Core {
             .map_err(|error| slot_service::Ym2413SlotServiceAdvanceError::Core(error.into()))?;
 
         service
-            .after_eg_update(&context, tick, self.envelope.export_state())
+            .after_eg_update(&context, tick)
             .map_err(slot_service::Ym2413SlotServiceAdvanceError::Service)?;
 
         // The ordinary timed write stage remains last, after both service
@@ -816,7 +816,7 @@ impl Ym2413Core {
 #[cfg(test)]
 mod tests {
     use super::{
-        EnvelopeSequencerState, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
+        EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
         YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT,
         YM2413_SLOT_MAP, Ym2413Core, Ym2413Error, Ym2413State, nuked_phase_reset_required,
         slot_service::{
@@ -1090,7 +1090,7 @@ mod tests {
     struct RecordingSlotService {
         order: Vec<(bool, u8)>,
         before: Vec<Ym2413SlotServiceContext>,
-        after: Vec<(u8, u8, u8, u8, u8, u8)>,
+        after: Vec<EnvelopeSequencerTick>,
     }
 
     impl Ym2413SlotService for RecordingSlotService {
@@ -1109,18 +1109,9 @@ mod tests {
             &mut self,
             context: &Ym2413SlotServiceContext,
             tick: EnvelopeSequencerTick,
-            post_state: EnvelopeSequencerState,
         ) -> Result<(), Self::Error> {
             self.order.push((false, context.event.cycle));
-            let post_operator = post_state.operators[usize::from(tick.operator_slot)];
-            self.after.push((
-                context.event.cycle,
-                tick.operator_slot,
-                tick.operator.level,
-                post_operator.level,
-                (tick.eg_dokon & 0xff) as u8,
-                (post_state.eg_dokon & 0xff) as u8,
-            ));
+            self.after.push(tick);
             Ok(())
         }
     }
@@ -1142,26 +1133,29 @@ mod tests {
         assert_eq!(service.after.len(), YM2413_SLOT_COUNT);
         assert_eq!(service.order.len(), YM2413_SLOT_COUNT * 2);
 
+        let mut expected_eg = EnvelopeSequencer::new();
         for cycle in 0..YM2413_SLOT_COUNT as u8 {
             let before = service.before[usize::from(cycle)];
             let after = service.after[usize::from(cycle)];
+            let expected_tick = expected_eg
+                .tick_slot(cycle, before.envelope_input)
+                .unwrap();
+            assert_eq!(after, expected_tick);
             assert_eq!(before.event.cycle, cycle);
             assert_eq!(
                 before.envelope_input.rhythm_bits,
                 before.registers[0x0e] & 0x3f
             );
             assert!(before.rm_select <= 6);
-            assert_eq!(after.0, cycle);
-            assert_eq!(after.1, before.event.eg_update_index);
-            assert_eq!(after.2, after.3);
-            assert_eq!(after.4, after.5);
+            assert_eq!(after.cycle, cycle);
+            assert_eq!(after.operator_slot, before.event.eg_update_index);
             assert_eq!(
                 before.event.selected_operator.channel,
                 YM2413_EG_CYCLE_CHANNELS[usize::from(cycle)]
             );
             assert_eq!(
                 before.event.phase_reset_required,
-                nuked_phase_reset_required(cycle, before.rm_enable, before.envelope_state.eg_dokon)
+                nuked_phase_reset_required(cycle, before.rm_enable, before.event.eg_dokon)
                     .unwrap()
             );
             assert_eq!(service.order[usize::from(cycle) * 2], (true, cycle));
@@ -1233,7 +1227,6 @@ mod tests {
                 &mut self,
                 context: &Ym2413SlotServiceContext,
                 _tick: EnvelopeSequencerTick,
-                _post_state: EnvelopeSequencerState,
             ) -> Result<(), Self::Error> {
                 self.after_count += 1;
                 self.history.push((context.event.cycle, true));
