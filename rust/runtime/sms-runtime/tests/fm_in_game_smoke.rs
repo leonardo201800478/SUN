@@ -10,7 +10,11 @@
 //!   $env:SEGA_SMS_FM_TEST_REGION = "japan"
 //!   $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1" # sms1|sms2
 //!   $env:SEGA_SMS_FM_TEST_FRAMES = "1800" # optional; default 1800
-//!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke -- --ignored --nocapture
+//!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
+//!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns -- --ignored --nocapture
+//!
+//! The first test uses a deterministic headless sink. The second opens the default
+//! CPAL output device and plays the real game audio while reporting underruns.
 //!
 //! ROM files are read in place and are never copied into the repository.
 
