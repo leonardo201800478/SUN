@@ -2,10 +2,27 @@ name: YM2413 Nuked EG characterization
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
     paths:
-      - "tools/ym2413-nuked-oracle/**"
-      - "native/ym2413/**"
+      - "tools/ym2413-nuked-oracle/trace.c"
+      - "tools/ym2413-nuked-oracle/validate_eg_trace.py"
+      - "tools/ym2413-nuked-oracle/extract_eg_sequencer_samples.py"
+      - "tools/ym2413-nuked-oracle/extract_eg_control_samples.py"
+      - "tools/ym2413-nuked-oracle/extract_eg_samples.py"
+      - "tools/ym2413-nuked-oracle/extract_eg_timer_samples.py"
+      - "tools/ym2413-nuked-oracle/compare_eg.py"
+      - "tools/ym2413-nuked-oracle/analyze_eg_pipeline.py"
+      - "tools/ym2413-nuked-oracle/generate_eg_rate_sweep_fixtures.py"
+      - "tools/ym2413-nuked-oracle/summarize_eg_rate_sweep.py"
+      - "tools/ym2413-nuked-oracle/fixtures/eg-*.csv"
+      - "native/ym2413/Cargo.toml"
+      - "native/ym2413/src/lib.rs"
+      - "native/ym2413/src/envelope.rs"
+      - "native/ym2413/src/envelope_operator.rs"
+      - "native/ym2413/src/envelope_sequencer.rs"
+      - "native/ym2413/src/envelope_timer.rs"
+      - "native/ym2413/src/key_scale.rs"
+      - "native/ym2413/examples/eg_*.rs"
       - ".github/workflows/ym2413-eg-characterization.yml"
   workflow_dispatch:
 
