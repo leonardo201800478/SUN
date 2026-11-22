@@ -2169,3 +2169,8 @@ A PR #1178 foi integrada à main. Além da auditoria dos 16 arquivos `volume*.ra
 A comparação inicial entre `volume0.out` e o `decode.cc` atual misturava gerações diferentes do decodificador. Os arquivos foram adicionados em 2015-03-11 com um decodificador simples ADC→bin; o processamento posterior de média e seleção de canais foi introduzido em 2015-04-11, 2015-12-17 e 2019-12-31. A proveniência histórica está documentada no relatório de capturas públicas e no dossiê DAC.
 
 Isso fortalece a evidência da resposta analógica por nível de volume, mas não revela a palavra binária do DAC nem autoriza ligar `channel_output` ao `Ym2413DacCode` no runtime. O artefato `calibrate.raw` e os limites originais `.peaks/.bins` continuam ausentes; a conversão física e a fase subclock permanecem bloqueadas.
+
+
+### Limite adicional dos pares públicos raw/output
+
+A auditoria sample-index de `volume*.raw` contra `volume*.out` confirmou correspondência monotônica em 13 pares (volumes 1–11, 13 e 15), mas falhou em volumes 0, 12 e 14. Os pares válidos cobrem apenas bins 74..437; o único `.out` que cobre 0..511 (volume0.out) não se alinha ao seu `.raw`. Portanto, os arquivos públicos não permitem reconstruir a tabela completa de 512 limites de calibração. A tabela de atenuação continua válida como estatística dos `.out`, mas não como correlação amostra-a-amostra para os três pares inconsistentes.
