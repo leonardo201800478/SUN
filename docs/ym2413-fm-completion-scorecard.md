@@ -11,6 +11,7 @@ HEAD da main: `7ba2d59dc9efdb24deb15171ec560df05cbfab6a`.
 - PR #1188 permanece aberta, com base antiga e sobreposição de escopo com a campanha mais recente #1193; não integrar duplicadamente.
 - PR #1192 (comparador externo) e #1193 (diagnóstico de escritas FM + smoke test ROM real) permanecem abertas. Os workflows reportaram sucesso, mas a proteção da branch exige o check `Rust quality and unit regression`, que foi reportado como `expected` na tentativa de merge de #1193.
 - PR #1202 (buffer PCM reutilizável e CPAL por referência) tem SMS Runtime, CPAL Windows e PSG/audio-runtime CI aprovados. O merge também foi recusado porque o mesmo check obrigatório foi considerado `expected`; rerun do job agregador solicitado. Não contornar branch protection.
+- PR #1205 (métricas FM por frame, amostras inválidas e fallback seguro) aberta; CI pendente.
 
 ### Estado funcional e desempenho
 
