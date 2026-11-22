@@ -59,8 +59,8 @@ The tool aggregates the observed ADC minimum/maximum for each calibrated bin and
 Run against the pinned upstream capture directory:
 
 ```sh
-python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \\
-  --capture-dir /path/to/andete/ym2413/analyze/volume \\
+python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \
+  --capture-dir /path/to/andete/ym2413/analyze/volume \
   --output volume-bin-observations.json
 ```
 
