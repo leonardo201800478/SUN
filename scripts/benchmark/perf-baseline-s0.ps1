@@ -15,7 +15,7 @@ param(
     [ValidateRange(1, 300)]
     [int]$DiagnosticSeconds = 5,
 
-    [ValidateSet("release", "release-llvm")]
+    [ValidateSet("release", "release-llvm", "release-llvm-debug")]
     [string]$CargoProfile = "release",
 
     # Optional shared Cargo target directory for repeated benchmark campaigns.
@@ -80,6 +80,7 @@ $csvPath = Join-Path $outputRoot "outrun-a-b-c.csv"
 $logPath = Join-Path $outputRoot "benchmark.log"
 $manifestPath = Join-Path $outputRoot "manifest.json"
 $etlPath = Join-Path $outputRoot "cpu-profile.etl"
+$buildLogPath = Join-Path $outputRoot "build.log"
 
 $envNames = @(
     "SEGA_PERF_ROM_PATH",
@@ -104,6 +105,10 @@ New-Item -ItemType Directory -Path $cargoTargetDir -Force | Out-Null
 $wprStarted = $false
 $exitCode = 1
 try {
+    if ($CaptureCpuProfile -and $CargoProfile -ne "release-llvm-debug") {
+        throw "Use -CargoProfile release-llvm-debug with -CaptureCpuProfile to retain symbols for function-level attribution."
+    }
+
     $env:SEGA_PERF_ROM_PATH = $rom.FullName
     $env:SEGA_PERF_WARMUP_SECS = [string]$WarmupSeconds
     $env:SEGA_PERF_CAPTURE_SECS = [string]$CaptureSeconds
@@ -111,19 +116,32 @@ try {
     $env:SEGA_PERF_OUTPUT_CSV = $csvPath
     $env:CARGO_TARGET_DIR = $cargoTargetDir
 
-    if ($CaptureCpuProfile) {
-        if (-not (Get-Command wpr -ErrorAction SilentlyContinue)) {
-            throw "Windows Performance Recorder (wpr.exe) não foi encontrado."
-        }
-        & wpr -start CPU -filemode
-        if ($LASTEXITCODE -ne 0) {
-            throw "WPR não iniciou o perfil CPU. Execute o PowerShell elevado e tente novamente."
-        }
-        $wprStarted = $true
-    }
-
     Push-Location $repoRoot
     try {
+        # Compile the exact test target before WPR starts. Otherwise a fresh
+        # Cargo target directory makes rustc/LLVM/linker samples contaminate
+        # the emulator CPU profile.
+        & cargo test --profile $CargoProfile --locked --target x86_64-pc-windows-msvc -vv -p sega-sms-runtime --test perf_baseline --no-run 2>&1 |
+            Tee-Object -FilePath $buildLogPath |
+            Out-Host
+        $buildExitCode = $LASTEXITCODE
+        if ($buildExitCode -ne 0) {
+            throw "A compilação prévia do benchmark falhou. Consulte $buildLogPath"
+        }
+
+        if ($CaptureCpuProfile) {
+            if (-not (Get-Command wpr -ErrorAction SilentlyContinue)) {
+                throw "Windows Performance Recorder (wpr.exe) não foi encontrado."
+            }
+            & wpr -start CPU -filemode
+            if ($LASTEXITCODE -ne 0) {
+                throw "WPR não iniciou o perfil CPU. Execute o PowerShell elevado e tente novamente."
+            }
+            $wprStarted = $true
+        }
+
+        # The target is already built; this invocation runs the benchmark
+        # without compiling Rust code inside the ETW sampling window.
         & cargo test --profile $CargoProfile --locked --target x86_64-pc-windows-msvc -vv -p sega-sms-runtime --test perf_baseline outrun_a_b_c_uncapped_baseline -- --ignored --nocapture 2>&1 |
             Tee-Object -FilePath $logPath |
             Out-Host
@@ -189,6 +207,9 @@ $manifest = [ordered]@{
     }
     cpu_profile_requested = [bool]$CaptureCpuProfile
     cpu_profile_path = if ($CaptureCpuProfile) { $etlPath } else { $null }
+    cpu_profile_symbolized = ($CaptureCpuProfile -and $CargoProfile -eq "release-llvm-debug")
+    throughput_profile_is_diagnostic = ($CargoProfile -eq "release-llvm-debug")
+    build_log_path = $buildLogPath
     exit_code = $exitCode
 }
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -197,6 +218,7 @@ Write-Host ""
 Write-Host "PERF-01/S0 artifacts:" -ForegroundColor Cyan
 Write-Host "  Manifest: $manifestPath"
 Write-Host "  CSV:      $csvPath"
+Write-Host "  Build:    $buildLogPath"
 Write-Host "  Log:      $logPath"
 if ($CaptureCpuProfile) {
     Write-Host "  CPU ETL:  $etlPath"
