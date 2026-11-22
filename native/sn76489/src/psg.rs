@@ -488,21 +488,31 @@ impl Sn76489Core {
         self.advance_clocks_inner(clocks, false);
     }
 
-    pub fn drain_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+    /// Drain generated samples into a caller-owned buffer, retaining its allocation.
+    pub fn drain_samples_into(&mut self, output: &mut Vec<f64>, max_samples: Option<usize>) {
+        output.clear();
         let available_samples = self.pending_samples.len();
         let count = max_samples
             .unwrap_or(available_samples)
             .min(available_samples);
-        let samples = (0..count)
-            .filter_map(|_| self.pending_samples.pop_front())
-            .collect::<Vec<_>>();
+        output.reserve(count.saturating_sub(output.capacity()));
+        for _ in 0..count {
+            if let Some(sample) = self.pending_samples.pop_front() {
+                output.push(sample);
+            }
+        }
         sega_observability::tracing::trace!(
             target: "sega::psg",
             available_samples,
-            drained_samples = samples.len(),
+            drained_samples = output.len(),
             remaining_samples = self.pending_samples.len(),
             "SN76489 sample queue drained"
         );
+    }
+
+    pub fn drain_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+        let mut samples = Vec::new();
+        self.drain_samples_into(&mut samples, max_samples);
         samples
     }
 
