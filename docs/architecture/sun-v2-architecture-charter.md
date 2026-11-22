@@ -1,6 +1,6 @@
 # SUN V2 — Architecture Charter
 
-- **Status:** PROPOSED — execution direction approved by project owner; becomes normative after PR merge.
+- **Status:** PROPOSED — the owner has approved the F2/F3 and performance-target decisions; the broader charter remains subject to reconciliation and review.
 - **Created:** 2026-11-22.
 - **Repository baseline:** `main` at `30420fde1510d84834ed4e776f1a1bd1a5503b78`.
 - **Scope:** architecture, engineering constraints and delivery gates for the Sega 8-bit family, then Mega Drive, Sega CD and 32X.
