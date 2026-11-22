@@ -129,8 +129,9 @@ impl CapturingAudioSession {
             .lock()
             .map_err(|_| "FM source capture mutex was poisoned".to_owned())?;
         capture.single_source_blocks = capture.single_source_blocks.saturating_add(1);
-        capture.single_source_samples =
-            capture.single_source_samples.saturating_add(samples.len() as u64);
+        capture.single_source_samples = capture
+            .single_source_samples
+            .saturating_add(samples.len() as u64);
         capture.single_source_samples_f64.extend_from_slice(samples);
         Ok(())
     }
@@ -285,7 +286,11 @@ fn write_wav_f32(path: &Path, samples: &[f64], sample_rate: u32) -> Result<(), S
         .and_then(|_| file.write_all(&data_len.to_le_bytes()))
         .map_err(|error| format!("{}: {error}", path.display()))?;
     for &sample in samples {
-        let value = if sample.is_finite() { sample as f32 } else { 0.0 };
+        let value = if sample.is_finite() {
+            sample as f32
+        } else {
+            0.0
+        };
         file.write_all(&value.to_le_bytes())
             .map_err(|error| format!("{}: {error}", path.display()))?;
     }
@@ -509,12 +514,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             &sources.single_source_samples_f64,
             &pcm.samples_f64,
         )
-        .unwrap_or_else(|error| {
-            panic!(
-                "{}: cannot write diagnostic WAV: {error}",
-                path.display()
-            )
-        });
+        .unwrap_or_else(|error| panic!("{}: cannot write diagnostic WAV: {error}", path.display()));
 
         assert!(
             fm_bus_writes.address_writes > 0 && fm_bus_writes.data_writes > 0,
@@ -592,7 +592,10 @@ fn diagnostic_wav_writer_preserves_ieee_float_samples_without_normalization() {
     assert_eq!(&bytes[8..12], b"WAVE");
     assert_eq!(u16::from_le_bytes([bytes[20], bytes[21]]), 3); // IEEE float
     assert_eq!(u16::from_le_bytes([bytes[22], bytes[23]]), 1); // mono
-    assert_eq!(u32::from_le_bytes(bytes[24..28].try_into().unwrap()), 48_000);
+    assert_eq!(
+        u32::from_le_bytes(bytes[24..28].try_into().unwrap()),
+        48_000
+    );
     assert_eq!(u16::from_le_bytes([bytes[34], bytes[35]]), 32);
     assert_eq!(f32::from_le_bytes(bytes[44..48].try_into().unwrap()), 0.25);
     assert_eq!(f32::from_le_bytes(bytes[48..52].try_into().unwrap()), -0.5);
