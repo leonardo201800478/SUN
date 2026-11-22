@@ -3053,4 +3053,45 @@ mod temporal_vdp_tests {
         );
         assert_ne!(valid_th1_bus.vdp().read_h_counter(), 0);
     }
+    #[test]
+    fn japanese_fm_port_counters_track_completed_address_data_and_control_writes() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            super::DEFAULT_SMS_PSG_CLOCK_HZ,
+            super::DEFAULT_AUDIO_SAMPLE_RATE,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            super::Territory::Japan,
+        )
+        .unwrap();
+
+        transact(
+            &mut bus,
+            1,
+            Z80BusOperation::PortWrite { value: 0x20 },
+            0x00F0,
+        );
+        transact(
+            &mut bus,
+            2,
+            Z80BusOperation::PortWrite { value: 0x7F },
+            0x00F1,
+        );
+        transact(
+            &mut bus,
+            3,
+            Z80BusOperation::PortWrite { value: 0x03 },
+            0x00F2,
+        );
+
+        let writes = bus.fm_port_write_snapshot();
+        assert_eq!(writes.address_writes, 1);
+        assert_eq!(writes.data_writes, 1);
+        assert_eq!(writes.control_writes, 1);
+        assert_eq!(writes.last_address, Some(0x20));
+        assert_eq!(writes.last_control, Some(0x03));
+        assert_eq!(writes.register_writes[0x20], 1);
+        assert_eq!(writes.last_register_values[0x20], Some(0x7F));
+    }
+
 }
