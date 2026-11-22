@@ -168,6 +168,7 @@ fn outrun_single_scenario_cpu_profile() {
             Ok(Box::new(session) as Box<dyn AudioSession>)
         })
         .expect("configure headless native audio");
+    worker.set_diagnostics_enabled(false);
     worker
         .set_frame_pacing_enabled(false)
         .expect("disable host pacing");
