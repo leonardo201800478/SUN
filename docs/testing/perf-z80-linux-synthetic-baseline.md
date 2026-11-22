@@ -58,8 +58,10 @@ the raw output as a 14-day artifact.
 
 ## Initial CI evidence — 2026-11-22
 
-Revision: `2f9c42146ee8c0390f7e4e179dd05a2da8f3fb26`  
-Workflow run: [45057308059](https://github.com/leonardo201800478/SUN/actions/runs/45057308059)  
+Revision: `2f9c42146ee8c0390f7e4e179dd05a2da8f3fb26`
+
+Workflow run: [45057308059](https://github.com/leonardo201800478/SUN/actions/runs/45057308059)
+
 Runner: `ubuntu-24.04`; pinned compiler: Rust 1.99.1.
 
 | ABBA block | Profile | Median ms/frame | Median FPS |
