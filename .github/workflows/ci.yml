@@ -574,10 +574,10 @@ jobs:
           test "$(git -C "$RUNNER_TEMP/andete-ym2413" rev-parse HEAD)" = "$ANDETE_SHA"
       - name: Reproduce paired volume ADC-bin boundary observations
         run: |
-          python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \\
-            --capture-dir "$RUNNER_TEMP/andete-ym2413/analyze/volume" \\
+          python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \
+            --capture-dir "$RUNNER_TEMP/andete-ym2413/analyze/volume" \
             --output "$RUNNER_TEMP/ym2413-volume-bin-observations.json"
-          cmp "$RUNNER_TEMP/ym2413-volume-bin-observations.json" \\
+          cmp "$RUNNER_TEMP/ym2413-volume-bin-observations.json" \
             docs/audits/ym2413-volume-bin-observations-2026-11-22.json
 
   docs-format:
