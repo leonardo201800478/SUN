@@ -1,7 +1,7 @@
 # Jogos Sega Master System com suporte ao FM (YM2413)
 
-**Registro:** 2026-11-22  
-**Origem:** relação de compatibilidade fornecida pelo mantenedor do projeto SUN.  
+**Registro:** 2026-11-22
+**Origem:** relação de compatibilidade fornecida pelo mantenedor do projeto SUN.
 **Escopo:** versões japonesas de jogos para Sega Master System com suporte ao áudio FM do YM2413.
 
 Esta relação deve orientar a seleção de ROMs para validação de áudio FM real no SUN. A presença de um título nesta lista indica suporte FM na versão/edição indicada pela classificação; não substitui a verificação da revisão exata da ROM, da região, da placa FM e da execução efetiva das rotinas de inicialização do chip.
