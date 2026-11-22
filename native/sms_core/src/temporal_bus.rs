@@ -1157,11 +1157,7 @@ impl SmsTemporalBus {
 
     /// Drain PSG PCM captured at scheduler dispatch boundaries with the F2 gate applied.
     /// Drain PSG samples into a reusable caller-owned buffer.
-    pub fn drain_audio_samples_into(
-        &mut self,
-        output: &mut Vec<f64>,
-        max_samples: Option<usize>,
-    ) {
+    pub fn drain_audio_samples_into(&mut self, output: &mut Vec<f64>, max_samples: Option<usize>) {
         output.clear();
         if self.ym2413.is_none() {
             self.psg.core_mut().drain_samples_into(output, max_samples);
@@ -1669,7 +1665,11 @@ mod tests {
 
         advance_internal_cycle(&mut bus, 122, 72);
         let samples = bus.drain_fm_audio_samples(None);
-        assert_eq!(samples.len(), 1, "capture resumes on the next full rotation");
+        assert_eq!(
+            samples.len(),
+            1,
+            "capture resumes on the next full rotation"
+        );
         assert!(samples.iter().flatten().all(|sample| sample.is_finite()));
     }
 
