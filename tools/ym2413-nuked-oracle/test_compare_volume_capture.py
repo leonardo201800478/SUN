@@ -3,24 +3,35 @@ from __future__ import annotations
 import unittest
 
 from compare_volume_capture import (
-    candidate_bin_from_output,
+    candidate_bin_from_channel_output,
+    candidate_bin_from_output_pin,
     score_alignment,
     select_sample_cycle,
 )
 
 
 class CandidateMappingTests(unittest.TestCase):
-    def test_candidate_bin_preserves_both_zero_codes(self) -> None:
-        self.assertEqual(candidate_bin_from_output(255), 0)
-        self.assertEqual(candidate_bin_from_output(0), 255)
-        self.assertEqual(candidate_bin_from_output(-1), 256)
-        self.assertEqual(candidate_bin_from_output(-256), 511)
+    def test_channel_output_mapping_preserves_the_signed_domain(self) -> None:
+        self.assertEqual(candidate_bin_from_channel_output(255), 0)
+        self.assertEqual(candidate_bin_from_channel_output(0), 255)
+        self.assertEqual(candidate_bin_from_channel_output(-1), 256)
+        self.assertEqual(candidate_bin_from_channel_output(-256), 511)
 
-    def test_rejects_output_outside_nine_bit_signed_domain(self) -> None:
+    def test_mo_pin_mapping_accounts_for_positive_offset(self) -> None:
+        self.assertEqual(candidate_bin_from_output_pin(256), 0)
+        self.assertEqual(candidate_bin_from_output_pin(1), 255)
+        self.assertEqual(candidate_bin_from_output_pin(-1), 256)
+        self.assertEqual(candidate_bin_from_output_pin(-256), 511)
+
+    def test_mo_pin_zero_is_not_a_valid_dual_zero_code(self) -> None:
         with self.assertRaises(ValueError):
-            candidate_bin_from_output(256)
+            candidate_bin_from_output_pin(0)
+
+    def test_rejects_output_outside_nine_bit_domain(self) -> None:
         with self.assertRaises(ValueError):
-            candidate_bin_from_output(-257)
+            candidate_bin_from_channel_output(256)
+        with self.assertRaises(ValueError):
+            candidate_bin_from_channel_output(-257)
 
 
 class SampleCycleTests(unittest.TestCase):
