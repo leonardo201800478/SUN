@@ -53,6 +53,7 @@ jobs:
       slint_desktop_present: ${{ steps.slint_manifest.outputs.present }}
       scheduler: ${{ steps.filter.outputs.scheduler }}
       tooling: ${{ steps.filter.outputs.tooling }}
+      ym2413_dac_audit: ${{ steps.filter.outputs.ym2413_dac_audit }}
       sms_pacing: ${{ steps.filter.outputs.sms_pacing }}
       full: ${{ steps.filter.outputs.full }}
     steps:
@@ -186,6 +187,8 @@ jobs:
             tooling:
               - 'scripts/**/*.ps1'
               - 'atualizar_recompilar_sega_emulator.ps1'
+            ym2413_dac_audit:
+              - 'tools/ym2413-dac-capture-audit/**'
             sms_pacing:
               - 'tests/sms/pacing-rom/**'
             full:
@@ -547,6 +550,21 @@ jobs:
         run: cargo clippy --release --locked --all-targets -p sega-input-runtime -p sega-sms-core -p sega-sg1000-core -- -D warnings
       - name: Test input and console integration
         run: cargo test --release --locked --all-targets -p sega-input-runtime -p sega-sms-core -p sega-sg1000-core
+
+  ym2413-dac-capture-audit:
+    name: YM2413 DAC capture reconstruction tests
+    needs: [changes]
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.ym2413_dac_audit == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run YM2413 DAC capture audit tests
+        run: python3 -m unittest discover -s tools/ym2413-dac-capture-audit -v
+      - name: Compile YM2413 DAC capture audit tooling
+        run: python3 -m compileall -q tools/ym2413-dac-capture-audit
 
   docs-format:
     name: Documentation patch hygiene
@@ -980,6 +998,7 @@ jobs:
       - psg-focused
       - vdp-focused
       - input-focused
+      - ym2413-dac-capture-audit
       - docs-format
       - workflow-lint
       - windows-slint-wgpu
@@ -1022,6 +1041,8 @@ jobs:
           WINDOWS_CPAL_OUTPUT: ${{ needs.windows-cpal-output.result }}
           EXPECT_SMS_PACING_ROM: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.sms_pacing == 'true' }}
           SMS_PACING_ROM: ${{ needs.sms-pacing-rom-build.result }}
+          EXPECT_YM2413_DAC_AUDIT: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.ym2413_dac_audit == 'true' }}
+          YM2413_DAC_AUDIT: ${{ needs.ym2413-dac-capture-audit.result }}
         run: |
           set -euo pipefail
           check_job() {
@@ -1059,6 +1080,7 @@ jobs:
           check_job "Scheduler stress" "$EXPECT_SCHEDULER" "$SCHEDULER"
           check_job "Windows x64 CPAL audio output" "$EXPECT_WINDOWS_CPAL_OUTPUT" "$WINDOWS_CPAL_OUTPUT"
           check_job "SMS frame pacing ROM build" "$EXPECT_SMS_PACING_ROM" "$SMS_PACING_ROM"
+          check_job "YM2413 DAC capture audit" "$EXPECT_YM2413_DAC_AUDIT" "$YM2413_DAC_AUDIT"
 
   windows-cpal-output:
     name: Windows x64 CPAL audio output
