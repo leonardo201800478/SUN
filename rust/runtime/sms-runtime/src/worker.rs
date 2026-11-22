@@ -2929,7 +2929,9 @@ fn worker_loop(
         let mut pacing_wait_active = false;
         let command = if running {
             let timeout = if frame_pacing_enabled {
-                frame_deadline.remaining(Instant::now()).unwrap_or(Duration::ZERO)
+                frame_deadline
+                    .remaining(Instant::now())
+                    .unwrap_or(Duration::ZERO)
             } else {
                 Duration::ZERO
             };
@@ -3023,7 +3025,10 @@ fn worker_loop(
             }
             // Pause/reset/load/power transitions invalidate the previous
             // frame's wall-clock epoch. Non-pausing commands retain it.
-            if was_running != running || !running || was_frame_pacing_enabled != frame_pacing_enabled {
+            if was_running != running
+                || !running
+                || was_frame_pacing_enabled != frame_pacing_enabled
+            {
                 frame_deadline.clear();
             }
             drain_machine_trace(&mut machine, trace_publisher.as_ref());
