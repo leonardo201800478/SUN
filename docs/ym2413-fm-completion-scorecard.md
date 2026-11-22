@@ -1,43 +1,35 @@
 # YM2413 FM Completion Scorecard
 
-## Estado executivo atual — SUN-FM-01 / main pós-PR #1203 (2026-11-22)
+## Estado executivo atual — SUN-FM-01 / main pós-PR #1206 (2026-11-22)
 
-HEAD da main: `7ba2d59dc9efdb24deb15171ec560df05cbfab6a`.
+HEAD da main após o merge #1206: `209726445c9a64f06281e01d0aa10fb85bca2831`.
 
-### Publicação e PRs
+### Estado das entregas e PRs
 
-- PRs #1194 (in-place/deep clones), #1199 (dispatch serial), #1200 (captura A/B) e #1201 (correção PowerShell) integradas.
-- PR #1203 integrada: caminho do script A/B corrigido para `scripts/benchmark/ym2413-real-game-ab.ps1`.
-- PR #1188 permanece aberta, com base antiga e sobreposição de escopo com a campanha mais recente #1193; não integrar duplicadamente.
-- PR #1192 (comparador externo) e #1193 (diagnóstico de escritas FM + smoke test ROM real) permanecem abertas. Os workflows reportaram sucesso, mas a proteção da branch exige o check `Rust quality and unit regression`, que foi reportado como `expected` na tentativa de merge de #1193.
-- PR #1202 (buffer PCM reutilizável e CPAL por referência) tem SMS Runtime, CPAL Windows e PSG/audio-runtime CI aprovados. O merge também foi recusado porque o mesmo check obrigatório foi considerado `expected`; rerun do job agregador solicitado. Não contornar branch protection.
-- PR #1205 (métricas FM por frame, amostras inválidas e fallback seguro) aberta; CI pendente.
+- #1194 e #1199 continuam integradas: caminho in-place e remoção de dispatch serial duplicado.
+- #1206 **integrada**: a sessão reutiliza o buffer final do resampler e CPAL recebe PCM por referência; o caminho CPAL reutiliza `frame_scratch`. CI do SMS Runtime, CPAL Windows e PSG/audio-runtime passou no HEAD da PR antes do merge.
+- #1208 aberta sobre a main atual: instrumentação de validade das amostras FM por frame, peak/RMS condicionado ao consentimento diagnóstico e fallback seguro para NaN/Inf. CI em execução; não integrada ainda.
+- #1207 é a versão anterior da mesma instrumentação, baseada antes do merge #1206; será encerrada como substituída por #1208 após confirmar a nova PR.
+- #1188 e #1193 permanecem abertas e não mergeáveis na base atual. Ambas alteram os mesmos arquivos de harness, workflow e Cargo.lock. Consolidar em uma única PR baseada na main atual; preservar o teste real-game e o probe de escritas F0/F1/F2 sem duplicar harness nem reintroduzir lockfile antigo.
+- #1190 (catálogo de compatibilidade) e #1192 (comparador externo de output-code) também estão em bases antigas e precisam de reaplicação/revisão separada antes de integração. O comparador não pode ser tratado como confirmação de palavra física do DAC.
 
-### Estado funcional e desempenho
+### Correções documentais aplicadas na branch de acompanhamento
 
-- Não há captura A/B de gameplay publicada. Os relatos anteriores de OutRun (~52 FPS) e Kenseiden (~50–51 FPS) continuam sem baseline medido.
-- O modo FM Auto do desktop resolve para saída mutada enquanto o catálogo SHA-256 de compatibilidade estiver vazio. A política de mute não interrompe o clock/síntese do chip.
-- O worker descarta o lote FM inteiro e reinicia o resampler se houver qualquer amostra FM desconhecida (`None`). O comportamento é coberto por teste sintético; frequência em jogos reais ainda desconhecida.
-- O caminho final de áudio ainda possui a alocação por lote na main; a correção está na PR #1202, não integrada.
-- A saída digital MO/RO continua sem calibração física de amplitude. O caminho de vídeo também mantém cópia RGB do framebuffer e alocação de conversão RGB888→RGBA8 por frame; impacto não medido.
-- A capacidade FIFO CPAL configurada é 4.096 frames (aprox. 85,3 ms a 48 kHz); capacidade não representa ocupação/latência real.
+- Runbook A/B: removida a sequência literal `\\n` da lista de artefatos; o caminho do script já aponta para `scripts/benchmark/ym2413-real-game-ab.ps1`.
+- Contrato da FIFO: unidade corrigida para `StereoFrame([f64; 2])`; a conversão para o formato CPAL ocorre no callback. A descrição histórica PCM16 não representa a implementação atual.
+- Essas alterações estão agrupadas em PR documental separada; não alteram Rust, workflows de áudio ou runtime.
 
-### Gate da sprint
+### Diagnóstico e aceite
 
-O script A/B Kenseiden foi preparado e seu caminho documental corrigido, mas ainda não foi executado com ROM local. Kenseiden, OutRun e Phantasy Star continuam pendentes de gameplay instrumentado, frame time p50/p95/p99, continuidade PCM, underruns, amplitude e latência interna.
+- O modo FM Auto ainda depende de uma whitelist SHA-256 que permanece vazia; para ensaios usar explicitamente Japanese SMS integrado + SMS1 + FM On.
+- O fallback do worker para lote FM com amostras desconhecidas ainda precisa ser quantificado em gameplay; a PR #1208 adiciona as métricas necessárias, mas não substitui a execução com ROM.
+- A reutilização do buffer reduz a alocação no caminho de saída CPAL; não há medição de ganho em gameplay ou prova de 60 FPS.
+- A capacidade da FIFO não é latência. Backlog máximo teórico de 4.096 frames equivale a cerca de 85,3 ms a 48 kHz; medir ocupação real e loopback.
+- Não há baseline A/B de gameplay completo, medição física de latência <10 ms nem comprovação de scanout em monitor.
 
-O relatório da auditoria inicial, com arquitetura, matriz de achados, riscos, testes e plano ordenado, está em [docs/audits/sun-fm-01-initial-audit-2026-11-22.md](audits/sun-fm-01-initial-audit-2026-11-22.md).
-
-**Status SUN-FM-01: ABERTA.** Não declarar o YM2413 concluído antes da validação real dos três jogos e dos critérios de 60 FPS/áudio.
+**Status SUN-FM-01: ABERTA.** Ainda pendem CI da instrumentação, consolidação do harness ROM real, Kenseiden/OutRun/Phantasy Star em gameplay, loopback CPAL, latência ponta a ponta, 60 FPS e fidelidade diferencial.
 
 ---
-
-**Data de referência:** 2026-11-22
-**Repositório:** `leonardo201800478/SUN`
-**Main atual pós-PR #1185:** `b180b25762b3bd589ce07d0aeb164a469d062ba9`
-
-**Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
-**Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
 ## Estado executivo histórico — main pós-PR #1185 (2026-11-22; supersedido pelo checkpoint SUN-FM-01 abaixo)
 
