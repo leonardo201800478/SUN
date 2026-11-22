@@ -1137,9 +1137,7 @@ mod tests {
         for cycle in 0..YM2413_SLOT_COUNT as u8 {
             let before = service.before[usize::from(cycle)];
             let after = service.after[usize::from(cycle)];
-            let expected_tick = expected_eg
-                .tick_slot(cycle, before.envelope_input)
-                .unwrap();
+            let expected_tick = expected_eg.tick_slot(cycle, before.envelope_input).unwrap();
             assert_eq!(after, expected_tick);
             assert_eq!(before.event.cycle, cycle);
             assert_eq!(
@@ -1155,8 +1153,7 @@ mod tests {
             );
             assert_eq!(
                 before.event.phase_reset_required,
-                nuked_phase_reset_required(cycle, before.rm_enable, before.event.eg_dokon)
-                    .unwrap()
+                nuked_phase_reset_required(cycle, before.rm_enable, before.event.eg_dokon).unwrap()
             );
             assert_eq!(service.order[usize::from(cycle) * 2], (true, cycle));
             assert_eq!(service.order[usize::from(cycle) * 2 + 1], (false, cycle));
