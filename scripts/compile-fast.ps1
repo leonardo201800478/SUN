@@ -4,7 +4,7 @@ param(
     [switch]$AllWorkspaces
 )
 
-# Verifica rapidamente todos os workspaces ativos e a aplicacao desktop.
+# Verifica rapidamente o workspace raiz; workspaces independentes sao opt-in.
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -18,11 +18,10 @@ $env:CARGO_TARGET_DIR = Join-Path $repoRoot "target"
 Initialize-SegaMsvcEnvironment
 
 $manifests = @(
-    (Join-Path $repoRoot "Cargo.toml"),
-    (Join-Path $repoRoot "native\sega_app\Cargo.toml")
+    (Join-Path $repoRoot "Cargo.toml")
 )
 
-# Inclui crates standalone adicionais somente quando existirem no checkout.
+# Inclui o workspace CPAL independente quando solicitado.
 if ($AllWorkspaces) {
     $optionalManifests = @(
         (Join-Path $repoRoot "native\audio_output\Cargo.toml")

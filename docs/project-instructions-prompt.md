@@ -17,7 +17,7 @@ Prioridades: fidelidade ao hardware; determinismo; integridade arquitetural; pre
 - Renderização: WGPU 30.x; Vulkan como backend inicial no Windows x64.
 - Saída física de áudio: CPAL 0.18.2.
 - Input: eventos nativos Slint para teclado e `sega-input-runtime`/SDL3 para gamepads.
-- Host gráfico anterior egui/D3D12/Qt está fora de uso ativo; módulos remanescentes são legado e exigem inventário antes de remoção.
+- Hosts de produto egui/D3D12/Qt foram retirados. Não reintroduzir eframe, D3D12 ou APIs gráficas paralelas; ADRs e auditorias datadas permanecem apenas como histórico.
 - Preservar SmsTemporalWorker, FrameMailbox, MachineScheduler, Z80, SMS, SG-1000, VDPs, PSG, barramentos, memórias, mappers e testes validados.
 - GUI exclusivamente apresentação/integração com SO. Proibido implementar hardware, instruções, clocks, temporização ou callbacks por instrução.
 - Integração coarse-grained: load_rom, start, pause, stop, reset, step_frame e snapshots.

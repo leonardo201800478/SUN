@@ -122,7 +122,6 @@ jobs:
               - '!native/sg1000_core/src/input.rs'
               - '!native/sms_core/src/input.rs'
               - '!native/audio_output/**'
-              - '!native/sms_debugger/**'
               - '!rust/runtime/sms-runtime/**'
             z80:
               - 'native/z80_cpu/**'
@@ -158,9 +157,8 @@ jobs:
               - 'native/sg1000_core/src/vdp.rs'
               - 'native/observability/**'
             cpal:
-              # Validate the CPAL backend and its audio-runtime dependency graph.
-              # SMS/FM PCM production is covered by SMS core/runtime validation;
-              # the deprecated eframe shell is not a dependency of this job.
+              # Validate the active CPAL backend and its audio-runtime dependency graph.
+              # SMS/FM PCM production is covered by SMS core/runtime validation.
               - 'native/audio_output/**'
               - 'native/audio_runtime/**'
               - 'native/observability/**'
@@ -190,7 +188,6 @@ jobs:
               - 'native/sg1000_core/src/temporal*.rs'
             tooling:
               - 'scripts/**/*.ps1'
-              - 'atualizar_recompilar_sega_emulator.ps1'
             ym2413_dac_audit:
               - 'tools/ym2413-dac-capture-audit/**'
             sms_pacing:
@@ -242,7 +239,7 @@ jobs:
           set -euo pipefail
           cargo metadata --locked --format-version 1 --no-deps
           test -f Cargo.lock
-          echo "Standalone legacy host workspaces are validated only by their path-scoped jobs."
+          echo "The standalone CPAL output workspace is validated by its path-scoped job."
       - name: Format root Rust workspace
         run: cargo fmt --all -- --check
       - name: Clippy workspace
@@ -738,16 +735,16 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           if ($env:EVENT_NAME -eq "workflow_dispatch") {
-            $files = @((Get-ChildItem -Path scripts -Filter *.ps1 -Recurse | ForEach-Object FullName)) + @((Get-Item -LiteralPath "atualizar_recompilar_sega_emulator.ps1" -ErrorAction SilentlyContinue | ForEach-Object FullName))
+            $files = @(Get-ChildItem -Path scripts -Filter *.ps1 -Recurse | ForEach-Object FullName)
           } else {
             if ($env:EVENT_NAME -eq "pull_request") {
               $range = "$($env:BASE_SHA)...$($env:HEAD_SHA)"
             } else {
               $range = "$($env:BASE_SHA)..$($env:HEAD_SHA)"
             }
-            $paths = git diff --name-only $range -- scripts atualizar_recompilar_sega_emulator.ps1
+            $paths = git diff --name-only $range -- scripts
             if ($LASTEXITCODE -ne 0) { throw "Could not discover changed PowerShell scripts" }
-            $files = @($paths | Where-Object { $_.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase) })
+            $files = @($paths | Where-Object { $_.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $_ -PathType Leaf) })
             if (-not $files) { Write-Host "No PowerShell scripts changed."; exit 0 }
           }
           foreach ($file in $files) {
