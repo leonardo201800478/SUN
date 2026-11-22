@@ -1112,6 +1112,7 @@ mod tests {
         let run_transactional = || {
             let mut core = Ym2413Core::new();
             let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            service.benchmark_duplicate_dispatch = true;
             for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
                 core.write_address(address);
                 core.write_data(data);
