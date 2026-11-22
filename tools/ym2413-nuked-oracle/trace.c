@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
         } else {
             fprintf(stderr,
                     "usage: %s --calls N [--events file.csv] [--chip-type 0] "
-                    "[--pg-only] [--pg-phase-only] [--output-only]\\n", argv[0]);
+                    "[--pg-only] [--pg-phase-only] [--output-only]\n", argv[0]);
             free(events);
             return 2;
         }
@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
 
     OPLL_Reset(&chip, chip_type);
     if (output_only) {
-        puts("{\\"schema\\":\\"ym2413-nuked-opll-output-trace-v1\\",\\"time_unit\\":\\"opll_clock_call\\",\\"sample_point\\":\\"after_OPLL_Clock\\"}");
+        puts("{\"schema\":\"ym2413-nuked-opll-output-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\"}");
     } else if (pg_phase_only) {
         puts("{\"schema\":\"ym2413-nuked-opll-pg-phase-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"phase_array_after_OPLL_Clock\",\"phase_array_length\":18}");
     } else if (pg_only) {
@@ -246,7 +246,7 @@ int main(int argc, char **argv) {
 
         OPLL_Clock(&chip, output);
         if (output_only) {
-            printf("{\\"call_index\\":%" PRIu64 ",\\"cycle_before\\":%" PRIu32 ",\\"ch_out\\":%d,\\"output_pins_m\\":%d,\\"output_pins_r\\":%d}\\n",
+            printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
                    tick, cycle_before, (int)chip.ch_out, (int)chip.output_m, (int)chip.output_r);
             continue;
         }
