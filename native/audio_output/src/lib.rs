@@ -225,6 +225,10 @@ impl NativeCpalOutput {
 
 impl PcmSink for NativeCpalOutput {
     fn write_samples(&mut self, samples: Vec<f64>) -> Result<(), String> {
+        self.write_samples_ref(&samples)
+    }
+
+    fn write_samples_ref(&mut self, samples: &[f64]) -> Result<(), String> {
         if self.closed {
             return Err("CPAL output is closed".to_owned());
         }
@@ -232,7 +236,7 @@ impl PcmSink for NativeCpalOutput {
 
         self.frame_scratch.clear();
         self.frame_scratch.reserve(samples.len());
-        for sample in samples {
+        for sample in samples.iter().copied() {
             self.frame_scratch
                 .push(mono_sample_to_stereo_frame(sample, 0));
         }
