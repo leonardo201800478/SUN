@@ -11,7 +11,6 @@ on:
       - "tools/ym2413-nuked-oracle/trace.c"
       - "tools/ym2413-nuked-oracle/extract_output_pipeline_csv.py"
       - "tools/ym2413-nuked-oracle/fixtures/output-pipeline.csv"
-      - ".github/workflows/ym2413-output-pipeline-differential.yml"
   workflow_dispatch:
 
 permissions:
