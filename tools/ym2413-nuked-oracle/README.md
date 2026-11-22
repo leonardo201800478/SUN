@@ -345,7 +345,7 @@ outputs, expected/actual pin latches, and rm_enable before/after the call.
 
 ## Volume-capture MO output characterization
 
-The compact `--output-only` mode emits one JSON record per Nuked `OPLL_Clock()` call with `cycle_before`, `ch_out`, `output_pins_m`, and `output_pins_r`. It avoids the large internal-state arrays from the full trace.
+The compact `--output-only` mode emits one JSON record per Nuked `OPLL_Clock()` call with `cycle_before`, `ch_out_before` (captured before the slot clock), `output_pins_m`, and `output_pins_r`. It avoids the large internal-state arrays from the full trace.
 
 `fixtures/volume0-capture-events.csv` reproduces the one-channel sine setup used by the historical volume capture: an initial sync patch (modulator AR=15), an 18-call Timer1 synchronization window, and the measurement patch (modulator AR=0). The first patch's 22-clock address/data interval is rounded up to six OPLL slot calls because this trace interface advances four YM clocks per call; the 92-clock data-to-next-address delay remains 23 calls. The measurement patch uses exact 12/84-clock intervals (3/21 calls). The capture sample period is 72 YM clocks, or 18 OPLL calls.
 
