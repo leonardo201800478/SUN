@@ -167,6 +167,7 @@ jobs:
               - 'native/machine_scheduler/**'
               - 'native/temporal_core/**'
               - 'native/sn76489/**'
+              - 'rust/runtime/sms-runtime/tests/fm_in_game_smoke.rs'
             ym2413:
               - 'native/ym2413/**'
             input:
@@ -1136,3 +1137,6 @@ jobs:
         run: cargo clippy --release --locked --all-targets --manifest-path native/audio_output/Cargo.toml --target x86_64-pc-windows-msvc -- -D warnings
       - name: Test CPAL output crate (Windows x64 Release)
         run: cargo test --release --locked --all-targets --manifest-path native/audio_output/Cargo.toml --target x86_64-pc-windows-msvc
+
+      - name: Compile SMS real-game CPAL smoke test (Windows x64)
+        run: cargo test --release --locked --manifest-path rust/runtime/sms-runtime/Cargo.toml --target x86_64-pc-windows-msvc --no-run --test fm_in_game_smoke
