@@ -23,7 +23,6 @@ on:
       - "native/ym2413/src/envelope_timer.rs"
       - "native/ym2413/src/key_scale.rs"
       - "native/ym2413/examples/eg_*.rs"
-      - ".github/workflows/ym2413-eg-characterization.yml"
   workflow_dispatch:
 
 permissions:
