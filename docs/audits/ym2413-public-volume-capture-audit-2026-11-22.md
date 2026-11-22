@@ -65,7 +65,7 @@ For each file, the central 98% interval was calculated using the 1st and 99th pe
 | 14 | 20,030 | 4 | 254 | 257 | 1 |
 | 15 | 20,096 | 4 | 254 | 257 | 1 |
 
-The derived amplitudes reproduce all 16 values in the published 2015-03-11 amplitude table exactly. This is a statistical cross-check of the **measured analog output levels** and volume attenuation. It does not validate a raw DAC input word or the operator-to-DAC conversion.
+The derived amplitudes reproduce all 16 values in the published 2015-03-11 amplitude table exactly. This is a statistical cross-check of the **measured analog output levels** and volume attenuation. It does not validate a raw DAC input word or the operator-to-DAC conversion. The percentile calculation uses each `.out` file independently; it does not assume that the three misaligned `.raw`/`.out` pairs correspond sample by sample.
 
 ### Why the decoder comparison initially appeared inconsistent
 
@@ -76,7 +76,18 @@ The decoder subsequently evolved:
 - `f278516aa069b9cf4a6f55490e4643759cc0dd58` (2015-12-17) changed the averaging factor to 512.
 - `c71980b94c7623b38abd4eb9b58a64f7cec77ec0` (2019-12-31) introduced `select_channel`.
 
-Therefore, applying the current pinned decoder to the 2015 `volume*.raw` artifacts is not a valid reproduction of the historical `volume*.out` files. The apparent mismatch was caused by mixing decoder generations. A small artifact-length discrepancy remains unexplained: `volume0.out` has two fewer tokens than `volume0.raw`, `volume12.out` has one more, and `volume14.out` has two fewer. The historical source does not explain these differences; do not silently normalize them.
+Therefore, applying the current pinned decoder to the 2015 `volume*.raw` artifacts is not a valid reproduction of the historical `volume*.out` files. The apparent mismatch was caused by mixing decoder generations. However, a direct sample-index pairing audit exposes a separate provenance issue:
+
+| Volume files | Raw samples | Output tokens | Same-ADC conflicts | Monotonicity violations |
+|---|---:|---:|---:|---:|
+| 1–11, 13, 15 (13 pairs) | equal | equal | 0 | 0 |
+| 0 | 20,032 | 20,030 | 4,406 | 14,306 |
+| 12 | 20,031 | 20,032 | 2,424 | 16,395 |
+| 14 | 20,032 | 20,030 | 594 | 11,739 |
+
+For the 13 clean pairs, pairing by sample index gives a deterministic monotonic ADC-code→bin mapping within each file. For volumes 0, 12 and 14, the raw and output sequences cannot be treated as sample-aligned: the same ADC code maps to multiple bin indices and sorting by ADC code produces many monotonicity violations. The available files do not establish whether these three outputs came from another capture, another calibration, or a different processing pass. Do not use those pairs to infer ADC-bin boundaries.
+
+The 13 clean pairs cover bin indices 74..437 collectively; they do not recover the extreme ranges 0..73 or 438..511. The volume0.out file alone spans 0..511, but its raw counterpart fails the sample-pairing check. Thus the existing artifacts still cannot reconstruct a complete, trustworthy 512-boundary calibration table.
 
 The separate `vol*.out` files also present in the directory have no corresponding `vol*.raw` files in the pinned tree and are not used in this audit.
 
