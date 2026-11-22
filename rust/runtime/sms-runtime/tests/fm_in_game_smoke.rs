@@ -1,4 +1,4 @@
-//! Opt-in in-game FM acceptance campaign for legally obtained Japanese SMS ROMs.
+//! Opt-in in-game FM signal/quality diagnostic campaign for legally obtained Japanese SMS ROMs.
 //!
 //! This exercises the real ROM -> Z80/Scheduler -> YM2413 -> FM/PSG alignment ->
 //! NativeAudioSession mixer/resampler -> PCM sink path. The capture sink is
@@ -11,7 +11,7 @@
 //!   $env:SEGA_SMS_FM_TEST_REGION = "japan"
 //!   $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1" # sms1|sms2
 //!   $env:SEGA_SMS_FM_TEST_FRAMES = "1800" # optional; default 1800
-//!   $env:SEGA_SMS_FM_TEST_WAV_DIR = "D:\\SUN-FM-Captures" # optional; writes FM, PSG and mixed float WAVs
+//!   $env:SEGA_SMS_FM_TEST_WAV_DIR = "D:\SUN-FM-Captures" # optional; writes FM, PSG, single-source and mixed float WAVs
 //!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
 //!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns -- --ignored --nocapture
 //!
