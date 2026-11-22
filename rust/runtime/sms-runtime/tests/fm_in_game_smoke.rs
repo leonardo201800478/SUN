@@ -189,7 +189,10 @@ fn is_sms_rom(path: &Path) -> bool {
 fn collect_roms(directory: &Path) -> Vec<PathBuf> {
     let mut paths = fs::read_dir(directory)
         .unwrap_or_else(|error| {
-            panic!("cannot read FM ROM directory {}: {error}", directory.display())
+            panic!(
+                "cannot read FM ROM directory {}: {error}",
+                directory.display()
+            )
         })
         .map(|entry| {
             entry
@@ -219,8 +222,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
     let directory = std::env::var_os("SEGA_SMS_FM_TEST_ROM_DIR")
         .map(PathBuf::from)
         .expect("set SEGA_SMS_FM_TEST_ROM_DIR to a directory containing Japanese SMS FM ROMs");
-    let region =
-        std::env::var("SEGA_SMS_FM_TEST_REGION").unwrap_or_else(|_| "japan".to_owned());
+    let region = std::env::var("SEGA_SMS_FM_TEST_REGION").unwrap_or_else(|_| "japan".to_owned());
     let vdp_revision = selected_vdp_revision();
     let frames_per_rom = std::env::var("SEGA_SMS_FM_TEST_FRAMES")
         .map(|value| {
@@ -229,7 +231,10 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
                 .expect("SEGA_SMS_FM_TEST_FRAMES must be an integer")
         })
         .unwrap_or(DEFAULT_FRAMES_PER_ROM);
-    assert!(frames_per_rom > 0, "SEGA_SMS_FM_TEST_FRAMES must be positive");
+    assert!(
+        frames_per_rom > 0,
+        "SEGA_SMS_FM_TEST_FRAMES must be positive"
+    );
 
     let rom_paths = collect_roms(&directory);
     assert!(
@@ -251,7 +256,12 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             None,
             SmsFmOutputPolicy::Enabled,
         )
-        .unwrap_or_else(|error| panic!("{}: cannot create Japanese FM machine: {error}", path.display()));
+        .unwrap_or_else(|error| {
+            panic!(
+                "{}: cannot create Japanese FM machine: {error}",
+                path.display()
+            )
+        });
 
         let source_capture = Arc::new(Mutex::new(FmSourceCapture::default()));
         let pcm_capture = Arc::new(Mutex::new(PcmCapture::default()));
@@ -269,7 +279,9 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
                     sources: factory_sources,
                 }) as Box<dyn AudioSession>)
             })
-            .unwrap_or_else(|error| panic!("{}: cannot configure native mixer: {error}", path.display()));
+            .unwrap_or_else(|error| {
+                panic!("{}: cannot configure native mixer: {error}", path.display())
+            });
 
         worker
             .start()
@@ -298,9 +310,9 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         worker
             .pause()
             .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
-        worker
-            .close_audio_output()
-            .unwrap_or_else(|error| panic!("{}: cannot close native mixer: {error}", path.display()));
+        worker.close_audio_output().unwrap_or_else(|error| {
+            panic!("{}: cannot close native mixer: {error}", path.display())
+        });
 
         let sources = source_capture
             .lock()
@@ -315,7 +327,8 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             path.display()
         );
         assert_eq!(
-            sources.alignment_errors, 0,
+            sources.alignment_errors,
+            0,
             "{}: PSG and FM source blocks were not frame-aligned",
             path.display()
         );
