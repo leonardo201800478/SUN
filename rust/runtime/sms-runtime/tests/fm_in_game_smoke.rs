@@ -20,6 +20,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use sega_audio_output::NativeCpalOutput;
 use sega_audio_runtime::{
     AnalogOutputConfig, AudioOutputMetrics, MixSource, NativeAudioSession, PcmSink,
 };
@@ -227,12 +228,47 @@ fn selected_vdp_revision() -> SmsVdpRevision {
     }
 }
 
+
+fn load_known_fm_roms() -> Vec<(PathBuf, &'static str, &'static str, Vec<u8>)> {
+    let directory = std::env::var_os("SEGA_SMS_FM_TEST_ROM_DIR")
+        .map(PathBuf::from)
+        .expect("set SEGA_SMS_FM_TEST_ROM_DIR to a directory containing the two verified FM ROMs");
+    let rom_paths = collect_roms(&directory);
+    assert!(
+        !rom_paths.is_empty(),
+        "no .sms/.bin FM ROMs found in {}",
+        directory.display()
+    );
+
+    let mut found_fixtures = std::collections::BTreeSet::new();
+    let mut fixtures = Vec::new();
+    for path in rom_paths {
+        let rom = fs::read(&path)
+            .unwrap_or_else(|error| panic!("cannot read ROM {}: {error}", path.display()));
+        assert!(!rom.is_empty(), "ROM {} is empty", path.display());
+        let sha256 = CartridgeIdentity::from_bytes(&rom).sha256_hex();
+        let Some((fixture_name, expected_sha256)) = FM_ROM_FIXTURES
+            .iter()
+            .find(|(_, expected)| *expected == sha256.as_str())
+        else {
+            continue;
+        };
+        found_fixtures.insert((*expected_sha256).to_owned());
+        fixtures.push((path, *fixture_name, *expected_sha256, rom));
+    }
+
+    for (fixture_name, expected_sha256) in FM_ROM_FIXTURES {
+        assert!(
+            found_fixtures.contains(*expected_sha256),
+            "missing required FM fixture {fixture_name} with SHA-256 {expected_sha256}"
+        );
+    }
+    fixtures
+}
+
 #[test]
 #[ignore = "requires legally obtained Japanese SMS FM game ROMs; see module documentation"]
 fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
-    let directory = std::env::var_os("SEGA_SMS_FM_TEST_ROM_DIR")
-        .map(PathBuf::from)
-        .expect("set SEGA_SMS_FM_TEST_ROM_DIR to a directory containing Japanese SMS FM ROMs");
     let region = std::env::var("SEGA_SMS_FM_TEST_REGION").unwrap_or_else(|_| "japan".to_owned());
     let vdp_revision = selected_vdp_revision();
     let frames_per_rom = std::env::var("SEGA_SMS_FM_TEST_FRAMES")
@@ -247,27 +283,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         "SEGA_SMS_FM_TEST_FRAMES must be positive"
     );
 
-    let rom_paths = collect_roms(&directory);
-    assert!(
-        !rom_paths.is_empty(),
-        "no .sms/.bin FM ROMs found in {}",
-        directory.display()
-    );
-
-    let mut found_fixtures = std::collections::BTreeSet::new();
-    for path in rom_paths {
-        let rom = fs::read(&path)
-            .unwrap_or_else(|error| panic!("cannot read ROM {}: {error}", path.display()));
-        assert!(!rom.is_empty(), "ROM {} is empty", path.display());
-        let sha256 = CartridgeIdentity::from_bytes(&rom).sha256_hex();
-        let Some((fixture_name, expected_sha256)) = FM_ROM_FIXTURES
-            .iter()
-            .find(|(_, expected)| *expected == sha256.as_str())
-        else {
-            continue;
-        };
-        found_fixtures.insert((*expected_sha256).to_owned());
-
+    for (path, fixture_name, sha256, rom) in load_known_fm_roms() {
         let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
             rom,
             &region,
@@ -388,10 +404,123 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         );
     }
 
-    for (fixture_name, expected_sha256) in FM_ROM_FIXTURES {
+}
+
+#[test]
+#[ignore = "requires the verified FM ROMs and a working physical CPAL output device"]
+fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
+    let region = std::env::var("SEGA_SMS_FM_TEST_REGION").unwrap_or_else(|_| "japan".to_owned());
+    let vdp_revision = selected_vdp_revision();
+    let frames_per_rom = std::env::var("SEGA_SMS_FM_TEST_FRAMES")
+        .map(|value| {
+            value
+                .parse::<u64>()
+                .expect("SEGA_SMS_FM_TEST_FRAMES must be an integer")
+        })
+        .unwrap_or(DEFAULT_FRAMES_PER_ROM);
+    assert!(frames_per_rom > 0, "SEGA_SMS_FM_TEST_FRAMES must be positive");
+
+    for (path, fixture_name, sha256, rom) in load_known_fm_roms() {
+        let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
+            rom,
+            &region,
+            vdp_revision,
+            None,
+            None,
+            SmsFmOutputPolicy::Enabled,
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "{}: cannot create Japanese FM machine: {error}",
+                path.display()
+            )
+        });
+        worker.set_diagnostics_enabled(true);
+        worker
+            .configure_audio_output(|| {
+                let output = NativeCpalOutput::new(512, 16)?;
+                let session = output.into_audio_session(100)?;
+                Ok(Box::new(session) as Box<dyn AudioSession>)
+            })
+            .unwrap_or_else(|error| {
+                panic!("{}: cannot open CPAL output: {error}", path.display())
+            });
+        worker
+            .start()
+            .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
+
+        let deadline = Instant::now() + FRAME_WAIT_TIMEOUT;
+        while worker.frame_number() < frames_per_rom {
+            if let Some(error) = worker.runtime_error() {
+                let _ = worker.pause();
+                panic!("{}: SMS runtime failed: {error}", path.display());
+            }
+            if let Some(error) = worker.audio_output_error() {
+                let _ = worker.pause();
+                panic!("{}: CPAL output failed: {error}", path.display());
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{}: timed out after {} frames; reached {}",
+                path.display(),
+                frames_per_rom,
+                worker.frame_number()
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        worker
+            .pause()
+            .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
+        let metrics = worker.audio_output_metrics();
+        worker
+            .close_audio_output()
+            .unwrap_or_else(|error| panic!("{}: cannot close CPAL output: {error}", path.display()));
+
+        assert!(metrics.sample_rate_hz > 0, "{}: CPAL did not report a sample rate", path.display());
         assert!(
-            found_fixtures.contains(*expected_sha256),
-            "missing required FM fixture {fixture_name} with SHA-256 {expected_sha256}"
+            metrics.accepted_frames > 0,
+            "{}: no PCM frames reached the CPAL queue",
+            path.display()
+        );
+        assert_eq!(
+            metrics.dropped_frames, 0,
+            "{}: CPAL queue dropped PCM frames",
+            path.display()
+        );
+        assert_eq!(
+            metrics.dropped_blocks, 0,
+            "{}: CPAL queue rejected PCM blocks",
+            path.display()
+        );
+        let max_underrun_frames = (metrics.accepted_frames / 50).max(2_048);
+        assert!(
+            metrics.underrun_frames <= max_underrun_frames,
+            "{}: excessive CPAL underruns: {} frames out of {} accepted (limit {})",
+            path.display(),
+            metrics.underrun_frames,
+            metrics.accepted_frames,
+            max_underrun_frames
+        );
+
+        println!(
+            "SMS_FM_CPAL title={} rom={} sha256={} region={} vdp={:?} frames={} sample_rate_hz={} accepted_frames={} consumed_frames={} underrun_events={} underrun_frames={} dropped_blocks={} dropped_frames={} queue_high_water_frames={} queue_capacity_frames={}",
+            fixture_name,
+            path.display(),
+            sha256,
+            region,
+            vdp_revision,
+            worker.frame_number(),
+            metrics.sample_rate_hz,
+            metrics.accepted_frames,
+            metrics.consumed_frames,
+            metrics.underrun_events,
+            metrics.underrun_frames,
+            metrics.dropped_blocks,
+            metrics.dropped_frames,
+            metrics.queue_high_water_frames,
+            metrics.queue_capacity_frames
         );
     }
 }
+
