@@ -94,6 +94,7 @@ pub struct NativeAudioSession<S: PcmSink> {
     mixer: AudioMixer,
     mixed_samples: Vec<f64>,
     analog_samples: Vec<f64>,
+    /// Reused destination for final PCM resampling; CPAL borrows this buffer per block.
     resampled_samples: Vec<f64>,
     analog_output: AnalogOutputProcessor,
     resampler: PcmResampler,
