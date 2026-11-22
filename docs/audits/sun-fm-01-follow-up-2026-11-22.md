@@ -62,16 +62,15 @@ As PRs #1188 e #1193 alteravam os mesmos arquivos:
 
 Essa sobreposição foi resolvida em #1217; não reabrir nem integrar as PRs antigas. O teste continua opt-in e exige ROMs legais locais; nenhuma ROM deve ser commitada.
 
-## 3. Próximas ações ordenadas
+## 3. Pendências após as entregas integradas
 
-1. #1208 passou CI e foi integrada; #1207 foi encerrada.
-2. #1213 integrou o comparador output-code; #1216 integrou o catálogo/runbook; #1217 integrou o harness ROM real e compilação Windows do teste CPAL.
-3. O parser A/B #1220 passou no self-test PowerShell e foi integrado.
-4. Executar o harness headless com ROMs locais Kenseiden/Phantasy Star e o probe de escritas F0/F1/F2; executar o teste CPAL físico no Windows.
-5. Executar Out Run Japan como campanha de desempenho, com hash registrado; não reutilizar o teste Kenseiden como prova para Out Run.
-6. Analisar p50/p95/p99, frames acima do orçamento, fallback FM, peak/RMS digital, CPAL underruns/drops e high-water.
-7. Medir loopback físico CPAL, backlog/high-water e latência ponta a ponta. A capacidade da FIFO não é latência.
-8. Só após localizar o custo dominante avaliar mudanças adicionais no core, batching, AVX2/FMA ou paralelismo. Não criar thread FM que avance o clock do chip.
+Entregas integradas e validadas por CI: #1208 (diagnóstico), #1213 (comparador), #1216 (catálogo/runbook), #1217 (harness) e #1220 (parser/self-test).
+
+1. Executar o harness headless com ROMs locais Kenseiden/Phantasy Star e o probe de escritas F0/F1/F2; executar o teste CPAL físico no Windows.
+2. Executar Out Run Japan como campanha de desempenho, com hash registrado; não reutilizar o teste Kenseiden como prova para Out Run.
+3. Analisar p50/p95/p99, frames acima do orçamento, fallback FM, peak/RMS digital, CPAL underruns/drops e high-water.
+4. Medir loopback físico CPAL, backlog/high-water e latência ponta a ponta. A capacidade da FIFO não é latência.
+5. Só após localizar o custo dominante avaliar mudanças adicionais no core, batching, AVX2/FMA ou paralelismo. Não criar thread FM que avance o clock do chip.
 
 ## 4. Execução local pendente — Windows
 
