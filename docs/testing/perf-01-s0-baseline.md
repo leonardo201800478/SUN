@@ -95,6 +95,8 @@ S0 remains open until:
 
 The harness reports stage distributions from the worker's bounded 512-sample diagnostic window. Statistics describe the retained rolling window, not necessarily the entire diagnostic capture. These diagnostics add overhead and must not be mixed with the uninstrumented throughput pass.
 
+The stock Cargo release profile remains the immutable S0 control. An isolated S1 candidate profile may be built and evaluated against it, but must not replace the stock profile or be adopted as the product default until the S0 evidence and S1 acceptance gates are reviewed.
+
 ## Safety constraints
 
 - Do not add target-cpu=native to distributable builds.

@@ -49,3 +49,16 @@ default-members = [
 [workspace.dependencies]
 sega-observability = { path = "native/observability" }
 sega-debugger-core = { path = "native/debugger_core" }
+
+# PERF-01/S1: candidate LLVM profile; keep the stock release profile as the A/B control.
+[profile.release-llvm]
+inherits = "release"
+opt-level = 3
+lto = "thin"
+codegen-units = 16
+
+# Same optimized code-generation settings with symbols for external CPU profilers.
+[profile.release-llvm-debug]
+inherits = "release-llvm"
+debug = 2
+strip = "none"

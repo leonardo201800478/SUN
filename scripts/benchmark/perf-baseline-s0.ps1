@@ -15,6 +15,9 @@ param(
     [ValidateRange(1, 300)]
     [int]$DiagnosticSeconds = 5,
 
+    [ValidateSet("release", "release-llvm")]
+    [string]$CargoProfile = "release",
+
     [switch]$CaptureCpuProfile
 )
 
@@ -112,7 +115,7 @@ try {
 
     Push-Location $repoRoot
     try {
-        & cargo test --release --locked --target x86_64-pc-windows-msvc -vv -p sega-sms-runtime --test perf_baseline outrun_a_b_c_uncapped_baseline -- --ignored --nocapture 2>&1 |
+        & cargo test --profile $CargoProfile --locked --target x86_64-pc-windows-msvc -vv -p sega-sms-runtime --test perf_baseline outrun_a_b_c_uncapped_baseline -- --ignored --nocapture 2>&1 |
             Tee-Object -FilePath $logPath |
             Out-Host
         $exitCode = $LASTEXITCODE
@@ -161,6 +164,7 @@ $manifest = [ordered]@{
     cargo_version = $cargoVersion
     rustc_version = $rustcVersion
     target_triple = "x86_64-pc-windows-msvc"
+    cargo_profile = $CargoProfile
     cargo_target_dir = $cargoTargetDir
     cargo_config = $cargoConfig
     compiler_environment = [ordered]@{
@@ -170,6 +174,9 @@ $manifest = [ordered]@{
         CARGO_PROFILE_RELEASE_LTO = $env:CARGO_PROFILE_RELEASE_LTO
         CARGO_PROFILE_RELEASE_CODEGEN_UNITS = $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS
         CARGO_PROFILE_RELEASE_STRIP = $env:CARGO_PROFILE_RELEASE_STRIP
+        CARGO_PROFILE_SELECTED_OPT_LEVEL = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_OPT_LEVEL"), "Process")
+        CARGO_PROFILE_SELECTED_LTO = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_LTO"), "Process")
+        CARGO_PROFILE_SELECTED_CODEGEN_UNITS = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_CODEGEN_UNITS"), "Process")
     }
     cpu_profile_requested = [bool]$CaptureCpuProfile
     cpu_profile_path = if ($CaptureCpuProfile) { $etlPath } else { $null }
