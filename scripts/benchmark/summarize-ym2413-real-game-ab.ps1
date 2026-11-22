@@ -340,6 +340,12 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "Manifest A/B ausente: $manifestPath"
 }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if ($manifest.comparison_mode -eq "same-commit-repeatability" -and $manifest.baseline_commit -ne $manifest.candidate_commit) {
+    throw "same-commit-repeatability exige o mesmo SHA nos dois lados."
+}
+if ($manifest.comparison_mode -eq "isolated-pg-serial" -and $manifest.baseline_commit -eq $manifest.candidate_commit) {
+    throw "isolated-pg-serial exige SHAs diferentes."
+}
 $requiredRuns = @("baseline-run1", "candidate-run1", "candidate-run2", "baseline-run2")
 $runSummaries = [System.Collections.Generic.List[object]]::new()
 $rawValuesByRun = @{}
