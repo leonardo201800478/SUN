@@ -145,6 +145,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         .into());
     }
     let calls: u64 = args[1].parse()?;
+    if calls == 0 {
+        return Err(IoError::new(
+            ErrorKind::InvalidInput,
+            "OPLL_Clock call count must be greater than zero",
+        )
+        .into());
+    }
     let events = load_events(Path::new(&args[0]), calls)?;
     let mut rhythm_register = None;
     let mut snapshot_at = None;
@@ -152,6 +159,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     while argument_index < args.len() {
         match args[argument_index].as_str() {
             "--snapshot-at" => {
+                if snapshot_at.is_some() {
+                    return Err(IoError::new(
+                        ErrorKind::InvalidInput,
+                        "--snapshot-at may be specified only once",
+                    )
+                    .into());
+                }
                 argument_index += 1;
                 let value = args.get(argument_index).ok_or_else(|| {
                     IoError::new(ErrorKind::InvalidInput, "--snapshot-at requires a call count")
