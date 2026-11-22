@@ -137,7 +137,7 @@ def read_output_trace(
     initial_keyon_call: int,
     scan_calls: int,
     capture_start_call: int,
-) -> tuple[int, list[int], list[int], dict[str, object]]:
+) -> tuple[list[int], dict[str, object]]:
     """Read compact JSONL and extract one MO sample per 18-slot rotation."""
     header_line = stream.readline()
     try:
@@ -204,7 +204,7 @@ def read_output_trace(
         "rhythm_pin_nonzero_count_at_sample_cycle": rhythm_nonzero_count,
         "rhythm_pin_maximum_magnitude_at_sample_cycle": rhythm_maximum_magnitude,
     }
-    return sample_cycle, model_bins, rhythm_output, diagnostics
+    return model_bins, diagnostics
 
 
 def compare_capture(
@@ -221,7 +221,7 @@ def compare_capture(
     measured = load_capture_bins(capture_path)
     try:
         with trace_path.open("r", encoding="utf-8") as stream:
-            sample_cycle, model_bins, rhythm_output, diagnostics = read_output_trace(
+            model_bins, diagnostics = read_output_trace(
                 stream,
                 initial_keyon_call=initial_keyon_call,
                 scan_calls=scan_calls,
