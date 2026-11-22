@@ -6,6 +6,7 @@ Esta pasta registra investigações delimitadas, com evidências, hipóteses, re
 
 - **Estado geral e integração:** `master-system-codebase-audit.md`, `project-state-2026-11-05.md`, `pr-integration-audit-2026-11-06.md`.
 - **Runtime SMS e apresentação:** `sms-runtime-functional-baseline-2026-11-06.md`, auditorias de áudio/vídeo e mailbox.
+- **Hosts aposentados — evidência histórica:** [telemetria Qt/D3D12](qt-d3d12-presentation-telemetry-2026-11-06.md), [fronteira SMS/D3D12](sms-d3d12-frame-boundary-audit-2026-11-05.md), [viewport D3D12](sms-d3d12-qt-viewport-2026-11-06.md) e [integração do runtime D3D12](video-runtime-d3d12-session-merge-audit-2026-11-05.md). Esses relatórios não validam a arquitetura Slint/WGPU atual.
 - **Áudio SMS:** [auditoria consolidada das quatro análises independentes — 2026-11-08](audio-reliability-consolidated-2026-11-08.md); [investigação de qualidade sonora, descompasso e distorção — 2026-11-08](sms-audio-quality-investigation-2026-11-08.md).
 - **Integração UI/PCM:** [registro do processo de layout imersivo e telemetria PCM — 2026-11-08](sms-ui-pcm-telemetry-integration-2026-11-08.md).
 - **VDP e raster:** investigações de latches, H-counter, R0/R8, VBlank, raster e acesso à VRAM.
