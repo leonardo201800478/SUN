@@ -366,8 +366,8 @@ int main(int argc, char **argv) {
         printf(",\"rhythm\":%u,\"rm_enable\":%u,\"rm_select\":%u,\"rm_noise\":%" PRIu32,
                (unsigned)chip.rhythm, (unsigned)(uint8_t)chip.rm_enable,
                (unsigned)chip.rm_select, chip.rm_noise);
-            printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out_before\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
-                   tick, cycle_before, (int)output_pipe_ch_out_before, (int)chip.output_m, (int)chip.output_r);
+        printf(",\"output_pins_m\":%d,\"output_pins_r\":%d}\\n",
+               (int)chip.output_m, (int)chip.output_r);
     }
 
     if (event_index != event_count) {
