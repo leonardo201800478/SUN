@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Characterize Nuked-OPLL MO output against the historical volume0 ADC capture.
 
-The candidate mapping under test is measured_bin = 255 - output_pins_m.
-This is an offline level/time-series comparison, not a hardware or game-audio
-acceptance test.
+The candidate mapping is measured_bin = 255 - ch_out_before. Nuked's MO
+output-pin encoding increments non-negative channel outputs by one, preserving
+the two zero codes as +1 and -1; the comparator checks that pin encoding too.
+This is an offline characterization, not a game-audio acceptance test.
 """
 
 from __future__ import annotations
@@ -13,14 +14,16 @@ import json
 from pathlib import Path
 from typing import TextIO
 
-TRACE_SCHEMA = "ym2413-nuked-opll-output-trace-v1"
+TRACE_SCHEMA = "ym2413-nuked-opll-output-trace-v2"
 SLOT_COUNT = 18
-OUTPUT_MIN = -256
-OUTPUT_MAX = 255
+CHANNEL_OUTPUT_MIN = -256
+CHANNEL_OUTPUT_MAX = 255
+OUTPUT_PIN_MIN = -256
+OUTPUT_PIN_MAX = 256
 
 
 def load_capture_bins(path: Path) -> list[int]:
-    """Load the calibrated ADC-bin indices from one upstream .out capture."""
+    """Load calibrated ADC-bin indices from one upstream .out capture."""
     try:
         tokens = path.read_text(encoding="ascii").split()
     except OSError as error:
@@ -42,13 +45,26 @@ def load_capture_bins(path: Path) -> list[int]:
     return bins
 
 
-def candidate_bin_from_output(output_level: int) -> int:
-    """Apply the candidate inverse mapping from signed output to ADC-bin code."""
-    if not OUTPUT_MIN <= output_level <= OUTPUT_MAX:
+def candidate_bin_from_channel_output(channel_output: int) -> int:
+    """Map the pre-pin signed channel output to its candidate calibrated bin."""
+    if not CHANNEL_OUTPUT_MIN <= channel_output <= CHANNEL_OUTPUT_MAX:
         raise ValueError(
-            f"output level is outside {OUTPUT_MIN}..{OUTPUT_MAX}: {output_level}"
+            "channel output is outside "
+            f"{CHANNEL_OUTPUT_MIN}..{CHANNEL_OUTPUT_MAX}: {channel_output}"
         )
-    return 255 - output_level
+    return 255 - channel_output
+
+
+def candidate_bin_from_output_pin(output_pin: int) -> int:
+    """Invert Nuked's MO pin encoding, including its two distinct zero codes."""
+    if not OUTPUT_PIN_MIN <= output_pin <= OUTPUT_PIN_MAX or output_pin == 0:
+        raise ValueError(
+            f"MO output pin must be in {OUTPUT_PIN_MIN}..{OUTPUT_PIN_MAX}, "
+            f"excluding 0: {output_pin}"
+        )
+    if output_pin > 0:
+        return 256 - output_pin
+    return 255 - output_pin
 
 
 def select_sample_cycle(
@@ -57,7 +73,6 @@ def select_sample_cycle(
     """Select the unique MO slot with the strongest non-muted output activity."""
     if len(nonzero_counts) != SLOT_COUNT or len(maximum_magnitudes) != SLOT_COUNT:
         raise ValueError(f"sample-slot metrics must contain {SLOT_COUNT} entries")
-
     scores = [
         (nonzero_counts[index], maximum_magnitudes[index])
         for index in range(SLOT_COUNT)
@@ -76,7 +91,7 @@ def score_alignment(
     phase_search: int,
     prefix_samples: int,
 ) -> dict[str, object]:
-    """Find the best cyclic phase offset and score the complete capture."""
+    """Find the best sample-phase offset and score the complete capture."""
     if not measured or len(model) < len(measured):
         raise ValueError("model trace does not contain enough samples")
     if phase_search < 0 or prefix_samples <= 0:
@@ -86,7 +101,6 @@ def score_alignment(
     prefix_length = min(prefix_samples, len(measured))
     best_key: tuple[int, int, int] | None = None
     best_offset = 0
-
     for offset in range(maximum_offset + 1):
         errors = [
             abs(measured[index] - model[offset + index])
@@ -138,7 +152,7 @@ def read_output_trace(
     scan_calls: int,
     capture_start_call: int,
 ) -> tuple[list[int], dict[str, object]]:
-    """Read compact JSONL and extract one MO sample per 18-slot rotation."""
+    """Read compact JSONL and extract pre-pin output once per 18-slot rotation."""
     header_line = stream.readline()
     try:
         header = json.loads(header_line)
@@ -151,7 +165,8 @@ def read_output_trace(
 
     nonzero_counts = [0] * SLOT_COUNT
     maximum_magnitudes = [0] * SLOT_COUNT
-    model_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
+    channel_output_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
+    pin_output_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
     rhythm_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
     scan_end = initial_keyon_call + scan_calls
 
@@ -162,19 +177,27 @@ def read_output_trace(
             row = json.loads(line)
             call_index = int(row["call_index"])
             cycle = int(row["cycle_before"])
+            channel_output = int(row["ch_out_before"])
             output_m = int(row["output_pins_m"])
             output_r = int(row["output_pins_r"])
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
-            raise ValueError(f"invalid trace record on line {line_number}: {error}") from error
+            raise ValueError(
+                f"invalid trace record on line {line_number}: {error}"
+            ) from error
 
         if not 0 <= cycle < SLOT_COUNT:
             raise ValueError(
                 f"trace cycle on line {line_number} is outside 0..17: {cycle}"
             )
-        if not OUTPUT_MIN <= output_m <= OUTPUT_MAX:
+        if not CHANNEL_OUTPUT_MIN <= channel_output <= CHANNEL_OUTPUT_MAX:
             raise ValueError(
-                f"MO output on line {line_number} is outside "
-                f"{OUTPUT_MIN}..{OUTPUT_MAX}: {output_m}"
+                f"channel output on line {line_number} is outside "
+                f"{CHANNEL_OUTPUT_MIN}..{CHANNEL_OUTPUT_MAX}: {channel_output}"
+            )
+        if not OUTPUT_PIN_MIN <= output_m <= OUTPUT_PIN_MAX:
+            raise ValueError(
+                f"MO output pin on line {line_number} is outside "
+                f"{OUTPUT_PIN_MIN}..{OUTPUT_PIN_MAX}: {output_m}"
             )
 
         if initial_keyon_call <= call_index < scan_end:
@@ -184,16 +207,24 @@ def read_output_trace(
             maximum_magnitudes[cycle] = max(maximum_magnitudes[cycle], magnitude)
 
         if call_index >= capture_start_call:
-            model_by_cycle[cycle].append(output_m)
+            channel_output_by_cycle[cycle].append(channel_output)
+            pin_output_by_cycle[cycle].append(output_m)
             rhythm_by_cycle[cycle].append(output_r)
 
     sample_cycle = select_sample_cycle(nonzero_counts, maximum_magnitudes)
-    model_output = model_by_cycle[sample_cycle]
-    rhythm_output = rhythm_by_cycle[sample_cycle]
-    model_bins = [candidate_bin_from_output(value) for value in model_output]
-    rhythm_nonzero_count = sum(abs(value) > 1 for value in rhythm_output)
+    channel_outputs = channel_output_by_cycle[sample_cycle]
+    pin_outputs = pin_output_by_cycle[sample_cycle]
+    rhythm_outputs = rhythm_by_cycle[sample_cycle]
+    model_bins = [
+        candidate_bin_from_channel_output(value) for value in channel_outputs
+    ]
+    pin_bins = [candidate_bin_from_output_pin(value) for value in pin_outputs]
+    pin_encoding_mismatches = sum(
+        model_bin != pin_bin for model_bin, pin_bin in zip(model_bins, pin_bins)
+    )
+    rhythm_nonzero_count = sum(abs(value) > 1 for value in rhythm_outputs)
     rhythm_maximum_magnitude = max(
-        (abs(value) for value in rhythm_output), default=0
+        (abs(value) for value in rhythm_outputs), default=0
     )
 
     diagnostics: dict[str, object] = {
@@ -201,8 +232,11 @@ def read_output_trace(
         "slot_nonzero_counts": nonzero_counts,
         "slot_maximum_magnitudes": maximum_magnitudes,
         "model_samples_at_sample_cycle": len(model_bins),
+        "output_pin_encoding_mismatches": pin_encoding_mismatches,
         "rhythm_pin_nonzero_count_at_sample_cycle": rhythm_nonzero_count,
         "rhythm_pin_maximum_magnitude_at_sample_cycle": rhythm_maximum_magnitude,
+        "channel_output_range": [min(channel_outputs), max(channel_outputs)],
+        "mo_output_pin_range": [min(pin_outputs), max(pin_outputs)],
     }
     return model_bins, diagnostics
 
@@ -217,7 +251,7 @@ def compare_capture(
     phase_search: int,
     prefix_samples: int,
 ) -> dict[str, object]:
-    """Compare Nuked's sampled MO output with the measured volume0 bin sequence."""
+    """Compare Nuked's sampled MO output with measured volume0 bin indices."""
     measured = load_capture_bins(capture_path)
     try:
         with trace_path.open("r", encoding="utf-8") as stream:
@@ -251,7 +285,12 @@ def compare_capture(
         "capture_start_call": capture_start_call,
         "initial_keyon_call": initial_keyon_call,
         "sample_interval_opll_calls": SLOT_COUNT,
-        "candidate_mapping": "measured_bin = 255 - output_pins_m",
+        "sample_interval_ym_clocks": 72,
+        "candidate_mapping": "measured_bin = 255 - ch_out_before",
+        "mo_output_pin_inverse": (
+            "256 - output_pins_m when positive; "
+            "255 - output_pins_m when negative"
+        ),
         "direct_candidate": direct,
         "inverted_polarity_control": inverted,
         "trace_diagnostics": diagnostics,
