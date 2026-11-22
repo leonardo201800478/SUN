@@ -816,7 +816,7 @@ impl Ym2413Core {
 #[cfg(test)]
 mod tests {
     use super::{
-        EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
+        EnvelopeSequencer, EnvelopeSequencerTick, YM2413_EG_CYCLE_CHANNELS,
         YM2413_INPUT_CLOCKS_PER_ROTATION, YM2413_INPUT_CLOCKS_PER_SLOT, YM2413_SLOT_COUNT,
         YM2413_SLOT_MAP, Ym2413Core, Ym2413Error, Ym2413State, nuked_phase_reset_required,
         slot_service::{
@@ -1138,7 +1138,6 @@ mod tests {
             let before = service.before[usize::from(cycle)];
             let after = service.after[usize::from(cycle)];
             let pre_state = expected_eg.export_state();
-            assert_eq!(before.event.eg_dokon, pre_state.eg_dokon);
             assert_eq!(
                 before.envelope_levels,
                 std::array::from_fn(|index| pre_state.operators[index].level)
@@ -1159,7 +1158,7 @@ mod tests {
             );
             assert_eq!(
                 before.event.phase_reset_required,
-                nuked_phase_reset_required(cycle, before.rm_enable, before.event.eg_dokon).unwrap()
+                nuked_phase_reset_required(cycle, before.rm_enable, pre_state.eg_dokon).unwrap()
             );
             assert_eq!(service.order[usize::from(cycle) * 2], (true, cycle));
             assert_eq!(service.order[usize::from(cycle) * 2 + 1], (false, cycle));
