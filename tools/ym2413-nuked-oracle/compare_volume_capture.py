@@ -277,7 +277,6 @@ def local_phase_alignment(
 def read_output_trace(
     stream: TextIO,
     *,
-    initial_keyon_call: int,
     scan_calls: int,
     capture_start_call: int,
 ) -> tuple[list[int], dict[str, object]]:
@@ -297,7 +296,8 @@ def read_output_trace(
     channel_output_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
     pin_output_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
     rhythm_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
-    scan_end = initial_keyon_call + scan_calls
+    scan_start = capture_start_call
+    scan_end = capture_start_call + scan_calls
 
     for line_number, line in enumerate(stream, start=2):
         if not line.strip():
@@ -329,7 +329,7 @@ def read_output_trace(
                 f"{OUTPUT_PIN_MIN}..{OUTPUT_PIN_MAX}: {output_m}"
             )
 
-        if initial_keyon_call <= call_index < scan_end:
+        if scan_start <= call_index < scan_end:
             magnitude = abs(output_m)
             if magnitude > 1:
                 nonzero_counts[cycle] += 1
@@ -422,7 +422,7 @@ def compare_capture(
         "capture_samples": len(measured),
         "capture_bin_range": [min(measured), max(measured)],
         "capture_start_call": capture_start_call,
-        "initial_keyon_call": initial_keyon_call,
+        "slot_scan_start_call": capture_start_call,
         "sample_interval_opll_calls": SLOT_COUNT,
         "sample_interval_ym_clocks": 72,
         "candidate_mapping": "measured_bin = 255 - ch_out_before",
@@ -447,8 +447,7 @@ def main() -> int:
     )
     parser.add_argument("--trace", type=Path, required=True)
     parser.add_argument("--capture", type=Path, required=True)
-    parser.add_argument("--capture-start-call", type=int, default=264)
-    parser.add_argument("--initial-keyon-call", type=int, default=243)
+    parser.add_argument("--capture-start-call", type=int, default=601)
     parser.add_argument("--scan-calls", type=int, default=18 * 64)
     parser.add_argument("--phase-search", type=int, default=2048)
     parser.add_argument("--prefix-samples", type=int, default=512)
@@ -460,7 +459,6 @@ def main() -> int:
             args.trace,
             args.capture,
             capture_start_call=args.capture_start_call,
-            initial_keyon_call=args.initial_keyon_call,
             scan_calls=args.scan_calls,
             phase_search=args.phase_search,
             prefix_samples=args.prefix_samples,
