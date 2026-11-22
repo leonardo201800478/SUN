@@ -140,7 +140,7 @@ foreach ($step in $sequence) {
                 scenario = $row.scenario
                 frames = [long]$row.frames
                 elapsed_ns = [long]$row.elapsed_ns
-                throughput_fps = [double]::Parse($row.throughput_fps, [Globalization.CultureInfo]::InvariantCulture)
+                throughput_fps = [double]::Parse($row.throughput_fps, [System.Globalization.CultureInfo]::InvariantCulture)
                 sink_samples = [long]$row.sink_samples
                 fm_address_writes = [long]$row.fm_address_writes
                 fm_data_writes = [long]$row.fm_data_writes
