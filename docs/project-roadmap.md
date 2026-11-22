@@ -13,7 +13,7 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 - MachineScheduler é a autoridade única de clocks, eventos e ordem causal.
 - Preservar Z80 compartilhado, SmsTemporalWorker, FrameMailbox, VDPs, PSG, barramentos e componentes validados.
 - GUI Slint; WGPU para renderização; Vulkan backend inicial; CPAL para áudio físico; SDL3 para gamepads.
-- Host gráfico anterior fora de uso ativo; código remanescente é legado, não arquitetura-alvo.
+- Hosts de produto egui/D3D12/Qt foram removidos; registros e auditorias datadas permanecem como histórico, sem consumidores ativos.
 - Sem CPU/Scheduler/PSG/VDP/worker paralelo, JIT, frame skipping, hacks temporais ou callbacks por instrução.
 - Save States/replays devem preservar estado suficiente e determinismo; renderização/áudio/input não comandam ciclos.
 
@@ -114,7 +114,7 @@ Referências primárias: [RetroAchievements Integration Docs](https://docs.retro
 - **BIOS SMS:** implementação integrada pela PR #928; validação física com BIOS real, handoff e início do cartucho permanece pendente.
 - **YM2413:** desenvolvimento ativo no core Rust; PR #1133 permanece aberta para revisão dos hooks internos de slot. O FM ainda não está concluído.
 - **Road Rash:** usuário reportou teste físico OK; não reabrir sem regressão. **Alinhamento de sprites SMS:** reportado corrigido; não reabrir sem regressão.
-- **Host gráfico anterior:** fora de uso ativo; inventariar consumidores antes de remover código legado.
+- **Hosts anteriores:** aplicação egui e backend D3D12 removidos do caminho do produto; preservar somente registros históricos. Não criar novos consumidores.
 - **Limite documental:** esta revisão reconcilia a trilha P2; não declara auditoria integral dos documentos Markdown.
 
 ## 7. Método, evidência e gates
