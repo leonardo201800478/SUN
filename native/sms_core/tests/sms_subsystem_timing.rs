@@ -4,7 +4,7 @@ use sega_sms_core::SmsTemporalMachine;
 fn subsystem_timing_counts_scheduler_psg_and_vdp_without_changing_instruction_result() {
     let mut machine = SmsTemporalMachine::new(vec![0x00; 0x4000], 1)
         .expect("construct profiled temporal SMS machine");
-    let mut reference = SmsTemporalMachine::new(vec![0x00], 1)
+    let mut reference = SmsTemporalMachine::new(vec![0x00; 0x4000], 1)
         .expect("construct reference temporal SMS machine");
     machine.set_subsystem_timing_enabled(true);
 
@@ -19,7 +19,10 @@ fn subsystem_timing_counts_scheduler_psg_and_vdp_without_changing_instruction_re
     let timing = machine.take_subsystem_timing();
 
     assert_eq!(step, reference_step);
-    assert_eq!(state, reference_state, "profiling must not mutate emulated state");
+    assert_eq!(
+        state, reference_state,
+        "profiling must not mutate emulated state"
+    );
 
     assert!(matches!(
         step,
