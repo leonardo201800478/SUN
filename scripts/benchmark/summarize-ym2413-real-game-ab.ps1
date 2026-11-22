@@ -37,6 +37,9 @@ function ConvertTo-NullableDouble {
     $style = [System.Globalization.NumberStyles]::Float
     $culture = [System.Globalization.CultureInfo]::InvariantCulture
     if ([double]::TryParse([string]$Value, $style, $culture, [ref]$parsed)) {
+        if ([double]::IsNaN($parsed) -or [double]::IsInfinity($parsed)) {
+            return $null
+        }
         return $parsed
     }
 
