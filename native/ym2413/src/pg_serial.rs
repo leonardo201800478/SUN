@@ -844,8 +844,8 @@ impl Ym2413PgSerialService {
             return Err(Ym2413PgSerialError::InvalidState);
         }
         let rhythm_mode_enabled = context.registers[0x0e] & 0x20 != 0;
-        // The volume-capture differential validates the one’s-complement
-        // measured-domain mapping. Consume the previous ch_out latch here,
+        // The volume-capture differential supports the one’s-complement
+        // measured-domain candidate mapping. Consume the previous ch_out latch here,
         // before the digital pipeline installs next_channel_output. The
         // first call remains unknown because it has no real prior operator
         // result; the software-reference reset zero is not a physical latch.
