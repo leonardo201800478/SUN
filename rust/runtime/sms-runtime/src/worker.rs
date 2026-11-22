@@ -2692,8 +2692,8 @@ fn execute_frame_with_renderer(
         single_source_samples = Some(samples);
     }
 
-    let audio_prepare_elapsed = diagnostic_audio_prepare_start
-        .map_or(Duration::ZERO, |started| started.elapsed());
+    let audio_prepare_elapsed =
+        diagnostic_audio_prepare_start.map_or(Duration::ZERO, |started| started.elapsed());
     let diagnostic_audio_start = diagnostics_enabled.then(Instant::now);
     let audio_result = audio_session.as_mut().and_then(|session| {
         if sample_count == 0 {
