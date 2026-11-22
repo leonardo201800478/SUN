@@ -332,6 +332,8 @@ pub struct SmsTemporalBus {
     internal_cycle_started_at: Option<MachineTime>,
     internal_completion: Option<SmsInternalCycleCompletion>,
     interrupt_vector: u8,
+    /// Set after an in-place YM2413 failure; this machine instance cannot resume.
+    ym2413_runtime_faulted: bool,
 }
 
 impl SmsTemporalBus {
@@ -498,6 +500,7 @@ impl SmsTemporalBus {
             internal_cycle_started_at: None,
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
+            ym2413_runtime_faulted: false,
         })
     }
 
@@ -583,6 +586,7 @@ impl SmsTemporalBus {
             internal_cycle_started_at: None,
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
+            ym2413_runtime_faulted: false,
         })
     }
 
@@ -757,6 +761,9 @@ impl SmsTemporalBus {
     /// A read samples memory at this completion boundary. A write mutates memory
     /// at this completion boundary. The response is latched until acknowledged.
     pub fn dispatch_next(&mut self) -> Result<Option<SmsTemporalDispatch>, SmsTemporalBusError> {
+        if self.ym2413_runtime_faulted {
+            return Err(SmsTemporalBusError::InvalidState);
+        }
         // Dispatched boundaries remain latched until the CPU accepts them.
         if let Some(completion) = self.completion {
             return Ok(Some(SmsTemporalDispatch::BusCompletion(completion)));
@@ -998,7 +1005,7 @@ impl SmsTemporalBus {
             let clocks_to_slot = YM2413_INPUT_CLOCKS_PER_SLOT - u64::from(phase);
             let step = remaining.min(u128::from(clocks_to_slot)) as u64;
             let completed_slot = step == clocks_to_slot;
-            let output_frame = {
+            let advance_result = {
                 let core = self
                     .ym2413
                     .as_mut()
@@ -1007,14 +1014,30 @@ impl SmsTemporalBus {
                     .ym2413_pg_service
                     .as_mut()
                     .ok_or(SmsTemporalBusError::InvalidState)?;
-                core.advance_input_clocks_with_pg_service(step, service)?;
-                completed_slot.then(|| service.output_frame()).flatten()
+                core.advance_input_clocks_with_pg_service_in_place(step, service)
+            };
+            if let Err(error) = advance_result {
+                self.ym2413_runtime_faulted = true;
+                return Err(error.into());
+            }
+            let output_frame = if completed_slot {
+                self.ym2413_pg_service
+                    .as_ref()
+                    .and_then(Ym2413PgSerialService::output_frame)
+            } else {
+                None
             };
             phase = ((u64::from(phase) + step) % YM2413_INPUT_CLOCKS_PER_SLOT) as u8;
             remaining -= u128::from(step);
             if completed_slot {
-                let frame = output_frame.ok_or(SmsTemporalBusError::InvalidState)?;
-                self.capture_ym2413_output_frame(frame)?;
+                let Some(frame) = output_frame else {
+                    self.ym2413_runtime_faulted = true;
+                    return Err(SmsTemporalBusError::InvalidState);
+                };
+                if let Err(error) = self.capture_ym2413_output_frame(frame) {
+                    self.ym2413_runtime_faulted = true;
+                    return Err(error);
+                }
             }
         }
         Ok(())
@@ -1070,6 +1093,11 @@ impl SmsTemporalBus {
             .unwrap_or(self.pending_fm_samples.len())
             .min(self.pending_fm_samples.len());
         self.pending_fm_samples.drain(..count).collect()
+    }
+
+    /// Discard host-bound FM PCM without allocating; the YM2413 keeps clocking.
+    pub fn discard_fm_audio_samples(&mut self) {
+        self.pending_fm_samples.clear();
     }
 
     /// Drain PSG PCM captured at scheduler dispatch boundaries with the F2 gate applied.
@@ -1220,7 +1248,11 @@ impl SmsTemporalBus {
     /// Export memory, scheduler, and in-flight response state.
     pub fn export_state(&self) -> SmsTemporalBusState {
         SmsTemporalBusState {
-            format_version: SMS_TEMPORAL_BUS_STATE_VERSION,
+            format_version: if self.ym2413_runtime_faulted {
+                0
+            } else {
+                SMS_TEMPORAL_BUS_STATE_VERSION
+            },
             interrupt_vector: self.interrupt_vector,
             memory: self.memory.clone(),
             io: self.io.clone(),
@@ -1409,6 +1441,7 @@ impl SmsTemporalBus {
             internal_cycle_started_at: state.internal_cycle_started_at,
             internal_completion: state.internal_completion,
             interrupt_vector: state.interrupt_vector,
+            ym2413_runtime_faulted: false,
         })
     }
 }
