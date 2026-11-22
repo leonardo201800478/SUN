@@ -10,8 +10,10 @@ param(
     [int]$CaptureSeconds = 30,
     [ValidateRange(1, 300)]
     [int]$DiagnosticSeconds = 10,
-    [ValidateSet("release", "release-llvm", "release-llvm-debug")]
-    [string]$CargoProfile = "release-llvm-debug",
+    [ValidateSet("release", "release-llvm")]
+    [string]$ThroughputCargoProfile = "release-llvm",
+    [ValidateSet("release-llvm-debug")]
+    [string]$ProfilingCargoProfile = "release-llvm-debug",
     [string]$CargoTargetDirectory = "",
     [switch]$SkipHeapProfile
 )
@@ -63,7 +65,7 @@ $baselineArgs = @{
     WarmupSeconds = $WarmupSeconds
     CaptureSeconds = $CaptureSeconds
     DiagnosticSeconds = $DiagnosticSeconds
-    CargoProfile = $CargoProfile
+    CargoProfile = $ThroughputCargoProfile
     CargoTargetDirectory = $cargoTarget
 }
 & $baselineScript @baselineArgs
@@ -76,7 +78,7 @@ $previousCargoTarget = $env:CARGO_TARGET_DIR
 $env:CARGO_TARGET_DIR = $cargoTarget
 Push-Location $repoRoot
 try {
-    & cargo test --profile $CargoProfile --locked --target x86_64-pc-windows-msvc -p sega-sms-runtime --test perf_baseline --no-run 2>&1 |
+    & cargo test --profile $ProfilingCargoProfile --locked --target x86_64-pc-windows-msvc -p sega-sms-runtime --test perf_baseline --no-run 2>&1 |
         Tee-Object -FilePath $buildLog |
         Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Build do harness de profiling falhou." }
@@ -86,7 +88,7 @@ finally {
     $env:CARGO_TARGET_DIR = $previousCargoTarget
 }
 
-$profileDirectory = Join-Path (Join-Path $cargoTarget "x86_64-pc-windows-msvc") $CargoProfile
+$profileDirectory = Join-Path (Join-Path $cargoTarget "x86_64-pc-windows-msvc") $ProfilingCargoProfile
 $testBinary = Get-ChildItem -LiteralPath (Join-Path $profileDirectory "deps") -Filter "perf_baseline-*.exe" -File |
     Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
@@ -168,7 +170,8 @@ $manifest = [ordered]@{
     rom_file = $rom.Name
     rom_sha256 = $romHash
     target = "x86_64-pc-windows-msvc"
-    cargo_profile = $CargoProfile
+    throughput_cargo_profile = $ThroughputCargoProfile
+    profiling_cargo_profile = $ProfilingCargoProfile
     cargo_version = (& cargo --version).Trim()
     rustc_version = (& rustc --version --verbose | Out-String).Trim()
     cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)
