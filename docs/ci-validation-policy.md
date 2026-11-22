@@ -47,7 +47,7 @@ As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scri
 | CPAL output | fmt, Clippy, testes do backend e build Windows x64 | CI / CPAL | Alterações em `native/audio_output/**`, áudio runtime e dependências relacionadas |
 | Documentação | `git diff --check` | CI / Documentation | Alterações Markdown, MDX, RST ou TXT |
 | Workflows | actionlint e validação do gate agregado | CI / Workflow lint | Alterações nos workflows e arquivos auxiliares |
-| PowerShell tooling | Parser PowerShell nos scripts alterados e auditoria de workspaces/lockfiles | CI / Windows tooling | Alterações em `scripts/**/*.ps1` ou `atualizar_recompilar_sega_emulator.ps1` |
+| PowerShell tooling | Parser PowerShell nos scripts alterados e auditoria de workspaces/lockfiles | CI / Windows tooling | Alterações em `scripts/**/*.ps1` |
 | Lockfiles | `cargo metadata --locked` e existência dos lockfiles | CI / Rust workspace e lockfile artifact | Alterações de manifests, lockfiles ou refresh manual |
 
 ## 4. Regras de impacto e dependências
