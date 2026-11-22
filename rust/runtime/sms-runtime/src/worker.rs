@@ -1157,8 +1157,11 @@ impl AudioRendererState {
                     .sqrt();
             }
             self.fm_diagnostics.unknown_samples > 0
+                || self.fm_diagnostics.non_finite_samples > 0
         } else {
-            fm_samples.iter().any(Option::is_none)
+            fm_samples
+                .iter()
+                .any(|sample| sample.is_none_or(|value| !value.is_finite()))
         };
 
         if has_unknown_samples {
@@ -4173,6 +4176,27 @@ mod tests {
         assert!(renderer.fm_diagnostics.fallback);
         assert!((renderer.fm_diagnostics.peak - 0.5).abs() < 1.0e-12);
         assert!((renderer.fm_diagnostics.rms - 0.5).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn non_finite_ym2413_samples_trigger_safe_psg_fallback() {
+        let mut renderer = AudioRendererState::default();
+        let psg_samples = [0.125, 0.25, 0.5];
+        let fm_samples = [Some(0.5), Some(f64::NAN), Some(f64::INFINITY)];
+
+        assert_eq!(
+            renderer
+                .prepare_fm_mix(&psg_samples, &fm_samples, true)
+                .unwrap(),
+            None
+        );
+        assert_eq!(renderer.fm_diagnostics.source_samples, 3);
+        assert_eq!(renderer.fm_diagnostics.finite_samples, 1);
+        assert_eq!(renderer.fm_diagnostics.non_finite_samples, 2);
+        assert_eq!(renderer.fm_diagnostics.unknown_samples, 0);
+        assert!(renderer.fm_diagnostics.fallback);
+        assert_eq!(renderer.mix_psg_samples, psg_samples);
+        assert!(renderer.mix_fm_samples.is_empty());
     }
 
     #[test]
