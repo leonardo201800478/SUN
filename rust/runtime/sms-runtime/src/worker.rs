@@ -1139,8 +1139,7 @@ impl AudioRendererState {
                         if value.abs() > 1.0e-12 {
                             self.fm_diagnostics.nonzero_samples += 1;
                         }
-                        self.fm_diagnostics.peak =
-                            self.fm_diagnostics.peak.max(value.abs());
+                        self.fm_diagnostics.peak = self.fm_diagnostics.peak.max(value.abs());
                         sum_squares += value * value;
                     }
                     Some(_) => {
@@ -1152,12 +1151,10 @@ impl AudioRendererState {
                 }
             }
             if self.fm_diagnostics.finite_samples > 0 {
-                self.fm_diagnostics.rms = (sum_squares
-                    / self.fm_diagnostics.finite_samples as f64)
-                    .sqrt();
+                self.fm_diagnostics.rms =
+                    (sum_squares / self.fm_diagnostics.finite_samples as f64).sqrt();
             }
-            self.fm_diagnostics.unknown_samples > 0
-                || self.fm_diagnostics.non_finite_samples > 0
+            self.fm_diagnostics.unknown_samples > 0 || self.fm_diagnostics.non_finite_samples > 0
         } else {
             fm_samples
                 .iter()
@@ -4126,7 +4123,10 @@ mod tests {
         let mut renderer = AudioRendererState::default();
         let psg_samples = [0.25, 0.5, 0.75];
 
-        assert_eq!(renderer.prepare_fm_mix(&psg_samples, &[], true).unwrap(), Some(0));
+        assert_eq!(
+            renderer.prepare_fm_mix(&psg_samples, &[], true).unwrap(),
+            Some(0)
+        );
         assert_eq!(
             renderer
                 .pending_psg_samples
@@ -4149,7 +4149,9 @@ mod tests {
             Some(0)
         );
         assert_eq!(
-            renderer.prepare_fm_mix(&current_psg, &fm_samples, true).unwrap(),
+            renderer
+                .prepare_fm_mix(&current_psg, &fm_samples, true)
+                .unwrap(),
             None
         );
 
