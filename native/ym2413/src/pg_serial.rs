@@ -1220,8 +1220,7 @@ mod tests {
         let cached_frame_ns =
             cached_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
         let speedup = duplicate_median as f64 / cached_median.max(1) as f64;
-        let saved_us_per_frame =
-            (duplicate_frame_ns as f64 - cached_frame_ns as f64) / 1_000.0;
+        let saved_us_per_frame = (duplicate_frame_ns as f64 - cached_frame_ns as f64) / 1_000.0;
 
         println!(
             "YM2413_CHANNEL_CONFIG_AB slots_per_sample={} samples={} duplicate_decode_median_ns={} cached_decode_median_ns={} estimated_duplicate_decode_ms_per_frame={:.4} estimated_cached_decode_ms_per_frame={:.4} channel_config_cache_speedup={:.3}x channel_config_cache_saved_us_per_frame={:.4}",
