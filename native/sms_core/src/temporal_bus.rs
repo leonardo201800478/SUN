@@ -1312,23 +1312,34 @@ impl SmsTemporalBus {
         if self.ym2413.is_some() {
             match port_byte {
                 0xF0 => {
-                    self.fm_port_writes.address_writes = self.fm_port_writes.address_writes.saturating_add(1);
+                    self.fm_port_writes.address_writes =
+                        self.fm_port_writes.address_writes.saturating_add(1);
                     self.fm_port_writes.last_address = Some(value & 0x3F);
-                    self.ym2413.as_mut().expect("YM2413 presence checked").write_address(value);
+                    self.ym2413
+                        .as_mut()
+                        .expect("YM2413 presence checked")
+                        .write_address(value);
                     return;
                 }
                 0xF1 => {
-                    self.fm_port_writes.data_writes = self.fm_port_writes.data_writes.saturating_add(1);
+                    self.fm_port_writes.data_writes =
+                        self.fm_port_writes.data_writes.saturating_add(1);
                     if let Some(register) = self.fm_port_writes.last_address {
                         let index = usize::from(register);
-                        self.fm_port_writes.register_writes[index] = self.fm_port_writes.register_writes[index].saturating_add(1);
+                        self.fm_port_writes.register_writes[index] = self.fm_port_writes
+                            .register_writes[index]
+                            .saturating_add(1);
                         self.fm_port_writes.last_register_values[index] = Some(value);
                     }
-                    self.ym2413.as_mut().expect("YM2413 presence checked").write_data(value);
+                    self.ym2413
+                        .as_mut()
+                        .expect("YM2413 presence checked")
+                        .write_data(value);
                     return;
                 }
                 0xF2 => {
-                    self.fm_port_writes.control_writes = self.fm_port_writes.control_writes.saturating_add(1);
+                    self.fm_port_writes.control_writes =
+                        self.fm_port_writes.control_writes.saturating_add(1);
                     self.fm_port_writes.last_control = Some(value & 0x0F);
                     self.fm_control = value & 0x0F;
                     return;
