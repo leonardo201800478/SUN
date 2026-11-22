@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
         } else {
             fprintf(stderr,
                     "usage: %s --calls N [--events file.csv] [--chip-type 0] "
-                    "[--pg-only] [--pg-phase-only] [--output-only] [--from-call N]\\n", argv[0]);
+                    "[--pg-only] [--pg-phase-only] [--output-only] [--from-call N]\n", argv[0]);
             free(events);
             return 2;
         }
