@@ -2,12 +2,12 @@
 
 **Data de referência:** 2026-11-22
 **Repositório:** `leonardo201800478/SUN`
-**Main atual pós-PR #1176:** `d7ab73808fca2d3e28068ba24192a92cf55d3c6a`
+**Main atual pós-PR #1178:** `f936de437483d934e21c7807ceff560292a8c472`
 
 **Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
-## Estado executivo atual — main pós-PR #1176 (2026-11-22)
+## Estado executivo atual — main pós-PR #1178 (2026-11-22)
 
 **Integração de runtime publicada; fidelidade física ainda aberta.**
 
@@ -26,6 +26,7 @@
 | #1172 | Separa presença física do YM2413 do território; remove inferência automática por região | `67752c9d4ff32cc7162b5045ddfad61dbc1a9075` |
 | #1175 | Expõe e persiste no desktop o perfil físico Japanese SMS FM e FmMode Auto/On/Off | `c42511f3e800f6e542ea83736cd835c0ebe38724` |
 | #1176 | Ferramenta reproduzível para auditar ADC→histograma→picos→bins; sem inferência de palavra DAC | `d7ab73808fca2d3e28068ba24192a92cf55d3c6a` |
+| #1178 | Auditoria quantitativa das 16 capturas públicas `volume*.raw` e proveniência dos dados | `f936de437483d934e21c7807ceff560292a8c472` |
 
 ### Estado real do caminho de áudio
 
@@ -2159,3 +2160,26 @@ neste scorecard.
 - PR #1157 contém o serviço medido MO/RO com mapeamentos independentes, retenção e tokens `-0`/`+0`; está em sincronização com a nova base publicada.
 - PR #1158 integra ao serviço PG somente o pipeline de referência digital do Nuked, com CI/PG/EG/reset/output differential aprovados no HEAD de código `b7143f07a166932c39801b28126def0c55df4800`. Esse frame não é o adaptador físico medido.
 - Próxima dependência: conectar o serviço medido MO/RO ao core com coordenadas independentes, propagação de desconhecido e buffer temporal; depois fechar a acumulação dos nove canais, DAC/PCM, portas F0–F2 e mixer PSG+FM.
+
+
+## Atualização FM-5.4 — análise dos dados de volume — 2026-11-22
+
+A PR #1178 foi integrada à main. Além da auditoria dos 16 arquivos `volume*.raw`, a análise dos arquivos históricos `volume*.out` confirmou que os índices de bins ADC representam a curva de atenuação de volume publicada em 2015-03-11. O cálculo pelos percentis 1 e 99 reproduz exatamente as amplitudes publicadas para os 16 níveis: 255, 181, 127, 90, 63, 45, 31, 22, 15, 11, 7, 5, 3, 2, 1 e 1.
+
+A comparação inicial entre `volume0.out` e o `decode.cc` atual misturava gerações diferentes do decodificador. Os arquivos foram adicionados em 2015-03-11 com um decodificador simples ADC→bin; o processamento posterior de média e seleção de canais foi introduzido em 2015-04-11, 2015-12-17 e 2019-12-31. A proveniência histórica está documentada no relatório de capturas públicas e no dossiê DAC.
+
+Isso fortalece a evidência da resposta analógica por nível de volume, mas não revela a palavra binária do DAC nem autoriza ligar `channel_output` ao `Ym2413DacCode` no runtime. O artefato `calibrate.raw` e os limites originais `.peaks/.bins` continuam ausentes; a conversão física e a fase subclock permanecem bloqueadas.
+
+
+### Limite adicional dos pares públicos raw/output
+
+A auditoria sample-index de `volume*.raw` contra `volume*.out` confirmou correspondência monotônica em 13 pares (volumes 1–11, 13 e 15), mas falhou em volumes 0, 12 e 14. Os pares válidos cobrem apenas bins 74..437; o único `.out` que cobre 0..511 (volume0.out) não se alinha ao seu `.raw`. Portanto, os arquivos públicos não permitem reconstruir a tabela completa de 512 limites de calibração. A tabela de atenuação continua válida como estatística dos `.out`, mas não como correlação amostra-a-amostra para os três pares inconsistentes.
+
+
+### Reconstrução por pares raw/output — atualização FM-5.4
+
+A análise aprofundada resolveu os três desalinhamentos por offsets de sequência de arquivo: volume0=-2, volume12=+1 e volume14=-2; os outros 13 usam offset 0. Após a correção, os 16 pares totalizam 320.635 amostras alinhadas, sem conflitos de ADC repetido nem violações de monotonicidade.
+
+Os pares observam 511 dos 512 bins (0..511, exceto bin 57). São obtidos intervalos de restrição para 509 fronteiras adjacentes; 147 fronteiras ficam exatas e as demais têm largura mediana de 32 códigos ADC, p90=84 e máximo=157. As duas fronteiras adjacentes ao bin 57 não são observáveis. O resultado está preservado em `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`.
+
+Isso é uma reconstrução quase completa de **intervalos de fronteira ADC**, não a recuperação exata de `calibrate.bins` ou `calibrate.raw`. O dado não expõe a palavra DAC de 9 bits. O próximo gate pode usar esses intervalos para testar a correspondência entre a saída digital do operador e os níveis analógicos medidos, sem afirmar que a codificação interna do DAC foi observada.

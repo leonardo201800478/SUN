@@ -240,3 +240,29 @@ Foi feita uma reprodução exploratória do algoritmo de `calibrate.cc` sobre o 
 Esse resultado não refuta a nota de 2015: `volume0.raw` é uma captura de varredura de volume, não o `calibrate.raw` de 60.000 amostras usado para gerar os limites publicados. Ele demonstra que não é válido substituir o artefato de calibração ausente por `volume0.raw` e declarar a tabela reproduzida.
 
 Para fechar a evidência de 512 bins é necessário recuperar o `calibrate.raw`, `.peaks` e `.bins` originais ou repetir a calibração no hardware, registrando explicitamente quantos picos foram observados e quantos foram inseridos pela heurística.
+
+
+## Historical volume-output decoder provenance and attenuation cross-check — 2026-11-22
+
+The `volume*.out` files were committed alongside their `.raw` captures in upstream commit `f1384d719d25b7dd170ab58eddbe7dccca993504` (2015-03-11). At that revision, `analyze/decode.cc` mapped each ADC sample through the calibration-bin table. The later 64-sample averaging, 512-sample averaging, and `select_channel` processing were added in later commits (2015-04-11, 2015-12-17, and 2019-12-31 respectively); the modern decoder must not be applied retroactively to explain the older `.out` files.
+
+A new analysis of all 16 `volume*.out` files computes the 1st and 99th percentiles and derives the amplitude relative to the two central bins (255/256). The resulting amplitudes exactly match the 2015-03-11 published table: 255, 181, 127, 90, 63, 45, 31, 22, 15, 11, 7, 5, 3, 2, 1, 1. This confirms the analog volume-attenuation measurements as represented by the calibrated bin indices. It does not establish the raw digital DAC word or the operator-to-DAC mapping.
+
+Artifact lengths are not perfectly aligned: `volume0.out` has two fewer tokens than `volume0.raw`, `volume12.out` one more, and `volume14.out` two fewer. The historical decoder source does not explain these differences. Preserve them as unresolved provenance details rather than silently trimming or padding the sequences.
+
+
+## Sample-index pairing audit of volume captures — 2026-11-22
+
+The 16 `volume*.raw` / `volume*.out` pairs were compared at the same sample index. Thirteen pairs (volumes 1–11, 13 and 15) have equal lengths, zero repeated-ADC-code mapping conflicts, and zero monotonicity violations when pairs are sorted by ADC code. Three pairs fail this test:
+
+| Volume | Raw samples | Output tokens | Same-ADC conflicts | Monotonicity violations |
+|---:|---:|---:|---:|---:|
+| 0 | 20,032 | 20,030 | 4,406 | 14,306 |
+| 12 | 20,031 | 20,032 | 2,424 | 16,395 |
+| 14 | 20,032 | 20,030 | 594 | 11,739 |
+
+The three apparent pairing failures are resolved by file-sequence offsets: volume0=-2, volume12=+1 and volume14=-2 (pairing `raw[i]` with `out[i+offset]`). The other 13 files use offset 0. After alignment, all 16 pairs are monotonic and have zero repeated-ADC-code mapping conflicts. These are data-file offsets only, not hardware timing offsets.
+
+Across 320,635 paired samples, 511 of 512 bins are observed (0..511 except bin 57). The observations constrain 509 adjacent-bin boundaries with no contradictions; 147 boundaries are exact, while the remaining intervals have p50 width 32 ADC codes, p90 84, p99 92 and maximum 157. The two boundaries adjacent to missing bin 57 remain unconstrained. The machine-readable intervals are stored in `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`.
+
+This is a near-complete constraint reconstruction of the historical ADC-bin table, not the original calibration file. Most boundaries are intervals rather than exact values, and no raw 9-bit DAC word is exposed. It is useful evidence for analog output-level analysis, not proof of the operator-to-DAC conversion.
