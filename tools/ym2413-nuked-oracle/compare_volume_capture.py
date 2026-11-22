@@ -144,6 +144,19 @@ def score_alignment(
         for index in range(len(measured))
     ]
     ordered_errors = sorted(errors)
+    worst_indices = sorted(
+        range(len(errors)), key=lambda index: (-errors[index], index)
+    )[:10]
+    worst_error_samples = [
+        {
+            "sample_index": index,
+            "measured_bin": measured[index],
+            "model_bin": model[best_offset + index],
+            "signed_error": measured[index] - model[best_offset + index],
+            "absolute_error": errors[index],
+        }
+        for index in worst_indices
+    ]
     prefix_length = min(prefix_samples, len(measured))
     prefix_errors = errors[:prefix_length]
     window_size = 2048
@@ -174,6 +187,7 @@ def score_alignment(
         "mean_absolute_error": sum(errors) / len(errors),
         "p95_absolute_error": ordered_errors[int((len(ordered_errors) - 1) * 0.95)],
         "maximum_absolute_error": max(errors),
+        "worst_error_samples": worst_error_samples,
         "windowed_exact_match_rates": windows,
     }
 
