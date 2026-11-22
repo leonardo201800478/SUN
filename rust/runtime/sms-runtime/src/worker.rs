@@ -2448,6 +2448,9 @@ fn execute_frame_with_renderer(
     previous_deadline: Option<Instant>,
 ) -> Result<(usize, Option<Instant>, bool), String> {
     let frame_started = Instant::now();
+    machine.set_fm_audio_capture_enabled(
+        audio_renderer.fm_output_policy != SmsFmOutputPolicy::Muted,
+    );
     let diagnostics_enabled = telemetry.diagnostics_enabled();
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
