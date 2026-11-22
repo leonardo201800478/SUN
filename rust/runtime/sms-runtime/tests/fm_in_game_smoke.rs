@@ -31,8 +31,8 @@ use sega_audio_runtime::{
 };
 use sega_media::CartridgeIdentity;
 use sega_sms_core::SmsTemporalTraceEvent;
-use sega_z80_cpu::Z80BusOperation;
 use sega_sms_runtime::{AudioSession, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision};
+use sega_z80_cpu::Z80BusOperation;
 
 const DEFAULT_FRAMES_PER_ROM: u64 = 1_800;
 const FRAME_WAIT_TIMEOUT: Duration = Duration::from_secs(180);
