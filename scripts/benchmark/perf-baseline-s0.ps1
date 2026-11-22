@@ -18,6 +18,10 @@ param(
     [ValidateSet("release", "release-llvm")]
     [string]$CargoProfile = "release",
 
+    # Optional shared Cargo target directory. Useful for repeated A/B campaigns:
+    # each profile reuses its own artifacts instead of rebuilding every run.
+    [string]$CargoTargetDirectory = "",
+
     [switch]$CaptureCpuProfile
 )
 
@@ -91,7 +95,14 @@ foreach ($name in $envNames) {
     $previousEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
 }
 
-$cargoTargetDir = Join-Path $outputRoot "cargo-target"
+if ([string]::IsNullOrWhiteSpace($CargoTargetDirectory)) {
+    $cargoTargetDir = Join-Path $outputRoot "cargo-target"
+}
+else {
+    $cargoTargetDir = [System.IO.Path]::GetFullPath($CargoTargetDirectory)
+}
+New-Item -ItemType Directory -Path $cargoTargetDir -Force | Out-Null
+
 $wprStarted = $false
 $exitCode = 1
 try {
