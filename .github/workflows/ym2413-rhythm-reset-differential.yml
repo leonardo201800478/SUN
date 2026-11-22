@@ -11,7 +11,6 @@ on:
       - "native/ym2413/src/rhythm_dispatch.rs"
       - "tools/ym2413-nuked-oracle/trace.c"
       - "tools/ym2413-nuked-oracle/compare_rhythm_noise.py"
-      - ".github/workflows/ym2413-rhythm-reset-differential.yml"
   workflow_dispatch:
 
 permissions:
