@@ -10,7 +10,7 @@ Esta política é subordinada aos ADRs vigentes e ao código integrado na `main`
 1. A CI seleciona a menor suíte que cubra o código alterado e seus consumidores reais.
 2. A seleção por caminhos nunca pode ocultar uma regressão: dependências compartilhadas acionam a união dos gates dos consumidores.
 3. Testes de hardware/runtime permanecem obrigatórios nas alterações pertinentes.
-4. Hosts legados são preservados por validação condicional ou opt-in; não são destino arquitetural.
+4. Hosts aposentados não recebem novos gates de build; ADRs e auditorias históricas são preservadas. Validação física é registrada separadamente.
 5. Um job `SKIPPED` nunca é `PASS`. O gate agregado exige `success` para jobs aplicáveis e `skipped` para jobs não aplicáveis.
 6. Cada resultado deve ser associado ao SHA exato avaliado.
 7. Builds de aplicação são Release e usam lockfiles versionados com `--locked`.
@@ -21,7 +21,7 @@ Esta política é subordinada aos ADRs vigentes e ao código integrado na `main`
 | Workflow | Responsabilidade |
 |---|---|
 | `.github/workflows/ci.yml` | Classificação de impacto, regressão Rust, gates focados por domínio, hosts condicionais, desktop Slint/WGPU, higiene documental e lint de workflows |
-| `.github/workflows/sms-debugger-runtime.yml` | Integração SMS runtime Windows x64 Release; não compila a GUI debugger legada |
+| `.github/workflows/sms-debugger-runtime.yml` | Integração SMS runtime Windows x64 Release e benchmark YM2413; não compila GUI separada |
 | `.github/workflows/ym2413-pg-differential.yml` | Diferencial serial PG/operadores contra Nuked, somente para fontes e ferramentas PG relacionadas |
 | `.github/workflows/ym2413-eg-characterization.yml` | Sweep e replay EG; somente para fontes, fixtures e ferramentas de envelope |
 | `.github/workflows/ym2413-rhythm-reset-differential.yml` | Caracterização adicional de reset/ruído Rhythm Mode; execução manual sob demanda |
@@ -41,15 +41,10 @@ As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scri
 | PSG | fmt, Clippy e testes do PSG e consoles | CI / PSG focused | Alterações PSG |
 | VDP | fmt, Clippy e testes do VDP e consoles | CI / VDP focused | Alterações VDP |
 | MachineScheduler/temporal core | Regressão do workspace e replay determinístico | CI / Scheduler stress | Alterações temporais ou opt-in por label |
-| Input portátil | fmt, Clippy e testes do runtime de entrada e consoles | CI / Input focused | Alterações input |
+| Input/SDL3 | fmt, Clippy, testes do runtime de entrada e validação Windows do backend SDL3 | CI / Input focused + Windows SDL3 | Alterações em input runtime, integração SMS/SG-1000 ou host Slint |
 | Slint/WGPU 30 | fmt, Clippy, testes e build Windows x64 Release | CI / Slint WGPU | Alterações em `native/sega_desktop` ou dependências do workspace |
 | Vulkan físico | Janela, device/queue, textura externa, composição, resize e teardown em GPU real | Validação manual R1 | Antes de declarar R1 concluída |
-| Áudio legado | fmt, Clippy e testes Windows/Linux do host | CI / Legacy audio | Alterações no host ou dependências afetadas; também opt-in |
-| Aplicação egui legada | fmt, Clippy, testes e build Windows x64 Release | CI / Legacy Windows host | Alterações na aplicação ou dependências transitórias afetadas; também opt-in |
-| D3D12 legado | Clippy e testes Windows do runtime gráfico | CI / Legacy Windows host | Alterações no runtime gráfico/VDP ou opt-in |
-| CPAL | Dispositivos, formatos, streams, callback e underruns | Gate futuro R3 | Somente após implementação |
-| SDL3 | Teclado, gamepads e mapeamento de controles | Gate futuro R4 | Somente após integração |
-| SMS debugger GUI egui | `NOT RUN`; o núcleo debugger_core continua coberto no workspace Rust | Nenhum gate padrão | Host de desenvolvimento legado; reativação exige lockfile e gate opt-in |
+| CPAL output | fmt, Clippy, testes do backend e build Windows x64 | CI / CPAL | Alterações em `native/audio_output/**`, áudio runtime e dependências relacionadas |
 | Documentação | `git diff --check` | CI / Documentation | Alterações Markdown, MDX, RST ou TXT |
 | Workflows | actionlint e validação do gate agregado | CI / Workflow lint | Alterações nos workflows e arquivos auxiliares |
 | PowerShell tooling | Parser PowerShell nos scripts alterados e auditoria de workspaces/lockfiles | CI / Windows tooling | Alterações em `scripts/**/*.ps1` ou `atualizar_recompilar_sega_emulator.ps1` |
@@ -65,36 +60,35 @@ As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scri
 - PSG, VDP e input têm jobs de pacote com integração de console. Eles substituem a regressão genérica do workspace somente quando a alteração está isolada nesses domínios.
 - MachineScheduler e temporal core executam a regressão do workspace e o stress replay determinístico. Consumidores legados afetados também são validados quando necessário.
 - Alterações em `native/observability` acionam os consumidores pertinentes.
-- Alterações em `rust/runtime/sms-runtime` acionam a regressão Rust, o host legado dependente quando aplicável e o workflow do debugger.
-- Alterações no host de áudio legado executam os testes Windows e Linux; não significam que CPAL esteja integrado.
+- Alterações em `rust/runtime/sms-runtime` acionam a regressão Rust e o workflow SMS Runtime Release.
+- Alterações em `native/audio_output` executam os gates do backend CPAL; testes headless não substituem a validação física de dispositivos.
 - Alterações de workflow executam actionlint e a regressão do workspace, mas não forçam compilações de hosts legados sem relação com a alteração.
 - Alterações de documentação executam higiene de diff, sem build Rust indiscriminado.
 
 Os filtros que combinam inclusões e exclusões usam `predicate-quantifier: some-with-excludes`. O gate agregado compara explicitamente o resultado real de cada job com sua aplicabilidade esperada.
 
-## 5. Hosts transitórios e funcionalidades ainda não integradas
+## 5. Componentes aposentados e validações físicas pendentes
 
 ### egui/eframe, D3D12 e WASAPI/XAudio2
 
-São hosts de transição. Permanecem disponíveis para preservação e regressão quando suas dependências são afetadas, ou por execução manual opt-in. Não devem bloquear alterações exclusivas da nova camada Slint/WGPU por APIs sem relação com o patch.
+Esses hosts foram retirados do caminho ativo. A GUI independente `native/sms_debugger`, seus manifests e suas dependências exclusivas `eframe`/`rfd` foram removidos. O núcleo `sega-debugger-core` permanece no workspace e no SMS runtime. ADRs e relatórios datados são mantidos somente como histórico; não são alvos de build nem autorizam reintroduzir essas tecnologias.
 
 ### CPAL
 
-CPAL ainda não possui integração funcional nesta baseline. Não criar testes que afirmem enumerar dispositivos, criar streams ou tratar underruns antes de existir a implementação R3. A saída de áudio emulada e o host físico são responsabilidades distintas.
+CPAL 0.18.2 é o backend ativo de saída física e está integrado ao host Slint. A CI cobre compilação e testes de software. Enumeração real de endpoints, formatos negociados, reprodução prolongada, hotplug/reconexão e underruns em dispositivos físicos exigem validação Windows separada.
 
 ### SDL3
 
-SDL3 ainda não está integrado. O runtime portátil de input existente continua testado como núcleo, mas isso não é validação SDL3. Não chamar os testes atuais de testes SDL3 nem testar APIs inexistentes.
+SDL3 está integrado ao host Slint para gamepads. Os testes do runtime e a validação Windows cobrem o caminho de software; hotplug e comportamento com controles físicos devem ser registrados separadamente quando validados.
 
-### Scripts de desenvolvimento e hosts legados
+### Scripts de desenvolvimento
 
-- `scripts/project.ps1` é a referência para auditoria de workspaces e lockfiles.
-- `scripts/build-app.ps1` e `atualizar_recompilar_sega_emulator.ps1` constroem o shell egui legado; não são gates da nova GUI Slint.
-- `scripts/compile-fast.ps1` é uma verificação local de conveniência, não substitui os gates Release da CI.
-- `scripts/install_sdl3_runtime.ps1` apenas prepara manualmente a DLL SDL3 oficial com checksum fixado. Não comprova integração SDL3 e não é executado pela CI.
+- `scripts/project.ps1` audita o workspace raiz e o workspace independente CPAL, incluindo manifests e lockfiles.
+- `scripts/compile-fast.ps1` verifica o workspace raiz; use `-AllWorkspaces` para incluir o workspace CPAL independente.
+- `scripts/install_sdl3_runtime.ps1` prepara manualmente a DLL SDL3 oficial com checksum fixado; não substitui os gates de integração.
 - `scripts/common.ps1` fornece a inicialização MSVC compartilhada pelos scripts Windows.
 
-A CI analisa sintaticamente scripts PowerShell alterados, incluindo o helper de build na raiz, e executa `project.ps1 audit` e `project.ps1 locks` no gate de tooling.
+A CI analisa sintaticamente scripts PowerShell alterados e executa `project.ps1 audit` e `project.ps1 locks` no gate de tooling.
 
 ## 6. Testes que devem permanecer protegidos
 
@@ -122,15 +116,14 @@ Não foram encontrados arquivos de testes Python na árvore desta baseline. Caso
 
 Workspaces com lockfile independente devem ser auditados individualmente:
 
-- `Cargo.lock` — workspace Rust raiz, incluindo `native/sega_desktop` quando integrado.
-- `native/audio_output/Cargo.lock` — host de áudio legado.
-- `native/sega_app/Cargo.lock` — aplicação egui/eframe legada.
+- `Cargo.lock` — workspace Rust raiz, incluindo `native/sega_desktop`.
+- `native/audio_output/Cargo.lock` — workspace independente do backend CPAL.
 
-O host GUI `native/sms_debugger` é um utilitário legado e fica explicitamente `NOT RUN` na CI padrão. O núcleo `debugger_core` permanece coberto pelo workspace raiz. Se o host GUI voltar a ser suportado, deverá receber lockfile versionado e gate opt-in próprio antes de ser reativado.
+Não existem workspaces ativos para `native/sega_app` ou `native/sms_debugger`; seus manifests e dependências de GUI foram retirados. `native/debugger_core` permanece no workspace raiz porque é consumido pelo SMS runtime.
 
 O refresh de lockfiles é uma operação manual/opt-in que produz artefato temporário para revisão. O workflow não recebe permissão `contents: write`, não faz commit e não executa push automático.
 
-`scripts/project.ps1` deve descobrir os membros do workspace raiz via `cargo metadata` e auditar cada workspace independente explicitamente. Manifests fora dos workspaces reconhecidos são classificados como `NOT RUN`, nunca como validados.
+`scripts/project.ps1` audita o workspace raiz e o workspace CPAL independente explicitamente. Manifests fora dos workspaces reconhecidos são classificados como `NOT RUN`, nunca como validados.
 
 ## 8. Segurança e permissões
 
