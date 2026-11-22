@@ -1,15 +1,17 @@
-//! Opt-in in-game FM acceptance campaign for legally obtained Japanese SMS ROMs.
+//! Opt-in in-game FM signal/quality diagnostic campaign for legally obtained Japanese SMS ROMs.
 //!
 //! This exercises the real ROM -> Z80/Scheduler -> YM2413 -> FM/PSG alignment ->
 //! NativeAudioSession mixer/resampler -> PCM sink path. The capture sink is
 //! deterministic and headless; no CPAL device is required for this software-path
-//! acceptance test. Physical CPAL playback remains a separate manual check.
+//! diagnostic test, not an audio-quality acceptance test. Physical CPAL playback
+//! remains a separate manual check. Nonzero PCM alone does not establish fidelity.
 //!
 //! PowerShell:
 //!   $env:SEGA_SMS_FM_TEST_ROM_DIR = "D:\ROMs\SMS-FM"
 //!   $env:SEGA_SMS_FM_TEST_REGION = "japan"
 //!   $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1" # sms1|sms2
 //!   $env:SEGA_SMS_FM_TEST_FRAMES = "1800" # optional; default 1800
+//!   $env:SEGA_SMS_FM_TEST_WAV_DIR = "D:\SUN-FM-Captures" # optional; writes FM, PSG, single-source and mixed float WAVs
 //!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
 //!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns -- --ignored --nocapture
 //!
@@ -18,7 +20,8 @@
 //!
 //! ROM files are read in place and are never copied into the repository.
 
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -30,9 +33,7 @@ use sega_audio_runtime::{
     AnalogOutputConfig, AudioOutputMetrics, MixSource, NativeAudioSession, PcmSink,
 };
 use sega_media::CartridgeIdentity;
-use sega_sms_core::SmsTemporalTraceEvent;
 use sega_sms_runtime::{AudioSession, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision};
-use sega_z80_cpu::Z80BusOperation;
 
 const DEFAULT_FRAMES_PER_ROM: u64 = 1_800;
 const FRAME_WAIT_TIMEOUT: Duration = Duration::from_secs(180);
@@ -54,6 +55,7 @@ struct PcmCapture {
     samples: u64,
     nonzero_samples: u64,
     peak: f64,
+    samples_f64: Vec<f64>,
 }
 
 #[derive(Clone, Default)]
@@ -69,6 +71,7 @@ impl PcmSink for RecordingSink {
             .map_err(|_| "FM smoke PCM capture mutex was poisoned".to_owned())?;
         capture.blocks = capture.blocks.saturating_add(1);
         capture.samples = capture.samples.saturating_add(samples.len() as u64);
+        capture.samples_f64.extend_from_slice(&samples);
         capture.nonzero_samples = capture.nonzero_samples.saturating_add(
             samples
                 .iter()
@@ -106,7 +109,12 @@ struct FmSourceCapture {
     fm_samples: u64,
     fm_nonzero_samples: u64,
     alignment_errors: u64,
+    single_source_blocks: u64,
+    single_source_samples: u64,
     fm_peak: f64,
+    psg_samples_f64: Vec<f64>,
+    fm_samples_f64: Vec<f64>,
+    single_source_samples_f64: Vec<f64>,
 }
 
 struct CapturingAudioSession {
@@ -115,6 +123,19 @@ struct CapturingAudioSession {
 }
 
 impl CapturingAudioSession {
+    fn record_single_source(&self, samples: &[f64]) -> Result<(), String> {
+        let mut capture = self
+            .sources
+            .lock()
+            .map_err(|_| "FM source capture mutex was poisoned".to_owned())?;
+        capture.single_source_blocks = capture.single_source_blocks.saturating_add(1);
+        capture.single_source_samples = capture
+            .single_source_samples
+            .saturating_add(samples.len() as u64);
+        capture.single_source_samples_f64.extend_from_slice(samples);
+        Ok(())
+    }
+
     fn record_sources(&self, sources: &[MixSource<'_>]) -> Result<(), String> {
         let mut capture = self
             .sources
@@ -130,6 +151,8 @@ impl CapturingAudioSession {
         capture.dual_source_blocks = capture.dual_source_blocks.saturating_add(1);
         capture.psg_samples = capture.psg_samples.saturating_add(psg.len() as u64);
         capture.fm_samples = capture.fm_samples.saturating_add(fm.len() as u64);
+        capture.psg_samples_f64.extend_from_slice(psg);
+        capture.fm_samples_f64.extend(fm.iter().copied());
         if psg.len() != fm.len() {
             capture.alignment_errors = capture.alignment_errors.saturating_add(1);
         }
@@ -147,6 +170,7 @@ impl CapturingAudioSession {
 
 impl AudioSession for CapturingAudioSession {
     fn process_samples(&mut self, samples: &[f64]) -> Result<(), String> {
+        self.record_single_source(samples)?;
         self.native.process_samples(samples)
     }
 
@@ -195,93 +219,116 @@ impl AudioSession for CapturingAudioSession {
     }
 }
 
-#[derive(Debug, Default)]
-struct FmPortWriteCapture {
-    address_writes: u64,
-    data_writes: u64,
-    control_writes: u64,
-    register_writes: Vec<(u8, u8)>,
-    control_values: Vec<u8>,
-    pending_address: Option<u8>,
-    last_request_id: Option<u64>,
-    dropped_events: u64,
+#[derive(Debug, Clone, Copy, Default)]
+struct SignalSummary {
+    samples: u64,
+    nonzero: u64,
+    non_finite: u64,
+    clipped_or_over_one: u64,
+    peak: f64,
+    rms: f64,
+    mean: f64,
 }
 
-impl FmPortWriteCapture {
-    fn observe(&mut self, events: &[SmsTemporalTraceEvent], dropped_events: u64) {
-        self.dropped_events = self.dropped_events.max(dropped_events);
-        for event in events {
-            let SmsTemporalTraceEvent::BusCompleted {
-                request_id,
-                operation,
-                address,
-                ..
-            } = event
-            else {
-                continue;
-            };
-            if self
-                .last_request_id
-                .is_some_and(|last_request_id| *request_id <= last_request_id)
-            {
-                continue;
-            }
-            self.last_request_id = Some(*request_id);
-
-            let Z80BusOperation::PortWrite { value } = operation else {
-                continue;
-            };
-            match *address as u8 {
-                0xF0 => {
-                    self.address_writes = self.address_writes.saturating_add(1);
-                    self.pending_address = Some(*value & 0x3F);
-                }
-                0xF1 => {
-                    self.data_writes = self.data_writes.saturating_add(1);
-                    if let Some(register) = self.pending_address
-                        && self.register_writes.len() < 64
-                    {
-                        self.register_writes.push((register, *value));
-                    }
-                }
-                0xF2 => {
-                    self.control_writes = self.control_writes.saturating_add(1);
-                    if self.control_values.len() < 32 {
-                        self.control_values.push(*value);
-                    }
-                }
-                _ => {}
-            }
+fn summarize_signal(samples: &[f64]) -> SignalSummary {
+    let mut summary = SignalSummary {
+        samples: samples.len() as u64,
+        ..SignalSummary::default()
+    };
+    let mut sum = 0.0_f64;
+    let mut sum_squares = 0.0_f64;
+    for &sample in samples {
+        if !sample.is_finite() {
+            summary.non_finite = summary.non_finite.saturating_add(1);
+            continue;
         }
+        if sample.abs() > NONZERO_EPSILON {
+            summary.nonzero = summary.nonzero.saturating_add(1);
+        }
+        if sample.abs() >= 1.0 {
+            summary.clipped_or_over_one = summary.clipped_or_over_one.saturating_add(1);
+        }
+        summary.peak = summary.peak.max(sample.abs());
+        sum += sample;
+        sum_squares += sample * sample;
     }
+    let finite = summary.samples.saturating_sub(summary.non_finite);
+    if finite > 0 {
+        summary.mean = sum / finite as f64;
+        summary.rms = (sum_squares / finite as f64).sqrt();
+    }
+    summary
 }
 
-const FM_DIAGNOSTIC_INSTRUCTIONS: usize = 4_096;
-const FM_TRACE_BATCH_INSTRUCTIONS: usize = 32;
-
-/// Run a bounded, audio-free startup probe and retain the actual YM2413 port writes.
-/// The caller resets the worker afterward, so this diagnostic pass cannot change
-/// the state used by the real-game audio acceptance run.
-fn capture_startup_fm_port_writes(
-    worker: &SmsTemporalWorker,
-) -> Result<FmPortWriteCapture, String> {
-    let mut capture = FmPortWriteCapture::default();
-    for instruction in 0..FM_DIAGNOSTIC_INSTRUCTIONS {
-        worker.step_instruction()?;
-        if (instruction + 1) % FM_TRACE_BATCH_INSTRUCTIONS == 0 {
-            let snapshot = worker.debug_snapshot()?;
-            capture.observe(
-                &snapshot.essential_trace_events,
-                snapshot.essential_trace_dropped,
-            );
-        }
+/// Write mono IEEE-float WAV without normalization or clipping, preserving the
+/// actual digital amplitude delivered by each point in the production pipeline.
+fn write_wav_f32(path: &Path, samples: &[f64], sample_rate: u32) -> Result<(), String> {
+    let data_len = u32::try_from(samples.len().saturating_mul(4))
+        .map_err(|_| format!("WAV is too large: {}", path.display()))?;
+    let riff_len = 36_u32
+        .checked_add(data_len)
+        .ok_or_else(|| format!("WAV is too large: {}", path.display()))?;
+    let byte_rate = sample_rate
+        .checked_mul(4)
+        .ok_or_else(|| format!("invalid WAV sample rate: {sample_rate}"))?;
+    let mut file = File::create(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    file.write_all(b"RIFF")
+        .and_then(|_| file.write_all(&riff_len.to_le_bytes()))
+        .and_then(|_| file.write_all(b"WAVEfmt "))
+        .and_then(|_| file.write_all(&16_u32.to_le_bytes()))
+        .and_then(|_| file.write_all(&3_u16.to_le_bytes())) // IEEE float
+        .and_then(|_| file.write_all(&1_u16.to_le_bytes())) // mono
+        .and_then(|_| file.write_all(&sample_rate.to_le_bytes()))
+        .and_then(|_| file.write_all(&byte_rate.to_le_bytes()))
+        .and_then(|_| file.write_all(&4_u16.to_le_bytes())) // block align
+        .and_then(|_| file.write_all(&32_u16.to_le_bytes()))
+        .and_then(|_| file.write_all(b"data"))
+        .and_then(|_| file.write_all(&data_len.to_le_bytes()))
+        .map_err(|error| format!("{}: {error}", path.display()))?;
+    for &sample in samples {
+        let value = if sample.is_finite() {
+            sample as f32
+        } else {
+            0.0
+        };
+        file.write_all(&value.to_le_bytes())
+            .map_err(|error| format!("{}: {error}", path.display()))?;
     }
-    let snapshot = worker.debug_snapshot()?;
-    capture.observe(
-        &snapshot.essential_trace_events,
-        snapshot.essential_trace_dropped,
-    );
-    Ok(capture)
+    Ok(())
+}
+
+fn write_game_audio_captures(
+    fixture_name: &str,
+    fm: &[f64],
+    psg: &[f64],
+    single_source: &[f64],
+    mixed: &[f64],
+) -> Result<(), String> {
+    let Some(directory) = std::env::var_os("SEGA_SMS_FM_TEST_WAV_DIR") else {
+        return Ok(());
+    };
+    let directory = PathBuf::from(directory);
+    fs::create_dir_all(&directory).map_err(|error| format!("{}: {error}", directory.display()))?;
+    let stem = fixture_name
+        .to_ascii_lowercase()
+        .replace(' ', "-")
+        .replace(['(', ')'], "")
+        .replace("--", "-");
+    for (suffix, samples) in [
+        ("fm-source", fm),
+        ("psg-source", psg),
+        ("single-source", single_source),
+        ("mixed-output", mixed),
+    ] {
+        let path = directory.join(format!("{stem}-{suffix}.wav"));
+        write_wav_f32(&path, samples, 48_000)?;
+        println!(
+            "SMS_FM_WAV path={} signal={:?}",
+            path.display(),
+            summarize_signal(samples)
+        );
+    }
+    Ok(())
 }
 
 fn is_sms_rom(path: &Path) -> bool {
@@ -392,19 +439,6 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             )
         });
 
-        let fm_bus_writes = capture_startup_fm_port_writes(&worker).unwrap_or_else(|error| {
-            panic!(
-                "{}: failed to capture startup YM2413 port writes: {error}",
-                path.display()
-            )
-        });
-        worker.reset().unwrap_or_else(|error| {
-            panic!(
-                "{}: cannot reset after FM write probe: {error}",
-                path.display()
-            )
-        });
-
         let source_capture = Arc::new(Mutex::new(FmSourceCapture::default()));
         let pcm_capture = Arc::new(Mutex::new(PcmCapture::default()));
         let factory_sources = Arc::clone(&source_capture);
@@ -452,6 +486,15 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         worker
             .pause()
             .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
+        let fm_bus_writes = worker
+            .debug_snapshot()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{}: cannot snapshot FM bus counters: {error}",
+                    path.display()
+                )
+            })
+            .fm_port_writes;
         worker.close_audio_output().unwrap_or_else(|error| {
             panic!("{}: cannot close native mixer: {error}", path.display())
         });
@@ -463,6 +506,21 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             .lock()
             .unwrap_or_else(|_| panic!("{}: PCM capture mutex was poisoned", path.display()));
 
+        write_game_audio_captures(
+            fixture_name,
+            &sources.fm_samples_f64,
+            &sources.psg_samples_f64,
+            &sources.single_source_samples_f64,
+            &pcm.samples_f64,
+        )
+        .unwrap_or_else(|error| panic!("{}: cannot write diagnostic WAV: {error}", path.display()));
+
+        assert!(
+            fm_bus_writes.address_writes > 0 && fm_bus_writes.data_writes > 0,
+            "{}: game did not commit YM2413 F0/F1 register writes during gameplay: {:?}",
+            path.display(),
+            fm_bus_writes
+        );
         assert!(
             sources.dual_source_blocks > 0,
             "{}: runtime never submitted aligned PSG + FM source blocks",
@@ -481,7 +539,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         );
         assert!(
             sources.fm_nonzero_samples > 0 && sources.fm_peak > NONZERO_EPSILON,
-            "{}: YM2413 source remained silent; startup FM bus writes: {:?}",
+            "{}: YM2413 source remained silent; committed FM bus writes: {:?}",
             path.display(),
             fm_bus_writes
         );
@@ -492,7 +550,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         );
 
         println!(
-            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} vdp={:?} frames={} fm_bus_writes={:?} dual_source_blocks={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8}",
+            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} vdp={:?} frames={} fm_port_writes={:?} dual_source_blocks={} single_source_blocks={} single_source_samples={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8} fm_summary={:?} psg_summary={:?} single_source_summary={:?} mixed_summary={:?}",
             fixture_name,
             path.display(),
             sha256,
@@ -501,6 +559,8 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             worker.frame_number(),
             fm_bus_writes,
             sources.dual_source_blocks,
+            sources.single_source_blocks,
+            sources.single_source_samples,
             sources.psg_samples,
             sources.fm_samples,
             sources.fm_nonzero_samples,
@@ -508,9 +568,37 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             pcm.blocks,
             pcm.samples,
             pcm.nonzero_samples,
-            pcm.peak
+            pcm.peak,
+            summarize_signal(&sources.fm_samples_f64),
+            summarize_signal(&sources.psg_samples_f64),
+            summarize_signal(&sources.single_source_samples_f64),
+            summarize_signal(&pcm.samples_f64),
         );
     }
+}
+
+#[test]
+fn diagnostic_wav_writer_preserves_ieee_float_samples_without_normalization() {
+    let path = std::env::temp_dir().join(format!(
+        "sun-ym2413-fm-diagnostic-{}.wav",
+        std::process::id()
+    ));
+    let samples = [0.25_f64, -0.5_f64];
+    write_wav_f32(&path, &samples, 48_000).unwrap();
+
+    let bytes = fs::read(&path).unwrap();
+    assert_eq!(&bytes[0..4], b"RIFF");
+    assert_eq!(&bytes[8..12], b"WAVE");
+    assert_eq!(u16::from_le_bytes([bytes[20], bytes[21]]), 3); // IEEE float
+    assert_eq!(u16::from_le_bytes([bytes[22], bytes[23]]), 1); // mono
+    assert_eq!(
+        u32::from_le_bytes(bytes[24..28].try_into().unwrap()),
+        48_000
+    );
+    assert_eq!(u16::from_le_bytes([bytes[34], bytes[35]]), 32);
+    assert_eq!(f32::from_le_bytes(bytes[44..48].try_into().unwrap()), 0.25);
+    assert_eq!(f32::from_le_bytes(bytes[48..52].try_into().unwrap()), -0.5);
+    fs::remove_file(path).unwrap();
 }
 
 #[cfg(target_os = "windows")]
