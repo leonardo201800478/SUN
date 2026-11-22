@@ -36,7 +36,9 @@ mod windows_host {
     use sega_save_runtime::SaveRamStore;
     use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_sms_core::ControllerButtons;
-    use sega_sms_runtime::{AnalogOutputConfig, AudioRendererMode, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision};
+    use sega_sms_runtime::{
+        AnalogOutputConfig, AudioRendererMode, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision,
+    };
     use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
     use std::os::windows::process::CommandExt;
     use zip::ZipArchive;
