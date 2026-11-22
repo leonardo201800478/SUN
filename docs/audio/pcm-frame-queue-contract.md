@@ -1,10 +1,17 @@
 # Contrato OUT-A — FIFO PCM em frames
 
 **Escopo:** primeiro incremento executável do transporte de áudio host.
-**Unidade:** um frame = duas amostras PCM16 intercaladas [left, right].
+**Unidade atual:** um frame estéreo = duas amostras normalizadas `f64` (`[left, right]`), representadas por `StereoFrame([f64; 2])`. A conversão para o formato negociado do dispositivo ocorre no callback CPAL.
 **Concorrência:** um produtor e um consumidor; cada endpoint pertence a uma única thread.
 **Status:** contrato inicial OUT-A; extensões posteriores de flush/epoch estão registradas ao final deste documento.
 **Clock:** a fila não possui relógio e não controla o MachineScheduler.
+
+
+## Representação PCM atual
+
+A FIFO SPSC transporta `f64` normalizado por canal; não armazena PCM16 nem bytes intercalados. O produtor publica `StereoFrame([f64; 2])`. O callback CPAL lê os frames e converte cada canal para o `SampleFormat` negociado, preenchendo somente a região ausente com silêncio em caso de underflow. A precisão `f64` é preservada dentro da fila; quantização/conversão ocorre na fronteira do dispositivo.
+
+A frase PCM16 acima foi substituída porque descrevia o contrato inicial e não a implementação atual. A evolução histórica de flush/epoch e as políticas de overflow/underflow permanecem válidas.
 
 ## Contrato implementado
 
