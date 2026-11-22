@@ -1163,15 +1163,27 @@ mod tests {
         assert_eq!(frame.ro, None);
     }
 
+    /// Keeps the unseeded Bass Drum RO source unknown while preserving the prior ch_out MO level.
     #[test]
-    fn unseeded_rhythm_mode_propagates_unknown_measured_mo_ro_frame() {
+    fn unseeded_rhythm_mode_keeps_ro_unknown_and_measured_mo_known() {
         let mut registers = [0; 64];
         registers[0x0e] = 0x3f;
         let mut service = Ym2413PgSerialService::new(initial_bank(0))
             .with_rhythm_noise_cursor(11)
             .unwrap();
+        let mut expected_mo_level = None;
 
         for cycle in (11..18).chain(0..2) {
+            if cycle == 0 {
+                let previous_output = service.output_pipeline_state();
+                assert!(previous_output.previous_channel_output_valid);
+                expected_mo_level = Some(
+                    Ym2413DacCode::from_operator_channel_output(
+                        previous_output.previous_channel_output,
+                    )
+                    .unwrap(),
+                );
+            }
             advance_rhythm_slot(&mut service, cycle, registers);
         }
 
@@ -1179,8 +1191,8 @@ mod tests {
         assert_eq!(frame.emitted_cycle, 1);
         assert_eq!(frame.source.cycle, 0);
         assert_eq!(frame.source.mo_slot_index, 3);
-        assert!(frame.source.mo.is_none());
-        assert!(!frame.source.mo_known);
+        assert!(frame.source.mo_known);
+        assert_eq!(frame.source.mo.unwrap().level, expected_mo_level.unwrap());
         assert_eq!(
             frame.source.ro,
             crate::Ym2413OutputSlotResult::UnknownSource {
