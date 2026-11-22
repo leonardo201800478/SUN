@@ -1,7 +1,7 @@
 # SUN-FM-01 — Execução das recomendações da auditoria
 
 **Data:** 2026-11-22
-**Base de trabalho:** main pós-merge #1206, #1208, #1213, #1216 e #1217, `53bedb2fd581e2605197a2d11b5cf77fea94e8e4`
+**Base de trabalho:** main pós-merge #1206, #1208, #1213, #1216, #1217, #1219 e #1220, `902e47cd63736ab2cadbcaa051cfc2d55b67c0ad`
 **Estado:** acompanhamento em andamento; sem aprovação de gameplay ou conclusão da sprint.
 
 ## 1. Ações executadas
@@ -38,12 +38,13 @@ A PR #1208 passou nos checks SMS Runtime Release format/Clippy/tests e Rust work
 - #1216 integrou o catálogo de jogos FM e os campos de diagnóstico FM no runbook.
 - #1213 integrou o comparador externo de output-code candidate. Seu resultado é evidência de software, não validação da palavra física do DAC.
 
-### 1.4 Ferramentas de benchmark — em validação
+### 1.4 Ferramentas de benchmark — integradas
 
 - #1216 integrou as métricas FM de fallback ao runbook e o catálogo de jogos compatíveis.
-- #1218 acrescenta parser estatístico de logs JSON, percentis p50/p95/p99, frames acima do orçamento, backlog CPAL e baseline de repetibilidade da main com mesmo SHA nos dois lados. A validação de sintaxe PowerShell está pendente.
-- O parser diferencia métricas FM indisponíveis no baseline antigo de contagem igual a zero.
-- O script A/B padrão continua isolando #1199; o modo same-commit mede a main atual sem alegar A/B de alteração de código.
+- #1220 integrou parser estatístico de logs JSON com p50/p95/p99, média, desvio, frames acima do orçamento, cadência do worker e backlog CPAL.
+- O parser diferencia métricas FM indisponíveis no baseline antigo de contagem igual a zero e foi exercitado por self-test com quatro execuções sintéticas no Windows CI.
+- O A/B padrão continua isolando #1199; o modo same-commit mede a main atual sem alegar A/B de alteração de código.
+- O relatório não chama cadência do worker de scanout nem backlog FIFO de latência ponta a ponta.
 
 ## 2. Consolidação das PRs de ROM real
 
@@ -61,18 +62,49 @@ As PRs #1188 e #1193 alteravam os mesmos arquivos:
 
 Essa sobreposição foi resolvida em #1217; não reabrir nem integrar as PRs antigas. O teste continua opt-in e exige ROMs legais locais; nenhuma ROM deve ser commitada.
 
-## 3. Próximas ações ordenadas
+## 3. Pendências após as entregas integradas
 
-1. #1208 passou CI e foi integrada; #1207 foi encerrada.
-2. #1213 integrou o comparador output-code; #1216 integrou o catálogo/runbook; #1217 integrou o harness ROM real e compilação Windows do teste CPAL.
-3. Concluir a validação e integração do parser A/B #1218 após reaplicá-lo sobre a main pós-#1217.
-4. Executar o harness headless com ROMs locais Kenseiden/Phantasy Star e o probe de escritas F0/F1/F2; executar o teste CPAL físico no Windows.
-5. Executar Out Run Japan como campanha de desempenho, com hash registrado; não reutilizar o teste Kenseiden como prova para Out Run.
-6. Analisar p50/p95/p99, frames acima do orçamento, fallback FM, peak/RMS digital, CPAL underruns/drops e high-water.
-7. Medir loopback físico CPAL, backlog/high-water e latência ponta a ponta. A capacidade da FIFO não é latência.
-8. Só após localizar o custo dominante avaliar mudanças adicionais no core, batching, AVX2/FMA ou paralelismo. Não criar thread FM que avance o clock do chip.
+Entregas integradas e validadas por CI: #1208 (diagnóstico), #1213 (comparador), #1216 (catálogo/runbook), #1217 (harness) e #1220 (parser/self-test).
 
-## 4. Estado de aceite
+1. Executar o harness headless com ROMs locais Kenseiden/Phantasy Star e o probe de escritas F0/F1/F2; executar o teste CPAL físico no Windows.
+2. Executar Out Run Japan como campanha de desempenho, com hash registrado; não reutilizar o teste Kenseiden como prova para Out Run.
+3. Analisar p50/p95/p99, frames acima do orçamento, fallback FM, peak/RMS digital, CPAL underruns/drops e high-water.
+4. Medir loopback físico CPAL, backlog/high-water e latência ponta a ponta. A capacidade da FIFO não é latência.
+5. Só após localizar o custo dominante avaliar mudanças adicionais no core, batching, AVX2/FMA ou paralelismo. Não criar thread FM que avance o clock do chip.
+
+## 4. Execução local pendente — Windows
+
+O CI validou compilação e ferramentas, mas não possui ROMs comerciais nem dispositivo de áudio físico. Para fechar a validação de software com ROM real, no checkout atualizado da main e com as ROMs obtidas legalmente:
+
+```powershell
+$env:SEGA_SMS_FM_TEST_ROM_DIR = "D:\ROMs\SMS-FM"
+$env:SEGA_SMS_FM_TEST_REGION = "japan"
+$env:SEGA_SMS_FM_TEST_SYSTEM = "sms1"
+$env:SEGA_SMS_FM_TEST_FRAMES = "1800"
+
+cargo test --release --locked -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
+cargo test --release --locked -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns -- --ignored --nocapture
+```
+
+O diretório deve conter Kenseiden (Japan), SHA-256 `7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93`, e Phantasy Star (Japan) Rev 1, SHA-256 `55ba15a1ea5c7db883a7a4c850bea2b1024185605964916ddd04a645d7ddd2b6`. O teste verifica os hashes; não renomeie uma ROM diferente para contornar a verificação. O segundo comando abre o dispositivo CPAL padrão e reproduz o áudio; deve ser executado no Windows com dispositivo de saída funcional.
+
+Para medir a main atual em Kenseiden, Out Run (Japan) e Phantasy Star (Japan Rev 1), use o modo same-commit em campanhas separadas. Antes, habilite a coleta diagnóstica pelo menu DEBUG (consentimento de logs/métricas), sem ativar Modo Debugger, e configure SMS1, região Japão, Japanese SMS integrado e FM On:
+
+```powershell
+git fetch origin main
+$mainSha = (git rev-parse origin/main).Trim()
+.\scripts\benchmark\ym2413-real-game-ab.ps1 -RomPath "D:\ROMs\Kenseiden (Japan).sms" -BaselineSha $mainSha -CandidateSha $mainSha -CaptureSeconds 60 -WarmupSeconds 15
+```
+
+Repita trocando `-RomPath` para a ROM japonesa de Out Run e Phantasy Star. O script registra o SHA-256 de cada ROM e solicita a mesma cena em cada execução. Para a campanha final, aumente CaptureSeconds para 180. Após cada ABBA, use o caminho de saída informado pelo script:
+
+```powershell
+.\scripts\benchmark\summarize-ym2413-real-game-ab.ps1 -BenchmarkDirectory "<diretorio-da-execucao>"
+```
+
+O resumo gera summary.json, summary.csv e comparison.csv. O modo same-commit mede repetibilidade/cadência da main, não ganho de uma mudança de código. A campanha padrão continua isolando #1199. Para volume/clipping e latência ponta a ponta, ainda será necessária captura loopback física; peak/RMS digital e high-water FIFO não substituem essa medição.
+
+## 5. Estado de aceite
 
 | Critério | Estado |
 |---|---|

@@ -1,8 +1,8 @@
 # YM2413 FM Completion Scorecard
 
-## Estado executivo atual — SUN-FM-01 / main pós-PR #1217 (2026-11-22)
+## Estado executivo atual — SUN-FM-01 / main pós-PR #1220 (2026-11-22)
 
-HEAD da main após os merges #1206, #1208, #1213, #1216 e #1217: 53bedb2fd581e2605197a2d11b5cf77fea94e8e4.
+HEAD da main após os merges #1206, #1208, #1213, #1216, #1217, #1219 e #1220: 902e47cd63736ab2cadbcaa051cfc2d55b67c0ad.
 
 ### Entregas integradas
 
@@ -11,28 +11,30 @@ HEAD da main após os merges #1206, #1208, #1213, #1216 e #1217: 53bedb2fd581e26
 - #1208: métricas de amostras FM finitas/desconhecidas/não finitas, peak/RMS e fallback seguro para NaN/Inf, condicionadas ao consentimento diagnóstico.
 - #1213: comparador offline de output-code candidate contra Nuked; ferramenta de caracterização, não prova da palavra física do DAC.
 - #1216: catálogo de compatibilidade FM e métricas de fallback adicionadas ao runbook A/B.
-- #1217: harness real-game consolidado para Kenseiden Japan e Phantasy Star Japan Rev 1, probe de escritas F0/F1/F2, teste CPAL físico opt-in e compilação Windows do teste CPAL com --no-run. CI completo, incluindo SMS runtime, workspace regression, CPAL Windows e WGPU POC, passou.
+- #1217: harness real-game para Kenseiden Japan e Phantasy Star Japan Rev 1, probe F0/F1/F2 e teste CPAL físico opt-in; CI completo passou e o teste CPAL Windows foi compilado com --no-run.
+- #1219: scorecard e relatório de acompanhamento atualizados.
+- #1220: parser estatístico A/B, modo same-commit para baseline atual e self-test PowerShell com logs sintéticos; CI e self-test passaram.
 
 ### PRs antigas e duplicidades
 
-- #1188 e #1193 foram encerradas como substituídas por #1217; os conteúdos de harness, ROMs verificadas e probe de barramento estão consolidados.
+- #1188 e #1193 foram encerradas como substituídas por #1217.
 - #1190 foi substituída pelo catálogo integrado em #1216.
 - #1192 foi substituída pelo comparador integrado em #1213.
-- #1202/#1205/#1207/#1209/#1210/#1212/#1214/#1215 foram encerradas como substituídas pelas versões atualizadas e integradas ou em validação.
-- #1218 permanece aberta para parser estatístico do A/B e baseline same-commit; sua validação PowerShell ainda está pendente. A base precisa ser atualizada após #1217 antes de merge.
+- #1202/#1205/#1207/#1209/#1210/#1212/#1214/#1215/#1218 foram encerradas como substituídas.
 
 ### Estado funcional e desempenho
 
 - FM Auto continua sem whitelist SHA-256 aprovada; ensaios devem configurar explicitamente Japanese SMS integrado + SMS1 + FM On.
-- O worker agora expõe contagens de fallback, mas a frequência real em jogos ainda não foi medida.
-- A remoção da alocação do vetor PCM final no caminho CPAL foi integrada; zero alocações globais do pipeline não foi demonstrado.
-- O harness real-game está integrado, mas os testes permanecem #[ignore] e exigem ROMs legais locais. CI não executou gameplay.
-- A compilação do teste CPAL Windows passou, mas o teste físico com dispositivo não foi executado.
-- A capacidade FIFO 4.096 frames equivale a cerca de 85,3 ms a 48 kHz; a ocupação observada e o loopback físico continuam pendentes.
-- Não existe captura A/B real nem baseline atual medido para Kenseiden, Out Run e Phantasy Star.
+- O worker expõe contagens de fallback, mas a frequência real em jogos ainda não foi medida.
+- A alocação do vetor PCM final por lote foi removida do caminho CPAL comum; zero alocações globais do pipeline não foi demonstrado.
+- O harness real-game está integrado, mas os testes permanecem #[ignore] e exigem ROMs legais locais. CI compilou os testes; não executou gameplay.
+- O teste CPAL físico não foi executado; somente sua compilação Windows foi validada.
+- A capacidade FIFO 4.096 frames equivale a cerca de 85,3 ms a 48 kHz; a ocupação real e o loopback físico continuam pendentes.
+- O parser A/B está integrado e validado com logs sintéticos, mas nenhuma captura de gameplay real foi processada.
+- Não existe baseline atual medido para Kenseiden, Out Run e Phantasy Star.
 - Não há comprovação de 60 FPS em gameplay, volume/acústica calibrados, latência física <10 ms ou scanout de monitor.
 
-**Status SUN-FM-01: ABERTA.** A Sprint tem melhorias de alocação, observabilidade e harness integrados, mas o aceite depende das campanhas locais e dos dados físicos.
+**Status SUN-FM-01: ABERTA.** As correções e ferramentas de diagnóstico estão integradas; a aprovação depende das campanhas locais e das medições físicas.
 
 ---
 
