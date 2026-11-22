@@ -1174,8 +1174,8 @@ mod tests {
         let single_dispatch_median = single_dispatch_samples[SAMPLES / 2];
         let transactional_frame_ns =
             transactional_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
-        let duplicate_dispatch_frame_ns = duplicate_dispatch_median * u128::from(SLOTS_PER_FRAME)
-            / u128::from(SLOTS_PER_SAMPLE);
+        let duplicate_dispatch_frame_ns =
+            duplicate_dispatch_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
         let single_dispatch_frame_ns =
             single_dispatch_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
         let speedup = duplicate_dispatch_median as f64 / single_dispatch_median as f64;
