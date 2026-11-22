@@ -458,8 +458,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         if snapshot_at == Some(call_index + 1) {
             let core_state = core.export_state();
             let service_state = service.export_state();
-            core.restore_state(core_state)?;
-            service.restore_state(service_state)?;
+            core = Ym2413Core::restore_state(core_state)?;
+            service = Ym2413PgSerialService::restore_state(service_state)?;
             snapshot_restored = true;
         }
     }
