@@ -244,6 +244,13 @@ try {
     $baselineExe = Build-Desktop -Label "baseline" -Worktree $baselineWorktree -Commit $baselineSha
     $candidateExe = Build-Desktop -Label "candidate" -Worktree $candidateWorktree -Commit $candidateSha
 
+    if ($comparisonMode -eq "same-commit-repeatability") {
+        $manifestNote = "Both labels use the same commit; this is a repeatability/current-main baseline, not a code-change A/B."
+    }
+    else {
+        $manifestNote = "A/B isolates the single pg_serial.rs optimization from PR #1199; both builds include the in-place runtime path from PR #1194."
+    }
+
     $manifest = [ordered]@{
         baseline_commit = $baselineSha
         candidate_commit = $candidateSha
@@ -255,11 +262,7 @@ try {
         capture_seconds = $CaptureSeconds
         run_order = @("baseline-run1", "candidate-run1", "candidate-run2", "baseline-run2")
         log_filter = $logFilter
-        note = if ($comparisonMode -eq "same-commit-repeatability") {
-            "Both labels use the same commit; this is a repeatability/current-main baseline, not a code-change A/B."
-        } else {
-            "A/B isolates the single pg_serial.rs optimization from PR #1199; both builds include the in-place runtime path from PR #1194."
-        }
+        note = $manifestNote
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputRoot "manifest.json") -Encoding UTF8
 
