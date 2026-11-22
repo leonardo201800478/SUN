@@ -1930,5 +1930,41 @@ mod tests {
 }
 
 #[cfg(test)]
+mod drain_into_tests {
+    use super::Sn76489Core;
+
+    #[test]
+    fn drain_samples_into_reuses_capacity_and_preserves_fifo_contents() {
+        let mut source = Sn76489Core::new(3_579_545, 48_000).unwrap();
+        source.advance_clocks(100_000);
+
+        let mut expected_source = source.clone();
+        let expected = expected_source.drain_samples(None);
+
+        let mut output = Vec::with_capacity(4_096);
+        output.push(f64::NAN);
+        let capacity_before = output.capacity();
+        source.drain_samples_into(&mut output, None);
+
+        assert_eq!(output, expected);
+        assert_eq!(output.capacity(), capacity_before);
+        assert!(source.drain_samples(None).is_empty());
+    }
+
+    #[test]
+    fn drain_samples_into_honors_limit_and_clears_previous_output() {
+        let mut source = Sn76489Core::new(3_579_545, 48_000).unwrap();
+        source.advance_clocks(100_000);
+        let mut output = vec![123.0];
+
+        source.drain_samples_into(&mut output, Some(3));
+
+        assert_eq!(output.len(), 3);
+        assert!(output.iter().all(|sample| *sample != 123.0));
+        assert_eq!(source.drain_samples(None).len(), 100_000 / 16 * 48_000 / 3_579_545 - 3);
+    }
+}
+
+#[cfg(test)]
 #[path = "psg_h2_model.rs"]
 mod h2_model;
