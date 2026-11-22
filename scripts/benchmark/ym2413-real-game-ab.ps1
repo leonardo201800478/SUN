@@ -6,6 +6,10 @@ param(
 
     [string]$OutputDirectory = "",
 
+    [string]$BaselineSha = "c8a38e9c4aee33de999547c328be579b5e3476e8",
+
+    [string]$CandidateSha = "8b4ea7fbb3ceb7e293aafae9cfef87d3ccde687b",
+
     [ValidateRange(10, 600)]
     [int]$WarmupSeconds = 30,
 
@@ -30,8 +34,8 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $rom = Get-Item -LiteralPath (Resolve-Path -LiteralPath $RomPath).Path
 $romHash = (Get-FileHash -LiteralPath $rom.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 
-$baselineSha = "c8a38e9c4aee33de999547c328be579b5e3476e8"
-$candidateSha = "8b4ea7fbb3ceb7e293aafae9cfef87d3ccde687b"
+$baselineSha = $BaselineSha
+$candidateSha = $CandidateSha
 $logFilter = "info,sega::audio::pacing=trace,sega::video::frame_pacing=trace,sega::audio::health=trace"
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -219,8 +223,17 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Não foi possível comparar os commits A/B."
     }
-    if ($changedPaths.Count -ne 1 -or $changedPaths[0] -ne "native/ym2413/src/pg_serial.rs") {
-        throw "Os commits não são um A/B isolado de pg_serial.rs: $($changedPaths -join ', ')"
+    if ($baselineSha -eq $candidateSha) {
+        if ($changedPaths.Count -ne 0) {
+            throw "O modo de repetibilidade exige o mesmo commit nos dois lados."
+        }
+        $comparisonMode = "same-commit-repeatability"
+    }
+    else {
+        if ($changedPaths.Count -ne 1 -or $changedPaths[0] -ne "native/ym2413/src/pg_serial.rs") {
+            throw "Os commits não são um A/B isolado de pg_serial.rs: $($changedPaths -join ', ')"
+        }
+        $comparisonMode = "isolated-pg-serial"
     }
 
     Invoke-GitChecked -GitArgs @("worktree", "add", "--detach", $baselineWorktree, $baselineSha)
@@ -234,6 +247,7 @@ try {
     $manifest = [ordered]@{
         baseline_commit = $baselineSha
         candidate_commit = $candidateSha
+        comparison_mode = $comparisonMode
         changed_files = $changedPaths
         rom_file = $rom.Name
         rom_sha256 = $romHash
@@ -241,7 +255,11 @@ try {
         capture_seconds = $CaptureSeconds
         run_order = @("baseline-run1", "candidate-run1", "candidate-run2", "baseline-run2")
         log_filter = $logFilter
-        note = "A/B isolates the single pg_serial.rs optimization from PR #1199; both builds include the in-place runtime path from PR #1194."
+        note = if ($comparisonMode -eq "same-commit-repeatability") {
+            "Both labels use the same commit; this is a repeatability/current-main baseline, not a code-change A/B."
+        } else {
+            "A/B isolates the single pg_serial.rs optimization from PR #1199; both builds include the in-place runtime path from PR #1194."
+        }
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputRoot "manifest.json") -Encoding UTF8
 
