@@ -565,6 +565,20 @@ jobs:
         run: python3 -m unittest discover -s tools/ym2413-dac-capture-audit -v
       - name: Compile YM2413 DAC capture audit tooling
         run: python3 -m compileall -q tools/ym2413-dac-capture-audit
+      - name: Checkout pinned Andete volume captures
+        env:
+          ANDETE_SHA: 4893d1c09faa0450b5d3355f19b7682d72822501
+        run: |
+          git clone https://github.com/andete/ym2413.git "$RUNNER_TEMP/andete-ym2413"
+          git -C "$RUNNER_TEMP/andete-ym2413" checkout "$ANDETE_SHA"
+          test "$(git -C "$RUNNER_TEMP/andete-ym2413" rev-parse HEAD)" = "$ANDETE_SHA"
+      - name: Reproduce paired volume ADC-bin boundary observations
+        run: |
+          python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \\
+            --capture-dir "$RUNNER_TEMP/andete-ym2413/analyze/volume" \\
+            --output "$RUNNER_TEMP/ym2413-volume-bin-observations.json"
+          cmp "$RUNNER_TEMP/ym2413-volume-bin-observations.json" \\
+            docs/audits/ym2413-volume-bin-observations-2026-11-22.json
 
   docs-format:
     name: Documentation patch hygiene
