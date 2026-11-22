@@ -856,14 +856,22 @@ impl WorkerTelemetry {
         );
         if self.diagnostics_enabled() {
             let mut metrics = window.snapshot();
-            metrics.scheduler_dispatch_count_last = self.scheduler_dispatch_count_last.load(Ordering::Acquire);
-            metrics.scheduler_dispatch_elapsed_ns_last = self.scheduler_dispatch_elapsed_ns_last.load(Ordering::Acquire);
-            metrics.psg_advance_calls_last = self.psg_advance_calls_last.load(Ordering::Acquire);
-            metrics.psg_advance_clock_cycles_last = self.psg_advance_clock_cycles_last.load(Ordering::Acquire);
-            metrics.psg_advance_elapsed_ns_last = self.psg_advance_elapsed_ns_last.load(Ordering::Acquire);
-            metrics.vdp_advance_calls_last = self.vdp_advance_calls_last.load(Ordering::Acquire);
-            metrics.vdp_advance_tstates_last = self.vdp_advance_tstates_last.load(Ordering::Acquire);
-            metrics.vdp_advance_elapsed_ns_last = self.vdp_advance_elapsed_ns_last.load(Ordering::Acquire);
+            metrics.scheduler_dispatch_count_last =
+                self.scheduler_dispatch_count_last.load(Ordering::Acquire);
+            metrics.scheduler_dispatch_elapsed_ns_last =
+                self.scheduler_dispatch_elapsed_ns_last.load(Ordering::Acquire);
+            metrics.psg_advance_calls_last =
+                self.psg_advance_calls_last.load(Ordering::Acquire);
+            metrics.psg_advance_clock_cycles_last =
+                self.psg_advance_clock_cycles_last.load(Ordering::Acquire);
+            metrics.psg_advance_elapsed_ns_last =
+                self.psg_advance_elapsed_ns_last.load(Ordering::Acquire);
+            metrics.vdp_advance_calls_last =
+                self.vdp_advance_calls_last.load(Ordering::Acquire);
+            metrics.vdp_advance_tstates_last =
+                self.vdp_advance_tstates_last.load(Ordering::Acquire);
+            metrics.vdp_advance_elapsed_ns_last =
+                self.vdp_advance_elapsed_ns_last.load(Ordering::Acquire);
             metrics
         } else {
             SmsFramePacingMetrics::default()
@@ -2533,14 +2541,30 @@ fn execute_frame_with_renderer(
     let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
     let subsystem_timing = machine.take_subsystem_timing();
     if diagnostics_enabled {
-        telemetry.scheduler_dispatch_count_last.store(subsystem_timing.scheduler_dispatch_count, Ordering::Release);
-        telemetry.scheduler_dispatch_elapsed_ns_last.store(subsystem_timing.scheduler_dispatch_elapsed_ns, Ordering::Release);
-        telemetry.psg_advance_calls_last.store(subsystem_timing.psg_advance_calls, Ordering::Release);
-        telemetry.psg_advance_clock_cycles_last.store(subsystem_timing.psg_advance_clock_cycles, Ordering::Release);
-        telemetry.psg_advance_elapsed_ns_last.store(subsystem_timing.psg_advance_elapsed_ns, Ordering::Release);
-        telemetry.vdp_advance_calls_last.store(subsystem_timing.vdp_advance_calls, Ordering::Release);
-        telemetry.vdp_advance_tstates_last.store(subsystem_timing.vdp_advance_tstates, Ordering::Release);
-        telemetry.vdp_advance_elapsed_ns_last.store(subsystem_timing.vdp_advance_elapsed_ns, Ordering::Release);
+        telemetry
+            .scheduler_dispatch_count_last
+            .store(subsystem_timing.scheduler_dispatch_count, Ordering::Release);
+        telemetry
+            .scheduler_dispatch_elapsed_ns_last
+            .store(subsystem_timing.scheduler_dispatch_elapsed_ns, Ordering::Release);
+        telemetry
+            .psg_advance_calls_last
+            .store(subsystem_timing.psg_advance_calls, Ordering::Release);
+        telemetry
+            .psg_advance_clock_cycles_last
+            .store(subsystem_timing.psg_advance_clock_cycles, Ordering::Release);
+        telemetry
+            .psg_advance_elapsed_ns_last
+            .store(subsystem_timing.psg_advance_elapsed_ns, Ordering::Release);
+        telemetry
+            .vdp_advance_calls_last
+            .store(subsystem_timing.vdp_advance_calls, Ordering::Release);
+        telemetry
+            .vdp_advance_tstates_last
+            .store(subsystem_timing.vdp_advance_tstates, Ordering::Release);
+        telemetry
+            .vdp_advance_elapsed_ns_last
+            .store(subsystem_timing.vdp_advance_elapsed_ns, Ordering::Release);
     }
     let machine_time_end_ticks = machine.now().ticks();
     let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
