@@ -5,7 +5,7 @@
 
 ## Produto e hosts ativos
 
-O runtime de hardware é 100% Rust. O host de produto ativo é Slint 1.18.x, com renderização WGPU 30.x (Vulkan inicial no Windows x64), saída física CPAL 0.18.2 e SDL3/input runtime para gamepads. O host anterior egui/D3D12/Qt não é caminho ativo. Referências e módulos remanescentes devem ser classificados como histórico/legado e removidos somente após inventário de consumidores e regressão.
+O runtime de hardware é 100% Rust. O host de produto ativo é Slint 1.18.x, com renderização WGPU 30.x (Vulkan inicial no Windows x64), saída física CPAL 0.18.2 e SDL3/input runtime para gamepads. Não existe backend gráfico alternativo no produto. Slint/WGPU/Vulkan é o único caminho de apresentação.
 
 ## Camadas
 
