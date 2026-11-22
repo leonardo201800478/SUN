@@ -335,6 +335,11 @@ function Get-RunSummary {
 }
 
 $benchmarkRoot = (Resolve-Path -LiteralPath $BenchmarkDirectory).Path
+$manifestPath = Join-Path $benchmarkRoot "manifest.json"
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    throw "Manifest A/B ausente: $manifestPath"
+}
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $requiredRuns = @("baseline-run1", "candidate-run1", "candidate-run2", "baseline-run2")
 $runSummaries = [System.Collections.Generic.List[object]]::new()
 $rawValuesByRun = @{}
@@ -403,6 +408,9 @@ $summaryDocument = [ordered]@{
     schema = "sun-ym2413-ab-summary-v1"
     benchmark_directory = $benchmarkRoot
     generated_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
+    comparison_mode = $manifest.comparison_mode
+    baseline_commit = $manifest.baseline_commit
+    candidate_commit = $manifest.candidate_commit
     run_order = $requiredRuns
     runs = @($runSummaries)
     comparison = @($comparison)
