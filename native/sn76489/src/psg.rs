@@ -1941,7 +1941,7 @@ mod drain_into_tests {
         let mut expected_source = source.clone();
         let expected = expected_source.drain_samples(None);
 
-        let mut output = Vec::with_capacity(4_096);
+        let mut output = Vec::with_capacity(20_000);
         output.push(f64::NAN);
         let capacity_before = output.capacity();
         source.drain_samples_into(&mut output, None);
