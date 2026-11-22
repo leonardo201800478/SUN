@@ -203,6 +203,25 @@ impl EnvelopeSequencer {
         }
     }
 
+    /// Return the delayed key-on pipeline consumed by slot phase-reset selection.
+    pub(crate) const fn eg_dokon(&self) -> u32 {
+        self.eg_dokon
+    }
+
+    /// Copy the 18 current attenuation levels without exporting full operator state.
+    ///
+    /// This compact view is used by the integrated PG/EG slot service; save-state
+    /// export remains separate and retains every operator and timer field.
+    pub(crate) fn operator_levels(&self) -> [u8; YM2413_ENVELOPE_SEQUENCER_SLOTS] {
+        let mut levels = [0; YM2413_ENVELOPE_SEQUENCER_SLOTS];
+        let mut slot = 0;
+        while slot < YM2413_ENVELOPE_SEQUENCER_SLOTS {
+            levels[slot] = self.operators[slot].level();
+            slot += 1;
+        }
+        levels
+    }
+
     /// Return one operator's current attenuation and four-state EG phase.
     pub fn operator(&self, slot: u8) -> Option<(u8, EnvelopeOperatorStage)> {
         self.operators
