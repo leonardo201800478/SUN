@@ -1,6 +1,6 @@
 //! Emit the integrated core-owned serial PG state for external Nuked comparison.
 //!
-//! Arguments: <events.csv> <OPLL_Clock call count>
+//! Arguments: <events.csv> <OPLL_Clock call count> [rhythm LFSR register candidate] [--snapshot-at <call count>]
 //! Event CSV columns: call_index, port (0=address, 1=data), value.
 
 use sega_ym2413::{
@@ -137,21 +137,53 @@ fn reset_service(rhythm_register: Option<u32>) -> Result<Ym2413PgSerialService, 
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if !(2..=3).contains(&args.len()) {
+    if args.len() < 2 {
         return Err(IoError::new(
             ErrorKind::InvalidInput,
-            "usage: pg_serial_trace <events.csv> <OPLL_Clock call count> [rhythm LFSR register candidate]",
+            "usage: pg_serial_trace <events.csv> <OPLL_Clock call count> [rhythm LFSR register candidate] [--snapshot-at <call count>]",
         )
         .into());
     }
     let calls: u64 = args[1].parse()?;
     let events = load_events(Path::new(&args[0]), calls)?;
-    let rhythm_register = args.get(2).map(|value| value.parse::<u32>()).transpose()?;
+    let mut rhythm_register = None;
+    let mut snapshot_at = None;
+    let mut argument_index = 2;
+    while argument_index < args.len() {
+        match args[argument_index].as_str() {
+            "--snapshot-at" => {
+                argument_index += 1;
+                let value = args.get(argument_index).ok_or_else(|| {
+                    IoError::new(ErrorKind::InvalidInput, "--snapshot-at requires a call count")
+                })?;
+                snapshot_at = Some(value.parse::<u64>()?);
+            }
+            value if !value.starts_with("--") && rhythm_register.is_none() => {
+                rhythm_register = Some(value.parse::<u32>()?);
+            }
+            value => {
+                return Err(IoError::new(
+                    ErrorKind::InvalidInput,
+                    format!("unsupported pg_serial_trace argument: {value}"),
+                )
+                .into());
+            }
+        }
+        argument_index += 1;
+    }
+    if snapshot_at.is_some_and(|call_count| call_count == 0 || call_count >= calls) {
+        return Err(IoError::new(
+            ErrorKind::InvalidInput,
+            "--snapshot-at must be greater than zero and less than the requested call count",
+        )
+        .into());
+    }
 
     let mut core = Ym2413Core::new();
     let mut service = reset_service(rhythm_register)?;
     let mut event_index = 0usize;
     let mut phases = [0u32; 18];
+    let mut snapshot_restored = false;
 
     for call_index in 0..calls {
         while event_index < events.len() && events[event_index].call_index == call_index {
@@ -405,8 +437,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         write_json_option_i16(&mut trace_line, measured_mo_level);
         trace_line.push('}');
         println!("{trace_line}");
+
+        // Restore after the selected call so the next iteration resumes from
+        // the exact saved core, serial PG, output-pipeline and measured-adapter state.
+        if snapshot_at == Some(call_index + 1) {
+            let core_state = core.export_state();
+            let service_state = service.export_state();
+            core.restore_state(core_state)?;
+            service.restore_state(service_state)?;
+            snapshot_restored = true;
+        }
     }
 
+    if snapshot_at.is_some() && !snapshot_restored {
+        return Err(invalid_data("requested snapshot/restore point was not reached").into());
+    }
     if event_index != events.len() {
         return Err(invalid_data("not all input events were consumed").into());
     }
