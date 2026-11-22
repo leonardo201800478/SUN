@@ -109,9 +109,12 @@ struct FmSourceCapture {
     fm_samples: u64,
     fm_nonzero_samples: u64,
     alignment_errors: u64,
+    single_source_blocks: u64,
+    single_source_samples: u64,
     fm_peak: f64,
     psg_samples_f64: Vec<f64>,
     fm_samples_f64: Vec<f64>,
+    single_source_samples_f64: Vec<f64>,
 }
 
 struct CapturingAudioSession {
@@ -120,6 +123,18 @@ struct CapturingAudioSession {
 }
 
 impl CapturingAudioSession {
+    fn record_single_source(&self, samples: &[f64]) -> Result<(), String> {
+        let mut capture = self
+            .sources
+            .lock()
+            .map_err(|_| "FM source capture mutex was poisoned".to_owned())?;
+        capture.single_source_blocks = capture.single_source_blocks.saturating_add(1);
+        capture.single_source_samples =
+            capture.single_source_samples.saturating_add(samples.len() as u64);
+        capture.single_source_samples_f64.extend_from_slice(samples);
+        Ok(())
+    }
+
     fn record_sources(&self, sources: &[MixSource<'_>]) -> Result<(), String> {
         let mut capture = self
             .sources
@@ -154,6 +169,7 @@ impl CapturingAudioSession {
 
 impl AudioSession for CapturingAudioSession {
     fn process_samples(&mut self, samples: &[f64]) -> Result<(), String> {
+        self.record_single_source(samples)?;
         self.native.process_samples(samples)
     }
 
@@ -280,6 +296,7 @@ fn write_game_audio_captures(
     fixture_name: &str,
     fm: &[f64],
     psg: &[f64],
+    single_source: &[f64],
     mixed: &[f64],
 ) -> Result<(), String> {
     let Some(directory) = std::env::var_os("SEGA_SMS_FM_TEST_WAV_DIR") else {
@@ -296,6 +313,7 @@ fn write_game_audio_captures(
     for (suffix, samples) in [
         ("fm-source", fm),
         ("psg-source", psg),
+        ("single-source", single_source),
         ("mixed-output", mixed),
     ] {
         let path = directory.join(format!("{stem}-{suffix}.wav"));
@@ -488,6 +506,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             fixture_name,
             &sources.fm_samples_f64,
             &sources.psg_samples_f64,
+            &sources.single_source_samples_f64,
             &pcm.samples_f64,
         )
         .unwrap_or_else(|error| {
@@ -526,7 +545,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         );
 
         println!(
-            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} vdp={:?} frames={} fm_port_writes={:?} dual_source_blocks={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8} fm_summary={:?} psg_summary={:?} mixed_summary={:?}",
+            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} vdp={:?} frames={} fm_port_writes={:?} dual_source_blocks={} single_source_blocks={} single_source_samples={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8} fm_summary={:?} psg_summary={:?} single_source_summary={:?} mixed_summary={:?}",
             fixture_name,
             path.display(),
             sha256,
@@ -535,6 +554,8 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             worker.frame_number(),
             fm_bus_writes,
             sources.dual_source_blocks,
+            sources.single_source_blocks,
+            sources.single_source_samples,
             sources.psg_samples,
             sources.fm_samples,
             sources.fm_nonzero_samples,
@@ -545,6 +566,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             pcm.peak,
             summarize_signal(&sources.fm_samples_f64),
             summarize_signal(&sources.psg_samples_f64),
+            summarize_signal(&sources.single_source_samples_f64),
             summarize_signal(&pcm.samples_f64),
         );
     }
