@@ -338,7 +338,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
         let _ = write!(
             &mut trace_line,
-            ",\"eg_pending_rate\":{},\"eg_pending_zero_rate\":{},\"eg_next_slot\":{},\"rm_enable\":{},\"op_calc_rm_enable\":{},\"rm_select\":{},\"rhythm_control\":{},\"rhythm_mode_enabled\":{},\"rm_noise\":{},\"rhythm_noise_register\":{},\"rhythm_noise_cursor\":{},\"rhythm_noise_steps\":{},\"rhythm_hh_bit2\":{},\"rhythm_hh_bit3\":{},\"rhythm_hh_bit7\":{},\"rhythm_hh_bit8\":{},\"rhythm_tc_bit3\":{},\"rhythm_tc_bit5\":{},\"ch_out_hh\":{},\"ch_out_tm\":{},\"ch_out_bd\":{},\"ch_out_sd\":{},\"ch_out_tc\":{}}}",
+            ",\"eg_pending_rate\":{},\"eg_pending_zero_rate\":{},\"eg_next_slot\":{},\"rm_enable\":{},\"op_calc_rm_enable\":{},\"rm_select\":{},\"rhythm_control\":{},\"rhythm_mode_enabled\":{},\"rm_noise\":{},\"rhythm_noise_register\":{},\"rhythm_noise_cursor\":{},\"rhythm_noise_steps\":{},\"rhythm_hh_bit2\":{},\"rhythm_hh_bit3\":{},\"rhythm_hh_bit7\":{},\"rhythm_hh_bit8\":{},\"rhythm_tc_bit3\":{},\"rhythm_tc_bit5\":{},\"ch_out_hh\":{},\"ch_out_tm\":{},\"ch_out_bd\":{},\"ch_out_sd\":{},\"ch_out_tc\":{}",
             timer.pending_rate,
             u8::from(timer.pending_zero_rate),
             timer.next_slot,
@@ -387,6 +387,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         write_json_option_i16(&mut trace_line, output_frame_m);
         trace_line.push_str(",\"output_frame_r\":");
         write_json_option_i16(&mut trace_line, output_frame_r);
+        trace_line.push('}');
         println!("{trace_line}");
     }
 
