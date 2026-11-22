@@ -414,6 +414,35 @@ mod tests {
     use super::{EnvelopeSequencer, EnvelopeSlotInput};
 
     #[test]
+    fn compact_slot_view_matches_full_serializable_state() {
+        let mut sequencer = EnvelopeSequencer::new();
+
+        for cycle in 0..YM2413_ENVELOPE_SEQUENCER_SLOTS as u8 {
+            let state = sequencer.export_state();
+            assert_eq!(sequencer.eg_dokon(), state.eg_dokon);
+            assert_eq!(
+                sequencer.operator_levels(),
+                std::array::from_fn(|index| state.operators[index].level)
+            );
+
+            sequencer
+                .tick_slot(
+                    cycle,
+                    EnvelopeSlotInput {
+                        attack_rate: 15,
+                        decay_rate: 7,
+                        release_rate: 5,
+                        key_on: cycle % 2 == 0,
+                        sustain_on: true,
+                        sustained_tone: true,
+                        ..EnvelopeSlotInput::default()
+                    },
+                )
+                .unwrap();
+        }
+    }
+
+    #[test]
     fn reset_state_matches_serial_eg_reset_latches() {
         let sequencer = EnvelopeSequencer::new();
         let state = sequencer.export_state();
