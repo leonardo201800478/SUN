@@ -343,7 +343,8 @@ jobs:
             exit 1
           fi
 
-          cp "$RUNNER_TEMP/rust-fm3-restored.jsonl" "$RUNNER_TEMP/rust-fm3.jsonl"
+          echo "Continuous and snapshot-restored traces are byte-identical."
+          mv "$RUNNER_TEMP/rust-fm3-restored.jsonl" "$RUNNER_TEMP/rust-fm3.jsonl"
 
       - name: Differentially validate integrated FM-3 pipeline
         run: |
