@@ -312,6 +312,8 @@ struct FramePacingSample {
     video_publish_ns: u64,
     audio_submit_ns: u64,
     frame_processing_ns: u64,
+    ym2413_advance_ns: u64,
+    audio_prepare_ns: u64,
     frame_budget_ns: u64,
     audio_samples: u64,
     pacing_wait_budget_ns: u64,
@@ -410,6 +412,27 @@ impl FramePacingWindow {
             values[rank.min(values.len() - 1)]
         }
 
+        fn distribution_summary(values: &[u64]) -> (u64, u64, u64) {
+            if values.is_empty() {
+                return (0, 0, 0);
+            }
+            let mean = values.iter().map(|value| *value as f64).sum::<f64>()
+                / values.len() as f64;
+            let variance = values
+                .iter()
+                .map(|value| {
+                    let delta = *value as f64 - mean;
+                    delta * delta
+                })
+                .sum::<f64>()
+                / values.len() as f64;
+            (
+                mean.round() as u64,
+                variance.sqrt().round() as u64,
+                values.iter().copied().max().unwrap_or(0),
+            )
+        }
+
         let mut intervals: Vec<_> = samples
             .iter()
             .map(|sample| sample.frame_interval_ns)
@@ -432,6 +455,23 @@ impl FramePacingWindow {
             .iter()
             .map(|sample| sample.frame_processing_ns)
             .collect();
+        let mut ym2413_advance: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.ym2413_advance_ns)
+            .collect();
+        let mut audio_prepare: Vec<_> = samples
+            .iter()
+            .map(|sample| sample.audio_prepare_ns)
+            .collect();
+
+        let frame_interval_summary = distribution_summary(&intervals);
+        let step_frame_summary = distribution_summary(&steps);
+        let video_publish_summary = distribution_summary(&publishes);
+        let audio_prepare_summary = distribution_summary(&audio_prepare);
+        let audio_submit_summary = distribution_summary(&audio);
+        let frame_processing_summary = distribution_summary(&processing);
+        let ym2413_advance_summary = distribution_summary(&ym2413_advance);
+
         let mut wait_budgets: Vec<_> = samples
             .iter()
             .map(|sample| sample.pacing_wait_budget_ns)
@@ -467,21 +507,48 @@ impl FramePacingWindow {
             frame_interval_p50_ns: percentile(&mut intervals, 50),
             frame_interval_p95_ns: percentile(&mut intervals, 95),
             frame_interval_p99_ns: percentile(&mut intervals, 99),
+            frame_interval_mean_ns: frame_interval_summary.0,
+            frame_interval_stddev_ns: frame_interval_summary.1,
+            frame_interval_max_ns: frame_interval_summary.2,
             machine_ticks_per_frame_min: machine_ticks.iter().copied().min().unwrap_or(0),
             machine_ticks_per_frame_p50: percentile(&mut machine_ticks, 50),
             machine_ticks_per_frame_max: machine_ticks.iter().copied().max().unwrap_or(0),
             step_frame_p50_ns: percentile(&mut steps, 50),
             step_frame_p95_ns: percentile(&mut steps, 95),
             step_frame_p99_ns: percentile(&mut steps, 99),
+            step_frame_mean_ns: step_frame_summary.0,
+            step_frame_stddev_ns: step_frame_summary.1,
+            step_frame_max_ns: step_frame_summary.2,
+            ym2413_advance_p50_ns: percentile(&mut ym2413_advance, 50),
+            ym2413_advance_p95_ns: percentile(&mut ym2413_advance, 95),
+            ym2413_advance_p99_ns: percentile(&mut ym2413_advance, 99),
+            ym2413_advance_mean_ns: ym2413_advance_summary.0,
+            ym2413_advance_stddev_ns: ym2413_advance_summary.1,
+            ym2413_advance_max_ns: ym2413_advance_summary.2,
             video_publish_p50_ns: percentile(&mut publishes, 50),
             video_publish_p95_ns: percentile(&mut publishes, 95),
             video_publish_p99_ns: percentile(&mut publishes, 99),
+            video_publish_mean_ns: video_publish_summary.0,
+            video_publish_stddev_ns: video_publish_summary.1,
+            video_publish_max_ns: video_publish_summary.2,
+            audio_prepare_p50_ns: percentile(&mut audio_prepare, 50),
+            audio_prepare_p95_ns: percentile(&mut audio_prepare, 95),
+            audio_prepare_p99_ns: percentile(&mut audio_prepare, 99),
+            audio_prepare_mean_ns: audio_prepare_summary.0,
+            audio_prepare_stddev_ns: audio_prepare_summary.1,
+            audio_prepare_max_ns: audio_prepare_summary.2,
             audio_submit_p50_ns: percentile(&mut audio, 50),
             audio_submit_p95_ns: percentile(&mut audio, 95),
             audio_submit_p99_ns: percentile(&mut audio, 99),
+            audio_submit_mean_ns: audio_submit_summary.0,
+            audio_submit_stddev_ns: audio_submit_summary.1,
+            audio_submit_max_ns: audio_submit_summary.2,
             frame_processing_p50_ns: percentile(&mut processing, 50),
             frame_processing_p95_ns: percentile(&mut processing, 95),
             frame_processing_p99_ns: percentile(&mut processing, 99),
+            frame_processing_mean_ns: frame_processing_summary.0,
+            frame_processing_stddev_ns: frame_processing_summary.1,
+            frame_processing_max_ns: frame_processing_summary.2,
             pacing_wait_budget_p50_ns: percentile(&mut wait_budgets, 50),
             pacing_wait_budget_p95_ns: percentile(&mut wait_budgets, 95),
             pacing_wait_budget_p99_ns: percentile(&mut wait_budgets, 99),
@@ -522,21 +589,48 @@ pub struct SmsFramePacingMetrics {
     pub frame_interval_p50_ns: u64,
     pub frame_interval_p95_ns: u64,
     pub frame_interval_p99_ns: u64,
+    pub frame_interval_mean_ns: u64,
+    pub frame_interval_stddev_ns: u64,
+    pub frame_interval_max_ns: u64,
     pub machine_ticks_per_frame_min: u64,
     pub machine_ticks_per_frame_p50: u64,
     pub machine_ticks_per_frame_max: u64,
     pub step_frame_p50_ns: u64,
     pub step_frame_p95_ns: u64,
     pub step_frame_p99_ns: u64,
+    pub step_frame_mean_ns: u64,
+    pub step_frame_stddev_ns: u64,
+    pub step_frame_max_ns: u64,
+    pub ym2413_advance_p50_ns: u64,
+    pub ym2413_advance_p95_ns: u64,
+    pub ym2413_advance_p99_ns: u64,
+    pub ym2413_advance_mean_ns: u64,
+    pub ym2413_advance_stddev_ns: u64,
+    pub ym2413_advance_max_ns: u64,
     pub video_publish_p50_ns: u64,
     pub video_publish_p95_ns: u64,
     pub video_publish_p99_ns: u64,
+    pub video_publish_mean_ns: u64,
+    pub video_publish_stddev_ns: u64,
+    pub video_publish_max_ns: u64,
+    pub audio_prepare_p50_ns: u64,
+    pub audio_prepare_p95_ns: u64,
+    pub audio_prepare_p99_ns: u64,
+    pub audio_prepare_mean_ns: u64,
+    pub audio_prepare_stddev_ns: u64,
+    pub audio_prepare_max_ns: u64,
     pub audio_submit_p50_ns: u64,
     pub audio_submit_p95_ns: u64,
     pub audio_submit_p99_ns: u64,
+    pub audio_submit_mean_ns: u64,
+    pub audio_submit_stddev_ns: u64,
+    pub audio_submit_max_ns: u64,
     pub frame_processing_p50_ns: u64,
     pub frame_processing_p95_ns: u64,
     pub frame_processing_p99_ns: u64,
+    pub frame_processing_mean_ns: u64,
+    pub frame_processing_stddev_ns: u64,
+    pub frame_processing_max_ns: u64,
     pub pacing_wait_budget_p50_ns: u64,
     pub pacing_wait_budget_p95_ns: u64,
     pub pacing_wait_budget_p99_ns: u64,
@@ -2842,6 +2936,8 @@ fn execute_frame_with_renderer(
             video_publish_ns: video_publish_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
             audio_submit_ns: audio_submit_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
             frame_processing_ns: processing_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
+            ym2413_advance_ns: ym2413_advance_elapsed_ns,
+            audio_prepare_ns: audio_prepare_elapsed.as_nanos().min(u128::from(u64::MAX)) as u64,
             frame_budget_ns: frame_duration.as_nanos().min(u128::from(u64::MAX)) as u64,
             audio_samples: sample_count as u64,
             pacing_wait_budget_ns: frame_wait.as_nanos().min(u128::from(u64::MAX)) as u64,
@@ -5217,6 +5313,26 @@ mod tests {
         assert_eq!(metrics.pacing_command_wakeups_total, 1);
         assert_eq!(metrics.pacing_command_remaining_p95_ns, 4_000_000);
         assert_eq!(metrics.command_handler_p95_ns, 250_000);
+    }
+
+    #[test]
+    fn frame_pacing_distribution_reports_mean_population_stddev_and_max() {
+        let mut window = FramePacingWindow::default();
+        for value in [1_u64, 2, 3] {
+            window.push(FramePacingSample {
+                ym2413_advance_ns: value,
+                audio_prepare_ns: value * 10,
+                ..FramePacingSample::default()
+            });
+        }
+
+        let metrics = window.snapshot();
+        assert_eq!(metrics.ym2413_advance_mean_ns, 2);
+        assert_eq!(metrics.ym2413_advance_stddev_ns, 1);
+        assert_eq!(metrics.ym2413_advance_max_ns, 3);
+        assert_eq!(metrics.audio_prepare_mean_ns, 20);
+        assert_eq!(metrics.audio_prepare_stddev_ns, 8);
+        assert_eq!(metrics.audio_prepare_max_ns, 30);
     }
 
     #[test]
