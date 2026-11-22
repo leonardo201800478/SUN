@@ -115,3 +115,14 @@ Esta ADR autoriza a POC, não declara migração implementada. Conclusões exige
 R2 (frames SMS) e R3 (CPAL 0.18.2) estão integradas em software. A primeira fatia R4 (SDL3/input runtime no desktop Slint) foi integrada pela PR #867. Esses estados não significam aceite físico completo: Vulkan/lifecycle, reprodução prolongada/hotplug/underruns e controles reais/remapeamento ainda exigem evidência no HEAD atual. R5 permanece parcial.
 
 O host anterior egui/Qt foi aposentado. Slint/WGPU/CPAL é a única plataforma desktop autorizada para o produto; não manter backends gráficos paralelos.
+
+
+## 11. Reconciliação de implementação — 2026-11-22
+
+Esta seção atualiza o estado de implementação sem alterar a decisão arquitetural original:
+
+- R2 (frames SMS), R3 (CPAL 0.18.2) e a primeira fatia R4 (SDL3/gamepads no host Slint) estão integradas em software. Validação física Vulkan, reprodução prolongada/hotplug/underruns e controles reais continuam gates separados.
+- A PR #1251 foi integrada à main e retirou a aplicação egui de produto, o backend D3D12/DXGI e suas sessões/integrações.
+- A limpeza da PR #1252 retira o host independente `native/sms_debugger`, suas dependências exclusivas `eframe`/`rfd` e scripts de build obsoletos. O núcleo compartilhado `sega-debugger-core` permanece ativo no SMS runtime.
+- R5 continua parcial: biblioteca, launcher e consolidação de produto ainda têm entregas pendentes. A remoção dos hosts anteriores não equivale à conclusão de R5.
+- Menções a egui/eframe como baseline, SDL3 como não integrado e remoção dos hosts como gate futuro nas seções anteriores são registros históricos da evolução da migração; esta reconciliação é o estado de implementação mais recente.
