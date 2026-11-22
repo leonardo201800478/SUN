@@ -66,6 +66,9 @@ jobs:
       - name: Test SMS runtime (Release)
         run: cargo test --release --manifest-path rust/runtime/sms-runtime/Cargo.toml --all-targets --locked
 
+      - name: Test PSG and SMS core unit suites (Release)
+        run: cargo test --release --manifest-path Cargo.toml --package sega-sn76489 --package sega-sms-core --locked
+
       - name: Benchmark YM2413 transactional vs in-place (Release)
         run: cargo test --release --manifest-path native/ym2413/Cargo.toml --lib --locked benchmark_in_place_pg_service_slot_cost -- --ignored --nocapture
 
