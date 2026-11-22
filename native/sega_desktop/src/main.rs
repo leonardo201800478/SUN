@@ -6048,6 +6048,8 @@ mod windows_host {
             let settings = SmsWorkerSettings {
                 region: "usa".to_owned(),
                 sms_system: "sms1".to_owned(),
+                fm_board_profile: SmsFmBoardProfile::Generic,
+                fm_mode: FmMode::Auto,
                 firmware_directory: "unused-firmware-directory".to_owned(),
                 firmware_boot_enabled: true,
                 firmware_brazil_selected: String::new(),
@@ -6071,6 +6073,8 @@ mod windows_host {
             let mut settings = SmsWorkerSettings {
                 region: "brazil".to_owned(),
                 sms_system: "sms1".to_owned(),
+                fm_board_profile: SmsFmBoardProfile::Generic,
+                fm_mode: FmMode::Auto,
                 firmware_directory: "unused-firmware-directory".to_owned(),
                 firmware_boot_enabled: true,
                 firmware_brazil_selected: "EuropeV20 — Master System Europe v2.0 (8 KiB)"
@@ -6104,6 +6108,8 @@ mod windows_host {
             let settings = SmsWorkerSettings {
                 region: "usa".to_owned(),
                 sms_system: "sms1".to_owned(),
+                fm_board_profile: SmsFmBoardProfile::Generic,
+                fm_mode: FmMode::Auto,
                 firmware_directory: String::new(),
                 firmware_boot_enabled: false,
                 firmware_brazil_selected: String::new(),
