@@ -3514,6 +3514,20 @@ mod tests {
     }
 
     #[test]
+    fn explicit_fm_board_resolves_auto_software_region_before_construction() {
+        let rom = vec![0; 0x4000];
+
+        assert_eq!(
+            SmsTemporalWorker::resolve_sms_region_preference(&rom, "auto").unwrap(),
+            "usa"
+        );
+        assert_eq!(
+            SmsTemporalWorker::resolve_sms_region_preference(&rom, "brazil").unwrap(),
+            "brazil"
+        );
+    }
+
+    #[test]
     fn worker_builder_keeps_fm_hardware_independent_of_software_region() {
         use sega_sms_core::SmsVdpRevision;
 
