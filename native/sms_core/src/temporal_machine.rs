@@ -1525,6 +1525,11 @@ impl SmsTemporalMachine {
         self.bus.discard_fm_audio_samples();
     }
 
+    /// Enable/disable host-bound FM PCM capture without stopping the YM2413.
+    pub fn set_fm_audio_capture_enabled(&mut self, enabled: bool) {
+        self.bus.set_fm_audio_capture_enabled(enabled);
+    }
+
     /// Drain audio samples already produced by scheduler-owned PSG clocks.
     pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
         self.bus.drain_audio_samples(max_samples)
