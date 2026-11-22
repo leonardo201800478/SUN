@@ -56,9 +56,9 @@ try {
         Remove-Item -LiteralPath $ready, $go -Force -ErrorAction SilentlyContinue
         $env:SEGA_PERF_PROFILE_READY_FILE = $ready
         $env:SEGA_PERF_PROFILE_GO_FILE = $go
-        $args = @("test", "--profile", "release-llvm-debug", "--locked", "--target", "x86_64-pc-windows-msvc", "-p", "sega-sms-runtime", "--test", "perf_z80_profile", "outrun_single_scenario_cpu_profile", "--", "--ignored", "--nocapture")
+        $cargoTestArgs = @("test", "--profile", "release-llvm-debug", "--locked", "--target", "x86_64-pc-windows-msvc", "-p", "sega-sms-runtime", "--test", "perf_z80_profile", "outrun_single_scenario_cpu_profile", "--", "--ignored", "--nocapture")
         $cargo = (Get-Command cargo).Source
-        $process = Start-Process -FilePath $cargo -ArgumentList $args -WorkingDirectory $root -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $process = Start-Process -FilePath $cargo -ArgumentList $cargoTestArgs -WorkingDirectory $root -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         $deadline = (Get-Date).AddMinutes(3)
         while (-not (Test-Path -LiteralPath $ready)) {
             if ($process.HasExited) { throw "Scenario $($scenario.Key) failed before ETW warmup gate. See $stdout and $stderr" }
