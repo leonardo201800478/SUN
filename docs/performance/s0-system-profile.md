@@ -26,7 +26,7 @@ um perfil exclusivo e completo de cada dispositivo.
 Executar em PowerShell elevado, Windows x64, com working tree limpo e ROM
 OutRun SMS obtida legalmente:
 
-    .\scripts\benchmark\perf-profile-s0.ps1 -RomPath "D:\ROMS\Sega Master System\OutRun (Japan).sms" -CargoProfile release-llvm-debug -WarmupSeconds 5 -CaptureSeconds 30 -DiagnosticSeconds 10
+    .\scripts\benchmark\perf-profile-s0.ps1 -RomPath "D:\ROMS\Sega Master System\OutRun (Japan).sms" -ThroughputCargoProfile release-llvm -ProfilingCargoProfile release-llvm-debug -WarmupSeconds 5 -CaptureSeconds 30 -DiagnosticSeconds 10
 
 O runner realiza duas execuções:
 
@@ -58,7 +58,9 @@ Cada campanha produz:
 
 Abrir o ETL no Windows Performance Analyzer (WPA). Para CPU, usar CPU Usage
 (Sampled), agrupando por Process / Thread / Stack e resolvendo símbolos Rust
-com os PDB correspondentes ao mesmo build release-llvm-debug. Para heap,
+com os PDB correspondentes ao build release-llvm-debug separado. O throughput
+oficial usa release-llvm, preservando a comparação com o candidato ThinLTO.
+Para heap,
 inspecionar contagem/tamanho de alocações e pilha de alocação por processo.
 
 ## Regras de interpretação
