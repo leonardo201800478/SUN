@@ -260,9 +260,9 @@ function Get-RunSummary {
         $audioMetrics["queue_high_water_ms"] = $null
         if ($null -ne $sampleRate -and $sampleRate -gt 0) {
             if ($null -ne $queuedFrames) {
-                $audioMetrics["queue_queued_ms"] = 1_000.0 * $queuedFrames / $sampleRate
+                $audioMetrics["queue_queued_ms"] = 1000.0 * $queuedFrames / $sampleRate
             }
-            $audioMetrics["queue_high_water_ms"] = 1_000.0 * $audioHighWaterFrames / $sampleRate
+            $audioMetrics["queue_high_water_ms"] = 1000.0 * $audioHighWaterFrames / $sampleRate
         }
     }
 
@@ -284,8 +284,8 @@ function Get-RunSummary {
     $workerFrameRateEstimateHz = $null
     $frameIntervalDistribution = $distributions["frame_interval_ns"]
     if ($null -ne $frameIntervalDistribution -and $frameIntervalDistribution.mean -gt 0) {
-        $frameIntervalMeanMs = $frameIntervalDistribution.mean / 1_000_000.0
-        $workerFrameRateEstimateHz = 1_000_000_000.0 / $frameIntervalDistribution.mean
+        $frameIntervalMeanMs = $frameIntervalDistribution.mean / 1000000.0
+        $workerFrameRateEstimateHz = 1000000000.0 / $frameIntervalDistribution.mean
     }
 
     $fallbackPercent = $null
