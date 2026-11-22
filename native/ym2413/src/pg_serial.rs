@@ -927,6 +927,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
+        self.pending_dispatch = None;
         let dispatch = dispatch_serial_slot(
             context.event.cycle,
             &context.registers,
@@ -934,7 +935,6 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             context.envelope_input.rhythm_select,
         )
         .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
-        self.pending_dispatch = Some(dispatch);
         let descriptor = match dispatch {
             Ym2413SerialSlotDispatch::Melodic { slot }
                 if slot == context.event.selected_operator =>
@@ -949,7 +949,9 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             Ym2413SerialSlotDispatch::Rhythm { slot, selector, .. }
                 if self.rhythm_noise.is_some() && slot == context.event.selected_operator =>
             {
-                return self.before_rhythm_operator_update(context, selector);
+                self.before_rhythm_operator_update(context, selector)?;
+                self.pending_dispatch = Some(dispatch);
+                return Ok(());
             }
             Ym2413SerialSlotDispatch::Rhythm { .. } if self.rhythm_noise.is_some() => {
                 return Err(Ym2413PgSerialError::InvalidState);
@@ -957,6 +959,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             _ => {
                 self.serial_am_lfo.capture_output(context.event.cycle)?;
                 self.clock_output_pipeline(context, None, false)?;
+                self.pending_dispatch = Some(dispatch);
                 return Ok(());
             }
         };
@@ -1023,6 +1026,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             self.serial_am_lfo.output(),
             context.registers[0x0f],
         )?;
+        self.pending_dispatch = Some(dispatch);
         Ok(())
     }
 
