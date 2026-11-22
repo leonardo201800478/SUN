@@ -517,6 +517,12 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         });
 
         assert!(
+            fm_bus_writes.address_writes > 0 && fm_bus_writes.data_writes > 0,
+            "{}: game did not commit YM2413 F0/F1 register writes during gameplay: {:?}",
+            path.display(),
+            fm_bus_writes
+        );
+        assert!(
             sources.dual_source_blocks > 0,
             "{}: runtime never submitted aligned PSG + FM source blocks",
             path.display()
