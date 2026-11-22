@@ -340,8 +340,6 @@ impl From<SmsIoError> for SmsTemporalBusError {
     }
 }
 
-/// SMS mapper-backed memory and its scheduler-owned bus completion timeline.
-#[derive(Debug, Clone)]
 /// Per-frame timing/counter snapshot for existing SMS subsystem boundaries.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SmsTemporalSubsystemTiming {
@@ -363,6 +361,8 @@ fn counter_u64(value: u128) -> u64 {
     duration_ns(value)
 }
 
+/// SMS mapper-backed memory and its scheduler-owned bus completion timeline.
+#[derive(Debug, Clone)]
 pub struct SmsTemporalBus {
     memory: SmsMemory,
     io: SmsIo,
