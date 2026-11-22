@@ -68,6 +68,15 @@ jobs:
       - name: Test SMS runtime (Release)
         run: cargo test --release --manifest-path rust/runtime/sms-runtime/Cargo.toml --all-targets --locked
 
+      # The original Windows failure was reported in Debug builds. Keep the
+      # two exact regression cases under the default (Debug) profile as well;
+      # Release-only coverage cannot establish that the original failure is gone.
+      - name: Reproduce original SMS worker failures (Debug, Windows x64)
+        run: cargo test --manifest-path rust/runtime/sms-runtime/Cargo.toml --locked reset_and_load_rom_restore_power_on_machine_counters -- --exact --nocapture
+
+      - name: Reproduce frame publication reset failure (Debug, Windows x64)
+        run: cargo test --manifest-path rust/runtime/sms-runtime/Cargo.toml --locked completed_frames_publish_rgb888_and_keep_sequence_monotonic_across_reset -- --exact --nocapture
+
       - name: Benchmark YM2413 transactional vs in-place (Release)
         run: cargo test --release --manifest-path native/ym2413/Cargo.toml --lib --locked benchmark_in_place_pg_service_slot_cost -- --ignored --nocapture
 
