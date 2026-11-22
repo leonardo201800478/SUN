@@ -550,6 +550,27 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
     }
 }
 
+#[test]
+fn diagnostic_wav_writer_preserves_ieee_float_samples_without_normalization() {
+    let path = std::env::temp_dir().join(format!(
+        "sun-ym2413-fm-diagnostic-{}.wav",
+        std::process::id()
+    ));
+    let samples = [0.25_f64, -0.5_f64];
+    write_wav_f32(&path, &samples, 48_000).unwrap();
+
+    let bytes = fs::read(&path).unwrap();
+    assert_eq!(&bytes[0..4], b"RIFF");
+    assert_eq!(&bytes[8..12], b"WAVE");
+    assert_eq!(u16::from_le_bytes([bytes[20], bytes[21]]), 3); // IEEE float
+    assert_eq!(u16::from_le_bytes([bytes[22], bytes[23]]), 1); // mono
+    assert_eq!(u32::from_le_bytes(bytes[24..28].try_into().unwrap()), 48_000);
+    assert_eq!(u16::from_le_bytes([bytes[34], bytes[35]]), 32);
+    assert_eq!(f32::from_le_bytes(bytes[44..48].try_into().unwrap()), 0.25);
+    assert_eq!(f32::from_le_bytes(bytes[48..52].try_into().unwrap()), -0.5);
+    fs::remove_file(path).unwrap();
+}
+
 #[cfg(target_os = "windows")]
 #[test]
 #[ignore = "requires the verified FM ROMs and a working physical CPAL output device"]
