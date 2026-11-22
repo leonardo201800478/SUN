@@ -430,7 +430,7 @@ $summaryDocument | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $jsonPath
 
 $csvRows = [System.Collections.Generic.List[object]]::new()
 foreach ($run in $runSummaries) {
-    foreach ($metricName in $metricNames) {
+    foreach ($metricName in $run.metrics.Keys) {
         $distribution = $run.metrics[$metricName]
         if ($null -eq $distribution) {
             continue
