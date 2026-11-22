@@ -1,8 +1,18 @@
 # YM2413 FM Completion Scorecard
 
-## Estado executivo atual — SUN-FM-01 / main pós-PR #1220 (2026-11-22)
+## Estado executivo atual — SUN-FM-01 / main pós-PR #1223 (2026-11-22)
 
-HEAD da main após os merges #1206, #1208, #1213, #1216, #1217, #1219 e #1220: 902e47cd63736ab2cadbcaa051cfc2d55b67c0ad.
+HEAD da main após os merges #1206, #1208, #1213, #1216, #1217, #1219, #1220 e #1223: `ac319d4cbb93f624c7830d628ccb36c9b5b33fbb`.
+
+### Atualização após PR #1223 — Rhythm Mode noise reset
+
+- A PR #1223 integrou `with_rhythm_noise_register(0, 0)` na instalação do serviço PG serial do perfil Japanese SMS.
+- O comentário no código classifica `(register = 0, next_slot_index = 0)` como candidato de reset de software da referência Nuked; não declara conhecer o seed físico de power-on do YM2413.
+- Foi adicionado teste de Rhythm Mode com as cinco vozes de percussão, verificando amostras conhecidas após a transição, PCM digital não silencioso e equivalência contínua versus snapshot/restore.
+- CI #10316 e SMS Debugger Runtime #1886 passaram no HEAD da PR; o merge squash está confirmado em `ac319d4cbb93f624c7830d628ccb36c9b5b33fbb`.
+- Essa regressão valida o caminho digital sintético e determinístico. Não valida ROM comercial, ROM de patches física, timbre, conversão DAC, áudio CPAL nem desempenho em jogo.
+- Os resultados locais anteriores de Kenseiden/Phantasy Star foram obtidos antes deste merge e precisam ser repetidos no novo HEAD antes de qualquer reavaliação.
+
 
 ### Reavaliação do aceite após execução local (2026-11-22)
 
@@ -23,6 +33,7 @@ HEAD da main após os merges #1206, #1208, #1213, #1216, #1217, #1219 e #1220: 9
 - #1217: harness real-game para Kenseiden Japan e Phantasy Star Japan Rev 1, probe F0/F1/F2 e teste CPAL físico opt-in; CI completo passou e o teste CPAL Windows foi compilado com --no-run.
 - #1219: scorecard e relatório de acompanhamento atualizados.
 - #1220: parser estatístico A/B, modo same-commit para baseline atual e self-test PowerShell com logs sintéticos; CI e self-test passaram.
+- #1223: inicialização explícita do estado candidato de reset do LFSR para Rhythm Mode e regressão de PCM/snapshot-restore; CI e SMS runtime Release passaram. Gameplay real continua pendente.
 
 ### PRs antigas e duplicidades
 
