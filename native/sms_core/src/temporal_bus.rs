@@ -1734,6 +1734,40 @@ mod tests {
     }
 
     #[test]
+    fn japanese_fm_input_clocks_remain_aligned_with_scheduler_across_an_ntsc_frame() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+
+        // One NTSC SMS frame is 262 lines * 228 Z80 T-states.
+        // Deliberately split the elapsed machine time at irregular boundaries:
+        // the YM2413 must receive one input clock per scheduler T-state,
+        // independent of dispatch chunking and master-tick scale.
+        let chunks = [1, 3, 4, 17, 71, 72, 73, 228, 59_267];
+        let total_tstates: u64 = chunks.iter().sum();
+        assert_eq!(total_tstates, 59_736);
+
+        for (index, tstates) in chunks.into_iter().enumerate() {
+            advance_internal_cycle(&mut bus, 200 + index as u64, tstates);
+        }
+
+        let core = bus.ym2413().expect("Japanese FM profile installs YM2413");
+        assert_eq!(core.elapsed_input_clocks(), total_tstates);
+        assert_eq!(core.input_clock_phase(), 0);
+        assert_eq!(core.slot_index(), 12);
+        assert_eq!(core.completed_rotations(), 829);
+
+        let scheduler = bus.export_state().coordinator.scheduler;
+        assert_eq!(scheduler.now.ticks(), u128::from(total_tstates) * 3);
+    }
+
+    #[test]
     fn japanese_fm_host_capture_resumes_only_after_a_complete_slot_rotation() {
         let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
             vec![0; 0x4000],
