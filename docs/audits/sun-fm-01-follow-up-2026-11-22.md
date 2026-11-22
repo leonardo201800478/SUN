@@ -17,7 +17,7 @@ Decisão de aceite: **Kenseiden e Phantasy Star permanecem NÃO APROVADOS**. `fm
 ### Instrumentação adicionada nesta linha de trabalho
 
 - Contadores monotônicos F0/F1/F2 e por registrador, atualizados no caminho de conclusão da escrita do barramento. Não dependem do trace circular; são diagnósticos e não fazem parte do estado emulado/salvo.
-- Captura opcional, por `SEGA_SMS_FM_TEST_WAV_DIR`, de três sinais independentes por ROM: FM pré-mixer, PSG pré-mixer e PCM mono final após o `NativeAudioSession`.
+- Captura opcional, por `SEGA_SMS_FM_TEST_WAV_DIR`, de quatro sinais por ROM: FM pré-mixer, PSG pré-mixer, blocos `single-source` (fallback/PSG-only no perfil FM ativo) e PCM mono final após o `NativeAudioSession`.
 - WAV IEEE float32 mono a 48 kHz, sem normalização e sem clipping deliberado; relatórios incluem quantidade, não nulas, não finitas, valores com módulo >= 1, pico, RMS e média.
 - O teste permanece um smoke/diagnóstico. A aprovação exige comparação com referência Ares/Genesis Plus GX para a mesma ROM, revisão, cena e perfil, além de avaliação auditiva de música, timbre, envelope, dinâmica, ruído, clipping e continuidade.
 ## 1. Ações executadas
