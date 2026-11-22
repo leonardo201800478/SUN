@@ -16,10 +16,20 @@ O teste perf_baseline.rs executa três cenários OutRun SMS:
 - C: YM2413 clockado e FM mixado pelo mixer/resampler nativo, consumido por
   um sink determinístico de descarte.
 
-Os diagnósticos atuais do worker medem percentis de intervalo de quadro,
+Os diagnósticos do worker medem percentis de intervalo de quadro,
 step_frame, avanço YM2413, publicação de vídeo, preparação/submissão de áudio
-e processamento agregado do quadro. São medições de etapas inclusivas, não
-um perfil exclusivo e completo de cada dispositivo.
+e processamento agregado do quadro. A instrumentação S0.2 acrescenta, em modo
+opt-in, contagem/duração do dispatch do MachineScheduler, chamadas/clocks/duração
+do avanço PSG e chamadas/T-states/duração do avanço VDP. O timer do VDP inclui
+o trabalho de renderização de scanline executado por `SmsVdp::advance()`.
+
+Esses timers são coletados nos limites reais do caminho temporal e não criam
+um scheduler, relógio ou callback paralelo. O tempo do Scheduler mede somente
+`SmsTemporalCoordinator::dispatch_next()`; os tempos PSG, YM2413 e VDP medem
+o avanço de cada dispositivo após o dispatch. Portanto, são custos separados
+do Scheduler, não tempos inclusivos para somar com `step_frame`. A duração
+YM2413 continua usando o timer opt-in já existente. Ainda não há tempo exclusivo
+do Z80, transações BUS, mixer ou resampler.
 
 ## Execução
 
@@ -40,6 +50,26 @@ O heap profiling pode ser omitido com -SkipHeapProfile; a amostragem de CPU
 permanece ativa. O rastreamento de heap é configurado para a imagem exata
 perf_baseline-*.exe e desabilitado no bloco finally. A execução elevada é
 necessária para configurar WPR heap tracing.
+
+## Instrumentação S0.2
+
+A linha `SUN_PERF_DIAGNOSTICS` exporta por cenário os últimos contadores por
+quadro: `scheduler_dispatch_count_last`, `scheduler_dispatch_elapsed_ns_last`,
+`psg_advance_calls_last`, `psg_advance_clock_cycles_last`,
+`psg_advance_elapsed_ns_last`, `vdp_advance_calls_last`,
+`vdp_advance_tstates_last` e `vdp_advance_elapsed_ns_last`.
+
+Os contadores são acumuladores inteiros de tamanho fixo, reiniciados na
+fronteira de cada frame de diagnóstico e exportados depois do passo. Fora do
+modo diagnóstico, os timers não chamam `Instant::now()`. O teste
+`sms_subsystem_timing.rs` compara o estado completo e o resultado da instrução
+com profiling ligado/desligado, além de verificar os contadores dos três
+limites instrumentados.
+
+A medição é por chamada agregada do dispositivo, não por instrução, T-state,
+scanline ou amostra individual. O contador de VDP contabiliza T-states entregues
+ao VDP; não representa pixels ou dots. O contador de PSG registra clocks
+entregues pelo Scheduler, não clocks de CPU inferidos.
 
 ## Artefatos
 
