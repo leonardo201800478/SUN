@@ -36,6 +36,7 @@ HEAD atual da main: 7ba2d59dc9efdb24deb15171ec560df05cbfab6a.
 - [#1192](https://github.com/leonardo201800478/SUN/pull/1192): adaptador/comparador externo de saída YM2413. CI reportado como sucesso; ainda não integrada.
 - [#1193](https://github.com/leonardo201800478/SUN/pull/1193): diagnóstico de escritas FM e smoke test com ROM real. CI reportado como sucesso; a tentativa de merge foi recusada pela regra do repositório porque o check obrigatório Rust quality and unit regression foi considerado expected.
 - [#1202](https://github.com/leonardo201800478/SUN/pull/1202): reutilização do buffer PCM final e envio CPAL por referência. SMS Runtime, CPAL Windows, PSG/audio-runtime, higiene documental e workflow validation terminaram com sucesso. A tentativa de merge também foi recusada pelo mesmo check obrigatório Rust quality and unit regression, apesar do job aparecer como sucesso. Foi solicitado rerun do job agregador; não contornar a proteção da branch.
+- [#1205](https://github.com/leonardo201800478/SUN/pull/1205): métricas por frame de amostras FM válidas/desconhecidas/não finitas, fallback, peak/RMS e amostras alinhadas. Também evita propagar NaN/Inf ao mixer. CI pendente; não integrada.
 
 O roteiro A/B está em **scripts/benchmark/ym2413-real-game-ab.ps1**; a instrução de execução em **docs/testing/ym2413-real-game-ab-2026-11-22.md** foi corrigida pela PR #1203.
 
@@ -72,7 +73,7 @@ O custo do vídeo deve ser medido separadamente. As cópias por frame são reais
 | ID | Arquivo / função | Evidência | Classificação e impacto | Correção / prova exigida |
 |---|---|---|---|---|
 | A01 | native/sega_desktop/src/main.rs — FmMode, resolve_sms_fm_configuration | FM_AUTO_COMPATIBLE_ROM_SHA256 está vazio; Auto retorna Muted quando não há hash cadastrado. | **Confirmado.** Explica ausência de áudio quando o usuário está em Auto; não explica FPS porque o chip continua sendo clockado. | Configurar perfil Japanese SMS integrado + SMS1 + FM On nos testes. Só adicionar hashes ao Auto após trace real comprovar uso FM. |
-| A02 | rust/runtime/sms-runtime/src/worker.rs — AudioRendererState::prepare_fm_mix, prepare_psg_fallback | Um único None na fatia FM aciona fallback de todo o lote, limpa FM pendente e reinicia o resampler. Existe teste sintético que confirma essa política. | **Comportamento confirmado; frequência real desconhecida.** Pode causar silêncio/dropouts FM se ocorrer em jogo. | Instrumentar contagem de rotações desconhecidas, blocos fallback e blocos dual-source. Testar Kenseiden e Phantasy Star antes de alterar a política. |
+| A02 | rust/runtime/sms-runtime/src/worker.rs — AudioRendererState::prepare_fm_mix, prepare_psg_fallback | Um único None na fatia FM aciona fallback de todo o lote, limpa FM pendente e reinicia o resampler. Existe teste sintético que confirma essa política. | **Comportamento confirmado; frequência real desconhecida.** Pode causar silêncio/dropouts FM se ocorrer em jogo. | PR #1205 adiciona contagens e métricas condicionadas ao consentimento diagnóstico. Após CI/merge, coletar em Kenseiden e Phantasy Star antes de alterar a política. |
 | A03 | native/sms_core/src/temporal_bus.rs — advance_ym2413_inner; native/ym2413/src/lib.rs — advance_input_clocks_with_pg_service_in_place | O runtime usa caminho in-place e mantém o avanço do chip no fluxo temporal do barramento. Uma rotação contém 18 slots; o contrato do core usa 4 clocks de entrada por slot. | **Arquitetura confirmada.** O custo serial é candidato principal de profiling, não defeito provado. | Medir ym2413_advance_elapsed_ns p50/p95/p99 em gameplay. Não mover clock para thread independente. |
 | A04 | native/ym2413/src/lib.rs — clock_one_slot_with_service; native/ym2413/src/pg_serial.rs — before_eg_update, after_eg_update, latch_next_parameters | O contexto por slot carrega imagem de registradores e estado EG; há resolução de slot nas duas fases. O estado pós-EG é usado por teste para provar a ordem do sequenciador. | **Candidato de custo, não redundância confirmada.** Remover cópias/dispatch sem preservar o contrato pode quebrar timing. | Perfil por função e benchmark diferencial. Não remover post_state sem substituir a prova temporal existente. |
 | A05 | native/audio_runtime/src/session.rs — process_sources_with_policy; native/audio_runtime/src/lib.rs — PcmResampler::process | A sessão chamava o wrapper que criava um novo Vec<f64> por lote, embora process_into exista. | **Ineficiência confirmada.** Corrigida em candidata #1202; não medir ganho de FPS até gameplay. | #1202 adiciona buffer persistente, process_into e teste de capacidade reutilizada. |
@@ -142,12 +143,11 @@ Referências:
 ## 8. Plano ordenado
 
 1. Resolver o reconhecimento do check obrigatório do GitHub sem contornar branch protection; integrar #1192/#1193 e #1202 após checks válidos.
-2. Executar Kenseiden A/B no Windows local com ROM verificada e FM On.
-3. Acrescentar métricas de FM desconhecido/fallback e contagem de blocos PSG-only/dual-source ao smoke test.
-4. Executar Phantasy Star e determinar se o problema é ausência de escritas, saída desconhecida, política de mute ou síntese.
-5. Executar OutRun para confirmar desempenho sob gameplay real.
-6. Usar p95/p99 para localizar o gargalo: core YM2413, preparo de áudio, CPAL, vídeo ou host.
-7. Só então avaliar cache de dispatch/configuração, filas/blocos menores, AVX2/FMA e eventual processamento paralelo de PCM.
-8. Atualizar scorecard com evidências de gameplay, fidelidade e latência.
+2. Integrar #1205 após CI e executar Kenseiden A/B no Windows local com ROM verificada e FM On.
+3. Executar Phantasy Star e determinar se o problema é ausência de escritas, saída desconhecida, política de mute ou síntese.
+4. Executar OutRun para confirmar desempenho sob gameplay real.
+5. Usar p95/p99 para localizar o gargalo: core YM2413, preparo de áudio, CPAL, vídeo ou host.
+6. Só então avaliar cache de dispatch/configuração, filas/blocos menores, AVX2/FMA e eventual processamento paralelo de PCM.
+7. Atualizar scorecard com evidências de gameplay, fidelidade e latência.
 
 **Critério de conclusão permanece inalterado:** 60 FPS estáveis, frame time dentro de 16,67 ms, áudio contínuo, sem underruns recorrentes, amplitude adequada, latência interna inferior a 10 ms, fidelidade diferencial e validação real dos três jogos. Até lá, SUN-FM-01 permanece aberta.
