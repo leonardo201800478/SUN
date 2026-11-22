@@ -136,7 +136,7 @@ fn outrun_single_scenario_cpu_profile() {
     let snapshot = worker.debug_snapshot().expect("capture worker snapshot");
 
     println!(
-        "SUN_Z80_CPU_PROFILE_RESULT scenario={} rom_sha256={} frames={} elapsed_ns={} throughput_fps={:.4} pcm_samples={} fm_address_writes={} fm_data_writes={} diagnostics=off pacing=off presentation=off",
+        "SUN_Z80_CPU_PROFILE_RESULT scenario={} rom_sha256={} frames={} elapsed_ns={} profiled_observed_fps={:.4} pcm_samples={} fm_address_writes={} fm_data_writes={} diagnostics=off pacing=off presentation=off",
         scenario.name(), sha256, frames, elapsed.as_nanos(),
         frames as f64 / elapsed.as_secs_f64(), sink_count.load(Ordering::Relaxed),
         snapshot.fm_port_writes.address_writes, snapshot.fm_port_writes.data_writes,
