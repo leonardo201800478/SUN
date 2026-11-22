@@ -2255,6 +2255,7 @@ Acceptance checks:
 - the worker submits aligned PSG and FM source blocks;
 - the FM source contains non-zero samples (a present but silent FM path fails);
 - the native mixer/resampler submits non-silent PCM to its sink;
+- the separate CPAL campaign opens the default physical output device, plays the ROM audio, and reports accepted/consumed frames, underruns, dropped blocks and queue watermarks;
 - ROMs are read in place and are never added to the repository.
 
 PowerShell execution:
@@ -2264,7 +2265,8 @@ $env:SEGA_SMS_FM_TEST_ROM_DIR = "D:\ROMs\SMS-FM"
 $env:SEGA_SMS_FM_TEST_REGION = "japan"
 $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1"
 $env:SEGA_SMS_FM_TEST_FRAMES = "1800"
-cargo test --release -p sega-sms-runtime --test fm_in_game_smoke -- --ignored --nocapture
+cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
+cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns -- --ignored --nocapture
 ```
 
-**Interpretation boundary:** this is a real-ROM software-path test through the current digital reference MO/RO output path and the production Rust mixer/resampler. It does not certify the measured-domain MO/RO adapter, the physical DAC transfer function, the default ROM auto-detection policy, or audible output from a physical CPAL device. Those remain separate acceptance gates. The campaign is pinned to Kenseiden (Japan), SHA-256 7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93, and Phantasy Star (Japan) Rev 1, SHA-256 55ba15a1ea5c7db883a7a4c850bea2b1024185605964916ddd04a645d7ddd2b6. It verifies these identities before execution and skips unrelated files. Retain the emitted SMS_FM_IN_GAME metrics before making an in-game compatibility claim.
+**Interpretation boundary:** the headless campaign validates the real-ROM software path through the current digital reference MO/RO output path and production Rust mixer/resampler. The separate CPAL campaign validates physical device playback and queue health only when run on a Windows host with an available output device. Neither certifies the measured-domain MO/RO adapter or the physical YM2413 DAC transfer function. The desktop Auto whitelist is currently empty, so Auto remains muted for all ROMs; both campaigns deliberately force the Japanese integrated board and Enabled output. Do not populate the Auto whitelist until the in-game campaign records non-silent FM output for the exact ROM hashes. The campaign is pinned to Kenseiden (Japan), SHA-256 7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93, and Phantasy Star (Japan) Rev 1, SHA-256 55ba15a1ea5c7db883a7a4c850bea2b1024185605964916ddd04a645d7ddd2b6. It verifies these identities before execution and skips unrelated files. Retain the emitted SMS_FM_IN_GAME metrics before making an in-game compatibility claim.
