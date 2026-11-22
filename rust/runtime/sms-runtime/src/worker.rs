@@ -946,6 +946,9 @@ struct AudioRendererState {
     transition_samples: Vec<f64>,
     transition_fm_samples: Vec<f64>,
     fm_resampler: Option<PcmResampler>,
+    /// Reusable conversion buffers for the YM2413-to-48 kHz path.
+    fm_input_samples: Vec<f64>,
+    fm_resampled_samples: Vec<f64>,
     pending_psg_samples: VecDeque<f64>,
     pending_fm_samples: VecDeque<f64>,
     mix_psg_samples: Vec<f64>,
@@ -964,6 +967,8 @@ impl Default for AudioRendererState {
             transition_samples: Vec::with_capacity(2_048),
             transition_fm_samples: Vec::with_capacity(2_048),
             fm_resampler: None,
+            fm_input_samples: Vec::with_capacity(2_048),
+            fm_resampled_samples: Vec::with_capacity(2_048),
             pending_psg_samples: VecDeque::new(),
             pending_fm_samples: VecDeque::new(),
             mix_psg_samples: Vec::with_capacity(2_048),
@@ -1051,6 +1056,8 @@ impl AudioRendererState {
         if let Some(resampler) = self.fm_resampler.as_mut() {
             resampler.reset();
         }
+        self.fm_input_samples.clear();
+        self.fm_resampled_samples.clear();
         self.pending_psg_samples.clear();
         self.pending_fm_samples.clear();
         self.mix_psg_samples.clear();
@@ -1111,16 +1118,18 @@ impl AudioRendererState {
         }
 
         self.pending_psg_samples.extend(psg_samples.iter().copied());
-        let fm_input = fm_samples
-            .iter()
-            .map(|sample| sample.expect("unknown FM samples were rejected above"))
-            .collect::<Vec<_>>();
-        let resampled = self
-            .fm_resampler
+        self.fm_input_samples.clear();
+        self.fm_input_samples.extend(
+            fm_samples
+                .iter()
+                .map(|sample| sample.expect("unknown FM samples were rejected above")),
+        );
+        self.fm_resampler
             .as_mut()
             .expect("YM2413 resampler was initialized")
-            .process(&fm_input);
-        self.pending_fm_samples.extend(resampled);
+            .process_into(&self.fm_input_samples, &mut self.fm_resampled_samples);
+        self.pending_fm_samples
+            .extend(self.fm_resampled_samples.iter().copied());
 
         let aligned_frames = self
             .pending_psg_samples
