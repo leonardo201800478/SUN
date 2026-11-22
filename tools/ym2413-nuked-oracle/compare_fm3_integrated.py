@@ -98,6 +98,100 @@ def load_jsonl(path: Path, label: str) -> list[dict[str, object]]:
     return rows
 
 
+def compare_output_pipeline_row(
+    call_index: int,
+    nuked: dict[str, object],
+    rust: dict[str, object],
+) -> None:
+    """Compare integrated MO/RO buffer and pin latches at their exact call boundaries."""
+    required = (
+        "output_pipe_ch_out_before",
+        "output_pipe_ch_out_before_valid",
+        "output_pipe_rm_enable_before",
+        "output_pipe_ch_out_after",
+        "output_pipe_ch_out_after_valid",
+        "output_pipe_rm_enable_after",
+        "output_pipeline_next_cycle",
+        "output_frame_cycle",
+        "output_frame_m",
+        "output_frame_m_valid",
+        "output_frame_r",
+        "output_frame_r_valid",
+        "output_pins_m",
+        "output_pins_m_valid",
+        "output_pins_r",
+        "output_pins_r_valid",
+    )
+    missing = [field for field in required if field not in rust]
+    missing.extend(
+        field for field in (
+            "output_pipe_ch_out_before",
+            "output_pipe_rm_enable_before",
+            "ch_out",
+            "rm_enable",
+            "cycle_before",
+            "cycle_after",
+            "output_m",
+            "output_r",
+            "output_pins_m",
+            "output_pins_r",
+        ) if field not in nuked
+    )
+    if missing:
+        raise ValueError(f"call {call_index}: missing MO/RO pipeline fields {missing}")
+
+    pairs = (
+        ("output_pipe_ch_out_before", "output_pipe_ch_out_before"),
+        ("output_pipe_rm_enable_before", "output_pipe_rm_enable_before"),
+        ("output_pipe_ch_out_after", "ch_out"),
+        ("output_pipe_rm_enable_after", "rm_enable"),
+        ("output_pipeline_next_cycle", "cycle_after"),
+        ("output_frame_cycle", "cycle_before"),
+    )
+    for rust_field, nuked_field in pairs:
+        expected = int(nuked[nuked_field])
+        actual = int(rust[rust_field])
+        if expected != actual:
+            raise ValueError(
+                f"call {call_index}: {rust_field} mismatch "
+                f"Nuked={expected} Rust={actual}"
+            )
+
+    if not bool(rust["output_pipe_ch_out_before_valid"]):
+        raise ValueError(f"call {call_index}: previous ch_out unexpectedly became unknown")
+    if not bool(rust["output_pipe_ch_out_after_valid"]):
+        raise ValueError(f"call {call_index}: integrated operator output became unknown")
+
+    for field in ("output_pins_m_valid", "output_pins_r_valid"):
+        if not bool(rust[field]):
+            raise ValueError(f"call {call_index}: {field} unexpectedly became unknown")
+    for field in ("output_pins_m", "output_pins_r"):
+        expected = int(nuked[field])
+        actual = int(rust[field])
+        if expected != actual:
+            raise ValueError(
+                f"call {call_index}: {field} mismatch "
+                f"Nuked={expected} Rust={actual}"
+            )
+
+    for field in ("output_frame_m_valid", "output_frame_r_valid"):
+        if not bool(rust[field]):
+            raise ValueError(f"call {call_index}: {field} unexpectedly became unknown")
+    for rust_field, nuked_field in (
+        ("output_frame_m", "output_m"),
+        ("output_frame_r", "output_r"),
+    ):
+        if rust[rust_field] is None:
+            raise ValueError(f"call {call_index}: {rust_field} is null after software reset")
+        expected = int(nuked[nuked_field])
+        actual = int(rust[rust_field])
+        if actual != expected:
+            raise ValueError(
+                f"call {call_index}: {rust_field} mismatch "
+                f"Nuked={expected} Rust={actual}"
+            )
+
+
 def compare_row(
     call_index: int,
     nuked: dict[str, object],
@@ -170,6 +264,8 @@ def compare_row(
         raise ValueError(f"call {call_index}: pg_increment alias mismatch")
     if int(rust["pg_output"]) != int(nuked["pg_out"]):
         raise ValueError(f"call {call_index}: pg_output alias mismatch")
+
+    compare_output_pipeline_row(call_index, nuked, rust)
 
 
 def main() -> int:
@@ -253,7 +349,16 @@ def main() -> int:
                 "compared_scalar_fields": list(SCALAR_FIELDS),
                 "compared_array_fields": list(ARRAY_FIELDS),
                 "derived_checks": ["c_ksl_attenuation"],
-                "scope": "integrated Rust PG/EG/AM/OPLL_Operator pipeline against Nuked",
+                "compared_output_pipeline_fields": [
+                    "previous ch_out before/after",
+                    "rm_enable before/after",
+                    "MO/RO output pins after channel stage",
+                    "MO/RO output buffer one-call delayed",
+                    "serial output cursor and validity warm-up",
+                ],
+                "output_pin_samples_compared": len(nuked_samples),
+                "output_buffer_samples_compared": len(nuked_samples),
+                "scope": "integrated Rust PG/EG/AM/operator and MO/RO output pipeline against Nuked",
             },
             indent=2,
         )

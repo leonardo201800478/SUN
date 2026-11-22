@@ -11,6 +11,7 @@ on:
       - "tools/ym2413-nuked-oracle/compare_am_lfo.py"
       - "tools/ym2413-nuked-oracle/compare_fm3_integrated.py"
       - "tools/ym2413-nuked-oracle/compare_preset_latches.py"
+      - "tools/ym2413-nuked-oracle/test_compare_fm3_integrated.py"
       - "native/ym2413/examples/serial_operator_trace.rs"
       - "native/ym2413/examples/serial_am_lfo_trace.rs"
       - "native/ym2413/examples/pg_serial_trace.rs"
@@ -27,6 +28,12 @@ jobs:
     steps:
       - name: Checkout Rust implementation
         uses: actions/checkout@v4
+
+      - name: Test integrated MO/RO comparator
+        run: |
+          python3 -m unittest discover \
+            -s tools/ym2413-nuked-oracle \
+            -p "test_compare_fm3_integrated.py" -v
 
       - name: Checkout pinned Nuked-OPLL reference
         env:

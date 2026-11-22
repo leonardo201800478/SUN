@@ -92,6 +92,16 @@ fn write_json_array<T: std::fmt::Display>(
     output.push(']');
 }
 
+/// Write an optional signed output value as a JSON integer or null.
+fn write_json_option_i16(output: &mut String, value: Option<i16>) {
+    match value {
+        Some(value) => {
+            let _ = write!(output, "{value}");
+        }
+        None => output.push_str("null"),
+    }
+}
+
 fn reset_service(rhythm_register: Option<u32>) -> Result<Ym2413PgSerialService, Box<dyn Error>> {
     let damp_config = DampTransitionConfig::new(
         124,
@@ -161,6 +171,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let cycle_before = core.slot_index();
         let lfo_vib_counter_before = service.lfo_vib_counter();
         let operator_before = service.export_state().operator;
+        let output_pipeline_before = service.output_pipeline_state();
         core.advance_input_clocks_with_pg_service(YM2413_INPUT_CLOCKS_PER_SLOT, &mut service)?;
 
         for slot in 0u8..18 {
@@ -178,6 +189,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let service_state = service.export_state();
         let operator = service_state.operator;
         let serial_am = service_state.serial_am_lfo;
+        let output_pipeline_after = service_state.output_pipeline;
+        let output_frame = service_state.last_output_frame;
         let eg_levels: [u8; 18] = std::array::from_fn(|index| envelope.operators[index].level);
         let eg_states: [u8; 18] =
             std::array::from_fn(|index| envelope.operators[index].stage as u8);
@@ -325,7 +338,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
         let _ = write!(
             &mut trace_line,
-            ",\"eg_pending_rate\":{},\"eg_pending_zero_rate\":{},\"eg_next_slot\":{},\"rm_enable\":{},\"op_calc_rm_enable\":{},\"rm_select\":{},\"rhythm_control\":{},\"rhythm_mode_enabled\":{},\"rm_noise\":{},\"rhythm_noise_register\":{},\"rhythm_noise_cursor\":{},\"rhythm_noise_steps\":{},\"rhythm_hh_bit2\":{},\"rhythm_hh_bit3\":{},\"rhythm_hh_bit7\":{},\"rhythm_hh_bit8\":{},\"rhythm_tc_bit3\":{},\"rhythm_tc_bit5\":{},\"ch_out_hh\":{},\"ch_out_tm\":{},\"ch_out_bd\":{},\"ch_out_sd\":{},\"ch_out_tc\":{}}}",
+            ",\"eg_pending_rate\":{},\"eg_pending_zero_rate\":{},\"eg_next_slot\":{},\"rm_enable\":{},\"op_calc_rm_enable\":{},\"rm_select\":{},\"rhythm_control\":{},\"rhythm_mode_enabled\":{},\"rm_noise\":{},\"rhythm_noise_register\":{},\"rhythm_noise_cursor\":{},\"rhythm_noise_steps\":{},\"rhythm_hh_bit2\":{},\"rhythm_hh_bit3\":{},\"rhythm_hh_bit7\":{},\"rhythm_hh_bit8\":{},\"rhythm_tc_bit3\":{},\"rhythm_tc_bit5\":{},\"ch_out_hh\":{},\"ch_out_tm\":{},\"ch_out_bd\":{},\"ch_out_sd\":{},\"ch_out_tc\":{}",
             timer.pending_rate,
             u8::from(timer.pending_zero_rate),
             timer.next_slot,
@@ -350,6 +363,31 @@ fn main() -> Result<(), Box<dyn Error>> {
             operator.rhythm_channel_outputs[3],
             operator.rhythm_channel_outputs[4]
         );
+        let output_frame_m = output_frame.and_then(|frame| frame.mo.map(|value| value.value()));
+        let output_frame_r = output_frame.and_then(|frame| frame.ro.map(|value| value.value()));
+        let _ = write!(
+            &mut trace_line,
+            ",\"output_frame_cycle\":{},\"output_frame_m_valid\":{},\"output_frame_r_valid\":{},\"output_pins_m\":{},\"output_pins_m_valid\":{},\"output_pins_r\":{},\"output_pins_r_valid\":{},\"output_pipe_ch_out_before\":{},\"output_pipe_ch_out_before_valid\":{},\"output_pipe_rm_enable_before\":{},\"output_pipe_ch_out_after\":{},\"output_pipe_ch_out_after_valid\":{},\"output_pipe_rm_enable_after\":{},\"output_pipeline_next_cycle\":{}",
+            output_frame.map_or(cycle_before, |frame| frame.cycle),
+            u8::from(output_frame_m.is_some()),
+            u8::from(output_frame_r.is_some()),
+            output_pipeline_after.output_m,
+            u8::from(output_pipeline_after.output_m_valid),
+            output_pipeline_after.output_r,
+            u8::from(output_pipeline_after.output_r_valid),
+            output_pipeline_before.previous_channel_output,
+            u8::from(output_pipeline_before.previous_channel_output_valid),
+            output_pipeline_before.rm_enable,
+            output_pipeline_after.previous_channel_output,
+            u8::from(output_pipeline_after.previous_channel_output_valid),
+            output_pipeline_after.rm_enable as u8,
+            output_pipeline_after.next_cycle
+        );
+        trace_line.push_str(",\"output_frame_m\":");
+        write_json_option_i16(&mut trace_line, output_frame_m);
+        trace_line.push_str(",\"output_frame_r\":");
+        write_json_option_i16(&mut trace_line, output_frame_r);
+        trace_line.push('}');
         println!("{trace_line}");
     }
 
