@@ -24,8 +24,8 @@ Esta política é subordinada aos ADRs vigentes e ao código integrado na `main`
 | `.github/workflows/sms-debugger-runtime.yml` | Integração SMS runtime Windows x64 Release; não compila a GUI debugger legada |
 | `.github/workflows/ym2413-pg-differential.yml` | Diferencial serial PG/operadores contra Nuked, somente para fontes e ferramentas PG relacionadas |
 | `.github/workflows/ym2413-eg-characterization.yml` | Sweep e replay EG; somente para fontes, fixtures e ferramentas de envelope |
-| `.github/workflows/ym2413-rhythm-reset-differential.yml` | Diferencial de reset/ruído Rhythm Mode |
-| `.github/workflows/ym2413-output-pipeline-differential.yml` | Diferencial do pipeline MO/RO |
+| `.github/workflows/ym2413-rhythm-reset-differential.yml` | Caracterização adicional de reset/ruído Rhythm Mode; execução manual sob demanda |
+| `.github/workflows/ym2413-output-pipeline-differential.yml` | Caracterização isolada adicional do pipeline MO/RO; execução manual sob demanda |
 
 As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scripts/**` acionam o gate `workflow-lint` e a regressão do workspace Rust. A análise estática dos workflows utiliza actionlint v1.7.12, instalado por release versionada e SHA-256 verificado.
 
@@ -60,7 +60,7 @@ As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scri
 - Z80-only executa a suíte focada Z80, incluindo os testes integrados SMS/SG-1000 e vetores externos pertinentes. Não exige compilar hosts gráficos ou de áudio sem relação com a alteração.
 - YM2413-only executa o gate focado do crate e a integração do SMS runtime Windows Release; não executa a regressão genérica do workspace nem o job CPAL.
 - O workflow EG é limitado aos módulos de envelope, core/slot sequencer, exemplos, fixtures e ferramentas EG. Alterações exclusivas em PG/operadores/MO-RO não disparam o sweep de envelopes.
-- Os workflows diferenciais PG, Rhythm e MO/RO não são disparados por eventos de inclusão de labels; usam mudanças de arquivos pertinentes ou execução manual.
+- O diferencial PG automático já inclui a comparação integrada de Rhythm Mode e o pipeline MO/RO. As caracterizações isoladas de reset/ruído e MO/RO permanecem disponíveis por `workflow_dispatch`, mas não consomem runners em toda alteração do serviço serial.
 
 - PSG, VDP e input têm jobs de pacote com integração de console. Eles substituem a regressão genérica do workspace somente quando a alteração está isolada nesses domínios.
 - MachineScheduler e temporal core executam a regressão do workspace e o stress replay determinístico. Consumidores legados afetados também são validados quando necessário.
