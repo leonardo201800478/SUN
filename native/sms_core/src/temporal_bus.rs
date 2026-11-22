@@ -990,8 +990,7 @@ impl SmsTemporalBus {
             .ym2413
             .as_ref()
             .ok_or(SmsTemporalBusError::InvalidState)?
-            .export_state()
-            .input_clock_phase;
+            .input_clock_phase();
         while remaining > 0 {
             if u64::from(phase) >= YM2413_INPUT_CLOCKS_PER_SLOT {
                 return Err(SmsTemporalBusError::InvalidState);
