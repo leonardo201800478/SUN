@@ -1,7 +1,8 @@
 # SUN V2 — M0: Arquitetura, baseline e oráculo
 
 - **Status:** READY FOR REVIEW.
-- **Issue:** a vincular após criação.
+- **Issue:** [#1253 — SUN V2 M0](https://github.com/leonardo201800478/SUN/issues/1253).
+- **Documentation PR:** [#1254](https://github.com/leonardo201800478/SUN/pull/1254) (Draft; not merged).
 - **Branch documental:** `docs/sun-v2-architecture-charter`.
 - **Main consultada:** `30420fde1510d84834ed4e776f1a1bd1a5503b78` (2026-11-22 20:38:10 UTC).
 - **Tipo:** documentação, auditoria e instrumentação; sem reescrita de hardware nesta etapa.
