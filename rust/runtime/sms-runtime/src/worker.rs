@@ -416,8 +416,7 @@ impl FramePacingWindow {
             if values.is_empty() {
                 return (0, 0, 0);
             }
-            let mean = values.iter().map(|value| *value as f64).sum::<f64>()
-                / values.len() as f64;
+            let mean = values.iter().map(|value| *value as f64).sum::<f64>() / values.len() as f64;
             let variance = values
                 .iter()
                 .map(|value| {
