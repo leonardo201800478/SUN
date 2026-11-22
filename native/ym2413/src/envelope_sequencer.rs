@@ -416,16 +416,13 @@ mod tests {
     #[test]
     #[ignore = "Release-only A/B microbenchmark for full versus compact EG slot snapshots"]
     fn benchmark_compact_eg_slot_snapshot_cost() {
-        use std::hint::black_box;
-        use std::time::Instant;
-
         const ITERATIONS: u32 = 500_000;
         const SAMPLES: usize = 9;
 
         fn measure_full_snapshot(sequencer: &EnvelopeSequencer, iterations: u32) -> u128 {
-            let start = Instant::now();
+            let start = std::time::Instant::now();
             for _ in 0..iterations {
-                black_box(black_box(sequencer).export_state());
+                std::hint::black_box(std::hint::black_box(sequencer).export_state());
             }
             start.elapsed().as_nanos() / u128::from(iterations)
         }
@@ -433,9 +430,9 @@ mod tests {
         fn measure_compact_view(sequencer: &EnvelopeSequencer, iterations: u32) -> u128 {
             let start = Instant::now();
             for _ in 0..iterations {
-                let eg_dokon = black_box(sequencer).eg_dokon();
-                let levels = black_box(sequencer).operator_levels();
-                black_box((eg_dokon, levels));
+                let eg_dokon = std::hint::black_box(sequencer).eg_dokon();
+                let levels = std::hint::black_box(sequencer).operator_levels();
+                std::hint::black_box((eg_dokon, levels));
             }
             start.elapsed().as_nanos() / u128::from(iterations)
         }
