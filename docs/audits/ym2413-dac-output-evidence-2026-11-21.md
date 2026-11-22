@@ -249,3 +249,18 @@ The `volume*.out` files were committed alongside their `.raw` captures in upstre
 A new analysis of all 16 `volume*.out` files computes the 1st and 99th percentiles and derives the amplitude relative to the two central bins (255/256). The resulting amplitudes exactly match the 2015-03-11 published table: 255, 181, 127, 90, 63, 45, 31, 22, 15, 11, 7, 5, 3, 2, 1, 1. This confirms the analog volume-attenuation measurements as represented by the calibrated bin indices. It does not establish the raw digital DAC word or the operator-to-DAC mapping.
 
 Artifact lengths are not perfectly aligned: `volume0.out` has two fewer tokens than `volume0.raw`, `volume12.out` one more, and `volume14.out` two fewer. The historical decoder source does not explain these differences. Preserve them as unresolved provenance details rather than silently trimming or padding the sequences.
+
+
+## Sample-index pairing audit of volume captures — 2026-11-22
+
+The 16 `volume*.raw` / `volume*.out` pairs were compared at the same sample index. Thirteen pairs (volumes 1–11, 13 and 15) have equal lengths, zero repeated-ADC-code mapping conflicts, and zero monotonicity violations when pairs are sorted by ADC code. Three pairs fail this test:
+
+| Volume | Raw samples | Output tokens | Same-ADC conflicts | Monotonicity violations |
+|---:|---:|---:|---:|---:|
+| 0 | 20,032 | 20,030 | 4,406 | 14,306 |
+| 12 | 20,031 | 20,032 | 2,424 | 16,395 |
+| 14 | 20,032 | 20,030 | 594 | 11,739 |
+
+The 13 clean pairs support deterministic sample-index correspondence within those files. The three failed pairs must be treated as unaligned or from differing capture/calibration generations; the repository does not identify which. The clean pairs cover calibrated bin indices 74..437, not the full 0..511 range. Although `volume0.out` spans 0..511, its `.raw` partner fails pairing, so it cannot be used to reconstruct the full calibration boundaries.
+
+This is a data-provenance limitation, not evidence of a YM2413 runtime defect. Do not use the mismatched pairs to train or validate an operator-to-DAC conversion.
