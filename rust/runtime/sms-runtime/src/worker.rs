@@ -1534,6 +1534,39 @@ impl SmsTemporalWorker {
         )
     }
 
+    fn resolve_sms_region_preference(
+        rom: &[u8],
+        region_preference: &str,
+    ) -> Result<String, String> {
+        let preference = SmsRegionPreference::parse(region_preference).map_err(str::to_owned)?;
+        let region = match preference {
+            SmsRegionPreference::Manual(region) => region.key().to_owned(),
+            SmsRegionPreference::Automatic => match CartridgeCatalog::sms_default() {
+                Ok(catalog) => {
+                    let resolution = resolve_sms_region(preference, rom, &catalog);
+                    sega_observability::tracing::info!(
+                        target: "sega::rom",
+                        event = "sms_region_resolved",
+                        region = resolution.region.key(),
+                        source = ?resolution.source,
+                        dat_title = resolution.dat_title.as_deref().unwrap_or("unmatched")
+                    );
+                    resolution.region.key().to_owned()
+                }
+                Err(error) => {
+                    sega_observability::tracing::warn!(
+                        target: "sega::rom",
+                        event = "sms_region_catalog_fallback",
+                        error = %error,
+                        fallback = "usa"
+                    );
+                    "usa".to_owned()
+                }
+            },
+        };
+        Ok(region)
+    }
+
     /// Select the SMS1 VDP ASIC and resolve software territory. This constructor
     /// does not infer an integrated YM2413 from the ROM region; FM board presence
     /// requires the explicit Japanese Master System hardware-profile constructor.
@@ -1740,6 +1773,48 @@ impl SmsTemporalWorker {
             cartridge_sram_size,
             initial_sram,
             SmsFmOutputPolicy::Enabled,
+        )
+    }
+
+    /// Resolve Auto/manual software territory before constructing the explicit FM board.
+    pub fn new_with_japanese_fm_hardware_profile_and_region_preference_and_output_policy(
+        rom: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+        fm_output_policy: SmsFmOutputPolicy,
+    ) -> Result<Self, String> {
+        let region = Self::resolve_sms_region_preference(&rom, region_preference)?;
+        Self::new_with_japanese_fm_hardware_profile_and_output_policy(
+            rom,
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            fm_output_policy,
+        )
+    }
+
+    /// BIOS variant of the explicit FM board/output policy constructor.
+    pub fn new_with_japanese_fm_hardware_profile_and_bios_and_region_preference_and_output_policy(
+        rom: Vec<u8>,
+        bios: Vec<u8>,
+        region_preference: &str,
+        vdp_revision: SmsVdpRevision,
+        cartridge_sram_size: Option<usize>,
+        initial_sram: Option<Vec<u8>>,
+        fm_output_policy: SmsFmOutputPolicy,
+    ) -> Result<Self, String> {
+        let region = Self::resolve_sms_region_preference(&rom, region_preference)?;
+        Self::new_with_japanese_fm_hardware_profile_and_bios_and_output_policy(
+            rom,
+            bios,
+            &region,
+            vdp_revision,
+            cartridge_sram_size,
+            initial_sram,
+            fm_output_policy,
         )
     }
 
@@ -3436,6 +3511,20 @@ mod tests {
             SmsVdpRevision::Sega3155246
         );
         assert_eq!(machine.vdp().visible_height(), 192);
+    }
+
+    #[test]
+    fn explicit_fm_board_resolves_auto_software_region_before_construction() {
+        let rom = vec![0; 0x4000];
+
+        assert_eq!(
+            SmsTemporalWorker::resolve_sms_region_preference(&rom, "auto").unwrap(),
+            "usa"
+        );
+        assert_eq!(
+            SmsTemporalWorker::resolve_sms_region_preference(&rom, "brazil").unwrap(),
+            "brazil"
+        );
     }
 
     #[test]

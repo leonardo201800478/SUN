@@ -37,7 +37,7 @@ mod windows_host {
     use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_sms_core::ControllerButtons;
     use sega_sms_runtime::{
-        AnalogOutputConfig, AudioRendererMode, SmsTemporalWorker, SmsVdpRevision,
+        AnalogOutputConfig, AudioRendererMode, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision,
     };
     use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
     use std::os::windows::process::CommandExt;
@@ -506,6 +506,8 @@ mod windows_host {
             in-out property <string> active-menu: "none";
             in-out property <string> selected-region: "auto";
             in-out property <string> selected-system: "sms1";
+            in-out property <string> selected-fm-board-profile: "none";
+            in-out property <string> selected-fm-mode: "auto";
             in-out property <string> firmware-directory: "";
             in-out property <string> firmware-scan-status: "Selecione a pasta de firmware e execute a varredura.";
             in-out property <string> firmware-scan-results: "Nenhuma varredura realizada.";
@@ -759,7 +761,7 @@ mod windows_host {
                         }
                         Rectangle {
                             background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
-                            height: 92px;
+                            height: 122px;
                             VerticalLayout {
                                 padding: 14px; spacing: 5px;
                                 Text { text: "Sistema selecionado"; color: #B4C0D0; font-size: 11px; }
@@ -768,6 +770,8 @@ mod windows_host {
                                     color: #F1F5FA; font-size: 14px; font-weight: 600;
                                 }
                                 Text { text: root.selected-region == "auto" ? "Região: Automática" : root.selected-region == "brazil" ? "Região: Brasil / PAL-M" : root.selected-region == "europe" ? "Região: Europa / PAL" : root.selected-region == "japan" ? "Região: Japão / NTSC" : root.selected-region == "korea" ? "Região: Coreia / NTSC" : "Região: USA / NTSC"; color: rgb(142, 171, 255); font-size: 11px; }
+                                Text { text: root.selected-fm-board-profile == "japanese-integrated" ? "Placa FM: YM2413 integrado" : "Placa FM: sem chip integrado"; color: #8bd5ca; font-size: 11px; }
+                                Text { text: root.selected-fm-mode == "auto" ? "Saída FM: Auto" : root.selected-fm-mode == "on" ? "Saída FM: On" : "Saída FM: Off"; color: #8bd5ca; font-size: 11px; }
                             }
                         }
                         Text { text: root.rom-status; color: #B4C0D0; font-size: 11px; wrap: word-wrap; }
@@ -793,16 +797,16 @@ mod windows_host {
             ScrollView {
                 width: 100%; height: 100%;
                 content-width: self.width;
-                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
+                content-height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 1040px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
                 VerticalLayout {
                     alignment: start;
                     width: 100%;
-                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 660px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
+                    height: root.active-menu == "firmware" ? 980px : root.active-menu == "file" ? 540px + root.recent-roms.length * 40px : root.active-menu == "controls" ? 800px : root.active-menu == "system" ? 1040px : root.active-menu == "video" ? 900px : root.active-menu == "options" ? 360px : root.active-menu == "debug" ? 440px : root.active-menu == "audio" ? 780px : 180px;
                     padding: 8px; spacing: 6px;
                         if root.active-menu == "system": VerticalLayout {
                             spacing: 12px;
                             Text { font-size: 24px; text: "Sistema"; color: #F1F5FA; }
-                            Text { font-size: 12px; text: "Modelo do console e região utilizados na próxima sessão."; color: #B4C0D0; }
+                            Text { font-size: 12px; text: "Modelo do console, placa FM física e região da próxima sessão."; color: #B4C0D0; }
                             Rectangle {
                                 height: 164px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
                                 VerticalLayout { padding: 14px; spacing: 8px;
@@ -810,8 +814,8 @@ mod windows_host {
                                     Text { font-size: 12px; text: root.has-rom ? (root.active-system == "sg1000" ? "Em execução: SG-1000 · TMS9918A" : root.active-system == "sms2" ? "Em execução: Master System II · VDP 315-5246" : "Em execução: Master System · VDP 315-5124") : (root.selected-system == "sg1000" ? "Selecionado: SG-1000 · TMS9918A" : root.selected-system == "sms2" ? "Selecionado: Master System II · VDP 315-5246" : "Selecionado: Master System · VDP 315-5124"); color: rgb(142, 171, 255); }
                                     FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
                                         CompactButton { text: root.selected-system == "sms1" ? "✓ Master System / SMS1" : "Master System / SMS1"; enabled: !root.has-rom; clicked => { root.selected-system = "sms1"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                        CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
-                                        CompactButton { text: root.selected-system == "sg1000" ? "✓ SG-1000" : "SG-1000"; enabled: !root.has-rom; clicked => { root.selected-system = "sg1000"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-system == "sms2" ? "✓ Master System II / SMS2" : "Master System II / SMS2"; enabled: !root.has-rom; clicked => { root.selected-system = "sms2"; root.selected-fm-board-profile = "none"; if (root.selected-fm-mode == "on") { root.selected-fm-mode = "auto"; } root.preferences-changed(); if (root.firmware-directory != "") { root.scan-firmware-directory-requested(root.firmware-directory); } } }
+                                        CompactButton { text: root.selected-system == "sg1000" ? "✓ SG-1000" : "SG-1000"; enabled: !root.has-rom; clicked => { root.selected-system = "sg1000"; root.selected-fm-board-profile = "none"; if (root.selected-fm-mode == "on") { root.selected-fm-mode = "auto"; } root.preferences-changed(); } }
                                     }
                                     Text { font-size: 10px; text: root.has-rom ? "A ROM atual mantém o hardware já construído; a seleção vale para a próxima ROM." : "O hardware selecionado será construído ao carregar a ROM."; color: #B4C0D0; wrap: word-wrap; }
                                 }
@@ -830,6 +834,30 @@ mod windows_host {
                                         CompactButton { text: root.selected-region == "usa" ? "✓ USA / NTSC" : "USA / NTSC"; clicked => { root.selected-region = "usa"; root.preferences-changed(); } }
                                     }
                                     Text { font-size: 10px; text: root.selected-region == "auto" ? "Automático: World → USA; múltiplas regiões: Brasil → USA → Europa → Japão → Coreia; sem evidência confiável: USA." : "A preferência regional será aplicada ao carregar a próxima ROM."; color: #B4C0D0; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 176px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Placa FM (hardware físico)"; color: #F1F5FA; }
+                                    Text { font-size: 11px; text: "A região do software não detecta o YM2413. Selecione somente se a placa real possuir o chip integrado."; color: #B4C0D0; wrap: word-wrap; }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-fm-board-profile == "none" ? "✓ SMS genérico · sem FM" : "SMS genérico · sem FM"; enabled: !root.has-rom; clicked => { root.selected-fm-board-profile = "none"; if (root.selected-fm-mode == "on") { root.selected-fm-mode = "auto"; } root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-fm-board-profile == "japanese-integrated" ? "✓ Japanese SMS · YM2413" : "Japanese SMS · YM2413"; enabled: !root.has-rom && root.selected-system == "sms1"; clicked => { root.selected-fm-board-profile = "japanese-integrated"; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: root.selected-fm-board-profile == "japanese-integrated" ? "Placa FM integrada selecionada; a região do software continua independente." : root.selected-system == "sms1" ? "Perfil genérico: sem chip FM instalado." : "O perfil Japanese SMS FM só está disponível para SMS1."; color: #B4C0D0; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                height: 166px; background: #192231; border-radius: 10px; border-width: 1px; border-color: #344154;
+                                VerticalLayout { padding: 14px; spacing: 8px;
+                                    Text { font-size: 16px; text: "Modo de saída FM"; color: #F1F5FA; }
+                                    FlexboxLayout { flex-direction: row; flex-wrap: wrap; spacing: 6px;
+                                        CompactButton { text: root.selected-fm-mode == "auto" ? "✓ Auto" : "Auto"; enabled: !root.has-rom; clicked => { root.selected-fm-mode = "auto"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-fm-mode == "on" ? "✓ On" : "On"; enabled: !root.has-rom && root.selected-system == "sms1" && root.selected-fm-board-profile == "japanese-integrated"; clicked => { root.selected-fm-mode = "on"; root.preferences-changed(); } }
+                                        CompactButton { text: root.selected-fm-mode == "off" ? "✓ Off" : "Off"; enabled: !root.has-rom; clicked => { root.selected-fm-mode = "off"; root.preferences-changed(); } }
+                                    }
+                                    Text { font-size: 10px; text: root.selected-fm-mode == "auto" ? "Auto exige hash exato no catálogo de ROMs FM verificadas. O catálogo ainda não possui entradas; a saída FM permanece mutada." : root.selected-fm-mode == "on" ? "On força FM somente na placa com YM2413; não injeta writes nem cria hardware." : "Off silencia FM no host, mas mantém o YM2413 clockado e sincronizado."; color: #B4C0D0; wrap: word-wrap; }
                                 }
                             }
                             Rectangle {
@@ -1310,11 +1338,104 @@ mod windows_host {
         }
     }
 
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    enum SmsFmBoardProfile {
+        #[default]
+        Generic,
+        JapaneseIntegrated,
+    }
+
+    impl SmsFmBoardProfile {
+        fn from_preference(value: &str) -> Option<Self> {
+            match value {
+                "none" => Some(Self::Generic),
+                "japanese-integrated" => Some(Self::JapaneseIntegrated),
+                _ => None,
+            }
+        }
+
+        const fn preference_id(self) -> &'static str {
+            match self {
+                Self::Generic => "none",
+                Self::JapaneseIntegrated => "japanese-integrated",
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    enum FmMode {
+        #[default]
+        Auto,
+        On,
+        Off,
+    }
+
+    impl FmMode {
+        fn from_preference(value: &str) -> Option<Self> {
+            match value {
+                "auto" => Some(Self::Auto),
+                "on" => Some(Self::On),
+                "off" => Some(Self::Off),
+                _ => None,
+            }
+        }
+
+        const fn preference_id(self) -> &'static str {
+            match self {
+                Self::Auto => "auto",
+                Self::On => "on",
+                Self::Off => "off",
+            }
+        }
+    }
+
+    // Auto is intentionally conservative. Populate only with exact SHA-256
+    // identities after a real execution trace proves that the ROM uses FM.
+    const FM_AUTO_COMPATIBLE_ROM_SHA256: &[&str] = &[];
+
+    fn fm_auto_catalog_matches(rom: &[u8]) -> bool {
+        let sha256 = CartridgeIdentity::from_bytes(rom).sha256_hex();
+        FM_AUTO_COMPATIBLE_ROM_SHA256.contains(&sha256.as_str())
+    }
+
+    fn resolve_sms_fm_configuration(
+        board_profile: SmsFmBoardProfile,
+        mode: FmMode,
+        sms_system: &str,
+        rom: &[u8],
+    ) -> Result<(bool, SmsFmOutputPolicy), String> {
+        let has_integrated_fm = board_profile == SmsFmBoardProfile::JapaneseIntegrated;
+        if has_integrated_fm && sms_system != "sms1" {
+            return Err(
+                "A placa Japanese Master System com YM2413 exige o perfil SMS1.".to_owned(),
+            );
+        }
+
+        let output_policy = match mode {
+            FmMode::Auto => {
+                if has_integrated_fm && fm_auto_catalog_matches(rom) {
+                    SmsFmOutputPolicy::Enabled
+                } else {
+                    SmsFmOutputPolicy::Muted
+                }
+            }
+            FmMode::On if has_integrated_fm => SmsFmOutputPolicy::Enabled,
+            FmMode::On => {
+                return Err("FM On exige uma placa física com YM2413 integrado.".to_owned());
+            }
+            FmMode::Off => SmsFmOutputPolicy::Muted,
+        };
+
+        Ok((has_integrated_fm, output_policy))
+    }
+
     /// Preferências persistidas exclusivamente para a camada de apresentação.
     #[derive(Debug, Clone)]
     struct DesktopPreferences {
         region: String,
         selected_system: String,
+        sms_fm_board_profile: String,
+        sms_fm_mode: String,
         firmware_directory: String,
         firmware_boot_enabled: bool,
         firmware_brazil_selected: String,
@@ -1352,6 +1473,8 @@ mod windows_host {
             Self {
                 region: "auto".to_owned(),
                 selected_system: "sms1".to_owned(),
+                sms_fm_board_profile: "none".to_owned(),
+                sms_fm_mode: "auto".to_owned(),
                 firmware_directory: String::new(),
                 firmware_boot_enabled: false,
                 firmware_brazil_selected: String::new(),
@@ -1403,14 +1526,17 @@ mod windows_host {
 
     /// Carrega preferências com fallback individual para valores seguros e conhecidos.
     fn load_desktop_preferences() -> DesktopPreferences {
-        let mut preferences = DesktopPreferences::default();
         let Some(directory) = app_data_directory() else {
-            return preferences;
+            return DesktopPreferences::default();
         };
         let Ok(contents) = fs::read_to_string(directory.join("slint_ui_settings.txt")) else {
-            return preferences;
+            return DesktopPreferences::default();
         };
+        parse_desktop_preferences(&contents)
+    }
 
+    fn parse_desktop_preferences(contents: &str) -> DesktopPreferences {
+        let mut preferences = DesktopPreferences::default();
         for line in contents.lines() {
             let Some((key, value)) = line.split_once('=') else {
                 continue;
@@ -1424,6 +1550,14 @@ mod windows_host {
                 }
                 "selected_system" if ["sms1", "sms2", "sg1000"].contains(&value.trim()) => {
                     preferences.selected_system = value.trim().to_owned();
+                }
+                "sms_fm_board_profile"
+                    if ["none", "japanese-integrated"].contains(&value.trim()) =>
+                {
+                    preferences.sms_fm_board_profile = value.trim().to_owned();
+                }
+                "sms_fm_mode" if ["auto", "on", "off"].contains(&value.trim()) => {
+                    preferences.sms_fm_mode = value.trim().to_owned();
                 }
                 // Backward compatibility with settings written before multi-system selection.
                 "sms_system" if ["sms1", "sms2"].contains(&value.trim()) => {
@@ -1567,6 +1701,12 @@ mod windows_host {
                 _ => {}
             }
         }
+        if preferences.selected_system != "sms1" {
+            preferences.sms_fm_board_profile = "none".to_owned();
+        }
+        if preferences.sms_fm_board_profile == "none" && preferences.sms_fm_mode == "on" {
+            preferences.sms_fm_mode = "auto".to_owned();
+        }
         preferences
     }
 
@@ -1575,10 +1715,20 @@ mod windows_host {
         let directory =
             app_data_directory().ok_or_else(|| "APPDATA não está definido".to_owned())?;
         fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-        let contents = format!(
-            "region={}\nselected_system={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nsg1000_audio_hpf_enabled={}\nsg1000_audio_hpf_cutoff_hz={}\nsg1000_audio_lpf_enabled={}\nsg1000_audio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
+        fs::write(
+            directory.join("slint_ui_settings.txt"),
+            serialize_desktop_preferences(preferences),
+        )
+        .map_err(|error| error.to_string())
+    }
+
+    fn serialize_desktop_preferences(preferences: &DesktopPreferences) -> String {
+        format!(
+            "region={}\nselected_system={}\nsms_fm_board_profile={}\nsms_fm_mode={}\nfirmware_directory={}\nfirmware_boot_enabled={}\nfirmware_brazil_selected={}\nfirmware_usa_selected={}\nfirmware_europe_selected={}\nfirmware_japan_selected={}\nfirmware_korea_selected={}\naspect={}\nshow_fps={}\nshow_status_footer={}\nfps_size={}\nsprite_limit_enabled={}\naudio_volume={}\naudio_muted={}\naudio_renderer_mode={}\naudio_dsp_preset={}\naudio_hpf_enabled={}\naudio_hpf_cutoff_hz={}\naudio_lpf_enabled={}\naudio_lpf_cutoff_hz={}\nsg1000_audio_hpf_enabled={}\nsg1000_audio_hpf_cutoff_hz={}\nsg1000_audio_lpf_enabled={}\nsg1000_audio_lpf_cutoff_hz={}\nkeyboard_up_key={}\nkeyboard_down_key={}\nkeyboard_left_key={}\nkeyboard_right_key={}\nkeyboard_button1_key={}\nkeyboard_button2_key={}\n",
             preferences.region,
             preferences.selected_system,
+            preferences.sms_fm_board_profile,
+            preferences.sms_fm_mode,
             preferences.firmware_directory,
             preferences.firmware_boot_enabled,
             preferences.firmware_brazil_selected,
@@ -1609,9 +1759,7 @@ mod windows_host {
             encode_key_token(&preferences.keyboard_right_key),
             encode_key_token(&preferences.keyboard_button1_key),
             encode_key_token(&preferences.keyboard_button2_key)
-        );
-        fs::write(directory.join("slint_ui_settings.txt"), contents)
-            .map_err(|error| error.to_string())
+        )
     }
 
     /// Encodes each key character as a hexadecimal Unicode code point for safe text-file persistence.
@@ -3424,37 +3572,65 @@ mod windows_host {
     ) -> Result<(SmsTemporalWorker, Option<CartridgeSaveContext>), String> {
         let prepared = prepare_cartridge(&rom, save_store)?;
         let bios = load_selected_sms_bios(&rom, settings)?;
-        let worker = match (bios, settings.sms_system.as_str()) {
-            (Some(bios), "sms1") => SmsTemporalWorker::new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
-                rom,
-                bios,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
-            (None, "sms1") => SmsTemporalWorker::new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
-                rom,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
-            (Some(bios), _) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
-                rom,
-                bios,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
-            (None, _) => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
-                rom,
-                &settings.region,
-                settings.vdp_revision,
-                prepared.sram_capacity,
-                prepared.initial_sram,
-            )?,
+        let (has_integrated_fm, fm_output_policy) = resolve_sms_fm_configuration(
+            settings.fm_board_profile,
+            settings.fm_mode,
+            &settings.sms_system,
+            &rom,
+        )?;
+        let worker = if has_integrated_fm {
+            match bios {
+                Some(bios) => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_bios_and_region_preference_and_output_policy(
+                    rom,
+                    bios,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                    fm_output_policy,
+                )?,
+                None => SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_region_preference_and_output_policy(
+                    rom,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                    fm_output_policy,
+                )?,
+            }
+        } else {
+            match (bios, settings.sms_system.as_str()) {
+                (Some(bios), "sms1") => SmsTemporalWorker::new_with_bios_and_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+                    rom,
+                    bios,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+                (None, "sms1") => SmsTemporalWorker::new_with_sms1_hardware_profile_and_region_preference_and_cartridge_sram_size(
+                    rom,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+                (Some(bios), _) => SmsTemporalWorker::new_with_bios_and_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                    rom,
+                    bios,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+                (None, _) => SmsTemporalWorker::new_with_region_preference_and_hardware_profile_and_cartridge_sram_size(
+                    rom,
+                    &settings.region,
+                    settings.vdp_revision,
+                    prepared.sram_capacity,
+                    prepared.initial_sram,
+                )?,
+            }
         };
         configure_sms_audio(
             &worker,
@@ -3655,6 +3831,8 @@ mod windows_host {
         dsp_config: AnalogOutputConfig,
         sg1000_dsp_config: AnalogOutputConfig,
         renderer_mode: String,
+        fm_board_profile: SmsFmBoardProfile,
+        fm_mode: FmMode,
     }
 
     /// Load only a catalog-identified conventional 8 KiB BIOS for the resolved
@@ -3802,6 +3980,9 @@ mod windows_host {
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
             sms_system: preferences.selected_system.clone(),
+            fm_board_profile: SmsFmBoardProfile::from_preference(&preferences.sms_fm_board_profile)
+                .unwrap_or_default(),
+            fm_mode: FmMode::from_preference(&preferences.sms_fm_mode).unwrap_or_default(),
             firmware_directory: preferences.firmware_directory.clone(),
             firmware_boot_enabled: preferences.firmware_boot_enabled,
             firmware_brazil_selected: preferences.firmware_brazil_selected.clone(),
@@ -3863,6 +4044,8 @@ mod windows_host {
         app.set_lifecycle_status("Renderer setup: 0 | teardown: 0".into());
         app.set_selected_region(region.clone().into());
         app.set_selected_system(preferences.selected_system.clone().into());
+        app.set_selected_fm_board_profile(preferences.sms_fm_board_profile.clone().into());
+        app.set_selected_fm_mode(preferences.sms_fm_mode.clone().into());
         app.set_firmware_directory(preferences.firmware_directory.clone().into());
         app.set_firmware_boot_enabled(preferences.firmware_boot_enabled);
         app.set_firmware_brazil_selected(preferences.firmware_brazil_selected.clone().into());
@@ -4258,6 +4441,8 @@ mod windows_host {
                 firmware_europe_selected,
                 firmware_japan_selected,
                 firmware_korea_selected,
+                fm_board_profile,
+                fm_mode,
             ) = open_app
                 .upgrade()
                 .map(|app| {
@@ -4291,6 +4476,8 @@ mod windows_host {
                         app.get_firmware_europe_selected().to_string(),
                         app.get_firmware_japan_selected().to_string(),
                         app.get_firmware_korea_selected().to_string(),
+                        app.get_selected_fm_board_profile().to_string(),
+                        app.get_selected_fm_mode().to_string(),
                     )
                 })
                 .unwrap_or_else(|| {
@@ -4309,6 +4496,8 @@ mod windows_host {
                         String::new(),
                         String::new(),
                         String::new(),
+                        "none".to_owned(),
+                        "auto".to_owned(),
                     )
                 });
             let vdp_revision = match DesktopSystem::from_id(&system) {
@@ -4343,6 +4532,9 @@ mod windows_host {
                 firmware_europe_selected,
                 firmware_japan_selected,
                 firmware_korea_selected,
+                fm_board_profile: SmsFmBoardProfile::from_preference(&fm_board_profile)
+                    .unwrap_or_default(),
+                fm_mode: FmMode::from_preference(&fm_mode).unwrap_or_default(),
                 vdp_revision,
                 audio_volume,
                 dsp_config,
@@ -4658,6 +4850,16 @@ mod windows_host {
                 let prefs = DesktopPreferences {
                     region: app.get_selected_region().to_string(),
                     selected_system: app.get_selected_system().to_string(),
+                    sms_fm_board_profile: SmsFmBoardProfile::from_preference(
+                        app.get_selected_fm_board_profile().as_ref(),
+                    )
+                    .unwrap_or_default()
+                    .preference_id()
+                    .to_owned(),
+                    sms_fm_mode: FmMode::from_preference(app.get_selected_fm_mode().as_ref())
+                        .unwrap_or_default()
+                        .preference_id()
+                        .to_owned(),
                     firmware_directory: app.get_firmware_directory().to_string(),
                     firmware_boot_enabled: app.get_firmware_boot_enabled(),
                     firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -4790,6 +4992,16 @@ mod windows_host {
             let prefs = DesktopPreferences {
                 region: app.get_selected_region().to_string(),
                 selected_system: app.get_selected_system().to_string(),
+                sms_fm_board_profile: SmsFmBoardProfile::from_preference(
+                    app.get_selected_fm_board_profile().as_ref(),
+                )
+                .unwrap_or_default()
+                .preference_id()
+                .to_owned(),
+                sms_fm_mode: FmMode::from_preference(app.get_selected_fm_mode().as_ref())
+                    .unwrap_or_default()
+                    .preference_id()
+                    .to_owned(),
                 firmware_directory: app.get_firmware_directory().to_string(),
                 firmware_boot_enabled: app.get_firmware_boot_enabled(),
                 firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -5163,6 +5375,16 @@ mod windows_host {
         let final_preferences = DesktopPreferences {
             region: app.get_selected_region().to_string(),
             selected_system: app.get_selected_system().to_string(),
+            sms_fm_board_profile: SmsFmBoardProfile::from_preference(
+                app.get_selected_fm_board_profile().as_ref(),
+            )
+            .unwrap_or_default()
+            .preference_id()
+            .to_owned(),
+            sms_fm_mode: FmMode::from_preference(app.get_selected_fm_mode().as_ref())
+                .unwrap_or_default()
+                .preference_id()
+                .to_owned(),
             firmware_directory: app.get_firmware_directory().to_string(),
             firmware_boot_enabled: app.get_firmware_boot_enabled(),
             firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -5247,6 +5469,98 @@ mod windows_host {
         }
 
         use super::*;
+
+        #[test]
+        fn fm_preferences_default_to_generic_board_and_conservative_auto() {
+            let preferences = DesktopPreferences::default();
+            assert_eq!(preferences.sms_fm_board_profile, "none");
+            assert_eq!(preferences.sms_fm_mode, "auto");
+            assert_eq!(
+                SmsFmBoardProfile::from_preference("japanese-integrated"),
+                Some(SmsFmBoardProfile::JapaneseIntegrated)
+            );
+            assert_eq!(FmMode::from_preference("off"), Some(FmMode::Off));
+            assert_eq!(FmMode::from_preference("invalid"), None);
+        }
+
+        #[test]
+        fn fm_auto_requires_an_exact_verified_catalog_entry() {
+            let rom = vec![0; 0x4000];
+            assert!(!fm_auto_catalog_matches(&rom));
+
+            let (has_integrated_fm, policy) = resolve_sms_fm_configuration(
+                SmsFmBoardProfile::JapaneseIntegrated,
+                FmMode::Auto,
+                "sms1",
+                &rom,
+            )
+            .unwrap();
+
+            assert!(has_integrated_fm);
+            assert_eq!(policy, SmsFmOutputPolicy::Muted);
+        }
+
+        #[test]
+        fn fm_preferences_round_trip_through_the_persisted_settings_format() {
+            let preferences = DesktopPreferences {
+                sms_fm_board_profile: "japanese-integrated".to_owned(),
+                sms_fm_mode: "off".to_owned(),
+                ..DesktopPreferences::default()
+            };
+
+            let encoded = serialize_desktop_preferences(&preferences);
+            let decoded = parse_desktop_preferences(&encoded);
+
+            assert_eq!(decoded.sms_fm_board_profile, "japanese-integrated");
+            assert_eq!(decoded.sms_fm_mode, "off");
+        }
+
+        #[test]
+        fn invalid_fm_preferences_are_sanitized_for_non_sms1_systems() {
+            let decoded = parse_desktop_preferences(
+                "selected_system=sms2\nsms_fm_board_profile=japanese-integrated\nsms_fm_mode=on",
+            );
+
+            assert_eq!(decoded.sms_fm_board_profile, "none");
+            assert_eq!(decoded.sms_fm_mode, "auto");
+        }
+
+        #[test]
+        fn fm_on_requires_physical_hardware_and_off_keeps_the_chip_installed() {
+            let rom = vec![0; 0x4000];
+            assert!(
+                resolve_sms_fm_configuration(SmsFmBoardProfile::Generic, FmMode::On, "sms1", &rom,)
+                    .is_err()
+            );
+            assert!(
+                resolve_sms_fm_configuration(
+                    SmsFmBoardProfile::JapaneseIntegrated,
+                    FmMode::On,
+                    "sms2",
+                    &rom,
+                )
+                .is_err()
+            );
+
+            let (has_integrated_fm, policy) = resolve_sms_fm_configuration(
+                SmsFmBoardProfile::JapaneseIntegrated,
+                FmMode::Off,
+                "sms1",
+                &rom,
+            )
+            .unwrap();
+            assert!(has_integrated_fm);
+            assert_eq!(policy, SmsFmOutputPolicy::Muted);
+
+            let (_, policy) = resolve_sms_fm_configuration(
+                SmsFmBoardProfile::JapaneseIntegrated,
+                FmMode::On,
+                "sms1",
+                &rom,
+            )
+            .unwrap();
+            assert_eq!(policy, SmsFmOutputPolicy::Enabled);
+        }
 
         #[test]
         fn keyboard_key_token_round_trips_unicode() {
@@ -5725,6 +6039,8 @@ mod windows_host {
             let settings = SmsWorkerSettings {
                 region: "usa".to_owned(),
                 sms_system: "sms1".to_owned(),
+                fm_board_profile: SmsFmBoardProfile::Generic,
+                fm_mode: FmMode::Auto,
                 firmware_directory: "unused-firmware-directory".to_owned(),
                 firmware_boot_enabled: true,
                 firmware_brazil_selected: String::new(),
@@ -5748,6 +6064,8 @@ mod windows_host {
             let mut settings = SmsWorkerSettings {
                 region: "brazil".to_owned(),
                 sms_system: "sms1".to_owned(),
+                fm_board_profile: SmsFmBoardProfile::Generic,
+                fm_mode: FmMode::Auto,
                 firmware_directory: "unused-firmware-directory".to_owned(),
                 firmware_boot_enabled: true,
                 firmware_brazil_selected: "EuropeV20 — Master System Europe v2.0 (8 KiB)"
@@ -5781,6 +6099,8 @@ mod windows_host {
             let settings = SmsWorkerSettings {
                 region: "usa".to_owned(),
                 sms_system: "sms1".to_owned(),
+                fm_board_profile: SmsFmBoardProfile::Generic,
+                fm_mode: FmMode::Auto,
                 firmware_directory: String::new(),
                 firmware_boot_enabled: false,
                 firmware_brazil_selected: String::new(),
