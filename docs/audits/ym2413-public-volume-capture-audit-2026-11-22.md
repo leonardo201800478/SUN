@@ -10,9 +10,9 @@
 
 | Capture | Samples | ADC min–max | Detected peaks | Inserted midpoints | Reconstructed bins |
 |---|---:|---:|---:|---:|---:|
-| volume0.raw | 20,032 | 6,249–60,651 | 401 | 112 | **513** |
-| volume1.raw | 20,032 | 13,634–52,440 | 351 | 12 | 363 |
-| volume2.raw | 20,032 | 19,194–52,447 | 258 | 0 | 258 |
+| volume0.raw | 20,032 | 6,249–60,651 | 183 | 113 | 296 |
+| volume1.raw | 20,032 | 13,634–52,440 | 274 | 55 | 329 |
+| volume2.raw | 20,032 | 19,194–52,447 | 240 | 15 | 255 |
 | volume3.raw | 20,032 | 23,140–42,588 | 182 | 0 | 182 |
 | volume4.raw | 20,032 | 25,620–39,644 | 128 | 0 | 128 |
 | volume5.raw | 20,032 | 27,107–37,676 | 92 | 0 | 92 |
@@ -24,13 +24,13 @@
 | volume11.raw | 20,032 | 32,264–33,319 | 12 | 0 | 12 |
 | volume12.raw | 20,031 | 32,480–33,102 | 8 | 0 | 8 |
 | volume13.raw | 20,032 | 32,589–32,992 | 6 | 0 | 6 |
-| volume14.raw | 20,032 | 32,599–32,880 | 5 | 0 | 5 |
+| volume14.raw | 20,032 | 32,599–32,880 | 4 | 0 | 4 |
 | volume15.raw | 20,096 | 32,697–32,882 | 4 | 0 | 4 |
 
 ## Interpretation
 
 - None of the 16 volume captures reaches the default 60,000-sample calibration acquisition size.
-- `volume0.raw` spans the broadest ADC range, but reconstruction produces 401 detected peaks plus 112 heuristic midpoint insertions: **513 bins**, not the expected 512.
+- `volume0.raw` spans the broadest ADC range, but reconstruction produces 183 detected peaks plus 113 heuristic midpoint insertions: **296 bins**, not the expected 512.
 - The remaining volume captures cover progressively narrower amplitude ranges and reconstruct fewer bins.
 - Inserted midpoints are algorithmic estimates, not observed DAC levels. They cannot be counted as independent physical measurements.
 - These files cannot replace `calibrate.raw`, nor certify the YM2413 DAC encoding, MO/RO transfer function, or sub-clock latch phase.
