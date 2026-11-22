@@ -1118,7 +1118,10 @@ mod tests {
                 core.advance_input_clocks_with_pg_service(4, &mut service)
                     .unwrap();
             }
-            started.elapsed().as_nanos()
+            let elapsed = started.elapsed();
+            std::hint::black_box(core.export_state());
+            std::hint::black_box(service.export_state());
+            elapsed.as_nanos()
         };
 
         let run_in_place = || {
@@ -1135,7 +1138,10 @@ mod tests {
                 core.advance_input_clocks_with_pg_service_in_place(4, &mut service)
                     .unwrap();
             }
-            started.elapsed().as_nanos()
+            let elapsed = started.elapsed();
+            std::hint::black_box(core.export_state());
+            std::hint::black_box(service.export_state());
+            elapsed.as_nanos()
         };
 
         let mut transactional_samples = Vec::with_capacity(SAMPLES);
