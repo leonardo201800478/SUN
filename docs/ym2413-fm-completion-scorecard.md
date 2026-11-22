@@ -2245,3 +2245,26 @@ Isso é uma reconstrução quase completa de **intervalos de fronteira ADC**, n�
 ### Diagnóstico agregado de histograma — 2026-11-22
 
 A concatenação dos 320.639 samples brutos das 16 capturas de volume e a execução do mesmo filtro triangular/detector de picos não reproduzem a calibração original: foram detectados 421 picos e inseridos 40 midpoints, totalizando 461 bins, e nenhum dos 509 intervalos observados contém o respectivo limite desse histograma agregado. Portanto, as capturas de volume não substituem `calibrate.raw`; a distribuição amostral é diferente da aquisição dedicada. Isso não invalida as correlações sample-paired, que permanecem monotônicas e sem conflitos após os offsets de arquivo.
+## FM-6 — in-game audio acceptance harness (PR #1188, 2026-11-22)
+
+**Status: harness implemented; execution with real commercial ROMs remains pending.**
+
+The opt-in integration test at rust/runtime/sms-runtime/tests/fm_in_game_smoke.rs runs legally obtained Japanese SMS FM ROMs through the continuous SmsTemporalWorker with an explicit integrated Japanese YM2413 board and SmsFmOutputPolicy::Enabled. It captures the two runtime sources separately and then delegates to the production NativeAudioSession mixer/resampler with a deterministic headless PCM sink.
+
+Acceptance checks:
+- the worker submits aligned PSG and FM source blocks;
+- the FM source contains non-zero samples (a present but silent FM path fails);
+- the native mixer/resampler submits non-silent PCM to its sink;
+- ROMs are read in place and are never added to the repository.
+
+PowerShell execution:
+
+```powershell
+$env:SEGA_SMS_FM_TEST_ROM_DIR = "D:\ROMs\SMS-FM"
+$env:SEGA_SMS_FM_TEST_REGION = "japan"
+$env:SEGA_SMS_FM_TEST_SYSTEM = "sms1"
+$env:SEGA_SMS_FM_TEST_FRAMES = "1800"
+cargo test --release -p sega-sms-runtime --test fm_in_game_smoke -- --ignored --nocapture
+```
+
+**Interpretation boundary:** this is a real-ROM software-path test through the current digital reference MO/RO output path and the production Rust mixer/resampler. It does not certify the measured-domain MO/RO adapter, the physical DAC transfer function, the default ROM auto-detection policy, or audible output from a physical CPAL device. Those remain separate acceptance gates. Run the campaign with known FM titles such as Phantasy Star and Kenseiden and retain the emitted SMS_FM_IN_GAME metrics before making an in-game compatibility claim.
