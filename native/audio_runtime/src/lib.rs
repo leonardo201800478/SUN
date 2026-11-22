@@ -287,6 +287,29 @@ mod tests {
     }
 
     #[test]
+    fn process_into_matches_process_and_reuses_output_capacity() {
+        let input: Vec<f64> = (0..4096)
+            .map(|index| 0.6 * (index as f64 * 0.017).sin())
+            .collect();
+        let mut allocating = PcmResampler::new(49_716, 48_000, 100).unwrap();
+        let mut reusable = PcmResampler::new(49_716, 48_000, 100).unwrap();
+        let mut output = Vec::with_capacity(2_048);
+        let mut expected = Vec::new();
+
+        for block in input.chunks(127) {
+            expected.extend(allocating.process(block));
+            reusable.process_into(block, &mut output);
+            assert_eq!(output, expected.split_off(expected.len() - output.len()));
+        }
+
+        let retained_capacity = output.capacity();
+        for block in input.chunks(127) {
+            reusable.process_into(block, &mut output);
+            assert!(output.capacity() >= retained_capacity);
+        }
+    }
+
+    #[test]
     fn resampling_is_repeatable() {
         let input: Vec<f64> = (0..2048).map(|index| (index as f64 * 0.03).sin()).collect();
         let mut whole = PcmResampler::new(48_000, 44_100, 100).unwrap();
