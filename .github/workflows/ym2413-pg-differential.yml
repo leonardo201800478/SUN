@@ -29,7 +29,6 @@ on:
       - "native/ym2413/examples/serial_am_lfo_trace.rs"
       - "native/ym2413/examples/pg_serial_trace.rs"
       - "tools/ym2413-nuked-oracle/trace.c"
-      - ".github/workflows/ym2413-pg-differential.yml"
   workflow_dispatch:
 
 permissions:
