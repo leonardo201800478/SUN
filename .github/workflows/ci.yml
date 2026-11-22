@@ -257,7 +257,7 @@ jobs:
   ym2413-focused:
     name: YM2413 core format, Clippy and tests
     needs: [changes]
-    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.ym2413 == 'true' && needs.changes.outputs.full != 'true'
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.ym2413 == 'true' && needs.changes.outputs.other_rust != 'true' && needs.changes.outputs.full != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -1056,7 +1056,7 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           EXPECT_RUST_WORKSPACE: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.other_rust == 'true' || needs.changes.outputs.full == 'true')) }}
           RUST_WORKSPACE: ${{ needs.rust-workspace.result }}
-          EXPECT_YM2413_FOCUSED: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.ym2413 == 'true' && needs.changes.outputs.full != 'true' }}
+          EXPECT_YM2413_FOCUSED: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.ym2413 == 'true' && needs.changes.outputs.other_rust != 'true' && needs.changes.outputs.full != 'true' }}
           YM2413_FOCUSED: ${{ needs.ym2413-focused.result }}
           EXPECT_Z80: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.z80 == 'true' }}
           Z80: ${{ needs.z80-focused.result }}
