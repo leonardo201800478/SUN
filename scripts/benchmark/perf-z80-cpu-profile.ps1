@@ -43,7 +43,12 @@ $buildLog = Join-Path $out "build.log"
 Push-Location $root
 try {
     & cargo test --profile release-llvm-debug --locked --target x86_64-pc-windows-msvc -p sega-sms-runtime --test perf_z80_profile --no-run -vv 2>&1 | Tee-Object -FilePath $buildLog | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "Profile harness build failed; see $buildLog" }
+    if ($LASTEXITCODE -ne 0) {
+        foreach ($name in $envNames) {
+            [Environment]::SetEnvironmentVariable($name, $previousEnv[$name], "Process")
+        }
+        throw "Profile harness build failed; see $buildLog"
+    }
 }
 finally { Pop-Location }
 
