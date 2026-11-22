@@ -1161,11 +1161,79 @@ mod tests {
             .unwrap();
 
             assert!(service.pending_dispatch.is_none());
+            assert!(service.pending_patch2.is_none());
             assert_eq!(service.next_slot_index(), core.slot_index());
         }
 
         assert_eq!(core.slot_index(), 0);
         assert_eq!(service.next_slot_index(), 0);
+    }
+
+    #[test]
+    #[ignore = "Release-only A/B benchmark for cached melodic channel configuration"]
+    fn benchmark_channel_config_cache_slot_cost() {
+        use std::time::Instant;
+
+        const SLOTS_PER_SAMPLE: u64 = 37_280;
+        const SLOTS_PER_FRAME: u64 = 14_915;
+        const SAMPLES: usize = 15;
+
+        let run = |duplicate_channel_decode: bool| {
+            let mut core = Ym2413Core::new();
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            service.benchmark_duplicate_channel_decode = duplicate_channel_decode;
+            for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+                core.write_address(address);
+                core.write_data(data);
+                core.advance_input_clocks_with_pg_service_in_place(72, &mut service)
+                    .unwrap();
+            }
+            let started = Instant::now();
+            for _ in 0..SLOTS_PER_SAMPLE {
+                core.advance_input_clocks_with_pg_service_in_place(4, &mut service)
+                    .unwrap();
+            }
+            let elapsed = started.elapsed();
+            std::hint::black_box(core.export_state());
+            std::hint::black_box(service.export_state());
+            elapsed.as_nanos()
+        };
+
+        let mut duplicate_samples = Vec::with_capacity(SAMPLES);
+        let mut cached_samples = Vec::with_capacity(SAMPLES);
+        for sample in 0..SAMPLES {
+            if sample % 2 == 0 {
+                duplicate_samples.push(run(true));
+                cached_samples.push(run(false));
+            } else {
+                cached_samples.push(run(false));
+                duplicate_samples.push(run(true));
+            }
+        }
+        duplicate_samples.sort_unstable();
+        cached_samples.sort_unstable();
+
+        let duplicate_median = duplicate_samples[SAMPLES / 2];
+        let cached_median = cached_samples[SAMPLES / 2];
+        let duplicate_frame_ns =
+            duplicate_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let cached_frame_ns =
+            cached_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let speedup = duplicate_median as f64 / cached_median.max(1) as f64;
+        let saved_us_per_frame =
+            (duplicate_frame_ns as f64 - cached_frame_ns as f64) / 1_000.0;
+
+        println!(
+            "YM2413_CHANNEL_CONFIG_AB slots_per_sample={} samples={} duplicate_decode_median_ns={} cached_decode_median_ns={} estimated_duplicate_decode_ms_per_frame={:.4} estimated_cached_decode_ms_per_frame={:.4} channel_config_cache_speedup={:.3}x channel_config_cache_saved_us_per_frame={:.4}",
+            SLOTS_PER_SAMPLE,
+            SAMPLES,
+            duplicate_median,
+            cached_median,
+            duplicate_frame_ns as f64 / 1_000_000.0,
+            cached_frame_ns as f64 / 1_000_000.0,
+            speedup,
+            saved_us_per_frame
+        );
     }
 
     #[test]
@@ -1359,6 +1427,7 @@ mod tests {
         let mut reference_core = Ym2413Core::new();
         let mut reference_service = Ym2413PgSerialService::new(initial_bank(0));
         reference_service.benchmark_duplicate_dispatch = true;
+        reference_service.benchmark_duplicate_channel_decode = true;
         let mut optimized_core = Ym2413Core::new();
         let mut optimized_service = Ym2413PgSerialService::new(initial_bank(0));
 
