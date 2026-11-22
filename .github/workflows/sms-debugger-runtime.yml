@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "native/sms_core/**"
+      - "native/ym2413/**"
       - "native/z80_cpu/**"
       - "native/z80_alu/**"
       - "native/z80_bus/**"
@@ -19,6 +20,7 @@ on:
     branches: [main]
     paths:
       - "native/sms_core/**"
+      - "native/ym2413/**"
       - "native/z80_cpu/**"
       - "native/z80_alu/**"
       - "native/z80_bus/**"
@@ -63,6 +65,9 @@ jobs:
 
       - name: Test SMS runtime (Release)
         run: cargo test --release --manifest-path rust/runtime/sms-runtime/Cargo.toml --all-targets --locked
+
+      - name: Benchmark YM2413 transactional vs in-place (Release)
+        run: cargo test --release --manifest-path native/ym2413/Cargo.toml --lib --locked benchmark_in_place_pg_service_slot_cost -- --ignored --nocapture
 
       - name: Build SMS runtime (Release, Windows x64)
         run: cargo build --release --manifest-path rust/runtime/sms-runtime/Cargo.toml --locked --target x86_64-pc-windows-msvc

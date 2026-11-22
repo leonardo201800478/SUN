@@ -946,6 +946,9 @@ struct AudioRendererState {
     transition_samples: Vec<f64>,
     transition_fm_samples: Vec<f64>,
     fm_resampler: Option<PcmResampler>,
+    /// Reusable per-frame source buffers; no per-frame PCM Vec allocation.
+    frame_psg_samples: Vec<f64>,
+    frame_fm_samples: Vec<Option<f64>>,
     /// Reusable conversion buffers for the YM2413-to-48 kHz path.
     fm_input_samples: Vec<f64>,
     fm_resampled_samples: Vec<f64>,
@@ -967,6 +970,8 @@ impl Default for AudioRendererState {
             transition_samples: Vec::with_capacity(2_048),
             transition_fm_samples: Vec::with_capacity(2_048),
             fm_resampler: None,
+            frame_psg_samples: Vec::with_capacity(2_048),
+            frame_fm_samples: Vec::with_capacity(2_048),
             fm_input_samples: Vec::with_capacity(2_048),
             fm_resampled_samples: Vec::with_capacity(2_048),
             pending_psg_samples: VecDeque::new(),
@@ -2448,7 +2453,10 @@ fn execute_frame_with_renderer(
     previous_deadline: Option<Instant>,
 ) -> Result<(usize, Option<Instant>, bool), String> {
     let frame_started = Instant::now();
+    machine
+        .set_fm_audio_capture_enabled(audio_renderer.fm_output_policy != SmsFmOutputPolicy::Muted);
     let diagnostics_enabled = telemetry.diagnostics_enabled();
+    machine.set_ym2413_timing_enabled(diagnostics_enabled);
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
     let diagnostic_machine_start = diagnostics_enabled.then_some(machine_time_start_ticks);
@@ -2458,6 +2466,7 @@ fn execute_frame_with_renderer(
         .map_err(|error| error.to_string())?;
     let step_frame_elapsed =
         diagnostic_step_start.map_or(Duration::ZERO, |started| started.elapsed());
+    let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
     let machine_time_end_ticks = machine.now().ticks();
     let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
     let frame_completed = !breakpoint_hit;
@@ -2531,10 +2540,18 @@ fn execute_frame_with_renderer(
     let video_publish_elapsed =
         diagnostic_publish_start.map_or(Duration::ZERO, |started| started.elapsed());
 
+    let diagnostic_audio_prepare_start = diagnostics_enabled.then(Instant::now);
     // Keep the legacy PSG FIFO bounded in both modes. H2 consumes events from
     // this same Scheduler-driven PSG instance; it never runs a second PSG.
-    let psg_samples = machine.drain_audio_samples(None);
-    let fm_samples = machine.drain_fm_audio_samples(None);
+    let mut psg_samples = std::mem::take(&mut audio_renderer.frame_psg_samples);
+    machine.drain_audio_samples_into(&mut psg_samples, None);
+    let mut fm_samples = std::mem::take(&mut audio_renderer.frame_fm_samples);
+    if machine.ym2413().is_some() && audio_renderer.fm_output_policy == SmsFmOutputPolicy::Muted {
+        machine.discard_fm_audio_samples();
+        fm_samples.clear();
+    } else {
+        machine.drain_fm_audio_samples_into(&mut fm_samples, None);
+    }
     let mut use_h2 = false;
     if audio_renderer.mode == AudioRendererMode::H2Experimental {
         machine.drain_psg_amplitude_events(&mut audio_renderer.events);
@@ -2675,6 +2692,8 @@ fn execute_frame_with_renderer(
         single_source_samples = Some(samples);
     }
 
+    let audio_prepare_elapsed =
+        diagnostic_audio_prepare_start.map_or(Duration::ZERO, |started| started.elapsed());
     let diagnostic_audio_start = diagnostics_enabled.then(Instant::now);
     let audio_result = audio_session.as_mut().and_then(|session| {
         if sample_count == 0 {
@@ -2773,7 +2792,9 @@ fn execute_frame_with_renderer(
             psg_samples = sample_count,
             frame_interval_ns = frame_interval_ns.unwrap_or_default(),
             step_frame_elapsed_ns = step_frame_elapsed.as_nanos(),
+            ym2413_advance_elapsed_ns,
             video_publish_elapsed_ns = video_publish_elapsed.as_nanos(),
+            audio_prepare_elapsed_ns = audio_prepare_elapsed.as_nanos(),
             audio_submit_elapsed_ns = audio_submit_elapsed.as_nanos(),
             frame_processing_elapsed_ns = processing_elapsed.as_nanos(),
             pacing_budget_ns = frame_duration.as_nanos(),
@@ -2783,6 +2804,8 @@ fn execute_frame_with_renderer(
         );
     }
 
+    audio_renderer.frame_psg_samples = psg_samples;
+    audio_renderer.frame_fm_samples = fm_samples;
     Ok((instructions, frame_deadline, breakpoint_hit))
 }
 
@@ -4812,6 +4835,10 @@ mod tests {
             "muting host output must not stop the YM2413 clock or state progression"
         );
         assert!(renderer.mix_fm_samples.is_empty());
+        assert!(
+            machine.drain_fm_audio_samples(None).is_empty(),
+            "muted host output must discard queued FM PCM without retaining a backlog"
+        );
         assert!(
             renderer.mix_psg_samples.iter().any(|sample| *sample != 0.0),
             "PSG output must remain audible while host FM output is muted"

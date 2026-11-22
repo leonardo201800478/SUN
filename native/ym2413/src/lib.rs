@@ -396,11 +396,15 @@ impl Ym2413Core {
     /// Returns the number of complete 18-slot rotations crossed by this call.
     /// The result and complete state are independent of block partitioning.
     pub fn advance_input_clocks(&mut self, clocks: u64) -> Result<u64, Ym2413Error> {
-        match self.advance_input_clocks_inner(clocks, |core| {
+        let mut staged = self.clone();
+        match staged.advance_input_clocks_inner_in_place(clocks, |core| {
             core.clock_one_slot()
                 .map_err(slot_service::Ym2413SlotServiceAdvanceError::<Infallible>::Core)
         }) {
-            Ok(rotations) => Ok(rotations),
+            Ok(rotations) => {
+                *self = staged;
+                Ok(rotations)
+            }
             Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => Err(error),
             Err(slot_service::Ym2413SlotServiceAdvanceError::Service(never)) => match never {},
         }
@@ -434,7 +438,9 @@ impl Ym2413Core {
         // four-clock slot and cannot invoke the serial service. Commit those
         // clock/phase changes directly: cloning the complete PG service for a
         // call that cannot reach a slot boundary is unnecessary.
-        if self.input_clock_phase >= YM2413_INPUT_CLOCKS_PER_SLOT as u8 {
+        if self.input_clock_phase >= YM2413_INPUT_CLOCKS_PER_SLOT as u8
+            || u64::from(self.slot_index) >= YM2413_SLOTS_PER_ROTATION
+        {
             return Err(slot_service::Ym2413SlotServiceAdvanceError::Core(
                 Ym2413Error::InvalidState,
             ));
@@ -451,13 +457,15 @@ impl Ym2413Core {
             return Ok(0);
         }
 
+        let mut staged_core = self.clone();
         let mut staged_service = service.clone();
-        let result = self.advance_input_clocks_inner(clocks, |core| {
+        let result = staged_core.advance_input_clocks_inner_in_place(clocks, |core| {
             core.clock_one_slot_with_service(&mut staged_service)
         });
 
         match result {
             Ok(rotations) => {
+                *self = staged_core;
                 *service = staged_service;
                 Ok(rotations)
             }
@@ -465,16 +473,20 @@ impl Ym2413Core {
         }
     }
 
-    /// Advance the YM2413 core and its serial PG service in one transaction.
+    /// Advance the YM2413 core and its serial PG service transactionally.
     ///
-    /// The caller supplies a coarse-grained input-clock block. The core invokes
-    /// the PG service internally at serial slot boundaries; no host-side
-    /// per-slot or per-instruction callback is exposed.
+    /// Core and service are staged independently and committed together only
+    /// after the complete input-clock block succeeds. Errors preserve rollback.
     pub fn advance_input_clocks_with_pg_service(
         &mut self,
         clocks: u64,
         service: &mut pg_serial::Ym2413PgSerialService,
     ) -> Result<u64, pg_serial::Ym2413PgSerialAdvanceError> {
+        if service.next_slot_index() != self.slot_index {
+            return Err(pg_serial::Ym2413PgSerialAdvanceError::Service(
+                pg_serial::Ym2413PgSerialError::InvalidState,
+            ));
+        }
         match self.advance_input_clocks_with_slot_service(clocks, service) {
             Ok(rotations) => Ok(rotations),
             Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => {
@@ -486,7 +498,36 @@ impl Ym2413Core {
         }
     }
 
-    fn advance_input_clocks_inner<E, F>(
+    /// Fast runtime path: advance core and service in place without deep clones.
+    ///
+    /// Arithmetic and cursor preconditions are checked before the first mutation.
+    /// If a callback fails after execution begins, state may be partial; callers
+    /// MUST invalidate the machine and must not retry or resume this instance.
+    #[doc(hidden)]
+    pub fn advance_input_clocks_with_pg_service_in_place(
+        &mut self,
+        clocks: u64,
+        service: &mut pg_serial::Ym2413PgSerialService,
+    ) -> Result<u64, pg_serial::Ym2413PgSerialAdvanceError> {
+        if service.next_slot_index() != self.slot_index {
+            return Err(pg_serial::Ym2413PgSerialAdvanceError::Service(
+                pg_serial::Ym2413PgSerialError::InvalidState,
+            ));
+        }
+        match self.advance_input_clocks_inner_in_place(clocks, |core| {
+            core.clock_one_slot_with_service(service)
+        }) {
+            Ok(rotations) => Ok(rotations),
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => {
+                Err(pg_serial::Ym2413PgSerialAdvanceError::Core(error))
+            }
+            Err(slot_service::Ym2413SlotServiceAdvanceError::Service(error)) => {
+                Err(pg_serial::Ym2413PgSerialAdvanceError::Service(error))
+            }
+        }
+    }
+
+    fn advance_input_clocks_inner_in_place<E, F>(
         &mut self,
         clocks: u64,
         mut service_slot: F,
@@ -494,6 +535,13 @@ impl Ym2413Core {
     where
         F: FnMut(&mut Self) -> Result<(), slot_service::Ym2413SlotServiceAdvanceError<E>>,
     {
+        if self.input_clock_phase >= YM2413_INPUT_CLOCKS_PER_SLOT as u8
+            || u64::from(self.slot_index) >= YM2413_SLOTS_PER_ROTATION
+        {
+            return Err(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::InvalidState,
+            ));
+        }
         let next_elapsed = self.elapsed_input_clocks.checked_add(clocks).ok_or(
             slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow),
         )?;
@@ -518,19 +566,19 @@ impl Ym2413Core {
                 slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::InvalidState)
             })?;
 
-        let mut next = self.clone();
+        // All predictable arithmetic failures are checked before the first
+        // slot. A callback failure from this point is terminal for fast callers.
         let mut slots_remaining = completed_slots;
         while slots_remaining != 0 {
-            service_slot(&mut next)?;
-            next.slot_index = (next.slot_index + 1) % YM2413_SLOTS_PER_ROTATION as u8;
+            service_slot(self)?;
+            self.slot_index = (self.slot_index + 1) % YM2413_SLOTS_PER_ROTATION as u8;
             slots_remaining -= 1;
         }
 
-        next.elapsed_input_clocks = next_elapsed;
-        next.input_clock_phase = next_clock_phase;
-        next.slot_index = next_slot;
-        next.completed_rotations = next_completed_rotations;
-        *self = next;
+        self.elapsed_input_clocks = next_elapsed;
+        self.input_clock_phase = next_clock_phase;
+        self.slot_index = next_slot;
+        self.completed_rotations = next_completed_rotations;
 
         Ok(rotations)
     }

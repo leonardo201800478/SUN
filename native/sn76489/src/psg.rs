@@ -488,21 +488,33 @@ impl Sn76489Core {
         self.advance_clocks_inner(clocks, false);
     }
 
-    pub fn drain_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+    /// Drain generated samples into a caller-owned buffer, retaining its allocation.
+    pub fn drain_samples_into(&mut self, output: &mut Vec<f64>, max_samples: Option<usize>) {
+        output.clear();
         let available_samples = self.pending_samples.len();
         let count = max_samples
             .unwrap_or(available_samples)
             .min(available_samples);
-        let samples = (0..count)
-            .filter_map(|_| self.pending_samples.pop_front())
-            .collect::<Vec<_>>();
+        if output.capacity() < count {
+            output.reserve(count);
+        }
+        for _ in 0..count {
+            if let Some(sample) = self.pending_samples.pop_front() {
+                output.push(sample);
+            }
+        }
         sega_observability::tracing::trace!(
             target: "sega::psg",
             available_samples,
-            drained_samples = samples.len(),
+            drained_samples = output.len(),
             remaining_samples = self.pending_samples.len(),
             "SN76489 sample queue drained"
         );
+    }
+
+    pub fn drain_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+        let mut samples = Vec::new();
+        self.drain_samples_into(&mut samples, max_samples);
         samples
     }
 
@@ -1914,6 +1926,43 @@ mod tests {
         }
         device.tick_internal_clock();
         assert_ne!(device.lfsr, first_shift);
+    }
+}
+
+#[cfg(test)]
+mod drain_into_tests {
+    use super::Sn76489Core;
+
+    #[test]
+    fn drain_samples_into_reuses_capacity_and_preserves_fifo_contents() {
+        let mut source = Sn76489Core::new(3_579_545, 48_000).unwrap();
+        source.advance_clocks(1_000_000);
+
+        let mut expected_source = source.clone();
+        let expected = expected_source.drain_samples(None);
+
+        let mut output = Vec::with_capacity(20_000);
+        output.push(f64::NAN);
+        let capacity_before = output.capacity();
+        source.drain_samples_into(&mut output, None);
+
+        assert_eq!(output, expected);
+        assert_eq!(output.capacity(), capacity_before);
+        assert!(source.drain_samples(None).is_empty());
+    }
+
+    #[test]
+    fn drain_samples_into_honors_limit_and_clears_previous_output() {
+        let mut source = Sn76489Core::new(3_579_545, 48_000).unwrap();
+        source.advance_clocks(1_000_000);
+        let available = source.clone().drain_samples(None).len();
+        let mut output = vec![123.0];
+
+        source.drain_samples_into(&mut output, Some(3));
+
+        assert_eq!(output.len(), 3);
+        assert!(output.iter().all(|sample| *sample != 123.0));
+        assert_eq!(source.drain_samples(None).len(), available - 3);
     }
 }
 

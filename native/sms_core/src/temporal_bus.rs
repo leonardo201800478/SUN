@@ -13,6 +13,7 @@
 
 use core::fmt;
 use std::collections::VecDeque;
+use std::time::Instant;
 
 use crate::{
     CartridgeImage, ControllerButtons, PsgError, SMS_PSG_CLOCK_DOMAIN_ID, SmsCoreError, SmsIo,
@@ -332,6 +333,15 @@ pub struct SmsTemporalBus {
     internal_cycle_started_at: Option<MachineTime>,
     internal_completion: Option<SmsInternalCycleCompletion>,
     interrupt_vector: u8,
+    /// Set after an in-place YM2413 failure; this machine instance cannot resume.
+    ym2413_runtime_faulted: bool,
+    /// Host-output capture policy; independent of the physical YM2413 clock.
+    fm_audio_capture_enabled: bool,
+    /// Wait until slot zero before restarting capture after a mute transition.
+    fm_capture_wait_for_rotation: bool,
+    /// Optional wall-clock instrumentation; disabled in normal emulation.
+    ym2413_timing_enabled: bool,
+    ym2413_advance_elapsed_ns: u128,
 }
 
 impl SmsTemporalBus {
@@ -498,6 +508,11 @@ impl SmsTemporalBus {
             internal_cycle_started_at: None,
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
+            ym2413_runtime_faulted: false,
+            fm_audio_capture_enabled: true,
+            fm_capture_wait_for_rotation: false,
+            ym2413_timing_enabled: false,
+            ym2413_advance_elapsed_ns: 0,
         })
     }
 
@@ -583,6 +598,11 @@ impl SmsTemporalBus {
             internal_cycle_started_at: None,
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
+            ym2413_runtime_faulted: false,
+            fm_audio_capture_enabled: true,
+            fm_capture_wait_for_rotation: false,
+            ym2413_timing_enabled: false,
+            ym2413_advance_elapsed_ns: 0,
         })
     }
 
@@ -757,6 +777,9 @@ impl SmsTemporalBus {
     /// A read samples memory at this completion boundary. A write mutates memory
     /// at this completion boundary. The response is latched until acknowledged.
     pub fn dispatch_next(&mut self) -> Result<Option<SmsTemporalDispatch>, SmsTemporalBusError> {
+        if self.ym2413_runtime_faulted {
+            return Err(SmsTemporalBusError::InvalidState);
+        }
         // Dispatched boundaries remain latched until the CPU accepts them.
         if let Some(completion) = self.completion {
             return Ok(Some(SmsTemporalDispatch::BusCompletion(completion)));
@@ -984,7 +1007,50 @@ impl SmsTemporalBus {
         self.psg.core().mixed_amplitude()
     }
 
+    /// Enable/disable host-bound FM PCM capture without stopping YM2413 clocks.
+    ///
+    /// Disabling capture drops any partial rotation and queued samples. Re-enabling
+    /// waits for slot zero so the first emitted sample always covers a full rotation.
+    pub fn set_fm_audio_capture_enabled(&mut self, enabled: bool) {
+        if self.fm_audio_capture_enabled == enabled {
+            return;
+        }
+        self.fm_audio_capture_enabled = enabled;
+        self.pending_fm_samples.clear();
+        self.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
+        self.fm_capture_wait_for_rotation = enabled
+            && self
+                .ym2413
+                .as_ref()
+                .is_some_and(|core| core.slot_index() != 0);
+    }
+
+    /// Enable diagnostic wall-clock measurement for YM2413 advancement.
+    ///
+    /// Timing is opt-in and never feeds back into emulated clocks or scheduler state.
+    pub fn set_ym2413_timing_enabled(&mut self, enabled: bool) {
+        self.ym2413_timing_enabled = enabled;
+        self.ym2413_advance_elapsed_ns = 0;
+    }
+
+    /// Take the YM2413 advance time accumulated since the previous reset.
+    pub fn take_ym2413_advance_elapsed_ns(&mut self) -> u64 {
+        std::mem::take(&mut self.ym2413_advance_elapsed_ns).min(u128::from(u64::MAX)) as u64
+    }
+
     fn advance_ym2413(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
+        if !self.ym2413_timing_enabled {
+            return self.advance_ym2413_inner(clocks);
+        }
+        let started = Instant::now();
+        let result = self.advance_ym2413_inner(clocks);
+        self.ym2413_advance_elapsed_ns = self
+            .ym2413_advance_elapsed_ns
+            .saturating_add(started.elapsed().as_nanos());
+        result
+    }
+
+    fn advance_ym2413_inner(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
         let mut remaining = clocks;
         let mut phase = self
             .ym2413
@@ -998,7 +1064,7 @@ impl SmsTemporalBus {
             let clocks_to_slot = YM2413_INPUT_CLOCKS_PER_SLOT - u64::from(phase);
             let step = remaining.min(u128::from(clocks_to_slot)) as u64;
             let completed_slot = step == clocks_to_slot;
-            let output_frame = {
+            let advance_result = {
                 let core = self
                     .ym2413
                     .as_mut()
@@ -1007,14 +1073,44 @@ impl SmsTemporalBus {
                     .ym2413_pg_service
                     .as_mut()
                     .ok_or(SmsTemporalBusError::InvalidState)?;
-                core.advance_input_clocks_with_pg_service(step, service)?;
-                completed_slot.then(|| service.output_frame()).flatten()
+                core.advance_input_clocks_with_pg_service_in_place(step, service)
+            };
+            if let Err(error) = advance_result {
+                self.ym2413_runtime_faulted = true;
+                return Err(error.into());
+            }
+            let capture_output =
+                self.fm_audio_capture_enabled && !self.fm_capture_wait_for_rotation;
+            let output_frame = if completed_slot && capture_output {
+                self.ym2413_pg_service
+                    .as_ref()
+                    .and_then(Ym2413PgSerialService::output_frame)
+            } else {
+                None
             };
             phase = ((u64::from(phase) + step) % YM2413_INPUT_CLOCKS_PER_SLOT) as u8;
             remaining -= u128::from(step);
-            if completed_slot {
-                let frame = output_frame.ok_or(SmsTemporalBusError::InvalidState)?;
-                self.capture_ym2413_output_frame(frame)?;
+            if completed_slot && self.fm_audio_capture_enabled {
+                if self.fm_capture_wait_for_rotation {
+                    let next_slot = self
+                        .ym2413
+                        .as_ref()
+                        .map(Ym2413Core::slot_index)
+                        .ok_or(SmsTemporalBusError::InvalidState)?;
+                    if next_slot == 0 {
+                        self.fm_capture_wait_for_rotation = false;
+                        self.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
+                    }
+                } else {
+                    let Some(frame) = output_frame else {
+                        self.ym2413_runtime_faulted = true;
+                        return Err(SmsTemporalBusError::InvalidState);
+                    };
+                    if let Err(error) = self.capture_ym2413_output_frame(frame) {
+                        self.ym2413_runtime_faulted = true;
+                        return Err(error);
+                    }
+                }
             }
         }
         Ok(())
@@ -1065,22 +1161,52 @@ impl SmsTemporalBus {
 
     /// Drain complete YM2413 mono PCM samples at the SMS YM2413 source rate.
     /// None marks a rotation whose software-reference MO/RO output was unknown.
-    pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
+    /// Drain FM samples into a caller-owned buffer without allocating per frame.
+    pub fn drain_fm_audio_samples_into(
+        &mut self,
+        output: &mut Vec<Option<f64>>,
+        max_samples: Option<usize>,
+    ) {
+        output.clear();
         let count = max_samples
             .unwrap_or(self.pending_fm_samples.len())
             .min(self.pending_fm_samples.len());
-        self.pending_fm_samples.drain(..count).collect()
+        if output.capacity() < count {
+            output.reserve(count);
+        }
+        output.extend(self.pending_fm_samples.drain(..count));
+    }
+
+    pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
+        let mut samples = Vec::new();
+        self.drain_fm_audio_samples_into(&mut samples, max_samples);
+        samples
+    }
+
+    /// Discard host-bound FM PCM without allocating; the YM2413 keeps clocking.
+    pub fn discard_fm_audio_samples(&mut self) {
+        self.pending_fm_samples.clear();
     }
 
     /// Drain PSG PCM captured at scheduler dispatch boundaries with the F2 gate applied.
-    pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+    /// Drain PSG samples into a reusable caller-owned buffer.
+    pub fn drain_audio_samples_into(&mut self, output: &mut Vec<f64>, max_samples: Option<usize>) {
+        output.clear();
         if self.ym2413.is_none() {
-            return self.psg.core_mut().drain_samples(max_samples);
+            self.psg.core_mut().drain_samples_into(output, max_samples);
+            return;
         }
         let count = max_samples
             .unwrap_or(self.pending_psg_samples.len())
             .min(self.pending_psg_samples.len());
-        self.pending_psg_samples.drain(..count).collect()
+        output.reserve(count.saturating_sub(output.capacity()));
+        output.extend(self.pending_psg_samples.drain(..count));
+    }
+
+    pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+        let mut samples = Vec::new();
+        self.drain_audio_samples_into(&mut samples, max_samples);
+        samples
     }
 
     /// Return the installed Japanese Master System YM2413, if present.
@@ -1220,7 +1346,11 @@ impl SmsTemporalBus {
     /// Export memory, scheduler, and in-flight response state.
     pub fn export_state(&self) -> SmsTemporalBusState {
         SmsTemporalBusState {
-            format_version: SMS_TEMPORAL_BUS_STATE_VERSION,
+            format_version: if self.ym2413_runtime_faulted {
+                0
+            } else {
+                SMS_TEMPORAL_BUS_STATE_VERSION
+            },
             interrupt_vector: self.interrupt_vector,
             memory: self.memory.clone(),
             io: self.io.clone(),
@@ -1287,11 +1417,16 @@ impl SmsTemporalBus {
         if let (Some(core_state), Some(service_state)) = (&state.ym2413, &state.ym2413_pg_service)
             && (core_state.slot_index != service_state.rhythm_noise_cursor
                 || core_state.slot_index != service_state.output_pipeline.next_cycle
-                || core_state.slot_index != state.ym2413_pcm_accumulator.next_cycle
+                || (state.ym2413_pcm_accumulator != SmsYm2413PcmAccumulatorState::default()
+                    && core_state.slot_index != state.ym2413_pcm_accumulator.next_cycle)
                 || u64::from(core_state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT)
         {
             return Err(SmsTemporalBusError::InvalidState);
         }
+        let fm_capture_wait_for_rotation = state.ym2413.as_ref().is_some_and(|core_state| {
+            core_state.slot_index != 0
+                && state.ym2413_pcm_accumulator == SmsYm2413PcmAccumulatorState::default()
+        });
         let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
         let ym2413_pg_service = state
             .ym2413_pg_service
@@ -1409,6 +1544,11 @@ impl SmsTemporalBus {
             internal_cycle_started_at: state.internal_cycle_started_at,
             internal_completion: state.internal_completion,
             interrupt_vector: state.interrupt_vector,
+            ym2413_runtime_faulted: false,
+            fm_audio_capture_enabled: true,
+            fm_capture_wait_for_rotation,
+            ym2413_timing_enabled: false,
+            ym2413_advance_elapsed_ns: 0,
         })
     }
 }
@@ -1532,6 +1672,69 @@ mod tests {
             bus.ym2413().unwrap().export_state()
         );
         assert_eq!(restored.read_port(0xF2), 0x0D);
+    }
+
+    #[test]
+    fn japanese_fm_host_capture_resumes_only_after_a_complete_slot_rotation() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        bus.write_port(0xF2, 0x01);
+
+        bus.set_fm_audio_capture_enabled(false);
+        advance_internal_cycle(&mut bus, 120, 84);
+        assert!(bus.drain_fm_audio_samples(None).is_empty());
+
+        bus.set_fm_audio_capture_enabled(true);
+        advance_internal_cycle(&mut bus, 121, 60);
+        assert!(
+            bus.drain_fm_audio_samples(None).is_empty(),
+            "capture must not resume with a partial slot rotation"
+        );
+
+        advance_internal_cycle(&mut bus, 122, 72);
+        let samples = bus.drain_fm_audio_samples(None);
+        assert_eq!(
+            samples.len(),
+            1,
+            "capture resumes on the next full rotation"
+        );
+        assert!(samples.iter().flatten().all(|sample| sample.is_finite()));
+    }
+
+    #[test]
+    fn japanese_fm_pcm_drain_into_reuses_buffers_without_changing_order() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        bus.write_port(0xF2, 0x01);
+        advance_internal_cycle(&mut bus, 123, 216);
+
+        let mut fm = Vec::with_capacity(16);
+        fm.push(None);
+        let fm_capacity = fm.capacity();
+        bus.drain_fm_audio_samples_into(&mut fm, None);
+        assert_eq!(fm.len(), 3);
+        assert_eq!(fm.capacity(), fm_capacity);
+
+        let mut psg = Vec::with_capacity(16);
+        psg.push(123.0);
+        let psg_capacity = psg.capacity();
+        bus.drain_audio_samples_into(&mut psg, None);
+        assert_eq!(psg.capacity(), psg_capacity);
+        assert!(psg.iter().all(|sample| *sample != 123.0));
     }
 
     #[test]

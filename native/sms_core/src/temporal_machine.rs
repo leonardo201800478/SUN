@@ -1516,11 +1516,45 @@ impl SmsTemporalMachine {
 
     /// Drain YM2413 mono PCM samples at SMS_YM2413_PCM_SOURCE_RATE_HZ.
     /// None marks a rotation whose software-reference MO/RO output was unknown.
+    /// Drain FM samples into a reusable caller-owned buffer.
+    pub fn drain_fm_audio_samples_into(
+        &mut self,
+        output: &mut Vec<Option<f64>>,
+        max_samples: Option<usize>,
+    ) {
+        self.bus.drain_fm_audio_samples_into(output, max_samples);
+    }
+
     pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
         self.bus.drain_fm_audio_samples(max_samples)
     }
 
+    /// Discard queued host-bound FM PCM without allocating or stopping the chip.
+    pub fn discard_fm_audio_samples(&mut self) {
+        self.bus.discard_fm_audio_samples();
+    }
+
+    /// Enable/disable host-bound FM PCM capture without stopping the YM2413.
+    pub fn set_fm_audio_capture_enabled(&mut self, enabled: bool) {
+        self.bus.set_fm_audio_capture_enabled(enabled);
+    }
+
+    /// Enable opt-in wall-clock measurement of YM2413 bus advancement.
+    pub fn set_ym2413_timing_enabled(&mut self, enabled: bool) {
+        self.bus.set_ym2413_timing_enabled(enabled);
+    }
+
+    /// Take the measured YM2413 advancement time in nanoseconds.
+    pub fn take_ym2413_advance_elapsed_ns(&mut self) -> u64 {
+        self.bus.take_ym2413_advance_elapsed_ns()
+    }
+
     /// Drain audio samples already produced by scheduler-owned PSG clocks.
+    /// Drain PSG samples into a reusable caller-owned buffer.
+    pub fn drain_audio_samples_into(&mut self, output: &mut Vec<f64>, max_samples: Option<usize>) {
+        self.bus.drain_audio_samples_into(output, max_samples);
+    }
+
     pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
         self.bus.drain_audio_samples(max_samples)
     }

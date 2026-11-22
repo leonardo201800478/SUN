@@ -497,6 +497,14 @@ impl Ym2413PgSerialService {
         &self.synthesis
     }
 
+    /// Return the next serial slot expected by the PG service.
+    ///
+    /// The SMS adapter checks this against the core slot cursor before every
+    /// in-place or transactional block, preventing a split core/service state.
+    pub const fn next_slot_index(&self) -> u8 {
+        self.rhythm_noise_cursor
+    }
+
     /// Return the most recently emitted Nuked-reference digital MO/RO frame.
     pub const fn output_frame(&self) -> Option<Ym2413CoreOutputPipelineFrame> {
         self.last_output_frame
@@ -1086,6 +1094,176 @@ mod tests {
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
     use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
+
+    #[test]
+    #[ignore = "Release-only A/B benchmark; run from sms-debugger-runtime workflow"]
+    fn benchmark_in_place_pg_service_slot_cost() {
+        use std::time::Instant;
+
+        const SLOTS_PER_SAMPLE: u64 = 3_728;
+        const SLOTS_PER_FRAME: u64 = 14_915;
+        const SAMPLES: usize = 5;
+
+        let run_transactional = || {
+            let mut core = Ym2413Core::new();
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+                core.write_address(address);
+                core.write_data(data);
+                core.advance_input_clocks_with_pg_service(72, &mut service)
+                    .unwrap();
+            }
+            let started = Instant::now();
+            for _ in 0..SLOTS_PER_SAMPLE {
+                core.advance_input_clocks_with_pg_service(4, &mut service)
+                    .unwrap();
+            }
+            let elapsed = started.elapsed();
+            std::hint::black_box(core.export_state());
+            std::hint::black_box(service.export_state());
+            elapsed.as_nanos()
+        };
+
+        let run_in_place = || {
+            let mut core = Ym2413Core::new();
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+                core.write_address(address);
+                core.write_data(data);
+                core.advance_input_clocks_with_pg_service_in_place(72, &mut service)
+                    .unwrap();
+            }
+            let started = Instant::now();
+            for _ in 0..SLOTS_PER_SAMPLE {
+                core.advance_input_clocks_with_pg_service_in_place(4, &mut service)
+                    .unwrap();
+            }
+            let elapsed = started.elapsed();
+            std::hint::black_box(core.export_state());
+            std::hint::black_box(service.export_state());
+            elapsed.as_nanos()
+        };
+
+        let mut transactional_samples = Vec::with_capacity(SAMPLES);
+        let mut in_place_samples = Vec::with_capacity(SAMPLES);
+        for sample in 0..SAMPLES {
+            if sample % 2 == 0 {
+                transactional_samples.push(run_transactional());
+                in_place_samples.push(run_in_place());
+            } else {
+                in_place_samples.push(run_in_place());
+                transactional_samples.push(run_transactional());
+            }
+        }
+        transactional_samples.sort_unstable();
+        in_place_samples.sort_unstable();
+
+        let transactional_median = transactional_samples[SAMPLES / 2];
+        let in_place_median = in_place_samples[SAMPLES / 2];
+        let transactional_frame_ns =
+            transactional_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let in_place_frame_ns =
+            in_place_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let speedup = transactional_median as f64 / in_place_median as f64;
+
+        println!(
+            "YM2413_RUNTIME_AB slots_per_sample={} samples={} transactional_median_ns={} in_place_median_ns={} estimated_transactional_ms_per_frame={:.4} estimated_in_place_ms_per_frame={:.4} speedup={:.3}x",
+            SLOTS_PER_SAMPLE,
+            SAMPLES,
+            transactional_median,
+            in_place_median,
+            transactional_frame_ns as f64 / 1_000_000.0,
+            in_place_frame_ns as f64 / 1_000_000.0,
+            speedup
+        );
+    }
+
+    #[test]
+    fn core_pg_cursor_mismatch_is_rejected_before_either_path_mutates_state() {
+        let mut transactional_core = Ym2413Core::new();
+        let mut transactional_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_cursor(1)
+            .unwrap();
+        let transactional_core_before = transactional_core.export_state();
+        let transactional_service_before = transactional_service.export_state();
+
+        assert!(
+            transactional_core
+                .advance_input_clocks_with_pg_service(4, &mut transactional_service)
+                .is_err()
+        );
+        assert_eq!(transactional_core.export_state(), transactional_core_before);
+        assert_eq!(
+            transactional_service.export_state(),
+            transactional_service_before
+        );
+
+        let mut fast_core = Ym2413Core::new();
+        let mut fast_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_cursor(1)
+            .unwrap();
+        let fast_core_before = fast_core.export_state();
+        let fast_service_before = fast_service.export_state();
+
+        assert!(
+            fast_core
+                .advance_input_clocks_with_pg_service_in_place(4, &mut fast_service)
+                .is_err()
+        );
+        assert_eq!(fast_core.export_state(), fast_core_before);
+        assert_eq!(fast_service.export_state(), fast_service_before);
+    }
+
+    #[test]
+    fn in_place_advance_matches_transactional_state_and_pcm_across_partitioned_blocks() {
+        let mut transactional_core = Ym2413Core::new();
+        let mut transactional_service = Ym2413PgSerialService::new(initial_bank(0));
+        let mut fast_core = Ym2413Core::new();
+        let mut fast_service = Ym2413PgSerialService::new(initial_bank(0));
+
+        transactional_core.write_address(0x30);
+        fast_core.write_address(0x30);
+
+        for clocks in [1, 3, 4, 17, 55, 72, 1, 287, 4 * 37, 2 * 72 + 3] {
+            transactional_core
+                .advance_input_clocks_with_pg_service(clocks, &mut transactional_service)
+                .unwrap();
+            fast_core
+                .advance_input_clocks_with_pg_service_in_place(clocks, &mut fast_service)
+                .unwrap();
+
+            assert_eq!(fast_core.export_state(), transactional_core.export_state());
+            assert_eq!(
+                fast_service.export_state(),
+                transactional_service.export_state()
+            );
+            assert_eq!(
+                fast_service.output_frame(),
+                transactional_service.output_frame()
+            );
+            assert_eq!(
+                fast_service.measured_output_frame(),
+                transactional_service.measured_output_frame()
+            );
+
+            if clocks == 17 {
+                // Apply a data write while the input-clock phase is partial.
+                transactional_core.write_data(0x10);
+                fast_core.write_data(0x10);
+            }
+            if clocks == 55 {
+                // The fast path must resume identically from a joint save state.
+                fast_core = Ym2413Core::restore_state(fast_core.export_state()).unwrap();
+                fast_service =
+                    Ym2413PgSerialService::restore_state(fast_service.export_state()).unwrap();
+                assert_eq!(fast_core.export_state(), transactional_core.export_state());
+                assert_eq!(
+                    fast_service.export_state(),
+                    transactional_service.export_state()
+                );
+            }
+        }
+    }
 
     #[test]
     fn core_and_pg_output_pipeline_snapshot_restore_is_block_equivalent() {
