@@ -600,12 +600,12 @@ impl From<Ym2413RhythmOutputServiceError> for Ym2413MeasuredOutputAdapterError {
 /// Applies the core-owned prior-ch_out provenance and one-cycle output-buffer
 /// delay to the independent measured-domain MO/RO slot service.
 ///
-/// The caller supplies an optional measured-domain level only after its
-/// operator-to-level conversion has been independently validated. The
-/// adapter does not convert the signed operator intermediate. The current
-/// PG integration deliberately supplies None while that conversion remains
-/// unproven. The adapter does not replace the separate Nuked software-
-/// reference output pipeline.
+/// The PG integration supplies the previous channel-output latch after
+/// conversion through `Ym2413DacCode::from_operator_channel_output`. The
+/// volume-capture differential supports this measured-domain mapping and its
+/// slot boundary. It is not a raw DAC-word conversion, an analog transfer
+/// function, or a gain calibration. The adapter does not replace the separate
+/// Nuked software-reference output pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413MeasuredOutputAdapter {
     rhythm_output_service: Ym2413RhythmOutputService,

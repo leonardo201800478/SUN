@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import unittest
 
-from compare_fm3_integrated import compare_output_pipeline_row
+from compare_fm3_integrated import (
+    compare_measured_adapter_frame,
+    compare_output_pipeline_row,
+    measured_code_from_operator_output,
+)
 
 
 def make_pair(call_index: int) -> tuple[dict[str, object], dict[str, object]]:
@@ -93,6 +97,100 @@ class IntegratedOutputPipelineTests(unittest.TestCase):
         rust["output_pins_r_valid"] = False
         with self.assertRaisesRegex(ValueError, "output_pins_r_valid"):
             compare_output_pipeline_row(1, nuked, rust)
+
+
+class MeasuredAdapterDifferentialTests(unittest.TestCase):
+    """Validate the delayed measured-domain MO adapter against prior Nuked latches."""
+
+    def make_rows(
+        self,
+        call_index: int,
+        previous_ch_out: int = 12,
+    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+        """Build matching current/previous Nuked rows and one emitted Rust frame."""
+        previous_cycle = (call_index - 1) % 18
+        current_cycle = call_index % 18
+        slot_index = (previous_cycle + 3) % 18
+        active = slot_index in {3, 4, 5, 9, 10, 11, 15, 16, 17}
+        known = not active or call_index > 1
+        level_valid = active and call_index > 1
+        value, negative_zero = measured_code_from_operator_output(previous_ch_out)
+        previous_nuked = {
+            "cycle_before": previous_cycle,
+            "output_pipe_ch_out_before": previous_ch_out,
+        }
+        nuked = {"cycle_before": current_cycle}
+        rust = {
+            "measured_frame_present": True,
+            "measured_frame_emitted_cycle": current_cycle,
+            "measured_frame_source_cycle": previous_cycle,
+            "measured_frame_source_mo_slot_index": slot_index,
+            "measured_frame_source_mo_known": known,
+            "measured_frame_source_mo_level_valid": level_valid,
+            "measured_frame_source_mo_level": value if level_valid else None,
+            "measured_frame_source_mo_negative_zero": negative_zero if level_valid else False,
+            "measured_frame_source_ro_mode_inactive": True,
+        }
+        return nuked, rust, previous_nuked
+
+    def test_first_call_has_no_emitted_measured_frame(self) -> None:
+        """The adapter cannot emit a frame before the first serial input."""
+        nuked = {"cycle_before": 0}
+        rust = {
+            "measured_frame_present": False,
+            "measured_frame_emitted_cycle": 0,
+            "measured_frame_source_cycle": 0,
+            "measured_frame_source_mo_slot_index": 0,
+            "measured_frame_source_mo_known": False,
+            "measured_frame_source_mo_level_valid": False,
+            "measured_frame_source_mo_level": None,
+            "measured_frame_source_mo_negative_zero": False,
+            "measured_frame_source_ro_mode_inactive": False,
+        }
+        compare_measured_adapter_frame(0, nuked, rust, None)
+
+    def test_active_mo_slot_preserves_negative_zero(self) -> None:
+        """A -1 operator latch is preserved as the distinct negative-zero code."""
+        nuked, rust, previous = self.make_rows(2, previous_ch_out=-1)
+        self.assertEqual(rust["measured_frame_source_mo_level"], 0)
+        self.assertTrue(rust["measured_frame_source_mo_negative_zero"])
+        compare_measured_adapter_frame(2, nuked, rust, previous)
+
+    def test_negative_full_scale_maps_to_negative_255(self) -> None:
+        """The minimum operator code maps to the measured -255 endpoint."""
+        nuked, rust, previous = self.make_rows(3, previous_ch_out=-256)
+        self.assertEqual(rust["measured_frame_source_mo_level"], -255)
+        self.assertFalse(rust["measured_frame_source_mo_negative_zero"])
+        compare_measured_adapter_frame(3, nuked, rust, previous)
+
+    def test_inactive_mo_slot_is_known_without_a_pulse(self) -> None:
+        """An inactive carrier window is known and must not carry a level."""
+        nuked, rust, previous = self.make_rows(4, previous_ch_out=33)
+        self.assertFalse(rust["measured_frame_source_mo_level_valid"])
+        self.assertTrue(rust["measured_frame_source_mo_known"])
+        compare_measured_adapter_frame(4, nuked, rust, previous)
+
+    def test_cycle_zero_after_wrap_keeps_measured_output_valid(self) -> None:
+        """The first-call unknown state must not recur at the 18-slot wrap."""
+        nuked, rust, previous = self.make_rows(19, previous_ch_out=-1)
+        self.assertEqual(rust["measured_frame_source_cycle"], 0)
+        self.assertTrue(rust["measured_frame_source_mo_known"])
+        self.assertTrue(rust["measured_frame_source_mo_level_valid"])
+        compare_measured_adapter_frame(19, nuked, rust, previous)
+
+    def test_rejects_wrong_previous_cycle(self) -> None:
+        """A frame emitted one cycle late or early is a differential failure."""
+        nuked, rust, previous = self.make_rows(2, previous_ch_out=12)
+        rust["measured_frame_source_cycle"] = 0
+        with self.assertRaisesRegex(ValueError, "source_cycle mismatch"):
+            compare_measured_adapter_frame(2, nuked, rust, previous)
+
+    def test_rejects_wrong_negative_zero(self) -> None:
+        """The comparator distinguishes +0 from -0."""
+        nuked, rust, previous = self.make_rows(2, previous_ch_out=-1)
+        rust["measured_frame_source_mo_negative_zero"] = False
+        with self.assertRaisesRegex(ValueError, "measured MO level mismatch"):
+            compare_measured_adapter_frame(2, nuked, rust, previous)
 
 
 if __name__ == "__main__":

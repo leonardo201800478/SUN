@@ -31,6 +31,7 @@ use crate::rhythm_channel::{
     RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig, decode_rhythm_synthesis,
 };
 use crate::rhythm_dispatch::{Ym2413SerialSlotDispatch, dispatch_serial_slot};
+use crate::rhythm_output::Ym2413DacCode;
 use crate::serial_operator::{
     Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
     Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
@@ -843,13 +844,27 @@ impl Ym2413PgSerialService {
             return Err(Ym2413PgSerialError::InvalidState);
         }
         let rhythm_mode_enabled = context.registers[0x0e] & 0x20 != 0;
-        // No independently validated operator-to-measured-level conversion
-        // exists yet. Preserve the timing/provenance path but keep the level
-        // unknown instead of applying the candidate one's-complement mapping.
+        // The volume-capture differential supports the one’s-complement
+        // measured-domain candidate mapping. Consume the previous ch_out latch here,
+        // before the digital pipeline installs next_channel_output. The
+        // first call remains unknown because it has no real prior operator
+        // result; the software-reference reset zero is not a physical latch.
+        let previous_output = self.output_pipeline.export_state();
+        let measured_level =
+            if self.last_output_frame.is_some() && previous_output.previous_channel_output_valid {
+                Some(
+                    Ym2413DacCode::from_operator_channel_output(
+                        previous_output.previous_channel_output,
+                    )
+                    .map_err(|_| Ym2413PgSerialError::InvalidState)?,
+                )
+            } else {
+                None
+            };
         self.measured_output_adapter.process_cycle(
             context.event.cycle,
             rhythm_mode_enabled,
-            None,
+            measured_level,
             self.previous_channel_output_is_rhythm,
         )?;
         self.last_output_frame = Some(self.output_pipeline.process_cycle_with_core_state(
@@ -1070,7 +1085,7 @@ mod tests {
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
-    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core};
+    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
 
     #[test]
     fn core_and_pg_output_pipeline_snapshot_restore_is_block_equivalent() {
@@ -1148,15 +1163,27 @@ mod tests {
         assert_eq!(frame.ro, None);
     }
 
+    /// Keeps the unseeded Bass Drum RO source unknown while preserving the prior ch_out MO level.
     #[test]
-    fn unseeded_rhythm_mode_propagates_unknown_measured_mo_ro_frame() {
+    fn unseeded_rhythm_mode_keeps_ro_unknown_and_measured_mo_known() {
         let mut registers = [0; 64];
         registers[0x0e] = 0x3f;
         let mut service = Ym2413PgSerialService::new(initial_bank(0))
             .with_rhythm_noise_cursor(11)
             .unwrap();
+        let mut expected_mo_level = None;
 
         for cycle in (11..18).chain(0..2) {
+            if cycle == 0 {
+                let previous_output = service.output_pipeline_state();
+                assert!(previous_output.previous_channel_output_valid);
+                expected_mo_level = Some(
+                    Ym2413DacCode::from_operator_channel_output(
+                        previous_output.previous_channel_output,
+                    )
+                    .unwrap(),
+                );
+            }
             advance_rhythm_slot(&mut service, cycle, registers);
         }
 
@@ -1164,8 +1191,8 @@ mod tests {
         assert_eq!(frame.emitted_cycle, 1);
         assert_eq!(frame.source.cycle, 0);
         assert_eq!(frame.source.mo_slot_index, 3);
-        assert!(frame.source.mo.is_none());
-        assert!(!frame.source.mo_known);
+        assert!(frame.source.mo_known);
+        assert_eq!(frame.source.mo.unwrap().level, expected_mo_level.unwrap());
         assert_eq!(
             frame.source.ro,
             crate::Ym2413OutputSlotResult::UnknownSource {
@@ -1611,6 +1638,46 @@ mod tests {
                 "melodic cycle {cycle} did not advance in Rhythm Mode"
             );
         }
+    }
+
+    /// Verifies prior-latch conversion and the measured adapter's one-cycle emission delay.
+    #[test]
+    fn measured_adapter_uses_the_previous_channel_output_latch() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+        let registers = [0; 64];
+
+        let first = context(0, registers, 0);
+        service
+            .clock_output_pipeline(&first, Some(123), false)
+            .unwrap();
+        assert_eq!(service.measured_output_frame(), None);
+
+        let second = context(1, registers, 0);
+        service
+            .clock_output_pipeline(&second, Some(-45), false)
+            .unwrap();
+        let first_emitted = service.measured_output_frame().unwrap();
+        assert_eq!(first_emitted.source.cycle, 0);
+        assert_eq!(first_emitted.emitted_cycle, 1);
+        assert!(!first_emitted.source.mo_known);
+
+        let third = context(2, registers, 0);
+        service
+            .clock_output_pipeline(&third, Some(67), false)
+            .unwrap();
+        let measured = service.measured_output_frame().unwrap();
+        assert_eq!(measured.source.cycle, 1);
+        assert_eq!(measured.emitted_cycle, 2);
+        let mo = measured.source.mo.unwrap();
+        assert_eq!(mo.slot_index, 4);
+        assert_eq!(
+            mo.level,
+            Ym2413DacCode::from_operator_channel_output(123).unwrap()
+        );
+        assert_eq!(
+            measured.source.ro,
+            crate::Ym2413OutputSlotResult::ModeInactive
+        );
     }
 
     #[test]

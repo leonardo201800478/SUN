@@ -192,10 +192,100 @@ def compare_output_pipeline_row(
             )
 
 
+MEASURED_MO_ACTIVE_SLOTS = {3, 4, 5, 9, 10, 11, 15, 16, 17}
+
+
+def measured_code_from_operator_output(value: int) -> tuple[int, bool]:
+    """Decode the 9-bit one's-complement measured amplitude, preserving negative zero."""
+    if value >= 0:
+        return value, False
+    magnitude = ~value
+    return -magnitude, magnitude == 0
+
+
+def compare_measured_adapter_frame(
+    call_index: int,
+    nuked: dict[str, object],
+    rust: dict[str, object],
+    previous_nuked: dict[str, object] | None,
+) -> None:
+    """Compare the delayed measured MO frame with the prior Nuked ch_out latch."""
+    required = (
+        "measured_frame_present",
+        "measured_frame_emitted_cycle",
+        "measured_frame_source_cycle",
+        "measured_frame_source_mo_slot_index",
+        "measured_frame_source_mo_known",
+        "measured_frame_source_mo_level_valid",
+        "measured_frame_source_mo_level",
+        "measured_frame_source_mo_negative_zero",
+        "measured_frame_source_ro_mode_inactive",
+    )
+    missing = [field for field in required if field not in rust]
+    if missing:
+        raise ValueError(f"call {call_index}: missing measured-adapter fields {missing}")
+
+    if call_index == 0:
+        if bool(rust["measured_frame_present"]):
+            raise ValueError("call 0: measured adapter emitted a frame before its first input")
+        if rust["measured_frame_source_mo_level"] is not None:
+            raise ValueError("call 0: measured adapter exposed a level without a source frame")
+        return
+
+    if previous_nuked is None:
+        raise ValueError(f"call {call_index}: missing previous Nuked row for measured frame")
+    if not bool(rust["measured_frame_present"]):
+        raise ValueError(f"call {call_index}: measured adapter failed to emit its delayed frame")
+
+    source_cycle = int(previous_nuked["cycle_before"])
+    emitted_cycle = int(nuked["cycle_before"])
+    expected_slot = (source_cycle + 3) % 18
+    actual_fields = (
+        ("measured_frame_emitted_cycle", emitted_cycle),
+        ("measured_frame_source_cycle", source_cycle),
+        ("measured_frame_source_mo_slot_index", expected_slot),
+    )
+    for field, expected in actual_fields:
+        actual = int(rust[field])
+        if actual != expected:
+            raise ValueError(
+                f"call {call_index}: {field} mismatch expected={expected} Rust={actual}"
+            )
+
+    active_mo = expected_slot in MEASURED_MO_ACTIVE_SLOTS
+    expected_mo_known = not active_mo or call_index > 1
+    expected_level_valid = active_mo and call_index > 1
+    if bool(rust["measured_frame_source_mo_known"]) != expected_mo_known:
+        raise ValueError(f"call {call_index}: measured MO known-state mismatch")
+    if bool(rust["measured_frame_source_mo_level_valid"]) != expected_level_valid:
+        raise ValueError(f"call {call_index}: measured MO pulse-presence mismatch")
+    if not bool(rust["measured_frame_source_ro_mode_inactive"]):
+        raise ValueError(f"call {call_index}: RO must remain inactive in the melodic fixture")
+
+    if expected_level_valid:
+        expected_value, expected_negative_zero = measured_code_from_operator_output(
+            int(previous_nuked["output_pipe_ch_out_before"])
+        )
+        actual_value = int(rust["measured_frame_source_mo_level"])
+        actual_negative_zero = bool(rust["measured_frame_source_mo_negative_zero"])
+        if actual_value != expected_value or actual_negative_zero != expected_negative_zero:
+            raise ValueError(
+                f"call {call_index}: measured MO level mismatch "
+                f"Nuked ch_out={previous_nuked['output_pipe_ch_out_before']} "
+                f"expected=({expected_value}, negative_zero={expected_negative_zero}) "
+                f"Rust=({actual_value}, negative_zero={actual_negative_zero})"
+            )
+    elif rust["measured_frame_source_mo_level"] is not None or bool(
+        rust["measured_frame_source_mo_negative_zero"]
+    ):
+        raise ValueError(f"call {call_index}: unknown/inactive MO slot carried a level")
+
+
 def compare_row(
     call_index: int,
     nuked: dict[str, object],
     rust: dict[str, object],
+    previous_nuked: dict[str, object] | None = None,
 ) -> None:
     """Compare all integrated serial state fields for one OPLL_Clock call."""
     required_fields = (
@@ -266,6 +356,7 @@ def compare_row(
         raise ValueError(f"call {call_index}: pg_output alias mismatch")
 
     compare_output_pipeline_row(call_index, nuked, rust)
+    compare_measured_adapter_frame(call_index, nuked, rust, previous_nuked)
 
 
 def main() -> int:
@@ -316,12 +407,14 @@ def main() -> int:
         missing = sorted(required_blocks - observed_blocks)
         raise ValueError(f"live BLOCK updates did not reach serial latches: {missing}")
 
+    previous_nuked = None
     for index, (nuked, rust) in enumerate(
         zip(nuked_samples, rust_rows, strict=True)
     ):
         if int(nuked["call_index"]) != index or int(rust["call_index"]) != index:
             raise ValueError(f"call sequence discontinuity at row {index}")
-        compare_row(index, nuked, rust)
+        compare_row(index, nuked, rust, previous_nuked)
+        previous_nuked = nuked
 
     # The fixed all-channel vector deliberately crosses bit 19 in the
     # Nuked uint32_t PG ring. Keep this assertion so a 19-bit mask cannot
@@ -354,11 +447,25 @@ def main() -> int:
                     "rm_enable before/after",
                     "MO/RO output pins after channel stage",
                     "MO/RO output buffer one-call delayed",
-                    "serial output cursor and validity warm-up",
+                    "serial output cursor and initial-state validity",
                 ],
                 "output_pin_samples_compared": len(nuked_samples),
                 "output_buffer_samples_compared": len(nuked_samples),
-                "scope": "integrated Rust PG/EG/AM/operator and MO/RO output pipeline against Nuked",
+                "measured_adapter_frames_compared": len(nuked_samples) - 1,
+                "measured_mo_levels_compared": sum(
+                    1
+                    for row in nuked_samples[:-1]
+                    if (int(row["cycle_before"]) + 3) % 18 in MEASURED_MO_ACTIVE_SLOTS
+                    and int(row["call_index"]) > 0
+                ),
+                "measured_adapter_checks": [
+                    "previous ch_out latch converted to signed measured-domain code",
+                    "negative-zero preservation",
+                    "one-call output-buffer delay",
+                    "MO carrier-slot mapping",
+                    "RO remains inactive in melodic fixture",
+                ],
+                "scope": "integrated Rust PG/EG/AM/operator, digital MO/RO pipeline and measured-domain MO adapter against Nuked",
             },
             indent=2,
         )
