@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter, defaultdict
+from statistics import median
 from pathlib import Path
 from typing import TextIO
 
@@ -145,6 +147,104 @@ def score_alignment(
     }
 
 
+
+def percentile(values: list[float | int], fraction: float) -> float | int:
+    """Return a deterministic nearest-rank percentile for a non-empty list."""
+    ordered = sorted(values)
+    return ordered[int((len(ordered) - 1) * fraction)]
+
+
+def residual_profile(
+    measured: list[int], model: list[int], offset: int
+) -> dict[str, object]:
+    """Summarize signed bin residuals and the monotonicity of the empirical map."""
+    errors = [
+        measured[index] - model[offset + index]
+        for index in range(len(measured))
+    ]
+    grouped: dict[int, list[int]] = defaultdict(list)
+    for index, error in enumerate(errors):
+        grouped[model[offset + index]].append(error)
+
+    per_code = [
+        (code, median(code_errors), len(code_errors))
+        for code, code_errors in sorted(grouped.items())
+    ]
+    mapped_bins = [code + residual for code, residual, _ in per_code]
+    monotonicity_violations = sum(
+        mapped_bins[index] < mapped_bins[index - 1]
+        for index in range(1, len(mapped_bins))
+    )
+    median_residuals = [abs(residual) for _, residual, _ in per_code]
+    histogram = Counter(errors)
+
+    return {
+        "mean_signed_error": sum(errors) / len(errors),
+        "median_signed_error": median(errors),
+        "minimum_signed_error": min(errors),
+        "maximum_signed_error": max(errors),
+        "signed_error_histogram": {
+            str(error): count for error, count in sorted(histogram.items())
+        },
+        "observed_model_codes": len(per_code),
+        "empirical_mapping_monotonicity_violations": monotonicity_violations,
+        "per_code_median_absolute_residual_p50": percentile(median_residuals, 0.50),
+        "per_code_median_absolute_residual_p90": percentile(median_residuals, 0.90),
+        "per_code_median_absolute_residual_p99": percentile(median_residuals, 0.99),
+        "per_code_median_absolute_residual_max": max(median_residuals),
+    }
+
+
+def local_phase_alignment(
+    measured: list[int],
+    model: list[int],
+    global_offset: int,
+    *,
+    window_size: int = 2048,
+    search_radius: int = 32,
+) -> list[dict[str, object]]:
+    """Search a small local phase neighborhood to expose drift across the capture."""
+    windows: list[dict[str, object]] = []
+    for start in range(0, len(measured), window_size):
+        length = min(window_size, len(measured) - start)
+        minimum_offset = max(0, global_offset - search_radius)
+        maximum_offset = min(
+            len(model) - start - length, global_offset + search_radius
+        )
+        best_key: tuple[int, int, int] | None = None
+        best_offset = minimum_offset
+
+        for offset in range(minimum_offset, maximum_offset + 1):
+            errors = [
+                abs(measured[start + index] - model[offset + start + index])
+                for index in range(length)
+            ]
+            key = (
+                sum(error == 0 for error in errors),
+                -sum(errors),
+                -abs(offset - global_offset),
+            )
+            if best_key is None or key > best_key:
+                best_key = key
+                best_offset = offset
+
+        errors = [
+            abs(measured[start + index] - model[best_offset + start + index])
+            for index in range(length)
+        ]
+        windows.append(
+            {
+                "start_sample": start,
+                "sample_count": length,
+                "best_phase_offset_samples": best_offset,
+                "phase_delta_from_global": best_offset - global_offset,
+                "exact_match_rate": sum(error == 0 for error in errors) / length,
+                "mean_absolute_error": sum(errors) / length,
+            }
+        )
+    return windows
+
+
 def read_output_trace(
     stream: TextIO,
     *,
@@ -269,6 +369,16 @@ def compare_capture(
         model_bins,
         phase_search=phase_search,
         prefix_samples=prefix_samples,
+    )
+    direct["residual_profile"] = residual_profile(
+        measured,
+        model_bins,
+        int(direct["best_phase_offset_samples"]),
+    )
+    direct["local_phase_alignment"] = local_phase_alignment(
+        measured,
+        model_bins,
+        int(direct["best_phase_offset_samples"]),
     )
     inverted_model = [511 - value for value in model_bins]
     inverted = score_alignment(
