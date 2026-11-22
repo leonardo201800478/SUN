@@ -23,11 +23,22 @@ use std::time::{Duration, Instant};
 use sega_audio_runtime::{
     AnalogOutputConfig, AudioOutputMetrics, MixSource, NativeAudioSession, PcmSink,
 };
+use sega_media::CartridgeIdentity;
 use sega_sms_runtime::{AudioSession, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision};
 
 const DEFAULT_FRAMES_PER_ROM: u64 = 1_800;
 const FRAME_WAIT_TIMEOUT: Duration = Duration::from_secs(180);
 const NONZERO_EPSILON: f64 = 1.0e-9;
+const FM_ROM_FIXTURES: &[(&str, &str)] = &[
+    (
+        "Kenseiden (Japan)",
+        "7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93",
+    ),
+    (
+        "Phantasy Star (Japan) Rev 1",
+        "55ba15a1ea5c7db883a7a4c850bea2b1024185605964916ddd04a645d7ddd2b6",
+    ),
+];
 
 #[derive(Debug, Default)]
 struct PcmCapture {
@@ -243,10 +254,19 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         directory.display()
     );
 
+    let mut found_fixtures = std::collections::BTreeSet::new();
     for path in rom_paths {
         let rom = fs::read(&path)
             .unwrap_or_else(|error| panic!("cannot read ROM {}: {error}", path.display()));
         assert!(!rom.is_empty(), "ROM {} is empty", path.display());
+        let sha256 = CartridgeIdentity::from_bytes(&rom).sha256_hex();
+        let Some((fixture_name, expected_sha256)) = FM_ROM_FIXTURES
+            .iter()
+            .find(|(_, expected)| *expected == sha256.as_str())
+        else {
+            continue;
+        };
+        found_fixtures.insert((*expected_sha256).to_owned());
 
         let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
             rom,
@@ -349,8 +369,10 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         );
 
         println!(
-            "SMS_FM_IN_GAME rom={} region={} vdp={:?} frames={} dual_source_blocks={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8}",
+            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} vdp={:?} frames={} dual_source_blocks={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8}",
+            fixture_name,
             path.display(),
+            sha256,
             region,
             vdp_revision,
             worker.frame_number(),
@@ -363,6 +385,13 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             pcm.samples,
             pcm.nonzero_samples,
             pcm.peak
+        );
+    }
+
+    for (fixture_name, expected_sha256) in FM_ROM_FIXTURES {
+        assert!(
+            found_fixtures.contains(*expected_sha256),
+            "missing required FM fixture {fixture_name} with SHA-256 {expected_sha256}"
         );
     }
 }
