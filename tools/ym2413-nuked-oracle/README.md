@@ -261,6 +261,14 @@ measured carrier-slot mapping, and distinct negative-zero state. The first
 adapter input remains unknown until a real operator result exists; Nuked's
 software-reset zero is not treated as a physical power-on latch.
 
+The workflow also runs the Rust trace twice: once continuously and once
+with an in-memory core/service snapshot restored after 73,729 calls (not an
+18-slot boundary). The two JSONL traces must be byte-identical before the
+restored trace is compared with Nuked. This covers the pending measured frame,
+serial PG cursor, operator/EG state, and digital MO/RO pipeline across the
+restore point. It does not yet validate the outer SMS MachineScheduler,
+worker PCM queue, resampler accumulator, or CPAL device stream.
+
 This measured code is an amplitude-domain representation, not a raw DAC input
 word, analog transfer function, or voltage calibration. The integrated fixture
 uses the user patch (instrument code 0); preset-ROM and Rhythm Mode candidate

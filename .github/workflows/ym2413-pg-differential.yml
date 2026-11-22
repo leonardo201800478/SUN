@@ -319,13 +319,32 @@ jobs:
           python3 tools/ym2413-nuked-oracle/compare_am_lfo.py \
             --nuked-trace "$RUNNER_TEMP/nuked-operator.jsonl"
 
-      - name: Replay integrated Rust PG EG AM and operator pipeline
+      - name: Verify continuous and midpoint-restored integrated Rust traces
         run: |
           cargo run --quiet --locked \
             --manifest-path native/ym2413/Cargo.toml \
             --example pg_serial_trace -- \
             "$RUNNER_TEMP/operator-events.csv" 147456 \
-            > "$RUNNER_TEMP/rust-fm3.jsonl"
+            > "$RUNNER_TEMP/rust-fm3-continuous.jsonl"
+
+          # Snapshot after 73,729 calls: deliberately not an 18-slot boundary.
+          # The restored trace must be byte-identical to uninterrupted execution.
+          cargo run --quiet --locked \
+            --manifest-path native/ym2413/Cargo.toml \
+            --example pg_serial_trace -- \
+            "$RUNNER_TEMP/operator-events.csv" 147456 --snapshot-at 73729 \
+            > "$RUNNER_TEMP/rust-fm3-restored.jsonl"
+
+          if ! cmp -s "$RUNNER_TEMP/rust-fm3-continuous.jsonl" \
+                     "$RUNNER_TEMP/rust-fm3-restored.jsonl"; then
+            echo "snapshot/restore changed the integrated YM2413 trace"
+            diff -u "$RUNNER_TEMP/rust-fm3-continuous.jsonl" \
+                    "$RUNNER_TEMP/rust-fm3-restored.jsonl" | head -100 || true
+            exit 1
+          fi
+
+          echo "Continuous and snapshot-restored traces are byte-identical."
+          mv "$RUNNER_TEMP/rust-fm3-restored.jsonl" "$RUNNER_TEMP/rust-fm3.jsonl"
 
       - name: Differentially validate integrated FM-3 pipeline
         run: |
