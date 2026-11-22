@@ -1,5 +1,37 @@
 # YM2413 FM Completion Scorecard
 
+## Estado executivo atual — SUN-FM-01 / main pós-PR #1203 (2026-11-22)
+
+HEAD da main: `7ba2d59dc9efdb24deb15171ec560df05cbfab6a`.
+
+### Publicação e PRs
+
+- PRs #1194 (in-place/deep clones), #1199 (dispatch serial), #1200 (captura A/B) e #1201 (correção PowerShell) integradas.
+- PR #1203 integrada: caminho do script A/B corrigido para `scripts/benchmark/ym2413-real-game-ab.ps1`.
+- PR #1188 permanece aberta, com base antiga e sobreposição de escopo com a campanha mais recente #1193; não integrar duplicadamente.
+- PR #1192 (comparador externo) e #1193 (diagnóstico de escritas FM + smoke test ROM real) permanecem abertas. Os workflows reportaram sucesso, mas a proteção da branch exige o check `Rust quality and unit regression`, que foi reportado como `expected` na tentativa de merge de #1193.
+- PR #1202 (buffer PCM reutilizável e CPAL por referência) tem SMS Runtime, CPAL Windows e PSG/audio-runtime CI aprovados. O merge também foi recusado porque o mesmo check obrigatório foi considerado `expected`; rerun do job agregador solicitado. Não contornar branch protection.
+- PR #1205 (métricas FM por frame, amostras inválidas e fallback seguro) aberta; CI pendente.
+
+### Estado funcional e desempenho
+
+- Não há captura A/B de gameplay publicada. Os relatos anteriores de OutRun (~52 FPS) e Kenseiden (~50–51 FPS) continuam sem baseline medido.
+- O modo FM Auto do desktop resolve para saída mutada enquanto o catálogo SHA-256 de compatibilidade estiver vazio. A política de mute não interrompe o clock/síntese do chip.
+- O worker descarta o lote FM inteiro e reinicia o resampler se houver qualquer amostra FM desconhecida (`None`). O comportamento é coberto por teste sintético; frequência em jogos reais ainda desconhecida.
+- O caminho final de áudio ainda possui a alocação por lote na main; a correção está na PR #1202, não integrada.
+- A saída digital MO/RO continua sem calibração física de amplitude. O caminho de vídeo também mantém cópia RGB do framebuffer e alocação de conversão RGB888→RGBA8 por frame; impacto não medido.
+- A capacidade FIFO CPAL configurada é 4.096 frames (aprox. 85,3 ms a 48 kHz); capacidade não representa ocupação/latência real.
+
+### Gate da sprint
+
+O script A/B Kenseiden foi preparado e seu caminho documental corrigido, mas ainda não foi executado com ROM local. Kenseiden, OutRun e Phantasy Star continuam pendentes de gameplay instrumentado, frame time p50/p95/p99, continuidade PCM, underruns, amplitude e latência interna.
+
+O relatório da auditoria inicial, com arquitetura, matriz de achados, riscos, testes e plano ordenado, está em [docs/audits/sun-fm-01-initial-audit-2026-11-22.md](audits/sun-fm-01-initial-audit-2026-11-22.md).
+
+**Status SUN-FM-01: ABERTA.** Não declarar o YM2413 concluído antes da validação real dos três jogos e dos critérios de 60 FPS/áudio.
+
+---
+
 **Data de referência:** 2026-11-22
 **Repositório:** `leonardo201800478/SUN`
 **Main atual pós-PR #1185:** `b180b25762b3bd589ce07d0aeb164a469d062ba9`
@@ -7,7 +39,7 @@
 **Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
-## Estado executivo atual — main pós-PR #1185 (2026-11-22)
+## Estado executivo histórico — main pós-PR #1185 (2026-11-22; supersedido pelo checkpoint SUN-FM-01 abaixo)
 
 **Pipeline digital e adaptador MO medido integrados; fidelidade física e validação dos jogos ainda abertas.**
 
