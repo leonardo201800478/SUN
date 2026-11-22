@@ -945,9 +945,9 @@ mod windows_host {
                                         padding: 14px; spacing: 8px;
                                         Text { font-size: 16px; text: "Sincronização e telemetria"; color: #F1F5FA; }
                                         CheckBox {
-                                            text: "Limitar FPS (cadência NTSC/PAL)";
-                                            checked: root.frame-pacing-enabled;
-                                            toggled => { root.frame-pacing-enabled = self.checked; root.frame-pacing-toggle-requested(self.checked); }
+                                            text: "Desbloquear FPS (sem limite)";
+                                            checked: !root.frame-pacing-enabled;
+                                            toggled => { root.frame-pacing-enabled = !self.checked; root.frame-pacing-toggle-requested(!self.checked); }
                                         }
                                         CheckBox { text: "Exibir FPS"; checked: root.show-fps; toggled => { root.show-fps = self.checked; root.preferences-changed(); } }
                                         CheckBox { text: "Exibir diagnóstico no rodapé"; checked: root.show-status-footer; toggled => { root.show-status-footer = self.checked; root.preferences-changed(); } }
@@ -5282,7 +5282,7 @@ mod windows_host {
                 && let Some(app) = pacing_app.upgrade()
             {
                 app.set_frame_pacing_enabled(!enabled);
-                app.set_rom_status(format!("Falha ao alterar limite de FPS: {error}").into());
+                app.set_rom_status(format!("Falha ao alterar o frame pacing: {error}").into());
             }
         });
 
