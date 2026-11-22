@@ -168,7 +168,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 argument_index += 1;
                 let value = args.get(argument_index).ok_or_else(|| {
-                    IoError::new(ErrorKind::InvalidInput, "--snapshot-at requires a call count")
+                    IoError::new(
+                        ErrorKind::InvalidInput,
+                        "--snapshot-at requires a call count",
+                    )
                 })?;
                 snapshot_at = Some(value.parse::<u64>()?);
             }
