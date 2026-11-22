@@ -148,20 +148,26 @@ jobs:
       - name: Characterize Nuked MO output against measured volume captures (0 and 1)
         run: |
           PHASE_SEARCH=2048
+          VOLUME0_SAMPLES=$(wc -w < "$RUNNER_TEMP/andete-ym2413/analyze/volume/volume0.out")
           for VOLUME in 0 1; do
             CAPTURE="$RUNNER_TEMP/andete-ym2413/analyze/volume/volume${VOLUME}.out"
             EVENTS="tools/ym2413-nuked-oracle/fixtures/volume${VOLUME}-capture-events.csv"
             SAMPLE_COUNT=$(wc -w < "$CAPTURE")
-            CALLS=$((264 + (SAMPLE_COUNT + PHASE_SEARCH + 1) * 18))
+            if [ "$VOLUME" = "0" ]; then
+              CAPTURE_START=601
+            else
+              CAPTURE_START=$((601 + VOLUME0_SAMPLES * 18 + 264))
+            fi
+            CALLS=$((CAPTURE_START + (SAMPLE_COUNT + PHASE_SEARCH + 1) * 18))
             "$RUNNER_TEMP/ym2413-nuked-trace" \
               --calls "$CALLS" \
               --events "$EVENTS" \
-              --output-only > "$RUNNER_TEMP/volume${VOLUME}-nuked-output.jsonl"
+              --output-only \
+              --from-call "$CAPTURE_START" > "$RUNNER_TEMP/volume${VOLUME}-nuked-output.jsonl"
             python3 tools/ym2413-nuked-oracle/compare_volume_capture.py \
               --trace "$RUNNER_TEMP/volume${VOLUME}-nuked-output.jsonl" \
               --capture "$CAPTURE" \
-              --capture-start-call 264 \
-              --initial-keyon-call 243 \
+              --capture-start-call "$CAPTURE_START" \
               --phase-search "$PHASE_SEARCH" \
               --output "$RUNNER_TEMP/volume${VOLUME}-nuked-differential.json"
             cat "$RUNNER_TEMP/volume${VOLUME}-nuked-differential.json"
