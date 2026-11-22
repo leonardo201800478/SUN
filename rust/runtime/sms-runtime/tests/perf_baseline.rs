@@ -263,7 +263,7 @@ fn run_diagnostic_pass(rom: &[u8], scenario: Scenario, duration: Duration) {
     let metrics = worker.frame_pacing_metrics();
 
     println!(
-        "SUN_PERF_DIAGNOSTICS scenario={} samples={} total_samples={} frame_interval_ns_p50={} frame_interval_ns_p95={} frame_interval_ns_p99={} frame_interval_ns_mean={} frame_interval_ns_stddev={} frame_interval_ns_max={} step_frame_ns_p50={} step_frame_ns_p95={} step_frame_ns_p99={} step_frame_ns_mean={} step_frame_ns_stddev={} step_frame_ns_max={} ym2413_advance_ns_p50={} ym2413_advance_ns_p95={} ym2413_advance_ns_p99={} ym2413_advance_ns_mean={} ym2413_advance_ns_stddev={} ym2413_advance_ns_max={} frame_processing_ns_p50={} frame_processing_ns_p95={} frame_processing_ns_p99={} frame_processing_ns_mean={} frame_processing_ns_stddev={} frame_processing_ns_max={} video_publish_ns_p50={} video_publish_ns_p95={} video_publish_ns_p99={} video_publish_ns_mean={} video_publish_ns_stddev={} video_publish_ns_max={} audio_prepare_ns_p50={} audio_prepare_ns_p95={} audio_prepare_ns_p99={} audio_prepare_ns_mean={} audio_prepare_ns_stddev={} audio_prepare_ns_max={} audio_submit_ns_p50={} audio_submit_ns_p95={} audio_submit_ns_p99={} audio_submit_ns_mean={} audio_submit_ns_stddev={} audio_submit_ns_max={}",
+        "SUN_PERF_DIAGNOSTICS scenario={} samples={} total_samples={} frame_interval_ns_p50={} frame_interval_ns_p95={} frame_interval_ns_p99={} frame_interval_ns_mean={} frame_interval_ns_stddev={} frame_interval_ns_max={} step_frame_ns_p50={} step_frame_ns_p95={} step_frame_ns_p99={} step_frame_ns_mean={} step_frame_ns_stddev={} step_frame_ns_max={} ym2413_advance_ns_p50={} ym2413_advance_ns_p95={} ym2413_advance_ns_p99={} ym2413_advance_ns_mean={} ym2413_advance_ns_stddev={} ym2413_advance_ns_max={} scheduler_dispatch_count_last={} scheduler_dispatch_elapsed_ns_last={} psg_advance_calls_last={} psg_advance_clock_cycles_last={} psg_advance_elapsed_ns_last={} vdp_advance_calls_last={} vdp_advance_tstates_last={} vdp_advance_elapsed_ns_last={} frame_processing_ns_p50={} frame_processing_ns_p95={} frame_processing_ns_p99={} frame_processing_ns_mean={} frame_processing_ns_stddev={} frame_processing_ns_max={} video_publish_ns_p50={} video_publish_ns_p95={} video_publish_ns_p99={} video_publish_ns_mean={} video_publish_ns_stddev={} video_publish_ns_max={} audio_prepare_ns_p50={} audio_prepare_ns_p95={} audio_prepare_ns_p99={} audio_prepare_ns_mean={} audio_prepare_ns_stddev={} audio_prepare_ns_max={} audio_submit_ns_p50={} audio_submit_ns_p95={} audio_submit_ns_p99={} audio_submit_ns_mean={} audio_submit_ns_stddev={} audio_submit_ns_max={}",
         scenario.name(),
         metrics.sample_count,
         metrics.total_samples,
@@ -285,6 +285,14 @@ fn run_diagnostic_pass(rom: &[u8], scenario: Scenario, duration: Duration) {
         metrics.ym2413_advance_mean_ns,
         metrics.ym2413_advance_stddev_ns,
         metrics.ym2413_advance_max_ns,
+        metrics.scheduler_dispatch_count_last,
+        metrics.scheduler_dispatch_elapsed_ns_last,
+        metrics.psg_advance_calls_last,
+        metrics.psg_advance_clock_cycles_last,
+        metrics.psg_advance_elapsed_ns_last,
+        metrics.vdp_advance_calls_last,
+        metrics.vdp_advance_tstates_last,
+        metrics.vdp_advance_elapsed_ns_last,
         metrics.frame_processing_p50_ns,
         metrics.frame_processing_p95_ns,
         metrics.frame_processing_p99_ns,
