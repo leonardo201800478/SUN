@@ -93,22 +93,48 @@ def score_alignment(
     phase_search: int,
     prefix_samples: int,
 ) -> dict[str, object]:
-    """Find the best sample-phase offset and score the complete capture."""
+    """Find phase by whole-capture coarse search, then refine on every sample."""
     if not measured or len(model) < len(measured):
         raise ValueError("model trace does not contain enough samples")
     if phase_search < 0 or prefix_samples <= 0:
         raise ValueError("phase_search must be non-negative and prefix_samples positive")
 
     maximum_offset = min(phase_search, len(model) - len(measured))
-    prefix_length = min(prefix_samples, len(measured))
-    best_key: tuple[int, int, int] | None = None
-    best_offset = 0
+    coarse_stride = 8
+    coarse_best_key: tuple[int, int, int] | None = None
+    coarse_best_offset = 0
+
     for offset in range(maximum_offset + 1):
-        errors = [
+        coarse_errors = [
             abs(measured[index] - model[offset + index])
-            for index in range(prefix_length)
+            for index in range(0, len(measured), coarse_stride)
         ]
-        key = (sum(error == 0 for error in errors), -sum(errors), -offset)
+        key = (
+            sum(error == 0 for error in coarse_errors),
+            -sum(coarse_errors),
+            -offset,
+        )
+        if coarse_best_key is None or key > coarse_best_key:
+            coarse_best_key = key
+            coarse_best_offset = offset
+
+    refinement_radius = 8
+    minimum_offset = max(0, coarse_best_offset - refinement_radius)
+    maximum_refined_offset = min(
+        maximum_offset, coarse_best_offset + refinement_radius
+    )
+    best_key: tuple[int, int, int] | None = None
+    best_offset = coarse_best_offset
+    for offset in range(minimum_offset, maximum_refined_offset + 1):
+        full_errors = [
+            abs(measured[index] - model[offset + index])
+            for index in range(len(measured))
+        ]
+        key = (
+            sum(error == 0 for error in full_errors),
+            -sum(full_errors),
+            -offset,
+        )
         if best_key is None or key > best_key:
             best_key = key
             best_offset = offset
@@ -118,6 +144,8 @@ def score_alignment(
         for index in range(len(measured))
     ]
     ordered_errors = sorted(errors)
+    prefix_length = min(prefix_samples, len(measured))
+    prefix_errors = errors[:prefix_length]
     window_size = 2048
     windows = []
     for start in range(0, len(errors), window_size):
@@ -132,11 +160,14 @@ def score_alignment(
         )
 
     return {
+        "coarse_search_stride": coarse_stride,
+        "coarse_best_phase_offset_samples": coarse_best_offset,
+        "refinement_radius_samples": refinement_radius,
         "best_phase_offset_samples": best_offset,
         "prefix_samples_scored": prefix_length,
-        "prefix_exact_matches": best_key[0] if best_key else 0,
+        "prefix_exact_matches": sum(error == 0 for error in prefix_errors),
         "prefix_exact_match_rate": (
-            (best_key[0] / prefix_length) if prefix_length else 0.0
+            sum(error == 0 for error in prefix_errors) / prefix_length
         ),
         "full_exact_matches": sum(error == 0 for error in errors),
         "full_exact_match_rate": sum(error == 0 for error in errors) / len(errors),
@@ -145,8 +176,6 @@ def score_alignment(
         "maximum_absolute_error": max(errors),
         "windowed_exact_match_rates": windows,
     }
-
-
 
 def percentile(values: list[float | int], fraction: float) -> float | int:
     """Return a deterministic nearest-rank percentile for a non-empty list."""
