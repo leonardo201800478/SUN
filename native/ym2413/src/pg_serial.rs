@@ -1174,7 +1174,10 @@ mod tests {
                 fast_service =
                     Ym2413PgSerialService::restore_state(fast_service.export_state()).unwrap();
                 assert_eq!(fast_core.export_state(), transactional_core.export_state());
-                assert_eq!(fast_service.export_state(), transactional_service.export_state());
+                assert_eq!(
+                    fast_service.export_state(),
+                    transactional_service.export_state()
+                );
             }
         }
     }
