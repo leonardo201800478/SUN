@@ -284,6 +284,8 @@ jobs:
         run: cargo test --release --manifest-path rust/runtime/sms-runtime/Cargo.toml --all-targets --locked
       - name: Benchmark YM2413 in-place PG slot service (Release, Linux)
         run: cargo test --release --manifest-path native/ym2413/Cargo.toml --lib --locked benchmark_in_place_pg_service_slot_cost -- --ignored --nocapture
+      - name: Benchmark cached YM2413 channel configuration (Release, Linux)
+        run: cargo test --release --manifest-path native/ym2413/Cargo.toml --lib --locked benchmark_channel_config_cache_slot_cost -- --ignored --nocapture
 
   z80-focused:
     name: Z80 focused validation
