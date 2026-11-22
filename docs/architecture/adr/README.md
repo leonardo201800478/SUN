@@ -23,5 +23,6 @@ Este índice lista decisões vigentes e registros históricos. ADR aceita não s
 - [Scheduler — índice](../scheduler/README.md)
 - [SMS VDP — estado funcional e limites conhecidos](../sms-vdp.md)
 - [Perfis de hardware Z80](../../hardware/z80-silicon-platform-profiles.md)
+- [ADR-0012 — runtime D3D12 anterior](../decisions/ADR-0012-native-d3d12-video-runtime.md) (registro histórico / superseded pela ADR 0011)
 
 ADRs e auditorias antigas preservam decisões e evidências históricas. Quando um documento antigo exigir precisão maior do que a necessária ao comportamento observável de um console, prevalece a ADR-0016. Uma proposta ou PR aberta não altera a política nem o estado integrado da main.
