@@ -4,7 +4,7 @@
 //! internally while advancing coarse-grained input-clock blocks.
 
 use crate::Ym2413Error;
-use crate::envelope_sequencer::{EnvelopeSequencerState, EnvelopeSequencerTick, EnvelopeSlotInput};
+use crate::envelope_sequencer::{EnvelopeSequencerTick, EnvelopeSlotInput};
 use crate::slot::Ym2413SlotServiceEvent;
 
 /// Read-only snapshot at the serial boundary after mode latches have shifted
@@ -17,8 +17,8 @@ pub(crate) struct Ym2413SlotServiceContext {
     pub registers: [u8; crate::YM2413_REGISTER_COUNT],
     /// Decoded input that will be consumed by the core-owned serial EG.
     pub envelope_input: EnvelopeSlotInput,
-    /// Complete pre-update serial EG state, including DOKON and key pipelines.
-    pub envelope_state: EnvelopeSequencerState,
+    /// Compact pre-update attenuation values for all 18 serial EG operators.
+    pub envelope_levels: [u8; crate::YM2413_ENVELOPE_SEQUENCER_SLOTS],
     /// Post-shift/post-mode-write value used by Nuked's phase-reset selector.
     pub rm_enable: u8,
     pub rm_select: u8,
@@ -43,7 +43,6 @@ pub(crate) trait Ym2413SlotService {
         &mut self,
         context: &Ym2413SlotServiceContext,
         tick: EnvelopeSequencerTick,
-        post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error>;
 }
 
