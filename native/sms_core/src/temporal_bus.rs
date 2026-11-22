@@ -1181,13 +1181,23 @@ impl SmsTemporalBus {
     pub fn take_subsystem_timing(&mut self) -> SmsTemporalSubsystemTiming {
         SmsTemporalSubsystemTiming {
             scheduler_dispatch_count: std::mem::take(&mut self.scheduler_dispatch_count),
-            scheduler_dispatch_elapsed_ns: duration_ns(std::mem::take(&mut self.scheduler_dispatch_elapsed_ns)),
+            scheduler_dispatch_elapsed_ns: duration_ns(std::mem::take(
+                &mut self.scheduler_dispatch_elapsed_ns,
+            )),
             psg_advance_calls: std::mem::take(&mut self.psg_advance_calls),
-            psg_advance_clock_cycles: counter_u64(std::mem::take(&mut self.psg_advance_clock_cycles)),
-            psg_advance_elapsed_ns: duration_ns(std::mem::take(&mut self.psg_advance_elapsed_ns)),
+            psg_advance_clock_cycles: counter_u64(std::mem::take(
+                &mut self.psg_advance_clock_cycles,
+            )),
+            psg_advance_elapsed_ns: duration_ns(std::mem::take(
+                &mut self.psg_advance_elapsed_ns,
+            )),
             vdp_advance_calls: std::mem::take(&mut self.vdp_advance_calls),
-            vdp_advance_tstates: counter_u64(std::mem::take(&mut self.vdp_advance_tstates)),
-            vdp_advance_elapsed_ns: duration_ns(std::mem::take(&mut self.vdp_advance_elapsed_ns)),
+            vdp_advance_tstates: counter_u64(std::mem::take(
+                &mut self.vdp_advance_tstates,
+            )),
+            vdp_advance_elapsed_ns: duration_ns(std::mem::take(
+                &mut self.vdp_advance_elapsed_ns,
+            )),
         }
     }
 
