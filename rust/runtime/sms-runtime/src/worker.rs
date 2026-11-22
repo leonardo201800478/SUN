@@ -2485,6 +2485,7 @@ fn execute_frame_with_renderer(
         .set_fm_audio_capture_enabled(audio_renderer.fm_output_policy != SmsFmOutputPolicy::Muted);
     let diagnostics_enabled = telemetry.diagnostics_enabled();
     machine.set_ym2413_timing_enabled(diagnostics_enabled);
+    machine.set_subsystem_timing_enabled(diagnostics_enabled);
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
     let diagnostic_machine_start = diagnostics_enabled.then_some(machine_time_start_ticks);
@@ -2495,6 +2496,7 @@ fn execute_frame_with_renderer(
     let step_frame_elapsed =
         diagnostic_step_start.map_or(Duration::ZERO, |started| started.elapsed());
     let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
+    let subsystem_timing = machine.take_subsystem_timing();
     let machine_time_end_ticks = machine.now().ticks();
     let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
     let frame_completed = !breakpoint_hit;
@@ -2837,7 +2839,15 @@ fn execute_frame_with_renderer(
             fm_rms = audio_renderer.fm_diagnostics.rms,
             frame_interval_ns = frame_interval_ns.unwrap_or_default(),
             step_frame_elapsed_ns = step_frame_elapsed.as_nanos(),
+            scheduler_dispatch_count = subsystem_timing.scheduler_dispatch_count,
+            scheduler_dispatch_elapsed_ns = subsystem_timing.scheduler_dispatch_elapsed_ns,
+            psg_advance_calls = subsystem_timing.psg_advance_calls,
+            psg_advance_clock_cycles = subsystem_timing.psg_advance_clock_cycles,
+            psg_advance_elapsed_ns = subsystem_timing.psg_advance_elapsed_ns,
             ym2413_advance_elapsed_ns,
+            vdp_advance_calls = subsystem_timing.vdp_advance_calls,
+            vdp_advance_tstates = subsystem_timing.vdp_advance_tstates,
+            vdp_advance_elapsed_ns = subsystem_timing.vdp_advance_elapsed_ns,
             video_publish_elapsed_ns = video_publish_elapsed.as_nanos(),
             audio_prepare_elapsed_ns = audio_prepare_elapsed.as_nanos(),
             audio_submit_elapsed_ns = audio_submit_elapsed.as_nanos(),
