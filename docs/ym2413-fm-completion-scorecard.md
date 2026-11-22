@@ -4,6 +4,15 @@
 
 HEAD da main após os merges #1206, #1208, #1213, #1216, #1217, #1219 e #1220: 902e47cd63736ab2cadbcaa051cfc2d55b67c0ad.
 
+### Reavaliação do aceite após execução local (2026-11-22)
+
+- Kenseiden produziu amostras FM não nulas na rota PCM de compatibilidade, mas o áudio não atingiu qualidade mínima audivelmente reconhecível. **Não aprovado.**
+- Phantasy Star Japan Rev 1 permaneceu sem amostras FM não nulas durante 1.800 frames. **Não aprovado; investigação em andamento.**
+- Amostras não nulas, peak/RMS e submissão PCM são somente evidências de atividade digital. Não demonstram timbre, música, dinâmica, nível acústico ou fidelidade do YM2413.
+- A aprovação agora exige captura separada FM/PSG/PCM, contagem sem perda das escritas F0/F1/F2, comparação A/B com referência de emulador e avaliação auditiva do mesmo trecho.
+- O PCM de produção permanece na rota de compatibilidade baseada no pipeline digital Nuked. O adaptador MO/RO medido não fornece ainda a conversão independente de amplitude/DAC necessária para substituir esse PCM; a relação operador→DAC e a transferência analógica permanecem abertas.
+
+**Status de qualidade sonora: NÃO APROVADO para os dois fixtures. SUN-FM-01 continua ABERTA.**
 ### Entregas integradas
 
 - #1194 e #1199: caminho in-place e remoção de dispatch serial duplicado.

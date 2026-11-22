@@ -20,9 +20,9 @@ use sega_audio_runtime::{
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
-    ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsOverscanMode,
-    SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent, SmsVdpProfile,
-    SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
+    ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsFmPortWriteSnapshot,
+    SmsOverscanMode, SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent,
+    SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
@@ -1373,6 +1373,8 @@ pub struct SmsDebugSnapshot {
     pub mapper_banks: [u8; 3],
     pub mapper_control: u8,
     pub memory_control: u8,
+    /// Lossless counters for committed YM2413 F0/F1/F2 writes since machine creation/reset.
+    pub fm_port_writes: SmsFmPortWriteSnapshot,
     pub framebuffer_rgb: Vec<u8>,
     /// Most recent scheduler/bus events from the opt-in detailed collector.
     pub trace_events: Vec<SmsTemporalTraceEvent>,
@@ -3357,6 +3359,7 @@ fn handle_command(
                 mapper_banks: machine.selected_mapper_banks(),
                 mapper_control: machine.mapper_control(),
                 memory_control: machine.memory_control(),
+                fm_port_writes: machine.fm_port_write_snapshot(),
                 framebuffer_rgb: machine.framebuffer().to_vec(),
                 trace_events: Vec::new(),
                 trace_dropped: 0,

@@ -1499,6 +1499,11 @@ impl SmsTemporalMachine {
         self.bus.ym2413()
     }
 
+    /// Snapshot committed YM2413 F0/F1/F2 writes without relying on bounded trace buffers.
+    pub fn fm_port_write_snapshot(&self) -> crate::SmsFmPortWriteSnapshot {
+        self.bus.fm_port_write_snapshot()
+    }
+
     /// Whether the integrated YM2413 output is enabled by port $F2.
     pub fn fm_output_enabled(&self) -> bool {
         self.bus.fm_output_enabled()

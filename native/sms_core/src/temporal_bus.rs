@@ -132,6 +132,34 @@ pub enum SmsTemporalDispatch {
     },
 }
 
+/// Monotonic diagnostic counters for writes committed to the Japanese SMS YM2413 ports.
+/// These counters observe completed Z80 bus writes; they are not emulated chip state and
+/// intentionally reset when a machine is reconstructed from a save state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SmsFmPortWriteSnapshot {
+    pub address_writes: u64,
+    pub data_writes: u64,
+    pub control_writes: u64,
+    pub last_address: Option<u8>,
+    pub last_control: Option<u8>,
+    pub register_writes: [u64; 64],
+    pub last_register_values: [Option<u8>; 64],
+}
+
+impl Default for SmsFmPortWriteSnapshot {
+    fn default() -> Self {
+        Self {
+            address_writes: 0,
+            data_writes: 0,
+            control_writes: 0,
+            last_address: None,
+            last_control: None,
+            register_writes: [0; 64],
+            last_register_values: [None; 64],
+        }
+    }
+}
+
 /// Complete in-memory continuation of the transactional bus adapter.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SmsTemporalBusState {
@@ -342,6 +370,8 @@ pub struct SmsTemporalBus {
     /// Optional wall-clock instrumentation; disabled in normal emulation.
     ym2413_timing_enabled: bool,
     ym2413_advance_elapsed_ns: u128,
+    /// Diagnostic-only counts of committed F0/F1/F2 writes.
+    fm_port_writes: SmsFmPortWriteSnapshot,
 }
 
 impl SmsTemporalBus {
@@ -513,6 +543,7 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation: false,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }
 
@@ -603,6 +634,7 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation: false,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }
 
@@ -1214,6 +1246,11 @@ impl SmsTemporalBus {
         self.ym2413.as_ref()
     }
 
+    /// Snapshot diagnostic counters for completed YM2413 port writes.
+    pub const fn fm_port_write_snapshot(&self) -> SmsFmPortWriteSnapshot {
+        self.fm_port_writes
+    }
+
     /// Whether the FM output path is enabled by the Japanese SMS audio-control port.
     pub const fn fm_output_enabled(&self) -> bool {
         self.ym2413.is_some() && self.fm_control & 0x01 != 0
@@ -1272,17 +1309,35 @@ impl SmsTemporalBus {
 
     fn write_port(&mut self, port: u16, value: u8) {
         let port_byte = port as u8;
-        if let Some(ym2413) = self.ym2413.as_mut() {
+        if self.ym2413.is_some() {
             match port_byte {
                 0xF0 => {
-                    ym2413.write_address(value);
+                    self.fm_port_writes.address_writes =
+                        self.fm_port_writes.address_writes.saturating_add(1);
+                    self.fm_port_writes.last_address = Some(value & 0x3F);
+                    if let Some(ym2413) = self.ym2413.as_mut() {
+                        ym2413.write_address(value);
+                    }
                     return;
                 }
                 0xF1 => {
-                    ym2413.write_data(value);
+                    self.fm_port_writes.data_writes =
+                        self.fm_port_writes.data_writes.saturating_add(1);
+                    if let Some(register) = self.fm_port_writes.last_address {
+                        let index = usize::from(register);
+                        self.fm_port_writes.register_writes[index] =
+                            self.fm_port_writes.register_writes[index].saturating_add(1);
+                        self.fm_port_writes.last_register_values[index] = Some(value);
+                    }
+                    if let Some(ym2413) = self.ym2413.as_mut() {
+                        ym2413.write_data(value);
+                    }
                     return;
                 }
                 0xF2 => {
+                    self.fm_port_writes.control_writes =
+                        self.fm_port_writes.control_writes.saturating_add(1);
+                    self.fm_port_writes.last_control = Some(value & 0x0F);
                     self.fm_control = value & 0x0F;
                     return;
                 }
@@ -1549,6 +1604,7 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }
 }
@@ -3004,5 +3060,45 @@ mod temporal_vdp_tests {
             0x003F,
         );
         assert_ne!(valid_th1_bus.vdp().read_h_counter(), 0);
+    }
+    #[test]
+    fn japanese_fm_port_counters_track_completed_address_data_and_control_writes() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            3,
+            super::DEFAULT_SMS_PSG_CLOCK_HZ,
+            super::DEFAULT_AUDIO_SAMPLE_RATE,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            super::Territory::Japan,
+        )
+        .unwrap();
+
+        transact(
+            &mut bus,
+            1,
+            Z80BusOperation::PortWrite { value: 0x20 },
+            0x00F0,
+        );
+        transact(
+            &mut bus,
+            2,
+            Z80BusOperation::PortWrite { value: 0x7F },
+            0x00F1,
+        );
+        transact(
+            &mut bus,
+            3,
+            Z80BusOperation::PortWrite { value: 0x03 },
+            0x00F2,
+        );
+
+        let writes = bus.fm_port_write_snapshot();
+        assert_eq!(writes.address_writes, 1);
+        assert_eq!(writes.data_writes, 1);
+        assert_eq!(writes.control_writes, 1);
+        assert_eq!(writes.last_address, Some(0x20));
+        assert_eq!(writes.last_control, Some(0x03));
+        assert_eq!(writes.register_writes[0x20], 1);
+        assert_eq!(writes.last_register_values[0x20], Some(0x7F));
     }
 }
