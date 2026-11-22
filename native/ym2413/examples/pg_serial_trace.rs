@@ -454,6 +454,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Restore after the selected call so the next iteration resumes from
         // the exact saved core, serial PG, output-pipeline and measured-adapter state.
+        // The CLI count is one-based: 1 restores after the first OPLL_Clock call.
         if snapshot_at == Some(call_index + 1) {
             let core_state = core.export_state();
             let service_state = service.export_state();
