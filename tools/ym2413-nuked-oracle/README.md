@@ -356,3 +356,17 @@ Run the helper tests with:
 ```sh
 python3 -m unittest discover -s tools/ym2413-nuked-oracle -p 'test_*.py'
 ```
+
+### Pinned volume0 characterization result — 2026-11-22
+
+Against the pinned `volume0.out` capture, the Nuked reference selected MO slot 6 and a sample-phase offset of 1,011 samples. The candidate mapping `measured_bin = 255 - ch_out_before` produced:
+
+- 7,017 / 20,030 exact matches (**35.03%**).
+- Mean absolute error **0.736 bins**, p95 **2 bins**, maximum **3 bins**.
+- Median signed error **0**, mean signed error **-0.108**.
+- Empirical code-to-bin mapping: **zero monotonicity violations**; per-code median absolute residual p50=1, p90=1, p99=2, maximum=2.
+- Local phase offsets were 1,006–1,016 samples across windows, with no monotonic drift established.
+- Nuked's piecewise MO output-pin inverse agreed with the pre-pin channel-output mapping for every sampled point; rhythm output remained muted.
+- The inverted-polarity control had mean absolute error **310.44 bins**, strongly rejecting the opposite polarity.
+
+This supports the candidate output-code polarity and near-identity mapping against one physical volume0 capture. The remaining residual cause is not isolated. This is not a Rust-runtime differential, a complete 16-volume time-series test, a physical DAC electrical-transfer certification, or evidence that Phantasy Star and Kenseiden play stable FM.
