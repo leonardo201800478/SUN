@@ -294,18 +294,18 @@ mod tests {
         let mut allocating = PcmResampler::new(49_716, 48_000, 100).unwrap();
         let mut reusable = PcmResampler::new(49_716, 48_000, 100).unwrap();
         let mut output = Vec::with_capacity(2_048);
-        let mut expected = Vec::new();
 
         for block in input.chunks(127) {
-            expected.extend(allocating.process(block));
+            let expected = allocating.process(block);
             reusable.process_into(block, &mut output);
-            assert_eq!(output, expected.split_off(expected.len() - output.len()));
+            assert_eq!(output, expected);
         }
+        assert_eq!(reusable.flush(), allocating.flush());
 
         let retained_capacity = output.capacity();
         for block in input.chunks(127) {
             reusable.process_into(block, &mut output);
-            assert!(output.capacity() >= retained_capacity);
+            assert_eq!(output.capacity(), retained_capacity);
         }
     }
 
