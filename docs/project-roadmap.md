@@ -14,7 +14,7 @@ O roadmap de plataformas é a sequência normativa. As trilhas de desktop, debug
 - Preservar Z80 compartilhado, SmsTemporalWorker, FrameMailbox, VDPs, PSG, barramentos e componentes validados.
 - GUI Slint; WGPU para renderização; Vulkan backend inicial; CPAL para áudio físico; SDL3 para gamepads.
 - Hosts de produto egui/D3D12/Qt foram removidos; registros e auditorias datadas permanecem como histórico, sem consumidores ativos.
-- Sem CPU/Scheduler/PSG/VDP/worker paralelo, JIT, frame skipping, hacks temporais ou callbacks por instrução.
+- Sem CPU/Scheduler/PSG/VDP/worker paralelo, frame skipping, hacks temporais ou callbacks por instrução. Estratégia de CPU: F2 predecoded-block cache no SMS; F3 JIT somente como contingência condicionada ao gate de 400 frames/s e a profiling que confirme gargalo de CPU, conforme ADR-0017 proposta.
 - Save States/replays devem preservar estado suficiente e determinismo; renderização/áudio/input não comandam ciclos.
 
 ## 2. Roadmap de plataformas
