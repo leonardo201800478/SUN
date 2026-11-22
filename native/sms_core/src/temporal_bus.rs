@@ -347,6 +347,9 @@ pub struct SmsTemporalBus {
     io: SmsIo,
     psg: ScheduledPsg,
     pending_psg_samples: VecDeque<f64>,
+    /// Reusable scratch storage for draining PSG PCM on the optional FM path.
+    /// This is transient and intentionally excluded from save states.
+    psg_drain_scratch: Vec<f64>,
     ym2413: Option<Ym2413Core>,
     ym2413_pg_service: Option<Ym2413PgSerialService>,
     pending_fm_samples: VecDeque<Option<f64>>,
@@ -527,6 +530,7 @@ impl SmsTemporalBus {
             io: SmsIo::new(territory),
             psg,
             pending_psg_samples: VecDeque::new(),
+            psg_drain_scratch: Vec::with_capacity(16),
             ym2413: None,
             ym2413_pg_service: None,
             pending_fm_samples: VecDeque::new(),
@@ -618,6 +622,7 @@ impl SmsTemporalBus {
             io: SmsIo::new(territory),
             psg,
             pending_psg_samples: VecDeque::new(),
+            psg_drain_scratch: Vec::with_capacity(16),
             ym2413: None,
             ym2413_pg_service: None,
             pending_fm_samples: VecDeque::new(),
@@ -832,12 +837,16 @@ impl SmsTemporalBus {
             .ok_or(SmsTemporalBusError::InvalidState)?;
         self.psg.apply_clock_advance(psg_advance)?;
         if self.ym2413.is_some() {
-            let generated_psg_samples = self.psg.core_mut().drain_samples(None);
+            self.psg
+                .core_mut()
+                .drain_samples_into(&mut self.psg_drain_scratch, None);
+            let generated_sample_count = self.psg_drain_scratch.len();
             if self.psg_output_enabled() {
-                self.pending_psg_samples.extend(generated_psg_samples);
+                self.pending_psg_samples
+                    .extend(self.psg_drain_scratch.iter().copied());
             } else {
                 self.pending_psg_samples
-                    .extend(std::iter::repeat_n(0.0, generated_psg_samples.len()));
+                    .extend(std::iter::repeat_n(0.0, generated_sample_count));
             }
         }
         if self.ym2413.is_some() {
@@ -1588,6 +1597,7 @@ impl SmsTemporalBus {
             io: state.io,
             psg: state.psg,
             pending_psg_samples: state.pending_psg_samples,
+            psg_drain_scratch: Vec::with_capacity(16),
             ym2413,
             ym2413_pg_service,
             pending_fm_samples: state.pending_fm_samples,
