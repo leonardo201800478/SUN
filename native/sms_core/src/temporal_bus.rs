@@ -1138,7 +1138,9 @@ impl SmsTemporalBus {
         let count = max_samples
             .unwrap_or(self.pending_fm_samples.len())
             .min(self.pending_fm_samples.len());
-        output.reserve(count.saturating_sub(output.capacity()));
+        if output.capacity() < count {
+            output.reserve(count);
+        }
         output.extend(self.pending_fm_samples.drain(..count));
     }
 
