@@ -25,8 +25,8 @@ def make_pair(call_index: int) -> tuple[dict[str, object], dict[str, object]]:
         "output_m": 20 + call_index,
         "output_r": -20 - call_index,
     }
-    frame_valid = call_index >= 2
-    pins_valid = call_index >= 1
+    frame_valid = True
+    pins_valid = True
     rust = {
         "output_frame_cycle": cycle_before,
         "output_frame_m": 20 + call_index if frame_valid else None,
@@ -38,7 +38,7 @@ def make_pair(call_index: int) -> tuple[dict[str, object], dict[str, object]]:
         "output_pins_r": -100 - call_index,
         "output_pins_r_valid": pins_valid,
         "output_pipe_ch_out_before": ch_out_before,
-        "output_pipe_ch_out_before_valid": call_index > 0,
+        "output_pipe_ch_out_before_valid": True,
         "output_pipe_rm_enable_before": -64,
         "output_pipe_ch_out_after": ch_out_after,
         "output_pipe_ch_out_after_valid": True,
@@ -51,18 +51,18 @@ def make_pair(call_index: int) -> tuple[dict[str, object], dict[str, object]]:
 class IntegratedOutputPipelineTests(unittest.TestCase):
     """Validate the one-call MO/RO output-buffer delay and pin-stage comparison."""
 
-    def test_first_call_keeps_uninitialized_output_unknown(self) -> None:
-        """The first call has no prior channel result or valid output pins."""
+    def test_first_call_compares_nuked_software_reset_output(self) -> None:
+        """The software pipeline starts at Nuked's explicit zero reset state."""
         nuked, rust = make_pair(0)
         compare_output_pipeline_row(0, nuked, rust)
 
-    def test_second_call_compares_pin_latches_after_warmup(self) -> None:
-        """Pin latches become valid after the first integrated operator result."""
+    def test_second_call_compares_pin_latches(self) -> None:
+        """MO/RO pin latches remain comparable after the first serial call."""
         nuked, rust = make_pair(1)
         compare_output_pipeline_row(1, nuked, rust)
 
     def test_third_call_compares_delayed_mo_ro_buffer(self) -> None:
-        """The output frame matches Nuked's buffer one OPLL call after the pin stage."""
+        """The frame matches the buffer value from the previous OPLL call."""
         nuked, rust = make_pair(2)
         compare_output_pipeline_row(2, nuked, rust)
 
@@ -79,6 +79,13 @@ class IntegratedOutputPipelineTests(unittest.TestCase):
         rust["output_frame_r"] = int(rust["output_frame_r"]) - 1
         with self.assertRaisesRegex(ValueError, "output_frame_r mismatch"):
             compare_output_pipeline_row(2, nuked, rust)
+
+    def test_rejects_unknown_output_buffer_from_software_reset(self) -> None:
+        """The Nuked-matched software pipeline must retain known MO/RO buffers."""
+        nuked, rust = make_pair(0)
+        rust["output_frame_m_valid"] = False
+        with self.assertRaisesRegex(ValueError, "output_frame_m_valid"):
+            compare_output_pipeline_row(0, nuked, rust)
 
     def test_rejects_unknown_pin_after_pipeline_warmup(self) -> None:
         """A melodic output may not silently become unknown after warm-up."""
