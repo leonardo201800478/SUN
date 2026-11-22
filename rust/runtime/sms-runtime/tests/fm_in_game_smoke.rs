@@ -393,11 +393,17 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         });
 
         let fm_bus_writes = capture_startup_fm_port_writes(&worker).unwrap_or_else(|error| {
-            panic!("{}: failed to capture startup YM2413 port writes: {error}", path.display())
+            panic!(
+                "{}: failed to capture startup YM2413 port writes: {error}",
+                path.display()
+            )
         });
-        worker
-            .reset()
-            .unwrap_or_else(|error| panic!("{}: cannot reset after FM write probe: {error}", path.display()));
+        worker.reset().unwrap_or_else(|error| {
+            panic!(
+                "{}: cannot reset after FM write probe: {error}",
+                path.display()
+            )
+        });
 
         let source_capture = Arc::new(Mutex::new(FmSourceCapture::default()));
         let pcm_capture = Arc::new(Mutex::new(PcmCapture::default()));
