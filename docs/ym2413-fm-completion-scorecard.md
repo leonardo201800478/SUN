@@ -33,7 +33,7 @@ HEAD da main após os merges #1206, #1208, #1213, #1216, #1217, #1219 e #1220: 9
 
 ### Estado funcional e desempenho
 
-- FM Auto continua sem whitelist SHA-256 aprovada; ensaios devem configurar explicitamente Japanese SMS integrado + SMS1 + FM On.
+- FM Auto reconhece Kenseiden Japan somente pelo SHA-256 verificado `7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93`, após captura real com escritas FM e PCM não nulo. O perfil físico Japanese SMS integrado e SMS1 ainda precisam ser selecionados; a região Japão, isoladamente, não habilita hardware FM. Phantasy Star permanece fora da whitelist até comprovação de uso FM.
 - O worker expõe contagens de fallback, mas a frequência real em jogos ainda não foi medida.
 - A alocação do vetor PCM final por lote foi removida do caminho CPAL comum; zero alocações globais do pipeline não foi demonstrado.
 - O harness real-game está integrado, mas os testes permanecem #[ignore] e exigem ROMs legais locais. CI compilou os testes; não executou gameplay.
