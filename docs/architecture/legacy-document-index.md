@@ -1,6 +1,6 @@
 # Índice de documentação histórica e hosts aposentados
 
-**Revisão:** 2026-11-16.
+**Revisão:** 2026-11-22.
 **Host de produto ativo:** Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2 + SDL3/input runtime.
 
 Este índice evita que documentos históricos sejam confundidos com contratos de implementação atuais. A presença de código ou documentação antiga não significa que o host correspondente esteja ativo.
@@ -12,7 +12,8 @@ Este índice evita que documentos históricos sejam confundidos com contratos de
 | `architecture/egui-frontend-debug-ui.md` | HISTÓRICO / SUPERSEDED | Referência de organização de menus e diagnósticos |
 | `architecture/native-gui-d3d12-egui-composition.md` | HISTÓRICO / SUPERSEDED | Histórico de composição do host egui/D3D12 |
 | `architecture/migrations/native-video-runtime.md` | HISTÓRICO / SUPERSEDED | Proposta e histórico do runtime de vídeo anterior; não implementar |
-| `architecture/qt-frontend-functional-model.md | HISTÓRICO / SUPERSEDED | Requisitos conceituais somente após revalidação |
+| `architecture/scheduler-sms1-vdp-d3d12-consolidation.md` | REGISTRO HISTÓRICO | Evidências e limites da integração registrada em 2026-11-02 |
+| `architecture/qt-frontend-functional-model.md` | HISTÓRICO / SUPERSEDED | Requisitos conceituais somente após revalidação |
 | `architecture/qt-frontend-target-architecture.md` | HISTÓRICO / SUPERSEDED | Não usar como arquitetura-alvo |
 | `architecture/qt-sms-input-settings.md` | HISTÓRICO / SUPERSEDED | Referência de UI antiga |
 | `architecture/vulkan-presentation-qt-quick.md` | HISTÓRICO / SUPERSEDED | Protótipo Qt Quick/Vulkan, não implementar |
@@ -23,7 +24,6 @@ Este índice evita que documentos históricos sejam confundidos com contratos de
 | `sg1000-first-playable.md` | MARCO HISTÓRICO DE HOST | Referência de comportamento/core SG-1000; comandos Qt/Python não ativos |
 | `validation/qt-frontend-pr98.md` | RELATÓRIO HISTÓRICO | Não comprova validação Slint/WGPU atual |
 
-| `architecture/scheduler-sms1-vdp-d3d12-consolidation.md` | REGISTRO HISTÓRICO | Evidências e limites da integração registrada em 2026-11-02 |
 
 ## ADRs históricas
 
