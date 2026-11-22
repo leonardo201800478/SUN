@@ -682,6 +682,15 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation: false,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            subsystem_timing_enabled: false,
+            scheduler_dispatch_count: 0,
+            scheduler_dispatch_elapsed_ns: 0,
+            psg_advance_calls: 0,
+            psg_advance_clock_cycles: 0,
+            psg_advance_elapsed_ns: 0,
+            vdp_advance_calls: 0,
+            vdp_advance_tstates: 0,
+            vdp_advance_elapsed_ns: 0,
             fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }
@@ -1722,6 +1731,15 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            subsystem_timing_enabled: false,
+            scheduler_dispatch_count: 0,
+            scheduler_dispatch_elapsed_ns: 0,
+            psg_advance_calls: 0,
+            psg_advance_clock_cycles: 0,
+            psg_advance_elapsed_ns: 0,
+            vdp_advance_calls: 0,
+            vdp_advance_tstates: 0,
+            vdp_advance_elapsed_ns: 0,
             fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }
