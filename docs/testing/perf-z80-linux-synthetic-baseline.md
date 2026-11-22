@@ -55,3 +55,27 @@ cargo bench --locked -p sega-sms-core --bench z80_frame_throughput --profile rel
 
 The `Z80 Synthetic Frame Benchmark` workflow runs both profiles and uploads
 the raw output as a 14-day artifact.
+
+## Initial CI evidence — 2026-11-22
+
+Revision: `2f9c42146ee8c0390f7e4e179dd05a2da8f3fb26`  
+Workflow run: [45057308059](https://github.com/leonardo201800478/SUN/actions/runs/45057308059)  
+Runner: `ubuntu-24.04`; pinned compiler: Rust 1.99.1.
+
+| ABBA block | Profile | Median ms/frame | Median FPS |
+|---|---|---:|---:|
+| A1 | `release` | 8.914969 | 112.171 |
+| B1 | `release-llvm` | 8.543381 | 117.050 |
+| B2 | `release-llvm` | 8.470081 | 118.063 |
+| A2 | `release` | 8.904620 | 112.301 |
+
+The mean of the two block medians is 8.909795 ms/frame for `release`
+and 8.506731 ms/frame for `release-llvm`, a 4.52% reduction in this
+synthetic workload. Both profiles retired 10,199.67 instructions per frame.
+
+This result is evidence only for the synthetic scheduler-driven workload on
+that CI run. It is not a 4.52% game-wide or Windows performance claim, and it
+does not establish exclusive Z80 CPU time. Absolute timings from different
+GitHub-hosted runner instances must not be compared as if they were the same
+hardware. The `release-llvm` profile remains experimental; the default
+Release profile is unchanged.
