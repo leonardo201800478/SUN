@@ -345,28 +345,52 @@ outputs, expected/actual pin latches, and rm_enable before/after the call.
 
 ## Volume-capture MO output characterization
 
-The compact `--output-only` mode emits one JSON record per Nuked `OPLL_Clock()` call with `cycle_before`, `ch_out_before` (captured before the slot clock), `output_pins_m`, and `output_pins_r`. It avoids the large internal-state arrays from the full trace.
+The compact `--output-only` mode emits one JSON record per Nuked
+`OPLL_Clock()` call with `cycle_before`, `ch_out_before` (captured before
+the slot clock), `output_pins_m`, and `output_pins_r`. It avoids the large
+internal-state arrays from the full trace.
 
-`fixtures/volume0-capture-events.csv` reproduces the one-channel sine setup used by the historical volume capture: an initial sync patch (modulator AR=15), an 18-call Timer1 synchronization window, and the measurement patch (modulator AR=0). The first patch's 22-clock address/data interval is rounded up to six OPLL slot calls because this trace interface advances four YM clocks per call; the 92-clock data-to-next-address delay remains 23 calls. The measurement patch uses exact 12/84-clock intervals (3/21 calls). The capture sample period is 72 YM clocks, or 18 OPLL calls.
+The fixtures `fixtures/volume0-capture-events.csv` and
+`fixtures/volume1-capture-events.csv` reproduce the register script in the
+pinned upstream `analyze/volume/volumes.cc` using
+`analyze/common.cc`'s `getSinePatch()` and `writeRegister()`:
 
-The CI job compares the candidate `measured_bin = 255 - ch_out_before` sequence against the pinned upstream `volume0.out` data. Nuked's `OPLL_Channel` transforms the pre-pin value for MO: non-negative `ch_out` is incremented by one (so the two zero codes are emitted as +1 and -1), while negative values pass through. The comparator independently inverts that piecewise pin encoding and checks it agrees with the pre-pin mapping. It locates the active MO slot, searches a bounded sample-phase offset, and reports exact-match rate and absolute error, plus an inverted-polarity control. This is deliberately a **characterization**, not a pass/fail audio-fidelity gate: phase alignment does not prove the DAC electrical transfer, board loading, subclock behavior, or Phantasy Star/Kenseiden playback.
+- R#0–R#7: the custom sine patch (modulator AR=0, TL=63; carrier AR=15).
+- R#10: F-number low byte `0x61`.
+- R#30: carrier volume `0x00` or `0x01`.
+- R#20: key-on and block/F-number high bits `0x12`.
+
+All register writes use the upstream 12/84-YM-clock address/data and
+data/next-address intervals. In the Nuked trace adapter these are exactly
+3/21 OPLL calls because one call advances one four-clock serial slot. The
+last key-on data event is at call 243; the capture script completes its final
+84-clock write interval at call 264. Unlike the separate `syncTimer1()`
+hardware characterization routine, `volumes.cc` does not perform a
+pre-capture Timer1 phase synchronization. The comparator therefore searches
+the sample-phase offset.
+
+The physical capture samples once every 72 YM clocks. This corresponds to 18
+four-clock serial slots, or 18 Nuked `OPLL_Clock()` calls in this adapter.
+The comparator identifies the active MO slot from the trace, compares the
+candidate `measured_bin = 255 - ch_out_before` sequence with the pinned
+upstream `volumeN.out` bins, checks Nuked's piecewise MO output-pin encoding,
+and reports phase, exact-match, residual, and inverted-polarity diagnostics.
+It is a **characterization**, not a pass/fail audio-fidelity gate.
+
+Nuked's `OPLL_Channel` transforms the pre-pin value for MO: non-negative
+`ch_out` is incremented by one (so the two zero codes are emitted as +1 and
+-1), while negative values pass through. The comparator independently
+inverts that piecewise pin encoding and checks it agrees with the pre-pin
+mapping.
+
+The CI job checks out Andete at the pinned revision, generates separate
+traces for volume 0 and volume 1, and compares them with the corresponding
+physical `.out` captures. These comparisons do not prove the DAC electrical
+transfer, board loading, subclock behavior, the Rust runtime's output, or
+Phantasy Star/Kenseiden playback.
 
 Run the helper tests with:
 
 ```sh
 python3 -m unittest discover -s tools/ym2413-nuked-oracle -p 'test_*.py'
 ```
-
-### Pinned volume0 characterization result — 2026-11-22
-
-Against the pinned `volume0.out` capture, the Nuked reference selected MO slot 6 and a sample-phase offset of 1,011 samples. The candidate mapping `measured_bin = 255 - ch_out_before` produced:
-
-- 7,017 / 20,030 exact matches (**35.03%**).
-- Mean absolute error **0.736 bins**, p95 **2 bins**, maximum **3 bins**.
-- Median signed error **0**, mean signed error **-0.108**.
-- Empirical code-to-bin mapping: **zero monotonicity violations**; per-code median absolute residual p50=1, p90=1, p99=2, maximum=2.
-- Local phase offsets were 1,006–1,016 samples across windows, with no monotonic drift established.
-- Nuked's piecewise MO output-pin inverse agreed with the pre-pin channel-output mapping for every sampled point; rhythm output remained muted.
-- The inverted-polarity control had mean absolute error **310.44 bins**, strongly rejecting the opposite polarity.
-
-This supports the candidate output-code polarity and near-identity mapping against one physical volume0 capture. The remaining residual cause is not isolated. This is not a Rust-runtime differential, a complete 16-volume time-series test, a physical DAC electrical-transfer certification, or evidence that Phantasy Star and Kenseiden play stable FM.
