@@ -945,7 +945,7 @@ mod windows_host {
                                         padding: 14px; spacing: 8px;
                                         Text { font-size: 16px; text: "Sincronização e telemetria"; color: #F1F5FA; }
                                         CheckBox {
-                                            text: "Limitar em 60 FPS";
+                                            text: "Limitar FPS (cadência NTSC/PAL)";
                                             checked: root.frame-pacing-enabled;
                                             toggled => { root.frame-pacing-enabled = self.checked; root.frame-pacing-toggle-requested(self.checked); }
                                         }
