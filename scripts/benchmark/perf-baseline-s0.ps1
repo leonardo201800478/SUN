@@ -44,10 +44,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 $branch = (& git -C $repoRoot branch --show-current).Trim()
 $dirty = -not [string]::IsNullOrWhiteSpace((& git -C $repoRoot status --porcelain))
+if ($dirty) {
+    throw "O working tree precisa estar limpo para associar os resultados a um commit reproduzível."
+}
 $rustcVersion = (& rustc --version --verbose 2>&1 | Out-String).Trim()
 $cargoVersion = (& cargo --version 2>&1 | Out-String).Trim()
 $cpuName = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)
 $osCaption = (Get-CimInstance Win32_OperatingSystem).Caption
+$cargoConfigPath = Join-Path $repoRoot ".cargo\\config.toml"
+$cargoConfig = if (Test-Path -LiteralPath $cargoConfigPath -PathType Leaf) { Get-Content -LiteralPath $cargoConfigPath -Raw } else { $null }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $documents = [Environment]::GetFolderPath("MyDocuments")
@@ -67,7 +72,8 @@ $envNames = @(
     "SEGA_PERF_WARMUP_SECS",
     "SEGA_PERF_CAPTURE_SECS",
     "SEGA_PERF_DIAGNOSTIC_SECS",
-    "SEGA_PERF_OUTPUT_CSV"
+    "SEGA_PERF_OUTPUT_CSV",
+    "CARGO_TARGET_DIR"
 )
 $previousEnv = @{}
 foreach ($name in $envNames) {
@@ -82,6 +88,7 @@ try {
     $env:SEGA_PERF_CAPTURE_SECS = [string]$CaptureSeconds
     $env:SEGA_PERF_DIAGNOSTIC_SECS = [string]$DiagnosticSeconds
     $env:SEGA_PERF_OUTPUT_CSV = $csvPath
+    $env:CARGO_TARGET_DIR = Join-Path $outputRoot "cargo-target"
 
     if ($CaptureCpuProfile) {
         if (-not (Get-Command wpr -ErrorAction SilentlyContinue)) {
@@ -96,7 +103,7 @@ try {
 
     Push-Location $repoRoot
     try {
-        & cargo test --release --locked -p sega-sms-runtime --test perf_baseline outrun_a_b_c_uncapped_baseline -- --ignored --nocapture 2>&1 |
+        & cargo test --release --locked --target x86_64-pc-windows-msvc -vv -p sega-sms-runtime --test perf_baseline outrun_a_b_c_uncapped_baseline -- --ignored --nocapture 2>&1 |
             Tee-Object -FilePath $logPath |
             Out-Host
         $exitCode = $LASTEXITCODE
@@ -144,6 +151,17 @@ $manifest = [ordered]@{
     operating_system = $osCaption
     cargo_version = $cargoVersion
     rustc_version = $rustcVersion
+    target_triple = "x86_64-pc-windows-msvc"
+    cargo_target_dir = $env:CARGO_TARGET_DIR
+    cargo_config_toml = $cargoConfig
+    compiler_environment = [ordered]@{
+        RUSTFLAGS = $env:RUSTFLAGS
+        CARGO_ENCODED_RUSTFLAGS = $env:CARGO_ENCODED_RUSTFLAGS
+        CARGO_PROFILE_RELEASE_OPT_LEVEL = $env:CARGO_PROFILE_RELEASE_OPT_LEVEL
+        CARGO_PROFILE_RELEASE_LTO = $env:CARGO_PROFILE_RELEASE_LTO
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS = $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS
+        CARGO_PROFILE_RELEASE_STRIP = $env:CARGO_PROFILE_RELEASE_STRIP
+    }
     cpu_profile_requested = [bool]$CaptureCpuProfile
     cpu_profile_path = if ($CaptureCpuProfile) { $etlPath } else { $null }
     exit_code = $exitCode
