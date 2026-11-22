@@ -1552,6 +1552,19 @@ impl SmsTemporalMachine {
         self.bus.set_ym2413_timing_enabled(enabled);
     }
 
+    /// Enable fixed-size profiling at Scheduler, PSG and VDP dispatch boundaries.
+    ///
+    /// This is diagnostic-only and does not alter machine time, device state or
+    /// event ordering. Keep it disabled during authoritative throughput runs.
+    pub fn set_subsystem_timing_enabled(&mut self, enabled: bool) {
+        self.bus.set_subsystem_timing_enabled(enabled);
+    }
+
+    /// Take and reset subsystem timing counters accumulated since the prior call.
+    pub fn take_subsystem_timing(&mut self) -> crate::SmsTemporalSubsystemTiming {
+        self.bus.take_subsystem_timing()
+    }
+
     /// Take the measured YM2413 advancement time in nanoseconds.
     pub fn take_ym2413_advance_elapsed_ns(&mut self) -> u64 {
         self.bus.take_ym2413_advance_elapsed_ns()
