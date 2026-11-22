@@ -1128,11 +1128,24 @@ impl SmsTemporalBus {
 
     /// Drain complete YM2413 mono PCM samples at the SMS YM2413 source rate.
     /// None marks a rotation whose software-reference MO/RO output was unknown.
-    pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
+    /// Drain FM samples into a caller-owned buffer without allocating per frame.
+    pub fn drain_fm_audio_samples_into(
+        &mut self,
+        output: &mut Vec<Option<f64>>,
+        max_samples: Option<usize>,
+    ) {
+        output.clear();
         let count = max_samples
             .unwrap_or(self.pending_fm_samples.len())
             .min(self.pending_fm_samples.len());
-        self.pending_fm_samples.drain(..count).collect()
+        output.reserve(count.saturating_sub(output.capacity()));
+        output.extend(self.pending_fm_samples.drain(..count));
+    }
+
+    pub fn drain_fm_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<Option<f64>> {
+        let mut samples = Vec::new();
+        self.drain_fm_audio_samples_into(&mut samples, max_samples);
+        samples
     }
 
     /// Discard host-bound FM PCM without allocating; the YM2413 keeps clocking.
@@ -1141,14 +1154,28 @@ impl SmsTemporalBus {
     }
 
     /// Drain PSG PCM captured at scheduler dispatch boundaries with the F2 gate applied.
-    pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+    /// Drain PSG samples into a reusable caller-owned buffer.
+    pub fn drain_audio_samples_into(
+        &mut self,
+        output: &mut Vec<f64>,
+        max_samples: Option<usize>,
+    ) {
+        output.clear();
         if self.ym2413.is_none() {
-            return self.psg.core_mut().drain_samples(max_samples);
+            self.psg.core_mut().drain_samples_into(output, max_samples);
+            return;
         }
         let count = max_samples
             .unwrap_or(self.pending_psg_samples.len())
             .min(self.pending_psg_samples.len());
-        self.pending_psg_samples.drain(..count).collect()
+        output.reserve(count.saturating_sub(output.capacity()));
+        output.extend(self.pending_psg_samples.drain(..count));
+    }
+
+    pub fn drain_audio_samples(&mut self, max_samples: Option<usize>) -> Vec<f64> {
+        let mut samples = Vec::new();
+        self.drain_audio_samples_into(&mut samples, max_samples);
+        samples
     }
 
     /// Return the installed Japanese Master System YM2413, if present.
