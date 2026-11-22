@@ -145,21 +145,24 @@ jobs:
           git -C "$RUNNER_TEMP/andete-ym2413" checkout "$ANDETE_SHA"
           test "$(git -C "$RUNNER_TEMP/andete-ym2413" rev-parse HEAD)" = "$ANDETE_SHA"
 
-      - name: Characterize Nuked MO output against measured volume0 capture
+      - name: Characterize Nuked MO output against measured volume captures (0 and 1)
         run: |
-          CAPTURE="$RUNNER_TEMP/andete-ym2413/analyze/volume/volume0.out"
-          SAMPLE_COUNT=$(wc -w < "$CAPTURE")
           PHASE_SEARCH=2048
-          CALLS=$((601 + (SAMPLE_COUNT + PHASE_SEARCH + 1) * 18))
-          "$RUNNER_TEMP/ym2413-nuked-trace" \
-            --calls "$CALLS" \
-            --events tools/ym2413-nuked-oracle/fixtures/volume0-capture-events.csv \
-            --output-only > "$RUNNER_TEMP/volume0-nuked-output.jsonl"
-          python3 tools/ym2413-nuked-oracle/compare_volume_capture.py \
-            --trace "$RUNNER_TEMP/volume0-nuked-output.jsonl" \
-            --capture "$CAPTURE" \
-            --capture-start-call 601 \
-            --initial-keyon-call 296 \
-            --phase-search "$PHASE_SEARCH" \
-            --output "$RUNNER_TEMP/volume0-nuked-differential.json"
-          cat "$RUNNER_TEMP/volume0-nuked-differential.json"
+          for VOLUME in 0 1; do
+            CAPTURE="$RUNNER_TEMP/andete-ym2413/analyze/volume/volume${VOLUME}.out"
+            EVENTS="tools/ym2413-nuked-oracle/fixtures/volume${VOLUME}-capture-events.csv"
+            SAMPLE_COUNT=$(wc -w < "$CAPTURE")
+            CALLS=$((601 + (SAMPLE_COUNT + PHASE_SEARCH + 1) * 18))
+            "$RUNNER_TEMP/ym2413-nuked-trace" \
+              --calls "$CALLS" \
+              --events "$EVENTS" \
+              --output-only > "$RUNNER_TEMP/volume${VOLUME}-nuked-output.jsonl"
+            python3 tools/ym2413-nuked-oracle/compare_volume_capture.py \
+              --trace "$RUNNER_TEMP/volume${VOLUME}-nuked-output.jsonl" \
+              --capture "$CAPTURE" \
+              --capture-start-call 601 \
+              --initial-keyon-call 296 \
+              --phase-search "$PHASE_SEARCH" \
+              --output "$RUNNER_TEMP/volume${VOLUME}-nuked-differential.json"
+            cat "$RUNNER_TEMP/volume${VOLUME}-nuked-differential.json"
+          done
