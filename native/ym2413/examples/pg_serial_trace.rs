@@ -459,7 +459,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             let core_state = core.export_state();
             let service_state = service.export_state();
             core = Ym2413Core::restore_state(core_state)?;
-            service = Ym2413PgSerialService::restore_state(service_state)?;
+            service = Ym2413PgSerialService::restore_state(service_state).map_err(|error| {
+                IoError::new(
+                    ErrorKind::InvalidData,
+                    format!("failed to restore YM2413 PG service state: {error:?}"),
+                )
+            })?;
             snapshot_restored = true;
         }
     }
