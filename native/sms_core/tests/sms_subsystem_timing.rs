@@ -2,7 +2,7 @@ use sega_sms_core::SmsTemporalMachine;
 
 #[test]
 fn subsystem_timing_counts_scheduler_psg_and_vdp_without_changing_instruction_result() {
-    let mut machine = SmsTemporalMachine::new(vec![0x00], 1)
+    let mut machine = SmsTemporalMachine::new(vec![0x00; 0x4000], 1)
         .expect("construct profiled temporal SMS machine");
     let mut reference = SmsTemporalMachine::new(vec![0x00], 1)
         .expect("construct reference temporal SMS machine");
