@@ -1103,8 +1103,14 @@ mod tests {
                 .unwrap();
 
             assert_eq!(fast_core.export_state(), transactional_core.export_state());
-            assert_eq!(fast_service.export_state(), transactional_service.export_state());
-            assert_eq!(fast_service.output_frame(), transactional_service.output_frame());
+            assert_eq!(
+                fast_service.export_state(),
+                transactional_service.export_state()
+            );
+            assert_eq!(
+                fast_service.output_frame(),
+                transactional_service.output_frame()
+            );
             assert_eq!(
                 fast_service.measured_output_frame(),
                 transactional_service.measured_output_frame()
