@@ -3102,5 +3102,4 @@ mod temporal_vdp_tests {
         assert_eq!(writes.register_writes[0x20], 1);
         assert_eq!(writes.last_register_values[0x20], Some(0x7F));
     }
-
 }
