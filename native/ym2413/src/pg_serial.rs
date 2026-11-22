@@ -751,8 +751,11 @@ impl Ym2413PgSerialService {
     fn latch_next_parameters(
         &mut self,
         context: &Ym2413SlotServiceContext,
+        descriptor: Ym2413SlotDescriptor,
     ) -> Result<(), Ym2413PgSerialError> {
-        let descriptor = Self::require_melodic_slot(context)?;
+        if descriptor != context.event.selected_operator {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let parameters = match descriptor.operator {
             Ym2413Operator::Modulator => config.modulator_phase,
@@ -1056,7 +1059,14 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         )
         .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?
         {
-            Ym2413SerialSlotDispatch::Melodic { .. } => self.latch_next_parameters(context),
+            // Reuse the descriptor resolved by this dispatch. The latch helper
+            // must not dispatch the same immutable slot context a second time.
+            Ym2413SerialSlotDispatch::Melodic { slot }
+                if slot == context.event.selected_operator =>
+            {
+                self.latch_next_parameters(context, slot)
+            }
+            Ym2413SerialSlotDispatch::Melodic { .. } => Err(Ym2413PgSerialError::InvalidState),
             Ym2413SerialSlotDispatch::Rhythm { slot, selector, .. }
                 if self.rhythm_noise.is_some() && slot == context.event.selected_operator =>
             {
