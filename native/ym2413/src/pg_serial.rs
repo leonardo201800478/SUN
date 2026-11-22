@@ -1628,6 +1628,7 @@ mod tests {
         }
     }
 
+    /// Verifies prior-latch conversion and the measured adapter's one-cycle emission delay.
     #[test]
     fn measured_adapter_uses_the_previous_channel_output_latch() {
         let mut service = Ym2413PgSerialService::new(initial_bank(0));
