@@ -51,8 +51,16 @@ $rustcVersion = (& rustc --version --verbose 2>&1 | Out-String).Trim()
 $cargoVersion = (& cargo --version 2>&1 | Out-String).Trim()
 $cpuName = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)
 $osCaption = (Get-CimInstance Win32_OperatingSystem).Caption
-$cargoConfigPath = Join-Path $repoRoot ".cargo\\config.toml"
-$cargoConfig = if (Test-Path -LiteralPath $cargoConfigPath -PathType Leaf) { Get-Content -LiteralPath $cargoConfigPath -Raw } else { $null }
+$cargoConfig = @()
+foreach ($relativePath in @(".cargo/config.toml", ".cargo/config")) {
+    $configPath = Join-Path $repoRoot $relativePath
+    if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+        $cargoConfig += [ordered]@{
+            path = $relativePath
+            content = Get-Content -LiteralPath $configPath -Raw
+        }
+    }
+}
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $documents = [Environment]::GetFolderPath("MyDocuments")
@@ -80,6 +88,7 @@ foreach ($name in $envNames) {
     $previousEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
 }
 
+$cargoTargetDir = Join-Path $outputRoot "cargo-target"
 $wprStarted = $false
 $exitCode = 1
 try {
@@ -88,7 +97,7 @@ try {
     $env:SEGA_PERF_CAPTURE_SECS = [string]$CaptureSeconds
     $env:SEGA_PERF_DIAGNOSTIC_SECS = [string]$DiagnosticSeconds
     $env:SEGA_PERF_OUTPUT_CSV = $csvPath
-    $env:CARGO_TARGET_DIR = Join-Path $outputRoot "cargo-target"
+    $env:CARGO_TARGET_DIR = $cargoTargetDir
 
     if ($CaptureCpuProfile) {
         if (-not (Get-Command wpr -ErrorAction SilentlyContinue)) {
@@ -152,8 +161,8 @@ $manifest = [ordered]@{
     cargo_version = $cargoVersion
     rustc_version = $rustcVersion
     target_triple = "x86_64-pc-windows-msvc"
-    cargo_target_dir = $env:CARGO_TARGET_DIR
-    cargo_config_toml = $cargoConfig
+    cargo_target_dir = $cargoTargetDir
+    cargo_config = $cargoConfig
     compiler_environment = [ordered]@{
         RUSTFLAGS = $env:RUSTFLAGS
         CARGO_ENCODED_RUSTFLAGS = $env:CARGO_ENCODED_RUSTFLAGS
