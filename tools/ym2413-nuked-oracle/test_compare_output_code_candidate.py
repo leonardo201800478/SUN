@@ -58,7 +58,7 @@ class OutputCodeCandidateTests(unittest.TestCase):
     def test_characterization_reports_prediction_without_claiming_dac_word(self):
         rows = [{"call_index": 0, "cycle_before": 0, "op_phase_index": 0,
                  "op_output": 8, "ch_out": 1}]
-        predicted = [[0] * 16 for _ in range(1024)]
+        predicted = [[1] + [0] * 15] + [[0] * 16 for _ in range(1023)]
         report = characterize(rows, predicted, 0)
         self.assertEqual(report["status"], "PASS")
         self.assertEqual(report["records"][0]["candidate_output_code"], 254)
