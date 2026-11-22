@@ -127,13 +127,17 @@ Versões do Cargo.lock na main auditada:
 - CPAL 0.18.2.
 - rtrb 0.3.6.
 
-Na data da auditoria, há WGPU 30.0.2 como patch posterior da série 30.x. Não atualizar dependências nesta sprint antes de estabelecer baseline; manter a atualização como tarefa separada para não contaminar a comparação A/B. CPAL 0.18.2 é a versão estável consultada e corresponde à arquitetura oficial.
+Na data da auditoria:
+- Slint 1.19.0 já é a versão estável mais recente, mas o projeto mantém a decisão arquitetural explícita de permanecer em 1.18.x; o lock está em 1.18.1.
+- WGPU 30.0.2 foi publicado em 12/11/2026 como patch da série 30.x; o lock está em 30.0.1. A atualização deve ser separada da sprint de áudio para não contaminar a comparação A/B.
+- CPAL 0.18.2 é o release estável mais recente consultado e corresponde à versão arquitetural fixada. O release adiciona ErrorKind::Xrun para AAudio, CoreAudio e PipeWire; em WASAPI, a nota cita captura, não saída. Portanto, no Windows, manter métricas internas da FIFO/underrun em vez de depender exclusivamente de notificações de Xrun do CPAL.
 
 Referências:
 - https://www.smspower.org/Development/YM2413
 - https://www.smspower.org/maxim/Documents/YM2413ApplicationManual
 - https://github.com/RustAudio/cpal/releases
-- https://docs.rs/crate/wgpu/30.0.2
+- https://github.com/gfx-rs/wgpu/releases
+- https://github.com/slint-ui/slint/releases
 
 ## 8. Plano ordenado
 
