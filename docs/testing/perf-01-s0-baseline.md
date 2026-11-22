@@ -49,13 +49,15 @@ Defaults:
 - WGPU presentation: disabled.
 - Audio: native mixer/resampler with headless discard sink.
 
-For a CPU sampling trace, run PowerShell as Administrator:
+For a symbolized CPU sampling trace, run PowerShell as Administrator:
 
 ```powershell
-.\scripts\benchmark\perf-baseline-s0.ps1 -RomPath "D:\ROMS\Sega Master System\OutRun (Japan).sms" -CaptureCpuProfile
+.\scripts\benchmark\perf-baseline-s0.ps1 -RomPath "D:\ROMS\Sega Master System\OutRun (Japan).sms" -CargoProfile release-llvm-debug -CaptureCpuProfile
 ```
 
-The optional WPR CPU trace is written as cpu-profile.etl. The script also captures manifest.json, outrun-a-b-c.csv and benchmark.log in a timestamped directory under Documents\SUN-Benchmarks\perf-01-s0\.
+The runner first compiles the exact test target and stores that output in `build.log`. Only after compilation succeeds does it start WPR, so rustc/LLVM/linker work is excluded from `cpu-profile.etl`. CPU sampling requires the existing `release-llvm-debug` profile to retain symbols for function-level attribution. Throughput produced by this symbolized diagnostic profile is **not** a Release/ThinLTO headline result; use the uninstrumented `release` or `release-llvm` campaign for throughput comparisons.
+
+The optional WPR CPU trace is written as cpu-profile.etl. The script also captures manifest.json, outrun-a-b-c.csv, build.log and benchmark.log in a timestamped directory under Documents\SUN-Benchmarks\perf-01-s0\.
 
 For a shorter smoke run, use -WarmupSeconds 1 -CaptureSeconds 5 -DiagnosticSeconds 1; do not use that shortened run as the final baseline.
 
