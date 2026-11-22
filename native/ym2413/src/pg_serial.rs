@@ -497,6 +497,14 @@ impl Ym2413PgSerialService {
         &self.synthesis
     }
 
+    /// Return the next serial slot expected by the PG service.
+    ///
+    /// The SMS adapter checks this against the core slot cursor before every
+    /// in-place or transactional block, preventing a split core/service state.
+    pub const fn next_slot_index(&self) -> u8 {
+        self.rhythm_noise_cursor
+    }
+
     /// Return the most recently emitted Nuked-reference digital MO/RO frame.
     pub const fn output_frame(&self) -> Option<Ym2413CoreOutputPipelineFrame> {
         self.last_output_frame
@@ -1086,6 +1094,40 @@ mod tests {
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
     use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
+
+    #[test]
+    fn core_pg_cursor_mismatch_is_rejected_before_either_path_mutates_state() {
+        let mut transactional_core = Ym2413Core::new();
+        let mut transactional_service =
+            Ym2413PgSerialService::new(initial_bank(0))
+                .with_rhythm_noise_cursor(1)
+                .unwrap();
+        let transactional_core_before = transactional_core.export_state();
+        let transactional_service_before = transactional_service.export_state();
+
+        assert!(
+            transactional_core
+                .advance_input_clocks_with_pg_service(4, &mut transactional_service)
+                .is_err()
+        );
+        assert_eq!(transactional_core.export_state(), transactional_core_before);
+        assert_eq!(transactional_service.export_state(), transactional_service_before);
+
+        let mut fast_core = Ym2413Core::new();
+        let mut fast_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_cursor(1)
+            .unwrap();
+        let fast_core_before = fast_core.export_state();
+        let fast_service_before = fast_service.export_state();
+
+        assert!(
+            fast_core
+                .advance_input_clocks_with_pg_service_in_place(4, &mut fast_service)
+                .is_err()
+        );
+        assert_eq!(fast_core.export_state(), fast_core_before);
+        assert_eq!(fast_service.export_state(), fast_service_before);
+    }
 
     #[test]
     fn in_place_advance_matches_transactional_state_and_pcm_across_partitioned_blocks() {
