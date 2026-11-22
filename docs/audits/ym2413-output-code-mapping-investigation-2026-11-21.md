@@ -42,6 +42,39 @@ Examples:
 
 The expression yields the complete 9-bit unsigned range 0..511 and keeps the two central zero encodings distinct. This aligns the Rust operator's one's-complement output representation with the arithmetic used by the published measured-output model.
 
+## Cross-check against the published predicted-sine level sets — 2026-11-22
+
+The pinned upstream artifact `results/20150409/predicted-sine.txt` contains 1,024 rows and 16 volume columns with signed values in the one’s-complement range `-256..255`. A set-level comparison was made against each measured `volumeN.out` sequence using the candidate inverse mapping:
+
+```text
+candidate_channel_output = 255 - measured_bin_index
+```
+
+| Volume | Measured distinct levels | Predicted distinct levels | Overlap | Predicted-only | Measured-only |
+|---:|---:|---:|---:|---:|---:|
+| 0 | 437 | 400 | 390 | 10 | 47 |
+| 1 | 352 | 350 | 350 | 0 | 2 |
+| 2 | 260 | 256 | 256 | 0 | 4 |
+| 3 | 182 | 182 | 182 | 0 | 0 |
+| 4 | 129 | 128 | 128 | 0 | 1 |
+| 5 | 93 | 92 | 92 | 0 | 1 |
+| 6 | 64 | 64 | 64 | 0 | 0 |
+| 7 | 47 | 46 | 46 | 0 | 1 |
+| 8 | 32 | 32 | 32 | 0 | 0 |
+| 9 | 26 | 24 | 24 | 0 | 2 |
+| 10 | 16 | 16 | 16 | 0 | 0 |
+| 11 | 12 | 12 | 12 | 0 | 0 |
+| 12 | 9 | 8 | 8 | 0 | 1 |
+| 13 | 6 | 6 | 6 | 0 | 0 |
+| 14 | 4 | 4 | 4 | 0 | 0 |
+| 15 | 4 | 4 | 4 | 0 | 0 |
+
+For volumes 1–15, every distinct value in the predicted set is present in the corresponding measured set. Volume 0 overlaps 390/400 predicted levels and contains 47 additional measured levels; the 10 predicted-only values and 47 measured-only values remain unexplained. The 2015 notes separately mention modulator-related waveform anomalies, but this set comparison does not attribute individual outliers to that mechanism.
+
+**Important provenance caveat:** at the pinned revision, the current `analyze/exp.cc` source prints `lookupExp(...)+256`, while the committed `predicted-sine.txt` artifact stores signed values. The generating-code/artifact discrepancy has not been reconciled. Treat this as a comparison against a published data artifact, not as an executable oracle reproduced from that source.
+
+This is a **level-set cross-check only**. It does not compare sample order, phase, frequency drift, MO/RO timing, or the physical DAC input bus. It supports the candidate `255 - channel_output` correspondence but does not promote it to a confirmed raw DAC word.
+
 ## Evidence boundary
 
 This is **not yet proof of the physical internal DAC input word**. The andete model predicts measured analog output levels and reports an exact match to those measurements; it does not probe the internal digital bus between the operator and DAC. The Yamaha manual confirms a 9-bit DAC but does not specify the binary input encoding or expose the latch contents. The published reverse-engineering die topology remains a derivative-chip hypothesis.
