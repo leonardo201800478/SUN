@@ -29,6 +29,10 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
 }
 $out = Join-Path ([System.IO.Path]::GetFullPath($OutputDirectory)) (Get-Date -Format "yyyyMMdd-HHmmss")
 New-Item -ItemType Directory -Path $out -Force | Out-Null
+$envNames = @("CARGO_TARGET_DIR", "SEGA_PERF_ROM_PATH", "SEGA_PERF_PROFILE_WARMUP_SECS", "SEGA_PERF_PROFILE_CAPTURE_SECS", "SEGA_PERF_PROFILE_SCENARIO", "SEGA_PERF_PROFILE_READY_FILE", "SEGA_PERF_PROFILE_GO_FILE")
+$previousEnv = @{}
+foreach ($name in $envNames) { $previousEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process") }
+
 $env:CARGO_TARGET_DIR = Join-Path $out "cargo-target"
 New-Item -ItemType Directory -Path $env:CARGO_TARGET_DIR -Force | Out-Null
 $env:SEGA_PERF_ROM_PATH = $rom.FullName
@@ -45,6 +49,7 @@ finally { Pop-Location }
 
 $results = @()
 $wprActive = $false
+$activeProcess = $null
 try {
     foreach ($scenario in @(@{Key="A";Name="A-no-ym2413"}, @{Key="B";Name="B-ym2413-clocked-muted"}, @{Key="C";Name="C-ym2413-fm-mixed"})) {
         $env:SEGA_PERF_PROFILE_SCENARIO = $scenario.Key
@@ -59,6 +64,7 @@ try {
         $cargoTestArgs = @("test", "--profile", "release-llvm-debug", "--locked", "--target", "x86_64-pc-windows-msvc", "-p", "sega-sms-runtime", "--test", "perf_z80_profile", "outrun_single_scenario_cpu_profile", "--", "--ignored", "--nocapture")
         $cargo = (Get-Command cargo).Source
         $process = Start-Process -FilePath $cargo -ArgumentList $cargoTestArgs -WorkingDirectory $root -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $activeProcess = $process
         $deadline = (Get-Date).AddMinutes(3)
         while (-not (Test-Path -LiteralPath $ready)) {
             if ($process.HasExited) { throw "Scenario $($scenario.Key) failed before ETW warmup gate. See $stdout and $stderr" }
@@ -70,6 +76,7 @@ try {
         $wprActive = $true
         Set-Content -LiteralPath $go -Value "capture" -NoNewline
         $process.WaitForExit()
+        $activeProcess = $null
         & wpr -stop $etl
         $stopCode = $LASTEXITCODE
         $wprActive = $false
@@ -79,7 +86,14 @@ try {
     }
 }
 finally {
+    if ($activeProcess -and -not $activeProcess.HasExited) {
+        $activeProcess.Kill()
+        $activeProcess.WaitForExit()
+    }
     if ($wprActive) { & wpr -stop (Join-Path $out "cpu-profile-incomplete.etl") }
+    foreach ($name in $envNames) {
+        [Environment]::SetEnvironmentVariable($name, $previousEnv[$name], "Process")
+    }
 }
 
 $manifest = [ordered]@{
