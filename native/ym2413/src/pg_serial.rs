@@ -11,9 +11,7 @@
 
 use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState};
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
-use crate::envelope_sequencer::{
-    EnvelopeRhythmSelect, EnvelopeSequencerTick,
-};
+use crate::envelope_sequencer::{EnvelopeRhythmSelect, EnvelopeSequencerTick};
 use crate::output::{
     Ym2413MeasuredOutputAdapter, Ym2413MeasuredOutputAdapterError,
     Ym2413MeasuredOutputAdapterFrame, Ym2413MeasuredOutputAdapterState,
@@ -1470,8 +1468,7 @@ mod tests {
     fn context(cycle: u8, registers: [u8; 64], testmode: u8) -> Ym2413SlotServiceContext {
         let eg = EnvelopeSequencer::new();
         let eg_dokon = eg.eg_dokon();
-        let event =
-            nuked_slot_service_event_with_testmode(cycle, 0, eg_dokon, testmode).unwrap();
+        let event = nuked_slot_service_event_with_testmode(cycle, 0, eg_dokon, testmode).unwrap();
         let mut registers = registers;
         registers[0x0f] = testmode;
         Ym2413SlotServiceContext {
@@ -1968,13 +1965,9 @@ mod tests {
             slot_context.rm_enable = 0xff;
             slot_context.rm_select = selector as u8;
             slot_context.envelope_input.rhythm_select = selector;
-            slot_context.event = nuked_slot_service_event_with_testmode(
-                cycle,
-                0xff,
-                slot_context.event.eg_dokon,
-                0,
-            )
-            .unwrap();
+            slot_context.event =
+                nuked_slot_service_event_with_testmode(cycle, 0xff, slot_context.event.eg_dokon, 0)
+                    .unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
             assert!(service.export_state().previous_channel_output_is_rhythm);
