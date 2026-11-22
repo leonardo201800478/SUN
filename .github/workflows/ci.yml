@@ -250,6 +250,8 @@ jobs:
         run: cargo clippy --release --workspace --all-targets --locked -- -D warnings
       - name: Workspace unit and integration tests
         run: cargo test --release --workspace --locked
+      - name: Compile LLVM ThinLTO candidate profile
+        run: cargo build --profile release-llvm --workspace --locked
       - name: Clippy observability runtime feature
         run: cargo clippy --release --manifest-path native/observability/Cargo.toml --features runtime --all-targets --locked -- -D warnings
       - name: Test observability runtime feature
