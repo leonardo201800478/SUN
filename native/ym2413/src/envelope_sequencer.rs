@@ -414,6 +414,61 @@ mod tests {
     use super::{EnvelopeSequencer, EnvelopeSlotInput, YM2413_ENVELOPE_SEQUENCER_SLOTS};
 
     #[test]
+    #[ignore = "Release-only A/B microbenchmark for full versus compact EG slot snapshots"]
+    fn benchmark_compact_eg_slot_snapshot_cost() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        const ITERATIONS: u32 = 500_000;
+        const SAMPLES: usize = 9;
+
+        fn measure_full_snapshot(sequencer: &EnvelopeSequencer) -> u128 {
+            let start = Instant::now();
+            for _ in 0..ITERATIONS {
+                black_box(black_box(sequencer).export_state());
+            }
+            start.elapsed().as_nanos() / u128::from(ITERATIONS)
+        }
+
+        fn measure_compact_view(sequencer: &EnvelopeSequencer) -> u128 {
+            let start = Instant::now();
+            for _ in 0..ITERATIONS {
+                let eg_dokon = black_box(sequencer).eg_dokon();
+                let levels = black_box(sequencer).operator_levels();
+                black_box((eg_dokon, levels));
+            }
+            start.elapsed().as_nanos() / u128::from(ITERATIONS)
+        }
+
+        let sequencer = EnvelopeSequencer::new();
+        let mut full_samples = [0; SAMPLES];
+        let mut compact_samples = [0; SAMPLES];
+
+        for sample in 0..SAMPLES {
+            if sample % 2 == 0 {
+                full_samples[sample] = measure_full_snapshot(&sequencer);
+                compact_samples[sample] = measure_compact_view(&sequencer);
+            } else {
+                compact_samples[sample] = measure_compact_view(&sequencer);
+                full_samples[sample] = measure_full_snapshot(&sequencer);
+            }
+        }
+
+        full_samples.sort_unstable();
+        compact_samples.sort_unstable();
+        let full_ns = full_samples[SAMPLES / 2];
+        let compact_ns = compact_samples[SAMPLES / 2];
+        let previous_slot_work_ns = full_ns * 2;
+        let compact_slot_work_ns = compact_ns;
+        let saved_ns = previous_slot_work_ns.saturating_sub(compact_slot_work_ns);
+
+        println!(
+            "YM2413_EG_SLOT_VIEW_AB iterations={ITERATIONS} samples={SAMPLES} full_snapshot_ns={full_ns} compact_view_ns={compact_ns} old_two_snapshot_slot_ns={previous_slot_work_ns} new_compact_slot_ns={compact_slot_work_ns} estimated_saved_ns_per_slot={saved_ns} snapshot_work_speedup={:.3}x",
+            previous_slot_work_ns as f64 / compact_slot_work_ns.max(1) as f64
+        );
+    }
+
+    #[test]
     fn compact_slot_view_matches_full_serializable_state() {
         let mut sequencer = EnvelopeSequencer::new();
 
