@@ -1,9 +1,10 @@
 //! Behavioral retention of measured YM2413 Rhythm Mode output values.
 //!
 //! This module models the externally observed duplicate emissions. It does
-//! not claim a particular physical shift-register implementation, convert
-//! operator samples into DAC codes, advance chip clocks, or model MO/RO pulse
-//! widths and analog circuitry.
+//! not claim a particular physical shift-register implementation, synthesize
+//! operator samples, advance chip clocks, or model MO/RO pulse widths and
+//! analog circuitry. Its explicit channel-latch conversion targets the
+//! measured amplitude domain, not a raw DAC input word.
 
 use crate::slot::{YM2413_RHYTHM_OUTPUT_MAP, YM2413_SLOT_COUNT, Ym2413RhythmVoice};
 
@@ -19,8 +20,10 @@ pub const YM2413_RHYTHM_OUTPUT_DELAY_STATE_VERSION: u16 = 2;
 /// The measured amplitude values span `-255..=+255`. Andete's 2015-03-05
 /// oversampled capture resolved two separate central peaks, interpreted in
 /// the follow-up as `-0` and `+0`. This token preserves that distinction for
-/// output retention. It is not the raw nine-bit DAC input word, and it does
-/// not define a conversion from the operator's one's-complement `i16` value.
+/// output retention. It is not the raw nine-bit DAC input word. The
+/// explicit `from_operator_channel_output` conversion maps the operator's
+/// one's-complement channel latch into this measured domain; it does not
+/// establish an analog transfer function or voltage calibration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ym2413DacCode {
     value: i16,
