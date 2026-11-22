@@ -152,7 +152,7 @@ jobs:
             CAPTURE="$RUNNER_TEMP/andete-ym2413/analyze/volume/volume${VOLUME}.out"
             EVENTS="tools/ym2413-nuked-oracle/fixtures/volume${VOLUME}-capture-events.csv"
             SAMPLE_COUNT=$(wc -w < "$CAPTURE")
-            CALLS=$((601 + (SAMPLE_COUNT + PHASE_SEARCH + 1) * 18))
+            CALLS=$((264 + (SAMPLE_COUNT + PHASE_SEARCH + 1) * 18))
             "$RUNNER_TEMP/ym2413-nuked-trace" \
               --calls "$CALLS" \
               --events "$EVENTS" \
@@ -160,8 +160,8 @@ jobs:
             python3 tools/ym2413-nuked-oracle/compare_volume_capture.py \
               --trace "$RUNNER_TEMP/volume${VOLUME}-nuked-output.jsonl" \
               --capture "$CAPTURE" \
-              --capture-start-call 601 \
-              --initial-keyon-call 296 \
+              --capture-start-call 264 \
+              --initial-keyon-call 243 \
               --phase-search "$PHASE_SEARCH" \
               --output "$RUNNER_TEMP/volume${VOLUME}-nuked-differential.json"
             cat "$RUNNER_TEMP/volume${VOLUME}-nuked-differential.json"
