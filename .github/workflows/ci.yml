@@ -755,6 +755,10 @@ jobs:
             Write-Host "PASS $file"
           }
 
+      - name: Exercise YM2413 A/B statistics parser
+        shell: pwsh
+        run: ./scripts/benchmark/tests/test_summarize-ym2413-real-game-ab.ps1
+
       - name: Parse embedded Windows PowerShell dialogs in Slint host
         shell: pwsh
         run: |
