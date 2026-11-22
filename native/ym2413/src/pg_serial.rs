@@ -1966,7 +1966,7 @@ mod tests {
             slot_context.rm_select = selector as u8;
             slot_context.envelope_input.rhythm_select = selector;
             slot_context.event =
-                nuked_slot_service_event_with_testmode(cycle, 0xff, slot_context.event.eg_dokon, 0)
+                nuked_slot_service_event_with_testmode(cycle, 0xff, 0, 0)
                     .unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
