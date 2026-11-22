@@ -110,7 +110,7 @@ class OutputTraceValidationTests(unittest.TestCase):
                 '{"call_index":%d,"cycle_before":%d,"ch_out_before":%d,"output_pins_m":%d,"output_pins_r":-1}'
                 % (call_index, cycle, channel_output, output_pin)
             )
-        return StringIO("\\n".join(rows) + "\\n")
+        return StringIO("\n".join(rows) + "\n")
 
     def test_accepts_contiguous_full_slot_scan(self):
         bins, diagnostics = read_output_trace(self.make_trace(), scan_calls=18, capture_start_call=0)
