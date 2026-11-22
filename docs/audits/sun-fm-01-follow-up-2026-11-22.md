@@ -64,7 +64,7 @@ A PR #1208 passou nos checks SMS Runtime Release format/Clippy/tests e Rust work
 
 ## 2. Consolidação das PRs de ROM real
 
-A PR #1217 integrou a consolidação sobre a main atual. Inclui Kenseiden Japan e Phantasy Star Japan Rev 1, verifica SHA-256, testa FM não nulo/alinhamento FM+PSG/PCM na sessão de produção, captura escritas F0/F1/F2 antes de reset e adiciona o teste CPAL físico opt-in. CI passou, incluindo compilação Windows do teste CPAL com --no-run. O teste de gameplay e o teste CPAL físico continuam não executados porque dependem de ROMs locais e dispositivo do usuário.
+A PR #1217 integrou a consolidação sobre a main atual. Inclui Kenseiden Japan e Phantasy Star Japan Rev 1, verifica SHA-256, testa FM não nulo/alinhamento FM+PSG/PCM na sessão de produção e adiciona o teste CPAL físico opt-in. A captura inicial de F0/F1/F2 era um probe pré-execução limitado e sujeito a sobrescrita do trace; esta branch substitui essa abordagem por contadores diretos no caminho de conclusão do barramento durante a execução real. CI passou, incluindo compilação Windows do teste CPAL com --no-run. O teste de gameplay e o teste CPAL físico continuam não executados porque dependem de ROMs locais e dispositivo do usuário.
 
 As PRs antigas #1188 e #1193 foram encerradas como substituídas por #1217.
 
@@ -97,6 +97,7 @@ $env:SEGA_SMS_FM_TEST_ROM_DIR = "D:\ROMs\SMS-FM"
 $env:SEGA_SMS_FM_TEST_REGION = "japan"
 $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1"
 $env:SEGA_SMS_FM_TEST_FRAMES = "1800"
+$env:SEGA_SMS_FM_TEST_WAV_DIR = "D:\\SUN-FM-Captures" # opcional: FM, PSG e PCM final em WAV float
 
 cargo test --release --locked -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
 cargo test --release --locked -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns -- --ignored --nocapture
