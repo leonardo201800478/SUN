@@ -2534,7 +2534,14 @@ fn execute_frame_with_renderer(
     // Keep the legacy PSG FIFO bounded in both modes. H2 consumes events from
     // this same Scheduler-driven PSG instance; it never runs a second PSG.
     let psg_samples = machine.drain_audio_samples(None);
-    let fm_samples = machine.drain_fm_audio_samples(None);
+    let fm_samples = if machine.ym2413().is_some()
+        && audio_renderer.fm_output_policy == SmsFmOutputPolicy::Muted
+    {
+        machine.discard_fm_audio_samples();
+        Vec::new()
+    } else {
+        machine.drain_fm_audio_samples(None)
+    };
     let mut use_h2 = false;
     if audio_renderer.mode == AudioRendererMode::H2Experimental {
         machine.drain_psg_amplitude_events(&mut audio_renderer.events);
