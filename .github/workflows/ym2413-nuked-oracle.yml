@@ -129,12 +129,12 @@ jobs:
           with open(sys.argv[1], encoding="utf-8") as stream:
               rows = [json.loads(line) for line in stream]
           assert len(rows) == 21, len(rows)
-          assert rows[0]["schema"] == "ym2413-nuked-opll-output-trace-v1"
+          assert rows[0]["schema"] == "ym2413-nuked-opll-output-trace-v2"
           assert rows[0]["sample_point"] == "after_OPLL_Clock"
           samples = rows[1:]
           assert [row["call_index"] for row in samples] == list(range(20))
           assert [row["cycle_before"] for row in samples[:18]] == list(range(18))
-          assert all({"ch_out", "output_pins_m", "output_pins_r"} <= row.keys() for row in samples)
+          assert all({"ch_out_before", "output_pins_m", "output_pins_r"} <= row.keys() for row in samples)
           PY
 
       - name: Checkout pinned Andete volume capture
