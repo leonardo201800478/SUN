@@ -20,10 +20,9 @@ use sega_audio_runtime::{
 use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher};
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
-    ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsOverscanMode,
-    SmsFmPortWriteSnapshot, SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent,
-    SmsVdpProfile,
-    SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
+    ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsFmPortWriteSnapshot,
+    SmsOverscanMode, SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent,
+    SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 #[cfg(windows)]
