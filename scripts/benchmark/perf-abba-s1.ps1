@@ -105,6 +105,31 @@ foreach ($step in $sequence) {
         if (-not $?) {
             throw "O harness retornou falha na etapa $($step.label)."
         }
+
+        # Cargo may rewrite Cargo.lock package-table ordering even with --locked.
+        # The campaign began with a clean tree, so preserve the generated diff as
+        # an artifact and restore only when Cargo.lock is the sole modified path.
+        $postRunStatus = @(& git -C $repoRoot status --porcelain)
+        if ($postRunStatus.Count -gt 0) {
+            if ($postRunStatus.Count -ne 1 -or $postRunStatus[0].Trim() -ne "M Cargo.lock") {
+                throw "O benchmark alterou arquivos inesperados no working tree: $($postRunStatus -join '; ')"
+            }
+
+            $lockDiffPath = Join-Path $stepOutput "cargo-lockfile-generated.diff"
+            & git -C $repoRoot diff --binary -- Cargo.lock | Set-Content -LiteralPath $lockDiffPath -Encoding UTF8
+            if ($LASTEXITCODE -ne 0) {
+                throw "Não foi possível preservar o diff gerado de Cargo.lock."
+            }
+            & git -C $repoRoot restore --worktree -- Cargo.lock
+            if ($LASTEXITCODE -ne 0) {
+                throw "Não foi possível restaurar Cargo.lock após preservar o diff."
+            }
+            $remainingStatus = @(& git -C $repoRoot status --porcelain)
+            if ($remainingStatus.Count -gt 0) {
+                throw "O working tree permaneceu modificado após restaurar Cargo.lock: $($remainingStatus -join '; ')"
+            }
+        }
+
         Get-Content -LiteralPath $stepLog | Tee-Object -FilePath $campaignLog -Append | Out-Host
 
         $manifestFiles = @(Get-ChildItem -LiteralPath $stepOutput -Filter "manifest.json" -File -Recurse)
