@@ -1,13 +1,13 @@
 # YM2413 FM Completion Scorecard
 
-**Data de referência:** 2026-11-21
+**Data de referência:** 2026-11-22
 **Repositório:** `leonardo201800478/SUN`
-**Main atual pós-PR #1175:** `c42511f3e800f6e542ea83736cd835c0ebe38724`
+**Main atual pós-PR #1176:** `d7ab73808fca2d3e28068ba24192a92cf55d3c6a`
 
 **Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
-## Estado executivo atual — main pós-PR #1175 (2026-11-21)
+## Estado executivo atual — main pós-PR #1176 (2026-11-22)
 
 **Integração de runtime publicada; fidelidade física ainda aberta.**
 
@@ -25,6 +25,7 @@
 | #1170 | Readback F2 preserva D3–D0 e valida os quatro modos PSG/FM | `8836ec3f716c19450736bfd4878790c1d6f6ee52` |
 | #1172 | Separa presença física do YM2413 do território; remove inferência automática por região | `67752c9d4ff32cc7162b5045ddfad61dbc1a9075` |
 | #1175 | Expõe e persiste no desktop o perfil físico Japanese SMS FM e FmMode Auto/On/Off | `c42511f3e800f6e542ea83736cd835c0ebe38724` |
+| #1176 | Ferramenta reproduzível para auditar ADC→histograma→picos→bins; sem inferência de palavra DAC | `d7ab73808fca2d3e28068ba24192a92cf55d3c6a` |
 
 ### Estado real do caminho de áudio
 
@@ -50,16 +51,16 @@
 - **C-Sync:** readback D7–D5 bloqueado até a exposição de um pulso de hardware verificável.
 - **ROMs reais:** Phantasy Star e Kenseiden foram recebidas e hash-conferidas, mas ainda não há evidência de boot prolongado, jogo, áudio, FPS e estabilidade no emulador.
 
-### Validação exata da main após PR #1175
+### Validação exata da main após PR #1176
 
-- CI run `44965236232`: **SUCCESS** — workspace regression, Slint/WGPU 30 Vulkan POC, SDL3 Windows e demais jobs aplicáveis concluídos sem falhas.
-- SMS Debugger Runtime run `44965236192`: **SUCCESS** — rustfmt, Clippy, testes Release do SMS runtime e build Windows x64 aprovados.
-- A PR #1175 adicionou persistência e testes das preferências FM; o job Windows/CPAL foi corretamente classificado como não aplicável porque não houve alteração no backend de saída física.
-- O baseline DP0 Release A/B anterior permanece o último benchmark aplicável; a PR #1175 alterou somente a camada desktop/preferences.
+- CI run `44967171574`: **SUCCESS** — job dedicado de reconstrução de captura YM2413, validação de workflows, higiene documental e quality gate aprovados.
+- O job FM-5.4 executou 10 testes unitários e `compileall`; os fixtures são sintéticos e validam somente o algoritmo reproduzido.
+- A PR #1176 não alterou núcleo YM2413, Scheduler, runtime SMS, PCM, mixer ou CPAL; os jobs de hardware/runtime foram corretamente classificados como não aplicáveis.
+- O baseline DP0 Release A/B anterior permanece o último benchmark aplicável.
 
 ### Próxima sequência recomendada
 
-1. Executar FM-5.4: reproduzir a cadeia ADC→histograma→picos→bins com o artefato original de calibração ou nova captura em hardware, registrando picos observados e inseridos separadamente. A ferramenta offline `tools/ym2413-dac-capture-audit/` reproduz o algoritmo de `calibrate.cc`, mas seus fixtures sintéticos não certificam o hardware.
+1. Recuperar o artefato original `calibrate.raw` e os limites `.peaks/.bins` da revisão fixada, ou repetir a calibração no hardware. Os arquivos `volume*.raw` não substituem a captura de 60.000 amostras usada na calibração. Reproduzir a cadeia com `tools/ym2413-dac-capture-audit/` e registrar separadamente picos detectados e midpoint inserido.
 2. Validar a aquisição Timer0 por clock: zero ADC overflow, contagem de amostras igual à de triggers, ausência de perda/reordenação DMA e fase conhecida. As capturas atuais a 50 kHz e Timer1/72 não resolvem os 18 slots nem os subclocks.
 3. Estabelecer independentemente a correspondência entre o latch do operador, níveis medidos MO/RO e palavra de entrada do DAC. Não inferir shift, máscara, extensão de sinal ou conversão do `i16`.
 4. Preservar MO/RO separadamente e manter o PCM mono atual explicitamente como compatibilidade de referência até existir modelo de placa sustentado por evidência.
@@ -67,7 +68,7 @@
 6. Validar Phantasy Star e Kenseiden com boot prolongado, jogo, áudio FM, FPS, underruns, estabilidade e Save State/Restore. A certificação final continua condicionada aos dois jogos.
 7. Expor a origem temporal de C-Sync pelo caminho de vídeo/315-5297 antes de implementar readback D7–D5. Não iniciar E8 do Z80.
 
-**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1175. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
+**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1176. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
 
 ---
 
