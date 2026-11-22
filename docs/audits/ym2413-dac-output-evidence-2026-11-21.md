@@ -240,3 +240,12 @@ Foi feita uma reprodução exploratória do algoritmo de `calibrate.cc` sobre o 
 Esse resultado não refuta a nota de 2015: `volume0.raw` é uma captura de varredura de volume, não o `calibrate.raw` de 60.000 amostras usado para gerar os limites publicados. Ele demonstra que não é válido substituir o artefato de calibração ausente por `volume0.raw` e declarar a tabela reproduzida.
 
 Para fechar a evidência de 512 bins é necessário recuperar o `calibrate.raw`, `.peaks` e `.bins` originais ou repetir a calibração no hardware, registrando explicitamente quantos picos foram observados e quantos foram inseridos pela heurística.
+
+
+## Historical volume-output decoder provenance and attenuation cross-check — 2026-11-22
+
+The `volume*.out` files were committed alongside their `.raw` captures in upstream commit `f1384d719d25b7dd170ab58eddbe7dccca993504` (2015-03-11). At that revision, `analyze/decode.cc` mapped each ADC sample through the calibration-bin table. The later 64-sample averaging, 512-sample averaging, and `select_channel` processing were added in later commits (2015-04-11, 2015-12-17, and 2019-12-31 respectively); the modern decoder must not be applied retroactively to explain the older `.out` files.
+
+A new analysis of all 16 `volume*.out` files computes the 1st and 99th percentiles and derives the amplitude relative to the two central bins (255/256). The resulting amplitudes exactly match the 2015-03-11 published table: 255, 181, 127, 90, 63, 45, 31, 22, 15, 11, 7, 5, 3, 2, 1, 1. This confirms the analog volume-attenuation measurements as represented by the calibrated bin indices. It does not establish the raw digital DAC word or the operator-to-DAC mapping.
+
+Artifact lengths are not perfectly aligned: `volume0.out` has two fewer tokens than `volume0.raw`, `volume12.out` one more, and `volume14.out` two fewer. The historical decoder source does not explain these differences. Preserve them as unresolved provenance details rather than silently trimming or padding the sequences.
