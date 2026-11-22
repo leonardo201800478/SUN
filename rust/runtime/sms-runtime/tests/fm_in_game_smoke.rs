@@ -265,25 +265,23 @@ const FM_TRACE_BATCH_INSTRUCTIONS: usize = 32;
 fn capture_startup_fm_port_writes(
     worker: &SmsTemporalWorker,
 ) -> Result<FmPortWriteCapture, String> {
-    worker.set_trace_enabled(true)?;
     let mut capture = FmPortWriteCapture::default();
-    let result = (|| {
-        for instruction in 0..FM_DIAGNOSTIC_INSTRUCTIONS {
-            worker.step_instruction()?;
-            if (instruction + 1) % FM_TRACE_BATCH_INSTRUCTIONS == 0 {
-                let snapshot = worker.debug_snapshot()?;
-                capture.observe(&snapshot.trace_events, snapshot.trace_dropped);
-            }
+    for instruction in 0..FM_DIAGNOSTIC_INSTRUCTIONS {
+        worker.step_instruction()?;
+        if (instruction + 1) % FM_TRACE_BATCH_INSTRUCTIONS == 0 {
+            let snapshot = worker.debug_snapshot()?;
+            capture.observe(
+                &snapshot.essential_trace_events,
+                snapshot.essential_trace_dropped,
+            );
         }
-        let snapshot = worker.debug_snapshot()?;
-        capture.observe(&snapshot.trace_events, snapshot.trace_dropped);
-        Ok(capture)
-    })();
-    let disable_result = worker.set_trace_enabled(false);
-    result.and_then(|capture| {
-        disable_result?;
-        Ok(capture)
-    })
+    }
+    let snapshot = worker.debug_snapshot()?;
+    capture.observe(
+        &snapshot.essential_trace_events,
+        snapshot.essential_trace_dropped,
+    );
+    Ok(capture)
 }
 
 fn is_sms_rom(path: &Path) -> bool {
