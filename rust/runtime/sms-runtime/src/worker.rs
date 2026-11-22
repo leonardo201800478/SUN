@@ -1955,6 +1955,10 @@ impl SmsTemporalWorker {
 
         let worker = thread::Builder::new()
             .name("sms-temporal-machine".to_owned())
+            // The complete SMS machine and its scheduler-driven frame path use
+            // substantial stack space in debug builds. Keep this isolated from
+            // the host thread's smaller default stack on Windows.
+            .stack_size(8 * 1024 * 1024)
             .spawn(move || {
                 let machine = match build_sms_temporal_machine_with_revision_bios_sram_size_and_fm(
                     rom.clone(),
