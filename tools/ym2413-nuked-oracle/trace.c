@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
         } else {
             fprintf(stderr,
                     "usage: %s --calls N [--events file.csv] [--chip-type 0] "
-                    "[--pg-only] [--pg-phase-only] [--output-only]\n", argv[0]);
+                    "[--pg-only] [--pg-phase-only] [--output-only] [--from-call N]\\n", argv[0]);
             free(events);
             return 2;
         }
@@ -249,6 +249,7 @@ int main(int argc, char **argv) {
 
         OPLL_Clock(&chip, output);
         if (output_only) {
+            if (tick >= from_call) {
             printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out_before\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
                    tick, cycle_before, (int)output_pipe_ch_out_before, (int)chip.output_m, (int)chip.output_r);
             }
