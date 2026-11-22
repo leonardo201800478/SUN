@@ -26,7 +26,9 @@ A PR #1251 remove do caminho do produto:
 - os métodos do `SmsTemporalWorker` que controlavam diretamente esse backend;
 - a fila FIFO de frames que existia exclusivamente para a sessão removida;
 - as features gráficas específicas da dependência Windows;
-- exemplos, ADRs e auditorias dedicados à implementação aposentada.
+- exemplos de smoke test e documentação operacional exclusiva do backend aposentado.
+
+ADRs, propostas e auditorias datadas permanecem preservadas como histórico, com classificação explícita de `SUPERSEDED`/`HISTÓRICO`. Esses registros não reativam o backend e não constituem validação da arquitetura Slint/WGPU.
 
 A PR preserva `VideoFrame`, `FrameMailbox` e a publicação de frames do runtime SMS. O host Slint/WGPU continua consumindo o contrato de frames sem transferir objetos gráficos para o runtime.
 
