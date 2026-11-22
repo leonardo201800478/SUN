@@ -2174,3 +2174,12 @@ Isso fortalece a evidência da resposta analógica por nível de volume, mas nã
 ### Limite adicional dos pares públicos raw/output
 
 A auditoria sample-index de `volume*.raw` contra `volume*.out` confirmou correspondência monotônica em 13 pares (volumes 1–11, 13 e 15), mas falhou em volumes 0, 12 e 14. Os pares válidos cobrem apenas bins 74..437; o único `.out` que cobre 0..511 (volume0.out) não se alinha ao seu `.raw`. Portanto, os arquivos públicos não permitem reconstruir a tabela completa de 512 limites de calibração. A tabela de atenuação continua válida como estatística dos `.out`, mas não como correlação amostra-a-amostra para os três pares inconsistentes.
+
+
+### Reconstrução por pares raw/output — atualização FM-5.4
+
+A análise aprofundada resolveu os três desalinhamentos por offsets de sequência de arquivo: volume0=-2, volume12=+1 e volume14=-2; os outros 13 usam offset 0. Após a correção, os 16 pares totalizam 320.635 amostras alinhadas, sem conflitos de ADC repetido nem violações de monotonicidade.
+
+Os pares observam 511 dos 512 bins (0..511, exceto bin 57). São obtidos intervalos de restrição para 509 fronteiras adjacentes; 147 fronteiras ficam exatas e as demais têm largura mediana de 32 códigos ADC, p90=84 e máximo=157. As duas fronteiras adjacentes ao bin 57 não são observáveis. O resultado está preservado em `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`.
+
+Isso é uma reconstrução quase completa de **intervalos de fronteira ADC**, não a recuperação exata de `calibrate.bins` ou `calibrate.raw`. O dado não expõe a palavra DAC de 9 bits. O próximo gate pode usar esses intervalos para testar a correspondência entre a saída digital do operador e os níveis analógicos medidos, sem afirmar que a codificação interna do DAC foi observada.
