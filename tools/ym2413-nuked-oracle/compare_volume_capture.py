@@ -304,7 +304,17 @@ def read_output_trace(
         raise ValueError(
             f"unexpected trace schema: {header.get('schema')!r}; expected {TRACE_SCHEMA!r}"
         )
+    if header.get("time_unit") != "opll_clock_call":
+        raise ValueError("trace time_unit must be 'opll_clock_call'")
+    if header.get("sample_point") != "after_OPLL_Clock":
+        raise ValueError("trace sample_point must be 'after_OPLL_Clock'")
+    if scan_calls <= 0:
+        raise ValueError("scan_calls must be positive")
+    if capture_start_call < 0:
+        raise ValueError("capture_start_call must be non-negative")
 
+    expected_call_index = capture_start_call
+    scanned_calls = 0
     nonzero_counts = [0] * SLOT_COUNT
     maximum_magnitudes = [0] * SLOT_COUNT
     channel_output_by_cycle: list[list[int]] = [[] for _ in range(SLOT_COUNT)]
@@ -328,6 +338,18 @@ def read_output_trace(
                 f"invalid trace record on line {line_number}: {error}"
             ) from error
 
+        if call_index != expected_call_index:
+            raise ValueError(
+                f"non-contiguous trace call index on line {line_number}: "
+                f"expected {expected_call_index}, got {call_index}"
+            )
+        expected_call_index += 1
+        expected_cycle = call_index % SLOT_COUNT
+        if cycle != expected_cycle:
+            raise ValueError(
+                f"trace cycle mismatch on line {line_number}: "
+                f"call {call_index} requires cycle {expected_cycle}, got {cycle}"
+            )
         if not 0 <= cycle < SLOT_COUNT:
             raise ValueError(
                 f"trace cycle on line {line_number} is outside 0..17: {cycle}"
@@ -344,6 +366,7 @@ def read_output_trace(
             )
 
         if scan_start <= call_index < scan_end:
+            scanned_calls += 1
             magnitude = abs(output_m)
             if magnitude > 1:
                 nonzero_counts[cycle] += 1
@@ -354,10 +377,18 @@ def read_output_trace(
             pin_output_by_cycle[cycle].append(output_m)
             rhythm_by_cycle[cycle].append(output_r)
 
+    if scanned_calls != scan_calls:
+        raise ValueError(
+            f"trace covers {scanned_calls} of {scan_calls} requested slot-scan calls"
+        )
+    if expected_call_index == capture_start_call:
+        raise ValueError("trace contains no output samples")
     sample_cycle = select_sample_cycle(nonzero_counts, maximum_magnitudes)
     channel_outputs = channel_output_by_cycle[sample_cycle]
     pin_outputs = pin_output_by_cycle[sample_cycle]
     rhythm_outputs = rhythm_by_cycle[sample_cycle]
+    if not channel_outputs or len(channel_outputs) != len(pin_outputs):
+        raise ValueError("trace has no complete MO samples for the selected slot")
     model_bins = [
         candidate_bin_from_channel_output(value) for value in channel_outputs
     ]
