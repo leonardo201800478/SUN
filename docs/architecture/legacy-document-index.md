@@ -10,7 +10,6 @@ Este índice evita que documentos históricos sejam confundidos com contratos de
 | Documento | Classificação | Uso permitido |
 |---|---|---|
 | `architecture/egui-frontend-debug-ui.md` | HISTÓRICO / SUPERSEDED | Referência de organização de menus e diagnósticos |
-| `architecture/native-gui-d3d12-egui-composition.md` | HISTÓRICO / SUPERSEDED | Histórico de composição do host D3D12 |
 | `architecture/qt-frontend-functional-model.md` | HISTÓRICO / SUPERSEDED | Requisitos conceituais somente após revalidação |
 | `architecture/qt-frontend-target-architecture.md` | HISTÓRICO / SUPERSEDED | Não usar como arquitetura-alvo |
 | `architecture/qt-sms-input-settings.md` | HISTÓRICO / SUPERSEDED | Referência de UI antiga |
@@ -24,12 +23,12 @@ Este índice evita que documentos históricos sejam confundidos com contratos de
 
 ## ADRs históricas
 
-ADRs de egui/eframe, D3D12 e Qt devem permanecer para rastreabilidade de decisões anteriores. Sua autoridade depende do estado/status explícito e da precedência registrada em [ADRs](../adr/README.md), [arquitetura atual](../architecture.md) e [ADR 0011](../adr/0011-slint-wgpu-cpal-desktop-platform.md).
+ADRs de egui/eframe e Qt permanecem para rastreabilidade de decisões anteriores. Sua autoridade depende do estado/status explícito e da precedência registrada em [ADRs](../adr/README.md), [arquitetura atual](../architecture.md) e [ADR 0011](../adr/0011-slint-wgpu-cpal-desktop-platform.md).
 
 ## Regras de preservação
 
 - Não apagar histórico técnico, resultados ou decisões antigas.
 - Não implementar funcionalidades novas em hosts aposentados.
-- Não tratar validação de Qt/egui/D3D12 como validação do host Slint/WGPU.
+- Não tratar validação de Qt/egui como validação do host Slint/WGPU.
 - Antes de remover módulos legados, mapear consumidores, features, workspaces, testes e workflows.
 - Portar seletivamente regras de hardware ainda válidas; nunca copiar um runtime antigo inteiro para criar uma segunda implementação.
