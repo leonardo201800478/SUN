@@ -346,6 +346,10 @@ pub struct Ym2413PgSerialService {
     previous_channel_output_is_rhythm: bool,
     last_output_frame: Option<Ym2413CoreOutputPipelineFrame>,
     measured_output_adapter: Ym2413MeasuredOutputAdapter,
+    /// Slot ownership is resolved once before EG and consumed after EG.
+    /// This value is transient: the two hooks execute synchronously inside one
+    /// core slot, so it is always empty at save-state boundaries.
+    pending_dispatch: Option<Ym2413SerialSlotDispatch>,
     /// Test-only switch that restores the pre-optimization duplicate dispatch
     /// for an in-process Release A/B measurement.
     #[cfg(test)]
@@ -376,6 +380,7 @@ impl Ym2413PgSerialService {
             previous_channel_output_is_rhythm: false,
             last_output_frame: None,
             measured_output_adapter: Ym2413MeasuredOutputAdapter::new(),
+            pending_dispatch: None,
             #[cfg(test)]
             benchmark_duplicate_dispatch: false,
         }
@@ -603,6 +608,7 @@ impl Ym2413PgSerialService {
             previous_channel_output_is_rhythm: state.previous_channel_output_is_rhythm,
             last_output_frame: state.last_output_frame,
             measured_output_adapter,
+            pending_dispatch: None,
             #[cfg(test)]
             benchmark_duplicate_dispatch: false,
         })
@@ -925,6 +931,9 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
+        if self.pending_dispatch.is_some() {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
         let dispatch = dispatch_serial_slot(
             context.event.cycle,
             &context.registers,
@@ -932,6 +941,11 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             context.envelope_input.rhythm_select,
         )
         .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
+        // The post-EG hook consumes this exact decision. The slot context is
+        // immutable across both hooks, so resolving ownership again would
+        // repeat descriptor lookup and RHY/selector validation without adding
+        // information.
+        self.pending_dispatch = Some(dispatch);
         let descriptor = match dispatch {
             Ym2413SerialSlotDispatch::Melodic { slot }
                 if slot == context.event.selected_operator =>
@@ -1046,14 +1060,11 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             self.clock_pm_lfo(testmode);
         }
         self.clock_rhythm_noise(context)?;
-        match dispatch_serial_slot(
-            context.event.cycle,
-            &context.registers,
-            context.rm_enable,
-            context.envelope_input.rhythm_select,
-        )
-        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?
-        {
+        let dispatch = self
+            .pending_dispatch
+            .take()
+            .ok_or(Ym2413PgSerialError::InvalidState)?;
+        match dispatch {
             // Reuse the descriptor resolved by this dispatch. The latch helper
             // must not dispatch the same immutable slot context a second time.
             Ym2413SerialSlotDispatch::Melodic { slot }
