@@ -114,4 +114,4 @@ Esta ADR autoriza a POC, não declara migração implementada. Conclusões exige
 
 R2 (frames SMS) e R3 (CPAL 0.18.2) estão integradas em software. A primeira fatia R4 (SDL3/input runtime no desktop Slint) foi integrada pela PR #867. Esses estados não significam aceite físico completo: Vulkan/lifecycle, reprodução prolongada/hotplug/underruns e controles reais/remapeamento ainda exigem evidência no HEAD atual. R5 permanece parcial.
 
-O host anterior egui/D3D12 não é mais caminho ativo do produto. Código remanescente deve ser inventariado como legado e removido somente após verificar todos os consumidores e workspaces. Esta ADR não autoriza reativar nem desenvolver o host anterior.
+O host anterior egui/Qt foi aposentado. Slint/WGPU/CPAL é a única plataforma desktop autorizada para o produto; não manter backends gráficos paralelos.
