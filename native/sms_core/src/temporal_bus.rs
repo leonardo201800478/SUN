@@ -1035,8 +1035,7 @@ impl SmsTemporalBus {
 
     /// Take the YM2413 advance time accumulated since the previous reset.
     pub fn take_ym2413_advance_elapsed_ns(&mut self) -> u64 {
-        std::mem::take(&mut self.ym2413_advance_elapsed_ns)
-            .min(u128::from(u64::MAX)) as u64
+        std::mem::take(&mut self.ym2413_advance_elapsed_ns).min(u128::from(u64::MAX)) as u64
     }
 
     fn advance_ym2413(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
