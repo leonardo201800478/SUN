@@ -1,6 +1,6 @@
 # SUN V2 — Architecture Charter
 
-- **Status:** PROPOSED — requires owner approval before becoming normative ADR.
+- **Status:** PROPOSED — execution direction approved by project owner; becomes normative after PR merge.
 - **Created:** 2026-11-22.
 - **Repository baseline:** `main` at `30420fde1510d84834ed4e776f1a1bd1a5503b78`.
 - **Scope:** architecture, engineering constraints and delivery gates for the Sega 8-bit family, then Mega Drive, Sega CD and 32X.
@@ -89,6 +89,7 @@ Time representation (`u64`, machine master ticks, divisors and wrap policy) must
 
 Every component must have:
 - a release-mode benchmark representative of real gameplay;
+- targets recorded in [SUN V2 performance targets](sun-v2-performance-targets.md), separating SMS 400 FPS, Megazord 100 FPS and the product's 60 FPS real-time requirement;
 - a microbenchmark for its measured hot path where useful;
 - a profiler capture identifying top costs;
 - an allocation/copy/dispatch review;
@@ -96,11 +97,14 @@ Every component must have:
 - a differential correctness test;
 - a stated budget and regression threshold.
 
-Initial CPU strategy:
-1. Establish an optimized interpreter baseline with dense dispatch, precomputed tables and minimized repeated work.
-2. Profile representative games and identify whether instruction dispatch/decode is actually dominant.
-3. The current repository policy does not authorize JIT. Do not add a JIT or dynamic recompiler in this charter. Reconsider it only through a superseding, owner-approved ADR after profiling proves the optimized interpreter cannot meet the gameplay performance gate.
-4. Reject complexity that does not improve end-to-end gameplay.
+Initial CPU strategy — owner-approved direction:
+1. Start the SMS implementation at **F2: predecoded instruction/block cache**, retaining the existing interpreter as the semantic executor and fallback.
+2. F2 caches decoded metadata; it does not generate native machine code and is not a JIT.
+3. Cache validity must account for writes to executable RAM, mapper/bank changes, reset and state restoration. Blocks must exit at every scheduler/event horizon or observable bus boundary.
+4. Preserve instruction results, flags, cycle accounting, bus ordering, WAIT/IRQ behavior, suspend/resume and deterministic save-state/replay semantics.
+5. **F3: dynamic native-code compilation** is the contingency if the validated F2 SMS benchmark misses its 400 FPS throughput target and profiling confirms CPU decode/dispatch/execution is a material bottleneck. If another subsystem is the bottleneck, fix that subsystem rather than adding a JIT that cannot address it.
+6. F3 must retain the interpreter as fallback/oracle and be isolated behind a feature/architecture boundary. Its implementation requires a separate task specification and differential validation.
+7. The detailed decision and acceptance protocol are recorded in [ADR-0017](adr/0017-f2-decoded-block-cache-and-f3-contingency.md).
 
 No global fast-math, clock approximation, frame skipping, reduced hardware semantics, target-cpu=native distribution, or unvalidated SIMD.
 
@@ -148,7 +152,7 @@ A change is not complete because it compiles. Its PR must include:
 - Universal Z80/VDP/PSG/FM compliance beyond supported game needs.
 - SC-3000 as a platform.
 - Copying or translating BlastEm source.
-- Premature JIT or SIMD.
+- JIT before the F2 benchmark gate and profiling evidence;
 - Parallel CPUs, schedulers, workers or duplicate pipelines for convenience.
 - Rewriting already validated subsystems without evidence.
 - Implementing debugger-only chip behavior as a prerequisite for gameplay.
