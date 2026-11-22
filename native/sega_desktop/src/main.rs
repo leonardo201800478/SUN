@@ -36,10 +36,7 @@ mod windows_host {
     use sega_save_runtime::SaveRamStore;
     use sega_sg1000_runtime::Sg1000TemporalWorker;
     use sega_sms_core::ControllerButtons;
-    use sega_sms_runtime::{
-        AnalogOutputConfig, AudioRendererMode, SmsFmOutputPolicy, SmsTemporalWorker,
-        SmsVdpRevision,
-    };
+    use sega_sms_runtime::{AnalogOutputConfig, AudioRendererMode, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision};
     use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
     use std::os::windows::process::CommandExt;
     use zip::ZipArchive;
@@ -1422,9 +1419,7 @@ mod windows_host {
             }
             FmMode::On if has_integrated_fm => SmsFmOutputPolicy::Enabled,
             FmMode::On => {
-                return Err(
-                    "FM On exige uma placa física com YM2413 integrado.".to_owned(),
-                );
+                return Err("FM On exige uma placa física com YM2413 integrado.".to_owned());
             }
             FmMode::Off => SmsFmOutputPolicy::Muted,
         };
@@ -3983,10 +3978,8 @@ mod windows_host {
         let worker_settings = SmsWorkerSettings {
             region: region.clone(),
             sms_system: preferences.selected_system.clone(),
-            fm_board_profile: SmsFmBoardProfile::from_preference(
-                &preferences.sms_fm_board_profile,
-            )
-            .unwrap_or_default(),
+            fm_board_profile: SmsFmBoardProfile::from_preference(&preferences.sms_fm_board_profile)
+                .unwrap_or_default(),
             fm_mode: FmMode::from_preference(&preferences.sms_fm_mode).unwrap_or_default(),
             firmware_directory: preferences.firmware_directory.clone(),
             firmware_boot_enabled: preferences.firmware_boot_enabled,
@@ -4861,12 +4854,10 @@ mod windows_host {
                     .unwrap_or_default()
                     .preference_id()
                     .to_owned(),
-                    sms_fm_mode: FmMode::from_preference(
-                        &app.get_selected_fm_mode().to_string(),
-                    )
-                    .unwrap_or_default()
-                    .preference_id()
-                    .to_owned(),
+                    sms_fm_mode: FmMode::from_preference(&app.get_selected_fm_mode().to_string())
+                        .unwrap_or_default()
+                        .preference_id()
+                        .to_owned(),
                     firmware_directory: app.get_firmware_directory().to_string(),
                     firmware_boot_enabled: app.get_firmware_boot_enabled(),
                     firmware_brazil_selected: app.get_firmware_brazil_selected().to_string(),
@@ -5482,7 +5473,10 @@ mod windows_host {
             let preferences = DesktopPreferences::default();
             assert_eq!(preferences.sms_fm_board_profile, "none");
             assert_eq!(preferences.sms_fm_mode, "auto");
-            assert_eq!(SmsFmBoardProfile::from_preference("japanese-integrated"), Some(SmsFmBoardProfile::JapaneseIntegrated));
+            assert_eq!(
+                SmsFmBoardProfile::from_preference("japanese-integrated"),
+                Some(SmsFmBoardProfile::JapaneseIntegrated)
+            );
             assert_eq!(FmMode::from_preference("off"), Some(FmMode::Off));
             assert_eq!(FmMode::from_preference("invalid"), None);
         }
@@ -5533,13 +5527,8 @@ mod windows_host {
         fn fm_on_requires_physical_hardware_and_off_keeps_the_chip_installed() {
             let rom = vec![0; 0x4000];
             assert!(
-                resolve_sms_fm_configuration(
-                    SmsFmBoardProfile::Generic,
-                    FmMode::On,
-                    "sms1",
-                    &rom,
-                )
-                .is_err()
+                resolve_sms_fm_configuration(SmsFmBoardProfile::Generic, FmMode::On, "sms1", &rom,)
+                    .is_err()
             );
             assert!(
                 resolve_sms_fm_configuration(
