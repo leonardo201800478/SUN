@@ -60,13 +60,13 @@ Os valores abaixo são médias das duas janelas diagnósticas de cinco segundos.
 | audio prepare médio | 0,001 ms | 0,001 ms | 0,091 ms |
 | audio submit médio | 0,001 ms | 0,001 ms | 0,001 ms |
 
-No cenário C, `audio_prepare` p99 médio foi 1,316 ms, com média de 0,091 ms; esse outlier não muda a conclusão do custo médio. O custo de preparo/submissão do áudio não explica a queda sustentada de throughput.
+No cenário C, `audio_prepare` p99 médio foi 1,316 ms, com média de 0,091 ms; esse outlier não muda a conclusão do custo médio. O custo de preparo/submissão do áudio não explica a queda sustentada de throughput. Importante: a métrica `ym2413_advance_ns` é cronometrada ao redor de `SmsTemporalBus::advance_ym2413` e inclui todo `advance_ym2413_inner` — loop de slots, chamadas ao core/serviço e captura de saída quando habilitada. Ela não isola somente o tempo interno de `Ym2413Core`.
 
 ## Interpretação
 
 1. **ThinLTO é vencedor para este host/carga.** O ganho de 11,23% no cenário B e 11,32% no cenário C é consistente entre as duas repetições. O desvio-padrão do cenário C ThinLTO foi 0,0668 FPS.
 2. **O mixer FM não é o gargalo dominante neste benchmark.** C ficou 0,2027 FPS abaixo de B em ThinLTO (aprox. -0,36%). O tempo médio de `audio_prepare` foi 0,091 ms e `audio_submit` aproximadamente 0,001 ms. Não há justificativa para reescrever o mixer com base neste resultado.
-3. **O custo de avanço YM2413 é o principal alvo medido.** Em ThinLTO, o avanço do chip consome aproximadamente 5,35–5,41 ms por frame na janela diagnóstica. O processamento total em B/C é aproximadamente 19,16 ms. A ativação do caminho FM eleva o processamento médio em cerca de 8,30 ms em relação a A na janela diagnóstica; os 5,35 ms medidos no avanço do chip são uma parcela importante, mas não explicam sozinhos toda a diferença. O restante não deve ser atribuído a uma função específica sem profiling por função.
+3. **O caminho temporal de avanço YM2413 é o principal alvo medido.** Em ThinLTO, `SmsTemporalBus::advance_ym2413` consome aproximadamente 5,35–5,41 ms por frame na janela diagnóstica; essa medição inclui o loop por slots, o core/serviço e a captura de saída, não sendo um perfil isolado do core. O processamento total em B/C é aproximadamente 19,16 ms. A ativação do caminho FM eleva o processamento médio em cerca de 8,30 ms em relação a A na janela diagnóstica; os 5,35 ms medidos no caminho de avanço são uma parcela importante, mas não explicam sozinhos toda a diferença. O restante não deve ser atribuído a uma função específica sem profiling por função.
 4. **O resultado não atende aos gates de desempenho.** O cenário C alcançou 56,7438 FPS de throughput headless, abaixo de 60 FPS em tempo real e muito abaixo da meta PERF-01 de 120 frames/s uncapped/headless com FM ativo.
 5. O diagnóstico registra que `Ym2413Core::advance_input_clocks_with_pg_service_in_place` é o caminho integrado. A autoridade temporal deve permanecer no MachineScheduler/barramento; não criar thread de clock FM independente.
 
