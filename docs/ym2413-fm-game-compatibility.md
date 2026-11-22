@@ -65,9 +65,11 @@ Esta relação deve orientar a seleção de ROMs para validação de áudio FM r
 
 ## 3. Exceções importantes: Phantasy Star e Ys
 
-**Phantasy Star** e **Ys** não fazem parte da relação de versões ocidentais com suporte FM.
+**Phantasy Star** e **Ys** são exceções: somente as versões japonesas possuem saída FM. As versões internacionais removeram o código FM para liberar espaço para o texto traduzido. Portanto, a ROM japonesa de Phantasy Star é um fixture válido para investigação FM; uma ROM ocidental não é.
 
-Segundo a informação registrada pelo mantenedor, o suporte FM foi removido das versões ocidentais para liberar espaço para o texto em inglês da tradução. O texto japonês original, que poderia ser acessado por modificação de região, também foi afetado por essa alteração.
+A página de compatibilidade do SMS Power confirma que o Phantasy Star original só possui saída FM em sua versão japonesa: https://www.smspower.org/Tags/FM. A página do jogo também lista trilhas separadas YM2413 e PSG: https://www.smspower.org/Games/PhantasyStar-SMS.
+
+A observação sobre texto japonês acessível por modificação de região refere-se às versões localizadas modificadas; não deve ser interpretada como ausência de FM na ROM japonesa original.
 
 A observação é especialmente relevante para a validação auditiva: esses dois títulos são apontados pelo mantenedor como exemplos em que a música FM é particularmente marcante, mas as ROMs ocidentais não devem ser usadas como prova de compatibilidade FM.
 
