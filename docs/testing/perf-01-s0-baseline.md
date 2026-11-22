@@ -78,7 +78,7 @@ The CSV records, per scenario:
 - PCM sample count submitted to the headless sink.
 - Committed YM2413 address/data write counters.
 
-The diagnostics pass reports the runtime's existing rolling p50/p95/p99 values for frame interval, worker step, total frame processing, video publication and audio submission. This pass is separate from the throughput pass because diagnostic instrumentation adds overhead.
+The diagnostics pass reports rolling p50/p95/p99, arithmetic mean, population standard deviation and maximum for frame interval, worker step, YM2413 advancement, total frame processing, video publication, audio preparation and audio submission. YM2413 advancement is timed inside the scheduler-owned machine step; the measurement is observational and does not move chip clocks or feed timing back into the Scheduler. This pass is separate from the throughput pass because diagnostic instrumentation adds overhead.
 
 ## Interpretation and next gaps
 
@@ -93,7 +93,7 @@ S0 remains open until:
 5. CPAL physical output, FIFO occupancy, underruns/drops and audible continuity are measured separately.
 6. The same run protocol is repeated sufficiently to establish variance.
 
-The present harness reports p50/p95/p99 for the worker's bounded 512-sample diagnostic window. It does not yet emit mean, standard deviation or maximum for each stage, nor a standalone YM2413 advancement distribution. Those are explicit remaining S0 tasks; they must not be inferred from throughput.
+The harness reports stage distributions from the worker's bounded 512-sample diagnostic window. Statistics describe the retained rolling window, not necessarily the entire diagnostic capture. These diagnostics add overhead and must not be mixed with the uninstrumented throughput pass.
 
 ## Safety constraints
 
