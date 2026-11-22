@@ -157,9 +157,8 @@ jobs:
               - 'native/sg1000_core/src/vdp.rs'
               - 'native/observability/**'
             cpal:
-              # Validate the CPAL backend and its audio-runtime dependency graph.
-              # SMS/FM PCM production is covered by SMS core/runtime validation;
-              # the deprecated eframe shell is not a dependency of this job.
+              # Validate the active CPAL backend and its audio-runtime dependency graph.
+              # SMS/FM PCM production is covered by SMS core/runtime validation.
               - 'native/audio_output/**'
               - 'native/audio_runtime/**'
               - 'native/observability/**'
