@@ -120,3 +120,10 @@ python3 tools/ym2413-dac-capture-audit/audit_capture.py volume0.raw --json volum
 ```
 
 The files are hosted in the pinned upstream revision under `analyze/volume/`.
+
+
+## Aggregate-histogram reconstruction limitation
+
+As a diagnostic, all 320,639 raw samples from the 16 volume captures were concatenated and passed through the same triangular-filter / peak-detection algorithm used by `audit_capture.py`. This produced 421 detected peaks plus 40 heuristic midpoint insertions: **461 bins**, not 512. None of the 509 paired-data boundary intervals contained the corresponding threshold from this aggregate-histogram reconstruction.
+
+This does not invalidate the sample-paired ADC→bin observations: those mappings are globally monotonic and conflict-free after the file-sequence offsets. It demonstrates that the volume captures have a different, non-uniform sample distribution from the dedicated calibration sweep and cannot be concatenated as a substitute for the missing `calibrate.raw` peak acquisition. The paired labels still constrain 509 boundaries, but the exact original peak centers and two boundaries around unobserved bin 57 remain unavailable.

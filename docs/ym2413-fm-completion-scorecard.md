@@ -2183,3 +2183,8 @@ A análise aprofundada resolveu os três desalinhamentos por offsets de sequênc
 Os pares observam 511 dos 512 bins (0..511, exceto bin 57). São obtidos intervalos de restrição para 509 fronteiras adjacentes; 147 fronteiras ficam exatas e as demais têm largura mediana de 32 códigos ADC, p90=84 e máximo=157. As duas fronteiras adjacentes ao bin 57 não são observáveis. O resultado está preservado em `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`.
 
 Isso é uma reconstrução quase completa de **intervalos de fronteira ADC**, não a recuperação exata de `calibrate.bins` ou `calibrate.raw`. O dado não expõe a palavra DAC de 9 bits. O próximo gate pode usar esses intervalos para testar a correspondência entre a saída digital do operador e os níveis analógicos medidos, sem afirmar que a codificação interna do DAC foi observada.
+
+
+### Diagnóstico agregado de histograma — 2026-11-22
+
+A concatenação dos 320.639 samples brutos das 16 capturas de volume e a execução do mesmo filtro triangular/detector de picos não reproduzem a calibração original: foram detectados 421 picos e inseridos 40 midpoints, totalizando 461 bins, e nenhum dos 509 intervalos observados contém o respectivo limite desse histograma agregado. Portanto, as capturas de volume não substituem `calibrate.raw`; a distribuição amostral é diferente da aquisição dedicada. Isso não invalida as correlações sample-paired, que permanecem monotônicas e sem conflitos após os offsets de arquivo.

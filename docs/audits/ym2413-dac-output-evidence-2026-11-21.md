@@ -266,3 +266,10 @@ The three apparent pairing failures are resolved by file-sequence offsets: volum
 Across 320,635 paired samples, 511 of 512 bins are observed (0..511 except bin 57). The observations constrain 509 adjacent-bin boundaries with no contradictions; 147 boundaries are exact, while the remaining intervals have p50 width 32 ADC codes, p90 84, p99 92 and maximum 157. The two boundaries adjacent to missing bin 57 remain unconstrained. The machine-readable intervals are stored in `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`.
 
 This is a near-complete constraint reconstruction of the historical ADC-bin table, not the original calibration file. Most boundaries are intervals rather than exact values, and no raw 9-bit DAC word is exposed. It is useful evidence for analog output-level analysis, not proof of the operator-to-DAC conversion.
+
+
+## Aggregate-histogram reconstruction limitation
+
+As a diagnostic, all 320,639 raw samples from the 16 volume captures were concatenated and passed through the same triangular-filter / peak-detection algorithm used by `audit_capture.py`. This produced 421 detected peaks plus 40 heuristic midpoint insertions: **461 bins**, not 512. None of the 509 paired-data boundary intervals contained the corresponding threshold from this aggregate-histogram reconstruction.
+
+This does not invalidate the sample-paired ADC→bin observations: those mappings are globally monotonic and conflict-free after the file-sequence offsets. It demonstrates that the volume captures have a different, non-uniform sample distribution from the dedicated calibration sweep and cannot be concatenated as a substitute for the missing `calibrate.raw` peak acquisition. The paired labels still constrain 509 boundaries, but the exact original peak centers and two boundaries around unobserved bin 57 remain unavailable.
