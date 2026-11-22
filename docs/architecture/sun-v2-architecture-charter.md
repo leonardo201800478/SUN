@@ -99,7 +99,7 @@ Every component must have:
 Initial CPU strategy:
 1. Establish an optimized interpreter baseline with dense dispatch, precomputed tables and minimized repeated work.
 2. Profile representative games and identify whether instruction dispatch/decode is actually dominant.
-3. Evaluate decoded-block caching or a dynamic recompiler only if the optimized interpreter misses the accepted performance gate. Any JIT requires a separate ADR, portability strategy, invalidation model, bus/MMIO exits, deterministic timing and a fallback interpreter.
+3. The current repository policy does not authorize JIT. Do not add a JIT or dynamic recompiler in this charter. Reconsider it only through a superseding, owner-approved ADR after profiling proves the optimized interpreter cannot meet the gameplay performance gate.
 4. Reject complexity that does not improve end-to-end gameplay.
 
 No global fast-math, clock approximation, frame skipping, reduced hardware semantics, target-cpu=native distribution, or unvalidated SIMD.
