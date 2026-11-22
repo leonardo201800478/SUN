@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
   workflow_dispatch:
@@ -222,7 +222,6 @@ jobs:
     name: Rust workspace regression
     needs: [changes]
     if: |
-      !(github.event_name == 'pull_request' && github.event.action == 'labeled' && ((github.event.label.name == 'refresh-cargo-lockfiles'))) &&
       ((github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) ||
        (github.event_name != 'workflow_dispatch' &&
         (needs.changes.outputs.other_rust == 'true' ||
@@ -607,7 +606,7 @@ jobs:
   docs-format:
     name: Documentation patch hygiene
     needs: [changes]
-    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.docs == 'true' && !(github.event.action == 'labeled' && (github.event.label.name == 'refresh-cargo-lockfiles'))
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -657,7 +656,7 @@ jobs:
   windows-slint-wgpu:
     name: Windows x64 Slint WGPU 30 Vulkan POC
     needs: [changes]
-    if: ${{ !(github.event_name == 'pull_request' && github.event.action == 'labeled' && (github.event.label.name == 'refresh-cargo-lockfiles')) && ((github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true')) }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true') }}
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
@@ -788,17 +787,11 @@ jobs:
     needs: [changes]
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') ||
-      (github.event_name != 'workflow_dispatch' &&
-       (needs.changes.outputs.scheduler == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') ||
-        contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') ||
-        (github.event.action == 'labeled' &&
-         (github.event.label.name == 'scheduler-stress-short' ||
-          github.event.label.name == 'scheduler-stress-long'))))
+      (github.event_name != 'workflow_dispatch' && needs.changes.outputs.scheduler == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SCHEDULER_STRESS_PROFILE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile || (contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') && 'long') || ((needs.changes.outputs.scheduler == 'true' || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') || github.event.label.name == 'scheduler-stress-short') && 'short') || 'long' }}
+      SCHEDULER_STRESS_PROFILE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile || 'short' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -821,7 +814,7 @@ jobs:
   refresh-lockfiles:
     name: Generate Cargo lockfiles (manual artifact; no repository writes)
     needs: [changes]
-    if: (github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles) || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'refresh-cargo-lockfiles')
+    if: github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -1047,7 +1040,7 @@ jobs:
       - refresh-lockfiles
       - windows-cpal-output
       - sms-pacing-rom-build
-    if: always() && !(github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles) && !(github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'refresh-cargo-lockfiles')
+    if: always() && !(github.event_name == 'workflow_dispatch' && inputs.refresh_cargo_lockfiles)
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any applicable validation failed or was cancelled
@@ -1076,7 +1069,7 @@ jobs:
           WINDOWS_SDL3_INPUT: ${{ needs.windows-sdl3-input.result }}
           EXPECT_WINDOWS_TOOLING: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles) || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.tooling == 'true' || needs.changes.outputs.slint_desktop == 'true')) }}
           WINDOWS_TOOLING: ${{ needs.windows-tooling.result }}
-          EXPECT_SCHEDULER: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') || (github.event_name != 'workflow_dispatch' && (needs.changes.outputs.scheduler == 'true' || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-short') || contains(github.event.pull_request.labels.*.name, 'scheduler-stress-long') || (github.event.action == 'labeled' && (github.event.label.name == 'scheduler-stress-short' || github.event.label.name == 'scheduler-stress-long')))) }}
+          EXPECT_SCHEDULER: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.scheduler == 'true') }}
           SCHEDULER: ${{ needs.scheduler-stress.result }}
           EXPECT_WINDOWS_CPAL_OUTPUT: ${{ needs.changes.outputs.cpal == 'true' }}
           WINDOWS_CPAL_OUTPUT: ${{ needs.windows-cpal-output.result }}
