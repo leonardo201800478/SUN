@@ -75,7 +75,8 @@ function Build-Desktop {
         Push-Location $Worktree
         try {
             & cargo build --release --locked --manifest-path native/sega_desktop/Cargo.toml 2>&1 |
-                Tee-Object -FilePath $buildLog
+                Tee-Object -FilePath $buildLog |
+                Out-Host
             if ($LASTEXITCODE -ne 0) {
                 throw "Build Release falhou para $Label. Consulte $buildLog"
             }
