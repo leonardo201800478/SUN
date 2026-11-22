@@ -60,7 +60,9 @@
 
 ### Próxima sequência recomendada
 
-1. Recuperar o artefato original `calibrate.raw` e os limites `.peaks/.bins` da revisão fixada, ou repetir a calibração no hardware. Os arquivos `volume*.raw` não substituem a captura de 60.000 amostras usada na calibração. Reproduzir a cadeia com `tools/ym2413-dac-capture-audit/` e registrar separadamente picos detectados e midpoint inserido.
+1. Recuperar o artefato original `calibrate.raw` e os limites `.peaks/.bins` da revisão fixada, ou repetir a calibração no hardware. Os arquivos `volume*.raw` não substituem a captura de 60.000 amostras usada na calibração.
+
+Os 16 arquivos públicos `volume*.raw` foram auditados quantitativamente na revisão fixada; consulte [a auditoria das capturas públicas](audits/ym2413-public-volume-capture-audit-2026-11-22.md). Nenhum atinge os 60.000 samples da aquisição de calibração. `volume0.raw` reconstrói 513 bins (401 picos detectados + 112 midpoints inseridos), enquanto os demais ficam entre 363 e 4 bins. Isso confirma que não substituem a captura de calibração. Reproduzir a cadeia com `tools/ym2413-dac-capture-audit/` e registrar separadamente picos detectados e midpoint inserido.
 2. Validar a aquisição Timer0 por clock: zero ADC overflow, contagem de amostras igual à de triggers, ausência de perda/reordenação DMA e fase conhecida. As capturas atuais a 50 kHz e Timer1/72 não resolvem os 18 slots nem os subclocks.
 3. Estabelecer independentemente a correspondência entre o latch do operador, níveis medidos MO/RO e palavra de entrada do DAC. Não inferir shift, máscara, extensão de sinal ou conversão do `i16`.
 4. Preservar MO/RO separadamente e manter o PCM mono atual explicitamente como compatibilidade de referência até existir modelo de placa sustentado por evidência.
