@@ -39,6 +39,8 @@ A diferença global de RMS é **21,15 dB**. A mediana das razões RMS em frames 
 
 O WAV do harness já estava em volume 100%. O slider do desktop é escala linear aplicada pelo resampler e não pode, sozinho, compensar esta diferença.
 
+A captura integral da fonte FM apresenta RMS **-36,53 dBFS** e pico **-16,46 dBFS**; o mixed-output integral apresenta RMS **-36,82 dBFS** e o mesmo pico **-16,46 dBFS**. Como as janelas têm durações diferentes, isso não é uma transferência A/B exata, mas a diferença global de apenas **0,29 dB** indica que o mixer/sessão não está removendo os aproximadamente 20 dB observados em relação à gravação física. O nível baixo já está presente na fonte FM digital antes do mixer.
+
 ### Limite de ganho linear
 
 Aplicar +20,56 dB diretamente ao SUN levaria o pico estimado a **1,586** (+4,0 dBFS); cerca de **3,34%** das amostras ultrapassariam [-1,+1]. Não é correto elevar simplesmente o ganho fixo até igualar RMS: isso causaria clipping substancial.
