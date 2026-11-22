@@ -121,7 +121,6 @@ jobs:
               - '!native/sms_core/src/vdp.rs'
               - '!native/sg1000_core/src/input.rs'
               - '!native/sms_core/src/input.rs'
-              - '!native/sega_app/**'
               - '!native/audio_output/**'
               - '!native/sms_debugger/**'
               - '!rust/runtime/sms-runtime/**'
@@ -846,18 +845,14 @@ jobs:
         run: cargo update --workspace
       - name: Refresh standalone audio-output lockfile
         run: cargo update --manifest-path native/audio_output/Cargo.toml
-      - name: Refresh standalone legacy application lockfile
-        run: cargo update --manifest-path native/sega_app/Cargo.toml
       - name: Verify all lockfiles
         shell: bash
         run: |
           set -euo pipefail
           cargo metadata --locked --format-version 1 --no-deps
           cargo metadata --locked --format-version 1 --no-deps --manifest-path native/audio_output/Cargo.toml
-          cargo metadata --locked --format-version 1 --no-deps --manifest-path native/sega_app/Cargo.toml
           test -f Cargo.lock
           test -f native/audio_output/Cargo.lock
-          test -f native/sega_app/Cargo.lock
       - name: Upload lockfiles for reviewed integration
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -865,7 +860,6 @@ jobs:
           path: |
             Cargo.lock
             native/audio_output/Cargo.lock
-            native/sega_app/Cargo.lock
           if-no-files-found: error
           retention-days: 1
 
