@@ -1541,11 +1541,7 @@ impl SmsTemporalMachine {
 
     /// Drain audio samples already produced by scheduler-owned PSG clocks.
     /// Drain PSG samples into a reusable caller-owned buffer.
-    pub fn drain_audio_samples_into(
-        &mut self,
-        output: &mut Vec<f64>,
-        max_samples: Option<usize>,
-    ) {
+    pub fn drain_audio_samples_into(&mut self, output: &mut Vec<f64>, max_samples: Option<usize>) {
         self.bus.drain_audio_samples_into(output, max_samples);
     }
 
