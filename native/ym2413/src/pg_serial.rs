@@ -1105,9 +1105,9 @@ mod tests {
     fn benchmark_in_place_pg_service_slot_cost() {
         use std::time::Instant;
 
-        const SLOTS_PER_SAMPLE: u64 = 3_728;
+        const SLOTS_PER_SAMPLE: u64 = 37_280;
         const SLOTS_PER_FRAME: u64 = 14_915;
-        const SAMPLES: usize = 5;
+        const SAMPLES: usize = 15;
 
         let run_transactional = || {
             let mut core = Ym2413Core::new();
@@ -1180,9 +1180,11 @@ mod tests {
             single_dispatch_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
         let speedup = duplicate_dispatch_median as f64 / single_dispatch_median as f64;
         let transactional_speedup = transactional_median as f64 / single_dispatch_median as f64;
+        let dispatch_dedup_saved_us_per_frame =
+            (duplicate_dispatch_frame_ns as f64 - single_dispatch_frame_ns as f64) / 1_000.0;
 
         println!(
-            "YM2413_RUNTIME_AB slots_per_sample={} samples={} transactional_median_ns={} duplicate_dispatch_median_ns={} single_dispatch_median_ns={} estimated_transactional_ms_per_frame={:.4} estimated_duplicate_dispatch_ms_per_frame={:.4} estimated_single_dispatch_ms_per_frame={:.4} transactional_vs_in_place={:.3}x dispatch_dedup_speedup={:.3}x",
+            "YM2413_RUNTIME_AB slots_per_sample={} samples={} transactional_median_ns={} duplicate_dispatch_median_ns={} single_dispatch_median_ns={} estimated_transactional_ms_per_frame={:.4} estimated_duplicate_dispatch_ms_per_frame={:.4} estimated_single_dispatch_ms_per_frame={:.4} transactional_vs_in_place={:.3}x dispatch_dedup_speedup={:.3}x dispatch_dedup_saved_us_per_frame={:.4}",
             SLOTS_PER_SAMPLE,
             SAMPLES,
             transactional_median,
@@ -1192,7 +1194,8 @@ mod tests {
             duplicate_dispatch_frame_ns as f64 / 1_000_000.0,
             single_dispatch_frame_ns as f64 / 1_000_000.0,
             transactional_speedup,
-            speedup
+            speedup,
+            dispatch_dedup_saved_us_per_frame
         );
     }
 
