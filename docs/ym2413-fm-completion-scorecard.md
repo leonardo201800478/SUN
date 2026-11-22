@@ -1,33 +1,38 @@
 # YM2413 FM Completion Scorecard
 
-## Estado executivo atual — SUN-FM-01 / main pós-PR #1206 (2026-11-22)
+## Estado executivo atual — SUN-FM-01 / main pós-PR #1217 (2026-11-22)
 
-HEAD da main após os merges #1206 e #1208: `4f489d78d4ddd299f65a7ce0f66733f87ca4dd4d`.
+HEAD da main após os merges #1206, #1208, #1213, #1216 e #1217: 53bedb2fd581e2605197a2d11b5cf77fea94e8e4.
 
-### Estado das entregas e PRs
+### Entregas integradas
 
-- #1194 e #1199 continuam integradas: caminho in-place e remoção de dispatch serial duplicado.
-- #1206 **integrada**: a sessão reutiliza o buffer final do resampler e CPAL recebe PCM por referência; o caminho CPAL reutiliza `frame_scratch`. CI do SMS Runtime, CPAL Windows e PSG/audio-runtime passou no HEAD da PR antes do merge.
-- #1208 **integrada** após CI verde: instrumentação de validade das amostras FM por frame, peak/RMS condicionado ao consentimento diagnóstico e fallback seguro para NaN/Inf.
-- #1207 foi encerrada como duplicata substituída por #1208.
-- #1188 e #1193 permanecem abertas e não mergeáveis na base atual. Ambas alteram os mesmos arquivos de harness, workflow e Cargo.lock. Consolidar em uma única PR baseada na main atual; preservar o teste real-game e o probe de escritas F0/F1/F2 sem duplicar harness nem reintroduzir lockfile antigo.
-- #1190 (catálogo de compatibilidade) e #1192 (comparador externo de output-code) também estão em bases antigas e precisam de reaplicação/revisão separada antes de integração. O comparador não pode ser tratado como confirmação de palavra física do DAC.
+- #1194 e #1199: caminho in-place e remoção de dispatch serial duplicado.
+- #1206: buffer final PCM reutilizável na sessão e escrita CPAL por referência; frame_scratch reutilizado.
+- #1208: métricas de amostras FM finitas/desconhecidas/não finitas, peak/RMS e fallback seguro para NaN/Inf, condicionadas ao consentimento diagnóstico.
+- #1213: comparador offline de output-code candidate contra Nuked; ferramenta de caracterização, não prova da palavra física do DAC.
+- #1216: catálogo de compatibilidade FM e métricas de fallback adicionadas ao runbook A/B.
+- #1217: harness real-game consolidado para Kenseiden Japan e Phantasy Star Japan Rev 1, probe de escritas F0/F1/F2, teste CPAL físico opt-in e compilação Windows do teste CPAL com --no-run. CI completo, incluindo SMS runtime, workspace regression, CPAL Windows e WGPU POC, passou.
 
-### Correções documentais aplicadas na branch de acompanhamento
+### PRs antigas e duplicidades
 
-- Runbook A/B: removida a sequência literal `\\n` da lista de artefatos; o caminho do script já aponta para `scripts/benchmark/ym2413-real-game-ab.ps1`.
-- Contrato da FIFO: unidade corrigida para `StereoFrame([f64; 2])`; a conversão para o formato CPAL ocorre no callback. A descrição histórica PCM16 não representa a implementação atual.
-- Essas alterações estão agrupadas em PR documental separada; não alteram Rust, workflows de áudio ou runtime.
+- #1188 e #1193 foram encerradas como substituídas por #1217; os conteúdos de harness, ROMs verificadas e probe de barramento estão consolidados.
+- #1190 foi substituída pelo catálogo integrado em #1216.
+- #1192 foi substituída pelo comparador integrado em #1213.
+- #1202/#1205/#1207/#1209/#1210/#1212/#1214/#1215 foram encerradas como substituídas pelas versões atualizadas e integradas ou em validação.
+- #1218 permanece aberta para parser estatístico do A/B e baseline same-commit; sua validação PowerShell ainda está pendente. A base precisa ser atualizada após #1217 antes de merge.
 
-### Diagnóstico e aceite
+### Estado funcional e desempenho
 
-- O modo FM Auto ainda depende de uma whitelist SHA-256 que permanece vazia; para ensaios usar explicitamente Japanese SMS integrado + SMS1 + FM On.
-- O fallback do worker para lote FM com amostras desconhecidas ainda precisa ser quantificado em gameplay; a PR #1208 adiciona as métricas necessárias, mas não substitui a execução com ROM.
-- A reutilização do buffer reduz a alocação no caminho de saída CPAL; não há medição de ganho em gameplay ou prova de 60 FPS.
-- A capacidade da FIFO não é latência. Backlog máximo teórico de 4.096 frames equivale a cerca de 85,3 ms a 48 kHz; medir ocupação real e loopback.
-- Não há baseline A/B de gameplay completo, medição física de latência <10 ms nem comprovação de scanout em monitor.
+- FM Auto continua sem whitelist SHA-256 aprovada; ensaios devem configurar explicitamente Japanese SMS integrado + SMS1 + FM On.
+- O worker agora expõe contagens de fallback, mas a frequência real em jogos ainda não foi medida.
+- A remoção da alocação do vetor PCM final no caminho CPAL foi integrada; zero alocações globais do pipeline não foi demonstrado.
+- O harness real-game está integrado, mas os testes permanecem #[ignore] e exigem ROMs legais locais. CI não executou gameplay.
+- A compilação do teste CPAL Windows passou, mas o teste físico com dispositivo não foi executado.
+- A capacidade FIFO 4.096 frames equivale a cerca de 85,3 ms a 48 kHz; a ocupação observada e o loopback físico continuam pendentes.
+- Não existe captura A/B real nem baseline atual medido para Kenseiden, Out Run e Phantasy Star.
+- Não há comprovação de 60 FPS em gameplay, volume/acústica calibrados, latência física <10 ms ou scanout de monitor.
 
-**Status SUN-FM-01: ABERTA.** Ainda pendem consolidação do harness ROM real, Kenseiden/OutRun/Phantasy Star em gameplay, loopback CPAL, latência ponta a ponta, 60 FPS e fidelidade diferencial.
+**Status SUN-FM-01: ABERTA.** A Sprint tem melhorias de alocação, observabilidade e harness integrados, mas o aceite depende das campanhas locais e dos dados físicos.
 
 ---
 
