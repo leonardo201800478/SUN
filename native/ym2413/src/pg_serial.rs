@@ -1086,7 +1086,7 @@ mod tests {
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
-    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core};
+    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413DacCode, Ym2413Core};
 
     #[test]
     fn core_and_pg_output_pipeline_snapshot_restore_is_block_equivalent() {
@@ -1627,6 +1627,45 @@ mod tests {
                 "melodic cycle {cycle} did not advance in Rhythm Mode"
             );
         }
+    }
+
+    #[test]
+    fn measured_adapter_uses_the_previous_channel_output_latch() {
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+        let registers = [0; 64];
+
+        let first = context(0, registers, 0);
+        service
+            .clock_output_pipeline(&first, Some(123), false)
+            .unwrap();
+        assert_eq!(service.measured_output_frame(), None);
+
+        let second = context(1, registers, 0);
+        service
+            .clock_output_pipeline(&second, Some(-45), false)
+            .unwrap();
+        let first_emitted = service.measured_output_frame().unwrap();
+        assert_eq!(first_emitted.source.cycle, 0);
+        assert_eq!(first_emitted.emitted_cycle, 1);
+        assert!(!first_emitted.source.mo_known);
+
+        let third = context(2, registers, 0);
+        service
+            .clock_output_pipeline(&third, Some(67), false)
+            .unwrap();
+        let measured = service.measured_output_frame().unwrap();
+        assert_eq!(measured.source.cycle, 1);
+        assert_eq!(measured.emitted_cycle, 2);
+        let mo = measured.source.mo.unwrap();
+        assert_eq!(mo.slot_index, 4);
+        assert_eq!(
+            mo.level,
+            Ym2413DacCode::from_operator_channel_output(123).unwrap()
+        );
+        assert_eq!(
+            measured.source.ro,
+            crate::Ym2413OutputSlotResult::ModeInactive
+        );
     }
 
     #[test]
