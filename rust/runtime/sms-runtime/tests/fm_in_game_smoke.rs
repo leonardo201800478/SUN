@@ -238,10 +238,10 @@ impl FmPortWriteCapture {
                 }
                 0xF1 => {
                     self.data_writes = self.data_writes.saturating_add(1);
-                    if let Some(register) = self.pending_address {
-                        if self.register_writes.len() < 64 {
-                            self.register_writes.push((register, *value));
-                        }
+                    if let Some(register) = self.pending_address
+                        && self.register_writes.len() < 64
+                    {
+                        self.register_writes.push((register, *value));
                     }
                 }
                 0xF2 => {
