@@ -447,7 +447,7 @@ def main() -> int:
                     "rm_enable before/after",
                     "MO/RO output pins after channel stage",
                     "MO/RO output buffer one-call delayed",
-                    "serial output cursor and validity warm-up",
+                    "serial output cursor and initial-state validity",
                 ],
                 "output_pin_samples_compared": len(nuked_samples),
                 "output_buffer_samples_compared": len(nuked_samples),
