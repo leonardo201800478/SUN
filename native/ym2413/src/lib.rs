@@ -429,6 +429,29 @@ impl Ym2413Core {
         clocks: u64,
         service: &mut S,
     ) -> Result<u64, slot_service::Ym2413SlotServiceAdvanceError<S::Error>> {
+        // The SMS scheduler commonly advances the YM2413 one input clock at a
+        // time. Three out of every four such calls end inside the current
+        // four-clock slot and cannot invoke the serial service. Commit those
+        // clock/phase changes directly: cloning the complete PG service for a
+        // call that cannot reach a slot boundary is unnecessary.
+        if self.input_clock_phase >= YM2413_INPUT_CLOCKS_PER_SLOT as u8 {
+            return Err(slot_service::Ym2413SlotServiceAdvanceError::Core(
+                Ym2413Error::InvalidState,
+            ));
+        }
+        let next_elapsed = self.elapsed_input_clocks.checked_add(clocks).ok_or(
+            slot_service::Ym2413SlotServiceAdvanceError::Core(Ym2413Error::ClockOverflow),
+        )?;
+        let total_slot_clocks = u128::from(self.input_clock_phase) + u128::from(clocks);
+        let completed_slots =
+            total_slot_clocks / u128::from(YM2413_INPUT_CLOCKS_PER_SLOT);
+        if completed_slots == 0 {
+            self.elapsed_input_clocks = next_elapsed;
+            self.input_clock_phase = (total_slot_clocks
+                % u128::from(YM2413_INPUT_CLOCKS_PER_SLOT)) as u8;
+            return Ok(0);
+        }
+
         let mut staged_service = service.clone();
         let result = self.advance_input_clocks_inner(clocks, |core| {
             core.clock_one_slot_with_service(&mut staged_service)
@@ -798,6 +821,36 @@ mod tests {
         assert_eq!(core.envelope_state().timer.next_slot, 0);
         core.advance_input_clocks(1).unwrap();
         assert_eq!(core.envelope_state().timer.next_slot, 1);
+        assert_eq!(core.slot_index(), 1);
+    }
+
+    #[test]
+    fn pg_service_clock_advance_without_slot_completion_only_updates_clock_phase() {
+        let mut core = Ym2413Core::new();
+        let mut service = super::Ym2413PgSerialService::new();
+
+        assert_eq!(
+            core.advance_input_clocks_with_pg_service(1, &mut service),
+            Ok(0)
+        );
+        assert_eq!(core.input_clock_phase(), 1);
+        assert_eq!(core.elapsed_input_clocks(), 1);
+        assert_eq!(core.slot_index(), 0);
+
+        assert_eq!(
+            core.advance_input_clocks_with_pg_service(2, &mut service),
+            Ok(0)
+        );
+        assert_eq!(core.input_clock_phase(), 3);
+        assert_eq!(core.elapsed_input_clocks(), 3);
+        assert_eq!(core.slot_index(), 0);
+
+        assert_eq!(
+            core.advance_input_clocks_with_pg_service(1, &mut service),
+            Ok(0)
+        );
+        assert_eq!(core.input_clock_phase(), 0);
+        assert_eq!(core.elapsed_input_clocks(), 4);
         assert_eq!(core.slot_index(), 1);
     }
 
