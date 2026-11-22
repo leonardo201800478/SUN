@@ -9,7 +9,6 @@ Este índice evita que documentos históricos sejam confundidos com contratos de
 
 | Documento | Classificação | Uso permitido |
 |---|---|---|
-| `architecture/egui-frontend-debug-ui.md` | HISTÓRICO / SUPERSEDED | Referência de organização de menus e diagnósticos |
 | `architecture/native-gui-d3d12-egui-composition.md` | HISTÓRICO / SUPERSEDED | Histórico de composição do host egui/D3D12 |
 | `architecture/rust-application-migration-inventory.md` | INVENTÁRIO HISTÓRICO / SUPERSEDED | Snapshot da migração Python/Qt anterior; não representa o host atual |
 | `architecture/migrations/native-video-runtime.md` | HISTÓRICO / SUPERSEDED | Proposta e histórico do runtime de vídeo anterior; não implementar |
