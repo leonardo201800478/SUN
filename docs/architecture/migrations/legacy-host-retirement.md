@@ -1,7 +1,7 @@
 # Retirada dos hosts anteriores — Slint / WGPU / CPAL
 
-**Revisão:** 2026-11-22  
-**Arquitetura normativa:** ADR 0011 — Slint, WGPU e CPAL  
+**Revisão:** 2026-11-22
+**Arquitetura normativa:** ADR 0011 — Slint, WGPU e CPAL
 **Escopo atual:** desenvolvimento exclusivo do Sega Master System.
 
 ## 1. Plataforma mantida
