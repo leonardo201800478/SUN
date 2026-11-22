@@ -91,6 +91,10 @@ $testBinary = Get-ChildItem -LiteralPath (Join-Path $profileDirectory "deps") -F
     Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
 if ($null -eq $testBinary) { throw "Não foi possível localizar o executável perf_baseline em $profileDirectory\deps." }
+$pdbPath = Join-Path $testBinary.DirectoryName ($testBinary.BaseName + ".pdb")
+if (-not (Test-Path -LiteralPath $pdbPath -PathType Leaf)) {
+    throw "PDB do executável não encontrado: $pdbPath. Use release-llvm-debug para profiling por função."
+}
 
 $profileLog = Join-Path $outputRoot "profiled-run.log"
 $profileCsv = Join-Path $outputRoot "profiled-throughput.csv"
@@ -176,6 +180,7 @@ $manifest = [ordered]@{
     profiling_pass = "separate process execution; diagnostic only"
     profilers = if ($SkipHeapProfile) { @("WPR CPU") } else { @("WPR CPU", "WPR Heap") }
     test_executable = $testBinary.Name
+    symbols_pdb = $pdbPath
     baseline_directory = Join-Path $outputRoot "baseline"
     cpu_heap_etl = $etlPath
     profiled_log = $profileLog
