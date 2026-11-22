@@ -67,7 +67,7 @@ jobs:
         run: cargo test --release --manifest-path rust/runtime/sms-runtime/Cargo.toml --all-targets --locked
 
       - name: Benchmark YM2413 transactional vs in-place (Release)
-        run: cargo test --release --manifest-path native/ym2413/Cargo.toml --lib benchmark_in_place_pg_service_slot_cost -- --ignored --nocapture
+        run: cargo test --release --manifest-path native/ym2413/Cargo.toml --lib --locked benchmark_in_place_pg_service_slot_cost -- --ignored --nocapture
 
       - name: Build SMS runtime (Release, Windows x64)
         run: cargo build --release --manifest-path rust/runtime/sms-runtime/Cargo.toml --locked --target x86_64-pc-windows-msvc
