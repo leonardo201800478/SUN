@@ -31,7 +31,7 @@
 | #1180 | Ferramenta reproduzível para auditar os 16 pares raw/output e CI com upstream fixado, consistência global e snapshot JSON | `cda89ac49d08690a6507b2ba5e021255ba38d30a` |
 | #1182 | Caracterização temporal do MO do Nuked contra `volume0.out`/`volume1.out`; trace compacto, fixtures sequenciais e validação de continuidade JSONL | `40cf4be51ab99bc55b2d79ea37b490a0bcca0f64` |
 | #1183 | Registra os resultados da caracterização de volume MO e suas limitações físicas | `8fc000eaba4eae2485258703aee3bd4e94dcc773` |
-| #1184 | Diferencial integrado do pipeline digital MO/RO: pinos, buffers, `ch_out` e `rm_enable` | `7986ec9f5b...` |
+| #1184 | Diferencial integrado do pipeline digital MO/RO: pinos, buffers, `ch_out` e `rm_enable` | `7986ec9656acb10bf726c39b7f73993af963c804` |
 | #1185 | Conecta o adaptador MO medido ao latch `ch_out` anterior; preserva `-0` e valida atraso/slot contra Nuked | `b180b25762b3bd589ce07d0aeb164a469d062ba9` |
 
 ### Validação exata após PR #1182
