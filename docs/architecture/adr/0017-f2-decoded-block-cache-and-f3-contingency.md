@@ -1,6 +1,6 @@
 # ADR-0017 — F2 predecoded block cache and conditional F3 dynamic recompilation
 
-- **Status:** PROPOSED — implementation direction explicitly approved by the project owner; becomes normative after merge.
+- **Status:** ACCEPTED — implementation direction explicitly approved by the project owner on 2026-11-22; normative after merge.
 - **Date:** 2026-11-22.
 - **Scope:** CPU execution strategy, starting with the SMS Z80 path.
 - **Related:** ADR-0016 (observable fidelity and proportional timing), SUN V2 performance targets, PERF-01.
