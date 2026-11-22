@@ -346,6 +346,10 @@ pub struct Ym2413PgSerialService {
     previous_channel_output_is_rhythm: bool,
     last_output_frame: Option<Ym2413CoreOutputPipelineFrame>,
     measured_output_adapter: Ym2413MeasuredOutputAdapter,
+    /// Test-only switch that restores the pre-optimization duplicate dispatch
+    /// for an in-process Release A/B measurement.
+    #[cfg(test)]
+    benchmark_duplicate_dispatch: bool,
 }
 
 impl Ym2413PgSerialService {
@@ -372,6 +376,8 @@ impl Ym2413PgSerialService {
             previous_channel_output_is_rhythm: false,
             last_output_frame: None,
             measured_output_adapter: Ym2413MeasuredOutputAdapter::new(),
+            #[cfg(test)]
+            benchmark_duplicate_dispatch: false,
         }
     }
 
@@ -597,6 +603,8 @@ impl Ym2413PgSerialService {
             previous_channel_output_is_rhythm: state.previous_channel_output_is_rhythm,
             last_output_frame: state.last_output_frame,
             measured_output_adapter,
+            #[cfg(test)]
+            benchmark_duplicate_dispatch: false,
         })
     }
 
@@ -668,33 +676,6 @@ impl Ym2413PgSerialService {
         self.synthesis.advance_pm_lfo_samples(1);
     }
 
-    /// Resolve the core cycle to a melodic slot. Rhythm-owned slots use the
-    /// dedicated rhythm decoder and never borrow channels 7–9 as melodic inputs.
-    fn require_melodic_slot(
-        context: &Ym2413SlotServiceContext,
-    ) -> Result<Ym2413SlotDescriptor, Ym2413PgSerialError> {
-        let dispatch = dispatch_serial_slot(
-            context.event.cycle,
-            &context.registers,
-            context.rm_enable,
-            context.envelope_input.rhythm_select,
-        )
-        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
-
-        match dispatch {
-            Ym2413SerialSlotDispatch::Melodic { slot }
-                if slot == context.event.selected_operator =>
-            {
-                Ok(slot)
-            }
-            Ym2413SerialSlotDispatch::Melodic { .. } => Err(Ym2413PgSerialError::InvalidState),
-            _ => Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: context.event.selected_operator.channel,
-            }),
-        }
-    }
-
     /// Return the current pre-clock LFSR bit for this core-owned serial slot.
     fn current_rhythm_noise_bit(&self, cycle: u8) -> Result<Option<bool>, Ym2413PgSerialError> {
         if self.rhythm_noise_cursor != cycle {
@@ -751,8 +732,25 @@ impl Ym2413PgSerialService {
     fn latch_next_parameters(
         &mut self,
         context: &Ym2413SlotServiceContext,
+        descriptor: Ym2413SlotDescriptor,
     ) -> Result<(), Ym2413PgSerialError> {
-        let descriptor = Self::require_melodic_slot(context)?;
+        if descriptor != context.event.selected_operator {
+            return Err(Ym2413PgSerialError::InvalidState);
+        }
+        #[cfg(test)]
+        if self.benchmark_duplicate_dispatch {
+            match dispatch_serial_slot(
+                context.event.cycle,
+                &context.registers,
+                context.rm_enable,
+                context.envelope_input.rhythm_select,
+            )
+            .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?
+            {
+                Ym2413SerialSlotDispatch::Melodic { slot } if slot == descriptor => {}
+                _ => return Err(Ym2413PgSerialError::InvalidState),
+            }
+        }
         let config = decode_channel_synthesis(&context.registers, descriptor.channel)?;
         let parameters = match descriptor.operator {
             Ym2413Operator::Modulator => config.modulator_phase,
@@ -1056,7 +1054,14 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         )
         .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?
         {
-            Ym2413SerialSlotDispatch::Melodic { .. } => self.latch_next_parameters(context),
+            // Reuse the descriptor resolved by this dispatch. The latch helper
+            // must not dispatch the same immutable slot context a second time.
+            Ym2413SerialSlotDispatch::Melodic { slot }
+                if slot == context.event.selected_operator =>
+            {
+                self.latch_next_parameters(context, slot)
+            }
+            Ym2413SerialSlotDispatch::Melodic { .. } => Err(Ym2413PgSerialError::InvalidState),
             Ym2413SerialSlotDispatch::Rhythm { slot, selector, .. }
                 if self.rhythm_noise.is_some() && slot == context.event.selected_operator =>
             {
@@ -1100,13 +1105,14 @@ mod tests {
     fn benchmark_in_place_pg_service_slot_cost() {
         use std::time::Instant;
 
-        const SLOTS_PER_SAMPLE: u64 = 3_728;
+        const SLOTS_PER_SAMPLE: u64 = 37_280;
         const SLOTS_PER_FRAME: u64 = 14_915;
-        const SAMPLES: usize = 5;
+        const SAMPLES: usize = 15;
 
         let run_transactional = || {
             let mut core = Ym2413Core::new();
             let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            service.benchmark_duplicate_dispatch = true;
             for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
                 core.write_address(address);
                 core.write_data(data);
@@ -1124,9 +1130,10 @@ mod tests {
             elapsed.as_nanos()
         };
 
-        let run_in_place = || {
+        let run_in_place = |duplicate_dispatch: bool| {
             let mut core = Ym2413Core::new();
             let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            service.benchmark_duplicate_dispatch = duplicate_dispatch;
             for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
                 core.write_address(address);
                 core.write_data(data);
@@ -1145,36 +1152,50 @@ mod tests {
         };
 
         let mut transactional_samples = Vec::with_capacity(SAMPLES);
-        let mut in_place_samples = Vec::with_capacity(SAMPLES);
+        let mut duplicate_dispatch_samples = Vec::with_capacity(SAMPLES);
+        let mut single_dispatch_samples = Vec::with_capacity(SAMPLES);
         for sample in 0..SAMPLES {
             if sample % 2 == 0 {
                 transactional_samples.push(run_transactional());
-                in_place_samples.push(run_in_place());
+                duplicate_dispatch_samples.push(run_in_place(true));
+                single_dispatch_samples.push(run_in_place(false));
             } else {
-                in_place_samples.push(run_in_place());
+                single_dispatch_samples.push(run_in_place(false));
+                duplicate_dispatch_samples.push(run_in_place(true));
                 transactional_samples.push(run_transactional());
             }
         }
         transactional_samples.sort_unstable();
-        in_place_samples.sort_unstable();
+        duplicate_dispatch_samples.sort_unstable();
+        single_dispatch_samples.sort_unstable();
 
         let transactional_median = transactional_samples[SAMPLES / 2];
-        let in_place_median = in_place_samples[SAMPLES / 2];
+        let duplicate_dispatch_median = duplicate_dispatch_samples[SAMPLES / 2];
+        let single_dispatch_median = single_dispatch_samples[SAMPLES / 2];
         let transactional_frame_ns =
             transactional_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
-        let in_place_frame_ns =
-            in_place_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
-        let speedup = transactional_median as f64 / in_place_median as f64;
+        let duplicate_dispatch_frame_ns =
+            duplicate_dispatch_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let single_dispatch_frame_ns =
+            single_dispatch_median * u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let speedup = duplicate_dispatch_median as f64 / single_dispatch_median as f64;
+        let transactional_speedup = transactional_median as f64 / single_dispatch_median as f64;
+        let dispatch_dedup_saved_us_per_frame =
+            (duplicate_dispatch_frame_ns as f64 - single_dispatch_frame_ns as f64) / 1_000.0;
 
         println!(
-            "YM2413_RUNTIME_AB slots_per_sample={} samples={} transactional_median_ns={} in_place_median_ns={} estimated_transactional_ms_per_frame={:.4} estimated_in_place_ms_per_frame={:.4} speedup={:.3}x",
+            "YM2413_RUNTIME_AB slots_per_sample={} samples={} transactional_median_ns={} duplicate_dispatch_median_ns={} single_dispatch_median_ns={} estimated_transactional_ms_per_frame={:.4} estimated_duplicate_dispatch_ms_per_frame={:.4} estimated_single_dispatch_ms_per_frame={:.4} transactional_vs_in_place={:.3}x dispatch_dedup_speedup={:.3}x dispatch_dedup_saved_us_per_frame={:.4}",
             SLOTS_PER_SAMPLE,
             SAMPLES,
             transactional_median,
-            in_place_median,
+            duplicate_dispatch_median,
+            single_dispatch_median,
             transactional_frame_ns as f64 / 1_000_000.0,
-            in_place_frame_ns as f64 / 1_000_000.0,
-            speedup
+            duplicate_dispatch_frame_ns as f64 / 1_000_000.0,
+            single_dispatch_frame_ns as f64 / 1_000_000.0,
+            transactional_speedup,
+            speedup,
+            dispatch_dedup_saved_us_per_frame
         );
     }
 
@@ -1262,6 +1283,45 @@ mod tests {
                     transactional_service.export_state()
                 );
             }
+        }
+    }
+
+    #[test]
+    fn slot_dispatch_deduplication_preserves_core_service_and_output_state() {
+        let mut reference_core = Ym2413Core::new();
+        let mut reference_service = Ym2413PgSerialService::new(initial_bank(0));
+        reference_service.benchmark_duplicate_dispatch = true;
+        let mut optimized_core = Ym2413Core::new();
+        let mut optimized_service = Ym2413PgSerialService::new(initial_bank(0));
+
+        for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+            reference_core.write_address(address);
+            reference_core.write_data(data);
+            optimized_core.write_address(address);
+            optimized_core.write_data(data);
+        }
+
+        for clocks in [1, 3, 4, 17, 55, 72, 1, 287, 4 * 37, 2 * 72 + 3] {
+            reference_core
+                .advance_input_clocks_with_pg_service_in_place(clocks, &mut reference_service)
+                .unwrap();
+            optimized_core
+                .advance_input_clocks_with_pg_service_in_place(clocks, &mut optimized_service)
+                .unwrap();
+
+            assert_eq!(optimized_core.export_state(), reference_core.export_state());
+            assert_eq!(
+                optimized_service.export_state(),
+                reference_service.export_state()
+            );
+            assert_eq!(
+                optimized_service.output_frame(),
+                reference_service.output_frame()
+            );
+            assert_eq!(
+                optimized_service.measured_output_frame(),
+                reference_service.measured_output_frame()
+            );
         }
     }
 
