@@ -375,7 +375,6 @@ def compare_capture(
     capture_path: Path,
     *,
     capture_start_call: int,
-    initial_keyon_call: int,
     scan_calls: int,
     phase_search: int,
     prefix_samples: int,
@@ -386,7 +385,6 @@ def compare_capture(
         with trace_path.open("r", encoding="utf-8") as stream:
             model_bins, diagnostics = read_output_trace(
                 stream,
-                initial_keyon_call=initial_keyon_call,
                 scan_calls=scan_calls,
                 capture_start_call=capture_start_call,
             )
