@@ -428,7 +428,7 @@ mod tests {
         }
 
         fn measure_compact_view(sequencer: &EnvelopeSequencer, iterations: u32) -> u128 {
-            let start = Instant::now();
+            let start = std::time::Instant::now();
             for _ in 0..iterations {
                 let eg_dokon = std::hint::black_box(sequencer).eg_dokon();
                 let levels = std::hint::black_box(sequencer).operator_levels();
