@@ -1,7 +1,7 @@
 # SUN-FM-01 — Execução das recomendações da auditoria
 
-**Data:** 2026-11-22  
-**Base de trabalho:** main pós-merge #1206, `209726445c9a64f06281e01d0aa10fb85bca2831`  
+**Data:** 2026-11-22
+**Base de trabalho:** main pós-merge #1206, `209726445c9a64f06281e01d0aa10fb85bca2831`
 **Estado:** acompanhamento em andamento; sem aprovação de gameplay ou conclusão da sprint.
 
 ## 1. Ações executadas
