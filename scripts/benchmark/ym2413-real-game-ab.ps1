@@ -38,6 +38,7 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $documents = [Environment]::GetFolderPath("MyDocuments")
     $OutputDirectory = Join-Path $documents "SUN-Benchmarks\ym2413-real-game-ab"
 }
+$OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outputRoot = Join-Path $OutputDirectory $stamp
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "SUN-YM2413-AB-$stamp"
