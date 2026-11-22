@@ -533,6 +533,7 @@ mod windows_host {
             in-out property <bool> has-rom: false;
             in-out property <bool> emulation-paused: false;
             in-out property <bool> sprite-limit-enabled: true;
+            in-out property <bool> frame-pacing-enabled: true;
             in-out property <bool> show-fps: true;
             in-out property <bool> show-status-footer: true;
             in-out property <bool> trace-enabled: false;
@@ -584,6 +585,7 @@ mod windows_host {
             callback trace-toggle-requested(bool);
             callback diagnostics-toggle-requested(bool);
             callback sprite-limit-toggle-requested(bool);
+            callback frame-pacing-toggle-requested(bool);
             callback display-mode-toggle-requested(string);
             callback video-area-clicked();
             callback preferences-changed();
@@ -942,6 +944,11 @@ mod windows_host {
                                     VerticalLayout {
                                         padding: 14px; spacing: 8px;
                                         Text { font-size: 16px; text: "Sincronização e telemetria"; color: #F1F5FA; }
+                                        CheckBox {
+                                            text: "Desbloquear FPS (sem limite)";
+                                            checked: !root.frame-pacing-enabled;
+                                            toggled => { root.frame-pacing-enabled = !self.checked; root.frame-pacing-toggle-requested(!self.checked); }
+                                        }
                                         CheckBox { text: "Exibir FPS"; checked: root.show-fps; toggled => { root.show-fps = self.checked; root.preferences-changed(); } }
                                         CheckBox { text: "Exibir diagnóstico no rodapé"; checked: root.show-status-footer; toggled => { root.show-status-footer = self.checked; root.preferences-changed(); } }
                                         Text { font-size: 10px; text: "FPS e diagnóstico são métricas do host; não controlam o relógio do MachineScheduler."; color: #B4C0D0; wrap: word-wrap; }
@@ -5261,6 +5268,21 @@ mod windows_host {
                         format!("Falha ao alterar limite de sprites: {error}").into(),
                     );
                 }
+            }
+        });
+
+        let pacing_worker = Rc::clone(&worker);
+        let pacing_app = app.as_weak();
+        app.on_frame_pacing_toggle_requested(move |enabled| {
+            let result = pacing_worker.borrow().as_ref().map_or_else(
+                || Err("Nenhuma sessão ativa".to_owned()),
+                |session| session.set_frame_pacing_enabled(enabled),
+            );
+            if let Err(error) = result
+                && let Some(app) = pacing_app.upgrade()
+            {
+                app.set_frame_pacing_enabled(!enabled);
+                app.set_rom_status(format!("Falha ao alterar o frame pacing: {error}").into());
             }
         });
 
