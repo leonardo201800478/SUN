@@ -252,6 +252,20 @@ function Get-RunSummary {
         throw "$($RunDirectory.Name): nenhum evento 'SMS frame pacing diagnostic' foi encontrado dentro da janela de captura. Verifique consentimento e filtro de logs."
     }
 
+    if ($null -ne $audioMetrics) {
+        $sampleRate = ConvertTo-NullableDouble $audioMetrics.sample_rate_hz
+        $queuedFrames = ConvertTo-NullableDouble $audioMetrics.queue_queued_frames
+        $audioMetrics["queue_high_water_frames_observed"] = $audioHighWaterFrames
+        $audioMetrics["queue_queued_ms"] = $null
+        $audioMetrics["queue_high_water_ms"] = $null
+        if ($null -ne $sampleRate -and $sampleRate -gt 0) {
+            if ($null -ne $queuedFrames) {
+                $audioMetrics["queue_queued_ms"] = 1_000.0 * $queuedFrames / $sampleRate
+            }
+            $audioMetrics["queue_high_water_ms"] = 1_000.0 * $audioHighWaterFrames / $sampleRate
+        }
+    }
+
     $distributions = [ordered]@{}
     foreach ($metricName in $metricNames) {
         $distributions[$metricName] = Get-Distribution -Values $metricValues[$metricName].ToArray()
