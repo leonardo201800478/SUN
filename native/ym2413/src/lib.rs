@@ -438,7 +438,9 @@ impl Ym2413Core {
         // four-clock slot and cannot invoke the serial service. Commit those
         // clock/phase changes directly: cloning the complete PG service for a
         // call that cannot reach a slot boundary is unnecessary.
-        if self.input_clock_phase >= YM2413_INPUT_CLOCKS_PER_SLOT as u8 {
+        if self.input_clock_phase >= YM2413_INPUT_CLOCKS_PER_SLOT as u8
+            || u64::from(self.slot_index) >= YM2413_SLOTS_PER_ROTATION
+        {
             return Err(slot_service::Ym2413SlotServiceAdvanceError::Core(
                 Ym2413Error::InvalidState,
             ));
