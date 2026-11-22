@@ -1389,13 +1389,19 @@ mod windows_host {
         }
     }
 
-    // Auto is intentionally conservative. Populate only with exact SHA-256
-    // identities after a real execution trace proves that the ROM uses FM.
-    const FM_AUTO_COMPATIBLE_ROM_SHA256: &[&str] = &[];
+    // Auto is intentionally conservative: only exact ROM identities with
+    // real-game FM bus writes and non-silent FM output are listed here.
+    // Kenseiden Japan was verified by the local real-ROM smoke capture.
+    const FM_AUTO_COMPATIBLE_ROM_SHA256: &[&str] =
+        &["7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93"];
+
+    fn fm_auto_catalog_matches_sha256(sha256: &str) -> bool {
+        FM_AUTO_COMPATIBLE_ROM_SHA256.contains(&sha256)
+    }
 
     fn fm_auto_catalog_matches(rom: &[u8]) -> bool {
         let sha256 = CartridgeIdentity::from_bytes(rom).sha256_hex();
-        FM_AUTO_COMPATIBLE_ROM_SHA256.contains(&sha256.as_str())
+        fm_auto_catalog_matches_sha256(&sha256)
     }
 
     fn resolve_sms_fm_configuration(
@@ -5481,6 +5487,17 @@ mod windows_host {
             );
             assert_eq!(FmMode::from_preference("off"), Some(FmMode::Off));
             assert_eq!(FmMode::from_preference("invalid"), None);
+        }
+
+        #[test]
+        fn fm_auto_catalog_accepts_only_the_verified_kenseiden_japan_revision() {
+            assert!(fm_auto_catalog_matches_sha256(
+                "7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93"
+            ));
+            assert!(!fm_auto_catalog_matches_sha256(
+                "55ba15a1ea5c7db883a7a4c850bea2b1024185605964916ddd04a645d7ddd2b6"
+            ));
+            assert!(!fm_auto_catalog_matches_sha256("unverified-rom"));
         }
 
         #[test]
