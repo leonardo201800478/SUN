@@ -2978,6 +2978,7 @@ fn worker_loop(
 
         if let Some(command) = command {
             let was_running = running;
+            let was_frame_pacing_enabled = frame_pacing_enabled;
             let command_kind = command.kind();
             let command_handler_started = Instant::now();
             let command_continues = handle_command(
@@ -3015,7 +3016,7 @@ fn worker_loop(
             }
             // Pause/reset/load/power transitions invalidate the previous
             // frame's wall-clock epoch. Non-pausing commands retain it.
-            if was_running != running || !running {
+            if was_running != running || !running || was_frame_pacing_enabled != frame_pacing_enabled {
                 frame_deadline.clear();
             }
             drain_machine_trace(&mut machine, trace_publisher.as_ref());
