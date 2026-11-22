@@ -102,8 +102,8 @@ inspecionar contagem/tamanho de alocações e pilha de alocação por processo.
   worker como custos disjuntos.
 - Call stacks atribuem amostras de CPU a funções, mas não fornecem, sozinhas,
   contagem de eventos ou tempo exclusivo por subsistema.
-- Os diagnósticos atuais ainda não isolam Z80, Scheduler, barramento, PSG,
-  VDP, mixer e resampler.
+- Os diagnósticos S0.2 ainda não isolam Z80, barramento, mixer e resampler;
+  Scheduler, PSG, YM2413 e VDP já possuem medições em seus limites de avanço.
 - A execução é headless e não mede CPAL físico, composição Slint, upload WGPU
   nem execução da GPU. Isso exige uma campanha integrada separada.
 
