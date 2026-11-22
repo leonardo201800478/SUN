@@ -1,8 +1,8 @@
 # SUN-FM-01 — Auditoria inicial do YM2413
 
-**Data:** 2026-11-22  
-**Repositório:** https://github.com/leonardo201800478/SUN  
-**HEAD da main auditado:** 7ba2d59dc9efdb24deb15171ec560df05cbfab6a  
+**Data:** 2026-11-22
+**Repositório:** https://github.com/leonardo201800478/SUN
+**HEAD da main auditado:** 7ba2d59dc9efdb24deb15171ec560df05cbfab6a
 **Estado:** Sprint aberta; nenhuma aprovação de gameplay foi emitida.
 
 ## 1. Resumo executivo
@@ -46,24 +46,24 @@ O roteiro A/B está em **scripts/benchmark/ym2413-real-game-ab.ps1**; a instruç
 
 ### Caminho temporal e áudio atual
 
-CPU / barramentos / MachineScheduler  
-→ SmsTemporalBus::advance_ym2413_inner  
-→ Ym2413Core::advance_input_clocks_with_pg_service_in_place  
-→ Ym2413PgSerialService (PG, operador, EG, LFO, feedback e pipeline digital MO/RO)  
-→ SmsTemporalBus (amostras FM Option<f64>)  
-→ SmsTemporalWorker::AudioRendererState (alinha FM nominal de 49.716 Hz com PSG a 48 kHz)  
-→ NativeAudioSession (mixer, saída analógica opcional, resampler final)  
+CPU / barramentos / MachineScheduler
+→ SmsTemporalBus::advance_ym2413_inner
+→ Ym2413Core::advance_input_clocks_with_pg_service_in_place
+→ Ym2413PgSerialService (PG, operador, EG, LFO, feedback e pipeline digital MO/RO)
+→ SmsTemporalBus (amostras FM Option<f64>)
+→ SmsTemporalWorker::AudioRendererState (alinha FM nominal de 49.716 Hz com PSG a 48 kHz)
+→ NativeAudioSession (mixer, saída analógica opcional, resampler final)
 → PcmSink → NativeCpalOutput → SPSC FIFO → callback CPAL → dispositivo.
 
 O worker de emulação executa o frame; a saída CPAL consome em thread própria. A síntese FM não possui thread independente. Isso preserva a causalidade entre escritas Z80, barramento e slots.
 
 ### Vídeo observado
 
-SMS VDP framebuffer  
-→ framebuffer_with_overscan(Off): cópia RGB  
-→ VideoFrame / mailbox  
-→ host Slint/WGPU  
-→ RGB888 para RGBA8: novo buffer  
+SMS VDP framebuffer
+→ framebuffer_with_overscan(Off): cópia RGB
+→ VideoFrame / mailbox
+→ host Slint/WGPU
+→ RGB888 para RGBA8: novo buffer
 → WGPU Queue::write_texture.
 
 O custo do vídeo deve ser medido separadamente. As cópias por frame são reais, mas não há evidência de que expliquem isoladamente a queda associada ao FM.
