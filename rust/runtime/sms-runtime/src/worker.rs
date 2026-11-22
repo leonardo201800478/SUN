@@ -858,16 +858,15 @@ impl WorkerTelemetry {
             let mut metrics = window.snapshot();
             metrics.scheduler_dispatch_count_last =
                 self.scheduler_dispatch_count_last.load(Ordering::Acquire);
-            metrics.scheduler_dispatch_elapsed_ns_last =
-                self.scheduler_dispatch_elapsed_ns_last.load(Ordering::Acquire);
-            metrics.psg_advance_calls_last =
-                self.psg_advance_calls_last.load(Ordering::Acquire);
+            metrics.scheduler_dispatch_elapsed_ns_last = self
+                .scheduler_dispatch_elapsed_ns_last
+                .load(Ordering::Acquire);
+            metrics.psg_advance_calls_last = self.psg_advance_calls_last.load(Ordering::Acquire);
             metrics.psg_advance_clock_cycles_last =
                 self.psg_advance_clock_cycles_last.load(Ordering::Acquire);
             metrics.psg_advance_elapsed_ns_last =
                 self.psg_advance_elapsed_ns_last.load(Ordering::Acquire);
-            metrics.vdp_advance_calls_last =
-                self.vdp_advance_calls_last.load(Ordering::Acquire);
+            metrics.vdp_advance_calls_last = self.vdp_advance_calls_last.load(Ordering::Acquire);
             metrics.vdp_advance_tstates_last =
                 self.vdp_advance_tstates_last.load(Ordering::Acquire);
             metrics.vdp_advance_elapsed_ns_last =
@@ -933,10 +932,13 @@ impl WorkerTelemetry {
         }
         if !enabled {
             self.total_instructions.store(0, Ordering::Release);
-            self.scheduler_dispatch_count_last.store(0, Ordering::Release);
-            self.scheduler_dispatch_elapsed_ns_last.store(0, Ordering::Release);
+            self.scheduler_dispatch_count_last
+                .store(0, Ordering::Release);
+            self.scheduler_dispatch_elapsed_ns_last
+                .store(0, Ordering::Release);
             self.psg_advance_calls_last.store(0, Ordering::Release);
-            self.psg_advance_clock_cycles_last.store(0, Ordering::Release);
+            self.psg_advance_clock_cycles_last
+                .store(0, Ordering::Release);
             self.psg_advance_elapsed_ns_last.store(0, Ordering::Release);
             self.vdp_advance_calls_last.store(0, Ordering::Release);
             self.vdp_advance_tstates_last.store(0, Ordering::Release);
@@ -2544,9 +2546,10 @@ fn execute_frame_with_renderer(
         telemetry
             .scheduler_dispatch_count_last
             .store(subsystem_timing.scheduler_dispatch_count, Ordering::Release);
-        telemetry
-            .scheduler_dispatch_elapsed_ns_last
-            .store(subsystem_timing.scheduler_dispatch_elapsed_ns, Ordering::Release);
+        telemetry.scheduler_dispatch_elapsed_ns_last.store(
+            subsystem_timing.scheduler_dispatch_elapsed_ns,
+            Ordering::Release,
+        );
         telemetry
             .psg_advance_calls_last
             .store(subsystem_timing.psg_advance_calls, Ordering::Release);
