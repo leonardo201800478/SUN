@@ -411,7 +411,7 @@ impl EnvelopeSequencer {
 
 #[cfg(test)]
 mod tests {
-    use super::{EnvelopeSequencer, EnvelopeSlotInput};
+    use super::{EnvelopeSequencer, EnvelopeSlotInput, YM2413_ENVELOPE_SEQUENCER_SLOTS};
 
     #[test]
     fn compact_slot_view_matches_full_serializable_state() {
