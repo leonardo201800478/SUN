@@ -18,7 +18,7 @@ A PR #1206 foi revisada e integrada por squash.
 
 **Limite da evidência:** isso remove a alocação do vetor final por lote no caminho CPAL após aquecimento/capacidade suficiente. O método default de `PcmSink::write_samples_ref` ainda copia para manter compatibilidade de sinks que só implementam `write_samples(Vec<f64>)`. Não foi medido ganho de FPS nem contagem global de alocações em gameplay.
 
-### 1.2 Diagnóstico de amostras FM — em validação
+### 1.2 Diagnóstico de amostras FM — integrado
 
 A implementação foi reaplicada sobre a main pós-#1206 na PR #1208, evitando a base obsoleta da primeira versão #1207.
 
@@ -28,7 +28,7 @@ A implementação foi reaplicada sobre a main pós-#1206 na PR #1208, evitando a
 - NaN/Inf não são propagados ao mixer; o bloco usa fallback seguro preservando o PSG.
 - Testes cobrem amostras válidas, rotação desconhecida e NaN/Inf.
 
-A PR #1208 está aberta e seus workflows estavam em execução no momento deste relatório. #1207 é duplicata baseada antes do merge #1206 e deve ser encerrada após confirmar #1208.
+A PR #1208 passou nos checks SMS Runtime Release format/Clippy/tests e Rust workspace regression e foi integrada. #1207 foi encerrada como duplicata.
 
 **Limite da evidência:** métricas sintéticas/testes não demonstram a frequência de amostras inválidas em Kenseiden, OutRun ou Phantasy Star. A nova métrica não corrige a causa de amostras desconhecidas; torna o comportamento observável.
 
@@ -40,12 +40,10 @@ A PR #1208 está aberta e seus workflows estavam em execução no momento deste 
 
 ### 1.4 Ferramentas de benchmark — em validação
 
-Na branch documental anterior:
-- O runbook A/B remove a sequência literal `\\n` na lista de artefatos. O caminho já estava corrigido para `scripts/benchmark/ym2413-real-game-ab.ps1`.
-- O contrato OUT-A passa a descrever o transporte real: `StereoFrame([f64; 2])`; a conversão para o formato negociado ocorre no callback CPAL.
-- O scorecard registra o HEAD atual, a integração #1206, a nova instrumentação e a situação real das PRs antigas.
-
-Nenhum teste de Rust foi executado para essas alterações exclusivamente documentais.
+- #1216 integrou as métricas FM de fallback ao runbook e o catálogo de jogos compatíveis.
+- #1218 acrescenta parser estatístico de logs JSON, percentis p50/p95/p99, frames acima do orçamento, backlog CPAL e baseline de repetibilidade da main com mesmo SHA nos dois lados. A validação de sintaxe PowerShell está pendente.
+- O parser diferencia métricas FM indisponíveis no baseline antigo de contagem igual a zero.
+- O script A/B padrão continua isolando #1199; o modo same-commit mede a main atual sem alegar A/B de alteração de código.
 
 ## 2. Consolidação das PRs de ROM real
 
@@ -71,7 +69,6 @@ Essa sobreposição foi resolvida em #1217; não reabrir nem integrar as PRs ant
 4. Executar o harness headless com ROMs locais Kenseiden/Phantasy Star e o probe de escritas F0/F1/F2; executar o teste CPAL físico no Windows.
 5. Executar Out Run Japan como campanha de desempenho, com hash registrado; não reutilizar o teste Kenseiden como prova para Out Run.
 6. Analisar p50/p95/p99, frames acima do orçamento, fallback FM, peak/RMS digital, CPAL underruns/drops e high-water.
-
 7. Medir loopback físico CPAL, backlog/high-water e latência ponta a ponta. A capacidade da FIFO não é latência.
 8. Só após localizar o custo dominante avaliar mudanças adicionais no core, batching, AVX2/FMA ou paralelismo. Não criar thread FM que avance o clock do chip.
 
