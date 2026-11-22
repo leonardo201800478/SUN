@@ -1096,6 +1096,82 @@ mod tests {
     use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
 
     #[test]
+    #[ignore = "Release-only A/B benchmark; run from sms-debugger-runtime workflow"]
+    fn benchmark_in_place_pg_service_slot_cost() {
+        use std::time::Instant;
+
+        const SLOTS_PER_SAMPLE: u64 = 3_728;
+        const SLOTS_PER_FRAME: u64 = 14_915;
+        const SAMPLES: usize = 5;
+
+        let run_transactional = || {
+            let mut core = Ym2413Core::new();
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+                core.write_address(address);
+                core.write_data(data);
+                core.advance_input_clocks_with_pg_service(72, &mut service)
+                    .unwrap();
+            }
+            let started = Instant::now();
+            for _ in 0..SLOTS_PER_SAMPLE {
+                core.advance_input_clocks_with_pg_service(4, &mut service)
+                    .unwrap();
+            }
+            started.elapsed().as_nanos()
+        };
+
+        let run_in_place = || {
+            let mut core = Ym2413Core::new();
+            let mut service = Ym2413PgSerialService::new(initial_bank(0));
+            for (address, data) in [(0x30, 0x10), (0x10, 0x80), (0x20, 0x15)] {
+                core.write_address(address);
+                core.write_data(data);
+                core.advance_input_clocks_with_pg_service_in_place(72, &mut service)
+                    .unwrap();
+            }
+            let started = Instant::now();
+            for _ in 0..SLOTS_PER_SAMPLE {
+                core.advance_input_clocks_with_pg_service_in_place(4, &mut service)
+                    .unwrap();
+            }
+            started.elapsed().as_nanos()
+        };
+
+        let mut transactional_samples = Vec::with_capacity(SAMPLES);
+        let mut in_place_samples = Vec::with_capacity(SAMPLES);
+        for sample in 0..SAMPLES {
+            if sample % 2 == 0 {
+                transactional_samples.push(run_transactional());
+                in_place_samples.push(run_in_place());
+            } else {
+                in_place_samples.push(run_in_place());
+                transactional_samples.push(run_transactional());
+            }
+        }
+        transactional_samples.sort_unstable();
+        in_place_samples.sort_unstable();
+
+        let transactional_median = transactional_samples[SAMPLES / 2];
+        let in_place_median = in_place_samples[SAMPLES / 2];
+        let frame_scale = u128::from(SLOTS_PER_FRAME) / u128::from(SLOTS_PER_SAMPLE);
+        let transactional_frame_ns = transactional_median * frame_scale;
+        let in_place_frame_ns = in_place_median * frame_scale;
+        let speedup = transactional_median as f64 / in_place_median as f64;
+
+        println!(
+            "YM2413_RUNTIME_AB slots_per_sample={} samples={} transactional_median_ns={} in_place_median_ns={} estimated_transactional_ms_per_frame={:.4} estimated_in_place_ms_per_frame={:.4} speedup={:.3}x",
+            SLOTS_PER_SAMPLE,
+            SAMPLES,
+            transactional_median,
+            in_place_median,
+            transactional_frame_ns as f64 / 1_000_000.0,
+            in_place_frame_ns as f64 / 1_000_000.0,
+            speedup
+        );
+    }
+
+    #[test]
     fn core_pg_cursor_mismatch_is_rejected_before_either_path_mutates_state() {
         let mut transactional_core = Ym2413Core::new();
         let mut transactional_service = Ym2413PgSerialService::new(initial_bank(0))
