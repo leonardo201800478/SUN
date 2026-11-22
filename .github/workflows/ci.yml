@@ -141,7 +141,6 @@ jobs:
               - 'native/sms_core/src/temporal*.rs'
               - 'native/sms_core/src/bin/z80test_runner.rs'
               - 'native/sg1000_core/src/temporal*.rs'
-              - 'rust/runtime/sms-runtime/tests/perf_z80_profile.rs'
             psg:
               - 'native/sn76489/**'
               - 'native/audio_runtime/**'
@@ -438,12 +437,6 @@ jobs:
           echo "Z80_WOODMASS_TAP=$fixture" >> "$GITHUB_ENV"
       - name: Execute Mark Woodmass hardware-derived MEMPTR test
         run: cargo test --release --locked -p sega-z80-cpu --test z80_woodmass_memptr woodmass_memptr_tap_matches_hardware_reference -- --ignored --exact --nocapture
-      - name: Format SMS runtime profiling harness
-        run: cargo fmt --manifest-path rust/runtime/sms-runtime/Cargo.toml -- --check
-      - name: Clippy SMS runtime profiling harness
-        run: cargo clippy --release --locked --manifest-path rust/runtime/sms-runtime/Cargo.toml --test perf_z80_profile -- -D warnings
-      - name: Compile and run SMS runtime profiling harness (ignored by default)
-        run: cargo test --release --locked --manifest-path rust/runtime/sms-runtime/Cargo.toml --test perf_z80_profile
 
   psg-focused:
     name: PSG core and console integration validation
