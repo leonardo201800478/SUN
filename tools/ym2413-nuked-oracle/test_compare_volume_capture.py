@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from io import StringIO
 
 from compare_volume_capture import (
     candidate_bin_from_channel_output,
@@ -9,6 +10,7 @@ from compare_volume_capture import (
     residual_profile,
     score_alignment,
     select_sample_cycle,
+    read_output_trace,
 )
 
 
@@ -91,6 +93,43 @@ class AlignmentTests(unittest.TestCase):
             [2, 2],
         )
 
+
+class OutputTraceValidationTests(unittest.TestCase):
+    @staticmethod
+    def make_trace(skip_call=None, wrong_cycle=False):
+        rows = ['{"schema":"ym2413-nuked-opll-output-trace-v2",'
+                '"time_unit":"opll_clock_call","sample_point":"after_OPLL_Clock"}']
+        for call_index in range(18):
+            if call_index == skip_call:
+                continue
+            cycle = (call_index + 1) % 18 if wrong_cycle and call_index == 4 else call_index % 18
+            active = cycle == 6
+            channel_output = 100 if active else 255
+            output_pin = 101 if active else 1
+            rows.append(
+                '{"call_index":%d,"cycle_before":%d,"ch_out_before":%d,"output_pins_m":%d,"output_pins_r":-1}'
+                % (call_index, cycle, channel_output, output_pin)
+            )
+        return StringIO("\\n".join(rows) + "\\n")
+
+    def test_accepts_contiguous_full_slot_scan(self):
+        bins, diagnostics = read_output_trace(self.make_trace(), scan_calls=18, capture_start_call=0)
+        self.assertEqual(diagnostics["sample_cycle"], 6)
+        self.assertEqual(len(bins), 1)
+        self.assertEqual(bins[0], 155)
+
+    def test_rejects_missing_call_index(self):
+        with self.assertRaisesRegex(ValueError, "non-contiguous trace call index"):
+            read_output_trace(self.make_trace(skip_call=4), scan_calls=18, capture_start_call=0)
+
+    def test_rejects_cycle_index_inconsistent_with_call_index(self):
+        with self.assertRaisesRegex(ValueError, "trace cycle mismatch"):
+            read_output_trace(self.make_trace(wrong_cycle=True), scan_calls=18, capture_start_call=0)
+
+    def test_rejects_invalid_sample_point(self):
+        trace = self.make_trace().getvalue().replace('"sample_point":"after_OPLL_Clock"', '"sample_point":"before_OPLL_Clock"')
+        with self.assertRaisesRegex(ValueError, "sample_point"):
+            read_output_trace(StringIO(trace), scan_calls=18, capture_start_call=0)
 
 if __name__ == "__main__":
     unittest.main()
