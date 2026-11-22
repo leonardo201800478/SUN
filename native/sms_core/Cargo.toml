@@ -18,3 +18,7 @@ sega-ym2413 = { path = "../ym2413" }
 sega-temporal-core = { path = "../temporal_core" }
 sega-machine-scheduler = { path = "../machine_scheduler" }
 sega-video = { path = "../video_core" }
+
+[[bench]]
+name = "z80_frame_throughput"
+harness = false
