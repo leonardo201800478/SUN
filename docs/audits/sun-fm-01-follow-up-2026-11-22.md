@@ -4,6 +4,16 @@
 **Base de trabalho:** main pós-merge #1206, #1208, #1213, #1216, #1217, #1219 e #1220, `902e47cd63736ab2cadbcaa051cfc2d55b67c0ad`
 **Estado:** acompanhamento em andamento; sem aprovação de gameplay ou conclusão da sprint.
 
+## Checkpoint após merge da PR #1223 — 2026-11-22
+
+- PR #1223 foi integrada à `main` por squash: `ac319d4cbb93f624c7830d628ccb36c9b5b33fbb`.
+- O serviço PG serial do perfil Japanese SMS agora instala explicitamente o candidato de reset de software do LFSR `(register = 0, next_slot_index = 0)`. O código não afirma que esse seja o seed físico de power-on.
+- A regressão `japanese_fm_rhythm_mode_has_known_noise_and_restores_deterministically` ativa as cinco vozes, verifica PCM digital conhecido/não silencioso e compara execução contínua com snapshot/restore.
+- CI #10316 e SMS Debugger Runtime #1886 concluíram com sucesso na PR. A cobertura é sintética/core/runtime; não executa ROMs comerciais nem dispositivo CPAL físico.
+- Os resultados locais abaixo foram obtidos no commit antigo `d6003f6dc`, antes do merge #1223. Eles permanecem evidência histórica válida daquele build, mas não medem o comportamento do novo HEAD. Reexecutar Kenseiden e Phantasy Star no checkout atualizado da `main` antes de atribuir qualquer mudança de áudio à correção.
+- HEAD confirmado da `main`: `ac319d4cbb93f624c7830d628ccb36c9b5b33fbb`.
+
+
 ## Resultado da primeira execução local de ROM real — 2026-11-22
 
 O usuário executou o harness headless no commit `d6003f6dc` com Kenseiden (Japan) e Phantasy Star (Japan) Rev 1, ambos com SHA-256 correspondente aos fixtures.
@@ -80,7 +90,7 @@ Essa sobreposição foi resolvida em #1217; não reabrir nem integrar as PRs ant
 
 ## 3. Pendências após as entregas integradas
 
-Entregas integradas e validadas por CI: #1208 (diagnóstico), #1213 (comparador), #1216 (catálogo/runbook), #1217 (harness) e #1220 (parser/self-test).
+Entregas integradas e validadas por CI: #1208 (diagnóstico), #1213 (comparador), #1216 (catálogo/runbook), #1217 (harness), #1220 (parser/self-test) e #1223 (Rhythm Mode reset candidate + regressão snapshot/restore).
 
 1. Executar o harness headless com ROMs locais Kenseiden/Phantasy Star e o probe de escritas F0/F1/F2; executar o teste CPAL físico no Windows.
 2. Executar Out Run Japan como campanha de desempenho, com hash registrado; não reutilizar o teste Kenseiden como prova para Out Run.
