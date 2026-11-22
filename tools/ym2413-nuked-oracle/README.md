@@ -341,3 +341,18 @@ The comparator also records the pre-call ch_out and signed rm_enable values.
 On divergence it reports call/cycle, independent MO and RO slot coordinates,
 register-0x0e write data, both ch_out boundaries, expected/actual buffered
 outputs, expected/actual pin latches, and rm_enable before/after the call.
+
+
+## Volume-capture MO output characterization
+
+The compact `--output-only` mode emits one JSON record per Nuked `OPLL_Clock()` call with `cycle_before`, `ch_out`, `output_pins_m`, and `output_pins_r`. It avoids the large internal-state arrays from the full trace.
+
+`fixtures/volume0-capture-events.csv` reproduces the one-channel sine setup used by the historical volume capture: an initial sync patch (modulator AR=15), an 18-call Timer1 synchronization window, and the measurement patch (modulator AR=0). The first patch's 22-clock address/data interval is rounded up to six OPLL slot calls because this trace interface advances four YM clocks per call; the 92-clock data-to-next-address delay remains 23 calls. The measurement patch uses exact 12/84-clock intervals (3/21 calls). The capture sample period is 72 YM clocks, or 18 OPLL calls.
+
+The CI job compares the candidate `measured_bin = 255 - output_pins_m` sequence against the pinned upstream `volume0.out` data. It locates the active MO slot, searches a bounded sample-phase offset, and reports exact-match rate and absolute error, plus an inverted-polarity control. This is deliberately a **characterization**, not a pass/fail audio-fidelity gate: phase alignment does not prove the DAC electrical transfer, board loading, subclock behavior, or Phantasy Star/Kenseiden playback.
+
+Run the helper tests with:
+
+```sh
+python3 -m unittest discover -s tools/ym2413-nuked-oracle -p 'test_*.py'
+```
