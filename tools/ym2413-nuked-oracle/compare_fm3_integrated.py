@@ -285,7 +285,6 @@ def compare_row(
     call_index: int,
     nuked: dict[str, object],
     rust: dict[str, object],
-,
     previous_nuked: dict[str, object] | None = None,
 ) -> None:
     """Compare all integrated serial state fields for one OPLL_Clock call."""
