@@ -571,6 +571,7 @@ impl FramePacingWindow {
                 .sum(),
             pacing_command_remaining_p95_ns: percentile(&mut command_remaining, 95),
             command_handler_p95_ns: percentile(&mut command_handlers, 95),
+            ..SmsFramePacingMetrics::default()
         }
     }
 }
