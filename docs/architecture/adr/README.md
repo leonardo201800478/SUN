@@ -13,7 +13,7 @@ Este índice lista decisões vigentes e registros históricos. ADR aceita não s
 | [ADR-0014 — execução e sincronização temporal](0014-temporal-device-execution-and-synchronization.md) | Proposta geral para dispositivos temporizados. | Não impõe granularidade universal |
 | [ADR-0015 — contrato temporal SMS/Z80/barramento](0015-sms-z80-bus-temporal-contract.md) | Proposta e histórico da integração temporal SMS. | Referência histórica; aplicar somente o necessário |
 | [ADR-0016 — fidelidade observável](0016-observable-fidelity-and-proportional-timing.md) | Precisão temporal prioritária nos caminhos de gameplay; execução funcional atômica para operações sem estado intermediário observável; sem precisão elétrica universal. | **Vigente** |
-| [ADR-0017 — F2 predecoded cache e F3 condicional](0017-f2-decoded-block-cache-and-f3-contingency.md) | F2 como estratégia inicial de execução SMS; F3/JIT como contingência após gate de desempenho e profiling. | **Proposta aprovada pelo proprietário; aguarda merge** |
+| [ADR-0017 — F2 predecoded cache e F3 condicional](0017-f2-decoded-block-cache-and-f3-contingency.md) | F2 como estratégia inicial de execução SMS; F3/JIT como contingência após gate de desempenho e profiling. | **Aceita pelo proprietário; efetiva após merge da PR #1254** |
 
 ## Documentação de referência
 
