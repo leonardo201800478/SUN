@@ -29,7 +29,10 @@ A campanha PERF-01/S1 ABBA existente foi medida no commit `331fc7e97bf67964b0db6
 - Throughput cenário C (YM2413 clockado e FM mixado): Release 50.9751 FPS; ThinLTO 56.7438 FPS (+11.32%).
 - O perfil `release-llvm` com ThinLTO permanece candidato opt-in; não é ainda o perfil padrão.
 - O diagnóstico apontou avanço YM2413 como custo relevante, mas não isolou o custo interno do core nem demonstrou que seja o único gargalo.
-- Meta PERF-01: >=120 frames/s uncapped/headless em OutRun com FM ativo. Requisito de produto separado: 60 FPS estáveis com frame time <=16.67 ms e saída física validada.
+- Meta anterior da issue PERF-01: >=120 frames/s uncapped/headless em OutRun com FM ativo. Essa meta passa a ser um marco intermediário histórico, não o alvo final de throughput SMS.
+- Diretriz de desempenho aprovada pelo proprietário: SMS com YM2413/FM ativo deve buscar **>=400 emulated frames/s**; Megazord (Mega Drive + Sega CD + 32X integrados e sincronizados) deve buscar **>=100 emulated frames/s** quando essa plataforma estiver implementada.
+- Requisito de produto separado e obrigatório: 60 FPS estáveis em tempo real, com frame time <=16.67 ms, áudio/vídeo/input integrados e validação em dispositivo modesto.
+- A referência Ares exige campanha comparável com mesma ROM/cena/configuração/host e definição de métrica. O registro antigo de 395 VPS do Ares não equivale automaticamente a 395 FPS do SUN.
 
 **Conclusão:** há evidência útil, mas ela pertence a outro SHA. Reexecutar a campanha no HEAD atual antes de tomar decisões de implementação ou promover flags de compilação.
 
@@ -63,7 +66,9 @@ A issue [#1233 — PERF-01](https://github.com/leonardo201800478/SUN/issues/1233
 - [ ] Capturar Release e perfil ThinLTO separadamente.
 - [ ] Fazer profiling por função dos maiores custos do frame; distinguir medição instrumentada e throughput puro.
 - [ ] Definir orçamento inicial por componente a partir dos dados, não de estimativas arbitrárias.
-- [ ] Preservar issue #1233 como trilha de desempenho.
+- [ ] Separar benchmark headless/uncapped do teste integrado com Slint/WGPU/CPAL e do aceite em dispositivo modesto.
+- [ ] Preparar comparação Ares/SUN com métrica, ROM, cena, configuração e hardware equivalentes; não converter VPS em FPS por suposição.
+- [ ] Preservar issue #1233 como trilha de desempenho e atualizar seus critérios para a meta SMS de 400 frames/s.
 - [ ] Criar gate de regressão por benchmark estável; runners compartilhados não devem decidir regressão por wall-clock ruidoso sem baseline controlada.
 
 ### M0.5 — Contratos e agentes
@@ -83,8 +88,10 @@ M0 só fecha quando:
 6. Orçamento de desempenho e gates definidos para a primeira tarefa de produção.
 7. Nenhuma implementação de hardware foi reescrita sem task-spec e aceite.
 
-## 5. Primeira tarefa de produção após M0
+## 5. Primeira tarefa de produção após a auditoria mínima
 
-A próxima tarefa será escolhida pelo maior bloqueio mensurado para gameplay e compatibilidade da família 8-bit. Não está pré-determinado que será Z80, YM2413 ou VDP.
+A direção de execução já está definida: iniciar **F2 no SMS**, usando o Z80 compartilhado e a implementação existente como base. Antes de codificar, concluir o mapa dos pontos de invalidação, dos limites do Scheduler e dos acessos observáveis.
 
-O critério é: **maior custo ou defeito comprovado, maior impacto sobre jogos suportados, menor risco de regressão e oráculo disponível.**
+A implementação não deve esperar uma reescrita geral nem criar outro core. A primeira PR de produção deve ser pequena, mensurável e reversível, com o interpretador sem cache preservado para comparação diferencial.
+
+Se F2 ficar abaixo de 400 frames/s com FM ativo, a campanha de perfil determinará se F3 é a resposta adequada. Se o gargalo dominante não for CPU decode/dispatch, corrigir o gargalo real antes de introduzir compilação dinâmica.
