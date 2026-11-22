@@ -1,3 +1,5 @@
+> **INVENTÁRIO HISTÓRICO — SUPERSEDED (2026-11-22):** fotografia da migração anterior, baseada no SHA/data indicados abaixo. Referências a Python, PySide6, PyO3, egui e D3D12 descrevem o estado histórico e não definem a arquitetura atual. Não usar este inventário como lista de tarefas ou arquitetura-alvo sem nova auditoria.
+
 # Inventário de migração da aplicação para Rust — M0.2
 
 - **Baseline auditada:** `main` em `b82f748b83749eac2173ff86e535cc2a9e2ca862` (2026-11-06).

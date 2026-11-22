@@ -1,3 +1,5 @@
+> **REGISTRO HISTÓRICO — HOST D3D12 APOSENTADO (2026-11-22):** este documento preserva decisões, evidências e resultados do caminho anterior. Não define a arquitetura ativa nem autoriza reintroduzir D3D12/egui. A arquitetura de produto vigente é Slint 1.18 + WGPU 30/Vulkan.
+
 # Auditoria de integração — D3D12 presentation runtime e SMS1 VDP contract tests
 
 **Data:** 2026-11-05  

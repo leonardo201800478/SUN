@@ -11,8 +11,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $workspaces = @(
     [pscustomobject]@{ Name = "root"; Manifest = "Cargo.toml"; Lockfile = "Cargo.lock" },
-    [pscustomobject]@{ Name = "audio-output-legacy"; Manifest = "native/audio_output/Cargo.toml"; Lockfile = "native/audio_output/Cargo.lock" },
-    [pscustomobject]@{ Name = "sega-app-legacy"; Manifest = "native/sega_app/Cargo.toml"; Lockfile = "native/sega_app/Cargo.lock" }
+    [pscustomobject]@{ Name = "audio-output-legacy"; Manifest = "native/audio_output/Cargo.toml"; Lockfile = "native/audio_output/Cargo.lock" }
 )
 $results = @()
 $cargo = Get-Command cargo -ErrorAction SilentlyContinue

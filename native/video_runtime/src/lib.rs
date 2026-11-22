@@ -5,15 +5,9 @@
 //! ownership. Native presentation backends consume completed frames through
 //! this contract.
 
-#[cfg(windows)]
-pub mod d3d12;
-
 /// Host-side diagnostics that correlate telemetry with Windows performance traces.
 #[cfg(windows)]
 pub mod diagnostics;
-
-pub mod frame_queue;
-pub use frame_queue::{FrameQueue, FrameQueueError};
 
 use core::fmt;
 use std::sync::Arc;

@@ -25,8 +25,6 @@ use sega_sms_core::{
     SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
-#[cfg(windows)]
-use sega_video_runtime::d3d12::D3d12MailboxSession;
 use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
 
 const SMS_INTERNAL_AUDIO_SAMPLE_RATE: u64 = DEFAULT_PCM_SOURCE_RATE_HZ as u64;
@@ -1493,8 +1491,6 @@ pub struct SmsTemporalWorker {
     worker: Option<JoinHandle<()>>,
     telemetry: Arc<WorkerTelemetry>,
     trace_collector: Arc<Mutex<Option<DiagnosticCollector<SmsTemporalTraceEvent>>>>,
-    #[cfg(windows)]
-    video_session: Mutex<Option<D3d12MailboxSession>>,
 }
 
 /// Cloneable, lightweight command handle for debugger viewports.
@@ -2101,8 +2097,6 @@ impl SmsTemporalWorker {
                 worker: Some(worker),
                 telemetry,
                 trace_collector,
-                #[cfg(windows)]
-                video_session: Mutex::new(None),
             }),
             Ok(Err(error)) => {
                 let _ = worker.join();
@@ -2356,100 +2350,6 @@ impl SmsTemporalWorker {
         self.set_video_mailbox(None)
     }
 
-    #[cfg(windows)]
-    fn start_video_session<E>(
-        &self,
-        start: impl FnOnce() -> Result<D3d12MailboxSession, E>,
-    ) -> Result<(), String>
-    where
-        E: std::fmt::Display,
-    {
-        let mut session_guard = self
-            .video_session
-            .lock()
-            .map_err(|_| "video session lock is poisoned".to_owned())?;
-
-        if session_guard
-            .as_ref()
-            .is_some_and(D3d12MailboxSession::is_running)
-        {
-            return Ok(());
-        }
-
-        if let Some(stale_session) = session_guard.take() {
-            let _ = stale_session.shutdown();
-        }
-
-        let session = start().map_err(|error| error.to_string())?;
-        let mailbox = session.mailbox();
-        if let Err(error) = self.set_video_mailbox(Some(mailbox)) {
-            let _ = session.shutdown();
-            return Err(error);
-        }
-
-        self.telemetry.set_video_error(None);
-        self.telemetry
-            .video_replaced_frames
-            .store(0, Ordering::Release);
-        *session_guard = Some(session);
-        Ok(())
-    }
-
-    #[cfg(windows)]
-    pub fn open_video_output(&self) -> Result<(), String> {
-        self.start_video_session(|| D3d12MailboxSession::start(256, 192, 768, 576))
-    }
-
-    #[cfg(windows)]
-    pub fn open_video_output_in_viewport(&self, window_handle: usize) -> Result<(), String> {
-        self.start_video_session(|| {
-            D3d12MailboxSession::start_for_existing_window(256, 192, window_handle)
-        })
-    }
-
-    #[cfg(not(windows))]
-    pub fn open_video_output(&self) -> Result<(), String> {
-        Err("D3D12 video output is available only on Windows".to_owned())
-    }
-
-    #[cfg(not(windows))]
-    pub fn open_video_output_in_viewport(&self, _window_handle: usize) -> Result<(), String> {
-        Err("D3D12 video output is available only on Windows".to_owned())
-    }
-
-    pub fn close_video_output(&self) -> Result<(), String> {
-        #[cfg(windows)]
-        {
-            let mut session_guard = self
-                .video_session
-                .lock()
-                .map_err(|_| "video session lock is poisoned".to_owned())?;
-            if session_guard.is_none() {
-                return Ok(());
-            }
-            self.set_video_mailbox(None)?;
-            if let Some(session) = session_guard.take() {
-                session.shutdown().map_err(|error| error.to_string())?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn video_output_is_running(&self) -> bool {
-        #[cfg(windows)]
-        {
-            self.video_session
-                .lock()
-                .ok()
-                .and_then(|session| session.as_ref().map(D3d12MailboxSession::is_running))
-                .unwrap_or(false)
-        }
-        #[cfg(not(windows))]
-        {
-            false
-        }
-    }
-
     pub fn video_output_error(&self) -> Option<String> {
         self.telemetry
             .video_output_error
@@ -2466,44 +2366,6 @@ impl SmsTemporalWorker {
 
     pub fn video_replaced_frames(&self) -> u64 {
         self.telemetry.video_replaced_frames.load(Ordering::Acquire)
-    }
-
-    pub fn video_last_presented_sequence(&self) -> u64 {
-        #[cfg(windows)]
-        {
-            self.video_session
-                .lock()
-                .ok()
-                .and_then(|session| {
-                    session
-                        .as_ref()
-                        .map(D3d12MailboxSession::last_presented_sequence)
-                })
-                .unwrap_or(0)
-        }
-        #[cfg(not(windows))]
-        {
-            0
-        }
-    }
-
-    pub fn video_device_recovery_count(&self) -> u64 {
-        #[cfg(windows)]
-        {
-            self.video_session
-                .lock()
-                .ok()
-                .and_then(|session| {
-                    session
-                        .as_ref()
-                        .map(D3d12MailboxSession::device_recovery_count)
-                })
-                .unwrap_or(0)
-        }
-        #[cfg(not(windows))]
-        {
-            0
-        }
     }
 
     pub fn is_running(&self) -> bool {
@@ -2566,7 +2428,6 @@ impl SmsTemporalWorker {
 
 impl Drop for SmsTemporalWorker {
     fn drop(&mut self) {
-        let _ = self.close_video_output();
         self.telemetry.shutdown.store(true, Ordering::Release);
         let _ = enqueue_worker_command(&self.commands, WorkerCommand::Shutdown);
         // The worker observes the shutdown flag at its next safe event-loop
