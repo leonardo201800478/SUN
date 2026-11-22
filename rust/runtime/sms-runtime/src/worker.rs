@@ -2543,9 +2543,7 @@ fn execute_frame_with_renderer(
     let mut psg_samples = std::mem::take(&mut audio_renderer.frame_psg_samples);
     machine.drain_audio_samples_into(&mut psg_samples, None);
     let mut fm_samples = std::mem::take(&mut audio_renderer.frame_fm_samples);
-    if machine.ym2413().is_some()
-        && audio_renderer.fm_output_policy == SmsFmOutputPolicy::Muted
-    {
+    if machine.ym2413().is_some() && audio_renderer.fm_output_policy == SmsFmOutputPolicy::Muted {
         machine.discard_fm_audio_samples();
         fm_samples.clear();
     } else {
