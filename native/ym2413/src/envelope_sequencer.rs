@@ -444,13 +444,17 @@ mod tests {
         let mut full_samples = [0; SAMPLES];
         let mut compact_samples = [0; SAMPLES];
 
-        for sample in 0..SAMPLES {
+        for (sample, (full, compact)) in full_samples
+            .iter_mut()
+            .zip(compact_samples.iter_mut())
+            .enumerate()
+        {
             if sample % 2 == 0 {
-                full_samples[sample] = measure_full_snapshot(&sequencer, ITERATIONS);
-                compact_samples[sample] = measure_compact_view(&sequencer, ITERATIONS);
+                *full = measure_full_snapshot(&sequencer, ITERATIONS);
+                *compact = measure_compact_view(&sequencer, ITERATIONS);
             } else {
-                compact_samples[sample] = measure_compact_view(&sequencer);
-                full_samples[sample] = measure_full_snapshot(&sequencer);
+                *compact = measure_compact_view(&sequencer, ITERATIONS);
+                *full = measure_full_snapshot(&sequencer, ITERATIONS);
             }
         }
 
