@@ -495,7 +495,9 @@ impl Sn76489Core {
         let count = max_samples
             .unwrap_or(available_samples)
             .min(available_samples);
-        output.reserve(count.saturating_sub(output.capacity()));
+        if output.capacity() < count {
+            output.reserve(count);
+        }
         for _ in 0..count {
             if let Some(sample) = self.pending_samples.pop_front() {
                 output.push(sample);
