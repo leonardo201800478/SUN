@@ -20,8 +20,12 @@ Esta política é subordinada aos ADRs vigentes e ao código integrado na `main`
 
 | Workflow | Responsabilidade |
 |---|---|
-| `.github/workflows/ci.yml` | Classificação de impacto, regressão Rust, hosts condicionais, desktop Slint/WGPU, higiene documental e lint de workflows |
+| `.github/workflows/ci.yml` | Classificação de impacto, regressão Rust, gates focados por domínio, hosts condicionais, desktop Slint/WGPU, higiene documental e lint de workflows |
 | `.github/workflows/sms-debugger-runtime.yml` | Integração SMS runtime Windows x64 Release; não compila a GUI debugger legada |
+| `.github/workflows/ym2413-pg-differential.yml` | Diferencial serial PG/operadores contra Nuked, somente para fontes e ferramentas PG relacionadas |
+| `.github/workflows/ym2413-eg-characterization.yml` | Sweep e replay EG; somente para fontes, fixtures e ferramentas de envelope |
+| `.github/workflows/ym2413-rhythm-reset-differential.yml` | Diferencial de reset/ruído Rhythm Mode |
+| `.github/workflows/ym2413-output-pipeline-differential.yml` | Diferencial do pipeline MO/RO |
 
 As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scripts/**` acionam o gate `workflow-lint` e a regressão do workspace Rust. A análise estática dos workflows utiliza actionlint v1.7.12, instalado por release versionada e SHA-256 verificado.
 
@@ -29,6 +33,8 @@ As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scri
 
 | Componente | Validação obrigatória | Workflow | Condição |
 |---|---|---|---|
+| YM2413 | fmt, Clippy Release e testes do crate; integração no SMS runtime Windows Release | CI / YM2413 focused + SMS Debugger Runtime | Alterações em `native/ym2413/**`; substitui a regressão genérica do workspace quando a alteração está isolada no YM2413 |
+| YM2413 PG/EG/Rhythm/MO-RO | Diferenciais com Nuked-OPLL, restritos aos arquivos e fixtures de cada domínio | Workflows YM2413 especializados | Executar apenas quando os componentes/fontes/fixtures correspondentes mudarem; execução manual disponível para auditoria ampliada |
 | Runtime Rust | fmt, Clippy Release, testes unitários e integração | CI / Rust workspace | Crates Rust gerais, manifests, lockfiles e configuração global |
 | Z80 CPU/ALU/bus | fmt, Clippy, testes semânticos e integração SMS/SG-1000 | CI / Z80 focused | Alterações nos módulos Z80 e integrações classificadas |
 | Z80 vetores externos | SingleStepTests DD/FD indexados, revisão de estado arquitetural e T-states | CI / Z80 focused | Alterações Z80 |
@@ -52,6 +58,10 @@ As alterações em `.github/workflows/**`, `.github/actions/**` ou `.github/scri
 ## 4. Regras de impacto e dependências
 
 - Z80-only executa a suíte focada Z80, incluindo os testes integrados SMS/SG-1000 e vetores externos pertinentes. Não exige compilar hosts gráficos ou de áudio sem relação com a alteração.
+- YM2413-only executa o gate focado do crate e a integração do SMS runtime Windows Release; não executa a regressão genérica do workspace nem o job CPAL.
+- O workflow EG é limitado aos módulos de envelope, core/slot sequencer, exemplos, fixtures e ferramentas EG. Alterações exclusivas em PG/operadores/MO-RO não disparam o sweep de envelopes.
+- Os workflows diferenciais PG, Rhythm e MO/RO não são disparados por eventos de inclusão de labels; usam mudanças de arquivos pertinentes ou execução manual.
+
 - PSG, VDP e input têm jobs de pacote com integração de console. Eles substituem a regressão genérica do workspace somente quando a alteração está isolada nesses domínios.
 - MachineScheduler e temporal core executam a regressão do workspace e o stress replay determinístico. Consumidores legados afetados também são validados quando necessário.
 - Alterações em `native/observability` acionam os consumidores pertinentes.
