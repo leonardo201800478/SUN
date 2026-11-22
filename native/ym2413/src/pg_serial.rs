@@ -931,9 +931,6 @@ impl Ym2413SlotService for Ym2413PgSerialService {
     type Error = Ym2413PgSerialError;
 
     fn before_eg_update(&mut self, context: &Ym2413SlotServiceContext) -> Result<(), Self::Error> {
-        if self.pending_dispatch.is_some() {
-            return Err(Ym2413PgSerialError::InvalidState);
-        }
         let dispatch = dispatch_serial_slot(
             context.event.cycle,
             &context.registers,
