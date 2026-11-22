@@ -126,6 +126,7 @@ function Get-RunSummary {
     $fmSourceSamplesTotal = 0.0
     $fmUnknownSamplesTotal = 0.0
     $fmNonFiniteSamplesTotal = 0.0
+    $fmDiagnosticsAvailable = $false
     $audioMetrics = $null
     $hostMetrics = $null
     $audioHighWaterFrames = 0.0
@@ -183,7 +184,11 @@ function Get-RunSummary {
                     $fallbackFrames += 1
                 }
 
-                $sourceSamples = ConvertTo-NullableDouble (Get-FieldValue -Fields $fields -Name "fm_source_samples")
+                $sourceField = Get-FieldValue -Fields $fields -Name "fm_source_samples"
+                if ($null -ne $sourceField) {
+                    $fmDiagnosticsAvailable = $true
+                }
+                $sourceSamples = ConvertTo-NullableDouble $sourceField
                 $unknownSamples = ConvertTo-NullableDouble (Get-FieldValue -Fields $fields -Name "fm_unknown_samples")
                 $nonFiniteSamples = ConvertTo-NullableDouble (Get-FieldValue -Fields $fields -Name "fm_non_finite_samples")
                 if ($null -ne $sourceSamples) { $fmSourceSamplesTotal += $sourceSamples }
@@ -243,6 +248,21 @@ function Get-RunSummary {
         $unknownPercent = 100.0 * ($fmUnknownSamplesTotal + $fmNonFiniteSamplesTotal) / $fmSourceSamplesTotal
     }
 
+    $fallbackPercent = $null
+    $invalidPercent = $null
+    $reportedFallbackFrames = $null
+    $reportedSourceSamples = $null
+    $reportedUnknownSamples = $null
+    $reportedNonFiniteSamples = $null
+    if ($fmDiagnosticsAvailable) {
+        $fallbackPercent = 100.0 * $fallbackFrames / $frameEvents
+        $invalidPercent = $unknownPercent
+        $reportedFallbackFrames = $fallbackFrames
+        $reportedSourceSamples = $fmSourceSamplesTotal
+        $reportedUnknownSamples = $fmUnknownSamplesTotal
+        $reportedNonFiniteSamples = $fmNonFiniteSamplesTotal
+    }
+
     return [ordered]@{
         run = $RunDirectory.Name
         build = $metadata.build
@@ -255,12 +275,13 @@ function Get-RunSummary {
         capture_end_utc = $metadata.capture_end_utc
         capture_seconds = $metadata.capture_seconds
         frame_events = $frameEvents
-        fm_fallback_frames = $fallbackFrames
-        fm_fallback_percent = 100.0 * $fallbackFrames / $frameEvents
-        fm_source_samples_total = $fmSourceSamplesTotal
-        fm_unknown_samples_total = $fmUnknownSamplesTotal
-        fm_non_finite_samples_total = $fmNonFiniteSamplesTotal
-        fm_invalid_sample_percent = $unknownPercent
+        fm_diagnostics_available = $fmDiagnosticsAvailable
+        fm_fallback_frames = $reportedFallbackFrames
+        fm_fallback_percent = $fallbackPercent
+        fm_source_samples_total = $reportedSourceSamples
+        fm_unknown_samples_total = $reportedUnknownSamples
+        fm_non_finite_samples_total = $reportedNonFiniteSamples
+        fm_invalid_sample_percent = $invalidPercent
         audio_queue_high_water_frames_observed = $audioHighWaterFrames
         metrics = $distributions
         audio_output = $audioMetrics
