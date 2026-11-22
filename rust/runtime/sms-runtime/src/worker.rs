@@ -2518,6 +2518,9 @@ fn execute_frame_with_renderer(
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
     let diagnostic_machine_start = diagnostics_enabled.then_some(machine_time_start_ticks);
+    let diagnostic_ym2413_start = diagnostics_enabled
+        .then(|| machine.ym2413().map(|core| core.elapsed_input_clocks()))
+        .flatten();
     let diagnostic_step_start = diagnostics_enabled.then(Instant::now);
     let (instructions, breakpoint_hit) = machine
         .step_frame_until(max_instructions, |pc| breakpoints.contains(u32::from(pc)))
@@ -2527,6 +2530,13 @@ fn execute_frame_with_renderer(
     let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
     let machine_time_end_ticks = machine.now().ticks();
     let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
+    let diagnostic_ym2413_end = diagnostics_enabled
+        .then(|| machine.ym2413().map(|core| core.elapsed_input_clocks()))
+        .flatten();
+    let diagnostic_ym2413_delta =
+        diagnostic_ym2413_end.zip(diagnostic_ym2413_start).map(|(end, start)| {
+            end.saturating_sub(start)
+        });
     let frame_completed = !breakpoint_hit;
 
     if diagnostics_enabled {
@@ -2850,6 +2860,9 @@ fn execute_frame_with_renderer(
             machine_time_start_ticks = machine_time_start,
             machine_time_end_ticks = machine_time_end,
             machine_time_delta_ticks = machine_time_end.saturating_sub(machine_time_start),
+            ym2413_input_clocks_delta = diagnostic_ym2413_delta.unwrap_or_default(),
+            ym2413_clock_delta_matches_machine_ticks = diagnostic_ym2413_delta
+                .is_some_and(|delta| u128::from(delta) == machine_time_end.saturating_sub(machine_time_start)),
             instructions,
             psg_samples = sample_count,
             psg_input_samples = psg_samples.len(),
