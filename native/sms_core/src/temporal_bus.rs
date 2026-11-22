@@ -334,6 +334,10 @@ pub struct SmsTemporalBus {
     interrupt_vector: u8,
     /// Set after an in-place YM2413 failure; this machine instance cannot resume.
     ym2413_runtime_faulted: bool,
+    /// Host-output capture policy; independent of the physical YM2413 clock.
+    fm_audio_capture_enabled: bool,
+    /// Wait until slot zero before restarting capture after a mute transition.
+    fm_capture_wait_for_rotation: bool,
 }
 
 impl SmsTemporalBus {
@@ -501,6 +505,8 @@ impl SmsTemporalBus {
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
             ym2413_runtime_faulted: false,
+            fm_audio_capture_enabled: true,
+            fm_capture_wait_for_rotation: false,
         })
     }
 
@@ -587,6 +593,8 @@ impl SmsTemporalBus {
             internal_completion: None,
             interrupt_vector: DEFAULT_INTERRUPT_VECTOR,
             ym2413_runtime_faulted: false,
+            fm_audio_capture_enabled: true,
+            fm_capture_wait_for_rotation: false,
         })
     }
 
@@ -991,6 +999,24 @@ impl SmsTemporalBus {
         self.psg.core().mixed_amplitude()
     }
 
+    /// Enable/disable host-bound FM PCM capture without stopping YM2413 clocks.
+    ///
+    /// Disabling capture drops any partial rotation and queued samples. Re-enabling
+    /// waits for slot zero so the first emitted sample always covers a full rotation.
+    pub fn set_fm_audio_capture_enabled(&mut self, enabled: bool) {
+        if self.fm_audio_capture_enabled == enabled {
+            return;
+        }
+        self.fm_audio_capture_enabled = enabled;
+        self.pending_fm_samples.clear();
+        self.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
+        self.fm_capture_wait_for_rotation = enabled
+            && self
+                .ym2413
+                .as_ref()
+                .is_some_and(|core| core.slot_index() != 0);
+    }
+
     fn advance_ym2413(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
         let mut remaining = clocks;
         let mut phase = self
@@ -1020,7 +1046,9 @@ impl SmsTemporalBus {
                 self.ym2413_runtime_faulted = true;
                 return Err(error.into());
             }
-            let output_frame = if completed_slot {
+            let capture_output =
+                self.fm_audio_capture_enabled && !self.fm_capture_wait_for_rotation;
+            let output_frame = if completed_slot && capture_output {
                 self.ym2413_pg_service
                     .as_ref()
                     .and_then(Ym2413PgSerialService::output_frame)
@@ -1029,14 +1057,26 @@ impl SmsTemporalBus {
             };
             phase = ((u64::from(phase) + step) % YM2413_INPUT_CLOCKS_PER_SLOT) as u8;
             remaining -= u128::from(step);
-            if completed_slot {
-                let Some(frame) = output_frame else {
-                    self.ym2413_runtime_faulted = true;
-                    return Err(SmsTemporalBusError::InvalidState);
-                };
-                if let Err(error) = self.capture_ym2413_output_frame(frame) {
-                    self.ym2413_runtime_faulted = true;
-                    return Err(error);
+            if completed_slot && self.fm_audio_capture_enabled {
+                if self.fm_capture_wait_for_rotation {
+                    let next_slot = self
+                        .ym2413
+                        .as_ref()
+                        .map(Ym2413Core::slot_index)
+                        .ok_or(SmsTemporalBusError::InvalidState)?;
+                    if next_slot == 0 {
+                        self.fm_capture_wait_for_rotation = false;
+                        self.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
+                    }
+                } else {
+                    let Some(frame) = output_frame else {
+                        self.ym2413_runtime_faulted = true;
+                        return Err(SmsTemporalBusError::InvalidState);
+                    };
+                    if let Err(error) = self.capture_ym2413_output_frame(frame) {
+                        self.ym2413_runtime_faulted = true;
+                        return Err(error);
+                    }
                 }
             }
         }
@@ -1319,11 +1359,16 @@ impl SmsTemporalBus {
         if let (Some(core_state), Some(service_state)) = (&state.ym2413, &state.ym2413_pg_service)
             && (core_state.slot_index != service_state.rhythm_noise_cursor
                 || core_state.slot_index != service_state.output_pipeline.next_cycle
-                || core_state.slot_index != state.ym2413_pcm_accumulator.next_cycle
+                || (state.ym2413_pcm_accumulator != SmsYm2413PcmAccumulatorState::default()
+                    && core_state.slot_index != state.ym2413_pcm_accumulator.next_cycle)
                 || u64::from(core_state.input_clock_phase) >= YM2413_INPUT_CLOCKS_PER_SLOT)
         {
             return Err(SmsTemporalBusError::InvalidState);
         }
+        let fm_capture_wait_for_rotation = state.ym2413.as_ref().is_some_and(|core_state| {
+            core_state.slot_index != 0
+                && state.ym2413_pcm_accumulator == SmsYm2413PcmAccumulatorState::default()
+        });
         let ym2413 = state.ym2413.map(Ym2413Core::restore_state).transpose()?;
         let ym2413_pg_service = state
             .ym2413_pg_service
@@ -1442,6 +1487,8 @@ impl SmsTemporalBus {
             internal_completion: state.internal_completion,
             interrupt_vector: state.interrupt_vector,
             ym2413_runtime_faulted: false,
+            fm_audio_capture_enabled: true,
+            fm_capture_wait_for_rotation,
         })
     }
 }
