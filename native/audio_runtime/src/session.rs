@@ -62,6 +62,13 @@ pub trait PcmSink {
     /// Enqueue one mono normalized-f64 PCM block; endpoint-format conversion is deferred to the host callback.
     fn write_samples(&mut self, samples: Vec<f64>) -> Result<(), String>;
 
+    /// Enqueue a borrowed PCM block. Backends may override this to avoid an
+    /// intermediate allocation; the default preserves compatibility with sinks
+    /// that implement only the original ownership-taking method.
+    fn write_samples_ref(&mut self, samples: &[f64]) -> Result<(), String> {
+        self.write_samples(samples.to_vec())
+    }
+
     /// Suspend the host stream and invalidate PCM still queued in the
     /// application-owned transport before acknowledging a lifecycle transition.
     ///
@@ -87,6 +94,7 @@ pub struct NativeAudioSession<S: PcmSink> {
     mixer: AudioMixer,
     mixed_samples: Vec<f64>,
     analog_samples: Vec<f64>,
+    resampled_samples: Vec<f64>,
     analog_output: AnalogOutputProcessor,
     resampler: PcmResampler,
     sink: S,
@@ -125,6 +133,7 @@ impl<S: PcmSink> NativeAudioSession<S> {
             mixer: AudioMixer::default(),
             mixed_samples: Vec::new(),
             analog_samples: Vec::new(),
+            resampled_samples: Vec::with_capacity(2_048),
             analog_output: AnalogOutputProcessor::default(),
             resampler,
             sink,
@@ -181,16 +190,18 @@ impl<S: PcmSink> NativeAudioSession<S> {
         if self.mixed_samples.is_empty() {
             return Ok(());
         }
-        let samples = if self.analog_output.config().enabled {
+        if self.analog_output.config().enabled {
             self.analog_output
                 .process_block(&self.mixed_samples, &mut self.analog_samples);
-            self.resampler.process(&self.analog_samples)
+            self.resampler
+                .process_into(&self.analog_samples, &mut self.resampled_samples);
         } else {
             // Preserve the original digital path and avoid a redundant block copy.
-            self.resampler.process(&self.mixed_samples)
-        };
-        if publish && !samples.is_empty() {
-            self.sink.write_samples(samples)?;
+            self.resampler
+                .process_into(&self.mixed_samples, &mut self.resampled_samples);
+        }
+        if publish && !self.resampled_samples.is_empty() {
+            self.sink.write_samples_ref(&self.resampled_samples)?;
         }
         Ok(())
     }
@@ -231,6 +242,7 @@ impl<S: PcmSink> NativeAudioSession<S> {
             self.resampler.reset();
             self.mixed_samples.clear();
             self.analog_samples.clear();
+            self.resampled_samples.clear();
             self.analog_output.reset();
         }
         self.sink.resume()?;
@@ -249,6 +261,7 @@ impl<S: PcmSink> NativeAudioSession<S> {
         self.resampler.reset();
         self.mixed_samples.clear();
         self.analog_samples.clear();
+        self.resampled_samples.clear();
         self.analog_output.reset();
         self.discarded_since_suspend = false;
     }
@@ -473,6 +486,26 @@ mod tests {
         session.close();
         assert_eq!(session.sink.blocks, vec![vec![0.0, 0.5, -0.5]]);
         assert!(session.sink.closed);
+    }
+
+    #[test]
+    fn session_reuses_final_resampler_output_buffer_between_blocks() {
+        let mut session =
+            NativeAudioSession::new(48_000, 44_100, 100, RecordingSink::default()).unwrap();
+        let input = vec![0.25; 2_048];
+
+        for _ in 0..3 {
+            session.process_samples(&input).unwrap();
+        }
+        let retained_capacity = session.resampled_samples.capacity();
+        assert!(retained_capacity >= 1_800);
+        assert_eq!(session.sink.blocks.len(), 3);
+
+        for _ in 0..3 {
+            session.process_samples(&input).unwrap();
+            assert_eq!(session.resampled_samples.capacity(), retained_capacity);
+        }
+        assert_eq!(session.sink.blocks.len(), 6);
     }
 
     #[test]
