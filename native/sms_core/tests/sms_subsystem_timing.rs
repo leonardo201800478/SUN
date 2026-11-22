@@ -37,7 +37,7 @@ fn subsystem_timing_counts_scheduler_psg_and_vdp_without_changing_instruction_re
 
 #[test]
 fn subsystem_timing_is_zero_cost_disabled_by_default() {
-    let mut machine = SmsTemporalMachine::new(vec![0x00], 1)
+    let mut machine = SmsTemporalMachine::new(vec![0x00; 0x4000], 1)
         .expect("construct temporal SMS machine");
 
     machine
