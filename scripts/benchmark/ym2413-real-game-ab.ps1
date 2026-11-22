@@ -169,7 +169,7 @@ function Invoke-MeasurementRun {
 
     $logFiles = @(Get-ChildItem -LiteralPath $logRoot -File)
     if ($logFiles.Count -eq 0) {
-        throw "$runName: nenhum log foi gerado. Confirme a autorização diagnóstica."
+        throw "${runName}: nenhum log foi gerado. Confirme a autorização diagnóstica."
     }
 
     $archive = Join-Path $runRoot "logs.zip"
