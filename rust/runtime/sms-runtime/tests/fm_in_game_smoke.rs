@@ -279,7 +279,7 @@ fn write_game_audio_captures(
     };
     let directory = PathBuf::from(directory);
     fs::create_dir_all(&directory).map_err(|error| format!("{}: {error}", directory.display()))?;
-    let stem = fixture_name.to_ascii_lowercase().replace([' ', '(', ')'], "-").replace("--", "-");
+    let stem = fixture_name.to_ascii_lowercase().replace(' ', "-").replace('(', "").replace(')', "").replace("--", "-");
     for (suffix, samples) in [("fm-source", fm), ("psg-source", psg), ("mixed-output", mixed)] {
         let path = directory.join(format!("{stem}-{suffix}.wav"));
         write_wav_f32(&path, samples, 48_000)?;
