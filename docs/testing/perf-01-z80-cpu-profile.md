@@ -52,7 +52,7 @@ contrasts, not proof that every difference belongs exclusively to one chip.
 
 ## Guardrails
 
-- ETL samples do not directly provide instructions/s or M-cycles/s.
+- ETL samples do not directly provide instructions/s or M-cycles/s. The profiled_observed_fps field in the test log is a sanity check under ETW overhead, not a valid throughput baseline.
 - release-llvm-debug is for attribution only; do not report its throughput as
   the stock Release headline result.
 - Do not claim an FPS gain from profiling alone. Repeat uninstrumented S0
