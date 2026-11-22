@@ -1098,10 +1098,9 @@ mod tests {
     #[test]
     fn core_pg_cursor_mismatch_is_rejected_before_either_path_mutates_state() {
         let mut transactional_core = Ym2413Core::new();
-        let mut transactional_service =
-            Ym2413PgSerialService::new(initial_bank(0))
-                .with_rhythm_noise_cursor(1)
-                .unwrap();
+        let mut transactional_service = Ym2413PgSerialService::new(initial_bank(0))
+            .with_rhythm_noise_cursor(1)
+            .unwrap();
         let transactional_core_before = transactional_core.export_state();
         let transactional_service_before = transactional_service.export_state();
 
@@ -1111,7 +1110,10 @@ mod tests {
                 .is_err()
         );
         assert_eq!(transactional_core.export_state(), transactional_core_before);
-        assert_eq!(transactional_service.export_state(), transactional_service_before);
+        assert_eq!(
+            transactional_service.export_state(),
+            transactional_service_before
+        );
 
         let mut fast_core = Ym2413Core::new();
         let mut fast_service = Ym2413PgSerialService::new(initial_bank(0))
