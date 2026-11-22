@@ -113,3 +113,53 @@ jobs:
             echo "unsupported chip type was unexpectedly accepted"
             exit 1
           fi
+
+      - name: Validate oracle Python tooling
+        run: |
+          python3 -m unittest discover -s tools/ym2413-nuked-oracle -p 'test_*.py'
+          python3 -m compileall -q tools/ym2413-nuked-oracle
+
+      - name: Validate compact output trace schema
+        run: |
+          "$RUNNER_TEMP/ym2413-nuked-trace" --calls 20 --output-only > "$RUNNER_TEMP/output-only.jsonl"
+          python3 - "$RUNNER_TEMP/output-only.jsonl" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              rows = [json.loads(line) for line in stream]
+          assert len(rows) == 21, len(rows)
+          assert rows[0]["schema"] == "ym2413-nuked-opll-output-trace-v1"
+          assert rows[0]["sample_point"] == "after_OPLL_Clock"
+          samples = rows[1:]
+          assert [row["call_index"] for row in samples] == list(range(20))
+          assert [row["cycle_before"] for row in samples[:18]] == list(range(18))
+          assert all({"ch_out", "output_pins_m", "output_pins_r"} <= row.keys() for row in samples)
+          PY
+
+      - name: Checkout pinned Andete volume capture
+        env:
+          ANDETE_SHA: 4893d1c09faa0450b5d3355f19b7682d72822501
+        run: |
+          git clone https://github.com/andete/ym2413.git "$RUNNER_TEMP/andete-ym2413"
+          git -C "$RUNNER_TEMP/andete-ym2413" checkout "$ANDETE_SHA"
+          test "$(git -C "$RUNNER_TEMP/andete-ym2413" rev-parse HEAD)" = "$ANDETE_SHA"
+
+      - name: Characterize Nuked MO output against measured volume0 capture
+        run: |
+          CAPTURE="$RUNNER_TEMP/andete-ym2413/analyze/volume/volume0.out"
+          SAMPLE_COUNT=$(wc -w < "$CAPTURE")
+          PHASE_SEARCH=2048
+          CALLS=$((601 + (SAMPLE_COUNT + PHASE_SEARCH + 1) * 18))
+          "$RUNNER_TEMP/ym2413-nuked-trace" \
+            --calls "$CALLS" \
+            --events tools/ym2413-nuked-oracle/fixtures/volume0-capture-events.csv \
+            --output-only > "$RUNNER_TEMP/volume0-nuked-output.jsonl"
+          python3 tools/ym2413-nuked-oracle/compare_volume_capture.py \
+            --trace "$RUNNER_TEMP/volume0-nuked-output.jsonl" \
+            --capture "$CAPTURE" \
+            --capture-start-call 601 \
+            --initial-keyon-call 296 \
+            --phase-search "$PHASE_SEARCH" \
+            --output "$RUNNER_TEMP/volume0-nuked-differential.json"
+          cat "$RUNNER_TEMP/volume0-nuked-differential.json"
