@@ -43,7 +43,7 @@ O WAV do harness já estava em volume 100%. O slider do desktop é escala linear
 
 Aplicar +20,56 dB diretamente ao SUN levaria o pico estimado a **1,586** (+4,0 dBFS); cerca de **3,34%** das amostras ultrapassariam [-1,+1]. Não é correto elevar simplesmente o ganho fixo até igualar RMS: isso causaria clipping substancial.
 
-O arquivo físico também tem amostras no teto digital: aproximadamente **0,0465%** das amostras mono têm módulo >= 0,9999 e **0,0113%** atingem/excedem 1,0. É compatível com saturação no estágio de captura/ADC ou ganho de entrada excessivo. O pico 0 dBFS não é medida calibrada de tensão analógica.
+O arquivo físico também tem amostras no teto digital: aproximadamente **0,0465%** das amostras mono têm módulo >= 0,999, **0,0306%** têm módulo >= 0,9999 e **0,0113%** atingem exatamente 1,0. É compatível com saturação no estágio de captura/ADC ou ganho de entrada excessivo. O pico 0 dBFS não é medida calibrada de tensão analógica.
 
 ## 4. Diferença espectral
 
@@ -61,7 +61,7 @@ Espectros médios dos frames pareados por DTW; valores SUN menos hardware, antes
 | 8–12 kHz | -18,14 dB |
 | 12–18 kHz | -16,39 dB |
 
-Após remover a diferença global de aproximadamente 20,56 dB, o SUN mantém relativamente mais energia nas bandas altas: cerca de **+4,2 dB** em 12–18 kHz em relação a 40–100 Hz. Isso pode decorrer da ausência de resposta analógica equivalente no PCM, da cadeia de gravação física ou de diferenças na síntese. Não basta para escolher EQ definitivo.
+Após remover a diferença global de aproximadamente 20,56 dB, o SUN mantém relativamente mais energia nas bandas altas: cerca de **+4,2 dB** em 12–18 kHz em relação ao ganho global de referência; a diferença residual entre 12–18 kHz e 40–100 Hz é de aproximadamente **5,4 dB**. Isso pode decorrer da ausência de resposta analógica equivalente no PCM, da cadeia de gravação física ou de diferenças na síntese. Não basta para escolher EQ definitivo.
 
 O DC médio do SUN é positivo (+0,004514), enquanto o arquivo físico está praticamente centrado em zero. Investigar na fronteira digital/analógica; não remover offset dentro do núcleo YM2413 sem estabelecer a semântica correta.
 
