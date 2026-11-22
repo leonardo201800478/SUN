@@ -1136,6 +1136,9 @@ mod tests {
         let mut fast_core = Ym2413Core::new();
         let mut fast_service = Ym2413PgSerialService::new(initial_bank(0));
 
+        transactional_core.write_address(0x30);
+        fast_core.write_address(0x30);
+
         for clocks in [1, 3, 4, 17, 55, 72, 1, 287, 4 * 37, 2 * 72 + 3] {
             transactional_core
                 .advance_input_clocks_with_pg_service(clocks, &mut transactional_service)
@@ -1157,6 +1160,20 @@ mod tests {
                 fast_service.measured_output_frame(),
                 transactional_service.measured_output_frame()
             );
+
+            if clocks == 17 {
+                // Apply a data write while the input-clock phase is partial.
+                transactional_core.write_data(0x10);
+                fast_core.write_data(0x10);
+            }
+            if clocks == 55 {
+                // The fast path must resume identically from a joint save state.
+                fast_core = Ym2413Core::restore_state(fast_core.export_state()).unwrap();
+                fast_service =
+                    Ym2413PgSerialService::restore_state(fast_service.export_state()).unwrap();
+                assert_eq!(fast_core.export_state(), transactional_core.export_state());
+                assert_eq!(fast_service.export_state(), transactional_service.export_state());
+            }
         }
     }
 
