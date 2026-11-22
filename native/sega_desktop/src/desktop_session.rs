@@ -97,7 +97,9 @@ impl DesktopSession {
     pub fn set_frame_pacing_enabled(&self, enabled: bool) -> Result<(), String> {
         match self {
             Self::Sms { worker, .. } => worker.set_frame_pacing_enabled(enabled),
-            Self::Sg1000(_) => Err("SMS frame pacing control is unavailable for SG-1000".to_owned()),
+            Self::Sg1000(_) => Err(
+                "SMS frame pacing control is unavailable for SG-1000".to_owned(),
+            ),
         }
     }
 
