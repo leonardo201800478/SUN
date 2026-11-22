@@ -1644,6 +1644,65 @@ mod tests {
     }
 
     #[test]
+    fn japanese_fm_host_capture_resumes_only_after_a_complete_slot_rotation() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        bus.write_port(0xF2, 0x01);
+
+        bus.set_fm_audio_capture_enabled(false);
+        advance_internal_cycle(&mut bus, 120, 84);
+        assert!(bus.drain_fm_audio_samples(None).is_empty());
+
+        bus.set_fm_audio_capture_enabled(true);
+        advance_internal_cycle(&mut bus, 121, 60);
+        assert!(
+            bus.drain_fm_audio_samples(None).is_empty(),
+            "capture must not resume with a partial slot rotation"
+        );
+
+        advance_internal_cycle(&mut bus, 122, 72);
+        let samples = bus.drain_fm_audio_samples(None);
+        assert_eq!(samples.len(), 1, "capture resumes on the next full rotation");
+        assert!(samples.iter().flatten().all(|sample| sample.is_finite()));
+    }
+
+    #[test]
+    fn japanese_fm_pcm_drain_into_reuses_buffers_without_changing_order() {
+        let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+            vec![0; 0x4000],
+            1,
+            DEFAULT_SMS_PSG_CLOCK_HZ,
+            48_000,
+            SmsVdpProfile::sms1_t0_ntsc(),
+            Territory::Japan,
+        )
+        .unwrap();
+        bus.write_port(0xF2, 0x01);
+        advance_internal_cycle(&mut bus, 123, 216);
+
+        let mut fm = Vec::with_capacity(16);
+        fm.push(None);
+        let fm_capacity = fm.capacity();
+        bus.drain_fm_audio_samples_into(&mut fm, None);
+        assert_eq!(fm.len(), 3);
+        assert_eq!(fm.capacity(), fm_capacity);
+
+        let mut psg = Vec::with_capacity(16);
+        psg.push(123.0);
+        let psg_capacity = psg.capacity();
+        bus.drain_audio_samples_into(&mut psg, None);
+        assert_eq!(psg.capacity(), psg_capacity);
+        assert!(psg.iter().all(|sample| *sample != 123.0));
+    }
+
+    #[test]
     fn japanese_fm_serial_pcm_samples_restore_deterministically() {
         let mut uninterrupted = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
             vec![0; 0x4000],
