@@ -33,9 +33,7 @@ use std::time::{Duration, Instant};
 
 use sega_audio_runtime::{AudioOutputMetrics, NativeAudioSession, PcmSink};
 use sega_media::CartridgeIdentity;
-use sega_sms_runtime::{
-    AudioSession, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision,
-};
+use sega_sms_runtime::{AudioSession, SmsFmOutputPolicy, SmsTemporalWorker, SmsVdpRevision};
 
 const DEFAULT_WARMUP_SECS: u64 = 5;
 const DEFAULT_CAPTURE_SECS: u64 = 30;
@@ -123,7 +121,10 @@ fn load_outrun_rom() -> (PathBuf, Vec<u8>, String) {
     let path = std::env::var_os("SEGA_PERF_ROM_PATH")
         .map(PathBuf::from)
         .expect("set SEGA_PERF_ROM_PATH to a legally obtained OutRun SMS ROM");
-    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
     assert!(
         file_name.to_ascii_lowercase().contains("outrun"),
         "S0 primary benchmark must be OutRun; supplied file name was '{file_name}'"
@@ -186,11 +187,7 @@ fn check_worker(worker: &SmsTemporalWorker, scenario: Scenario) {
     }
 }
 
-fn wait_running_for(
-    worker: &SmsTemporalWorker,
-    scenario: Scenario,
-    duration: Duration,
-) {
+fn wait_running_for(worker: &SmsTemporalWorker, scenario: Scenario, duration: Duration) {
     let started = Instant::now();
     while started.elapsed() < duration {
         check_worker(worker, scenario);
@@ -226,7 +223,11 @@ fn run_throughput(
         .unwrap_or_else(|error| panic!("cannot pause {}: {error}", scenario.name()));
 
     let frames = worker.frame_number().saturating_sub(start_frame);
-    assert!(frames > 0, "{} produced no completed frames", scenario.name());
+    assert!(
+        frames > 0,
+        "{} produced no completed frames",
+        scenario.name()
+    );
     let fps = frames as f64 / elapsed.as_secs_f64();
     let snapshot = worker
         .debug_snapshot()
@@ -329,9 +330,15 @@ fn outrun_a_b_c_uncapped_baseline() {
 
     if let Some(output_path) = std::env::var_os("SEGA_PERF_OUTPUT_CSV") {
         let output_path = PathBuf::from(output_path);
-        if let Some(parent) = output_path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        if let Some(parent) = output_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
             fs::create_dir_all(parent).unwrap_or_else(|error| {
-                panic!("cannot create output directory {}: {error}", parent.display())
+                panic!(
+                    "cannot create output directory {}: {error}",
+                    parent.display()
+                )
             });
         }
         let mut csv = String::from(
@@ -351,9 +358,8 @@ fn outrun_a_b_c_uncapped_baseline() {
                 result.fm_data_writes,
             ));
         }
-        fs::write(&output_path, csv).unwrap_or_else(|error| {
-            panic!("cannot write CSV {}: {error}", output_path.display())
-        });
+        fs::write(&output_path, csv)
+            .unwrap_or_else(|error| panic!("cannot write CSV {}: {error}", output_path.display()));
         println!("SUN_PERF_CSV path={}", output_path.display());
     }
 }
