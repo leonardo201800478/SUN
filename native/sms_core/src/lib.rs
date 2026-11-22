@@ -45,7 +45,8 @@ pub use temporal::{
 pub use temporal_bus::{
     SMS_TEMPORAL_BUS_STATE_VERSION, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsBusCompletion,
     SmsFmPortWriteSnapshot, SmsInternalCycleCompletion, SmsTemporalBus, SmsTemporalBusError,
-    SmsTemporalBusState, SmsTemporalDispatch, SmsYm2413PcmAccumulatorState,
+    SmsTemporalBusState, SmsTemporalDispatch, SmsTemporalSubsystemTiming,
+    SmsYm2413PcmAccumulatorState,
 };
 pub use temporal_m1::{SmsTemporalM1, SmsTemporalM1Error, SmsTemporalM1State};
 pub use temporal_machine::{
