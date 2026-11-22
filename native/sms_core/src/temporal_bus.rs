@@ -481,9 +481,12 @@ impl SmsTemporalBus {
     ) -> Result<Self, SmsTemporalBusError> {
         bus.coordinator = SmsTemporalCoordinator::new_with_ym2413(master_ticks_per_tstate)?;
         bus.ym2413 = Some(Ym2413Core::new());
-        bus.ym2413_pg_service = Some(Ym2413PgSerialService::with_initial_state(
-            sms_ym2413_synthesis_initial_state(),
-        )?);
+        // Candidate software-reset state from the pinned Nuked reference.
+        // This is not a claim about the physical YM2413 power-on LFSR seed.
+        bus.ym2413_pg_service = Some(
+            Ym2413PgSerialService::with_initial_state(sms_ym2413_synthesis_initial_state())?
+                .with_rhythm_noise_register(0, 0)?,
+        );
         bus.pending_fm_samples.clear();
         bus.ym2413_pcm_accumulator = SmsYm2413PcmAccumulatorState::default();
         Ok(bus)
@@ -1832,6 +1835,69 @@ mod tests {
         advance_internal_cycle(&mut restored, 102, 132);
 
         assert_eq!(restored.drain_fm_audio_samples(None), expected);
+    }
+
+    #[test]
+    fn japanese_fm_rhythm_mode_has_known_noise_and_restores_deterministically() {
+        fn configured_rhythm_bus(first_id: u64) -> SmsTemporalBus {
+            let mut bus = SmsTemporalBus::new_with_japanese_fm_hardware_profile(
+                vec![0; 0x4000],
+                1,
+                DEFAULT_SMS_PSG_CLOCK_HZ,
+                48_000,
+                SmsVdpProfile::sms1_t0_ntsc(),
+                Territory::Japan,
+            )
+            .unwrap();
+            bus.write_port(0xF2, 0x01);
+
+            // Let the initial output pipeline establish its first complete rotation.
+            advance_internal_cycle(&mut bus, first_id, 216);
+            let _ = bus.drain_fm_audio_samples(None);
+
+            // Enable Rhythm Mode and trigger all five percussion voices at full volume.
+            bus.write_port(0xF0, 0x36);
+            bus.write_port(0xF1, 0x00);
+            bus.write_port(0xF0, 0x37);
+            bus.write_port(0xF1, 0x00);
+            bus.write_port(0xF0, 0x38);
+            bus.write_port(0xF1, 0x00);
+            bus.write_port(0xF0, 0x0E);
+            bus.write_port(0xF1, 0x3F);
+            advance_internal_cycle(&mut bus, first_id + 1, 216);
+            let transition = bus.drain_fm_audio_samples(None);
+            assert!(
+                transition.iter().filter(|sample| sample.is_none()).count() <= 1,
+                "the mode transition may contain only its boundary sample as unknown"
+            );
+            bus
+        }
+
+        let mut uninterrupted = configured_rhythm_bus(130);
+        advance_internal_cycle(&mut uninterrupted, 132, 12_000);
+        let expected = uninterrupted.drain_fm_audio_samples(None);
+        assert!(!expected.is_empty());
+        assert!(
+            expected.iter().all(Option::is_some),
+            "seeded Rhythm Mode must not invalidate complete FM rotations"
+        );
+        assert!(
+            expected
+                .iter()
+                .flatten()
+                .any(|sample| sample.abs() > 1.0e-9),
+            "triggered percussion must produce non-silent digital PCM"
+        );
+
+        let mut split = configured_rhythm_bus(140);
+        advance_internal_cycle(&mut split, 142, 6_000);
+        let mut actual = split.drain_fm_audio_samples(None);
+        let snapshot = split.export_state();
+        let mut restored = SmsTemporalBus::restore_state(snapshot).unwrap();
+        advance_internal_cycle(&mut restored, 143, 6_000);
+        actual.extend(restored.drain_fm_audio_samples(None));
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
