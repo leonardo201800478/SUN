@@ -6,8 +6,8 @@
 use sega_ym2413::{
     AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413ChannelInitialState, Ym2413Core, Ym2413Operator,
-    Ym2413PgSerialService, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
-    nuked_pg_phase_slot_descriptor,
+    Ym2413OutputSlotResult, Ym2413PgSerialService, Ym2413SynthesisBank,
+    Ym2413SynthesisInitialState, nuked_pg_phase_slot_descriptor,
 };
 use std::error::Error;
 use std::fmt::Write as _;
@@ -365,9 +365,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
         let output_frame_m = output_frame.and_then(|frame| frame.mo.map(|value| value.value()));
         let output_frame_r = output_frame.and_then(|frame| frame.ro.map(|value| value.value()));
+        let measured_frame = service.measured_output_frame();
+        let measured_mo = measured_frame.and_then(|frame| frame.source.mo);
+        let measured_mo_level = measured_mo.map(|pulse| pulse.level.value());
         let _ = write!(
             &mut trace_line,
-            ",\"output_frame_cycle\":{},\"output_frame_m_valid\":{},\"output_frame_r_valid\":{},\"output_pins_m\":{},\"output_pins_m_valid\":{},\"output_pins_r\":{},\"output_pins_r_valid\":{},\"output_pipe_ch_out_before\":{},\"output_pipe_ch_out_before_valid\":{},\"output_pipe_rm_enable_before\":{},\"output_pipe_ch_out_after\":{},\"output_pipe_ch_out_after_valid\":{},\"output_pipe_rm_enable_after\":{},\"output_pipeline_next_cycle\":{}",
+            ",\"output_frame_cycle\":{},\"output_frame_m_valid\":{},\"output_frame_r_valid\":{},\"output_pins_m\":{},\"output_pins_m_valid\":{},\"output_pins_r\":{},\"output_pins_r_valid\":{},\"output_pipe_ch_out_before\":{},\"output_pipe_ch_out_before_valid\":{},\"output_pipe_rm_enable_before\":{},\"output_pipe_ch_out_after\":{},\"output_pipe_ch_out_after_valid\":{},\"output_pipe_rm_enable_after\":{},\"output_pipeline_next_cycle\":{},\"measured_frame_present\":{},\"measured_frame_emitted_cycle\":{},\"measured_frame_source_cycle\":{},\"measured_frame_source_mo_slot_index\":{},\"measured_frame_source_mo_known\":{},\"measured_frame_source_mo_level_valid\":{},\"measured_frame_source_mo_negative_zero\":{},\"measured_frame_source_ro_mode_inactive\":{}",
             output_frame.map_or(cycle_before, |frame| frame.cycle),
             u8::from(output_frame_m.is_some()),
             u8::from(output_frame_r.is_some()),
@@ -381,12 +384,25 @@ fn main() -> Result<(), Box<dyn Error>> {
             output_pipeline_after.previous_channel_output,
             u8::from(output_pipeline_after.previous_channel_output_valid),
             output_pipeline_after.rm_enable as u8,
-            output_pipeline_after.next_cycle
+            output_pipeline_after.next_cycle,
+            u8::from(measured_frame.is_some()),
+            measured_frame.map_or(0, |frame| frame.emitted_cycle),
+            measured_frame.map_or(0, |frame| frame.source.cycle),
+            measured_frame.map_or(0, |frame| frame.source.mo_slot_index),
+            u8::from(measured_frame.is_some_and(|frame| frame.source.mo_known)),
+            u8::from(measured_mo.is_some()),
+            u8::from(measured_mo.is_some_and(|pulse| pulse.level.is_negative_zero())),
+            u8::from(measured_frame.is_some_and(|frame| matches!(
+                frame.source.ro,
+                Ym2413OutputSlotResult::ModeInactive
+            )))
         );
         trace_line.push_str(",\"output_frame_m\":");
         write_json_option_i16(&mut trace_line, output_frame_m);
         trace_line.push_str(",\"output_frame_r\":");
         write_json_option_i16(&mut trace_line, output_frame_r);
+        trace_line.push_str(",\"measured_frame_source_mo_level\":");
+        write_json_option_i16(&mut trace_line, measured_mo_level);
         trace_line.push('}');
         println!("{trace_line}");
     }
