@@ -850,18 +850,17 @@ impl Ym2413PgSerialService {
         // first call remains unknown because it has no real prior operator
         // result; the software-reference reset zero is not a physical latch.
         let previous_output = self.output_pipeline.export_state();
-        let measured_level = if self.last_output_frame.is_some()
-            && previous_output.previous_channel_output_valid
-        {
-            Some(
-                Ym2413DacCode::from_operator_channel_output(
-                    previous_output.previous_channel_output,
+        let measured_level =
+            if self.last_output_frame.is_some() && previous_output.previous_channel_output_valid {
+                Some(
+                    Ym2413DacCode::from_operator_channel_output(
+                        previous_output.previous_channel_output,
+                    )
+                    .map_err(|_| Ym2413PgSerialError::InvalidState)?,
                 )
-                .map_err(|_| Ym2413PgSerialError::InvalidState)?,
-            )
-        } else {
-            None
-        };
+            } else {
+                None
+            };
         self.measured_output_adapter.process_cycle(
             context.event.cycle,
             rhythm_mode_enabled,
@@ -1086,7 +1085,7 @@ mod tests {
     use crate::synthesis::{
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
-    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413DacCode, Ym2413Core};
+    use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
 
     #[test]
     fn core_and_pg_output_pipeline_snapshot_restore_is_block_equivalent() {
