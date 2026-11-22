@@ -253,8 +253,8 @@ def compare_measured_adapter_frame(
             )
 
     active_mo = expected_slot in MEASURED_MO_ACTIVE_SLOTS
-    expected_mo_known = not active_mo or source_cycle != 0
-    expected_level_valid = active_mo and source_cycle != 0
+    expected_mo_known = not active_mo or call_index > 1
+    expected_level_valid = active_mo and call_index > 1
     if bool(rust["measured_frame_source_mo_known"]) != expected_mo_known:
         raise ValueError(f"call {call_index}: measured MO known-state mismatch")
     if bool(rust["measured_frame_source_mo_level_valid"]) != expected_level_valid:
