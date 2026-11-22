@@ -1325,9 +1325,8 @@ impl SmsTemporalBus {
                         self.fm_port_writes.data_writes.saturating_add(1);
                     if let Some(register) = self.fm_port_writes.last_address {
                         let index = usize::from(register);
-                        self.fm_port_writes.register_writes[index] = self.fm_port_writes
-                            .register_writes[index]
-                            .saturating_add(1);
+                        self.fm_port_writes.register_writes[index] =
+                            self.fm_port_writes.register_writes[index].saturating_add(1);
                         self.fm_port_writes.last_register_values[index] = Some(value);
                     }
                     if let Some(ym2413) = self.ym2413.as_mut() {
