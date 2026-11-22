@@ -1,7 +1,7 @@
 # SUN-FM-01 — Execução das recomendações da auditoria
 
 **Data:** 2026-11-22
-**Base de trabalho:** main pós-merge #1206 e #1208, `4f489d78d4ddd299f65a7ce0f66733f87ca4dd4d`
+**Base de trabalho:** main pós-merge #1206, #1208, #1213, #1216 e #1217, `53bedb2fd581e2605197a2d11b5cf77fea94e8e4`
 **Estado:** acompanhamento em andamento; sem aprovação de gameplay ou conclusão da sprint.
 
 ## 1. Ações executadas
@@ -32,18 +32,28 @@ A PR #1208 está aberta e seus workflows estavam em execução no momento deste 
 
 **Limite da evidência:** métricas sintéticas/testes não demonstram a frequência de amostras inválidas em Kenseiden, OutRun ou Phantasy Star. A nova métrica não corrige a causa de amostras desconhecidas; torna o comportamento observável.
 
-### 1.3 Correções documentais — preparadas
+### 1.3 Correções documentais — integradas
 
-Na branch documental desta etapa:
+- #1211 integrou a correção do contrato da FIFO para StereoFrame([f64; 2]) e a correção da lista Markdown do runbook.
+- #1216 integrou o catálogo de jogos FM e os campos de diagnóstico FM no runbook.
+- #1213 integrou o comparador externo de output-code candidate. Seu resultado é evidência de software, não validação da palavra física do DAC.
+
+### 1.4 Ferramentas de benchmark — em validação
+
+Na branch documental anterior:
 - O runbook A/B remove a sequência literal `\\n` na lista de artefatos. O caminho já estava corrigido para `scripts/benchmark/ym2413-real-game-ab.ps1`.
 - O contrato OUT-A passa a descrever o transporte real: `StereoFrame([f64; 2])`; a conversão para o formato negociado ocorre no callback CPAL.
 - O scorecard registra o HEAD atual, a integração #1206, a nova instrumentação e a situação real das PRs antigas.
 
-Nenhum teste de Rust é apropriado para essas alterações exclusivamente documentais.
+Nenhum teste de Rust foi executado para essas alterações exclusivamente documentais.
 
-## 2. Coordenação das PRs de ROM real
+## 2. Consolidação das PRs de ROM real
 
-As PRs #1188 e #1193 alteram os mesmos arquivos:
+A PR #1217 integrou a consolidação sobre a main atual. Inclui Kenseiden Japan e Phantasy Star Japan Rev 1, verifica SHA-256, testa FM não nulo/alinhamento FM+PSG/PCM na sessão de produção, captura escritas F0/F1/F2 antes de reset e adiciona o teste CPAL físico opt-in. CI passou, incluindo compilação Windows do teste CPAL com --no-run. O teste de gameplay e o teste CPAL físico continuam não executados porque dependem de ROMs locais e dispositivo do usuário.
+
+As PRs antigas #1188 e #1193 foram encerradas como substituídas por #1217.
+
+As PRs #1188 e #1193 alteravam os mesmos arquivos:
 - `.github/workflows/sms-debugger-runtime.yml`;
 - `Cargo.lock`;
 - `rust/runtime/sms-runtime/Cargo.toml`;
@@ -51,16 +61,17 @@ As PRs #1188 e #1193 alteram os mesmos arquivos:
 
 #1188 introduz o harness de gameplay com Kenseiden e Phantasy Star, captura de fontes FM/PSG, mixer/resampler e campanha CPAL. #1193 adiciona ao mesmo harness um probe de até 4.096 instruções para escritas nas portas F0/F1/F2, reseta a máquina após o probe e inclui dependências necessárias.
 
-Ambas estão em bases antigas e não mergeáveis contra a main atual. Não fazer merge independente nem escolher uma versão de `Cargo.lock` antiga. A ação correta é consolidar o conteúdo mais completo em uma nova branch criada da main atual, resolver dependências/lockfile com o workspace atual, executar os checks e abrir uma única PR. O teste continua opt-in e exige ROMs legais locais; nenhuma ROM deve ser commitada.
+Essa sobreposição foi resolvida em #1217; não reabrir nem integrar as PRs antigas. O teste continua opt-in e exige ROMs legais locais; nenhuma ROM deve ser commitada.
 
 ## 3. Próximas ações ordenadas
 
-1. #1208 foi revisada, teve CI completa aprovada e foi integrada; #1207 foi encerrada.
-2. Publicar a PR documental com as duas correções e o scorecard atualizado.
-3. Consolidar #1188 + #1193 em um único harness sobre main, mantendo a identidade SHA-256 das ROMs e o probe de barramento separado da campanha de áudio.
-4. Reaplicar/revisar #1190 e #1192 separadamente. A documentação de compatibilidade não deve habilitar Auto sem evidência por ROM; o comparador externo não estabelece sozinho o código físico do DAC.
-5. Executar testes Release com ROMs locais: Kenseiden como carga principal, Phantasy Star para diagnóstico de inicialização/saída e OutRun para desempenho.
-6. Registrar p50/p95/p99 de YM2413, processamento de frame, áudio e host; comparar underruns/drops e amostras FM desconhecidas.
+1. #1208 passou CI e foi integrada; #1207 foi encerrada.
+2. #1213 integrou o comparador output-code; #1216 integrou o catálogo/runbook; #1217 integrou o harness ROM real e compilação Windows do teste CPAL.
+3. Concluir a validação e integração do parser A/B #1218 após reaplicá-lo sobre a main pós-#1217.
+4. Executar o harness headless com ROMs locais Kenseiden/Phantasy Star e o probe de escritas F0/F1/F2; executar o teste CPAL físico no Windows.
+5. Executar Out Run Japan como campanha de desempenho, com hash registrado; não reutilizar o teste Kenseiden como prova para Out Run.
+6. Analisar p50/p95/p99, frames acima do orçamento, fallback FM, peak/RMS digital, CPAL underruns/drops e high-water.
+
 7. Medir loopback físico CPAL, backlog/high-water e latência ponta a ponta. A capacidade da FIFO não é latência.
 8. Só após localizar o custo dominante avaliar mudanças adicionais no core, batching, AVX2/FMA ou paralelismo. Não criar thread FM que avance o clock do chip.
 
@@ -70,8 +81,8 @@ Ambas estão em bases antigas e não mergeáveis contra a main atual. Não fazer
 |---|---|
 | Alocação final por lote removida do caminho CPAL comum | Implementado e CI da PR #1206 aprovado |
 | Diagnóstico de amostras FM inválidas | Integrado em #1208; CI aprovado |
-| Harness real-game consolidado e integrado | Pendente |
-| Kenseiden / OutRun / Phantasy Star em gameplay | Pendente |
+| Harness real-game consolidado e integrado | Integrado em #1217; gameplay local pendente |
+| Kenseiden / Out Run / Phantasy Star em gameplay | Pendente; ROMs locais necessárias |
 | Áudio físico contínuo e sem underruns recorrentes | Pendente |
 | Amplitude/volume e clipping calibrados | Pendente |
 | Latência interna <10 ms e latência física medida | Pendente |
