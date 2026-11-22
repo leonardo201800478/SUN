@@ -576,7 +576,8 @@ jobs:
         run: |
           python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \
             --capture-dir "$RUNNER_TEMP/andete-ym2413/analyze/volume" \
-            --output "$RUNNER_TEMP/ym2413-volume-bin-observations.json"
+            --output "$RUNNER_TEMP/ym2413-volume-bin-observations.json" \\
+            --require-global-consistency
           cmp "$RUNNER_TEMP/ym2413-volume-bin-observations.json" \
             docs/audits/ym2413-volume-bin-observations-2026-11-22.json
 
