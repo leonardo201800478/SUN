@@ -63,12 +63,12 @@ The underlying opt-in test can also be invoked directly:
 
 ```powershell
 $env:SEGA_PERF_ROM_PATH = "D:\ROMS\Sega Master System\OutRun (Japan).sms"
-cargo test --release --locked -p sega-sms-runtime --test perf_baseline outrun_a_b_c_uncapped_baseline -- --ignored --nocapture
+cargo test --release --locked --target x86_64-pc-windows-msvc -p sega-sms-runtime --test perf_baseline outrun_a_b_c_uncapped_baseline -- --ignored --nocapture
 ```
 
 ## Recorded evidence
 
-The manifest records repository commit, branch, working-tree state, ROM filename and SHA-256, region, VDP, scenario order, durations, host CPU, OS and Rust/Cargo versions.
+The script requires a clean working tree and builds into a fresh, isolated Cargo target directory. It invokes Cargo with verbose output so the log preserves the actual rustc command lines and effective compiler flags. The manifest records repository commit, branch, ROM filename and SHA-256, region, VDP, scenario order, durations, host CPU, OS, Rust/Cargo versions, target triple, Cargo config and relevant compiler environment overrides.
 
 The CSV records, per scenario:
 
