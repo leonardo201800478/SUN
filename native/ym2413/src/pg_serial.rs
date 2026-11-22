@@ -31,6 +31,7 @@ use crate::rhythm_channel::{
     RhythmOperatorSynthesisConfig, RhythmVoiceSynthesisConfig, decode_rhythm_synthesis,
 };
 use crate::rhythm_dispatch::{Ym2413SerialSlotDispatch, dispatch_serial_slot};
+use crate::rhythm_output::Ym2413DacCode;
 use crate::serial_operator::{
     Ym2413SerialOperator, Ym2413SerialOperatorError, Ym2413SerialOperatorPatch1Latches,
     Ym2413SerialOperatorPatch2Latches, Ym2413SerialOperatorState,
@@ -843,13 +844,28 @@ impl Ym2413PgSerialService {
             return Err(Ym2413PgSerialError::InvalidState);
         }
         let rhythm_mode_enabled = context.registers[0x0e] & 0x20 != 0;
-        // No independently validated operator-to-measured-level conversion
-        // exists yet. Preserve the timing/provenance path but keep the level
-        // unknown instead of applying the candidate one's-complement mapping.
+        // The volume-capture differential validates the one’s-complement
+        // measured-domain mapping. Consume the previous ch_out latch here,
+        // before the digital pipeline installs next_channel_output. The
+        // first call remains unknown because it has no real prior operator
+        // result; the software-reference reset zero is not a physical latch.
+        let previous_output = self.output_pipeline.export_state();
+        let measured_level = if self.last_output_frame.is_some()
+            && previous_output.previous_channel_output_valid
+        {
+            Some(
+                Ym2413DacCode::from_operator_channel_output(
+                    previous_output.previous_channel_output,
+                )
+                .map_err(|_| Ym2413PgSerialError::InvalidState)?,
+            )
+        } else {
+            None
+        };
         self.measured_output_adapter.process_cycle(
             context.event.cycle,
             rhythm_mode_enabled,
-            None,
+            measured_level,
             self.previous_channel_output_is_rhythm,
         )?;
         self.last_output_frame = Some(self.output_pipeline.process_cycle_with_core_state(
