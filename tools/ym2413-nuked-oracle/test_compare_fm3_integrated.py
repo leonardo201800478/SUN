@@ -138,7 +138,14 @@ class MeasuredAdapterDifferentialTests(unittest.TestCase):
         nuked = {"cycle_before": 0}
         rust = {
             "measured_frame_present": False,
+            "measured_frame_emitted_cycle": 0,
+            "measured_frame_source_cycle": 0,
+            "measured_frame_source_mo_slot_index": 0,
+            "measured_frame_source_mo_known": False,
+            "measured_frame_source_mo_level_valid": False,
             "measured_frame_source_mo_level": None,
+            "measured_frame_source_mo_negative_zero": False,
+            "measured_frame_source_ro_mode_inactive": False,
         }
         compare_measured_adapter_frame(0, nuked, rust, None)
 
