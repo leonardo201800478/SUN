@@ -1087,7 +1087,7 @@ impl AudioRendererState {
     }
 
     /// Discard only the invalid FM epoch and release all queued PSG samples in
-    /// FIFO order. A missing/unknown FM rotation must never erase valid PSG PCM.
+    /// FIFO order. Missing, unknown, or non-finite FM data must not erase valid PSG PCM.
     fn prepare_psg_fallback(&mut self, psg_samples: &[f64]) {
         self.fm_diagnostics.fallback = true;
         self.fm_resampler = None;
@@ -1130,7 +1130,7 @@ impl AudioRendererState {
             return Ok(Some(0));
         }
 
-        let has_unknown_samples = if collect_diagnostics {
+        let has_invalid_samples = if collect_diagnostics {
             let mut sum_squares = 0.0;
             for sample in fm_samples {
                 match sample {
@@ -1164,7 +1164,7 @@ impl AudioRendererState {
                 .any(|sample| sample.is_none_or(|value| !value.is_finite()))
         };
 
-        if has_unknown_samples {
+        if has_invalid_samples {
             self.prepare_psg_fallback(psg_samples);
             return Ok(None);
         }
@@ -4195,7 +4195,7 @@ mod tests {
         assert_eq!(renderer.fm_diagnostics.non_finite_samples, 2);
         assert_eq!(renderer.fm_diagnostics.unknown_samples, 0);
         assert!(renderer.fm_diagnostics.fallback);
-        assert_eq!(renderer.mix_psg_samples, psg_samples);
+        assert_eq!(renderer.mix_psg_samples.as_slice(), psg_samples.as_slice());
         assert!(renderer.mix_fm_samples.is_empty());
     }
 
