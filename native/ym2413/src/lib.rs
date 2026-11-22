@@ -1137,6 +1137,12 @@ mod tests {
         for cycle in 0..YM2413_SLOT_COUNT as u8 {
             let before = service.before[usize::from(cycle)];
             let after = service.after[usize::from(cycle)];
+            let pre_state = expected_eg.export_state();
+            assert_eq!(before.event.eg_dokon, pre_state.eg_dokon);
+            assert_eq!(
+                before.envelope_levels,
+                std::array::from_fn(|index| pre_state.operators[index].level)
+            );
             let expected_tick = expected_eg.tick_slot(cycle, before.envelope_input).unwrap();
             assert_eq!(after, expected_tick);
             assert_eq!(before.event.cycle, cycle);
