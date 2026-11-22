@@ -51,7 +51,7 @@ try {
         $isCandidate = $runName.StartsWith("candidate")
         if ($isCandidate) {
             $buildName = "candidate"
-            $commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            $commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         }
         else {
             $buildName = "baseline"
@@ -138,7 +138,7 @@ try {
     $manifest = [ordered]@{
         comparison_mode = "same-commit-repeatability"
         baseline_commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        candidate_commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        candidate_commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         run_order = $runOrder
     }
     Write-JsonFile -Path (Join-Path $benchmarkRoot "manifest.json") -Value $manifest
