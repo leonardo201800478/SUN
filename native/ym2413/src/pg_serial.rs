@@ -668,8 +668,6 @@ impl Ym2413PgSerialService {
         self.synthesis.advance_pm_lfo_samples(1);
     }
 
-    /// Resolve the core cycle to a melodic slot. Rhythm-owned slots use the
-    /// dedicated rhythm decoder and never borrow channels 7–9 as melodic inputs.
     /// Return the current pre-clock LFSR bit for this core-owned serial slot.
     fn current_rhythm_noise_bit(&self, cycle: u8) -> Result<Option<bool>, Ym2413PgSerialError> {
         if self.rhythm_noise_cursor != cycle {
