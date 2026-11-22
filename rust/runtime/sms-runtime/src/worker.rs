@@ -2933,7 +2933,11 @@ fn worker_loop(
             } else {
                 Duration::ZERO
             };
-            let wait_deadline = frame_deadline.deadline;
+            let wait_deadline = if frame_pacing_enabled {
+                frame_deadline.deadline
+            } else {
+                None
+            };
             pacing_wait_active = !timeout.is_zero();
             let wait_started = Instant::now();
             let wait_result = commands.recv_timeout(timeout);
@@ -3584,14 +3588,6 @@ fn handle_command(
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn worker_frame_pacing_can_be_disabled_and_reenabled() {
-        let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
-        worker.set_frame_pacing_enabled(false).unwrap();
-        worker.set_frame_pacing_enabled(true).unwrap();
-    }
-
-    
     use super::{
         AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
@@ -3609,6 +3605,13 @@ mod tests {
     use sega_video_runtime::{FrameMailbox, PixelFormat};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn worker_frame_pacing_can_be_disabled_and_reenabled() {
+        let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+        worker.set_frame_pacing_enabled(false).unwrap();
+        worker.set_frame_pacing_enabled(true).unwrap();
+    }
 
     #[test]
     fn explicit_vdp_revision_is_independent_of_regional_video_standard() {
