@@ -10,7 +10,9 @@ Este índice evita que documentos históricos sejam confundidos com contratos de
 | Documento | Classificação | Uso permitido |
 |---|---|---|
 | `architecture/egui-frontend-debug-ui.md` | HISTÓRICO / SUPERSEDED | Referência de organização de menus e diagnósticos |
-| `architecture/qt-frontend-functional-model.md` | HISTÓRICO / SUPERSEDED | Requisitos conceituais somente após revalidação |
+| `architecture/native-gui-d3d12-egui-composition.md` | HISTÓRICO / SUPERSEDED | Histórico de composição do host egui/D3D12 |
+| `architecture/migrations/native-video-runtime.md` | HISTÓRICO / SUPERSEDED | Proposta e histórico do runtime de vídeo anterior; não implementar |
+| `architecture/qt-frontend-functional-model.md | HISTÓRICO / SUPERSEDED | Requisitos conceituais somente após revalidação |
 | `architecture/qt-frontend-target-architecture.md` | HISTÓRICO / SUPERSEDED | Não usar como arquitetura-alvo |
 | `architecture/qt-sms-input-settings.md` | HISTÓRICO / SUPERSEDED | Referência de UI antiga |
 | `architecture/vulkan-presentation-qt-quick.md` | HISTÓRICO / SUPERSEDED | Protótipo Qt Quick/Vulkan, não implementar |
@@ -21,9 +23,11 @@ Este índice evita que documentos históricos sejam confundidos com contratos de
 | `sg1000-first-playable.md` | MARCO HISTÓRICO DE HOST | Referência de comportamento/core SG-1000; comandos Qt/Python não ativos |
 | `validation/qt-frontend-pr98.md` | RELATÓRIO HISTÓRICO | Não comprova validação Slint/WGPU atual |
 
+| `architecture/scheduler-sms1-vdp-d3d12-consolidation.md` | REGISTRO HISTÓRICO | Evidências e limites da integração registrada em 2026-11-02 |
+
 ## ADRs históricas
 
-ADRs de egui/eframe e Qt permanecem para rastreabilidade de decisões anteriores. Sua autoridade depende do estado/status explícito e da precedência registrada em [ADRs](../adr/README.md), [arquitetura atual](../architecture.md) e [ADR 0011](../adr/0011-slint-wgpu-cpal-desktop-platform.md).
+A `architecture/decisions/ADR-0012-native-d3d12-video-runtime.md` permanece como ADR histórica / superseded. ADRs de egui/eframe, D3D12 e Qt permanecem para rastreabilidade de decisões anteriores. Sua autoridade depende do estado/status explícito e da precedência registrada em [ADRs](../adr/README.md), [arquitetura atual](../architecture.md) e [ADR 0011](../adr/0011-slint-wgpu-cpal-desktop-platform.md).
 
 ## Regras de preservação
 
