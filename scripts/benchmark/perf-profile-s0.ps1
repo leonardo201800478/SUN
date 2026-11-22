@@ -72,6 +72,8 @@ if ($LASTEXITCODE -ne 0) { throw "A baseline S0 sem profiler falhou. Consulte a 
 # Build before ETW starts. The profiled execution is separate and its FPS is not
 # the authoritative throughput result.
 $buildLog = Join-Path $outputRoot "profile-build.log"
+$previousCargoTarget = $env:CARGO_TARGET_DIR
+$env:CARGO_TARGET_DIR = $cargoTarget
 Push-Location $repoRoot
 try {
     & cargo test --profile $CargoProfile --locked --target x86_64-pc-windows-msvc -p sega-sms-runtime --test perf_baseline --no-run 2>&1 |
@@ -79,7 +81,10 @@ try {
         Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Build do harness de profiling falhou." }
 }
-finally { Pop-Location }
+finally {
+    Pop-Location
+    $env:CARGO_TARGET_DIR = $previousCargoTarget
+}
 
 $profileDirectory = Join-Path (Join-Path $cargoTarget "x86_64-pc-windows-msvc") $CargoProfile
 $testBinary = Get-ChildItem -LiteralPath (Join-Path $profileDirectory "deps") -Filter "perf_baseline-*.exe" -File |
