@@ -670,31 +670,6 @@ impl Ym2413PgSerialService {
 
     /// Resolve the core cycle to a melodic slot. Rhythm-owned slots use the
     /// dedicated rhythm decoder and never borrow channels 7–9 as melodic inputs.
-    fn require_melodic_slot(
-        context: &Ym2413SlotServiceContext,
-    ) -> Result<Ym2413SlotDescriptor, Ym2413PgSerialError> {
-        let dispatch = dispatch_serial_slot(
-            context.event.cycle,
-            &context.registers,
-            context.rm_enable,
-            context.envelope_input.rhythm_select,
-        )
-        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
-
-        match dispatch {
-            Ym2413SerialSlotDispatch::Melodic { slot }
-                if slot == context.event.selected_operator =>
-            {
-                Ok(slot)
-            }
-            Ym2413SerialSlotDispatch::Melodic { .. } => Err(Ym2413PgSerialError::InvalidState),
-            _ => Err(Ym2413PgSerialError::UnsupportedRhythmMode {
-                cycle: context.event.cycle,
-                channel: context.event.selected_operator.channel,
-            }),
-        }
-    }
-
     /// Return the current pre-clock LFSR bit for this core-owned serial slot.
     fn current_rhythm_noise_bit(&self, cycle: u8) -> Result<Option<bool>, Ym2413PgSerialError> {
         if self.rhythm_noise_cursor != cycle {
