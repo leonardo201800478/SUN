@@ -2456,6 +2456,7 @@ fn execute_frame_with_renderer(
     machine
         .set_fm_audio_capture_enabled(audio_renderer.fm_output_policy != SmsFmOutputPolicy::Muted);
     let diagnostics_enabled = telemetry.diagnostics_enabled();
+    machine.set_ym2413_timing_enabled(diagnostics_enabled);
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
     let diagnostic_machine_start = diagnostics_enabled.then_some(machine_time_start_ticks);
@@ -2465,6 +2466,7 @@ fn execute_frame_with_renderer(
         .map_err(|error| error.to_string())?;
     let step_frame_elapsed =
         diagnostic_step_start.map_or(Duration::ZERO, |started| started.elapsed());
+    let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
     let machine_time_end_ticks = machine.now().ticks();
     let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
     let frame_completed = !breakpoint_hit;
@@ -2538,6 +2540,7 @@ fn execute_frame_with_renderer(
     let video_publish_elapsed =
         diagnostic_publish_start.map_or(Duration::ZERO, |started| started.elapsed());
 
+    let diagnostic_audio_prepare_start = diagnostics_enabled.then(Instant::now);
     // Keep the legacy PSG FIFO bounded in both modes. H2 consumes events from
     // this same Scheduler-driven PSG instance; it never runs a second PSG.
     let mut psg_samples = std::mem::take(&mut audio_renderer.frame_psg_samples);
@@ -2689,6 +2692,8 @@ fn execute_frame_with_renderer(
         single_source_samples = Some(samples);
     }
 
+    let audio_prepare_elapsed = diagnostic_audio_prepare_start
+        .map_or(Duration::ZERO, |started| started.elapsed());
     let diagnostic_audio_start = diagnostics_enabled.then(Instant::now);
     let audio_result = audio_session.as_mut().and_then(|session| {
         if sample_count == 0 {
@@ -2787,7 +2792,9 @@ fn execute_frame_with_renderer(
             psg_samples = sample_count,
             frame_interval_ns = frame_interval_ns.unwrap_or_default(),
             step_frame_elapsed_ns = step_frame_elapsed.as_nanos(),
+            ym2413_advance_elapsed_ns,
             video_publish_elapsed_ns = video_publish_elapsed.as_nanos(),
+            audio_prepare_elapsed_ns = audio_prepare_elapsed.as_nanos(),
             audio_submit_elapsed_ns = audio_submit_elapsed.as_nanos(),
             frame_processing_elapsed_ns = processing_elapsed.as_nanos(),
             pacing_budget_ns = frame_duration.as_nanos(),
