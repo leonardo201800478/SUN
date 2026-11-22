@@ -20,7 +20,10 @@ const MAX_INSTRUCTIONS_PER_FRAME: usize = 250_000;
 fn env_usize(name: &str, default: usize) -> usize {
     let value = std::env::var(name)
         .ok()
-        .map(|raw| raw.parse::<usize>().unwrap_or_else(|_| panic!("{name} must be an integer")))
+        .map(|raw| {
+            raw.parse::<usize>()
+                .unwrap_or_else(|_| panic!("{name} must be an integer"))
+        })
         .unwrap_or(default);
     assert!(value > 0, "{name} must be positive");
     value
@@ -33,14 +36,14 @@ fn synthetic_rom() -> Vec<u8> {
     let program = [
         0x31, 0xF0, 0xDF, // LD SP, $DFF0
         0x21, 0x00, 0xC0, // LD HL, $C000
-        0x3E, 0x12,       // LD A, $12
-        0x23,             // loop: INC HL
-        0x04,             // INC B
-        0x80,             // ADD A, B
-        0xA9,             // XOR C
-        0x77,             // LD (HL), A
-        0x0D,             // DEC C
-        0x20, 0xF8,       // JR NZ, loop
+        0x3E, 0x12, // LD A, $12
+        0x23, // loop: INC HL
+        0x04, // INC B
+        0x80, // ADD A, B
+        0xA9, // XOR C
+        0x77, // LD (HL), A
+        0x0D, // DEC C
+        0x20, 0xF8, // JR NZ, loop
         0xC3, 0x08, 0x00, // JP loop
     ];
     rom[..program.len()].copy_from_slice(&program);
@@ -115,10 +118,7 @@ fn main() {
         let sample = run_trial(warmup_frames, measure_frames);
         println!(
             "SUN_PERF_SAMPLE profile={profile} trial={trial} frames={measure_frames} elapsed_ms={:.3} ms_per_frame={:.6} fps={:.3} instructions_per_frame={:.2}",
-            sample.elapsed_ms,
-            sample.ms_per_frame,
-            sample.fps,
-            sample.instructions_per_frame,
+            sample.elapsed_ms, sample.ms_per_frame, sample.fps, sample.instructions_per_frame,
         );
         samples.push(sample);
     }
