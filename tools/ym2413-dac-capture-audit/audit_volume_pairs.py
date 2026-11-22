@@ -12,6 +12,8 @@ import argparse
 import json
 from pathlib import Path
 
+from audit_capture import audit_capture
+
 ADC_LEVELS = 1 << 16
 BIN_COUNT = 512
 DEFAULT_MAX_ALIGNMENT_OFFSET = 8
@@ -147,6 +149,7 @@ def audit_volume_pairs(
     volumes: list[dict[str, int]] = []
     quality: list[dict[str, int]] = []
     global_mapping = [-1] * ADC_LEVELS
+    all_raw_samples: list[int] = []
     global_conflicts = 0
     paired_samples = 0
 
@@ -154,6 +157,7 @@ def audit_volume_pairs(
         raw_path = capture_dir / f"volume{volume}.raw"
         output_path = capture_dir / f"volume{volume}.out"
         raw_samples = load_integer_stream(raw_path, ADC_LEVELS - 1, "ADC")
+        all_raw_samples.extend(raw_samples)
         output_bins = load_integer_stream(output_path, BIN_COUNT - 1, "output-bin")
 
         offset, pair_count, conflicts, violations = infer_alignment_offset(
@@ -271,11 +275,55 @@ def audit_volume_pairs(
             },
         },
     }
+    aggregate_audit = audit_capture(all_raw_samples)
+    boundary_matches = 0
+    boundary_mismatches: list[dict[str, int]] = []
+    for interval in boundary_intervals:
+        boundary_index = interval["after_bin"]
+        if boundary_index >= aggregate_audit.bin_count:
+            boundary_mismatches.append(
+                {
+                    "after_bin": boundary_index,
+                    "reconstructed_boundary": -1,
+                    "observed_min": interval["min_adc_boundary"],
+                    "observed_max": interval["max_adc_boundary"],
+                }
+            )
+            continue
+        reconstructed_boundary = aggregate_audit.bin_boundaries[boundary_index]
+        if (
+            interval["min_adc_boundary"]
+            <= reconstructed_boundary
+            <= interval["max_adc_boundary"]
+        ):
+            boundary_matches += 1
+        else:
+            boundary_mismatches.append(
+                {
+                    "after_bin": boundary_index,
+                    "reconstructed_boundary": reconstructed_boundary,
+                    "observed_min": interval["min_adc_boundary"],
+                    "observed_max": interval["max_adc_boundary"],
+                }
+            )
+
     quality_report: dict[str, object] = {
         "volumes": quality,
         "global_mapping_conflicts": global_conflicts,
         "global_monotonicity_violations": global_monotonicity_violations,
         "impossible_boundary_count": impossible_boundary_count,
+        "aggregate_histogram": {
+            "sample_count": aggregate_audit.sample_count,
+            "unique_adc_codes": aggregate_audit.unique_adc_codes,
+            "minimum_adc_code": aggregate_audit.minimum_adc_code,
+            "maximum_adc_code": aggregate_audit.maximum_adc_code,
+            "detected_peak_count": aggregate_audit.detected_peak_count,
+            "inserted_peak_count": aggregate_audit.inserted_peak_count,
+            "bin_count": aggregate_audit.bin_count,
+            "boundary_interval_matches": boundary_matches,
+            "boundary_interval_mismatches": len(boundary_mismatches),
+            "boundary_mismatch_examples": boundary_mismatches[:10],
+        },
     }
     return report, quality_report
 
