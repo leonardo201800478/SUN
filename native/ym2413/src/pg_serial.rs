@@ -1035,6 +1035,10 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         context: &Ym2413SlotServiceContext,
         _tick: EnvelopeSequencerTick,
     ) -> Result<(), Self::Error> {
+        let dispatch = self
+            .pending_dispatch
+            .take()
+            .ok_or(Ym2413PgSerialError::InvalidState)?;
         // Nuked order after the core-owned EnvelopeGenerate stage:
         // DoLFO -> DoRhythm -> PreparePatch2.
         let testmode = context.registers[0x0f];
@@ -1051,10 +1055,6 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             self.clock_pm_lfo(testmode);
         }
         self.clock_rhythm_noise(context)?;
-        let dispatch = self
-            .pending_dispatch
-            .take()
-            .ok_or(Ym2413PgSerialError::InvalidState)?;
         match dispatch {
             // Reuse the descriptor resolved by this dispatch. The latch helper
             // must not dispatch the same immutable slot context a second time.
