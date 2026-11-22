@@ -35,7 +35,8 @@ $candidateSha = "8b4ea7fbb3ceb7e293aafae9cfef87d3ccde687b"
 $logFilter = "info,sega::audio::pacing=trace,sega::video::frame_pacing=trace,sega::audio::health=trace"
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repoRoot "artifacts\ym2413-real-game-ab"
+    $documents = [Environment]::GetFolderPath("MyDocuments")
+    $OutputDirectory = Join-Path $documents "SUN-Benchmarks\ym2413-real-game-ab"
 }
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outputRoot = Join-Path $OutputDirectory $stamp
@@ -43,7 +44,6 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "SUN-YM2413-AB-$stamp"
 $baselineWorktree = Join-Path $tempRoot "baseline"
 $candidateWorktree = Join-Path $tempRoot "candidate"
 
-New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 
 function Invoke-GitChecked {
@@ -208,6 +208,8 @@ try {
         throw "O worktree principal possui alterações locais. Faça commit/stash antes do A/B."
     }
 
+    New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
+
     Invoke-GitChecked -GitArgs @("cat-file", "-e", "$baselineSha^{commit}")
     Invoke-GitChecked -GitArgs @("cat-file", "-e", "$candidateSha^{commit}")
 
@@ -246,9 +248,13 @@ try {
     Invoke-MeasurementRun -Label "candidate" -Index 2 -Worktree $candidateWorktree -Executable $candidateExe -Commit $candidateSha
     Invoke-MeasurementRun -Label "baseline" -Index 2 -Worktree $baselineWorktree -Executable $baselineExe -Commit $baselineSha
 
+    $bundle = Join-Path $OutputDirectory "ym2413-real-game-ab-$stamp.zip"
+    Compress-Archive -Path (Join-Path $outputRoot "*") -DestinationPath $bundle -Force
+
     Write-Host ""
-    Write-Host "A/B concluído. Envie a pasta abaixo ou os quatro arquivos logs.zip e respectivos run.json:" -ForegroundColor Green
-    Write-Host $outputRoot
+    Write-Host "A/B concluído. Envie o pacote abaixo para análise:" -ForegroundColor Green
+    Write-Host $bundle
+    Write-Host "Pasta de evidências: $outputRoot"
 }
 finally {
     foreach ($worktree in $worktreesAdded) {
