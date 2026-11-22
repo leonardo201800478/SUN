@@ -150,7 +150,7 @@ function Invoke-MeasurementRun {
     [void](Read-Host "Com o jogo na cena escolhida e a coleta diagnóstica autorizada, pressione ENTER para iniciar o aquecimento")
     $process.Refresh()
     if ($process.HasExited) {
-        throw "$runName: o emulador encerrou antes da captura."
+        throw "${runName}: o emulador encerrou antes da captura."
     }
 
     Start-Sleep -Seconds $WarmupSeconds
@@ -162,7 +162,7 @@ function Invoke-MeasurementRun {
 
     $process.Refresh()
     if ($process.HasExited) {
-        throw "$runName: o emulador encerrou durante a captura."
+        throw "${runName}: o emulador encerrou durante a captura."
     }
     [void](Read-Host "Feche o emulador normalmente para descarregar o arquivo de log; pressione ENTER depois de fechá-lo")
     $process.WaitForExit()
