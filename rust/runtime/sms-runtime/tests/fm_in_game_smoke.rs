@@ -24,6 +24,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "windows")]
 use sega_audio_output::NativeCpalOutput;
 use sega_audio_runtime::{
     AnalogOutputConfig, AudioOutputMetrics, MixSource, NativeAudioSession, PcmSink,
@@ -406,6 +407,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
     }
 }
 
+#[cfg(target_os = "windows")]
 #[test]
 #[ignore = "requires the verified FM ROMs and a working physical CPAL output device"]
 fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
