@@ -124,10 +124,12 @@ static int load_events(const char *path, input_event *events, size_t *count) {
 
 int main(int argc, char **argv) {
     uint64_t calls = 0;
+    uint64_t from_call = 0;
     uint32_t chip_type = opll_type_ym2413;
     const char *events_path = NULL;
     int pg_only = 0;
     int pg_phase_only = 0;
+    int output_only = 0;
     input_event *events = calloc(MAX_EVENTS, sizeof(*events));
     size_t event_count = 0, event_index = 0;
     opll_t chip;
@@ -144,10 +146,16 @@ int main(int argc, char **argv) {
             pg_only = 1;
         } else if (!strcmp(argv[i], "--pg-phase-only")) {
             pg_phase_only = 1;
+        } else if (!strcmp(argv[i], "--output-only")) {
+            output_only = 1;
+        } else if (!strcmp(argv[i], "--from-call") && i + 1 < argc) {
+            from_call = strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--phase-reset-probe")) {
             phase_reset_probe = 1;
         } else {
-            fprintf(stderr, "usage: %s --calls N [--events file.csv] [--chip-type 0] [--pg-only]\n", argv[0]);
+            fprintf(stderr,
+                    "usage: %s --calls N [--events file.csv] [--chip-type 0] "
+                    "[--pg-only] [--pg-phase-only] [--output-only] [--from-call N]\n", argv[0]);
             free(events);
             return 2;
         }
@@ -168,7 +176,9 @@ int main(int argc, char **argv) {
     }
 
     OPLL_Reset(&chip, chip_type);
-    if (pg_phase_only) {
+    if (output_only) {
+        puts("{\"schema\":\"ym2413-nuked-opll-output-trace-v2\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\"}");
+    } else if (pg_phase_only) {
         puts("{\"schema\":\"ym2413-nuked-opll-pg-phase-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"phase_array_after_OPLL_Clock\",\"phase_array_length\":18}");
     } else if (pg_only) {
         puts("{\"schema\":\"ym2413-nuked-opll-pg-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"pg_increment_after_OPLL_Clock\"}");
@@ -238,6 +248,13 @@ int main(int argc, char **argv) {
         }
 
         OPLL_Clock(&chip, output);
+        if (output_only) {
+            if (tick >= from_call) {
+            printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out_before\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
+                   tick, cycle_before, (int)output_pipe_ch_out_before, (int)chip.output_m, (int)chip.output_r);
+            }
+            continue;
+        }
 #ifdef YM2413_TRACE_OPERATOR_BOUNDARY
         am_calc_testmode = opll_trace_testmode_at_dolfo;
         selected_instr = opll_trace_selected_instr;

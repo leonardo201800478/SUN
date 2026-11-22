@@ -341,3 +341,103 @@ The comparator also records the pre-call ch_out and signed rm_enable values.
 On divergence it reports call/cycle, independent MO and RO slot coordinates,
 register-0x0e write data, both ch_out boundaries, expected/actual buffered
 outputs, expected/actual pin latches, and rm_enable before/after the call.
+
+
+## Volume-capture MO output characterization
+
+The compact `--output-only` mode emits one JSON record per Nuked
+`OPLL_Clock()` call with `cycle_before`, `ch_out_before` (captured before
+the slot clock), `output_pins_m`, and `output_pins_r`. The optional
+`--from-call N` filters printed records while still clocking the chip and
+applying all earlier register events.
+
+The pinned upstream firmware `tool2/main.cc` calls `ym::reset()` and
+`ym::syncTimer1()` at startup. The latter plays a synchronization sine using
+the original patch (modulator/carrier AR=15), samples 72 consecutive YM
+clocks, and aligns Timer1 to the middle of channel 1's three-clock MO pulse.
+The host-side `analyze/volume/volumes.cc` then writes the measurement patch
+from `getSinePatch()`: modulator AR=0/TL=63, carrier AR=15, F-number
+`0x61`, block 1, and the requested carrier volume.
+
+The `volume0` fixture models reset, the firmware synchronization patch,
+an 18-slot synchronization window, and the volume-0 measurement patch.
+The `volume1` fixture models the same startup, the complete volume-0
+measurement run (20,030 samples × 18 slot calls), and then the volume-1
+measurement patch. This sequential history matters: the upstream firmware
+does not reset or key-off the YM2413 between volume captures, so the
+volume-1 capture inherits the preceding envelope/phase state.
+
+The measurement script uses exact 12/84-YM-clock address/data and
+data/next-address intervals, represented as 3/21 OPLL calls. The startup
+`writeReg()` routine adds ten clocks of extra delay; its 22-clock
+address/data interval is rounded to six four-clock slot calls, while the
+register-start period remains 29 calls (116 clocks). The synchronization
+routine's wait is represented by an 18-call window; the trace cannot model
+the asynchronous Timer1 polling loop cycle-for-cycle. These startup
+approximations are explicit and must not be confused with the exact
+measurement-script timing.
+
+The physical capture samples once every 72 YM clocks. This corresponds to
+18 four-clock serial slots, or 18 Nuked `OPLL_Clock()` calls in this
+adapter. The comparator scans the active MO slot during each capture,
+compares `measured_bin = 255 - ch_out_before` with the pinned upstream
+`volumeN.out` bins, checks Nuked's piecewise MO output-pin encoding, and
+reports phase, exact-match, residual, local-phase, and inverted-polarity
+diagnostics. It is a **characterization**, not a pass/fail audio-fidelity
+gate.
+
+Before extracting samples, the comparator now validates the compact trace
+contract: the declared time unit and sample point, contiguous call indices
+starting at the requested capture call, the 18-slot cycle sequence
+(`cycle_before == call_index % 18`), and complete coverage of the requested
+slot-identification scan. Unit tests reject missing calls, incorrect cycle
+indices, and an invalid sample point. This prevents a truncated or shifted
+JSONL stream from producing apparently plausible differential statistics.
+
+Nuked's `OPLL_Channel` transforms the pre-pin value for MO: non-negative
+`ch_out` is incremented by one (so the two zero codes are emitted as +1 and
+-1), while negative values pass through. The comparator independently
+inverts that piecewise pin encoding and checks it agrees with the pre-pin
+mapping.
+
+The CI job checks out Andete at the pinned revision, generates separate
+traces for volume 0 and volume 1, and compares them with the corresponding
+physical captures. These comparisons do not prove the DAC electrical
+transfer, board loading, subclock behavior, the Rust runtime's output, or
+Phantasy Star/Kenseiden playback.
+
+Run the helper tests with:
+
+```sh
+python3 -m unittest discover -s tools/ym2413-nuked-oracle -p 'test_*.py'
+```
+
+### Pinned time-series results — 2026-11-22
+
+The current CI run compares the two sequential captures against the pinned
+Nuked reference using the event history described above:
+
+| Capture | Samples | Best phase offset | Exact matches | MAE | p95 | Maximum |
+|---|---:|---:|---:|---:|---:|---:|
+| `volume0.out` | 20,030 | 1,011 | 7,017 (35.03%) | 0.736 bins | 2 | 3 |
+| `volume1.out` | 20,032 | 1,461 | 14,803 (73.90%) | 0.263 bins | 1 | 17 |
+
+Both empirical code-to-bin maps had **zero monotonicity violations**. For
+volume 0, per-code median absolute residuals were p50=1, p90=1, p99=2,
+maximum=2. For volume 1 they were p50=0, p90=1, p99=1, maximum=1.
+Nuked's MO pin inverse agreed with the pre-pin mapping at every sampled point;
+the active MO slot was 6 and rhythm output remained muted.
+
+The volume-1 maximum error of 17 bins occurs only at sample index 0
+(measured bin 295 versus model bin 278). Every subsequent sample has absolute
+error at most 2 bins; the first-sample discrepancy is recorded, not discarded,
+and its cause is not established. Local phase alignment remained at 1,461
+samples throughout volume 1. Volume 0's local offsets varied between 1,006
+and 1,016 samples without a monotonic drift pattern.
+
+The inverted-polarity control is decisively inconsistent: MAE 310.44 bins
+for volume 0 and 153.73 bins for volume 1. These results strongly support the
+candidate polarity and near-identity code mapping for the two measured volume
+settings. They remain a Nuked-to-historical-capture characterization; they do
+not yet prove that the Rust serial operator produces the same sequence or
+that either target game has stable FM playback.
