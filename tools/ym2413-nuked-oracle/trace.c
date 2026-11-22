@@ -124,6 +124,7 @@ static int load_events(const char *path, input_event *events, size_t *count) {
 
 int main(int argc, char **argv) {
     uint64_t calls = 0;
+    uint64_t from_call = 0;
     uint32_t chip_type = opll_type_ym2413;
     const char *events_path = NULL;
     int pg_only = 0;
@@ -147,6 +148,8 @@ int main(int argc, char **argv) {
             pg_phase_only = 1;
         } else if (!strcmp(argv[i], "--output-only")) {
             output_only = 1;
+        } else if (!strcmp(argv[i], "--from-call") && i + 1 < argc) {
+            from_call = strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--phase-reset-probe")) {
             phase_reset_probe = 1;
         } else {
@@ -248,6 +251,7 @@ int main(int argc, char **argv) {
         if (output_only) {
             printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out_before\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
                    tick, cycle_before, (int)output_pipe_ch_out_before, (int)chip.output_m, (int)chip.output_r);
+            }
             continue;
         }
 #ifdef YM2413_TRACE_OPERATOR_BOUNDARY
