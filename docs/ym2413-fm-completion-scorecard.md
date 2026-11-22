@@ -2,12 +2,12 @@
 
 **Data de referência:** 2026-11-21
 **Repositório:** `leonardo201800478/SUN`
-**Main atual pós-PR #1172:** `67752c9d4ff32cc7162b5045ddfad61dbc1a9075`
+**Main atual pós-PR #1175:** `c42511f3e800f6e542ea83736cd835c0ebe38724`
 
 **Checkpoint anterior pós-PR #1159 (histórico):** `eb01ca8a7ee6224a98e872143b41f0b28137b292`
 **Merges de documentação posteriores:** PR #1160 `9470a12da580989775481a05bf65973311ca34db`; PR #1161 `7387c293df587ea8e32edab4ca437ddbe1ee06e1`.
 
-## Estado executivo atual — main pós-PR #1172 (2026-11-21)
+## Estado executivo atual — main pós-PR #1175 (2026-11-21)
 
 **Integração de runtime publicada; fidelidade física ainda aberta.**
 
@@ -24,6 +24,7 @@
 | #1169 | Diferencial do reset de fase Rhythm contra Nuked | `6ab2722ccc996fe252475af0fc382443e941727a` |
 | #1170 | Readback F2 preserva D3–D0 e valida os quatro modos PSG/FM | `8836ec3f716c19450736bfd4878790c1d6f6ee52` |
 | #1172 | Separa presença física do YM2413 do território; remove inferência automática por região | `67752c9d4ff32cc7162b5045ddfad61dbc1a9075` |
+| #1175 | Expõe e persiste no desktop o perfil físico Japanese SMS FM e FmMode Auto/On/Off | `c42511f3e800f6e542ea83736cd835c0ebe38724` |
 
 ### Estado real do caminho de áudio
 
@@ -45,28 +46,28 @@
 - **EG:** matriz de 38 configurações permanece com 44.064 divergências de nível e 71 de estágio.
 - **Rhythm Mode:** seed físico e ROM de patches não certificados; divergências de EG/SL continuam abertas.
 - **MO/RO e DAC:** o PCM mono atual combina as saídas digitais de referência. A rede analógica específica do Japanese Master System, ganhos relativos, carga, filtragem, codificação DAC e fase subclock continuam sem evidência suficiente. A regra normativa de preservar MO/RO separadamente permanece válida; o PCM atual deve ser tratado como caminho provisório de compatibilidade, não como modelo elétrico final.
-- **Perfil físico e FmMode:** o runtime agora separa presença física do YM2413 do território. Construtores regionais genéricos não instalam FM automaticamente, inclusive para região Japão; o construtor explícito da placa FM aceita software de qualquer região suportada e o Save State/Restore preserva essa combinação. O desktop ainda não expõe nem persiste o perfil físico nem `FmMode::Auto/On/Off`. Auto exige catálogo por título/revisão/hash; sem correspondência comprovada deve permanecer desligado.
+- **Perfil físico e FmMode:** o runtime separa presença física do YM2413 do território. Construtores regionais genéricos não instalam FM automaticamente, inclusive para região Japão; o construtor explícito da placa FM aceita software de qualquer região suportada e o Save State/Restore preserva essa combinação. A PR #1175 expõe e persiste no desktop o perfil físico e `FmMode::Auto/On/Off`. Auto continua conservador: sem correspondência exata de ROM verificada, a saída FM permanece mutada; On exige placa com YM2413.
 - **C-Sync:** readback D7–D5 bloqueado até a exposição de um pulso de hardware verificável.
 - **ROMs reais:** Phantasy Star e Kenseiden foram recebidas e hash-conferidas, mas ainda não há evidência de boot prolongado, jogo, áudio, FPS e estabilidade no emulador.
 
-### Validação exata da main após PR #1172
+### Validação exata da main após PR #1175
 
-- CI run `44962913515`: **SUCCESS** — SMS core/VDP, input, Z80 (incluindo vetores DD/FD e MEMPTR), workspace, SDL3 Windows, Scheduler, documentação e gate de qualidade.
-- SMS Debugger Runtime run `44962913467`: **SUCCESS** — rustfmt, Clippy, 58 testes Release aprovados e build Windows x64. Os testes `worker_builder_keeps_fm_hardware_independent_of_software_region` e o caminho USA com BIOS passaram.
-- O teste `japanese_fm_hardware_profile_is_independent_of_software_territory` passou, incluindo Save State/Restore com `Territory::Export`.
-- DP0 Release A/B run `44962913477`: **SUCCESS** — bus-heavy +0,18%; relative-loop +1,12%, sem regressão relevante.
-- O job Windows/CPAL foi corretamente classificado como não aplicável: a PR #1172 alterou presença física/território no SMS core e no worker, não o backend CPAL.
+- CI run `44965236232`: **SUCCESS** — workspace regression, Slint/WGPU 30 Vulkan POC, SDL3 Windows e demais jobs aplicáveis concluídos sem falhas.
+- SMS Debugger Runtime run `44965236192`: **SUCCESS** — rustfmt, Clippy, testes Release do SMS runtime e build Windows x64 aprovados.
+- A PR #1175 adicionou persistência e testes das preferências FM; o job Windows/CPAL foi corretamente classificado como não aplicável porque não houve alteração no backend de saída física.
+- O baseline DP0 Release A/B anterior permanece o último benchmark aplicável; a PR #1175 alterou somente a camada desktop/preferences.
 
 ### Próxima sequência recomendada
 
-1. Resolver a divergência entre o PCM mono atual e o contrato de preservar MO/RO separadamente; manter o caminho de compatibilidade explicitamente identificado até haver modelo de placa.
-2. Expor e persistir no desktop o perfil físico da placa SMS e `FmMode::Auto/On/Off`; Auto permanece desligado sem correspondência exata de título/revisão/hash, On só habilita FM em placa com YM2413 e Off silencia a saída sem parar o clock interno.
-3. Expor a origem temporal de C-Sync pelo caminho de vídeo/315-5297 antes de implementar D7–D5.
-4. Fechar PG/PM/EG e Rhythm com diferenciais e evidência independente, sem teacher-forcing.
-5. Validar Phantasy Star e Kenseiden com e sem BIOS, incluindo boot, jogo, áudio, FPS, underruns, estabilidade e Save State/Restore.
-6. Atualizar os workflows conforme cada componente alterado. Não iniciar E8 do Z80.
+1. Executar FM-5.4: reproduzir a cadeia ADC→histograma→picos→bins com o artefato original de calibração ou nova captura em hardware, registrando picos observados e inseridos separadamente. A ferramenta offline `tools/ym2413-dac-capture-audit/` reproduz o algoritmo de `calibrate.cc`, mas seus fixtures sintéticos não certificam o hardware.
+2. Validar a aquisição Timer0 por clock: zero ADC overflow, contagem de amostras igual à de triggers, ausência de perda/reordenação DMA e fase conhecida. As capturas atuais a 50 kHz e Timer1/72 não resolvem os 18 slots nem os subclocks.
+3. Estabelecer independentemente a correspondência entre o latch do operador, níveis medidos MO/RO e palavra de entrada do DAC. Não inferir shift, máscara, extensão de sinal ou conversão do `i16`.
+4. Preservar MO/RO separadamente e manter o PCM mono atual explicitamente como compatibilidade de referência até existir modelo de placa sustentado por evidência.
+5. Fechar PG/PM/EG e Rhythm com diferenciais independentes e evidência física onde necessária, sem teacher-forcing.
+6. Validar Phantasy Star e Kenseiden com boot prolongado, jogo, áudio FM, FPS, underruns, estabilidade e Save State/Restore. A certificação final continua condicionada aos dois jogos.
+7. Expor a origem temporal de C-Sync pelo caminho de vídeo/315-5297 antes de implementar readback D7–D5. Não iniciar E8 do Z80.
 
-**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1170. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
+**Precedência documental:** este snapshot e o código em `main` prevalecem sobre as seções históricas abaixo, que registram o estado anterior às PRs #1165–#1175. Um workflow PASS comprova apenas a execução do teste declarado, não fidelidade física do chip.
 
 ---
 
