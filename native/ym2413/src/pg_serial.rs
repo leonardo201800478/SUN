@@ -11,9 +11,7 @@
 
 use crate::am_lfo::{Ym2413SerialAmLfo, Ym2413SerialAmLfoError, Ym2413SerialAmLfoState};
 use crate::channel::{ChannelSynthesisError, OperatorPhaseParameters, decode_channel_synthesis};
-use crate::envelope_sequencer::{
-    EnvelopeRhythmSelect, EnvelopeSequencerState, EnvelopeSequencerTick,
-};
+use crate::envelope_sequencer::{EnvelopeRhythmSelect, EnvelopeSequencerTick};
 use crate::output::{
     Ym2413MeasuredOutputAdapter, Ym2413MeasuredOutputAdapterError,
     Ym2413MeasuredOutputAdapterFrame, Ym2413MeasuredOutputAdapterState,
@@ -910,10 +908,9 @@ impl Ym2413PgSerialService {
         )?;
         self.clock_output_pipeline(context, Some(sample.channel_output), true)?;
         self.calculate_increment()?;
-        let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
             context.event.cycle,
-            &eg_levels,
+            &context.envelope_levels,
             self.serial_am_lfo.output(),
             context.registers[0x0f],
         )?;
@@ -1014,10 +1011,9 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         )?;
         self.clock_output_pipeline(context, Some(sample.channel_output), false)?;
         self.calculate_increment()?;
-        let eg_levels = std::array::from_fn(|index| context.envelope_state.operators[index].level);
         self.operator.advance_envelope_output(
             context.event.cycle,
-            &eg_levels,
+            &context.envelope_levels,
             self.serial_am_lfo.output(),
             context.registers[0x0f],
         )?;
@@ -1028,7 +1024,6 @@ impl Ym2413SlotService for Ym2413PgSerialService {
         &mut self,
         context: &Ym2413SlotServiceContext,
         _tick: EnvelopeSequencerTick,
-        _post_state: EnvelopeSequencerState,
     ) -> Result<(), Self::Error> {
         // Nuked order after the core-owned EnvelopeGenerate stage:
         // DoLFO -> DoRhythm -> PreparePatch2.
@@ -1087,8 +1082,7 @@ mod tests {
         AttackRate15Transition, DampTransitionConfig, DampTransitionCoordination, EnvelopeStage,
     };
     use crate::envelope_sequencer::{
-        EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSequencerState, EnvelopeSequencerTick,
-        EnvelopeSlotInput,
+        EnvelopeRhythmSelect, EnvelopeSequencer, EnvelopeSequencerTick, EnvelopeSlotInput,
     };
     use crate::phase::PhaseGenerator;
     use crate::slot::{nuked_pg_phase_slot_descriptor, nuked_slot_service_event_with_testmode};
@@ -1473,16 +1467,15 @@ mod tests {
 
     fn context(cycle: u8, registers: [u8; 64], testmode: u8) -> Ym2413SlotServiceContext {
         let eg = EnvelopeSequencer::new();
-        let state = eg.export_state();
-        let event =
-            nuked_slot_service_event_with_testmode(cycle, 0, state.eg_dokon, testmode).unwrap();
+        let eg_dokon = eg.eg_dokon();
+        let event = nuked_slot_service_event_with_testmode(cycle, 0, eg_dokon, testmode).unwrap();
         let mut registers = registers;
         registers[0x0f] = testmode;
         Ym2413SlotServiceContext {
             event,
             registers,
             envelope_input: EnvelopeSlotInput::default(),
-            envelope_state: state,
+            envelope_levels: eg.operator_levels(),
             rm_enable: 0,
             rm_select: 6,
         }
@@ -1494,8 +1487,8 @@ mod tests {
         selector: EnvelopeRhythmSelect,
     ) -> Ym2413SlotServiceContext {
         let eg = EnvelopeSequencer::new();
-        let state = eg.export_state();
-        let event = nuked_slot_service_event_with_testmode(cycle, 0xff, state.eg_dokon, 0).unwrap();
+        let eg_dokon = eg.eg_dokon();
+        let event = nuked_slot_service_event_with_testmode(cycle, 0xff, eg_dokon, 0).unwrap();
         let mut registers = registers;
         registers[0x0f] = 0;
         let envelope_input = EnvelopeSlotInput {
@@ -1507,7 +1500,7 @@ mod tests {
             event,
             registers,
             envelope_input,
-            envelope_state: state,
+            envelope_levels: eg.operator_levels(),
             rm_enable: 0xff,
             rm_select: match selector {
                 EnvelopeRhythmSelect::BassDrumFirst => 0,
@@ -1536,18 +1529,17 @@ mod tests {
     fn advance_rhythm_slot(service: &mut Ym2413PgSerialService, cycle: u8, registers: [u8; 64]) {
         let context = rhythm_context(cycle, registers, rhythm_selector(cycle));
         service.before_eg_update(&context).unwrap();
-        let (tick, post_state) = tick(cycle);
-        service.after_eg_update(&context, tick, post_state).unwrap();
+        let tick = tick(cycle);
+        service.after_eg_update(&context, tick).unwrap();
     }
 
-    fn tick(cycle: u8) -> (crate::EnvelopeSequencerTick, crate::EnvelopeSequencerState) {
+    fn tick(cycle: u8) -> crate::EnvelopeSequencerTick {
         let mut eg = EnvelopeSequencer::new();
         for prior_cycle in 0..cycle {
             eg.tick_slot(prior_cycle, EnvelopeSlotInput::default())
                 .unwrap();
         }
-        let result = eg.tick_slot(cycle, EnvelopeSlotInput::default()).unwrap();
-        (result, eg.export_state())
+        eg.tick_slot(cycle, EnvelopeSlotInput::default()).unwrap()
     }
 
     fn service_with_pipeline(
@@ -1692,8 +1684,7 @@ mod tests {
         let tick = eg
             .tick_slot(context.event.cycle, context.envelope_input)
             .unwrap();
-        let post_state = eg.export_state();
-        service.after_eg_update(&context, tick, post_state).unwrap();
+        service.after_eg_update(&context, tick).unwrap();
 
         let snapshot = service.export_state();
         let restored = Ym2413PgSerialService::restore_state(snapshot).unwrap();
@@ -1793,8 +1784,8 @@ mod tests {
         let mut service = service_with_pipeline(initial_bank(0), 0, 0, parameters, 3);
         let context = context(0, registers, 0);
         service.before_eg_update(&context).unwrap();
-        let (tick, post) = tick(0);
-        service.after_eg_update(&context, tick, post).unwrap();
+        let tick = tick(0);
+        service.after_eg_update(&context, tick).unwrap();
 
         assert_eq!(
             service.pg_increment(),
@@ -1819,8 +1810,8 @@ mod tests {
                 .unwrap();
         let context = context(17, [0; 64], 0x08);
         service.before_eg_update(&context).unwrap();
-        let (tick, post) = tick(17);
-        service.after_eg_update(&context, tick, post).unwrap();
+        let tick = tick(17);
+        service.after_eg_update(&context, tick).unwrap();
         assert_eq!(service.lfo_vib_counter(), 3);
         assert_eq!(service.synthesis().pm_lfo_counter(), 0x0400);
     }
@@ -1833,8 +1824,8 @@ mod tests {
                 .unwrap();
         let context = context(3, [0; 64], 0x02);
         service.before_eg_update(&context).unwrap();
-        let (tick, post) = tick(3);
-        service.after_eg_update(&context, tick, post).unwrap();
+        let tick = tick(3);
+        service.after_eg_update(&context, tick).unwrap();
         assert_eq!(service.lfo_vib_counter(), 0);
         assert_eq!(service.synthesis().pm_lfo_counter(), 0);
     }
@@ -1847,8 +1838,8 @@ mod tests {
                 .unwrap();
         let context = context(17, [0; 64], 0x0a);
         service.before_eg_update(&context).unwrap();
-        let (tick, post) = tick(17);
-        service.after_eg_update(&context, tick, post).unwrap();
+        let tick = tick(17);
+        service.after_eg_update(&context, tick).unwrap();
         assert_eq!(service.lfo_vib_counter(), 0);
         assert_eq!(service.synthesis().pm_lfo_counter(), 0);
     }
@@ -1868,8 +1859,8 @@ mod tests {
             context.envelope_input.rhythm_select = EnvelopeRhythmSelect::None;
 
             service.before_eg_update(&context).unwrap();
-            let (tick, post) = tick(cycle);
-            service.after_eg_update(&context, tick, post).unwrap();
+            let tick = tick(cycle);
+            service.after_eg_update(&context, tick).unwrap();
             assert_ne!(
                 service.export_state(),
                 before,
@@ -1928,8 +1919,8 @@ mod tests {
             let mut slot_context = context(cycle, registers, 0);
             slot_context.rm_enable = 0xff;
             service.before_eg_update(&slot_context).unwrap();
-            let (tick, post) = tick(cycle);
-            service.after_eg_update(&slot_context, tick, post).unwrap();
+            let tick = tick(cycle);
+            service.after_eg_update(&slot_context, tick).unwrap();
 
             if cycle == 0 {
                 assert_eq!(service.measured_output_frame(), None);
@@ -1974,20 +1965,14 @@ mod tests {
             slot_context.rm_enable = 0xff;
             slot_context.rm_select = selector as u8;
             slot_context.envelope_input.rhythm_select = selector;
-            slot_context.event = nuked_slot_service_event_with_testmode(
-                cycle,
-                0xff,
-                slot_context.envelope_state.eg_dokon,
-                0,
-            )
-            .unwrap();
+            slot_context.event = nuked_slot_service_event_with_testmode(cycle, 0xff, 0, 0).unwrap();
 
             service.before_eg_update(&slot_context).unwrap();
             assert!(service.export_state().previous_channel_output_is_rhythm);
             assert_ne!(service.synthesis().export_state(), synthesis_before);
             assert_ne!(service.operator.export_state(), operator_before);
-            let (tick, post) = tick(cycle);
-            service.after_eg_update(&slot_context, tick, post).unwrap();
+            let tick = tick(cycle);
+            service.after_eg_update(&slot_context, tick).unwrap();
 
             // Save-state snapshots are taken only at completed slot boundaries:
             // the PG and measured RO cursors must have advanced together.
@@ -2036,8 +2021,8 @@ mod tests {
             assert!(!service.export_state().previous_channel_output_is_rhythm);
             assert_eq!(service.synthesis().export_state(), synthesis_before);
             assert_eq!(service.operator.export_state(), operator_before);
-            let (tick, post) = tick(12);
-            service.after_eg_update(&slot_context, tick, post).unwrap();
+            let tick = tick(12);
+            service.after_eg_update(&slot_context, tick).unwrap();
             assert_eq!(service.rhythm_noise_state().unwrap().slot_index, 13);
         }
     }
@@ -2173,8 +2158,8 @@ mod tests {
             .unwrap();
         let slot_context = context(0, [0; 64], 0x02);
         service.before_eg_update(&slot_context).unwrap();
-        let (tick, post) = tick(0);
-        service.after_eg_update(&slot_context, tick, post).unwrap();
+        let tick = tick(0);
+        service.after_eg_update(&slot_context, tick).unwrap();
         assert_eq!(
             service.rhythm_noise_state().unwrap().lfsr.register,
             (register >> 1) | (1 << 22)
@@ -2280,10 +2265,9 @@ mod tests {
             &mut self,
             context: &Ym2413SlotServiceContext,
             tick: EnvelopeSequencerTick,
-            post_state: EnvelopeSequencerState,
         ) -> Result<(), Self::Error> {
             self.inner
-                .after_eg_update(context, tick, post_state)
+                .after_eg_update(context, tick)
                 .map_err(|_| context.event.cycle)?;
             if self.fail_cycle == Some(context.event.cycle) {
                 Err(context.event.cycle)

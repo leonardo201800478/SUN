@@ -203,6 +203,25 @@ impl EnvelopeSequencer {
         }
     }
 
+    /// Return the delayed key-on pipeline consumed by slot phase-reset selection.
+    pub(crate) const fn eg_dokon(&self) -> u32 {
+        self.eg_dokon
+    }
+
+    /// Copy the 18 current attenuation levels without exporting full operator state.
+    ///
+    /// This compact view is used by the integrated PG/EG slot service; save-state
+    /// export remains separate and retains every operator and timer field.
+    pub(crate) fn operator_levels(&self) -> [u8; YM2413_ENVELOPE_SEQUENCER_SLOTS] {
+        let mut levels = [0; YM2413_ENVELOPE_SEQUENCER_SLOTS];
+        let mut slot = 0;
+        while slot < YM2413_ENVELOPE_SEQUENCER_SLOTS {
+            levels[slot] = self.operators[slot].level();
+            slot += 1;
+        }
+        levels
+    }
+
     /// Return one operator's current attenuation and four-state EG phase.
     pub fn operator(&self, slot: u8) -> Option<(u8, EnvelopeOperatorStage)> {
         self.operators
@@ -392,7 +411,92 @@ impl EnvelopeSequencer {
 
 #[cfg(test)]
 mod tests {
-    use super::{EnvelopeSequencer, EnvelopeSlotInput};
+    use super::{EnvelopeSequencer, EnvelopeSlotInput, YM2413_ENVELOPE_SEQUENCER_SLOTS};
+
+    #[test]
+    #[ignore = "Release-only A/B microbenchmark for full versus compact EG slot snapshots"]
+    fn benchmark_compact_eg_slot_snapshot_cost() {
+        const ITERATIONS: u32 = 500_000;
+        const SAMPLES: usize = 9;
+
+        fn measure_full_snapshot(sequencer: &EnvelopeSequencer, iterations: u32) -> u128 {
+            let start = std::time::Instant::now();
+            for _ in 0..iterations {
+                std::hint::black_box(std::hint::black_box(sequencer).export_state());
+            }
+            start.elapsed().as_nanos() / u128::from(iterations)
+        }
+
+        fn measure_compact_view(sequencer: &EnvelopeSequencer, iterations: u32) -> u128 {
+            let start = std::time::Instant::now();
+            for _ in 0..iterations {
+                let eg_dokon = std::hint::black_box(sequencer).eg_dokon();
+                let levels = std::hint::black_box(sequencer).operator_levels();
+                std::hint::black_box((eg_dokon, levels));
+            }
+            start.elapsed().as_nanos() / u128::from(iterations)
+        }
+
+        let sequencer = EnvelopeSequencer::new();
+        let mut full_samples = [0; SAMPLES];
+        let mut compact_samples = [0; SAMPLES];
+
+        for (sample, (full, compact)) in full_samples
+            .iter_mut()
+            .zip(compact_samples.iter_mut())
+            .enumerate()
+        {
+            if sample % 2 == 0 {
+                *full = measure_full_snapshot(&sequencer, ITERATIONS);
+                *compact = measure_compact_view(&sequencer, ITERATIONS);
+            } else {
+                *compact = measure_compact_view(&sequencer, ITERATIONS);
+                *full = measure_full_snapshot(&sequencer, ITERATIONS);
+            }
+        }
+
+        full_samples.sort_unstable();
+        compact_samples.sort_unstable();
+        let full_ns = full_samples[SAMPLES / 2];
+        let compact_ns = compact_samples[SAMPLES / 2];
+        let previous_slot_work_ns = full_ns * 2;
+        let compact_slot_work_ns = compact_ns;
+        let saved_ns = previous_slot_work_ns.saturating_sub(compact_slot_work_ns);
+
+        println!(
+            "YM2413_EG_SLOT_VIEW_AB iterations={ITERATIONS} samples={SAMPLES} full_snapshot_ns={full_ns} compact_view_ns={compact_ns} old_two_snapshot_slot_ns={previous_slot_work_ns} new_compact_slot_ns={compact_slot_work_ns} estimated_saved_ns_per_slot={saved_ns} snapshot_work_speedup={:.3}x",
+            previous_slot_work_ns as f64 / compact_slot_work_ns.max(1) as f64
+        );
+    }
+
+    #[test]
+    fn compact_slot_view_matches_full_serializable_state() {
+        let mut sequencer = EnvelopeSequencer::new();
+
+        for cycle in 0..YM2413_ENVELOPE_SEQUENCER_SLOTS as u8 {
+            let state = sequencer.export_state();
+            assert_eq!(sequencer.eg_dokon(), state.eg_dokon);
+            assert_eq!(
+                sequencer.operator_levels(),
+                std::array::from_fn(|index| state.operators[index].level)
+            );
+
+            sequencer
+                .tick_slot(
+                    cycle,
+                    EnvelopeSlotInput {
+                        attack_rate: 15,
+                        decay_rate: 7,
+                        release_rate: 5,
+                        key_on: cycle % 2 == 0,
+                        sustain_on: true,
+                        sustained_tone: true,
+                        ..EnvelopeSlotInput::default()
+                    },
+                )
+                .unwrap();
+        }
+    }
 
     #[test]
     fn reset_state_matches_serial_eg_reset_latches() {
