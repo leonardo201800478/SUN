@@ -1,8 +1,8 @@
 # ADR 0011 — Replataforma desktop com Slint, WGPU e CPAL
 
 - **Status:** ACCEPTED; arquitetura-alvo normativa. R1/R2/R3 integradas em software; primeira fatia R4 SDL3/Slint integrada; R5 permanece em consolidação.
-- **Revisão:** 2026-11-11.
-- **Baseline:** main SHA 392a5c67e85a11a5a980d8f7055bcc8a12fe3784.
+- **Revisão:** 2026-11-22.
+- **Baseline desta revisão:** `main` SHA `e4ebba40f67ba090720ee8b282d9f81c21a9ffd2`.
 - **Escopo:** substituir gradualmente GUI e adaptadores host; preservar runtime Rust.
 - **Precedência:** complementa ADR 0010 para frontend/hosts. Não altera CPU, VDP, PSG, barramentos, Scheduler, ownership ou determinismo.
 
@@ -70,8 +70,8 @@ A POC seleciona explicitamente o backend `winit` e o renderer `femtovg-wgpu` via
 ## 5. R2–R5
 
 - **R2 — vídeo real:** INTEGRADO pelas PRs #752 e #754. Frames SMS chegam ao desktop Slint/WGPU por contrato portátil/FrameMailbox; SmsTemporalWorker e Scheduler foram preservados. Validação física e frame pacing permanecem gates independentes.
-- **R3 — CPAL:** enumerar dispositivos/formatos; criar, executar e encerrar streams; reproduzir PCM real; tratar remoção/reconexão, erros e underruns. Callback eficiente; thread de áudio não controla Scheduler.
-- **R4 — SDL3:** auditar e integrar gamepads, hotplug e mapeamentos; o teclado SMS básico já é tratado pelo host Slint.
+- **R3 — CPAL:** integrado em software com CPAL 0.18.2 e pipeline PCM/SPSC. Permanecem pendentes validação física prolongada, hotplug/reabertura automática, latência e underruns em endpoints reais. O callback não controla o Scheduler.
+- **R4 — SDL3:** primeira fatia integrada ao host Slint pelo `sega-input-runtime::Sdl3Backend`; teclado continua nos eventos nativos do Slint. Permanecem pendentes aceite físico com controles atuais, hotplug/reconexão e remapeamento avançado.
 - **R5 — frontend:** consolidar launcher, biblioteca, configurações, menus, HUD, logs e telemetria. Demonstrar paridade antes de remover egui/eframe e hosts antigos.
 
 Cada fase tem gates independentes. Não ampliar uma POC para antecipar fases posteriores. O corte completo dos hosts anteriores não é autorizado por mera integração R2; depende de CPAL R3 e consolidação R5.
@@ -83,8 +83,9 @@ A CI é orientada pelo impacto real dos arquivos alterados, não por uma matriz 
 - Mudanças em `native/sega_desktop/**` executam o gate Windows x64 Release da POC Slint/WGPU 30/Vulkan.
 - Mudanças no runtime e nos componentes compartilhados continuam sujeitas aos gates Rust de workspace e aos testes focados correspondentes.
 - Os checks de compatibilidade remanescentes não validam a arquitetura-alvo. Não os interpretar como gates funcionais de Slint/WGPU, CPAL ou SDL3; a retirada dos shims depende de atualização da proteção de branch.
-- O job de input valida o runtime genérico de entrada; não representa validação de SDL3, que ainda não foi integrado.
-- CPAL e SDL3 terão gates próprios quando suas integrações forem implementadas. Não executar nem declarar PASS de APIs ainda ausentes.
+- Os testes do `sega-input-runtime` e o gate SDL3 validam o comportamento de software; não substituem a aceitação física de controles, hotplug e reconexão no Windows.
+- Os gates CPAL validam integração e transporte PCM em software; não substituem a validação de endpoint físico, latência, hotplug e underruns prolongados.
+- Alterações exclusivamente documentais devem receber revisão de links, referências e consistência, sem executar testes Rust, Clippy ou builds de hardware sem relação com o diff.
 - Alterações exclusivas em workflows não acionam por si só a bateria completa de testes de hardware. Alterações globais de manifests/lockfiles continuam executando a regressão Rust de workspace.
 
 A matriz não declara paridade integral. O corte dos adaptadores anteriores é controlado pelo plano de retirada e só ocorre após R3/R5.
@@ -97,17 +98,16 @@ MachineScheduler permanece autoridade de clocks/eventos. UI, renderização, áu
 
 Antes de distribuir binários, revisar licenças/notices de Slint, WGPU, CPAL e dependências transitivas. Registrar obrigações em THIRD_PARTY_NOTICES.md; confirmar termos oficiais vigentes para o uso pretendido.
 
-## 9. Estado
+## 9. Estado reconciliado — 2026-11-22
 
-- Arquitetura e capacidades documentadas justificam a POC.
-- POC integrada compilada/executada: NOT RUN na revisão inicial; implementação submetida em PR própria para validação Windows Release.
-- Vulkan em hardware Windows: NOT RUN.
-- Textura externa e composição: NOT RUN.
-- Frames reais SMS: NOT RUN.
-- CPAL/SDL3 na nova arquitetura: NOT RUN.
-- egui/eframe e hosts antigos continuam na baseline.
+- R1: POC Slint/WGPU 30/Vulkan integrada em software; a confirmação física do backend Vulkan, lifecycle, resize e apresentação sustentada continua sendo gate no Windows x64.
+- R2: frames SMS reais integrados via `SmsTemporalWorker`/`FrameMailbox`; a UI consome o frame publicado mais recente e não avança a emulação. O aceite de pacing e 60 FPS sustentados continua separado.
+- R3: CPAL 0.18.2 e pipeline PCM/SPSC integrados em software; validação física prolongada, latência, hotplug/reabertura e underruns continuam pendentes.
+- R4: primeira fatia SDL3/gamepad integrada ao host Slint; validação física de Xbox, controles PlayStation, USB/Bluetooth genéricos e hotplug/reconexão continua pendente.
+- R5: consolidação do frontend ainda parcial.
+- Slint/WGPU/CPAL/SDL3 não devem ser declarados fisicamente validados apenas por build ou CI.
 
-Esta ADR autoriza a POC, não declara migração implementada. Conclusões exigem evidência no HEAD final da PR.
+O host anterior egui/D3D12 não é o caminho ativo do produto. Código remanescente deve ser inventariado como legado e removido somente após verificar todos os consumidores e workspaces.
 
 
 ## 10. Reconciliação de estado — 2026-11-16
@@ -115,3 +115,58 @@ Esta ADR autoriza a POC, não declara migração implementada. Conclusões exige
 R2 (frames SMS) e R3 (CPAL 0.18.2) estão integradas em software. A primeira fatia R4 (SDL3/input runtime no desktop Slint) foi integrada pela PR #867. Esses estados não significam aceite físico completo: Vulkan/lifecycle, reprodução prolongada/hotplug/underruns e controles reais/remapeamento ainda exigem evidência no HEAD atual. R5 permanece parcial.
 
 O host anterior egui/D3D12 não é mais caminho ativo do produto. Código remanescente deve ser inventariado como legado e removido somente após verificar todos os consumidores e workspaces. Esta ADR não autoriza reativar nem desenvolver o host anterior.
+
+
+## 11. Contrato mínimo de entrada, áudio e vídeo — 2026-11-22
+
+Esta seção consolida as decisões aprovadas para reduzir o custo de implementação, compilação, revisão e validação. Ela complementa esta ADR sem criar uma nova camada de abstração e sem reabrir componentes já integrados.
+
+### 11.1 Minimalismo de APIs e dependências
+
+- Preferir Rust `std` e as APIs diretas das tecnologias já aprovadas.
+- Não adicionar crates, frameworks, adaptadores, wrappers, traits ou interfaces genéricas sem necessidade técnica demonstrada.
+- Reutilizar os contratos e componentes já existentes; não migrar uma implementação funcional apenas por preferência de estilo.
+- Não criar APIs públicas ou contratos futuros sem consumidor atual.
+- Preservar as operações coarse-grained de sessão e o ownership do runtime.
+- Uma nova dependência só será aceita quando a biblioteca nativa ou a stack aprovada não resolver a necessidade com custo menor.
+
+### 11.2 Entrada
+
+- Slint permanece responsável pelos eventos nativos de teclado e pela interação da interface.
+- SDL3 fica restrito a gamepads e joysticks físicos; não será usado para teclado, janela, vídeo ou áudio.
+- Preservar o backend existente `sega-input-runtime::Sdl3Backend`, que carrega dinamicamente a ABI oficial SDL3 no Windows e usa Gamepad API para controles mapeados e Joystick API para estados brutos quando necessário.
+- Não adicionar outra biblioteca de input nem migrar o backend existente para outro binding Rust sem limitação concreta e ganho demonstrado.
+- O host coleta estados/snapshots e os encaminha ao runtime em fronteiras seguras. Não há polling físico, callbacks de botão ou leitura de dispositivo dentro do MachineScheduler.
+- Aceitação física pendente: controles Xbox/XInput, DualShock 4, DualSense, controles USB e Bluetooth genéricos, conexão, desconexão e reconexão. Recursos avançados como rumble, sensores, touchpad e remapeamento visual ficam fora do aceite inicial.
+
+### 11.3 Áudio
+
+- CPAL **0.18.2**, fixado no lockfile, permanece como única API de saída física de áudio.
+- PSG, YM2413, mixer e resampler continuam no runtime Rust existente; CPAL recebe PCM já preparado.
+- Preservar o transporte SPSC/FIFO e o callback CPAL existentes. O callback não executa emulação, não acessa GUI, não faz I/O e não aloca buffers.
+- O callback não controla nem corrige o MachineScheduler. Underruns são contabilizados e preenchidos conforme o contrato existente.
+- No Windows, WASAPI é apenas o backend interno utilizado pelo CPAL. Não adicionar adaptador WASAPI próprio, XAudio2, SDL Audio, Rodio ou miniaudio.
+- Aceitação física pendente no Windows 11: formatos e taxas realmente negociados, reprodução prolongada, latência, pause/stop/reset/troca de ROM, remoção/reabertura de endpoint e underruns/overruns.
+
+### 11.4 Vídeo e apresentação
+
+- Slint **1.18.x** permanece responsável pela GUI e composição; WGPU **30.x** é a única API gráfica do produto; Vulkan é selecionado como backend do WGPU no Windows x64.
+- Não chamar Vulkan diretamente nem adicionar OpenGL, Direct3D, SDL Renderer, Skia ou outra API/framework gráfico paralelo.
+- Slint e o caminho WGPU devem compartilhar o mesmo `wgpu::Device` e `wgpu::Queue` obtidos do renderer Slint. Não criar device, queue ou surface concorrentes para a mesma janela.
+- Preservar `SmsTemporalWorker`, `FrameMailbox` e `VideoFrame` imutável. O host consome o frame publicado mais recente; a GUI nunca avança o runtime nem o MachineScheduler.
+- Preservar RGB888 como formato canônico do frame do runtime SMS. A conversão para RGBA8 ocorre somente na fronteira de apresentação, evitando conversões e cópias repetidas.
+- Texturas, upload e composição permanecem no WGPU. WGSL pode ser usado para shaders de apresentação quando houver requisito concreto, sem introduzir outra biblioteca ou alterar a semântica do VDP.
+- Não exigir zero-copy físico por presunção. Primeiro preservar ownership e correção; depois medir upload, staging, cópias e composição para otimizar somente o gargalo demonstrado.
+- A arquitetura de filtros/CRT e seus requisitos específicos pertencem às decisões próprias de vídeo; esta seção não declara filtros, HDR ou VRR implementados.
+
+### 11.5 Workflow de compilação e validação
+
+A validação deve ser proporcional ao diff e separada entre CI e aceite físico:
+
+1. **Mudança documental:** revisar consistência com ADRs e código, links e formatação documental. Não executar cargo test, Clippy ou build de hardware para alterações exclusivamente `.md`.
+2. **Mudança no host de vídeo:** executar o gate Windows x64 Release do desktop com `--locked`; validar Vulkan selecionado, device/queue compartilhados, textura, composição, resize, lifecycle e shutdown.
+3. **Integração de frames:** validar ROM SMS real, continuidade visual, proporções, pause/resume e consumo de frames sem avanço de tempo pela GUI.
+4. **Aceite de desempenho:** medir throughput de emulação separadamente de pacing/apresentação. A meta de produto permanece 60 FPS estáveis, com orçamento máximo de 16,67 ms por frame; registrar p95/p99 e investigar cópias, upload e alocações.
+5. **Aceite físico:** executar no Windows 11 com Vulkan e dispositivos reais. CI/build bem-sucedidos não são evidência de apresentação física, reprodução de áudio ou compatibilidade física de controles.
+
+Nenhuma otimização pode alterar clocks, ordem causal, resolução lógica, comportamento do VDP ou tempo emulado. Não reescrever componentes validados sem defeito ou regressão reproduzível.
