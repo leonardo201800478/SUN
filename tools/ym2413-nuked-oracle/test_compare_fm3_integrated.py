@@ -112,8 +112,8 @@ class MeasuredAdapterDifferentialTests(unittest.TestCase):
         current_cycle = call_index % 18
         slot_index = (previous_cycle + 3) % 18
         active = slot_index in {3, 4, 5, 9, 10, 11, 15, 16, 17}
-        known = not active or previous_cycle != 0
-        level_valid = active and previous_cycle != 0
+        known = not active or call_index > 1
+        level_valid = active and call_index > 1
         value, negative_zero = measured_code_from_operator_output(previous_ch_out)
         previous_nuked = {
             "cycle_before": previous_cycle,
@@ -162,6 +162,14 @@ class MeasuredAdapterDifferentialTests(unittest.TestCase):
         self.assertFalse(rust["measured_frame_source_mo_level_valid"])
         self.assertTrue(rust["measured_frame_source_mo_known"])
         compare_measured_adapter_frame(4, nuked, rust, previous)
+
+    def test_cycle_zero_after_wrap_keeps_measured_output_valid(self) -> None:
+        """The first-call unknown state must not recur at the 18-slot wrap."""
+        nuked, rust, previous = self.make_rows(19, previous_ch_out=-1)
+        self.assertEqual(rust["measured_frame_source_cycle"], 0)
+        self.assertTrue(rust["measured_frame_source_mo_known"])
+        self.assertTrue(rust["measured_frame_source_mo_level_valid"])
+        compare_measured_adapter_frame(19, nuked, rust, previous)
 
     def test_rejects_wrong_previous_cycle(self) -> None:
         """A frame emitted one cycle late or early is a differential failure."""
