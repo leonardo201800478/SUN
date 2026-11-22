@@ -157,43 +157,39 @@ def compare_output_pipeline_row(
                 f"Nuked={expected} Rust={actual}"
             )
 
-    if bool(rust["output_pipe_ch_out_before_valid"]) != (call_index > 0):
-        raise ValueError(f"call {call_index}: previous ch_out validity mismatch")
+    if not bool(rust["output_pipe_ch_out_before_valid"]):
+        raise ValueError(f"call {call_index}: previous ch_out unexpectedly became unknown")
     if not bool(rust["output_pipe_ch_out_after_valid"]):
         raise ValueError(f"call {call_index}: integrated operator output became unknown")
 
-    expected_pin_valid = call_index >= 1
     for field in ("output_pins_m_valid", "output_pins_r_valid"):
-        if bool(rust[field]) != expected_pin_valid:
-            raise ValueError(f"call {call_index}: {field} does not match pipeline warm-up")
-    if expected_pin_valid:
-        for field in ("output_pins_m", "output_pins_r"):
-            expected = int(nuked[field])
-            actual = int(rust[field])
-            if expected != actual:
-                raise ValueError(
-                    f"call {call_index}: {field} mismatch "
-                    f"Nuked={expected} Rust={actual}"
-                )
+        if not bool(rust[field]):
+            raise ValueError(f"call {call_index}: {field} unexpectedly became unknown")
+    for field in ("output_pins_m", "output_pins_r"):
+        expected = int(nuked[field])
+        actual = int(rust[field])
+        if expected != actual:
+            raise ValueError(
+                f"call {call_index}: {field} mismatch "
+                f"Nuked={expected} Rust={actual}"
+            )
 
-    expected_frame_valid = call_index >= 2
     for field in ("output_frame_m_valid", "output_frame_r_valid"):
-        if bool(rust[field]) != expected_frame_valid:
-            raise ValueError(f"call {call_index}: {field} does not match output-buffer warm-up")
-    if expected_frame_valid:
-        for rust_field, nuked_field in (
-            ("output_frame_m", "output_m"),
-            ("output_frame_r", "output_r"),
-        ):
-            expected = int(nuked[nuked_field])
-            actual = int(rust[rust_field])
-            if actual != expected:
-                raise ValueError(
-                    f"call {call_index}: {rust_field} mismatch "
-                    f"Nuked={expected} Rust={actual}"
-                )
-    elif rust["output_frame_m"] is not None or rust["output_frame_r"] is not None:
-        raise ValueError(f"call {call_index}: output frame was marked unknown but carried a value")
+        if not bool(rust[field]):
+            raise ValueError(f"call {call_index}: {field} unexpectedly became unknown")
+    for rust_field, nuked_field in (
+        ("output_frame_m", "output_m"),
+        ("output_frame_r", "output_r"),
+    ):
+        if rust[rust_field] is None:
+            raise ValueError(f"call {call_index}: {rust_field} is null after software reset")
+        expected = int(nuked[nuked_field])
+        actual = int(rust[rust_field])
+        if actual != expected:
+            raise ValueError(
+                f"call {call_index}: {rust_field} mismatch "
+                f"Nuked={expected} Rust={actual}"
+            )
 
 
 def compare_row(
@@ -360,8 +356,8 @@ def main() -> int:
                     "MO/RO output buffer one-call delayed",
                     "serial output cursor and validity warm-up",
                 ],
-                "output_pin_samples_compared": len(nuked_samples) - 1,
-                "output_buffer_samples_compared": len(nuked_samples) - 2,
+                "output_pin_samples_compared": len(nuked_samples),
+                "output_buffer_samples_compared": len(nuked_samples),
                 "scope": "integrated Rust PG/EG/AM/operator and MO/RO output pipeline against Nuked",
             },
             indent=2,
