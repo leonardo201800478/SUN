@@ -51,15 +51,30 @@ Profile real games; then remove measured costs such as redundant dispatch, repea
 
 Use compile-time/static lookup tables for stable mappings and arithmetic where this reduces measured cost. Keep hot state compact and contiguous. Avoid hash maps, heap allocation and pointer-heavy structures in per-instruction/per-pixel/per-sample loops unless benchmarks justify them.
 
-### 3.5 CPU execution strategy
+### 3.5 CPU execution strategy — F2 first, F3 contingency
 
-Start with an optimized instruction interpreter. Benchmark realistic instruction mixes, bus activity and interrupts. The current repository policy does not authorize JIT. Do not implement decoded-block caching or a dynamic recompiler under this policy. Reconsider either only through a superseding, owner-approved ADR after profiling proves the optimized interpreter cannot meet the gameplay performance gate. Any future proposal must address:
-- code invalidation for writable/executable memory;
-- exits on MMIO, interrupts, WAIT and timing boundaries;
-- precise cycle accounting;
+The owner-approved direction is to begin the SMS CPU optimization at **F2: predecoded instruction/block caching**.
+
+F2 is not a JIT:
+- cache decoded instruction metadata and block boundaries;
+- continue executing guest instructions through the existing Rust interpreter;
+- preserve a no-cache interpreter path as fallback and differential reference;
+- invalidate cached blocks on writes to executable RAM, mapper/bank remaps, reset and state restoration;
+- terminate blocks before scheduler horizons, MMIO/bus operations with observable side effects, interrupts, WAIT or any event that can affect execution;
+- preserve exact architectural results and required timing/bus behavior.
+
+**F3 is the conditional dynamic-recompiler stage.** If validated SMS F2 throughput is below 400 emulated frames/s with YM2413/FM active, inspect the profile. When CPU decode/dispatch/execution is a material bottleneck, implement F3 behind an isolated feature boundary, retaining the interpreter as fallback/oracle. If the measured bottleneck is YM2413, scheduler, VDP, mixer, host pacing or another non-CPU path, optimize that path first; a CPU JIT is not a substitute for diagnosis.
+
+F3 requires a separate task specification and must address:
+- code invalidation for writable/executable memory and mapper/bank changes;
+- exits on MMIO, interrupts, WAIT, DMA/arbitration and timing boundaries;
+- precise cycle accounting and suspend/resume;
 - save-state/replay compatibility;
-- x86-64 baseline and portable fallback;
-- security and maintenance implications.
+- x86-64 baseline and portable interpreter fallback;
+- executable-memory safety, security and maintenance implications;
+- differential tests against the interpreter and whole-game benchmarks.
+
+The selected F2/F3 decision is tracked in [ADR-0017](adr/0017-f2-decoded-block-cache-and-f3-contingency.md).
 
 ### 3.6 Audio and video
 
@@ -80,6 +95,8 @@ Each optimization report includes:
 - rollback decision if the result is neutral, noisy or negative.
 
 A microbenchmark win is insufficient if whole-game throughput does not improve. A throughput win is rejected if it changes game-visible behavior.
+
+Reference throughput targets are defined in [SUN V2 performance targets](sun-v2-performance-targets.md): SMS with FM active targets 400 emulated frames/s; the integrated Mega Drive + Sega CD + 32X Megazord targets 100 emulated frames/s. These are engineering throughput margins, not presentation FPS. The product requirement remains stable 60 FPS real-time execution, including validation on a modest reference device. Ares comparisons must use the same workload and measurement definition; VPS and FPS are not interchangeable.
 
 ## 5. Licensing boundary
 
