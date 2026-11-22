@@ -2068,7 +2068,10 @@ impl SmsTemporalWorker {
     /// Enable or disable host frame pacing; disabled means uncapped execution.
     pub fn set_frame_pacing_enabled(&self, enabled: bool) -> Result<(), String> {
         let (reply_sender, reply_receiver) = mpsc::sync_channel(1);
-        enqueue_worker_command(&self.commands, WorkerCommand::SetFramePacingEnabled(enabled, reply_sender))?;
+        enqueue_worker_command(
+            &self.commands,
+            WorkerCommand::SetFramePacingEnabled(enabled, reply_sender),
+        )?;
         receive_worker_reply(reply_receiver, "changing frame pacing")?
     }
 
@@ -3033,7 +3036,11 @@ fn worker_loop(
             &mut video_mailbox,
             &mut video_sequence,
             &telemetry,
-            frame_pacing_enabled.then_some(frame_deadline.deadline).flatten(),
+            if frame_pacing_enabled {
+                frame_deadline.deadline
+            } else {
+                None
+            },
         ) {
             Ok((_, next_frame_deadline, breakpoint_hit)) => {
                 drain_machine_trace(&mut machine, trace_publisher.as_ref());
@@ -3577,6 +3584,14 @@ fn handle_command(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn worker_frame_pacing_can_be_disabled_and_reenabled() {
+        let worker = SmsTemporalWorker::new(vec![0; 0x4000], "usa").unwrap();
+        worker.set_frame_pacing_enabled(false).unwrap();
+        worker.set_frame_pacing_enabled(true).unwrap();
+    }
+
+    
     use super::{
         AudioRendererMode, AudioRendererState, BreakpointSet, DEFAULT_MAX_FRAME_INSTRUCTIONS,
         FRAME_PACING_WINDOW_CAPACITY, FramePacingDeadline, FramePacingSample, FramePacingWindow,
