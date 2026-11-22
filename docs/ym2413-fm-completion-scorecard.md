@@ -48,7 +48,7 @@
 ### Validação exata após PR #1184 e PR #1185
 
 **PR #1184 — pipeline digital MO/RO**
-- Merge squash: 7986ec9f...; workflow dedicado PG #44973295911: **SUCCESS**.
+- Merge squash: 7986ec9656acb10bf726c39b7f73993af963c804; workflow dedicado PG #44973295911: **SUCCESS**.
 - O diferencial integrado comparou 147.456 chamadas OPLL_Clock(), cobrindo 18 slots, estados PG/EG/AM, operador, feedback, ch_out, rm_enable, pinos MO/RO e buffers atrasados.
 - Workflow separado do pipeline de saída #44973295936: **SUCCESS**, 1.200 ciclos.
 - CI #44973295873: **SUCCESS**.
@@ -99,7 +99,7 @@
 - **PG/PM:** os campos PG/PM coincidem com Nuked no trace integrado de 147.456 chamadas para o patch personalizado. A caracterização ampla independente ainda contém diferenças de fase/candidato; não declarar fechamento para todas as configurações nem alinhamento físico absoluto.
 - **EG:** o EG de produção coincide com Nuked no trace integrado do patch personalizado. A matriz separada de 38 configurações do modelo diagnóstico EnvelopeGenerator continua com 44.064 divergências de nível e 71 de estágio; não promover o candidato nem declarar cobertura geral fechada.
 - **Instrumentos:** os códigos 0–15 foram observados na caracterização de latches. Permanecem 21 divergências de campos na tabela de patches candidata; a ROM física de presets não está certificada.
-- **Rhythm Mode:** os campos de estado rígido coincidem em 147.456 chamadas. Permanecem divergências candidatas em c_sl, eg_sl e eg_state; seed físico e ROM de patches não certificados.
+- **Rhythm Mode:** os campos de estado rígido coincidem em 147.456 chamadas. Permanecem divergências candidatas em c_sl, eg_sl e eg_state; o seed 0 é apenas candidato de reset do Nuked, não seed físico, e a ROM de patches não está certificada.
 - **MO/RO e DAC:** o pipeline digital de pinos/buffers e o adaptador MO medido coincidem com Nuked no escopo testado. O PCM mono atual continua sendo compatibilidade digital baseada em Nuked. A rede analógica do Japanese Master System, ganhos relativos, carga, filtragem, palavra física do DAC e fase subclock continuam sem evidência suficiente.
 - **Calibração física:** calibrate.raw e os limites originais .peaks/.bins continuam ausentes. As capturas volume*.raw/.out sustentam a correspondência candidata de amplitude, mas não substituem a aquisição de calibração nem revelam a palavra DAC.
 - **Perfil físico e FmMode:** o runtime separa presença física do YM2413 do território. Construtores regionais genéricos não instalam FM automaticamente, inclusive para região Japão; o construtor explícito da placa FM aceita software de qualquer região suportada e o Save State/Restore preserva essa combinação. A PR #1175 expõe e persiste no desktop o perfil físico e `FmMode::Auto/On/Off`. Auto continua conservador: sem correspondência exata de ROM verificada, a saída FM permanece mutada; On exige placa com YM2413.
@@ -118,6 +118,7 @@
 1. Estender o diferencial integrado com snapshot/restore em ponto intermediário e comparar o trace restaurado byte a byte com execução contínua e com Nuked.
 2. Expandir a cobertura integrada dos 15 payloads candidatos de patch como patches personalizados, separando fidelidade do operador da identidade ainda incerta da ROM de presets.
 3. Recuperar o artefato original `calibrate.raw` e os limites `.peaks/.bins` da revisão fixada, ou repetir a calibração no hardware. Os arquivos `volume*.raw` não substituem a captura de 60.000 amostras usada na calibração.
+4. Validar Phantasy Star Japan Rev 1 e Kenseiden Japan com boot prolongado, entrada efetiva no jogo, FM contínuo, pitch/envelopes, FPS, underruns, interrupções e Save State/Restore. A certificação final depende dos dois jogos.
 
 Os 16 arquivos públicos `volume*.raw` foram auditados quantitativamente na revisão fixada; consulte [a auditoria das capturas públicas](audits/ym2413-public-volume-capture-audit-2026-11-22.md). Nenhum atinge os 60.000 samples da aquisição de calibração. `volume0.raw` reconstrói 296 bins (183 picos detectados + 113 midpoints inseridos); `volume1.raw` e `volume2.raw` reconstróem 329 e 255 bins, respectivamente, e os demais ficam entre 182 e 4 bins. Isso confirma que não substituem a captura de calibração. Reproduzir a cadeia com `tools/ym2413-dac-capture-audit/` e registrar separadamente picos detectados e midpoint inserido.
 2. Validar a aquisição Timer0 por clock: zero ADC overflow, contagem de amostras igual à de triggers, ausência de perda/reordenação DMA e fase conhecida. As capturas atuais a 50 kHz e Timer1/72 não resolvem os 18 slots nem os subclocks.
