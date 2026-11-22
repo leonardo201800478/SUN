@@ -85,9 +85,22 @@ Therefore, applying the current pinned decoder to the 2015 `volume*.raw` artifac
 | 12 | 20,031 | 20,032 | 2,424 | 16,395 |
 | 14 | 20,032 | 20,030 | 594 | 11,739 |
 
-For the 13 clean pairs, pairing by sample index gives a deterministic monotonic ADC-code→bin mapping within each file. For volumes 0, 12 and 14, the raw and output sequences cannot be treated as sample-aligned: the same ADC code maps to multiple bin indices and sorting by ADC code produces many monotonicity violations. The available files do not establish whether these three outputs came from another capture, another calibration, or a different processing pass. Do not use those pairs to infer ADC-bin boundaries.
+The three apparent failures are resolved by a constant **file-sequence alignment offset**, not by discarding the pairs. The alignment was selected by testing offsets from -8 through +8 and minimizing repeated-ADC-code mapping conflicts and monotonicity violations. Pairing is defined as `raw[i]` with `out[i + offset]`:
 
-The 13 clean pairs cover bin indices 74..437 collectively; they do not recover the extreme ranges 0..73 or 438..511. The volume0.out file alone spans 0..511, but its raw counterpart fails the sample-pairing check. Thus the existing artifacts still cannot reconstruct a complete, trustworthy 512-boundary calibration table.
+| Volume | Raw samples | Output tokens | Alignment offset | Paired samples |
+|---:|---:|---:|---:|---:|
+| 0 | 20,032 | 20,030 | -2 | 20,030 |
+| 1–11 | 20,032 (volume 8: 20,096) | equal | 0 | equal |
+| 12 | 20,031 | 20,032 | +1 | 20,031 |
+| 13 | 20,032 | 20,032 | 0 | 20,032 |
+| 14 | 20,032 | 20,030 | -2 | 20,030 |
+| 15 | 20,096 | 20,096 | 0 | 20,096 |
+
+After these sequence offsets, all 16 pairs are monotonic and free of repeated-ADC-code mapping conflicts. These offsets describe alignment between two stored data files only; they are **not** YM2413 clock, slot, or subclock offsets.
+
+Combining the 320,635 aligned samples yields observations for **511 of 512** calibrated bin indices, spanning 0..511. Only bin 57 is unobserved. For 509 adjacent-bin boundaries, the observed samples constrain the original `lower_bound` threshold to an integer interval; no interval is contradictory. Of those 509 intervals, 147 are exact single-code boundaries. The interval-width distribution is p50=32 ADC codes, p90=84, p99=92, maximum=157. The two boundaries adjacent to missing bin 57 cannot be constrained from these files.
+
+The per-bin observations and all 509 boundary intervals are preserved in [the machine-readable reconstruction](ym2413-volume-bin-observations-2026-11-22.json). This is a near-complete **constraint reconstruction** of the historical ADC-bin table, not the original `calibrate.bins` file: most thresholds remain intervals rather than exact values, and the original `calibrate.raw`/peak histogram is still absent. The data remain analog ADC-bin indices, not raw YM2413 DAC words.
 
 The separate `vol*.out` files also present in the directory have no corresponding `vol*.raw` files in the pinned tree and are not used in this audit.
 
