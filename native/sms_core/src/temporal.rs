@@ -412,6 +412,14 @@ mod tests {
             .expect("the configured YM2413 domain advances with the SMS machine");
         assert_eq!(advance.elapsed_cycles, 72);
 
+        // The FM input clock must remain phase- and frequency-aligned with the
+        // Z80/PSG timeline: one YM2413 input clock per SMS T-state.
+        let z80 = machine.z80_clock_snapshot().unwrap();
+        let psg = machine.psg_clock_snapshot().unwrap();
+        let ym2413 = machine.ym2413_clock_snapshot().unwrap();
+        assert_eq!(ym2413, z80);
+        assert_eq!(ym2413, psg);
+
         let state = machine.export_state();
         let restored = SmsTemporalCoordinator::restore_state(state).unwrap();
         assert_eq!(
