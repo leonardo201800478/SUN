@@ -101,16 +101,19 @@ pub const SMS_DETAILED_TRACE_CAPACITY: usize = 2_048;
 /// event and increments a monotonic drop counter.
 #[derive(Debug, Clone)]
 struct SmsTemporalTraceBuffer {
-    events: [Option<SmsTemporalTraceEvent>; SMS_ESSENTIAL_TRACE_CAPACITY],
+    // Keep the fixed-capacity trace storage off the machine/worker stack.
+    // The boxed slice is allocated once during machine construction; push/take
+    // retain their bounded, allocation-free recording behavior.
+    events: Box<[Option<SmsTemporalTraceEvent>]>,
     next_write: usize,
     len: usize,
     dropped: u64,
 }
 
 impl SmsTemporalTraceBuffer {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
-            events: [None; SMS_ESSENTIAL_TRACE_CAPACITY],
+            events: vec![None; SMS_ESSENTIAL_TRACE_CAPACITY].into_boxed_slice(),
             next_write: 0,
             len: 0,
             dropped: 0,
