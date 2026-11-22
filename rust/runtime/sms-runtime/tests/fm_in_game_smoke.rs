@@ -230,7 +230,6 @@ fn selected_vdp_revision() -> SmsVdpRevision {
     }
 }
 
-
 fn load_known_fm_roms() -> Vec<(PathBuf, &'static str, &'static str, Vec<u8>)> {
     let directory = std::env::var_os("SEGA_SMS_FM_TEST_ROM_DIR")
         .map(PathBuf::from)
@@ -405,7 +404,6 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             pcm.peak
         );
     }
-
 }
 
 #[test]
@@ -420,7 +418,10 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
                 .expect("SEGA_SMS_FM_TEST_FRAMES must be an integer")
         })
         .unwrap_or(DEFAULT_FRAMES_PER_ROM);
-    assert!(frames_per_rom > 0, "SEGA_SMS_FM_TEST_FRAMES must be positive");
+    assert!(
+        frames_per_rom > 0,
+        "SEGA_SMS_FM_TEST_FRAMES must be positive"
+    );
 
     for (path, fixture_name, sha256, rom) in load_known_fm_roms() {
         let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
@@ -444,9 +445,7 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
                 let session = output.into_audio_session(100)?;
                 Ok(Box::new(session) as Box<dyn AudioSession>)
             })
-            .unwrap_or_else(|error| {
-                panic!("{}: cannot open CPAL output: {error}", path.display())
-            });
+            .unwrap_or_else(|error| panic!("{}: cannot open CPAL output: {error}", path.display()));
         worker
             .start()
             .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
@@ -475,23 +474,29 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
             .pause()
             .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
         let metrics = worker.audio_output_metrics();
-        worker
-            .close_audio_output()
-            .unwrap_or_else(|error| panic!("{}: cannot close CPAL output: {error}", path.display()));
+        worker.close_audio_output().unwrap_or_else(|error| {
+            panic!("{}: cannot close CPAL output: {error}", path.display())
+        });
 
-        assert!(metrics.sample_rate_hz > 0, "{}: CPAL did not report a sample rate", path.display());
+        assert!(
+            metrics.sample_rate_hz > 0,
+            "{}: CPAL did not report a sample rate",
+            path.display()
+        );
         assert!(
             metrics.accepted_frames > 0,
             "{}: no PCM frames reached the CPAL queue",
             path.display()
         );
         assert_eq!(
-            metrics.dropped_frames, 0,
+            metrics.dropped_frames,
+            0,
             "{}: CPAL queue dropped PCM frames",
             path.display()
         );
         assert_eq!(
-            metrics.dropped_blocks, 0,
+            metrics.dropped_blocks,
+            0,
             "{}: CPAL queue rejected PCM blocks",
             path.display()
         );
@@ -525,4 +530,3 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
         );
     }
 }
-
