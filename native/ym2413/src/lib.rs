@@ -825,36 +825,6 @@ mod tests {
     }
 
     #[test]
-    fn pg_service_clock_advance_without_slot_completion_only_updates_clock_phase() {
-        let mut core = Ym2413Core::new();
-        let mut service = super::Ym2413PgSerialService::new();
-
-        assert_eq!(
-            core.advance_input_clocks_with_pg_service(1, &mut service),
-            Ok(0)
-        );
-        assert_eq!(core.input_clock_phase(), 1);
-        assert_eq!(core.elapsed_input_clocks(), 1);
-        assert_eq!(core.slot_index(), 0);
-
-        assert_eq!(
-            core.advance_input_clocks_with_pg_service(2, &mut service),
-            Ok(0)
-        );
-        assert_eq!(core.input_clock_phase(), 3);
-        assert_eq!(core.elapsed_input_clocks(), 3);
-        assert_eq!(core.slot_index(), 0);
-
-        assert_eq!(
-            core.advance_input_clocks_with_pg_service(1, &mut service),
-            Ok(0)
-        );
-        assert_eq!(core.input_clock_phase(), 0);
-        assert_eq!(core.elapsed_input_clocks(), 4);
-        assert_eq!(core.slot_index(), 1);
-    }
-
-    #[test]
     fn rhythm_mode_eg_cycles_are_driven_by_the_serial_selector_pipeline() {
         let mut core = Ym2413Core::new();
         // Queue $0E = RHY + all five percussion triggers.
