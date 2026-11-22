@@ -254,7 +254,7 @@ def audit_volume_pairs(
         "volumes": volumes,
         "bins": bins,
         "alignment_offsets_note": ALIGNMENT_NOTE.replace(
-            "[-8,+8]", f"[-{max_offset},+{max_offset}]"
+            "-8..+8", f"-{max_offset}..+{max_offset}"
         ),
         "reconstruction": {
             "paired_samples": paired_samples,
