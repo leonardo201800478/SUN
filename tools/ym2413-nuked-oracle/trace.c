@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
 
     OPLL_Reset(&chip, chip_type);
     if (output_only) {
-        puts("{\"schema\":\"ym2413-nuked-opll-output-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\"}");
+        puts("{\"schema\":\"ym2413-nuked-opll-output-trace-v2\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"after_OPLL_Clock\"}");
     } else if (pg_phase_only) {
         puts("{\"schema\":\"ym2413-nuked-opll-pg-phase-trace-v1\",\"time_unit\":\"opll_clock_call\",\"sample_point\":\"phase_array_after_OPLL_Clock\",\"phase_array_length\":18}");
     } else if (pg_only) {
@@ -246,8 +246,8 @@ int main(int argc, char **argv) {
 
         OPLL_Clock(&chip, output);
         if (output_only) {
-            printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
-                   tick, cycle_before, (int)chip.ch_out, (int)chip.output_m, (int)chip.output_r);
+            printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out_before\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
+                   tick, cycle_before, (int)output_pipe_ch_out_before, (int)chip.output_m, (int)chip.output_r);
             continue;
         }
 #ifdef YM2413_TRACE_OPERATOR_BOUNDARY
@@ -366,8 +366,8 @@ int main(int argc, char **argv) {
         printf(",\"rhythm\":%u,\"rm_enable\":%u,\"rm_select\":%u,\"rm_noise\":%" PRIu32,
                (unsigned)chip.rhythm, (unsigned)(uint8_t)chip.rm_enable,
                (unsigned)chip.rm_select, chip.rm_noise);
-        printf(",\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
-               (int)chip.output_m, (int)chip.output_r);
+            printf("{\"call_index\":%" PRIu64 ",\"cycle_before\":%" PRIu32 ",\"ch_out_before\":%d,\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
+                   tick, cycle_before, (int)output_pipe_ch_out_before, (int)chip.output_m, (int)chip.output_r);
     }
 
     if (event_index != event_count) {
