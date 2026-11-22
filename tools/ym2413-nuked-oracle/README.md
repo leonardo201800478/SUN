@@ -386,6 +386,14 @@ reports phase, exact-match, residual, local-phase, and inverted-polarity
 diagnostics. It is a **characterization**, not a pass/fail audio-fidelity
 gate.
 
+Before extracting samples, the comparator now validates the compact trace
+contract: the declared time unit and sample point, contiguous call indices
+starting at the requested capture call, the 18-slot cycle sequence
+(`cycle_before == call_index % 18`), and complete coverage of the requested
+slot-identification scan. Unit tests reject missing calls, incorrect cycle
+indices, and an invalid sample point. This prevents a truncated or shifted
+JSONL stream from producing apparently plausible differential statistics.
+
 Nuked's `OPLL_Channel` transforms the pre-pin value for MO: non-negative
 `ch_out` is incremented by one (so the two zero codes are emitted as +1 and
 -1), while negative values pass through. The comparator independently
