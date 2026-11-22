@@ -124,6 +124,7 @@ jobs:
               - '!native/sega_app/**'
               - '!native/audio_output/**'
               - '!native/sms_debugger/**'
+              - '!rust/runtime/sms-runtime/**'
             z80:
               - 'native/z80_cpu/**'
               - 'native/z80_alu/**'
