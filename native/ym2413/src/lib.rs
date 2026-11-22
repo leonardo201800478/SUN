@@ -482,6 +482,11 @@ impl Ym2413Core {
         clocks: u64,
         service: &mut pg_serial::Ym2413PgSerialService,
     ) -> Result<u64, pg_serial::Ym2413PgSerialAdvanceError> {
+        if service.next_slot_index() != self.slot_index {
+            return Err(pg_serial::Ym2413PgSerialAdvanceError::Service(
+                pg_serial::Ym2413PgSerialError::InvalidState,
+            ));
+        }
         match self.advance_input_clocks_with_slot_service(clocks, service) {
             Ok(rotations) => Ok(rotations),
             Err(slot_service::Ym2413SlotServiceAdvanceError::Core(error)) => {
@@ -504,6 +509,11 @@ impl Ym2413Core {
         clocks: u64,
         service: &mut pg_serial::Ym2413PgSerialService,
     ) -> Result<u64, pg_serial::Ym2413PgSerialAdvanceError> {
+        if service.next_slot_index() != self.slot_index {
+            return Err(pg_serial::Ym2413PgSerialAdvanceError::Service(
+                pg_serial::Ym2413PgSerialError::InvalidState,
+            ));
+        }
         match self.advance_input_clocks_inner_in_place(clocks, |core| {
             core.clock_one_slot_with_service(service)
         }) {
