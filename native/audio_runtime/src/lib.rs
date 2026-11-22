@@ -152,21 +152,36 @@ impl PcmResampler {
         self.emitted = 0;
     }
 
+    /// Process one input block and return its output in a newly allocated vector.
+    ///
+    /// Callers on frame-critical paths should prefer process_into and retain
+    /// the output buffer between calls.
     pub fn process(&mut self, input: &[f64]) -> Vec<f64> {
+        let mut output = Vec::new();
+        self.process_into(input, &mut output);
+        output
+    }
+
+    /// Process one input block into a caller-owned reusable output buffer.
+    ///
+    /// The buffer is cleared before writing. Its capacity is retained, avoiding
+    /// a per-block output allocation after it reaches the required capacity.
+    /// Filter history, phase, and emitted-frame accounting remain unchanged.
+    pub fn process_into(&mut self, input: &[f64], output: &mut Vec<f64>) {
+        output.clear();
         if input.is_empty() {
-            return Vec::new();
+            return;
         }
 
-        let output = if self.output_rate == self.input_rate {
-            self.encode(input.iter().copied())
+        if self.output_rate == self.input_rate {
+            self.encode_into(input.iter().copied(), output);
         } else {
             self.buffer.extend_from_slice(input);
             self.available += input.len();
             self.real += input.len();
-            let output = self.emit(false);
+            self.emit_into(false, output);
             self.discard_old();
-            output
-        };
+        }
         sega_observability::tracing::trace!(
             target: "sega::audio::dsp",
             input_samples = input.len(),
@@ -175,7 +190,6 @@ impl PcmResampler {
             buffered_samples = self.available.saturating_sub(self.start),
             "PCM resampler processed sample batch"
         );
-        output
     }
 
     pub fn flush(&mut self) -> Vec<f64> {
@@ -197,9 +211,14 @@ impl PcmResampler {
     }
 
     fn emit(&mut self, flushing: bool) -> Vec<f64> {
+        let mut output = Vec::new();
+        self.emit_into(flushing, &mut output);
+        output
+    }
+
+    fn emit_into(&mut self, flushing: bool, output: &mut Vec<f64>) {
         let target = (self.real as f64 * self.output_rate as f64 / self.input_rate as f64)
             .round_ties_even() as usize;
-        let mut output = Vec::new();
 
         loop {
             if flushing {
@@ -223,16 +242,10 @@ impl PcmResampler {
             self.emitted += 1;
             self.next += self.step;
         }
-
-        output
     }
 
-    fn encode(&self, values: impl Iterator<Item = f64>) -> Vec<f64> {
-        let mut output = Vec::new();
-        for value in values {
-            output.push(self.normalized(value));
-        }
-        output
+    fn encode_into(&self, values: impl Iterator<Item = f64>, output: &mut Vec<f64>) {
+        output.extend(values.map(|value| self.normalized(value)));
     }
 
     /// Apply session volume and clamp once while retaining normalized f64 precision.
