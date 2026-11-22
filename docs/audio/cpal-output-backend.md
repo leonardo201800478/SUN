@@ -9,7 +9,7 @@
 
 `SMS/SG-1000 PSG → NativeAudioSession → PcmSink → NativeCpalOutput → PcmFrameProducer → SPSC FIFO → callback CPAL → dispositivo`
 
-- `native/audio_runtime` mantém mixer, resampler, volume, lifecycle e contrato `PcmSink::write_samples(Vec<f64>)`.
+- `native/audio_runtime` mantém mixer, resampler, volume e lifecycle. A sessão reutiliza seu buffer PCM e chama `PcmSink::write_samples_ref(&[f64])`; o método com ownership `write_samples(Vec<f64>)` permanece como compatibilidade, e o CPAL sobrescreve o caminho por referência para evitar o `Vec` temporário por lote.
 - `native/audio_output` mantém transporte SPSC com `StereoFrame = [f64; 2]` e conversão mono→estéreo.
 - `NativeCpalOutput` é o único adaptador de saída física do projeto.
 - CPAL enumera dispositivos, identifica dispositivos por ID estável e negocia uma tupla suportada de canais/taxa/formato. A seleção H4 prioriza stereo→mono, F32→I24→I16 e, dentro de cada formato, 48→88,2→96→44,1 kHz. O default CPAL é fallback somente quando nenhum desses formatos/rates está anunciado.
