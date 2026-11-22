@@ -1,9 +1,9 @@
 # YM2413 public volume-capture audit
 
-**Audit date:** 2026-11-22  
-**Upstream repository:** [andete/ym2413](https://github.com/andete/ym2413)  
-**Pinned revision:** `4893d1c09faa0450b5d3355f19b7682d72822501`  
-**Audited files:** `analyze/volume/volume0.raw` through `volume15.raw`  
+**Audit date:** 2026-11-22
+**Upstream repository:** [andete/ym2413](https://github.com/andete/ym2413)
+**Pinned revision:** `4893d1c09faa0450b5d3355f19b7682d72822501`
+**Audited files:** `analyze/volume/volume0.raw` through `volume15.raw`
 **Algorithm:** project tool `tools/ym2413-dac-capture-audit/audit_capture.py`, equivalent to the pinned `analyze/calibrate.cc` pipeline (filter width 30).
 
 ## Results
