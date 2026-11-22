@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 
 from audit_volume_pairs import (
-    BIN_COUNT,
     evaluate_alignment,
     infer_alignment_offset,
 )
@@ -52,7 +51,7 @@ class AlignmentTests(unittest.TestCase):
 
     def test_reports_mapping_conflicts_and_monotonicity(self) -> None:
         raw = [100, 200, 100, 200, 300, 400]
-        output = [1, 2, 3, 4, 5, 6]
+        output = [1, 2, 3, 4, 6, 5]
         conflicts, violations, paired = evaluate_alignment(raw, output, 0)
         self.assertGreater(conflicts, 0)
         self.assertGreater(violations, 0)
