@@ -1112,6 +1112,28 @@ mod tests {
     use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
 
     #[test]
+    fn cached_slot_dispatch_is_consumed_at_each_completed_slot() {
+        let mut core = Ym2413Core::new();
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+
+        for _ in 0..18 {
+            core.advance_input_clocks_with_pg_service_in_place(
+                YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut service,
+            )
+            .unwrap();
+
+            // The dispatch exists only between the synchronous pre-EG and
+            // post-EG hooks; no pending decision may escape a completed slot.
+            assert!(service.pending_dispatch.is_none());
+            assert_eq!(service.next_slot_index(), core.slot_index());
+        }
+
+        assert_eq!(core.slot_index(), 0);
+        assert_eq!(service.next_slot_index(), 0);
+    }
+
+    #[test]
     #[ignore = "Release-only A/B benchmark; run from sms-debugger-runtime workflow"]
     fn benchmark_in_place_pg_service_slot_cost() {
         use std::time::Instant;
