@@ -1315,10 +1315,9 @@ impl SmsTemporalBus {
                     self.fm_port_writes.address_writes =
                         self.fm_port_writes.address_writes.saturating_add(1);
                     self.fm_port_writes.last_address = Some(value & 0x3F);
-                    self.ym2413
-                        .as_mut()
-                        .expect("YM2413 presence checked")
-                        .write_address(value);
+                    if let Some(ym2413) = self.ym2413.as_mut() {
+                        ym2413.write_address(value);
+                    }
                     return;
                 }
                 0xF1 => {
@@ -1331,10 +1330,9 @@ impl SmsTemporalBus {
                             .saturating_add(1);
                         self.fm_port_writes.last_register_values[index] = Some(value);
                     }
-                    self.ym2413
-                        .as_mut()
-                        .expect("YM2413 presence checked")
-                        .write_data(value);
+                    if let Some(ym2413) = self.ym2413.as_mut() {
+                        ym2413.write_data(value);
+                    }
                     return;
                 }
                 0xF2 => {
