@@ -13,6 +13,7 @@
 
 use core::fmt;
 use std::collections::VecDeque;
+use std::time::Instant;
 
 use crate::{
     CartridgeImage, ControllerButtons, PsgError, SMS_PSG_CLOCK_DOMAIN_ID, SmsCoreError, SmsIo,
@@ -338,6 +339,9 @@ pub struct SmsTemporalBus {
     fm_audio_capture_enabled: bool,
     /// Wait until slot zero before restarting capture after a mute transition.
     fm_capture_wait_for_rotation: bool,
+    /// Optional wall-clock instrumentation; disabled in normal emulation.
+    ym2413_timing_enabled: bool,
+    ym2413_advance_elapsed_ns: u128,
 }
 
 impl SmsTemporalBus {
@@ -507,6 +511,8 @@ impl SmsTemporalBus {
             ym2413_runtime_faulted: false,
             fm_audio_capture_enabled: true,
             fm_capture_wait_for_rotation: false,
+            ym2413_timing_enabled: false,
+            ym2413_advance_elapsed_ns: 0,
         })
     }
 
@@ -595,6 +601,8 @@ impl SmsTemporalBus {
             ym2413_runtime_faulted: false,
             fm_audio_capture_enabled: true,
             fm_capture_wait_for_rotation: false,
+            ym2413_timing_enabled: false,
+            ym2413_advance_elapsed_ns: 0,
         })
     }
 
@@ -1017,7 +1025,33 @@ impl SmsTemporalBus {
                 .is_some_and(|core| core.slot_index() != 0);
     }
 
+    /// Enable diagnostic wall-clock measurement for YM2413 advancement.
+    ///
+    /// Timing is opt-in and never feeds back into emulated clocks or scheduler state.
+    pub fn set_ym2413_timing_enabled(&mut self, enabled: bool) {
+        self.ym2413_timing_enabled = enabled;
+        self.ym2413_advance_elapsed_ns = 0;
+    }
+
+    /// Take the YM2413 advance time accumulated since the previous reset.
+    pub fn take_ym2413_advance_elapsed_ns(&mut self) -> u64 {
+        std::mem::take(&mut self.ym2413_advance_elapsed_ns)
+            .min(u128::from(u64::MAX)) as u64
+    }
+
     fn advance_ym2413(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
+        if !self.ym2413_timing_enabled {
+            return self.advance_ym2413_inner(clocks);
+        }
+        let started = Instant::now();
+        let result = self.advance_ym2413_inner(clocks);
+        self.ym2413_advance_elapsed_ns = self
+            .ym2413_advance_elapsed_ns
+            .saturating_add(started.elapsed().as_nanos());
+        result
+    }
+
+    fn advance_ym2413_inner(&mut self, clocks: u128) -> Result<(), SmsTemporalBusError> {
         let mut remaining = clocks;
         let mut phase = self
             .ym2413
@@ -1514,6 +1548,8 @@ impl SmsTemporalBus {
             ym2413_runtime_faulted: false,
             fm_audio_capture_enabled: true,
             fm_capture_wait_for_rotation,
+            ym2413_timing_enabled: false,
+            ym2413_advance_elapsed_ns: 0,
         })
     }
 }
