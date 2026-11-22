@@ -250,9 +250,23 @@ python3 tools/ym2413-nuked-oracle/compare_fm3_integrated.py \
 The integrated comparator checks all 18 EG levels/stages, the shared EG timer
 and rate latches, PG accumulators/increments/output, AM shift/carry state,
 PreparePatch1/2 parameter latches, operator phase index, raw operator output,
-feedback history, and channel output on all 147,456 calls. The isolated
-operator and AM LFO differentials remain separate so a failure can be localized
-to a stage rather than hidden by an end-to-end mismatch.
+feedback history, and channel output on all 147,456 calls. It also compares the
+production digital output pipeline on all 147,456 calls: prior/next `ch_out`,
+`rm_enable`, MO/RO pins, and the one-call-delayed MO/RO output buffer.
+
+The measured-output adapter is checked separately within the same integrated
+trace. It compares 147,455 emitted frames and 73,727 active MO levels against
+the preceding Nuked `ch_out_before` latch, including the one-call delay,
+measured carrier-slot mapping, and distinct negative-zero state. The first
+adapter input remains unknown until a real operator result exists; Nuked's
+software-reset zero is not treated as a physical power-on latch.
+
+This measured code is an amplitude-domain representation, not a raw DAC input
+word, analog transfer function, or voltage calibration. The integrated fixture
+uses the user patch (instrument code 0); preset-ROM and Rhythm Mode candidate
+patch data are characterized separately. The isolated operator and AM LFO
+differentials remain separate so a failure can be localized to a stage rather
+than hidden by an end-to-end mismatch.
 
 ## Integrated Rhythm Mode PG/EG/operator differential
 
@@ -438,6 +452,8 @@ and 1,016 samples without a monotonic drift pattern.
 The inverted-polarity control is decisively inconsistent: MAE 310.44 bins
 for volume 0 and 153.73 bins for volume 1. These results strongly support the
 candidate polarity and near-identity code mapping for the two measured volume
-settings. They remain a Nuked-to-historical-capture characterization; they do
-not yet prove that the Rust serial operator produces the same sequence or
-that either target game has stable FM playback.
+settings. The integrated Rust differential now confirms that the tested
+production serial pipeline and measured MO adapter reproduce the pinned Nuked
+sequence for the user-patch fixture. This does not establish the complete
+physical DAC/analog transfer, preset-ROM identity, or stable FM playback in
+Phantasy Star and Kenseiden.
