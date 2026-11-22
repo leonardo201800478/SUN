@@ -403,3 +403,33 @@ Run the helper tests with:
 ```sh
 python3 -m unittest discover -s tools/ym2413-nuked-oracle -p 'test_*.py'
 ```
+
+### Pinned time-series results — 2026-11-22
+
+The current CI run compares the two sequential captures against the pinned
+Nuked reference using the event history described above:
+
+| Capture | Samples | Best phase offset | Exact matches | MAE | p95 | Maximum |
+|---|---:|---:|---:|---:|---:|---:|
+| `volume0.out` | 20,030 | 1,011 | 7,017 (35.03%) | 0.736 bins | 2 | 3 |
+| `volume1.out` | 20,032 | 1,461 | 14,803 (73.90%) | 0.263 bins | 1 | 17 |
+
+Both empirical code-to-bin maps had **zero monotonicity violations**. For
+volume 0, per-code median absolute residuals were p50=1, p90=1, p99=2,
+maximum=2. For volume 1 they were p50=0, p90=1, p99=1, maximum=1.
+Nuked's MO pin inverse agreed with the pre-pin mapping at every sampled point;
+the active MO slot was 6 and rhythm output remained muted.
+
+The volume-1 maximum error of 17 bins occurs only at sample index 0
+(measured bin 295 versus model bin 278). Every subsequent sample has absolute
+error at most 2 bins; the first-sample discrepancy is recorded, not discarded,
+and its cause is not established. Local phase alignment remained at 1,461
+samples throughout volume 1. Volume 0's local offsets varied between 1,006
+and 1,016 samples without a monotonic drift pattern.
+
+The inverted-polarity control is decisively inconsistent: MAE 310.44 bins
+for volume 0 and 153.73 bins for volume 1. These results strongly support the
+candidate polarity and near-identity code mapping for the two measured volume
+settings. They remain a Nuked-to-historical-capture characterization; they do
+not yet prove that the Rust serial operator produces the same sequence or
+that either target game has stable FM playback.
