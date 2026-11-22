@@ -65,3 +65,8 @@ python3 tools/ym2413-dac-capture-audit/audit_volume_pairs.py \
 ```
 
 The reproducible result is committed at `docs/audits/ym2413-volume-bin-observations-2026-11-22.json`. The CI job checks that the pinned upstream files regenerate that exact report.
+
+
+### Aggregate histogram diagnostic
+
+The tool also runs the existing peak detector over the concatenated raw volume samples as a diagnostic. In the pinned dataset this produces 421 detected peaks plus 40 inserted midpoints (461 bins), not 512. This confirms that the volume captures cannot replace the dedicated `calibrate.raw` calibration sweep. The paired `.out` labels still provide boundary constraints, but the aggregate histogram is not treated as the original calibration.
