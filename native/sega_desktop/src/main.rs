@@ -4851,12 +4851,12 @@ mod windows_host {
                     region: app.get_selected_region().to_string(),
                     selected_system: app.get_selected_system().to_string(),
                     sms_fm_board_profile: SmsFmBoardProfile::from_preference(
-                        &app.get_selected_fm_board_profile().to_string(),
+                        app.get_selected_fm_board_profile().as_ref(),
                     )
                     .unwrap_or_default()
                     .preference_id()
                     .to_owned(),
-                    sms_fm_mode: FmMode::from_preference(&app.get_selected_fm_mode().to_string())
+                    sms_fm_mode: FmMode::from_preference(app.get_selected_fm_mode().as_ref())
                         .unwrap_or_default()
                         .preference_id()
                         .to_owned(),
@@ -4993,12 +4993,12 @@ mod windows_host {
                 region: app.get_selected_region().to_string(),
                 selected_system: app.get_selected_system().to_string(),
                 sms_fm_board_profile: SmsFmBoardProfile::from_preference(
-                    &app.get_selected_fm_board_profile().to_string(),
+                    app.get_selected_fm_board_profile().as_ref(),
                 )
                 .unwrap_or_default()
                 .preference_id()
                 .to_owned(),
-                sms_fm_mode: FmMode::from_preference(&app.get_selected_fm_mode().to_string())
+                sms_fm_mode: FmMode::from_preference(app.get_selected_fm_mode().as_ref())
                     .unwrap_or_default()
                     .preference_id()
                     .to_owned(),
@@ -5376,12 +5376,12 @@ mod windows_host {
             region: app.get_selected_region().to_string(),
             selected_system: app.get_selected_system().to_string(),
             sms_fm_board_profile: SmsFmBoardProfile::from_preference(
-                &app.get_selected_fm_board_profile().to_string(),
+                app.get_selected_fm_board_profile().as_ref(),
             )
             .unwrap_or_default()
             .preference_id()
             .to_owned(),
-            sms_fm_mode: FmMode::from_preference(&app.get_selected_fm_mode().to_string())
+            sms_fm_mode: FmMode::from_preference(app.get_selected_fm_mode().as_ref())
                 .unwrap_or_default()
                 .preference_id()
                 .to_owned(),
