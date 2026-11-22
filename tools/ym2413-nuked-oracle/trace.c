@@ -366,7 +366,7 @@ int main(int argc, char **argv) {
         printf(",\"rhythm\":%u,\"rm_enable\":%u,\"rm_select\":%u,\"rm_noise\":%" PRIu32,
                (unsigned)chip.rhythm, (unsigned)(uint8_t)chip.rm_enable,
                (unsigned)chip.rm_select, chip.rm_noise);
-        printf(",\"output_pins_m\":%d,\"output_pins_r\":%d}\\n",
+        printf(",\"output_pins_m\":%d,\"output_pins_r\":%d}\n",
                (int)chip.output_m, (int)chip.output_r);
     }
 
