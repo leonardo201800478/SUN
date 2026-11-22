@@ -344,6 +344,9 @@ pub struct Ym2413PgSerialService {
     previous_channel_output_is_rhythm: bool,
     last_output_frame: Option<Ym2413CoreOutputPipelineFrame>,
     measured_output_adapter: Ym2413MeasuredOutputAdapter,
+    /// Slot ownership resolved before EG and consumed by the post-EG hook.
+    /// This is transient because both hooks execute synchronously in one slot.
+    pending_dispatch: Option<Ym2413SerialSlotDispatch>,
     /// Test-only switch that restores the pre-optimization duplicate dispatch
     /// for an in-process Release A/B measurement.
     #[cfg(test)]
@@ -374,6 +377,7 @@ impl Ym2413PgSerialService {
             previous_channel_output_is_rhythm: false,
             last_output_frame: None,
             measured_output_adapter: Ym2413MeasuredOutputAdapter::new(),
+            pending_dispatch: None,
             #[cfg(test)]
             benchmark_duplicate_dispatch: false,
         }
@@ -601,6 +605,7 @@ impl Ym2413PgSerialService {
             previous_channel_output_is_rhythm: state.previous_channel_output_is_rhythm,
             last_output_frame: state.last_output_frame,
             measured_output_adapter,
+            pending_dispatch: None,
             #[cfg(test)]
             benchmark_duplicate_dispatch: false,
         })
@@ -929,6 +934,7 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             context.envelope_input.rhythm_select,
         )
         .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?;
+        self.pending_dispatch = Some(dispatch);
         let descriptor = match dispatch {
             Ym2413SerialSlotDispatch::Melodic { slot }
                 if slot == context.event.selected_operator =>
@@ -1041,14 +1047,11 @@ impl Ym2413SlotService for Ym2413PgSerialService {
             self.clock_pm_lfo(testmode);
         }
         self.clock_rhythm_noise(context)?;
-        match dispatch_serial_slot(
-            context.event.cycle,
-            &context.registers,
-            context.rm_enable,
-            context.envelope_input.rhythm_select,
-        )
-        .map_err(|_| Ym2413PgSerialError::InvalidSlotIndex(context.event.cycle))?
-        {
+        let dispatch = self
+            .pending_dispatch
+            .take()
+            .ok_or(Ym2413PgSerialError::InvalidState)?;
+        match dispatch {
             // Reuse the descriptor resolved by this dispatch. The latch helper
             // must not dispatch the same immutable slot context a second time.
             Ym2413SerialSlotDispatch::Melodic { slot }
@@ -1093,6 +1096,26 @@ mod tests {
         Ym2413ChannelInitialState, Ym2413SynthesisBank, Ym2413SynthesisInitialState,
     };
     use crate::{YM2413_INPUT_CLOCKS_PER_SLOT, Ym2413Core, Ym2413DacCode};
+
+    #[test]
+    fn cached_slot_dispatch_is_consumed_at_each_completed_slot() {
+        let mut core = Ym2413Core::new();
+        let mut service = Ym2413PgSerialService::new(initial_bank(0));
+
+        for _ in 0..18 {
+            core.advance_input_clocks_with_pg_service_in_place(
+                YM2413_INPUT_CLOCKS_PER_SLOT,
+                &mut service,
+            )
+            .unwrap();
+
+            assert!(service.pending_dispatch.is_none());
+            assert_eq!(service.next_slot_index(), core.slot_index());
+        }
+
+        assert_eq!(core.slot_index(), 0);
+        assert_eq!(service.next_slot_index(), 0);
+    }
 
     #[test]
     #[ignore = "Release-only A/B benchmark; run from sms-debugger-runtime workflow"]
