@@ -422,22 +422,22 @@ mod tests {
         const ITERATIONS: u32 = 500_000;
         const SAMPLES: usize = 9;
 
-        fn measure_full_snapshot(sequencer: &EnvelopeSequencer) -> u128 {
+        fn measure_full_snapshot(sequencer: &EnvelopeSequencer, iterations: u32) -> u128 {
             let start = Instant::now();
-            for _ in 0..ITERATIONS {
+            for _ in 0..iterations {
                 black_box(black_box(sequencer).export_state());
             }
-            start.elapsed().as_nanos() / u128::from(ITERATIONS)
+            start.elapsed().as_nanos() / u128::from(iterations)
         }
 
-        fn measure_compact_view(sequencer: &EnvelopeSequencer) -> u128 {
+        fn measure_compact_view(sequencer: &EnvelopeSequencer, iterations: u32) -> u128 {
             let start = Instant::now();
-            for _ in 0..ITERATIONS {
+            for _ in 0..iterations {
                 let eg_dokon = black_box(sequencer).eg_dokon();
                 let levels = black_box(sequencer).operator_levels();
                 black_box((eg_dokon, levels));
             }
-            start.elapsed().as_nanos() / u128::from(ITERATIONS)
+            start.elapsed().as_nanos() / u128::from(iterations)
         }
 
         let sequencer = EnvelopeSequencer::new();
@@ -446,8 +446,8 @@ mod tests {
 
         for sample in 0..SAMPLES {
             if sample % 2 == 0 {
-                full_samples[sample] = measure_full_snapshot(&sequencer);
-                compact_samples[sample] = measure_compact_view(&sequencer);
+                full_samples[sample] = measure_full_snapshot(&sequencer, ITERATIONS);
+                compact_samples[sample] = measure_compact_view(&sequencer, ITERATIONS);
             } else {
                 compact_samples[sample] = measure_compact_view(&sequencer);
                 full_samples[sample] = measure_full_snapshot(&sequencer);
