@@ -649,7 +649,7 @@ pub struct SmsFramePacingMetrics {
     pub pacing_command_wakeups_total: u64,
     pub pacing_command_remaining_p95_ns: u64,
     pub command_handler_p95_ns: u64,
-    /// Last completed frame's Scheduler/PSG/VDP counters (diagnostic mode only).
+    /// Whole diagnostic campaign totals for Scheduler, PSG, YM2413 and VDP.
     pub scheduler_dispatch_count_total: u64,
     pub scheduler_dispatch_elapsed_ns_total: u64,
     pub psg_advance_calls_total: u64,
