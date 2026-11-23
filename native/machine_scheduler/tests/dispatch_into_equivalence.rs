@@ -7,7 +7,7 @@
 //! advances, same clock state, same dispatch history.
 
 use sega_machine_scheduler::{
-    ClockAdvances, ClockDomainId, ClockRatio, DeltaEventPolicy, MachineScheduler,
+    ClockAdvances, ClockDomainId, ClockRatio, DeltaEventPolicy, MachineScheduler, SchedulerError,
 };
 use sega_temporal_core::{HardwarePhase, MachineTime, PlatformPriority};
 
@@ -119,6 +119,39 @@ fn buffered_dispatch_empties_the_buffer_when_the_queue_is_empty() {
         buffer.is_empty(),
         "a dispatch with no event must not expose stale advances"
     );
+}
+
+#[test]
+fn buffered_dispatch_empties_the_buffer_when_dispatch_fails() {
+    let mut scheduler =
+        MachineScheduler::with_delta_event_policy(DeltaEventPolicy::new(1).expect("policy"));
+    scheduler
+        .register_clock_domain(
+            ClockDomainId(0),
+            ClockRatio::new(1, 3).expect("ratio"),
+        )
+        .expect("register");
+    let mut buffer = ClockAdvances::new();
+
+    // The second event shares the timestamp and exceeds the one-event budget.
+    schedule(&mut scheduler, 3, 1);
+    schedule(&mut scheduler, 3, 2);
+
+    scheduler
+        .dispatch_next_into(&mut buffer)
+        .expect("first dispatch")
+        .expect("first event");
+    assert_eq!(buffer.len(), 1);
+
+    let error = scheduler
+        .dispatch_next_into(&mut buffer)
+        .expect_err("same-timestamp budget must reject the second dispatch");
+    assert!(matches!(
+        error,
+        SchedulerError::DeltaEventLimitExceeded { .. }
+    ));
+    assert!(buffer.is_empty(), "failed dispatch must not expose stale advances");
+    assert_eq!(scheduler.pending_events(), 1, "failed dispatch must retain the event");
 }
 
 #[test]
