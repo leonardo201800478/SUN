@@ -340,6 +340,27 @@ impl From<SmsIoError> for SmsTemporalBusError {
     }
 }
 
+/// Per-frame timing/counter snapshot for existing SMS subsystem boundaries.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SmsTemporalSubsystemTiming {
+    pub scheduler_dispatch_count: u64,
+    pub scheduler_dispatch_elapsed_ns: u64,
+    pub psg_advance_calls: u64,
+    pub psg_advance_clock_cycles: u64,
+    pub psg_advance_elapsed_ns: u64,
+    pub vdp_advance_calls: u64,
+    pub vdp_advance_tstates: u64,
+    pub vdp_advance_elapsed_ns: u64,
+}
+
+fn duration_ns(value: u128) -> u64 {
+    value.min(u128::from(u64::MAX)) as u64
+}
+
+fn counter_u64(value: u128) -> u64 {
+    duration_ns(value)
+}
+
 /// SMS mapper-backed memory and its scheduler-owned bus completion timeline.
 #[derive(Debug, Clone)]
 pub struct SmsTemporalBus {
@@ -373,6 +394,16 @@ pub struct SmsTemporalBus {
     /// Optional wall-clock instrumentation; disabled in normal emulation.
     ym2413_timing_enabled: bool,
     ym2413_advance_elapsed_ns: u128,
+    /// Fixed-cost subsystem profiling; disabled outside explicit diagnostic captures.
+    subsystem_timing_enabled: bool,
+    scheduler_dispatch_count: u64,
+    scheduler_dispatch_elapsed_ns: u128,
+    psg_advance_calls: u64,
+    psg_advance_clock_cycles: u128,
+    psg_advance_elapsed_ns: u128,
+    vdp_advance_calls: u64,
+    vdp_advance_tstates: u128,
+    vdp_advance_elapsed_ns: u128,
     /// Diagnostic-only counts of committed F0/F1/F2 writes.
     fm_port_writes: SmsFmPortWriteSnapshot,
 }
@@ -550,6 +581,15 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation: false,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            subsystem_timing_enabled: false,
+            scheduler_dispatch_count: 0,
+            scheduler_dispatch_elapsed_ns: 0,
+            psg_advance_calls: 0,
+            psg_advance_clock_cycles: 0,
+            psg_advance_elapsed_ns: 0,
+            vdp_advance_calls: 0,
+            vdp_advance_tstates: 0,
+            vdp_advance_elapsed_ns: 0,
             fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }
@@ -642,6 +682,15 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation: false,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            subsystem_timing_enabled: false,
+            scheduler_dispatch_count: 0,
+            scheduler_dispatch_elapsed_ns: 0,
+            psg_advance_calls: 0,
+            psg_advance_clock_cycles: 0,
+            psg_advance_elapsed_ns: 0,
+            vdp_advance_calls: 0,
+            vdp_advance_tstates: 0,
+            vdp_advance_elapsed_ns: 0,
             fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }
@@ -827,15 +876,38 @@ impl SmsTemporalBus {
         if let Some(completion) = self.internal_completion {
             return Ok(Some(SmsTemporalDispatch::InternalCycleComplete(completion)));
         }
-        let Some(dispatch) = self.coordinator.dispatch_next()? else {
+        let scheduler_started = self.subsystem_timing_enabled.then(Instant::now);
+        let scheduler_result = self.coordinator.dispatch_next();
+        if let Some(started) = scheduler_started {
+            self.scheduler_dispatch_elapsed_ns = self
+                .scheduler_dispatch_elapsed_ns
+                .saturating_add(started.elapsed().as_nanos());
+        }
+        let Some(dispatch) = scheduler_result? else {
             return Ok(None);
         };
+        if self.subsystem_timing_enabled {
+            self.scheduler_dispatch_count = self.scheduler_dispatch_count.saturating_add(1);
+        }
         let psg_advance = dispatch
             .clock_advances
             .iter()
             .find(|advance| advance.domain == SMS_PSG_CLOCK_DOMAIN_ID)
             .ok_or(SmsTemporalBusError::InvalidState)?;
-        self.psg.apply_clock_advance(psg_advance)?;
+        if self.subsystem_timing_enabled {
+            let started = Instant::now();
+            let result = self.psg.apply_clock_advance(psg_advance);
+            self.psg_advance_elapsed_ns = self
+                .psg_advance_elapsed_ns
+                .saturating_add(started.elapsed().as_nanos());
+            self.psg_advance_calls = self.psg_advance_calls.saturating_add(1);
+            self.psg_advance_clock_cycles = self
+                .psg_advance_clock_cycles
+                .saturating_add(psg_advance.elapsed_cycles);
+            result?;
+        } else {
+            self.psg.apply_clock_advance(psg_advance)?;
+        }
         if self.ym2413.is_some() {
             self.psg
                 .core_mut()
@@ -864,7 +936,19 @@ impl SmsTemporalBus {
             .ok_or(SmsTemporalBusError::InvalidState)?;
         let vdp_tstates = u64::try_from(z80_advance.elapsed_cycles)
             .map_err(|_| SmsTemporalBusError::InvalidState)?;
-        self.vdp.advance(vdp_tstates);
+        if self.subsystem_timing_enabled {
+            let started = Instant::now();
+            self.vdp.advance(vdp_tstates);
+            self.vdp_advance_elapsed_ns = self
+                .vdp_advance_elapsed_ns
+                .saturating_add(started.elapsed().as_nanos());
+            self.vdp_advance_calls = self.vdp_advance_calls.saturating_add(1);
+            self.vdp_advance_tstates = self
+                .vdp_advance_tstates
+                .saturating_add(u128::from(vdp_tstates));
+        } else {
+            self.vdp.advance(vdp_tstates);
+        }
         match dispatch.event.payload {
             SmsTemporalEvent::ExternalThTransition { player, high } => {
                 self.io.set_external_th_level(player, high)?;
@@ -1075,6 +1159,40 @@ impl SmsTemporalBus {
     pub fn set_ym2413_timing_enabled(&mut self, enabled: bool) {
         self.ym2413_timing_enabled = enabled;
         self.ym2413_advance_elapsed_ns = 0;
+    }
+
+    /// Enable/disable fixed-size Scheduler, PSG and VDP profiling counters.
+    ///
+    /// Timing is host-observational only: it never feeds back into emulated clocks,
+    /// dispatch ordering, save states, or device state.
+    pub fn set_subsystem_timing_enabled(&mut self, enabled: bool) {
+        self.subsystem_timing_enabled = enabled;
+        self.scheduler_dispatch_count = 0;
+        self.scheduler_dispatch_elapsed_ns = 0;
+        self.psg_advance_calls = 0;
+        self.psg_advance_clock_cycles = 0;
+        self.psg_advance_elapsed_ns = 0;
+        self.vdp_advance_calls = 0;
+        self.vdp_advance_tstates = 0;
+        self.vdp_advance_elapsed_ns = 0;
+    }
+
+    /// Take and reset the per-frame subsystem counters without allocating.
+    pub fn take_subsystem_timing(&mut self) -> SmsTemporalSubsystemTiming {
+        SmsTemporalSubsystemTiming {
+            scheduler_dispatch_count: std::mem::take(&mut self.scheduler_dispatch_count),
+            scheduler_dispatch_elapsed_ns: duration_ns(std::mem::take(
+                &mut self.scheduler_dispatch_elapsed_ns,
+            )),
+            psg_advance_calls: std::mem::take(&mut self.psg_advance_calls),
+            psg_advance_clock_cycles: counter_u64(std::mem::take(
+                &mut self.psg_advance_clock_cycles,
+            )),
+            psg_advance_elapsed_ns: duration_ns(std::mem::take(&mut self.psg_advance_elapsed_ns)),
+            vdp_advance_calls: std::mem::take(&mut self.vdp_advance_calls),
+            vdp_advance_tstates: counter_u64(std::mem::take(&mut self.vdp_advance_tstates)),
+            vdp_advance_elapsed_ns: duration_ns(std::mem::take(&mut self.vdp_advance_elapsed_ns)),
+        }
     }
 
     /// Take the YM2413 advance time accumulated since the previous reset.
@@ -1617,6 +1735,15 @@ impl SmsTemporalBus {
             fm_capture_wait_for_rotation,
             ym2413_timing_enabled: false,
             ym2413_advance_elapsed_ns: 0,
+            subsystem_timing_enabled: false,
+            scheduler_dispatch_count: 0,
+            scheduler_dispatch_elapsed_ns: 0,
+            psg_advance_calls: 0,
+            psg_advance_clock_cycles: 0,
+            psg_advance_elapsed_ns: 0,
+            vdp_advance_calls: 0,
+            vdp_advance_tstates: 0,
+            vdp_advance_elapsed_ns: 0,
             fm_port_writes: SmsFmPortWriteSnapshot::default(),
         })
     }

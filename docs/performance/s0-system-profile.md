@@ -16,10 +16,20 @@ O teste perf_baseline.rs executa três cenários OutRun SMS:
 - C: YM2413 clockado e FM mixado pelo mixer/resampler nativo, consumido por
   um sink determinístico de descarte.
 
-Os diagnósticos atuais do worker medem percentis de intervalo de quadro,
+Os diagnósticos do worker medem percentis de intervalo de quadro,
 step_frame, avanço YM2413, publicação de vídeo, preparação/submissão de áudio
-e processamento agregado do quadro. São medições de etapas inclusivas, não
-um perfil exclusivo e completo de cada dispositivo.
+e processamento agregado do quadro. A instrumentação S0.2 acrescenta, em modo
+opt-in, contagem/duração do dispatch do MachineScheduler, chamadas/clocks/duração
+do avanço PSG e chamadas/T-states/duração do avanço VDP. O timer do VDP inclui
+o trabalho de renderização de scanline executado por `SmsVdp::advance()`.
+
+Esses timers são coletados nos limites reais do caminho temporal e não criam
+um scheduler, relógio ou callback paralelo. O tempo do Scheduler mede somente
+`SmsTemporalCoordinator::dispatch_next()`; os tempos PSG, YM2413 e VDP medem
+o avanço de cada dispositivo após o dispatch. Portanto, são custos separados
+do Scheduler, não tempos inclusivos para somar com `step_frame`. A duração
+YM2413 continua usando o timer opt-in já existente. Ainda não há tempo exclusivo
+do Z80, transações BUS, mixer ou resampler.
 
 ## Execução
 
@@ -40,6 +50,26 @@ O heap profiling pode ser omitido com -SkipHeapProfile; a amostragem de CPU
 permanece ativa. O rastreamento de heap é configurado para a imagem exata
 perf_baseline-*.exe e desabilitado no bloco finally. A execução elevada é
 necessária para configurar WPR heap tracing.
+
+## Instrumentação S0.2
+
+A linha `SUN_PERF_DIAGNOSTICS` exporta por cenário os últimos contadores por
+quadro: `scheduler_dispatch_count_last`, `scheduler_dispatch_elapsed_ns_last`,
+`psg_advance_calls_last`, `psg_advance_clock_cycles_last`,
+`psg_advance_elapsed_ns_last`, `vdp_advance_calls_last`,
+`vdp_advance_tstates_last` e `vdp_advance_elapsed_ns_last`.
+
+Os contadores são acumuladores inteiros de tamanho fixo, reiniciados na
+fronteira de cada frame de diagnóstico e exportados depois do passo. Fora do
+modo diagnóstico, os timers não chamam `Instant::now()`. O teste
+`sms_subsystem_timing.rs` compara o estado completo e o resultado da instrução
+com profiling ligado/desligado, além de verificar os contadores dos três
+limites instrumentados.
+
+A medição é por chamada agregada do dispositivo, não por instrução, T-state,
+scanline ou amostra individual. O contador de VDP contabiliza T-states entregues
+ao VDP; não representa pixels ou dots. O contador de PSG registra clocks
+entregues pelo Scheduler, não clocks de CPU inferidos.
 
 ## Artefatos
 
@@ -72,28 +102,24 @@ inspecionar contagem/tamanho de alocações e pilha de alocação por processo.
   worker como custos disjuntos.
 - Call stacks atribuem amostras de CPU a funções, mas não fornecem, sozinhas,
   contagem de eventos ou tempo exclusivo por subsistema.
-- Os diagnósticos atuais ainda não isolam Z80, Scheduler, barramento, PSG,
-  VDP, mixer e resampler.
+- Os diagnósticos S0.2 ainda não isolam Z80, barramento, mixer e resampler;
+  Scheduler, PSG, YM2413 e VDP já possuem medições em seus limites de avanço.
 - A execução é headless e não mede CPAL físico, composição Slint, upload WGPU
   nem execução da GPU. Isso exige uma campanha integrada separada.
 
 ## Próximos incrementos de instrumentação
 
-Adicionar contadores somente nos limites existentes do backend, sem alterar
-ordem de execução ou transições de estado:
+Continuar a instrumentação somente nos limites existentes do backend, sem
+alterar ordem de execução ou transições de estado:
 
-1. Scheduler: quantidade de dispatches, avanços dos domínios de clock e tempo
-   exclusivo de dispatch.
-2. Z80: contagem de instruções/M-cycles/T-states e tempo exclusivo do sequencer;
+1. Z80: contagem de instruções/M-cycles/T-states e tempo de serviço do sequencer;
    não cronometrar cada instrução na campanha oficial de throughput.
-3. Barramento SMS: leituras/escritas/WAIT e duração agregada das transações.
-4. PSG/YM2413: chamadas de avanço, clocks/slots e tempo exclusivo de serviço.
-5. VDP: scanlines, trabalho de sprites e duração exclusiva da renderização.
-6. Áudio: quantidade de amostras de entrada/saída e duração exclusiva de
-   mixer/resampler.
-7. Vídeo: bytes do framebuffer, bytes copiados/convertidos e contagens de
+2. Barramento SMS: leituras/escritas/WAIT e duração agregada das transações.
+3. YM2413: contagem de clocks/slots (o tempo de avanço já é medido).
+4. Áudio: quantidade de amostras de entrada/saída e duração de mixer/resampler.
+5. Vídeo: bytes do framebuffer, bytes copiados/convertidos e contagens de
    publicação/consumo do mailbox.
-8. Host: upload/submissão CPU WGPU e GPU timestamp queries; duração do callback
+6. Host: upload/submissão CPU WGPU e GPU timestamp queries; duração do callback
    CPAL, profundidade FIFO, underruns e overruns.
 
 Contadores devem ser de tamanho fixo ou pré-alocados, desabilitados fora do
@@ -103,7 +129,8 @@ feedback para o tempo do MachineScheduler.
 
 ## Estado
 
-Este runner estabelece a primeira etapa reproduzível de CPU/heap profiling.
-Não afirma que todos os subsistemas já possuem atribuição exclusiva. Os
-contadores por dispositivo e o profiling integrado Slint/WGPU/CPAL permanecem
-incrementos posteriores de S0, não critérios de PASS desta primeira entrega.
+O runner estabelece a primeira etapa reproduzível de CPU/heap profiling.
+A instrumentação S0.2 cobre parcialmente Scheduler, PSG, YM2413 e VDP, mas não
+atribui ainda o custo do Z80, BUS, mixer/resampler ou host. O profiling integrado
+Slint/WGPU/CPAL permanece um incremento posterior de S0; nenhuma dessas
+limitações é promovida a PASS sem execução real e análise dos artefatos.

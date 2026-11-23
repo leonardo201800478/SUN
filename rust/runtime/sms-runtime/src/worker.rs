@@ -571,6 +571,7 @@ impl FramePacingWindow {
                 .sum(),
             pacing_command_remaining_p95_ns: percentile(&mut command_remaining, 95),
             command_handler_p95_ns: percentile(&mut command_handlers, 95),
+            ..SmsFramePacingMetrics::default()
         }
     }
 }
@@ -647,6 +648,15 @@ pub struct SmsFramePacingMetrics {
     pub pacing_command_wakeups_total: u64,
     pub pacing_command_remaining_p95_ns: u64,
     pub command_handler_p95_ns: u64,
+    /// Last completed frame's Scheduler/PSG/VDP counters (diagnostic mode only).
+    pub scheduler_dispatch_count_last: u64,
+    pub scheduler_dispatch_elapsed_ns_last: u64,
+    pub psg_advance_calls_last: u64,
+    pub psg_advance_clock_cycles_last: u64,
+    pub psg_advance_elapsed_ns_last: u64,
+    pub vdp_advance_calls_last: u64,
+    pub vdp_advance_tstates_last: u64,
+    pub vdp_advance_elapsed_ns_last: u64,
 }
 
 #[derive(Debug, Default)]
@@ -735,6 +745,14 @@ struct WorkerTelemetry {
     machine_time_ticks: AtomicU64,
     machine_clock_hz: AtomicU64,
     total_instructions: AtomicU64,
+    scheduler_dispatch_count_last: AtomicU64,
+    scheduler_dispatch_elapsed_ns_last: AtomicU64,
+    psg_advance_calls_last: AtomicU64,
+    psg_advance_clock_cycles_last: AtomicU64,
+    psg_advance_elapsed_ns_last: AtomicU64,
+    vdp_advance_calls_last: AtomicU64,
+    vdp_advance_tstates_last: AtomicU64,
+    vdp_advance_elapsed_ns_last: AtomicU64,
     audio_underruns: AtomicU64,
     audio_dropped_blocks: AtomicU64,
     audio_sample_rate_hz: AtomicU64,
@@ -837,7 +855,23 @@ impl WorkerTelemetry {
             |timing| timing.pacing_window.clone(),
         );
         if self.diagnostics_enabled() {
-            window.snapshot()
+            let mut metrics = window.snapshot();
+            metrics.scheduler_dispatch_count_last =
+                self.scheduler_dispatch_count_last.load(Ordering::Acquire);
+            metrics.scheduler_dispatch_elapsed_ns_last = self
+                .scheduler_dispatch_elapsed_ns_last
+                .load(Ordering::Acquire);
+            metrics.psg_advance_calls_last = self.psg_advance_calls_last.load(Ordering::Acquire);
+            metrics.psg_advance_clock_cycles_last =
+                self.psg_advance_clock_cycles_last.load(Ordering::Acquire);
+            metrics.psg_advance_elapsed_ns_last =
+                self.psg_advance_elapsed_ns_last.load(Ordering::Acquire);
+            metrics.vdp_advance_calls_last = self.vdp_advance_calls_last.load(Ordering::Acquire);
+            metrics.vdp_advance_tstates_last =
+                self.vdp_advance_tstates_last.load(Ordering::Acquire);
+            metrics.vdp_advance_elapsed_ns_last =
+                self.vdp_advance_elapsed_ns_last.load(Ordering::Acquire);
+            metrics
         } else {
             SmsFramePacingMetrics::default()
         }
@@ -898,6 +932,17 @@ impl WorkerTelemetry {
         }
         if !enabled {
             self.total_instructions.store(0, Ordering::Release);
+            self.scheduler_dispatch_count_last
+                .store(0, Ordering::Release);
+            self.scheduler_dispatch_elapsed_ns_last
+                .store(0, Ordering::Release);
+            self.psg_advance_calls_last.store(0, Ordering::Release);
+            self.psg_advance_clock_cycles_last
+                .store(0, Ordering::Release);
+            self.psg_advance_elapsed_ns_last.store(0, Ordering::Release);
+            self.vdp_advance_calls_last.store(0, Ordering::Release);
+            self.vdp_advance_tstates_last.store(0, Ordering::Release);
+            self.vdp_advance_elapsed_ns_last.store(0, Ordering::Release);
             self.video_replaced_frames.store(0, Ordering::Release);
             self.audio_underruns.store(0, Ordering::Release);
             self.audio_dropped_blocks.store(0, Ordering::Release);
@@ -2485,6 +2530,7 @@ fn execute_frame_with_renderer(
         .set_fm_audio_capture_enabled(audio_renderer.fm_output_policy != SmsFmOutputPolicy::Muted);
     let diagnostics_enabled = telemetry.diagnostics_enabled();
     machine.set_ym2413_timing_enabled(diagnostics_enabled);
+    machine.set_subsystem_timing_enabled(diagnostics_enabled);
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
     let diagnostic_machine_start = diagnostics_enabled.then_some(machine_time_start_ticks);
@@ -2495,6 +2541,34 @@ fn execute_frame_with_renderer(
     let step_frame_elapsed =
         diagnostic_step_start.map_or(Duration::ZERO, |started| started.elapsed());
     let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
+    let subsystem_timing = machine.take_subsystem_timing();
+    if diagnostics_enabled {
+        telemetry
+            .scheduler_dispatch_count_last
+            .store(subsystem_timing.scheduler_dispatch_count, Ordering::Release);
+        telemetry.scheduler_dispatch_elapsed_ns_last.store(
+            subsystem_timing.scheduler_dispatch_elapsed_ns,
+            Ordering::Release,
+        );
+        telemetry
+            .psg_advance_calls_last
+            .store(subsystem_timing.psg_advance_calls, Ordering::Release);
+        telemetry
+            .psg_advance_clock_cycles_last
+            .store(subsystem_timing.psg_advance_clock_cycles, Ordering::Release);
+        telemetry
+            .psg_advance_elapsed_ns_last
+            .store(subsystem_timing.psg_advance_elapsed_ns, Ordering::Release);
+        telemetry
+            .vdp_advance_calls_last
+            .store(subsystem_timing.vdp_advance_calls, Ordering::Release);
+        telemetry
+            .vdp_advance_tstates_last
+            .store(subsystem_timing.vdp_advance_tstates, Ordering::Release);
+        telemetry
+            .vdp_advance_elapsed_ns_last
+            .store(subsystem_timing.vdp_advance_elapsed_ns, Ordering::Release);
+    }
     let machine_time_end_ticks = machine.now().ticks();
     let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
     let frame_completed = !breakpoint_hit;
@@ -2837,7 +2911,15 @@ fn execute_frame_with_renderer(
             fm_rms = audio_renderer.fm_diagnostics.rms,
             frame_interval_ns = frame_interval_ns.unwrap_or_default(),
             step_frame_elapsed_ns = step_frame_elapsed.as_nanos(),
+            scheduler_dispatch_count = subsystem_timing.scheduler_dispatch_count,
+            scheduler_dispatch_elapsed_ns = subsystem_timing.scheduler_dispatch_elapsed_ns,
+            psg_advance_calls = subsystem_timing.psg_advance_calls,
+            psg_advance_clock_cycles = subsystem_timing.psg_advance_clock_cycles,
+            psg_advance_elapsed_ns = subsystem_timing.psg_advance_elapsed_ns,
             ym2413_advance_elapsed_ns,
+            vdp_advance_calls = subsystem_timing.vdp_advance_calls,
+            vdp_advance_tstates = subsystem_timing.vdp_advance_tstates,
+            vdp_advance_elapsed_ns = subsystem_timing.vdp_advance_elapsed_ns,
             video_publish_elapsed_ns = video_publish_elapsed.as_nanos(),
             audio_prepare_elapsed_ns = audio_prepare_elapsed.as_nanos(),
             audio_submit_elapsed_ns = audio_submit_elapsed.as_nanos(),
