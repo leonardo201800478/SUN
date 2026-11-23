@@ -8,6 +8,7 @@
 //! the way, so before/after numbers share one boundary.
 //!
 //! What is included in the measured region:
+//!   - `schedule_at_with_phase()` for the event being measured
 //!   - `events.next_timestamp()` probe
 //!   - same-timestamp budget bookkeeping
 //!   - `calculate_advances` (one rational preview per registered domain)
@@ -17,7 +18,6 @@
 //!   - construction of the returned `MachineDispatch`
 //!
 //! What is excluded:
-//!   - scheduling the event that is later dispatched (measured separately)
 //!   - consumer work (`sms_core`, VDP, PSG) — that belongs to their own audits
 //!
 //! Run with `--release`; debug timings are meaningless here.
@@ -64,11 +64,10 @@ struct Payload(u64);
 struct Measurement {
     label: &'static str,
     domains: usize,
-    iterations: u64,
-    ns_per_dispatch: f64,
-    allocations_per_dispatch: f64,
-    bytes_per_dispatch: f64,
-    reallocations_per_dispatch: f64,
+    ns_per_operation: f64,
+    allocations_per_operation: f64,
+    bytes_per_operation: f64,
+    reallocations_per_operation: f64,
     advances_len: usize,
 }
 
@@ -85,7 +84,7 @@ fn build_scheduler(domains: usize, ticks_per_tstate: u64) -> MachineScheduler<Pa
 
 /// One dispatch in the same order production executes it.
 #[inline(never)]
-fn dispatch_once(scheduler: &mut MachineScheduler<Payload>, timestamp: MachineTime) -> usize {
+fn schedule_and_dispatch_once(scheduler: &mut MachineScheduler<Payload>, timestamp: MachineTime) -> usize {
     scheduler
         .schedule_at_with_phase(
             timestamp,
@@ -114,7 +113,7 @@ fn measure(label: &'static str, domains: usize, iterations: u64, ticks_per_tstat
     // Warm-up: page in the queue, the clock map and the trace machinery.
     for _ in 0..2_000 {
         tick += step;
-        black_box(dispatch_once(&mut scheduler, MachineTime::from_ticks(tick)));
+        black_box(schedule_and_dispatch_once(&mut scheduler, MachineTime::from_ticks(tick)));
     }
 
     let before_allocations = ALLOCATIONS.load(Ordering::Relaxed);
@@ -125,7 +124,7 @@ fn measure(label: &'static str, domains: usize, iterations: u64, ticks_per_tstat
     let mut advances_len = 0;
     for _ in 0..iterations {
         tick += step;
-        advances_len = dispatch_once(&mut scheduler, MachineTime::from_ticks(tick));
+        advances_len = schedule_and_dispatch_once(&mut scheduler, MachineTime::from_ticks(tick));
     }
     let elapsed = started.elapsed();
 
@@ -136,11 +135,10 @@ fn measure(label: &'static str, domains: usize, iterations: u64, ticks_per_tstat
     Measurement {
         label,
         domains,
-        iterations,
-        ns_per_dispatch: elapsed.as_nanos() as f64 / iterations as f64,
-        allocations_per_dispatch: allocations as f64 / iterations as f64,
-        bytes_per_dispatch: bytes as f64 / iterations as f64,
-        reallocations_per_dispatch: reallocations as f64 / iterations as f64,
+        ns_per_operation: elapsed.as_nanos() as f64 / iterations as f64,
+        allocations_per_operation: allocations as f64 / iterations as f64,
+        bytes_per_operation: bytes as f64 / iterations as f64,
+        reallocations_per_operation: reallocations as f64 / iterations as f64,
         advances_len,
     }
 }
@@ -160,7 +158,7 @@ fn measure_idle_advance_inner(
     let mut tick: u128 = 0;
     for _ in 0..2_000 {
         tick += step;
-        black_box(dispatch_once(&mut scheduler, MachineTime::from_ticks(tick)));
+        black_box(schedule_and_dispatch_once(&mut scheduler, MachineTime::from_ticks(tick)));
     }
 
     let before_allocations = ALLOCATIONS.load(Ordering::Relaxed);
@@ -186,11 +184,10 @@ fn measure_idle_advance_inner(
     Measurement {
         label: "advance_idle_to",
         domains,
-        iterations,
-        ns_per_dispatch: elapsed.as_nanos() as f64 / iterations as f64,
-        allocations_per_dispatch: allocations as f64 / iterations as f64,
-        bytes_per_dispatch: bytes as f64 / iterations as f64,
-        reallocations_per_dispatch: reallocations as f64 / iterations as f64,
+        ns_per_operation: elapsed.as_nanos() as f64 / iterations as f64,
+        allocations_per_operation: allocations as f64 / iterations as f64,
+        bytes_per_operation: bytes as f64 / iterations as f64,
+        reallocations_per_operation: reallocations as f64 / iterations as f64,
         advances_len,
     }
 }
@@ -198,7 +195,7 @@ fn measure_idle_advance_inner(
 fn print_header() {
     println!(
         "{:<22} {:>7} {:>10} {:>10} {:>11} {:>10} {:>10}",
-        "scenario", "domains", "ns/disp", "allocs", "bytes", "reallocs", "advances"
+        "scenario", "domains", "ns/op", "allocs/op", "bytes/op", "reallocs/op", "advances"
     );
 }
 
@@ -207,10 +204,10 @@ fn print_row(m: &Measurement) {
         "{:<22} {:>7} {:>10.2} {:>10.3} {:>11.1} {:>10.3} {:>10}",
         m.label,
         m.domains,
-        m.ns_per_dispatch,
-        m.allocations_per_dispatch,
-        m.bytes_per_dispatch,
-        m.reallocations_per_dispatch,
+        m.ns_per_operation,
+        m.allocations_per_operation,
+        m.bytes_per_operation,
+        m.reallocations_per_operation,
         m.advances_len
     );
 }
@@ -229,15 +226,15 @@ fn main() {
     print_header();
 
     // SMS shape: Z80 + PSG + VDP share one ratio (3 domains).
-    let sms = measure("dispatch_sms_3", 3, iterations, ticks_per_tstate);
+    let sms = measure("schedule_dispatch_sms_3", 3, iterations, ticks_per_tstate);
     print_row(&sms);
 
     // Japanese SMS adds the YM2413 domain (4 domains).
-    let sms_ym = measure("dispatch_sms_ym2413_4", 4, iterations, ticks_per_tstate);
+    let sms_ym = measure("schedule_dispatch_sms_ym2413_4", 4, iterations, ticks_per_tstate);
     print_row(&sms_ym);
 
     // Beyond the inline capacity: proves the fallback never truncates.
-    let wide = measure("dispatch_wide_9", 9, iterations / 4, ticks_per_tstate);
+    let wide = measure("schedule_dispatch_wide_9", 9, iterations / 4, ticks_per_tstate);
     print_row(&wide);
 
     let idle = measure_idle_advance(3, iterations, ticks_per_tstate);
@@ -245,11 +242,11 @@ fn main() {
 
     println!();
     println!(
-        "per-frame projection at 49_780 dispatches/frame: {:.2} ms (3 domains)",
-        sms.ns_per_dispatch * 49_780.0 / 1.0e6
+        "per-frame projection at 49_780 scheduler operations/frame: {:.2} ms (3 domains)",
+        sms.ns_per_operation * 49_780.0 / 1.0e6
     );
     println!(
         "allocations per frame: {:.0}",
-        sms.allocations_per_dispatch * 49_780.0
+        sms.allocations_per_operation * 49_780.0
     );
 }

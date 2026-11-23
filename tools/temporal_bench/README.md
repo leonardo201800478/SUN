@@ -1,16 +1,16 @@
 # temporal_bench
 
 Harness de latência e alocação do `MachineScheduler`, criado para atender ao §4.7 do
-[plano de otimização](../../docs/plans/temporal-core-optimization-plan.md): medir o
-dispatch na **ordem de produção**, com o tipo real `ClockAdvance`, contabilizando
-todas as alocações.
+[plano de otimização](../../docs/plans/temporal-core-optimization-plan.md): medir uma
+operação combinada de **agendamento + dispatch**, na ordem de produção, com o tipo
+real `ClockAdvance`, contabilizando as alocações.
 
 ## Por que existe
 
 A primeira auditoria comparou uma janela instrumentada em volta de `dispatch_next`
 com um microbenchmark que usava um tipo menor e pulava parte do trabalho. As duas
-fronteiras não eram comparáveis. Este harness fixa uma única fronteira: tudo o que
-um dispatch real faz, na ordem em que faz.
+fronteiras não eram comparáveis. Este harness fixa uma única fronteira: cada iteração
+agenda um evento e o despacha. Os tempos não representam dispatch isolado.
 
 ## Como rodar
 
@@ -25,7 +25,8 @@ tenha os dois lados na mesma fronteira.
 
 ## O que está incluído na região medida
 
-`next_timestamp()`, orçamento por timestamp, conversão racional por domínio,
-validação e commit dos avanços, `pop_next`, `trace!` de dispatch e construção do
-`MachineDispatch`. Excluído: o agendamento do evento (medido no mesmo laço) e o
-trabalho dos consumidores (VDP, PSG, `sms_core`).
+`schedule_at_with_phase()`, `next_timestamp()`, orçamento por timestamp, conversão
+racional por domínio, validação e commit dos avanços, `pop_next`, `trace!` de dispatch
+e construção/consumo do resultado. Portanto, a métrica é **agendamento + dispatch**.
+Excluído: trabalho dos consumidores (VDP, PSG, `sms_core`). A comparação A/B usa a
+mesma fronteira nas duas variantes.
