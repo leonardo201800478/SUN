@@ -1,136 +1,134 @@
-# SUN S0 — System-wide performance profiling
+# SUN S0 — relatório agregado de desempenho
 
 ## Objetivo
 
-Ampliar o harness PERF-01/S0 existente sem criar outro emulador, worker,
-scheduler ou implementação de benchmark. A medição oficial de throughput
-permanece sem instrumentação. O profiling de CPU/heap ocorre em uma segunda
-execução independente.
+Medir o consumo de execução do SMS em uma campanha completa, sem produzir
+rastreamento contínuo. Os contadores ficam em memória durante cada cenário e
+são exportados uma única vez ao final. Não há log por instrução, T-state,
+evento, frame ou intervalo de milissegundos.
 
-## Cobertura atual do harness
+O throughput oficial continua sendo medido sem profiler externo. A coleta
+agregada opt-in acrescenta contadores inteiros nos limites já existentes do
+backend; não cria scheduler, clock, callback ou thread de profiling.
 
-O teste perf_baseline.rs executa três cenários OutRun SMS:
+## Cenários
 
-- A: YM2413 ausente.
+O teste `perf_baseline.rs` executa OutRun SMS em três configurações:
+
+- A: SMS sem YM2413.
 - B: YM2413 japonês instalado e clockado, com saída FM mutada.
 - C: YM2413 clockado e FM mixado pelo mixer/resampler nativo, consumido por
-  um sink determinístico de descarte.
+  sink determinístico de descarte.
 
-Os diagnósticos do worker medem percentis de intervalo de quadro,
-step_frame, avanço YM2413, publicação de vídeo, preparação/submissão de áudio
-e processamento agregado do quadro. A instrumentação S0.2 acrescenta, em modo
-opt-in, contagem/duração do dispatch do MachineScheduler, chamadas/clocks/duração
-do avanço PSG e chamadas/T-states/duração do avanço VDP. O timer do VDP inclui
-o trabalho de renderização de scanline executado por `SmsVdp::advance()`.
-
-Esses timers são coletados nos limites reais do caminho temporal e não criam
-um scheduler, relógio ou callback paralelo. O tempo do Scheduler mede somente
-`SmsTemporalCoordinator::dispatch_next()`; os tempos PSG, YM2413 e VDP medem
-o avanço de cada dispositivo após o dispatch. Portanto, são custos separados
-do Scheduler, não tempos inclusivos para somar com `step_frame`. A duração
-YM2413 continua usando o timer opt-in já existente. Ainda não há tempo exclusivo
-do Z80, transações BUS, mixer ou resampler.
+Cada cenário possui uma passagem de throughput sem timers de subsistema e uma
+passagem diagnóstica separada. O FPS da passagem de throughput é a referência;
+as medições diagnósticas servem para atribuição e não substituem a baseline.
 
 ## Execução
 
-Executar em PowerShell elevado, Windows x64, com working tree limpo e ROM
-OutRun SMS obtida legalmente:
+No Windows x64, com working tree limpo e ROM OutRun SMS obtida legalmente:
 
-    .\scripts\benchmark\perf-profile-s0.ps1 -RomPath "D:\ROMS\Sega Master System\OutRun (Japan).sms" -ThroughputCargoProfile release-llvm -ProfilingCargoProfile release-llvm-debug -WarmupSeconds 5 -CaptureSeconds 30 -DiagnosticSeconds 10
+```powershell
+.\scripts\benchmark\perf-baseline-s0.ps1 -RomPath "D:\ROMS\Sega Master System\OutRun (Japan).sms" -CargoProfile release-llvm -WarmupSeconds 5 -CaptureSeconds 30 -DiagnosticSeconds 5
+```
 
-O runner realiza duas execuções:
+O alias legado `perf-profile-s0.ps1` agora delega para o mesmo runner agregado
+e não inicia WPR nem cria ETL. O parâmetro opcional `-CaptureCpuProfile` do
+runner principal ativa somente WPR CPU sampling; essa execução é diagnóstica,
+gera um ETL de CPU e não deve ser usada como throughput oficial. O Heap tracing
+foi removido.
 
-1. Invoca perf-baseline-s0.ps1 sem profiler ativo. Esse é o resultado oficial
-   de throughput.
-2. Executa novamente o binário de teste já compilado sob perfis WPR CPU e Heap.
-   Essa passagem serve somente para atribuição; seu FPS não é o resultado
-   oficial de desempenho.
+## Dados coletados
 
-O heap profiling pode ser omitido com -SkipHeapProfile; a amostragem de CPU
-permanece ativa. O rastreamento de heap é configurado para a imagem exata
-perf_baseline-*.exe e desabilitado no bloco finally. A execução elevada é
-necessária para configurar WPR heap tracing.
+### Z80
 
-## Instrumentação S0.2
+Os contadores são acumulados em memória e incluem:
 
-A linha `SUN_PERF_DIAGNOSTICS` exporta por cenário os últimos contadores por
-quadro: `scheduler_dispatch_count_last`, `scheduler_dispatch_elapsed_ns_last`,
-`psg_advance_calls_last`, `psg_advance_clock_cycles_last`,
-`psg_advance_elapsed_ns_last`, `vdp_advance_calls_last`,
-`vdp_advance_tstates_last` e `vdp_advance_elapsed_ns_last`.
+- instruções aposentadas;
+- T-states reportados na aposentadoria da instrução, incluindo WAIT inserido;
+- M-cycles concluídos por instrução, contados pelo índice M-cycle do sequencer na fronteira de aposentadoria;
+- M-cycles e T-states do serviço de interrupção, contabilizados separadamente;
+- serviços de interrupção e T-states reportados pela conclusão do serviço (IM1/IM2 incluem o acknowledge);
+- fetches de opcode, incluindo bytes de prefixo;
+- T-states de ciclos internos.
 
-Os contadores são acumuladores inteiros de tamanho fixo, reiniciados na
-fronteira de cada frame de diagnóstico e exportados depois do passo. Fora do
-modo diagnóstico, os timers não chamam `Instant::now()`. O teste
-`sms_subsystem_timing.rs` compara o estado completo e o resultado da instrução
-com profiling ligado/desligado, além de verificar os contadores dos três
-limites instrumentados.
+Não há timer por instrução. Isso evita chamar `Instant::now()` a cada operação
+do sequencer e evita que o profiling se transforme em custo relevante.
 
-A medição é por chamada agregada do dispositivo, não por instrução, T-state,
-scanline ou amostra individual. O contador de VDP contabiliza T-states entregues
-ao VDP; não representa pixels ou dots. O contador de PSG registra clocks
-entregues pelo Scheduler, não clocks de CPU inferidos.
+M-cycles são contados pelo índice interno do sequencer na fronteira em que a
+instrução ou o serviço de interrupção termina. Não são estimados dividindo
+T-states por três ou quatro.
+
+### BUS
+
+O relatório conta os totais de toda a janela diagnóstica (não apenas do último frame):
+
+- leituras e escritas de memória;
+- leituras e escritas de portas I/O;
+- acknowledge de interrupção;
+- fetches de opcode;
+- T-states de WAIT observados nos requests.
+
+Os contadores observam transações concluídas no caminho temporal. Eles não
+alteram o barramento, os WAITs, a ordem de dispatch ou o estado salvo.
+
+### Subsistemas já instrumentados
+
+- Scheduler: dispatches e tempo agregado de dispatch.
+- PSG: chamadas, clocks entregues e tempo agregado.
+- YM2413: tempo total de avanço acumulado em toda a campanha.
+- VDP: chamadas, T-states entregues e tempo agregado de avanço/renderização.
+- Worker: tempo inclusivo de step_frame, processamento do frame, publicação de
+  vídeo e preparação/submissão de áudio.
+
+Os totais Scheduler/PSG/YM2413/VDP cobrem toda a janela diagnóstica. Os
+percentis de frame, step_frame, publicação e áudio continuam sendo distribuições
+por frame. Os tempos pertencem a fronteiras diferentes; não somar tempos
+inclusivos e exclusivos como se fossem partes disjuntas do frame.
+
+O tempo exclusivo de CPU host do Z80 ainda não é medido por timer interno.
+Para atribuição por função, usar CPU sampling em uma campanha separada e
+opcional, com símbolos correspondentes. Não usar Heap tracing nesta campanha.
 
 ## Artefatos
 
-Cada campanha produz:
+Cada execução gera:
 
-- manifest.json: SHA do código, branch, SHA-256 da ROM, toolchain, CPU, SO e
-  configuração da captura.
-- baseline/: resultados do runner S0 existente sem instrumentação.
-- cpu-and-heap-profile.etl: amostras ETW de CPU e eventos de alocação heap
-  quando o perfil heap está habilitado.
-- profiled-run.log: saída da execução diagnóstica separada.
-- profiled-throughput.csv: throughput da execução instrumentada, somente
-  contexto diagnóstico.
-- subsystem-diagnostics.csv: exportação CSV dos registros
-  SUN_PERF_DIAGNOSTICS já existentes.
+- `manifest.json`: commit, branch, ROM SHA-256, toolchain, CPU, SO e parâmetros.
+- `outrun-a-b-c.csv`: throughput sem profiler externo.
+- `subsystem-diagnostics.csv`: uma linha agregada por cenário.
+- `system-summary.json`: resumo dos três cenários e diagnósticos.
+- `benchmark.log` e `build.log`: saída de execução e compilação.
 
-Abrir o ETL no Windows Performance Analyzer (WPA). Para CPU, usar CPU Usage
-(Sampled), agrupando por Process / Thread / Stack e resolvendo símbolos Rust
-com os PDB correspondentes ao build release-llvm-debug separado. O throughput
-oficial usa release-llvm, preservando a comparação com o candidato ThinLTO.
-Para heap,
-inspecionar contagem/tamanho de alocações e pilha de alocação por processo.
+O relatório é pequeno e limitado à quantidade de cenários. Nenhum ETL ou log de
+heap é criado por padrão.
 
-## Regras de interpretação
+## Interpretação
 
-- CPU sampled time é atribuição estatística, não temporização exata de parede.
-- Eventos de heap representam atividade do heap Windows. Allocators customizados
-  ou mapeamentos diretos de memória virtual podem exigir instrumentação própria.
-- Timers aninhados se sobrepõem. Não somar step_frame, YM2413 e duração do
-  worker como custos disjuntos.
-- Call stacks atribuem amostras de CPU a funções, mas não fornecem, sozinhas,
-  contagem de eventos ou tempo exclusivo por subsistema.
-- Os diagnósticos S0.2 ainda não isolam Z80, barramento, mixer e resampler;
-  Scheduler, PSG, YM2413 e VDP já possuem medições em seus limites de avanço.
-- A execução é headless e não mede CPAL físico, composição Slint, upload WGPU
-  nem execução da GPU. Isso exige uma campanha integrada separada.
+- `z80_tstates` inclui os WAITs associados à instrução aposentada.
+- `wait_tstates` é o contador de espera observado nos limites de BUS/M1; não
+  deve ser somado novamente a `z80_tstates`.
+- `internal_tstates` conta intervalos internos concluídos pelo Scheduler.
+- Fetches de opcode incluem bytes de prefixo, não apenas instruções aposentadas.
+- Contadores de BUS e CPU são quantidades; não representam tempo de CPU host.
+- `step_frame` é inclusivo. Não subtrair ou somar timers sem respeitar as
+  fronteiras medidas.
+- A campanha headless não mede CPAL físico, composição Slint, upload WGPU nem
+  execução GPU.
 
-## Próximos incrementos de instrumentação
+## Garantias de baixo impacto
 
-Continuar a instrumentação somente nos limites existentes do backend, sem
-alterar ordem de execução ou transições de estado:
-
-1. Z80: contagem de instruções/M-cycles/T-states e tempo de serviço do sequencer;
-   não cronometrar cada instrução na campanha oficial de throughput.
-2. Barramento SMS: leituras/escritas/WAIT e duração agregada das transações.
-3. YM2413: contagem de clocks/slots (o tempo de avanço já é medido).
-4. Áudio: quantidade de amostras de entrada/saída e duração de mixer/resampler.
-5. Vídeo: bytes do framebuffer, bytes copiados/convertidos e contagens de
-   publicação/consumo do mailbox.
-6. Host: upload/submissão CPU WGPU e GPU timestamp queries; duração do callback
-   CPAL, profundidade FIFO, underruns e overruns.
-
-Contadores devem ser de tamanho fixo ou pré-alocados, desabilitados fora do
-modo diagnóstico e exportados após a captura. Evitar eventos por instrução,
-alocação no hot path, locks compartilhados com a thread de emulação ou qualquer
-feedback para o tempo do MachineScheduler.
+- Contadores de tamanho fixo, com saturação em overflow.
+- Nenhuma alocação por instrução ou transação para registrar dados.
+- Nenhum arquivo aberto durante o hot path.
+- Snapshot dos contadores somente na fronteira de frame e exportação ao final.
+- Profiling desabilitado fora da campanha diagnóstica.
+- Nenhum dado de profiling é serializado em save states.
+- Nenhuma métrica realimenta o MachineScheduler ou altera o clock virtual.
 
 ## Estado
 
-O runner estabelece a primeira etapa reproduzível de CPU/heap profiling.
-A instrumentação S0.2 cobre parcialmente Scheduler, PSG, YM2413 e VDP, mas não
-atribui ainda o custo do Z80, BUS, mixer/resampler ou host. O profiling integrado
-Slint/WGPU/CPAL permanece um incremento posterior de S0; nenhuma dessas
-limitações é promovida a PASS sem execução real e análise dos artefatos.
+Esta etapa acrescenta contagem agregada do Z80 e do BUS ao S0. A análise de
+tempo host exclusivo por função continua opcional e separada. Não iniciar F2
+com base apenas nesses contadores: primeiro executar a campanha local, conferir
+o tamanho dos artefatos e comparar os três cenários com a baseline anterior.

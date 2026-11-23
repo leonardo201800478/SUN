@@ -81,6 +81,8 @@ $logPath = Join-Path $outputRoot "benchmark.log"
 $manifestPath = Join-Path $outputRoot "manifest.json"
 $etlPath = Join-Path $outputRoot "cpu-profile.etl"
 $buildLogPath = Join-Path $outputRoot "build.log"
+$diagnosticsCsvPath = Join-Path $outputRoot "subsystem-diagnostics.csv"
+$summaryPath = Join-Path $outputRoot "system-summary.json"
 
 $envNames = @(
     "SEGA_PERF_ROM_PATH",
@@ -164,8 +166,91 @@ finally {
     }
 }
 
+
+function Convert-SunPerfRecord {
+    param(
+        [Parameter(Mandatory = $true)][string]$Line,
+        [Parameter(Mandatory = $true)][string]$Prefix
+    )
+
+    $prefixIndex = $Line.IndexOf($Prefix, [StringComparison]::Ordinal)
+    if ($prefixIndex -lt 0) { return $null }
+
+    $payload = $Line.Substring($prefixIndex + $Prefix.Length).Trim()
+    $record = [ordered]@{}
+    foreach ($match in [regex]::Matches($payload, '([A-Za-z0-9_]+)=([^ ]+)')) {
+        $key = $match.Groups[1].Value
+        $raw = $match.Groups[2].Value
+        $integer = 0L
+        $number = 0.0
+        if ([Int64]::TryParse($raw, [ref]$integer)) {
+            $record[$key] = $integer
+        }
+        elseif ([double]::TryParse(
+            $raw,
+            [Globalization.NumberStyles]::Float,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [ref]$number
+        )) {
+            $record[$key] = $number
+        }
+        else {
+            $record[$key] = $raw
+        }
+    }
+
+    if ($record.Count -eq 0) { return $null }
+    return [pscustomobject]$record
+}
+
+# The runtime keeps counters in memory and emits one aggregate line per scenario.
+# Parse only after the benchmark finishes; never stream per-instruction or per-frame logs.
+$throughputRows = @()
+$diagnosticRows = @()
+foreach ($line in Get-Content -LiteralPath $logPath) {
+    if ($line.Contains("SUN_PERF_RESULT")) {
+        $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_RESULT"
+        if ($null -ne $row) { $throughputRows += $row }
+    }
+    elseif ($line.Contains("SUN_PERF_DIAGNOSTICS")) {
+        $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_DIAGNOSTICS"
+        if ($null -ne $row) { $diagnosticRows += $row }
+    }
+}
+
+$reportComplete = ($throughputRows.Count -eq 3 -and $diagnosticRows.Count -eq 3)
+if ($diagnosticRows.Count -gt 0) {
+    $diagnosticRows | Export-Csv -LiteralPath $diagnosticsCsvPath -NoTypeInformation -Encoding UTF8
+}
+$summary = [ordered]@{
+    schema = "sun-s0-aggregate-v1"
+    captured_at_local = (Get-Date).ToString("o")
+    repository = "leonardo201800478/SUN"
+    commit = $commit
+    branch = $branch
+    rom_file = $rom.Name
+    rom_sha256 = $romHash
+    warmup_seconds = $WarmupSeconds
+    capture_seconds = $CaptureSeconds
+    diagnostic_seconds = $DiagnosticSeconds
+    collection = "in-memory aggregate counters; exported once after each scenario"
+    per_operation_event_trace = $false
+    heap_trace = $false
+    throughput = @($throughputRows)
+    diagnostics = @($diagnosticRows)
+    diagnostics_csv = $diagnosticsCsvPath
+    report_complete = $reportComplete
+    interpretation = @(
+        "Z80 instruction, T-state, M-cycle and BUS totals cover each complete diagnostic scenario.",
+        "WAIT T-states are included in retired instruction T-states; do not add them again.",
+        "Subsystem durations have distinct boundaries and overlapping inclusive timers must not be summed.",
+        "The headless campaign excludes physical CPAL, Slint, WGPU upload and GPU execution."
+    )
+}
+$summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+
 $manifest = [ordered]@{
-    schema = "sun-perf-01-s0-v1"
+    schema = "sun-perf-01-s0-v2"
     captured_at_local = (Get-Date).ToString("o")
     repository = "leonardo201800478/SUN"
     commit = $commit
@@ -211,6 +296,10 @@ $manifest = [ordered]@{
     throughput_profile_is_diagnostic = ($CargoProfile -eq "release-llvm-debug")
     build_log_path = $buildLogPath
     exit_code = $exitCode
+    aggregate_summary_path = $summaryPath
+    subsystem_diagnostics_csv = $diagnosticsCsvPath
+    heap_profile_included = $false
+    aggregate_report_complete = $reportComplete
 }
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 
@@ -220,9 +309,14 @@ Write-Host "  Manifest: $manifestPath"
 Write-Host "  CSV:      $csvPath"
 Write-Host "  Build:    $buildLogPath"
 Write-Host "  Log:      $logPath"
+Write-Host "  Summary:  $summaryPath"
+Write-Host "  Metrics:  $diagnosticsCsvPath"
 if ($CaptureCpuProfile) {
     Write-Host "  CPU ETL:  $etlPath"
 }
 if ($exitCode -ne 0) {
     throw "A campanha de benchmark falhou. Consulte $logPath"
+}
+if (-not $reportComplete) {
+    throw "Relatório incompleto: throughput=$($throughputRows.Count)/3, diagnostics=$($diagnosticRows.Count)/3. Consulte $logPath"
 }
