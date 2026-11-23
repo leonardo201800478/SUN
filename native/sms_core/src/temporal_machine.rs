@@ -1368,9 +1368,6 @@ impl SmsTemporalMachine {
     }
 
     fn record_profile_mcycles(&mut self, step: Z80MicroStep, mcycle_index: u32) {
-        if !self.profile_counters_enabled {
-            return;
-        }
         let completed_mcycles = u64::from(mcycle_index).saturating_add(1);
         match step {
             Z80MicroStep::InstructionRetired { .. } => {
