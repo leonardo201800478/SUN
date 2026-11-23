@@ -48,7 +48,7 @@ Os contadores são acumulados em memória e incluem:
 - T-states reportados na aposentadoria da instrução, incluindo WAIT inserido;
 - M-cycles concluídos por instrução, contados pelo índice M-cycle do sequencer na fronteira de aposentadoria;
 - M-cycles e T-states do serviço de interrupção, contabilizados separadamente;
-- serviços de interrupção e T-states consumidos no serviço;
+- serviços de interrupção e T-states reportados pela conclusão do serviço (IM1/IM2 incluem o acknowledge);
 - fetches de opcode, incluindo bytes de prefixo;
 - T-states de ciclos internos.
 
