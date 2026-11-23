@@ -881,7 +881,8 @@ impl WorkerTelemetry {
                 self.vdp_advance_tstates_total.load(Ordering::Acquire);
             metrics.vdp_advance_elapsed_ns_total =
                 self.vdp_advance_elapsed_ns_total.load(Ordering::Acquire);
-            metrics.ym2413_advance_elapsed_ns_total = self.ym2413_advance_elapsed_ns_total.load(Ordering::Acquire);
+            metrics.ym2413_advance_elapsed_ns_total =
+                self.ym2413_advance_elapsed_ns_total.load(Ordering::Acquire);
             metrics
         } else {
             SmsFramePacingMetrics::default()
@@ -953,11 +954,14 @@ impl WorkerTelemetry {
             self.psg_advance_calls_total.store(0, Ordering::Release);
             self.psg_advance_clock_cycles_total
                 .store(0, Ordering::Release);
-            self.psg_advance_elapsed_ns_total.store(0, Ordering::Release);
+            self.psg_advance_elapsed_ns_total
+                .store(0, Ordering::Release);
             self.vdp_advance_calls_total.store(0, Ordering::Release);
             self.vdp_advance_tstates_total.store(0, Ordering::Release);
-            self.vdp_advance_elapsed_ns_total.store(0, Ordering::Release);
-            self.ym2413_advance_elapsed_ns_total.store(0, Ordering::Release);
+            self.vdp_advance_elapsed_ns_total
+                .store(0, Ordering::Release);
+            self.ym2413_advance_elapsed_ns_total
+                .store(0, Ordering::Release);
             self.video_replaced_frames.store(0, Ordering::Release);
             self.audio_underruns.store(0, Ordering::Release);
             self.audio_dropped_blocks.store(0, Ordering::Release);
