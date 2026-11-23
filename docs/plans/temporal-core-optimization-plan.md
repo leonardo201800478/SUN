@@ -199,7 +199,7 @@ As otimizações específicas serão definidas após a revisão individual. Não
 |---|---|---|
 | P0 | Remover alocação por dispatch | Armazenamento inline e capacidade definidos |
 | P1 | Compartilhar conversões equivalentes | **Avaliado em 2026-11-23; não adotado por regressão medida.** Ver [resultados P1](p1-equivalent-conversion-results.md); reabrir somente com nova hipótese que elimine o custo de identificação por dispatch. |
-| P2 | Evitar revalidação redundante | Preflight e atomicidade demonstrados |
+| P2 | Evitar revalidação redundante | **Primeiro desenho (guards com empréstimo exclusivo) avaliado em 2026-11-23; não adotado por regressão medida.** Ver [resultados P2](p2-prevalidated-commit-results.md); P2 permanece pendente até surgir hipótese diferente que preserve atomicidade e apresente ganho mensurável. |
 | P3 | Fast path aritmético mantendo `u128` | Limites e overflow cobertos |
 | P4 | Reavaliar BTreeMap e tracing | Benchmark corrigido e perfil real |
 | P5 | Otimizações do barramento | Item 2 concluído e timestamp causal documentado |
