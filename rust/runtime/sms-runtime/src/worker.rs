@@ -21,9 +21,9 @@ use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsFmPortWriteSnapshot,
-    SmsTemporalProfileCounters,
-    SmsOverscanMode, SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent,
-    SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
+    SmsOverscanMode, SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalProfileCounters,
+    SmsTemporalTraceEvent, SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory,
+    VideoStandard,
 };
 use sega_sn76489::H2StreamingRenderer;
 use sega_video_runtime::{FrameMailbox, PixelFormat, VideoFrame};
@@ -862,10 +862,10 @@ impl WorkerTelemetry {
         );
         if self.diagnostics_enabled() {
             let mut metrics = window.snapshot();
-            metrics.z80_profile = self
-                .z80_profile
-                .lock()
-                .map_or_else(|_| SmsTemporalProfileCounters::default(), |profile| *profile);
+            metrics.z80_profile = self.z80_profile.lock().map_or_else(
+                |_| SmsTemporalProfileCounters::default(),
+                |profile| *profile,
+            );
             metrics.scheduler_dispatch_count_total =
                 self.scheduler_dispatch_count_total.load(Ordering::Acquire);
             metrics.scheduler_dispatch_elapsed_ns_total = self
