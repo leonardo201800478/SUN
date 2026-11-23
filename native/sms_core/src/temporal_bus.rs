@@ -21,6 +21,7 @@ use crate::{
     SmsTemporalCoordinatorState, SmsTemporalEvent, SmsVdp, Territory,
 };
 use sega_audio_runtime::{DEFAULT_PCM_SOURCE_RATE_HZ, PsgClockError, ScheduledPsg};
+use sega_machine_scheduler::ClockAdvances;
 use sega_sn76489::{PsgAmplitudeEvent, PsgEventCaptureError, PsgProfile, Sn76489Core};
 use sega_temporal_core::{HardwarePhase, MachineTime};
 use sega_video::sms::SmsVdpProfile;
@@ -371,6 +372,9 @@ pub struct SmsTemporalBus {
     /// Reusable scratch storage for draining PSG PCM on the optional FM path.
     /// This is transient and intentionally excluded from save states.
     psg_drain_scratch: Vec<f64>,
+    /// Reusable destination for the clock advances of one scheduler dispatch.
+    /// Transient, allocation-free and intentionally excluded from save states.
+    clock_advances: ClockAdvances,
     ym2413: Option<Ym2413Core>,
     ym2413_pg_service: Option<Ym2413PgSerialService>,
     pending_fm_samples: VecDeque<Option<f64>>,
@@ -562,6 +566,7 @@ impl SmsTemporalBus {
             psg,
             pending_psg_samples: VecDeque::new(),
             psg_drain_scratch: Vec::with_capacity(16),
+            clock_advances: ClockAdvances::new(),
             ym2413: None,
             ym2413_pg_service: None,
             pending_fm_samples: VecDeque::new(),
@@ -663,6 +668,7 @@ impl SmsTemporalBus {
             psg,
             pending_psg_samples: VecDeque::new(),
             psg_drain_scratch: Vec::with_capacity(16),
+            clock_advances: ClockAdvances::new(),
             ym2413: None,
             ym2413_pg_service: None,
             pending_fm_samples: VecDeque::new(),
@@ -877,26 +883,30 @@ impl SmsTemporalBus {
             return Ok(Some(SmsTemporalDispatch::InternalCycleComplete(completion)));
         }
         let scheduler_started = self.subsystem_timing_enabled.then(Instant::now);
-        let scheduler_result = self.coordinator.dispatch_next();
+        // Allocation-free dispatch: the advances land in this bus's reusable
+        // buffer instead of a freshly allocated `Vec` per scheduler event.
+        let scheduler_result = self
+            .coordinator
+            .dispatch_next_into(&mut self.clock_advances);
         if let Some(started) = scheduler_started {
             self.scheduler_dispatch_elapsed_ns = self
                 .scheduler_dispatch_elapsed_ns
                 .saturating_add(started.elapsed().as_nanos());
         }
-        let Some(dispatch) = scheduler_result? else {
+        let Some(event) = scheduler_result? else {
             return Ok(None);
         };
         if self.subsystem_timing_enabled {
             self.scheduler_dispatch_count = self.scheduler_dispatch_count.saturating_add(1);
         }
-        let psg_advance = dispatch
+        let psg_advance = *self
             .clock_advances
             .iter()
             .find(|advance| advance.domain == SMS_PSG_CLOCK_DOMAIN_ID)
             .ok_or(SmsTemporalBusError::InvalidState)?;
         if self.subsystem_timing_enabled {
             let started = Instant::now();
-            let result = self.psg.apply_clock_advance(psg_advance);
+            let result = self.psg.apply_clock_advance(&psg_advance);
             self.psg_advance_elapsed_ns = self
                 .psg_advance_elapsed_ns
                 .saturating_add(started.elapsed().as_nanos());
@@ -906,7 +916,7 @@ impl SmsTemporalBus {
                 .saturating_add(psg_advance.elapsed_cycles);
             result?;
         } else {
-            self.psg.apply_clock_advance(psg_advance)?;
+            self.psg.apply_clock_advance(&psg_advance)?;
         }
         if self.ym2413.is_some() {
             self.psg
@@ -922,14 +932,15 @@ impl SmsTemporalBus {
             }
         }
         if self.ym2413.is_some() {
-            let advance = dispatch
+            let ym_elapsed_cycles = self
                 .clock_advances
                 .iter()
                 .find(|advance| advance.domain == crate::SMS_YM2413_CLOCK_DOMAIN_ID)
-                .ok_or(SmsTemporalBusError::InvalidState)?;
-            self.advance_ym2413(advance.elapsed_cycles)?;
+                .ok_or(SmsTemporalBusError::InvalidState)?
+                .elapsed_cycles;
+            self.advance_ym2413(ym_elapsed_cycles)?;
         }
-        let z80_advance = dispatch
+        let z80_advance = *self
             .clock_advances
             .iter()
             .find(|advance| advance.domain == crate::SMS_VDP_CLOCK_DOMAIN_ID)
@@ -949,13 +960,13 @@ impl SmsTemporalBus {
         } else {
             self.vdp.advance(vdp_tstates);
         }
-        match dispatch.event.payload {
+        match event.payload {
             SmsTemporalEvent::ExternalThTransition { player, high } => {
                 self.io.set_external_th_level(player, high)?;
                 Ok(Some(SmsTemporalDispatch::ExternalThTransition {
                     player,
                     high,
-                    completed_at: dispatch.event.timestamp,
+                    completed_at: event.timestamp,
                 }))
             }
             SmsTemporalEvent::BusCompletion { request_id } => {
@@ -996,7 +1007,7 @@ impl SmsTemporalBus {
                 let completion = SmsBusCompletion {
                     request_id,
                     data,
-                    completed_at: dispatch.event.timestamp,
+                    completed_at: event.timestamp,
                 };
                 self.completion = Some(completion);
                 Ok(Some(SmsTemporalDispatch::BusCompletion(completion)))
@@ -1007,7 +1018,7 @@ impl SmsTemporalBus {
                 }
                 let completion = SmsInternalCycleCompletion {
                     continuation_id,
-                    completed_at: dispatch.event.timestamp,
+                    completed_at: event.timestamp,
                 };
                 self.internal_completion = Some(completion);
                 Ok(Some(SmsTemporalDispatch::InternalCycleComplete(completion)))
@@ -1022,7 +1033,7 @@ impl SmsTemporalBus {
                 }
                 Ok(Some(SmsTemporalDispatch::M1TStateComplete {
                     continuation_id,
-                    completed_at: dispatch.event.timestamp,
+                    completed_at: event.timestamp,
                 }))
             }
         }
@@ -1716,6 +1727,7 @@ impl SmsTemporalBus {
             psg: state.psg,
             pending_psg_samples: state.pending_psg_samples,
             psg_drain_scratch: Vec::with_capacity(16),
+            clock_advances: ClockAdvances::new(),
             ym2413,
             ym2413_pg_service,
             pending_fm_samples: state.pending_fm_samples,

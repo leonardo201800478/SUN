@@ -9,10 +9,10 @@
 use core::fmt;
 
 use sega_machine_scheduler::{
-    ClockDomainId, MachineDispatch, MachineScheduler, SchedulerError, SchedulerState,
+    ClockAdvances, ClockDomainId, MachineDispatch, MachineScheduler, SchedulerError, SchedulerState,
 };
 use sega_temporal_core::{
-    ClockDomainSnapshot, ClockRatio, HardwarePhase, MachineTime, PlatformPriority,
+    ClockDomainSnapshot, ClockRatio, HardwarePhase, MachineTime, PlatformPriority, ScheduledEvent,
 };
 
 pub const SMS_TEMPORAL_COORDINATOR_STATE_VERSION: u16 = 6;
@@ -275,6 +275,18 @@ impl SmsTemporalCoordinator {
         &mut self,
     ) -> Result<Option<MachineDispatch<SmsTemporalEvent>>, SmsTemporalCoordinatorError> {
         self.scheduler.dispatch_next().map_err(Into::into)
+    }
+    /// Dispatch the next boundary into a reusable advance buffer.
+    ///
+    /// Identical ordering and clock semantics as [`Self::dispatch_next`], but
+    /// without allocating one `Vec` per scheduler event.
+    pub fn dispatch_next_into(
+        &mut self,
+        advances: &mut ClockAdvances,
+    ) -> Result<Option<ScheduledEvent<SmsTemporalEvent>>, SmsTemporalCoordinatorError> {
+        self.scheduler
+            .dispatch_next_into(advances)
+            .map_err(Into::into)
     }
 
     /// Advance idle machine time without skipping any pending event.

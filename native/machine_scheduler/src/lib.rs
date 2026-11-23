@@ -8,6 +8,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+mod advances;
+pub use advances::{ClockAdvances, INLINE_CLOCK_ADVANCES};
 pub mod codec;
 pub mod state;
 pub use state::{ClockDomainState, SCHEDULER_STATE_FORMAT_VERSION, SchedulerState};
@@ -31,6 +33,20 @@ pub struct ClockAdvance {
     pub total_cycles: u128,
     pub phase: u128,
     preview: ClockDomainAdvance,
+}
+
+impl ClockAdvance {
+    /// Build one advance token from a validated preview.
+    pub(crate) const fn from_preview(domain: ClockDomainId, preview: ClockDomainAdvance) -> Self {
+        let snapshot = preview.snapshot();
+        Self {
+            domain,
+            elapsed_cycles: preview.elapsed_cycles(),
+            total_cycles: snapshot.total_cycles,
+            phase: snapshot.phase,
+            preview,
+        }
+    }
 }
 
 /// An event together with all device-clock advances up to its timestamp.
@@ -462,11 +478,98 @@ impl<T> MachineScheduler<T> {
     /// returned event and clock-edge counts in its own deterministic dispatch
     /// loop. If clock arithmetic fails, the queue is not popped and no clock
     /// domain is partially advanced.
+    ///
+    /// This entry point allocates one `Vec` per dispatch for callers that keep
+    /// the advances beyond the call. Hot loops should use
+    /// [`Self::dispatch_next_into`], which performs the same work without
+    /// allocating; the two bodies are deliberately kept separate because
+    /// routing both through one generic sink measured 16% to 35% slower on
+    /// this path (see `tools/temporal_bench`).
     pub fn dispatch_next(&mut self) -> Result<Option<MachineDispatch<T>>, SchedulerError> {
-        let Some(timestamp) = self.events.next_timestamp() else {
+        let Some((timestamp, next_dispatch_count)) = self.begin_dispatch()? else {
             return Ok(None);
         };
 
+        let advances = match self.calculate_advances(timestamp) {
+            Ok(advances) => advances,
+            Err(error) => {
+                sega_observability::tracing::error!(
+                    target: "sega::scheduler",
+                    timestamp = ?timestamp,
+                    error = %error,
+                    "clock-domain preflight failed before event dispatch"
+                );
+                return Err(error);
+            }
+        };
+        let event = match self.commit_dispatch(timestamp, next_dispatch_count, &advances) {
+            Ok(event) => event,
+            Err(error) => {
+                sega_observability::tracing::error!(
+                    target: "sega::scheduler",
+                    timestamp = ?timestamp,
+                    error = %error,
+                    "clock-domain advance failed before event dispatch"
+                );
+                return Err(error);
+            }
+        };
+        Ok(Some(MachineDispatch {
+            event,
+            clock_advances: advances,
+        }))
+    }
+
+    /// Dispatch the next event, writing the clock advances into a caller buffer.
+    ///
+    /// This is the allocation-free form of [`Self::dispatch_next`]: the caller
+    /// owns one [`ClockAdvances`] for the lifetime of the machine and the
+    /// scheduler overwrites it in place, so no dispatch allocates and no
+    /// advance token is copied out by value.
+    ///
+    /// On `Ok(None)` or on error the buffer is left empty. On success it holds
+    /// one advance per registered domain, in ascending [`ClockDomainId`] order.
+    pub fn dispatch_next_into(
+        &mut self,
+        advances: &mut ClockAdvances,
+    ) -> Result<Option<ScheduledEvent<T>>, SchedulerError> {
+        advances.clear();
+        let Some((timestamp, next_dispatch_count)) = self.begin_dispatch()? else {
+            return Ok(None);
+        };
+
+        if let Err(error) = self.calculate_advances_into(timestamp, advances) {
+            advances.clear();
+            sega_observability::tracing::error!(
+                target: "sega::scheduler",
+                timestamp = ?timestamp,
+                error = %error,
+                "clock-domain preflight failed before event dispatch"
+            );
+            return Err(error);
+        }
+        match self.commit_dispatch(timestamp, next_dispatch_count, advances.as_slice()) {
+            Ok(event) => Ok(Some(event)),
+            Err(error) => {
+                advances.clear();
+                sega_observability::tracing::error!(
+                    target: "sega::scheduler",
+                    timestamp = ?timestamp,
+                    error = %error,
+                    "clock-domain advance failed before event dispatch"
+                );
+                Err(error)
+            }
+        }
+    }
+
+    /// Resolve the next timestamp and the same-timestamp dispatch budget.
+    ///
+    /// Returns `Ok(None)` when the queue is empty. Does not mutate the queue.
+    fn begin_dispatch(&self) -> Result<Option<(MachineTime, u64)>, SchedulerError> {
+        let Some(timestamp) = self.events.next_timestamp() else {
+            return Ok(None);
+        };
         let next_dispatch_count = if self.last_dispatch_timestamp == Some(timestamp) {
             if self.dispatched_at_timestamp >= self.delta_event_policy.max_events_per_timestamp {
                 sega_observability::tracing::error!(
@@ -490,28 +593,20 @@ impl<T> MachineScheduler<T> {
         } else {
             1
         };
+        Ok(Some((timestamp, next_dispatch_count)))
+    }
 
-        let advances = match self.calculate_advances(timestamp) {
-            Ok(advances) => advances,
-            Err(error) => {
-                sega_observability::tracing::error!(
-                    target: "sega::scheduler",
-                    timestamp = ?timestamp,
-                    error = %error,
-                    "clock-domain preflight failed before event dispatch"
-                );
-                return Err(error);
-            }
-        };
-        if let Err(error) = self.apply_advances(timestamp, &advances) {
-            sega_observability::tracing::error!(
-                target: "sega::scheduler",
-                timestamp = ?timestamp,
-                error = %error,
-                "clock-domain advance failed before event dispatch"
-            );
-            return Err(error);
-        }
+    /// Commit the preflighted advances, pop the event and update dispatch history.
+    ///
+    /// Shared by both dispatch entry points so the commit order, the atomicity
+    /// guarantee and the trace payload cannot drift apart.
+    fn commit_dispatch(
+        &mut self,
+        timestamp: MachineTime,
+        next_dispatch_count: u64,
+        advances: &[ClockAdvance],
+    ) -> Result<ScheduledEvent<T>, SchedulerError> {
+        self.apply_advances(timestamp, advances)?;
         let event = self
             .events
             .pop_next()
@@ -526,10 +621,7 @@ impl<T> MachineScheduler<T> {
             pending_events = self.events.len(),
             "machine event dispatched"
         );
-        Ok(Some(MachineDispatch {
-            event,
-            clock_advances: advances,
-        }))
+        Ok(event)
     }
 
     /// Advance all clock domains to an idle timestamp when no queued event
@@ -585,16 +677,21 @@ impl<T> MachineScheduler<T> {
         let mut advances = Vec::with_capacity(self.clocks.len());
         for (&id, domain) in &self.clocks {
             let preview = domain.preview_advance(target)?;
-            let snapshot = preview.snapshot();
-            advances.push(ClockAdvance {
-                domain: id,
-                elapsed_cycles: preview.elapsed_cycles(),
-                total_cycles: snapshot.total_cycles,
-                phase: snapshot.phase,
-                preview,
-            });
+            advances.push(ClockAdvance::from_preview(id, preview));
         }
         Ok(advances)
+    }
+
+    fn calculate_advances_into(
+        &self,
+        target: MachineTime,
+        advances: &mut ClockAdvances,
+    ) -> Result<(), SchedulerError> {
+        for (&id, domain) in &self.clocks {
+            let preview = domain.preview_advance(target)?;
+            advances.push(ClockAdvance::from_preview(id, preview));
+        }
+        Ok(())
     }
 
     fn apply_advances(

@@ -1,0 +1,16 @@
+[package]
+name = "sega-temporal-bench"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Production-shaped latency and allocation harness for MachineScheduler dispatch"
+
+[[bin]]
+name = "temporal_bench"
+path = "src/main.rs"
+
+[dependencies]
+sega-machine-scheduler = { path = "../../native/machine_scheduler" }
+sega-temporal-core = { path = "../../native/temporal_core" }
+
+[workspace]
