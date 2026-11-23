@@ -94,13 +94,13 @@ Plano:
 **Decisão:** não migrar globalmente para `u64`.
 
 Plano:
-- [ ] Manter a representação pública `u128`.
-- [ ] Investigar fast paths quando operandos couberem comprovadamente em `u64`.
-- [ ] Manter fallback checked para valores maiores.
-- [ ] Validar overflow, conversões e snapshots.
-- [ ] Medir em Windows x64 e ARM64, quando disponível.
+- [x] Manter a representação pública `u128`.
+- [x] Implementar fast path em `checked_duration_since()` quando ambos os operandos couberem em `u64`.
+- [x] Manter fallback checked para valores maiores.
+- [x] Validar limites e underflow; conversões e snapshots não foram alterados.
+- [ ] Medir em Windows x64 e ARM64, quando disponível (não disponíveis neste ambiente).
 
-**Aceite:** ganho mensurável sem reduzir o domínio representável nem alterar resultados.
+**Resultado Linux x86_64:** ganho mensurável em `caller_buffer` (−5,8% a −6,3%) e nos dois workloads SMS headless (−1,3% a −2,1%); instruções/ticks idênticos e zero alocações. **Pendente:** CI/revisão da PR e medição Windows x64/ARM64 quando disponíveis. Ver [resultados P3](p3-machine-time-u64-fastpath-results.md).
 
 ## 4.6 FastScheduler experimental
 
@@ -200,7 +200,7 @@ As otimizações específicas serão definidas após a revisão individual. Não
 | P0 | Remover alocação por dispatch | Armazenamento inline e capacidade definidos |
 | P1 | Compartilhar conversões equivalentes | **Avaliado em 2026-11-23; não adotado por regressão medida.** Ver [resultados P1](p1-equivalent-conversion-results.md); reabrir somente com nova hipótese que elimine o custo de identificação por dispatch. |
 | P2 | Evitar revalidação redundante | Preflight e atomicidade demonstrados |
-| P3 | Fast path aritmético mantendo `u128` | Limites e overflow cobertos |
+| P3 | Fast path aritmético mantendo `u128` | **Implementado e medido em Linux x86_64; CI/revisão pendentes.** Ver [resultados P3](p3-machine-time-u64-fastpath-results.md); Windows x64 e ARM64 não medidos. |
 | P4 | Reavaliar BTreeMap e tracing | Benchmark corrigido e perfil real |
 | P5 | Otimizações do barramento | Item 2 concluído e timestamp causal documentado |
 | P6 | RAM/VRAM, VDP, PSG e YM2413 | Auditoria individual concluída |

@@ -34,7 +34,16 @@ impl MachineTime {
 
     /// Return elapsed master ticks from an earlier timestamp.
     pub const fn checked_duration_since(self, earlier: Self) -> Option<u128> {
-        self.0.checked_sub(earlier.0)
+        // Common emulator timestamps fit in u64; preserve the full u128 domain
+        // through the checked fallback whenever either high half is nonzero.
+        if self.0 <= u64::MAX as u128 && earlier.0 <= u64::MAX as u128 {
+            match (self.0 as u64).checked_sub(earlier.0 as u64) {
+                Some(ticks) => Some(ticks as u128),
+                None => None,
+            }
+        } else {
+            self.0.checked_sub(earlier.0)
+        }
     }
 }
 
@@ -495,6 +504,29 @@ impl ClockDomain {
 #[cfg(test)]
 mod tests {
     use super::{ClockDomain, ClockError, ClockRatio, MachineTime};
+
+    #[test]
+    fn checked_duration_since_preserves_u64_boundary_and_u128_fallback() {
+        let cases = [
+            (0, 0, Some(0)),
+            (u64::MAX as u128, 0, Some(u64::MAX as u128)),
+            (u64::MAX as u128, u64::MAX as u128, Some(0)),
+            (u64::MAX as u128 + 1, u64::MAX as u128, Some(1)),
+            (u64::MAX as u128, u64::MAX as u128 + 1, None),
+            (1_u128 << 127, 1_u128 << 126, Some(1_u128 << 126)),
+            (u128::MAX, 0, Some(u128::MAX)),
+            (0, 1, None),
+        ];
+
+        for (later, earlier, expected) in cases {
+            assert_eq!(
+                MachineTime::from_ticks(later)
+                    .checked_duration_since(MachineTime::from_ticks(earlier)),
+                expected,
+                "later={later}, earlier={earlier}"
+            );
+        }
+    }
 
     #[test]
     fn prepared_advance_commits_without_recomputing_and_matches_direct_advance() {
