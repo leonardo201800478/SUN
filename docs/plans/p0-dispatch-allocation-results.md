@@ -73,6 +73,8 @@ A variante B é o resultado que o plano §4.1 pedia para avaliar, e a medição 
 
 Nenhum cenário regrediu. Os tempos desta seção são da operação combinada de agendamento + dispatch. O ganho end-to-end da máquina é menor que o ganho observado nessa operação combinada medida pelo harness; não inferimos, com os dados atuais, a participação percentual exclusiva do Scheduler no tempo total do frame.
 
+**Reconciliação pendente:** a diferença do harness é 18,2 ns/op; multiplicada pela projeção de 49.780 operações/frame, implica aproximadamente 0,906 ms. Já o ganho medido em `relative-loop` é 0,322 ms/frame. Esses valores não se reconciliam com os dados registrados. Até medir a contagem exata de operações no mesmo cenário end-to-end e alinhar as condições de execução, a projeção do harness deve ser tratada como indicativa, não como previsão do ganho por frame.
+
 ### 6.3 Validação
 
 - `sega-machine-scheduler`: 44 unitários + 2 + 2 + 1 de integração + **3 novos** de equivalência (`dispatch_into_equivalence.rs`).
