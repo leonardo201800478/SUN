@@ -45,6 +45,8 @@ Os contadores são acumulados em memória e incluem:
 
 - instruções aposentadas;
 - T-states reportados na aposentadoria da instrução, incluindo WAIT inserido;
+- M-cycles concluídos por instrução, contados pelo índice M-cycle do sequencer na fronteira de aposentadoria;
+- M-cycles e T-states do serviço de interrupção, contabilizados separadamente;
 - serviços de interrupção e T-states consumidos no serviço;
 - fetches de opcode, incluindo bytes de prefixo;
 - T-states de ciclos internos.
@@ -52,9 +54,9 @@ Os contadores são acumulados em memória e incluem:
 Não há timer por instrução. Isso evita chamar `Instant::now()` a cada operação
 do sequencer e evita que o profiling se transforme em custo relevante.
 
-**M-cycles não são estimados dividindo T-states por três ou quatro.** A duração
-dos M-cycles varia conforme o tipo de ciclo; não publicamos um total sintético
-que possa induzir a uma interpretação errada.
+M-cycles são contados pelo índice interno do sequencer na fronteira em que a
+instrução ou o serviço de interrupção termina. Não são estimados dividindo
+T-states por três ou quatro.
 
 ### BUS
 
