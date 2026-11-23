@@ -490,6 +490,8 @@ impl SmsTemporalMachine {
             trace_events: VecDeque::new(),
             trace_dropped: 0,
             essential_trace: SmsTemporalTraceBuffer::new(),
+            profile_counters_enabled: false,
+            profile_counters: SmsTemporalProfileCounters::default(),
         })
     }
 
@@ -613,6 +615,8 @@ impl SmsTemporalMachine {
             trace_events: VecDeque::new(),
             trace_dropped: 0,
             essential_trace: SmsTemporalTraceBuffer::new(),
+            profile_counters_enabled: false,
+            profile_counters: SmsTemporalProfileCounters::default(),
         })
     }
 
@@ -677,6 +681,8 @@ impl SmsTemporalMachine {
             trace_events: VecDeque::new(),
             trace_dropped: 0,
             essential_trace: SmsTemporalTraceBuffer::new(),
+            profile_counters_enabled: false,
+            profile_counters: SmsTemporalProfileCounters::default(),
         })
     }
 
@@ -1965,6 +1971,8 @@ impl SmsTemporalMachine {
             trace_events: VecDeque::new(),
             trace_dropped: 0,
             essential_trace: SmsTemporalTraceBuffer::new(),
+            profile_counters_enabled: false,
+            profile_counters: SmsTemporalProfileCounters::default(),
         })
     }
 }
