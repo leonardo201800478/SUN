@@ -1376,7 +1376,8 @@ impl SmsTemporalMachine {
                     .z80_mcycles
                     .saturating_add(completed_mcycles);
             }
-            Z80MicroStep::InterruptServiced { .. } => {
+            Z80MicroStep::InterruptServiced { .. }
+            | Z80MicroStep::InterruptAcknowledge { .. } => {
                 self.profile_counters.z80_interrupt_mcycles = self
                     .profile_counters
                     .z80_interrupt_mcycles
@@ -1406,9 +1407,13 @@ impl SmsTemporalMachine {
                     .z80_interrupt_tstates
                     .saturating_add(u64::from(tstates));
             }
-            Z80MicroStep::BusRequest(_)
-            | Z80MicroStep::InternalCycle { .. }
-            | Z80MicroStep::InterruptAcknowledge { .. } => {}
+            Z80MicroStep::InterruptAcknowledge { tstates, .. } => {
+                self.profile_counters.z80_interrupt_tstates = self
+                    .profile_counters
+                    .z80_interrupt_tstates
+                    .saturating_add(u64::from(tstates));
+            }
+            Z80MicroStep::BusRequest(_) | Z80MicroStep::InternalCycle { .. } => {}
         }
     }
 
