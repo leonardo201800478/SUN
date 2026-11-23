@@ -503,7 +503,7 @@ impl<T> MachineScheduler<T> {
                 return Err(error);
             }
         };
-        if let Err(error) = self.apply_advances(&advances) {
+        if let Err(error) = self.apply_advances(timestamp, &advances) {
             sega_observability::tracing::error!(
                 target: "sega::scheduler",
                 timestamp = ?timestamp,
@@ -561,7 +561,7 @@ impl<T> MachineScheduler<T> {
             return Err(SchedulerError::EventPendingBeforeTarget);
         }
         let advances = self.calculate_advances(target)?;
-        self.apply_advances(&advances)?;
+        self.apply_advances(target, &advances)?;
         sega_observability::tracing::trace!(
             target: "sega::scheduler",
             target = ?target,
@@ -597,7 +597,11 @@ impl<T> MachineScheduler<T> {
         Ok(advances)
     }
 
-    fn apply_advances(&mut self, advances: &[ClockAdvance]) -> Result<(), SchedulerError> {
+    fn apply_advances(
+        &mut self,
+        target: MachineTime,
+        advances: &[ClockAdvance],
+    ) -> Result<(), SchedulerError> {
         // Validate every token before mutating any domain. The commit pass then
         // only copies the already-computed exact state; it does not repeat the
         // rational conversion performed during preflight.
@@ -615,9 +619,7 @@ impl<T> MachineScheduler<T> {
                 .ok_or(SchedulerError::UnknownClockDomain(advance.domain))?;
             domain.apply_preview(advance.preview)?;
         }
-        if let Some(first) = advances.first() {
-            self.now = first.preview.snapshot().time;
-        }
+        self.now = target;
         Ok(())
     }
 }
