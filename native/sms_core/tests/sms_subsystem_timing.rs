@@ -73,6 +73,30 @@ fn aggregate_profile_counters_capture_z80_and_bus_totals_without_event_logs() {
 }
 
 #[test]
+#[test]
+fn aggregate_profile_counters_capture_memory_bus_operations() {
+    let mut machine =
+        SmsTemporalMachine::new(vec![0x77; 0x4000], 1).expect("construct temporal SMS machine");
+    machine.cpu_mut().registers.a = 0x42;
+    machine.cpu_mut().registers.set_hl(0xC000);
+    machine.set_profile_counters_enabled(true);
+
+    let (instructions, breakpoint_hit) = machine
+        .step_frame_until(4, |pc| pc == 1)
+        .expect("execute LD (HL),A and stop at the next instruction boundary");
+    let profile = machine.take_profile_counters();
+
+    assert_eq!(instructions, 1);
+    assert!(breakpoint_hit);
+    assert_eq!(machine.inspect_memory(0xC000), 0x42);
+    assert_eq!(profile.z80_instructions, 1);
+    assert_eq!(profile.z80_tstates, 7);
+    assert_eq!(profile.z80_mcycles, 2);
+    assert_eq!(profile.opcode_fetches, 1);
+    assert_eq!(profile.memory_writes, 1);
+    assert_eq!(profile.memory_reads, 0);
+}
+
 fn aggregate_profile_counters_are_inert_when_disabled() {
     let mut machine =
         SmsTemporalMachine::new(vec![0x00; 0x4000], 1).expect("construct temporal SMS machine");
