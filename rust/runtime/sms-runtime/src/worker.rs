@@ -21,6 +21,7 @@ use sega_debugger_core::{BreakpointSet, DiagnosticCollector, DiagnosticPublisher
 use sega_media::{CartridgeCatalog, SmsRegionPreference, resolve_sms_region};
 use sega_sms_core::{
     ControllerButtons, PsgAmplitudeEvent, SMS_YM2413_PCM_SOURCE_RATE_HZ, SmsFmPortWriteSnapshot,
+    SmsTemporalProfileCounters,
     SmsOverscanMode, SmsTemporalMachine, SmsTemporalMachineState, SmsTemporalTraceEvent,
     SmsVdpProfile, SmsVdpRevision, SpriteLimitMode, Territory, VideoStandard,
 };
@@ -657,6 +658,8 @@ pub struct SmsFramePacingMetrics {
     pub vdp_advance_calls_last: u64,
     pub vdp_advance_tstates_last: u64,
     pub vdp_advance_elapsed_ns_last: u64,
+    /// Campaign totals for Z80 execution and completed SMS bus transactions.
+    pub z80_profile: SmsTemporalProfileCounters,
 }
 
 #[derive(Debug, Default)]
@@ -745,6 +748,7 @@ struct WorkerTelemetry {
     machine_time_ticks: AtomicU64,
     machine_clock_hz: AtomicU64,
     total_instructions: AtomicU64,
+    z80_profile: Mutex<SmsTemporalProfileCounters>,
     scheduler_dispatch_count_last: AtomicU64,
     scheduler_dispatch_elapsed_ns_last: AtomicU64,
     psg_advance_calls_last: AtomicU64,
@@ -856,6 +860,10 @@ impl WorkerTelemetry {
         );
         if self.diagnostics_enabled() {
             let mut metrics = window.snapshot();
+            metrics.z80_profile = self
+                .z80_profile
+                .lock()
+                .map_or_else(|_| SmsTemporalProfileCounters::default(), |profile| *profile);
             metrics.scheduler_dispatch_count_last =
                 self.scheduler_dispatch_count_last.load(Ordering::Acquire);
             metrics.scheduler_dispatch_elapsed_ns_last = self
@@ -929,6 +937,9 @@ impl WorkerTelemetry {
         let previous = self.diagnostics_enabled.swap(enabled, Ordering::AcqRel);
         if previous != enabled {
             self.reset_frame_timing();
+            if let Ok(mut profile) = self.z80_profile.lock() {
+                *profile = SmsTemporalProfileCounters::default();
+            }
         }
         if !enabled {
             self.total_instructions.store(0, Ordering::Release);
@@ -2531,6 +2542,7 @@ fn execute_frame_with_renderer(
     let diagnostics_enabled = telemetry.diagnostics_enabled();
     machine.set_ym2413_timing_enabled(diagnostics_enabled);
     machine.set_subsystem_timing_enabled(diagnostics_enabled);
+    machine.set_profile_counters_enabled(diagnostics_enabled);
     // MachineScheduler ticks, not audio sample quantization, define the frame's virtual duration.
     let machine_time_start_ticks = machine.now().ticks();
     let diagnostic_machine_start = diagnostics_enabled.then_some(machine_time_start_ticks);
@@ -2542,6 +2554,12 @@ fn execute_frame_with_renderer(
         diagnostic_step_start.map_or(Duration::ZERO, |started| started.elapsed());
     let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
     let subsystem_timing = machine.take_subsystem_timing();
+    let profile_delta = machine.take_profile_counters();
+    if diagnostics_enabled {
+        if let Ok(mut totals) = telemetry.z80_profile.lock() {
+            *totals = (*totals).saturating_add(profile_delta);
+        }
+    }
     if diagnostics_enabled {
         telemetry
             .scheduler_dispatch_count_last
