@@ -57,12 +57,13 @@ evidência de perfil real.
   `ld ($C000),a`, `ld a,(hl)` e `out ($7F),a` em laços), 60 frames após aquecimento e
   `master_ticks_per_tstate = 3`.
 - **Contagem de eventos:** `set_subsystem_timing_enabled(true)` + `take_subsystem_timing()`.
-  Essa instrumentação paga **2 × `Instant::now` por despacho** (~37 ns cada nesta VM) e elevou
-  o frame observado de 15,9 ms para 26,7 ms. O frame time foi medido separadamente, com
+  Essa instrumentação paga **2 × `Instant::now` por despacho** (~37 ns cada nesta VM), portanto
+  altera de forma material a região medida. O frame time deve ser obtido em execução separada, com
   instrumentação desligada.
 - **Ajuste histórico:** a estimativa de 137 ns subtraiu o custo medido de duas chamadas a
   `Instant::now` e `duration_since` (74,5 ns). Trata-se de uma estimativa ajustada, não de uma
-  medição direta isolada do dispatch.
+  medição direta isolada do dispatch. Não usar o frame time de uma execução instrumentada como
+  resultado de desempenho.
 
 Os valores absolutos foram obtidos em VM ARM64 e não podem ser extrapolados para Windows x64. A
 contagem de operações vale para o workload sintético executado; a proporção de tempo por subsistema
