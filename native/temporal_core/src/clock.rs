@@ -177,6 +177,8 @@ pub enum ClockError {
     ZeroEdgeIndex,
     /// Stored clock history is inconsistent with its exact rational ratio.
     InvalidClockHistory,
+    /// A prepared advance no longer matches the clock domain's current state.
+    StalePreview,
 }
 
 impl fmt::Display for ClockError {
@@ -189,6 +191,7 @@ impl fmt::Display for ClockError {
             Self::PhaseOutOfRange => write!(f, "clock phase must be smaller than its denominator"),
             Self::ZeroEdgeIndex => write!(f, "local clock edge index must be positive"),
             Self::InvalidClockHistory => write!(f, "clock-domain history is inconsistent"),
+            Self::StalePreview => write!(f, "clock-domain preview does not match current state"),
         }
     }
 }
@@ -204,6 +207,33 @@ pub struct ClockDomainSnapshot {
     pub total_cycles: u128,
     /// Fractional numerator remainder retained for chunk-invariant conversion.
     pub phase: u128,
+}
+
+/// A validated, non-mutating clock-domain advance prepared for a later commit.
+///
+/// The source state and immutable ratio are captured so a preview cannot be
+/// applied after the source domain has changed or to another domain with a different ratio or state. Fields
+/// remain private to prevent callers from manufacturing an unvalidated commit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClockDomainAdvance {
+    source_ratio: ClockRatio,
+    source_time: MachineTime,
+    source_total_cycles: u128,
+    source_phase: u128,
+    elapsed_cycles: u128,
+    snapshot: ClockDomainSnapshot,
+}
+
+impl ClockDomainAdvance {
+    /// Return the number of local clock edges elapsed by this preview.
+    pub const fn elapsed_cycles(self) -> u128 {
+        self.elapsed_cycles
+    }
+
+    /// Return the resulting deterministic clock state.
+    pub const fn snapshot(self) -> ClockDomainSnapshot {
+        self.snapshot
+    }
 }
 
 /// Converts machine time into local device clock edges without floating point.
@@ -373,14 +403,12 @@ impl ClockDomain {
         self.edge_time_after(1)
     }
 
-    /// Preview an absolute advance without mutating the clock domain.
+    /// Prepare an absolute advance without mutating the clock domain.
     ///
-    /// This is the scheduler's preflight path: it uses the same exact rational
-    /// conversion as advance_to, so validation and commit cannot diverge.
-    pub fn preview_advance_to(
-        &self,
-        target: MachineTime,
-    ) -> Result<(u128, ClockDomainSnapshot), ClockError> {
+    /// The returned opaque token contains the exact result of rational
+    /// conversion. The scheduler can validate all domains first and then
+    /// commit these tokens without repeating the conversion arithmetic.
+    pub fn preview_advance(&self, target: MachineTime) -> Result<ClockDomainAdvance, ClockError> {
         let elapsed = target
             .checked_duration_since(self.time)
             .ok_or(ClockError::TimeWentBackwards)?;
@@ -390,14 +418,55 @@ impl ClockDomain {
             .checked_add(new_cycles)
             .ok_or(ClockError::ArithmeticOverflow)?;
 
-        Ok((
-            new_cycles,
-            ClockDomainSnapshot {
+        Ok(ClockDomainAdvance {
+            source_ratio: self.ratio,
+            source_time: self.time,
+            source_total_cycles: self.total_cycles,
+            source_phase: self.phase,
+            elapsed_cycles: new_cycles,
+            snapshot: ClockDomainSnapshot {
                 time: target,
                 total_cycles: new_total,
                 phase: new_phase,
             },
-        ))
+        })
+    }
+
+    /// Preview an absolute advance without mutating the clock domain.
+    ///
+    /// This compatibility method exposes the elapsed edges and resulting
+    /// snapshot. Scheduler commits should retain the opaque preview token
+    /// returned by preview_advance.
+    pub fn preview_advance_to(
+        &self,
+        target: MachineTime,
+    ) -> Result<(u128, ClockDomainSnapshot), ClockError> {
+        let preview = self.preview_advance(target)?;
+        Ok((preview.elapsed_cycles(), preview.snapshot()))
+    }
+
+    /// Validate that a prepared advance still belongs to this exact domain state.
+    pub fn validate_preview(&self, preview: &ClockDomainAdvance) -> Result<(), ClockError> {
+        if self.ratio != preview.source_ratio
+            || self.time != preview.source_time
+            || self.total_cycles != preview.source_total_cycles
+            || self.phase != preview.source_phase
+        {
+            return Err(ClockError::StalePreview);
+        }
+        Ok(())
+    }
+
+    /// Commit a previously validated preview without repeating rational conversion.
+    ///
+    /// The token is tied to the source timestamp, cycle count, phase and ratio;
+    /// applying it after any intervening advance is rejected atomically.
+    pub fn apply_preview(&mut self, preview: ClockDomainAdvance) -> Result<u128, ClockError> {
+        self.validate_preview(&preview)?;
+        self.time = preview.snapshot.time;
+        self.total_cycles = preview.snapshot.total_cycles;
+        self.phase = preview.snapshot.phase;
+        Ok(preview.elapsed_cycles)
     }
 
     /// Advance to an absolute machine timestamp and return newly elapsed edges.
@@ -409,11 +478,8 @@ impl ClockDomain {
     /// Calls must be monotonic. Arithmetic is checked before state is changed,
     /// so an error leaves the domain unchanged.
     pub fn advance_to(&mut self, target: MachineTime) -> Result<u128, ClockError> {
-        let (new_cycles, snapshot) = self.preview_advance_to(target)?;
-        self.time = snapshot.time;
-        self.total_cycles = snapshot.total_cycles;
-        self.phase = snapshot.phase;
-        Ok(new_cycles)
+        let preview = self.preview_advance(target)?;
+        self.apply_preview(preview)
     }
 
     /// Capture all state required to reproduce future clock conversion.
@@ -429,6 +495,46 @@ impl ClockDomain {
 #[cfg(test)]
 mod tests {
     use super::{ClockDomain, ClockError, ClockRatio, MachineTime};
+
+    #[test]
+    fn prepared_advance_commits_without_recomputing_and_matches_direct_advance() {
+        let ratio = ClockRatio::new(7, 3).unwrap();
+        let mut prepared = ClockDomain::with_phase(ratio, MachineTime::from_ticks(4), 2).unwrap();
+        let mut direct = prepared.clone();
+
+        let preview = prepared
+            .preview_advance(MachineTime::from_ticks(19))
+            .unwrap();
+        assert_eq!(preview.elapsed_cycles(), 35);
+        assert_eq!(preview.snapshot().time, MachineTime::from_ticks(19));
+        assert_eq!(prepared.current_time(), MachineTime::from_ticks(4));
+
+        assert_eq!(prepared.apply_preview(preview), Ok(35));
+        assert_eq!(direct.advance_to(MachineTime::from_ticks(19)), Ok(35));
+        assert_eq!(prepared, direct);
+    }
+
+    #[test]
+    fn stale_prepared_advance_is_rejected_without_mutation() {
+        let ratio = ClockRatio::new(5, 3).unwrap();
+        let mut domain = ClockDomain::new(ratio, MachineTime::ZERO);
+        let preview = domain.preview_advance(MachineTime::from_ticks(10)).unwrap();
+        domain.advance_to(MachineTime::from_ticks(2)).unwrap();
+        let before = domain.clone();
+
+        assert_eq!(domain.apply_preview(preview), Err(ClockError::StalePreview));
+        assert_eq!(domain, before);
+    }
+
+    #[test]
+    fn prepared_advance_cannot_be_applied_to_a_different_ratio() {
+        let source = ClockDomain::new(ClockRatio::new(3, 2).unwrap(), MachineTime::ZERO);
+        let mut other = ClockDomain::new(ClockRatio::new(5, 2).unwrap(), MachineTime::ZERO);
+        let preview = source.preview_advance(MachineTime::from_ticks(10)).unwrap();
+
+        assert_eq!(other.apply_preview(preview), Err(ClockError::StalePreview));
+        assert_eq!(other.current_time(), MachineTime::ZERO);
+    }
 
     #[test]
     fn rational_clock_conversion_is_chunk_invariant() {
