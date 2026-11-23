@@ -81,6 +81,8 @@ $logPath = Join-Path $outputRoot "benchmark.log"
 $manifestPath = Join-Path $outputRoot "manifest.json"
 $etlPath = Join-Path $outputRoot "cpu-profile.etl"
 $buildLogPath = Join-Path $outputRoot "build.log"
+$diagnosticsCsvPath = Join-Path $outputRoot "subsystem-diagnostics.csv"
+$summaryPath = Join-Path $outputRoot "system-summary.json"
 
 $envNames = @(
     "SEGA_PERF_ROM_PATH",
@@ -164,19 +166,94 @@ finally {
     }
 }
 
+
 function Convert-SunPerfRecord {
     param(
         [Parameter(Mandatory = $true)][string]$Line,
         [Parameter(Mandatory = $true)][string]$Prefix
     )
+
     $prefixIndex = $Line.IndexOf($Prefix, [StringComparison]::Ordinal)
     if ($prefixIndex -lt 0) { return $null }
+
     $payload = $Line.Substring($prefixIndex + $Prefix.Length).Trim()
     $record = [ordered]@{}
-    foreach ($match in [regex]::Matches($payload, '([A-Za-z0-9_]+)=([^\s]+)')) {
+    foreach ($match in [regex]::Matches($payload, '([A-Za-z0-9_]+)=([^ ]+)')) {
         $key = $match.Groups[1].Value
         $raw = $match.Groups[2].Value
-        if ($raw -match '^\d+
+        $integer = 0L
+        $number = 0.0
+        if ([Int64]::TryParse($raw, [ref]$integer)) {
+            $record[$key] = $integer
+        }
+        elseif ([double]::TryParse(
+            $raw,
+            [Globalization.NumberStyles]::Float,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [ref]$number
+        )) {
+            $record[$key] = $number
+        }
+        else {
+            $record[$key] = $raw
+        }
+    }
+
+    if ($record.Count -eq 0) { return $null }
+    return [pscustomobject]$record
+}
+
+# The runtime keeps counters in memory and emits one aggregate line per scenario.
+# Parse only after the benchmark finishes; never stream per-instruction or per-frame logs.
+$throughputRows = @()
+$diagnosticRows = @()
+foreach ($line in Get-Content -LiteralPath $logPath) {
+    if ($line.Contains("SUN_PERF_RESULT")) {
+        $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_RESULT"
+        if ($null -ne $row) { $throughputRows += $row }
+    }
+    elseif ($line.Contains("SUN_PERF_DIAGNOSTICS")) {
+        $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_DIAGNOSTICS"
+        if ($null -ne $row) { $diagnosticRows += $row }
+    }
+}
+
+if ($throughputRows.Count -ne 3) {
+    throw "Esperados 3 resultados SUN_PERF_RESULT; encontrados $($throughputRows.Count). Consulte $logPath"
+}
+if ($diagnosticRows.Count -ne 3) {
+    throw "Esperadas 3 linhas SUN_PERF_DIAGNOSTICS; encontradas $($diagnosticRows.Count). Consulte $logPath"
+}
+
+$diagnosticRows | Export-Csv -LiteralPath $diagnosticsCsvPath -NoTypeInformation -Encoding UTF8
+$summary = [ordered]@{
+    schema = "sun-s0-aggregate-v1"
+    captured_at_local = (Get-Date).ToString("o")
+    repository = "leonardo201800478/SUN"
+    commit = $commit
+    branch = $branch
+    rom_file = $rom.Name
+    rom_sha256 = $romHash
+    warmup_seconds = $WarmupSeconds
+    capture_seconds = $CaptureSeconds
+    diagnostic_seconds = $DiagnosticSeconds
+    collection = "in-memory aggregate counters; exported once after each scenario"
+    event_log = $false
+    heap_trace = $false
+    throughput = @($throughputRows)
+    diagnostics = @($diagnosticRows)
+    diagnostics_csv = $diagnosticsCsvPath
+    interpretation = @(
+        "Z80 instruction, T-state, M-cycle and BUS totals cover each complete diagnostic scenario.",
+        "WAIT T-states are included in retired instruction T-states; do not add them again.",
+        "Subsystem durations have distinct boundaries and overlapping inclusive timers must not be summed.",
+        "The headless campaign excludes physical CPAL, Slint, WGPU upload and GPU execution."
+    )
+}
+$summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+
+$manifest = [ordered]@{
+    schema = "sun-perf-01-s0-v1"
     captured_at_local = (Get-Date).ToString("o")
     repository = "leonardo201800478/SUN"
     commit = $commit
@@ -236,191 +313,6 @@ Write-Host "  Build:    $buildLogPath"
 Write-Host "  Log:      $logPath"
 Write-Host "  Summary:  $summaryPath"
 Write-Host "  Metrics:  $diagnosticsCsvPath"
-if ($CaptureCpuProfile) {
-    Write-Host "  CPU ETL:  $etlPath"
-}
-if ($exitCode -ne 0) {
-    throw "A campanha de benchmark falhou. Consulte $logPath"
-}
-) {
-            $record[$key] = [Int64]::Parse($raw, [Globalization.CultureInfo]::InvariantCulture)
-        }
-        elseif ($raw -match '^\d+\.\d+
-    captured_at_local = (Get-Date).ToString("o")
-    repository = "leonardo201800478/SUN"
-    commit = $commit
-    branch = $branch
-    working_tree_dirty = $dirty
-    rom_file = $rom.Name
-    rom_sha256 = $romHash
-    region = "japan"
-    vdp = "sms1"
-    scenarios = @(
-        "A-no-ym2413",
-        "B-ym2413-clocked-muted",
-        "C-ym2413-fm-mixed"
-    )
-    warmup_seconds = $WarmupSeconds
-    capture_seconds = $CaptureSeconds
-    diagnostic_seconds = $DiagnosticSeconds
-    frame_pacing = "disabled"
-    video_presentation = "disabled"
-    audio_sink = "headless native mixer/resampler; CPAL measured separately"
-    cpu = $cpuName
-    operating_system = $osCaption
-    cargo_version = $cargoVersion
-    rustc_version = $rustcVersion
-    target_triple = "x86_64-pc-windows-msvc"
-    cargo_profile = $CargoProfile
-    cargo_target_dir = $cargoTargetDir
-    cargo_config = $cargoConfig
-    compiler_environment = [ordered]@{
-        RUSTFLAGS = $env:RUSTFLAGS
-        CARGO_ENCODED_RUSTFLAGS = $env:CARGO_ENCODED_RUSTFLAGS
-        CARGO_PROFILE_RELEASE_OPT_LEVEL = $env:CARGO_PROFILE_RELEASE_OPT_LEVEL
-        CARGO_PROFILE_RELEASE_LTO = $env:CARGO_PROFILE_RELEASE_LTO
-        CARGO_PROFILE_RELEASE_CODEGEN_UNITS = $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS
-        CARGO_PROFILE_RELEASE_STRIP = $env:CARGO_PROFILE_RELEASE_STRIP
-        CARGO_PROFILE_SELECTED_OPT_LEVEL = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_OPT_LEVEL"), "Process")
-        CARGO_PROFILE_SELECTED_LTO = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_LTO"), "Process")
-        CARGO_PROFILE_SELECTED_CODEGEN_UNITS = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_CODEGEN_UNITS"), "Process")
-    }
-    cpu_profile_requested = [bool]$CaptureCpuProfile
-    cpu_profile_path = if ($CaptureCpuProfile) { $etlPath } else { $null }
-    cpu_profile_symbolized = ($CaptureCpuProfile -and $CargoProfile -eq "release-llvm-debug")
-    throughput_profile_is_diagnostic = ($CargoProfile -eq "release-llvm-debug")
-    build_log_path = $buildLogPath
-    exit_code = $exitCode
-}
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
-
-Write-Host ""
-Write-Host "PERF-01/S0 artifacts:" -ForegroundColor Cyan
-Write-Host "  Manifest: $manifestPath"
-Write-Host "  CSV:      $csvPath"
-Write-Host "  Build:    $buildLogPath"
-Write-Host "  Log:      $logPath"
-if ($CaptureCpuProfile) {
-    Write-Host "  CPU ETL:  $etlPath"
-}
-if ($exitCode -ne 0) {
-    throw "A campanha de benchmark falhou. Consulte $logPath"
-}
-) {
-            $record[$key] = [double]::Parse($raw, [Globalization.CultureInfo]::InvariantCulture)
-        }
-        else {
-            $record[$key] = $raw
-        }
-    }
-    if ($record.Count -eq 0) { return $null }
-    return [pscustomobject]$record
-}
-
-# The runtime keeps counters in memory and emits one aggregate line per scenario.
-# Parse only after the benchmark finishes; never stream per-instruction or per-frame logs.
-$throughputRows = @()
-$diagnosticRows = @()
-foreach ($line in Get-Content -LiteralPath $logPath) {
-    if ($line.Contains("SUN_PERF_RESULT")) {
-        $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_RESULT"
-        if ($null -ne $row) { $throughputRows += $row }
-    }
-    elseif ($line.Contains("SUN_PERF_DIAGNOSTICS")) {
-        $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_DIAGNOSTICS"
-        if ($null -ne $row) { $diagnosticRows += $row }
-    }
-}
-if ($throughputRows.Count -ne 3) {
-    throw "Esperados 3 resultados agregados SUN_PERF_RESULT; encontrados $($throughputRows.Count). Consulte $logPath"
-}
-if ($diagnosticRows.Count -ne 3) {
-    throw "Esperadas 3 linhas agregadas SUN_PERF_DIAGNOSTICS; encontradas $($diagnosticRows.Count). Consulte $logPath"
-}
-$diagnosticsCsvPath = Join-Path $outputRoot "subsystem-diagnostics.csv"
-$diagnosticRows | Export-Csv -LiteralPath $diagnosticsCsvPath -NoTypeInformation -Encoding UTF8
-$summaryPath = Join-Path $outputRoot "system-summary.json"
-$summary = [ordered]@{
-    schema = "sun-s0-aggregate-v1"
-    captured_at_local = (Get-Date).ToString("o")
-    repository = "leonardo201800478/SUN"
-    commit = $commit
-    branch = $branch
-    rom_file = $rom.Name
-    rom_sha256 = $romHash
-    capture_seconds = $CaptureSeconds
-    diagnostic_seconds = $DiagnosticSeconds
-    collection = "in-memory aggregate counters; written once after each scenario"
-    event_log = $false
-    heap_trace = $false
-    throughput = @($throughputRows)
-    diagnostics = @($diagnosticRows)
-    diagnostics_csv = $diagnosticsCsvPath
-    interpretation = @(
-        "Z80 T-states are reported from retired instructions and include inserted WAIT states.",
-        "M-cycles are not estimated from T-states; no synthetic M-cycle total is reported.",
-        "Subsystem durations are measured at distinct boundaries and must not be summed when inclusive intervals overlap.",
-        "This headless campaign excludes physical CPAL, Slint, WGPU upload and GPU execution."
-    )
-}
-$summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
-
-$manifest = [ordered]@{
-    schema = "sun-perf-01-s0-v1"
-    captured_at_local = (Get-Date).ToString("o")
-    repository = "leonardo201800478/SUN"
-    commit = $commit
-    branch = $branch
-    working_tree_dirty = $dirty
-    rom_file = $rom.Name
-    rom_sha256 = $romHash
-    region = "japan"
-    vdp = "sms1"
-    scenarios = @(
-        "A-no-ym2413",
-        "B-ym2413-clocked-muted",
-        "C-ym2413-fm-mixed"
-    )
-    warmup_seconds = $WarmupSeconds
-    capture_seconds = $CaptureSeconds
-    diagnostic_seconds = $DiagnosticSeconds
-    frame_pacing = "disabled"
-    video_presentation = "disabled"
-    audio_sink = "headless native mixer/resampler; CPAL measured separately"
-    cpu = $cpuName
-    operating_system = $osCaption
-    cargo_version = $cargoVersion
-    rustc_version = $rustcVersion
-    target_triple = "x86_64-pc-windows-msvc"
-    cargo_profile = $CargoProfile
-    cargo_target_dir = $cargoTargetDir
-    cargo_config = $cargoConfig
-    compiler_environment = [ordered]@{
-        RUSTFLAGS = $env:RUSTFLAGS
-        CARGO_ENCODED_RUSTFLAGS = $env:CARGO_ENCODED_RUSTFLAGS
-        CARGO_PROFILE_RELEASE_OPT_LEVEL = $env:CARGO_PROFILE_RELEASE_OPT_LEVEL
-        CARGO_PROFILE_RELEASE_LTO = $env:CARGO_PROFILE_RELEASE_LTO
-        CARGO_PROFILE_RELEASE_CODEGEN_UNITS = $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS
-        CARGO_PROFILE_RELEASE_STRIP = $env:CARGO_PROFILE_RELEASE_STRIP
-        CARGO_PROFILE_SELECTED_OPT_LEVEL = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_OPT_LEVEL"), "Process")
-        CARGO_PROFILE_SELECTED_LTO = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_LTO"), "Process")
-        CARGO_PROFILE_SELECTED_CODEGEN_UNITS = [Environment]::GetEnvironmentVariable(("CARGO_PROFILE_" + $CargoProfile.ToUpperInvariant().Replace("-", "_") + "_CODEGEN_UNITS"), "Process")
-    }
-    cpu_profile_requested = [bool]$CaptureCpuProfile
-    cpu_profile_path = if ($CaptureCpuProfile) { $etlPath } else { $null }
-    cpu_profile_symbolized = ($CaptureCpuProfile -and $CargoProfile -eq "release-llvm-debug")
-    throughput_profile_is_diagnostic = ($CargoProfile -eq "release-llvm-debug")
-    build_log_path = $buildLogPath
-    exit_code = $exitCode
-}
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
-
-Write-Host ""
-Write-Host "PERF-01/S0 artifacts:" -ForegroundColor Cyan
-Write-Host "  Manifest: $manifestPath"
-Write-Host "  CSV:      $csvPath"
-Write-Host "  Build:    $buildLogPath"
-Write-Host "  Log:      $logPath"
 if ($CaptureCpuProfile) {
     Write-Host "  CPU ETL:  $etlPath"
 }
