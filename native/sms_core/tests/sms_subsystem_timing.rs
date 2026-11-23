@@ -47,3 +47,40 @@ fn subsystem_timing_counters_remain_empty_when_disabled() {
 
     assert_eq!(timing, Default::default());
 }
+
+
+#[test]
+fn aggregate_profile_counters_capture_z80_and_bus_totals_without_event_logs() {
+    let mut machine =
+        SmsTemporalMachine::new(vec![0x00; 0x4000], 1).expect("construct temporal SMS machine");
+    machine.set_profile_counters_enabled(true);
+
+    let (instructions, breakpoint_hit) = machine
+        .step_frame_until(4, |pc| pc == 1)
+        .expect("execute one NOP and stop at the next instruction boundary");
+    let profile = machine.take_profile_counters();
+
+    assert_eq!(instructions, 1);
+    assert!(breakpoint_hit);
+    assert_eq!(profile.z80_instructions, 1);
+    assert_eq!(profile.z80_tstates, 4);
+    assert_eq!(profile.opcode_fetches, 1);
+    assert_eq!(profile.memory_reads, 0);
+    assert_eq!(profile.memory_writes, 0);
+    assert_eq!(profile.wait_tstates, 0);
+    assert_eq!(profile.internal_tstates, 0);
+}
+
+#[test]
+fn aggregate_profile_counters_are_inert_when_disabled() {
+    let mut machine =
+        SmsTemporalMachine::new(vec![0x00; 0x4000], 1).expect("construct temporal SMS machine");
+    let (instructions, breakpoint_hit) = machine
+        .step_frame_until(4, |pc| pc == 1)
+        .expect("execute one NOP and stop at the next instruction boundary");
+    let profile = machine.take_profile_counters();
+
+    assert_eq!(instructions, 1);
+    assert!(breakpoint_hit);
+    assert_eq!(profile, Default::default());
+}
