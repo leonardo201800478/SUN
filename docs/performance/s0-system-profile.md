@@ -60,7 +60,7 @@ T-states por três ou quatro.
 
 ### BUS
 
-O relatório conta:
+O relatório conta os totais de toda a janela diagnóstica (não apenas do último frame):
 
 - leituras e escritas de memória;
 - leituras e escritas de portas I/O;
@@ -75,13 +75,15 @@ alteram o barramento, os WAITs, a ordem de dispatch ou o estado salvo.
 
 - Scheduler: dispatches e tempo agregado de dispatch.
 - PSG: chamadas, clocks entregues e tempo agregado.
-- YM2413: tempo agregado de avanço já existente.
+- YM2413: tempo total de avanço acumulado em toda a campanha.
 - VDP: chamadas, T-states entregues e tempo agregado de avanço/renderização.
 - Worker: tempo inclusivo de step_frame, processamento do frame, publicação de
   vídeo e preparação/submissão de áudio.
 
-Os tempos pertencem a fronteiras diferentes. Não somar tempos inclusivos e
-exclusivos como se fossem partes disjuntas do frame.
+Os totais Scheduler/PSG/YM2413/VDP cobrem toda a janela diagnóstica. Os
+percentis de frame, step_frame, publicação e áudio continuam sendo distribuições
+por frame. Os tempos pertencem a fronteiras diferentes; não somar tempos
+inclusivos e exclusivos como se fossem partes disjuntas do frame.
 
 O tempo exclusivo de CPU host do Z80 ainda não é medido por timer interno.
 Para atribuição por função, usar CPU sampling em uma campanha separada e
