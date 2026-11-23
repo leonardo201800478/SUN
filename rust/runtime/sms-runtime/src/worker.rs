@@ -2563,8 +2563,8 @@ fn execute_frame_with_renderer(
             .ym2413_advance_elapsed_ns_total
             .fetch_add(ym2413_advance_elapsed_ns, Ordering::AcqRel);
     }
-    let profile_delta = machine.take_profile_counters();
     if diagnostics_enabled {
+        let profile_delta = machine.take_profile_counters();
         if let Ok(mut totals) = telemetry.z80_profile.lock() {
             *totals = (*totals).saturating_add(profile_delta);
         }
