@@ -64,6 +64,7 @@ fn aggregate_profile_counters_capture_z80_and_bus_totals_without_event_logs() {
     assert!(breakpoint_hit);
     assert_eq!(profile.z80_instructions, 1);
     assert_eq!(profile.z80_tstates, 4);
+    assert_eq!(profile.z80_mcycles, 1);
     assert_eq!(profile.opcode_fetches, 1);
     assert_eq!(profile.memory_reads, 0);
     assert_eq!(profile.memory_writes, 0);
