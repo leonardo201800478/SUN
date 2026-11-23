@@ -742,6 +742,15 @@ mod tests {
     }
 
     #[test]
+    fn idle_advance_updates_machine_time_without_registered_clock_domains() {
+        let mut scheduler = MachineScheduler::<()>::new();
+        let target = MachineTime::from_ticks(17);
+
+        assert!(scheduler.advance_idle_to(target).unwrap().is_empty());
+        assert_eq!(scheduler.now(), target);
+    }
+
+    #[test]
     fn idle_advance_cannot_skip_pending_events() {
         let mut scheduler = MachineScheduler::<u8>::new();
         scheduler
