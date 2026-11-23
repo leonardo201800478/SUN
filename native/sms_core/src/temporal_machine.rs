@@ -1328,6 +1328,9 @@ impl SmsTemporalMachine {
             }
             let step = self.step_instruction(0)?;
             let step = if matches!(step, Z80MicroStep::InterruptAcknowledge { .. }) {
+                if self.profile_counters_enabled {
+                    self.record_profile_step(step);
+                }
                 self.resume_instruction(0)?
             } else {
                 step
