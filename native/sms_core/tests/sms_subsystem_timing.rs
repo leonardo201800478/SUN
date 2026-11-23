@@ -52,13 +52,21 @@ fn subsystem_timing_counters_remain_empty_when_disabled() {
 fn aggregate_profile_counters_capture_z80_and_bus_totals_without_event_logs() {
     let mut machine =
         SmsTemporalMachine::new(vec![0x00; 0x4000], 1).expect("construct temporal SMS machine");
+    let mut reference =
+        SmsTemporalMachine::new(vec![0x00; 0x4000], 1).expect("construct reference machine");
     machine.set_profile_counters_enabled(true);
 
     let (instructions, breakpoint_hit) = machine
         .step_frame_until(4, |pc| pc == 1)
         .expect("execute one NOP and stop at the next instruction boundary");
+    let (reference_instructions, reference_breakpoint_hit) = reference
+        .step_frame_until(4, |pc| pc == 1)
+        .expect("execute the reference NOP");
     let profile = machine.take_profile_counters();
 
+    assert_eq!(instructions, reference_instructions);
+    assert_eq!(breakpoint_hit, reference_breakpoint_hit);
+    assert_eq!(machine.export_state(), reference.export_state());
     assert_eq!(instructions, 1);
     assert!(breakpoint_hit);
     assert_eq!(profile.z80_instructions, 1);
