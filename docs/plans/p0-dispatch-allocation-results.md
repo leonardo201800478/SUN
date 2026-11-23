@@ -78,7 +78,7 @@ Nenhum cenário regrediu. Os tempos desta seção são da operação combinada d
 ### 6.3 Validação
 
 - `sega-machine-scheduler`: 44 unitários + 2 + 2 + 1 de integração + **4 novos** testes de contrato (`dispatch_into_equivalence.rs`): 3 de equivalência e 1 de limpeza do buffer em erro.
-- `sega-sms-core`: 188. `sega-sg1000-core`: 79. `sega-temporal-core`: 41. **Total 716 testes, 0 falhas** na validação anterior à inclusão do teste de limpeza em erro; o novo teste aguarda a execução CI do HEAD atualizado.
+- `sega-sms-core`: 188. `sega-sg1000-core`: 79. `sega-temporal-core`: 41. **Validação anterior:** 715 testes, 0 falhas. Um quarto teste foi adicionado para verificar a limpeza do buffer em erro; o total esperado passa a 716 e aguarda execução CI no HEAD atualizado.
 - `cargo fmt --all -- --check` limpo; `cargo clippy` limpo em `machine_scheduler` e `sms_core` (todos os alvos).
 - O teste de equivalência compara 400 dispatches com razões mistas e 4 domínios: mesma sequência de eventos, mesmos avanços, mesmo `export_state()` — ou seja, save states e replays continuam idênticos entre os dois caminhos.
 
