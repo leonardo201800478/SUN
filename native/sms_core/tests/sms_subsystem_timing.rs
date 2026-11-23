@@ -48,7 +48,6 @@ fn subsystem_timing_counters_remain_empty_when_disabled() {
     assert_eq!(timing, Default::default());
 }
 
-
 #[test]
 fn aggregate_profile_counters_capture_z80_and_bus_totals_without_event_logs() {
     let mut machine =
