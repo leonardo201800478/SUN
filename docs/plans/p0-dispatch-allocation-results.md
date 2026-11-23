@@ -71,7 +71,7 @@ A variante B é o resultado que o plano §4.1 pedia para avaliar, e a medição 
 | read-heavy | 16.194,5 µs | 15.663,7 µs | **−531 µs (−3,3%)** |
 | port-heavy | 13.773,5 µs | 13.637,0 µs | **−137 µs (−1,0%)** |
 
-Nenhum cenário regrediu. Os tempos desta seção são da operação combinada de agendamento + dispatch. O ganho end-to-end da máquina é menor que o ganho observado nessa operação isolada do harness; não inferimos, com os dados atuais, a participação percentual exclusiva do Scheduler no tempo total do frame.
+Nenhum cenário regrediu. Os tempos desta seção são da operação combinada de agendamento + dispatch. O ganho end-to-end da máquina é menor que o ganho observado nessa operação combinada medida pelo harness; não inferimos, com os dados atuais, a participação percentual exclusiva do Scheduler no tempo total do frame.
 
 ### 6.3 Validação
 

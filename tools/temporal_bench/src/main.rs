@@ -3,9 +3,9 @@
 //! Why this exists (plan §4.7): the first audit mixed measurement boundaries —
 //! an instrumented window around `dispatch_next` was compared with an isolated
 //! microbenchmark that used a smaller token type and skipped part of the
-//! production work. This harness reproduces the *production order* of one
-//! dispatch with the *real* `ClockAdvance` type and counts every allocation on
-//! the way, so before/after numbers share one boundary.
+//! production work. This harness reproduces one production-shaped scheduler
+//! operation (schedule one event, then dispatch it) with the real `ClockAdvance`
+//! type and counts every allocation, so before/after numbers share one boundary.
 //!
 //! What is included in the measured region:
 //!   - `schedule_at_with_phase()` for the event being measured
@@ -82,7 +82,7 @@ fn build_scheduler(domains: usize, ticks_per_tstate: u64) -> MachineScheduler<Pa
     scheduler
 }
 
-/// One dispatch in the same order production executes it.
+/// One scheduler operation: schedule one event, then dispatch it.
 #[inline(never)]
 fn schedule_and_dispatch_once(scheduler: &mut MachineScheduler<Payload>, timestamp: MachineTime) -> usize {
     scheduler
@@ -217,7 +217,7 @@ fn main() {
     let iterations = 200_000u64;
 
     println!(
-        "temporal_bench — production-shaped dispatch, ticks_per_tstate={ticks_per_tstate}, \
+        "temporal_bench — production-shaped schedule + dispatch, ticks_per_tstate={ticks_per_tstate}, \
          iterations={iterations}"
     );
     println!(
