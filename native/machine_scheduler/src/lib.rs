@@ -15,8 +15,8 @@ pub use state::{ClockDomainState, SCHEDULER_STATE_FORMAT_VERSION, SchedulerState
 pub use sega_temporal_core::{ClockRatio, EventPriority, MachineTime};
 
 use sega_temporal_core::{
-    ClockDomain, ClockDomainSnapshot, ClockError, EventQueue, EventQueueError, HardwarePhase,
-    PlatformPriority, ScheduledEvent,
+    ClockDomain, ClockDomainAdvance, ClockDomainSnapshot, ClockError, EventQueue, EventQueueError,
+    HardwarePhase, PlatformPriority, ScheduledEvent,
 };
 
 /// Stable identity for one clock domain registered with a machine scheduler.
@@ -30,6 +30,7 @@ pub struct ClockAdvance {
     pub elapsed_cycles: u128,
     pub total_cycles: u128,
     pub phase: u128,
+    preview: ClockDomainAdvance,
 }
 
 /// An event together with all device-clock advances up to its timestamp.
@@ -502,7 +503,7 @@ impl<T> MachineScheduler<T> {
                 return Err(error);
             }
         };
-        if let Err(error) = self.apply_advances(timestamp, &advances) {
+        if let Err(error) = self.apply_advances(&advances) {
             sega_observability::tracing::error!(
                 target: "sega::scheduler",
                 timestamp = ?timestamp,
@@ -560,7 +561,7 @@ impl<T> MachineScheduler<T> {
             return Err(SchedulerError::EventPendingBeforeTarget);
         }
         let advances = self.calculate_advances(target)?;
-        self.apply_advances(target, &advances)?;
+        self.apply_advances(&advances)?;
         sega_observability::tracing::trace!(
             target: "sega::scheduler",
             target = ?target,
@@ -583,32 +584,40 @@ impl<T> MachineScheduler<T> {
     fn calculate_advances(&self, target: MachineTime) -> Result<Vec<ClockAdvance>, SchedulerError> {
         let mut advances = Vec::with_capacity(self.clocks.len());
         for (&id, domain) in &self.clocks {
-            let (elapsed_cycles, snapshot) = domain.preview_advance_to(target)?;
+            let preview = domain.preview_advance(target)?;
+            let snapshot = preview.snapshot();
             advances.push(ClockAdvance {
                 domain: id,
-                elapsed_cycles,
+                elapsed_cycles: preview.elapsed_cycles(),
                 total_cycles: snapshot.total_cycles,
                 phase: snapshot.phase,
+                preview,
             });
         }
         Ok(advances)
     }
 
-    fn apply_advances(
-        &mut self,
-        target: MachineTime,
-        advances: &[ClockAdvance],
-    ) -> Result<(), SchedulerError> {
-        // All arithmetic was preflighted by calculate_advances. Repeating the
-        // checked operation here cannot fail unless an internal invariant broke.
+    fn apply_advances(&mut self, advances: &[ClockAdvance]) -> Result<(), SchedulerError> {
+        // Validate every token before mutating any domain. The commit pass then
+        // only copies the already-computed exact state; it does not repeat the
+        // rational conversion performed during preflight.
+        for advance in advances {
+            let domain = self
+                .clocks
+                .get(&advance.domain)
+                .ok_or(SchedulerError::UnknownClockDomain(advance.domain))?;
+            domain.validate_preview(&advance.preview)?;
+        }
         for advance in advances {
             let domain = self
                 .clocks
                 .get_mut(&advance.domain)
                 .ok_or(SchedulerError::UnknownClockDomain(advance.domain))?;
-            domain.advance_to(target)?;
+            domain.apply_preview(advance.preview)?;
         }
-        self.now = target;
+        if let Some(first) = advances.first() {
+            self.now = first.preview.snapshot().time;
+        }
         Ok(())
     }
 }
