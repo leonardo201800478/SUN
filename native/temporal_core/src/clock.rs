@@ -408,10 +408,7 @@ impl ClockDomain {
     /// The returned opaque token contains the exact result of rational
     /// conversion. The scheduler can validate all domains first and then
     /// commit these tokens without repeating the conversion arithmetic.
-    pub fn preview_advance(
-        &self,
-        target: MachineTime,
-    ) -> Result<ClockDomainAdvance, ClockError> {
+    pub fn preview_advance(&self, target: MachineTime) -> Result<ClockDomainAdvance, ClockError> {
         let elapsed = target
             .checked_duration_since(self.time)
             .ok_or(ClockError::TimeWentBackwards)?;
@@ -505,7 +502,9 @@ mod tests {
         let mut prepared = ClockDomain::with_phase(ratio, MachineTime::from_ticks(4), 2).unwrap();
         let mut direct = prepared.clone();
 
-        let preview = prepared.preview_advance(MachineTime::from_ticks(19)).unwrap();
+        let preview = prepared
+            .preview_advance(MachineTime::from_ticks(19))
+            .unwrap();
         assert_eq!(preview.elapsed_cycles(), 35);
         assert_eq!(preview.snapshot().time, MachineTime::from_ticks(19));
         assert_eq!(prepared.current_time(), MachineTime::from_ticks(4));
