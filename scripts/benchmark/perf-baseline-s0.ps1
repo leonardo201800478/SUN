@@ -250,7 +250,7 @@ $summary = [ordered]@{
 $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
 
 $manifest = [ordered]@{
-    schema = "sun-perf-01-s0-v1"
+    schema = "sun-perf-01-s0-v2"
     captured_at_local = (Get-Date).ToString("o")
     repository = "leonardo201800478/SUN"
     commit = $commit
