@@ -126,10 +126,7 @@ fn buffered_dispatch_empties_the_buffer_when_dispatch_fails() {
     let mut scheduler =
         MachineScheduler::with_delta_event_policy(DeltaEventPolicy::new(1).expect("policy"));
     scheduler
-        .register_clock_domain(
-            ClockDomainId(0),
-            ClockRatio::new(1, 3).expect("ratio"),
-        )
+        .register_clock_domain(ClockDomainId(0), ClockRatio::new(1, 3).expect("ratio"))
         .expect("register");
     let mut buffer = ClockAdvances::new();
 
@@ -150,8 +147,15 @@ fn buffered_dispatch_empties_the_buffer_when_dispatch_fails() {
         error,
         SchedulerError::DeltaEventLimitExceeded { .. }
     ));
-    assert!(buffer.is_empty(), "failed dispatch must not expose stale advances");
-    assert_eq!(scheduler.pending_events(), 1, "failed dispatch must retain the event");
+    assert!(
+        buffer.is_empty(),
+        "failed dispatch must not expose stale advances"
+    );
+    assert_eq!(
+        scheduler.pending_events(),
+        1,
+        "failed dispatch must retain the event"
+    );
 }
 
 #[test]

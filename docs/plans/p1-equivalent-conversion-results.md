@@ -13,16 +13,16 @@ O critério de aceite do plano exige equivalência exata **e ganho mensurável**
 
 ## Método
 
-Foi usado o binário `caller_buffer` já introduzido no trabalho P0. Baseline e candidato executaram o mesmo caminho pós-P0 (`dispatch_next_into`), a mesma carga, os mesmos 200.000 dispatches medidos, aquecimento de 2.000 dispatches, 3 ou 4 domínios SMS com razão 1/3, compilação `--release` e alocador contador. Foram feitas cinco execuções para cada variante; comparamos a mediana de ns/dispatch.
+Foi usado o binário `caller_buffer` já introduzido no trabalho P0. Cada iteração medida agenda um evento com `schedule_at_with_phase()` e executa `dispatch_next_into()`; portanto, a fronteira é **agendamento + dispatch**, não dispatch isolado. Baseline e candidato executaram a mesma carga, os mesmos 200.000 operações medidas, aquecimento de 2.000 operações, 3 ou 4 domínios SMS com razão 1/3, compilação `--release` e alocador contador. Foram feitas cinco execuções para cada variante; comparamos a mediana de ns/op.
 
 - **Baseline:** checkout P0 em `522d5e7`, sem compartilhamento de previews.
 - **Candidato:** protótipo que tenta reutilizar o preview do domínio imediatamente anterior somente quando o alvo e `validate_preview` confirmam identidade completa do estado de origem. O avanço continuou sendo emitido por domínio e a validação dupla-passada e o commit não foram alterados.
 - **Ambiente:** sandbox Linux x86_64, 6 vCPU, Rust 1.99.1. Este ambiente não equivale ao Neoverse-N1 da medição original P0 nem ao Windows x64 alvo do frontend.
-- Ambos os caminhos mediram **0,000 alocações e 0 bytes por dispatch**; logo, o buffer P0 foi mantido constante na comparação.
+- Ambos os caminhos mediram **0,000 alocações e 0 bytes por operação**; logo, o buffer P0 foi mantido constante na comparação.
 
 ## Resultados
 
-| Domínios equivalentes | P0 sem P1 — mediana (mín.–máx.) | P1 candidato — mediana (mín.–máx.) | Variação da mediana |
+| Domínios equivalentes | P0 sem P1 — mediana (mín.–máx.), ns/op | P1 candidato — mediana (mín.–máx.), ns/op | Variação da mediana |
 |---:|---:|---:|---:|
 | 3 | 107,37 ns (79,36–109,65) | 114,33 ns (103,58–170,88) | **+6,5% mais lento** |
 | 4 | 129,47 ns (101,42–136,34) | 147,98 ns (133,07–201,91) | **+14,3% mais lento** |
@@ -31,7 +31,7 @@ Os tempos apresentam variabilidade alta neste host compartilhado; isso reduz a f
 
 ## Decisão
 
-**P1 não é adotado no runtime neste momento.** O reuso economiza chamadas de conversão, mas o trabalho de identificar um preview compatível não compensou a conversão no benchmark pós-P0. O protótipo foi removido da branch; a revisão final contém somente este registro documental e a atualização de status do plano.
+**P1 não é adotado no runtime neste momento.** No benchmark da operação combinada agendamento + dispatch, o reuso economiza chamadas de conversão, mas o trabalho de identificar um preview compatível não compensou a conversão. O protótipo foi removido da branch; a revisão final contém somente este registro documental e a atualização de status do plano.
 
 Não relaxar `validate_preview`, não fundir estados dos relógios e não substituir o teste de desempenho por uma projeção teórica. Reabrir P1 somente com um harness pareado mais estável ou uma forma de identificar grupos equivalentes sem acrescentar custo por dispatch; a nova hipótese deve ser medida antes de entrar no runtime.
 
