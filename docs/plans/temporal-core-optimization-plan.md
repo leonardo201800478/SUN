@@ -198,7 +198,7 @@ As otimizações específicas serão definidas após a revisão individual. Não
 | Prioridade | Ação | Condição para iniciar |
 |---|---|---|
 | P0 | Remover alocação por dispatch | Armazenamento inline e capacidade definidos |
-| P1 | Compartilhar conversões equivalentes | Equivalência dos estados de origem demonstrada |
+| P1 | Compartilhar conversões equivalentes | **Avaliado em 2026-11-23; não adotado por regressão medida.** Ver [resultados P1](p1-equivalent-conversion-results.md); reabrir somente com nova hipótese que elimine o custo de identificação por dispatch. |
 | P2 | Evitar revalidação redundante | Preflight e atomicidade demonstrados |
 | P3 | Fast path aritmético mantendo `u128` | Limites e overflow cobertos |
 | P4 | Reavaliar BTreeMap e tracing | Benchmark corrigido e perfil real |
