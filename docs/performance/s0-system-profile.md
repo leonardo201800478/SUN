@@ -32,10 +32,11 @@ No Windows x64, com working tree limpo e ROM OutRun SMS obtida legalmente:
 .\scripts\benchmark\perf-baseline-s0.ps1 -RomPath "D:\ROMS\Sega Master System\OutRun (Japan).sms" -CargoProfile release-llvm -WarmupSeconds 5 -CaptureSeconds 30 -DiagnosticSeconds 5
 ```
 
-O alias legado `perf-profile-s0.ps1` agora delega para o mesmo runner agregado.
-Ele não inicia WPR Heap nem cria ETL. A opção `-CaptureCpuProfile` do runner
-principal continua disponível somente quando uma campanha separada de CPU
-sampling for realmente necessária; não habilitar para obter a baseline oficial.
+O alias legado `perf-profile-s0.ps1` agora delega para o mesmo runner agregado
+e não inicia WPR nem cria ETL. O parâmetro opcional `-CaptureCpuProfile` do
+runner principal ativa somente WPR CPU sampling; essa execução é diagnóstica,
+gera um ETL de CPU e não deve ser usada como throughput oficial. O Heap tracing
+foi removido.
 
 ## Dados coletados
 
