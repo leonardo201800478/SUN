@@ -73,7 +73,6 @@ fn aggregate_profile_counters_capture_z80_and_bus_totals_without_event_logs() {
 }
 
 #[test]
-#[test]
 fn aggregate_profile_counters_capture_memory_bus_operations() {
     let mut machine =
         SmsTemporalMachine::new(vec![0x77; 0x4000], 1).expect("construct temporal SMS machine");
@@ -97,6 +96,7 @@ fn aggregate_profile_counters_capture_memory_bus_operations() {
     assert_eq!(profile.memory_reads, 0);
 }
 
+#[test]
 fn aggregate_profile_counters_are_inert_when_disabled() {
     let mut machine =
         SmsTemporalMachine::new(vec![0x00; 0x4000], 1).expect("construct temporal SMS machine");
