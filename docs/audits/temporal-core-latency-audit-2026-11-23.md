@@ -11,34 +11,39 @@
 
 ## 1. Resumo executivo
 
-O `temporal_core` está correto, determinístico e bem testado. O problema não é semântica: é **custo
-por evento**. Hoje o SMS gasta **5 despachos de scheduler por opcode fetch** (≈ 49.780 eventos por
-frame) e cada despacho custa **~137 ns**, dos quais apenas ~16 ns são conversão de clock legítima.
-O resultado é que **~43% do frame é gasto na maquinaria temporal**, não em emulação.
+A auditoria original identificou um volume elevado de eventos no SMS sintético: **5 despachos do
+scheduler por opcode fetch** e aproximadamente **49.780 eventos por frame** no workload `jr $`.
+Esse contador é uma observação do workload e do baseline, não uma constante universal para todos os
+jogos.
 
-| Componente | Custo medido hoje | Como foi obtido |
+Os dados históricos de latência foram obtidos por métodos diferentes. A janela instrumentada
+estimou **137 ns por despacho** após descontar o custo de instrumentação; o microbenchmark de
+decomposição reportou **158,5 ns**. Esses valores não são intercambiáveis nem devem ser multiplicados
+para afirmar que o Scheduler consome 43% do frame. A revisão posterior da PR
+[#1261](https://github.com/leonardo201800478/SUN/pull/1261) corrigiu a fronteira do harness para
+medir **agendamento + dispatch**: no host ARM64, o baseline foi 202,2 ns/op e o caminho com buffer
+do chamador 184,0 ns/op. O resultado end-to-end foi menor e ainda existe uma diferença de projeção
+não reconciliada.
+
+| Componente | Resultado observado | Natureza da evidência |
 |---|---|---|
-| Despacho do scheduler (3 domínios) | **137 ns/evento** | janela instrumentada (`take_subsystem_timing`) menos custo de `Instant::now` |
-| Eventos por frame (SMS, `jr $`) | **49.780** | contador `scheduler_dispatch_count` |
-| → Scheduler por frame | **≈ 6,8 ms** | 49.780 × 137 ns |
-| PSG por frame | **1,22 ms** | benchmark com drenagem por frame, 44,1 kHz e 48 kHz |
-| VDP `advance` por frame | ≈ 0,5 ms | 49.780 chamadas × ~10 ns (estimativa instrumentada) |
-| Clone do `Z80MicroSequencer` por ciclo de barramento | 7,3 ns × 9.956 = 0,07 ms | benchmark direto |
-| Clone do `Ym2413Core` por slot | 10,8 ns × 14.915 = 0,16 ms | benchmark direto (só SMS japonês) |
-| **Frame total (ROM sintética)** | **13,6 – 16,3 ms** | `step_frame` em release |
+| Eventos por frame (`jr $`) | **49.780** | contador do workload sintético |
+| Scheduler — janela instrumentada | **~137 ns/dispatch** | estimativa ajustada pelo custo de instrumentação |
+| Scheduler — decomposição isolada | **158,5 ns/dispatch** | microbenchmark histórico, fronteira diferente |
+| Scheduler — harness corrigido pré-P0 | **202,2 ns/op** | agendamento + dispatch, ARM64 |
+| Scheduler — buffer do chamador P0 | **184,0 ns/op** | agendamento + dispatch, ARM64; 0 alocações |
+| PSG por frame | **1,22 ms** | benchmark isolado com drenagem, 44,1/48 kHz |
+| VDP `advance` por frame | **~0,5 ms** | estimativa instrumentada, não medição independente |
+| Frame total (ROM sintética) | **13,6–16,3 ms** | `step_frame` Release, instrumentação desligada |
 
-![Orçamento de frame](figures/temporal-latency-budget.png)
+Os números não formam uma decomposição aditiva única: há fronteiras de medição distintas, componentes
+estimados e possíveis sobreposições de trabalho. Por isso, esta auditoria não atribui uma fração
+percentual do frame ao Scheduler nem publica uma projeção consolidada de frame time após otimizações.
 
-Com **P0 + P1 + P2 + P3** aplicados, a projeção medida/derivada é **~7,9 ms/frame**, ou seja, sai de
-95% do teto de 16,67 ms para ~47%. Duas dessas otimizações (P1 parcial) já foram **implementadas em
-protótipo e validadas**: −0,3 a −1,1 ms/frame, com 188 testes de `sms_core` e 41 de
-`scheduler`/`temporal_core` passando (§8).
-
-**A conclusão central:** a latência do barramento, da VRAM e da RAM **não está no acesso à memória**
-(que custa ~2 ns e é `#[inline]`), e sim no **round-trip scheduler → domínio de clock → evento** que
-envolve cada byte. Otimizar memória não resolve; otimizar o caminho temporal resolve.
-
----
+**Conclusão sustentada:** o custo do caminho temporal merece investigação porque o scheduler é
+invocado muitas vezes por frame. As latências de RAM/VRAM medidas em microbenchmarks são pequenas
+comparadas ao round-trip de barramento e scheduler; isso não justifica reescrever memória sem
+evidência de perfil real.
 
 ## 2. Como foi medido (e o que isso não prova)
 
@@ -54,10 +59,11 @@ envolve cada byte. Otimizar memória não resolve; otimizar o caminho temporal r
   subtraindo o custo do `Instant::now` medido separadamente (74,5 ns para 2 chamadas +
   `duration_since`), e o frame time honesto foi medido com instrumentação **desligada**.
 
-Limites: os valores absolutos são de uma VM ARM64; num desktop x64 o frame total será menor. O que
-transporta entre plataformas é a **proporção** e a **contagem de operações**, que são propriedades do
-código, não da máquina. Nenhuma ROM comercial foi usada (o diretório `D:\ROMS\Sega Master System`
-não está acessível a partir do sandbox) — a validação com jogos reais está no §9.
+Limites: os valores absolutos foram obtidos em VM ARM64 e não podem ser extrapolados para Windows
+x64. A contagem de operações é válida para o workload sintético executado; a proporção de tempo por
+subsistema depende da plataforma, compilador, perfil do jogo e condições de execução. Nenhuma ROM
+comercial foi usada (o diretório `D:\ROMS\Sega Master System` não estava acessível ao ambiente de
+medição). A validação com jogos reais permanece pendente e está descrita no §9.
 
 ---
 
@@ -78,18 +84,23 @@ Layouts medidos: `MachineTime` 16 B, `ClockDomain` 96 B, `ClockDomainAdvance` **
 
 ### 3.2 O laço de despacho
 
-`MachineScheduler::dispatch_next` (`machine_scheduler/src/lib.rs:465-533`) por evento:
+`MachineScheduler::dispatch_next` no baseline `main@207ccc4` executava, por evento:
 
 ```text
 next_timestamp()                      // peek no heap
-calculate_advances(timestamp)         // lib.rs:584
-  Vec::with_capacity(clocks.len())    // alocação por despacho
-  para cada domínio: preview_advance  // 1 conversão racional u128
-apply_advances(timestamp, &advances)  // lib.rs:600
-  para cada avanço: validate_preview  // 1ª validação
-  para cada avanço: apply_preview     // revalida de novo + commit
+calculate_advances(timestamp)
+  Vec::with_capacity(clocks.len())    // alocação no baseline
+  preview_advance por domínio
+apply_advances(timestamp, &advances)
+  preflight/validação dos previews
+  commit dos avanços
 pop_next()                            // pop do heap
 ```
+
+**Estado posterior:** a PR [#1261](https://github.com/leonardo201800478/SUN/pull/1261) adiciona
+`dispatch_next_into()` e um buffer reutilizável no `SmsTemporalBus`. O caminho legado
+`dispatch_next()` permanece disponível; o caminho quente SMS evita a alocação até quatro
+domínios. Acima dessa capacidade, o buffer faz spill lossless para heap.
 
 ### 3.3 Os três multiplicadores do custo
 
@@ -97,19 +108,24 @@ pop_next()                            // pop do heap
    (`Z80M1Phase::{T1,T2,Wait,T3,T4}` em `z80_cpu/src/m1.rs:12-19`, agendadas por
    `schedule_m1_tstate`, `sms_core/src/temporal.rs:226-241`) + 1 conclusão de barramento. Medido:
    `49.780 = 5 × 9.956` exatamente.
-2. **Redundância**: os 3 (ou 4) domínios do SMS têm **a mesma razão** `1/master_ticks_per_tstate`
-   (`sms_core/src/temporal.rs:129-140`) e o mesmo estado. A conversão idêntica é feita 3–4 vezes por
-   evento, validada 6–8 vezes e buscada 6–8 vezes num `BTreeMap`.
-3. **Granularidade de alocação**: `Vec::with_capacity(3)` + cópia de 3 tokens de 128 B por despacho
-   custa **58 ns** — 37% do despacho.
+2. **Razões de clock**: os domínios SMS usam a mesma razão nominal
+   `1/master_ticks_per_tstate` (`sms_core/src/temporal.rs:129-140`), mas isso, isoladamente, não
+   prova que seus previews sejam intercambiáveis: timestamp, ciclos acumulados e fase também
+   precisam coincidir. A tentativa de compartilhar previews foi medida posteriormente e rejeitada
+   por regressão de desempenho (PR #1262).
+3. **Granularidade de alocação no baseline**: `Vec::with_capacity(3)` e a construção dos tokens
+   criavam uma alocação por dispatch. A PR #1261 substituiu esse transporte no caminho SMS por
+   buffer reutilizável, com zero alocações no perfil de até quatro domínios.
 
 ---
 
 ## 4. Diagnóstico por subsistema
 
-### 4.1 Scheduler / `temporal_core` — 6,8 ms/frame (43%)
+### 4.1 Scheduler / `temporal_core` — custo por evento, sem percentual de frame
 
-Decomposição medida de um despacho de 3 domínios (**158,5 ns** no microbenchmark isolado):
+A decomposição histórica de **158,5 ns** para três domínios pertence a um microbenchmark isolado.
+Ela não tem a mesma fronteira do harness corrigido posteriormente (agendamento + dispatch) e não
+deve ser usada para calcular a participação do Scheduler no frame.
 
 | Parte | Custo | Frequência | Evidência |
 |---|---|---|---|
@@ -118,8 +134,12 @@ Decomposição medida de um despacho de 3 domínios (**158,5 ns** no microbenchm
 | `BTreeMap` get + get_mut (6 buscas) | 8,6 ns | por despacho | `lib.rs:609-620` |
 | `EventQueue` push + 2 pops | 26,9 ns | por evento | `event.rs:266-302` |
 | 2 × `tracing::trace!` sem subscriber | 4,6 ns | por despacho | `lib.rs:447-455`, `:521-528` |
-| Validação dupla (`validate` + `apply_preview` revalida) | ~0 ns | por despacho | compilador elimina; `clock.rs:464` |
-| `edge_time_after` (gcd + u128) | 12,9 ns → 2,1 ns sem gcd | **fora do hot path** | `clock.rs:349-399` |
+| Validação de preview | custo não isolado de forma confiável | por avanço | a validação faz parte do contrato de atomicidade |
+| `edge_time_after` (gcd + u128) | 12,9 ns → 2,1 ns sem gcd | **fora do hot path observado** | `clock.rs:349-399` |
+
+Os valores desta tabela são a decomposição histórica do microbenchmark, não uma contabilidade
+precisa do custo do caminho end-to-end. A afirmação de que o compilador eliminaria toda a
+revalidação foi removida: não há evidência suficiente para afirmá-la como regra geral.
 
 Observações relevantes:
 
@@ -133,15 +153,14 @@ Observações relevantes:
   arquitetura em que o scheduler calcula e aplica dentro da mesma seção crítica, esses campos são
   redundantes: um contador de geração de 32 bits faz o mesmo trabalho em 4 bytes em vez de 64.
 
-**Benchmark comparativo (mesmo fluxo de eventos, 3 domínios):**
+**Comparação posterior com fronteira corrigida:** o harness de #1261 mede uma operação combinada
+de agendamento + dispatch. No baseline ARM64, foram observados 202,2 ns/op; com buffer do chamador,
+184,0 ns/op (−9,0%), sem alocação. Esses valores não substituem a decomposição acima: são uma
+medição diferente e não devem ser somados às parcelas da tabela.
 
-| Implementação | ns/evento | ms/frame com 49.780 | ms/frame com ~10.000 |
-|---|---|---|---|
-| `MachineScheduler` + `ClockDomain` + `EventQueue` atuais | **158,5** | 7,9 | 1,6 |
-| Protótipo: timeline `u64`, lane compartilhada, chave empacotada, sem alocação | **9,3** | 0,46 | 0,09 |
-| Ganho | **17×** | | |
+---
 
-### 4.2 Barramento — ~164 ns por acesso, dos quais ~2 ns são memória
+### 4.2 Barramento — round-trip temporal dominante; memória medida separadamente
 
 Caminho de um acesso (`native/sms_core/src/temporal_bus.rs`):
 
@@ -149,8 +168,8 @@ Caminho de um acesso (`native/sms_core/src/temporal_bus.rs`):
 begin_request (:761-815)          → checa ocupação, grava instante
 schedule_bus_completion (:868)    → u128::from(tstates) * u128::from(scale) + now
                                   → schedule_at_with_phase → BinaryHeap::push
-dispatch_next (:868-952)          → scheduler.dispatch_next (137 ns)
-                                  → advance PSG + advance VDP (por evento!)
+dispatch_next (:868-952)          → scheduler.dispatch_next (baseline histórico)
+                                  → advance PSG + advance VDP (por evento no baseline)
 memory.read/write (:981-1002)     → 1 branch de mapa + 1 acesso indexado (~2 ns)
 ```
 
@@ -161,9 +180,11 @@ memory.read/write (:981-1002)     → 1 branch de mapa + 1 acesso indexado (~2 n
 - `BusTransaction` (`contract.rs:79-89`) usa `Option<u16>`/`Option<u8>` e valida no construtor
   (`contract.rs:91-139`), mas **só é construído por APIs de inspeção**
   (`temporal_machine.rs:777-828`); não está no caminho de execução. Correto.
-- O que pesa é o **round-trip**: um acesso = 1 push no heap (≈27 ns) + 1 despacho (137 ns) + avanço
-  de PSG e VDP. Em 59.736 T-states/frame com ~10.000 acessos, isso é ~8 ms de maquinaria para ~20 µs
-  de trabalho útil de memória.
+- O que pesa é o **round-trip temporal**, não apenas o load/store. A estimativa histórica de
+  ~164 ns por acesso não pode ser multiplicada por uma contagem genérica sem confirmar quantos
+  acessos completam esse caminho no mesmo workload. Como referência aritmética, 10.000 operações
+  × 164 ns equivalem a **1,64 ms**, não 8 ms. O tempo efetivo também depende dos avanços de PSG/VDP
+  associados e da distribuição de eventos.
 - `schedule_external_th_transition` (`temporal.rs:243-260`) faz `elapsed % u128::from(scale)` por
   chamada — só relevante quando há transições externas de TH (light gun/paddle).
 - O clone do `Z80MicroSequencer` (96 B) antes de cada commit
@@ -174,10 +195,13 @@ memory.read/write (:981-1002)     → 1 branch de mapa + 1 acesso indexado (~2 n
 
 | Recurso | Modelo atual | Latência real de acesso | Risco |
 |---|---|---|---|
-| Work RAM 8 KB | `[u8; 8192]` + máscara de espelhamento | ~1–2 ns (L1) | nenhum |
-| VRAM 16 KB | `Vec<u8>` + `& 0x3FFF` | ~2 ns + branch de modo | indireção de `Vec` (um load extra) |
-| CRAM 32 B | `[u8; 32]` + máscara de 6 bits | ~1 ns | nenhum |
-| Cartucho/SRAM | mapper com janelas | ~2–5 ns | nenhum |
+| Work RAM 8 KB | `[u8; 8192]` + máscara de espelhamento | ~1–2 ns no microbenchmark | nenhum observado |
+| VRAM 16 KB | `Vec<u8>` + `& 0x3FFF` | ~2 ns + branch no microbenchmark | indireção de `Vec` (um load extra) |
+| CRAM 32 B | `[u8; 32]` + máscara de 6 bits | ~1 ns no microbenchmark | nenhum observado |
+| Cartucho/SRAM | mapper com janelas | ~2–5 ns no microbenchmark | nenhum observado |
+
+Essas latências são resultados de microbenchmarks em condições específicas; não representam latência
+física de DRAM nem o custo total de uma transação em jogo.
 
 Duas melhorias pequenas e seguras: trocar `Vec<u8>` da VRAM por `Box<[u8; 16384]>` (elimina o load do
 ponteiro e permite ao LLVM provar o bound) e mover a seleção de modo (TMS9918 vs Mode 4) para um
@@ -188,12 +212,227 @@ declara isso explicitamente, e o VDP se descreve como modelo de scanline em `vdp
 não existe "latência de contenção" a otimizar em VRAM — existe latência de **quando** o efeito da
 escrita se torna visível, e isso é decidido pelo timestamp do evento, não pela memória.
 
-### 4.4 VDP — ~0,5 ms/frame de avanço + render
+### 4.4 VDP — avanço e render
 
-- `SmsVdp::advance` (`vdp.rs:573-605`) é chamado **49.780 vezes por frame** e, em cada chamada,
+- No workload de baseline `jr # Auditoria de latência do `temporal_core` — barramento, RAM, VRAM, VDP, PSG e YM2413
+
+**Data:** 2026-11-23
+**Escopo:** `native/temporal_core`, `native/machine_scheduler` e os consumidores quentes
+(`native/sms_core`, `native/video_core`, `native/sn76489`, `native/ym2413`)
+**Baseline:** `main` em `207ccc4` (perf: reuse validated clock advance previews #1259)
+**Método:** leitura integral do código + microbenchmarks isolados + medição em máquina real com ROM sintética
+**Plataforma de medição:** VM Neoverse-N1 (ARM64, 6 vCPU), Rust 1.99.1, `--release`, thin LTO
+
+---
+
+## 1. Resumo executivo
+
+A auditoria original identificou um volume elevado de eventos no SMS sintético: **5 despachos do
+scheduler por opcode fetch** e aproximadamente **49.780 eventos por frame** no workload `jr $`.
+Esse contador é uma observação do workload e do baseline, não uma constante universal para todos os
+jogos.
+
+Os dados históricos de latência foram obtidos por métodos diferentes. A janela instrumentada
+estimou **137 ns por despacho** após descontar o custo de instrumentação; o microbenchmark de
+decomposição reportou **158,5 ns**. Esses valores não são intercambiáveis nem devem ser multiplicados
+para afirmar que o Scheduler consome 43% do frame. A revisão posterior da PR
+[#1261](https://github.com/leonardo201800478/SUN/pull/1261) corrigiu a fronteira do harness para
+medir **agendamento + dispatch**: no host ARM64, o baseline foi 202,2 ns/op e o caminho com buffer
+do chamador 184,0 ns/op. O resultado end-to-end foi menor e ainda existe uma diferença de projeção
+não reconciliada.
+
+| Componente | Resultado observado | Natureza da evidência |
+|---|---|---|
+| Eventos por frame (`jr $`) | **49.780** | contador do workload sintético |
+| Scheduler — janela instrumentada | **~137 ns/dispatch** | estimativa ajustada pelo custo de instrumentação |
+| Scheduler — decomposição isolada | **158,5 ns/dispatch** | microbenchmark histórico, fronteira diferente |
+| Scheduler — harness corrigido pré-P0 | **202,2 ns/op** | agendamento + dispatch, ARM64 |
+| Scheduler — buffer do chamador P0 | **184,0 ns/op** | agendamento + dispatch, ARM64; 0 alocações |
+| PSG por frame | **1,22 ms** | benchmark isolado com drenagem, 44,1/48 kHz |
+| VDP `advance` por frame | **~0,5 ms** | estimativa instrumentada, não medição independente |
+| Frame total (ROM sintética) | **13,6–16,3 ms** | `step_frame` Release, instrumentação desligada |
+
+Os números não formam uma decomposição aditiva única: há fronteiras de medição distintas, componentes
+estimados e possíveis sobreposições de trabalho. Por isso, esta auditoria não atribui uma fração
+percentual do frame ao Scheduler nem publica uma projeção consolidada de frame time após otimizações.
+
+**Conclusão sustentada:** o custo do caminho temporal merece investigação porque o scheduler é
+invocado muitas vezes por frame. As latências de RAM/VRAM medidas em microbenchmarks são pequenas
+comparadas ao round-trip de barramento e scheduler; isso não justifica reescrever memória sem
+evidência de perfil real.
+
+## 2. Como foi medido (e o que isso não prova)
+
+- **Microbenchmarks**: laço fechado, `black_box` em entradas e saídas, mediana de 7–9 amostras,
+  parâmetros de runtime passados por `black_box` para impedir que o LLVM transforme divisão por
+  constante em multiplicação — o scheduler real recebe a razão de clock em runtime.
+- **Máquina real**: `SmsTemporalMachine::new(rom, 3)` com ROM sintética de 16 KB
+  (`jr $`, `ld ($C000),a` em laço, `ld a,(hl)` em laço, `out ($7F),a` em laço), 60 frames medidos
+  após aquecimento, `master_ticks_per_tstate = 3`.
+- **Contagem de eventos**: `set_subsystem_timing_enabled(true)` + `take_subsystem_timing()`.
+  Atenção: essa instrumentação paga **2 × `Instant::now` por despacho** (~37 ns cada nesta VM), o que
+  infla o frame de 15,9 ms para 26,7 ms. Por isso os números de tempo do scheduler foram obtidos
+  subtraindo o custo do `Instant::now` medido separadamente (74,5 ns para 2 chamadas +
+  `duration_since`), e o frame time honesto foi medido com instrumentação **desligada**.
+
+Limites: os valores absolutos foram obtidos em VM ARM64 e não podem ser extrapolados para Windows
+x64. A contagem de operações é válida para o workload sintético executado; a proporção de tempo por
+subsistema depende da plataforma, compilador, perfil do jogo e condições de execução. Nenhuma ROM
+comercial foi usada (o diretório `D:\ROMS\Sega Master System` não estava acessível ao ambiente de
+medição). A validação com jogos reais permanece pendente e está descrita no §9.
+
+---
+
+## 3. O que o `temporal_core` faz hoje
+
+### 3.1 Modelo
+
+- `MachineTime(u128)` (`clock.rs:11`) — timestamp absoluto em ticks de mestre.
+- `ClockDomain` (`clock.rs:244`) — razão racional `n/d`, timestamp, total de ciclos e fase.
+  Conversão em `convert_elapsed` (`clock.rs:104-128`) com **duas divisões `u128`** por avanço.
+- `ClockDomainAdvance` (`clock.rs:218`) — token de 128 bytes que carrega razão, tempo, total, fase de
+  origem **e** o snapshot de destino; `apply_preview` revalida o token (`clock.rs:464-470`).
+- `EventQueue` (`event.rs:137`) — `BinaryHeap` com chave `(MachineTime, HardwarePhase, PlatformPriority, u64)`
+  construída em `QueueEntry::key()` (`event.rs:70-77`).
+
+Layouts medidos: `MachineTime` 16 B, `ClockDomain` 96 B, `ClockDomainAdvance` **128 B**,
+`ClockDomainSnapshot` 48 B, `ClockAdvance` do scheduler **192 B**.
+
+### 3.2 O laço de despacho
+
+`MachineScheduler::dispatch_next` no baseline `main@207ccc4` executava, por evento:
+
+```text
+next_timestamp()                      // peek no heap
+calculate_advances(timestamp)
+  Vec::with_capacity(clocks.len())    // alocação no baseline
+  preview_advance por domínio
+apply_advances(timestamp, &advances)
+  preflight/validação dos previews
+  commit dos avanços
+pop_next()                            // pop do heap
+```
+
+**Estado posterior:** a PR [#1261](https://github.com/leonardo201800478/SUN/pull/1261) adiciona
+`dispatch_next_into()` e um buffer reutilizável no `SmsTemporalBus`. O caminho legado
+`dispatch_next()` permanece disponível; o caminho quente SMS evita a alocação até quatro
+domínios. Acima dessa capacidade, o buffer faz spill lossless para heap.
+
+### 3.3 Os três multiplicadores do custo
+
+1. **Volume**: cada opcode fetch gera **5 eventos** — 4 transições de T-state do modelo de pinos M1
+   (`Z80M1Phase::{T1,T2,Wait,T3,T4}` em `z80_cpu/src/m1.rs:12-19`, agendadas por
+   `schedule_m1_tstate`, `sms_core/src/temporal.rs:226-241`) + 1 conclusão de barramento. Medido:
+   `49.780 = 5 × 9.956` exatamente.
+2. **Razões de clock**: os domínios SMS usam a mesma razão nominal
+   `1/master_ticks_per_tstate` (`sms_core/src/temporal.rs:129-140`), mas isso, isoladamente, não
+   prova que seus previews sejam intercambiáveis: timestamp, ciclos acumulados e fase também
+   precisam coincidir. A tentativa de compartilhar previews foi medida posteriormente e rejeitada
+   por regressão de desempenho (PR #1262).
+3. **Granularidade de alocação no baseline**: `Vec::with_capacity(3)` e a construção dos tokens
+   criavam uma alocação por dispatch. A PR #1261 substituiu esse transporte no caminho SMS por
+   buffer reutilizável, com zero alocações no perfil de até quatro domínios.
+
+---
+
+## 4. Diagnóstico por subsistema
+
+### 4.1 Scheduler / `temporal_core` — custo por evento, sem percentual de frame
+
+A decomposição histórica de **158,5 ns** para três domínios pertence a um microbenchmark isolado.
+Ela não tem a mesma fronteira do harness corrigido posteriormente (agendamento + dispatch) e não
+deve ser usada para calcular a participação do Scheduler no frame.
+
+| Parte | Custo | Frequência | Evidência |
+|---|---|---|---|
+| 3 × `preview_advance` (u128) | 48,2 ns | por despacho | `clock.rs:104-128`, `:411-433` |
+| `Vec::with_capacity(3)` + 3 pushes de 128 B | 58,3 ns | por despacho | `machine_scheduler/src/lib.rs:585-595` |
+| `BTreeMap` get + get_mut (6 buscas) | 8,6 ns | por despacho | `lib.rs:609-620` |
+| `EventQueue` push + 2 pops | 26,9 ns | por evento | `event.rs:266-302` |
+| 2 × `tracing::trace!` sem subscriber | 4,6 ns | por despacho | `lib.rs:447-455`, `:521-528` |
+| Validação de preview | custo não isolado de forma confiável | por avanço | a validação faz parte do contrato de atomicidade |
+| `edge_time_after` (gcd + u128) | 12,9 ns → 2,1 ns sem gcd | **fora do hot path observado** | `clock.rs:349-399` |
+
+Os valores desta tabela são a decomposição histórica do microbenchmark, não uma contabilidade
+precisa do custo do caminho end-to-end. A afirmação de que o compilador eliminaria toda a
+revalidação foi removida: não há evidência suficiente para afirmá-la como regra geral.
+
+Observações relevantes:
+
+- `edge_time_after`/`next_edge_time` **não são chamados** pelo scheduler nem pelo SMS. A API existe,
+  é cara (redução por `gcd` por chamada), mas hoje não pesa. Deve permanecer assim.
+- `convert_elapsed` (`clock.rs:104-128`) faz `elapsed / denominator` **e** `elapsed % denominator`
+  sobre `u128`. Com razão `1/3`, isso é uma divisão `u128` por valor de runtime, que no ARM64 vira
+  chamada a `__udivti3`.
+- `ClockDomainAdvance` carrega 4 campos de origem (`source_ratio`, `source_time`,
+  `source_total_cycles`, `source_phase`) que existem **só** para detectar preview obsoleto. Numa
+  arquitetura em que o scheduler calcula e aplica dentro da mesma seção crítica, esses campos são
+  redundantes: um contador de geração de 32 bits faz o mesmo trabalho em 4 bytes em vez de 64.
+
+**Comparação posterior com fronteira corrigida:** o harness de #1261 mede uma operação combinada
+de agendamento + dispatch. No baseline ARM64, foram observados 202,2 ns/op; com buffer do chamador,
+184,0 ns/op (−9,0%), sem alocação. Esses valores não substituem a decomposição acima: são uma
+medição diferente e não devem ser somados às parcelas da tabela.
+
+---
+
+### 4.2 Barramento — round-trip temporal dominante; memória medida separadamente
+
+Caminho de um acesso (`native/sms_core/src/temporal_bus.rs`):
+
+```text
+begin_request (:761-815)          → checa ocupação, grava instante
+schedule_bus_completion (:868)    → u128::from(tstates) * u128::from(scale) + now
+                                  → schedule_at_with_phase → BinaryHeap::push
+dispatch_next (:868-952)          → scheduler.dispatch_next (baseline histórico)
+                                  → advance PSG + advance VDP (por evento no baseline)
+memory.read/write (:981-1002)     → 1 branch de mapa + 1 acesso indexado (~2 ns)
+```
+
+- `SmsMemory::read`/`write` são `#[inline]` (`memory.rs:284`, `:325`) e o caminho é direto: RAM é
+  `[u8; 8192]` com espelhamento por máscara (`memory.rs:308-333`), VRAM é `Vec<u8>` de 16 KB indexado
+  com `& 0x3FFF` (`video_core/src/sms/vdp.rs:886-900`). **Não há `BTreeMap`, `HashMap`, `Box<dyn>`,
+  `format!` nem alocação por acesso.** O acesso à memória está bem feito.
+- `BusTransaction` (`contract.rs:79-89`) usa `Option<u16>`/`Option<u8>` e valida no construtor
+  (`contract.rs:91-139`), mas **só é construído por APIs de inspeção**
+  (`temporal_machine.rs:777-828`); não está no caminho de execução. Correto.
+- O que pesa é o **round-trip temporal**, não apenas o load/store. A estimativa histórica de
+  ~164 ns por acesso não pode ser multiplicada por uma contagem genérica sem confirmar quantos
+  acessos completam esse caminho no mesmo workload. Como referência aritmética, 10.000 operações
+  × 164 ns equivalem a **1,64 ms**, não 8 ms. O tempo efetivo também depende dos avanços de PSG/VDP
+  associados e da distribuição de eventos.
+- `schedule_external_th_transition` (`temporal.rs:243-260`) faz `elapsed % u128::from(scale)` por
+  chamada — só relevante quando há transições externas de TH (light gun/paddle).
+- O clone do `Z80MicroSequencer` (96 B) antes de cada commit
+  (`temporal_machine.rs:1081-1091`) custa 7,3 ns por ciclo de barramento. É o preço da atomicidade
+  "valida no clone, depois instala"; aceitável, mas soma 0,07 ms/frame.
+
+### 4.3 RAM e VRAM — latência já mínima; o gargalo é a arbitragem temporal
+
+| Recurso | Modelo atual | Latência real de acesso | Risco |
+|---|---|---|---|
+| Work RAM 8 KB | `[u8; 8192]` + máscara de espelhamento | ~1–2 ns no microbenchmark | nenhum observado |
+| VRAM 16 KB | `Vec<u8>` + `& 0x3FFF` | ~2 ns + branch no microbenchmark | indireção de `Vec` (um load extra) |
+| CRAM 32 B | `[u8; 32]` + máscara de 6 bits | ~1 ns no microbenchmark | nenhum observado |
+| Cartucho/SRAM | mapper com janelas | ~2–5 ns no microbenchmark | nenhum observado |
+
+Essas latências são resultados de microbenchmarks em condições específicas; não representam latência
+física de DRAM nem o custo total de uma transação em jogo.
+
+Duas melhorias pequenas e seguras: trocar `Vec<u8>` da VRAM por `Box<[u8; 16384]>` (elimina o load do
+ponteiro e permite ao LLVM provar o bound) e mover a seleção de modo (TMS9918 vs Mode 4) para um
+`enum` comparado uma vez por scanline em vez de por byte.
+
+O ponto conceitual importante: **o SUN não modela arbitragem dot-cycle** (`temporal_bus.rs:7-9`
+declara isso explicitamente, e o VDP se descreve como modelo de scanline em `vdp.rs:1-3`). Portanto
+não existe "latência de contenção" a otimizar em VRAM — existe latência de **quando** o efeito da
+escrita se torna visível, e isso é decidido pelo timestamp do evento, não pela memória.
+
+, `SmsVdp::advance` (`vdp.rs:573-605`) foi chamado
+  aproximadamente **49.780 vezes por frame** e, em cada chamada,
   **constrói um array de 6–7 fronteiras**, itera, filtra e tira o mínimo (`:580-594`) antes de
-  decidir o passo. Com `tstates = 2`, o passo é sempre "não cruzou fronteira", mas o custo de montar
-  e varrer o array é pago integralmente.
+  decidir o passo. O comportamento de não cruzar fronteira depende do perfil e do argumento recebido;
+  não deve ser generalizado a todas as chamadas.
 - `prime_sprite_line_buffer` (`:706-726`) sai cedo na maioria das chamadas — ok.
 - Render: por scanline visível, `render_scanline_for_revision_with_evaluation` (`:821-846`) percorre
   256 pixels resolvendo name table e 4 bitplanes (`:1746-1776`), depois os sprites (`:1801-1865`).
@@ -242,92 +481,84 @@ Medições diretas (`Sn76489Core::new(3_579_545, rate)`, drenagem de 735 amostra
 
 ---
 
-## 5. Plano de otimização priorizado
+## 5. Plano de otimização e situação após as PRs de avaliação
 
-Ganhos projetados a partir das medições acima. Ordem = relação ganho/risco.
+Os números abaixo são hipóteses ou resultados de medições específicas; não são ganhos garantidos
+para qualquer ROM/plataforma. A numeração P0/P1/P2/P3 nas PRs é a do plano de otimização do Scheduler
+e não deve ser confundida com os itens de redução de eventos M1 descritos nesta auditoria.
 
-### P0 — Reduzir o volume de eventos (ganho ≈ 5,4 ms/frame)
+### E1 — Reduzir o volume de eventos M1 (hipótese ainda não implementada)
 
-**P0.a — Colapsar as 4 transições de T-state do M1 em 1 evento por fetch, quando não há WAIT.**
+**Hipótese:** consolidar transições T-state do M1 em um evento quando não houver WAIT armado,
+mantendo o caminho detalhado quando WAIT exigir observabilidade por T-state.
 
-Hoje cada fetch de opcode gera 4 eventos (`T1→T2→T3→T4`) mais a conclusão do barramento. Nenhum
-jogo de SMS observa os pinos durante o M1; o que importa é (i) o opcode ser amostrado no T3 e (ii) o
-WAIT externo poder inserir T-states. Proposta: manter o modelo de pinos, mas agendar **um** evento
-para o fim do M1 e avançar T1..T4 internamente; se um WAIT estiver armado para o fetch, cair no
-caminho lento por T-state.
+- A contagem observada no workload `jr $` foi 49.780 eventos/frame; o alvo de ~10.000 é projeção,
+  não resultado medido.
+- **Risco:** alto para fidelidade temporal. Exige prova de amostragem do opcode em T3, WAIT real,
+  TH, interrupções e ordem causal.
+- **Situação:** não implementar sem evidência de que jogos não observam estados intermediários e sem
+  testes direcionados de equivalência.
 
-- Efeito: 49.780 → ~10.000 eventos/frame (−80%).
-- Scheduler: 6,8 ms → ~1,4 ms **sem** tocar em P1.
-- Risco: médio. Exige prova de que WAIT/TH continuam corretos (há fixtures em
-  `sms_core/tests/nmi_e7.rs`, `z80_halt_nmi_e7.rs` e `m1_fixture_wait_tstates`).
-- Alinhamento com o projeto: "foco estrito em jogos" — o modelo de pinos por T-state é diagnóstico.
+### E2 — Clocking por fronteira própria (hipótese estrutural)
 
-**P0.b — Clocking preguiçoso de dispositivos (alternativa ou complemento).**
+PSG e VDP poderiam avançar apenas em suas próprias fronteiras ou quando acessados, desde que todos os
+efeitos observáveis sejam preservados no timestamp correto.
 
-PSG e VDP não precisam avançar a cada evento do Z80: o VDP avança por scanline e o PSG por amostra.
-Fazer cada domínio avançar só na sua própria fronteira (ou quando o dispositivo é lido/escrito)
-remove 2/3 das conversões por despacho sem mudar nenhum evento.
+- O ganho de remover conversões por despacho ainda não foi medido em uma implementação equivalente.
+- **Risco:** alto para sincronização causal e visibilidade de escritas.
+- **Situação:** pendente; não tratar como otimização de baixo risco.
 
-- Efeito: despacho de 137 ns → ~60 ns; 6,8 ms → ~3 ms.
-- Risco: baixo-médio (muda a API de `clock_advances`, que hoje sempre reporta 3–4 domínios).
+### D1 — Custo do dispatch e conversões de clock
 
-### P1 — Baratear o despacho (ganho ≈ 5,5 ms/frame)
-
-| Ação | Ganho medido | Onde |
+| Item | Evidência posterior | Situação |
 |---|---|---|
-| Eliminar o `Vec` por despacho (array de capacidade fixa com `Deref<[ClockAdvance]>`) | **−58 ns** | `machine_scheduler/src/lib.rs:585` |
-| Compartilhar uma única conversão entre domínios com razão **e** estado idênticos | −32 ns | `lib.rs:584-598` (novo) |
-| Encolher `ClockDomainAdvance` de 128 B para ~24 B (remover os 4 campos de origem; validação por geração) | −20 a −30 ns (cópia/validação) | `temporal_core/src/clock.rs:218-237` |
-| Trocar `BTreeMap<ClockDomainId, ClockDomain>` por array fixo (SMS tem 3–4 domínios) | −8,6 ns | `lib.rs:179` |
-| Remover `tracing::trace!` do caminho quente (ou `if trace_enabled`) | −4,6 ns (0,23 ms/frame) | `lib.rs:447`, `:521` |
-| Remover a revalidação dentro de `apply_preview` (o scheduler já validou) | −0 a −10 ns | `clock.rs:464` |
-| `MachineTime` de `u128` para `u64` (54.000 anos de folga a 10,7 MHz) | −10 a −15% no heap e nas comparações | `clock.rs:11` |
+| Buffer reutilizável no lugar de `Vec` por dispatch | PR #1261: 202,2 → 184,0 ns/op em agendamento + dispatch (−9,0%), zero alocações no caminho de até 4 domínios; ganho end-to-end de 1,0–3,3% nos workloads sintéticos | Implementado na branch da PR; CI passou; PR aberta |
+| Compartilhar previews entre domínios equivalentes | PR #1262: +6,5% mais lento com 3 domínios e +14,3% com 4 | Rejeitado; protótipo removido |
+| Guard para evitar revalidação redundante | PR #1263: +74,9% (3 domínios) e +68,0% (4) na comparação alternada | Rejeitado; P2 permanece pendente |
+| Fast path checked para timestamps pequenos, mantendo `MachineTime(u128)` | PR #1264: −6,3%/−5,8% no harness e −2,1%/−1,3% nos workloads SMS headless em Linux x86_64 | Candidato P3; CI passou; PR aberta; Windows x64/ARM64 pendentes |
+| Encolher `ClockDomainAdvance`, trocar `BTreeMap` ou remover tracing | Sem comparação isolada atual e pareada que justifique alteração | Não aprovado; medir antes de propor |
 
-Resultado esperado: **137 ns → ~25–30 ns**, com todos os testes de determinismo e snapshot mantidos
-(exige bump de `SCHEDULER_STATE_FORMAT_VERSION` e migração no codec).
+**Importante:** as medições das PRs ocorreram em hosts e configurações diferentes. Não somar percentuais,
+subtrair números entre relatórios ou projetar novo frame time a partir deles. O ganho end-to-end de
+#1261 também não reconcilia ainda com a projeção do harness; essa diferença está explicitamente
+pendente no relatório P0.
 
-### P2 — PSG (ganho ≈ 1,05 ms/frame)
+### PSG-A — Otimizações do SN76489 (hipóteses pendentes)
 
-1. **Ring buffer do FIR com máscara** em vez de `% taps` por coeficiente (`psg.rs:732-740`):
-   divisão inteira (~20 ciclos) → `and` (1 ciclo). Ganho estimado 8–10×.
-2. **Uma avaliação do FIR por tick**, reaproveitando `current_filtered` como `previous_filtered` do
-   tick seguinte: 2×.
-3. Acumulador de fase em `u64` com recíproca pré-calculada (sem `u128` em `psg.rs:23-32`).
-4. Interpolação sem divisão `f64` por amostra (`psg.rs:40-53`): pré-calcular
-   `1.0 / increment` uma vez.
-5. Fila de amostras em ring buffer de capacidade fixa alinhada ao frame, sem caminho de overflow no
-   hot path.
+1. Investigar o custo do índice circular do FIR e comparar alternativas sem alterar a resposta
+   espectral.
+2. Verificar se a amostra filtrada anterior pode ser reutilizada sem alterar a interpolação.
+3. Só avaliar acumulador `u64` ou recíproca pré-calculada com prova de faixa e equivalência bit a bit
+   ou dentro da tolerância de áudio definida.
+4. Medir a interpolação e a fila de amostras em workloads com drenagem real.
+5. Não substituir a fila por capacidade fixa sem provar comportamento de overflow/underrun.
 
-Projeção: 1,22 ms → **~0,15 ms**.
+A medição isolada original encontrou 1,22 ms/frame para a geração de áudio na configuração testada.
+A projeção de 0,15 ms/frame ainda não foi validada e não deve ser apresentada como resultado.
 
-### P3 — VDP (ganho ≈ 0,35 ms/frame)
+### VDP-A — Otimizações do VDP (hipóteses pendentes)
 
-1. Cachear `next_boundary_tstate` num campo e comparar antes de montar o array de fronteiras
-   (`vdp.rs:578-594`): caminho rápido de 3 linhas para "não cruzou".
-2. Avaliação de sprite em array fixo (`[_; 64]` + len) em vez de `Vec::with_capacity` por linha
-   (`vdp.rs:1221`, `:1082`).
-3. Publicar frame por troca de buffer em vez de `clone_from` (`vdp.rs:678-695`).
-4. VRAM como `Box<[u8; 16384]>`.
+1. Medir o custo de fronteiras em `SmsVdp::advance` por workload antes de cachear a próxima fronteira.
+2. Avaliar armazenamento fixo para avaliação de sprites, preservando overflow e prioridade.
+3. Avaliar troca de buffers somente após provar ownership e sincronização com o frontend.
+4. Não trocar o tipo de VRAM sem medir impacto real e compatibilidade dos caminhos de save state.
 
-### P4 — CPU e barramento (ganho ≈ 0,1–0,3 ms/frame, mais clareza)
+O valor de ~0,5 ms/frame é uma estimativa instrumentada, não uma medição independente do VDP.
 
-1. Commit do `Z80MicroSequencer` sem clone quando a operação não pode falhar (ou rollback por
-   snapshot de 96 B em vez de `clone()` + realocação lógica) — `temporal_machine.rs:1081-1091`.
-2. `schedule_external_th_transition`: substituir o `% u128` por subtração/`%` em `u64`.
-3. Tornar a captura do trace essencial opt-in (hoje todo despacho escreve no ring de 2.048 entradas,
-   `temporal_machine.rs:1502-1521`).
+### CPU-A — CPU e barramento (hipóteses pendentes)
 
-### P5 — Estrutural (habilita tudo acima sem retrabalho)
+1. Qualquer alteração no commit de `Z80MicroSequencer` deve preservar atomicidade em falhas.
+2. A aritmética de transições TH só deve mudar após teste de limites e medição no caminho efetivo.
+3. Tornar traces opcionais somente se o custo tiver sido medido no perfil de produção e a observabilidade
+   necessária aos jogos continuar intacta.
 
-1. **`ClockLane`**: primeira classe no `temporal_core` — uma conversão racional compartilhada por N
-   domínios que declaram a mesma razão e fase. O SMS passa a ter 1 lane e 4 assinantes; o
-   `ClockDomainAdvance` deixa de ser por domínio.
-2. **Domínios com fronteira própria**: cada domínio declara seu próximo instante de interesse
-   (`next_edge`), e o scheduler só o avança quando esse instante é atingido. Isso é o que permite P0.b
-   e P3 sem "pular" estados.
-3. **Timeline `u64`** com unidade documentada (master tick) e conversão explícita na borda.
+### Estrutural-A — Evolução futura do modelo temporal
 
----
+1. Uma abstração `ClockLane` só é justificável se reduzir trabalho no caminho real sem introduzir
+   custo de busca por dispatch nem misturar domínios com estado de origem diferente.
+2. Domínios com fronteiras próprias exigem prova de que nenhum estado observável é pulado.
+3. A representação pública de `MachineTime` permanece `u128`; o fast path local de #1264 não autoriza
+   migrar a timeline global para `u64`.
 
 ## 6. O que **não** vale otimizar (e por quê)
 
@@ -356,45 +587,41 @@ Projeção: 1,22 ms → **~0,15 ms**.
 
 ---
 
-## 8. Prova de conceito já validada
+## 8. Evidência posterior e decisões das PRs
 
-Duas mudanças de P1 foram implementadas num protótipo isolado e medidas com a mesma ROM sintética:
+A hipótese original de conversão compartilhada não foi confirmada. As avaliações posteriores
+separaram as alterações e corrigiram a fronteira dos benchmarks:
 
-1. **Fast path `numerator == 1` em `convert_elapsed`** (`clock.rs:104`): quando a razão é `1/n` e os
-   operandos cabem em `u64`, uma única divisão de 64 bits substitui o caminho `u128` com duas
-   divisões e produtos verificados.
-2. **Conversão compartilhada por grupo de domínios** em `calculate_advances`: domínios com razão,
-   timestamp, total e fase idênticos reaproveitam o mesmo `preview`.
-
-| Cenário (60 frames, release) | `main` | PoC | Δ |
+| PR | Alteração avaliada | Resultado | Decisão atual |
 |---|---|---|---|
-| `jr $` | 15,88 ms | **14,97 ms** | −0,91 ms (−5,7%) |
-| `ld ($C000),a` em laço | 13,91 ms | **12,80 ms** | −1,11 ms (−8,0%) |
-| `ld a,(hl)` em laço | 16,26 ms | **15,29 ms** | −0,97 ms (−6,0%) |
-| `out ($7F),a` em laço | 13,65 ms | **13,33 ms** | −0,32 ms (−2,3%) |
+| [#1261](https://github.com/leonardo201800478/SUN/pull/1261) | Buffer reutilizável para os avanços do Scheduler | 202,2 → 184,0 ns/op (−9,0%) em agendamento + dispatch; zero alocações. End-to-end: −2,0% `relative-loop`, −2,4% bus-heavy, −3,3% read-heavy, −1,0% port-heavy | Mantida na branch; CI passou; PR aberta. A projeção do harness (~0,906 ms/frame) não foi reconciliada com o ganho end-to-end de 0,322 ms/frame no `relative-loop`. |
+| [#1262](https://github.com/leonardo201800478/SUN/pull/1262) | Compartilhamento de previews equivalentes | +6,5% mais lento em 3 domínios e +14,3% em 4 | Rejeitada; nenhum código runtime mantido. |
+| [#1263](https://github.com/leonardo201800478/SUN/pull/1263) | Guards para evitar revalidação no commit | +74,9% mais lento em 3 domínios e +68,0% em 4 na comparação alternada | Rejeitada; nenhum código runtime mantido. |
+| [#1264](https://github.com/leonardo201800478/SUN/pull/1264) | Fast path de `checked_duration_since()`, preservando `MachineTime(u128)` | −6,3%/−5,8% no harness; −2,1%/−1,3% nos workloads SMS headless, em Linux x86_64 | Candidato P3; CI passou. PR aberta; Windows x64 e ARM64 não medidos. |
 
-Testes: `sega-temporal-core` 41/41, `sega-machine-scheduler` 40/40 + integração, `sega-sms-core`
-188/188 e suítes auxiliares — **todas verdes**, incluindo `snapshot_restore_e7_2e` e os testes
-temporais `z80_f001/f002/f003`.
+Os valores de #1261 foram obtidos em ARM64/Neoverse-N1; os de #1264 em Linux x86_64 com processo
+fixado na CPU. Não comparar diretamente as latências absolutas entre esses hosts. As porcentagens
+são resultados de seus respectivos experimentos, não ganhos cumulativos.
 
-Ou seja: as duas mudanças mais baratas de P1 já entregam 2–8% de frame sem tocar em semântica. P0 é
-onde está o resto.
-
----
+Os testes e validações específicos estão registrados nos relatórios vinculados em cada PR. Nenhuma
+dessas evidências autoriza remover validações, alterar a ordem temporal ou assumir ganhos em jogos
+comerciais sem teste real.
 
 ## 9. Próximos passos sugeridos
 
-1. **Validar com jogos reais.** O harness usado aqui roda ROM sintética; a distribuição de eventos de
-   um jogo (mais `out`, mais VDP, mais interrupções) deve confirmar ou ajustar as proporções. Basta
-   rodar `step_frame` com `set_subsystem_timing_enabled(true)` num `.sms` de `D:\ROMS\Sega Master
-   System` e reportar `dispatches/frame` e `frame time`.
-2. **P1 primeiro** (baixo risco, ganho imediato, já provado): array fixo + lane compartilhada +
-   remoção do `trace!` + `u64` na timeline, com bump de versão do snapshot.
-3. **P2 em paralelo** (independente do scheduler): FIR com máscara e avaliação única por tick.
-4. **P0 por último** e com prova explícita de WAIT: é o maior ganho e o único que mexe em semântica
-   observável do M1.
-5. **Medir de novo** a cada etapa com o mesmo harness e registrar `dispatches/frame` no PR, como já
-   vem sendo feito nos PRs `perf/s0-*`.
+1. **Validar com jogos reais em duas passagens separadas.** Primeiro, executar com contador de
+   dispatches habilitado para registrar `dispatches/frame`, perfil do sistema e comportamento de WAIT.
+   Depois, repetir com a instrumentação temporal desligada para medir frame time; não usar os tempos
+   da execução instrumentada como FPS ou latência real.
+2. **Validar em Windows x64**, plataforma inicial do frontend, e repetir em ARM64 quando houver
+   ambiente disponível. Não extrapolar proporções de um host para outro.
+3. **Manter a ordem de prioridade baseada em evidência:** P0 buffer do chamador (#1261) e P3 fast
+   path local (#1264) permanecem candidatos nas respectivas PRs; compartilhamento de previews (#1262)
+   e guards de commit (#1263) foram rejeitados.
+4. **Não iniciar redução de eventos M1 ou clocking preguiçoso** sem prova explícita de WAIT real,
+   TH, interrupções, visibilidade de efeitos e determinismo.
+5. **Para PSG/VDP**, medir isoladamente e em workload de máquina antes de alterar buffers, FIR,
+   fronteiras ou sincronização.
 
 ---
 
@@ -414,8 +641,9 @@ caminho para `sega-temporal-core`, `sega-machine-scheduler`, `sega-sms-core`, `s
 | `audio` | clone do YM2413 por slot, custo por tick do PSG |
 | `div`, `clone` | `u128` vs `u64` na divisão, clone do `Z80MicroSequencer` |
 
-Para a contagem de eventos, lembrar que `set_subsystem_timing_enabled(true)` adiciona 2 ×
-`Instant::now` por despacho e **não** deve ser usado para medir frame time.
+Para contar eventos, `set_subsystem_timing_enabled(true)` adiciona 2 × `Instant::now` por
+despacho. Use essa execução somente para contagem/instrumentação; faça outra execução com a
+instrumentação desligada para medir frame time.
 
 ## Apêndice B — Números de referência
 
