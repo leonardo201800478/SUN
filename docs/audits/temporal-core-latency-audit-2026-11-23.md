@@ -1,9 +1,9 @@
 # Auditoria de latência do `temporal_core` — barramento, RAM, VRAM, VDP, PSG e YM2413
 
-**Data:** 2026-11-23  
-**Escopo:** `native/temporal_core`, `native/machine_scheduler` e consumidores em `sms_core`, `video_core`, `sn76489` e `ym2413`.  
-**Baseline:** `main@207ccc4` (antes da implementação P0 da PR #1261).  
-**Método:** leitura de código, microbenchmarks e execução headless com ROMs sintéticas.  
+**Data:** 2026-11-23
+**Escopo:** `native/temporal_core`, `native/machine_scheduler` e consumidores em `sms_core`, `video_core`, `sn76489` e `ym2413`.
+**Baseline:** `main@207ccc4` (antes da implementação P0 da PR #1261).
+**Método:** leitura de código, microbenchmarks e execução headless com ROMs sintéticas.
 **Plataforma da auditoria original:** VM Neoverse-N1 (ARM64, 6 vCPU), Rust 1.99.1, Release, thin LTO.
 
 ---
