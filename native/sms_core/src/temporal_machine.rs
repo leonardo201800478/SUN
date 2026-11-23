@@ -100,7 +100,9 @@ pub const SMS_DETAILED_TRACE_CAPACITY: usize = 2_048;
 pub struct SmsTemporalProfileCounters {
     pub z80_instructions: u64,
     pub z80_tstates: u64,
+    pub z80_mcycles: u64,
     pub z80_interrupt_services: u64,
+    pub z80_interrupt_mcycles: u64,
     pub z80_interrupt_tstates: u64,
     pub opcode_fetches: u64,
     pub memory_reads: u64,
@@ -118,7 +120,9 @@ impl SmsTemporalProfileCounters {
         Self {
             z80_instructions: self.z80_instructions.saturating_add(other.z80_instructions),
             z80_tstates: self.z80_tstates.saturating_add(other.z80_tstates),
+            z80_mcycles: self.z80_mcycles.saturating_add(other.z80_mcycles),
             z80_interrupt_services: self.z80_interrupt_services.saturating_add(other.z80_interrupt_services),
+            z80_interrupt_mcycles: self.z80_interrupt_mcycles.saturating_add(other.z80_interrupt_mcycles),
             z80_interrupt_tstates: self.z80_interrupt_tstates.saturating_add(other.z80_interrupt_tstates),
             opcode_fetches: self.opcode_fetches.saturating_add(other.opcode_fetches),
             memory_reads: self.memory_reads.saturating_add(other.memory_reads),
@@ -958,6 +962,7 @@ impl SmsTemporalMachine {
             .pending_request()
             .filter(|request| request.operation == Z80BusOperation::OpcodeFetch)
             .ok_or(SmsTemporalMachineError::InvalidState)?;
+        let mcycle_index = self.cpu.export_state().mcycle_index;
         let mut next_cpu = self.cpu.clone();
         let step = next_cpu.complete_bus_cycle(request.id, Some(opcode))?;
         // finish_m1_fetch is called only at the effective T4 completion edge.
@@ -967,6 +972,7 @@ impl SmsTemporalMachine {
             next_cpu.sample_halt_interrupts_at_t4()?;
         }
         self.cpu = next_cpu;
+        self.record_profile_mcycles(step, mcycle_index);
         if self.profile_counters_enabled {
             self.profile_counters.opcode_fetches =
                 self.profile_counters.opcode_fetches.saturating_add(1);
@@ -1058,10 +1064,12 @@ impl SmsTemporalMachine {
                 // consuming the latched bus completion. If CPU completion fails
                 // (for example, checked T-state overflow), the bus response and
                 // its already-applied memory effect remain pending for restore/retry.
+                let mcycle_index = self.cpu.export_state().mcycle_index;
                 let mut next_cpu = self.cpu.clone();
                 let step = next_cpu.complete_bus_cycle(completion.request_id, completion.data)?;
                 self.bus.acknowledge_completion(completion.request_id)?;
                 self.cpu = next_cpu;
+                self.record_profile_mcycles(step, mcycle_index);
                 if matches!(
                     step,
                     Z80MicroStep::InstructionRetired { .. }
@@ -1192,12 +1200,14 @@ impl SmsTemporalMachine {
                 // Prepare the CPU transition before acknowledging the scheduler
                 // event. On failure, both the bus completion and continuation
                 // metadata remain available for snapshot/restore/retry.
+                let mcycle_index = self.cpu.export_state().mcycle_index;
                 let mut next_cpu = self.cpu.clone();
                 let step = next_cpu.complete_internal_cycle()?;
                 self.bus
                     .acknowledge_internal_completion(completion.continuation_id)?;
 
                 self.cpu = next_cpu;
+                self.record_profile_mcycles(step, mcycle_index);
                 self.pending_internal_tstates = None;
                 self.pending_internal_cycle_id = None;
                 if matches!(
@@ -1327,6 +1337,28 @@ impl SmsTemporalMachine {
                 }
                 serviced @ Z80MicroStep::InterruptServiced { .. } => return Ok(serviced),
             };
+        }
+    }
+
+    fn record_profile_mcycles(&mut self, step: Z80MicroStep, mcycle_index: u32) {
+        if !self.profile_counters_enabled {
+            return;
+        }
+        let completed_mcycles = u64::from(mcycle_index).saturating_add(1);
+        match step {
+            Z80MicroStep::InstructionRetired { .. } => {
+                self.profile_counters.z80_mcycles = self
+                    .profile_counters
+                    .z80_mcycles
+                    .saturating_add(completed_mcycles);
+            }
+            Z80MicroStep::InterruptServiced { .. } => {
+                self.profile_counters.z80_interrupt_mcycles = self
+                    .profile_counters
+                    .z80_interrupt_mcycles
+                    .saturating_add(completed_mcycles);
+            }
+            _ => {}
         }
     }
 
