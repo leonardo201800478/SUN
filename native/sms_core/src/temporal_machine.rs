@@ -121,15 +121,23 @@ impl SmsTemporalProfileCounters {
             z80_instructions: self.z80_instructions.saturating_add(other.z80_instructions),
             z80_tstates: self.z80_tstates.saturating_add(other.z80_tstates),
             z80_mcycles: self.z80_mcycles.saturating_add(other.z80_mcycles),
-            z80_interrupt_services: self.z80_interrupt_services.saturating_add(other.z80_interrupt_services),
-            z80_interrupt_mcycles: self.z80_interrupt_mcycles.saturating_add(other.z80_interrupt_mcycles),
-            z80_interrupt_tstates: self.z80_interrupt_tstates.saturating_add(other.z80_interrupt_tstates),
+            z80_interrupt_services: self
+                .z80_interrupt_services
+                .saturating_add(other.z80_interrupt_services),
+            z80_interrupt_mcycles: self
+                .z80_interrupt_mcycles
+                .saturating_add(other.z80_interrupt_mcycles),
+            z80_interrupt_tstates: self
+                .z80_interrupt_tstates
+                .saturating_add(other.z80_interrupt_tstates),
             opcode_fetches: self.opcode_fetches.saturating_add(other.opcode_fetches),
             memory_reads: self.memory_reads.saturating_add(other.memory_reads),
             memory_writes: self.memory_writes.saturating_add(other.memory_writes),
             port_reads: self.port_reads.saturating_add(other.port_reads),
             port_writes: self.port_writes.saturating_add(other.port_writes),
-            interrupt_acknowledges: self.interrupt_acknowledges.saturating_add(other.interrupt_acknowledges),
+            interrupt_acknowledges: self
+                .interrupt_acknowledges
+                .saturating_add(other.interrupt_acknowledges),
             wait_tstates: self.wait_tstates.saturating_add(other.wait_tstates),
             internal_tstates: self.internal_tstates.saturating_add(other.internal_tstates),
         }
@@ -1376,8 +1384,10 @@ impl SmsTemporalMachine {
             Z80MicroStep::InstructionRetired { tstates, .. } => {
                 self.profile_counters.z80_instructions =
                     self.profile_counters.z80_instructions.saturating_add(1);
-                self.profile_counters.z80_tstates =
-                    self.profile_counters.z80_tstates.saturating_add(u64::from(tstates));
+                self.profile_counters.z80_tstates = self
+                    .profile_counters
+                    .z80_tstates
+                    .saturating_add(u64::from(tstates));
             }
             Z80MicroStep::InterruptServiced { tstates, .. } => {
                 self.profile_counters.z80_interrupt_services = self
