@@ -218,14 +218,10 @@ foreach ($line in Get-Content -LiteralPath $logPath) {
     }
 }
 
-if ($throughputRows.Count -ne 3) {
-    throw "Esperados 3 resultados SUN_PERF_RESULT; encontrados $($throughputRows.Count). Consulte $logPath"
+$reportComplete = ($throughputRows.Count -eq 3 -and $diagnosticRows.Count -eq 3)
+if ($diagnosticRows.Count -gt 0) {
+    $diagnosticRows | Export-Csv -LiteralPath $diagnosticsCsvPath -NoTypeInformation -Encoding UTF8
 }
-if ($diagnosticRows.Count -ne 3) {
-    throw "Esperadas 3 linhas SUN_PERF_DIAGNOSTICS; encontradas $($diagnosticRows.Count). Consulte $logPath"
-}
-
-$diagnosticRows | Export-Csv -LiteralPath $diagnosticsCsvPath -NoTypeInformation -Encoding UTF8
 $summary = [ordered]@{
     schema = "sun-s0-aggregate-v1"
     captured_at_local = (Get-Date).ToString("o")
@@ -238,11 +234,12 @@ $summary = [ordered]@{
     capture_seconds = $CaptureSeconds
     diagnostic_seconds = $DiagnosticSeconds
     collection = "in-memory aggregate counters; exported once after each scenario"
-    event_log = $false
+    per_operation_event_trace = $false
     heap_trace = $false
     throughput = @($throughputRows)
     diagnostics = @($diagnosticRows)
     diagnostics_csv = $diagnosticsCsvPath
+    report_complete = $reportComplete
     interpretation = @(
         "Z80 instruction, T-state, M-cycle and BUS totals cover each complete diagnostic scenario.",
         "WAIT T-states are included in retired instruction T-states; do not add them again.",
@@ -302,6 +299,7 @@ $manifest = [ordered]@{
     aggregate_summary_path = $summaryPath
     subsystem_diagnostics_csv = $diagnosticsCsvPath
     heap_profile_included = $false
+    aggregate_report_complete = $reportComplete
 }
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 
@@ -318,4 +316,7 @@ if ($CaptureCpuProfile) {
 }
 if ($exitCode -ne 0) {
     throw "A campanha de benchmark falhou. Consulte $logPath"
+}
+if (-not $reportComplete) {
+    throw "Relatório incompleto: throughput=$($throughputRows.Count)/3, diagnostics=$($diagnosticRows.Count)/3. Consulte $logPath"
 }
