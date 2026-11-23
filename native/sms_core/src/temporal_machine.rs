@@ -976,7 +976,9 @@ impl SmsTemporalMachine {
             .pending_request()
             .filter(|request| request.operation == Z80BusOperation::OpcodeFetch)
             .ok_or(SmsTemporalMachineError::InvalidState)?;
-        let mcycle_index = self.cpu.export_state().mcycle_index;
+        let mcycle_index = self
+            .profile_counters_enabled
+            .then(|| self.cpu.export_state().mcycle_index);
         let mut next_cpu = self.cpu.clone();
         let step = next_cpu.complete_bus_cycle(request.id, Some(opcode))?;
         // finish_m1_fetch is called only at the effective T4 completion edge.
@@ -986,7 +988,9 @@ impl SmsTemporalMachine {
             next_cpu.sample_halt_interrupts_at_t4()?;
         }
         self.cpu = next_cpu;
-        self.record_profile_mcycles(step, mcycle_index);
+        if let Some(mcycle_index) = mcycle_index {
+            self.record_profile_mcycles(step, mcycle_index);
+        }
         if self.profile_counters_enabled {
             self.profile_counters.opcode_fetches =
                 self.profile_counters.opcode_fetches.saturating_add(1);
@@ -1078,12 +1082,16 @@ impl SmsTemporalMachine {
                 // consuming the latched bus completion. If CPU completion fails
                 // (for example, checked T-state overflow), the bus response and
                 // its already-applied memory effect remain pending for restore/retry.
-                let mcycle_index = self.cpu.export_state().mcycle_index;
+                let mcycle_index = self
+            .profile_counters_enabled
+            .then(|| self.cpu.export_state().mcycle_index);
                 let mut next_cpu = self.cpu.clone();
                 let step = next_cpu.complete_bus_cycle(completion.request_id, completion.data)?;
                 self.bus.acknowledge_completion(completion.request_id)?;
                 self.cpu = next_cpu;
-                self.record_profile_mcycles(step, mcycle_index);
+                if let Some(mcycle_index) = mcycle_index {
+            self.record_profile_mcycles(step, mcycle_index);
+        }
                 if matches!(
                     step,
                     Z80MicroStep::InstructionRetired { .. }
@@ -1207,7 +1215,9 @@ impl SmsTemporalMachine {
                 // Prepare the CPU transition before acknowledging the scheduler
                 // event. On failure, both the bus completion and continuation
                 // metadata remain available for snapshot/restore/retry.
-                let mcycle_index = self.cpu.export_state().mcycle_index;
+                let mcycle_index = self
+            .profile_counters_enabled
+            .then(|| self.cpu.export_state().mcycle_index);
                 let mut next_cpu = self.cpu.clone();
                 let step = next_cpu.complete_internal_cycle()?;
                 self.bus
@@ -1220,7 +1230,9 @@ impl SmsTemporalMachine {
                         .internal_tstates
                         .saturating_add(u64::from(tstates));
                 }
-                self.record_profile_mcycles(step, mcycle_index);
+                if let Some(mcycle_index) = mcycle_index {
+            self.record_profile_mcycles(step, mcycle_index);
+        }
                 self.pending_internal_tstates = None;
                 self.pending_internal_cycle_id = None;
                 if matches!(
@@ -1320,7 +1332,9 @@ impl SmsTemporalMachine {
             } else {
                 step
             };
-            self.record_profile_step(step);
+            if self.profile_counters_enabled {
+                self.record_profile_step(step);
+            }
             if self.frame_number() != initial_frame {
                 return Ok((completed + 1, false));
             }
@@ -1376,9 +1390,6 @@ impl SmsTemporalMachine {
     }
 
     fn record_profile_step(&mut self, step: Z80MicroStep) {
-        if !self.profile_counters_enabled {
-            return;
-        }
         match step {
             Z80MicroStep::InstructionRetired { tstates, .. } => {
                 self.profile_counters.z80_instructions =
