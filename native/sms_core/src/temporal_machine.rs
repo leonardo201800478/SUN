@@ -1204,13 +1204,6 @@ impl SmsTemporalMachine {
                 let tstates = self
                     .pending_internal_tstates
                     .ok_or(SmsTemporalMachineError::InvalidState)?;
-                if self.profile_counters_enabled {
-                    self.profile_counters.internal_tstates = self
-                        .profile_counters
-                        .internal_tstates
-                        .saturating_add(u64::from(tstates));
-                }
-
                 // Prepare the CPU transition before acknowledging the scheduler
                 // event. On failure, both the bus completion and continuation
                 // metadata remain available for snapshot/restore/retry.
@@ -1221,6 +1214,12 @@ impl SmsTemporalMachine {
                     .acknowledge_internal_completion(completion.continuation_id)?;
 
                 self.cpu = next_cpu;
+                if self.profile_counters_enabled {
+                    self.profile_counters.internal_tstates = self
+                        .profile_counters
+                        .internal_tstates
+                        .saturating_add(u64::from(tstates));
+                }
                 self.record_profile_mcycles(step, mcycle_index);
                 self.pending_internal_tstates = None;
                 self.pending_internal_cycle_id = None;
