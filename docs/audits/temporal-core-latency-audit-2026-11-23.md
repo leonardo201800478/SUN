@@ -135,6 +135,7 @@ deve ser usada para calcular a participação do Scheduler no frame.
 | Buscas `BTreeMap` | 8,6 ns | Seis operações reportadas |
 | `EventQueue` push/pop | 26,9 ns | Operações da fila |
 | `tracing::trace!` | 4,6 ns | Sem subscriber no microbenchmark |
+| Residual não atribuído pelas parcelas acima | 11,9 ns | Diferença até o total reportado de 158,5 ns |
 | `edge_time_after` | 12,9 ns → 2,1 ns sem GCD | Fora do hot path observado |
 
 Os valores são a decomposição histórica do microbenchmark, não uma contabilidade precisa do custo
