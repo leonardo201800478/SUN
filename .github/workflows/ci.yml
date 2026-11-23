@@ -54,6 +54,7 @@ jobs:
       slint_desktop_present: ${{ steps.slint_manifest.outputs.present }}
       scheduler: ${{ steps.filter.outputs.scheduler }}
       tooling: ${{ steps.filter.outputs.tooling }}
+      temporal_bench: ${{ steps.filter.outputs.temporal_bench }}
       ym2413_dac_audit: ${{ steps.filter.outputs.ym2413_dac_audit }}
       sms_pacing: ${{ steps.filter.outputs.sms_pacing }}
       full: ${{ steps.filter.outputs.full }}
@@ -188,6 +189,8 @@ jobs:
               - 'native/sg1000_core/src/temporal*.rs'
             tooling:
               - 'scripts/**/*.ps1'
+            temporal_bench:
+              - 'tools/temporal_bench/**'
             ym2413_dac_audit:
               - 'tools/ym2413-dac-capture-audit/**'
             sms_pacing:
@@ -1027,6 +1030,27 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  temporal-bench:
+    name: Temporal benchmark harness validation
+    needs: [changes]
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.temporal_bench == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt && rustup default 1.99.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Format temporal benchmark crate
+        run: cargo fmt --manifest-path tools/temporal_bench/Cargo.toml -- --check
+      - name: Clippy temporal benchmark binaries
+        run: cargo clippy --release --manifest-path tools/temporal_bench/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Compile temporal benchmark binaries
+        run: cargo check --release --manifest-path tools/temporal_bench/Cargo.toml --bins --locked
+
   quality-gate:
     name: Rust quality and unit regression
     needs:
@@ -1044,6 +1068,7 @@ jobs:
       - windows-sdl3-input
       - windows-tooling
       - scheduler-stress
+      - temporal-bench
       - refresh-lockfiles
       - windows-cpal-output
       - sms-pacing-rom-build
@@ -1078,6 +1103,8 @@ jobs:
           WINDOWS_TOOLING: ${{ needs.windows-tooling.result }}
           EXPECT_SCHEDULER: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.scheduler_stress_profile != 'none') || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.scheduler == 'true') }}
           SCHEDULER: ${{ needs.scheduler-stress.result }}
+          EXPECT_TEMPORAL_BENCH: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.temporal_bench == 'true' }}
+          TEMPORAL_BENCH: ${{ needs.temporal-bench.result }}
           EXPECT_WINDOWS_CPAL_OUTPUT: ${{ needs.changes.outputs.cpal == 'true' }}
           WINDOWS_CPAL_OUTPUT: ${{ needs.windows-cpal-output.result }}
           EXPECT_SMS_PACING_ROM: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.sms_pacing == 'true' }}
@@ -1120,6 +1147,7 @@ jobs:
           check_job "Windows SDL3 input" "$EXPECT_WINDOWS_SDL3_INPUT" "$WINDOWS_SDL3_INPUT"
           check_job "PowerShell tooling" "$EXPECT_WINDOWS_TOOLING" "$WINDOWS_TOOLING"
           check_job "Scheduler stress" "$EXPECT_SCHEDULER" "$SCHEDULER"
+          check_job "Temporal benchmark harness" "$EXPECT_TEMPORAL_BENCH" "$TEMPORAL_BENCH"
           check_job "Windows x64 CPAL audio output" "$EXPECT_WINDOWS_CPAL_OUTPUT" "$WINDOWS_CPAL_OUTPUT"
           check_job "SMS frame pacing ROM build" "$EXPECT_SMS_PACING_ROM" "$SMS_PACING_ROM"
           check_job "YM2413 DAC capture audit" "$EXPECT_YM2413_DAC_AUDIT" "$YM2413_DAC_AUDIT"
