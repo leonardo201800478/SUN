@@ -212,7 +212,7 @@ pub struct ClockDomainSnapshot {
 /// A validated, non-mutating clock-domain advance prepared for a later commit.
 ///
 /// The source state and immutable ratio are captured so a preview cannot be
-/// applied after the domain has changed or to a different clock domain. Fields
+/// applied after the source domain has changed or to another domain with a different ratio or state. Fields
 /// remain private to prevent callers from manufacturing an unvalidated commit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClockDomainAdvance {
