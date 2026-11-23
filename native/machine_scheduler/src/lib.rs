@@ -480,9 +480,11 @@ impl<T> MachineScheduler<T> {
     /// domain is partially advanced.
     ///
     /// This entry point allocates one `Vec` per dispatch for callers that keep
-    /// the advances beyond the call. Hot loops should use
-    /// [`Self::dispatch_next_into`], which performs the same work without
-    /// allocating; the two bodies are deliberately kept separate because
+    /// the advances beyond the call. Hot loops with at most
+    /// [`INLINE_CLOCK_ADVANCES`] registered domains should use
+    /// [`Self::dispatch_next_into`], which avoids the per-dispatch allocation;
+    /// larger domain sets use `ClockAdvances`' explicit heap fallback. The two
+    /// bodies are deliberately kept separate because
     /// routing both through one generic sink measured 16% to 35% slower on
     /// this path (see `tools/temporal_bench`).
     pub fn dispatch_next(&mut self) -> Result<Option<MachineDispatch<T>>, SchedulerError> {
@@ -522,10 +524,11 @@ impl<T> MachineScheduler<T> {
 
     /// Dispatch the next event, writing the clock advances into a caller buffer.
     ///
-    /// This is the allocation-free form of [`Self::dispatch_next`]: the caller
-    /// owns one [`ClockAdvances`] for the lifetime of the machine and the
-    /// scheduler overwrites it in place, so no dispatch allocates and no
-    /// advance token is copied out by value.
+    /// This avoids the per-dispatch allocation when the number of registered
+    /// domains is at most [`INLINE_CLOCK_ADVANCES`]: the caller owns one
+    /// [`ClockAdvances`] for the lifetime of the machine and the scheduler
+    /// overwrites it in place. Above that capacity, the buffer spills to its
+    /// lossless heap fallback. No advance token is copied out by value.
     ///
     /// On `Ok(None)` or on error the buffer is left empty. On success it holds
     /// one advance per registered domain, in ascending [`ClockDomainId`] order.
