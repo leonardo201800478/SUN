@@ -650,14 +650,15 @@ pub struct SmsFramePacingMetrics {
     pub pacing_command_remaining_p95_ns: u64,
     pub command_handler_p95_ns: u64,
     /// Last completed frame's Scheduler/PSG/VDP counters (diagnostic mode only).
-    pub scheduler_dispatch_count_last: u64,
-    pub scheduler_dispatch_elapsed_ns_last: u64,
-    pub psg_advance_calls_last: u64,
-    pub psg_advance_clock_cycles_last: u64,
-    pub psg_advance_elapsed_ns_last: u64,
-    pub vdp_advance_calls_last: u64,
-    pub vdp_advance_tstates_last: u64,
-    pub vdp_advance_elapsed_ns_last: u64,
+    pub scheduler_dispatch_count_total: u64,
+    pub scheduler_dispatch_elapsed_ns_total: u64,
+    pub psg_advance_calls_total: u64,
+    pub psg_advance_clock_cycles_total: u64,
+    pub psg_advance_elapsed_ns_total: u64,
+    pub vdp_advance_calls_total: u64,
+    pub vdp_advance_tstates_total: u64,
+    pub vdp_advance_elapsed_ns_total: u64,
+    pub ym2413_advance_elapsed_ns_total: u64,
     /// Campaign totals for Z80 execution and completed SMS bus transactions.
     pub z80_profile: SmsTemporalProfileCounters,
 }
@@ -749,14 +750,15 @@ struct WorkerTelemetry {
     machine_clock_hz: AtomicU64,
     total_instructions: AtomicU64,
     z80_profile: Mutex<SmsTemporalProfileCounters>,
-    scheduler_dispatch_count_last: AtomicU64,
-    scheduler_dispatch_elapsed_ns_last: AtomicU64,
-    psg_advance_calls_last: AtomicU64,
-    psg_advance_clock_cycles_last: AtomicU64,
-    psg_advance_elapsed_ns_last: AtomicU64,
-    vdp_advance_calls_last: AtomicU64,
-    vdp_advance_tstates_last: AtomicU64,
-    vdp_advance_elapsed_ns_last: AtomicU64,
+    scheduler_dispatch_count_total: AtomicU64,
+    scheduler_dispatch_elapsed_ns_total: AtomicU64,
+    psg_advance_calls_total: AtomicU64,
+    psg_advance_clock_cycles_total: AtomicU64,
+    psg_advance_elapsed_ns_total: AtomicU64,
+    vdp_advance_calls_total: AtomicU64,
+    vdp_advance_tstates_total: AtomicU64,
+    vdp_advance_elapsed_ns_total: AtomicU64,
+    ym2413_advance_elapsed_ns_total: AtomicU64,
     audio_underruns: AtomicU64,
     audio_dropped_blocks: AtomicU64,
     audio_sample_rate_hz: AtomicU64,
@@ -864,21 +866,22 @@ impl WorkerTelemetry {
                 .z80_profile
                 .lock()
                 .map_or_else(|_| SmsTemporalProfileCounters::default(), |profile| *profile);
-            metrics.scheduler_dispatch_count_last =
-                self.scheduler_dispatch_count_last.load(Ordering::Acquire);
-            metrics.scheduler_dispatch_elapsed_ns_last = self
-                .scheduler_dispatch_elapsed_ns_last
+            metrics.scheduler_dispatch_count_total =
+                self.scheduler_dispatch_count_total.load(Ordering::Acquire);
+            metrics.scheduler_dispatch_elapsed_ns_total = self
+                .scheduler_dispatch_elapsed_ns_total
                 .load(Ordering::Acquire);
-            metrics.psg_advance_calls_last = self.psg_advance_calls_last.load(Ordering::Acquire);
-            metrics.psg_advance_clock_cycles_last =
-                self.psg_advance_clock_cycles_last.load(Ordering::Acquire);
-            metrics.psg_advance_elapsed_ns_last =
-                self.psg_advance_elapsed_ns_last.load(Ordering::Acquire);
-            metrics.vdp_advance_calls_last = self.vdp_advance_calls_last.load(Ordering::Acquire);
-            metrics.vdp_advance_tstates_last =
-                self.vdp_advance_tstates_last.load(Ordering::Acquire);
-            metrics.vdp_advance_elapsed_ns_last =
-                self.vdp_advance_elapsed_ns_last.load(Ordering::Acquire);
+            metrics.psg_advance_calls_total = self.psg_advance_calls_total.load(Ordering::Acquire);
+            metrics.psg_advance_clock_cycles_total =
+                self.psg_advance_clock_cycles_total.load(Ordering::Acquire);
+            metrics.psg_advance_elapsed_ns_total =
+                self.psg_advance_elapsed_ns_total.load(Ordering::Acquire);
+            metrics.vdp_advance_calls_total = self.vdp_advance_calls_total.load(Ordering::Acquire);
+            metrics.vdp_advance_tstates_total =
+                self.vdp_advance_tstates_total.load(Ordering::Acquire);
+            metrics.vdp_advance_elapsed_ns_total =
+                self.vdp_advance_elapsed_ns_total.load(Ordering::Acquire);
+            metrics.ym2413_advance_elapsed_ns_total = self.ym2413_advance_elapsed_ns_total.load(Ordering::Acquire);
             metrics
         } else {
             SmsFramePacingMetrics::default()
@@ -943,17 +946,18 @@ impl WorkerTelemetry {
         }
         if !enabled {
             self.total_instructions.store(0, Ordering::Release);
-            self.scheduler_dispatch_count_last
+            self.scheduler_dispatch_count_total
                 .store(0, Ordering::Release);
-            self.scheduler_dispatch_elapsed_ns_last
+            self.scheduler_dispatch_elapsed_ns_total
                 .store(0, Ordering::Release);
-            self.psg_advance_calls_last.store(0, Ordering::Release);
-            self.psg_advance_clock_cycles_last
+            self.psg_advance_calls_total.store(0, Ordering::Release);
+            self.psg_advance_clock_cycles_total
                 .store(0, Ordering::Release);
-            self.psg_advance_elapsed_ns_last.store(0, Ordering::Release);
-            self.vdp_advance_calls_last.store(0, Ordering::Release);
-            self.vdp_advance_tstates_last.store(0, Ordering::Release);
-            self.vdp_advance_elapsed_ns_last.store(0, Ordering::Release);
+            self.psg_advance_elapsed_ns_total.store(0, Ordering::Release);
+            self.vdp_advance_calls_total.store(0, Ordering::Release);
+            self.vdp_advance_tstates_total.store(0, Ordering::Release);
+            self.vdp_advance_elapsed_ns_total.store(0, Ordering::Release);
+            self.ym2413_advance_elapsed_ns_total.store(0, Ordering::Release);
             self.video_replaced_frames.store(0, Ordering::Release);
             self.audio_underruns.store(0, Ordering::Release);
             self.audio_dropped_blocks.store(0, Ordering::Release);
@@ -2554,6 +2558,11 @@ fn execute_frame_with_renderer(
         diagnostic_step_start.map_or(Duration::ZERO, |started| started.elapsed());
     let ym2413_advance_elapsed_ns = machine.take_ym2413_advance_elapsed_ns();
     let subsystem_timing = machine.take_subsystem_timing();
+    if diagnostics_enabled {
+        telemetry
+            .ym2413_advance_elapsed_ns_total
+            .fetch_add(ym2413_advance_elapsed_ns, Ordering::AcqRel);
+    }
     let profile_delta = machine.take_profile_counters();
     if diagnostics_enabled {
         if let Ok(mut totals) = telemetry.z80_profile.lock() {
@@ -2562,30 +2571,30 @@ fn execute_frame_with_renderer(
     }
     if diagnostics_enabled {
         telemetry
-            .scheduler_dispatch_count_last
-            .store(subsystem_timing.scheduler_dispatch_count, Ordering::Release);
-        telemetry.scheduler_dispatch_elapsed_ns_last.store(
+            .scheduler_dispatch_count_total
+            .fetch_add(subsystem_timing.scheduler_dispatch_count, Ordering::AcqRel);
+        telemetry.scheduler_dispatch_elapsed_ns_total.fetch_add(
             subsystem_timing.scheduler_dispatch_elapsed_ns,
-            Ordering::Release,
+            Ordering::AcqRel,
         );
         telemetry
-            .psg_advance_calls_last
-            .store(subsystem_timing.psg_advance_calls, Ordering::Release);
+            .psg_advance_calls_total
+            .fetch_add(subsystem_timing.psg_advance_calls, Ordering::AcqRel);
         telemetry
-            .psg_advance_clock_cycles_last
-            .store(subsystem_timing.psg_advance_clock_cycles, Ordering::Release);
+            .psg_advance_clock_cycles_total
+            .fetch_add(subsystem_timing.psg_advance_clock_cycles, Ordering::AcqRel);
         telemetry
-            .psg_advance_elapsed_ns_last
-            .store(subsystem_timing.psg_advance_elapsed_ns, Ordering::Release);
+            .psg_advance_elapsed_ns_total
+            .fetch_add(subsystem_timing.psg_advance_elapsed_ns, Ordering::AcqRel);
         telemetry
-            .vdp_advance_calls_last
-            .store(subsystem_timing.vdp_advance_calls, Ordering::Release);
+            .vdp_advance_calls_total
+            .fetch_add(subsystem_timing.vdp_advance_calls, Ordering::AcqRel);
         telemetry
-            .vdp_advance_tstates_last
-            .store(subsystem_timing.vdp_advance_tstates, Ordering::Release);
+            .vdp_advance_tstates_total
+            .fetch_add(subsystem_timing.vdp_advance_tstates, Ordering::AcqRel);
         telemetry
-            .vdp_advance_elapsed_ns_last
-            .store(subsystem_timing.vdp_advance_elapsed_ns, Ordering::Release);
+            .vdp_advance_elapsed_ns_total
+            .fetch_add(subsystem_timing.vdp_advance_elapsed_ns, Ordering::AcqRel);
     }
     let machine_time_end_ticks = machine.now().ticks();
     let diagnostic_machine_end = diagnostics_enabled.then_some(machine_time_end_ticks);
