@@ -12,6 +12,8 @@ param(
     [int]$DiagnosticSeconds = 5,
     [ValidateSet("release", "release-llvm", "release-llvm-debug")]
     [string]$ThroughputCargoProfile = "release-llvm",
+    [ValidateSet("release-llvm-debug")]
+    [string]$ProfilingCargoProfile = "release-llvm-debug",
     [string]$CargoTargetDirectory = "",
     # Retained as a compatibility parameter. Heap tracing is intentionally removed.
     [switch]$SkipHeapProfile
