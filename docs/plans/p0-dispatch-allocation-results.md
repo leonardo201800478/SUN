@@ -91,4 +91,4 @@ Nenhum cenário regrediu. Os tempos desta seção são da operação combinada d
 
 ## 8. Próximo item
 
-Pelo §7 do plano, o próximo é **P1 — compartilhar conversões equivalentes**, cuja condição de início ("equivalência dos estados de origem demonstrada") já foi investigada na auditoria: os 3–4 domínios do SMS têm a mesma razão e o mesmo estado de origem, e a conversão é refeita 3–4 vezes por evento. O harness já está no repositório para medir antes/depois.
+**P1 foi avaliado na PR [#1262](https://github.com/leonardo201800478/SUN/pull/1262) e não foi adotado.** O protótipo de compartilhamento de previews regrediu 6,5% em 3 domínios e 14,3% em 4 domínios; os resultados e as condições para reabrir a hipótese estão em [`p1-equivalent-conversion-results.md`](p1-equivalent-conversion-results.md). Nenhuma alteração de runtime do P1 foi mantida.

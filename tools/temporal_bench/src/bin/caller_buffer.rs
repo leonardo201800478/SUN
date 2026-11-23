@@ -76,17 +76,29 @@ fn schedule_and_dispatch_into(
 fn main() {
     let ticks_per_tstate = 3u64;
     let iterations = 200_000u64;
-    println!("caller_buffer — schedule + dispatch_next_into, ticks_per_tstate={ticks_per_tstate}, iterations={iterations}");
-    println!("{:<22} {:>7} {:>10} {:>10} {:>11}", "scenario", "domains", "ns/op", "allocs/op", "bytes/op");
+    println!(
+        "caller_buffer — schedule + dispatch_next_into, ticks_per_tstate={ticks_per_tstate}, iterations={iterations}"
+    );
+    println!(
+        "{:<22} {:>7} {:>10} {:>10} {:>11}",
+        "scenario", "domains", "ns/op", "allocs/op", "bytes/op"
+    );
 
-    for (label, domains) in [("schedule_and_dispatch_into_sms_3", 3), ("schedule_and_dispatch_into_sms_4", 4)] {
+    for (label, domains) in [
+        ("schedule_and_dispatch_into_sms_3", 3),
+        ("schedule_and_dispatch_into_sms_4", 4),
+    ] {
         let mut scheduler = build_scheduler(domains, ticks_per_tstate);
         let mut advances = ClockAdvances::new();
         let step = ticks_per_tstate as u128;
         let mut tick: u128 = 0;
         for _ in 0..2_000 {
             tick += step;
-            black_box(schedule_and_dispatch_into(&mut scheduler, &mut advances, MachineTime::from_ticks(tick)));
+            black_box(schedule_and_dispatch_into(
+                &mut scheduler,
+                &mut advances,
+                MachineTime::from_ticks(tick),
+            ));
         }
 
         let before_allocations = ALLOCATIONS.load(Ordering::Relaxed);
@@ -94,7 +106,11 @@ fn main() {
         let started = Instant::now();
         for _ in 0..iterations {
             tick += step;
-            black_box(schedule_and_dispatch_into(&mut scheduler, &mut advances, MachineTime::from_ticks(tick)));
+            black_box(schedule_and_dispatch_into(
+                &mut scheduler,
+                &mut advances,
+                MachineTime::from_ticks(tick),
+            ));
         }
         let elapsed = started.elapsed();
         let allocations = ALLOCATIONS.load(Ordering::Relaxed) - before_allocations;

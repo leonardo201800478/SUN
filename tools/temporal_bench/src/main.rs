@@ -84,7 +84,10 @@ fn build_scheduler(domains: usize, ticks_per_tstate: u64) -> MachineScheduler<Pa
 
 /// One scheduler operation: schedule one event, then dispatch it.
 #[inline(never)]
-fn schedule_and_dispatch_once(scheduler: &mut MachineScheduler<Payload>, timestamp: MachineTime) -> usize {
+fn schedule_and_dispatch_once(
+    scheduler: &mut MachineScheduler<Payload>,
+    timestamp: MachineTime,
+) -> usize {
     scheduler
         .schedule_at_with_phase(
             timestamp,
@@ -105,7 +108,12 @@ fn schedule_and_dispatch_once(scheduler: &mut MachineScheduler<Payload>, timesta
     advances.len()
 }
 
-fn measure(label: &'static str, domains: usize, iterations: u64, ticks_per_tstate: u64) -> Measurement {
+fn measure(
+    label: &'static str,
+    domains: usize,
+    iterations: u64,
+    ticks_per_tstate: u64,
+) -> Measurement {
     let mut scheduler = build_scheduler(domains, ticks_per_tstate);
     let step = ticks_per_tstate as u128;
     let mut tick: u128 = 0;
@@ -113,7 +121,10 @@ fn measure(label: &'static str, domains: usize, iterations: u64, ticks_per_tstat
     // Warm-up: page in the queue, the clock map and the trace machinery.
     for _ in 0..2_000 {
         tick += step;
-        black_box(schedule_and_dispatch_once(&mut scheduler, MachineTime::from_ticks(tick)));
+        black_box(schedule_and_dispatch_once(
+            &mut scheduler,
+            MachineTime::from_ticks(tick),
+        ));
     }
 
     let before_allocations = ALLOCATIONS.load(Ordering::Relaxed);
@@ -158,7 +169,10 @@ fn measure_idle_advance_inner(
     let mut tick: u128 = 0;
     for _ in 0..2_000 {
         tick += step;
-        black_box(schedule_and_dispatch_once(&mut scheduler, MachineTime::from_ticks(tick)));
+        black_box(schedule_and_dispatch_once(
+            &mut scheduler,
+            MachineTime::from_ticks(tick),
+        ));
     }
 
     let before_allocations = ALLOCATIONS.load(Ordering::Relaxed);
@@ -220,9 +234,7 @@ fn main() {
         "temporal_bench — production-shaped schedule + dispatch, ticks_per_tstate={ticks_per_tstate}, \
          iterations={iterations}"
     );
-    println!(
-        "note: `bytes` counts requested allocation bytes, not resident memory\n"
-    );
+    println!("note: `bytes` counts requested allocation bytes, not resident memory\n");
     print_header();
 
     // SMS shape: Z80 + PSG + VDP share one ratio (3 domains).
@@ -230,11 +242,21 @@ fn main() {
     print_row(&sms);
 
     // Japanese SMS adds the YM2413 domain (4 domains).
-    let sms_ym = measure("schedule_dispatch_sms_ym2413_4", 4, iterations, ticks_per_tstate);
+    let sms_ym = measure(
+        "schedule_dispatch_sms_ym2413_4",
+        4,
+        iterations,
+        ticks_per_tstate,
+    );
     print_row(&sms_ym);
 
     // Beyond the inline capacity: proves the fallback never truncates.
-    let wide = measure("schedule_dispatch_wide_9", 9, iterations / 4, ticks_per_tstate);
+    let wide = measure(
+        "schedule_dispatch_wide_9",
+        9,
+        iterations / 4,
+        ticks_per_tstate,
+    );
     print_row(&wide);
 
     let idle = measure_idle_advance(3, iterations, ticks_per_tstate);
