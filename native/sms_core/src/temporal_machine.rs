@@ -94,6 +94,44 @@ pub const SMS_ESSENTIAL_TRACE_CAPACITY: usize = 2_048;
 /// Maximum number of optional detailed trace events retained between worker drains.
 pub const SMS_DETAILED_TRACE_CAPACITY: usize = 2_048;
 
+/// Aggregate SMS/Z80 execution counters. Values stay in memory and are exported
+/// only when a snapshot is requested; no per-instruction log records are created.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SmsTemporalProfileCounters {
+    pub z80_instructions: u64,
+    pub z80_tstates: u64,
+    pub z80_interrupt_services: u64,
+    pub z80_interrupt_tstates: u64,
+    pub opcode_fetches: u64,
+    pub memory_reads: u64,
+    pub memory_writes: u64,
+    pub port_reads: u64,
+    pub port_writes: u64,
+    pub interrupt_acknowledges: u64,
+    pub wait_tstates: u64,
+    pub internal_tstates: u64,
+}
+
+impl SmsTemporalProfileCounters {
+    /// Add another campaign interval without allowing counter overflow.
+    pub fn saturating_add(self, other: Self) -> Self {
+        Self {
+            z80_instructions: self.z80_instructions.saturating_add(other.z80_instructions),
+            z80_tstates: self.z80_tstates.saturating_add(other.z80_tstates),
+            z80_interrupt_services: self.z80_interrupt_services.saturating_add(other.z80_interrupt_services),
+            z80_interrupt_tstates: self.z80_interrupt_tstates.saturating_add(other.z80_interrupt_tstates),
+            opcode_fetches: self.opcode_fetches.saturating_add(other.opcode_fetches),
+            memory_reads: self.memory_reads.saturating_add(other.memory_reads),
+            memory_writes: self.memory_writes.saturating_add(other.memory_writes),
+            port_reads: self.port_reads.saturating_add(other.port_reads),
+            port_writes: self.port_writes.saturating_add(other.port_writes),
+            interrupt_acknowledges: self.interrupt_acknowledges.saturating_add(other.interrupt_acknowledges),
+            wait_tstates: self.wait_tstates.saturating_add(other.wait_tstates),
+            internal_tstates: self.internal_tstates.saturating_add(other.internal_tstates),
+        }
+    }
+}
+
 /// Fixed-capacity circular buffer for essential runtime diagnostics.
 ///
 /// The buffer is owned by the machine thread, requires no synchronization, and
@@ -402,6 +440,8 @@ pub struct SmsTemporalMachine {
     trace_events: VecDeque<SmsTemporalTraceEvent>,
     trace_dropped: u64,
     essential_trace: SmsTemporalTraceBuffer,
+    profile_counters_enabled: bool,
+    profile_counters: SmsTemporalProfileCounters,
 }
 
 impl SmsTemporalMachine {
@@ -421,6 +461,8 @@ impl SmsTemporalMachine {
             trace_events: VecDeque::new(),
             trace_dropped: 0,
             essential_trace: SmsTemporalTraceBuffer::new(),
+            profile_counters_enabled: false,
+            profile_counters: SmsTemporalProfileCounters::default(),
         }
     }
 
@@ -925,6 +967,14 @@ impl SmsTemporalMachine {
             next_cpu.sample_halt_interrupts_at_t4()?;
         }
         self.cpu = next_cpu;
+        if self.profile_counters_enabled {
+            self.profile_counters.opcode_fetches =
+                self.profile_counters.opcode_fetches.saturating_add(1);
+            self.profile_counters.wait_tstates = self
+                .profile_counters
+                .wait_tstates
+                .saturating_add(u64::from(self.m1_fixture_wait_tstates.unwrap_or(0)));
+        }
         self.m1 = None;
         self.m1_fixture_wait_tstates = None;
         if matches!(
@@ -1021,6 +1071,40 @@ impl SmsTemporalMachine {
                 }
 
                 if let Some((request, wait_tstates)) = trace_data {
+                    if self.profile_counters_enabled {
+                        self.profile_counters.wait_tstates = self
+                            .profile_counters
+                            .wait_tstates
+                            .saturating_add(u64::from(wait_tstates));
+                        match request.operation {
+                            Z80BusOperation::OpcodeFetch => {
+                                self.profile_counters.opcode_fetches =
+                                    self.profile_counters.opcode_fetches.saturating_add(1);
+                            }
+                            Z80BusOperation::MemoryRead => {
+                                self.profile_counters.memory_reads =
+                                    self.profile_counters.memory_reads.saturating_add(1);
+                            }
+                            Z80BusOperation::MemoryWrite { .. } => {
+                                self.profile_counters.memory_writes =
+                                    self.profile_counters.memory_writes.saturating_add(1);
+                            }
+                            Z80BusOperation::PortRead => {
+                                self.profile_counters.port_reads =
+                                    self.profile_counters.port_reads.saturating_add(1);
+                            }
+                            Z80BusOperation::PortWrite { .. } => {
+                                self.profile_counters.port_writes =
+                                    self.profile_counters.port_writes.saturating_add(1);
+                            }
+                            Z80BusOperation::InterruptAcknowledge => {
+                                self.profile_counters.interrupt_acknowledges = self
+                                    .profile_counters
+                                    .interrupt_acknowledges
+                                    .saturating_add(1);
+                            }
+                        }
+                    }
                     self.record_trace_event(SmsTemporalTraceEvent::BusCompleted {
                         timestamp: completion.completed_at,
                         request_id: request.id,
@@ -1098,6 +1182,12 @@ impl SmsTemporalMachine {
                 let tstates = self
                     .pending_internal_tstates
                     .ok_or(SmsTemporalMachineError::InvalidState)?;
+                if self.profile_counters_enabled {
+                    self.profile_counters.internal_tstates = self
+                        .profile_counters
+                        .internal_tstates
+                        .saturating_add(u64::from(tstates));
+                }
 
                 // Prepare the CPU transition before acknowledging the scheduler
                 // event. On failure, both the bus completion and continuation
@@ -1202,9 +1292,12 @@ impl SmsTemporalMachine {
                 return Ok((completed, true));
             }
             let step = self.step_instruction(0)?;
-            if matches!(step, Z80MicroStep::InterruptAcknowledge { .. }) {
-                let _ = self.resume_instruction(0)?;
-            }
+            let step = if matches!(step, Z80MicroStep::InterruptAcknowledge { .. }) {
+                self.resume_instruction(0)?
+            } else {
+                step
+            };
+            self.record_profile_step(step);
             if self.frame_number() != initial_frame {
                 return Ok((completed + 1, false));
             }
@@ -1235,6 +1328,49 @@ impl SmsTemporalMachine {
                 serviced @ Z80MicroStep::InterruptServiced { .. } => return Ok(serviced),
             };
         }
+    }
+
+    fn record_profile_step(&mut self, step: Z80MicroStep) {
+        if !self.profile_counters_enabled {
+            return;
+        }
+        match step {
+            Z80MicroStep::InstructionRetired { tstates, .. } => {
+                self.profile_counters.z80_instructions =
+                    self.profile_counters.z80_instructions.saturating_add(1);
+                self.profile_counters.z80_tstates =
+                    self.profile_counters.z80_tstates.saturating_add(u64::from(tstates));
+            }
+            Z80MicroStep::InterruptServiced { tstates, .. } => {
+                self.profile_counters.z80_interrupt_services = self
+                    .profile_counters
+                    .z80_interrupt_services
+                    .saturating_add(1);
+                self.profile_counters.z80_interrupt_tstates = self
+                    .profile_counters
+                    .z80_interrupt_tstates
+                    .saturating_add(u64::from(tstates));
+            }
+            Z80MicroStep::BusRequest(_)
+            | Z80MicroStep::InternalCycle { .. }
+            | Z80MicroStep::InterruptAcknowledge { .. } => {}
+        }
+    }
+
+    /// Enable aggregate Z80/BUS counters for a diagnostic campaign.
+    ///
+    /// Counters remain in memory and are not serialized into save states.
+    /// Repeatedly setting the same state does not reset the campaign totals.
+    pub fn set_profile_counters_enabled(&mut self, enabled: bool) {
+        if self.profile_counters_enabled != enabled {
+            self.profile_counters_enabled = enabled;
+            self.profile_counters = SmsTemporalProfileCounters::default();
+        }
+    }
+
+    /// Take and reset the aggregate Z80/BUS counters since the previous snapshot.
+    pub fn take_profile_counters(&mut self) -> SmsTemporalProfileCounters {
+        std::mem::take(&mut self.profile_counters)
     }
 
     /// Execute exactly one complete CPU instruction through the machine scheduler.
