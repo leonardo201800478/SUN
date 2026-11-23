@@ -1083,15 +1083,15 @@ impl SmsTemporalMachine {
                 // (for example, checked T-state overflow), the bus response and
                 // its already-applied memory effect remain pending for restore/retry.
                 let mcycle_index = self
-            .profile_counters_enabled
-            .then(|| self.cpu.export_state().mcycle_index);
+                    .profile_counters_enabled
+                    .then(|| self.cpu.export_state().mcycle_index);
                 let mut next_cpu = self.cpu.clone();
                 let step = next_cpu.complete_bus_cycle(completion.request_id, completion.data)?;
                 self.bus.acknowledge_completion(completion.request_id)?;
                 self.cpu = next_cpu;
                 if let Some(mcycle_index) = mcycle_index {
-            self.record_profile_mcycles(step, mcycle_index);
-        }
+                    self.record_profile_mcycles(step, mcycle_index);
+                }
                 if matches!(
                     step,
                     Z80MicroStep::InstructionRetired { .. }
@@ -1216,8 +1216,8 @@ impl SmsTemporalMachine {
                 // event. On failure, both the bus completion and continuation
                 // metadata remain available for snapshot/restore/retry.
                 let mcycle_index = self
-            .profile_counters_enabled
-            .then(|| self.cpu.export_state().mcycle_index);
+                    .profile_counters_enabled
+                    .then(|| self.cpu.export_state().mcycle_index);
                 let mut next_cpu = self.cpu.clone();
                 let step = next_cpu.complete_internal_cycle()?;
                 self.bus
@@ -1231,8 +1231,8 @@ impl SmsTemporalMachine {
                         .saturating_add(u64::from(tstates));
                 }
                 if let Some(mcycle_index) = mcycle_index {
-            self.record_profile_mcycles(step, mcycle_index);
-        }
+                    self.record_profile_mcycles(step, mcycle_index);
+                }
                 self.pending_internal_tstates = None;
                 self.pending_internal_cycle_id = None;
                 if matches!(
@@ -1376,8 +1376,7 @@ impl SmsTemporalMachine {
                     .z80_mcycles
                     .saturating_add(completed_mcycles);
             }
-            Z80MicroStep::InterruptServiced { .. }
-            | Z80MicroStep::InterruptAcknowledge { .. } => {
+            Z80MicroStep::InterruptServiced { .. } | Z80MicroStep::InterruptAcknowledge { .. } => {
                 self.profile_counters.z80_interrupt_mcycles = self
                     .profile_counters
                     .z80_interrupt_mcycles
