@@ -213,6 +213,7 @@ Snapshot MUST preservar o estado de controle, a próxima fronteira, o progresso 
 | Concluída | Permanece terminal e retorna o resultado concluído |
 | Cancelada | Permanece terminal; não reativa a transação nem a geração |
 | Falha | Preserva erro e ledger parcial; não executa retry automático. Recuperação explícita do proprietário retoma somente marcos pendentes |
+| INT acknowledge com presença/commit UNKNOWN | Snapshot durante a janela ambígua retorna Blocked, não produz artefato e não altera a máquina; não há regra especulativa de replay/supressão |
 
 Se a presença de efeito de dispositivo no INT acknowledge ou sua fronteira de commit permanecer UNKNOWN, um snapshot solicitado durante a janela em que o efeito pode já ter ocorrido, mas ainda não pode ser classificado como comprometido ou pendente, MUST retornar **Blocked**, sem produzir snapshot e sem alterar a máquina. A operação de acknowledge desse perfil não pode ser declarada temporalmente validada nem compatível com snapshot/replay nesse intervalo até que a fronteira seja sustentada por evidência. Não presumir que restore deve repetir ou suprimir o efeito.
 
