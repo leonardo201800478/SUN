@@ -1,0 +1,379 @@
+"""Independent, exact, serial deadline oracle for CHRONOS R2-B.
+
+Verification-only model. It deliberately uses immutable tuples and linear scans;
+it does not select a production agenda, phase model, or scheduler architecture.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from enum import Enum
+from fractions import Fraction
+from typing import Iterable
+
+from chronos_reference import ReferenceState
+
+
+class DeadlineStatus(str, Enum):
+    SCHEDULED = "Scheduled"
+    CANCEL_PENDING = "CancelPending"
+    CANCELLED = "Cancelled"
+    CLAIMED = "Claimed"
+    DISPATCHED = "Dispatched"
+    COMPLETED = "Completed"
+    FAILED = "Failed"
+
+
+class DeadlineCode(str, Enum):
+    ACCEPTED = "Accepted"
+    BLOCKED = "Blocked"
+    INVALID_INPUT = "InvalidInput"
+    LATE_INPUT = "LateInput"
+    INDETERMINATE = "IndeterminateCausalOrder"
+    RESOURCE_EXHAUSTED = "ResourceExhausted"
+    STALE_IGNORED = "StaleIgnored"
+
+
+@dataclass(frozen=True)
+class Deadline:
+    owner: str
+    identity: str
+    generation: int
+    at_common: Fraction
+    effect_id: str
+    commutative: bool = False
+    phase_order: int | None = None
+    phase_evidence: str | None = None
+    microstep: int = 0
+    status: DeadlineStatus = DeadlineStatus.SCHEDULED
+
+
+@dataclass(frozen=True)
+class Cancellation:
+    owner: str
+    identity: str
+    generation: int
+    at_common: Fraction
+
+
+@dataclass(frozen=True)
+class DeadlineBook:
+    deadlines: tuple[Deadline, ...] = ()
+    pending_cancellations: tuple[Cancellation, ...] = ()
+    watermark_common: Fraction | None = None
+    max_microsteps: int = 32
+
+
+@dataclass(frozen=True)
+class DeadlineEvaluation:
+    book: DeadlineBook
+    code: DeadlineCode
+    detail: str = ""
+    claimed: tuple[tuple[str, int], ...] = ()
+
+
+def _exact(value: object) -> bool:
+    return isinstance(value, (int, Fraction)) and not isinstance(value, bool)
+
+
+def _replace_deadline(book: DeadlineBook, updated: Deadline) -> DeadlineBook:
+    return replace(
+        book,
+        deadlines=tuple(
+            updated if (item.identity, item.generation) ==
+            (updated.identity, updated.generation) else item
+            for item in book.deadlines
+        ),
+    )
+
+
+def _find(book: DeadlineBook, identity: str, generation: int) -> Deadline | None:
+    return next(
+        (item for item in book.deadlines
+         if item.identity == identity and item.generation == generation),
+        None,
+    )
+
+
+def publish_deadline(
+    book: DeadlineBook,
+    state: ReferenceState,
+    *,
+    owner: str,
+    identity: str,
+    generation: int,
+    at_common: Fraction,
+    effect_id: str,
+    microstep: bool = False,
+    commutative: bool = False,
+    phase_order: int | None = None,
+    phase_evidence: str | None = None,
+) -> DeadlineEvaluation:
+    """Admit a deadline after structural, participant, and temporal validation."""
+    if (
+        not isinstance(owner, str) or not owner.strip()
+        or not isinstance(identity, str) or not identity.strip()
+        or not isinstance(effect_id, str) or not effect_id.strip()
+        or not isinstance(generation, int) or isinstance(generation, bool)
+        or generation < 0
+        or not _exact(at_common)
+        or not isinstance(microstep, bool)
+        or not isinstance(commutative, bool)
+        or (phase_order is not None and (
+            not isinstance(phase_order, int) or isinstance(phase_order, bool)
+        ))
+        or (phase_evidence is not None and (
+            not isinstance(phase_evidence, str) or not phase_evidence.strip()
+        ))
+        or ((phase_order is None) != (phase_evidence is None))
+    ):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "invalid deadline descriptor")
+    domain_ids = {item.domain_id for item in state.domains}
+    expected = set(state.expected_participants)
+    if domain_ids - expected:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "unexpected temporal participant")
+    if expected - domain_ids:
+        return DeadlineEvaluation(book, DeadlineCode.BLOCKED,
+                                  "participant set incomplete; A(E) unavailable")
+    domain = next((item for item in state.domains if item.domain_id == owner), None)
+    if domain is None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "deadline owner is not a temporal participant")
+    if not all(_exact(value) for value in (
+        domain.local_to_common, domain.common_offset, domain.progress_local
+    )) or domain.local_to_common <= 0:
+        return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
+                                  "owner clock conversion is not comparable")
+    if book.watermark_common is not None and not _exact(book.watermark_common):
+        return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
+                                  "watermark is not exact")
+    progress = domain.progress_common()
+    if at_common < progress or (
+        book.watermark_common is not None and at_common <= book.watermark_common
+    ):
+        return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
+                                  "deadline is behind confirmed progress or closed W")
+    if at_common == progress and not microstep:
+        return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
+                                  "D=P_d requires an explicit microstep")
+    prior = [item for item in book.deadlines if item.identity == identity]
+    if prior and generation <= max(item.generation for item in prior):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "generation must increase monotonically")
+    if any(item.status in (
+        DeadlineStatus.SCHEDULED, DeadlineStatus.CANCEL_PENDING,
+        DeadlineStatus.CLAIMED, DeadlineStatus.DISPATCHED,
+    ) for item in prior):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "prior generation is not terminal")
+    deadline = Deadline(
+        owner, identity, generation, Fraction(at_common), effect_id,
+        commutative, phase_order, phase_evidence,
+        1 if microstep else 0,
+    )
+    return DeadlineEvaluation(
+        replace(book, deadlines=book.deadlines + (deadline,)),
+        DeadlineCode.ACCEPTED,
+        "deadline admitted",
+    )
+
+
+def cancel_deadline(
+    book: DeadlineBook,
+    *,
+    owner: str,
+    identity: str,
+    generation: int,
+    at_common: Fraction,
+    admission_frontier: Fraction,
+) -> DeadlineEvaluation:
+    """Admit C<D cancellation; arbitration remains pending until explicitly run."""
+    if (
+        not isinstance(owner, str) or not owner.strip()
+        or not isinstance(identity, str) or not identity.strip()
+        or not isinstance(generation, int) or isinstance(generation, bool)
+        or not _exact(at_common) or not _exact(admission_frontier)
+    ):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "invalid cancellation descriptor")
+    deadline = _find(book, identity, generation)
+    if deadline is None or deadline.owner != owner:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "unknown owner, identity, or generation")
+    if deadline.status is not DeadlineStatus.SCHEDULED:
+        return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
+                                  "deadline is no longer cancellable")
+    if at_common <= admission_frontier:
+        return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
+                                  "C<=A(E) is retroactive")
+    if at_common >= deadline.at_common:
+        return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
+                                  "cancellation must satisfy C<D")
+    if book.watermark_common is not None and book.watermark_common >= deadline.at_common:
+        return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
+                                  "W already closed the deadline instant")
+    pending = Cancellation(owner, identity, generation, Fraction(at_common))
+    updated = replace(deadline, status=DeadlineStatus.CANCEL_PENDING)
+    next_book = _replace_deadline(book, updated)
+    next_book = replace(
+        next_book,
+        pending_cancellations=next_book.pending_cancellations + (pending,),
+    )
+    return DeadlineEvaluation(next_book, DeadlineCode.ACCEPTED,
+                              "cancellation admitted; arbitration pending")
+
+
+def arbitrate_cancellations(book: DeadlineBook) -> DeadlineEvaluation:
+    """Apply all admitted cancellations before W may close their deadline."""
+    next_book = book
+    for request in book.pending_cancellations:
+        deadline = _find(next_book, request.identity, request.generation)
+        if deadline is None or deadline.status is not DeadlineStatus.CANCEL_PENDING:
+            return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
+                                      "pending cancellation lost its active generation")
+        next_book = _replace_deadline(
+            next_book, replace(deadline, status=DeadlineStatus.CANCELLED)
+        )
+    next_book = replace(next_book, pending_cancellations=())
+    return DeadlineEvaluation(next_book, DeadlineCode.ACCEPTED,
+                              "all admitted cancellations arbitrated")
+
+
+def _causal_order_is_known(group: list[Deadline]) -> bool:
+    if len(group) < 2 or all(item.commutative for item in group):
+        return True
+    if any(item.phase_order is None or item.phase_evidence is None for item in group):
+        return False
+    if len({item.phase_order for item in group}) != len(group):
+        return False
+    return True
+
+
+def close_watermark(book: DeadlineBook, target_common: Fraction) -> DeadlineEvaluation:
+    """Close W only after cancellation arbitration and causal tie validation."""
+    if not _exact(target_common):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "watermark target must be exact")
+    if book.watermark_common is not None and target_common < book.watermark_common:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "watermark cannot regress")
+    for request in book.pending_cancellations:
+        deadline = _find(book, request.identity, request.generation)
+        if deadline is not None and deadline.at_common <= target_common:
+            return DeadlineEvaluation(book, DeadlineCode.BLOCKED,
+                                      "admitted C<D cancellation must be arbitrated before W closes D")
+    due = [
+        item for item in book.deadlines
+        if item.status is DeadlineStatus.SCHEDULED and item.at_common <= target_common
+    ]
+    instants = sorted({item.at_common for item in due})
+    for instant in instants:
+        group = [item for item in due if item.at_common == instant]
+        if not _causal_order_is_known(group):
+            return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
+                                      "simultaneous non-commutative events have no proven causal order")
+    ordered: list[Deadline] = []
+    for instant in instants:
+        group = [item for item in due if item.at_common == instant]
+        if len(group) > 1 and not all(item.commutative for item in group):
+            group.sort(key=lambda item: item.phase_order)
+        else:
+            group.sort(key=lambda item: item.identity)
+        ordered.extend(group)
+    next_book = book
+    for item in ordered:
+        next_book = _replace_deadline(
+            next_book, replace(item, status=DeadlineStatus.CLAIMED)
+        )
+    next_book = replace(next_book, watermark_common=Fraction(target_common))
+    return DeadlineEvaluation(
+        next_book, DeadlineCode.ACCEPTED, "watermark closed after causal claims",
+        tuple((item.identity, item.generation) for item in ordered),
+    )
+
+
+def dispatch_deadline(
+    book: DeadlineBook, *, identity: str, generation: int
+) -> DeadlineEvaluation:
+    """Dispatch only a claimed current generation; repeated dispatch is idempotent."""
+    deadline = _find(book, identity, generation)
+    if deadline is None:
+        return DeadlineEvaluation(book, DeadlineCode.STALE_IGNORED,
+                                  "stale identity or generation ignored")
+    if deadline.status in (DeadlineStatus.DISPATCHED, DeadlineStatus.COMPLETED):
+        return DeadlineEvaluation(book, DeadlineCode.ACCEPTED,
+                                  "dispatch already recorded; no repeated effect")
+    if deadline.status is not DeadlineStatus.CLAIMED:
+        return DeadlineEvaluation(book, DeadlineCode.STALE_IGNORED,
+                                  "deadline is not claimed; no effect dispatched")
+    next_book = _replace_deadline(
+        book, replace(deadline, status=DeadlineStatus.DISPATCHED)
+    )
+    return DeadlineEvaluation(next_book, DeadlineCode.ACCEPTED,
+                              "claimed deadline dispatched exactly once")
+
+
+def complete_deadline(
+    book: DeadlineBook, *, identity: str, generation: int
+) -> DeadlineEvaluation:
+    """Record completion without allowing a second dispatch."""
+    deadline = _find(book, identity, generation)
+    if deadline is None or deadline.status is not DeadlineStatus.DISPATCHED:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "only a dispatched generation can complete")
+    next_book = _replace_deadline(
+        book, replace(deadline, status=DeadlineStatus.COMPLETED)
+    )
+    return DeadlineEvaluation(next_book, DeadlineCode.ACCEPTED,
+                              "deadline completed")
+
+
+def schedule_microstep(
+    book: DeadlineBook,
+    *,
+    owner: str,
+    identity: str,
+    generation: int,
+    at_common: Fraction,
+    effect_id: str,
+    current_microstep: int,
+    commutative: bool = False,
+) -> DeadlineEvaluation:
+    """Admit a same-instant child only with finite, strictly increasing microstep."""
+    if (
+        not _exact(at_common)
+        or not isinstance(current_microstep, int)
+        or isinstance(current_microstep, bool)
+        or current_microstep < 0
+        or current_microstep >= book.max_microsteps
+    ):
+        return DeadlineEvaluation(book, DeadlineCode.RESOURCE_EXHAUSTED,
+                                  "microstep limit exhausted or invalid")
+    if any(item.at_common == at_common and item.microstep > current_microstep
+           for item in book.deadlines):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "microstep progression must be serialized")
+    # The synthetic profile state has no authority to assert a physical phase.
+    # The explicit microstep is a logical delta-cycle only.
+    from chronos_reference import ClockDomain, make_state
+    state = make_state(
+        profile="ABSTRACT-R2-MICROSTEP",
+        domains=[ClockDomain(owner, Fraction(1), progress_local=Fraction(at_common),
+                             horizon_local=Fraction(at_common))],
+        expected_participants=[owner],
+    )
+    return publish_deadline(
+        book, state, owner=owner, identity=identity, generation=generation,
+        at_common=at_common, effect_id=effect_id, microstep=True,
+        commutative=commutative,
+    )
+
+
+def active_deadlines(book: DeadlineBook) -> tuple[Deadline, ...]:
+    """Return a stable identity-sorted view of nonterminal deadline generations."""
+    terminal = {DeadlineStatus.CANCELLED, DeadlineStatus.COMPLETED, DeadlineStatus.FAILED}
+    return tuple(sorted(
+        (item for item in book.deadlines if item.status not in terminal),
+        key=lambda item: (item.at_common, item.identity, item.generation),
+    ))
