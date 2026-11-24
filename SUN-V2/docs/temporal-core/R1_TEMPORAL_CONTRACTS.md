@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.14; incorpora alinhamento do retry de marcador apontado pelo Codex, além das correções R1-EXIT-01/03; ainda não aprovado
+**Status:** rascunho técnico v0.3.15; incorpora alinhamento do retry de marcador e precisão do estado Falha após recuperação explícita; ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -184,7 +184,7 @@ Os estados de controle abaixo são normativos. A implementação MAY usar outra 
 | **Cancelada** | Cancelamento causalmente admitido antes do primeiro efeito irreversível | Terminal; não pode ser reaberta nem restaurada como ativa | Preserva identidade, motivo e histórico; nenhum efeito futuro da transação pode ocorrer |
 | **Falha** | Erro terminal durante a execução, com ou sem efeitos anteriores | Terminal por padrão. Só pode retornar a **Em andamento** por recuperação explícita do proprietário, com identidade/geração verificadas e retomada exclusiva dos marcos pendentes | Preserva erro e ledger parcial; restore não inicia retry automático |
 
-Transições não listadas são proibidas. Uma transição interna impossível é **InvariantViolation**; comando externo com identidade/perfil/geração inválidos é **InvalidInput**; comando temporalmente tardio é **LateInput**. Uma dependência ainda não satisfeita é **Blocked**, não falha terminal. Em qualquer estado, uma requisição repetida com o mesmo ID e descritor idêntico MUST devolver o estado/resultado já registrado, sem avançar a transação nem reaplicar qualquer efeito. Isso inclui estados pendentes e terminais; Cancelada e Falha permanecem terminais. Recuperação de Falha exige comando explícito distinto da repetição da requisição original. O mesmo ID com descritor divergente é InvalidInput antes de mutação.
+Transições não listadas são proibidas. Uma transição interna impossível é **InvariantViolation**; comando externo com identidade/perfil/geração inválidos é **InvalidInput**; comando temporalmente tardio é **LateInput**. Uma dependência ainda não satisfeita é **Blocked**, não falha terminal. Em qualquer estado, uma requisição repetida com o mesmo ID e descritor idêntico MUST devolver o estado/resultado já registrado, sem avançar a transação nem reaplicar qualquer efeito. Isso inclui estados pendentes e terminais; Cancelada permanece terminal, enquanto Falha permanece terminal salvo recuperação explícita do proprietário, que a retoma somente pelos marcos pendentes. Recuperação de Falha exige comando explícito distinto da repetição da requisição original. O mesmo ID com descritor divergente é InvalidInput antes de mutação.
 
 ### 7.3 Marcadores independentes de amostragem e commit
 
@@ -381,7 +381,7 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3.14
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.15
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
@@ -753,6 +753,7 @@ Esta seção preserva o histórico das revisões anteriores. A v0.3.10 incorpora
 
 | P2 — resultado de snapshot UNKNOWN em R2-T10 | v0.3.10 já exigia `UnsupportedSnapshot` em §7.4, C10/C15, R2-T11 e R2-T15, mas R2-T10 ainda aceitava genericamente rejeição/Block | v0.3.11 exige `UnsupportedSnapshot`, ausência de artefato e ausência de mutação quando presença/commit do efeito de dispositivo for UNKNOWN | Corrigido no texto; requer revisão independente do SHA atualizado |
 | P2 — repetição de requisição versus aplicação duplicada de marco | §7.2/§7.3/§12.1/C08 fixavam retry idêntico, mas §16.7(2) ainda permitia erro de duplicidade e §16.7(8) condicionava idempotência à definição local | v0.3.14 alinha §16.7(2)/(8): retry idêntico de transação ou marco devolve estado/resultado registrado; erro de duplicidade não é permitido; aplicação efetiva duplicada é InvariantViolation; recuperação após Falha é comando separado | Correção proposta; requer revisão independente e validação R2 futura |
+| P2 — terminalidade e recuperação de Falha | §7.2 dizia que Falha permanecia terminal, enquanto a tabela de estados e §16.7 permitiam recuperação explícita | v0.3.15 esclarece: Falha é terminal por padrão e só reabre por comando explícito do proprietário; Cancelada é terminal absoluto; retry idêntico não é recuperação | Correção proposta; requer revisão independente e validação R2 futura |
 
 Limites da revisão:
 - A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
@@ -765,11 +766,11 @@ Limites da revisão:
 
 ## 20. Próximos passos
 
-A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil; a v0.3.11 alinhou R2-T10 à classe `UnsupportedSnapshot`. A v0.3.12 separou retry idêntico de aplicação duplicada de marco; a v0.3.13 fixou a resposta idempotente na regra geral, mas deixou §16.7(2)/(8) com alternativa de erro de duplicidade/definição local. A v0.3.14 alinha esses itens: retry idêntico de transação ou marco devolve estado/resultado registrado; aplicação efetiva duplicada é InvariantViolation; recuperação após Falha é explícita e separada. Esta atualização documental não constitui aprovação formal de R1.
+A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil; a v0.3.11 alinhou R2-T10 à classe `UnsupportedSnapshot`. A v0.3.12 separou retry idêntico de aplicação duplicada de marco; a v0.3.13 fixou a resposta idempotente na regra geral, mas deixou §16.7(2)/(8) com alternativa de erro de duplicidade/definição local. A v0.3.14 alinhou os retries de transação e marco. A v0.3.15 esclarece a terminalidade de Falha: só recuperação explícita do proprietário reabre a transação; Cancelada permanece terminal e retry não recupera Falha. Esta atualização documental não constitui aprovação formal de R1.
 
-1. Revisar adversarialmente a v0.3.14 no SHA exato, conferindo C01–C16, §7, §12.1, §14 e §16.1–§16.17.
+1. Revisar adversarialmente a v0.3.15 no SHA exato, conferindo C01–C16, §7, §12.1, §14 e §16.1–§16.17.
 2. Confirmar que cada classe de operação tem marcos nomeados e que UNKNOWN físico permanece explícito, sem fase/WAIT/microtiming inventado.
-3. Verificar especificamente que requisições idênticas de transação e de marco devolvem o estado/resultado registrado, sem erro de duplicidade; recuperação de Falha é separada; aplicação efetiva duplicada permanece InvariantViolation em §7.2–§7.4, §12.1, §16.7(2)/(8), §16.12, C08 e R2-T08/T15.
+3. Verificar especificamente que requisições idênticas de transação e de marco devolvem o estado/resultado registrado, sem erro de duplicidade; Falha só reabre por recuperação explícita e Cancelada nunca reabre; aplicação efetiva duplicada permanece InvariantViolation em §7.2–§7.4, §12.1, §16.7(2)/(8), §16.12, C08 e R2-T08/T15.
 4. Atualizar a issue #1270 com o SHA candidato, revisão, checks e estado de cada critério; manter R1 não aprovado enquanto houver blocker.
 5. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos na versão exata e a revisão independente não encontrar blockers.
 6. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
