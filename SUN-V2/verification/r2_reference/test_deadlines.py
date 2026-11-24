@@ -278,4 +278,3 @@ class R2BMicrostepTests(unittest.TestCase):
         )
 
 
-if __tests__=true) {}
