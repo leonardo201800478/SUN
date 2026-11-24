@@ -82,21 +82,21 @@ Referência: [commit congelado](https://github.com/leonardo201800478/SUN/commit/
 7. **Performance:** o harness S0 existe, mas a baseline foi encerrada como não executada. Não há resultado de throughput a transportar; S0 não é gate de R0/V2.
 8. **Evidências históricas:** não transportar PASS antigo sem verificar SHA de produção, teste, configuração e ambiente.
 
-## 5. Questões que permanecem bloqueantes para R0/R1
+## 5. Questões abertas classificadas por gate e impacto
 
-| ID | Questão | Estado | Evidência necessária para fechar |
+| ID | Questão | Estado | Gate / tratamento |
 |---|---|---|---|
-| R0-CLK-01 | Frequência, razão e fase CPU/VDP/PSG por NTSC, PAL e PAL-M | Parcial | Fontes primárias/medição por placa; distinguir taxa nominal de fase inicial. |
-| R0-CLK-02 | Relação de clock/fase do YM2413 no Japanese SMS | UNKNOWN para fase física | Esquema confiável ou medição; o domínio lógico existente não prova fase física. |
-| R0-BUS-01 | Quais operações exigem suspensão e WAIT físico no SMS | Parcial | Casos de hardware/ROM discriminantes; separar fixture WAIT de WAIT físico. |
-| R0-BUS-02 | Ordem em colisões CPU write × VDP boundary × PSG edge | Parcial | Matriz de simultaneidade, evidência de hardware e modelo de referência. |
-| R0-VDP-01 | Quais boundaries scanline/subline alteram gameplay | Parcial | ROMs de diagnóstico, traces e classificação por perfil ASIC. |
-| R0-VDP-02 | Fetch-ahead, CRAM dots e efeitos mid-scanline | UNKNOWN / não modelado integralmente | Teste discriminante e fonte independente por efeito; não exigir dot accuracy sem consumidor. |
-| R0-AUD-01 | Modelo comum de tempo para PSG/FM e conversão PCM | Parcial | Fase/timestamp por fonte, chunk invariance e restore de conversores. |
-| R0-FM-01 | Qualidade real do YM2413 em jogos e placa | Não aprovado | Capturas separadas, comparação A/B, audição e validação física. |
-| R0-SNAP-01 | Codec persistente completo da máquina SMS | Não demonstrado | Codec de máquina, validação cruzada e restore/replay de todos os estados pendentes. |
-| R0-PERF-01 | Baseline headless OutRun da V1 | S0 encerrado como não executado; sem resultado | Adiado e fora dos gates R0/V2; não executar campanha S0 nem criar substituto. |
-| R0-PERF-02 | 60 FPS, áudio físico e latência ponta a ponta | Não medidos no dossiê S0 | Gate de produto V2 posterior à integração funcional; medir separadamente host, CPAL e apresentação. |
+| R0-CLK-01 | Frequência, razão e fase CPU/VDP/PSG por NTSC, PAL e PAL-M | Parcial; PAL-M físico UNKNOWN | R0 exige fontes, tolerâncias e incógnitas delimitadas. Contrato parametrizável em R1; medição de placa é específica do perfil e pode ser adiada. |
+| R0-CLK-02 | Relação de clock/fase do YM2413 no Japanese SMS | UNKNOWN para fase física | R0 registra a limitação. Fechar contrato do perfil Japanese SMS em R1/F5 antes de habilitar FM; não bloqueia o núcleo SMS sem FM. |
+| R0-BUS-01 | Quais operações exigem suspensão e WAIT físico no SMS | Parcial; WAIT físico não verificado | R0 documenta TW automático e a ausência de medição física. Manter contrato genérico; confirmar WAIT externo somente para hardware/cartucho que o exigir. |
+| R0-BUS-02 | Ordem em colisões CPU write × VDP boundary × PSG edge | Parcial; fases ainda não decididas | R0 registra casos e hipóteses; semântica verificável pertence a R1 e provas independentes a R2. Não escolher desempate por conveniência. |
+| R0-VDP-01 | Quais boundaries scanline/subline alteram gameplay | Parcial | R0 mantém mapa de observabilidade e testes discriminantes. Reexecução do diagnóstico no SHA V1 e traces full-machine são adiáveis até validar os comportamentos VDP correspondentes. |
+| R0-VDP-02 | Fetch-ahead, CRAM dots e efeitos mid-scanline | UNKNOWN / não modelado integralmente | Adiar até ROM/jogo demonstrar impacto; não exigir dot accuracy universal nem promover hipótese a requisito. |
+| R0-AUD-01 | Modelo comum de tempo para PSG/FM e conversão PCM | Parcial | Documentar a necessidade em R0; contratos multi-fonte, fase e restore pertencem a R1/R2. FM fica fora da primeira fatia. |
+| R0-FM-01 | Qualidade real do YM2413 em jogos e placa | Não aprovado | F5; posterior ao PSG estável e ao contrato multi-fonte. Não bloqueia R0 nem a primeira fatia SMS sem FM. |
+| R0-SNAP-01 | Codec persistente completo da máquina SMS | Não demonstrado | R1 define semântica; R2 prova modelo de referência; implementação e hardening ficam para fases posteriores. |
+| R0-PERF-01 | Baseline headless OutRun da V1 | S0 encerrado como não executado; sem resultado | Adiado e fora dos gates R0/V2. Não executar S0 nem criar substituto. |
+| R0-PERF-02 | 60 FPS, áudio físico e latência ponta a ponta | Não medidos | F6 — gate de produto após integração funcional; medir throughput, apresentação, CPAL e input-to-photon separadamente. |
 
 ## 6. Decisão de uso da V1
 
