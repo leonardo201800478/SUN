@@ -9,8 +9,8 @@ From this directory, run:
     python run_reference_tests.py
 
 The runner records:
-- Git repository HEAD SHA;
-- SHA-256 of `chronos_reference.py`;
+- Git repository HEAD SHA and clean-worktree status;
+- SHA-256 of every executable reference-model module, the runner and every discovered test module;
 - Python version and platform;
 - test-suite result.
 
