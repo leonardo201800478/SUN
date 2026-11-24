@@ -1,4 +1,9 @@
-//! Opt-in in-game FM signal/quality diagnostic campaign for legally obtained Japanese SMS ROMs.
+//! Opt-in in-game FM signal/quality diagnostic campaign for verified SMS YM2413 ROMs.
+//!
+//! The fixture catalog includes Japanese and international game dumps, but all
+//! default profiles model Japanese FM-capable hardware. Each fixture carries its
+//! own console region and VDP revision; environment variables can override those
+//! defaults for controlled compatibility experiments.
 //!
 //! This exercises the real ROM -> Z80/Scheduler -> YM2413 -> FM/PSG alignment ->
 //! NativeAudioSession mixer/resampler -> PCM sink path. The capture sink is
@@ -38,15 +43,47 @@ use sega_sms_runtime::{AudioSession, SmsFmOutputPolicy, SmsTemporalWorker, SmsVd
 const DEFAULT_FRAMES_PER_ROM: u64 = 1_800;
 const FRAME_WAIT_TIMEOUT: Duration = Duration::from_secs(180);
 const NONZERO_EPSILON: f64 = 1.0e-9;
-const FM_ROM_FIXTURES: &[(&str, &str)] = &[
-    (
-        "Kenseiden (Japan)",
-        "7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93",
-    ),
-    (
-        "Phantasy Star (Japan) Rev 1",
-        "55ba15a1ea5c7db883a7a4c850bea2b1024185605964916ddd04a645d7ddd2b6",
-    ),
+
+#[derive(Debug, Clone, Copy)]
+struct FmRomFixture {
+    title: &'static str,
+    sha256: &'static str,
+    region: &'static str,
+    system: &'static str,
+    required: bool,
+}
+
+// Required reference fixtures keep the original acceptance baseline intact.
+// Additional entries are optional: they run when their exact dump is present,
+// but their absence never fails the campaign.
+const FM_ROM_FIXTURES: &[FmRomFixture] = &[
+    FmRomFixture { title: "Kenseiden (Japan)", sha256: "7a9c056edfb1b973482430a41074b0b0a076ee4591d5df8f19007e7058cadc93", region: "japan", system: "sms1", required: true },
+    FmRomFixture { title: "Phantasy Star (Japan) Rev 1", sha256: "55ba15a1ea5c7db883a7a4c850bea2b1024185605964916ddd04a645d7ddd2b6", region: "japan", system: "sms1", required: true },
+    FmRomFixture { title: "After Burner (World)", sha256: "90740cfeb430b95b7460d67ed42260bf9f50a89b24e0ad3724d645c47ef783eb", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Alien Syndrome (Japan)", sha256: "b87ef7a23c392ab4b046854ced6a48d1a7b2244f643214b759e305db793f480a", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Aztec Adventure (World)", sha256: "b3fd2d4d5bd30e7419080d1e4368cf4a47f9f892df188eb165435354f9e59531", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Bomber Raid (World)", sha256: "ea90ca2ba9a5db82f0ab920d70607246f06b45fa9790b600b5c51051b66209d5", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Captain Silver (Japan/Europe/Brazil)", sha256: "925d9933b7565e0010111983cc68513a911269a88b602c27ed3d8b9486ccd647", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Cyborg Hunter (USA/Europe/Brazil)", sha256: "62caa88da76d2ee5cbd6334254c46d8c6e150a0f56d2cbc1aea8bcc1adbc7d78", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Double Dragon (World)", sha256: "26290f94a597ad015da5b74e8d3649aa50b033c280c81fbfa460f947376b776a", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Golvellius - Maou Golvellius (Japan)", sha256: "f64b9b546c4387939dc80208482b0cc4a5a6e7685f0291bfe715c170508bdedf", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Lord of the Sword (USA/Europe/Brazil)", sha256: "6a9d4a337894059eec44c9be1c0c83f2836cdc7c2f92f5fd35377e4077458e57", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Penguin Land - Doki Doki (Japan)", sha256: "c87ec8b700e53c5944e04b68a195e844276ac3b4996bac72ae73cea4c615e006", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Power Strike (USA/Europe/Brazil)", sha256: "247fd3d9d16bbf293086567d55ad4d2dd4dff5fb839a3a2c85f59ad1124e73b1", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "R-Type (World)", sha256: "8b9b80a16bc73457e93dd855d7398876bdb9b634387472ce1c0058906fc030d1", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Shinobi (Japan/Brazil)", sha256: "d66e46388b58d202c32fe652e771ba228195005b26456c75823fdff3a50efa35", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "SpellCaster (USA/Europe/Brazil)", sha256: "0d724c18d202063a9ec73689c0d42301d935a23474b0a703478afdb4fd594d21", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Thunder Blade (Japan)", sha256: "8ace31d7eae687964c59642e4ccc5adf61811e91ad81d69e34c38fdcf1e8180a", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Wonder Boy in Monster Land (USA/Europe)", sha256: "425f24e06d0cacbaec17963bd145ee4e168ce89d972c7fd76e3cc36366d06c80", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Zillion II (World)", sha256: "de988cb6535081ff2d3bb7446ae6eb2689ea0b9aefeb13acebe1f6e01e572a45", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Ys (Japan)", sha256: "816ddb63d3aa30e7c4fc0efb706ff5e66f4b6f17cf331d5fc97f6681d1905a61", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "OutRun (World)", sha256: "069c130135d8b61393d89f26b233509d6f9de76b0fbac53087e698a7fda0ba88", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "OutRun 3-D (Europe/Brazil)", sha256: "2f7da259301a0b878229f1ac04d8a0467f7f3da7f34000053260b0cf1975e8a6", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Scramble Spirits (Europe/Brazil)", sha256: "1a54d18344f5486babe81e246fd054ff7cfa9ef6db3b5f1bae739bd4803928ec", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Time Soldiers (USA/Europe/Brazil)", sha256: "f5181d3908c91669d2832437b1deb3836e12a3519597b77dcd7a8eb8d97c6182", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Vigilante (USA/Europe/Brazil)", sha256: "fab0aa155212ff4183d85d28b2a8ede3acf6b178fdd84fd2119b21016af62466", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Rampage (USA/Europe/Brazil)", sha256: "a286f5d6268236116da5bf94d771020d7c2f5b278ce777e1cb60d02a00d8010f", region: "japan", system: "sms1", required: false },
+    FmRomFixture { title: "Rastan (USA/Europe/Brazil)", sha256: "7e310ada1a09ace30e9dd8f5738f095c0ec7821edc225221cbba130fb8cbadb3", region: "japan", system: "sms1", required: false },
 ];
 
 #[derive(Debug, Default)]
@@ -358,21 +395,18 @@ fn collect_roms(directory: &Path) -> Vec<PathBuf> {
     paths
 }
 
-fn selected_vdp_revision() -> SmsVdpRevision {
-    match std::env::var("SEGA_SMS_FM_TEST_SYSTEM")
-        .unwrap_or_else(|_| "sms1".to_owned())
-        .as_str()
-    {
+fn selected_vdp_revision(system: &str) -> SmsVdpRevision {
+    match system {
         "sms1" => SmsVdpRevision::Sega3155124,
         "sms2" => SmsVdpRevision::Sega3155246,
-        other => panic!("unsupported SEGA_SMS_FM_TEST_SYSTEM '{other}'; expected sms1 or sms2"),
+        other => panic!("unsupported SMS FM fixture system '{other}'; expected sms1 or sms2"),
     }
 }
 
-fn load_known_fm_roms() -> Vec<(PathBuf, &'static str, &'static str, Vec<u8>)> {
+fn load_known_fm_roms() -> Vec<(PathBuf, &'static FmRomFixture, Vec<u8>)> {
     let directory = std::env::var_os("SEGA_SMS_FM_TEST_ROM_DIR")
         .map(PathBuf::from)
-        .expect("set SEGA_SMS_FM_TEST_ROM_DIR to a directory containing the two verified FM ROMs");
+        .expect("set SEGA_SMS_FM_TEST_ROM_DIR to a directory containing the required FM reference ROMs");
     let rom_paths = collect_roms(&directory);
     assert!(
         !rom_paths.is_empty(),
@@ -381,26 +415,45 @@ fn load_known_fm_roms() -> Vec<(PathBuf, &'static str, &'static str, Vec<u8>)> {
     );
 
     let mut found_fixtures = std::collections::BTreeSet::new();
+    let mut seen_hashes = std::collections::BTreeSet::new();
     let mut fixtures = Vec::new();
     for path in rom_paths {
         let rom = fs::read(&path)
             .unwrap_or_else(|error| panic!("cannot read ROM {}: {error}", path.display()));
         assert!(!rom.is_empty(), "ROM {} is empty", path.display());
         let sha256 = CartridgeIdentity::from_bytes(&rom).sha256_hex();
-        let Some((fixture_name, expected_sha256)) = FM_ROM_FIXTURES
+        let Some(fixture) = FM_ROM_FIXTURES
             .iter()
-            .find(|(_, expected)| *expected == sha256.as_str())
+            .find(|fixture| fixture.sha256.eq_ignore_ascii_case(&sha256))
         else {
             continue;
         };
-        found_fixtures.insert((*expected_sha256).to_owned());
-        fixtures.push((path, *fixture_name, *expected_sha256, rom));
+        if !seen_hashes.insert(fixture.sha256) {
+            println!(
+                "SMS_FM_DUPLICATE_ROM title={} rom={} sha256={} action=skipped",
+                fixture.title,
+                path.display(),
+                fixture.sha256
+            );
+            continue;
+        }
+        found_fixtures.insert(fixture.sha256);
+        fixtures.push((path, fixture, rom));
     }
 
-    for (fixture_name, expected_sha256) in FM_ROM_FIXTURES {
-        assert!(
-            found_fixtures.contains(*expected_sha256),
-            "missing required FM fixture {fixture_name} with SHA-256 {expected_sha256}"
+    for fixture in FM_ROM_FIXTURES {
+        if found_fixtures.contains(fixture.sha256) {
+            continue;
+        }
+        if fixture.required {
+            panic!(
+                "missing required FM fixture {} with SHA-256 {}",
+                fixture.title, fixture.sha256
+            );
+        }
+        println!(
+            "SMS_FM_OPTIONAL_FIXTURE_NOT_FOUND title={} sha256={}",
+            fixture.title, fixture.sha256
         );
     }
     fixtures
@@ -409,8 +462,8 @@ fn load_known_fm_roms() -> Vec<(PathBuf, &'static str, &'static str, Vec<u8>)> {
 #[test]
 #[ignore = "requires legally obtained Japanese SMS FM game ROMs; see module documentation"]
 fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
-    let region = std::env::var("SEGA_SMS_FM_TEST_REGION").unwrap_or_else(|_| "japan".to_owned());
-    let vdp_revision = selected_vdp_revision();
+    let region_override = std::env::var("SEGA_SMS_FM_TEST_REGION").ok();
+    let system_override = std::env::var("SEGA_SMS_FM_TEST_SYSTEM").ok();
     let frames_per_rom = std::env::var("SEGA_SMS_FM_TEST_FRAMES")
         .map(|value| {
             value
@@ -423,10 +476,13 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         "SEGA_SMS_FM_TEST_FRAMES must be positive"
     );
 
-    for (path, fixture_name, sha256, rom) in load_known_fm_roms() {
+    for (path, fixture, rom) in load_known_fm_roms() {
+        let region = region_override.as_deref().unwrap_or(fixture.region);
+        let system = system_override.as_deref().unwrap_or(fixture.system);
+        let vdp_revision = selected_vdp_revision(system);
         let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
             rom,
-            &region,
+            region,
             vdp_revision,
             None,
             None,
@@ -507,7 +563,7 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             .unwrap_or_else(|_| panic!("{}: PCM capture mutex was poisoned", path.display()));
 
         write_game_audio_captures(
-            fixture_name,
+            fixture.title,
             &sources.fm_samples_f64,
             &sources.psg_samples_f64,
             &sources.single_source_samples_f64,
@@ -550,11 +606,12 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         );
 
         println!(
-            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} vdp={:?} frames={} fm_port_writes={:?} dual_source_blocks={} single_source_blocks={} single_source_samples={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8} fm_summary={:?} psg_summary={:?} single_source_summary={:?} mixed_summary={:?}",
-            fixture_name,
+            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} system={} vdp={:?} frames={} fm_port_writes={:?} dual_source_blocks={} single_source_blocks={} single_source_samples={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8} fm_summary={:?} psg_summary={:?} single_source_summary={:?} mixed_summary={:?}",
+            fixture.title,
             path.display(),
-            sha256,
+            fixture.sha256,
             region,
+            system,
             vdp_revision,
             worker.frame_number(),
             fm_bus_writes,
@@ -605,8 +662,8 @@ fn diagnostic_wav_writer_preserves_ieee_float_samples_without_normalization() {
 #[test]
 #[ignore = "requires the verified FM ROMs and a working physical CPAL output device"]
 fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
-    let region = std::env::var("SEGA_SMS_FM_TEST_REGION").unwrap_or_else(|_| "japan".to_owned());
-    let vdp_revision = selected_vdp_revision();
+    let region_override = std::env::var("SEGA_SMS_FM_TEST_REGION").ok();
+    let system_override = std::env::var("SEGA_SMS_FM_TEST_SYSTEM").ok();
     let frames_per_rom = std::env::var("SEGA_SMS_FM_TEST_FRAMES")
         .map(|value| {
             value
@@ -619,10 +676,13 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
         "SEGA_SMS_FM_TEST_FRAMES must be positive"
     );
 
-    for (path, fixture_name, sha256, rom) in load_known_fm_roms() {
+    for (path, fixture, rom) in load_known_fm_roms() {
+        let region = region_override.as_deref().unwrap_or(fixture.region);
+        let system = system_override.as_deref().unwrap_or(fixture.system);
+        let vdp_revision = selected_vdp_revision(system);
         let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
             rom,
-            &region,
+            region,
             vdp_revision,
             None,
             None,
@@ -707,11 +767,12 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
         );
 
         println!(
-            "SMS_FM_CPAL title={} rom={} sha256={} region={} vdp={:?} frames={} sample_rate_hz={} accepted_frames={} consumed_frames={} underrun_events={} underrun_frames={} dropped_blocks={} dropped_frames={} queue_high_water_frames={} queue_capacity_frames={}",
-            fixture_name,
+            "SMS_FM_CPAL title={} rom={} sha256={} region={} system={} vdp={:?} frames={} sample_rate_hz={} accepted_frames={} consumed_frames={} underrun_events={} underrun_frames={} dropped_blocks={} dropped_frames={} queue_high_water_frames={} queue_capacity_frames={}",
+            fixture.title,
             path.display(),
-            sha256,
+            fixture.sha256,
             region,
+            system,
             vdp_revision,
             worker.frame_number(),
             metrics.sample_rate_hz,
