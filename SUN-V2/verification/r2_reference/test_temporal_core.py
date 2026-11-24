@@ -1,6 +1,7 @@
 """Executable R2-A properties for the independent CHRONOS oracle."""
 from fractions import Fraction
 import random
+import sys
 import unittest
 
 from chronos_reference import (
@@ -15,6 +16,40 @@ from chronos_reference import (
 )
 
 class R2T01InvalidStateTests(unittest.TestCase):
+    def test_runner_disables_bytecode_writes_for_repeatable_clean_worktree(self):
+        self.assertTrue(sys.dont_write_bytecode)
+
+    def test_invalid_obligation_is_invalid_input_before_incomplete_participant_block(self):
+        state = make_state(
+            domains=[one_domain()],
+            expected_participants=["cpu", "vdp"],
+            obligations=[Obligation("irq-1", "cpu", 1.5)],
+        )
+        before = canonical_state(state)
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertEqual(canonical_state(evaluated.state), before)
+
+    def test_invalid_domain_progress_is_invalid_input_before_incomplete_participant_block(self):
+        state = make_state(
+            domains=[
+                ClockDomain(
+                    domain_id="cpu",
+                    local_to_common=Fraction(1),
+                    progress_local=1.5,
+                    horizon_local=Fraction(10),
+                )
+            ],
+            expected_participants=["cpu", "vdp"],
+        )
+        before = canonical_state(state)
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertEqual(canonical_state(evaluated.state), before)
     def test_invalid_clock_ratio_returns_error_without_converting_frontier(self):
         state = make_state(
             domains=[
