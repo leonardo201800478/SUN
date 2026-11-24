@@ -29,12 +29,12 @@ A diferença fundamental é a ordem de construção e o contrato de integração
 
 | Dimensão | V1 — conhecimento existente | V2 — direção |
 |---|---|---|
-| CPU | Executor funcional amplo; `Z80::step` documentado como instrução completa, com T-states agregados e sem suspensão geral do barramento | Estado arquitetural e semântica correta desde o início; microsequência apenas nas operações temporalmente observáveis |
-| Barramento | Caminhos de máquina existentes e evolução temporal incremental | Contrato explícito de transação, timestamp, observação, WAIT quando exigido e efeito exactly-once |
-| VDP | Renderer SMS funcional, predominantemente scanline/span com fronteiras seletivas já investigadas | Núcleo funcional mínimo conectado a limites causais desde o primeiro protótipo; granularidade adicional só por evidência |
-| PSG | Core SN76489 digital, clock/divisor, geração de amostras e pipeline DSP | Core isolável, avanço por tempo explícito, fase preservada e saída temporizada que permita comparar blocos |
-| FM | Auditoria de YM2413 e requisitos de placa/roteamento documentados; síntese ainda não é pressuposto do runtime base | Core separado e integração posterior, condicionada ao perfil físico, clock/fase, $F0–$F2, MO/RO e mixer |
-| Scheduler | Infraestrutura e integração evoluíram ao longo do projeto, com limites temporais conhecidos | CHRONOS especificado/testado antes de virar dependência de todos os componentes |
+| CPU | `Z80::step` continua atômico; a V1 também possui `Z80MicroSequencer` retomável, ativo em `SmsTemporalMachine`, mas com cobertura delimitada e não equivalente a precisão elétrica universal | Estado arquitetural e semântica correta desde o início; microsequência apenas nas operações temporalmente observáveis |
+| Barramento | Handshake com request ID, WAIT acumulado e conclusão agendada; WAIT adicional é fixture, I/O/INT têm TW automáticos e WAIT físico não é amostrado pela máquina SMS V1 | Contrato explícito de transação, timestamp, observação, WAIT quando exigido por evidência e efeito exactly-once |
+| VDP | SMS1 integrado ao Scheduler em scanline/span; 228 T-states/342 HPos, boundaries T13–T17 e HBlank seletivo; sem fetch por dot universal; SMS2 HBlank/raster-write não caracterizado | Núcleo funcional mínimo conectado a limites causais desde o primeiro protótipo; granularidade adicional só por evidência |
+| PSG | Core digital integrado; divisor /16, fase e LFSR; período de tom <=1 tratado como nível alto; perfil PAL-M V1 usa clock NTSC em conflito com modelo MAME | Core isolável, avanço por tempo explícito, fase preservada e saída temporizada que permita comparar blocos |
+| FM | Caminho opcional Japanese SMS, core/serviço serial e PCM de compatibilidade já existem; qualidade sonora não aprovada e C-Sync/DAC/placa ainda pendentes | Core separado e integração posterior, condicionada ao perfil físico, clock/fase, $F0–$F2, MO/RO e mixer |
+| Scheduler | MachineTime u128, razões racionais, ordenação e snapshot do Scheduler existem; snapshot isolado não é save state completo da máquina; stress histórico precisa ser vinculado ao SHA executado | CHRONOS especificado/testado antes de virar dependência de todos os componentes |
 | Validação | Testes por subsistema e integração acumulados em diferentes etapas | Modelo de referência independente, testes por componente e testes cruzados em cada fatia vertical |
 | Performance | Otimizações sobre runtime integrado | Baseline desde a primeira fatia, atribuição de custo por componente e orçamento antes de adicionar mecanismos |
 
@@ -61,16 +61,23 @@ A diferença fundamental é a ordem de construção e o contrato de integração
 
 Objetivo: extrair o conhecimento útil da V1 sem herdar suas suposições.
 
-Entregas:
-- [inventário crítico V1→V2](docs/architecture/V1_TO_V2_INVENTORY.md) como baseline inicial, a reconfirmar no SHA congelado;
-- matriz V1 → V2 por subsistema: comportamento existente, evidência, testes reutilizáveis como referência, lacunas e decisão de reimplementação;
-- matriz de evidências de clocks NTSC/PAL, fase, Z80/barramento, WAIT, IRQ/NMI, VDP e áudio;
-- catálogo de ROMs de diagnóstico e casos de gameplay, com hash e resultado esperado;
-- baseline de desempenho e metodologia headless;
-- mapa de riscos e discrepâncias;
-- classificação de fatos, hipóteses, inferências e itens desconhecidos.
+Entregas concluídas na primeira passagem:
+- baseline V1 congelada em `207ccc4cebbc4f8c0aed45c68262eae963491689` (23/11/2026);
+- [inventário crítico V1→V2](docs/architecture/V1_TO_V2_INVENTORY.md) reconfirmado contra o SHA congelado;
+- [matriz de evidências V1](docs/architecture/V1_BASELINE_EVIDENCE_MATRIX.md) com fontes, confiança, divergências e testes discriminantes;
+- [pesquisa de clocks](docs/temporal-core/CLOCK_DOMAIN_RESEARCH.md), [pesquisa de áudio](docs/temporal-core/AUDIO_CLOCK_RESEARCH.md) e [discrepâncias](docs/temporal-core/SOURCE_DISCREPANCIES.md);
+- [mapa de boundaries VDP](docs/architecture/VDP_OBSERVABLE_BOUNDARIES.md);
+- documentação Zilog oficial para WAIT, ciclos I/O e interrupções.
 
-**Gate F0:** não promover hipótese de hardware a constante de API sem evidência suficiente; fontes e incertezas rastreáveis; escopo mínimo da primeira fatia definido.
+Pendências para fechar F0:
+- resolver ou limitar formalmente o perfil PAL-M: V1 configura 3.579545 MHz; modelo MAME usa 3.575611 MHz; falta esquema/medição TecToy;
+- resolver convenção PAL 3.546893 vs 3.546895 MHz e fase CPU/VDP/PSG;
+- confirmar WAIT externo do cartridge port e separar PSG discreta SG-1000/SC-3000 do PSG integrado SMS;
+- reexecutar SMS VDP Test v1.31 no SHA congelado com ROM hash, ambiente e artefatos;
+- criar fixture full-machine para H/V IRQ, HCounter e TH com origem/atraso CPU normalizados;
+- executar baseline S0 headless OutRun com ROM SHA-256 e ambiente registrados.
+
+**Gate F0:** não promover hipótese de hardware a constante de API; fontes e incertezas rastreáveis; testes discriminantes definidos e reproduzíveis; pendências sem evidência física explicitamente limitadas. R0 permanece aberto até fechar os itens bloqueantes.
 
 ### Fase 1 — contratos temporais e modelo de referência (R1–R2)
 
@@ -125,7 +132,7 @@ A expansão será guiada por uma matriz de compatibilidade e não por contagem d
 **Prioridade: máxima para fidelidade, após base funcional estável.**
 
 - transformar operações de barramento que exigirem em microsequências retomáveis;
-- implementar WAIT e amostragem nas fases comprovadamente consumidas pelo SMS;
+- manter WAIT no contrato genérico, mas ativar apenas fontes comprovadas; não inventar WAIT interno de VDP/PSG SMS. Investigar WAIT externo do cartridge port e manter PSG discreta SG-1000/SC-3000 em perfil separado;
 - refinar H/V counter, raster, IRQ, latches, acesso a VRAM/CRAM e efeitos mid-scanline onde jogos/testes observarem;
 - revisar alinhamento de CPU, VDP e PSG em NTSC/PAL;
 - introduzir deadlines seletivos somente para eventos autônomos necessários;
@@ -249,4 +256,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 permanece aberto.
 
-**Próxima ação:** executar a Fase 0, produzir a matriz de inventário V1→V2 e fechar as evidências críticas de clocks/barramento/VDP/áudio. Em seguida, escrever e validar os contratos R1 e o modelo de referência R2. A primeira implementação experimental será a fatia vertical mínima da Fase 2 — não três chips isolados.
+**Próxima ação:** continuar fechando as pendências R0 listadas acima, começando pela reexecução do SmsVdpTest v1.31 e pela fixture full-machine de H/V IRQ/HCounter. Em paralelo, obter evidência TecToy PAL-M e confirmar WAIT do cartridge port. Só após R0 aprovado, congelar contratos R1 e modelo de referência R2; então iniciar protótipos R3 da fatia vertical mínima.
