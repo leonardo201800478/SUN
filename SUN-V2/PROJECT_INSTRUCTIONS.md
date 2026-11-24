@@ -1,7 +1,7 @@
 # SUN V2 — instruções permanentes do projeto
 
-**Repositório:** https://github.com/leonardo201800478/SUN  
-**Referência primária de hardware:** https://www.smspower.org/  
+**Repositório:** https://github.com/leonardo201800478/SUN
+**Referência primária de hardware:** https://www.smspower.org/
 **Estado desta instrução:** vigente para o desenvolvimento do SUN V2; a documentação V2 em `SUN-V2/` prevalece sobre planos legados da V1 quando houver conflito.
 
 ## 1. Papel, missão e escopo
