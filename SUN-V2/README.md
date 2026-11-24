@@ -4,7 +4,7 @@ SUN V2 é uma reconstrução independente do emulador SUN, iniciada com o Master
 
 ## Estado
 
-**Fase atual: R1 — contratos temporais verificáveis.**
+**Fase atual: R1 — revisão normativa dos contratos temporais (rascunho v0.3; não aprovado).**
 
 **R0:** aprovado no escopo documental em 24/11/2026. Consulte [parecer R0](docs/temporal-core/R0_CLOSEOUT.md) e [Issue #1267 encerrada](https://github.com/leonardo201800478/SUN/issues/1267).
 
@@ -47,7 +47,7 @@ O benchmark S0 da V1 foi encerrado como **não executado** e não é bloqueador 
 - [Avaliação arquitetural](docs/temporal-core/CHRONOS_ARCHITECTURE_EVALUATION.md) — comparação dos modelos e análise técnica.
 - [Avaliação estratégica](docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md) — SWOT, stakeholders, riscos e roadmap.
 - [Plano de pesquisa e especificação](docs/temporal-core/RESEARCH_AND_DESIGN_PLAN.md) — perguntas, entregáveis, provas e gates.
-- [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho normativo dos contratos de avanço, sincronização, deadlines, barramento, IRQ, snapshot e determinismo.
+- [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho v0.3 em revisão normativa; inclui clarificações de watermark, horizonte seguro, bloqueios, deadlines, microsteps, transações parciais, restore, replay e proveniência. Ainda não aprovado.
 
 ## Estrutura
 
@@ -66,4 +66,4 @@ O workspace V2 não deve adicionar dependências de path para crates do legado. 
 
 ## Próximo marco
 
-Iniciar R1: formalizar contratos verificáveis de avanço limitado, sincronização sob demanda, deadlines seletivos, causalidade, eventos simultâneos, transações suspensíveis/retomáveis, WAIT, IRQ/NMI, snapshot/restore e determinismo. Preparar o modelo de referência independente R2. Nenhum código de produção está autorizado antes de R5.
+Concluir a revisão e aprovação formal de R1. Somente após essa aprovação iniciar R2, com modelo de referência independente e propriedades executáveis. R3 depende de R1 e R2 aprovados; nenhum código de produção está autorizado antes de R5.
