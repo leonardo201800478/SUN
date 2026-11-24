@@ -32,6 +32,12 @@ A direção recomendada para o CHRONOS está documentada como **híbrido mínimo
 - [Roadmap SUN V2](ROADMAP.md) — fases, prioridades, primeira fatia vertical mínima, critérios de validação e política de uso da V1.
 - [ADR-0003 — fatia vertical mínima](docs/decisions/ADR-0003-minimal-vertical-slice.md) — decisão de construir CPU, barramento, VDP e PSG mínimos já integrados.
 
+## Roadmap de desenvolvimento
+
+- [Roadmap SUN V2](ROADMAP.md) — fases, prioridades, primeira fatia vertical mínima, critérios de validação e política de uso da V1.
+- [ADR-0003 — fatia vertical mínima](docs/decisions/ADR-0003-minimal-vertical-slice.md) — decisão de integrar CPU, barramento, VDP e PSG desde o primeiro protótipo.
+- [Inventário V1 → V2](docs/architecture/V1_TO_V2_INVENTORY.md) — conhecimento aproveitável, limites temporais e lacunas a fechar em R0.
+
 ## Documentos do Temporal Core
 
 - [Proposta arquitetural do híbrido mínimo](docs/temporal-core/CHRONOS_MINIMAL_HYBRID_SPEC.md) — documento de referência para a direção recomendada, responsabilidades, mecanismos, invariantes, prototipagem e gates.
