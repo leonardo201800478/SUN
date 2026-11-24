@@ -1,10 +1,15 @@
 # CHRONOS — avaliação estratégica, SWOT e stakeholders
 
-**Projeto:** SUN V2  
-**Componente:** CHRONOS — SUN Temporal Core  
-**Sistema inicial:** Sega Master System (SMS)  
-**Status:** análise estratégica; recomendações sujeitas a validação técnica  
-**Documento relacionado:** [CHRONOS_ARCHITECTURE_EVALUATION.md](CHRONOS_ARCHITECTURE_EVALUATION.md)  
+**Projeto:** SUN V2
+
+**Componente:** CHRONOS — SUN Temporal Core
+
+**Sistema inicial:** Sega Master System (SMS)
+
+**Status:** análise estratégica; recomendações sujeitas a validação técnica
+
+**Documento relacionado:** [CHRONOS_ARCHITECTURE_EVALUATION.md](CHRONOS_ARCHITECTURE_EVALUATION.md)
+
 **Branch:** architecture/sun-v2-foundation
 
 ---
