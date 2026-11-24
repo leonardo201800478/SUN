@@ -596,8 +596,9 @@ O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não de
 
 ## 19. Próximos passos
 
-1. Revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, CLOCK_DOMAIN_RESEARCH.md e VDP_OBSERVABLE_BOUNDARIES.md.
-2. Revisar cada requisito com cenários de gameplay SMS e classificar os casos que realmente exigem sub-T-state.
-3. Construir o modelo de referência R2 e propriedades independentes.
-4. Só depois comparar estruturas de agenda e protótipos descartáveis R3.
-5. Não iniciar crate de produção antes da aprovação R5.
+1. Concluir revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, CLOCK_DOMAIN_RESEARCH.md, AUDIO_CLOCK_RESEARCH.md, VDP_OBSERVABLE_BOUNDARIES.md, R0_CLOSEOUT.md e a matriz/inventário V1.
+2. Resolver comentários normativos restantes e classificar cada afirmação relevante como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
+3. Submeter R1 a revisão arquitetural adversarial e atualizar os critérios de saída da issue #1270 com evidências.
+4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos.
+5. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
+6. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
