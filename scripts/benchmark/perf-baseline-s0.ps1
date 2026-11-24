@@ -48,7 +48,13 @@ $commit = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) {
     throw "Não foi possível identificar o commit do código."
 }
-$branch = (& git -C $repoRoot branch --show-current).Trim()
+$branchOutput = & git -C $repoRoot branch --show-current
+if ($null -eq $branchOutput -or [string]::IsNullOrWhiteSpace(($branchOutput -join "`n"))) {
+    $branch = "(detached HEAD)"
+}
+else {
+    $branch = ($branchOutput -join "`n").Trim()
+}
 $dirty = -not [string]::IsNullOrWhiteSpace((& git -C $repoRoot status --porcelain))
 if ($dirty) {
     throw "O working tree precisa estar limpo para associar os resultados a um commit reproduzível."
