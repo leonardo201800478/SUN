@@ -57,14 +57,17 @@ Fontes:
 ### 2.3 Gearsystem — CPU em passos curtos e avanço dos dispositivos
 
 Inspeção de `GearsystemCore.h`, `GearsystemCore.cpp` e `Video.cpp`:
-- O loop principal executa `Processor::RunFor(1)`, obtém a quantidade efetiva de T-states e atualiza o contador mestre.
-- Em seguida, entrega o avanço ao VDP e ao áudio.
+- O loop principal chama `Processor::RunFor(1)`, recebe a quantidade efetiva de T-states e atualiza o contador mestre.
+- **Correção importante após inspeção de `Processor::RunFor`:** o argumento `1` é um orçamento mínimo, não um passo exato de um T-state. A função executa operações completas (`ExecuteOPCode`) e soma seus T-states até satisfazer o orçamento; portanto, uma chamada pode consumir vários T-states.
+- Em seguida, o loop externo entrega o avanço acumulado ao VDP e ao áudio.
+- Isso caracteriza uma execução CPU-led com fronteiras de retorno por instrução, não lockstep CPU/VDP a cada T-state. A sincronização exata de cada acesso de barramento precisa ser verificada nos callbacks de memória/I/O separadamente; não deve ser inferida apenas pelo loop externo.
 - O VDP mantém contador de ciclos da linha e testa fronteiras internas para VINT, HINT, scroll latch, VCounter, flags, colisão, overflow e renderização.
 - A ordem e os limites dessas fronteiras são explícitos no código.
 
-**Leitura para o SUN:** demonstra uma abordagem CPU-led com atualização dos dispositivos por deltas curtos. É um baseline importante para comparação de simplicidade e custo. Deve-se medir o custo de executar chamadas frequentes e garantir que o CPU não ultrapasse deadlines que precisem ser observados no meio da instrução ou do ciclo.
+**Leitura para o SUN:** demonstra uma abordagem CPU-led com atualização dos dispositivos por blocos delimitados por instrução. É um baseline importante para comparar simplicidade e custo, mas não prova que deadlines sub-instrução sejam atendidos. Precisamos medir o custo e auditar os callbacks de barramento antes de caracterizar sua precisão temporal.
 
 Fontes:
+- [Processor.cpp — implementação de RunFor](https://github.com/drhelius/Gearsystem/blob/master/src/Processor.cpp)
 - [GearsystemCore.h](https://github.com/drhelius/Gearsystem/blob/master/src/GearsystemCore.h)
 - [GearsystemCore.cpp](https://github.com/drhelius/Gearsystem/blob/master/src/GearsystemCore.cpp)
 - [Video.cpp](https://github.com/drhelius/Gearsystem/blob/master/src/Video.cpp)
