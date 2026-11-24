@@ -315,7 +315,7 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3.5
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.6
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
@@ -692,6 +692,6 @@ Limites da revisão:
 1. Concluir revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, ROADMAP.md, CLOCK_DOMAIN_RESEARCH.md, AUDIO_CLOCK_RESEARCH.md, VDP_OBSERVABLE_BOUNDARIES.md, R0_CLOSEOUT.md e a matriz/inventário V1.
 2. Resolver comentários normativos restantes e classificar cada afirmação relevante como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
 3. Submeter R1 a revisão arquitetural adversarial e atualizar os critérios de saída da issue #1270 com evidências.
-4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos e a revisão independente da v0.3.5 não encontrar blockers.
+4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos e a revisão independente da v0.3.6 não encontrar blockers.
 5. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
 6. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
