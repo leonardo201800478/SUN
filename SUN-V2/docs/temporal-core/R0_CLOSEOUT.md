@@ -30,7 +30,7 @@ Fonte primária: [Zilog Z80 CPU User Manual UM008011-0816](https://www.zilog.com
 
 Fatos documentados:
 - Instruções são sequências de operações básicas organizadas em M-cycles e T-states.
-- M1 de fetch tem quatro, cinco ou seis T-states conforme a operação e estados de espera; ciclos comuns de memória têm normalmente três T-states, podendo ser alongados.
+- M1 de fetch tem quatro, cinco ou seis T-states conforme a operação; WAIT pode acrescentar TW. Ciclos comuns de memória têm normalmente três T-states e também podem ser alongados por WAIT.
 - WAIT é ativo baixo e amostrado na borda de descida durante T2 e em cada TW subsequente; WAIT ativo solicita outro TW.
 - Ciclos de I/O inserem um TW automaticamente.
 - INT é amostrada na borda de subida do último clock ao final da instrução; o acknowledge gera M1/IORQ e dois TW automáticos.
