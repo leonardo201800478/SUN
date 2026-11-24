@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.3; classificação normativa por contrato, semântica explícita de WAIT, admissão causal de entradas, cancelamento temporal de deadlines e cenários R2 ampliados; ainda não aprovado
+**Status:** rascunho técnico v0.3.4; classificação normativa por contrato, limite explícito H_d, admissão estrita de cancelamentos em relação a W, ciclo de vida restaurável de deadlines e cenários R2 ampliados; ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -61,6 +61,7 @@ Os termos **MUST**, **MUST NOT**, **SHOULD** e **MAY** são requisitos normativo
 
 Cada dispositivo temporal MUST declarar o próximo limite até o qual pode avançar sem ocultar uma fronteira observável. O progresso local e os limites locais são expressos no domínio do dispositivo; antes de compará-los com o alvo solicitado ou com limites de outros domínios, o perfil deve fornecer uma conversão válida para o instante comum. O CHRONOS solicita um alvo e o dispositivo avança somente até o menor entre:
 - o alvo solicitado;
+- seu horizonte seguro H_d, convertido ao instante comum por regra válida do perfil;
 - seu próximo deadline autônomo;
 - a próxima fronteira externa que precise ser observada;
 - o limite causal imposto por uma transação ou dependência.
@@ -225,6 +226,7 @@ Snapshot deve representar um corte causal coerente da máquina e conter, no mín
 - estado de cada domínio e resto/fase residual;
 - deadlines e seus estados de ciclo de vida (Scheduled, Superseded/Cancelled, Claimed, Dispatched, Completed ou Failed), identidades, gerações e sequência estável;
 - eventos ainda não despachados operacionalmente, incluindo os que já estão em estado Claimed;
+- deadlines em estado Dispatched com o registro exato dos subefeitos já comprometidos e ainda pendentes;
 - CPU e microsequência pendente;
 - transações de barramento, estados de WAIT, amostragens e commits;
 - linhas IRQ/NMI e bordas pendentes;
@@ -285,12 +287,12 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 | R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, composição direta/encadeada quando matematicamente equivalente e sessões longas |
 | R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
 | R2-T05 | Sincronização causal | Leitura após evento de dispositivo e escrita com commit definido |
-| R2-T06 | Ordenação determinística e corrida deadline/cancelamento | Eventos em instantes diferentes, fases distintas e mesma fase; cancelamento C<D admitido antes de W fechar D; cancelamento retroativo C<D recebido após W>=D e rejeitado; cancelar depois de D com despacho operacional atrasado; cancelamento e claim em D; permutar ordem de publicação/execução mantendo a mesma ordem causal admitida |
+| R2-T06 | Ordenação determinística e corrida deadline/cancelamento | Eventos em instantes diferentes, fases distintas e mesma fase; cancelamento C<D admitido com W_admissão<C antes de W fechar D; cancelamento C<=W_admissão rejeitado como LateInput mesmo quando W<D; cancelamento retroativo C<D recebido após W>=D e rejeitado; cancelar depois de D com despacho operacional atrasado; cancelamento e claim em D; permutar ordem de publicação/execução mantendo a mesma ordem causal admitida |
 | R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada; assertiva de que W não fecha sobre o conflito |
 | R2-T08 | Exactly-once e efeitos parciais | Suspensão/retomada antes/depois de amostragem, entre cada efeito parcial, após commit, retry idêntico e ID duplicado com payload diferente; assertivas exatas para conjunto comprometido/pendente |
 | R2-T09 | WAIT | TW automático, WAIT externo modelado e fixture separados; WAIT ativo consome TW e reamostra em cada ponto; UNKNOWN não é tratado como inativo e bloqueia sem TW especulativo |
 | R2-T10 | IRQ/NMI | Transições/níveis antes e depois dos pontos de amostragem, borda NMI, EI delay, acknowledge e preservação das bordas/latches efetivamente definidos pelo dispositivo |
-| R2-T11 | Snapshot/restore e geração obsoleta | Eventos pendentes, cancelados/substituídos, claimed e transações em cada estado intermediário; restore preserva claim já decidido em D e retoma despacho exatamente uma vez, não reabre janela de cancelamento, não reativa geração obsoleta nem repete efeito |
+| R2-T11 | Snapshot/restore e geração obsoleta | Eventos em todos os estados Scheduled, Cancelled, Claimed, Dispatched, Completed e Failed; snapshot Dispatched antes/depois de cada subefeito irreversível; restore preserva claim, retoma somente subefeitos pendentes exatamente uma vez, não reabre cancelamento, não reativa geração obsoleta nem repete efeito |
 | R2-T12 | Replay e limite de admissão | Execução contínua contra restore + mesma sequência de entradas; rejeitar entrada nova com timestamp <= W; aceitar entrada > W; reproduzir a mesma ordem lógica de aceitação |
 | R2-T13 | Host independence | Variar tamanho de bloco, atrasar/drenar/descartar saída e simular underrun sem alterar estado virtual |
 | R2-T14 | Microstep finito | Evento cria outro evento no mesmo instante, incluindo ciclo infinito |
@@ -403,7 +405,7 @@ Cada deadline lógico tem identidade, proprietário, geração vigente, instante
 - **Claimed:** no instante causal D, a decisão lógica de reivindicar o deadline vigente foi tomada; esta é a fronteira que fecha a possibilidade de cancelamento.
 - **Dispatched:** a execução operacional do efeito foi iniciada depois ou no instante do claim; atraso do dispatcher não altera a decisão causal já tomada.
 - **Completed:** o efeito definido foi aplicado exatamente uma vez.
-- **Failed:** o efeito não pôde ser concluído; o erro e o estado pendente são preservados.
+- **Failed:** o efeito não pôde ser concluído; o erro e o estado pendente são preservados. A falha não autoriza repetir efeitos já comprometidos.
 
 Regras:
 
@@ -418,8 +420,8 @@ Regras:
 9. O cancelamento possui instante causal de aceitação C, registrado no domínio declarado pela entrada; C e D MUST ser convertidos para o mesmo instante comum por conversão válida do perfil antes de comparação. Comparar coordenadas locais brutas de domínios diferentes é proibido. Não basta registrar quando uma thread executou a chamada ou quando o dispatcher recebeu a mensagem.
 10. Um cancelamento só suprime o efeito se sua posição causal for anterior ao claim lógico do deadline em D. Se C for posterior a D, o deadline continua devido, mesmo que o dispatcher ainda não o tenha processado por atraso operacional; o atraso de despacho não reabre a janela causal de cancelamento.
 11. Se C e D coincidirem, a supressão só pode ser decidida por relação causal/microstep explicitamente definida pelo perfil. Sem essa relação, o resultado é indeterminado e não aprovado para o caso; sequência de chegada, thread ou ordem de execução do host não escolhem o vencedor.
-12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão. O estado Claimed é persistido separadamente de Dispatched para que atraso, falha ou restore do dispatcher não reabra a janela de cancelamento. Restore de um evento Claimed MUST retomar o despacho operacional exatamente uma vez; não pode descartá-lo, reivindicá-lo novamente nem torná-lo elegível a cancelamento.
-13. Um cancelamento com C < D só é eficaz se tiver sido admitido/registrado antes de W fechar D. Depois de W >= D, uma mensagem de cancelamento ainda não admitida é tardia e MUST ser rejeitada, mesmo que carregue timestamp retroativo C < D; não pode reabrir o corte nem suprimir deadline já devido.
+12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão. O estado Claimed é persistido separadamente de Dispatched para que atraso, falha ou restore do dispatcher não reabra a janela de cancelamento. Restore de um evento Claimed MUST retomar o despacho operacional exatamente uma vez; não pode descartá-lo, reivindicá-lo novamente nem torná-lo elegível a cancelamento. Se o efeito de um deadline possuir vários subefeitos irreversíveis, cada subefeito MUST ter identidade/registro de commit próprio conforme §16.7; se for indivisível, seu commit deve ser representado como um único marco atômico. Snapshot de um deadline Dispatched MUST preservar esse progresso: restore retoma somente subefeitos ainda pendentes, sem redispatch do evento nem repetição de subefeito comprometido.
+13. Para um cancelamento com C < D suprimir o deadline, ele MUST ser admitido enquanto W_admissão < C < D, com W_admissão e C comparados no instante comum do perfil. Isso exige que C ainda esteja além do watermark vigente quando a entrada é admitida, e que o cancelamento seja registrado antes de W fechar D. Se C <= W_admissão, a entrada é LateInput e MUST ser rejeitada mesmo quando W_admissão < D; não se pode retroagir dentro do intervalo ainda não fechado até D. Se W >= D, o deadline já está devido e qualquer cancelamento retroativo C < D também MUST ser rejeitado. Para C = D, aplica-se exclusivamente a regra 11; para C > D, o cancelamento não suprime o deadline.
 
 ### 16.6 Eventos simultâneos, microsteps e progresso
 
@@ -472,7 +474,7 @@ A transação é uma operação lógica; amostragem, commit e conclusão são ma
 ### 16.10 Snapshot e restore como operação transacional
 
 1. O snapshot representa um corte causal fechado conforme 16.1. Se o corte não puder ser fechado, a captura deve incluir explicitamente todas as transações, eventos e efeitos parciais que cruzam o corte; não pode omiti-los.
-2. O snapshot contém identidade do perfil/revisão, estado de cada domínio, resíduo, watermark, progresso local relevante, deadlines e gerações, microsteps pendentes, CPU, barramento, WAIT, IRQ/NMI, dispositivos e cursor de entradas externas.
+2. O snapshot contém identidade do perfil/revisão, estado de cada domínio, resíduo, watermark, progresso local relevante, deadlines, gerações e estados de ciclo de vida; para deadlines Dispatched, inclui o registro de cada subefeito comprometido/pendente ou o único marco atômico do efeito indivisível; inclui também microsteps pendentes, CPU, barramento, WAIT, IRQ/NMI, dispositivos e cursor de entradas externas.
 3. Filas, buffers e handles do host (CPAL, WGPU, janela, VSync) não integram o snapshot temporal e são reconstruídos pela camada host. O snapshot inclui apenas estado de geração pertencente ao core/dispositivo (por exemplo, divisores, fase, acumuladores ou resampler se fizer parte do contrato digital). Blocos já entregues/consumidos pelo host não são reintroduzidos no restore.
 4. Restore MUST validar versão, perfil, referências, identidades, gerações e invariantes antes de tornar o estado restaurado visível. Falha de validação não pode deixar a máquina ativa parcialmente modificada.
 5. O estado restaurado só é publicado como nova máquina quando todos os componentes necessários aceitaram o mesmo snapshot. A implementação pode preparar estado temporário, mas a forma do mecanismo fica em aberto.
@@ -612,9 +614,9 @@ A classificação abaixo é parte do contrato, não uma escolha de implementaç�
 | C01 | MUST | CHRONOS + domínio | Perfil válido; instante comparável | Progresso monotônico; overflow nunca silencioso | Retrocesso/overflow: InvalidInput ou InvariantViolation antes de publicar avanço | R0 §3; CLOCK_DOMAIN_RESEARCH; razões/frequências são FACT dentro dos limites citados; epoch/unidade final UNKNOWN | T01, T15 |
 | C02 | MUST | Perfil de clock + conversor | Conversão declarada e válida; resíduo compatível | Conversão exata, resíduo preservado e composição apenas quando provada | Razão inválida, resíduo inconsistente ou overflow: rejeitar sem avanço parcial | R0 §3; CLOCK_DOMAIN_RESEARCH; PAL/PAL-M e fase mantidos conforme UNKNOWN registrado | T03, T15 |
 | C03 | MUST | Cada domínio avançável | Mesmo perfil, estado inicial e sequência de entradas | Particionar avanço não muda estado/saída observável | Divergência de chunk: InvariantViolation reproduzível | R1 §3.3; R0 §5; V1 PSG/VDP apenas OBSERVATION limitada | T02 |
-| C04 | MUST | Domínio + coordenador | T comum válido; P_d/H_d convertidos por regra do perfil antes de comparar; T >= max(W, P_d convertido) | Alcança T ou retorna fronteira/bloqueio com progresso real; nunca excede H_d | Dependência sem progresso: Blocked; H_d violado: InvariantViolation | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; limites físicos não extrapolados | T01, T04 |
+| C04 | MUST | Domínio + coordenador | T comum válido; P_d/H_d convertidos por regra do perfil antes de comparar; T >= max(W, P_d convertido); avanço limitado também por H_d convertido | Alcança T ou retorna fronteira/bloqueio com progresso real; nunca excede H_d | Dependência sem progresso: Blocked; H_d violado: InvariantViolation | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; limites físicos não extrapolados | T01, T04 |
 | C05 | MUST | Dispositivo observado + coordenador | Operação cross-device declara estados e instante causal | Estados relevantes sincronizados até T; nenhum efeito posterior aplicado | Dependência recíproca: Blocked; observação fora de corte: falha causal | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; boundaries são por perfil/confiança | T05 |
-| C06 | MUST | Proprietário do deadline + coordenador | ID, geração e proprietário válidos; D e C comparados apenas após conversão para o mesmo instante comum | Só geração vigente produz efeito; cancelamento C<D admitido antes de W fechar D suprime; posterior a D não suprime | Empate em D sem relação causal definida: IndeterminateCausalOrder; geração antiga: descarte sem efeito | R1 §§5, 16.5; CHRONOS_MINIMAL_HYBRID_SPEC; política lógica é contrato, não FACT físico | T04, T06, T11, T14 |
+| C06 | MUST | Proprietário do deadline + coordenador | ID, geração e proprietário válidos; D e C comparados no instante comum; para C<D, W_admissão<C e cancelamento registrado antes de W fechar D | Só geração vigente produz efeito; cancelamento C<D admitido enquanto W<C<D suprime; C<=W é LateInput mesmo se W<D; posterior a D não suprime | LateInput; empate em D sem relação causal definida: IndeterminateCausalOrder; geração antiga: descarte sem efeito | R1 §§5, 16.5; CHRONOS_MINIMAL_HYBRID_SPEC; política lógica é contrato, não FACT físico | T04, T06, T11, T14 |
 | C07 | MUST | Perfil + coordenador de eventos | Instantes/fases/comutatividade conhecidos ou explicitamente UNKNOWN | Ordem causal determinística; sequência de software nunca inventa fase física | Conflito não comutativo UNKNOWN: bloqueia fechamento W/indeterminação | R0 §6; CHRONOS_MINIMAL_HYBRID_SPEC; referências são OBSERVATION de implementação | T06, T07 |
 | C08 | MUST | Dono da transação/barramento | Request/ID único; marcos e efeitos identificados | Amostragem/commit por marco exactly-once; conjunto parcial preservado | Payload divergente, repetição ou falha parcial: rejeitar/preservar efeitos realizados | R0 §2; Zilog UM008011-0816 para M/T/WAIT; V1 bus é OBSERVATION no SHA congelado | T08, T11, T15 |
 | C09 | MUST | CPU Z80 + contrato de ciclo | Tipo de ciclo conhecido; fonte WAIT identificada (FACT, fixture ou UNKNOWN) | TW automático separado; WAIT amostrado em T2/TWs; ciclo consome tempo sem aposentar instrução enquanto espera | Sinal indisponível no ponto: Blocked; UNKNOWN não vira inativo | R0 §2 e §5; Zilog UM008011-0816; WAIT físico SMS permanece UNKNOWN | T09 |
@@ -648,7 +650,7 @@ O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não de
 
 ## 19. Resposta à revisão adversarial da linha de base
 
-Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. A presente revisão produz o rascunho v0.3.3; não constitui aprovação formal do gate.
+Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. A revisão complementar de v0.3.4 também fecha duas lacunas identificadas na auditoria cruzada: admissão de cancelamento retroativo em relação ao watermark vigente e restauração de efeitos parciais de deadlines já Dispatched. Esta versão continua sendo rascunho e não constitui aprovação formal do gate.
 
 | Achado da linha de base | Resultado na v0.3.2 | Tratamento na v0.3.3 | Estado documental |
 |---|---|---|---|
@@ -659,10 +661,14 @@ Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com
 | MAJOR — propriedades R2 incompletas | T06/T08/T11/T12/T15 não enumeravam todas as corridas e estados parciais | Cenários ampliados para antes/depois de D, despacho atrasado, permutação, efeitos parciais, geração obsoleta, restore e LateInput | Especificado; não executado, pois R2 continua bloqueado |
 | MINOR — grupos de rastreabilidade | C09 e C12 estavam agrupados em linhas incompatíveis com seus contratos | 16.17 separa WAIT (C09), IRQ/ack (C10/C11), concorrência (C07/C13) e host (C12) | Corrigido no texto |
 | MINOR — medição como pré-requisito R1 | 16.14.3 sugeria medição antes de R3 | 16.14/18 tornam medição comparativa entrega R3; R1 exige apenas contrato de capacidade/observabilidade | Corrigido no texto |
+| MAJOR — admissão de cancelamento retroativo em relação a W | v0.3.3 exigia C<D e admissão antes de W fechar D, mas não explicitava que C também precisava estar além do W vigente no momento da admissão | v0.3.4 exige W_admissão<C<D; C<=W é LateInput mesmo quando W<D | Corrigido no texto; propriedade ampliada em R2-T06 |
+| MAJOR — snapshot de deadline Dispatched com efeitos parciais | v0.3.3 preservava Claimed, mas não explicitava o registro de subefeitos de um deadline cujo despacho já começou | v0.3.4 exige registro de commit por subefeito ou marco atômico e restore apenas dos subefeitos pendentes | Corrigido no contrato; cenário ampliado em R2-T11 |
 
 Limites da revisão:
 - A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
 - Os itens “corrigido” significam que a lacuna normativa foi endereçada no texto. Não significam que as propriedades R2 foram executadas, que o hardware foi medido ou que o gate R1 foi aprovado.
+- A condição W_admissão<C<D é uma regra de admissão/replay do contrato, não uma afirmação física sobre o hardware. O cenário C<=W<W_D (com W_D ainda anterior a D) é LateInput porque o corte W já fechou a posição causal C.
+- Um deadline Dispatched com múltiplos efeitos precisa preservar cada commit; um efeito indivisível precisa preservar seu único marco atômico. O contrato não autoriza repetir efeitos para “recuperar” dispatch.
 - A relação C/D em empate continua explicitamente UNKNOWN quando o perfil não fornece relação causal/microstep; não se inventa prioridade física.
 - A semântica WAIT deriva do Zilog Z80 User Manual UM008011-0816, R0 §2. WAIT externo de cartridge continua UNKNOWN conforme R0 §5.
 - A regra LateInput é uma decisão normativa do contrato de replay/watermark, não uma afirmação física de hardware.
