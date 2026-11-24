@@ -14,7 +14,7 @@ The runner records:
 - Python version and platform;
 - test-suite result.
 
-For a plain unittest invocation (without the pinned evidence header):
+For a plain unittest invocation (without the pinned evidence header; it runs the same test cases and does not depend on runner-specific process state):
 
     python -m unittest -v
 
@@ -22,8 +22,8 @@ No third-party dependencies are required. The model uses exact rational arithmet
 
 ## Current candidate coverage
 
-The current candidate defines 28 tests:
-- R2-T01: monotonicity, retrograde-input no-mutation, participant completeness, structural-validation precedence over `Blocked`, exact-time validation, invalid clock conversion/watermark, obligation identity/owner validation, and clean-runner bytecode hygiene.
+The current candidate defines 27 tests:
+- R2-T01: monotonicity, retrograde-input no-mutation, participant completeness, structural-validation precedence over `Blocked`, exact-time validation, invalid clock conversion/watermark, obligation identity/owner validation .
 - R2-T02: chunk invariance, including 100 deterministic random partitions, safe-horizon boundary stops, pending-obligation stops and continuation after resolution.
 - R2-T03: exact rational round-trip/composition and 10,000-step conversion sessions across three ratios.
 - R2-T04: inclusive safe horizon, endpoint StoppedAt(T), earlier obligations, resume after resolution and multi-domain minimum horizon.
@@ -33,4 +33,4 @@ The current candidate defines 28 tests:
 R2-T05–T15 remain NOT RUN until implemented and executed. This is the first R2-A slice, not completion of R2.
 
 
-The runner sets `sys.dont_write_bytecode` before test discovery. CI invokes it twice from the same checkout and checks `git status --porcelain --untracked-files=all` between invocations; the second run must still begin with a clean worktree.
+The runner sets `sys.dont_write_bytecode` before test discovery. CI invokes it twice from the same checkout and checks `git status --porcelain --untracked-files=all` between invocations; the second run must still begin with a clean worktree. The test suite itself does not assert this runner-specific process setting, so both the dedicated reproducibility runner and the documented plain `python -m unittest -v` invocation remain valid.
