@@ -111,3 +111,9 @@ A discussão técnica SMS Power sobre PSG/WAIT informa que /WAIT não aparece co
 Fonte: [SMS Power — SN76489/Sega PSG and CPU waits](https://www.smspower.org/forums/17233-SN76489SegaPSGAndCPUWaits).
 
 **Tratamento:** não adicionar WAIT interno fictício para VDP/PSG SMS. Manter contrato genérico para WAIT e investigar WAIT externo do cartridge port. SG-1000/SC-3000 com PSG discreta deve possuir perfil próprio e testes de READY→WAIT.
+
+## 11. VDP: comentário de colisão SMS1 contradiz código/testes
+
+No `native/video_core/src/sms/vdp.rs` congelado, `commit_raster_span_to_beam()` seta a flag COLLISION quando o prefixo renderizado cruza o pixel sobreposto; `read_port($BF)` comita o prefixo antes de devolver status. Os testes `sprite_collision_becomes_visible_when_beam_crosses_overlap_pixel` e `sms1_hblank_boundary_commits_the_last_active_pixel_and_status` verificam a observabilidade antes/depois do pixel e o commit do último pixel em HBlank. Um comentário em `read_port()` diz que colisão SMS1 só fica visível em HBlank, contradizendo o código e os testes.
+
+**Tratamento:** classificar como comentário V1 stale, não como comportamento de hardware. Não modificar V1 neste ciclo documental. Preservar a evidência e validar em ROM/hardware antes de transformar o comportamento em contrato V2.
