@@ -285,7 +285,7 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 | R2-T01 | Monotonicidade | Sequências de avanços crescentes, repetidos e inválidos; progresso local, H_d e W, incluindo fechamento e tentativa de retrocesso do corte |
 | R2-T02 | Chunk invariance | Avanço único contra partições aleatórias do mesmo intervalo |
 | R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, composição direta/encadeada quando matematicamente equivalente e sessões longas |
-| R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
+| R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; alvo posterior a H_d convertido deve parar em H_d; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
 | R2-T05 | Sincronização causal | Leitura após evento de dispositivo e escrita com commit definido |
 | R2-T06 | Ordenação determinística e corrida deadline/cancelamento | Eventos em instantes diferentes, fases distintas e mesma fase; cancelamento C<D admitido com W_admissão<C antes de W fechar D; cancelamento C<=W_admissão rejeitado como LateInput mesmo quando W<D; cancelamento retroativo C<D recebido após W>=D e rejeitado; cancelar depois de D com despacho operacional atrasado; cancelamento e claim em D; permutar ordem de publicação/execução mantendo a mesma ordem causal admitida |
 | R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada; assertiva de que W não fecha sobre o conflito |
@@ -314,7 +314,7 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3.3
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.4
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
@@ -652,7 +652,7 @@ O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não de
 
 Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. A revisão complementar de v0.3.4 também fecha duas lacunas identificadas na auditoria cruzada: admissão de cancelamento retroativo em relação ao watermark vigente e restauração de efeitos parciais de deadlines já Dispatched. Esta versão continua sendo rascunho e não constitui aprovação formal do gate.
 
-| Achado da linha de base | Resultado na v0.3.2 | Tratamento na v0.3.3 | Estado documental |
+| Achado da linha de base / auditoria complementar | Resultado anterior | Tratamento na v0.3.4 | Estado documental |
 |---|---|---|---|
 | BLOCKER — classificação normativa C01–C16 | Não havia força normativa, proprietário e condições por contrato | Nova matriz 17.1 classifica C01–C15 como MUST e C16 como SHOULD, com pré/pós-condições, falhas, proveniência e R2 | Corrigido no texto; aguarda revisão independente |
 | MAJOR — WAIT/TW vs Blocked | 16.2 e 16.8 distinguiam bloqueio e fonte, mas não explicitavam consumo temporal de TW | 16.8 define ciclo Z80 sem aposentadoria enquanto espera, consumo de tempo em cada TW e reamostragem; Blocked reservado à condição ainda indisponível | Corrigido no texto, limitado ao manual Z80 citado |
@@ -663,11 +663,12 @@ Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com
 | MINOR — medição como pré-requisito R1 | 16.14.3 sugeria medição antes de R3 | 16.14/18 tornam medição comparativa entrega R3; R1 exige apenas contrato de capacidade/observabilidade | Corrigido no texto |
 | MAJOR — admissão de cancelamento retroativo em relação a W | v0.3.3 exigia C<D e admissão antes de W fechar D, mas não explicitava que C também precisava estar além do W vigente no momento da admissão | v0.3.4 exige W_admissão<C<D; C<=W é LateInput mesmo quando W<D | Corrigido no texto; propriedade ampliada em R2-T06 |
 | MAJOR — snapshot de deadline Dispatched com efeitos parciais | v0.3.3 preservava Claimed, mas não explicitava o registro de subefeitos de um deadline cujo despacho já começou | v0.3.4 exige registro de commit por subefeito ou marco atômico e restore apenas dos subefeitos pendentes | Corrigido no contrato; cenário ampliado em R2-T11 |
+| MINOR — H_d não explícito no limite de avanço | v0.3.3 descrevia o próximo limite, mas não listava H_d convertido entre os limites mínimos da solicitação | v0.3.4 inclui H_d convertido explicitamente no menor limite de avanço e amplia R2-T04 | Corrigido no texto |
 
 Limites da revisão:
 - A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
 - Os itens “corrigido” significam que a lacuna normativa foi endereçada no texto. Não significam que as propriedades R2 foram executadas, que o hardware foi medido ou que o gate R1 foi aprovado.
-- A condição W_admissão<C<D é uma regra de admissão/replay do contrato, não uma afirmação física sobre o hardware. O cenário C<=W<W_D (com W_D ainda anterior a D) é LateInput porque o corte W já fechou a posição causal C.
+- A condição W_admissão<C<D é uma regra de admissão/replay do contrato, não uma afirmação física sobre o hardware. O cenário C<=W<D é LateInput porque o corte W já fechou a posição causal C.
 - Um deadline Dispatched com múltiplos efeitos precisa preservar cada commit; um efeito indivisível precisa preservar seu único marco atômico. O contrato não autoriza repetir efeitos para “recuperar” dispatch.
 - A relação C/D em empate continua explicitamente UNKNOWN quando o perfil não fornece relação causal/microstep; não se inventa prioridade física.
 - A semântica WAIT deriva do Zilog Z80 User Manual UM008011-0816, R0 §2. WAIT externo de cartridge continua UNKNOWN conforme R0 §5.
@@ -678,6 +679,6 @@ Limites da revisão:
 1. Concluir revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, CLOCK_DOMAIN_RESEARCH.md, AUDIO_CLOCK_RESEARCH.md, VDP_OBSERVABLE_BOUNDARIES.md, R0_CLOSEOUT.md e a matriz/inventário V1.
 2. Resolver comentários normativos restantes e classificar cada afirmação relevante como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
 3. Submeter R1 a revisão arquitetural adversarial e atualizar os critérios de saída da issue #1270 com evidências.
-4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos e a revisão independente da v0.3.3 não encontrar blockers.
+4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos e a revisão independente da v0.3.4 não encontrar blockers.
 5. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
 6. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
