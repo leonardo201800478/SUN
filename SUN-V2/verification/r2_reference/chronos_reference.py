@@ -101,6 +101,10 @@ def _validate_state(state: ReferenceState) -> str | None:
     """Return a deterministic invariant/input error, or None when valid."""
     if not state.profile:
         return "profile must be non-empty"
+    # Validate the watermark before any incomplete-participant early return can
+    # expose it as a blocked-progress coordinate.
+    if state.watermark_common is not None and not _is_exact_time(state.watermark_common):
+        return "watermark must use exact integer/rational time"
     ids = [domain.domain_id for domain in state.domains]
     if any(not item for item in ids):
         return "domain identity must be non-empty"
@@ -127,8 +131,6 @@ def _validate_state(state: ReferenceState) -> str | None:
             return f"invalid clock ratio for {domain.domain_id}"
         if domain.horizon_local < domain.progress_local:
             return f"safe horizon regressed behind progress for {domain.domain_id}"
-    if state.watermark_common is not None and not _is_exact_time(state.watermark_common):
-        return "watermark must use exact integer/rational time"
     obligation_ids = [item.obligation_id for item in state.obligations]
     if any(not isinstance(item, str) or not item.strip() for item in obligation_ids):
         return "obligation identity must be non-empty"
@@ -200,7 +202,11 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
                 AdvanceResult(
                     ResultKind.BLOCKED,
                     target_common,
-                    state.watermark_common or Fraction(0),
+                    (
+                        state.watermark_common
+                        if _is_exact_time(state.watermark_common)
+                        else Fraction(0)
+                    ),
                     detail="participant set incomplete; no partial frontier or A(E) computed",
                 ),
             )
