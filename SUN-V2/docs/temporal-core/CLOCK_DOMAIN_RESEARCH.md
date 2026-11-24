@@ -78,6 +78,8 @@ Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/
 
 **Confiança:** alta para o que cada software configura; média para o valor físico PAL-M, pois o comentário do MAME descreve um ajuste do modelo e não foi localizada nesta rodada uma medição primária de placa TecToy.
 
+SMS Power identifica a placa TecToy Power Base/PAL-M 199-403-411-416, com CPU Zilog Z0840004PSC e VDP Sega 315-5124, mas a página consultada não publica a frequência do oscilador. Fonte: [SMS Power — Brazilian Master System: TECTOY POWER BASE/PAL-M](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M). A subportadora PAL-M brasileira é 3.575611 MHz, mas isso não prova, isoladamente, o clock CPU/PSG da placa. Fonte de padrão: [EPUSP — PAL-M](https://www.lcs.poli.usp.br/~gstolfi/PPT/APTV0416.pdf).
+
 **Ação bloqueante:** obter manual/esquema de serviço PAL-M da TecToy ou medir a placa. Não “corrigir” o V1 neste trabalho documental nem promover o valor MAME a verdade física sem essa confirmação.
 
 ## 5. Relação VDP/Z80 e geometria horizontal
