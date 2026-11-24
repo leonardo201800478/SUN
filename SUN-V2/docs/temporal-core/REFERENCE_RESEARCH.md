@@ -1,6 +1,6 @@
 # Temporal Core — pesquisa comparativa inicial
 
-**Status:** levantamento preliminar. Não constitui decisão arquitetural nem autorização para implementação.
+**Status:** comparação de referências concluída para R0. Não constitui decisão arquitetural nem autorização para implementação.
 
 ## 1. SMS: requisitos temporais que afetam gameplay
 
@@ -102,6 +102,18 @@ Fontes:
 - [Genesis Plus GX system.c](https://github.com/ekeeke/Genesis-Plus-GX/blob/master/core/system.c)
 - [Genesis Plus GX features](https://github.com/ekeeke/Genesis-Plus-GX/blob/master/wiki/Features.md)
 
+## 2.6 Snapshots de referência externa consultados em 2026-11-24
+
+Os caminhos de código abaixo foram inspecionados nos seguintes HEADs, para tornar a comparação reproduzível. São snapshots de implementação, não fontes primárias de hardware:
+
+| Projeto | HEAD consultado | Escopo usado na comparação |
+|---|---|---|
+| MAME | e37f88658ed84e0a07f84bdccbeed3bfd58c8eb1 | scheduler/timers e perfil SMS |
+| ares | d97dba2d661946bbb203a5de55ee19f60b3a23d6 | scheduler cooperativo e runtime SMS |
+| Gearsystem | 2fdd8f7c8ff3ae9523dafb7f1d8125776e96aae6 | CPU-led RunFor e avanço de dispositivos |
+| BlastEm | 8d9e43ee50f7fb887236777d7349b8f9757f054d | sync-on-demand e caminho SMS |
+| Genesis Plus GX | 2499cd3e3d1d8b7d0130d8b2825adb4cc608b2c0 | execução SMS por linha e IRQ |
+
 ## 3. Comparação preliminar
 
 | Modelo | Vantagem potencial | Risco/custo a medir |
@@ -145,10 +157,10 @@ Nenhum modelo está escolhido. O Temporal Core deverá ser desenhado após prot�
 5. Criar modelos de referência matemáticos para clock domains e ordenação.
 6. Definir microbenchmarks comparáveis antes de prototipar estruturas de produção.
 
-## 7. Conclusão provisória
+## 7. Conclusão da pesquisa comparativa
 
 A pesquisa inicial mostra que emuladores consolidados usam estratégias diferentes: quanta e timers, corrotinas cooperativas, passos curtos CPU-led e sincronização sob demanda. Isso reforça que o SUN não deve escolher um modelo por preferência estética.
 
 O critério de escolha será: correção temporal demonstrável, capacidade de suspender/retomar operações, determinismo, custo mensurado e simplicidade suficiente para ser auditável.
 
-**Nenhuma API, estrutura de fila, tipo de timestamp ou granularidade de execução foi aprovada nesta fase.**
+**Nenhuma API, estrutura de fila, tipo de timestamp ou granularidade de execução foi aprovada em R0.** A seleção permanece para R1–R3.
