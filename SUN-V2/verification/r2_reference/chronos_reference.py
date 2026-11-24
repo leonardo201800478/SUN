@@ -172,12 +172,17 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
     boundary; no operation after that boundary is applied.
     """
     if not _is_exact_time(target_common):
+        known_watermark = (
+            state.watermark_common
+            if _is_exact_time(state.watermark_common)
+            else Fraction(0)
+        )
         return AdvanceEvaluation(
             state,
             AdvanceResult(
                 ResultKind.INVALID_INPUT,
                 Fraction(0),
-                _machine_frontier(state),
+                known_watermark,
                 detail="target must use exact integer/rational time; floats are forbidden",
             ),
         )
