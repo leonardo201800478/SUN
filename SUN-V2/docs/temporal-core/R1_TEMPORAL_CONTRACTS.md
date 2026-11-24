@@ -258,6 +258,22 @@ Erros obrigatoriamente detectáveis:
 
 Erros não podem ser silenciosamente convertidos em avanço, descarte de evento, prioridade fixa ou atraso arbitrário.
 
+### 12.1 Comportamento obrigatório dos erros
+
+| Classe de erro | Comportamento exigido |
+|---|---|
+| Tempo retroativo | Rejeitar a operação antes de mutar estado; não corrigir silenciosamente o timestamp |
+| Horizonte seguro ultrapassado | Parar antes da fronteira; se um componente já a ultrapassou, sinalizar violação de invariante e invalidar a execução de validação |
+| Razão/conversão inválida ou overflow | Rejeitar perfil/operação antes de publicar avanço parcial; nunca aplicar wrap ou saturação silenciosa |
+| ID de deadline duplicado | Rejeitar o novo agendamento, salvo se for explicitamente a mesma geração/atualização idempotente |
+| Geração de deadline obsoleta | Descartar antes de qualquer efeito; não despachar o evento antigo |
+| Conflito não comutativo com fase UNKNOWN | Rejeitar a ativação do perfil/caso ou marcar a execução como não aprovada; nunca escolher ordem por sequência incidental |
+| ID/conclusão de transação incompatível | Rejeitar a conclusão e preservar a transação original para diagnóstico |
+| Amostragem/commit repetido | Falha de invariante determinística; não tentar compensar ou repetir o efeito |
+| Snapshot inválido/incompatível | Rejeitar restore atomicamente; a máquina ativa não pode ficar parcialmente restaurada |
+| Limite de microsteps excedido | Interromper com erro reproduzível, instante, sequência de eventos e proprietário do ciclo |
+| Ordem dependente do host | Falha de determinismo; registrar primeiro evento divergente e sequência causal |
+
 ## 13. Propriedades exigidas do modelo de referência R2
 
 R2 deve construir um oráculo independente da futura implementação. O modelo pode ser simples e lento; não deve compartilhar o algoritmo de agenda ou a representação temporal candidata que será comparada.
