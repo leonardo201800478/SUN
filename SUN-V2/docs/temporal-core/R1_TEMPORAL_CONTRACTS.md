@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.11; incorpora correção do P2 Codex sobre commit de INT acknowledge por perfil, além de R1-EXIT-01/03; ainda não aprovado
+**Status:** rascunho técnico v0.3.12; incorpora correção do P2 Codex sobre commit de INT acknowledge por perfil, além de R1-EXIT-01/03; ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -336,7 +336,7 @@ Erros não podem ser silenciosamente convertidos em avanço, descarte de evento,
 | Geração de deadline obsoleta | Descartar antes de qualquer efeito; não despachar o evento antigo |
 | Conflito não comutativo com fase UNKNOWN | IndeterminateCausalOrder; rejeitar a ativação do perfil/caso ou marcar a execução como não aprovada; nunca escolher ordem por sequência incidental |
 | ID/conclusão de transação incompatível | Rejeitar a conclusão e preservar a transação original para diagnóstico |
-| Amostragem/commit repetido | Falha de invariante determinística; não tentar compensar ou repetir o efeito |
+| Execução duplicada de amostragem/commit | Se o mesmo marco for efetivamente aplicado mais de uma vez: InvariantViolation, sem compensação. Uma requisição repetida para marco já registrado, com ID/descritor idêntico, reconhece o resultado registrado ou retorna erro de duplicidade conforme o contrato, sem reaplicar; ID/descritor divergente: InvalidInput |
 | Snapshot inválido/incompatível | Rejeitar restore atomicamente; a máquina ativa não pode ficar parcialmente restaurada |
 | Limite de microsteps excedido | Interromper com erro reproduzível, instante, sequência de eventos e proprietário do ciclo |
 | Ordem dependente do host | Falha de determinismo; registrar primeiro evento divergente e sequência causal |
@@ -381,7 +381,7 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3.10
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.12
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
@@ -691,7 +691,7 @@ A classificação abaixo é parte do contrato, não uma escolha de implementaç�
 | C05 | MUST | Dispositivo observado + coordenador | Operação cross-device declara estados e instante causal | Estados relevantes sincronizados até T; nenhum efeito posterior aplicado | Dependência recíproca: Blocked; observação fora de corte: falha causal | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; boundaries são por perfil/confiança | T05 |
 | C06 | MUST | Proprietário do deadline + coordenador | ID, geração e proprietário válidos; D e C comparados no instante comum; D>P_d do proprietário ou igualdade D=P_d com microstep explícito e W ausente/W<D; D>W quando W existir; todo cancelamento, inclusive C=D, exige C>A(E) antes da arbitragem de empate | Só geração vigente produz efeito; cancelamento C<D admitido após A(E) e antes de W fechar D suprime; C<=A(E) é LateInput independentemente da relação C/D; posterior a D não suprime | LateInput se D<P_d ou D<=W, inclusive D=W com microstep; igualdade D=P_d sem microstep e com D>W: IndeterminateCausalOrder; geração antiga: descarte sem efeito | R1 §§5, 16.5; CHRONOS_MINIMAL_HYBRID_SPEC; política lógica é contrato, não FACT físico | T04, T06, T11, T14 |
 | C07 | MUST | Perfil + coordenador de eventos | Instantes/fases/comutatividade conhecidos ou explicitamente UNKNOWN | Ordem causal determinística; sequência de software nunca inventa fase física | Conflito não comutativo UNKNOWN: bloqueia fechamento W/indeterminação | R0 §6; CHRONOS_MINIMAL_HYBRID_SPEC; referências são OBSERVATION de implementação | T06, T07 |
-| C08 | MUST | Dono da transação/barramento | Request/ID único; marcos e efeitos identificados | Amostragem/commit por marco exactly-once; conjunto parcial preservado | Payload divergente, repetição ou falha parcial: rejeitar/preservar efeitos realizados | R0 §2; Zilog UM008011-0816 para M/T/WAIT; V1 bus é OBSERVATION no SHA congelado | T08, T11, T15 |
+| C08 | MUST | Dono da transação/barramento | Request/ID único; marcos e efeitos identificados | Amostragem/commit por marco exactly-once; conjunto parcial preservado | ID/descritor divergente: InvalidInput; requisição idêntica repetida: reconhecer resultado registrado ou erro de duplicidade sem reaplicar; aplicação efetiva duplicada do marco: InvariantViolation; falha parcial: preservar efeitos realizados | R0 §2; Zilog UM008011-0816 para M/T/WAIT; V1 bus é OBSERVATION no SHA congelado | T08, T11, T15 |
 | C09 | MUST | CPU Z80 + contrato de ciclo | Tipo de ciclo conhecido; fonte WAIT identificada (FACT, fixture ou UNKNOWN) | TW automático separado; WAIT amostrado em T2/TWs; ciclo consome tempo sem aposentar instrução enquanto espera | Sinal indisponível no ponto: Blocked; UNKNOWN não vira inativo | R0 §2 e §5; Zilog UM008011-0816; WAIT físico SMS permanece UNKNOWN | T09 |
 | C10 | MUST | CPU Z80 + donos de IRQ | Ponto de amostragem, efeito de M1+IORQ por dispositivo e fronteira de commit do acknowledge identificados por perfil, ou UNKNOWN explicitamente limitado | INT/NMI/acknowledge observados segundo contrato Z80; vetor e efeito de dispositivo possuem marcadores independentes; perfil `NONE` exige evidência; snapshot no intervalo de commit UNKNOWN retorna UnsupportedSnapshot | Fase/fonte sem relação causal definida: IndeterminateCausalOrder; presença/fronteira UNKNOWN: UnsupportedSnapshot e sem alegação de compatibilidade temporal no intervalo; borda omitida quando declarada conhecida: InvariantViolation | R0 §2; Zilog UM008011-0816; efeito interno do VDP/dispositivo no acknowledge permanece UNKNOWN no R0 | T10, T11 |
 | C11 | MUST | Máquina + componentes | Corte W fechado ou pendências integralmente serializadas; perfil compatível | Restore atômico; eventos/efeitos pendentes preservados; sem duplicar commit | Snapshot incompatível: IncompatibleSnapshot; falha de restore não altera máquina ativa | R0 §7; V1 inventory §3.7 e SNAP-01 são OBSERVATION, não prova de codec persistente | T11, T12, T15 |
@@ -752,6 +752,7 @@ Esta seção preserva o histórico das revisões anteriores. A v0.3.10 incorpora
 | P2 — fronteira de commit de INT acknowledge | §7.3 exigia commit exactly-once para efeitos do acknowledge, mas a matriz só definia ciclo e amostragem do vetor; snapshot no meio do acknowledge não podia decidir replay do efeito | v0.3.10 nomeia `ACK_DEVICE_COMMIT(profile, device)`, exige declaração `NONE` com evidência ou fronteira por dispositivo; presença/commit UNKNOWN limita compatibilidade e retorna UnsupportedSnapshot, bloqueando replay no intervalo ambíguo; R2-T10/T11 cobrem os casos | Correção proposta; requer revisão independente do SHA candidato |
 
 | P2 — resultado de snapshot UNKNOWN em R2-T10 | v0.3.10 já exigia `UnsupportedSnapshot` em §7.4, C10/C15, R2-T11 e R2-T15, mas R2-T10 ainda aceitava genericamente rejeição/Block | v0.3.11 exige `UnsupportedSnapshot`, ausência de artefato e ausência de mutação quando presença/commit do efeito de dispositivo for UNKNOWN | Corrigido no texto; requer revisão independente do SHA atualizado |
+| P2 — repetição de requisição versus aplicação duplicada de marco | §7.2/§7.3/§16.7 reconheciam retry idêntico sem reaplicar, mas §12.1 e C08 podiam classificar qualquer repetição como falha/rejeição | v0.3.12 distingue retry idêntico (reconhecer resultado ou erro determinístico sem reaplicar), descritor divergente (InvalidInput) e aplicação efetiva duplicada (InvariantViolation) | Corrigido no texto; requer revisão independente e validação R2 futura |
 
 Limites da revisão:
 - A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
@@ -764,11 +765,12 @@ Limites da revisão:
 
 ## 20. Próximos passos
 
-A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil. A v0.3.11 corrige a divergência remanescente em R2-T10: quando a presença do efeito de dispositivo ou sua fronteira de commit permanece UNKNOWN na janela ambígua, o teste exige UnsupportedSnapshot, ausência de artefato e ausência de mutação, alinhado a §7.4, C10/C15, R2-T11 e R2-T15. Esta revisão não constitui aprovação formal de R1; o novo SHA exige CI e revisão independente.
+A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil; a v0.3.11 alinhou R2-T10 à classe `UnsupportedSnapshot`. A v0.3.12 elimina uma ambiguidade entre repetição de requisição e reaplicação efetiva de marco: retry idêntico não reaplica efeito, enquanto aplicação duplicada é `InvariantViolation`. Esta atualização documental não constitui aprovação formal de R1.
 
-1. Revisar adversarialmente a v0.3.9 no SHA exato, conferindo C01, §7, §12.1, §14, §16.1, §16.12, R2-T01/T08/T11/T15 e a matriz C01–C16.
+1. Revisar adversarialmente a v0.3.12 no SHA exato, conferindo C01–C16, §7, §12.1, §14 e §16.1–§16.17.
 2. Confirmar que cada classe de operação tem marcos nomeados e que UNKNOWN físico permanece explícito, sem fase/WAIT/microtiming inventado.
-3. Atualizar a issue #1270 com o SHA candidato, revisão, checks e estado de cada critério; manter R1 não aprovado enquanto houver blocker.
-4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos na versão exata e a revisão independente não encontrar blockers.
-5. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
-6. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
+3. Verificar especificamente a distinção entre retry idempotente de requisição, duplicidade de marco e repetição efetiva de efeito em §7.2–§7.4, §12.1, §16.7, §16.12, C08 e R2-T08/T15.
+4. Atualizar a issue #1270 com o SHA candidato, revisão, checks e estado de cada critério; manter R1 não aprovado enquanto houver blocker.
+5. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos na versão exata e a revisão independente não encontrar blockers.
+6. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
+7. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
