@@ -664,7 +664,7 @@ Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com
 | MINOR — medição como pré-requisito R1 | 16.14.3 sugeria medição antes de R3 | 16.14/18 tornam medição comparativa entrega R3; R1 exige apenas contrato de capacidade/observabilidade | Corrigido no texto |
 | MAJOR — admissão de cancelamento retroativo em relação a W | v0.3.3 exigia C<D e admissão antes de W fechar D, mas não explicitava que C também precisava estar além do W vigente no momento da admissão | v0.3.4 exige W_admissão<C<D; C<=W é LateInput mesmo quando W<D | Corrigido no texto; propriedade ampliada em R2-T06 |
 | MAJOR — snapshot de deadline Dispatched com efeitos parciais | v0.3.3 preservava Claimed, mas não explicitava o registro de subefeitos de um deadline cujo despacho já começou | v0.3.4 exige registro de commit por subefeito ou marco atômico e restore apenas dos subefeitos pendentes | Corrigido no contrato; cenário ampliado em R2-T11 |
-| MAJOR — precedência de gates divergente em proposta arquitetural | CHRONOS_MINIMAL_HYBRID_SPEC.md ainda descrevia R2 e integração como etapas do “Começo/Meio”, sem condicionar R2 à aprovação R1 e produção a R5 | v0.3.4 alinha o plano da proposta à sequência estrita R0→R1→R2→R3→R4→R5 e separa protótipos R3 de produção pós-R5 | Corrigido no documento candidato; R1 continua em revisão |
+| MAJOR — precedência de gates divergente em documentos de planejamento | CHRONOS_MINIMAL_HYBRID_SPEC.md e ROADMAP.md continham planos antigos que agrupavam R1/R2, classificavam a primeira fatia como R3 e/ou colocavam integração antes de R5 | v0.3.4 alinha ambos à sequência estrita R0→R1→R2→R3→R4→R5; R3 fica restrito a protótipos descartáveis e a fatia de produção ocorre somente pós-R5 | Corrigido nos documentos de planejamento; R1 continua em revisão |
 | MINOR — H_d não explícito no limite de avanço | v0.3.3 descrevia o próximo limite, mas não listava H_d convertido entre os limites mínimos da solicitação | v0.3.4 inclui H_d convertido explicitamente no menor limite de avanço e amplia R2-T04 | Corrigido no texto |
 
 Limites da revisão:
@@ -678,7 +678,7 @@ Limites da revisão:
 
 ## 20. Próximos passos
 
-1. Concluir revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, CLOCK_DOMAIN_RESEARCH.md, AUDIO_CLOCK_RESEARCH.md, VDP_OBSERVABLE_BOUNDARIES.md, R0_CLOSEOUT.md e a matriz/inventário V1.
+1. Concluir revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, ROADMAP.md, CLOCK_DOMAIN_RESEARCH.md, AUDIO_CLOCK_RESEARCH.md, VDP_OBSERVABLE_BOUNDARIES.md, R0_CLOSEOUT.md e a matriz/inventário V1.
 2. Resolver comentários normativos restantes e classificar cada afirmação relevante como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
 3. Submeter R1 a revisão arquitetural adversarial e atualizar os critérios de saída da issue #1270 com evidências.
 4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos e a revisão independente da v0.3.4 não encontrar blockers.
