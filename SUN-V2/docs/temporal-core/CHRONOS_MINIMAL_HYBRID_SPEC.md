@@ -291,7 +291,7 @@ Cada protótipo exige hipótese, cenário discriminante, métricas e regra de de
 1. Executar P-A, P-D e P-E sob a mesma semântica e cargas representativas.
 2. Implementar P-F somente se os resultados justificarem a combinação híbrida.
 3. Comparar custo por avanço, sincronização, publicação/cancelamento/despacho, alocações, memória, p50/p95/p99 e pior caso.
-4. Estabelecer baseline headless com ROM, hash, perfil, estado inicial e ambiente fixos; separar throughput de apresentação real.
+4. Definir medição headless reproduzível e específica para a hipótese/carga de cada protótipo R3, fixando ROM/hash, perfil, estado inicial e ambiente; separar throughput de apresentação real. Isso não é S0/OutRun nem baseline substituta: o protocolo S0 permanece encerrado como NOT RUN e não deve ser executado, recriado ou substituído.
 5. Descartar alternativas sem ganho demonstrável e registrar a hipótese que cada protótipo falsificou ou sustentou.
 
 **Saída:** R3 aprovado; protótipos permanecem descartáveis e não são promovidos diretamente a código de produção.
@@ -317,7 +317,7 @@ Cada protótipo exige hipótese, cenário discriminante, métricas e regra de de
 
 ## 13. Orçamento de complexidade e performance
 
-A baseline deve preceder qualquer limite numérico arbitrário. Depois dela, cada mecanismo terá custo atribuído e orçamento justificável.
+Uma medição de referência só pode ser definida em R3 para hipótese, carga e protótipo específicos, antes de comparar limites numéricos arbitrários. Isso não reabre o protocolo S0/OutRun, não autoriza executá-lo e não cria benchmark substituto. Depois da referência específica de R3, cada mecanismo terá custo atribuído e orçamento justificável.
 
 Métricas mínimas:
 
