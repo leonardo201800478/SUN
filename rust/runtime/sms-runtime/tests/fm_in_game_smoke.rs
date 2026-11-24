@@ -28,7 +28,7 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -687,180 +687,185 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
     let mut failures = Vec::new();
     for (path, fixture, rom) in load_known_fm_roms() {
         let result = catch_unwind(AssertUnwindSafe(|| {
-        let region = region_override.as_deref().unwrap_or(fixture.region);
-        let system = system_override.as_deref().unwrap_or(fixture.system);
-        let vdp_revision = selected_vdp_revision(system);
-        let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
-            rom,
-            region,
-            vdp_revision,
-            None,
-            None,
-            SmsFmOutputPolicy::Enabled,
-        )
-        .unwrap_or_else(|error| {
-            panic!(
-                "{}: cannot create Japanese FM machine: {error}",
-                path.display()
+            let region = region_override.as_deref().unwrap_or(fixture.region);
+            let system = system_override.as_deref().unwrap_or(fixture.system);
+            let vdp_revision = selected_vdp_revision(system);
+            let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
+                rom,
+                region,
+                vdp_revision,
+                None,
+                None,
+                SmsFmOutputPolicy::Enabled,
             )
-        });
-
-        let source_capture = Arc::new(Mutex::new(FmSourceCapture::default()));
-        let pcm_capture = Arc::new(Mutex::new(PcmCapture::default()));
-        let factory_sources = Arc::clone(&source_capture);
-        let factory_pcm = Arc::clone(&pcm_capture);
-
-        worker
-            .configure_audio_output(move || {
-                let sink = RecordingSink {
-                    capture: factory_pcm,
-                };
-                let native = NativeAudioSession::new(48_000, 48_000, 100, sink)?;
-                Ok(Box::new(CapturingAudioSession {
-                    native,
-                    sources: factory_sources,
-                }) as Box<dyn AudioSession>)
-            })
             .unwrap_or_else(|error| {
-                panic!("{}: cannot configure native mixer: {error}", path.display())
+                panic!(
+                    "{}: cannot create Japanese FM machine: {error}",
+                    path.display()
+                )
             });
 
-        worker
-            .start()
-            .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
+            let source_capture = Arc::new(Mutex::new(FmSourceCapture::default()));
+            let pcm_capture = Arc::new(Mutex::new(PcmCapture::default()));
+            let factory_sources = Arc::clone(&source_capture);
+            let factory_pcm = Arc::clone(&pcm_capture);
 
-        let deadline = Instant::now() + FRAME_WAIT_TIMEOUT;
-        while worker.frame_number() < frames_per_rom {
-            if let Some(error) = worker.runtime_error() {
-                let _ = worker.pause();
-                panic!("{}: SMS runtime failed: {error}", path.display());
+            worker
+                .configure_audio_output(move || {
+                    let sink = RecordingSink {
+                        capture: factory_pcm,
+                    };
+                    let native = NativeAudioSession::new(48_000, 48_000, 100, sink)?;
+                    Ok(Box::new(CapturingAudioSession {
+                        native,
+                        sources: factory_sources,
+                    }) as Box<dyn AudioSession>)
+                })
+                .unwrap_or_else(|error| {
+                    panic!("{}: cannot configure native mixer: {error}", path.display())
+                });
+
+            worker
+                .start()
+                .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
+
+            let deadline = Instant::now() + FRAME_WAIT_TIMEOUT;
+            while worker.frame_number() < frames_per_rom {
+                if let Some(error) = worker.runtime_error() {
+                    let _ = worker.pause();
+                    panic!("{}: SMS runtime failed: {error}", path.display());
+                }
+                if let Some(error) = worker.audio_output_error() {
+                    let _ = worker.pause();
+                    panic!("{}: audio session failed: {error}", path.display());
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "{}: timed out after {} frames; reached {}",
+                    path.display(),
+                    frames_per_rom,
+                    worker.frame_number()
+                );
+                thread::sleep(Duration::from_millis(10));
             }
-            if let Some(error) = worker.audio_output_error() {
-                let _ = worker.pause();
-                panic!("{}: audio session failed: {error}", path.display());
-            }
-            assert!(
-                Instant::now() < deadline,
-                "{}: timed out after {} frames; reached {}",
-                path.display(),
-                frames_per_rom,
-                worker.frame_number()
+
+            worker
+                .pause()
+                .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
+            let performance = worker.performance_metrics();
+            let frame_pacing = worker.frame_pacing_metrics();
+            let total_instructions = worker.total_instructions();
+            let machine_time_ticks = worker.machine_time_ticks();
+            let machine_clock_hz = worker.machine_clock_hz();
+            let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
+                panic!("{}: cannot snapshot machine diagnostics: {error}", path.display())
+            });
+            println!(
+                "SMS_FM_RUNTIME_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} sp=0x{:04X} halted={} scanline={} vdp_cycles_into_line={} fm_port_writes={:?} performance={:?} frame_pacing={:?}",
+                fixture.title,
+                worker.frame_number(),
+                total_instructions,
+                machine_time_ticks,
+                machine_clock_hz,
+                debug_snapshot.pc,
+                debug_snapshot.sp,
+                debug_snapshot.halted,
+                debug_snapshot.vdp_scanline,
+                debug_snapshot.vdp_cycles_into_line,
+                debug_snapshot.fm_port_writes,
+                performance,
+                frame_pacing,
             );
-            thread::sleep(Duration::from_millis(10));
-        }
+            let fm_bus_writes = debug_snapshot.fm_port_writes;
+            worker.close_audio_output().unwrap_or_else(|error| {
+                panic!("{}: cannot close native mixer: {error}", path.display())
+            });
 
-        worker
-            .pause()
-            .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
-        let performance = worker.performance_metrics();
-        let frame_pacing = worker.frame_pacing_metrics();
-        let total_instructions = worker.total_instructions();
-        let machine_time_ticks = worker.machine_time_ticks();
-        let machine_clock_hz = worker.machine_clock_hz();
-        let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
-            panic!("{}: cannot snapshot machine diagnostics: {error}", path.display())
-        });
-        println!(
-            "SMS_FM_RUNTIME_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} sp=0x{:04X} halted={} scanline={} vdp_cycles_into_line={} fm_port_writes={:?} performance={:?} frame_pacing={:?}",
-            fixture.title,
-            worker.frame_number(),
-            total_instructions,
-            machine_time_ticks,
-            machine_clock_hz,
-            debug_snapshot.pc,
-            debug_snapshot.sp,
-            debug_snapshot.halted,
-            debug_snapshot.vdp_scanline,
-            debug_snapshot.vdp_cycles_into_line,
-            debug_snapshot.fm_port_writes,
-            performance,
-            frame_pacing,
-        );
-        let fm_bus_writes = debug_snapshot.fm_port_writes;
-        worker.close_audio_output().unwrap_or_else(|error| {
-            panic!("{}: cannot close native mixer: {error}", path.display())
-        });
+            let sources = source_capture
+                .lock()
+                .unwrap_or_else(|_| panic!("{}: FM source capture mutex was poisoned", path.display()));
+            let pcm = pcm_capture
+                .lock()
+                .unwrap_or_else(|_| panic!("{}: PCM capture mutex was poisoned", path.display()));
 
-        let sources = source_capture
-            .lock()
-            .unwrap_or_else(|_| panic!("{}: FM source capture mutex was poisoned", path.display()));
-        let pcm = pcm_capture
-            .lock()
-            .unwrap_or_else(|_| panic!("{}: PCM capture mutex was poisoned", path.display()));
+            write_game_audio_captures(
+                fixture.title,
+                &sources.fm_samples_f64,
+                &sources.psg_samples_f64,
+                &sources.single_source_samples_f64,
+                &pcm.samples_f64,
+            )
+            .unwrap_or_else(|error| panic!("{}: cannot write diagnostic WAV: {error}", path.display()));
 
-        write_game_audio_captures(
-            fixture.title,
-            &sources.fm_samples_f64,
-            &sources.psg_samples_f64,
-            &sources.single_source_samples_f64,
-            &pcm.samples_f64,
-        )
-        .unwrap_or_else(|error| panic!("{}: cannot write diagnostic WAV: {error}", path.display()));
+            assert!(
+                fm_bus_writes.address_writes > 0 && fm_bus_writes.data_writes > 0,
+                "{}: game did not commit YM2413 F0/F1 register writes during gameplay: {:?}",
+                path.display(),
+                fm_bus_writes
+            );
+            assert!(
+                sources.dual_source_blocks > 0,
+                "{}: runtime never submitted aligned PSG + FM source blocks",
+                path.display()
+            );
+            assert_eq!(
+                sources.alignment_errors,
+                0,
+                "{}: PSG and FM source blocks were not frame-aligned",
+                path.display()
+            );
+            assert!(
+                sources.fm_samples > 0,
+                "{}: no YM2413 samples reached the native mixer",
+                path.display()
+            );
+            assert!(
+                sources.fm_nonzero_samples > 0 && sources.fm_peak > NONZERO_EPSILON,
+                "{}: YM2413 source remained silent; committed FM bus writes: {:?}",
+                path.display(),
+                fm_bus_writes
+            );
+            assert!(
+                pcm.blocks > 0 && pcm.nonzero_samples > 0 && pcm.peak > NONZERO_EPSILON,
+                "{}: native mixer/resampler did not submit non-silent PCM",
+                path.display()
+            );
 
-        assert!(
-            fm_bus_writes.address_writes > 0 && fm_bus_writes.data_writes > 0,
-            "{}: game did not commit YM2413 F0/F1 register writes during gameplay: {:?}",
-            path.display(),
-            fm_bus_writes
-        );
-        assert!(
-            sources.dual_source_blocks > 0,
-            "{}: runtime never submitted aligned PSG + FM source blocks",
-            path.display()
-        );
-        assert_eq!(
-            sources.alignment_errors,
-            0,
-            "{}: PSG and FM source blocks were not frame-aligned",
-            path.display()
-        );
-        assert!(
-            sources.fm_samples > 0,
-            "{}: no YM2413 samples reached the native mixer",
-            path.display()
-        );
-        assert!(
-            sources.fm_nonzero_samples > 0 && sources.fm_peak > NONZERO_EPSILON,
-            "{}: YM2413 source remained silent; committed FM bus writes: {:?}",
-            path.display(),
-            fm_bus_writes
-        );
-        assert!(
-            pcm.blocks > 0 && pcm.nonzero_samples > 0 && pcm.peak > NONZERO_EPSILON,
-            "{}: native mixer/resampler did not submit non-silent PCM",
-            path.display()
-        );
-
-        println!(
-            "SMS_FM_IN_GAME title={} rom={} sha256={} region={} system={} vdp={:?} frames={} fm_port_writes={:?} dual_source_blocks={} single_source_blocks={} single_source_samples={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8} fm_summary={:?} psg_summary={:?} single_source_summary={:?} mixed_summary={:?}",
-            fixture.title,
-            path.display(),
-            fixture.sha256,
-            region,
-            system,
-            vdp_revision,
-            worker.frame_number(),
-            fm_bus_writes,
-            sources.dual_source_blocks,
-            sources.single_source_blocks,
-            sources.single_source_samples,
-            sources.psg_samples,
-            sources.fm_samples,
-            sources.fm_nonzero_samples,
-            sources.fm_peak,
-            pcm.blocks,
-            pcm.samples,
-            pcm.nonzero_samples,
-            pcm.peak,
-            summarize_signal(&sources.fm_samples_f64),
-            summarize_signal(&sources.psg_samples_f64),
-            summarize_signal(&sources.single_source_samples_f64),
-            summarize_signal(&pcm.samples_f64),
-        );
+            println!(
+                "SMS_FM_IN_GAME title={} rom={} sha256={} region={} system={} vdp={:?} frames={} fm_port_writes={:?} dual_source_blocks={} single_source_blocks={} single_source_samples={} psg_samples={} fm_samples={} fm_nonzero_samples={} fm_peak={:.8} pcm_blocks={} pcm_samples={} pcm_nonzero_samples={} pcm_peak={:.8} fm_summary={:?} psg_summary={:?} single_source_summary={:?} mixed_summary={:?}",
+                fixture.title,
+                path.display(),
+                fixture.sha256,
+                region,
+                system,
+                vdp_revision,
+                worker.frame_number(),
+                fm_bus_writes,
+                sources.dual_source_blocks,
+                sources.single_source_blocks,
+                sources.single_source_samples,
+                sources.psg_samples,
+                sources.fm_samples,
+                sources.fm_nonzero_samples,
+                sources.fm_peak,
+                pcm.blocks,
+                pcm.samples,
+                pcm.nonzero_samples,
+                pcm.peak,
+                summarize_signal(&sources.fm_samples_f64),
+                summarize_signal(&sources.psg_samples_f64),
+                summarize_signal(&sources.single_source_samples_f64),
+                summarize_signal(&pcm.samples_f64),
+            );
         }));
         if let Err(payload) = result {
             let message = panic_payload_message(payload);
-            eprintln!("SMS_FM_FIXTURE_FAILED title={} rom={} error={}", fixture.title, path.display(), message);
+            eprintln!(
+                "SMS_FM_FIXTURE_FAILED title={} rom={} error={}",
+                fixture.title,
+                path.display(),
+                message
+            );
             failures.push(format!("{}: {}", fixture.title, message));
         }
     }
@@ -916,139 +921,144 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
     let mut failures = Vec::new();
     for (path, fixture, rom) in load_known_fm_roms() {
         let result = catch_unwind(AssertUnwindSafe(|| {
-        let region = region_override.as_deref().unwrap_or(fixture.region);
-        let system = system_override.as_deref().unwrap_or(fixture.system);
-        let vdp_revision = selected_vdp_revision(system);
-        let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
-            rom,
-            region,
-            vdp_revision,
-            None,
-            None,
-            SmsFmOutputPolicy::Enabled,
-        )
-        .unwrap_or_else(|error| {
-            panic!(
-                "{}: cannot create Japanese FM machine: {error}",
-                path.display()
+            let region = region_override.as_deref().unwrap_or(fixture.region);
+            let system = system_override.as_deref().unwrap_or(fixture.system);
+            let vdp_revision = selected_vdp_revision(system);
+            let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
+                rom,
+                region,
+                vdp_revision,
+                None,
+                None,
+                SmsFmOutputPolicy::Enabled,
             )
-        });
-        worker.set_diagnostics_enabled(true);
-        worker
-            .configure_audio_output(|| {
-                let output = NativeCpalOutput::new(512, 16)?;
-                let session = output.into_audio_session(100)?;
-                Ok(Box::new(session) as Box<dyn AudioSession>)
-            })
-            .unwrap_or_else(|error| panic!("{}: cannot open CPAL output: {error}", path.display()));
-        worker
-            .start()
-            .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{}: cannot create Japanese FM machine: {error}",
+                    path.display()
+                )
+            });
+            worker.set_diagnostics_enabled(true);
+            worker
+                .configure_audio_output(|| {
+                    let output = NativeCpalOutput::new(512, 16)?;
+                    let session = output.into_audio_session(100)?;
+                    Ok(Box::new(session) as Box<dyn AudioSession>)
+                })
+                .unwrap_or_else(|error| panic!("{}: cannot open CPAL output: {error}", path.display()));
+            worker
+                .start()
+                .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
 
-        let deadline = Instant::now() + FRAME_WAIT_TIMEOUT;
-        while worker.frame_number() < frames_per_rom {
-            if let Some(error) = worker.runtime_error() {
-                let _ = worker.pause();
-                panic!("{}: SMS runtime failed: {error}", path.display());
+            let deadline = Instant::now() + FRAME_WAIT_TIMEOUT;
+            while worker.frame_number() < frames_per_rom {
+                if let Some(error) = worker.runtime_error() {
+                    let _ = worker.pause();
+                    panic!("{}: SMS runtime failed: {error}", path.display());
+                }
+                if let Some(error) = worker.audio_output_error() {
+                    let _ = worker.pause();
+                    panic!("{}: CPAL output failed: {error}", path.display());
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "{}: timed out after {} frames; reached {}",
+                    path.display(),
+                    frames_per_rom,
+                    worker.frame_number()
+                );
+                thread::sleep(Duration::from_millis(10));
             }
-            if let Some(error) = worker.audio_output_error() {
-                let _ = worker.pause();
-                panic!("{}: CPAL output failed: {error}", path.display());
-            }
-            assert!(
-                Instant::now() < deadline,
-                "{}: timed out after {} frames; reached {}",
-                path.display(),
-                frames_per_rom,
-                worker.frame_number()
+
+            worker
+                .pause()
+                .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
+            let metrics = worker.audio_output_metrics();
+            let performance = worker.performance_metrics();
+            let frame_pacing = worker.frame_pacing_metrics();
+            let total_instructions = worker.total_instructions();
+            let machine_time_ticks = worker.machine_time_ticks();
+            let machine_clock_hz = worker.machine_clock_hz();
+            let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
+                panic!("{}: cannot snapshot CPAL diagnostics: {error}", path.display())
+            });
+            println!(
+                "SMS_FM_CPAL_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} halted={} audio_metrics={:?} performance={:?} frame_pacing={:?}",
+                fixture.title,
+                worker.frame_number(),
+                total_instructions,
+                machine_time_ticks,
+                machine_clock_hz,
+                debug_snapshot.pc,
+                debug_snapshot.halted,
+                metrics,
+                performance,
+                frame_pacing,
             );
-            thread::sleep(Duration::from_millis(10));
-        }
+            worker.close_audio_output().unwrap_or_else(|error| {
+                panic!("{}: cannot close CPAL output: {error}", path.display())
+            });
 
-        worker
-            .pause()
-            .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
-        let metrics = worker.audio_output_metrics();
-        let performance = worker.performance_metrics();
-        let frame_pacing = worker.frame_pacing_metrics();
-        let total_instructions = worker.total_instructions();
-        let machine_time_ticks = worker.machine_time_ticks();
-        let machine_clock_hz = worker.machine_clock_hz();
-        let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
-            panic!("{}: cannot snapshot CPAL diagnostics: {error}", path.display())
-        });
-        println!(
-            "SMS_FM_CPAL_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} halted={} audio_metrics={:?} performance={:?} frame_pacing={:?}",
-            fixture.title,
-            worker.frame_number(),
-            total_instructions,
-            machine_time_ticks,
-            machine_clock_hz,
-            debug_snapshot.pc,
-            debug_snapshot.halted,
-            metrics,
-            performance,
-            frame_pacing,
-        );
-        worker.close_audio_output().unwrap_or_else(|error| {
-            panic!("{}: cannot close CPAL output: {error}", path.display())
-        });
+            assert!(
+                metrics.sample_rate_hz > 0,
+                "{}: CPAL did not report a sample rate",
+                path.display()
+            );
+            assert!(
+                metrics.accepted_frames > 0,
+                "{}: no PCM frames reached the CPAL queue",
+                path.display()
+            );
+            assert_eq!(
+                metrics.dropped_frames,
+                0,
+                "{}: CPAL queue dropped PCM frames",
+                path.display()
+            );
+            assert_eq!(
+                metrics.dropped_blocks,
+                0,
+                "{}: CPAL queue rejected PCM blocks",
+                path.display()
+            );
+            let max_underrun_frames = (metrics.accepted_frames / 50).max(2_048);
+            assert!(
+                metrics.underrun_frames <= max_underrun_frames,
+                "{}: excessive CPAL underruns: {} frames out of {} accepted (limit {})",
+                path.display(),
+                metrics.underrun_frames,
+                metrics.accepted_frames,
+                max_underrun_frames
+            );
 
-        assert!(
-            metrics.sample_rate_hz > 0,
-            "{}: CPAL did not report a sample rate",
-            path.display()
-        );
-        assert!(
-            metrics.accepted_frames > 0,
-            "{}: no PCM frames reached the CPAL queue",
-            path.display()
-        );
-        assert_eq!(
-            metrics.dropped_frames,
-            0,
-            "{}: CPAL queue dropped PCM frames",
-            path.display()
-        );
-        assert_eq!(
-            metrics.dropped_blocks,
-            0,
-            "{}: CPAL queue rejected PCM blocks",
-            path.display()
-        );
-        let max_underrun_frames = (metrics.accepted_frames / 50).max(2_048);
-        assert!(
-            metrics.underrun_frames <= max_underrun_frames,
-            "{}: excessive CPAL underruns: {} frames out of {} accepted (limit {})",
-            path.display(),
-            metrics.underrun_frames,
-            metrics.accepted_frames,
-            max_underrun_frames
-        );
-
-        println!(
-            "SMS_FM_CPAL title={} rom={} sha256={} region={} system={} vdp={:?} frames={} sample_rate_hz={} accepted_frames={} consumed_frames={} underrun_events={} underrun_frames={} dropped_blocks={} dropped_frames={} queue_high_water_frames={} queue_capacity_frames={}",
-            fixture.title,
-            path.display(),
-            fixture.sha256,
-            region,
-            system,
-            vdp_revision,
-            worker.frame_number(),
-            metrics.sample_rate_hz,
-            metrics.accepted_frames,
-            metrics.consumed_frames,
-            metrics.underrun_events,
-            metrics.underrun_frames,
-            metrics.dropped_blocks,
-            metrics.dropped_frames,
-            metrics.queue_high_water_frames,
-            metrics.queue_capacity_frames
-        );
+            println!(
+                "SMS_FM_CPAL title={} rom={} sha256={} region={} system={} vdp={:?} frames={} sample_rate_hz={} accepted_frames={} consumed_frames={} underrun_events={} underrun_frames={} dropped_blocks={} dropped_frames={} queue_high_water_frames={} queue_capacity_frames={}",
+                fixture.title,
+                path.display(),
+                fixture.sha256,
+                region,
+                system,
+                vdp_revision,
+                worker.frame_number(),
+                metrics.sample_rate_hz,
+                metrics.accepted_frames,
+                metrics.consumed_frames,
+                metrics.underrun_events,
+                metrics.underrun_frames,
+                metrics.dropped_blocks,
+                metrics.dropped_frames,
+                metrics.queue_high_water_frames,
+                metrics.queue_capacity_frames
+            );
         }));
         if let Err(payload) = result {
             let message = panic_payload_message(payload);
-            eprintln!("SMS_FM_CPAL_FIXTURE_FAILED title={} rom={} error={}", fixture.title, path.display(), message);
+            eprintln!(
+                "SMS_FM_CPAL_FIXTURE_FAILED title={} rom={} error={}",
+                fixture.title,
+                path.display(),
+                message
+            );
             failures.push(format!("{}: {}", fixture.title, message));
         }
     }
