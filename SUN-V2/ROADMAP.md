@@ -1,10 +1,15 @@
 # SUN V2 — roadmap de execução
 
-**Sistema inicial:** Sega Master System (SMS)  
-**Arquitetura temporal:** CHRONOS — híbrido mínimo, sujeito aos gates técnicos  
-**Estratégia:** componentes mínimos com contratos sólidos, integrados desde cedo em uma fatia vertical  
-**Status:** R0 aprovado no escopo documental; R1 autorizado; nenhuma implementação de produção iniciada  
-**Branch de trabalho:** `architecture/sun-v2-foundation`  
+**Sistema inicial:** Sega Master System (SMS)
+
+**Arquitetura temporal:** CHRONOS — híbrido mínimo, sujeito aos gates técnicos
+
+**Estratégia:** componentes mínimos com contratos sólidos, integrados desde cedo em uma fatia vertical
+
+**Status:** R0 aprovado no escopo documental; R1 autorizado; nenhuma implementação de produção iniciada
+
+**Branch de trabalho:** `architecture/sun-v2-foundation`
+
 **R0:** [parecer de fechamento](docs/temporal-core/R0_CLOSEOUT.md) · [Issue #1267](https://github.com/leonardo201800478/SUN/issues/1267)
 
 ---
