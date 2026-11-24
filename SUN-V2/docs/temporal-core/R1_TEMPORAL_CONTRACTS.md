@@ -400,13 +400,14 @@ Cada deadline lógico tem identidade, proprietário, geração vigente, instante
 
 - **Scheduled:** aceito pelo proprietário e elegível para despacho quando o instante causal for alcançado.
 - **Superseded/Cancelled:** geração invalidada antes do ponto de despacho; não pode mais produzir efeito.
-- **Claimed/Dispatched:** o despacho foi iniciado e sua identidade/generation foi validada.
+- **Claimed:** no instante causal D, a decisão lógica de reivindicar o deadline vigente foi tomada; esta é a fronteira que fecha a possibilidade de cancelamento.
+- **Dispatched:** a execução operacional do efeito foi iniciada depois ou no instante do claim; atraso do dispatcher não altera a decisão causal já tomada.
 - **Completed:** o efeito definido foi aplicado exatamente uma vez.
 - **Failed:** o efeito não pôde ser concluído; o erro e o estado pendente são preservados.
 
 Regras:
 
-1. O ponto de linearização entre cancelamento e despacho é único e observável no contrato: se o cancelamento vencer antes de o evento ser reivindicado para despacho, o efeito não ocorre; depois desse ponto, cancelar não desfaz o efeito. Se cancelamento e reivindicação concorrerem, a arbitragem deve ocorrer por ordem lógica serializada e reproduzível, nunca por corrida de threads ou escalonamento do host.
+1. O ponto de linearização entre cancelamento e deadline é o **claim lógico no instante causal D**, não o início operacional do dispatcher. Um cancelamento causalmente admitido antes de D pode suprimir o claim; depois do claim em D, cancelar não suprime nem desfaz o efeito, mesmo que o dispatcher ainda não tenha executado. Se cancelamento e claim coincidirem em D, aplica-se exclusivamente a relação causal/microstep declarada pelo perfil; sem ela, o caso permanece indeterminado. A arbitragem é serializada e reproduzível, nunca determinada por corrida de threads ou escalonamento do host.
 2. Substituir um deadline incrementa/renova a geração lógica. Qualquer referência antiga deve ser rejeitada antes de seu efeito, mesmo após restore.
 3. Identidade não pode ser reutilizada de forma que uma referência antiga se torne válida para outro evento. Se IDs forem reciclados, a geração deve impedir ABA.
 4. O proprietário é responsável por reconstruir os deadlines próprios a partir do snapshot; o coordenador não pode inventar eventos ausentes.
@@ -417,7 +418,7 @@ Regras:
 9. O cancelamento possui instante causal de aceitação C, registrado no domínio declarado pela entrada; C e D MUST ser convertidos para o mesmo instante comum por conversão válida do perfil antes de comparação. Comparar coordenadas locais brutas de domínios diferentes é proibido. Não basta registrar quando uma thread executou a chamada ou quando o dispatcher recebeu a mensagem.
 10. Um cancelamento só suprime o efeito se sua posição causal for anterior à elegibilidade/claim do deadline em D. Se C for posterior a D, o deadline continua devido, mesmo que o dispatcher ainda não o tenha processado por atraso operacional; o atraso de despacho não reabre a janela causal de cancelamento.
 11. Se C e D coincidirem, a supressão só pode ser decidida por relação causal/microstep explicitamente definida pelo perfil. Sem essa relação, o resultado é indeterminado e não aprovado para o caso; sequência de chegada, thread ou ordem de execução do host não escolhem o vencedor.
-12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão.
+12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão. O estado Claimed é persistido separadamente de Dispatched para que atraso, falha ou restore do dispatcher não reabra a janela de cancelamento.
 13. Um cancelamento com C < D só é eficaz se tiver sido admitido/registrado antes de W fechar D. Depois de W >= D, uma mensagem de cancelamento ainda não admitida é tardia e MUST ser rejeitada, mesmo que carregue timestamp retroativo C < D; não pode reabrir o corte nem suprimir deadline já devido.
 
 ### 16.6 Eventos simultâneos, microsteps e progresso
