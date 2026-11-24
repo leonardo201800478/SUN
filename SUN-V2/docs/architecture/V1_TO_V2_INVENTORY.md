@@ -57,6 +57,8 @@ O handshake Z80 mantém uma transação pendente, identidade, operação, endere
 **Limite:** WAIT físico/externo, DMA e arbitragem elétrica externa não são comprovados por WAIT de fixture.  
 **Implicação V2:** WAIT é parte do contrato de transação, mas sua fonte deve ser explicitada (fixture, dispositivo ou sinal físico); nunca tratar os três como a mesma evidência.
 
+O relatório comparativo anexado em 15/11/2026 registra resultados da ROM SMS VDP Test v1.31: o Sega Emulator teve 17/19 em data, 11/16 em misc e 17/19 em sprite; Ares teve 19/19, 11/16 (com acertos diferentes) e 16/19, respectivamente. O relatório também registra falhas em ponteiros de endereço após escrita de um byte, timing de H/V counters e IRQs, colisões/overflow de sprites, e sucesso de X-Scroll latchtime no Sega Emulator. Como não registra SHA do executável, hash da ROM, BIOS/configuração nem ambiente, é evidência histórica, não prova do comportamento no SHA V1 congelado. Reexecutar no baseline antes de promover qualquer resultado.
+
 ### 3.3 VDP SMS
 
 A documentação V1 descreve o VDP SMS1/315-5124 e o engine compartilhado, incluindo portas, VRAM/CRAM, Mode 4, modos legados, sprites, counters, IRQ e boundaries seletivos. A integração temporal avança o VDP a partir dos T-states do Scheduler. A rasterização permanece scanline-level com boundaries subline específicos.
