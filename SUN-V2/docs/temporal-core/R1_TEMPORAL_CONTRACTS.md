@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.1; revisão normativa ampliada e consistência interna corrigida, ainda não aprovado
+**Status:** rascunho técnico v0.3.2; revisão normativa ampliada, unidades de progresso/horizonte explicitadas, ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -59,7 +59,7 @@ Os termos **MUST**, **MUST NOT**, **SHOULD** e **MAY** são requisitos normativo
 
 ### 3.2 Avanço limitado
 
-Cada dispositivo temporal MUST declarar o próximo limite até o qual pode avançar sem ocultar uma fronteira observável. O CHRONOS solicita um alvo e o dispositivo avança somente até o menor entre:
+Cada dispositivo temporal MUST declarar o próximo limite até o qual pode avançar sem ocultar uma fronteira observável. O progresso local e os limites locais são expressos no domínio do dispositivo; antes de compará-los com o alvo solicitado ou com limites de outros domínios, o perfil deve fornecer uma conversão válida para o instante comum. O CHRONOS solicita um alvo e o dispositivo avança somente até o menor entre:
 - o alvo solicitado;
 - seu próximo deadline autônomo;
 - a próxima fronteira externa que precise ser observada;
@@ -312,7 +312,7 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3.1
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.2
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
@@ -337,7 +337,7 @@ Esta seção resolve ambiguidades sem selecionar representação numérica, estr
 Os termos abaixo são distintos e MUST NOT ser usados como sinônimos:
 
 - **Progresso local (P_d):** instante até o qual o estado próprio do domínio d foi efetivamente atualizado. P_d é expresso no domínio local; só pode ser comparado ao instante comum por uma conversão declarada e válida no perfil.
-- **Horizonte seguro (H_d):** maior instante até o qual o domínio d pode avançar sem atravessar uma fronteira que ainda possa exigir observação, publicação ou arbitragem causal externa.
+- **Horizonte seguro (H_d):** maior instante local do domínio d até o qual ele pode avançar sem atravessar uma fronteira que ainda possa exigir observação, publicação ou arbitragem causal externa. H_d é expresso no domínio local e só pode ser comparado ao instante comum por uma conversão declarada e válida no perfil.
 - **Watermark confirmado da máquina (W):** corte causal global fechado: todos os efeitos e eventos despacháveis pertencentes ao perfil ativo com instante causal menor ou igual a W foram processados, cancelados ou demonstrados como sem efeito. Uma transação ainda pendente pode atravessar W somente se todos os seus efeitos devidos até W estiverem concluídos e os efeitos restantes tiverem instante causal posterior a W. Um conflito não resolvido que possa mudar o resultado impede fechar W através daquele instante.
 
 Regras normativas:
