@@ -4,6 +4,18 @@ Emulador multissistema independente para plataformas clássicas de 8 e 16 bits, 
 
 **Baseline remota consultada:** `f8315ed5a95d6ef1d7cc02aa2edd813bb1d6b434` (2026-11-16).
 
+## Linha ativa de desenvolvimento
+
+O desenvolvimento arquitetural atual ocorre no **SUN V2**, isolado em `SUN-V2/`. O conteúdo histórico abaixo descreve principalmente a linha V1 e deve ser lido como inventário/registro legado, não como autorização para novas alterações de runtime.
+
+- [SUN V2 — estado e gates atuais](SUN-V2/README.md)
+- [Instruções permanentes do SUN V2](SUN-V2/PROJECT_INSTRUCTIONS.md)
+- [Roadmap de execução V2](SUN-V2/ROADMAP.md)
+
+A V2 começa pelo SMS e segue os gates R0–R5. R0 está aprovado documentalmente; R1 está em elaboração/revisão; R2–R5 permanecem pendentes. Nenhum código de produção CHRONOS/V2 está autorizado antes da aprovação R5. A stack de host prevista para a V2 é Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2; SDL3 depende de auditoria.
+
+---
+
 ## Identidade do projeto
 
 **SUN — Strife Uranus Neptune** é um projeto independente de emulação e pesquisa de compatibilidade. Não é afiliado, patrocinado ou endossado pela SEGA. Nomes de consoles, chips e tecnologias de terceiros são utilizados de forma nominativa para identificar os sistemas e a compatibilidade pretendida. O projeto não distribui ROMs comerciais, firmware proprietário ou dumps protegidos. Esta declaração não substitui a análise de licenças, marcas, direitos autorais e proveniência de cada componente.
