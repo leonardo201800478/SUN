@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.16; incorpora as correções documentais da auditoria independente sobre snapshot suportado, limite inclusivo de H_d, cálculo completo de A(E) e arbitragem lógica de cancelamento; ainda não aprovado
+**Status:** rascunho técnico v0.3.17; incorpora as correções da auditoria independente B1–B4 e esclarece a parada inclusiva no próprio alvo solicitado; ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -68,13 +68,13 @@ Cada dispositivo temporal MUST declarar o próximo limite até o qual pode avan�
 
 O resultado de um avanço deve distinguir pelo menos:
 - **alvo alcançado:** o dispositivo chegou ao instante solicitado;
-- **parada em fronteira:** o dispositivo parou antes do alvo e informou a fronteira;
+- **parada em fronteira:** o dispositivo parou em uma fronteira que exige coordenação, inclusive no próprio alvo solicitado quando uma obrigação causal desse instante permanece pendente;
 - **bloqueado:** uma dependência, transação ou condição externa impede progresso;
 - **falha:** estado temporal inválido ou violação de contrato.
 
 O dispositivo MUST informar o instante realmente alcançado. O chamador MUST NOT assumir que o alvo foi alcançado quando o resultado indicar parada ou bloqueio.
 
-**Inclusividade de H_d:** H_d é um limite temporal inclusivo para o progresso coordenado, não uma autorização para ignorar obrigações exatamente em H_d. O domínio pode retornar `Reached(H_d)` somente se todas as obrigações causais com instante comum menor ou igual a H_d estiverem resolvidas. Se existir obrigação ainda pendente exatamente em H_d, o domínio pode alcançar a coordenada H_d, mas MUST retornar `StoppedAt(H_d, reason)` identificando a obrigação; não pode declarar `Reached(H_d)` nem processar efeitos posteriores a essa obrigação. Uma obrigação em instante menor que H_d também impede `Reached(H_d)` até ser resolvida.
+**Inclusividade de H_d:** H_d é um limite temporal inclusivo para o progresso coordenado, não uma autorização para ignorar obrigações exatamente em H_d. O domínio pode retornar `Reached(H_d)` somente se todas as obrigações causais com instante comum menor ou igual a H_d estiverem resolvidas. Se existir obrigação ainda pendente exatamente em H_d, o domínio pode alcançar a coordenada H_d, mas MUST retornar `StoppedAt(H_d, reason)` identificando a obrigação; isso também vale quando o alvo solicitado T é exatamente H_d. Nesse caso, a parada é no endpoint: a coordenada T foi alcançada, mas o avanço não está semanticamente concluído porque a obrigação em T continua pendente. O domínio não pode declarar `Reached(T)` nem processar efeitos posteriores a essa obrigação. Uma obrigação em instante menor que H_d também impede `Reached(H_d)` até ser resolvida.
 
 ### 3.3 Invariância de chunk
 
@@ -355,7 +355,7 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 | R2-T01 | Monotonicidade | Sequências de avanços crescentes, repetidos e inválidos; progresso local, H_d e W; pedido externo T abaixo de F_d=max(W se existir, P_d convertido) rejeitado como LateInput sem mutação; regressão interna de P_d/W como InvariantViolation; igualdade permitida apenas conforme idempotência contratual |
 | R2-T02 | Chunk invariance | Avanço único contra partições aleatórias do mesmo intervalo |
 | R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, composição direta/encadeada quando matematicamente equivalente e sessões longas |
-| R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; alvo posterior a H_d convertido; obrigação pendente exatamente em H_d deve resultar em `StoppedAt(H_d)` e não `Reached(H_d)`; `Reached(H_d)` somente quando todas as obrigações causais <=H_d estiverem resolvidas; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
+| R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; alvo posterior a H_d convertido; alvo solicitado T=H_d com obrigação pendente em H_d deve resultar em parada no endpoint `StoppedAt(T)` (B=T), não `Reached(T)`; alvo além de H_d com obrigação pendente em H_d deve resultar em `StoppedAt(H_d)` (B<T); `Reached(H_d)` somente quando todas as obrigações causais <=H_d estiverem resolvidas; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
 | R2-T05 | Sincronização causal | Leitura após evento de dispositivo e escrita com commit definido |
 | R2-T06 | Ordenação determinística e corrida deadline/cancelamento | Eventos em instantes diferentes, fases distintas e mesma fase; D<P_d do proprietário rejeitado como LateInput; D<=W rejeitado como LateInput, inclusive D=W e mesmo com microstep; D=P_d com microstep explícito aceito somente quando W não existe ou W<D; D=P_d sem microstep, nesse mesmo corte ainda não fechado, resulta em IndeterminateCausalOrder e nenhuma mutação; conjunto completo de participantes e conversões válidas antes de calcular A(E), sem máximo parcial; cancelamento C<D admitido após A(E) suprime o claim se aceito antes do fechamento causal de W em D, mesmo que o dispatcher execute depois; W não pode fechar D enquanto houver cancelamento admitido C<D ainda não arbitrado; cancelamento C<=A(E) rejeitado como LateInput antes da regra de empate, inclusive C=D; cancelamento retroativo C<D recebido após W>=D e rejeitado; cancelar depois de D com despacho operacional atrasado não suprime claim; cancelamento e claim em D após admissão, respeitando relação causal/microstep explícita; permutar ordem de publicação/execução mantendo a mesma ordem causal admitida |
 | R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada; assertiva de que W não fecha sobre o conflito |
@@ -435,8 +435,8 @@ Regras normativas:
 
 Toda solicitação de avanço MUST retornar uma das classes semânticas abaixo, independentemente da forma da API:
 
-- **Reached(T):** o domínio alcançou T e satisfez as obrigações causais até T.
-- **StoppedAt(B, reason):** alcançou B, com B < T, e B é uma fronteira ou deadline que exige coordenação.
+- **Reached(T):** o domínio alcançou T e satisfez todas as obrigações causais até T.
+- **StoppedAt(B, reason):** o domínio alcançou a coordenada B, com B <= T, e parou porque uma fronteira ou deadline exige coordenação. O caso B<T é uma parada antes do alvo. O caso B=T é uma parada no endpoint e só é válido quando existe obrigação causal pendente exatamente em T; a coordenada foi alcançada, mas `Reached(T)` é proibido até essa obrigação ser resolvida. `reason` MUST identificar a obrigação/deadline e seu proprietário. Nenhum efeito posterior a B pode ser aplicado.
 - **Blocked(dependency, condition):** não pode avançar até que uma dependência identificada ou condição externa seja satisfeita. O resultado informa o último progresso efetivo.
 - **Failed(error):** uma precondição ou invariante foi violada; não é um estado normal de espera.
 
@@ -764,6 +764,7 @@ Esta seção preserva o histórico das revisões anteriores. A v0.3.10 incorpora
 
 | BLOCKER — escopo universal de snapshot versus `UnsupportedSnapshot` | §7.4/C10 recusavam snapshot no intervalo ambíguo de INT acknowledge, mas §7.6 prometia restore em qualquer estado/marcador sem qualificação | v0.3.16 limita exactly-once de snapshot/restore a cortes suportados e serializáveis; cortes ambíguos retornam `UnsupportedSnapshot`, sem artefato ou mutação; exceção é limitada ao perfil/operação/intervalo afetado | Correção proposta; requer revisão independente do SHA candidato |
 | BLOCKER — inclusividade do horizonte seguro H_d | §3.2 e R2-T04 não definiam se obrigação exatamente em H_d era processada ou permanecia pendente | v0.3.16 define `Reached(H_d)` somente quando todas as obrigações causais <=H_d estão resolvidas; obrigação pendente em H_d retorna `StoppedAt(H_d)` com identificação da obrigação | Correção proposta; requer revisão independente do SHA candidato |
+| P2 — parada no endpoint solicitado | §3.2 permitia `StoppedAt(H_d)` quando T=H_d, mas §16.2 restringia a classe a B<T, deixando o resultado fora da taxonomia | v0.3.17 define `StoppedAt(B)` para B<=T; B=T é parada no endpoint apenas com obrigação causal pendente em T, preservando a distinção de `Reached(T)` | Correção proposta; requer revisão independente do SHA candidato |
 | BLOCKER — cálculo parcial de A(E) | §16.1.10 definia o máximo, mas não tornava verificável a completude do conjunto/conversões nem proibia máximo parcial | v0.3.16 exige conjunto completo e P_d conhecido/conversível para todos; conjunto incompleto -> `Blocked`; conversão inválida -> `IndeterminateCausalOrder`; máximo parcial proibido | Correção proposta; requer revisão independente do SHA candidato |
 | DECISÃO — cancelamento C<D versus fechamento de W em D | §16.5.13 condicionava supressão a registro antes de W fechar D, mas não impedia fechar W enquanto cancelamento admitido aguardava arbitragem/dispatcher | v0.3.16 escolhe o corte causal: cancelamento admitido C<D deve ser arbitrado antes de W fechar D; atraso operacional do dispatcher não altera a decisão lógica | Correção proposta; requer revisão independente do SHA candidato |
 
@@ -778,10 +779,10 @@ Limites da revisão:
 
 ## 20. Próximos passos
 
-A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil; a v0.3.11 alinhou R2-T10 à classe `UnsupportedSnapshot`. A v0.3.12 separou retry idêntico de aplicação duplicada de marco; a v0.3.13 fixou a resposta idempotente na regra geral, mas deixou §16.7(2)/(8) com alternativa de erro de duplicidade/definição local. A v0.3.14 alinhou os retries de transação e marco. A v0.3.15 esclarece a terminalidade de Falha: só recuperação explícita do proprietário reabre a transação; Cancelada permanece terminal e retry não recupera Falha. A v0.3.16 incorpora os quatro achados da auditoria: escopo de snapshot suportado, H_d inclusivo com obrigação explícita, cálculo integral de A(E) e arbitragem de cancelamento anterior ao fechamento de W. Esta atualização documental não constitui aprovação formal de R1.
+A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil; a v0.3.11 alinhou R2-T10 à classe `UnsupportedSnapshot`. A v0.3.12 separou retry idêntico de aplicação duplicada de marco; a v0.3.13 fixou a resposta idempotente na regra geral, mas deixou §16.7(2)/(8) com alternativa de erro de duplicidade/definição local. A v0.3.14 alinhou os retries de transação e marco. A v0.3.15 esclarece a terminalidade de Falha: só recuperação explícita do proprietário reabre a transação; Cancelada permanece terminal e retry não recupera Falha. A v0.3.16 incorpora os quatro achados da auditoria: escopo de snapshot suportado, H_d inclusivo com obrigação explícita, cálculo integral de A(E) e arbitragem de cancelamento anterior ao fechamento de W. A v0.3.17 define também a parada no endpoint T=H_d quando a obrigação em T continua pendente, alinhando §3.2, §16.2 e R2-T04. Esta atualização documental não constitui aprovação formal de R1.
 
-1. Revisar adversarialmente a v0.3.16 no SHA exato, conferindo §§3.2, 7.4, 7.6, 11, 12.1, 13, 14, 16.1–16.7, 16.12, 16.15 e matrizes C01–C16/R2.
-2. Confirmar que H_d, conjunto completo de participantes/conversões de A(E), cancelamento admitido C<D e corte W possuem semântica explícita, sem igualdade ou fechamento implícitos.
+1. Revisar adversarialmente a v0.3.17 no SHA exato, conferindo §§3.2, 7.4, 7.6, 11, 12.1, 13, 14, 16.1–16.7, 16.12, 16.15 e matrizes C01–C16/R2.
+2. Confirmar que H_d, parada no endpoint T=H_d, conjunto completo de participantes/conversões de A(E), cancelamento admitido C<D e corte W possuem semântica explícita, sem igualdade ou fechamento implícitos.
 3. Verificar que snapshots suportados preservam exactly-once e que a janela UNKNOWN de INT acknowledge retorna UnsupportedSnapshot sem artefato/mutação; UNKNOWN limita somente o perfil/operação/intervalo afetado.
 4. Verificar retries idênticos, recuperação explícita de Falha, terminalidade de Cancelada e InvariantViolation para aplicação efetiva duplicada.
 5. Atualizar a issue #1270 com o SHA candidato, revisão, checks e estado de cada critério; manter R1 não aprovado enquanto houver blocker.
