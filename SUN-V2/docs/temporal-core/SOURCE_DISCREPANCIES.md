@@ -52,7 +52,9 @@ Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/
 
 **Conflito material:** 3.579545 MHz (V1) versus 3.575611 MHz (modelo MAME PAL-M). Não é diferença de arredondamento; são aproximadamente 3.934 kHz.
 
-**Tratamento:** UNKNOWN para o hardware TecToy-alvo. Obter manual/esquema de serviço PAL-M ou medir VDP input e Z80/PSG clock em placa identificada. Não alterar V1 nem fixar V2 com base exclusiva no MAME.
+SMS Power identifica a placa TecToy Power Base/PAL-M 199-403-411-416 com CPU Zilog Z0840004PSC e VDP 315-5124, mas a página não informa o clock do oscilador. A subportadora PAL-M é 3.575611 MHz, porém não prova sozinha o clock CPU/PSG. Fontes: [SMS Power — placa TecToy](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M); [EPUSP — padrão PAL-M](https://www.lcs.poli.usp.br/~gstolfi/PPT/APTV0416.pdf).
+
+**Tratamento:** UNKNOWN para o clock CPU/PSG físico da placa TecToy-alvo. Obter manual/esquema de serviço PAL-M ou medir VDP input e Z80/PSG clock em placa identificada. Não alterar V1 nem fixar V2 com base exclusiva no MAME.
 
 ## 5. PSG: período de tom zero/um
 
