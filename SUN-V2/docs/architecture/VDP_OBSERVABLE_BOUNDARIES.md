@@ -90,9 +90,9 @@ Para cada ROM/caso:
 - Modelo comparativo: [MAME 315_5124](https://github.com/mamedev/mame/blob/master/src/devices/video/315_5124.cpp).
 - Relatório histórico anexado ao projeto: `comparativo_de_testes_vdp_sega_emulator_vs_ares.md` (15/11/2026), sem SHA/ROM hash/ambiente.
 
-## 8. Próximo gate
+## 8. Validações posteriores a R0
 
-R0 pode fechar quando a documentação:
+R0 foi aprovado documentalmente. Antes de atribuir os resultados históricos ao SHA congelado ou promover esses comportamentos a contrato físico, será necessário:
 - classificar cada boundary por origem, perfil SMS1/SMS2, confiança, observabilidade e impacto em jogos;
 - separar resultados de ROM/modelo comparativo de evidência elétrica independente;
 - definir cenários discriminantes para Frame IRQ HCount, Line IRQ HCount, HCounter e TH, mesmo que sua execução seja posterior;
