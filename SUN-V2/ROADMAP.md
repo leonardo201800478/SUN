@@ -57,33 +57,21 @@ A diferença fundamental é a ordem de construção e o contrato de integração
 
 ### Fase 0 — inventário V1 e fechamento de evidências (R0)
 
-**Prioridade: máxima.**
+<badge>Concluída — 24/11/2026</badge>
 
-Objetivo: extrair o conhecimento útil da V1 sem herdar suas suposições.
+O gate R0 foi aprovado no escopo documental. O parecer completo está em [R0_CLOSEOUT.md](docs/temporal-core/R0_CLOSEOUT.md); a issue [#1267](https://github.com/leonardo201800478/SUN/issues/1267) foi encerrada.
 
-Entregas concluídas na primeira passagem:
-- baseline V1 congelada em `207ccc4cebbc4f8c0aed45c68262eae963491689` (23/11/2026);
-- [inventário crítico V1→V2](docs/architecture/V1_TO_V2_INVENTORY.md) reconfirmado contra o SHA congelado;
-- [matriz de evidências V1](docs/architecture/V1_BASELINE_EVIDENCE_MATRIX.md) com fontes, confiança, divergências e testes discriminantes;
-- [pesquisa de clocks](docs/temporal-core/CLOCK_DOMAIN_RESEARCH.md), [pesquisa de áudio](docs/temporal-core/AUDIO_CLOCK_RESEARCH.md) e [discrepâncias](docs/temporal-core/SOURCE_DISCREPANCIES.md);
-- [mapa de boundaries VDP](docs/architecture/VDP_OBSERVABLE_BOUNDARIES.md);
-- documentação Zilog oficial para WAIT, ciclos I/O e interrupções.
+Entregas:
+- baseline V1 congelada em 207ccc4cebbc4f8c0aed45c68262eae963491689;
+- inventário V1→V2 e matriz de evidências revisados;
+- fontes primárias Z80, clocks, áudio e limites observáveis VDP documentados;
+- comparação arquitetural com snapshots de MAME, Ares, Gearsystem, BlastEm e Genesis Plus GX;
+- incertezas PAL-M, WAIT externo, fases elétricas, microtiming VDP e pipeline analógico classificadas como UNKNOWN/adiáveis por perfil;
+- testes discriminantes definidos para R2 e para protótipos dependentes.
 
-Pendências obrigatórias para fechar F0/R0:
-- consolidar a matriz de clock domains com frequência, origem documental, tolerância, razão de conversão e fase conhecida/desconhecida; não inventar uma fase elétrica comum;
-- registrar colisões de timestamp, causalidade e pontos de observação como requisitos e hipóteses discrimináveis, sem escolher prematuramente fases universais;
-- fechar o contrato conceitual de WAIT: distinguir TW automático do Z80, WAIT externo ainda não verificado e perfis com PSG discreta; não inserir WAIT artificial em VDP/PSG SMS;
-- consolidar os boundaries observáveis do VDP e associar cada incerteza relevante a um teste discriminante;
-- revisar a proveniência e a qualidade das fontes, separando fatos comprovados, evidência indireta, hipóteses e questões abertas.
+**Limites da aprovação:** R0 não certifica fidelidade física universal, não escolhe representação temporal nem estrutura de agenda e não autoriza código de produção.
 
-Pendências que podem permanecer explicitamente adiadas, sem bloquear R0:
-- clock físico CPU/PSG da placa TecToy PAL-M: permanece UNKNOWN até esquema ou medição de placa identificada; manter perfil parametrizável e não fixar constante;
-- convenção PAL 3.546893 vs 3.546895 MHz e fase elétrica entre CPU/VDP/PSG: registrar candidatos e tolerâncias; resolver antes de declarar precisão física desse perfil;
-- WAIT externo do cartridge port: manter a fonte genérica no contrato, sem alegar que foi medida ou que jogos selecionados a exigem;
-- reexecução de SMS VDP Test v1.31 no SHA congelado e fixture full-machine para H/V IRQ, HCounter e TH: manter como validação futura antes de promover resultados históricos a evidência confirmada ou fechar os comportamentos VDP correspondentes;
-- benchmark S0 OutRun: **não executado e encerrado**. Não procurar ROM, executar/corrigir script, repetir medição ou criar benchmark substituto para preencher essa lacuna. Não é gate do V2.
-
-**Gate F0/R0:** fontes e proveniência rastreáveis; fatos, inferências e hipóteses separados; requisitos temporais e testes discriminantes definidos; incertezas sem evidência física formalmente limitadas; nenhuma hipótese promovida a constante de API. O gate não exige resolver fisicamente toda questão aberta nem executar S0.
+**S0 da V1:** encerrado como não executado e fora dos gates. Não procurar ROM OutRun, executar/corrigir script, repetir medições ou criar benchmark substituto.
 
 ### Fase 1 — contratos temporais e modelo de referência (R1–R2)
 
