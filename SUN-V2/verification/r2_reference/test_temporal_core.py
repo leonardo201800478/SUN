@@ -14,6 +14,63 @@ from chronos_reference import (
     resolve_obligation,
 )
 
+class R2T01InvalidStateTests(unittest.TestCase):
+    def test_invalid_clock_ratio_returns_error_without_converting_frontier(self):
+        state = make_state(
+            domains=[
+                ClockDomain(
+                    domain_id="cpu",
+                    local_to_common=None,
+                    progress_local=Fraction(4),
+                    horizon_local=Fraction(10),
+                )
+            ],
+            watermark_common=Fraction(3),
+        )
+        before = canonical_state(state)
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertEqual(evaluated.result.reached_common, Fraction(3))
+        self.assertEqual(canonical_state(evaluated.state), before)
+
+    def test_float_progress_returns_error_without_leaking_float_frontier(self):
+        state = make_state(
+            domains=[
+                ClockDomain(
+                    domain_id="cpu",
+                    local_to_common=Fraction(1),
+                    progress_local=1.5,
+                    horizon_local=Fraction(10),
+                )
+            ]
+        )
+        before = canonical_state(state)
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertEqual(evaluated.result.reached_common, Fraction(0))
+        self.assertEqual(canonical_state(evaluated.state), before)
+
+    def test_obligation_without_nonblank_owner_is_rejected_without_mutation(self):
+        for owner in ("", "   "):
+            with self.subTest(owner=owner):
+                state = make_state(
+                    domains=[one_domain()],
+                    obligations=[Obligation("irq-5", owner, Fraction(5))],
+                )
+                before = canonical_state(state)
+
+                evaluated = advance(state, Fraction(10))
+
+                self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+                self.assertEqual(canonical_state(evaluated.state), before)
+
+
+
+
 
 def one_domain(*, ratio=Fraction(1), horizon=Fraction(100), progress=Fraction(0)):
     return ClockDomain(
@@ -120,6 +177,51 @@ class R2T02ChunkInvarianceTests(unittest.TestCase):
         self.assertEqual(second.result.kind, ResultKind.REACHED)
         self.assertEqual(third.result.kind, ResultKind.REACHED)
         self.assertEqual(canonical_state(whole.state), canonical_state(third.state))
+
+    def test_safe_horizon_stop_matches_partition_at_the_boundary(self):
+        initial = make_state(domains=[one_domain(horizon=Fraction(10))])
+
+        whole = advance(initial, Fraction(15))
+        at_boundary = advance(initial, Fraction(10))
+        partitioned = advance(at_boundary.state, Fraction(15))
+
+        self.assertEqual(whole.result.kind, ResultKind.STOPPED_AT)
+        self.assertEqual(at_boundary.result.kind, ResultKind.REACHED)
+        self.assertEqual(partitioned.result.kind, ResultKind.STOPPED_AT)
+        self.assertEqual(whole.result.reached_common, Fraction(10))
+        self.assertEqual(partitioned.result.reached_common, Fraction(10))
+        self.assertEqual(canonical_state(whole.state), canonical_state(partitioned.state))
+
+    def test_pending_obligation_stop_matches_partition_and_continuation(self):
+        initial = make_state(
+            domains=[one_domain(horizon=Fraction(20))],
+            obligations=[Obligation("irq-7", "vdp", Fraction(7))],
+        )
+
+        whole_stop = advance(initial, Fraction(15))
+        first_partition = advance(initial, Fraction(7))
+        second_partition = advance(first_partition.state, Fraction(15))
+
+        self.assertEqual(whole_stop.result.kind, ResultKind.STOPPED_AT)
+        self.assertEqual(first_partition.result.kind, ResultKind.STOPPED_AT)
+        self.assertEqual(second_partition.result.kind, ResultKind.STOPPED_AT)
+        self.assertEqual(whole_stop.result.reached_common, Fraction(7))
+        self.assertEqual(second_partition.result.reached_common, Fraction(7))
+        self.assertEqual(canonical_state(whole_stop.state), canonical_state(second_partition.state))
+
+        whole_continuation = advance(
+            resolve_obligation(whole_stop.state, "irq-7"), Fraction(15)
+        )
+        partitioned_continuation = advance(
+            resolve_obligation(second_partition.state, "irq-7"), Fraction(15)
+        )
+
+        self.assertEqual(whole_continuation.result.kind, ResultKind.REACHED)
+        self.assertEqual(partitioned_continuation.result.kind, ResultKind.REACHED)
+        self.assertEqual(
+            canonical_state(whole_continuation.state),
+            canonical_state(partitioned_continuation.state),
+        )
 
     def test_seeded_random_partitions_match_single_advance(self):
         for seed in range(100):
