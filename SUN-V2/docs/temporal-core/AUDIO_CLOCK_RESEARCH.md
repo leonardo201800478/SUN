@@ -35,7 +35,7 @@ SMS Power afirma que, quando o registrador de período de tom vale 0 ou 1, a sa�
 
 Fonte: [SMS Power — SN76489](https://www.smspower.org/Development/SN76489).
 
-O documento técnico de áudio fornecido no projeto descreve `N=0` como equivalente a `N=1`, com portadora ultrassônica de aproximadamente 111.86 kHz ou saída efetivamente travada em nível alto. A formulação mistura dois comportamentos diferentes.
+O código V1 congelado também trata `period <= 1` como nível constante alto em `tick_internal_clock()`; portanto, a implementação V1 e a descrição SMS Power concordam nesse ponto. O documento técnico de áudio fornecido no projeto menciona uma portadora ultrassônica de aproximadamente 111.86 kHz ou saída efetivamente travada em nível alto; somente a segunda alternativa é sustentada pela documentação consultada e pelo código V1.
 
 **Tratamento:** a afirmação “constante +1” é a referência documental atual; a alegação de portadora deve ser tratada como divergência e não implementada sem teste discriminante no VDP Sega. Testar N=0 e N=1 separadamente, com captura digital/analógica e análise espectral, incluindo playback PCM de jogos reais.
 
