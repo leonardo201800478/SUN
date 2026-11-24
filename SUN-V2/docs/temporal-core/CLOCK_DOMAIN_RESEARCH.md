@@ -74,13 +74,17 @@ O MAME atual define:
 
 Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), definições `MASTER_CLOCK_PALM`, `sms_br_base`, `sms1_br` e `sms3_br`.
 
-**Conflito:** o valor de CPU/PSG configurado no runtime V1 (3.579545 MHz) difere do valor modelado pelo MAME para PAL-M (3.575611 MHz), diferença de 3.934 kHz. A diferença afeta tempo virtual, áudio e cadência de vídeo se o perfil for realmente PAL-M.
+**Conflito de modelos:** o valor de CPU/PSG configurado no runtime V1 (3.579545 MHz) difere do modelo MAME PAL-M (3.575611 MHz), diferença de 3.934 kHz. Isso não prova, sozinho, que o V1 esteja errado para a placa TecToy original.
 
-**Confiança:** alta para o que cada software configura; média para o valor físico PAL-M, pois o comentário do MAME descreve um ajuste do modelo e não foi localizada nesta rodada uma medição primária de placa TecToy.
+A placa TecToy 199-403-411-416 identificada pelo SMS Power usa VDP 315-5124 e encoder Motorola MC1377P, diferente do encoder V7040 do modelo PAL europeu. Fonte: [SMS Power — Brazilian Master System: TecToy Power Base/PAL-M](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M). Uma discussão de conversão NTSC relata uma marcação de XTAL de 10.746168 MHz (leitura não confirmada) e outro participante sugere 10.726834 MHz para PAL-M e 10.7386 MHz para NTSC; isso é evidência comunitária/anecdótica, não medição rastreável. Fonte: [SMS Power — TecToy SMS1 NTSC conversion](https://www.smspower.org/forums/15865-TectoySms1NTSCConversion).
+
+Uma análise de modificação de vídeo relata burst PAL-M de 3.575611 MHz e problema de sincronismo gerado pelo 315-5124, com correção externa no encoder. Isso mostra que o clock de subportadora do MC1377 e o clock de raster/CPU devem ser tratados como sinais separados até o esquema provar uma derivação comum. Fonte: [Neto Games — TecToy MC1377/CXA1645](https://www.neto-games.com.br/hardware/sms_tt_cxa1645.php).
+
+**Confiança:** alta para os valores configurados por cada software; média/baixa para a frequência física do oscilador TecToy. O valor 10.726834 é candidato plausível e coerente com MAME, mas o relato 10.746168 e a possibilidade de subportadora separada exigem esquema/medição da placa.
 
 SMS Power identifica a placa TecToy Power Base/PAL-M 199-403-411-416, com CPU Zilog Z0840004PSC e VDP Sega 315-5124, mas a página consultada não publica a frequência do oscilador. Fonte: [SMS Power — Brazilian Master System: TECTOY POWER BASE/PAL-M](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M). A subportadora PAL-M brasileira é 3.575611 MHz, mas isso não prova, isoladamente, o clock CPU/PSG da placa. Fonte de padrão: [EPUSP — PAL-M](https://www.lcs.poli.usp.br/~gstolfi/PPT/APTV0416.pdf).
 
-**Ação bloqueante:** obter manual/esquema de serviço PAL-M da TecToy ou medir a placa. Não “corrigir” o V1 neste trabalho documental nem promover o valor MAME a verdade física sem essa confirmação.
+**Ação bloqueante:** obter o esquema PAL-M de 199-403-411-416 e identificar no circuito qual oscilador alimenta VDP/Z80 e qual gera a subportadora MC1377; se possível, medir ambos. Não “corrigir” o V1 neste trabalho documental nem promover o valor MAME a verdade física sem essa confirmação.
 
 ## 5. Relação VDP/Z80 e geometria horizontal
 
