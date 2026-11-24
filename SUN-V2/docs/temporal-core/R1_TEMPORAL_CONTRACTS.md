@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.8; incorpora os três achados Codex v0.3.6 e corrige a admissão de deadline no limite do watermark confirmado; ainda não aprovado
+**Status:** rascunho técnico v0.3.9; corrige R1-EXIT-01 (taxonomia de avanço retroativo) e R1-EXIT-03 (ciclo de vida transacional e mapeamento de marcos); ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -152,41 +152,98 @@ Regras:
 
 ## 7. Transações de barramento suspensíveis e retomáveis
 
-### 7.1 Conteúdo mínimo da transação
+### 7.1 Descritor obrigatório da transação
 
-Uma transação precisa preservar informação suficiente para ser retomada sem repetir ou perder efeitos:
-- identidade estável da requisição;
-- origem e destino;
-- tipo de operação (leitura, escrita, I/O, acknowledge ou outra operação suportada);
-- endereço e dado de escrita, quando aplicável;
-- instante de início;
-- instante ou regra de amostragem;
-- instante ou regra de commit;
-- duração base e estados de espera aplicados;
-- resultado amostrado, se já ocorreu;
-- efeitos já comprometidos e efeitos ainda pendentes;
-- motivo de bloqueio/espera e estado de conclusão.
+Uma transação MUST preservar informação suficiente para ser retomada sem repetir, omitir ou deslocar temporalmente efeitos. O descritor normativo contém:
 
-### 7.2 Estados conceituais
+- identidade estável da requisição e geração;
+- origem, destino e classe da operação (leitura/escrita de memória, leitura/escrita de I/O, acknowledge ou operação de dispositivo identificada);
+- perfil ativo, endereço e payload de escrita, quando aplicáveis;
+- instante comum de admissão e instante de início do ciclo;
+- sequência ordenada dos marcos exigidos pela operação, cada qual associado a uma fronteira de barramento nomeada e à sua classe de evidência;
+- duração base consumida, TWs automáticos, TWs externos e esperas de dependência já observados;
+- estado de controle atual e próxima fronteira ainda não alcançada;
+- origem/condição de WAIT e ponto documentado da próxima amostragem, quando aplicável;
+- marcadores de amostragem e commit, cada um com identidade estável, estado pendente/aplicado e resultado, quando aplicável;
+- conjunto exato de efeitos irreversíveis já aplicados e efeitos ainda pendentes;
+- erro, motivo de bloqueio, cancelamento ou recuperação explícita, se existentes.
 
-A implementação pode usar outra representação, mas deve preservar transições equivalentes:
-1. **Criada:** requisição identificada, ainda sem efeitos.
-2. **Em andamento:** tempo base do ciclo está sendo consumido.
-3. **Aguardando:** progresso suspenso por WAIT ou dependência.
-4. **Pronta para próxima fronteira aplicável:** a fronteira de amostragem, commit ou outro marco exigido pela operação foi alcançada. Amostragem e commit mantêm estados independentes.
-5. **Amostrada:** dado de leitura ou acknowledge foi capturado exatamente uma vez.
-6. **Comprometida:** efeito de escrita foi aplicado exatamente uma vez.
-7. **Concluída:** todos os efeitos e tempos da operação foram finalizados.
-8. **Cancelada:** cancelamento explícito antes de efeito irreversível, com motivo rastreável.
+O descritor não escolhe a representação de runtime nem a granularidade universal do barramento. Ele exige que a operação declare seus marcos antes de produzir efeitos.
 
-Amostragem e commit são eventos distintos quando o hardware assim exigir. A implementação não pode fundi-los apenas para simplificar o código.
+### 7.2 Estados de controle e transições normativas
 
-### 7.3 Exactly-once
+Os estados de controle abaixo são normativos. A implementação MAY usar outra representação, mas MUST preservar as mesmas condições, transições e efeitos observáveis.
 
-- Retomar uma transação não pode repetir leitura amostrada, escrita comprometida, acknowledge, alteração de registrador ou publicação de IRQ.
-- Uma requisição duplicada com o mesmo ID deve ser rejeitada ou reconhecida como a mesma operação, nunca executada duas vezes.
-- Conclusão com ID ou geração incompatível deve falhar explicitamente.
-- Snapshot no meio de uma transação deve restaurar o mesmo ponto lógico e o mesmo conjunto de efeitos pendentes.
+| Estado | Condição de entrada | Transições permitidas e condição de saída | Efeitos permitidos |
+|---|---|---|---|
+| **Criada** | Requisição validada, identificada e admitida; nenhum ciclo iniciado e nenhum efeito aplicado | **Em andamento** quando o proprietário inicia o ciclo; **Cancelada** se o cancelamento for admitido antes de qualquer efeito irreversível; **Falha** se uma falha posterior à admissão impedir a execução | Nenhuma amostragem ou commit |
+| **Em andamento** | Ciclo iniciado na fronteira de início declarada | **Aguardando** somente em ponto de amostragem de WAIT/dependência declarado; **Pronta** quando a próxima fronteira requerida for alcançada; **Cancelada** se ainda não houver efeito irreversível e o cancelamento for admitido; **Falha** diante de erro terminal | Consome apenas o tempo base e os TWs previstos; não aplica marco antes de sua fronteira |
+| **Aguardando** | WAIT ativo observado em ponto documentado ou dependência externa identificada ainda não satisfeita | **Em andamento** quando a condição for observada como liberada no próximo ponto permitido; **Cancelada** antes de efeito irreversível e após admissão; **Falha** diante de erro terminal | WAIT externo ativo consome os TWs exigidos pelo Z80 e reamostra nos pontos documentados; dependência sem progresso não autoriza busy-wait nem avanço fictício |
+| **Pronta** | A próxima fronteira nomeada foi alcançada; estado transitório sem consumo adicional de tempo | **Em andamento** após processar o marco e existir trabalho temporal restante; **Aguardando** se a próxima fronteira depender de WAIT/dependência; **Concluída** quando todos os marcos e tempos requeridos terminarem; **Cancelada** somente antes de efeito irreversível; **Falha** em erro terminal | Pode aplicar somente o marco cuja fronteira foi alcançada, uma única vez; não pode antecipar marcos posteriores |
+| **Concluída** | Todos os marcos requeridos foram aplicados e toda a duração/espera da operação foi finalizada | Terminal; nenhuma transição para execução, cancelamento ou repetição | Nenhum novo efeito; duplicata idêntica apenas reconhece o resultado já concluído |
+| **Cancelada** | Cancelamento causalmente admitido antes do primeiro efeito irreversível | Terminal; não pode ser reaberta nem restaurada como ativa | Preserva identidade, motivo e histórico; nenhum efeito futuro da transação pode ocorrer |
+| **Falha** | Erro terminal durante a execução, com ou sem efeitos anteriores | Terminal por padrão. Só pode retornar a **Em andamento** por recuperação explícita do proprietário, com identidade/geração verificadas e retomada exclusiva dos marcos pendentes | Preserva erro e ledger parcial; restore não inicia retry automático |
+
+Transições não listadas são proibidas. Uma transição interna impossível é **InvariantViolation**; comando externo com identidade/perfil/geração inválidos é **InvalidInput**; comando temporalmente tardio é **LateInput**. Uma dependência ainda não satisfeita é **Blocked**, não falha terminal.
+
+### 7.3 Marcadores independentes de amostragem e commit
+
+**Amostrada** e **Comprometida** não são estados de controle mutuamente exclusivos. São marcadores monotônicos no ledger da transação, pois uma operação pode exigir ambos, em ordens distintas, ou mais de um subefeito. Se a implementação os representar como estados, deverá preservar o produto equivalente entre estado de controle e marcadores.
+
+- **Amostragem:** cada marco de leitura/acknowledge tem identidade e fronteira próprias. Ao alcançar a fronteira, captura o valor/condição exatamente uma vez e registra o resultado. Retomada ou restore reutiliza o valor capturado; nunca consulta novamente o barramento para o mesmo marco.
+- **Commit:** cada efeito de escrita/acknowledge ou subefeito declarado tem identidade e fronteira próprias. Ao alcançar a fronteira, aplica o efeito exatamente uma vez e registra o commit. Efeitos indivisíveis usam um único marco atômico; efeitos múltiplos mantêm registro individual.
+- Um marcador aplicado é monotônico e não pode voltar a pendente. O par estado do dispositivo/efeito e marcador de commit pertence ao mesmo corte atômico. Se isso não puder ser garantido, o cenário não pode ser declarado suportado, salvo idempotência comprovada por identidade estável.
+- Um mesmo ID com payload/descritor diferente é **InvalidInput**. Repetição idêntica reconhece a mesma operação e não reaplica efeitos.
+- Cancelamento é permitido somente antes do primeiro efeito marcado como irreversível pelo contrato da operação. Se o timestamp não satisfizer A(E), ou se a fronteira de cancelamento já tiver sido ultrapassada por efeito irreversível, rejeitar como **LateInput**, sem rollback e sem alterar a transação. Amostragem só encerra a janela de cancelamento quando o contrato da operação a classificar como irreversível.
+- Falha antes de qualquer efeito preserva o estado anterior e registra a falha. Falha após efeitos irreversíveis entra em **Falha**, preserva o conjunto exato aplicado/pendente e não simula rollback.
+
+### 7.4 Restore e retomada por estado
+
+Snapshot MUST preservar o estado de controle, a próxima fronteira, o progresso temporal consumido, a condição/origem de WAIT, os marcadores e resultados de amostragem, o ledger de commits, o conjunto pendente, a identidade/geração e o erro/motivo.
+
+| Estado/condição no snapshot | Resultado obrigatório do restore |
+|---|---|
+| Criada | Continua não iniciada; não consome tempo nem aplica marco |
+| Em andamento | Retoma do mesmo progresso e da próxima fronteira; não reinicia duração já consumida |
+| Aguardando | Preserva a condição e a fonte de espera; não presume WAIT inativo nem inventa TW; retoma somente após a condição ser observada no ponto permitido |
+| Pronta | Retoma o processamento do marco pendente já alcançado, sem avançar tempo novamente; cada marcador é aplicado no máximo uma vez |
+| Marcador Amostrada | Preserva o resultado capturado; não faz nova leitura/acknowledge |
+| Marcador Comprometida | Preserva o efeito aplicado; não o reaplica |
+| Concluída | Permanece terminal e retorna o resultado concluído |
+| Cancelada | Permanece terminal; não reativa a transação nem a geração |
+| Falha | Preserva erro e ledger parcial; não executa retry automático. Recuperação explícita do proprietário retoma somente marcos pendentes |
+
+Restore incompatível com perfil, identidade, geração ou formato é **IncompatibleSnapshot** e não pode alterar a máquina ativa parcialmente.
+
+### 7.5 Mapeamento normativo dos marcos às fronteiras de barramento
+
+Todo marco exigido por uma operação MUST apontar para uma fronteira nomeada. A fronteira semântica fica definida nesta seção; quando a fonte não determina a borda física exata, essa coordenada permanece **UNKNOWN** e não pode ser substituída por fase presumida. UNKNOWN limita a alegação de fidelidade do perfil/operação, mas não deixa o marco sem contrato.
+
+| Classe/operação | Marco | Fronteira de barramento exigida | Evidência e limite |
+|---|---|---|---|
+| Todas | Admissão da requisição | Antes do início do primeiro ciclo e antes de qualquer efeito da transação; sujeita à fronteira temporal A(E) quando for entrada/cancelamento causal | Fronteira lógica do contrato; não é uma borda elétrica |
+| Memória — leitura | Início | Início do M-cycle de leitura declarado pela operação Z80/perfil | M-cycles/T-states são FACT conforme Zilog UM008011-0816; duração exata depende da operação |
+| Memória — leitura | Amostragem | Fronteira em que o dado de leitura está válido e é capturado pelo consumidor | A fonte R0 não estabelece uma borda física universal para todas as operações/perfis; manter UNKNOWN até evidência específica |
+| Memória — escrita | Início | Início do M-cycle de escrita declarado pela operação Z80/perfil | M-cycles/T-states são FACT; não inferir commit pelo início do ciclo |
+| Memória — escrita | Commit | Fronteira em que o destino aceita o dado e o efeito se torna irreversível | Específica do destino/operação; UNKNOWN sem fonte/medição aplicável. Nenhum efeito antes dela |
+| I/O — leitura/escrita | Início e duração | M-cycle de I/O, incluindo o TW automático documentado; WAIT externo, se presente, é amostrado separadamente | Um TW automático em I/O é FACT no manual Zilog; não equivale a WAIT externo |
+| I/O — leitura/escrita | Amostragem/commit | Fronteira de validade/captura do dado ou aceitação da escrita pelo destino | A fonte R0 não fixa borda universal de dado/commit para todos os dispositivos; UNKNOWN por operação/perfil até evidência |
+| WAIT externo Z80 | Amostragem de WAIT | Borda de descida durante T2 e em cada TW subsequente | FACT no Zilog UM008011-0816; WAIT ativo solicita TW adicional. Fonte física de WAIT no cartridge SMS permanece UNKNOWN |
+| INT Z80 | Amostragem de INT | Borda de subida do último clock ao final da instrução | FACT no Zilog UM008011-0816; não confundir com o commit/efeito do acknowledge |
+| INT acknowledge | Ciclo e espera automática | Ciclo M1/IORQ de acknowledge, com dois TW automáticos | FACT no Zilog UM008011-0816; a captura de vetor e efeitos do dispositivo seguem fronteira específica, não presumida |
+| Todas | Conclusão | Após a última fronteira de ciclo exigida, todos os marcadores obrigatórios aplicados e toda espera consumida | Condição lógica verificável; não pode concluir com marco pendente |
+| Todas | Cancelamento | Ponto lógico anterior ao primeiro efeito irreversível, após validação temporal C>A(E) | Não cria fase física; cancelamento após a fronteira irreversível é LateInput e não desfaz efeito |
+| Todas | Snapshot/restore | Corte causal coerente que registra estado, próxima fronteira e ledger de efeitos | Não exige que o corte coincida com uma borda física; pendências e efeitos parciais precisam estar serializados |
+
+O contrato não afirma uma borda de amostragem/commit universal para memória, I/O, VDP ou PSG. Para cada operação usada em compatibilidade, o perfil MUST fornecer fonte e fronteira específica; se permanecer UNKNOWN, a operação não pode ser apresentada como temporalmente validada naquele perfil. Isso não autoriza inserir WAIT, fase ou microtiming presumido.
+
+### 7.6 Exactly-once — invariantes transacionais
+
+- Retomar ou restaurar uma transação não pode repetir leitura amostrada, escrita comprometida, acknowledge, alteração de registrador, publicação de IRQ ou subefeito.
+- Uma requisição duplicada com o mesmo ID e descritor idêntico é reconhecida como a mesma operação; mesmo ID com descritor divergente é rejeitado antes de mutação.
+- Conclusão com ID ou geração incompatível falha explicitamente e preserva a transação original para diagnóstico.
+- Snapshot em qualquer estado de controle ou entre quaisquer dois marcadores deve restaurar o mesmo ponto lógico e o mesmo conjunto de efeitos pendentes.
+- Nenhuma transição terminal é reaberta por restore. Recuperação de Falha é explícita e nunca repete marcadores aplicados.
 
 ## 8. WAIT e ciclos Z80
 
@@ -265,7 +322,7 @@ Erros não podem ser silenciosamente convertidos em avanço, descarte de evento,
 
 | Classe de erro | Comportamento exigido |
 |---|---|
-| Tempo retroativo | Rejeitar a operação antes de mutar estado; não corrigir silenciosamente o timestamp |
+| Tempo retroativo | Pedido externo de avanço com T<F_d, sendo F_d=max(W se existir, P_d convertido do domínio avançado), ou entrada/cancelamento além da fronteira admissível: LateInput antes de mutação. Regressão interna de P_d/W: InvariantViolation. InvalidInput não classifica timestamp válido apenas por ser retroativo |
 | Horizonte seguro ultrapassado | Parar antes da fronteira; se um componente já a ultrapassou, sinalizar violação de invariante e invalidar a execução de validação |
 | Razão/conversão inválida ou overflow | Rejeitar perfil/operação antes de publicar avanço parcial; nunca aplicar wrap ou saturação silenciosa |
 | ID de deadline duplicado | Rejeitar o novo agendamento, salvo se for explicitamente a mesma geração/atualização idempotente |
@@ -283,30 +340,31 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 
 | ID | Propriedade | Cenário mínimo |
 |---|---|---|
-| R2-T01 | Monotonicidade | Sequências de avanços crescentes, repetidos e inválidos; progresso local, H_d e W, incluindo fechamento e tentativa de retrocesso do corte |
+| R2-T01 | Monotonicidade | Sequências de avanços crescentes, repetidos e inválidos; progresso local, H_d e W; pedido externo T abaixo de F_d=max(W se existir, P_d convertido) rejeitado como LateInput sem mutação; regressão interna de P_d/W como InvariantViolation; igualdade permitida apenas conforme idempotência contratual |
 | R2-T02 | Chunk invariance | Avanço único contra partições aleatórias do mesmo intervalo |
 | R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, composição direta/encadeada quando matematicamente equivalente e sessões longas |
 | R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; alvo posterior a H_d convertido deve parar em H_d; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
 | R2-T05 | Sincronização causal | Leitura após evento de dispositivo e escrita com commit definido |
 | R2-T06 | Ordenação determinística e corrida deadline/cancelamento | Eventos em instantes diferentes, fases distintas e mesma fase; D<P_d do proprietário rejeitado como LateInput; D<=W rejeitado como LateInput, inclusive D=W e mesmo com microstep; D=P_d com microstep explícito aceito somente quando W não existe ou W<D; D=P_d sem microstep, nesse mesmo corte ainda não fechado, resulta em IndeterminateCausalOrder e nenhuma mutação; cancelamento C<D admitido somente após A(E) e antes de W fechar D; cancelamento C<=A(E) rejeitado como LateInput antes da regra de empate, inclusive C=D; cancelamento retroativo C<D recebido após W>=D e rejeitado; cancelar depois de D com despacho operacional atrasado; cancelamento e claim em D após admissão, respeitando relação causal/microstep; permutar ordem de publicação/execução mantendo a mesma ordem causal admitida |
 | R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada; assertiva de que W não fecha sobre o conflito |
-| R2-T08 | Exactly-once e efeitos parciais | Suspensão/retomada antes/depois de amostragem, entre cada efeito parcial, após commit, retry idêntico e ID duplicado com payload diferente; assertivas exatas para conjunto comprometido/pendente |
+| R2-T08 | Exactly-once e efeitos parciais | Todas as transições permitidas/proibidas da máquina de estados; suspensão/retomada em Criada, Em andamento, Aguardando e Pronta; amostragem/commit independentes; cancelamento antes/depois do primeiro efeito irreversível; falha antes/depois de cada efeito; retry idêntico e ID duplicado com descritor divergente; ledger exato comprometido/pendente |
 | R2-T09 | WAIT | TW automático, WAIT externo modelado e fixture separados; WAIT ativo consome TW e reamostra em cada ponto; UNKNOWN não é tratado como inativo e bloqueia sem TW especulativo |
 | R2-T10 | IRQ/NMI | Transições/níveis antes e depois dos pontos de amostragem, borda NMI, EI delay, acknowledge e preservação das bordas/latches efetivamente definidos pelo dispositivo |
-| R2-T11 | Snapshot/restore e geração obsoleta | Eventos em todos os estados Scheduled, Cancelled, Claimed, Dispatched, Completed e Failed; snapshot Dispatched antes/depois de cada subefeito irreversível; restore de Claimed despacha uma vez, restore de Dispatched retoma somente pendências, restore de Failed preserva erro/efeitos parciais sem retry automático e recuperação explícita retoma apenas pendências; não reabre cancelamento, não reativa geração obsoleta nem repete efeito já comprometido |
+| R2-T11 | Snapshot/restore e geração obsoleta | Deadlines em todos os estados Scheduled, Cancelled, Claimed, Dispatched, Completed e Failed; transações de barramento em Criada, Em andamento, Aguardando, Pronta, Concluída, Cancelada e Falha; snapshots entre cada marco de amostragem/commit; restore preserva próxima fronteira, WAIT, resultado amostrado, ledger de commits e erro parcial; sem retry automático, reabertura de estado terminal ou repetição de efeito |
 | R2-T12 | Replay e limite de admissão | Execução contínua contra restore + mesma sequência de entradas; classificar obrigatoriamente como LateInput e rejeitar sem mutação T<=W ou T<=P_d convertido de qualquer participante mesmo quando T>W; distinguir InvalidInput para parâmetro/perfil/ID/geração inválidos; aceitar T>A(E); aceitar entrada dentro de H_d previamente publicado e exigir recálculo dos horizontes participantes antes do próximo avanço; reproduzir a mesma ordem lógica de aceitação |
 | R2-T13 | Host independence | Variar tamanho de bloco, atrasar/drenar/descartar saída e simular underrun sem alterar estado virtual |
 | R2-T14 | Microstep finito | Evento cria outro evento no mesmo instante, incluindo ciclo infinito |
-| R2-T15 | Overflow/erro e atomicidade parcial | Razões, timestamps, LateInput versus InvalidInput; LateInput sem mutação para D<=W inclusive D=W com microstep; D=P_d com microstep aceito somente se W não existir ou W<D; IndeterminateCausalOrder sem mutação para D=P_d sem microstep enquanto D>W (ou W não existe); IDs, snapshots inválidos, capacidade esgotada e falha antes/depois de cada efeito irreversível; verificar rejeição pré-mutação ou estado anterior intacto ou conjunto parcial exato e retomável/inválido conforme contrato |
+| R2-T15 | Overflow/erro e atomicidade parcial | Razões e timestamps; avanço solicitado T<F_d rejeitado como LateInput sem mutação; regressão interna como InvariantViolation; InvalidInput reservado a parâmetro/perfil/ID/geração inválidos; D<=W como LateInput inclusive D=W com microstep; regras de D=P_d; transições inválidas; IDs/snapshots incompatíveis; capacidade esgotada; falha antes/depois de cada marco; ledger parcial exato, restore e recuperação explícita sem repetição |
 
 R2 deve registrar sementes, perfil, sequência de operações, primeiro ponto divergente e estado mínimo para reprodução.
 
 ## 14. Critérios de aprovação R1
 
 R1 só pode ser aprovado quando:
+- **R1-EXIT-01 — Taxonomia temporal:** C01, §12.1 e §16.12 MUST classificar de forma consistente avanço externo retroativo como LateInput antes de mutação; regressão interna como InvariantViolation; InvalidInput fica restrito a parâmetro/perfil/identidade/ID/geração inválidos.
+- **R1-EXIT-03 — Ciclo de vida transacional:** cada estado de controle e cada marcador de amostragem/commit MUST ter condições de entrada/saída, transições permitidas/proibidas, regras de cancelamento, falha, snapshot/restore e retomada exactly-once; todos os marcos MUST estar mapeados a fronteiras de barramento nomeadas, com evidência FACT/OBSERVATION ou UNKNOWN explícito e efeito dessa incerteza sobre a alegação de compatibilidade.
 - cada contrato C01–C16 estiver classificado explicitamente como MUST, SHOULD ou MAY, com proprietário semântico, pré-condições, pós-condições, bloqueios/erros e rastreabilidade; itens fora de escopo de R1 estiverem identificados separadamente;
 - não houver contradição entre tempo comum, avanço limitado, sincronização sob demanda e agenda de deadlines;
-- cada estado de transação tiver regra de entrada, saída, amostragem, commit, cancelamento e restore;
 - simultaneidade e fase UNKNOWN não dependerem de ordem acidental;
 - todos os erros listados tiverem comportamento definido;
 - as propriedades R2 estiverem ligadas a contratos específicos;
@@ -316,14 +374,14 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3.8
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.9
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
 - Qual representação expressa fase conhecida, desconhecida e comutatividade sem atribuir fase física presumida?
 - Qual forma de interface reporta progresso local, horizonte seguro, watermark e próxima fronteira sem impor callbacks por instrução/T-state?
 - Quais safe points da CPU Z80 são suficientes para os pontos de observação comprovados por gameplay SMS?
-- Como cada classe de transação mapeia os marcos normativos de amostragem, commit e conclusão às fronteiras de barramento sustentadas por evidência?
+- Quais fontes primárias ou medições discriminantes poderão resolver, por perfil e operação, as fronteiras físicas de amostragem/commit atualmente classificadas UNKNOWN, sem presumir uma borda universal?
 - Qual mecanismo de agenda/cancelamento satisfaz identidade, geração e linearização com custo mensurável?
 - Qual mecanismo detecta dependência sem progresso, starvation ou ciclo de microstep sem custo fixo indevido no hot path?
 - Qual representação implementa conversões exatas, resíduos e composição sem assumir associatividade/inversibilidade?
@@ -502,9 +560,9 @@ A transação é uma operação lógica; amostragem, commit e conclusão são ma
 O resultado de uma operação temporal deve distinguir sucesso, parada normal, bloqueio e falha. As classes abaixo não são intercambiáveis:
 
 - **Blocked:** dependência/condição externa ainda não satisfeita; estado preservado e retomável.
-- **LateInput:** nova entrada/cancelamento com timestamp T/C menor ou igual à fronteira de admissão A(E), publicação de deadline D<P_d do proprietário ou publicação com D<=W (se W existir); rejeitar antes de mutação e sem rollback/reabertura implícita. A igualdade D=P_d só pode ser admitida com microstep explícito quando W não existir ou W<D. D=P_d sem microstep explícito, nesse mesmo caso ainda não fechado globalmente, usa IndeterminateCausalOrder. D=W é sempre LateInput, mesmo com microstep, pois W representa corte já confirmado e fechado. O diagnóstico preserva T/D, A(E), participantes e progresso relevante. Se participantes/conversões não puderem ser determinados, usar Blocked/IndeterminateCausalOrder, não LateInput.
-- **InvalidInput:** parâmetro, perfil, ID ou geração inválida; rejeitar antes de mutação.
-- **InvariantViolation:** monotonicidade, causalidade, exactly-once, chunk invariance ou estado interno violado; execução de validação inválida.
+- **LateInput:** pedido externo de avanço até T menor que a fronteira inferior F_d=max(W, P_d convertido do domínio avançado, omitindo W quando ausente); nova entrada/cancelamento com timestamp T/C menor ou igual à fronteira de admissão A(E); publicação de deadline D<P_d do proprietário ou publicação com D<=W (se W existir). Rejeitar antes de mutação e sem rollback/reabertura implícita. T=F_d pode ser idempotente somente quando não houver nova entrada causal e as demais condições do contrato forem satisfeitas. A igualdade D=P_d só pode ser admitida com microstep explícito quando W não existir ou W<D. D=P_d sem microstep explícito, nesse mesmo caso ainda não fechado globalmente, usa IndeterminateCausalOrder. D=W é sempre LateInput, mesmo com microstep, pois W representa corte já confirmado e fechado. O diagnóstico preserva timestamp solicitado, fronteira aplicável, T/D, A(E), participantes e progresso relevante. Se participantes/conversões não puderem ser determinados, usar Blocked/IndeterminateCausalOrder, não LateInput.
+- **InvalidInput:** parâmetro, perfil, identidade, ID ou geração inválida; rejeitar antes de mutação. Não usar para um timestamp válido cujo único defeito seja estar atrás do progresso confirmado.nválida; rejeitar antes de mutação.
+- **InvariantViolation:** regressão interna de P_d/W, monotonicidade, causalidade, exactly-once, chunk invariance, transição de estado proibida ou estado interno violado; execução de validação inválida.
 - **ResourceExhausted:** limite de eventos, microsteps, memória ou capacidade atingido; não descartar silenciosamente nem avançar parcialmente além do último estado consistente.
 - **IncompatibleSnapshot:** versão, perfil ou estado restaurado incompatível; rejeição atômica.
 - **IndeterminateCausalOrder:** relação causal/fase necessária não estabelecida no perfil; não declarar compatibilidade para o cenário nem resolver por ordem incidental do software.
@@ -618,7 +676,7 @@ A classificação abaixo é parte do contrato, não uma escolha de implementaç�
 
 | ID | Força | Proprietário semântico | Pré-condições | Pós-condições / invariante | Bloqueio ou falha verificável | Base de evidência / proveniência | R2 |
 |---|---|---|---|---|---|---|---|
-| C01 | MUST | CHRONOS + domínio | Perfil válido; instante comparável | Progresso monotônico; overflow nunca silencioso | Retrocesso/overflow: InvalidInput ou InvariantViolation antes de publicar avanço | R0 §3; CLOCK_DOMAIN_RESEARCH; razões/frequências são FACT dentro dos limites citados; epoch/unidade final UNKNOWN | T01, T15 |
+| C01 | MUST | CHRONOS + domínio | Perfil válido; instante comum comparável; alvo T não inferior a F_d=max(W se existir, P_d convertido do domínio avançado) | Progresso monotônico; overflow nunca silencioso | Pedido externo T<F_d: LateInput sem mutação; regressão interna de P_d/W: InvariantViolation; parâmetro/perfil inválido: InvalidInput; overflow detectado antes de mutação (InvalidInput se o valor solicitado estiver fora do domínio válido, InvariantViolation se for falha aritmética interna) | R0 §3; CLOCK_DOMAIN_RESEARCH; razões/frequências são FACT dentro dos limites citados; epoch/unidade final UNKNOWN | T01, T15 |
 | C02 | MUST | Perfil de clock + conversor | Conversão declarada e válida; resíduo compatível | Conversão exata, resíduo preservado e composição apenas quando provada | Razão inválida, resíduo inconsistente ou overflow: rejeitar sem avanço parcial | R0 §3; CLOCK_DOMAIN_RESEARCH; PAL/PAL-M e fase mantidos conforme UNKNOWN registrado | T03, T15 |
 | C03 | MUST | Cada domínio avançável | Mesmo perfil, estado inicial e sequência de entradas | Particionar avanço não muda estado/saída observável | Divergência de chunk: InvariantViolation reproduzível | R1 §3.3; R0 §5; V1 PSG/VDP apenas OBSERVATION limitada | T02 |
 | C04 | MUST | Domínio + coordenador | T comum válido; P_d/H_d convertidos por regra do perfil antes de comparar; T >= P_d convertido e, se W existir, T >= W; avanço limitado também por H_d convertido | Alcança T ou retorna fronteira/bloqueio com progresso real; nunca excede H_d | Dependência sem progresso: Blocked; H_d violado: InvariantViolation | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; limites físicos não extrapolados | T01, T04 |
@@ -657,7 +715,7 @@ O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não de
 
 ## 19. Resposta à revisão adversarial da linha de base
 
-Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. As revisões v0.3.4, v0.3.5 e v0.3.6 fecharam lacunas de admissão de entradas/cancelamentos em relação a W e P_d, invalidação de H_d após nova entrada, restauração de efeitos parciais de deadlines Dispatched, limite explícito por H_d, precedência dos gates e taxonomia LateInput. A revisão Codex da v0.3.6 não encontrou major issues no commit 74529fccfacb1d43cf1861d993aac0863f8b5e41. A revisão Codex da v0.3.7 identificou que a expressão 'cadeia causal aberta' não tinha critério verificável e era incompatível com W já definido como corte fechado. A v0.3.8 remove a admissão de D=W: deadline publicado com D<=W é sempre LateInput, independentemente de microstep. A igualdade D=P_d só é admitida com microstep explícito se W não existir ou W<D; assim, o instante ainda não foi fechado pelo watermark global. Esta versão continua sendo rascunho e não constitui aprovação formal do gate.
+Esta seção preserva o histórico das revisões anteriores. A revisão corretiva v0.3.9 também registra os dois blockers identificados no parecer formal de 24/11/2026; sua correção proposta não equivale à aprovação do gate. As revisões v0.3.4, v0.3.5 e v0.3.6 fecharam lacunas de admissão de entradas/cancelamentos em relação a W e P_d, invalidação de H_d após nova entrada, restauração de efeitos parciais de deadlines Dispatched, limite explícito por H_d, precedência dos gates e taxonomia LateInput. A revisão Codex da v0.3.6 não encontrou major issues no commit 74529fccfacb1d43cf1861d993aac0863f8b5e41. A revisão Codex da v0.3.7 identificou que a expressão 'cadeia causal aberta' não tinha critério verificável e era incompatível com W já definido como corte fechado. A v0.3.8 remove a admissão de D=W: deadline publicado com D<=W é sempre LateInput, independentemente de microstep. A igualdade D=P_d só é admitida com microstep explícito se W não existir ou W<D; assim, o instante ainda não foi fechado pelo watermark global. Esta versão continua sendo rascunho e não constitui aprovação formal do gate.
 
 | Achado da linha de base / auditoria complementar | Resultado anterior | Tratamento nas revisões v0.3.4–v0.3.8 | Estado documental |
 |---|---|---|---|
@@ -681,6 +739,8 @@ Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com
 | P2 — igualdade causal indeterminada sem cenário R2 | §16.12/C06 definiam IndeterminateCausalOrder, mas R2-T06/T15 não exigiam o caso D=P_d sem microstep | v0.3.6 inclui o cenário; v0.3.8 mantém IndeterminateCausalOrder para D=P_d sem microstep somente quando W<D (ou W não existe), enquanto D<=W é LateInput | Codex review da v0.3.6 sem major issues; semântica refinada na v0.3.8 |
 
 | MAJOR — deadline publicado no instante de watermark já fechado | v0.3.7 tentou limitar igualdade D=P_d/W a uma cadeia causal 'aberta', mas não definiu um critério verificável e contradisse W como corte global já fechado | v0.3.8 proíbe D<=W sempre, inclusive D=W com microstep; define a condição objetiva para D=P_d: W ausente ou W<D; atualiza C06 e R2-T06/T15 | Correção proposta; aguarda nova revisão independente |
+| BLOCKER — R1-EXIT-03: ciclo de vida transacional e fronteiras de barramento | §7 descrevia estados conceituais sem regras completas de entrada/saída, transições, amostragem, commit, cancelamento e restore; marcos não estavam mapeados a fronteiras nomeadas | v0.3.9 define estados de controle, transições permitidas, marcadores independentes, cancelamento/falha/restore e matriz de fronteiras por classe de operação; fronteiras físicas sem fonte permanecem UNKNOWN e limitam alegação de compatibilidade | Correção proposta; requer revisão independente do SHA candidato |
+| BLOCKER — R1-EXIT-01: avanço retroativo e taxonomia | C01 permitia InvalidInput ou InvariantViolation para retrocesso, sem reconciliar a taxonomia de §16.12 | v0.3.9 classifica pedido externo T<F_d como LateInput, regressão interna como InvariantViolation e reserva InvalidInput a parâmetros/perfil/identidade/ID/geração inválidos; atualiza §12.1, §16.12 e R2-T01/T15 | Correção proposta; requer revisão independente do SHA candidato |
 
 Limites da revisão:
 - A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
@@ -693,11 +753,11 @@ Limites da revisão:
 
 ## 20. Próximos passos
 
-A revisão Codex da v0.3.6 foi concluída sem major issues. A revisão Codex da v0.3.7 apontou falta de critério verificável para 'cadeia causal aberta'. A v0.3.8 elimina a igualdade D=W e define a admissibilidade de D=P_d por W ausente ou W<D; a revisão independente desta versão ainda é necessária.
+A v0.3.9 é uma revisão corretiva motivada por dois blockers de saída: R1-EXIT-01 (classificação de avanço retroativo) e R1-EXIT-03 (máquina de estados transacional, regras de restore e mapeamento dos marcos às fronteiras de barramento). A correção documental não constitui aprovação; o novo SHA exige revisão independente e reavaliação explícita dos critérios.
 
-1. Validar a correção de corte aberto/fechado em revisão independente e atualizar a issue #1270. CHRONOS_MINIMAL_HYBRID_SPEC.md, ROADMAP.md, CLOCK_DOMAIN_RESEARCH.md, AUDIO_CLOCK_RESEARCH.md, VDP_OBSERVABLE_BOUNDARIES.md, R0_CLOSEOUT.md e a matriz/inventário V1.
-2. Resolver comentários normativos restantes e classificar cada afirmação relevante como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
-3. Submeter R1 a revisão arquitetural adversarial e atualizar os critérios de saída da issue #1270 com evidências.
-4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos e a revisão independente da versão candidata mais recente não encontrar blockers.
+1. Revisar adversarialmente a v0.3.9 no SHA exato, conferindo C01, §7, §12.1, §14, §16.1, §16.12, R2-T01/T08/T11/T15 e a matriz C01–C16.
+2. Confirmar que cada classe de operação tem marcos nomeados e que UNKNOWN físico permanece explícito, sem fase/WAIT/microtiming inventado.
+3. Atualizar a issue #1270 com o SHA candidato, revisão, checks e estado de cada critério; manter R1 não aprovado enquanto houver blocker.
+4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos na versão exata e a revisão independente não encontrar blockers.
 5. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
 6. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
