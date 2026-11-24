@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.1; sujeito à revisão e aos testes de referência R2
+**Status:** rascunho técnico v0.2; sujeito à revisão e aos testes de referência R2
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
