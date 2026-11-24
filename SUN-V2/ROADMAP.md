@@ -80,7 +80,7 @@ Entregas:
 
 ### Fase 1 — contratos temporais (R1)
 
-<badge>CONCLUÍDA — APROVADA em 24/11/2026</badge>
+**Status: CONCLUÍDA — APROVADA em 24/11/2026.**
 
 Conteúdo normativo v0.3.18 aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76` e publicado na `main` pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`). Issue #1270 encerrada. A aprovação cobre o contrato documental; não autoriza R2 além de seu próprio gate, protótipos R3 ou código de produção.
 
