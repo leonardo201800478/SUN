@@ -282,19 +282,19 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 |---|---|---|
 | R2-T01 | Monotonicidade | Sequências de avanços crescentes, repetidos e inválidos |
 | R2-T02 | Chunk invariance | Avanço único contra partições aleatórias do mesmo intervalo |
-| R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, incluindo sessões longas |
+| R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, composição direta/encadeada quando matematicamente equivalente e sessões longas |
 | R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado |
 | R2-T05 | Sincronização causal | Leitura após evento de dispositivo e escrita com commit definido |
 | R2-T06 | Ordenação determinística | Eventos em instantes diferentes, fases distintas e mesma fase |
 | R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada |
-| R2-T08 | Exactly-once | Suspensão/retomada antes e depois de amostragem/commit |
+| R2-T08 | Exactly-once | Suspensão/retomada antes/depois de amostragem, entre efeitos parciais, após commit e em retry duplicado |
 | R2-T09 | WAIT | TW automático, WAIT externo modelado e fixture separados |
-| R2-T10 | IRQ/NMI | Linha antes/depois do ponto de amostragem, EI delay e acknowledge |
+| R2-T10 | IRQ/NMI | Transições/níveis antes e depois dos pontos de amostragem, borda NMI, EI delay, acknowledge e preservação das bordas/latches efetivamente definidos pelo dispositivo |
 | R2-T11 | Snapshot/restore | Eventos e transações pendentes em cada estado intermediário |
 | R2-T12 | Replay | Execução contínua contra restore + mesma sequência de entradas |
-| R2-T13 | Host independence | Alterar chunk de áudio/apresentação sem alterar estado virtual |
+| R2-T13 | Host independence | Variar tamanho de bloco, atrasar/drenar/descartar saída e simular underrun sem alterar estado virtual |
 | R2-T14 | Microstep finito | Evento cria outro evento no mesmo instante, incluindo ciclo infinito |
-| R2-T15 | Overflow/erro | Razões, timestamps, IDs e snapshots inválidos |
+| R2-T15 | Overflow/erro | Razões, timestamps, IDs, snapshots inválidos, capacidade esgotada e falha antes/depois de efeitos irreversíveis |
 
 R2 deve registrar sementes, perfil, sequência de operações, primeiro ponto divergente e estado mínimo para reprodução.
 
@@ -334,7 +334,7 @@ Esta seção resolve ambiguidades sem selecionar representação numérica, estr
 
 Os termos abaixo são distintos e MUST NOT ser usados como sinônimos:
 
-- **Progresso local (P_d):** instante até o qual o estado próprio do domínio d foi efetivamente atualizado.
+- **Progresso local (P_d):** instante até o qual o estado próprio do domínio d foi efetivamente atualizado. P_d é expresso no domínio local; só pode ser comparado ao instante comum por uma conversão declarada e válida no perfil.
 - **Horizonte seguro (H_d):** maior instante até o qual o domínio d pode avançar sem atravessar uma fronteira que ainda possa exigir observação, publicação ou arbitragem causal externa.
 - **Watermark confirmado da máquina (W):** corte causal global fechado: todos os efeitos e eventos pertencentes ao perfil ativo com instante causal menor ou igual a W foram processados, ou estão representados como pendências explícitas cuja existência não altera a validade do corte. Um conflito não resolvido que possa mudar o resultado impede fechar W através daquele instante.
 
@@ -439,7 +439,7 @@ A transação é uma operação lógica; amostragem, commit e conclusão são ma
 2. WAIT externo é uma condição de entrada amostrada nos pontos documentados pelo Z80; a transação preserva cada amostragem e cada TW adicional aplicado.
 3. WAIT de fixture é entrada do modelo de teste, identificada como tal e reproduzida no log/replay. Não pode ser promovida a evidência de hardware.
 4. O contrato deve identificar se o bloqueio está aguardando sinal externo, fixture ou dependência interna. A origem não pode ser perdida no snapshot.
-5. Se a fonte de WAIT físico não for conhecida no perfil, a interface genérica pode representá-la como UNKNOWN/inativa para fins de teste, mas o perfil não pode declarar que existe ou que está conectada sem evidência.
+5. Se a fonte de WAIT físico não for conhecida no perfil, a interface genérica deve representá-la como UNKNOWN. Um fixture pode injetar WAIT explicitamente para testar a semântica, mas UNKNOWN não pode ser convertido silenciosamente em sinal inativo para declarar fidelidade do perfil.
 6. A quantidade de TW automáticos permanece vinculada ao tipo de ciclo Z80 documentado; não é uma regra universal para todos os ciclos ou dispositivos.
 
 ### 16.9 IRQ, NMI e acknowledge
@@ -456,7 +456,7 @@ A transação é uma operação lógica; amostragem, commit e conclusão são ma
 
 1. O snapshot representa um corte causal fechado conforme 16.1. Se o corte não puder ser fechado, a captura deve incluir explicitamente todas as transações, eventos e efeitos parciais que cruzam o corte; não pode omiti-los.
 2. O snapshot contém identidade do perfil/revisão, estado de cada domínio, resíduo, watermark, progresso local relevante, deadlines e gerações, microsteps pendentes, CPU, barramento, WAIT, IRQ/NMI, dispositivos e cursor de entradas externas.
-3. O estado de apresentação/host não integra o tempo virtual. Buffers de saída já consumidos pelo host só entram no snapshot se forem necessários para reproduzir uma saída digital definida como observável; essa necessidade deve ser especificada separadamente.
+3. Filas, buffers e handles do host (CPAL, WGPU, janela, VSync) não integram o snapshot temporal e são reconstruídos pela camada host. O snapshot inclui apenas estado de geração pertencente ao core/dispositivo (por exemplo, divisores, fase, acumuladores ou resampler se fizer parte do contrato digital). Blocos já entregues/consumidos pelo host não são reintroduzidos no restore.
 4. Restore MUST validar versão, perfil, referências, identidades, gerações e invariantes antes de tornar o estado restaurado visível. Falha de validação não pode deixar a máquina ativa parcialmente modificada.
 5. O estado restaurado só é publicado como nova máquina quando todos os componentes necessários aceitaram o mesmo snapshot. A implementação pode preparar estado temporário, mas a forma do mecanismo fica em aberto.
 6. Restore não pode revalidar evento cancelado/superseded, repetir efeito comprometido ou perder efeito pendente.
@@ -512,7 +512,7 @@ Uma operação que falhe antes de qualquer efeito deve deixar o estado anterior 
 
 As afirmações técnicas e os limites de hardware devem usar as seguintes classes:
 
-- **FACT:** afirmação diretamente sustentada por fonte primária identificada ou por contrato normativo já aprovado. Registrar fonte, revisão/página/seção e escopo.
+- **FACT:** afirmação sobre o hardware ou documento técnico diretamente sustentada por fonte primária identificada, dentro do escopo declarado. Registrar fonte, revisão/página/seção e limites de aplicabilidade.
 - **OBSERVATION:** comportamento observado em implementação, teste, ROM, medição ou comparação. Registrar SHA, perfil, ambiente, entrada, método e artefato; não generalizar além do cenário.
 - **HYPOTHESIS / INFERENCE:** interpretação ou modelo candidato derivado de fatos/observações. Explicitar premissas, alternativas e teste discriminante.
 - **UNKNOWN:** informação não estabelecida ou contraditória. Preservar como desconhecida; declarar impacto, bloqueio e evidência necessária.
@@ -540,7 +540,8 @@ A revisão deste contrato deve manter a seguinte cadeia de proveniência. Os doc
 | Estratégia temporal candidata | CHRONOS_MINIMAL_HYBRID_SPEC.md | Proposta de três mecanismos: avanço limitado, sincronização sob demanda e deadlines seletivos | Decisão final de algoritmo, estrutura de agenda, fase física ou autorização de produção |
 
 Regras adicionais de proveniência:
-1. Quando uma afirmação depender de hardware, registrar fonte primária, revisão, página/seção, perfil e limite de aplicabilidade.
+1. Uma cláusula normativa é um requisito/decisão de projeto, não um FACT físico. Registrar sua justificativa e marcar separadamente as premissas subjacentes como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
+2. Quando uma afirmação depender de hardware, registrar fonte primária, revisão, página/seção, perfil e limite de aplicabilidade.
 2. Quando depender de V1, registrar o SHA congelado 207ccc4cebbc4f8c0aed45c68262eae963491689 e identificar se é código, teste ou documentação.
 3. Quando depender de ROM/teste, registrar hash da ROM, perfil, estado inicial, entrada, ambiente, executável/SHA e artefato de resultado. Relatórios sem esses elementos permanecem OBSERVATION histórica limitada.
 4. Referências MAME, ares, Gearsystem, JGenesis, BlastEm, MEKA e Genesis Plus GX são comparações de implementação; registrar revisão/commit e nunca usá-las como prova física isolada.
