@@ -80,9 +80,10 @@ Entregas:
 
 ### Fase 1 — contratos temporais e modelo de referência (R1–R2)
 
-**Prioridade: máxima; bloqueia os protótipos integrados.**
+**Prioridade: máxima; em andamento; bloqueia os protótipos integrados.**
 
 Entregas:
+- [rascunho de contratos CHRONOS R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) criado como base de revisão; ainda não aprovado;
 - representação candidata de tempo e conversão entre domínios, escolhida por testes e não por preferência;
 - contrato de avanço limitado, sincronização sob demanda e deadlines;
 - ordenação de eventos simultâneos e política para eventos no timestamp atual;
