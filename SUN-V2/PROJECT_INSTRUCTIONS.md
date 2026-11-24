@@ -64,13 +64,13 @@ A ordem abaixo é mandatória. Não pular gates, antecipar protótipos nem decla
 | Gate | Objetivo | Regra de passagem |
 |---|---|---|
 | **R0 — pesquisa e evidências** | Inventário V1, fontes primárias, clocks, limites observáveis, incertezas e referências comparativas | Fechado no escopo documental em 24/11/2026. Ver `SUN-V2/docs/temporal-core/R0_CLOSEOUT.md` e issue #1267. |
-| **R1 — contratos temporais** | Definir semântica normativa e verificável para tempo, conversões, avanço limitado, causalidade, deadlines, transações, WAIT, IRQ/NMI, snapshots e erros | Em elaboração/revisão. Documento atual é rascunho até aprovação explícita da issue #1270 e PR correspondente. |
-| **R2 — modelo de referência independente** | Oráculo simples e independente, propriedades executáveis, cenários adversariais e reprodução determinística | Só iniciar após R1 aprovado. Não compartilhar algoritmo/representação candidata de produção. |
+| **R1 — contratos temporais** | Definir semântica normativa e verificável para tempo, conversões, avanço limitado, causalidade, deadlines, transações, WAIT, IRQ/NMI, snapshots e erros | **APROVADO em 24/11/2026.** Conteúdo v0.3.18 aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); issue #1270 encerrada. |
+| **R2 — modelo de referência independente** | Oráculo simples e independente, propriedades executáveis, cenários adversariais e reprodução determinística | **EM ANDAMENTO** — issue #1282; ver `SUN-V2/docs/temporal-core/R2_REFERENCE_MODEL.md`. Não compartilhar algoritmo/representação candidata de produção. |
 | **R3 — protótipos descartáveis** | Comparar alternativas temporais e custo com testes equivalentes | Só iniciar após R1 e R2 aprovados. Protótipos não são código de produção. |
 | **R4 — revisão adversarial** | Revisar contratos, modelo, protótipos, evidências, riscos e desempenho | Resolver achados bloqueadores; registrar decisões e limitações. |
 | **R5 — aprovação arquitetural** | Aprovar arquitetura final, ADRs, limites, plano de integração e evidências | **Nenhum código de produção CHRONOS/V2 antes da aprovação R5.** |
 
-R0 é aprovação documental, não certificação de fidelidade física universal nem autorização de implementação. R1 em andamento não significa R1 aprovado. O estado real deve ser consultado em `SUN-V2/README.md`, `SUN-V2/ROADMAP.md` e issues vinculadas.
+R0 é aprovação documental, não certificação de fidelidade física universal nem autorização de implementação. R1 foi aprovado formalmente em 24/11/2026; R2 está em andamento e R3–R5 permanecem bloqueados. O estado real deve ser consultado em `SUN-V2/README.md`, `SUN-V2/ROADMAP.md` e issues vinculadas.
 
 ### Trabalho posterior aos gates
 
