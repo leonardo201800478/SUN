@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.6; incorpora três correções da revisão Codex sobre admissão de cancelamentos, classificação obrigatória de LateInput e cobertura de IndeterminateCausalOrder; ainda não aprovado
+**Status:** rascunho técnico v0.3.7; incorpora os três achados da revisão Codex v0.3.6 e a correção da fronteira entre corte causal aberto/fechado na publicação de deadlines; ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -658,7 +658,7 @@ O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não de
 
 Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. As revisões v0.3.4, v0.3.5 e v0.3.6 também fecharam lacunas identificadas na auditoria cruzada; a revisão Codex da PR #1279 concluiu no commit 74529fccfacb1d43cf1861d993aac0863f8b5e41 sem encontrar major issues. A auditoria cruzada subsequente encontrou a lacuna adicional sobre publicação de deadline em watermark já fechado, tratada nesta v0.3.7: admissão de entradas/cancelamentos em relação ao watermark e ao progresso local dos participantes, invalidação de H_d após nova entrada, restauração de efeitos parciais de deadlines já Dispatched, uso explícito de H_d no limite de avanço e precedência documental dos gates. Esta versão v0.3.7 continua sendo rascunho e não constitui aprovação formal do gate.
 
-| Achado da linha de base / auditoria complementar | Resultado anterior | Tratamento na v0.3.4/v0.3.5 | Estado documental |
+| Achado da linha de base / auditoria complementar | Resultado anterior | Tratamento nas revisões v0.3.4–v0.3.7 | Estado documental |
 |---|---|---|---|
 | BLOCKER — classificação normativa C01–C16 | Não havia força normativa, proprietário e condições por contrato | Nova matriz 17.1 classifica C01–C15 como MUST e C16 como SHOULD, com pré/pós-condições, falhas, proveniência e R2 | Corrigido no texto; aguarda revisão independente |
 | MAJOR — WAIT/TW vs Blocked | 16.2 e 16.8 distinguiam bloqueio e fonte, mas não explicitavam consumo temporal de TW | 16.8 define ciclo Z80 sem aposentadoria enquanto espera, consumo de tempo em cada TW e reamostragem; Blocked reservado à condição ainda indisponível | Corrigido no texto, limitado ao manual Z80 citado |
