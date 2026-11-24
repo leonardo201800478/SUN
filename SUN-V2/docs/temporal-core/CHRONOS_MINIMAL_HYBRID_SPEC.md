@@ -362,5 +362,6 @@ A formulação arquitetural passa a ser:
 
 A decisão não é “usar um scheduler híbrido porque parece flexível”. É provar, com o SMS como primeiro caso, que os três mecanismos são necessários, não redundantes e mais eficientes em custo total do que as alternativas simples.
 
-**Próximo passo autorizado:** fechar R0 com a matriz de evidências e preparar os contratos R1.  
+**R0:** aprovado no escopo documental em 2026-11-24; ver R0_CLOSEOUT.md.  
+**Próximo passo autorizado:** formalizar os contratos R1 e preparar o modelo de referência independente R2.  
 **Próximo passo não autorizado:** implementar o CHRONOS de produção antes de R5.
