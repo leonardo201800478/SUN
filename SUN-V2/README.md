@@ -4,7 +4,7 @@ SUN V2 é uma reconstrução independente do emulador SUN, iniciada com o Master
 
 ## Estado
 
-**Fase atual: fundação arquitetural e pesquisa do Temporal Core.**
+**Fase atual: Fase 0 — inventário crítico da V1 e fechamento de evidências R0.**
 
 A direção recomendada para o CHRONOS está documentada como **híbrido mínimo**, ainda sujeito a evidências, modelo de referência, protótipos e revisão independente. Nenhum código de emulação foi portado ou implementado nesta etapa. A implementação de produção só começa após aprovação dos gates R0–R5.
 
@@ -26,6 +26,11 @@ A direção recomendada para o CHRONOS está documentada como **híbrido mínimo
 - Prioridade de produto: equilíbrio entre compatibilidade de gameplay, frame pacing, latência de entrada e qualidade/continuidade de áudio.
 - Stack de host prevista: Slint 1.18.x, WGPU 30.x, Vulkan inicialmente no Windows x64 e CPAL 0.18.2. SDL3 permanece sujeito a auditoria.
 - CHRONOS: proposta de híbrido mínimo com avanço limitado, sincronização sob demanda e agenda seletiva de deadlines autônomos. A proposta não é uma aprovação de implementação.
+
+## Roadmap de desenvolvimento
+
+- [Roadmap SUN V2](ROADMAP.md) — fases, prioridades, primeira fatia vertical mínima, critérios de validação e política de uso da V1.
+- [ADR-0003 — fatia vertical mínima](docs/decisions/ADR-0003-minimal-vertical-slice.md) — decisão de construir CPU, barramento, VDP e PSG mínimos já integrados.
 
 ## Documentos do Temporal Core
 
@@ -51,4 +56,4 @@ O workspace V2 não deve adicionar dependências de path para crates do legado. 
 
 ## Primeiro marco
 
-Concluir pesquisa, especificação e revisão adversarial do Temporal Core antes de escrever sua implementação. O próximo trabalho é fechar R0 com uma matriz de evidências por requisito e preparar os contratos R1.
+Concluir pesquisa, especificação e revisão adversarial do Temporal Core antes de escrever sua implementação. O próximo trabalho é concluir o inventário V1→V2 e fechar R0; em seguida serão definidos os contratos R1 e o modelo de referência R2 antes do primeiro protótipo integrado.
