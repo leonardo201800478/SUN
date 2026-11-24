@@ -110,12 +110,6 @@ def _validate_state(state: ReferenceState) -> str | None:
         return "domain identity must be non-empty"
     if len(ids) != len(set(ids)):
         return "duplicate domain identity"
-    actual = set(ids)
-    expected = set(state.expected_participants)
-    if actual - expected:
-        return "unexpected participant is present"
-    if expected - actual:
-        return "incomplete participant set"
     for domain in state.domains:
         if not all(
             _is_exact_time(value)
@@ -143,6 +137,12 @@ def _validate_state(state: ReferenceState) -> str | None:
         return "duplicate obligation identity"
     if any(not _is_exact_time(item.at_common) for item in state.obligations):
         return "obligation timestamp must use exact integer/rational time"
+    actual = set(ids)
+    expected = set(state.expected_participants)
+    if actual - expected:
+        return "unexpected participant is present"
+    if expected - actual:
+        return "incomplete participant set"
     frontier = _machine_frontier(state)
     if any(
         not item.resolved and item.at_common < frontier
