@@ -245,7 +245,13 @@ fn run_throughput(
     }
 }
 
-fn run_diagnostic_pass(rom: &[u8], scenario: Scenario, duration: Duration) {
+fn run_diagnostic_pass(
+    rom: &[u8],
+    scenario: Scenario,
+    warmup: Duration,
+    duration: Duration,
+    baseline_fps: f64,
+) {
     let worker = build_worker(rom.to_vec(), scenario);
     let _samples_written = configure_headless_audio(&worker);
     worker.set_diagnostics_enabled(true);
@@ -256,10 +262,31 @@ fn run_diagnostic_pass(rom: &[u8], scenario: Scenario, duration: Duration) {
         .start()
         .unwrap_or_else(|error| panic!("cannot start diagnostic {}: {error}", scenario.name()));
 
+    wait_running_for(&worker, scenario, warmup);
+    let start_frame = worker.frame_number();
+    let started = Instant::now();
     wait_running_for(&worker, scenario, duration);
+    let elapsed = started.elapsed();
     worker
         .pause()
         .unwrap_or_else(|error| panic!("cannot pause diagnostic {}: {error}", scenario.name()));
+    let frames = worker.frame_number().saturating_sub(start_frame);
+    assert!(
+        frames > 0,
+        "diagnostic {} produced no completed frames",
+        scenario.name()
+    );
+    let diagnostic_fps = frames as f64 / elapsed.as_secs_f64();
+    let delta_percent = (diagnostic_fps / baseline_fps - 1.0) * 100.0;
+    println!(
+        "SUN_PERF_DIAGNOSTIC_RESULT scenario={} frames={} elapsed_ns={} diagnostic_fps={:.4} baseline_fps={:.4} delta_percent={:.3}",
+        scenario.name(),
+        frames,
+        elapsed.as_nanos(),
+        diagnostic_fps,
+        baseline_fps,
+        delta_percent,
+    );
     let metrics = worker.frame_pacing_metrics();
 
     println!(
@@ -374,8 +401,8 @@ fn outrun_a_b_c_uncapped_baseline() {
         results.push(result);
     }
 
-    for scenario in Scenario::ALL {
-        run_diagnostic_pass(&rom, scenario, diagnostic);
+    for (index, scenario) in Scenario::ALL.into_iter().enumerate() {
+        run_diagnostic_pass(&rom, scenario, warmup, diagnostic, results[index].fps);
     }
 
     if let Some(output_path) = std::env::var_os("SEGA_PERF_OUTPUT_CSV") {
