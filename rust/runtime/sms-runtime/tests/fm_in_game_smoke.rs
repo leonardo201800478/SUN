@@ -28,6 +28,7 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -530,6 +531,16 @@ fn write_game_audio_captures(
     Ok(())
 }
 
+fn panic_payload_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(message) = payload.downcast_ref::<String>() {
+        return message.clone();
+    }
+    if let Some(message) = payload.downcast_ref::<&'static str>() {
+        return (*message).to_owned();
+    }
+    "non-string panic payload".to_owned()
+}
+
 fn is_sms_rom(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -673,7 +684,9 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         "SEGA_SMS_FM_TEST_FRAMES must be positive"
     );
 
+    let mut failures = Vec::new();
     for (path, fixture, rom) in load_known_fm_roms() {
+        let result = catch_unwind(AssertUnwindSafe(|| {
         let region = region_override.as_deref().unwrap_or(fixture.region);
         let system = system_override.as_deref().unwrap_or(fixture.system);
         let vdp_revision = selected_vdp_revision(system);
@@ -739,15 +752,31 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
         worker
             .pause()
             .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
-        let fm_bus_writes = worker
-            .debug_snapshot()
-            .unwrap_or_else(|error| {
-                panic!(
-                    "{}: cannot snapshot FM bus counters: {error}",
-                    path.display()
-                )
-            })
-            .fm_port_writes;
+        let performance = worker.performance_metrics();
+        let frame_pacing = worker.frame_pacing_metrics();
+        let total_instructions = worker.total_instructions();
+        let machine_time_ticks = worker.machine_time_ticks();
+        let machine_clock_hz = worker.machine_clock_hz();
+        let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
+            panic!("{}: cannot snapshot machine diagnostics: {error}", path.display())
+        });
+        println!(
+            "SMS_FM_RUNTIME_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} sp=0x{:04X} halted={} scanline={} vdp_cycles_into_line={} fm_port_writes={:?} performance={:?} frame_pacing={:?}",
+            fixture.title,
+            worker.frame_number(),
+            total_instructions,
+            machine_time_ticks,
+            machine_clock_hz,
+            debug_snapshot.pc,
+            debug_snapshot.sp,
+            debug_snapshot.halted,
+            debug_snapshot.vdp_scanline,
+            debug_snapshot.vdp_cycles_into_line,
+            debug_snapshot.fm_port_writes,
+            performance,
+            frame_pacing,
+        );
+        let fm_bus_writes = debug_snapshot.fm_port_writes;
         worker.close_audio_output().unwrap_or_else(|error| {
             panic!("{}: cannot close native mixer: {error}", path.display())
         });
@@ -828,7 +857,18 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             summarize_signal(&sources.single_source_samples_f64),
             summarize_signal(&pcm.samples_f64),
         );
+        }));
+        if let Err(payload) = result {
+            let message = panic_payload_message(payload);
+            eprintln!("SMS_FM_FIXTURE_FAILED title={} rom={} error={}", fixture.title, path.display(), message);
+            failures.push(format!("{}: {}", fixture.title, message));
+        }
     }
+    assert!(
+        failures.is_empty(),
+        "one or more headless FM fixtures failed: {}",
+        failures.join(" | ")
+    );
 }
 
 #[test]
@@ -873,7 +913,9 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
         "SEGA_SMS_FM_TEST_FRAMES must be positive"
     );
 
+    let mut failures = Vec::new();
     for (path, fixture, rom) in load_known_fm_roms() {
+        let result = catch_unwind(AssertUnwindSafe(|| {
         let region = region_override.as_deref().unwrap_or(fixture.region);
         let system = system_override.as_deref().unwrap_or(fixture.system);
         let vdp_revision = selected_vdp_revision(system);
@@ -927,6 +969,27 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
             .pause()
             .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
         let metrics = worker.audio_output_metrics();
+        let performance = worker.performance_metrics();
+        let frame_pacing = worker.frame_pacing_metrics();
+        let total_instructions = worker.total_instructions();
+        let machine_time_ticks = worker.machine_time_ticks();
+        let machine_clock_hz = worker.machine_clock_hz();
+        let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
+            panic!("{}: cannot snapshot CPAL diagnostics: {error}", path.display())
+        });
+        println!(
+            "SMS_FM_CPAL_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} halted={} audio_metrics={:?} performance={:?} frame_pacing={:?}",
+            fixture.title,
+            worker.frame_number(),
+            total_instructions,
+            machine_time_ticks,
+            machine_clock_hz,
+            debug_snapshot.pc,
+            debug_snapshot.halted,
+            metrics,
+            performance,
+            frame_pacing,
+        );
         worker.close_audio_output().unwrap_or_else(|error| {
             panic!("{}: cannot close CPAL output: {error}", path.display())
         });
@@ -982,5 +1045,16 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
             metrics.queue_high_water_frames,
             metrics.queue_capacity_frames
         );
+        }));
+        if let Err(payload) = result {
+            let message = panic_payload_message(payload);
+            eprintln!("SMS_FM_CPAL_FIXTURE_FAILED title={} rom={} error={}", fixture.title, path.display(), message);
+            failures.push(format!("{}: {}", fixture.title, message));
+        }
     }
+    assert!(
+        failures.is_empty(),
+        "one or more CPAL FM fixtures failed: {}",
+        failures.join(" | ")
+    );
 }
