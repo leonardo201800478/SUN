@@ -258,14 +258,14 @@ Foi criado o oráculo isolado em `SUN-V2/verification/r2_reference/`:
 - `test_temporal_core.py`: testes iniciais de monotonicidade, chunk invariance, conversão exata e limite seguro;
 - `README.md`: instruções de execução e limites do artefato.
 
-**Resultado inicial de execução:** 13 testes PASS em Python 3.13.5 / Linux x86_64, usando somente a biblioteca padrão. A execução foi feita sobre cópias locais do código do branch; o resultado é evidência inicial de R2-A, não aprovação da propriedade completa nem do gate R2.
+**Resultado inicial de execução:** 19 testes PASS em Python 3.13.5 / Linux x86_64, usando somente a biblioteca padrão. A execução foi feita sobre cópias locais do código do branch; o resultado é evidência inicial de R2-A, não aprovação da propriedade completa nem do gate R2.
 
 | Propriedade | Casos executados | Resultado |
 |---|---:|---|
-| R2-T01 | 5 | PASS — avanço retroativo sem mutação, repetição idempotente, regressão interna, participantes incompletos e rejeição de float |
-| R2-T02 | 1 | PASS — avanço inteiro versus partições permitidas |
-| R2-T03 | 2 | PASS — round-trip e composição de razões racionais exatas |
-| R2-T04 | 5 | PASS — endpoint B=T, parada B<T, H_d concluído, obrigação anterior e retomada após resolução |
+| R2-T01 | 6 | PASS — avanço retroativo sem mutação, repetição idempotente, regressão interna, participantes incompletos, rejeição de float e sequência monotônica com seed fixa |
+| R2-T02 | 2 | PASS — avanço inteiro versus partições permitidas, incluindo 100 seeds de partições aleatórias |
+| R2-T03 | 3 | PASS — round-trip, composição e 10.000 conversões exatas por razão em três razões racionais |
+| R2-T04 | 8 | PASS — endpoint B=T, parada B<T, H_d concluído, obrigação anterior, retomada após resolução, alvo anterior à obrigação, parada por H_d e mínimo entre participantes |
 | R2-T05–T15 | 0 | NOT RUN |
 
 **Limitações conhecidas do primeiro incremento:**
