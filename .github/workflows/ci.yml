@@ -1048,6 +1048,13 @@ jobs:
         run: |
           python3 --version
           python3 run_reference_tests.py
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "R2 runner modified the clean worktree"
+            git status --short
+            exit 1
+          fi
+          # A second invocation proves test discovery did not poison the clean-tree gate.
+          python3 run_reference_tests.py
 
   quality-gate:
     name: Rust quality and unit regression
