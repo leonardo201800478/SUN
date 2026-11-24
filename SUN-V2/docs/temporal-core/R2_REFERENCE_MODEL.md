@@ -260,17 +260,25 @@ Foi criado o oráculo isolado em `SUN-V2/verification/r2_reference/`:
 
 **Evidência histórica anterior (não vinculada):** foram reportados 19 testes PASS em Python 3.13.5 / Linux x86_64, mas a execução original não registrou o SHA do repositório nem o SHA-256 do oráculo. Conforme revisão Codex, essa execução é evidência local não auditável e **não pode ser atribuída ao HEAD atual**.
 
-**Candidato após correções R2-A:** 24 testes definidos. A execução deste candidato permanece **NOT RUN** até que o runner reproduzível abaixo seja executado. O runner registra o SHA Git, SHA-256 de `chronos_reference.py`, versão Python, plataforma e resultado do conjunto de testes.
+**Execução reproduzível vinculada — PASS:** o runner foi executado no CI #10619 sobre o candidato abaixo. Os arquivos do oráculo, dos testes e do runner não foram alterados após essa execução.
 
-| Propriedade | Casos definidos no candidato | Resultado do candidato |
+- SHA Git executado: `a0c0782ff4d8e9886144b20bde36e42bcc6f1eff`.
+- SHA-256 de `chronos_reference.py`: `160489b753575f0e7fcb12892eb58f7199a1dc5828c5bb4f13c266f557ba001a`.
+- Python: `3.14.4`.
+- Ambiente: `Linux-7.0.0-1020-azure-x86_64-with-glibc2.43`.
+- Perfil abstrato: `SMS-NTSC`.
+- Comando: `python3 run_reference_tests.py`.
+- Resultado agregado: **24 tests PASS**, execução em 0.159 s.
+
+| Propriedade | Casos executados | Resultado |
 |---|---:|---|
-| R2-T01 | 9 | NOT RUN — inclui validação de conversão inválida e proprietário obrigatório |
-| R2-T02 | 4 | NOT RUN — inclui paridade de parada em H_d e obrigação pendente, com continuação após resolução |
-| R2-T03 | 3 | NOT RUN |
-| R2-T04 | 8 | NOT RUN |
+| R2-T01 | 9 | PASS — inclui conversão inválida, progresso float e proprietário obrigatório |
+| R2-T02 | 4 | PASS — inclui paridade em H_d e obrigação pendente, com continuação após resolução, além de 100 seeds |
+| R2-T03 | 3 | PASS — round-trip, composição e sessões de 10.000 conversões por razão |
+| R2-T04 | 8 | PASS — fronteiras, endpoint inclusivo, obrigações pendentes e horizonte global |
 | R2-T05–T15 | 0 | NOT RUN |
 
-Para produzir evidência vinculada ao candidato, executar `python run_reference_tests.py` a partir de `SUN-V2/verification/r2_reference/`. Não promover nenhum resultado a PASS antes da execução efetiva.
+Esta evidência valida somente os casos implementados em T01–T04. Não aprova integralmente essas propriedades além da cobertura listada e não conclui R2.
 
 **Limitações conhecidas do primeiro incremento:**
 - Ainda não implementa relação causal parcial completa nem fases/eventos concorrentes.
