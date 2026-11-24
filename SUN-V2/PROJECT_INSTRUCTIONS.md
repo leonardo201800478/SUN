@@ -102,7 +102,7 @@ Registrar fonte, revisão/versão, SHA quando aplicável, perfil de hardware, am
 
 - Toda mudança de desenvolvimento deve ocorrer em branch própria e PR para `main`; não fazer commits diretos na `main`, salvo correção operacional explicitamente autorizada.
 - PR só deve ser aberta quando escopo, diff, revisão e validação proporcional estiverem prontos. Não abrir PR incompleta apenas para cumprir formalidade.
-- Após checks aplicáveis e revisão aprovados, fazer merge sem deixar trabalho validado abandonado. Nunca fazer merge de gate técnico ainda não aprovado.
+- Após checks aplicáveis estarem verdes no HEAD final, revisão concluída e autorização explícita de merge presente, fazer merge sem deixar trabalho validado abandonado. Checks verdes e revisão favorável, isoladamente, não autorizam merge. Nunca fazer merge de gate técnico ainda não aprovado.
 - PRs legadas anteriores ao V2 devem ser encerradas ou arquivadas com justificativa, sem misturá-las aos gates V2. Preservar histórico; não fazer merge automático de trabalho legado.
 - Antes de publicar: revisar arquitetura e diff; aplicar `cargo fmt` e Clippy quando houver Rust afetado; verificar `git diff --check`, escopo e filtros de workflow.
 - Vincular resultados ao SHA exato. Classificar PASS, FAIL, BLOCKED ou NOT RUN; SKIPPED não é PASS.
@@ -154,7 +154,7 @@ As ROMs permanecem locais e não devem ser copiadas ou versionadas no repositór
 - `SUN-V2/README.md` — estado atual e mapa documental.
 - `SUN-V2/ROADMAP.md` — fases, dependências e critérios.
 - `SUN-V2/docs/temporal-core/R0_CLOSEOUT.md` — fechamento de evidências R0.
-- `SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md` — contrato R1 em elaboração; não tratar como aprovado até fechamento do gate.
+- `SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md` — rascunho R1 v0.3 em revisão normativa; não tratar como aprovado até fechamento formal do gate #1270.
 - `SUN-V2/docs/architecture/V1_BASELINE_EVIDENCE_MATRIX.md` — evidências e limites da baseline.
 - `SUN-V2/docs/architecture/V1_TO_V2_INVENTORY.md` — inventário e política de independência.
 - `SUN-V2/docs/architecture/VDP_OBSERVABLE_BOUNDARIES.md` — fronteiras observáveis VDP.
