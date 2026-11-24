@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 aprovado no escopo documental; R1 v0.3.5 publicado em `main`; correções Codex propostas como v0.3.6 em branch/PR; issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
+**Status:** R0 aprovado no escopo documental; R1 v0.3.5 publicado em `main`; proposta v0.3.7 em PR após revisão Codex v0.3.6 sem major issues e auditoria cruzada; issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -282,4 +282,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** revisar a proposta R1 v0.3.6 que responde aos três achados Codex; executar checks documentais e obter nova revisão independente do HEAD. Manter issue #1270 aberta e R2 bloqueado até todos os critérios da seção 14 serem comprovados e R1 receber aprovação formal. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** obter revisão independente da v0.3.7, especialmente da regra que proíbe publicar D<=P_d/W depois de fechado o corte causal, e confirmar todos os critérios da seção 14. Manter issue #1270 aberta e R2 bloqueado até aprovação formal de R1. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
