@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 aprovado no escopo documental; R1 em elaboração/revisão (main v0.3.3; PR #1275 propõe v0.3.4); R2–R5 bloqueados; nenhuma implementação de produção iniciada
+**Status:** R0 aprovado no escopo documental; R1 publicado em `main` como rascunho v0.3.4 e ainda em revisão; issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -282,4 +282,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir a revisão da R1 v0.3.3 publicada em `main` (PR #1275 propõe v0.3.4), fechar os critérios formais da issue #1270 e aprovar R1 somente após revisão independente e checks aplicáveis. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** concluir a revisão da R1 v0.3.4 publicada em `main`, fechar os critérios formais da issue #1270 e aprovar R1 somente após revisão independente e checks aplicáveis. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
