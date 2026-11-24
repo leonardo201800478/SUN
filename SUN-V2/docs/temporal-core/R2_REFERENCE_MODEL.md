@@ -1,0 +1,277 @@
+# CHRONOS — modelo de referência independente R2
+
+**Projeto:** SUN V2  
+**Sistema inicial:** Sega Master System (SMS)  
+**Gate:** R2 — modelo de referência independente  
+**Status:** desenho inicial v0.1; R2 em andamento; não aprovado  
+**Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)  
+**Contrato normativo:** [R1 v0.3.18](R1_TEMPORAL_CONTRACTS.md), conteúdo aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`
+
+> Este documento define o oráculo de verificação do R2. Não escolhe nem implementa o algoritmo de produção CHRONOS, não cria crate de runtime e não autoriza código de produção antes de R5.
+
+---
+
+## 1. Objetivo e fronteira do gate
+
+R2 transforma os contratos normativos R1 em um **modelo de referência executável, simples, lento e independente**. O oráculo será usado para verificar propriedades, transições, fronteiras e resultados sem compartilhar o algoritmo de agenda ou a representação temporal que poderão ser avaliados em R3.
+
+R2 não escolhe o desenho final do CHRONOS. A proposta de híbrido mínimo permanece uma hipótese arquitetural documentada; a comparação de alternativas pertence a R3, e a aprovação arquitetural final pertence a R5.
+
+### Entradas
+
+- Estado inicial explícito e serializável do modelo.
+- Perfil temporal identificado (inicialmente SMS NTSC; outros perfis somente quando cada cenário os nomear).
+- Conjunto completo de domínios participantes, quando exigido.
+- Sequência ordenada de comandos externos e ações internas.
+- Relações causais/fases apenas quando declaradas pelo contrato ou pela evidência do perfil.
+- Seed fixa para geração determinística de sequências.
+
+### Saídas
+
+- Resultado normativo da operação: `Reached`, `StoppedAt`, `Blocked`, `Failed`, `LateInput`, `InvalidInput`, `InvariantViolation`, `IndeterminateCausalOrder` ou `UnsupportedSnapshot`, conforme a operação.
+- Novo estado lógico, ou prova de ausência de mutação nos erros que assim exigem.
+- Ledger de eventos, deadlines, transações e efeitos.
+- Primeiro ponto de divergência, se houver.
+- Trace mínimo reproduzível com perfil, seed, comandos e estado inicial.
+
+## 2. Princípio de independência
+
+O oráculo MUST ser independente do algoritmo/representação candidata de produção e dos protótipos R3.
+
+A independência será demonstrada por estas decisões:
+
+1. **Sem agenda heap/priority queue:** o modelo mantém uma coleção declarativa de obrigações e procura candidatos por varredura completa. A complexidade pode ser alta; desempenho não é objetivo do R2.
+2. **Sem dispatch concorrente:** cada transição é uma função lógica serial e determinística. Threads, locks, atomics, callbacks e scheduling do host não participam.
+3. **Sem representação de runtime compartilhada:** o modelo usa aritmética exata de referência e estado explícito, sem reutilizar tipos, crates, codecs ou APIs da futura implementação.
+4. **Sem cópia da V1:** nenhuma dependência de path, estrutura, scheduler ou implementação V1 será importada.
+5. **Sem inferência física:** fase UNKNOWN, WAIT externo UNKNOWN, presença/commit UNKNOWN e relações simultâneas não demonstradas permanecem indeterminadas ou restringem a operação.
+6. **Sem otimização prematura:** clareza, auditabilidade e capacidade de produzir contraexemplos prevalecem sobre throughput.
+
+### 2.1 Tecnologia do oráculo
+
+A implementação de referência será um artefato de verificação isolado em Python, usando somente a biblioteca padrão:
+
+- `fractions.Fraction` para razões e coordenadas racionais exatas;
+- inteiros arbitrários para contadores e identidades;
+- `dataclasses`/tuplas imutáveis para estados e resultados;
+- `enum` para classes de resultado e estados normativos;
+- `unittest` para asserções executáveis;
+- `random.Random(seed)` para geração determinística reproduzível.
+
+O modelo Python **não é backend, runtime, dependência de build ou código de produção**. Ele existe para ser estruturalmente independente do backend Rust futuro. Não será ligado ao desktop, GUI, áudio ou vídeo. Não introduzir dependências de terceiros no primeiro incremento.
+
+A escolha de Python é uma decisão de implementação do oráculo, não uma escolha de representação temporal de produção. Se uma limitação demonstrável impedir a prova de alguma propriedade, documentar a lacuna antes de adicionar dependência ou trocar o modelo.
+
+## 3. Modelo matemático de estado
+
+O estado de referência é um valor lógico explícito. A implementação pode usar records imutáveis ou cópias completas; não deve esconder transições em callbacks.
+
+### 3.1 Domínio temporal
+
+Cada domínio (d) declara:
+
+- razão exata entre unidades locais e tempo comum;
+- offset/fase inicial somente quando conhecido;
+- progresso local (P_d);
+- horizonte seguro (H_d);
+- resíduo de conversão necessário para preservar equivalência;
+- validade da conversão e perfil a que pertence.
+
+A conversão para tempo comum é uma função exata. O oráculo não usa float, arredondamento binário nem tolerância epsilon. Uma razão não conversível, participante ausente ou perfil incompatível não pode ser substituído por estimativa.
+
+### 3.2 Watermark e conjunto de participantes
+
+(W) é o corte causal global confirmado. Ele é monotônico e só fecha quando todas as obrigações até o corte foram processadas, canceladas validamente ou demonstradas sem efeito.
+
+O conjunto de participantes é explícito por cenário. Para calcular (A(E)), o modelo primeiro valida a completude do conjunto e todas as conversões (P_d) para a linha temporal comum; somente depois calcula o máximo. É proibido produzir máximo parcial.
+
+- conjunto incompleto: `Blocked`;
+- conversão inválida: `IndeterminateCausalOrder`;
+- nenhum estado parcial é publicado como se fosse um máximo válido.
+
+### 3.3 Relação causal parcial
+
+A comparação de duas obrigações retorna uma relação explícita:
+
+- `Before`;
+- `After`;
+- `SameKnownPhase` ou relação equivalente comprovada;
+- `CommutativeAtSameInstant`;
+- `Unknown`.
+
+O modelo não totaliza uma relação UNKNOWN usando ordem de inserção. Para efeitos não comutativos simultâneos sem relação física demonstrada, não escolhe vencedor, não fecha (W) através do conflito e retorna a indeterminação normativa aplicável.
+
+Uma sequência estável pode ordenar a apresentação do trace ou operações comprovadamente comutativas; nunca pode ser interpretada como precedência elétrica.
+
+### 3.4 Obrigações e deadlines
+
+Cada obrigação contém proprietário, identidade estável, geração, instante causal, classe de efeito e estado. Cancelamento/substituição invalida a geração anterior. A varredura integral do conjunto de obrigações substitui qualquer agenda eficiente: o oráculo escolhe somente obrigações cuja precedência esteja demonstrada.
+
+A corrida cancelamento (C<D) segue o corte causal aprovado em R1: cancelamento admitido deve ser arbitrado antes de (W) fechar (D); atraso operacional de dispatch não muda o resultado lógico. O modelo registra separadamente admissão, arbitragem, claim e aplicação do efeito.
+
+### 3.5 Transações
+
+A máquina de estados segue literalmente R1 §7.2–§7.4:
+
+- Criada;
+- Em andamento;
+- Aguardando;
+- Pronta;
+- Concluída;
+- Cancelada;
+- Falha.
+
+Amostragem e commit são marcadores independentes e monotônicos. Cada efeito irreversível possui identidade e ledger. Retry idêntico devolve o estado/resultado registrado; não repete efeito. Recuperação de Falha é comando explícito distinto. Cancelada permanece terminal.
+
+### 3.6 WAIT e interrupções
+
+WAIT automático Z80, WAIT externo e WAIT de fixture são classes distintas. O oráculo só consome TW e reamostra nos pontos documentados do cenário. WAIT externo UNKNOWN não vira inativo, não injeta TW e não inventa ponto de amostragem.
+
+IRQ/NMI são modeladas como níveis/transições e pontos lógicos de observação declarados. EI delay, borda NMI, acknowledge, vetor e efeito de dispositivo são cenários separados. `ACK_DEVICE_COMMIT(profile, device)` permanece específico do perfil/dispositivo. Se presença ou fronteira de commit for UNKNOWN na janela ambígua, snapshot retorna `UnsupportedSnapshot`, sem artefato e sem mutação.
+
+### 3.7 Snapshot e replay
+
+Snapshot é permitido somente em corte suportado e serializável. O estado de referência inclui obrigações, deadlines e gerações, transações, marcadores, valores amostrados, ledger de efeitos e condições de WAIT.
+
+Em corte ambíguo não suportado:
+- resultado `UnsupportedSnapshot`;
+- nenhum artefato parcial;
+- estado anterior byte/logicamente equivalente após a chamada;
+- nenhuma mutação ou efeito colateral.
+
+Replay compara execução contínua com restauração de snapshot suportado e repetição da mesma sequência de entradas. O modelo exige equivalência de estado observável e ledger, não igualdade de custo interno.
+
+## 4. Operações abstratas do oráculo
+
+As operações são comandos de um interpretador de referência, não APIs CHRONOS:
+
+| Comando abstrato | Efeito de referência |
+|---|---|
+| `Advance(target)` | Avalia progresso, horizonte, watermark e obrigações; aplica somente transições causais autorizadas e devolve classe de resultado/progresso real |
+| `Synchronize(domain, target)` | Resolve obrigações próprias/causais do domínio até o alvo permitido, sem ultrapassar fronteira pendente |
+| `PublishDeadline(owner, id, generation, instant)` | Valida proprietário, geração, (P_d), (W), microstep e causalidade antes de admitir |
+| `CancelDeadline(id, generation, causal_instant)` | Valida identidade/geração e corte de admissão; arbitra antes do fechamento de (W) quando (C<D) |
+| `BeginTransaction(descriptor)` | Admite descritor e cria estado sem amostragem/commit prematuros |
+| `Sample(marker)` | Captura o valor uma vez na fronteira declarada e grava o resultado |
+| `Commit(marker)` | Aplica o efeito uma vez na fronteira declarada e grava o ledger |
+| `Resume(transaction_id)` | Continua do primeiro marco pendente, sem repetir os anteriores |
+| `Snapshot(cut)` | Produz snapshot completo somente para corte suportado |
+| `Restore(snapshot)` | Restaura o corte exato, incluindo pendências e gerações |
+| `Replay(inputs)` | Reexecuta a mesma sequência lógica e compara estado/ledger |
+| `ObserveHost(action)` | Simula atraso, descarte, drain ou underrun de saída sem tocar no estado virtual |
+
+Cada comando retorna o estado anterior e posterior (ou hash canônico), resultado normativo, eventos/efeitos adicionados e motivo de rejeição. Operações que R1 exige rejeitar sem mutação MUST comprovar igualdade do estado antes/depois.
+
+## 5. Matriz de propriedades executáveis
+
+A matriz R1 §13 é a fonte normativa detalhada. Este plano define o que o oráculo deverá provar em cada propriedade:
+
+| Propriedade | Núcleo de verificação | Contraexemplos/famílias obrigatórias |
+|---|---|---|
+| R2-T01 Monotonicidade | (P_d), (H_d), (W), avanço e rejeição retroativa | avanço crescente/repetido/retroativo; regressão interna; igualdade idempotente; ausência de mutação |
+| R2-T02 Chunk invariance | Equivalência entre avanço único e partições permitidas | cortes aleatórios; partição na fronteira; partição sem nova entrada/observação |
+| R2-T03 Conversão sem deriva | Conversão exata e conservação de resto/fase | razões inteiras/não inteiras; conversão encadeada; sessões longas; overflow |
+| R2-T04 Limite seguro | `Reached`/ `StoppedAt` / `Blocked` e H_d inclusivo | deadline anterior; T=H_d com obrigação pendente; B=T; B<T; domínio bloqueado; W não cruza efeito pendente |
+| R2-T05 Sincronização causal | Observação só após sincronizar destino ao ponto de amostragem/commit | leitura de contador/status; escrita de porta; IRQ publicada antes da observação |
+| R2-T06 Ordenação e cancelamento | Relação causal parcial, admissão e arbitragem | D<P_d; D<=W; D=P_d com/sem microstep; conjunto incompleto; conversão inválida; C<D; empate; permutações de publicação/dispatch |
+| R2-T07 UNKNOWN | Nenhuma precedência inventada | eventos não comutativos simultâneos sem fase; W não fecha; resultado indeterminado |
+| R2-T08 Exactly-once | Máquina de estados, amostragem, commit e ledger | toda transição válida/inválida; retry idêntico; ID divergente; falha antes/depois de cada efeito; recuperação explícita |
+| R2-T09 WAIT | Separação de TW automático, WAIT externo e fixture | ativo/inativo conhecido; reamostragem; UNKNOWN sem TW especulativo |
+| R2-T10 IRQ/NMI | Pontos de observação, EI delay, borda NMI e acknowledge | níveis antes/depois; perfil NONE; efeito/commit conhecido; snapshot UNKNOWN -> UnsupportedSnapshot |
+| R2-T11 Snapshot/restore | Continuação equivalente e invalidação de geração obsoleta | todos os estados de deadline/transação; entre amostragem e commit; INT acknowledge; UnsupportedSnapshot sem mutação |
+| R2-T12 Replay/admissão | Replay contínuo vs restore; cálculo integral de (A(E)) | (T<=A(E)), (T>A(E)), igualdade idempotente vs nova entrada; conjunto incompleto; conversão inválida; recálculo de H_d |
+| R2-T13 Host independence | Ação do host não altera tempo/estado virtual | atraso, drain, descarte, underrun, tamanhos de bloco diferentes |
+| R2-T14 Microstep finito | Progresso lógico sem loop infinito | evento gera evento no mesmo instante; ciclo sem progresso; limite excedido; permutação comutativa |
+| R2-T15 Overflow/erro/atomicidade | Classes de erro e ausência de mutação parcial | overflow, IDs/perfis inválidos, precedência de validação, capacidade, transição inválida, cancelamento tardio, snapshot UNKNOWN, falha parcial |
+
+Cada teste terá identificador estável, contrato(s) R1 coberto(s), pré-condição, sequência de comandos, resultado esperado, invariantes pós-condição e evidência produzida. Não basta ter um teste nominal por propriedade.
+
+## 6. Estratégia de geração e redução de cenários
+
+1. Manter um catálogo explícito de casos de fronteira determinísticos antes da geração aleatória.
+2. Cada gerador recebe seed obrigatória e parâmetros limitados; a mesma seed deve gerar a mesma sequência.
+3. Ao falhar, registrar seed, perfil, sequência completa, primeiro passo divergente e estados anterior/posterior.
+4. Aplicar redução determinística por remoção de comandos e simplificação de valores, preservando a falha.
+5. Nunca reduzir removendo a condição que torna a relação causal UNKNOWN ou que caracteriza a fronteira testada.
+6. Separar falhas do oráculo (contradição/incompletude do contrato) de falhas do gerador e de violações esperadas da propriedade.
+
+## 7. Evidência e relatório de execução
+
+Cada execução deve registrar:
+
+- commit SHA do repositório e hash do oráculo;
+- versão do Python e sistema operacional;
+- perfil de hardware/clock explicitamente modelado;
+- ID da propriedade, caso, seed e parâmetros;
+- resultado esperado/observado;
+- primeiro ponto divergente;
+- estado mínimo reproduzível;
+- limitações, UNKNOWNs e qualquer hipótese usada.
+
+Resultados possíveis: `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`. `SKIPPED` nunca é convertido em `PASS`. Uma propriedade só pode ser marcada PASS quando todos os seus casos obrigatórios aplicáveis forem executados e seus resultados preservarem o contrato.
+
+## 8. Sequência de implementação do R2
+
+### R2-A — núcleo matemático mínimo
+- tipos de valor/resultado e estado imutável;
+- relógios/domínios com conversão exata;
+- relação causal parcial;
+- cálculo de (A(E)) com conjunto completo;
+- varredura linear de obrigações, sem heap;
+- operações Advance/Synchronize;
+- R2-T01–T04.
+
+### R2-B — eventos e deadlines
+- proprietário, identidade, geração;
+- publicação, cancelamento e substituição;
+- arbitragem C<D antes de fechamento de W;
+- simultaneidade, UNKNOWN e microsteps;
+- R2-T06, T07 e T14.
+
+### R2-C — transações, WAIT e interrupções
+- máquina de estados e ledger exactly-once;
+- WAIT em classes separadas;
+- IRQ/NMI, acknowledge e efeito de dispositivo por perfil;
+- R2-T05, T08, T09 e T10.
+
+### R2-D — persistência e robustez
+- snapshot/restore dos cortes suportados;
+- UnsupportedSnapshot sem artefato/mutação;
+- replay, overflow, erro e atomicidade;
+- host independence;
+- R2-T11–T13 e T15.
+
+### R2-E — fechamento e revisão
+- executar a matriz R2-T01–T15;
+- gerar pacote de reprodução e matriz de cobertura;
+- revisão independente adversarial;
+- registrar limitações e critérios não satisfeitos;
+- solicitar aprovação formal R2.
+
+A ordem pode ser refinada se uma dependência lógica demonstrada exigir, mas nenhuma propriedade pode ser silenciosamente omitida.
+
+## 9. Critérios de saída R2
+
+R2 só pode ser aprovado quando:
+
+1. R2-T01–T15 tiverem resultados reproduzíveis, com casos positivos, negativos e de fronteira aplicáveis.
+2. O oráculo estiver demonstravelmente independente de algoritmo/representação candidata e da V1.
+3. A matriz de rastreabilidade ligar cada teste a contratos R1 e aos resultados normativos.
+4. UNKNOWN não for convertido em fase, precedência, WAIT, commit ou compatibilidade presumida.
+5. Snapshot/restore/replay e ledger exactly-once forem verificados em cortes suportados e não suportados.
+6. Falhas produzirem contraexemplo mínimo reproduzível.
+7. A revisão independente não encontrar blockers.
+8. O responsável aprovar explicitamente R2 antes de R3.
+
+**Proibição mantida:** R2 não autoriza R3, não escolhe a arquitetura final e não autoriza qualquer código de produção CHRONOS/V2. R3 só começa após aprovação explícita de R2; código de produção somente após R5.
+
+---
+
+## 10. Registro de decisões e revisões
+
+| Data | Versão/SHA | Evento | Estado |
+|---|---|---|---|
+| 2026-11-24 | R1 v0.3.18; aprovado em `ac912f342ff303b3fdc554b90d00e85b23d86c76`; merge `88e105d6495f7f5105502e53666a7b0d29f77572` | Responsável aprovou publicação da PR #1281 e autorizou início de R2 | R1 APROVADO; R2 iniciado |
+| 2026-11-24 | R2 v0.1 | Estrutura inicial do oráculo, independência, matriz de propriedades e sequência R2-A–R2-E | Rascunho; requer revisão e execução |
+
+Este documento é um plano executável de verificação em evolução. Não altera retroativamente os contratos normativos aprovados em R1.
