@@ -3,9 +3,9 @@
 **Sistema inicial:** Sega Master System (SMS)  
 **Arquitetura temporal:** CHRONOS — híbrido mínimo, sujeito aos gates técnicos  
 **Estratégia:** componentes mínimos com contratos sólidos, integrados desde cedo em uma fatia vertical  
-**Status:** roadmap aprovado como direção de trabalho; nenhuma implementação de produção iniciada  
+**Status:** R0 aprovado no escopo documental; R1 autorizado; nenhuma implementação de produção iniciada  
 **Branch de trabalho:** `architecture/sun-v2-foundation`  
-**R0:** [Issue #1267 — pesquisa e especificação do Temporal Core](https://github.com/leonardo201800478/SUN/issues/1267)
+**R0:** [parecer de fechamento](docs/temporal-core/R0_CLOSEOUT.md) · [Issue #1267](https://github.com/leonardo201800478/SUN/issues/1267)
 
 ---
 
@@ -260,6 +260,6 @@ Estado atual:
 - CHRONOS híbrido mínimo está documentado como proposta.
 - Nenhum código de produção V2 foi iniciado.
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
-- R0 permanece aberto.
+- R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir a consolidação documental das pendências obrigatórias de R0 e registrar as incertezas adiadas sem tratá-las como fatos. Depois de R0 aprovado, congelar os contratos R1 e validar o modelo de referência independente R2; somente então iniciar protótipos descartáveis R3 da fatia vertical mínima. Não retomar S0.
+**Próxima ação:** iniciar R1 e formalizar contratos verificáveis de avanço limitado, sincronização sob demanda, deadlines seletivos, eventos simultâneos, suspensão/retomada, WAIT, IRQ/NMI, snapshot e determinismo. Em paralelo, preparar as propriedades do modelo de referência R2 sem iniciar protótipos ou código de produção. Não retomar S0.
