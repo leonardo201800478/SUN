@@ -57,7 +57,7 @@ As regras oficiais de arquitetura, escopo, pesquisa, gates, Git/PR, CI, testes, 
 - [Avaliação estratégica](docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md) — SWOT, stakeholders, riscos e roadmap.
 - [Plano de pesquisa e especificação](docs/temporal-core/RESEARCH_AND_DESIGN_PLAN.md) — perguntas, entregáveis, provas e gates.
 - [Fechamento R0](docs/temporal-core/R0_CLOSEOUT.md) — evidências, incertezas e limites da aprovação documental.
-- [Contratos R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho de contratos; não aprovado até o fechamento formal do gate.
+- [Rascunho dos contratos R1 na branch de trabalho](https://github.com/leonardo201800478/SUN/blob/architecture/sun-v2-foundation/SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho de contratos; não aprovado até o fechamento formal do gate.
 
 ## Estrutura
 
