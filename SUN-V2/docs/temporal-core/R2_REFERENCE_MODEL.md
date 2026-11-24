@@ -313,3 +313,20 @@ R2 só pode ser aprovado quando:
 | 2026-11-24 | R2 v0.1 | Estrutura inicial do oráculo, independência, matriz de propriedades e sequência R2-A–R2-E | Rascunho; requer revisão e execução |
 
 Este documento é um plano executável de verificação em evolução. Não altera retroativamente os contratos normativos aprovados em R1.
+
+
+### 8.1.1 Reexecução após findings Codex — HEAD `a8cef1bcc39e284729a7a55fc16e27deb9fb4b22`
+
+Após a revisão independente do HEAD anterior, foram corrigidos dois findings P2: o runner agora bloqueia a execução quando o worktree Git está sujo ou o HEAD não pode ser obtido, e registra hashes SHA-256 do oráculo, do runner e de cada módulo de teste descoberto; a validação do watermark ocorre antes de qualquer resultado de progresso bloqueado por conjunto incompleto, impedindo a exposição de um valor não exato.
+
+- CI: [run #10623](https://github.com/leonardo201800478/SUN/actions/runs/45505844730).
+- SHA Git executado: `a8cef1bcc39e284729a7a55fc16e27deb9fb4b22`.
+- Worktree: `CLEAN`.
+- SHA-256 de `chronos_reference.py`: `de802612b198996cd6e888aa9fa8840596fa42ab8319aef0611b3841052a30b3`.
+- SHA-256 de `run_reference_tests.py`: `bb4798b3cc073b785a8c71e5796a24a595be0cc2ebf32501978bd5d23494bc77`.
+- SHA-256 de `test_temporal_core.py`: `b5a6ad833240b5f622ac313d98595bd17a079a51289dedf71c7d0f7bdd1f3d1e`.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+- Resultado do runner: **25 tests PASS** em 0.090 s; `test_status=PASS`.
+- Contagem atual: R2-T01 = 10; R2-T02 = 4; R2-T03 = 3; R2-T04 = 8. R2-T05–T15 = **NOT RUN**.
+- CI também reportou PASS para validação de workflow (actionlint), higiene documental e supervisor de qualidade Rust. Jobs específicos de hardware/Windows permaneceram SKIPPED, não PASS.
+- Esta execução confirma somente os 25 casos identificados; não conclui R2 e não substitui revisão independente do novo HEAD.
