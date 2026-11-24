@@ -46,6 +46,7 @@ jobs:
       psg: ${{ steps.filter.outputs.psg }}
       vdp: ${{ steps.filter.outputs.vdp }}
       docs: ${{ steps.filter.outputs.docs }}
+      r2_reference: ${{ steps.filter.outputs.r2_reference }}
       ci: ${{ steps.filter.outputs.ci }}
       video: ${{ steps.filter.outputs.video }}
       cpal: ${{ steps.filter.outputs.cpal }}
@@ -78,6 +79,8 @@ jobs:
               - '**/*.rst'
               - '**/*.txt'
               - 'docs/**'
+            r2_reference:
+              - 'SUN-V2/verification/r2_reference/**'
             ci:
               - '.github/workflows/**'
               - '.github/actions/**'
@@ -1027,10 +1030,30 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  r2-reference:
+    name: CHRONOS R2 independent reference tests
+    needs:
+      - changes
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Run pinned R2 reference test suite
+        working-directory: SUN-V2/verification/r2_reference
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python3 --version
+          python3 run_reference_tests.py
+
   quality-gate:
     name: Rust quality and unit regression
     needs:
       - changes
+      - r2-reference
       - rust-workspace
       - ym2413-focused
       - z80-focused
@@ -1068,6 +1091,8 @@ jobs:
           INPUT_FOCUSED: ${{ needs.input-focused.result }}
           EXPECT_DOCS: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.docs == 'true' }}
           DOCS: ${{ needs.docs-format.result }}
+          EXPECT_R2_REFERENCE: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true' }}
+          R2_REFERENCE: ${{ needs.r2-reference.result }}
           EXPECT_WORKFLOW_LINT: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.ci == 'true' }}
           WORKFLOW_LINT: ${{ needs.workflow-lint.result }}
           EXPECT_WINDOWS_SLINT_WGPU: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true') }}
@@ -1115,6 +1140,7 @@ jobs:
           check_job "VDP focused" "$EXPECT_VDP" "$VDP"
           check_job "Input focused" "$EXPECT_INPUT_FOCUSED" "$INPUT_FOCUSED"
           check_job "Documentation" "$EXPECT_DOCS" "$DOCS"
+          check_job "CHRONOS R2 reference" "$EXPECT_R2_REFERENCE" "$R2_REFERENCE"
           check_job "Workflow lint" "$EXPECT_WORKFLOW_LINT" "$WORKFLOW_LINT"
           check_job "Windows Slint WGPU Vulkan POC" "$EXPECT_WINDOWS_SLINT_WGPU" "$WINDOWS_SLINT_WGPU"
           check_job "Windows SDL3 input" "$EXPECT_WINDOWS_SDL3_INPUT" "$WINDOWS_SDL3_INPUT"
