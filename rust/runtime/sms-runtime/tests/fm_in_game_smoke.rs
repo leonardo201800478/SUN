@@ -13,8 +13,8 @@
 //!
 //! PowerShell:
 //!   $env:SEGA_SMS_FM_TEST_ROM_DIR = "D:\ROMs\SMS-FM"
-//!   $env:SEGA_SMS_FM_TEST_REGION = "japan"
-//!   $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1" # sms1|sms2
+//!   $env:SEGA_SMS_FM_TEST_REGION = "japan" # optional override; default is fixture-specific
+//!   $env:SEGA_SMS_FM_TEST_SYSTEM = "sms1" # optional override: sms1|sms2
 //!   $env:SEGA_SMS_FM_TEST_FRAMES = "1800" # optional; default 1800
 //!   $env:SEGA_SMS_FM_TEST_WAV_DIR = "D:\SUN-FM-Captures" # optional; writes FM, PSG, single-source and mixed float WAVs
 //!   cargo test --release -p sega-sms-runtime --test fm_in_game_smoke real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer -- --ignored --nocapture
@@ -460,7 +460,40 @@ fn load_known_fm_roms() -> Vec<(PathBuf, &'static FmRomFixture, Vec<u8>)> {
 }
 
 #[test]
-#[ignore = "requires legally obtained Japanese SMS FM game ROMs; see module documentation"]
+fn fm_fixture_catalog_has_unique_sha256_and_two_required_references() {
+    let mut hashes = std::collections::BTreeSet::new();
+    let mut required_count = 0;
+
+    for fixture in FM_ROM_FIXTURES {
+        assert_eq!(
+            fixture.sha256.len(),
+            64,
+            "invalid SHA-256 length for {}",
+            fixture.title
+        );
+        assert!(
+            fixture.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "non-hexadecimal SHA-256 for {}",
+            fixture.title
+        );
+        assert!(
+            hashes.insert(fixture.sha256),
+            "duplicate SHA-256 fixture for {}",
+            fixture.title
+        );
+        if fixture.required {
+            required_count += 1;
+        }
+    }
+
+    assert_eq!(
+        required_count, 2,
+        "the original Kenseiden and Phantasy Star reference fixtures must remain required"
+    );
+}
+
+#[test]
+#[ignore = "requires legally obtained required reference ROMs; optional catalog ROMs are detected by SHA-256"]
 fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
     let region_override = std::env::var("SEGA_SMS_FM_TEST_REGION").ok();
     let system_override = std::env::var("SEGA_SMS_FM_TEST_SYSTEM").ok();
@@ -660,7 +693,7 @@ fn diagnostic_wav_writer_preserves_ieee_float_samples_without_normalization() {
 
 #[cfg(target_os = "windows")]
 #[test]
-#[ignore = "requires the verified FM ROMs and a working physical CPAL output device"]
+#[ignore = "requires legally obtained required reference ROMs and a working physical CPAL output device"]
 fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
     let region_override = std::env::var("SEGA_SMS_FM_TEST_REGION").ok();
     let system_override = std::env::var("SEGA_SMS_FM_TEST_SYSTEM").ok();
