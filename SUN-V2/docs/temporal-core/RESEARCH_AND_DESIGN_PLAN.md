@@ -1,6 +1,6 @@
 # Temporal Core — plano de pesquisa e especificação
 
-**Status:** avaliação comparativa registrada; proposta de híbrido mínimo documentada; R0 permanece em fechamento. Nenhuma implementação de produção autorizada.
+**Status:** R0 aprovado no escopo documental em 2026-11-24; proposta de híbrido mínimo documentada; R1 autorizado. Nenhuma implementação de produção autorizada.
 
 ## 1. Missão
 
