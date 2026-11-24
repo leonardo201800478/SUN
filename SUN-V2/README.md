@@ -7,7 +7,7 @@ SUN V2 é uma reconstrução independente do emulador SUN, iniciada com o Sega M
 **Fase atual: R1 — contratos temporais verificáveis, em elaboração e revisão.**
 
 - **R0:** aprovado no escopo documental em 24/11/2026. Consulte o [parecer R0](docs/temporal-core/R0_CLOSEOUT.md) e a [issue #1267 encerrada](https://github.com/leonardo201800478/SUN/issues/1267).
-- **R1:** rascunho v0.3.3 com unidades locais de progresso/horizonte explicitadas, ainda não aprovado. Consulte [R1_TEMPORAL_CONTRACTS.md](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) e acompanhe a [issue #1270](https://github.com/leonardo201800478/SUN/issues/1270).
+- **R1:** rascunho v0.3.4 com H_d explícito, fronteira de admissão A(E)=max(W, P_d dos participantes), invalidação de H_d após entrada e restore distinto de Claimed/Dispatched/Failed (sem retry automático de Failed); ainda não aprovado. Consulte [R1_TEMPORAL_CONTRACTS.md](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) e acompanhe a [issue #1270](https://github.com/leonardo201800478/SUN/issues/1270).
 - **R2–R5:** pendentes. R2 só começa após aprovação R1; R3 só começa após aprovação R1 e R2; R4 é a revisão adversarial; R5 é a aprovação arquitetural.
 - **Produção:** nenhum código de produção CHRONOS/V2 está autorizado antes da aprovação R5.
 - **PRs legadas:** PRs abertas anteriores ao V2 foram encerradas sem merge, preservando histórico e branches. O trabalho legado não será incorporado automaticamente à V2.
@@ -57,7 +57,7 @@ As regras oficiais de arquitetura, escopo, pesquisa, gates, Git/PR, CI, testes, 
 - [Avaliação estratégica](docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md) — SWOT, stakeholders, riscos e roadmap.
 - [Plano de pesquisa e especificação](docs/temporal-core/RESEARCH_AND_DESIGN_PLAN.md) — perguntas, entregáveis, provas e gates.
 - [Fechamento R0](docs/temporal-core/R0_CLOSEOUT.md) — evidências, incertezas e limites da aprovação documental.
-- [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho v0.3.3, incluindo definições normativas de watermark, safe horizon, bloqueios, deadlines, microsteps, transações parciais, snapshot/restore, replay e proveniência; ainda não aprovado.
+- [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho v0.3.4, incluindo definições normativas de watermark, safe horizon, bloqueios, deadlines, microsteps, transações parciais, snapshot/restore, replay e proveniência; ainda não aprovado.
 
 ## Estrutura
 

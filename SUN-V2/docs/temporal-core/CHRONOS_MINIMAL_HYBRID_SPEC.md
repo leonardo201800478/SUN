@@ -265,49 +265,59 @@ Cada protótipo exige hipótese, cenário discriminante, métricas e regra de de
 
 ## 12. Plano de execução e gates
 
-### Começo — fechar evidência e contratos
+**Precedência obrigatória:** a sequência e as condições de passagem de `SUN-V2/PROJECT_INSTRUCTIONS.md` prevalecem sobre este plano arquitetural. A ordem é estrita: R0 → R1 → R2 → R3 → R4 → R5. R2 só começa após aprovação formal de R1; R3 só começa após aprovação de R1 e R2; nenhum código de produção CHRONOS/V2 começa antes de R5. Referências a R2 nesta proposta ou no parecer R0 identificam um gate futuro, não autorização para antecipá-lo.
 
-1. Criar matriz de evidências por requisito: afirmação, fonte primária, revisão de hardware, confiança, divergência, impacto e teste discriminante.
-2. Resolver ou classificar as relações e fases dos clocks SMS NTSC/PAL.
-3. Mapear observações Z80/barramento, WAIT, IRQ/NMI e efeitos exatamente uma vez.
-4. Identificar eventos autônomos reais de VDP e áudio.
-5. Definir semântica provisória de avanço, observação e deadline.
-6. Construir modelo de referência independente.
-7. Estabelecer baseline headless com ROM, hash, perfil e ambiente fixos.
-8. Submeter a especificação a revisão adversarial.
+### Gate R1 — contratos temporais (em elaboração)
 
-**Saída:** R0–R2 aprovados. Nenhum crate de produção nesta fase.
+1. Manter a proveniência de R0 e revisar cada contrato contra as fontes primárias e os limites registrados.
+2. Formalizar pré-condições, pós-condições, proprietários, erros e propriedades verificáveis.
+3. Preservar FACT, OBSERVATION, HYPOTHESIS/INFERENCE e UNKNOWN sem converter hipótese em comportamento físico.
+4. Concluir revisão cruzada e adversarial do contrato, resolver blockers e registrar critérios de saída.
+5. Aprovar R1 formalmente antes de iniciar qualquer trabalho R2.
 
-### Meio — comparar e integrar
+**Saída:** R1 aprovado na issue #1270 e PR correspondente. Nenhum modelo R2 executável ou protótipo R3 começa antes dessa aprovação.
 
-1. Executar P-A, P-D e P-E.
-2. Implementar P-F somente se os resultados justificarem.
-3. Validar causalidade, eventos simultâneos, WAIT e restore.
-4. Comparar custo por avanço, sincronização e evento, alocações, memória, p50/p95/p99 e pior caso.
-5. Integrar CPU/barramento com transações retomáveis.
-6. Integrar VDP e depois PSG/YM2413, mantendo testes por subsistema.
-7. Validar NTSC/PAL e jogos reais.
-8. Medir 60 FPS de apresentação, throughput headless e input-to-photon separadamente.
-9. Obter revisão independente e registrar ADR de aprovação.
+### Gate R2 — modelo de referência independente (somente após R1)
 
-**Saída:** R3–R5 aprovados. Só então iniciar ou consolidar a implementação de produção.
+1. Construir oráculo simples e independente do algoritmo/representação candidata.
+2. Implementar propriedades executáveis de monotonicidade, conversões, chunk invariance, causalidade, deadlines, transações, WAIT, IRQ/NMI e snapshot/replay.
+3. Registrar sementes, perfis, sequências, primeiro ponto divergente e estado mínimo de reprodução.
+4. Manter UNKNOWN físico como restrição/indeterminação; resultado do modelo não vira prova física.
 
-### Fim — estabilizar e tornar sustentável
+**Saída:** R2 aprovado com propriedades e resultados reproduzíveis. Não iniciar protótipos R3 antes disso.
 
-1. Testar sessões longas, limites numéricos e overflow.
-2. Validar snapshot/restore com eventos e transações pendentes.
-3. Executar replay determinístico e regressões.
-4. Testar catálogo representativo de jogos e ROMs de diagnóstico.
-5. Validar estabilidade de áudio, vídeo e frame pacing em carga real.
-6. Documentar contratos, limites, diagnóstico e política de versionamento.
-7. Fazer piloto de generalização para SG-1000 somente após SMS estável.
-8. Manter política de regressão proporcional a cada subsistema alterado.
+### Gate R3 — protótipos descartáveis (somente após R1 e R2)
+
+1. Executar P-A, P-D e P-E sob a mesma semântica e cargas representativas.
+2. Implementar P-F somente se os resultados justificarem a combinação híbrida.
+3. Comparar custo por avanço, sincronização, publicação/cancelamento/despacho, alocações, memória, p50/p95/p99 e pior caso.
+4. Definir medição headless reproduzível e específica para a hipótese/carga de cada protótipo R3, fixando ROM/hash, perfil, estado inicial e ambiente; separar throughput de apresentação real. Isso não é S0/OutRun nem baseline substituta: o protocolo S0 permanece encerrado como NOT RUN e não deve ser executado, recriado ou substituído.
+5. Descartar alternativas sem ganho demonstrável e registrar a hipótese que cada protótipo falsificou ou sustentou.
+
+**Saída:** R3 aprovado; protótipos permanecem descartáveis e não são promovidos diretamente a código de produção.
+
+### Gates R4 e R5 — revisão e aprovação arquitetural
+
+1. R4 revisa adversarialmente contratos, modelo, protótipos, evidências, riscos e performance; blockers precisam ser resolvidos.
+2. R5 aprova arquitetura final, ADRs, limites, plano de integração, estratégia de validação e riscos residuais.
+
+**Saída:** R5 aprovado explicitamente. Só então começa a implementação de produção.
+
+### Depois de R5 — implementação e estabilização
+
+1. Construir a primeira fatia vertical SMS: Z80, barramento/memória, VDP e PSG.
+2. Validar compatibilidade orientada por jogos e testes discriminantes.
+3. Refinar boundaries e precisão temporal somente com evidência de impacto observável.
+4. Integrar YM2413 após estabilização do PSG e do contrato de áudio.
+5. Executar hardening, sessões longas, limites numéricos, snapshot/restore e replay.
+6. Medir 60 FPS apresentados, throughput headless, áudio físico e input-to-photon separadamente.
+7. Generalizar para SG-1000 somente após SMS estável.
 
 **Saída:** núcleo temporal explicável, testável, recuperável e sustentável. Compilação ou microbenchmark isolado não constituem conclusão.
 
 ## 13. Orçamento de complexidade e performance
 
-A baseline deve preceder qualquer limite numérico arbitrário. Depois dela, cada mecanismo terá custo atribuído e orçamento justificável.
+Uma medição de referência só pode ser definida em R3 para hipótese, carga e protótipo específicos, antes de comparar limites numéricos arbitrários. Isso não reabre o protocolo S0/OutRun, não autoriza executá-lo e não cria benchmark substituto. Depois da referência específica de R3, cada mecanismo terá custo atribuído e orçamento justificável.
 
 Métricas mínimas:
 
@@ -368,6 +378,6 @@ A decisão não é “usar um scheduler híbrido porque parece flexível”. É 
 
 **R0:** aprovado no escopo documental em 2026-11-24; ver R0_CLOSEOUT.md.
 
-**Próximo passo autorizado:** formalizar os contratos R1 e preparar o modelo de referência independente R2.
+**Próximo passo autorizado:** concluir e aprovar formalmente R1. O modelo R2 só pode começar após esse gate; R3 depende de R1 e R2 aprovados.
 
-**Próximo passo não autorizado:** implementar o CHRONOS de produção antes de R5.
+**Próximo passo não autorizado:** iniciar R2 antes da aprovação R1, antecipar protótipos R3 ou implementar CHRONOS/V2 de produção antes de R5.

@@ -4,9 +4,9 @@
 
 **Arquitetura temporal:** CHRONOS — híbrido mínimo, sujeito aos gates técnicos
 
-**Estratégia:** componentes mínimos com contratos sólidos, integrados desde cedo em uma fatia vertical
+**Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 aprovado no escopo documental; R1 autorizado; nenhuma implementação de produção iniciada
+**Status:** R0 aprovado no escopo documental; R1 em elaboração/revisão (main v0.3.3; PR #1275 propõe v0.3.4); R2–R5 bloqueados; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -22,7 +22,7 @@ A proposta do usuário — CPU, VDP e áudio mínimos com base sólida, refinado
 
 > Os componentes serão mínimos em escopo funcional, mas nascerão integrados aos contratos temporais, de barramento, snapshot e observabilidade. Não serão protótipos atômicos que precisem ser reescritos quando a sincronização real começar.
 
-A primeira fatia executável deve conter CPU Z80 mínima, barramento/memória/cartucho mínimos, VDP SMS mínimo e PSG SN76489 mínimo, todos avançando sob uma única autoridade temporal. A fatia não precisa rodar imediatamente um catálogo amplo de jogos. Precisa executar cenários pequenos e reproduzíveis, revelar custo e permitir atribuir divergências ao componente responsável.
+Após a aprovação R5, a primeira fatia executável de produção conterá CPU Z80 mínima, barramento/memória/cartucho mínimos, VDP SMS mínimo e PSG SN76489 mínimo, todos avançando sob uma única autoridade temporal. Antes de R5, somente trabalhos dos gates R1–R4 são permitidos em ordem estrita: R2 após R1, R3 após R1/R2 e R4 após R3. Não implementar a fatia de produção antecipadamente. A fatia não precisa rodar imediatamente um catálogo amplo de jogos. Precisa executar cenários pequenos e reproduzíveis, revelar custo e permitir atribuir divergências ao componente responsável.
 
 O YM2413 entra depois que o caminho PSG, os contratos de áudio multi-fonte e as evidências específicas do perfil Japanese SMS estiverem definidos. Não será usado para atrasar a primeira fatia, mas sua integração futura será prevista desde o desenho do contrato de áudio.
 
@@ -48,7 +48,7 @@ A diferença fundamental é a ordem de construção e o contrato de integração
 ## 3. Regras de construção
 
 1. **Mínimo não significa improvisado.** Cada componente começa com um contrato estável e uma lista explícita de funcionalidades incluídas/excluídas.
-2. **Integração cedo.** Não deixar CPU, VDP e áudio isolados por meses para conectá-los somente no final.
+2. **Integração na primeira fatia pós-R5.** Não deixar CPU, VDP e áudio isolados por meses depois da autorização de produção; conectá-los conforme os contratos e ADRs aprovados.
 3. **Uma autoridade temporal.** Nenhum componente avança seu próprio relógio de máquina de forma independente.
 4. **Precisão proporcional.** Modelar detalhe temporal quando ele altera gameplay, interação observável ou resultado de teste; manter o restante atômico quando seguro.
 5. **Sem falsa completude.** “Compila”, “renderiza uma tela” e “emite áudio” não significam fidelidade temporal.
@@ -78,24 +78,52 @@ Entregas:
 
 **S0 da V1:** encerrado como não executado e fora dos gates. Não procurar ROM OutRun, executar/corrigir script, repetir medições ou criar benchmark substituto.
 
-### Fase 1 — contratos temporais e modelo de referência (R1–R2)
+### Fase 1 — contratos temporais (R1)
 
-**Prioridade: máxima; bloqueia os protótipos integrados.**
+**Prioridade: máxima; bloqueia R2, R3 e qualquer produção.**
 
 Entregas:
-- representação candidata de tempo e conversão entre domínios, escolhida por testes e não por preferência;
-- contrato de avanço limitado, sincronização sob demanda e deadlines;
-- ordenação de eventos simultâneos e política para eventos no timestamp atual;
-- contrato de transação de barramento retomável;
-- semântica de snapshot/restore dos estados pendentes;
-- modelo de referência independente e propriedades executáveis;
-- harness headless determinístico com clock controlável, entradas registradas e traces.
+- contratos verificáveis de monotonicidade, conversões, progresso local, H_d, watermark e avanço limitado;
+- sincronização sob demanda e dependências causais;
+- deadlines, simultaneidade, microsteps e UNKNOWN sem precedência inventada;
+- transações retomáveis, amostragem/commit exactly-once e WAIT;
+- IRQ/NMI/acknowledge, snapshot/restore, replay, erros e independência do host;
+- classificação FACT/OBSERVATION/HYPOTHESIS/INFERENCE/UNKNOWN e rastreabilidade;
+- revisão adversarial e critérios formais de saída.
 
-**Gate F1:** monotonicidade, conservação de fase, chunk invariance aplicável, ordenação determinística, ausência de causalidade retroativa e restore/replay demonstrados no modelo de referência.
+**Gate R1:** todos os critérios da seção 14 de R1_TEMPORAL_CONTRACTS.md atendidos, revisão independente concluída e aprovação explícita na issue #1270/PR correspondente. Nenhum trabalho R2 começa antes disso.
 
-### Fase 2 — primeira fatia vertical mínima (R3 — protótipos)
+### Fase 2 — modelo de referência independente (R2; somente após R1)
 
-**Prioridade: alta; primeiro marco executável do V2.**
+Entregas:
+- oráculo simples e independente do algoritmo/representação candidata;
+- propriedades executáveis de monotonicidade, conversão, chunk invariance, avanço seguro, causalidade, deadlines, transações, WAIT, IRQ/NMI, snapshot/restore e replay;
+- cenários adversariais com seeds, perfil, entradas, primeira divergência e estado mínimo reproduzível;
+- UNKNOWN físico preservado como indeterminação/restrição, nunca promovido a FACT.
+
+**Gate R2:** propriedades executadas e resultados reproduzíveis; modelo independente da implementação/protótipo futuro. Nenhum R3 começa antes de R2 aprovado.
+
+### Fase 3 — protótipos temporais descartáveis (R3; somente após R1 e R2)
+
+Entregas:
+- comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
+- implementar P-F apenas se os modelos simples demonstrarem lacuna real;
+- comparar custo de avanço, sincronização, deadlines, cancelamento, dispatch, microsteps, snapshot/restore, alocações e memória;
+- medir p50/p95/p99 e pior caso em cargas esparsas/densas;
+- descartar alternativas sem ganho demonstrável e registrar hipóteses falsificadas/sustentadas.
+
+Protótipos R3 são descartáveis: não são a primeira fatia integrada, não viram código de produção e não autorizam integração permanente de CPU/VDP/PSG.
+
+**Gate R3:** comparação reproduzível e decisão técnica sustentada por evidência, custo e limitações.
+
+### Fase 4 — revisão adversarial e aprovação arquitetural (R4/R5)
+
+- **R4:** revisar contratos, modelo, protótipos, evidências, riscos, desempenho e UNKNOWNs; resolver blockers.
+- **R5:** aprovar arquitetura final, ADRs, limites, estratégia de validação e plano de integração.
+
+**Gate R5:** aprovação arquitetural explícita. Somente depois de R5 a implementação de produção CHRONOS/V2 pode começar.
+
+### Fase 5 — primeira fatia vertical mínima de produção (pós-R5)
 
 A primeira fatia será pequena, mas conterá os quatro elementos conectados:
 
@@ -111,7 +139,7 @@ A seleção de instruções Z80 deve ser dirigida pelos cenários de teste da fa
 
 **Gate F2:** a máquina executa uma sequência reproduzível; CPU lê/escreve memória e portas; VDP produz frame esperado; IRQ/entrada seguem o contrato; PSG produz sequência digital determinística; trace e snapshot identificam o estado de cada componente.
 
-### Fase 3 — expansão funcional orientada por compatibilidade
+### Fase 6 — expansão funcional orientada por compatibilidade (F3, após F2)
 
 **Prioridade: alta, após a primeira fatia passar.**
 
@@ -126,7 +154,7 @@ A expansão será guiada por uma matriz de compatibilidade e não por contagem d
 
 **Gate F3:** jogos de referência executam sem falhas funcionais conhecidas atribuíveis às funcionalidades implementadas; cada lacuna restante está documentada e priorizada.
 
-### Fase 4 — refinamento temporal seletivo
+### Fase 7 — refinamento temporal seletivo (F4)
 
 **Prioridade: máxima para fidelidade, após base funcional estável.**
 
@@ -139,7 +167,7 @@ A expansão será guiada por uma matriz de compatibilidade e não por contagem d
 
 **Gate F4:** cada refinamento tem evidência, teste antes/depois e custo atribuído; nenhuma precisão adicional entra apenas por simetria ou estética arquitetural.
 
-### Fase 5 — áudio completo e YM2413
+### Fase 8 — áudio completo e YM2413 (F5)
 
 **Prioridade: alta, mas posterior ao caminho PSG estável.**
 
@@ -153,7 +181,7 @@ A expansão será guiada por uma matriz de compatibilidade e não por contagem d
 
 **Gate F5:** PSG e FM não alteram o clock da máquina; mute não pausa síntese sem evidência; mistura e restore são determinísticos; regressões de vídeo/CPU permanecem PASS.
 
-### Fase 6 — hardening, performance e experiência de jogo
+### Fase 9 — hardening, performance e experiência de jogo (F6)
 
 **Prioridade: obrigatória antes de declarar SMS estável.**
 
@@ -170,7 +198,7 @@ A expansão será guiada por uma matriz de compatibilidade e não por contagem d
 
 **Gate F6:** fidelidade, desempenho, restore/replay, host e experiência real aprovados no mesmo SHA candidato.
 
-### Fase 7 — generalização e segunda máquina
+### Fase 10 — generalização e segunda máquina (F7)
 
 Somente após SMS estável:
 - testar primitivas temporais com SG-1000;
@@ -178,22 +206,21 @@ Somente após SMS estável:
 - medir o custo de adaptação e alterações no CHRONOS;
 - rejeitar abstrações que só existam para antecipar um console ainda não validado.
 
-## 5. Ordem prática de implementação
+## 5. Ordem prática de implementação após R5
 
-A ordem não será “terminar toda a CPU, depois todo o VDP, depois todo o som”. Isso esconderia por muito tempo os problemas de integração temporal.
+Antes de R5, o trabalho fica limitado aos gates R1 (contratos), R2 (modelo independente), R3 (protótipos descartáveis), R4 (revisão) e R5 (aprovação arquitetural). Não criar crates, componentes integrados ou fatia de produção durante esses gates.
 
-A ordem operacional será:
+Após R5, a ordem da primeira fatia vertical será:
 
-1. harness headless e modelo de referência;
-2. CHRONOS mínimo e contratos de tempo;
-3. barramento/memória mínimos;
-4. CPU mínima conectada ao barramento;
-5. VDP mínimo conectado ao barramento e aos deadlines necessários;
-6. PSG mínimo conectado ao mesmo tempo virtual;
-7. máquina SMS vertical e testes cruzados;
-8. expansão funcional e refinamento temporal em ciclos curtos.
+1. implementar o CHRONOS mínimo conforme arquitetura/ADRs aprovados;
+2. construir barramento/memória mínimos com transações retomáveis;
+3. conectar CPU Z80 mínima ao barramento;
+4. conectar VDP SMS mínimo e somente os deadlines/boundaries exigidos;
+5. conectar PSG SN76489 ao mesmo tempo virtual;
+6. integrar a máquina SMS vertical e executar testes cruzados;
+7. expandir compatibilidade e refinar temporalmente em ciclos curtos, conforme fases F3/F4.
 
-As etapas 4–6 podem ter desenvolvimento de componentes em paralelo quando seus contratos estiverem congelados, mas cada incremento deve integrar e validar a fatia completa. Não haverá três implementações isoladas que só se encontrem no fim.
+As etapas 2–5 podem ter desenvolvimento em paralelo somente quando interfaces e contratos estiverem congelados pela arquitetura R5, mas cada incremento deve integrar e validar a fatia completa. Não haverá implementações isoladas permanentes nem antecipação de produção antes de R5.
 
 ## 6. Política de uso da V1
 
@@ -244,7 +271,7 @@ Nenhuma etapa é concluída somente por compilação.
 - Mudança de host: validação da integração exposta sem contaminar o core.
 - Mudança documental: revisão de links, consistência e escopo; não executar testes de código sem motivo.
 
-Toda decisão estrutural deve ter ADR. Protótipos de pesquisa podem ser descartados. Código de produção só é autorizado após a especificação, referência, protótipos comparáveis e revisão independente aprovados.
+Toda decisão estrutural deve ter ADR. Protótipos de pesquisa podem ser descartados. Código de produção só é autorizado após R1, R2, R3, R4 e R5 concluídos na ordem obrigatória; a aprovação R5 é a autorização explícita para começar a implementação de produção.
 
 ## 9. Estado inicial e próxima ação
 
@@ -255,4 +282,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** iniciar R1 e formalizar contratos verificáveis de avanço limitado, sincronização sob demanda, deadlines seletivos, eventos simultâneos, suspensão/retomada, WAIT, IRQ/NMI, snapshot e determinismo. Em paralelo, preparar as propriedades do modelo de referência R2 sem iniciar protótipos ou código de produção. Não retomar S0.
+**Próxima ação:** concluir a revisão da R1 v0.3.3 publicada em `main` (PR #1275 propõe v0.3.4), fechar os critérios formais da issue #1270 e aprovar R1 somente após revisão independente e checks aplicáveis. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
