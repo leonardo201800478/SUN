@@ -84,7 +84,7 @@ Uma análise de modificação de vídeo relata burst PAL-M de 3.575611 MHz e pro
 
 SMS Power identifica a placa TecToy Power Base/PAL-M 199-403-411-416, com CPU Zilog Z0840004PSC e VDP Sega 315-5124, mas a página consultada não publica a frequência do oscilador. Fonte: [SMS Power — Brazilian Master System: TECTOY POWER BASE/PAL-M](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M). A subportadora PAL-M brasileira é 3.575611 MHz, mas isso não prova, isoladamente, o clock CPU/PSG da placa. Fonte de padrão: [EPUSP — PAL-M](https://www.lcs.poli.usp.br/~gstolfi/PPT/APTV0416.pdf).
 
-**Ação bloqueante:** obter o esquema PAL-M de 199-403-411-416 e identificar no circuito qual oscilador alimenta VDP/Z80 e qual gera a subportadora MC1377; se possível, medir ambos. Não “corrigir” o V1 neste trabalho documental nem promover o valor MAME a verdade física sem essa confirmação.
+**Ação para fechar o perfil físico PAL-M (adiável; não bloqueia R0 genérico):** obter o esquema PAL-M de 199-403-411-416 e identificar no circuito qual oscilador alimenta VDP/Z80 e qual gera a subportadora MC1377; se possível, medir ambos. Até existir essa evidência, manter o clock CPU/PSG TecToy como UNKNOWN, preservar os candidatos e não promover o valor MAME a verdade física nem “corrigir” o V1.
 
 ## 5. Relação VDP/Z80 e geometria horizontal
 
