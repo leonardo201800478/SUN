@@ -99,3 +99,15 @@ Código de emulador é evidência de uma implementação, não prova automática
 O relatório comparativo fornecido no projeto (15/11/2026) registra resultados diferentes entre Sega Emulator e ares em data, misc, sprites, HCounter e X-Scroll latchtime. As falhas citadas incluem ponteiros de endereço após escrita de um byte, mudanças de VCounter, timing de IRQs H/V, colisão de sprites e flag de overflow. O relatório não fixa SHA do executável, hash da ROM, BIOS/configuração ou ambiente; portanto, não comprova o estado do SHA V1 congelado em 23/11.
 
 **Tratamento:** preservar como hipótese/teste histórico. Reexecutar a ROM SMS VDP Test v1.31 no SHA congelado e registrar hash, screenshots/logs, configuração regional e estado inicial antes de usar os resultados para decisões V2.
+
+## 10. WAIT físico: SMS versus PSG discreta
+
+O manual Zilog define WAIT ativo baixo, amostrado na borda de descida de T2 e em cada TW subsequente; I/O inclui um TW automático e INT acknowledge inclui dois TW automáticos. Fonte: [Zilog Z80 CPU User Manual UM008011-0816](https://www.zilog.com/docs/z80/um0080.pdf), páginas 7–14.
+
+A implementação V1 modela o TW automático de I/O em `base_tstates=4` e INT acknowledge como 3 T-states base + 2 TW automáticos. O barramento SMS aceita WAIT adicional via fixture, mas documenta que não amostra sinal físico; a máquina temporal declara que o wiring físico permanece fora da fatia.
+
+A discussão técnica SMS Power sobre PSG/WAIT informa que /WAIT não aparece conectado ao VDP e parece ligado ao cartridge port. Charles MacDonald confirma a pausa por /WAIT ao escrever na PSG discreta SN76489A do SC-3000 e sugere que a PSG integrada do Mark III/SMS foi alterada para evitar essa espera. A conclusão sobre o SMS integrado é hipótese, não medição de hardware.
+
+Fonte: [SMS Power — SN76489/Sega PSG and CPU waits](https://www.smspower.org/forums/17233-SN76489SegaPSGAndCPUWaits).
+
+**Tratamento:** não adicionar WAIT interno fictício para VDP/PSG SMS. Manter contrato genérico para WAIT e investigar WAIT externo do cartridge port. SG-1000/SC-3000 com PSG discreta deve possuir perfil próprio e testes de READY→WAIT.
