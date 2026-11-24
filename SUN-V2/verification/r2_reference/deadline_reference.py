@@ -247,12 +247,19 @@ def arbitrate_cancellations(book: DeadlineBook) -> DeadlineEvaluation:
 
 
 def _causal_order_is_known(group: list[Deadline]) -> bool:
-    if len(group) < 2 or all(item.commutative for item in group):
-        return True
-    if any(item.phase_order is None or item.phase_evidence is None for item in group):
-        return False
-    if len({item.phase_order for item in group}) != len(group):
-        return False
+    """Check each logical microstep independently; no insertion-order physics."""
+    levels = sorted({item.microstep for item in group})
+    for level in levels:
+        same_level = [item for item in group if item.microstep == level]
+        if len(same_level) < 2 or all(item.commutative for item in same_level):
+            continue
+        if any(
+            item.phase_order is None or item.phase_evidence is None
+            for item in same_level
+        ):
+            return False
+        if len({item.phase_order for item in same_level}) != len(same_level):
+            return False
     return True
 
 
@@ -282,11 +289,13 @@ def close_watermark(book: DeadlineBook, target_common: Fraction) -> DeadlineEval
     ordered: list[Deadline] = []
     for instant in instants:
         group = [item for item in due if item.at_common == instant]
-        if len(group) > 1 and not all(item.commutative for item in group):
-            group.sort(key=lambda item: item.phase_order)
-        else:
-            group.sort(key=lambda item: item.identity)
-        ordered.extend(group)
+        for level in sorted({item.microstep for item in group}):
+            same_level = [item for item in group if item.microstep == level]
+            if len(same_level) > 1 and not all(item.commutative for item in same_level):
+                same_level.sort(key=lambda item: item.phase_order)
+            else:
+                same_level.sort(key=lambda item: item.identity)
+            ordered.extend(same_level)
     next_book = book
     for item in ordered:
         next_book = _replace_deadline(
