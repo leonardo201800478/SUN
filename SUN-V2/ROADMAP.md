@@ -75,7 +75,7 @@ Pendências para fechar F0:
 - confirmar WAIT externo do cartridge port e separar PSG discreta SG-1000/SC-3000 do PSG integrado SMS;
 - reexecutar SMS VDP Test v1.31 no SHA congelado com ROM hash, ambiente e artefatos;
 - criar fixture full-machine para H/V IRQ, HCounter e TH com origem/atraso CPU normalizados;
-- executar baseline S0 headless OutRun com ROM SHA-256 e ambiente registrados.
+- executar baseline S0 headless OutRun em worktree detached no SHA V1 congelado, com ROM SHA-256 e ambiente registrados.
 
 **Gate F0:** não promover hipótese de hardware a constante de API; fontes e incertezas rastreáveis; testes discriminantes definidos e reproduzíveis; pendências sem evidência física explicitamente limitadas. R0 permanece aberto até fechar os itens bloqueantes.
 
