@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.2; revisão normativa ampliada, unidades de progresso/horizonte explicitadas, ainda não aprovado
+**Status:** rascunho técnico v0.3.3; classificação normativa por contrato, semântica explícita de WAIT, admissão causal de entradas, cancelamento temporal de deadlines e cenários R2 ampliados; ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -285,23 +285,23 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 | R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, composição direta/encadeada quando matematicamente equivalente e sessões longas |
 | R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
 | R2-T05 | Sincronização causal | Leitura após evento de dispositivo e escrita com commit definido |
-| R2-T06 | Ordenação determinística | Eventos em instantes diferentes, fases distintas e mesma fase |
-| R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada |
-| R2-T08 | Exactly-once | Suspensão/retomada antes/depois de amostragem, entre efeitos parciais, após commit e em retry duplicado |
+| R2-T06 | Ordenação determinística e corrida deadline/cancelamento | Eventos em instantes diferentes, fases distintas e mesma fase; cancelar antes de D; cancelar depois de D com despacho operacional atrasado; cancelamento e claim em D; permutar ordem de publicação/execução mantendo a mesma ordem causal admitida |
+| R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada; assertiva de que W não fecha sobre o conflito |
+| R2-T08 | Exactly-once e efeitos parciais | Suspensão/retomada antes/depois de amostragem, entre cada efeito parcial, após commit, retry idêntico e ID duplicado com payload diferente; assertivas exatas para conjunto comprometido/pendente |
 | R2-T09 | WAIT | TW automático, WAIT externo modelado e fixture separados |
 | R2-T10 | IRQ/NMI | Transições/níveis antes e depois dos pontos de amostragem, borda NMI, EI delay, acknowledge e preservação das bordas/latches efetivamente definidos pelo dispositivo |
-| R2-T11 | Snapshot/restore | Eventos e transações pendentes em cada estado intermediário |
-| R2-T12 | Replay | Execução contínua contra restore + mesma sequência de entradas |
+| R2-T11 | Snapshot/restore e geração obsoleta | Eventos pendentes, cancelados/substituídos, claimed e transações em cada estado intermediário; restore não reativa geração obsoleta nem repete efeito |
+| R2-T12 | Replay e limite de admissão | Execução contínua contra restore + mesma sequência de entradas; rejeitar entrada nova com timestamp <= W; aceitar entrada > W; reproduzir a mesma ordem lógica de aceitação |
 | R2-T13 | Host independence | Variar tamanho de bloco, atrasar/drenar/descartar saída e simular underrun sem alterar estado virtual |
 | R2-T14 | Microstep finito | Evento cria outro evento no mesmo instante, incluindo ciclo infinito |
-| R2-T15 | Overflow/erro | Razões, timestamps, IDs, snapshots inválidos, capacidade esgotada e falha antes/depois de efeitos irreversíveis |
+| R2-T15 | Overflow/erro e atomicidade parcial | Razões, timestamps, IDs, snapshots inválidos, capacidade esgotada e falha antes/depois de cada efeito irreversível; verificar estado anterior intacto ou conjunto parcial exato e retomável/inválido conforme contrato |
 
 R2 deve registrar sementes, perfil, sequência de operações, primeiro ponto divergente e estado mínimo para reprodução.
 
 ## 14. Critérios de aprovação R1
 
 R1 só pode ser aprovado quando:
-- cada contrato deste documento estiver marcado como obrigatório, recomendado ou fora de escopo;
+- cada contrato C01–C16 estiver classificado explicitamente como MUST, SHOULD ou MAY, com proprietário semântico, pré-condições, pós-condições, bloqueios/erros e rastreabilidade; itens fora de escopo de R1 estiverem identificados separadamente;
 - não houver contradição entre tempo comum, avanço limitado, sincronização sob demanda e agenda de deadlines;
 - cada estado de transação tiver regra de entrada, saída, amostragem, commit, cancelamento e restore;
 - simultaneidade e fase UNKNOWN não dependerem de ordem acidental;
@@ -312,7 +312,7 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3.2
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.3
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
@@ -350,6 +350,11 @@ Regras normativas:
 6. Um pedido de avanço até T com T < W é retroativo e MUST falhar antes de mutar estado. T = W é operação idempotente se não houver nova entrada causal.
 7. O instante comum é uma relação comparável definida pelo perfil. Esta definição não exige epoch, tick mestre, inteiro específico, relógio de parede ou fase elétrica comum.
 8. Se um conflito não comutativo com fase UNKNOWN impedir fechar o corte, o resultado deve indicar bloqueio/indeterminação; o coordenador não pode avançar W escolhendo desempate incidental.
+9. Uma entrada externa só integra a linha causal depois de ser admitida/registrada com identidade, instante e ordem lógica antes do fechamento de W que a cobre. Entradas futuras podem ser registradas antecipadamente, desde que sua admissão e instante sejam determinísticos.
+10. Depois de W confirmado, uma nova entrada cuja posição causal seja menor ou igual a W MUST ser rejeitada como entrada tardia (LateInput/InvalidInput) antes de mutar o estado. Isso inclui timestamp exatamente igual a W: o fechamento do corte não pode ser reaberto.
+11. Uma entrada com instante posterior a W pode ser admitida normalmente, desde que satisfaça perfil, identidade e ordem lógica. A admissão não autoriza avançar W até que todos os efeitos causais correspondentes sejam fechados.
+12. Restore de snapshot restaura também o limite de admissão e o cursor/identidades de entradas aceitas. Replay reproduz a sequência já admitida; não transforma entrada tardia em entrada válida nem reordena silenciosamente entradas em torno de W.
+13. A única forma de uma entrada em T <= W participar do estado é ter sido admitida e incluída antes do fechamento original desse W. Não existe operação implícita de rollback/reabertura; qualquer mecanismo explícito de rollback pertence a uma nova operação de replay a partir de snapshot anterior, com nova linha causal identificada.
 
 ### 16.2 Contrato de avanço, parada e ausência de progresso
 
@@ -409,6 +414,10 @@ Regras:
 6. Um deadline bloqueado durante despacho deve manter estado suficiente para retomar sem duplicar seu efeito.
 7. Cancelar um evento concluído não reverte estado. Compensação, se existir em algum dispositivo, é uma nova operação causal, não cancelamento retroativo.
 8. Eventos obsoletos podem ser descartados sem efeito, mas a decisão deve ser determinística e auditável.
+9. O cancelamento possui instante causal de aceitação C, registrado na mesma linha temporal/perfil do deadline D. Não basta registrar quando uma thread executou a chamada ou quando o dispatcher recebeu a mensagem.
+10. Um cancelamento só suprime o efeito se sua posição causal for anterior à elegibilidade/claim do deadline em D. Se C for posterior a D, o deadline continua devido, mesmo que o dispatcher ainda não o tenha processado por atraso operacional; o atraso de despacho não reabre a janela causal de cancelamento.
+11. Se C e D coincidirem, a supressão só pode ser decidida por relação causal/microstep explicitamente definida pelo perfil. Sem essa relação, o resultado é indeterminado e não aprovado para o caso; sequência de chegada, thread ou ordem de execução do host não escolhem o vencedor.
+12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão.
 
 ### 16.6 Eventos simultâneos, microsteps e progresso
 
@@ -443,6 +452,10 @@ A transação é uma operação lógica; amostragem, commit e conclusão são ma
 4. O contrato deve identificar se o bloqueio está aguardando sinal externo, fixture ou dependência interna. A origem não pode ser perdida no snapshot.
 5. Se a fonte de WAIT físico não for conhecida no perfil, a interface genérica deve representá-la como UNKNOWN. Um fixture pode injetar WAIT explicitamente para testar a semântica, mas UNKNOWN não pode ser convertido silenciosamente em sinal inativo para declarar fidelidade do perfil.
 6. A quantidade de TW automáticos permanece vinculada ao tipo de ciclo Z80 documentado; não é uma regra universal para todos os ciclos ou dispositivos.
+7. Quando WAIT externo estiver ativo em um ponto documentado de amostragem, a CPU não pode concluir/retirar a operação como se o ciclo tivesse terminado; o ciclo permanece na sequência Z80 e consome o TW correspondente.
+8. Cada TW adicional consome tempo virtual do ciclo e exige nova amostragem de WAIT no ponto documentado. Portanto, “CPU sem avançar a instrução” não significa “tempo virtual congelado”: o domínio CPU avança pelo TW e reavalia o sinal.
+9. Se o valor de WAIT estiver disponível e ativo, a operação permanece em andamento/aguardando TW, com progresso temporal do ciclo. Se a própria condição de entrada ainda não puder ser determinada no ponto de amostragem, o resultado é Blocked, preservando o último P_d efetivo e a identidade da dependência; não se inventa nível inativo nem se consome TW especulativo.
+10. WAIT de fixture, quando ativo, segue a mesma semântica temporal de amostragem/TW para validar a transação, mas permanece marcado como entrada de teste. A distinção entre espera que consome TW e Blocked por ausência de condição conhecida deve sobreviver a snapshot/restore/replay.
 
 ### 16.9 IRQ, NMI e acknowledge
 
@@ -503,9 +516,9 @@ Uma operação que falhe antes de qualquer efeito deve deixar o estado anterior 
 
 1. R1 exige que recursos temporais tenham limite/capacidade e resultado explícito ao esgotá-los; não escolhe a estrutura de dados nem a política concreta de dimensionamento.
 2. Nenhum evento, deadline, transação ou entrada causal pode ser descartado silenciosamente por saturação.
-3. O caminho comum não deve exigir alocação dinâmica por T-state ou por instrução. Qualquer exceção deve ser identificada, justificada e medida antes de R3.
-4. O custo deve ser medido separadamente para avanço, sincronização, publicação, cancelamento, despacho, microsteps, snapshot/restore e replay.
-5. Relatar pelo menos p50/p95/p99 e pior caso, volume de eventos/sincronizações, alocações/bytes, memória máxima e comportamento em carga esparsa/densa.
+3. O caminho comum SHOULD evitar alocação dinâmica por T-state ou por instrução. Qualquer exceção deve ser identificada e justificada no desenho; sua medição comparativa é uma entrega de R3, não pré-condição documental de aprovação R1.
+4. R3 MUST medir separadamente o custo de avanço, sincronização, publicação, cancelamento, despacho, microsteps, snapshot/restore e replay antes de selecionar a alternativa candidata.
+5. Os relatórios de R3 MUST incluir p50/p95/p99 e pior caso, volume de eventos/sincronizações, alocações/bytes, memória máxima e comportamento em carga esparsa/densa. Nenhuma dessas medições é exigida para fechar documentalmente R1.
 6. Instrumentação detalhada é opt-in. Ativar/desativar tracing não pode mudar resultados, ordem lógica ou estado temporal.
 7. Resultados de benchmark devem fixar SHA, perfil, carga, estado inicial, entradas, ambiente, configuração de tracing e método. Headless, frame pacing real, áudio físico e input-to-photon são métricas distintas.
 8. O objetivo de 60 FPS é requisito de produto posterior; não é critério de aprovação isolado do R1 e não pode ser inferido de microbenchmark.
@@ -559,10 +572,12 @@ Regras adicionais de proveniência:
 | Ponto de linearização e geração de deadline | C06, C11, C14 | T04, T06, T11, T14 |
 | Microstep e progresso finito | C06, C07, C14, C15 | T06, T07, T14, T15 |
 | Efeitos parciais e idempotência por marco | C08, C11, C15 | T08, T11, T12, T15 |
-| Linha, borda, latch e acknowledge | C09, C10, C11 | T09, T10, T11 |
+| WAIT e ciclos Z80 | C09 | T09 |
+| Linha, borda, latch e acknowledge | C10, C11 | T10, T11 |
 | Corte causal e restore atômico | C11, C13, C15 | T11, T12, T15 |
-| Ordem de ingestão e concorrência | C07, C12, C13 | T06, T12, T13 |
+| Ordem de ingestão e concorrência | C07, C13 | T06, T12, T13 |
 | Saturação e observabilidade sem perturbação | C14, C15, C16 | T14, T15 e benchmarks R3 |
+| Independência do host de áudio/vídeo | C12 | T13 |
 
 ## 17. Matriz de rastreabilidade dos contratos
 
@@ -585,9 +600,41 @@ Regras adicionais de proveniência:
 | R1-C15 | Erros temporais e estado inválido explícitos | R2-T15 |
 | R1-C16 | Custo previsível e hot paths sem alocação por evento/instrução | Benchmark R3; medição integrada da primeira fatia |
 
+
+### 17.1 Classificação normativa, proprietário e condições verificáveis
+
+A classificação abaixo é parte do contrato, não uma escolha de implementação. **MUST** é obrigatório; **SHOULD** é recomendado e qualquer exceção precisa ser justificada; **MAY** é opcional e não pode alterar a semântica. Nenhum C01–C16 fica fora de escopo. Métricas de apresentação física do host (frame pacing, input-to-photon e underrun físico) ficam **OUT OF SCOPE para R1** e pertencem à validação integrada posterior (R3/F6).
+
+| ID | Força | Proprietário semântico | Pré-condições | Pós-condições / invariante | Bloqueio ou falha verificável | Base de evidência / proveniência | R2 |
+|---|---|---|---|---|---|---|---|
+| C01 | MUST | CHRONOS + domínio | Perfil válido; instante comparável | Progresso monotônico; overflow nunca silencioso | Retrocesso/overflow: InvalidInput ou InvariantViolation antes de publicar avanço | R0 §3; CLOCK_DOMAIN_RESEARCH; razões/frequências são FACT dentro dos limites citados; epoch/unidade final UNKNOWN | T01, T15 |
+| C02 | MUST | Perfil de clock + conversor | Conversão declarada e válida; resíduo compatível | Conversão exata, resíduo preservado e composição apenas quando provada | Razão inválida, resíduo inconsistente ou overflow: rejeitar sem avanço parcial | R0 §3; CLOCK_DOMAIN_RESEARCH; PAL/PAL-M e fase mantidos conforme UNKNOWN registrado | T03, T15 |
+| C03 | MUST | Cada domínio avançável | Mesmo perfil, estado inicial e sequência de entradas | Particionar avanço não muda estado/saída observável | Divergência de chunk: InvariantViolation reproduzível | R1 §3.3; R0 §5; V1 PSG/VDP apenas OBSERVATION limitada | T02 |
+| C04 | MUST | Domínio + coordenador | T válido e comparável; T >= P_d e W; limite H_d válido | Alcança T ou retorna fronteira/bloqueio com progresso real; nunca excede H_d | Dependência sem progresso: Blocked; H_d violado: InvariantViolation | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; limites físicos não extrapolados | T01, T04 |
+| C05 | MUST | Dispositivo observado + coordenador | Operação cross-device declara estados e instante causal | Estados relevantes sincronizados até T; nenhum efeito posterior aplicado | Dependência recíproca: Blocked; observação fora de corte: falha causal | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; boundaries são por perfil/confiança | T05 |
+| C06 | MUST | Proprietário do deadline + coordenador | ID, geração, D e proprietário válidos; cancelamento carrega instante causal | Só geração vigente produz efeito; cancelamento anterior a D suprime; posterior a D não suprime | Corrida em D sem ordem definida: IndeterminateHardwareOrder; geração antiga: descarte sem efeito | R1 §§5, 16.5; CHRONOS_MINIMAL_HYBRID_SPEC; política lógica é contrato, não FACT físico | T04, T06, T11 |
+| C07 | MUST | Perfil + coordenador de eventos | Instantes/fases/comutatividade conhecidos ou explicitamente UNKNOWN | Ordem causal determinística; sequência de software nunca inventa fase física | Conflito não comutativo UNKNOWN: bloqueia fechamento W/indeterminação | R0 §6; CHRONOS_MINIMAL_HYBRID_SPEC; referências são OBSERVATION de implementação | T06, T07 |
+| C08 | MUST | Dono da transação/barramento | Request/ID único; marcos e efeitos identificados | Amostragem/commit por marco exactly-once; conjunto parcial preservado | Payload divergente, repetição ou falha parcial: rejeitar/preservar efeitos realizados | R0 §2; Zilog UM008011-0816 para M/T/WAIT; V1 bus é OBSERVATION no SHA congelado | T08, T11, T15 |
+| C09 | MUST | CPU Z80 + contrato de ciclo | Tipo de ciclo conhecido; fonte WAIT identificada (FACT, fixture ou UNKNOWN) | TW automático separado; WAIT amostrado em T2/TWs; ciclo consome tempo sem aposentar instrução enquanto espera | Sinal indisponível no ponto: Blocked; UNKNOWN não vira inativo | R0 §2 e §5; Zilog UM008011-0816; WAIT físico SMS permanece UNKNOWN | T09 |
+| C10 | MUST | CPU Z80 + donos de IRQ | Ponto de amostragem e fonte/perfil identificados | INT/NMI/acknowledge observados segundo contrato Z80; bordas/latches reais preservados | Fase/fonte sem ordem: IndeterminateHardwareOrder; borda omitida: InvariantViolation | R0 §2; Zilog UM008011-0816; VDP boundary sources são limitadas por perfil | T10, T11 |
+| C11 | MUST | Máquina + componentes | Corte W fechado ou pendências integralmente serializadas; perfil compatível | Restore atômico; eventos/efeitos pendentes preservados; sem duplicar commit | Snapshot incompatível: IncompatibleSnapshot; falha de restore não altera máquina ativa | R0 §7; V1 inventory §3.7 e SNAP-01 são OBSERVATION, não prova de codec persistente | T11, T12, T15 |
+| C12 | MUST | Core + adaptador host | Bloco de saída identificado por intervalo/geração | Drenagem/atraso/descarte/underrun host não altera tempo virtual | Reordenação/duplicação de bloco: falha do pipeline, sem alterar relógio | R0 §5 e §7; V1 PSG-02/AUD-01 são OBSERVATION; saída física não é relógio | T13 |
+| C13 | MUST | Ponto de ingestão + coordenador | Entrada com ID, timestamp e ordem lógica antes de admissão | Replay reproduz ordem admitida; entradas <= W fechado são rejeitadas; concorrência não depende do host | LateInput/InvalidInput; corrida sem serialização: execução não determinística/não aprovada | R1 §16.11; R0 §6; ordem de ingestão é decisão normativa, não fato elétrico | T06, T12, T13 |
+| C14 | MUST | Dispatcher + dono do evento | Evento no instante atual tem regra de microstep e limite | Cada microstep resolve obrigação identificável; termina, bloqueia ou falha | Limite excedido/ciclo sem progresso: ResourceExhausted ou InvariantViolation | CHRONOS_MINIMAL_HYBRID_SPEC; estratégia candidata não é decisão de algoritmo | T14, T15 |
+| C15 | MUST | Todas as operações temporais | Erro/classe e ponto de falha identificáveis | Falha pré-efeito preserva estado; pós-efeito informa conjunto parcial exato | InvalidInput, InvariantViolation, ResourceExhausted, IncompatibleSnapshot ou InternalFailure | R0 §2–7; regras normativas de atomicidade não alegam rollback físico | T15 |
+| C16 | SHOULD | Core temporal / responsável por medição | Hot path e carga-alvo identificados antes da comparação | Evitar alocação por T-state/instrução; custos/capacidade observáveis e comparáveis em R3 | Exceção deve ser justificada; saturação segue C15 MUST | R0 §7; V1 PERF-01 é NOT RUN e não fornece baseline transferível | Benchmarks R3 |
+
+Regras de leitura:
+1. A classificação MUST/SHOULD/MAY aplica-se ao contrato, não transforma uma hipótese de hardware em FACT.
+2. Pré-condições e pós-condições acima resumem os contratos detalhados nas seções 3–16; em caso de divergência, a cláusula detalhada deve ser corrigida, não ignorada.
+3. **MAY** é reservado a mecanismos opcionais de instrumentação/tracing descritos em 16.14; sua ativação não pode alterar estado, ordem ou saída.
+4. Um requisito que dependa de evidência UNKNOWN deve continuar aplicável como regra de segurança/indeterminação, mas não autoriza alegar compatibilidade física do perfil afetado.
+5. R2 IDs indicam propriedades futuras, não testes executados nem resultados PASS.
+
+
 ## 18. Requisitos de desempenho e observabilidade
 
-R1 não escolhe estrutura de agenda, mas não pode deixar custo e falhas sem contrato:
+R1 não escolhe estrutura de agenda, mas define os requisitos de capacidade e observabilidade que deverão ser demonstrados em R3. Esta seção não exige benchmark nem medição integrada para a aprovação documental de R1:
 - o caminho comum de avanço não deve exigir alocação dinâmica por T-state ou por instrução;
 - publicação e despacho de deadlines devem ter custo limitado e mensurável; crescimento de agenda deve possuir capacidade/limite e política explícita de falha;
 - o estado temporal deve permitir contadores de diagnóstico sem instrumentação obrigatória no hot path;
@@ -597,11 +644,32 @@ R1 não escolhe estrutura de agenda, mas não pode deixar custo e falhas sem con
 
 O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não declara esse objetivo validado. R3/F6 deve medir o runtime e a apresentação reais e interromper expansão de features se houver regressão abaixo da meta.
 
-## 19. Próximos passos
+## 19. Resposta à revisão adversarial da linha de base
+
+Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. A presente revisão produz o rascunho v0.3.3; não constitui aprovação formal do gate.
+
+| Achado da linha de base | Resultado na v0.3.2 | Tratamento na v0.3.3 | Estado documental |
+|---|---|---|---|
+| BLOCKER — classificação normativa C01–C16 | Não havia força normativa, proprietário e condições por contrato | Nova matriz 17.1 classifica C01–C15 como MUST e C16 como SHOULD, com pré/pós-condições, falhas, proveniência e R2 | Corrigido no texto; aguarda revisão independente |
+| MAJOR — WAIT/TW vs Blocked | 16.2 e 16.8 distinguiam bloqueio e fonte, mas não explicitavam consumo temporal de TW | 16.8 define ciclo Z80 sem aposentadoria enquanto espera, consumo de tempo em cada TW e reamostragem; Blocked reservado à condição ainda indisponível | Corrigido no texto, limitado ao manual Z80 citado |
+| MAJOR — entrada tardia em W | 16.11 registrava admissão, mas não proibia timestamp <= W fechado | 16.1/16.11 rejeitam LateInput <= W, inclusive T=W, sem reabrir o corte; replay restaura cursor/limite | Corrigido no texto |
+| MAJOR — cancelamento após vencimento | 16.5 definia linearização operacional, não validade temporal C versus D | 16.5 separa instante causal de cancelamento, deadline D e despacho operacional atrasado; cancelamento posterior a D não suprime | Corrigido no texto; empate em D sem causalidade permanece indeterminado |
+| MAJOR — propriedades R2 incompletas | T06/T08/T11/T12/T15 não enumeravam todas as corridas e estados parciais | Cenários ampliados para antes/depois de D, despacho atrasado, permutação, efeitos parciais, geração obsoleta, restore e LateInput | Especificado; não executado, pois R2 continua bloqueado |
+| MINOR — grupos de rastreabilidade | C09 e C12 estavam agrupados em linhas incompatíveis com seus contratos | 16.17 separa WAIT (C09), IRQ/ack (C10/C11), concorrência (C07/C13) e host (C12) | Corrigido no texto |
+| MINOR — medição como pré-requisito R1 | 16.14.3 sugeria medição antes de R3 | 16.14/18 tornam medição comparativa entrega R3; R1 exige apenas contrato de capacidade/observabilidade | Corrigido no texto |
+
+Limites da revisão:
+- A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
+- Os itens “corrigido” significam que a lacuna normativa foi endereçada no texto. Não significam que as propriedades R2 foram executadas, que o hardware foi medido ou que o gate R1 foi aprovado.
+- A relação C/D em empate continua explicitamente UNKNOWN quando o perfil não fornece relação causal/microstep; não se inventa prioridade física.
+- A semântica WAIT deriva do Zilog Z80 User Manual UM008011-0816, R0 §2. WAIT externo de cartridge continua UNKNOWN conforme R0 §5.
+- A regra LateInput é uma decisão normativa do contrato de replay/watermark, não uma afirmação física de hardware.
+
+## 20. Próximos passos
 
 1. Concluir revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, CLOCK_DOMAIN_RESEARCH.md, AUDIO_CLOCK_RESEARCH.md, VDP_OBSERVABLE_BOUNDARIES.md, R0_CLOSEOUT.md e a matriz/inventário V1.
 2. Resolver comentários normativos restantes e classificar cada afirmação relevante como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
 3. Submeter R1 a revisão arquitetural adversarial e atualizar os critérios de saída da issue #1270 com evidências.
-4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos.
+4. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos e a revisão independente da v0.3.3 não encontrar blockers.
 5. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
 6. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
