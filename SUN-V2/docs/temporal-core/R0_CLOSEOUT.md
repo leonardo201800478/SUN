@@ -1,11 +1,17 @@
 # R0 — parecer de fechamento da pesquisa do Temporal Core
 
-**Projeto:** SUN V2  
-**Componente:** CHRONOS  
-**Máquina inicial:** Sega Master System  
-**Gate:** R0 — pesquisa e evidências  
-**Parecer:** **APROVADO NO ESCOPO DOCUMENTAL**  
-**Data:** 2026-11-24  
+**Projeto:** SUN V2
+
+**Componente:** CHRONOS
+
+**Máquina inicial:** Sega Master System
+
+**Gate:** R0 — pesquisa e evidências
+
+**Parecer:** **APROVADO NO ESCOPO DOCUMENTAL**
+
+**Data:** 2026-11-24
+
 **Issue:** [#1267 — R0: pesquisa e especificação do Temporal Core](https://github.com/leonardo201800478/SUN/issues/1267)
 
 > Este parecer fecha a pesquisa e a classificação de evidências. Não aprova uma implementação de produção, não certifica fidelidade física universal e não escolhe representação temporal, estrutura de agenda, fase de eventos ou granularidade final.
