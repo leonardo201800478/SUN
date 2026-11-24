@@ -33,7 +33,8 @@ Fontes de implementação: [MAME sms.cpp](https://github.com/mamedev/mame/blob/m
 
 A página SMS Power descreve o oscilador NTSC como aproximadamente 53.6931 MHz e o clock de sistema como 3.579540 MHz por divisão por 15, observando que 3.579545 MHz é o valor oficial da subportadora 315/88 MHz. A derivação coerente com o manual Sega é:
 
-`10.738635 MHz × 5 = 53.693175 MHz`  
+`10.738635 MHz × 5 = 53.693175 MHz`
+
 `3.579545 MHz × 15 = 53.693175 MHz`
 
 Fonte: [SMS Power — Clock Rate](https://www.smspower.org/Development/ClockRate).
