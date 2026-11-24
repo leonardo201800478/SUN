@@ -44,4 +44,4 @@ O workspace V2 não deve adicionar dependências de path para crates do legado. 
 
 Concluir pesquisa, especificação e revisão adversarial do Temporal Core antes de escrever sua implementação.
 
-A avaliação arquitetural do **CHRONOS — SUN Temporal Core** está em [docs/temporal-core/CHRONOS_ARCHITECTURE_EVALUATION.md](docs/temporal-core/CHRONOS_ARCHITECTURE_EVALUATION.md). A hipótese híbrida está priorizada para prototipagem, mas não foi aprovada como arquitetura final.
+A avaliação arquitetural do **CHRONOS — SUN Temporal Core** está em [docs/temporal-core/CHRONOS_ARCHITECTURE_EVALUATION.md](docs/temporal-core/CHRONOS_ARCHITECTURE_EVALUATION.md). A análise SWOT, stakeholders e roadmap estão em [docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md](docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md). A hipótese atual é um híbrido mínimo, ainda não aprovado como arquitetura final.
