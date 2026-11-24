@@ -3,7 +3,7 @@
 **Projeto:** SUN V2  
 **Sistema inicial:** Sega Master System (SMS)  
 **Gate:** R2 — modelo de referência independente  
-**Status:** desenho inicial v0.1; R2 em andamento; não aprovado  
+**Status:** R2-A em implementação inicial; núcleo de referência e testes R2-T01–T04 parciais; R2 em andamento; não aprovado  
 **Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)  
 **Contrato normativo:** [R1 v0.3.18](R1_TEMPORAL_CONTRACTS.md), conteúdo aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`
 
@@ -249,6 +249,32 @@ Resultados possíveis: `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`. `SKIPPED` nunca é 
 - solicitar aprovação formal R2.
 
 A ordem pode ser refinada se uma dependência lógica demonstrada exigir, mas nenhuma propriedade pode ser silenciosamente omitida.
+
+## 8.1 Primeiro incremento executável — R2-A
+
+Foi criado o oráculo isolado em `SUN-V2/verification/r2_reference/`:
+
+- `chronos_reference.py`: estado imutável, domínios de clock, conversão racional exata, conjunto explícito de participantes, obrigações e avanço por varredura integral;
+- `test_temporal_core.py`: testes iniciais de monotonicidade, chunk invariance, conversão exata e limite seguro;
+- `README.md`: instruções de execução e limites do artefato.
+
+**Resultado inicial de execução:** 13 testes PASS em Python 3.13.5 / Linux x86_64, usando somente a biblioteca padrão. A execução foi feita sobre cópias locais do código do branch; o resultado é evidência inicial de R2-A, não aprovação da propriedade completa nem do gate R2.
+
+| Propriedade | Casos executados | Resultado |
+|---|---:|---|
+| R2-T01 | 5 | PASS — avanço retroativo sem mutação, repetição idempotente, regressão interna, participantes incompletos e rejeição de float |
+| R2-T02 | 1 | PASS — avanço inteiro versus partições permitidas |
+| R2-T03 | 2 | PASS — round-trip e composição de razões racionais exatas |
+| R2-T04 | 5 | PASS — endpoint B=T, parada B<T, H_d concluído, obrigação anterior e retomada após resolução |
+| R2-T05–T15 | 0 | NOT RUN |
+
+**Limitações conhecidas do primeiro incremento:**
+- Ainda não implementa relação causal parcial completa nem fases/eventos concorrentes.
+- Ainda não implementa publicação/cancelamento/dispatch de deadlines, ledger de efeitos de transação, WAIT, IRQ/NMI, snapshot/restore ou replay.
+- A propriedade T01–T04 está coberta por casos iniciais, não por geração aleatória/longa duração.
+- O modelo não representa hardware nem afirma qualquer fase física; todos os tempos são abstratos e exatos.
+
+A implementação não pertence ao backend e não pode ser importada pelo runtime Rust. Nenhum crate de produção foi criado.
 
 ## 9. Critérios de saída R2
 
