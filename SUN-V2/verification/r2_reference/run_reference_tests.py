@@ -8,6 +8,10 @@ import sys
 import unittest
 from pathlib import Path
 
+# Test discovery imports local modules; never let that create untracked __pycache__
+# files that would make the next reproducibility run fail its clean-tree gate.
+sys.dont_write_bytecode = True
+
 HERE = Path(__file__).resolve().parent
 REPOSITORY_ROOT = HERE.parents[2]
 ORACLE = HERE / "chronos_reference.py"
