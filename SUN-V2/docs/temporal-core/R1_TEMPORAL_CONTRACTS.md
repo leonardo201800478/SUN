@@ -586,21 +586,21 @@ Regras adicionais de proveniência:
 | ID | Contrato | Propriedade R2 / validação posterior |
 |---|---|---|
 | R1-C01 | Tempo monotônico e sem wrap silencioso | R2-T01, R2-T15 |
-| R1-C02 | Conversão exata entre domínios e conservação de resto/fase | R2-T03 |
+| R1-C02 | Conversão exata entre domínios e conservação de resto/fase | R2-T03, R2-T15 |
 | R1-C03 | Chunk invariance | R2-T02 |
-| R1-C04 | Avanço limitado e horizonte seguro | R2-T04 |
+| R1-C04 | Avanço limitado e horizonte seguro | R2-T01, R2-T04 |
 | R1-C05 | Sincronização antes de observação/efeito causal | R2-T05 |
-| R1-C06 | Propriedade, identidade, geração e cancelamento de deadlines | R2-T04, R2-T06, R2-T14 |
+| R1-C06 | Propriedade, identidade, geração e cancelamento de deadlines | R2-T04, R2-T06, R2-T11, R2-T14 |
 | R1-C07 | Ordenação causal e tratamento de fase UNKNOWN | R2-T06, R2-T07 |
-| R1-C08 | Transação suspensível com amostragem/commit exactly-once | R2-T08 |
+| R1-C08 | Transação suspensível com amostragem/commit exactly-once | R2-T08, R2-T11, R2-T15 |
 | R1-C09 | TW automático, WAIT externo e fixture separados | R2-T09 |
-| R1-C10 | Amostragem INT/NMI e acknowledge Z80 | R2-T10 |
-| R1-C11 | Snapshot/restore de estados pendentes | R2-T11, R2-T12 |
+| R1-C10 | Amostragem INT/NMI e acknowledge Z80 | R2-T10, R2-T11 |
+| R1-C11 | Snapshot/restore de estados pendentes | R2-T11, R2-T12, R2-T15 |
 | R1-C12 | Independência do host de áudio/vídeo | R2-T13 |
-| R1-C13 | Determinismo sob concorrência e replay | R2-T06, R2-T12 |
-| R1-C14 | Progresso finito de eventos no mesmo instante | R2-T14 |
+| R1-C13 | Determinismo sob concorrência e replay | R2-T06, R2-T12, R2-T13 |
+| R1-C14 | Progresso finito de eventos no mesmo instante | R2-T14, R2-T15 |
 | R1-C15 | Erros temporais e estado inválido explícitos | R2-T15 |
-| R1-C16 | Custo previsível e hot paths sem alocação por evento/instrução | Benchmark R3; medição integrada da primeira fatia |
+| R1-C16 | Custo previsível e hot paths sem alocação por evento/instrução | Benchmarks R3; medição integrada da primeira fatia (F6) |
 
 
 ### 17.1 Classificação normativa, proprietário e condições verificáveis
@@ -614,7 +614,7 @@ A classificação abaixo é parte do contrato, não uma escolha de implementaç�
 | C03 | MUST | Cada domínio avançável | Mesmo perfil, estado inicial e sequência de entradas | Particionar avanço não muda estado/saída observável | Divergência de chunk: InvariantViolation reproduzível | R1 §3.3; R0 §5; V1 PSG/VDP apenas OBSERVATION limitada | T02 |
 | C04 | MUST | Domínio + coordenador | T comum válido; P_d/H_d convertidos por regra do perfil antes de comparar; T >= max(W, P_d convertido) | Alcança T ou retorna fronteira/bloqueio com progresso real; nunca excede H_d | Dependência sem progresso: Blocked; H_d violado: InvariantViolation | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; limites físicos não extrapolados | T01, T04 |
 | C05 | MUST | Dispositivo observado + coordenador | Operação cross-device declara estados e instante causal | Estados relevantes sincronizados até T; nenhum efeito posterior aplicado | Dependência recíproca: Blocked; observação fora de corte: falha causal | R0 §2–4; VDP_OBSERVABLE_BOUNDARIES; boundaries são por perfil/confiança | T05 |
-| C06 | MUST | Proprietário do deadline + coordenador | ID, geração e proprietário válidos; D e C comparados apenas após conversão para o mesmo instante comum | Só geração vigente produz efeito; cancelamento C<D admitido antes de W fechar D suprime; posterior a D não suprime | Empate em D sem relação causal definida: IndeterminateCausalOrder; geração antiga: descarte sem efeito | R1 §§5, 16.5; CHRONOS_MINIMAL_HYBRID_SPEC; política lógica é contrato, não FACT físico | T04, T06, T11 |
+| C06 | MUST | Proprietário do deadline + coordenador | ID, geração e proprietário válidos; D e C comparados apenas após conversão para o mesmo instante comum | Só geração vigente produz efeito; cancelamento C<D admitido antes de W fechar D suprime; posterior a D não suprime | Empate em D sem relação causal definida: IndeterminateCausalOrder; geração antiga: descarte sem efeito | R1 §§5, 16.5; CHRONOS_MINIMAL_HYBRID_SPEC; política lógica é contrato, não FACT físico | T04, T06, T11, T14 |
 | C07 | MUST | Perfil + coordenador de eventos | Instantes/fases/comutatividade conhecidos ou explicitamente UNKNOWN | Ordem causal determinística; sequência de software nunca inventa fase física | Conflito não comutativo UNKNOWN: bloqueia fechamento W/indeterminação | R0 §6; CHRONOS_MINIMAL_HYBRID_SPEC; referências são OBSERVATION de implementação | T06, T07 |
 | C08 | MUST | Dono da transação/barramento | Request/ID único; marcos e efeitos identificados | Amostragem/commit por marco exactly-once; conjunto parcial preservado | Payload divergente, repetição ou falha parcial: rejeitar/preservar efeitos realizados | R0 §2; Zilog UM008011-0816 para M/T/WAIT; V1 bus é OBSERVATION no SHA congelado | T08, T11, T15 |
 | C09 | MUST | CPU Z80 + contrato de ciclo | Tipo de ciclo conhecido; fonte WAIT identificada (FACT, fixture ou UNKNOWN) | TW automático separado; WAIT amostrado em T2/TWs; ciclo consome tempo sem aposentar instrução enquanto espera | Sinal indisponível no ponto: Blocked; UNKNOWN não vira inativo | R0 §2 e §5; Zilog UM008011-0816; WAIT físico SMS permanece UNKNOWN | T09 |
@@ -624,7 +624,7 @@ A classificação abaixo é parte do contrato, não uma escolha de implementaç�
 | C13 | MUST | Ponto de ingestão + coordenador | Entrada com ID, instante comum (ou conversão válida), e ordem lógica antes de admissão | Replay reproduz ordem admitida; entradas <= W fechado são rejeitadas; concorrência não depende do host | LateInput/InvalidInput; corrida sem serialização: execução não determinística/não aprovada | R1 §16.11; R0 §6; ordem de ingestão é decisão normativa, não fato elétrico | T06, T12, T13 |
 | C14 | MUST | Dispatcher + dono do evento | Evento no instante atual tem regra de microstep e limite | Cada microstep resolve obrigação identificável; termina, bloqueia ou falha | Limite excedido/ciclo sem progresso: ResourceExhausted ou InvariantViolation | CHRONOS_MINIMAL_HYBRID_SPEC; estratégia candidata não é decisão de algoritmo | T14, T15 |
 | C15 | MUST | Todas as operações temporais | Erro/classe e ponto de falha identificáveis | Falha pré-efeito preserva estado; pós-efeito informa conjunto parcial exato | InvalidInput, InvariantViolation, ResourceExhausted, IncompatibleSnapshot ou InternalFailure | R0 §2–7; regras normativas de atomicidade não alegam rollback físico | T15 |
-| C16 | SHOULD | Core temporal / responsável por medição | Hot path e carga-alvo identificados antes da comparação | Evitar alocação por T-state/instrução; custos/capacidade observáveis e comparáveis em R3 | Exceção deve ser justificada; saturação segue C15 MUST | R0 §7; V1 PERF-01 é NOT RUN e não fornece baseline transferível | Benchmarks R3 |
+| C16 | SHOULD | Core temporal / responsável por medição | Hot path e carga-alvo identificados antes da comparação | Evitar alocação por T-state/instrução; custos/capacidade observáveis e comparáveis em R3 | Exceção deve ser justificada; saturação segue C15 MUST | R0 §7; V1 PERF-01 é NOT RUN e não fornece baseline transferível | Benchmarks R3; medição integrada da primeira fatia (F6) |
 
 Regras de leitura:
 1. A classificação MUST/SHOULD/MAY aplica-se ao contrato, não transforma uma hipótese de hardware em FACT.
