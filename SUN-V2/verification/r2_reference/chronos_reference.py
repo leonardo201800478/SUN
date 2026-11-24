@@ -92,8 +92,13 @@ class AdvanceEvaluation:
     result: AdvanceResult
 
 
+def _is_exact_time(value: object) -> bool:
+    """Accept only exact integer/rational values; floats are never time truth."""
+    return isinstance(value, (int, Fraction)) and not isinstance(value, bool)
+
+
 def _validate_state(state: ReferenceState) -> str | None:
-    """Return a deterministic invariant error, or None when state is valid."""
+    """Return a deterministic invariant/input error, or None when valid."""
     if not state.profile:
         return "profile must be non-empty"
     ids = [domain.domain_id for domain in state.domains]
@@ -101,18 +106,36 @@ def _validate_state(state: ReferenceState) -> str | None:
         return "domain identity must be non-empty"
     if len(ids) != len(set(ids)):
         return "duplicate domain identity"
-    if set(ids) != set(state.expected_participants):
-        return "participant set is incomplete or contains unexpected domains"
+    actual = set(ids)
+    expected = set(state.expected_participants)
+    if actual - expected:
+        return "unexpected participant is present"
+    if expected - actual:
+        return "incomplete participant set"
     for domain in state.domains:
+        if not all(
+            _is_exact_time(value)
+            for value in (
+                domain.local_to_common,
+                domain.common_offset,
+                domain.progress_local,
+                domain.horizon_local,
+            )
+        ):
+            return f"non-exact time value in domain {domain.domain_id}"
         if domain.local_to_common <= 0:
             return f"invalid clock ratio for {domain.domain_id}"
         if domain.horizon_local < domain.progress_local:
             return f"safe horizon regressed behind progress for {domain.domain_id}"
+    if state.watermark_common is not None and not _is_exact_time(state.watermark_common):
+        return "watermark must use exact integer/rational time"
     obligation_ids = [item.obligation_id for item in state.obligations]
     if any(not item for item in obligation_ids):
         return "obligation identity must be non-empty"
     if len(obligation_ids) != len(set(obligation_ids)):
         return "duplicate obligation identity"
+    if any(not _is_exact_time(item.at_common) for item in state.obligations):
+        return "obligation timestamp must use exact integer/rational time"
     frontier = _machine_frontier(state)
     if any(
         not item.resolved and item.at_common < frontier
@@ -148,8 +171,29 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
     priority queue or dispatch effects. A pending obligation is a stopping
     boundary; no operation after that boundary is applied.
     """
+    if not _is_exact_time(target_common):
+        return AdvanceEvaluation(
+            state,
+            AdvanceResult(
+                ResultKind.INVALID_INPUT,
+                Fraction(0),
+                _machine_frontier(state),
+                detail="target must use exact integer/rational time; floats are forbidden",
+            ),
+        )
+
     invalid = _validate_state(state)
     if invalid is not None:
+        if invalid == "incomplete participant set":
+            return AdvanceEvaluation(
+                state,
+                AdvanceResult(
+                    ResultKind.BLOCKED,
+                    target_common,
+                    state.watermark_common or Fraction(0),
+                    detail="participant set incomplete; no partial frontier or A(E) computed",
+                ),
+            )
         kind = (
             ResultKind.INVARIANT_VIOLATION
             if "regressed" in invalid or "behind the confirmed" in invalid
