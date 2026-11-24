@@ -1,63 +1,113 @@
 # Temporal Core — pesquisa dos clocks de áudio SMS
 
-**Status:** levantamento de domínios; não define ainda a implementação dos chips nem a unidade temporal final.
+**Status:** levantamento de domínios e discrepâncias. Não define a implementação dos chips, a unidade temporal ou a fase inicial.
 
 ## 1. PSG SN76489 integrado ao VDP Sega
 
-A referência técnica do SMS Power informa que o PSG recebe um clock de entrada nominal de:
-- NTSC: 3.579545 MHz.
-- PAL/SECAM: 3.546893 MHz.
+SMS Power informa que o PSG recebe clock de entrada nominal:
+- NTSC: 3.579545 MHz;
+- PAL/SECAM: 3.546893 MHz (a página também deriva 3.546895 MHz a partir da subportadora PAL).
 
-O chip divide esse clock por 16 para gerar seu clock interno. Os contadores de tom e ruído avançam nesse domínio dividido. A documentação também descreve diferenças entre versões do SN76489, incluindo a variante Sega com LFSR de 16 bits e comportamento específico de períodos zero/um.
+O clock interno é dividido por 16. Os contadores de tom e ruído avançam nesse domínio dividido. A variante Sega integrada usa LFSR de 16 bits, distinta de algumas versões discretas.
 
 Fonte: [SMS Power — SN76489](https://www.smspower.org/Development/SN76489).
 
-O documento técnico de áudio fornecido no projeto também propõe entrada PSG igual ao clock do Z80 e tick interno dividido por 16. Essa informação é coerente com a referência do SMS Power, mas as demais particularidades descritas naquele documento (forma de onda, polaridade, período zero, modelo analógico e parâmetros de filtros) devem ser auditadas separadamente; não são automaticamente aceitas como fatos do hardware.
+### PAL-M
 
-## 2. YM2413 / OPLL
+Não usar automaticamente o clock NTSC para Brasil/PAL-M. O modelo atual do MAME configura VDP a 10.726833 MHz e Z80 a 10.726833/3 = 3.575611 MHz. O runtime V1 usa 3.579545 MHz para Brazil; essa divergência permanece bloqueante até evidência de placa TecToy.
 
-O manual de aplicação do YM2413 informa:
-- cristal de referência de 3.579545 MHz em XIN/XOUT;
-- frequência interna de amostragem indicada como fM/72;
-- clock nominal de referência de 3.6 MHz (3.579545 MHz) para AM, vibrato e temporizações de envelope.
+Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), `MASTER_CLOCK_PALM` e `sms_br_base`.
 
-Fonte: [YM2413 Application Manual — SMS Power](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual).
+### Taxas internas derivadas
 
-As notas de engenharia reversa do SMS Power também usam a relação 3.579545 MHz / 72 em cálculos de AM e PM.
+| Perfil candidato | Entrada PSG | Divisor | Taxa interna |
+|---|---:|---:|---:|
+| NTSC | 3.579545 MHz | /16 | 223,721.5625 Hz |
+| PAL, valor SMS Power | 3.546893 MHz | /16 | 221,680.8125 Hz |
+| PAL, derivação MAME/subportadora | 3.546895 MHz | /16 | 221,680.9375 Hz |
+| PAL-M, modelo MAME | 3.575611 MHz | /16 | 223,475.6875 Hz |
+
+Essas taxas são derivadas de candidatos de clock, não medições independentes do divisor interno.
+
+## 2. Particularidade crítica: período de tom 0/1
+
+SMS Power afirma que, quando o registrador de período de tom vale 0 ou 1, a saída fica em nível constante +1; o documento também observa o uso dessa condição para sample playback.
+
+Fonte: [SMS Power — SN76489](https://www.smspower.org/Development/SN76489).
+
+O documento técnico de áudio fornecido no projeto descreve `N=0` como equivalente a `N=1`, com portadora ultrassônica de aproximadamente 111.86 kHz ou saída efetivamente travada em nível alto. A formulação mistura dois comportamentos diferentes.
+
+**Tratamento:** a afirmação “constante +1” é a referência documental atual; a alegação de portadora deve ser tratada como divergência e não implementada sem teste discriminante no VDP Sega. Testar N=0 e N=1 separadamente, com captura digital/analógica e análise espectral, incluindo playback PCM de jogos reais.
+
+## 3. Ruído e LFSR Sega
+
+SMS Power descreve para SMS1/SMS2:
+- LFSR de 16 bits;
+- modo “periodic”: realimentação do bit 0, sequência de 16 estados úteis;
+- escrita no registrador de ruído reinicia o shift register com todos os bits zero, exceto o bit mais alto;
+- variante Sega de white noise usa taps nos bits 0 e 3 (feedback equivalente à máscara 0x0009, conforme convenção de deslocamento).
+
+Fonte: [SMS Power — SN76489](https://www.smspower.org/Development/SN76489).
+
+A especificação de áudio anexada ao projeto apresenta a mesma largura, reset 0x8000 e taps 0/3. A equivalência de máscara depende da direção e da convenção de estado/saída do LFSR; validar por sequência completa, não somente pelo polinômio.
+
+## 4. YM2413 / OPLL
+
+O manual de aplicação do YM2413 descreve:
+- clock de referência de 3.579545 MHz;
+- temporização de amostras derivada de fM/72;
+- clocks de LFO/AM/vibrato e envelopes derivados internamente.
 
 Fontes:
+- [YM2413 Application Manual — SMS Power](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual)
 - [YM2413 reverse engineering — AM](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-11-28)
-- [YM2413 reverse engineering — PM](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01).
+- [YM2413 reverse engineering — PM](https://www.smspower.org/Development/YM2413ReverseEngineeringNotes2015-12-01)
 
-## 3. Consequência para o modelo temporal
+MAME instancia o YM2413 do Japanese SMS com `XTAL(10'738'635)/3` = 3.579545 MHz.
 
-O SMS possui domínios com frequências nominais iguais ou derivadas de uma referência comum:
-- Z80: clock de entrada do processador.
-- PSG: clock de entrada e divisor interno /16.
-- YM2413: clock de entrada e temporizações internas derivadas, incluindo fM/72.
-- VDP: clock próprio, com relação documentada ao clock do Z80.
+Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), função `smsj`.
 
-Isso favorece investigar uma base temporal comum inteira, com divisores e fases explícitos, em vez de usar ponto flutuante para avançar cada dispositivo.
+A relação nominal não prova a fase absoluta entre YM2413, Z80 e VDP, nem o comportamento de reset em todas as placas. O V2 deve preservar clock e fase como estado explícito.
 
-Entretanto, não devemos supor que todos os chips sejam ligados ao mesmo sinal físico ou que todas as revisões tenham exatamente a mesma fase. O projeto precisa registrar, por modelo de máquina, fonte de clock, divisor, fase inicial e tolerância conhecida.
+## 5. Pipeline analógico pós-chip
 
-## 4. Questões abertas
+O manual de serviço Sega documenta:
+- saída de áudio no pino 10 do IC5/VDP;
+- nível máximo indicado de 300 mVp-p;
+- banda indicada de 20 Hz a 20 kHz;
+- componentes discretos na placa e transistores/capacitores/resistores associados à rota de áudio.
 
-- O YM2413 no SMS recebe sempre o mesmo clock efetivo do Z80 ou existem variações de placa/revisão?
-- Como o clock e o reset do YM2413 se relacionam com a fase do VDP e do Z80?
-- O PSG integrado no VDP compartilha fase com a CPU ou apenas frequência nominal?
-- Quais transições internas do PSG precisam ser visíveis ao barramento, além de atualizações em suas portas?
-- Qual é a menor unidade temporal necessária para representar os efeitos observáveis sem gerar eventos desnecessários por tick?
-- Como preservar os divisores internos e a fase em save states e replay?
+Fonte primária: [Sega Master System Service Manual (PDF)](https://segaretro.org/images/7/7b/SMSServiceManualEU.pdf), seção de diagnóstico “picture appears alone without sound”, página impressa 8, e listas de peças/esquemas.
 
-## 5. Candidato matemático para prototipagem
+O documento técnico anexado ao projeto propõe filtros IIR de 35 Hz e 12 kHz, capacitor de acoplamento, oversampling a 223.72 kHz e soft clipping `tanh`. Esses parâmetros são uma hipótese de modelagem, não valores confirmados pelo manual consultado. A lista de componentes e o limite de banda não bastam para inferir a função de transferência da placa.
 
-O valor de 3.579545 MHz × 15 resulta em 53.693175 MHz. O clock VDP de 10.738635 MHz × 5 resulta no mesmo valor. Isso sugere uma possível unidade mestre NTSC:
-- 15 ticks mestres por T-state do Z80;
-- 5 ticks mestres por clock VDP;
-- 240 ticks mestres por tick interno PSG (/16);
-- 1080 ticks mestres por período de amostragem YM2413 (fM/72).
+**Tratamento:** separar:
+1. saída digital do PSG;
+2. saída elétrica do VDP;
+3. circuito analógico da revisão da placa;
+4. cabo/entrada da TV;
+5. filtro de reconstrução escolhido pelo emulador.
 
-Essas relações são apenas uma hipótese de representação matemática. A fase real entre sinais, clocks de revisão de hardware, comportamento PAL e granularidade dos eventos precisam ser confirmados antes de transformar essa unidade em API pública.
+Antes de fixar coeficientes DSP, identificar revisão de placa, esquema e valores, calcular resposta teórica e comparar captura física. Não usar `tanh` como substituto genérico de transistor sem curva medida.
 
-**Não foi tomada decisão sobre o tipo inteiro, largura, epoch, wrap/overflow, nem sobre a fila de eventos.**
+## 6. Consequência para o modelo temporal
+
+Domínios candidatos:
+- Z80: clock de entrada da CPU;
+- PSG: clock de entrada e divisor /16;
+- YM2413: clock de entrada e temporizações internas derivadas, incluindo fM/72;
+- VDP: clock de entrada próprio, relacionado ao Z80 conforme perfil.
+
+A arquitetura deve manter o estado digital e os divisores internos sob autoridade temporal única. O resampler e os filtros de saída não podem avançar clocks de chip.
+
+## 7. Questões abertas
+
+- PAL-M: qual clock real de PSG/Z80 nas placas TecToy-alvo?
+- PAL: adotar 3.546893 ou 3.546895 MHz, e segundo qual convenção?
+- PSG: qual comportamento físico/digital exato de N=0 e N=1 no VDP integrado?
+- PSG: fase inicial dos divisores e nível de saída após reset?
+- YM2413: fase do clock/reset em relação ao VDP e Z80?
+- Qual resposta analógica real pertence a cada revisão de placa SMS?
+- Quais filtros são do hardware e quais são apenas reconstrução digital do emulador?
+
+Nenhuma destas decisões está fechada nesta pesquisa.
