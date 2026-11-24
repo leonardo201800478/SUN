@@ -330,3 +330,30 @@ Após a revisão independente do HEAD anterior, foram corrigidos dois findings P
 - Contagem atual: R2-T01 = 10; R2-T02 = 4; R2-T03 = 3; R2-T04 = 8. R2-T05–T15 = **NOT RUN**.
 - CI também reportou PASS para validação de workflow (actionlint), higiene documental e supervisor de qualidade Rust. Jobs específicos de hardware/Windows permaneceram SKIPPED, não PASS.
 - Esta execução confirma somente os 25 casos identificados; não conclui R2 e não substitui revisão independente do novo HEAD.
+
+
+### 8.1.2 Reexecução após finding sobre o comando plain unittest — HEAD `52b6dd127dcb9f301c8caaa23813f6d2648fae00`
+
+A revisão Codex do HEAD `1ad80f41f52a5a1f676114fc66a242c3bae49089` identificou que um teste da suíte verificava `sys.dont_write_bytecode` no processo chamador. Essa condição pertence ao runner dedicado e não pode ser pré-requisito para o comando `python -m unittest -v` documentado.
+
+Correção aplicada:
+- removido o teste de estado do processo e o import `sys` de `test_temporal_core.py`;
+- mantido `sys.dont_write_bytecode=True` dentro de `run_reference_tests.py`, antes da descoberta;
+- README ajustado para 27 testes e para manter o comando plain unittest documentado;
+- CI ampliado para executar o comando literal `python3 -m unittest -v`, remover somente os diretórios `__pycache__` produzidos por essa execução, verificar worktree limpo e executar novamente o runner dedicado.
+
+Evidência vinculada:
+- CI: [run #10634](https://github.com/leonardo201800478/SUN/actions/runs/45511594153) — **SUCCESS**.
+- SHA Git executado: `52b6dd127dcb9f301c8caaa23813f6d2648fae00`.
+- Worktree: `CLEAN` na primeira e na segunda execução do runner.
+- SHA-256 de `chronos_reference.py`: `41ee0d615996c8003c289eb113623873ecaa8b1a6e852a33a47f1510c354ccd1`.
+- SHA-256 de `run_reference_tests.py`: `244c61e977f03f4ccad7edc17381dd60335b12406014f08b4dd29fc16c6de8c7`.
+- SHA-256 de `test_temporal_core.py`: `ad4dbc4c7df135db34cea71cecbeae30149a1bca87f51ca7c5704b95212c8eef`.
+- Ambiente: Python 3.14.4; Linux x86_64; perfil abstrato SMS-NTSC.
+- Runner dedicado: **27/27 PASS** na primeira execução e **27/27 PASS** na segunda execução.
+- Comando plain `python3 -m unittest -v`: **27/27 PASS**.
+- Actionlint, higiene documental e supervisor de qualidade: **PASS**.
+- Jobs de Rust, hardware e Windows não aplicáveis a este diff: **SKIPPED**, não PASS.
+- Contagem coberta: R2-T01 = 12; R2-T02 = 4; R2-T03 = 3; R2-T04 = 8. R2-T05–T15 = **NOT RUN**.
+
+Esta evidência substitui a contagem de 28 testes do HEAD anterior para o candidato atual. A revisão Codex do HEAD `52b6dd127dcb9f301c8caaa23813f6d2648fae00` foi solicitada e ainda estava em andamento no momento deste registro. R2 continua EM ANDAMENTO; nenhuma expansão R2-B, R3, produção ou merge é autorizada por esta execução.
