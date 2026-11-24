@@ -1,7 +1,9 @@
 # SUN V2 — boundaries observáveis do VDP SMS
 
-**Baseline consultada:** V1 `207ccc4cebbc4f8c0aed45c68262eae963491689`  
-**Status R0:** primeira passagem documental concluída. A reexecução da ROM no SHA congelado e a evidência física por ASIC permanecem pendentes; não são pré-requisitos para fechar R0 se os limites e as incertezas estiverem explicitamente classificados. Não declarar os resultados históricos como validação do SHA congelado.  
+**Baseline consultada:** V1 `207ccc4cebbc4f8c0aed45c68262eae963491689`
+
+**Status R0:** primeira passagem documental concluída. A reexecução da ROM no SHA congelado e a evidência física por ASIC permanecem pendentes; não são pré-requisitos para fechar R0 se os limites e as incertezas estiverem explicitamente classificados. Não declarar os resultados históricos como validação do SHA congelado.
+
 **Escopo:** SMS1/315-5124 como primeira fatia; SMS2/315-5246 permanece comparativo e incompleto.
 
 ## 1. Regra de precisão
