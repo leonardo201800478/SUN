@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.2; sujeito à revisão e aos testes de referência R2
+**Status:** rascunho técnico v0.3; revisão normativa ampliada, ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -325,6 +325,221 @@ A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 
 
 As respostas devem ser avaliadas por prova, rastreabilidade e custo, não por preferência de implementação.
 
+
+## 16. Clarificações normativas para tornar os contratos verificáveis
+
+Esta seção resolve ambiguidades sem selecionar representação numérica, estrutura de agenda, modelo de threads, fase física ou granularidade de hardware. Se uma relação física continuar UNKNOWN, a regra abaixo limita a alegação de fidelidade; não inventa uma ordem substituta.
+
+### 16.1 Progresso local, horizonte seguro e watermark confirmado
+
+Os termos abaixo são distintos e MUST NOT ser usados como sinônimos:
+
+- **Progresso local (P_d):** instante até o qual o estado próprio do domínio d foi efetivamente atualizado.
+- **Horizonte seguro (H_d):** maior instante até o qual o domínio d pode avançar sem atravessar uma fronteira que ainda possa exigir observação, publicação ou arbitragem causal externa.
+- **Watermark confirmado da máquina (W):** corte causal global fechado: todos os efeitos e eventos pertencentes ao perfil ativo com instante causal menor ou igual a W foram processados, ou estão representados como pendências explícitas cuja existência não altera a validade do corte. Um conflito não resolvido que possa mudar o resultado impede fechar W através daquele instante.
+
+Regras normativas:
+
+1. P_d e H_d pertencem ao domínio e podem diferir entre dispositivos. W pertence à máquina/perfil; um dispositivo não pode declarar W global por conta própria.
+2. W MUST ser monotônico. Um domínio não pode publicar progresso local superior ao seu H_d vigente.
+3. O coordenador só pode confirmar W depois de obter evidência de fechamento causal de todos os participantes relevantes do perfil até W. A regra de participação é parte do perfil e não pode ser inferida da ordem de iteração.
+4. W não é necessariamente o mínimo aritmético de todos os P_d: domínios sem dependência causal no intervalo podem não limitar o corte, mas essa independência precisa estar declarada e validada. R1 não escolhe o algoritmo que calcula W.
+5. Um evento pendente com instante menor ou igual a W é permitido somente se sua pendência estiver incluída no próprio estado lógico do corte e não puder produzir retroativamente um efeito que deveria ter precedido um efeito já confirmado. Caso contrário, W não pode atravessá-lo.
+6. Um pedido de avanço até T com T < W é retroativo e MUST falhar antes de mutar estado. T = W é operação idempotente se não houver nova entrada causal.
+7. O instante comum é uma relação comparável definida pelo perfil. Esta definição não exige epoch, tick mestre, inteiro específico, relógio de parede ou fase elétrica comum.
+8. Se um conflito não comutativo com fase UNKNOWN impedir fechar o corte, o resultado deve indicar bloqueio/indeterminação; o coordenador não pode avançar W escolhendo desempate incidental.
+
+### 16.2 Contrato de avanço, parada e ausência de progresso
+
+Toda solicitação de avanço MUST retornar uma das classes semânticas abaixo, independentemente da forma da API:
+
+- **Reached(T):** o domínio alcançou T e satisfez as obrigações causais até T.
+- **StoppedAt(B, reason):** alcançou B, com B < T, e B é uma fronteira ou deadline que exige coordenação.
+- **Blocked(dependency, condition):** não pode avançar até que uma dependência identificada ou condição externa seja satisfeita. O resultado informa o último progresso efetivo.
+- **Failed(error):** uma precondição ou invariante foi violada; não é um estado normal de espera.
+
+Regras:
+
+1. Blocked não é falha por si só e não autoriza busy-wait. O chamador deve devolver controle, resolver outra dependência ou propagar o bloqueio.
+2. Blocked MUST identificar a dependência/condição que impede progresso e não pode afirmar que T foi alcançado.
+3. Repetir a mesma solicitação sem mudança de estado, entrada ou condição MUST produzir o mesmo bloqueio observável; não pode avançar o tempo virtual artificialmente.
+4. Se uma cadeia de dependências não possuir evento, proprietário ou condição capaz de liberá-la, o modelo deve reportar deadlock/no-progress como falha de contrato reproduzível. R1 não prescreve algoritmo de detecção.
+5. O limite de segurança não pode ser ultrapassado para evitar starvation ou desbloquear outro componente.
+6. Nenhum timeout de relógio de parede pode converter um bloqueio temporal em avanço, WAIT ou evento virtual.
+
+### 16.3 Dependências causais e sincronização
+
+1. Toda operação cross-device MUST declarar o conjunto de estados que observa ou altera e o instante causal de observação/commit.
+2. A sincronização de um destino em T só é concluída quando suas transições próprias relevantes até T foram aplicadas e nenhuma transição posterior a T foi aplicada.
+3. Uma dependência recíproca não autoriza avanço especulativo. Os participantes devem convergir a uma fronteira comum segura, resolver a transação que cria a dependência ou retornar Blocked.
+4. A ausência de dependência causal deve ser explícita para o intervalo e os estados envolvidos; não pode ser inferida apenas porque nenhum evento foi publicado.
+5. A sincronização não deve avançar componentes não relacionados, salvo se o perfil declarar uma dependência que os torne participantes do mesmo corte.
+6. O chamador não pode manter uma transação em estado ambíguo enquanto aguarda sincronização: a transação deve permanecer identificável, retomável e com seus efeitos já realizados registrados.
+
+### 16.4 Conversões entre domínios e fase residual
+
+1. Cada conversão permitida pertence a um perfil e declara origem, destino, razão/frequência aplicável, estado residual necessário e condições de validade.
+2. Converter um intervalo em blocos MUST produzir o mesmo estado temporal que converter o intervalo acumulado, desde que perfil, razão e sequência de entradas permaneçam iguais.
+3. O resto/resíduo pertence à continuidade da conversão; não pode ser descartado ao encerrar um bloco, trocar o tamanho do bloco ou serializar estado.
+4. Uma cadeia A→B→C e uma conversão direta A→C MUST ser equivalentes somente quando a relação declarada pelo perfil e a composição exata das conversões assim garantirem. R1 não presume associatividade, inversibilidade ou equivalência entre caminhos distintos.
+5. Conversão reversa só é permitida quando o contrato do perfil a define sem ambiguidade e sem perda de informação necessária. Não se pode reconstruir fase desconhecida por arredondamento.
+6. Mudança de perfil, frequência, tolerância ou fase inicial exige fronteira de reconfiguração explícita. Nenhum domínio pode trocar silenciosamente sua razão enquanto conserva resíduo incompatível.
+7. Se a informação física de fase inicial/reset for UNKNOWN, o estado pode conservar uma fase configurada/abstrata, mas não pode rotulá-la como fase elétrica medida.
+8. Overflow, denominador inválido, conversão fora do domínio declarado ou resíduo inconsistente MUST falhar antes de publicar avanço parcial.
+
+### 16.5 Ciclo de vida de deadlines e ponto de linearização
+
+Cada deadline lógico tem identidade, proprietário, geração vigente, instante causal e efeito. A implementação pode usar outra estrutura, desde que preserve o seguinte ciclo de vida:
+
+- **Scheduled:** aceito pelo proprietário e elegível para despacho quando o instante causal for alcançado.
+- **Superseded/Cancelled:** geração invalidada antes do ponto de despacho; não pode mais produzir efeito.
+- **Claimed/Dispatched:** o despacho foi iniciado e sua identidade/generation foi validada.
+- **Completed:** o efeito definido foi aplicado exatamente uma vez.
+- **Failed:** o efeito não pôde ser concluído; o erro e o estado pendente são preservados.
+
+Regras:
+
+1. O ponto de linearização entre cancelamento e despacho é único e observável no contrato: se o cancelamento vencer antes de o evento ser reivindicado para despacho, o efeito não ocorre; depois desse ponto, cancelar não desfaz o efeito.
+2. Substituir um deadline incrementa/renova a geração lógica. Qualquer referência antiga deve ser rejeitada antes de seu efeito, mesmo após restore.
+3. Identidade não pode ser reutilizada de forma que uma referência antiga se torne válida para outro evento. Se IDs forem reciclados, a geração deve impedir ABA.
+4. O proprietário é responsável por reconstruir os deadlines próprios a partir do snapshot; o coordenador não pode inventar eventos ausentes.
+5. Um deadline concluído não pode ser despachado novamente por retry, restore ou duplicação de mensagem.
+6. Um deadline bloqueado durante despacho deve manter estado suficiente para retomar sem duplicar seu efeito.
+7. Cancelar um evento concluído não reverte estado. Compensação, se existir em algum dispositivo, é uma nova operação causal, não cancelamento retroativo.
+8. Eventos obsoletos podem ser descartados sem efeito, mas a decisão deve ser determinística e auditável.
+
+### 16.6 Eventos simultâneos, microsteps e progresso
+
+1. Microstep/delta-cycle é ordem lógica de software no mesmo instante, não uma fase física do chip.
+2. A sequência de microsteps só pode ordenar dependências causais já estabelecidas ou efeitos comutativos. Não pode resolver conflito físico não comutativo cuja fase seja UNKNOWN.
+3. Um evento criado durante o despacho no mesmo instante só pode ser processado segundo uma regra explícita de microstep; não pode ser inserido retroativamente antes de um efeito já confirmado.
+4. Cada microstep deve consumir ou resolver uma obrigação identificável: evento despachado, dependência liberada, transação avançada ou erro declarado. Repetir o mesmo estado sem resolver obrigação não conta como progresso.
+5. A execução no mesmo instante MUST terminar, bloquear em dependência identificada ou falhar com diagnóstico. Não pode permanecer em ciclo infinito nem avançar o tempo para escapar dele.
+6. O limite de recursos/microsteps é um mecanismo de proteção, não uma propriedade física. Seu valor e estrutura permanecem para R2/R3; excedê-lo produz falha determinística, nunca descarte silencioso.
+7. O diagnóstico deve incluir instante, proprietário, identidade/generation do evento e cadeia causal mínima que levou ao ciclo.
+8. Permutar a ordem de inserção de eventos independentes/comutativos não pode alterar o resultado observável. Para conflitos não comutativos sem ordem validada, o caso permanece não aprovado.
+
+### 16.7 Transações: amostragem, commit e efeitos parciais
+
+A transação é uma operação lógica; amostragem, commit e conclusão são marcos distintos quando o contrato do dispositivo/barramento assim os exigir.
+
+1. A transação mantém estado independente para: tempo base consumido, WAIT acumulado, amostragem realizada, resultado amostrado, cada efeito irreversível comprometido, efeitos pendentes e conclusão.
+2. Amostragem e commit MUST ser idempotentes por identidade da transação e identidade do marco/efeito. Repetir o pedido para marco já realizado retorna o resultado registrado ou erro de duplicidade; nunca executa o efeito novamente.
+3. Se uma operação possuir vários efeitos observáveis, cada efeito deve ter identidade e estado de conclusão próprios, ou a especificação do dispositivo deve demonstrar que formam um único efeito atômico. R1 não presume atomicidade de múltiplos efeitos.
+4. A retomada começa no primeiro marco ainda não realizado. Não pode repetir leitura amostrada, escrita, acknowledge, publicação de IRQ ou qualquer efeito já comprometido.
+5. Antes do primeiro efeito irreversível, cancelamento pode encerrar a transação se a operação de hardware permitir. Depois do primeiro efeito irreversível, cancelamento não pode fingir rollback: a transação deve concluir, permanecer retomável ou falhar preservando os efeitos já aplicados.
+6. O commit de escrita e a amostragem de leitura não podem ser fundidos quando o contrato de barramento ou a evidência exigir instantes diferentes.
+7. Um erro entre efeitos parciais deve preservar a lista exata de efeitos comprometidos e pendentes. O restore retoma apenas os pendentes.
+8. Um ID duplicado com conteúdo/request diferente é conflito e MUST falhar. O mesmo ID com conteúdo idêntico só pode ser tratado como retry idempotente se isso estiver definido pelo contrato da operação.
+9. O acknowledge de interrupção é uma transação com estado próprio; os TW automáticos documentados pertencem à semântica do Z80 e não são acrescentados genericamente pelo coordenador.
+
+### 16.8 WAIT e fronteiras de amostragem
+
+1. TW automático é duração/comportamento interno definido pela operação Z80 correspondente. Não é um sinal externo e não é sintetizado genericamente pelo CHRONOS.
+2. WAIT externo é uma condição de entrada amostrada nos pontos documentados pelo Z80; a transação preserva cada amostragem e cada TW adicional aplicado.
+3. WAIT de fixture é entrada do modelo de teste, identificada como tal e reproduzida no log/replay. Não pode ser promovida a evidência de hardware.
+4. O contrato deve identificar se o bloqueio está aguardando sinal externo, fixture ou dependência interna. A origem não pode ser perdida no snapshot.
+5. Se a fonte de WAIT físico não for conhecida no perfil, a interface genérica pode representá-la como UNKNOWN/inativa para fins de teste, mas o perfil não pode declarar que existe ou que está conectada sem evidência.
+6. A quantidade de TW automáticos permanece vinculada ao tipo de ciclo Z80 documentado; não é uma regra universal para todos os ciclos ou dispositivos.
+
+### 16.9 IRQ, NMI e acknowledge
+
+1. Estado de linha, transição/borda pendente, estado de aceitação da CPU e transação de acknowledge são estados distintos.
+2. O proprietário da fonte publica transições com identidade e instante causal; a CPU observa a linha apenas no ponto de amostragem definido pela semântica Z80/perfil.
+3. Uma transição anterior ao ponto de amostragem não pode ser omitida. Um pulso/borda cuja retenção dependa de latch do dispositivo deve ser preservado segundo o contrato desse dispositivo; R1 não inventa um latch universal.
+4. A regra de borda da NMI e a regra de amostragem de INT são responsabilidade semântica da CPU Z80, enquanto a disponibilidade temporal das linhas é coordenada pelo CHRONOS.
+5. EI delay, IFF, prioridade NMI sobre INT e acknowledge pertencem ao contrato CPU/barramento documentado; o CHRONOS não os reimplementa.
+6. Fontes simultâneas sem precedência comprovada permanecem sem ordenação física presumida. O perfil precisa declarar a política observável ou permanecer não aprovado para o caso.
+7. Snapshot preserva nível, bordas/latches efetivamente existentes, pendências de publicação, estado de aceitação e acknowledge em andamento.
+
+### 16.10 Snapshot e restore como operação transacional
+
+1. O snapshot representa um corte causal fechado conforme 16.1. Se o corte não puder ser fechado, a captura deve incluir explicitamente todas as transações, eventos e efeitos parciais que cruzam o corte; não pode omiti-los.
+2. O snapshot contém identidade do perfil/revisão, estado de cada domínio, resíduo, watermark, progresso local relevante, deadlines e gerações, microsteps pendentes, CPU, barramento, WAIT, IRQ/NMI, dispositivos e cursor de entradas externas.
+3. O estado de apresentação/host não integra o tempo virtual. Buffers de saída já consumidos pelo host só entram no snapshot se forem necessários para reproduzir uma saída digital definida como observável; essa necessidade deve ser especificada separadamente.
+4. Restore MUST validar versão, perfil, referências, identidades, gerações e invariantes antes de tornar o estado restaurado visível. Falha de validação não pode deixar a máquina ativa parcialmente modificada.
+5. O estado restaurado só é publicado como nova máquina quando todos os componentes necessários aceitaram o mesmo snapshot. A implementação pode preparar estado temporário, mas a forma do mecanismo fica em aberto.
+6. Restore não pode revalidar evento cancelado/superseded, repetir efeito comprometido ou perder efeito pendente.
+7. Snapshot em memória e formato persistente são contratos de compatibilidade diferentes. Migração de versão só é permitida por regra explícita; na ausência dela, rejeitar é correto.
+8. O snapshot deve registrar a versão do modelo/perfil que dá significado aos timestamps e estados; não se presume que snapshots de perfis SMS/SG-1000 sejam intercambiáveis.
+
+### 16.11 Replay, entradas e concorrência
+
+1. O replay identifica ROM/hash, perfil, estado inicial, versão de contrato/modelo, sequência de entradas externas e ordem de aceitação dessas entradas.
+2. Uma entrada externa aceita passa a integrar a linha causal. Seu instante e identidade devem ser registrados antes de poder influenciar o estado virtual.
+3. Se produtores concorrentes publicarem entradas sem uma ordem causal definida, a ordem de chegada do host não pode ser tratada como verdade física. O ponto de ingestão deve serializar e registrar uma ordem lógica estável, ou a execução deve ser marcada como não determinística/não aprovada.
+4. O resultado do replay deve ser independente do escalonamento de threads, ordem de conclusão de tarefas assíncronas e disponibilidade de CPU do host.
+5. Segurança de memória (ausência de data race) e determinismo temporal são propriedades distintas; ambas precisam de validação própria.
+6. Paralelismo só é admissível quando os dados e resultados publicados têm dependências e versão definidas. Um worker não pode alterar estado virtual confirmado retroativamente.
+7. O log de replay deve registrar a primeira divergência com instante, origem, sequência lógica, estado esperado/obtido e identidade da operação causal.
+8. Para a mesma sequência de entradas aceita, diferentes particionamentos de avanço e diferentes escalonamentos permitidos devem produzir os mesmos estados e saídas digitais observáveis.
+
+### 16.12 Erros, bloqueios e atomicidade de falha
+
+O resultado de uma operação temporal deve distinguir sucesso, parada normal, bloqueio e falha. As classes abaixo não são intercambiáveis:
+
+- **Blocked:** dependência/condição externa ainda não satisfeita; estado preservado e retomável.
+- **InvalidInput:** parâmetro, perfil, ID ou geração inválida; rejeitar antes de mutação.
+- **InvariantViolation:** monotonicidade, causalidade, exactly-once, chunk invariance ou estado interno violado; execução de validação inválida.
+- **ResourceExhausted:** limite de eventos, microsteps, memória ou capacidade atingido; não descartar silenciosamente nem avançar parcialmente além do último estado consistente.
+- **IncompatibleSnapshot:** versão, perfil ou estado restaurado incompatível; rejeição atômica.
+- **IndeterminateHardwareOrder:** resultado depende de ordem física UNKNOWN; não declarar compatibilidade para o cenário.
+- **InternalFailure:** falha inesperada com preservação do máximo de contexto diagnóstico; não converter em estado válido.
+
+Uma operação que falhe antes de qualquer efeito deve deixar o estado anterior intacto. Se falhar depois de efeitos irreversíveis, deve retornar o estado parcial explicitamente, mantendo a transação retomável ou inválida conforme o contrato; não pode alegar rollback inexistente.
+
+### 16.13 Independência de áudio, vídeo e host
+
+1. O tempo virtual e os estados de PSG/VDP evoluem por contratos internos, não por callback, buffer, VSync ou consumo do host.
+2. Drenar, atrasar, descartar ou reprocessar um bloco de saída do host não altera divisor, fase, contador, deadline ou watermark virtual.
+3. Se a produção de PCM for assíncrona, cada bloco deve carregar identidade/intervalo temporal suficiente para impedir duplicação, lacuna silenciosa ou reordenação não detectada.
+4. Underrun/overrun é condição do pipeline de saída, não instrução para acelerar, pausar ou retroceder a máquina virtual.
+5. Diferentes tamanhos de bloco de áudio/vídeo devem preservar chunk invariance para o estado virtual e para as saídas digitais definidas pelo contrato.
+6. A relação de clocks de PSG/YM2413 e a fase entre domínios seguem o perfil e a evidência; a independência do host não prova fase física entre chips.
+
+### 16.14 Desempenho, capacidade e observabilidade
+
+1. R1 exige que recursos temporais tenham limite/capacidade e resultado explícito ao esgotá-los; não escolhe a estrutura de dados nem a política concreta de dimensionamento.
+2. Nenhum evento, deadline, transação ou entrada causal pode ser descartado silenciosamente por saturação.
+3. O caminho comum não deve exigir alocação dinâmica por T-state ou por instrução. Qualquer exceção deve ser identificada, justificada e medida antes de R3.
+4. O custo deve ser medido separadamente para avanço, sincronização, publicação, cancelamento, despacho, microsteps, snapshot/restore e replay.
+5. Relatar pelo menos p50/p95/p99 e pior caso, volume de eventos/sincronizações, alocações/bytes, memória máxima e comportamento em carga esparsa/densa.
+6. Instrumentação detalhada é opt-in. Ativar/desativar tracing não pode mudar resultados, ordem lógica ou estado temporal.
+7. Resultados de benchmark devem fixar SHA, perfil, carga, estado inicial, entradas, ambiente, configuração de tracing e método. Headless, frame pacing real, áudio físico e input-to-photon são métricas distintas.
+8. O objetivo de 60 FPS é requisito de produto posterior; não é critério de aprovação isolado do R1 e não pode ser inferido de microbenchmark.
+
+### 16.15 Classificação de evidência e proveniência
+
+As afirmações técnicas e os limites de hardware devem usar as seguintes classes:
+
+- **FACT:** afirmação diretamente sustentada por fonte primária identificada ou por contrato normativo já aprovado. Registrar fonte, revisão/página/seção e escopo.
+- **OBSERVATION:** comportamento observado em implementação, teste, ROM, medição ou comparação. Registrar SHA, perfil, ambiente, entrada, método e artefato; não generalizar além do cenário.
+- **HYPOTHESIS / INFERENCE:** interpretação ou modelo candidato derivado de fatos/observações. Explicitar premissas, alternativas e teste discriminante.
+- **UNKNOWN:** informação não estabelecida ou contraditória. Preservar como desconhecida; declarar impacto, bloqueio e evidência necessária.
+
+Regras:
+
+1. Um requisito normativo R1 é uma decisão de contrato, não uma afirmação de que o hardware já foi medido dessa forma.
+2. Uma propriedade demonstrada no modelo R2 não se converte automaticamente em FACT físico.
+3. Resultado de outro emulador é OBSERVATION de implementação/referência, não prova isolada do hardware.
+4. UNKNOWN não pode ser preenchido por default, conveniência de implementação ou ordem incidental.
+5. Toda linha da matriz de rastreabilidade deve apontar para a origem do requisito e para a propriedade R2 que poderá falsificá-lo.
+6. Se fontes discordarem, registrar a divergência e restringir o perfil/alegação até existir evidência discriminante.
+
+### 16.16 Mapeamento de lacunas normativas para validação R2
+
+| Lacuna fechada | Contratos | Propriedade R2 associada |
+|---|---|---|
+| Progresso local, horizonte e watermark global | C01, C04, C05 | T01, T04, T05 |
+| Bloqueio, dependência circular e ausência de progresso | C04, C05, C14, C15 | T04, T05, T14, T15 |
+| Composição de conversões e resíduo | C02, C03, C11 | T02, T03, T11, T12 |
+| Ponto de linearização e geração de deadline | C06, C11, C14 | T04, T06, T11, T14 |
+| Microstep e progresso finito | C06, C07, C14, C15 | T06, T07, T14, T15 |
+| Efeitos parciais e idempotência por marco | C08, C11, C15 | T08, T11, T12, T15 |
+| Linha, borda, latch e acknowledge | C09, C10, C11 | T09, T10, T11 |
+| Corte causal e restore atômico | C11, C13, C15 | T11, T12, T15 |
+| Ordem de ingestão e concorrência | C07, C12, C13 | T06, T12, T13 |
+| Saturação e observabilidade sem perturbação | C14, C15, C16 | T14, T15 e benchmarks R3 |
 
 ## 17. Matriz de rastreabilidade dos contratos
 
