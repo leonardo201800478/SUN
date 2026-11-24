@@ -57,7 +57,7 @@ A diferença fundamental é a ordem de construção e o contrato de integração
 
 ### Fase 0 — inventário V1 e fechamento de evidências (R0)
 
-<badge>Concluída — 24/11/2026</badge>
+**Status: concluída — 24/11/2026**
 
 O gate R0 foi aprovado no escopo documental. O parecer completo está em [R0_CLOSEOUT.md](docs/temporal-core/R0_CLOSEOUT.md); a issue [#1267](https://github.com/leonardo201800478/SUN/issues/1267) foi encerrada.
 
