@@ -1,0 +1,196 @@
+# Temporal Core — clocks e contratos do Z80/SMS
+
+**Status:** pesquisa R0 concluída; ver parecer R0_CLOSEOUT.md. Valores nominais, valores derivados e escolhas de modelagem estão separados. Nenhuma unidade temporal ou fase absoluta foi aprovada.
+
+## 1. Nomenclatura: não existe um único número chamado “master clock”
+
+As fontes usam nomes diferentes para sinais em pontos distintos da cadeia:
+
+- cristal/oscilador de referência da placa;
+- entrada de clock do VDP;
+- clock do Z80, também usado como referência de entrada do PSG;
+- clock de pixel/dot usado pelo modelo de vídeo;
+- clocks internos divididos do PSG e YM2413;
+- tempo lógico escolhido pelo emulador.
+
+O V2 não deve chamar todos esses sinais de `master_clock`. Cada perfil precisa declarar o pino/sinal, frequência, derivação, tolerância, revisão da placa e fase conhecida.
+
+## 2. NTSC — evidência forte
+
+O manual de serviço Sega registra no circuito IC5/VDP:
+
+- pino 30: 10.738635 MHz ±100 Hz;
+- pino 34, ligado ao clock do Z80: 3.579545 MHz ±30 Hz.
+
+Fonte primária: [Sega Master System Service Manual (PDF)](https://segaretro.org/images/7/7b/SMSServiceManualEU.pdf), página impressa 4 / linhas 41–45 da extração.
+
+A configuração SMS1 NTSC do MAME usa:
+- VDP: 10.738635 MHz;
+- Z80: 10.738635 / 3 = 3.579545 MHz;
+- YM2413 no perfil japonês: 10.738635 / 3.
+
+Fontes de implementação: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), funções `sms1_ntsc` e `smsj`.
+
+A página SMS Power descreve o oscilador NTSC como aproximadamente 53.6931 MHz e o clock de sistema como 3.579540 MHz por divisão por 15, observando que 3.579545 MHz é o valor oficial da subportadora 315/88 MHz. A derivação coerente com o manual Sega é:
+
+`10.738635 MHz × 5 = 53.693175 MHz`
+
+`3.579545 MHz × 15 = 53.693175 MHz`
+
+Fonte: [SMS Power — Clock Rate](https://www.smspower.org/Development/ClockRate).
+
+**Conclusão limitada:** para o perfil NTSC documentado, 10.738635 MHz no VDP e 3.579545 MHz no Z80 são suportados por manual de serviço. A igualdade de frequência nominal do PSG com o Z80 é descrita pelo SMS Power; a fase elétrica exata ainda não está estabelecida.
+
+## 3. PAL europeu — divergência de arredondamento
+
+O código MAME define `MASTER_CLOCK_PAL = 53.203425 MHz`, explicitamente como 12 × 4.43361875 MHz. A configuração PAL usa:
+
+- VDP: 53.203425 / 5 = 10.640685 MHz;
+- Z80: 53.203425 / 15 = 3.546895 MHz;
+- pixel clock da tela: 53.203425 / 10 = 5.3203425 MHz.
+
+Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), `MASTER_CLOCK_PAL`, `sms_pal_base`, `sms1_pal`.
+
+Há uma divergência de aproximadamente 2 Hz entre fontes:
+- SMS Power apresenta 3.546893 MHz como clock PAL/SECAM nominal e deriva 3.546895 MHz a partir da subportadora;
+- a referência de serviço PAL reproduzida em fontes técnicas cita aproximadamente 10.640684 MHz no VDP e 3.546893 MHz no Z80;
+- MAME usa 53.203425 / 15 = 3.546895 MHz.
+
+Fontes: [SMS Power — Clock Rate](https://www.smspower.org/Development/ClockRate); [Sega Master System Troubleshooting Guide — clock checks e referências ao manual](https://wiki.retrotechcollection.com/Sega_Master_System_Troubleshooting_Guide).
+
+**Tratamento:** manter 3.546893 e 3.546895 como candidatos distintos. A tolerância de oscilador/placa não foi localizada nas fontes consultadas e permanece UNKNOWN. O perfil V2 não deve escolher um deles sem fixar a convenção (frequência medida do oscilador, valor nominal de subportadora ou derivação matemática) e a tolerância documentada ou explicitamente desconhecida.
+
+## 4. PAL-M brasileiro — conflito material com o runtime V1
+
+O perfil `brazil` do runtime V1 seleciona `VideoStandard::PalM`, mas fornece 3.579545 MHz ao worker/PSG e à conversão de tempo.
+
+O MAME atual define:
+- `MASTER_CLOCK_PALM = 10.726833 MHz`;
+- comentário de fonte: valor nominal do XTAL PAL-M é 10.726834 MHz;
+- valor 10.726833 é usado no modelo porque o valor nominal provoca erros no Flubba VDPTest, provavelmente por arredondamento do core;
+- Z80 = `MASTER_CLOCK_PALM / 3` = 3.575611 MHz;
+- VDP = `MASTER_CLOCK_PALM`;
+- pixel clock = `MASTER_CLOCK_PALM / 2`;
+- PAL-M usa contagem de linhas e parâmetros de tela NTSC.
+
+Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), definições `MASTER_CLOCK_PALM`, `sms_br_base`, `sms1_br` e `sms3_br`.
+
+**Conflito de modelos:** o valor de CPU/PSG configurado no runtime V1 (3.579545 MHz) difere do modelo MAME PAL-M (3.575611 MHz), diferença de 3.934 kHz. Isso não prova, sozinho, que o V1 esteja errado para a placa TecToy original.
+
+A placa TecToy 199-403-411-416 identificada pelo SMS Power usa VDP 315-5124 e encoder Motorola MC1377P, diferente do encoder V7040 do modelo PAL europeu. Fonte: [SMS Power — Brazilian Master System: TecToy Power Base/PAL-M](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M). Uma discussão de conversão NTSC relata uma marcação de XTAL de 10.746168 MHz (leitura não confirmada) e outro participante sugere 10.726834 MHz para PAL-M e 10.7386 MHz para NTSC; isso é evidência comunitária/anecdótica, não medição rastreável. Fonte: [SMS Power — TecToy SMS1 NTSC conversion](https://www.smspower.org/forums/15865-TectoySms1NTSCConversion).
+
+Uma análise de modificação de vídeo relata burst PAL-M de 3.575611 MHz e problema de sincronismo gerado pelo 315-5124, com correção externa no encoder. Isso mostra que o clock de subportadora do MC1377 e o clock de raster/CPU devem ser tratados como sinais separados até o esquema provar uma derivação comum. Fonte: [Neto Games — TecToy MC1377/CXA1645](https://www.neto-games.com.br/hardware/sms_tt_cxa1645.php).
+
+**Confiança:** alta para os valores configurados por cada software; média/baixa para a frequência física do oscilador TecToy. O valor 10.726834 é candidato plausível e coerente com MAME, mas o relato 10.746168 e a possibilidade de subportadora separada exigem esquema/medição da placa.
+
+SMS Power identifica a placa TecToy Power Base/PAL-M 199-403-411-416, com CPU Zilog Z0840004PSC e VDP Sega 315-5124, mas a página consultada não publica a frequência do oscilador. Fonte: [SMS Power — Brazilian Master System: TECTOY POWER BASE/PAL-M](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M). A subportadora PAL-M brasileira é 3.575611 MHz, mas isso não prova, isoladamente, o clock CPU/PSG da placa. Fonte de padrão: [EPUSP — PAL-M](https://www.lcs.poli.usp.br/~gstolfi/PPT/APTV0416.pdf).
+
+**Ação para fechar o perfil físico PAL-M (adiável; não bloqueia R0 genérico):** obter o esquema PAL-M de 199-403-411-416 e identificar no circuito qual oscilador alimenta VDP/Z80 e qual gera a subportadora MC1377; se possível, medir ambos. Até existir essa evidência, manter o clock CPU/PSG TecToy como UNKNOWN, preservar os candidatos e não promover o valor MAME a verdade física nem “corrigir” o V1.
+
+## 5. Relação VDP/Z80 e geometria horizontal
+
+O MAME configura o clock de entrada do VDP em três vezes o clock do Z80 nos perfis NTSC, PAL e PAL-M. A tela usa metade do clock de entrada do VDP como pixel clock. No modelo NTSC isso resulta em:
+
+- VDP: 10.738635 MHz;
+- pixel clock: 5.3693175 MHz;
+- Z80: 3.579545 MHz;
+- razão VDP:Z80 = 3:1;
+- razão pixel:Z80 = 3:2.
+
+A documentação VDP de Charles MacDonald descreve 342 pixels por linha e 256 pixels ativos, mas adverte que parte dos dados foi tomada do manual TMS9918 e de testes em Genesis NTSC, e que um SMS real pode divergir.
+
+Fonte: [Sega Master System VDP documentation — EmulationResources](https://github.com/franckverrot/EmulationResources/blob/master/consoles/sms-gg/Sega%20Master%20System%20VDP%20documentation.txt), seção H counter. O MAME também mantém a implementação do VDP 315-5124/315-5246 em [315_5124.cpp](https://github.com/mamedev/mame/blob/master/src/devices/video/315_5124.cpp).
+
+A relação matemática candidata para NTSC é:
+- 342 pixels × 2 clocks VDP por pixel = 684 clocks VDP;
+- 228 T-states Z80 × 3 clocks VDP por T-state = 684 clocks VDP.
+
+Isso é uma razão consistente entre os valores do modelo, não prova de fase absoluta, instante de fetch ou equivalência para todas as revisões ASIC.
+
+## 6. PSG e YM2413 — relação com a CPU
+
+SMS Power descreve o PSG integrado como recebendo clock de entrada de 3.579545 MHz em NTSC e 3.546893 MHz em PAL/SECAM, com divisor interno /16. Para PAL-M, o valor deve acompanhar a resolução da seção anterior, não ser inferido por equivalência com NTSC.
+
+No perfil Japanese SMS, MAME instancia YM2413 com `XTAL(10'738'635)/3`, isto é, 3.579545 MHz.
+
+Fontes:
+- [SMS Power — SN76489](https://www.smspower.org/Development/SN76489)
+- [MAME sms.cpp — perfil SMS japonês](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), `smsj`
+- [SMS Power — YM2413 Application Manual](https://www.smspower.org/maxim/Documents/YM2413ApplicationManual)
+
+A frequência nominal não fixa fase inicial, alinhamento após reset, borda de atualização ou comportamento entre revisões de placa. Esses pontos continuam UNKNOWN.
+
+## 7. Candidato matemático de unidade inteira — não aprovado
+
+Para NTSC, a combinação do manual Sega sugere:
+
+- 15 ticks candidatos por T-state Z80;
+- 5 ticks candidatos por clock de entrada VDP;
+- 10 ticks candidatos por pixel, se forem mantidos dois clocks VDP por pixel;
+- 240 ticks candidatos por tick interno PSG (/16);
+- 1080 ticks candidatos por período de amostra YM2413 (/72), caso o perfil use a mesma entrada de 3.579545 MHz.
+
+A coincidência é útil para prototipagem matemática. Não aprova:
+- unidade temporal pública;
+- largura u64/u128;
+- epoch;
+- fase de reset;
+- fase relativa entre CPU/VDP/PSG/FM;
+- granularidade sub-T-state;
+- fila ou estrutura de eventos.
+
+PAL e PAL-M precisam ser avaliados com suas frequências e tolerâncias próprias. Quando a fonte não publica tolerância, registrar UNKNOWN. Um modelo que só fecha NTSC não fecha o requisito regional.
+
+## 8. Z80 — granularidade temporal
+
+O manual Zilog UM008011-0816 define:
+- instruções compostas por operações básicas e ciclos M;
+- M1 com quatro, cinco ou seis T-states conforme operação e WAIT;
+- operações de memória normalmente com três T-states, extensíveis por WAIT;
+- WAIT amostrado na borda de descida durante T2 e em cada TW subsequente;
+- leitura de memória amostrada em T3;
+- I/O com um estado WAIT automático;
+- INT amostrado na borda de subida do último clock ao fim da instrução;
+- NMI sensível à borda negativa e reconhecida ao fim da instrução;
+- acknowledge INT com dois estados WAIT automáticos.
+
+Fonte primária: [Zilog Z80 CPU User Manual UM008011-0816 (PDF)](https://www.zilog.com/docs/z80/um0080.pdf), páginas impressas 7–14. O manual especifica WAIT ativo baixo amostrado na borda de descida de T2 e em cada TW; I/O insere automaticamente um TW; INT é amostrada na borda de subida do último clock da instrução e seu acknowledge M1 insere dois TW automáticos; NMI é negativa-edge-triggered e aceita ao final da instrução; EI adia INT por uma instrução.
+
+O Temporal Core não implementará a lógica interna do Z80. Deve fornecer limites temporais e contratos para que CPU e barramento avancem, suspendam, retomem e apliquem efeitos exatamente uma vez.
+
+## 9. WAIT físico: SMS versus SG-1000/SC-3000
+
+O contrato Z80 genérico precisa suportar WAIT, mas isso não autoriza inserir WAITs artificiais no caminho SMS:
+
+- O `SmsTemporalBus::begin_request` documenta que `fixture_wait_tstates` é fornecido por fixture determinística e não amostra nem afirma representar um sinal WAIT físico.
+- `SmsTemporalMachine` declara explicitamente que a ligação física de WAIT permanece fora dessa fatia temporal.
+- Em discussão técnica do SMS Power, a leitura do esquema SMS indica que /WAIT não vem do VDP e parece ligado apenas ao cartridge port. Charles MacDonald confirma WAIT em escrita PSG no SC-3000 com SN76489A discreto e sugere que a PSG integrada no VDP do Mark III/SMS mudou a interface para evitar essa pausa; a explicação para o SMS é hipótese, não medição conclusiva.
+- O código V1 já inclui o TW automático de I/O dentro de `base_tstates=4` para PortRead/PortWrite. Para INT acknowledge, usa base 3 + dois TW automáticos, total 5 antes de WAIT externo/fixture. Isso corresponde ao manual Zilog.
+
+Fonte comunitária técnica: [SMS Power — SN76489/Sega PSG and CPU waits](https://www.smspower.org/forums/17233-SN76489SegaPSGAndCPUWaits), posts de Maxim, TomHarte e Charles MacDonald. Fonte de implementação V1: `native/z80_cpu/src/sequencer.rs`, `native/sms_core/src/temporal_bus.rs` e `native/sms_core/src/temporal_machine.rs` no SHA congelado.
+
+**Conclusão limitada:** não há evidência nesta rodada de que o VDP ou PSG integrado SMS imponha WAIT ao Z80. O cartridge port pode ser fonte externa de WAIT; verificar esquemas e jogos/cartuchos que realmente o utilizem. A PSG discreta de SG-1000/SC-3000 exige perfil separado e não deve contaminar o SMS.
+
+## 10. Casos de teste derivados
+
+1. NTSC: verificar relação 10.738635 MHz / 3.579545 MHz no perfil e contra fonte primária.
+2. PAL: discriminar 3.546893 vs 3.546895 e registrar convenção e tolerância.
+3. PAL-M: medir VDP input e clock Z80/PSG de uma placa TecToy identificada.
+4. Medir fase relativa e reset phase CPU/VDP/PSG; YM2413 no perfil japonês.
+5. Verificar 342 dots/linha, HCounter e limites de linha por ASIC/region.
+6. Comparar clocks e contagem de linhas NTSC/PAL/PAL-M em sessão longa sem deriva.
+7. Acesso de memória com amostragem T3 e WAIT amostrado em T2/TW.
+8. I/O com WAIT automático e WAIT adicional.
+9. INT/NMI nos limites de instrução e eventos VDP simultâneos.
+10. Snapshot/restore no meio de request/WAIT e replay idêntico.
+
+## 11. Decisões em aberto
+
+- Qual convenção de frequência será armazenada: medição de oscilador, valor nominal de serviço ou derivação de subportadora?
+- PAL-M TecToy usa 10.726833/3.575611 MHz na revisão-alvo ou há variantes?
+- Qual fase relativa existe entre CPU, VDP e PSG?
+- YM2413 recebe exatamente o clock CPU no Japanese SMS e qual é a fase após reset?
+- 342 dots e 228 T-states por linha são universais para os ASICs SMS suportados?
+- Qual granularidade abaixo de T-state é necessária para os consumidores de gameplay comprovados?
+
+Nenhuma destas decisões está fechada nesta pesquisa.
