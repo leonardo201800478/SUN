@@ -148,12 +148,12 @@ Após verificar origem, licença, SHA, parâmetros e validade:
 |---|---|---|---|
 | INV-01 | SHA V1 congelado? | Fechado: `207ccc4cebbc4f8c0aed45c68262eae963491689` | Fechado |
 | INV-02 | CPU semântica vs temporal? | Sequenciador, requests, WAIT, interrupções e testes por família | Bloqueante |
-| INV-03 | WAIT físico e arbitragem SMS? | Sinal/fonte de hardware e casos discriminantes | Bloqueante |
+| INV-03 | WAIT físico e arbitragem SMS? | TW automático Z80 documentado; WAIT externo permanece UNKNOWN, com contrato genérico e teste discriminante definidos | Adiável para perfil/cartucho que o exigir |
 | INV-04 | Boundaries VDP observáveis por gameplay? | ROMs, traces e evidência por perfil ASIC | Alta |
-| INV-05 | Clocks e fases CPU/VDP/PSG por NTSC/PAL/PAL-M? | Fonte primária/medição, razão, fase e convenção de tick | Bloqueante |
+| INV-05 | Clocks e fases CPU/VDP/PSG por NTSC/PAL/PAL-M? | Fontes, tolerâncias e razões registradas; fases desconhecidas explicitamente delimitadas | Bloqueante apenas para fechar o perfil físico correspondente; não para o modelo genérico |
 | INV-06 | Saída de referência PSG? | Vetores/PCM com clock, fase, perfil e proveniência | Alta |
 | INV-07 | Qualidade e perfil de placa YM2413? | Captura separada, A/B, avaliação auditiva e evidência física | Posterior à primeira fatia |
-| INV-08 | Baseline de desempenho? | OutRun com ROM SHA-256, host, toolchain e artefatos S0 | Bloqueante |
+| INV-08 | Baseline de desempenho V1? | S0 encerrado como não executado; nenhuma métrica aprovada ou inferida | Adiado; não bloqueia R0/V2 |
 | INV-09 | Quais evidências V1 são transferíveis? | SHA de código/teste, ambiente e oráculo independente | Alta |
 | INV-10 | Codec persistente completo de máquina? | Codec versionado e restore/replay com todos os estados pendentes | Alta |
 
@@ -161,6 +161,6 @@ Após verificar origem, licença, SHA, parâmetros e validade:
 
 A auditoria de primeira passagem foi feita contra o SHA congelado e encontrou drift entre alguns READMEs/scorecards e o caminho temporal ativo. Ela não reexecutou todas as suítes, não validou hardware físico e não declara TEMPORAL_PASS global.
 
-R0 permanece aberto até que as questões críticas de clocks/fases, colisões temporais, WAIT, boundaries VDP e baseline headless tenham evidências suficientes e testes discriminantes registrados.
+R0 permanece aberto até que os requisitos temporais, colisões, clocks/fases e boundaries VDP tenham fontes rastreáveis e testes discriminantes definidos. WAIT físico e fases de placas sem documentação podem permanecer UNKNOWN quando formalmente delimitados. S0 não executado não é critério de saída nem bloqueador.
 
-**Próxima ação:** fechar a matriz específica de clocks/fases e colisões simultâneas; em paralelo documental, definir os cenários ROM/homebrew e o protocolo de baseline. Só então congelar os contratos R1 e construir o modelo de referência R2.
+**Próxima ação:** fechar a matriz específica de clocks/fases e colisões simultâneas, classificar os boundaries VDP e concluir a separação entre evidência Z80/WAIT automático e WAIT físico não verificado. Depois congelar os contratos R1 e construir o modelo de referência independente R2. Não retomar S0 nem criar baseline substituta.
