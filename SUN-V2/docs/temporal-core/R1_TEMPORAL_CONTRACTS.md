@@ -92,8 +92,8 @@ A propriedade não exige que cada dispositivo execute internamente a mesma quant
 | Operação conceitual | Pré-condições | Pós-condições obrigatórias |
 |---|---|---|
 | Solicitar avanço até T | T pertence ao perfil ativo, é comparável ao progresso local P_d por conversão declarada e não é anterior a P_d nem ao watermark global W | O dispositivo avança até T ou para na primeira fronteira/dependência anterior; retorna o instante realmente alcançado e a razão da parada |
-| Sincronizar dispositivo em T | T pertence ao perfil ativo, é comparável a P_d e não é anterior a W | Todas as transições próprias com instante causal até T foram processadas; nenhuma transição posterior a T foi aplicada |
-| Publicar deadline D | Proprietário válido; D é comparável ao progresso local do proprietário; D não é anterior a P_d nem a W; identidade/geração é única | O deadline passa a ser responsabilidade do proprietário e pode ser despachado uma única vez enquanto a geração for vigente. D = W só pode ser aceito sob a regra explícita de microstep do instante corrente |
+| Sincronizar dispositivo em T | T pertence ao perfil ativo, é comparável a P_d e não é anterior a P_d nem a W | Todas as transições próprias com instante causal até T foram processadas; nenhuma transição posterior a T foi aplicada |
+| Publicar deadline D | Proprietário válido; D é comparável ao progresso local do proprietário; D não é anterior a P_d nem a W; identidade/geração é única | O deadline passa a ser responsabilidade do proprietário e pode ser despachado uma única vez enquanto a geração for vigente. Se D coincidir com o instante confirmado atual do proprietário ou com W, só pode ser aceito sob a regra explícita de microstep do instante corrente |
 | Cancelar/substituir deadline | Identidade e geração correspondem ao agendamento ativo | A geração anterior não pode mais produzir efeito; cancelamento de evento já despachado não desfaz efeito aplicado |
 | Iniciar transação | ID não está ativo; request e perfil são válidos | A transação existe em estado pendente, sem aplicar prematuramente leitura/commit |
 | Amostrar transação | A fronteira de amostragem foi alcançada e a amostragem ainda não ocorreu | O valor observado é capturado uma única vez e fica associado ao ID da transação |
@@ -312,7 +312,7 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões de desenho deliberadamente abertas após R1 v0.3
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.1
 
 Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
 
