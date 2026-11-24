@@ -74,11 +74,17 @@ def main() -> int:
         print(status)
         return 2
 
+    model_files = sorted(
+        path for path in HERE.glob("*.py")
+        if path.name != Path(__file__).name and not path.name.startswith("test_")
+    )
     test_files = sorted(HERE.glob("test_*.py"))
     print(f"repository_head={head}")
     print("worktree_status=CLEAN")
     print(f"oracle_path={ORACLE.relative_to(REPOSITORY_ROOT)}")
     print(f"oracle_sha256={sha256_file(ORACLE)}")
+    for model_file in model_files:
+        print(f"model_sha256[{model_file.name}]={sha256_file(model_file)}")
     print(f"runner_sha256={sha256_file(Path(__file__).resolve())}")
     for test_file in test_files:
         print(f"test_sha256[{test_file.name}]={sha256_file(test_file)}")
