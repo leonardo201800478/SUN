@@ -223,8 +223,8 @@ O perfil SG-1000/SC-3000 com PSG discreta é separado e não pode alterar implic
 Snapshot deve representar um corte causal coerente da máquina e conter, no mínimo:
 - tempo virtual confirmado;
 - estado de cada domínio e resto/fase residual;
-- deadlines pendentes, identidades, gerações e sequência estável;
-- eventos ainda não despachados;
+- deadlines e seus estados de ciclo de vida (Scheduled, Superseded/Cancelled, Claimed, Dispatched, Completed ou Failed), identidades, gerações e sequência estável;
+- eventos ainda não despachados operacionalmente, incluindo os que já estão em estado Claimed;
 - CPU e microsequência pendente;
 - transações de barramento, estados de WAIT, amostragens e commits;
 - linhas IRQ/NMI e bordas pendentes;
@@ -290,7 +290,7 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 | R2-T08 | Exactly-once e efeitos parciais | Suspensão/retomada antes/depois de amostragem, entre cada efeito parcial, após commit, retry idêntico e ID duplicado com payload diferente; assertivas exatas para conjunto comprometido/pendente |
 | R2-T09 | WAIT | TW automático, WAIT externo modelado e fixture separados; WAIT ativo consome TW e reamostra em cada ponto; UNKNOWN não é tratado como inativo e bloqueia sem TW especulativo |
 | R2-T10 | IRQ/NMI | Transições/níveis antes e depois dos pontos de amostragem, borda NMI, EI delay, acknowledge e preservação das bordas/latches efetivamente definidos pelo dispositivo |
-| R2-T11 | Snapshot/restore e geração obsoleta | Eventos pendentes, cancelados/substituídos, claimed e transações em cada estado intermediário; restore preserva claim já decidido em D, não reabre janela de cancelamento, não reativa geração obsoleta nem repete efeito |
+| R2-T11 | Snapshot/restore e geração obsoleta | Eventos pendentes, cancelados/substituídos, claimed e transações em cada estado intermediário; restore preserva claim já decidido em D e retoma despacho exatamente uma vez, não reabre janela de cancelamento, não reativa geração obsoleta nem repete efeito |
 | R2-T12 | Replay e limite de admissão | Execução contínua contra restore + mesma sequência de entradas; rejeitar entrada nova com timestamp <= W; aceitar entrada > W; reproduzir a mesma ordem lógica de aceitação |
 | R2-T13 | Host independence | Variar tamanho de bloco, atrasar/drenar/descartar saída e simular underrun sem alterar estado virtual |
 | R2-T14 | Microstep finito | Evento cria outro evento no mesmo instante, incluindo ciclo infinito |
@@ -418,7 +418,7 @@ Regras:
 9. O cancelamento possui instante causal de aceitação C, registrado no domínio declarado pela entrada; C e D MUST ser convertidos para o mesmo instante comum por conversão válida do perfil antes de comparação. Comparar coordenadas locais brutas de domínios diferentes é proibido. Não basta registrar quando uma thread executou a chamada ou quando o dispatcher recebeu a mensagem.
 10. Um cancelamento só suprime o efeito se sua posição causal for anterior ao claim lógico do deadline em D. Se C for posterior a D, o deadline continua devido, mesmo que o dispatcher ainda não o tenha processado por atraso operacional; o atraso de despacho não reabre a janela causal de cancelamento.
 11. Se C e D coincidirem, a supressão só pode ser decidida por relação causal/microstep explicitamente definida pelo perfil. Sem essa relação, o resultado é indeterminado e não aprovado para o caso; sequência de chegada, thread ou ordem de execução do host não escolhem o vencedor.
-12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão. O estado Claimed é persistido separadamente de Dispatched para que atraso, falha ou restore do dispatcher não reabra a janela de cancelamento.
+12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão. O estado Claimed é persistido separadamente de Dispatched para que atraso, falha ou restore do dispatcher não reabra a janela de cancelamento. Restore de um evento Claimed MUST retomar o despacho operacional exatamente uma vez; não pode descartá-lo, reivindicá-lo novamente nem torná-lo elegível a cancelamento.
 13. Um cancelamento com C < D só é eficaz se tiver sido admitido/registrado antes de W fechar D. Depois de W >= D, uma mensagem de cancelamento ainda não admitida é tardia e MUST ser rejeitada, mesmo que carregue timestamp retroativo C < D; não pode reabrir o corte nem suprimir deadline já devido.
 
 ### 16.6 Eventos simultâneos, microsteps e progresso
