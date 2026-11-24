@@ -1053,6 +1053,15 @@ jobs:
             git status --short
             exit 1
           fi
+          # Exercise the exact plain unittest command documented in the README.
+          python3 -m unittest -v
+          # Plain unittest may create bytecode; remove only generated cache artifacts.
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "Plain unittest left the R2 worktree dirty"
+            git status --short
+            exit 1
+          fi
           # A second invocation proves test discovery did not poison the clean-tree gate.
           python3 run_reference_tests.py
 
