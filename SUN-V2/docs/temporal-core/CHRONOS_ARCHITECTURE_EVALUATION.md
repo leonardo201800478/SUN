@@ -1,10 +1,15 @@
 # CHRONOS — SUN Temporal Core
 
-**Nome arquitetural:** CHRONOS  
-**Componente:** SUN V2 Temporal Core  
-**Sistema inicial:** Sega Master System (SMS)  
-**Status:** avaliação arquitetural e hipótese de prototipagem; **não é uma decisão final de implementação**  
-**Branch:** architecture/sun-v2-foundation  
+**Nome arquitetural:** CHRONOS
+
+**Componente:** SUN V2 Temporal Core
+
+**Sistema inicial:** Sega Master System (SMS)
+
+**Status:** avaliação arquitetural e hipótese de prototipagem; **não é uma decisão final de implementação**
+
+**Branch:** architecture/sun-v2-foundation
+
 **Issue:** [#1267 — SUN V2 — R0: pesquisa e especificação do Temporal Core](https://github.com/leonardo201800478/SUN/issues/1267)
 
 ---
