@@ -4,7 +4,9 @@ SUN V2 é uma reconstrução independente do emulador SUN, iniciada com o Master
 
 ## Estado
 
-**Fase atual: Fase 0 — inventário crítico da V1 e fechamento de evidências R0.**
+**Fase atual: R1 — contratos temporais verificáveis.**
+
+**R0:** aprovado no escopo documental em 24/11/2026. Consulte [parecer R0](docs/temporal-core/R0_CLOSEOUT.md) e [Issue #1267 encerrada](https://github.com/leonardo201800478/SUN/issues/1267).
 
 A baseline V1 foi congelada no commit `207ccc4cebbc4f8c0aed45c68262eae963491689` (23/11/2026). O inventário foi reconfirmado contra código e documentação desse SHA; a auditoria encontrou drift documental e limites importantes que estão registrados na matriz de evidências.
 
@@ -63,4 +65,4 @@ O workspace V2 não deve adicionar dependências de path para crates do legado. 
 
 ## Próximo marco
 
-Fechar R0 documentando fatos, inferências e incertezas remanescentes sobre clocks/fases, colisões temporais, WAIT e boundaries observáveis do VDP. Incertezas físicas sem evidência disponível devem ser formalmente limitadas, sem bloquear a arquitetura genérica. O benchmark S0 permanece não executado e fora dos gates. Em seguida, definir os contratos R1 e o modelo de referência R2 antes dos protótipos descartáveis R3.
+Iniciar R1: formalizar contratos verificáveis de avanço limitado, sincronização sob demanda, deadlines seletivos, causalidade, eventos simultâneos, transações suspensíveis/retomáveis, WAIT, IRQ/NMI, snapshot/restore e determinismo. Preparar o modelo de referência independente R2. Nenhum código de produção está autorizado antes de R5.
