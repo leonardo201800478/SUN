@@ -288,7 +288,7 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 | R2-T06 | Ordenação determinística e corrida deadline/cancelamento | Eventos em instantes diferentes, fases distintas e mesma fase; cancelar antes de D; cancelar depois de D com despacho operacional atrasado; cancelamento e claim em D; permutar ordem de publicação/execução mantendo a mesma ordem causal admitida |
 | R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada; assertiva de que W não fecha sobre o conflito |
 | R2-T08 | Exactly-once e efeitos parciais | Suspensão/retomada antes/depois de amostragem, entre cada efeito parcial, após commit, retry idêntico e ID duplicado com payload diferente; assertivas exatas para conjunto comprometido/pendente |
-| R2-T09 | WAIT | TW automático, WAIT externo modelado e fixture separados |
+| R2-T09 | WAIT | TW automático, WAIT externo modelado e fixture separados; WAIT ativo consome TW e reamostra em cada ponto; UNKNOWN não é tratado como inativo e bloqueia sem TW especulativo |
 | R2-T10 | IRQ/NMI | Transições/níveis antes e depois dos pontos de amostragem, borda NMI, EI delay, acknowledge e preservação das bordas/latches efetivamente definidos pelo dispositivo |
 | R2-T11 | Snapshot/restore e geração obsoleta | Eventos pendentes, cancelados/substituídos, claimed e transações em cada estado intermediário; restore não reativa geração obsoleta nem repete efeito |
 | R2-T12 | Replay e limite de admissão | Execução contínua contra restore + mesma sequência de entradas; rejeitar entrada nova com timestamp <= W; aceitar entrada > W; reproduzir a mesma ordem lógica de aceitação |
@@ -418,6 +418,7 @@ Regras:
 10. Um cancelamento só suprime o efeito se sua posição causal for anterior à elegibilidade/claim do deadline em D. Se C for posterior a D, o deadline continua devido, mesmo que o dispatcher ainda não o tenha processado por atraso operacional; o atraso de despacho não reabre a janela causal de cancelamento.
 11. Se C e D coincidirem, a supressão só pode ser decidida por relação causal/microstep explicitamente definida pelo perfil. Sem essa relação, o resultado é indeterminado e não aprovado para o caso; sequência de chegada, thread ou ordem de execução do host não escolhem o vencedor.
 12. A arbitragem lógica entre cancelamento e claim da regra 1 é aplicada no corte causal correspondente ao instante D, enquanto a execução operacional do efeito pode ocorrer depois. O registro deve preservar ambos os fatos: decisão causal e instante operacional de conclusão.
+13. Um cancelamento com C < D só é eficaz se tiver sido admitido/registrado antes de W fechar D. Depois de W >= D, uma mensagem de cancelamento ainda não admitida é tardia e MUST ser rejeitada, mesmo que carregue timestamp retroativo C < D; não pode reabrir o corte nem suprimir deadline já devido.
 
 ### 16.6 Eventos simultâneos, microsteps e progresso
 
@@ -635,7 +636,7 @@ Regras de leitura:
 ## 18. Requisitos de desempenho e observabilidade
 
 R1 não escolhe estrutura de agenda, mas define os requisitos de capacidade e observabilidade que deverão ser demonstrados em R3. Esta seção não exige benchmark nem medição integrada para a aprovação documental de R1:
-- o caminho comum de avanço não deve exigir alocação dinâmica por T-state ou por instrução;
+- como recomendação C16 (SHOULD), evitar alocação dinâmica por T-state/instrução no caminho comum; justificar exceções e medi-las em R3;
 - publicação e despacho de deadlines devem ter custo limitado e mensurável; crescimento de agenda deve possuir capacidade/limite e política explícita de falha;
 - o estado temporal deve permitir contadores de diagnóstico sem instrumentação obrigatória no hot path;
 - tracing detalhado deve ser opt-in e não alterar a semântica;
