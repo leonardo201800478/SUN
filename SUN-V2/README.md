@@ -10,6 +10,8 @@ A baseline V1 foi congelada no commit `207ccc4cebbc4f8c0aed45c68262eae963491689`
 
 A direção recomendada para o CHRONOS está documentada como **híbrido mínimo**, ainda sujeita a evidências, modelo de referência, protótipos e revisão independente. Nenhum código de emulação V2 foi implementado. A implementação de produção só começa após aprovação dos gates R0–R5.
 
+O benchmark S0 da V1 foi encerrado como **não executado** e não é bloqueador do R0/V2. Não procurar ROM OutRun, executar ou corrigir `perf-baseline-s0.ps1`, repetir medições ou criar benchmarks substitutos para preencher essa lacuna.
+
 ## Princípios
 
 - O código legado permanece intacto e fora da árvore de dependências do V2.
@@ -61,4 +63,4 @@ O workspace V2 não deve adicionar dependências de path para crates do legado. 
 
 ## Próximo marco
 
-Fechar as evidências críticas de R0 — clocks/fases, colisões temporais, WAIT físico, boundaries observáveis do VDP e baseline headless. Em seguida, definir os contratos R1 e o modelo de referência R2 antes do primeiro protótipo integrado.
+Fechar R0 documentando fatos, inferências e incertezas remanescentes sobre clocks/fases, colisões temporais, WAIT e boundaries observáveis do VDP. Incertezas físicas sem evidência disponível devem ser formalmente limitadas, sem bloquear a arquitetura genérica. O benchmark S0 permanece não executado e fora dos gates. Em seguida, definir os contratos R1 e o modelo de referência R2 antes dos protótipos descartáveis R3.
