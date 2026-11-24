@@ -1,10 +1,10 @@
 # CHRONOS — modelo de referência independente R2
 
-**Projeto:** SUN V2  
-**Sistema inicial:** Sega Master System (SMS)  
-**Gate:** R2 — modelo de referência independente  
-**Status:** R2-A em implementação inicial; núcleo de referência e testes R2-T01–T04 parciais; R2 em andamento; não aprovado  
-**Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)  
+**Projeto:** SUN V2
+**Sistema inicial:** Sega Master System (SMS)
+**Gate:** R2 — modelo de referência independente
+**Status:** R2-A em implementação inicial; núcleo de referência e testes R2-T01–T04 parciais; R2 em andamento; não aprovado
+**Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)
 **Contrato normativo:** [R1 v0.3.18](R1_TEMPORAL_CONTRACTS.md), conteúdo aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`
 
 > Este documento define o oráculo de verificação do R2. Não escolhe nem implementa o algoritmo de produção CHRONOS, não cria crate de runtime e não autoriza código de produção antes de R5.
@@ -258,15 +258,19 @@ Foi criado o oráculo isolado em `SUN-V2/verification/r2_reference/`:
 - `test_temporal_core.py`: testes iniciais de monotonicidade, chunk invariance, conversão exata e limite seguro;
 - `README.md`: instruções de execução e limites do artefato.
 
-**Resultado inicial de execução:** 19 testes PASS em Python 3.13.5 / Linux x86_64, usando somente a biblioteca padrão. A execução foi feita sobre cópias locais do código do branch; o resultado é evidência inicial de R2-A, não aprovação da propriedade completa nem do gate R2.
+**Evidência histórica anterior (não vinculada):** foram reportados 19 testes PASS em Python 3.13.5 / Linux x86_64, mas a execução original não registrou o SHA do repositório nem o SHA-256 do oráculo. Conforme revisão Codex, essa execução é evidência local não auditável e **não pode ser atribuída ao HEAD atual**.
 
-| Propriedade | Casos executados | Resultado |
+**Candidato após correções R2-A:** 24 testes definidos. A execução deste candidato permanece **NOT RUN** até que o runner reproduzível abaixo seja executado. O runner registra o SHA Git, SHA-256 de `chronos_reference.py`, versão Python, plataforma e resultado do conjunto de testes.
+
+| Propriedade | Casos definidos no candidato | Resultado do candidato |
 |---|---:|---|
-| R2-T01 | 6 | PASS — avanço retroativo sem mutação, repetição idempotente, regressão interna, participantes incompletos, rejeição de float e sequência monotônica com seed fixa |
-| R2-T02 | 2 | PASS — avanço inteiro versus partições permitidas, incluindo 100 seeds de partições aleatórias |
-| R2-T03 | 3 | PASS — round-trip, composição e 10.000 conversões exatas por razão em três razões racionais |
-| R2-T04 | 8 | PASS — endpoint B=T, parada B<T, H_d concluído, obrigação anterior, retomada após resolução, alvo anterior à obrigação, parada por H_d e mínimo entre participantes |
+| R2-T01 | 9 | NOT RUN — inclui validação de conversão inválida e proprietário obrigatório |
+| R2-T02 | 4 | NOT RUN — inclui paridade de parada em H_d e obrigação pendente, com continuação após resolução |
+| R2-T03 | 3 | NOT RUN |
+| R2-T04 | 8 | NOT RUN |
 | R2-T05–T15 | 0 | NOT RUN |
+
+Para produzir evidência vinculada ao candidato, executar `python run_reference_tests.py` a partir de `SUN-V2/verification/r2_reference/`. Não promover nenhum resultado a PASS antes da execução efetiva.
 
 **Limitações conhecidas do primeiro incremento:**
 - Ainda não implementa relação causal parcial completa nem fases/eventos concorrentes.
