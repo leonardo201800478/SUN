@@ -1,5 +1,6 @@
 """Executable R2-A properties for the independent CHRONOS oracle."""
 from fractions import Fraction
+import random
 import unittest
 
 from chronos_reference import (
@@ -77,6 +78,23 @@ class R2T01MonotonicityTests(unittest.TestCase):
         self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
         self.assertEqual(canonical_state(evaluated.state), before)
 
+    def test_seeded_monotonic_sequence_and_retrograde_rejections(self):
+        rng = random.Random(0xC0A05)
+        state = make_state(domains=[one_domain(horizon=Fraction(1000))])
+        previous = Fraction(0)
+
+        for _ in range(100):
+            target = previous + Fraction(rng.randint(0, 9), rng.randint(1, 7))
+            accepted = advance(state, target)
+            self.assertEqual(accepted.result.kind, ResultKind.REACHED)
+            state = accepted.state
+            previous = target
+
+            before = canonical_state(state)
+            rejected = advance(state, target - Fraction(1, 101))
+            self.assertEqual(rejected.result.kind, ResultKind.LATE_INPUT)
+            self.assertEqual(canonical_state(rejected.state), before)
+
 
 class R2T02ChunkInvarianceTests(unittest.TestCase):
     def test_one_advance_equals_permitted_partitioned_advances(self):
@@ -103,6 +121,33 @@ class R2T02ChunkInvarianceTests(unittest.TestCase):
         self.assertEqual(third.result.kind, ResultKind.REACHED)
         self.assertEqual(canonical_state(whole.state), canonical_state(third.state))
 
+    def test_seeded_random_partitions_match_single_advance(self):
+        for seed in range(100):
+            rng = random.Random(seed)
+            target = rng.randint(10, 1000)
+            cut_count = rng.randint(1, min(12, target - 1))
+            cuts = sorted(rng.sample(range(1, target), cut_count))
+            initial = make_state(
+                domains=[
+                    one_domain(ratio=Fraction(2, 3), horizon=Fraction(2000)),
+                    ClockDomain(
+                        domain_id="vdp",
+                        local_to_common=Fraction(5, 7),
+                        horizon_local=Fraction(2800),
+                    ),
+                ]
+            )
+
+            whole = advance(initial, Fraction(target))
+            partitioned_state = initial
+            for cut in cuts + [target]:
+                part = advance(partitioned_state, Fraction(cut))
+                self.assertEqual(part.result.kind, ResultKind.REACHED)
+                partitioned_state = part.state
+
+            self.assertEqual(whole.result.kind, ResultKind.REACHED)
+            self.assertEqual(canonical_state(whole.state), canonical_state(partitioned_state))
+
 
 class R2T03ExactConversionTests(unittest.TestCase):
     def test_non_integer_ratio_round_trips_without_drift(self):
@@ -120,6 +165,14 @@ class R2T03ExactConversionTests(unittest.TestCase):
         direct = a_to_b * b_to_common
 
         self.assertEqual(local * a_to_b * b_to_common, local * direct)
+
+    def test_long_exact_conversion_session_has_no_accumulated_drift(self):
+        ratios = (Fraction(2, 3), Fraction(5, 7), Fraction(1234567, 1000003))
+        for ratio in ratios:
+            domain = one_domain(ratio=ratio, horizon=Fraction(20000))
+            for tick in range(1, 10001):
+                common = domain.common_offset + Fraction(tick) * ratio
+                self.assertEqual(domain.local_at_common(common), Fraction(tick))
 
 
 class R2T04SafeHorizonTests(unittest.TestCase):
@@ -190,6 +243,40 @@ class R2T04SafeHorizonTests(unittest.TestCase):
         self.assertEqual(stopped.result.kind, ResultKind.STOPPED_AT)
         self.assertEqual(continued.result.kind, ResultKind.REACHED)
         self.assertEqual(continued.result.reached_common, Fraction(15))
+
+    def test_target_before_pending_horizon_obligation_is_reached(self):
+        state = make_state(
+            domains=[one_domain(horizon=Fraction(10))],
+            obligations=[Obligation("irq-10", "vdp", Fraction(10))],
+        )
+
+        evaluated = advance(state, Fraction(9))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.REACHED)
+        self.assertEqual(evaluated.result.reached_common, Fraction(9))
+
+    def test_target_beyond_horizon_without_pending_obligation_stops_at_horizon(self):
+        state = make_state(domains=[one_domain(horizon=Fraction(10))])
+
+        evaluated = advance(state, Fraction(15))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.STOPPED_AT)
+        self.assertEqual(evaluated.result.reached_common, Fraction(10))
+        self.assertEqual(evaluated.result.reason, StopReason.SAFE_HORIZON)
+
+    def test_global_safe_horizon_is_minimum_of_participant_horizons(self):
+        state = make_state(
+            domains=[
+                one_domain(horizon=Fraction(20)),
+                ClockDomain("vdp", Fraction(2, 1), horizon_local=Fraction(4)),
+            ]
+        )
+
+        evaluated = advance(state, Fraction(15))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.STOPPED_AT)
+        self.assertEqual(evaluated.result.reached_common, Fraction(8))
+        self.assertEqual(evaluated.result.reason, StopReason.SAFE_HORIZON)
 
 
 if __name__ == "__main__":
