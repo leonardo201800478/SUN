@@ -67,7 +67,7 @@ Referência: [commit congelado](https://github.com/leonardo201800478/SUN/commit/
 | CHR-02 | Snapshot do Scheduler preserva domínios, fases, fila, sequência e watermark; restore valida estado antes de publicar. | [snapshot-restore.md](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/docs/architecture/scheduler/snapshot-restore.md) | Alta para o Scheduler isolado | Snapshot do Scheduler não é save state completo da máquina; o documento exige estado de CPU/dispositivos/transações no nível da máquina. | Modelo de referência deve provar restore/replay com evento e transação pendentes. |
 | AUD-01 | A sessão de áudio aceita múltiplas fontes mono alinhadas com mesma contagem de frames e sample rate; o resampler final e o sink host são separados. | [session.rs](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/native/audio_runtime/src/session.rs) — blob `d76931293105329b2e0987408922cfd5920870a7` | Alta | Fontes com taxas nativas diferentes precisam ser alinhadas/reamostradas antes do mixer; isso não cria sincronização temporal por si só. | V2 define timestamps/fase por fonte e testa alinhamento e restore do conversor antes do mixer. |
 | SNAP-01 | `SmsTemporalMachine` possui export/restore de estado em memória e a CPU possui codec próprio; há testes de restore em safe points. | [snapshot_restore_e7_2e.rs](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/native/sms_core/tests/snapshot_restore_e7_2e.rs) — blob `6935b1e1ba4e46f747c657c37f458e7968990cbb`; [snapshot-restore.md](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/docs/architecture/scheduler/snapshot-restore.md) | Alta para DTO/restore em memória e casos testados | Não foi comprovado codec binário completo e versionado para toda a máquina SMS, nem continuidade bit-exata do worker/resampler/host. | V2 deve distinguir snapshot de máquina, codec persistente e estado do host; testar cada fronteira. |
-| PERF-01 | Existe harness S0 OutRun A/B/C, headless e sem pacing, que registra commit, ROM SHA-256, ambiente e throughput; A/B/C diferencia SMS sem FM, FM clockado/mutado e FM mixado. O runner deve ser executado em worktree detached no SHA congelado, não na branch V2. | [perf-01-s0-baseline.md](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/docs/testing/perf-01-s0-baseline.md); [runner](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/scripts/benchmark/perf-baseline-s0.ps1) | Alta para o protocolo | O documento declara S0 aberto; não há captura atual com ROM SHA, host e resultado que possa servir de baseline medida neste congelamento. O script exige nome de ROM contendo OutRun e working tree limpo. | Executar em Windows x64 a partir de worktree no SHA `207ccc4...`; preservar manifest, CSV, logs e diagnósticos; separar throughput headless, CPAL físico e WGPU/pacing. |
+| PERF-01 | Existe harness S0 OutRun A/B/C, headless e sem pacing, mas a baseline foi encerrada como **não executada**. Não existe resultado de throughput aprovado para esse S0. | [perf-01-s0-baseline.md](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/docs/testing/perf-01-s0-baseline.md) | Alta para a existência do harness; nenhuma evidência de medição | A ausência da medição é uma limitação histórica conhecida, não um resultado negativo nem uma aprovação. | Não executar/corrigir o runner, procurar ROM OutRun, repetir medição ou criar benchmark substituto. Medir desempenho V2 quando existir fatia funcional e uma hipótese concreta que justifique a medição. |
 | PERF-02 | A medição de 60 FPS em apresentação, latência input-to-photon e underruns físicos é separada do throughput headless. | [perf-01-s0-baseline.md](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/docs/testing/perf-01-s0-baseline.md) | Alta | Não usar FPS headless como evidência de 60 FPS estáveis na apresentação. | V2 só declara gate de produto após medir runtime, host, áudio e apresentação no mesmo SHA. |
 | TEST-01 | Há evidência histórica de stress do Scheduler (320.000 operações e 4.000.000 dispatches), mas a campanha registrada é vinculada a SHA anterior; a implementação do Scheduler mudou desde então. | [ledger de evidências](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/docs/evidence/README.md); [campanha histórica](https://github.com/leonardo201800478/SUN/blob/207ccc4cebbc4f8c0aed45c68262eae963491689/docs/evidence/scheduler-stress-long-2026-11-07.md); código atual `native/machine_scheduler/src/lib.rs` blob `3f8b993ce674ada33874e3d4704e3e5a15804da0` | Alta para a distinção | O resultado histórico não deve ser atribuído automaticamente ao código atual nem ao CHRONOS V2. | Reexecutar somente quando a validação do Scheduler V1 for necessária; para V2 criar testes próprios após R1/R2. |
 
@@ -79,7 +79,7 @@ Referência: [commit congelado](https://github.com/leonardo201800478/SUN/commit/
 4. **YM2413:** existe caminho opcional de placa Japanese SMS, core/serviço serial, domínio temporal e rota PCM de compatibilidade. A qualidade sonora real continua não aprovada e há bloqueios de C-Sync, DAC/analógico e validação em jogos.
 5. **Áudio:** o mixer multi-source já existe. O contrato atual exige fontes previamente alinhadas em taxa e contagem; V2 ainda precisa formalizar timestamp/fase e restore por fonte.
 6. **Clocks:** o worker tem perfis regionais explícitos e usa tick lógico/T-state. Isso não prova relação de fase elétrica entre todos os chips.
-7. **Performance:** há harness S0 definido, mas a baseline medida não está registrada como concluída no documento consultado.
+7. **Performance:** o harness S0 existe, mas a baseline foi encerrada como não executada. Não há resultado de throughput a transportar; S0 não é gate de R0/V2.
 8. **Evidências históricas:** não transportar PASS antigo sem verificar SHA de produção, teste, configuração e ambiente.
 
 ## 5. Questões que permanecem bloqueantes para R0/R1
@@ -95,8 +95,8 @@ Referência: [commit congelado](https://github.com/leonardo201800478/SUN/commit/
 | R0-AUD-01 | Modelo comum de tempo para PSG/FM e conversão PCM | Parcial | Fase/timestamp por fonte, chunk invariance e restore de conversores. |
 | R0-FM-01 | Qualidade real do YM2413 em jogos e placa | Não aprovado | Capturas separadas, comparação A/B, audição e validação física. |
 | R0-SNAP-01 | Codec persistente completo da máquina SMS | Não demonstrado | Codec de máquina, validação cruzada e restore/replay de todos os estados pendentes. |
-| R0-PERF-01 | Baseline headless OutRun com ROM hash no host-alvo | Não executada/registrada no dossiê S0 | Campanha reproduzível e artefatos. |
-| R0-PERF-02 | 60 FPS, áudio físico e latência ponta a ponta | Não medidos no dossiê S0 | Teste separado de host, CPAL e apresentação. |
+| R0-PERF-01 | Baseline headless OutRun da V1 | S0 encerrado como não executado; sem resultado | Adiado e fora dos gates R0/V2; não executar campanha S0 nem criar substituto. |
+| R0-PERF-02 | 60 FPS, áudio físico e latência ponta a ponta | Não medidos no dossiê S0 | Gate de produto V2 posterior à integração funcional; medir separadamente host, CPAL e apresentação. |
 
 ## 6. Decisão de uso da V1
 
@@ -104,24 +104,16 @@ A V1 é fonte de conhecimento, casos de teste, vetores, traces e comparação di
 
 Uma divergência entre V1, documentação e referência externa deve ser registrada e resolvida por evidência. A implementação V1 não é oráculo único.
 
-## 7. Procedimento reproduzível para executar PERF-01/S0
+## 7. Estado final de PERF-01/S0
 
-O script V1 `scripts/benchmark/perf-baseline-s0.ps1` captura o commit atual via `git rev-parse HEAD` e exige working tree limpo. Portanto, executar a partir da branch V2 registraria o SHA documental V2, não a baseline V1 congelada. Criar worktree detached no SHA exato:
+O benchmark S0 da V1 foi encerrado como **não executado**. O procedimento histórico e o runner permanecem no SHA congelado como documentação de contexto, mas não constituem uma tarefa ativa.
 
-```powershell
-git worktree add ..\SUN-V1-baseline-207ccc4 207ccc4cebbc4f8c0aed45c68262eae963491689
-Set-Location ..\SUN-V1-baseline-207ccc4
-.\scripts\benchmark\perf-baseline-s0.ps1 -RomPath "D:\ROMS\Sega Master System\<arquivo-OutRun>.sms"
-```
+Não procurar ROM OutRun, criar worktree para esse benchmark, executar ou corrigir `perf-baseline-s0.ps1`, repetir medições ou criar benchmark substituto. Nenhum número de FPS deve ser inferido ou registrado como resultado de S0.
 
-O nome do arquivo ROM precisa conter `OutRun` (case-insensitive). O script exige Windows x64, Git, Cargo e working tree limpo. Defaults: warmup 5 s, captura de throughput 30 s e diagnóstico separado de 5 s. O perfil padrão é `release`; a amostragem WPR é opcional e deve ser rodada separadamente com perfil instrumentado, sem misturar seus números com throughput release.
-
-Preservar a pasta timestamped criada em `Documents\SUN-Benchmarks\perf-01-s0\`, incluindo `manifest.json`, `outrun-a-b-c.csv`, `benchmark.log`, `build.log`, `subsystem-diagnostics.csv`, `system-summary.json` e `cpu-profile.etl` quando solicitado. O manifest deve conter SHA-256 da ROM, SHA do commit congelado, CPU/OS, Rust/Cargo, target e configuração.
-
-O resultado mede throughput headless do worker com sink de áudio descartável; não prova 60 FPS apresentados, latência input-to-photon nem áudio físico CPAL. Esses são gates separados.
+A ausência da baseline V1 não bloqueia R0, R1 ou o desenho do CHRONOS. A medição de desempenho será planejada quando a fatia V2 estiver executável e houver uma hipótese concreta, uma carga representativa e critérios próprios. Throughput headless, frame pacing Slint/WGPU, saída física CPAL e input-to-photon continuarão sendo métricas distintas.
 
 ## 8. Próximo gate
 
-Com a baseline congelada e as divergências documentais identificadas, a Fase 0 pode avançar para a matriz de clocks/fases, colisões temporais e boundaries observáveis com referências primárias e testes discriminantes. O gate R0 só fecha quando cada hipótese crítica tiver fonte, confiança, impacto e teste associados e o protocolo headless estiver pronto para execução reproduzível.
+Com a baseline V1 congelada e as divergências documentais identificadas, a Fase 0 deve concluir a matriz de clocks/fases, colisões temporais e boundaries observáveis com referências primárias e testes discriminantes. O gate R0 fecha quando cada hipótese crítica tiver fonte, confiança, impacto e teste associado, e as incertezas sem evidência física estiverem formalmente limitadas. S0 não é requisito de saída. R1 define contratos; R2 constrói o modelo de referência independente; R3 compara protótipos descartáveis; R4/R5 revisam e aprovam a arquitetura antes da produção.
 
 **Estado desta matriz:** baseline congelada; auditoria documental/código concluída em primeira passagem; evidências físicas e algumas campanhas executáveis permanecem abertas. Não declarar R0 fechado.
