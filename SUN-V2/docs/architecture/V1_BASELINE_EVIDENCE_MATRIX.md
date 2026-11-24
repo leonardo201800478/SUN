@@ -1,9 +1,13 @@
 # SUN V2 — matriz de evidências da baseline V1
 
-**Baseline V1 congelada:** `207ccc4cebbc4f8c0aed45c68262eae963491689`  
-**Data do commit:** 2026-11-23 05:19:37 UTC  
-**Branch de auditoria V2:** `architecture/sun-v2-foundation`  
-**Comparação no congelamento:** branch V2 = 25 commits à frente / 0 atrás de `main`; `main` e a branch V2 compartilhavam o SHA congelado como merge-base.  
+**Baseline V1 congelada:** `207ccc4cebbc4f8c0aed45c68262eae963491689`
+
+**Data do commit:** 2026-11-23 05:19:37 UTC
+
+**Branch de auditoria V2:** `architecture/sun-v2-foundation`
+
+**Comparação no congelamento:** branch V2 = 25 commits à frente / 0 atrás de `main`; `main` e a branch V2 compartilhavam o SHA congelado como merge-base.
+
 **Escopo:** evidência documental e de código para orientar a arquitetura V2; não certifica fidelidade física nem autoriza reutilização de código. **R0:** aprovado no escopo documental em 2026-11-24; ver [R0_CLOSEOUT.md](../temporal-core/R0_CLOSEOUT.md).
 
 ## 1. Regra de leitura
