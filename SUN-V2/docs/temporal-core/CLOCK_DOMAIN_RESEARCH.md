@@ -149,11 +149,24 @@ O manual Zilog UM008011-0816 define:
 - NMI sensível à borda negativa e reconhecida ao fim da instrução;
 - acknowledge INT com dois estados WAIT automáticos.
 
-Fonte primária: [Zilog Z80 CPU User Manual UM008011-0816 (PDF)](https://www.homecomputermuseum.nl/wp-content/uploads/2025/02/Z80_CPU_Users_Manual_2016.pdf), páginas impressas 7–13.
+Fonte primária: [Zilog Z80 CPU User Manual UM008011-0816 (PDF)](https://www.zilog.com/docs/z80/um0080.pdf), páginas impressas 7–14. O manual especifica WAIT ativo baixo amostrado na borda de descida de T2 e em cada TW; I/O insere automaticamente um TW; INT é amostrada na borda de subida do último clock da instrução e seu acknowledge M1 insere dois TW automáticos; NMI é negativa-edge-triggered e aceita ao final da instrução; EI adia INT por uma instrução.
 
 O Temporal Core não implementará a lógica interna do Z80. Deve fornecer limites temporais e contratos para que CPU e barramento avancem, suspendam, retomem e apliquem efeitos exatamente uma vez.
 
-## 9. Casos de teste derivados
+## 9. WAIT físico: SMS versus SG-1000/SC-3000
+
+O contrato Z80 genérico precisa suportar WAIT, mas isso não autoriza inserir WAITs artificiais no caminho SMS:
+
+- O `SmsTemporalBus::begin_request` documenta que `fixture_wait_tstates` é fornecido por fixture determinística e não amostra nem afirma representar um sinal WAIT físico.
+- `SmsTemporalMachine` declara explicitamente que a ligação física de WAIT permanece fora dessa fatia temporal.
+- Em discussão técnica do SMS Power, a leitura do esquema SMS indica que /WAIT não vem do VDP e parece ligado apenas ao cartridge port. Charles MacDonald confirma WAIT em escrita PSG no SC-3000 com SN76489A discreto e sugere que a PSG integrada no VDP do Mark III/SMS mudou a interface para evitar essa pausa; a explicação para o SMS é hipótese, não medição conclusiva.
+- O código V1 já inclui o TW automático de I/O dentro de `base_tstates=4` para PortRead/PortWrite. Para INT acknowledge, usa base 3 + dois TW automáticos, total 5 antes de WAIT externo/fixture. Isso corresponde ao manual Zilog.
+
+Fonte comunitária técnica: [SMS Power — SN76489/Sega PSG and CPU waits](https://www.smspower.org/forums/17233-SN76489SegaPSGAndCPUWaits), posts de Maxim, TomHarte e Charles MacDonald. Fonte de implementação V1: `native/z80_cpu/src/sequencer.rs`, `native/sms_core/src/temporal_bus.rs` e `native/sms_core/src/temporal_machine.rs` no SHA congelado.
+
+**Conclusão limitada:** não há evidência nesta rodada de que o VDP ou PSG integrado SMS imponha WAIT ao Z80. O cartridge port pode ser fonte externa de WAIT; verificar esquemas e jogos/cartuchos que realmente o utilizem. A PSG discreta de SG-1000/SC-3000 exige perfil separado e não deve contaminar o SMS.
+
+## 10. Casos de teste derivados
 
 1. NTSC: verificar relação 10.738635 MHz / 3.579545 MHz no perfil e contra fonte primária.
 2. PAL: discriminar 3.546893 vs 3.546895 e registrar convenção e tolerância.
@@ -166,7 +179,7 @@ O Temporal Core não implementará a lógica interna do Z80. Deve fornecer limit
 9. INT/NMI nos limites de instrução e eventos VDP simultâneos.
 10. Snapshot/restore no meio de request/WAIT e replay idêntico.
 
-## 10. Decisões em aberto
+## 11. Decisões em aberto
 
 - Qual convenção de frequência será armazenada: medição de oscilador, valor nominal de serviço ou derivação de subportadora?
 - PAL-M TecToy usa 10.726833/3.575611 MHz na revisão-alvo ou há variantes?
