@@ -88,7 +88,7 @@ O worker V1 resolve perfis regionais: USA NTSC 3.579.545 Hz, Brasil/PAL-M 3.579.
 
 **Confiança:** alta para a configuração do software.  
 **Limite:** isso não prova fonte elétrica comum, fase inicial ou ausência de deriva entre chips/placas.  
-**Implicação V2:** frequência nominal, razão racional, fase inicial e convenção de tick mestre precisam ser evidenciadas separadamente por perfil. PAL-M é bloqueante: não herdar o clock NTSC até obter medição ou documentação da placa TecToy.
+**Implicação V2:** frequência nominal, razão racional, fase inicial e convenção de tick mestre precisam ser evidenciadas separadamente por perfil. PAL-M físico é UNKNOWN e bloqueia apenas uma alegação de fidelidade física desse perfil; não bloqueia o contrato temporal genérico nem a primeira fatia em perfil com evidência suficiente.
 
 ### 3.7 Scheduler e snapshots
 
@@ -142,25 +142,25 @@ Após verificar origem, licença, SHA, parâmetros e validade:
 - throughput headless como prova de 60 FPS apresentados;
 - snapshot em memória como prova de codec persistente completo da máquina.
 
-## 7. Lacunas que fecham R0
+## 7. Pendências classificadas por gate
 
 | ID | Pergunta | Evidência necessária | Prioridade |
 |---|---|---|---|
 | INV-01 | SHA V1 congelado? | Fechado: `207ccc4cebbc4f8c0aed45c68262eae963491689` | Fechado |
-| INV-02 | CPU semântica vs temporal? | Sequenciador, requests, WAIT, interrupções e testes por família | Bloqueante |
+| INV-02 | CPU semântica vs temporal? | Caminho Z80MicroSequencer, requests, WAIT e interrupções identificados no SHA congelado; semântica Z80 primária referenciada | R0 atendido; R1 formaliza contratos e R2 testa propriedades |
 | INV-03 | WAIT físico e arbitragem SMS? | TW automático Z80 documentado; WAIT externo permanece UNKNOWN, com contrato genérico e teste discriminante definidos | Adiável para perfil/cartucho que o exigir |
-| INV-04 | Boundaries VDP observáveis por gameplay? | ROMs, traces e evidência por perfil ASIC | Alta |
-| INV-05 | Clocks e fases CPU/VDP/PSG por NTSC/PAL/PAL-M? | Fontes, tolerâncias e razões registradas; fases desconhecidas explicitamente delimitadas | Bloqueante apenas para fechar o perfil físico correspondente; não para o modelo genérico |
-| INV-06 | Saída de referência PSG? | Vetores/PCM com clock, fase, perfil e proveniência | Alta |
+| INV-04 | Boundaries VDP observáveis por gameplay? | Matriz de boundaries, proveniência, limites por perfil e cenários discriminantes documentados | R0 atendido documentalmente; reexecução ROM/fixtures em R2 ou antes do protótipo dependente |
+| INV-05 | Clocks e fases CPU/VDP/PSG por NTSC/PAL/PAL-M? | Fontes, tolerâncias publicadas e UNKNOWNs registrados; PAL-M sem clock físico confirmado | R0 atendido para modelo genérico; perfil físico regional depende de evidência própria |
+| INV-06 | Saída de referência PSG? | SMS Power documenta N=0/1 constante +1, divisor /16 e LFSR Sega; vetores/PCM ainda não foram reexecutados no SHA congelado | R0 atendido por pesquisa; vetores digitais e PCM diferencial em R2 |
 | INV-07 | Qualidade e perfil de placa YM2413? | Captura separada, A/B, avaliação auditiva e evidência física | Posterior à primeira fatia |
 | INV-08 | Baseline de desempenho V1? | S0 encerrado como não executado; nenhuma métrica aprovada ou inferida | Adiado; não bloqueia R0/V2 |
-| INV-09 | Quais evidências V1 são transferíveis? | SHA de código/teste, ambiente e oráculo independente | Alta |
-| INV-10 | Codec persistente completo de máquina? | Codec versionado e restore/replay com todos os estados pendentes | Alta |
+| INV-09 | Quais evidências V1 são transferíveis? | Matriz liga código/testes ao SHA congelado e classifica ausência de ROM hash/ambiente nos relatórios históricos | R0 atendido; reexecução e oráculo independente em R2 |
+| INV-10 | Codec persistente completo de máquina? | Necessidade e estado não demonstrado identificados; estado temporal pendente listado | R1 define contrato; R2 prova restore/replay |
 
 ## 8. Limite deste inventário
 
 A auditoria de primeira passagem foi feita contra o SHA congelado e encontrou drift entre alguns READMEs/scorecards e o caminho temporal ativo. Ela não reexecutou todas as suítes, não validou hardware físico e não declara TEMPORAL_PASS global.
 
-R0 permanece aberto até que os requisitos temporais, colisões, clocks/fases e boundaries VDP tenham fontes rastreáveis e testes discriminantes definidos. WAIT físico e fases de placas sem documentação podem permanecer UNKNOWN quando formalmente delimitados. S0 não executado não é critério de saída nem bloqueador.
+R0 foi aprovado no escopo documental em 2026-11-24. Fontes, requisitos temporais, colisões, clocks/fases, boundaries VDP e testes discriminantes estão rastreáveis; incertezas sem evidência física foram delimitadas. WAIT físico, fases de placa e vetores de validação ainda pendentes pertencem a perfis/gates posteriores. S0 não executado não é critério de saída nem bloqueador.
 
-**Próxima ação:** fechar a matriz específica de clocks/fases e colisões simultâneas, classificar os boundaries VDP e concluir a separação entre evidência Z80/WAIT automático e WAIT físico não verificado. Depois congelar os contratos R1 e construir o modelo de referência independente R2. Não retomar S0 nem criar baseline substituta.
+**Próxima ação:** iniciar R1 com contratos verificáveis e manter as questões UNKNOWN como parâmetros/condições explícitas. R2 criará o modelo de referência independente e os testes diferenciais. Não retomar S0 nem criar baseline substituta.
