@@ -4,7 +4,7 @@
 
 **Arquitetura temporal:** CHRONOS — híbrido mínimo, sujeito aos gates técnicos
 
-**Estratégia:** componentes mínimos com contratos sólidos, integrados desde cedo em uma fatia vertical
+**Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
 **Status:** R0 aprovado no escopo documental; R1 em elaboração/revisão (main v0.3.3; PR #1275 propõe v0.3.4); R2–R5 bloqueados; nenhuma implementação de produção iniciada
 
@@ -22,7 +22,7 @@ A proposta do usuário — CPU, VDP e áudio mínimos com base sólida, refinado
 
 > Os componentes serão mínimos em escopo funcional, mas nascerão integrados aos contratos temporais, de barramento, snapshot e observabilidade. Não serão protótipos atômicos que precisem ser reescritos quando a sincronização real começar.
 
-Após a aprovação R5, a primeira fatia executável de produção conterá CPU Z80 mínima, barramento/memória/cartucho mínimos, VDP SMS mínimo e PSG SN76489 mínimo, todos avançando sob uma única autoridade temporal. Antes de R5, somente contratos R1, modelo independente R2 e protótipos descartáveis R3 são permitidos; não implementar a fatia de produção antecipadamente. A fatia não precisa rodar imediatamente um catálogo amplo de jogos. Precisa executar cenários pequenos e reproduzíveis, revelar custo e permitir atribuir divergências ao componente responsável.
+Após a aprovação R5, a primeira fatia executável de produção conterá CPU Z80 mínima, barramento/memória/cartucho mínimos, VDP SMS mínimo e PSG SN76489 mínimo, todos avançando sob uma única autoridade temporal. Antes de R5, somente trabalhos dos gates R1–R4 são permitidos em ordem estrita: R2 após R1, R3 após R1/R2 e R4 após R3. Não implementar a fatia de produção antecipadamente. A fatia não precisa rodar imediatamente um catálogo amplo de jogos. Precisa executar cenários pequenos e reproduzíveis, revelar custo e permitir atribuir divergências ao componente responsável.
 
 O YM2413 entra depois que o caminho PSG, os contratos de áudio multi-fonte e as evidências específicas do perfil Japanese SMS estiverem definidos. Não será usado para atrasar a primeira fatia, mas sua integração futura será prevista desde o desenho do contrato de áudio.
 
@@ -48,7 +48,7 @@ A diferença fundamental é a ordem de construção e o contrato de integração
 ## 3. Regras de construção
 
 1. **Mínimo não significa improvisado.** Cada componente começa com um contrato estável e uma lista explícita de funcionalidades incluídas/excluídas.
-2. **Integração cedo.** Não deixar CPU, VDP e áudio isolados por meses para conectá-los somente no final.
+2. **Integração na primeira fatia pós-R5.** Não deixar CPU, VDP e áudio isolados por meses depois da autorização de produção; conectá-los conforme os contratos e ADRs aprovados.
 3. **Uma autoridade temporal.** Nenhum componente avança seu próprio relógio de máquina de forma independente.
 4. **Precisão proporcional.** Modelar detalhe temporal quando ele altera gameplay, interação observável ou resultado de teste; manter o restante atômico quando seguro.
 5. **Sem falsa completude.** “Compila”, “renderiza uma tela” e “emite áudio” não significam fidelidade temporal.
