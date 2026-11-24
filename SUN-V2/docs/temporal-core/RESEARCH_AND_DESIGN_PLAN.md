@@ -1,6 +1,6 @@
 # Temporal Core — plano de pesquisa e especificação
 
-**Status:** R0 aprovado no escopo documental em 2026-11-24; proposta de híbrido mínimo documentada; R1 autorizado. Nenhuma implementação de produção autorizada.
+**Status:** R0 aprovado no escopo documental em 2026-11-24; R1 em elaboração/revisão; nenhum contrato final aprovado e nenhuma implementação de produção autorizada.
 
 ## 1. Missão
 
@@ -121,7 +121,11 @@ Medir, no mínimo:
 
 Separar microbenchmarks de benchmarks integrados com a carga de trabalho SMS. Nenhum resultado sintético isolado será aceito como prova de ganho em gameplay. A baseline deve preceder a definição de limites numéricos de overhead.
 
-## 8. Portões de aprovação
+## 8. Entregável R1 em elaboração
+
+O primeiro rascunho normativo está em [R1_TEMPORAL_CONTRACTS.md](R1_TEMPORAL_CONTRACTS.md). Ele define invariantes e comportamentos sem selecionar estrutura de dados, tipo temporal ou fase física. A issue #1270 acompanha revisão e aprovação dos contratos.
+
+## 9. Portões de aprovação
 
 - **R0 — Pesquisa:** fontes, incertezas e requisitos documentados.
 - **R1 — Especificação:** invariantes, semântica e contratos completos.
