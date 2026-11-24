@@ -568,7 +568,9 @@ fn selected_vdp_revision(system: &str) -> SmsVdpRevision {
 fn load_known_fm_roms() -> Vec<(PathBuf, &'static FmRomFixture, Vec<u8>)> {
     let directory = std::env::var_os("SEGA_SMS_FM_TEST_ROM_DIR")
         .map(PathBuf::from)
-        .expect("set SEGA_SMS_FM_TEST_ROM_DIR to a directory containing the required FM reference ROMs");
+        .expect(
+            "set SEGA_SMS_FM_TEST_ROM_DIR to a directory containing the required FM reference ROMs",
+        );
     let rom_paths = collect_roms(&directory);
     assert!(
         !rom_paths.is_empty(),
