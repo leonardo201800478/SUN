@@ -14,7 +14,7 @@ Fonte: [SMS Power — SN76489](https://www.smspower.org/Development/SN76489).
 
 ### PAL-M
 
-Não usar automaticamente o clock NTSC para Brasil/PAL-M. O modelo atual do MAME configura VDP a 10.726833 MHz e Z80 a 10.726833/3 = 3.575611 MHz. O runtime V1 usa 3.579545 MHz para Brazil; essa divergência permanece bloqueante até evidência de placa TecToy.
+Não escolher automaticamente entre clock NTSC e PAL-M para Brasil. MAME configura VDP a 10.726833 MHz e Z80/PSG a 3.575611 MHz; V1 usa 3.579545 MHz. A placa TecToy original usa MC1377P, e a subportadora PAL-M de 3.575611 MHz pode ser gerada no encoder separadamente do clock CPU/PSG. Há relatos comunitários de XTAL 10.726834 MHz e também uma marcação de 10.746168 MHz não confirmada. Portanto, 3.575611 MHz é candidato do modelo MAME e do padrão de cor, não fato físico fechado para PSG da TecToy. Fontes: [SMS Power board](https://www.smspower.org/Development/BrazilianMasterSystemTECTOYPOWERBASEPAL-M), [SMS Power conversion thread](https://www.smspower.org/forums/15865-TectoySms1NTSCConversion), [Neto Games](https://www.neto-games.com.br/hardware/sms_tt_cxa1645.php).
 
 Fonte: [MAME sms.cpp](https://github.com/mamedev/mame/blob/master/src/mame/sega/sms.cpp), `MASTER_CLOCK_PALM` e `sms_br_base`.
 
