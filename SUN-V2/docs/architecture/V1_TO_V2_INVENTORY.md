@@ -1,9 +1,13 @@
 # Inventário crítico V1 → V2
 
-**Projeto:** SUN V2  
-**Escopo:** primeira máquina SMS  
-**Baseline V1 congelada:** `207ccc4cebbc4f8c0aed45c68262eae963491689` (2026-11-23 05:19:37 UTC)  
-**Status:** inventário revisado contra código e documentação do SHA congelado; não equivale a validação física.  
+**Projeto:** SUN V2
+
+**Escopo:** primeira máquina SMS
+
+**Baseline V1 congelada:** `207ccc4cebbc4f8c0aed45c68262eae963491689` (2026-11-23 05:19:37 UTC)
+
+**Status:** inventário revisado contra código e documentação do SHA congelado; não equivale a validação física.
+
 **Regra:** este documento registra conhecimento transferível, não autoriza cópia de código.
 
 ## 1. Conclusão executiva
@@ -46,15 +50,18 @@ O README de `native/z80_cpu` descreve corretamente o contrato do executor `Z80::
 - a execução avança por requests de barramento, ciclos internos e dispatch do Scheduler;
 - o estado do sequenciador pode ser exportado/restaurado nos safe points cobertos.
 
-**Confiança:** alta para a arquitetura implementada; a cobertura semântica/temporal deve ser vinculada aos testes e SHAs que a executaram.  
+**Confiança:** alta para a arquitetura implementada; a cobertura semântica/temporal deve ser vinculada aos testes e SHAs que a executaram.
+
 **Implicação V2:** não repetir a premissa de que a V1 não possui microsequenciador. Reimplementar a partir de contratos e casos discriminantes, sem copiar o executor.
 
 ### 3.2 Barramento, WAIT e interrupções
 
 O handshake Z80 mantém uma transação pendente, identidade, operação, endereço, duração base e WAIT acumulado. A máquina SMS agenda a conclusão no Scheduler e aplica os efeitos no boundary de conclusão. O Z80 inclui um TW automático em I/O (V1 codifica PortRead/PortWrite com 4 T-states) e dois TW automáticos em INT acknowledge (3 base + 2 automáticos). A máquina temporal também registra eventos de INT/NMI e acknowledge.
 
-**Confiança:** alta para a existência dos mecanismos e para os casos de software documentados.  
-**Limite:** a V1 injeta WAIT adicional via fixture e não amostra WAIT físico. Discussão técnica SMS Power indica /WAIT conectado ao cartridge port, não ao VDP; PSG discreta de SC-3000 pode pausar CPU, mas a PSG integrada SMS provavelmente tem interface diferente (hipótese). WAIT externo de cartridge e DMA/arbitragem elétrica permanecem não verificados.  
+**Confiança:** alta para a existência dos mecanismos e para os casos de software documentados.
+
+**Limite:** a V1 injeta WAIT adicional via fixture e não amostra WAIT físico. Discussão técnica SMS Power indica /WAIT conectado ao cartridge port, não ao VDP; PSG discreta de SC-3000 pode pausar CPU, mas a PSG integrada SMS provavelmente tem interface diferente (hipótese). WAIT externo de cartridge e DMA/arbitragem elétrica permanecem não verificados.
+
 **Implicação V2:** WAIT é parte do contrato de transação, mas sua fonte deve ser explicitada (fixture, dispositivo ou sinal físico); nunca tratar os três como a mesma evidência.
 
 O relatório comparativo anexado em 15/11/2026 registra resultados da ROM SMS VDP Test v1.31: o Sega Emulator teve 17/19 em data, 11/16 em misc e 17/19 em sprite; Ares teve 19/19, 11/16 (com acertos diferentes) e 16/19, respectivamente. O relatório também registra falhas em ponteiros de endereço após escrita de um byte, timing de H/V counters e IRQs, colisões/overflow de sprites, e sucesso de X-Scroll latchtime no Sega Emulator. Como não registra SHA do executável, hash da ROM, BIOS/configuração nem ambiente, é evidência histórica, não prova do comportamento no SHA V1 congelado. Reexecutar no baseline antes de promover qualquer resultado.
@@ -63,39 +70,48 @@ O relatório comparativo anexado em 15/11/2026 registra resultados da ROM SMS VD
 
 A documentação V1 descreve o VDP SMS1/315-5124 e o engine compartilhado, incluindo portas, VRAM/CRAM, Mode 4, modos legados, sprites, counters, IRQ e boundaries seletivos. A integração temporal avança o VDP a partir dos T-states do Scheduler. A rasterização permanece scanline-level com boundaries subline específicos.
 
-**Confiança:** alta para os limites do modelo e testes de software; média para a correspondência física. O modelo SMS1 usa 228 T-states/linha, 342 HPos, VINT T13, HINT T14, VCounter T15, overflow/frame T16, VBlank flag T17, HBlank T213, R8 latch HPos21 e área ativa HPos63..319. Esses limites vêm de SmsVdpTest/modelos comparativos, não de medição elétrica universal. O comentário V1 que diz que a colisão SMS1 só aparece em HBlank contradiz a implementação e testes que a expõem quando o feixe cruza o pixel; registrar como drift, não alterar V1 nesta tarefa.  
-**Limite:** não declarar dot accuracy, fetch-ahead completo ou pipeline elétrico universal.  
+**Confiança:** alta para os limites do modelo e testes de software; média para a correspondência física. O modelo SMS1 usa 228 T-states/linha, 342 HPos, VINT T13, HINT T14, VCounter T15, overflow/frame T16, VBlank flag T17, HBlank T213, R8 latch HPos21 e área ativa HPos63..319. Esses limites vêm de SmsVdpTest/modelos comparativos, não de medição elétrica universal. O comentário V1 que diz que a colisão SMS1 só aparece em HBlank contradiz a implementação e testes que a expõem quando o feixe cruza o pixel; registrar como drift, não alterar V1 nesta tarefa.
+
+**Limite:** não declarar dot accuracy, fetch-ahead completo ou pipeline elétrico universal.
+
 **Implicação V2:** precisão seletiva por efeito observável, não pipeline por pixel/dot por princípio.
 
 ### 3.4 PSG e áudio
 
 O SN76489 mantém clock, divisor /16, fase do divisor, fase de saída, contadores, LFSR, filtro e clocks decorridos. O core avança por quantidade explícita de clocks. A sessão de áudio aceita fontes mono alinhadas com a mesma taxa e contagem de frames; o resampler final e o sink ficam fora do chip.
 
-**Confiança:** alta para os contratos estruturais no código.  
-**Limite:** PCM/FIR não é calibração analógica da placa; fontes com taxas nativas distintas precisam de alinhamento anterior ao mixer.  
+**Confiança:** alta para os contratos estruturais no código.
+
+**Limite:** PCM/FIR não é calibração analógica da placa; fontes com taxas nativas distintas precisam de alinhamento anterior ao mixer.
+
 **Implicação V2:** o contrato de chip deve ser independente da taxa PCM e do host; o alinhamento multi-fonte deve preservar timestamp e fase.
 
 ### 3.5 YM2413
 
 A V1 possui perfil físico explícito de Japanese SMS com YM2413 opcional, domínio temporal adicional, core e serviço PG serial. A rota PCM de compatibilidade usa pipeline digital de referência; o scorecard vigente no congelamento registra que a qualidade sonora de Kenseiden e Phantasy Star não foi aprovada. C-Sync, calibração do DAC, transferência analógica e correspondência de presets permanecem lacunas.
 
-**Confiança:** alta para o estado declarado no scorecard e para a presença do caminho de software.  
+**Confiança:** alta para o estado declarado no scorecard e para a presença do caminho de software.
+
 **Implicação V2:** não considerar FM concluído, não inferir presença de chip pela região e não permitir Auto sem evidência exata de ROM/placa. O FM não bloqueia a primeira fatia PSG, mas o contrato multi-fonte deve nascer desde o início.
 
 ### 3.6 Clocks e fases
 
 O worker V1 resolve perfis regionais: USA NTSC 3.579.545 Hz, Brasil/PAL-M 3.579.545 Hz, Europa PAL 3.546.895 Hz e Japão/Coreia NTSC 3.579.545 Hz. Entretanto, MAME configura PAL-M com VDP 10.726.833 MHz e Z80/PSG 3.575.611 MHz; essa diferença de 3.934 kHz é material. A placa TecToy 199-403-411-416 usa encoder MC1377P, e há relatos comunitários de XTAL 10.726834 MHz (candidato) e 10.746168 MHz (leitura não confirmada). A subportadora PAL-M 3.575611 MHz pode ser gerada separadamente no encoder; não inferir dela o clock CPU/PSG. Para PAL europeu há divergência de 3.546.893 vs 3.546.895 MHz. O caminho atual usa um tick lógico por T-state; o coordenador registra CPU, PSG e VDP com razão comum e YM2413 como domínio opcional na mesma escala lógica.
 
-**Confiança:** alta para a configuração do software.  
-**Limite:** isso não prova fonte elétrica comum, fase inicial ou ausência de deriva entre chips/placas.  
+**Confiança:** alta para a configuração do software.
+
+**Limite:** isso não prova fonte elétrica comum, fase inicial ou ausência de deriva entre chips/placas.
+
 **Implicação V2:** frequência nominal, razão racional, fase inicial e convenção de tick mestre precisam ser evidenciadas separadamente por perfil. PAL-M físico é UNKNOWN e bloqueia apenas uma alegação de fidelidade física desse perfil; não bloqueia o contrato temporal genérico nem a primeira fatia em perfil com evidência suficiente.
 
 ### 3.7 Scheduler e snapshots
 
 O Scheduler possui timestamp inteiro u128, razões racionais, fase residual, ordenação determinística, delta-event budget, snapshot e restore validados. A documentação é explícita: `HardwarePhase` é ordinal e não representa fase elétrica. O snapshot do Scheduler preserva apenas o estado temporal que lhe pertence; a máquina precisa preservar CPU, transações, dispositivos, latches e pipelines.
 
-**Confiança:** alta para o contrato do Scheduler isolado.  
-**Limite:** a campanha longa histórica de stress foi executada em SHA anterior; não atribuir automaticamente o resultado à implementação atual sem reconciliação dos blobs.  
+**Confiança:** alta para o contrato do Scheduler isolado.
+
+**Limite:** a campanha longa histórica de stress foi executada em SHA anterior; não atribuir automaticamente o resultado à implementação atual sem reconciliação dos blobs.
+
 **Implicação V2:** modelo de referência próprio deve provar chunk invariance, causalidade e restore/replay antes de escolher a estrutura definitiva.
 
 ## 4. Evidências e proveniência
