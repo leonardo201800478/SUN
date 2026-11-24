@@ -53,7 +53,7 @@ Entretanto, há um comentário em `read_port()` afirmando que “SMS1 collision 
 5. **HCounter:** a fórmula é a convenção implementada para 315-5124; os valores CPU-observáveis da ROM precisam ser testados pela máquina completa, incluindo ciclo de I/O, atraso de instrução e TH.
 6. **TH externo:** a borda TH agendada não aciona ainda o latch HCounter. A regra MAME de latch no retorno a high usa offset HPos configurável e não deve ser importada como verdade física sem prova.
 7. **SMS2:** o caminho de HBlank/raster-write ainda não está caracterizado; não generalizar limites SMS1 para 315-5246.
-8. **PAL-M:** o perfil VDP V1 retorna 3.579545 MHz para PAL-M, em conflito com o modelo PAL-M MAME de 3.575611 MHz no Z80/PSG. O VDP PAL-M também usa 262 linhas no V1. Clock e perfil precisam de evidência TecToy.
+8. **PAL-M:** o perfil VDP V1 retorna 3.579545 MHz para PAL-M, em conflito com o modelo MAME de 3.575611 MHz no Z80/PSG. A placa TecToy usa MC1377P; há candidato comunitário de XTAL 10.726834 MHz e relato não confirmado de 10.746168 MHz. A subportadora 3.575611 MHz pode ser separada do clock CPU/VDP. O VDP PAL-M também usa 262 linhas no V1. Clock e perfil precisam de esquema/medição TecToy.
 9. **HCounter report:** o comparativo fornecido em 15/11 registra início de sequência HCounter diferente entre Sega Emulator e ares, embora ambos apresentem salto `$93 → $E9`. O relatório não fixa SHA/ROM hash/ambiente, logo precisa ser reexecutado.
 
 ## 5. Priorização por impacto em jogos
