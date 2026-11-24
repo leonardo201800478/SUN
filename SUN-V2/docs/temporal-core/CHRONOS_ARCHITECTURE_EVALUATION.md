@@ -262,11 +262,18 @@ A hipótese prioritária para R3 é um **coordenador temporal determinístico, c
 
 Essa hipótese não define ainda a estrutura da agenda, tipo inteiro, uso de corrotinas, ticks por T-state/dot, ordem exata de fases simultâneas ou quais eventos do VDP precisam de dispatch explícito.
 
-### 8.1 Propriedade temporal
+### 8.1 Autoridade temporal e propriedade do estado
 
-A hipótese é manter um único proprietário da transição causal de estado da máquina. Isso não significa que todo cálculo tenha de ocorrer na mesma thread. Significa que workers não podem alterar diretamente o estado temporal compartilhado nem decidir timestamps retroativamente.
+O Chronos é a autoridade única do tempo virtual confirmado, dos limites de avanço e da política de ordenação causal. Isso **não** significa que ele seja proprietário de todo o estado dos dispositivos.
 
-Um worker recebe entrada imutável e timestamp/intervalo definido; publica resultado identificado por sequência e intervalo; o proprietário valida e integra o resultado em ponto permitido. Se a tarefa não puder cumprir esse contrato sem bloquear o caminho crítico, ela permanece serial.
+- CPU possui estado arquitetural e microsequência.
+- Barramento possui transações pendentes e efeitos ainda não concluídos.
+- VDP, PSG e YM2413 possuem registradores, contadores, fase local e regras internas.
+- Host possui filas de apresentação e relógios físicos, sem autoridade sobre o tempo virtual.
+
+O Chronos coordena e valida limites; cada dispositivo mantém a propriedade do próprio estado. Efeitos entre componentes passam por contratos explícitos e não podem alterar timestamps retroativamente.
+
+Workers recebem entradas imutáveis e intervalos/timestamps definidos; publicam resultados identificados por sequência e intervalo. O proprietário do dispositivo valida e integra o resultado em ponto permitido. Se a tarefa não cumprir esse contrato sem bloquear o caminho causal, permanece serial.
 
 ### 8.2 Política de avanço
 
@@ -429,16 +436,16 @@ Testes obrigatórios:
 
 ## 15. Plano de protótipos comparáveis
 
-R3 não deve comparar implementações com semânticas diferentes. Todos os protótipos receberão os mesmos cenários, modelo de referência e carga de eventos.
+R3 não deve comparar implementações com semânticas diferentes. Todos os protótipos receberão os mesmos cenários, modelo de referência e carga de eventos. A execução será em funil: P-A como baseline; P-D e P-E como alternativas centrais; P-F somente se a composição híbrida se justificar. P-B e P-C serão implementados apenas se permanecerem candidatos relevantes após R1/R2.
 
 | ID | Modelo | Objetivo |
 |---|---|---|
-| P-A | Instrução + catch-up | Baseline simples de custo |
-| P-B | Quantum/deadline por linha | Medir custo e limites de interleave |
-| P-C | Corrotinas cooperativas | Medir custo de yield e complexidade de estado |
-| P-D | Agenda discreta central | Medir custo de eventos e ordenação |
-| P-E | Sync-on-demand | Medir economia e custo de sincronização em acessos |
-| P-F | Híbrido seletivo | Medir benefício líquido da composição |
+| P-A | Instrução + catch-up | Baseline simples de custo (obrigatório) |
+| P-D | Agenda discreta central | Alternativa central: custo de eventos e ordenação |
+| P-E | Sync-on-demand | Alternativa central: economia e custo por acesso |
+| P-F | Híbrido seletivo | Executar se a composição demonstrar necessidade |
+| P-B | Quantum/deadline por linha | Condicional: somente se quantum continuar candidato real |
+| P-C | Corrotinas cooperativas | Condicional: somente se houver hipótese concreta de benefício |
 
 ### 15.1 Cargas de benchmark
 
@@ -542,7 +549,7 @@ O Chronos só poderá receber implementação de produção após aprovação de
 - [ ] Testes de replay determinístico.
 
 ### R3 — Protótipos e benchmarks
-- [ ] P-A a P-F implementados como protótipos isolados.
+- [ ] P-A, P-D e P-E implementados como protótipos isolados; P-F, P-B e P-C somente quando justificados por evidência.
 - [ ] Mesma semântica e mesma carga nos comparativos.
 - [ ] Custo de CPU, memória e alocações medido.
 - [ ] Carga densa e esparsa medida.
