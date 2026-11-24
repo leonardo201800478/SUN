@@ -93,3 +93,9 @@ Fonte: [Charles MacDonald — Sega Master System VDP documentation](https://gith
 7. Hipóteses derivadas do modelo matemático.
 
 Código de emulador é evidência de uma implementação, não prova automática de comportamento físico. Quando fontes divergem, registrar o conflito e criar um teste que possa discriminá-las.
+
+## 9. VDP: relatório histórico SMS VDP Test v1.31
+
+O relatório comparativo fornecido no projeto (15/11/2026) registra resultados diferentes entre Sega Emulator e ares em data, misc, sprites, HCounter e X-Scroll latchtime. As falhas citadas incluem ponteiros de endereço após escrita de um byte, mudanças de VCounter, timing de IRQs H/V, colisão de sprites e flag de overflow. O relatório não fixa SHA do executável, hash da ROM, BIOS/configuração ou ambiente; portanto, não comprova o estado do SHA V1 congelado em 23/11.
+
+**Tratamento:** preservar como hipótese/teste histórico. Reexecutar a ROM SMS VDP Test v1.31 no SHA congelado e registrar hash, screenshots/logs, configuração regional e estado inicial antes de usar os resultados para decisões V2.
