@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 aprovado no escopo documental; R1 v0.3.5 publicado em `main`; proposta v0.3.8 em PR após revisão Codex da v0.3.7 apontar ausência de critério verificável para cadeia causal aberta; issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
+**Status:** R0 aprovado no escopo documental; R1 v0.3.8 publicado em `main` pela PR #1279 (merge SHA `de49d1d4d31ee54f8711d2fc14b328a1456e5bd0`); Codex revisou o HEAD exato sem major issues; CI aplicável SUCCESS; R1 ainda não aprovada, issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -282,4 +282,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** obter revisão independente da v0.3.8, especialmente da regra D<=W sempre LateInput e da condição D=P_d somente com W ausente ou W<D, e confirmar todos os critérios da seção 14. Manter issue #1270 aberta e R2 bloqueado até aprovação formal de R1. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** concluir o fechamento formal de R1 na issue #1270, registrando a auditoria da seção 14 e a revisão Codex sem major issues do HEAD exato. Manter R2 bloqueado até aprovação explícita de R1; depois, iniciar R2 como modelo independente e propriedades executáveis, sem antecipar protótipos R3 ou produção. R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
