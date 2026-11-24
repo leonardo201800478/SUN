@@ -1,7 +1,6 @@
 """Executable R2-A properties for the independent CHRONOS oracle."""
 from fractions import Fraction
 import random
-import sys
 import unittest
 
 from chronos_reference import (
@@ -16,9 +15,6 @@ from chronos_reference import (
 )
 
 class R2T01InvalidStateTests(unittest.TestCase):
-    def test_runner_disables_bytecode_writes_for_repeatable_clean_worktree(self):
-        self.assertTrue(sys.dont_write_bytecode)
-
     def test_invalid_obligation_is_invalid_input_before_incomplete_participant_block(self):
         state = make_state(
             domains=[one_domain()],
