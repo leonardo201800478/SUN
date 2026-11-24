@@ -1,0 +1,324 @@
+"""Independent CHRONOS R2 reference oracle.
+
+This module is verification-only. It is deliberately immutable, exact, serial,
+and slow. It is not a scheduler, runtime, production implementation, or V1
+dependency.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from enum import Enum
+from fractions import Fraction
+from hashlib import sha256
+from typing import Iterable
+
+
+class ResultKind(str, Enum):
+    REACHED = "Reached"
+    STOPPED_AT = "StoppedAt"
+    BLOCKED = "Blocked"
+    FAILED = "Failed"
+    LATE_INPUT = "LateInput"
+    INVALID_INPUT = "InvalidInput"
+    INVARIANT_VIOLATION = "InvariantViolation"
+    INDETERMINATE_CAUSAL_ORDER = "IndeterminateCausalOrder"
+    UNSUPPORTED_SNAPSHOT = "UnsupportedSnapshot"
+
+
+class StopReason(str, Enum):
+    SAFE_HORIZON = "SafeHorizon"
+    PENDING_OBLIGATION = "PendingObligation"
+
+
+@dataclass(frozen=True)
+class ClockDomain:
+    """One exact local clock domain mapped onto the common time line."""
+
+    domain_id: str
+    local_to_common: Fraction
+    common_offset: Fraction = Fraction(0)
+    progress_local: Fraction = Fraction(0)
+    horizon_local: Fraction = Fraction(0)
+
+    def progress_common(self) -> Fraction:
+        """Convert local progress into exact common time."""
+        return self.common_offset + self.progress_local * self.local_to_common
+
+    def horizon_common(self) -> Fraction:
+        """Convert the local safe horizon into exact common time."""
+        return self.common_offset + self.horizon_local * self.local_to_common
+
+    def local_at_common(self, common_time: Fraction) -> Fraction:
+        """Invert the exact affine clock mapping without rounding."""
+        return (common_time - self.common_offset) / self.local_to_common
+
+
+@dataclass(frozen=True)
+class Obligation:
+    """A causal obligation known to the reference model."""
+
+    obligation_id: str
+    owner: str
+    at_common: Fraction
+    resolved: bool = False
+    commutative: bool = False
+
+
+@dataclass(frozen=True)
+class ReferenceState:
+    """Complete immutable logical state for the initial R2-A model."""
+
+    profile: str
+    domains: tuple[ClockDomain, ...]
+    expected_participants: frozenset[str]
+    watermark_common: Fraction | None = None
+    obligations: tuple[Obligation, ...] = ()
+
+
+@dataclass(frozen=True)
+class AdvanceResult:
+    kind: ResultKind
+    requested_common: Fraction
+    reached_common: Fraction
+    reason: StopReason | None = None
+    obligation_id: str | None = None
+    owner: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True)
+class AdvanceEvaluation:
+    state: ReferenceState
+    result: AdvanceResult
+
+
+def _validate_state(state: ReferenceState) -> str | None:
+    """Return a deterministic invariant error, or None when state is valid."""
+    if not state.profile:
+        return "profile must be non-empty"
+    ids = [domain.domain_id for domain in state.domains]
+    if any(not item for item in ids):
+        return "domain identity must be non-empty"
+    if len(ids) != len(set(ids)):
+        return "duplicate domain identity"
+    if set(ids) != set(state.expected_participants):
+        return "participant set is incomplete or contains unexpected domains"
+    for domain in state.domains:
+        if domain.local_to_common <= 0:
+            return f"invalid clock ratio for {domain.domain_id}"
+        if domain.horizon_local < domain.progress_local:
+            return f"safe horizon regressed behind progress for {domain.domain_id}"
+    obligation_ids = [item.obligation_id for item in state.obligations]
+    if any(not item for item in obligation_ids):
+        return "obligation identity must be non-empty"
+    if len(obligation_ids) != len(set(obligation_ids)):
+        return "duplicate obligation identity"
+    frontier = _machine_frontier(state)
+    if any(
+        not item.resolved and item.at_common < frontier
+        for item in state.obligations
+    ):
+        return "unresolved obligation lies behind the confirmed machine frontier"
+    return None
+
+
+def _state_at_common_time(
+    state: ReferenceState, common_time: Fraction
+) -> ReferenceState:
+    """Return a new state with every participant advanced to one common cut."""
+    updated = tuple(
+        replace(domain, progress_local=domain.local_at_common(common_time))
+        for domain in state.domains
+    )
+    return replace(state, domains=updated)
+
+
+def _machine_frontier(state: ReferenceState) -> Fraction:
+    """Return max(W, converted P_d) after participant validation."""
+    progresses = [domain.progress_common() for domain in state.domains]
+    if state.watermark_common is not None:
+        progresses.append(state.watermark_common)
+    return max(progresses, default=Fraction(0))
+
+
+def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation:
+    """Evaluate one bounded advance using the R1 result taxonomy.
+
+    The oracle scans all obligations and all participants. It does not use a
+    priority queue or dispatch effects. A pending obligation is a stopping
+    boundary; no operation after that boundary is applied.
+    """
+    invalid = _validate_state(state)
+    if invalid is not None:
+        kind = (
+            ResultKind.INVARIANT_VIOLATION
+            if "regressed" in invalid or "behind the confirmed" in invalid
+            else ResultKind.INVALID_INPUT
+        )
+        current = _machine_frontier(state)
+        return AdvanceEvaluation(
+            state,
+            AdvanceResult(kind, target_common, current, detail=invalid),
+        )
+
+    if not state.domains:
+        return AdvanceEvaluation(
+            state,
+            AdvanceResult(
+                ResultKind.BLOCKED,
+                target_common,
+                state.watermark_common or Fraction(0),
+                detail="no temporal participants",
+            ),
+        )
+
+    frontier = _machine_frontier(state)
+    if target_common < frontier:
+        return AdvanceEvaluation(
+            state,
+            AdvanceResult(
+                ResultKind.LATE_INPUT,
+                target_common,
+                frontier,
+                detail="requested target is earlier than the confirmed machine frontier",
+            ),
+        )
+
+    safe_horizon = min(domain.horizon_common() for domain in state.domains)
+    bounded_target = min(target_common, safe_horizon)
+
+    # Full scan is intentional: this is a reference interpreter, not an agenda.
+    pending = [
+        obligation
+        for obligation in state.obligations
+        if not obligation.resolved and obligation.at_common <= bounded_target
+    ]
+
+    if pending:
+        earliest = min(item.at_common for item in pending)
+        simultaneous = [item for item in pending if item.at_common == earliest]
+        if len(simultaneous) > 1 and not all(item.commutative for item in simultaneous):
+            return AdvanceEvaluation(
+                state,
+                AdvanceResult(
+                    ResultKind.INDETERMINATE_CAUSAL_ORDER,
+                    target_common,
+                    frontier,
+                    detail="non-commutative obligations share an instant without a proven order",
+                ),
+            )
+        first = min(simultaneous, key=lambda item: item.obligation_id)
+        next_state = _state_at_common_time(state, earliest)
+        return AdvanceEvaluation(
+            next_state,
+            AdvanceResult(
+                ResultKind.STOPPED_AT,
+                target_common,
+                earliest,
+                reason=StopReason.PENDING_OBLIGATION,
+                obligation_id=first.obligation_id,
+                owner=first.owner,
+                detail="causal obligation remains unresolved at the stopping coordinate",
+            ),
+        )
+
+    if target_common > safe_horizon:
+        next_state = _state_at_common_time(state, safe_horizon)
+        return AdvanceEvaluation(
+            next_state,
+            AdvanceResult(
+                ResultKind.STOPPED_AT,
+                target_common,
+                safe_horizon,
+                reason=StopReason.SAFE_HORIZON,
+                detail="requested target exceeds the inclusive safe horizon",
+            ),
+        )
+
+    next_state = _state_at_common_time(state, target_common)
+    return AdvanceEvaluation(
+        next_state,
+        AdvanceResult(
+            ResultKind.REACHED,
+            target_common,
+            target_common,
+            detail="target reached and all modeled obligations through target are resolved",
+        ),
+    )
+
+
+def resolve_obligation(
+    state: ReferenceState, obligation_id: str
+) -> ReferenceState:
+    """Resolve one named obligation without changing virtual time."""
+    found = False
+    updated: list[Obligation] = []
+    for item in state.obligations:
+        if item.obligation_id == obligation_id:
+            found = True
+            updated.append(replace(item, resolved=True))
+        else:
+            updated.append(item)
+    if not found:
+        raise KeyError(obligation_id)
+    return replace(state, obligations=tuple(updated))
+
+
+def canonical_state(state: ReferenceState) -> tuple:
+    """Return a stable, hashable representation for before/after assertions."""
+    domains = tuple(
+        (
+            d.domain_id,
+            d.local_to_common,
+            d.common_offset,
+            d.progress_local,
+            d.horizon_local,
+        )
+        for d in sorted(state.domains, key=lambda item: item.domain_id)
+    )
+    obligations = tuple(
+        (
+            o.obligation_id,
+            o.owner,
+            o.at_common,
+            o.resolved,
+            o.commutative,
+        )
+        for o in sorted(state.obligations, key=lambda item: item.obligation_id)
+    )
+    return (
+        state.profile,
+        domains,
+        tuple(sorted(state.expected_participants)),
+        state.watermark_common,
+        obligations,
+    )
+
+
+def state_digest(state: ReferenceState) -> str:
+    """Hash the canonical logical state for deterministic reports."""
+    return sha256(repr(canonical_state(state)).encode("utf-8")).hexdigest()
+
+
+def make_state(
+    *,
+    profile: str = "SMS-NTSC",
+    domains: Iterable[ClockDomain] | None = None,
+    expected_participants: Iterable[str] | None = None,
+    watermark_common: Fraction | None = None,
+    obligations: Iterable[Obligation] = (),
+) -> ReferenceState:
+    """Create a state with an explicit participant set."""
+    domain_tuple = tuple(domains or ())
+    expected = (
+        frozenset(expected_participants)
+        if expected_participants is not None
+        else frozenset(d.domain_id for d in domain_tuple)
+    )
+    return ReferenceState(
+        profile=profile,
+        domains=domain_tuple,
+        expected_participants=expected,
+        watermark_common=watermark_common,
+        obligations=tuple(obligations),
+    )
