@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.18; incorpora as correções da auditoria independente B1–B4, define a parada inclusiva no alvo e distingue chegada à coordenada de conclusão semântica; ainda não aprovado
+**Status:** **APROVADO** — conteúdo normativo v0.3.18; aprovado explicitamente em 2026-11-24 e publicado em `main` pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`). O conteúdo aprovado corresponde ao SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`.
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -790,3 +790,15 @@ A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil; a v0.3
 6. Aprovar R1 formalmente somente após todos os critérios da seção 14 serem atendidos na versão exata e a revisão independente não encontrar blockers.
 7. Iniciar R2 apenas após aprovação formal de R1; R2 deve ser independente deste contrato e do algoritmo candidato.
 8. R3 só começa após R1 e R2 aprovados. Nenhum crate de produção antes de R5.
+
+
+## 21. Registro formal de aprovação R1
+
+- **Decisão:** APROVADO pelo responsável do projeto em 2026-11-24, após parecer favorável à publicação da PR #1281 e revisão independente do Codex sem major issues.
+- **Conteúdo normativo aprovado:** v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`.
+- **Publicação em main:** PR #1281, squash merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`.
+- **Validação vinculada ao candidato:** CI #10611 SUCCESS nos checks aplicáveis; jobs específicos de Rust/hardware/Windows SKIPPED por diff Markdown-only e não considerados PASS; `git diff --check` PASS conforme verificação local do responsável.
+- **Rastreabilidade:** issue #1270 encerrada como concluída; R2 iniciada na issue #1282.
+- **Limites:** a aprovação R1 não aprova R2/R3/R4/R5, não escolhe a arquitetura final e não autoriza código de produção CHRONOS/V2 antes de R5.
+
+Este registro é administrativo: não altera a semântica normativa do conteúdo v0.3.18 aprovado no SHA indicado.
