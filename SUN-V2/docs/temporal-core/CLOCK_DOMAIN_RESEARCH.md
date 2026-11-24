@@ -1,6 +1,6 @@
 # Temporal Core — clocks e contratos do Z80/SMS
 
-**Status:** pesquisa R0 em andamento. Valores nominais, valores derivados e escolhas de modelagem estão separados. Nenhuma unidade temporal ou fase absoluta foi aprovada.
+**Status:** pesquisa R0 concluída; ver parecer R0_CLOSEOUT.md. Valores nominais, valores derivados e escolhas de modelagem estão separados. Nenhuma unidade temporal ou fase absoluta foi aprovada.
 
 ## 1. Nomenclatura: não existe um único número chamado “master clock”
 
@@ -57,11 +57,11 @@ Há uma divergência de aproximadamente 2 Hz entre fontes:
 
 Fontes: [SMS Power — Clock Rate](https://www.smspower.org/Development/ClockRate); [Sega Master System Troubleshooting Guide — clock checks e referências ao manual](https://wiki.retrotechcollection.com/Sega_Master_System_Troubleshooting_Guide).
 
-**Tratamento:** manter 3.546893 e 3.546895 como candidatos distintos. O perfil V2 não deve escolher um deles sem fixar a convenção (frequência medida do oscilador, valor nominal de subportadora ou derivação matemática) e tolerância.
+**Tratamento:** manter 3.546893 e 3.546895 como candidatos distintos. A tolerância de oscilador/placa não foi localizada nas fontes consultadas e permanece UNKNOWN. O perfil V2 não deve escolher um deles sem fixar a convenção (frequência medida do oscilador, valor nominal de subportadora ou derivação matemática) e a tolerância documentada ou explicitamente desconhecida.
 
 ## 4. PAL-M brasileiro — conflito material com o runtime V1
 
-O perfil `brazil` do runtime V1 seleciona `VideoStandard::PalM`, mas fornece 3.579545 Hz ao worker/PSG e à conversão de tempo.
+O perfil `brazil` do runtime V1 seleciona `VideoStandard::PalM`, mas fornece 3.579545 MHz ao worker/PSG e à conversão de tempo.
 
 O MAME atual define:
 - `MASTER_CLOCK_PALM = 10.726833 MHz`;
@@ -138,7 +138,7 @@ A coincidência é útil para prototipagem matemática. Não aprova:
 - granularidade sub-T-state;
 - fila ou estrutura de eventos.
 
-PAL e PAL-M precisam ser avaliados com suas frequências e tolerâncias próprias. Um modelo que só fecha NTSC não fecha o requisito regional.
+PAL e PAL-M precisam ser avaliados com suas frequências e tolerâncias próprias. Quando a fonte não publica tolerância, registrar UNKNOWN. Um modelo que só fecha NTSC não fecha o requisito regional.
 
 ## 8. Z80 — granularidade temporal
 
