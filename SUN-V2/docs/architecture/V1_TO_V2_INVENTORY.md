@@ -63,7 +63,7 @@ O relatório comparativo anexado em 15/11/2026 registra resultados da ROM SMS VD
 
 A documentação V1 descreve o VDP SMS1/315-5124 e o engine compartilhado, incluindo portas, VRAM/CRAM, Mode 4, modos legados, sprites, counters, IRQ e boundaries seletivos. A integração temporal avança o VDP a partir dos T-states do Scheduler. A rasterização permanece scanline-level com boundaries subline específicos.
 
-**Confiança:** alta para os limites explicitamente documentados; média para detalhes sustentados por ROMs/modelos comparativos sem medição física.  
+**Confiança:** alta para os limites do modelo e testes de software; média para a correspondência física. O modelo SMS1 usa 228 T-states/linha, 342 HPos, VINT T13, HINT T14, VCounter T15, overflow/frame T16, VBlank flag T17, HBlank T213, R8 latch HPos21 e área ativa HPos63..319. Esses limites vêm de SmsVdpTest/modelos comparativos, não de medição elétrica universal. O comentário V1 que diz que a colisão SMS1 só aparece em HBlank contradiz a implementação e testes que a expõem quando o feixe cruza o pixel; registrar como drift, não alterar V1 nesta tarefa.  
 **Limite:** não declarar dot accuracy, fetch-ahead completo ou pipeline elétrico universal.  
 **Implicação V2:** precisão seletiva por efeito observável, não pipeline por pixel/dot por princípio.
 
