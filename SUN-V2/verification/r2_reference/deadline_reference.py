@@ -299,6 +299,49 @@ def close_watermark(book: DeadlineBook, target_common: Fraction) -> DeadlineEval
     )
 
 
+def replace_deadline(
+    book: DeadlineBook,
+    state: ReferenceState,
+    *,
+    owner: str,
+    identity: str,
+    generation: int,
+    cancel_at: Fraction,
+    admission_frontier: Fraction,
+    new_generation: int,
+    new_at_common: Fraction,
+    new_effect_id: str,
+    microstep: bool = False,
+    commutative: bool = False,
+) -> DeadlineEvaluation:
+    """Atomically cancel an old generation and publish its replacement."""
+    cancelled = cancel_deadline(
+        book, owner=owner, identity=identity, generation=generation,
+        at_common=cancel_at, admission_frontier=admission_frontier,
+    )
+    if cancelled.code is not DeadlineCode.ACCEPTED:
+        return cancelled
+    arbitrated = arbitrate_cancellations(cancelled.book)
+    if arbitrated.code is not DeadlineCode.ACCEPTED:
+        return DeadlineEvaluation(book, arbitrated.code, arbitrated.detail)
+    published = publish_deadline(
+        arbitrated.book, state, owner=owner, identity=identity,
+        generation=new_generation, at_common=new_at_common,
+        effect_id=new_effect_id, microstep=microstep,
+        commutative=commutative,
+    )
+    if published.code is not DeadlineCode.ACCEPTED:
+        # The replacement is one logical operation: no half-cancellation.
+        return DeadlineEvaluation(
+            book, published.code,
+            f"replacement rejected atomically: {published.detail}",
+        )
+    return DeadlineEvaluation(
+        published.book, DeadlineCode.ACCEPTED,
+        "old generation cancelled and replacement published atomically",
+    )
+
+
 def dispatch_deadline(
     book: DeadlineBook, *, identity: str, generation: int
 ) -> DeadlineEvaluation:
