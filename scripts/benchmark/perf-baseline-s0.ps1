@@ -82,6 +82,7 @@ $manifestPath = Join-Path $outputRoot "manifest.json"
 $etlPath = Join-Path $outputRoot "cpu-profile.etl"
 $buildLogPath = Join-Path $outputRoot "build.log"
 $diagnosticsCsvPath = Join-Path $outputRoot "subsystem-diagnostics.csv"
+$diagnosticThroughputCsvPath = Join-Path $outputRoot "diagnostic-throughput.csv"
 $summaryPath = Join-Path $outputRoot "system-summary.json"
 
 $envNames = @(
@@ -207,10 +208,15 @@ function Convert-SunPerfRecord {
 # Parse only after the benchmark finishes; never stream per-instruction or per-frame logs.
 $throughputRows = @()
 $diagnosticRows = @()
+$diagnosticThroughputRows = @()
 foreach ($line in Get-Content -LiteralPath $logPath) {
     if ($line.Contains("SUN_PERF_RESULT")) {
         $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_RESULT"
         if ($null -ne $row) { $throughputRows += $row }
+    }
+    elseif ($line.Contains("SUN_PERF_DIAGNOSTIC_RESULT")) {
+        $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_DIAGNOSTIC_RESULT"
+        if ($null -ne $row) { $diagnosticThroughputRows += $row }
     }
     elseif ($line.Contains("SUN_PERF_DIAGNOSTICS")) {
         $row = Convert-SunPerfRecord -Line $line -Prefix "SUN_PERF_DIAGNOSTICS"
@@ -218,9 +224,16 @@ foreach ($line in Get-Content -LiteralPath $logPath) {
     }
 }
 
-$reportComplete = ($throughputRows.Count -eq 3 -and $diagnosticRows.Count -eq 3)
+$reportComplete = (
+    $throughputRows.Count -eq 3 -and
+    $diagnosticThroughputRows.Count -eq 3 -and
+    $diagnosticRows.Count -eq 3
+)
 if ($diagnosticRows.Count -gt 0) {
     $diagnosticRows | Export-Csv -LiteralPath $diagnosticsCsvPath -NoTypeInformation -Encoding UTF8
+}
+if ($diagnosticThroughputRows.Count -gt 0) {
+    $diagnosticThroughputRows | Export-Csv -LiteralPath $diagnosticThroughputCsvPath -NoTypeInformation -Encoding UTF8
 }
 $summary = [ordered]@{
     schema = "sun-s0-aggregate-v1"
@@ -238,7 +251,9 @@ $summary = [ordered]@{
     heap_trace = $false
     throughput = @($throughputRows)
     diagnostics = @($diagnosticRows)
+    diagnostic_throughput = @($diagnosticThroughputRows)
     diagnostics_csv = $diagnosticsCsvPath
+    diagnostic_throughput_csv = $diagnosticThroughputCsvPath
     report_complete = $reportComplete
     interpretation = @(
         "Z80 instruction, T-state, M-cycle and BUS totals cover each complete diagnostic scenario.",
@@ -311,6 +326,7 @@ Write-Host "  Build:    $buildLogPath"
 Write-Host "  Log:      $logPath"
 Write-Host "  Summary:  $summaryPath"
 Write-Host "  Metrics:  $diagnosticsCsvPath"
+Write-Host "  A/B FPS:  $diagnosticThroughputCsvPath"
 if ($CaptureCpuProfile) {
     Write-Host "  CPU ETL:  $etlPath"
 }
@@ -318,5 +334,5 @@ if ($exitCode -ne 0) {
     throw "A campanha de benchmark falhou. Consulte $logPath"
 }
 if (-not $reportComplete) {
-    throw "Relatório incompleto: throughput=$($throughputRows.Count)/3, diagnostics=$($diagnosticRows.Count)/3. Consulte $logPath"
+    throw "Relatório incompleto: throughput=$($throughputRows.Count)/3, diagnostic FPS=$($diagnosticThroughputRows.Count)/3, diagnostics=$($diagnosticRows.Count)/3. Consulte $logPath"
 }
