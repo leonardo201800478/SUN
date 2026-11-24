@@ -272,6 +272,21 @@ class R2BMicrostepTests(unittest.TestCase):
         self.assertEqual(child.code, DeadlineCode.ACCEPTED)
         self.assertEqual(child.book.deadlines[-1].microstep, 2)
 
+    def test_distinct_microsteps_order_noncommutative_same_instant_events(self):
+        first = schedule_microstep(
+            DeadlineBook(), owner="cpu", identity="root", generation=1,
+            at_common=Fraction(5), effect_id="root-effect",
+            current_microstep=0,
+        )
+        child = schedule_microstep(
+            first.book, owner="cpu", identity="child", generation=1,
+            at_common=Fraction(5), effect_id="child-effect",
+            current_microstep=first.book.deadlines[0].microstep,
+        )
+        closed = close_watermark(child.book, Fraction(5))
+        self.assertEqual(closed.code, DeadlineCode.ACCEPTED)
+        self.assertEqual(closed.claimed, (("root", 1), ("child", 1)))
+
     def test_microstep_limit_is_explicit_and_does_not_mutate(self):
         book = DeadlineBook(max_microsteps=2)
         first = schedule_microstep(
