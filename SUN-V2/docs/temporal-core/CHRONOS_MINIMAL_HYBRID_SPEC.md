@@ -1,9 +1,13 @@
 # CHRONOS — proposta arquitetural do híbrido mínimo
 
-**Projeto:** SUN V2  
-**Componente:** CHRONOS — Temporal Core  
-**Máquina inicial:** Sega Master System (SMS)  
-**Status:** proposta arquitetural consolidada para especificação e prototipagem; **não aprovada para produção**  
+**Projeto:** SUN V2
+
+**Componente:** CHRONOS — Temporal Core
+
+**Máquina inicial:** Sega Master System (SMS)
+
+**Status:** proposta arquitetural consolidada para especificação e prototipagem; **não aprovada para produção**
+
 **Issue:** [#1267 — SUN V2 — R0: pesquisa e especificação do Temporal Core](https://github.com/leonardo201800478/SUN/issues/1267)
 
 > Este documento consolida a direção recomendada após a avaliação arquitetural e estratégica. Ele não declara comprovadas as fases de hardware ainda em investigação e não autoriza a implementação do crate de produção.
@@ -362,6 +366,8 @@ A formulação arquitetural passa a ser:
 
 A decisão não é “usar um scheduler híbrido porque parece flexível”. É provar, com o SMS como primeiro caso, que os três mecanismos são necessários, não redundantes e mais eficientes em custo total do que as alternativas simples.
 
-**R0:** aprovado no escopo documental em 2026-11-24; ver R0_CLOSEOUT.md.  
-**Próximo passo autorizado:** formalizar os contratos R1 e preparar o modelo de referência independente R2.  
+**R0:** aprovado no escopo documental em 2026-11-24; ver R0_CLOSEOUT.md.
+
+**Próximo passo autorizado:** formalizar os contratos R1 e preparar o modelo de referência independente R2.
+
 **Próximo passo não autorizado:** implementar o CHRONOS de produção antes de R5.
