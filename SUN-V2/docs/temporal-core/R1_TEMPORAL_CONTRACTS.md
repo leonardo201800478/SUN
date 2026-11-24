@@ -563,17 +563,18 @@ A revisão deste contrato deve manter a seguinte cadeia de proveniência. Os doc
 Regras adicionais de proveniência:
 1. A sequência mandatória R0→R1→R2→R3→R4→R5 e as condições de passagem em `PROJECT_INSTRUCTIONS.md` prevalecem sobre planos antigos ou propostas. Menções a R2 em R0/CHRONOS_MINIMAL_HYBRID_SPEC identificam o gate futuro; não autorizam iniciar R2 antes da aprovação formal de R1. Nenhum código de produção antes de R5.
 2. Uma cláusula normativa é um requisito/decisão de projeto, não um FACT físico. Registrar sua justificativa e marcar separadamente as premissas subjacentes como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
-2. Quando uma afirmação depender de hardware, registrar fonte primária, revisão, página/seção, perfil e limite de aplicabilidade.
-3. Quando depender de V1, registrar o SHA congelado 207ccc4cebbc4f8c0aed45c68262eae963491689 e identificar se é código, teste ou documentação.
-4. Quando depender de ROM/teste, registrar hash da ROM, perfil, estado inicial, entrada, ambiente, executável/SHA e artefato de resultado. Relatórios sem esses elementos permanecem OBSERVATION histórica limitada.
-5. Referências MAME, ares, Gearsystem, JGenesis, BlastEm, MEKA e Genesis Plus GX são comparações de implementação; registrar revisão/commit e nunca usá-las como prova física isolada.
-6. O fato de uma fonte não mencionar um comportamento não prova sua ausência física; classificar como UNKNOWN quando a pesquisa não o resolver.
+3. Quando uma afirmação depender de hardware, registrar fonte primária, revisão, página/seção, perfil e limite de aplicabilidade.
+4. Quando depender de V1, registrar o SHA congelado 207ccc4cebbc4f8c0aed45c68262eae963491689 e identificar se é código, teste ou documentação.
+5. Quando depender de ROM/teste, registrar hash da ROM, perfil, estado inicial, entrada, ambiente, executável/SHA e artefato de resultado. Relatórios sem esses elementos permanecem OBSERVATION histórica limitada.
+6. Referências MAME, ares, Gearsystem, JGenesis, BlastEm, MEKA e Genesis Plus GX são comparações de implementação; registrar revisão/commit e nunca usá-las como prova física isolada.
+7. O fato de uma fonte não mencionar um comportamento não prova sua ausência física; classificar como UNKNOWN quando a pesquisa não o resolver.
 
 ### 16.17 Mapeamento de lacunas normativas para validação R2
 
 | Lacuna fechada | Contratos | Propriedade R2 associada |
 |---|---|---|
 | Progresso local, horizonte e watermark global | C01, C04, C05 | T01, T04, T05 |
+| Fronteira de admissão A(E), progresso dos participantes e invalidação de H_d | C04, C06, C13 | T04, T06, T12 |
 | Bloqueio, dependência circular e ausência de progresso | C04, C05, C14, C15 | T04, T05, T14, T15 |
 | Composição de conversões e resíduo | C02, C03, C11 | T02, T03, T11, T12 |
 | Ponto de linearização e geração de deadline | C06, C11, C14 | T04, T06, T11, T14 |
