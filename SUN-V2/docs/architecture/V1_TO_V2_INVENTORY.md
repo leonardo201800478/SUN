@@ -82,11 +82,11 @@ A V1 possui perfil físico explícito de Japanese SMS com YM2413 opcional, domí
 
 ### 3.6 Clocks e fases
 
-O worker resolve perfis regionais: USA NTSC 3.579.545 Hz, Brasil PAL-M 3.579.545 Hz, Europa PAL 3.546.895 Hz e Japão/Coreia NTSC 3.579.545 Hz. O caminho atual usa um tick lógico por T-state Z80; o coordenador registra CPU, PSG e VDP com razão comum e YM2413 como domínio opcional na mesma escala lógica.
+O worker V1 resolve perfis regionais: USA NTSC 3.579.545 Hz, Brasil/PAL-M 3.579.545 Hz, Europa PAL 3.546.895 Hz e Japão/Coreia NTSC 3.579.545 Hz. Entretanto, MAME configura PAL-M com VDP 10.726.833 MHz e Z80/PSG 3.575.611 MHz; essa diferença de 3.934 kHz é material e deixa o perfil Brasil sob suspeita até evidência TecToy. Para PAL europeu há divergência de 3.546.893 vs 3.546.895 MHz. O caminho atual usa um tick lógico por T-state; o coordenador registra CPU, PSG e VDP com razão comum e YM2413 como domínio opcional na mesma escala lógica.
 
 **Confiança:** alta para a configuração do software.  
 **Limite:** isso não prova fonte elétrica comum, fase inicial ou ausência de deriva entre chips/placas.  
-**Implicação V2:** frequência nominal, razão racional, fase inicial e convenção de tick mestre precisam ser evidenciadas separadamente por perfil.
+**Implicação V2:** frequência nominal, razão racional, fase inicial e convenção de tick mestre precisam ser evidenciadas separadamente por perfil. PAL-M é bloqueante: não herdar o clock NTSC até obter medição ou documentação da placa TecToy.
 
 ### 3.7 Scheduler e snapshots
 
