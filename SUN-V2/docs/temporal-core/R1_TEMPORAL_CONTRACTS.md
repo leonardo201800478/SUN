@@ -651,7 +651,7 @@ O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não de
 
 ## 19. Resposta à revisão adversarial da linha de base
 
-Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. A revisão complementar de v0.3.4 também fecha duas lacunas identificadas na auditoria cruzada: admissão de cancelamento retroativo em relação ao watermark vigente e restauração de efeitos parciais de deadlines já Dispatched. Esta versão continua sendo rascunho e não constitui aprovação formal do gate.
+Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com a R1 v0.3.2 e as fontes internas de autoridade citadas em 16.16. A revisão complementar de v0.3.4 também fecha lacunas identificadas na auditoria cruzada: admissão de cancelamento retroativo em relação ao watermark vigente, restauração de efeitos parciais de deadlines já Dispatched, uso explícito de H_d no limite de avanço e precedência documental dos gates. Esta versão continua sendo rascunho e não constitui aprovação formal do gate.
 
 | Achado da linha de base / auditoria complementar | Resultado anterior | Tratamento na v0.3.4 | Estado documental |
 |---|---|---|---|
@@ -670,7 +670,7 @@ Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com
 Limites da revisão:
 - A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
 - Os itens “corrigido” significam que a lacuna normativa foi endereçada no texto. Não significam que as propriedades R2 foram executadas, que o hardware foi medido ou que o gate R1 foi aprovado.
-- A condição W_admissão<C<D é uma regra de admissão/replay do contrato, não uma afirmação física sobre o hardware. O cenário C<=W<D é LateInput porque o corte W já fechou a posição causal C.
+- Quando já existe watermark, a condição W_admissão<C<D é uma regra de admissão/replay do contrato; antes do primeiro watermark confirmado, basta C<D. Isso não é uma afirmação física sobre o hardware. O cenário C<=W<D é LateInput porque o corte W já fechou a posição causal C.
 - Um deadline Dispatched com múltiplos efeitos precisa preservar cada commit; o estado do core e o marcador devem pertencer ao mesmo corte atômico. Quando isso não puder ser garantido, o efeito deve ser idempotente por identidade estável ou o cenário não pode ser declarado suportado. Um efeito indivisível precisa preservar seu único marco atômico. O contrato não autoriza repetir efeitos para “recuperar” dispatch.
 - A relação C/D em empate continua explicitamente UNKNOWN quando o perfil não fornece relação causal/microstep; não se inventa prioridade física.
 - A semântica WAIT deriva do Zilog Z80 User Manual UM008011-0816, R0 §2. WAIT externo de cartridge continua UNKNOWN conforme R0 §5.
