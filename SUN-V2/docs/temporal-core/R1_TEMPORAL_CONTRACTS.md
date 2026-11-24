@@ -526,7 +526,7 @@ Regras:
 5. Toda linha da matriz de rastreabilidade deve apontar para a origem do requisito e para a propriedade R2 que poderá falsificá-lo.
 6. Se fontes discordarem, registrar a divergência e restringir o perfil/alegação até existir evidência discriminante.
 
-### 16.17 Proveniência interna e limites das fontes
+### 16.16 Proveniência interna e limites das fontes
 
 A revisão deste contrato deve manter a seguinte cadeia de proveniência. Os documentos internos orientam o escopo; não substituem as fontes primárias citadas por eles.
 
@@ -546,7 +546,7 @@ Regras adicionais de proveniência:
 4. Referências MAME, ares, Gearsystem, JGenesis, BlastEm, MEKA e Genesis Plus GX são comparações de implementação; registrar revisão/commit e nunca usá-las como prova física isolada.
 5. O fato de uma fonte não mencionar um comportamento não prova sua ausência física; classificar como UNKNOWN quando a pesquisa não o resolver.
 
-### 16.16 Mapeamento de lacunas normativas para validação R2
+### 16.17 Mapeamento de lacunas normativas para validação R2
 
 | Lacuna fechada | Contratos | Propriedade R2 associada |
 |---|---|---|
