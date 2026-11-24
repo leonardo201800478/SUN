@@ -930,20 +930,21 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
             let region = region_override.as_deref().unwrap_or(fixture.region);
             let system = system_override.as_deref().unwrap_or(fixture.system);
             let vdp_revision = selected_vdp_revision(system);
-            let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
-                rom,
-                region,
-                vdp_revision,
-                None,
-                None,
-                SmsFmOutputPolicy::Enabled,
-            )
-            .unwrap_or_else(|error| {
-                panic!(
-                    "{}: cannot create Japanese FM machine: {error}",
-                    path.display()
+            let worker =
+                SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
+                    rom,
+                    region,
+                    vdp_revision,
+                    None,
+                    None,
+                    SmsFmOutputPolicy::Enabled,
                 )
-            });
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{}: cannot create Japanese FM machine: {error}",
+                        path.display()
+                    )
+                });
             worker.set_diagnostics_enabled(true);
             worker
                 .configure_audio_output(|| {
@@ -954,8 +955,6 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
                 .unwrap_or_else(|error| {
                     panic!("{}: cannot open CPAL output: {error}", path.display())
                 });
-            worker
-                .start()
             worker.start().unwrap_or_else(|error| {
                 panic!("{}: cannot start FM runtime: {error}", path.display())
             });
@@ -980,9 +979,9 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
                 thread::sleep(Duration::from_millis(10));
             }
 
-            worker
-                .pause()
-                .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
+            worker.pause().unwrap_or_else(|error| {
+                panic!("{}: cannot pause FM runtime: {error}", path.display())
+            });
             let metrics = worker.audio_output_metrics();
             let performance = worker.performance_metrics();
             let frame_pacing = worker.frame_pacing_metrics();
