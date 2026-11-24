@@ -69,15 +69,21 @@ Entregas concluídas na primeira passagem:
 - [mapa de boundaries VDP](docs/architecture/VDP_OBSERVABLE_BOUNDARIES.md);
 - documentação Zilog oficial para WAIT, ciclos I/O e interrupções.
 
-Pendências para fechar F0:
-- resolver ou limitar formalmente o perfil PAL-M: V1 configura 3.579545 MHz; modelo MAME usa 3.575611 MHz; falta esquema/medição TecToy;
-- resolver convenção PAL 3.546893 vs 3.546895 MHz e fase CPU/VDP/PSG;
-- confirmar WAIT externo do cartridge port e separar PSG discreta SG-1000/SC-3000 do PSG integrado SMS;
-- reexecutar SMS VDP Test v1.31 no SHA congelado com ROM hash, ambiente e artefatos;
-- criar fixture full-machine para H/V IRQ, HCounter e TH com origem/atraso CPU normalizados;
-- executar baseline S0 headless OutRun em worktree detached no SHA V1 congelado, com ROM SHA-256 e ambiente registrados.
+Pendências obrigatórias para fechar F0/R0:
+- consolidar a matriz de clock domains com frequência, origem documental, tolerância, razão de conversão e fase conhecida/desconhecida; não inventar uma fase elétrica comum;
+- registrar colisões de timestamp, causalidade e pontos de observação como requisitos e hipóteses discrimináveis, sem escolher prematuramente fases universais;
+- fechar o contrato conceitual de WAIT: distinguir TW automático do Z80, WAIT externo ainda não verificado e perfis com PSG discreta; não inserir WAIT artificial em VDP/PSG SMS;
+- consolidar os boundaries observáveis do VDP e associar cada incerteza relevante a um teste discriminante;
+- revisar a proveniência e a qualidade das fontes, separando fatos comprovados, evidência indireta, hipóteses e questões abertas.
 
-**Gate F0:** não promover hipótese de hardware a constante de API; fontes e incertezas rastreáveis; testes discriminantes definidos e reproduzíveis; pendências sem evidência física explicitamente limitadas. R0 permanece aberto até fechar os itens bloqueantes.
+Pendências que podem permanecer explicitamente adiadas, sem bloquear R0:
+- clock físico CPU/PSG da placa TecToy PAL-M: permanece UNKNOWN até esquema ou medição de placa identificada; manter perfil parametrizável e não fixar constante;
+- convenção PAL 3.546893 vs 3.546895 MHz e fase elétrica entre CPU/VDP/PSG: registrar candidatos e tolerâncias; resolver antes de declarar precisão física desse perfil;
+- WAIT externo do cartridge port: manter a fonte genérica no contrato, sem alegar que foi medida ou que jogos selecionados a exigem;
+- reexecução de SMS VDP Test v1.31 no SHA congelado e fixture full-machine para H/V IRQ, HCounter e TH: manter como validação futura antes de promover resultados históricos a evidência confirmada ou fechar os comportamentos VDP correspondentes;
+- benchmark S0 OutRun: **não executado e encerrado**. Não procurar ROM, executar/corrigir script, repetir medição ou criar benchmark substituto para preencher essa lacuna. Não é gate do V2.
+
+**Gate F0/R0:** fontes e proveniência rastreáveis; fatos, inferências e hipóteses separados; requisitos temporais e testes discriminantes definidos; incertezas sem evidência física formalmente limitadas; nenhuma hipótese promovida a constante de API. O gate não exige resolver fisicamente toda questão aberta nem executar S0.
 
 ### Fase 1 — contratos temporais e modelo de referência (R1–R2)
 
@@ -256,4 +262,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 permanece aberto.
 
-**Próxima ação:** continuar fechando as pendências R0 listadas acima, começando pela reexecução do SmsVdpTest v1.31 e pela fixture full-machine de H/V IRQ/HCounter. Em paralelo, obter evidência TecToy PAL-M e confirmar WAIT do cartridge port. Só após R0 aprovado, congelar contratos R1 e modelo de referência R2; então iniciar protótipos R3 da fatia vertical mínima.
+**Próxima ação:** concluir a consolidação documental das pendências obrigatórias de R0 e registrar as incertezas adiadas sem tratá-las como fatos. Depois de R0 aprovado, congelar os contratos R1 e validar o modelo de referência independente R2; somente então iniciar protótipos descartáveis R3 da fatia vertical mínima. Não retomar S0.
