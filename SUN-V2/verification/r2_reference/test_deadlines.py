@@ -13,6 +13,7 @@ from deadline_reference import (
     close_watermark,
     dispatch_deadline,
     publish_deadline,
+    replace_deadline,
     schedule_microstep,
 )
 
@@ -173,6 +174,34 @@ class R2BCancellationRaceTests(unittest.TestCase):
         )
 
 
+class R2BReplacementTests(unittest.TestCase):
+    def test_replacement_cancels_old_generation_and_publishes_new_atomically(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        result = replace_deadline(
+            initial, machine(), owner="cpu", identity="evt", generation=1,
+            cancel_at=Fraction(4), admission_frontier=Fraction(2),
+            new_generation=2, new_at_common=Fraction(12),
+            new_effect_id="replacement-effect",
+        )
+        self.assertEqual(result.code, DeadlineCode.ACCEPTED)
+        old = next(d for d in result.book.deadlines if d.generation == 1)
+        new = next(d for d in result.book.deadlines if d.generation == 2)
+        self.assertEqual(old.status, DeadlineStatus.CANCELLED)
+        self.assertEqual(new.status, DeadlineStatus.SCHEDULED)
+
+    def test_rejected_replacement_does_not_cancel_original_generation(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        result = replace_deadline(
+            initial, machine(progress=20), owner="cpu", identity="evt",
+            generation=1, cancel_at=Fraction(4),
+            admission_frontier=Fraction(2), new_generation=2,
+            new_at_common=Fraction(15), new_effect_id="invalid-replacement",
+        )
+        self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(result.book, initial)
+        self.assertEqual(result.book.deadlines[0].status, DeadlineStatus.SCHEDULED)
+
+
 class R2BCausalTieTests(unittest.TestCase):
     def test_noncommutative_unknown_tie_does_not_close_watermark(self):
         book = publish(DeadlineBook(), machine(), identity="a", at=10).book
@@ -276,5 +305,3 @@ class R2BMicrostepTests(unittest.TestCase):
             tuple(item.identity for item in active_deadlines(terminal)),
             ("a",),
         )
-
-
