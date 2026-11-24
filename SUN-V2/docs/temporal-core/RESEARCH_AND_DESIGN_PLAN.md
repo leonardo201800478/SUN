@@ -1,12 +1,16 @@
 # Temporal Core — plano de pesquisa e especificação
 
-**Status:** pesquisa não iniciada/concluída; nenhuma implementação autorizada ainda.
+**Status:** levantamento comparativo e avaliação arquitetural registrados; R0 permanece em fechamento. Nenhuma implementação de produção autorizada.
 
 ## 1. Missão
 
 Projetar o núcleo temporal que coordenará o avanço da máquina SMS. Ele será o fundamento de CPU, barramentos, RAM/VRAM, VDP, PSG e YM2413.
 
 O Temporal Core não deve conhecer detalhes internos de registradores ou instruções de um dispositivo. Deve fornecer contratos temporais suficientemente expressivos para que a máquina modele causalidade, prazos e efeitos observáveis.
+
+## Documento de avaliação arquitetural
+
+A avaliação CHRONOS, com modelos concorrentes, invariantes, hipótese de prototipagem, riscos, métricas e portões R0–R5, está em [CHRONOS_ARCHITECTURE_EVALUATION.md](CHRONOS_ARCHITECTURE_EVALUATION.md). Ela não aprova antecipadamente um modelo de scheduler.
 
 ## 2. Perguntas que precisam ser respondidas
 
