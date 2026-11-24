@@ -17,7 +17,7 @@ A V1 contém uma implementação funcional extensa e um caminho temporal SMS sig
 - O YM2413 possui perfil físico opcional Japanese SMS, core/serviço serial e caminho de PCM de compatibilidade integrado. A qualidade sonora dos jogos de referência permanece não aprovada.
 - O áudio possui mixer multi-source e sessão independente do host; as fontes precisam chegar alinhadas em taxa e contagem de frames.
 - O runtime define perfis regionais de clock, mas esses valores de configuração não comprovam fase elétrica entre chips.
-- Existe harness de performance S0 para OutRun, mas o próprio dossiê declara a baseline medida ainda aberta. A execução precisa ocorrer em worktree detached no SHA V1 congelado; rodar na branch V2 registraria um commit documental diferente no manifest.
+- Existe harness de performance S0 para OutRun, mas a baseline foi encerrada como **não executada**. Não executar, corrigir ou repetir o harness; essa ausência não bloqueia R0 nem deve gerar benchmark substituto. A informação é preservada como limitação histórica, não como resultado aprovado.
 
 A distinção essencial para o V2 continua válida: implementação existente não prova cobertura funcional completa, e cobertura de software não prova fidelidade física. O V2 deve aprender com os contratos e falhas observadas, mas manter implementação independente.
 
