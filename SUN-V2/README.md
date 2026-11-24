@@ -35,6 +35,7 @@ A direção recomendada para o CHRONOS está documentada como **híbrido mínimo
 - [ADR-0003 — fatia vertical mínima](docs/decisions/ADR-0003-minimal-vertical-slice.md) — decisão de integrar CPU, barramento, VDP e PSG desde o primeiro protótipo.
 - [Inventário V1 → V2](docs/architecture/V1_TO_V2_INVENTORY.md) — inventário reconfirmado no SHA congelado.
 - [Matriz de evidências da baseline V1](docs/architecture/V1_BASELINE_EVIDENCE_MATRIX.md) — fatos, fontes primárias, confiança, divergências, riscos e testes discriminantes.
+- [Boundaries observáveis do VDP SMS](docs/architecture/VDP_OBSERVABLE_BOUNDARIES.md) — granularidade temporal, limites conhecidos, testes e prioridades por impacto em jogos.
 
 ## Documentos do Temporal Core
 
