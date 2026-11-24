@@ -500,7 +500,7 @@ O resultado de uma operação temporal deve distinguir sucesso, parada normal, b
 - **InvariantViolation:** monotonicidade, causalidade, exactly-once, chunk invariance ou estado interno violado; execução de validação inválida.
 - **ResourceExhausted:** limite de eventos, microsteps, memória ou capacidade atingido; não descartar silenciosamente nem avançar parcialmente além do último estado consistente.
 - **IncompatibleSnapshot:** versão, perfil ou estado restaurado incompatível; rejeição atômica.
-- **IndeterminateHardwareOrder:** resultado depende de ordem física UNKNOWN; não declarar compatibilidade para o cenário.
+- **IndeterminateCausalOrder:** relação causal/fase necessária não estabelecida no perfil; não declarar compatibilidade para o cenário nem resolver por ordem incidental do software.
 - **InternalFailure:** falha inesperada com preservação do máximo de contexto diagnóstico; não converter em estado válido.
 
 Uma operação que falhe antes de qualquer efeito deve deixar o estado anterior intacto. Se falhar depois de efeitos irreversíveis, deve retornar o estado parcial explicitamente, mantendo a transação retomável ou inválida conforme o contrato; não pode alegar rollback inexistente.
