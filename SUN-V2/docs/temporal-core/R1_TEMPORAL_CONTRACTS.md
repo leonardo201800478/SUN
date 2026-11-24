@@ -500,7 +500,7 @@ A transação é uma operação lógica; amostragem, commit e conclusão são ma
 O resultado de uma operação temporal deve distinguir sucesso, parada normal, bloqueio e falha. As classes abaixo não são intercambiáveis:
 
 - **Blocked:** dependência/condição externa ainda não satisfeita; estado preservado e retomável.
-- **LateInput:** entrada, cancelamento ou publicação de deadline cuja coordenada causal não é estritamente posterior à fronteira de admissão A(E), ou cujo D é anterior ao progresso do proprietário/W; rejeitar antes de mutação e sem rollback/reabertura implícita. O diagnóstico preserva T/D, A(E), participantes e progresso relevante. Se participantes/conversões não puderem ser determinados, usar Blocked/IndeterminateCausalOrder, não LateInput.
+- **LateInput:** entrada/cancelamento com timestamp T/C menor ou igual à fronteira de admissão A(E), ou publicação de deadline D anterior ao P_d do proprietário ou a W (se existir); rejeitar antes de mutação e sem rollback/reabertura implícita. Igualdade D=P_d/W não é LateInput quando houver microstep explícito; sem essa relação, usar IndeterminateCausalOrder. O diagnóstico preserva T/D, A(E), participantes e progresso relevante. Se participantes/conversões não puderem ser determinados, usar Blocked/IndeterminateCausalOrder, não LateInput.
 - **InvalidInput:** parâmetro, perfil, ID ou geração inválida; rejeitar antes de mutação.
 - **InvariantViolation:** monotonicidade, causalidade, exactly-once, chunk invariance ou estado interno violado; execução de validação inválida.
 - **ResourceExhausted:** limite de eventos, microsteps, memória ou capacidade atingido; não descartar silenciosamente nem avançar parcialmente além do último estado consistente.
