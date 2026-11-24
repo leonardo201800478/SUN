@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3.10; incorpora correção do P2 Codex sobre commit de INT acknowledge por perfil, além de R1-EXIT-01/03; ainda não aprovado
+**Status:** rascunho técnico v0.3.11; incorpora correção do P2 Codex sobre commit de INT acknowledge por perfil, além de R1-EXIT-01/03; ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -751,6 +751,8 @@ Esta seção preserva o histórico das revisões anteriores. A v0.3.10 incorpora
 | BLOCKER — R1-EXIT-01: avanço retroativo e taxonomia | C01 permitia InvalidInput ou InvariantViolation para retrocesso, sem reconciliar a taxonomia de §16.12 | v0.3.9 classifica pedido externo T<F_d como LateInput, regressão interna como InvariantViolation e reserva InvalidInput a parâmetros/valores fora do domínio/perfil/identidade/ID/geração/descritor inválidos; atualiza §12.1, §16.12 e R2-T01/T15 | Correção proposta; requer revisão independente do SHA candidato |
 | P2 — fronteira de commit de INT acknowledge | §7.3 exigia commit exactly-once para efeitos do acknowledge, mas a matriz só definia ciclo e amostragem do vetor; snapshot no meio do acknowledge não podia decidir replay do efeito | v0.3.10 nomeia `ACK_DEVICE_COMMIT(profile, device)`, exige declaração `NONE` com evidência ou fronteira por dispositivo; presença/commit UNKNOWN limita compatibilidade e retorna UnsupportedSnapshot, bloqueando replay no intervalo ambíguo; R2-T10/T11 cobrem os casos | Correção proposta; requer revisão independente do SHA candidato |
 
+| P2 — resultado de snapshot UNKNOWN em R2-T10 | v0.3.10 já exigia `UnsupportedSnapshot` em §7.4, C10/C15, R2-T11 e R2-T15, mas R2-T10 ainda aceitava genericamente rejeição/Block | v0.3.11 exige `UnsupportedSnapshot`, ausência de artefato e ausência de mutação quando presença/commit do efeito de dispositivo for UNKNOWN | Corrigido no texto; requer revisão independente do SHA atualizado |
+
 Limites da revisão:
 - A base v0.3.1 fornecida pelo parecer é histórica; o confronto foi feito contra o conteúdo atual v0.3.2 e R0 aprovado.
 - Os itens “corrigido” significam que a lacuna normativa foi endereçada no texto. Não significam que as propriedades R2 foram executadas, que o hardware foi medido ou que o gate R1 foi aprovado.
@@ -762,7 +764,7 @@ Limites da revisão:
 
 ## 20. Próximos passos
 
-A v0.3.10 incorpora o P2 Codex de INT acknowledge, separando o marcador de vetor do commit do efeito de dispositivo e limitando snapshot/replay quando a fronteira permanece UNKNOWN. A correção documental não constitui aprovação; o novo SHA exige CI e revisão independente.
+A v0.3.10 incorporou a fronteira de commit de INT acknowledge por perfil. A v0.3.11 corrige a divergência remanescente em R2-T10: quando a presença do efeito de dispositivo ou sua fronteira de commit permanece UNKNOWN na janela ambígua, o teste exige UnsupportedSnapshot, ausência de artefato e ausência de mutação, alinhado a §7.4, C10/C15, R2-T11 e R2-T15. Esta revisão não constitui aprovação formal de R1; o novo SHA exige CI e revisão independente.
 
 1. Revisar adversarialmente a v0.3.9 no SHA exato, conferindo C01, §7, §12.1, §14, §16.1, §16.12, R2-T01/T08/T11/T15 e a matriz C01–C16.
 2. Confirmar que cada classe de operação tem marcos nomeados e que UNKNOWN físico permanece explícito, sem fase/WAIT/microtiming inventado.
