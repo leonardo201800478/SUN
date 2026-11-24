@@ -10,7 +10,7 @@ O Temporal Core não deve conhecer detalhes internos de registradores ou instru�
 
 ## Documento de avaliação arquitetural
 
-A avaliação CHRONOS, com modelos concorrentes, invariantes, hipótese de prototipagem, riscos, métricas e portões R0–R5, está em [CHRONOS_ARCHITECTURE_EVALUATION.md](CHRONOS_ARCHITECTURE_EVALUATION.md). Ela não aprova antecipadamente um modelo de scheduler.
+A avaliação arquitetural do CHRONOS está em [CHRONOS_ARCHITECTURE_EVALUATION.md](CHRONOS_ARCHITECTURE_EVALUATION.md). A SWOT, análise de stakeholders, recomendações de mudança e roadmap estratégico estão em [CHRONOS_STRATEGIC_ASSESSMENT.md](CHRONOS_STRATEGIC_ASSESSMENT.md). O modelo híbrido mínimo permanece hipótese, não decisão aprovada.
 
 ## 2. Perguntas que precisam ser respondidas
 
