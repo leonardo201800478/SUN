@@ -87,6 +87,23 @@ Essa propriedade inclui:
 
 A propriedade não exige que cada dispositivo execute internamente a mesma quantidade de trabalho em cada partição, apenas que o estado observável final seja equivalente.
 
+### 3.4 Contratos das operações temporais
+
+| Operação conceitual | Pré-condições | Pós-condições obrigatórias |
+|---|---|---|
+| Solicitar avanço até T | T não é anterior ao watermark já confirmado do dispositivo | O dispositivo avança até T ou para na primeira fronteira/dependência anterior; retorna o instante realmente alcançado e a razão da parada |
+| Sincronizar dispositivo em T | T pertence ao perfil ativo e não viola causalidade já confirmada | Todas as transições próprias com instante causal até T foram processadas; nenhuma transição posterior a T foi aplicada |
+| Publicar deadline D | Proprietário válido; D não é anterior ao tempo confirmado; identidade/geração é única | O deadline passa a ser responsabilidade do proprietário e pode ser despachado uma única vez enquanto a geração for vigente |
+| Cancelar/substituir deadline | Identidade e geração correspondem ao agendamento ativo | A geração anterior não pode mais produzir efeito; cancelamento de evento já despachado não desfaz efeito aplicado |
+| Iniciar transação | ID não está ativo; request e perfil são válidos | A transação existe em estado pendente, sem aplicar prematuramente leitura/commit |
+| Amostrar transação | A fronteira de amostragem foi alcançada e a amostragem ainda não ocorreu | O valor observado é capturado uma única vez e fica associado ao ID da transação |
+| Comprometer transação | A fronteira de commit foi alcançada e o efeito ainda não ocorreu | O efeito de escrita/acknowledge é aplicado uma única vez e registrado como comprometido |
+| Retomar transação | Existe estado pendente válido e compatível com o request original | A execução continua do primeiro efeito ainda não realizado; nenhum estágio anterior é repetido |
+| Capturar snapshot | O corte causal está estável ou todas as operações incompletas estão representadas | O snapshot contém dados suficientes para continuação equivalente |
+| Restaurar snapshot | Versão e perfil são compatíveis; invariantes e referências internas são válidas | A máquina restaurada continua de forma equivalente, sem publicar eventos duplicados ou descartar pendências |
+
+A nomenclatura e a forma das APIs permanecem para o desenho posterior. Esta tabela fixa semântica observável, não assinatura de função.
+
 ## 4. Sincronização sob demanda
 
 Antes de uma operação observar ou alterar outro dispositivo, o CHRONOS MUST garantir que o dispositivo de destino esteja sincronizado até o instante causal definido para aquela operação.
@@ -130,6 +147,7 @@ Regras:
 5. Se forem não comutativos e a relação física for UNKNOWN, o perfil não pode silenciosamente escolher uma ordem e declarar precisão. O caso permanece explicitamente não resolvido e exige teste discriminante ou restrição do perfil.
 6. A ordem de eventos não pode depender do endereço de memória, ordem de alocação, hash randomizado, escalonamento do host ou thread que publicou o evento.
 7. Eventos que criem novos eventos no mesmo instante devem ter progresso de microstep bem definido e limite de segurança.
+8. Dois efeitos não comutativos na mesma fase exigem uma política semântica explícita do perfil, baseada em evidência ou propriedade do dispositivo. A sequência estável só desempata depois que essa semântica estiver definida; ela não pode inventar a ordem física.
 
 ## 7. Transações de barramento suspensíveis e retomáveis
 
