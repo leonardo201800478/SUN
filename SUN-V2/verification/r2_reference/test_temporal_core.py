@@ -64,6 +64,16 @@ class R2T01MonotonicityTests(unittest.TestCase):
 
         evaluated = advance(state, Fraction(5))
 
+        self.assertEqual(evaluated.result.kind, ResultKind.BLOCKED)
+        self.assertEqual(canonical_state(evaluated.state), before)
+        self.assertIn("no partial frontier", evaluated.result.detail)
+
+    def test_float_target_is_invalid_and_does_not_mutate_state(self):
+        state = make_state(domains=[one_domain()])
+        before = canonical_state(state)
+
+        evaluated = advance(state, 1.25)
+
         self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
         self.assertEqual(canonical_state(evaluated.state), before)
 
