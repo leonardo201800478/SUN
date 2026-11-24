@@ -309,7 +309,41 @@ A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 
 
 As respostas devem ser avaliadas por prova, rastreabilidade e custo, não por preferência de implementação.
 
-## 16. Próximos passos
+
+## 17. Matriz de rastreabilidade dos contratos
+
+| ID | Contrato | Propriedade R2 / validação posterior |
+|---|---|---|
+| R1-C01 | Tempo monotônico e sem wrap silencioso | R2-T01, R2-T15 |
+| R1-C02 | Conversão exata entre domínios e conservação de resto/fase | R2-T03 |
+| R1-C03 | Chunk invariance | R2-T02 |
+| R1-C04 | Avanço limitado e horizonte seguro | R2-T04 |
+| R1-C05 | Sincronização antes de observação/efeito causal | R2-T05 |
+| R1-C06 | Propriedade, identidade, geração e cancelamento de deadlines | R2-T04, R2-T06, R2-T14 |
+| R1-C07 | Ordenação causal e tratamento de fase UNKNOWN | R2-T06, R2-T07 |
+| R1-C08 | Transação suspensível com amostragem/commit exactly-once | R2-T08 |
+| R1-C09 | TW automático, WAIT externo e fixture separados | R2-T09 |
+| R1-C10 | Amostragem INT/NMI e acknowledge Z80 | R2-T10 |
+| R1-C11 | Snapshot/restore de estados pendentes | R2-T11, R2-T12 |
+| R1-C12 | Independência do host de áudio/vídeo | R2-T13 |
+| R1-C13 | Determinismo sob concorrência e replay | R2-T06, R2-T12 |
+| R1-C14 | Progresso finito de eventos no mesmo instante | R2-T14 |
+| R1-C15 | Erros temporais e estado inválido explícitos | R2-T15 |
+| R1-C16 | Custo previsível e hot paths sem alocação por evento/instrução | Benchmark R3; medição integrada da primeira fatia |
+
+## 18. Requisitos de desempenho e observabilidade
+
+R1 não escolhe estrutura de agenda, mas não pode deixar custo e falhas sem contrato:
+- o caminho comum de avanço não deve exigir alocação dinâmica por T-state ou por instrução;
+- publicação e despacho de deadlines devem ter custo limitado e mensurável; crescimento de agenda deve possuir capacidade/limite e política explícita de falha;
+- o estado temporal deve permitir contadores de diagnóstico sem instrumentação obrigatória no hot path;
+- tracing detalhado deve ser opt-in e não alterar a semântica;
+- benchmark de protótipo deve separar avanço de dispositivo, sincronização, publicação/dispatch, snapshot, alocações e pior caso;
+- nenhuma medição headless será tratada como prova de 60 FPS apresentados; frame pacing, CPAL e input-to-photon são métricas posteriores e separadas.
+
+O objetivo de produto continua 60 FPS estáveis (16,67 ms/frame), mas R1 não declara esse objetivo validado. R3/F6 deve medir o runtime e a apresentação reais e interromper expansão de features se houver regressão abaixo da meta.
+
+## 19. Próximos passos
 
 1. Revisão cruzada deste contrato contra CHRONOS_MINIMAL_HYBRID_SPEC.md, CLOCK_DOMAIN_RESEARCH.md e VDP_OBSERVABLE_BOUNDARIES.md.
 2. Revisar cada requisito com cenários de gameplay SMS e classificar os casos que realmente exigem sub-T-state.
