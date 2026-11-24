@@ -1,12 +1,17 @@
 # CHRONOS — contratos temporais R1
 
-**Projeto:** SUN V2  
-**Sistema inicial:** Sega Master System (SMS)  
-**Gate:** R1 — especificação verificável  
+**Projeto:** SUN V2
+
+**Sistema inicial:** Sega Master System (SMS)
+
+**Gate:** R1 — especificação verificável
+
 **Status:** rascunho técnico v0.1; sujeito à revisão e aos testes de referência R2
 
-**Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)  
-**Pré-requisito:** [R0 aprovado](R0_CLOSEOUT.md) em 2026-11-24  
+**Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
+
+**Pré-requisito:** [R0 aprovado](R0_CLOSEOUT.md) em 2026-11-24
+
 **Escopo:** contratos normativos, independentes da estrutura de dados e da representação temporal final
 
 > Este documento define o que o CHRONOS deve garantir. Não escolhe heap, vetor, timing wheel, corrotinas, quantum, tipo inteiro, largura de timestamp, epoch ou fase elétrica. Nenhum código de produção é autorizado por este rascunho.
