@@ -130,8 +130,13 @@ def _validate_state(state: ReferenceState) -> str | None:
     if state.watermark_common is not None and not _is_exact_time(state.watermark_common):
         return "watermark must use exact integer/rational time"
     obligation_ids = [item.obligation_id for item in state.obligations]
-    if any(not item for item in obligation_ids):
+    if any(not isinstance(item, str) or not item.strip() for item in obligation_ids):
         return "obligation identity must be non-empty"
+    if any(
+        not isinstance(item.owner, str) or not item.owner.strip()
+        for item in state.obligations
+    ):
+        return "obligation owner must be non-empty"
     if len(obligation_ids) != len(set(obligation_ids)):
         return "duplicate obligation identity"
     if any(not _is_exact_time(item.at_common) for item in state.obligations):
@@ -204,10 +209,15 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
             if "regressed" in invalid or "behind the confirmed" in invalid
             else ResultKind.INVALID_INPUT
         )
-        current = _machine_frontier(state)
+        # Validation failed: never convert rejected domain state to build an error result.
+        known_watermark = (
+            state.watermark_common
+            if _is_exact_time(state.watermark_common)
+            else Fraction(0)
+        )
         return AdvanceEvaluation(
             state,
-            AdvanceResult(kind, target_common, current, detail=invalid),
+            AdvanceResult(kind, target_common, known_watermark, detail=invalid),
         )
 
     if not state.domains:
