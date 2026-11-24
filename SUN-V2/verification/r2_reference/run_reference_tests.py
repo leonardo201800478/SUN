@@ -13,18 +13,31 @@ REPOSITORY_ROOT = HERE.parents[2]
 ORACLE = HERE / "chronos_reference.py"
 
 
+def git_output(*arguments: str) -> str:
+    """Run Git against the repository root and return stdout."""
+    completed = subprocess.run(
+        ["git", "-C", str(REPOSITORY_ROOT), *arguments],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
 def repository_head() -> str:
     """Return the exact Git HEAD or an explicit marker outside a Git checkout."""
     try:
-        completed = subprocess.run(
-            ["git", "-C", str(REPOSITORY_ROOT), "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        return git_output("rev-parse", "HEAD")
     except (OSError, subprocess.CalledProcessError):
         return "UNAVAILABLE"
-    return completed.stdout.strip()
+
+
+def dirty_worktree() -> str:
+    """Return porcelain status, including untracked files, or fail closed."""
+    try:
+        return git_output("status", "--porcelain", "--untracked-files=all")
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise RuntimeError("cannot verify repository worktree state") from error
 
 
 def sha256_file(path: Path) -> str:
@@ -39,9 +52,32 @@ def sha256_file(path: Path) -> str:
 def main() -> int:
     """Print run identity, execute the suite, and return a process status."""
     sys.path.insert(0, str(HERE))
-    print(f"repository_head={repository_head()}")
+    head = repository_head()
+    if head == "UNAVAILABLE":
+        print("test_status=BLOCKED")
+        print("reason=Git HEAD unavailable; reproducibility cannot be pinned")
+        return 2
+
+    try:
+        status = dirty_worktree()
+    except RuntimeError as error:
+        print("test_status=BLOCKED")
+        print(f"reason={error}")
+        return 2
+    if status:
+        print("test_status=BLOCKED")
+        print("reason=dirty worktree; commit or discard all changes before running")
+        print(status)
+        return 2
+
+    test_files = sorted(HERE.glob("test_*.py"))
+    print(f"repository_head={head}")
+    print("worktree_status=CLEAN")
     print(f"oracle_path={ORACLE.relative_to(REPOSITORY_ROOT)}")
     print(f"oracle_sha256={sha256_file(ORACLE)}")
+    print(f"runner_sha256={sha256_file(Path(__file__).resolve())}")
+    for test_file in test_files:
+        print(f"test_sha256[{test_file.name}]={sha256_file(test_file)}")
     print(f"python_version={platform.python_version()}")
     print(f"platform={platform.platform()}")
     print("profile=SMS-NTSC (abstract reference-model profile)")
