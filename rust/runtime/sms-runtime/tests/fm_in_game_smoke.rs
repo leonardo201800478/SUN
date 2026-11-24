@@ -27,8 +27,8 @@
 
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::{Path, PathBuf};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -690,20 +690,21 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
             let region = region_override.as_deref().unwrap_or(fixture.region);
             let system = system_override.as_deref().unwrap_or(fixture.system);
             let vdp_revision = selected_vdp_revision(system);
-            let worker = SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
-                rom,
-                region,
-                vdp_revision,
-                None,
-                None,
-                SmsFmOutputPolicy::Enabled,
-            )
-            .unwrap_or_else(|error| {
-                panic!(
-                    "{}: cannot create Japanese FM machine: {error}",
-                    path.display()
+            let worker =
+                SmsTemporalWorker::new_with_japanese_fm_hardware_profile_and_output_policy(
+                    rom,
+                    region,
+                    vdp_revision,
+                    None,
+                    None,
+                    SmsFmOutputPolicy::Enabled,
                 )
-            });
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{}: cannot create Japanese FM machine: {error}",
+                        path.display()
+                    )
+                });
 
             let source_capture = Arc::new(Mutex::new(FmSourceCapture::default()));
             let pcm_capture = Arc::new(Mutex::new(PcmCapture::default()));
@@ -725,9 +726,9 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
                     panic!("{}: cannot configure native mixer: {error}", path.display())
                 });
 
-            worker
-                .start()
-                .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
+            worker.start().unwrap_or_else(|error| {
+                panic!("{}: cannot start FM runtime: {error}", path.display())
+            });
 
             let deadline = Instant::now() + FRAME_WAIT_TIMEOUT;
             while worker.frame_number() < frames_per_rom {
@@ -749,16 +750,19 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
                 thread::sleep(Duration::from_millis(10));
             }
 
-            worker
-                .pause()
-                .unwrap_or_else(|error| panic!("{}: cannot pause FM runtime: {error}", path.display()));
+            worker.pause().unwrap_or_else(|error| {
+                panic!("{}: cannot pause FM runtime: {error}", path.display())
+            });
             let performance = worker.performance_metrics();
             let frame_pacing = worker.frame_pacing_metrics();
             let total_instructions = worker.total_instructions();
             let machine_time_ticks = worker.machine_time_ticks();
             let machine_clock_hz = worker.machine_clock_hz();
             let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
-                panic!("{}: cannot snapshot machine diagnostics: {error}", path.display())
+                panic!(
+                    "{}: cannot snapshot machine diagnostics: {error}",
+                    path.display()
+                )
             });
             println!(
                 "SMS_FM_RUNTIME_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} sp=0x{:04X} halted={} scanline={} vdp_cycles_into_line={} fm_port_writes={:?} performance={:?} frame_pacing={:?}",
@@ -781,9 +785,9 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
                 panic!("{}: cannot close native mixer: {error}", path.display())
             });
 
-            let sources = source_capture
-                .lock()
-                .unwrap_or_else(|_| panic!("{}: FM source capture mutex was poisoned", path.display()));
+            let sources = source_capture.lock().unwrap_or_else(|_| {
+                panic!("{}: FM source capture mutex was poisoned", path.display())
+            });
             let pcm = pcm_capture
                 .lock()
                 .unwrap_or_else(|_| panic!("{}: PCM capture mutex was poisoned", path.display()));
@@ -795,7 +799,9 @@ fn real_japanese_sms_roms_emit_non_silent_fm_through_the_native_mixer() {
                 &sources.single_source_samples_f64,
                 &pcm.samples_f64,
             )
-            .unwrap_or_else(|error| panic!("{}: cannot write diagnostic WAV: {error}", path.display()));
+            .unwrap_or_else(|error| {
+                panic!("{}: cannot write diagnostic WAV: {error}", path.display())
+            });
 
             assert!(
                 fm_bus_writes.address_writes > 0 && fm_bus_writes.data_writes > 0,
@@ -945,10 +951,14 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
                     let session = output.into_audio_session(100)?;
                     Ok(Box::new(session) as Box<dyn AudioSession>)
                 })
-                .unwrap_or_else(|error| panic!("{}: cannot open CPAL output: {error}", path.display()));
+                .unwrap_or_else(|error| {
+                    panic!("{}: cannot open CPAL output: {error}", path.display())
+                });
             worker
                 .start()
-                .unwrap_or_else(|error| panic!("{}: cannot start FM runtime: {error}", path.display()));
+            worker.start().unwrap_or_else(|error| {
+                panic!("{}: cannot start FM runtime: {error}", path.display())
+            });
 
             let deadline = Instant::now() + FRAME_WAIT_TIMEOUT;
             while worker.frame_number() < frames_per_rom {
@@ -980,7 +990,10 @@ fn real_japanese_sms_roms_play_fm_through_cpal_and_report_underruns() {
             let machine_time_ticks = worker.machine_time_ticks();
             let machine_clock_hz = worker.machine_clock_hz();
             let debug_snapshot = worker.debug_snapshot().unwrap_or_else(|error| {
-                panic!("{}: cannot snapshot CPAL diagnostics: {error}", path.display())
+                panic!(
+                    "{}: cannot snapshot CPAL diagnostics: {error}",
+                    path.display()
+                )
             });
             println!(
                 "SMS_FM_CPAL_DIAGNOSTICS title={} frame={} instructions={} machine_ticks={} machine_clock_hz={} pc=0x{:04X} halted={} audio_metrics={:?} performance={:?} frame_pacing={:?}",
