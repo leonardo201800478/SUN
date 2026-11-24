@@ -54,6 +54,20 @@ class R2T01InvalidStateTests(unittest.TestCase):
         self.assertEqual(evaluated.result.reached_common, Fraction(0))
         self.assertEqual(canonical_state(evaluated.state), before)
 
+    def test_invalid_watermark_is_rejected_before_incomplete_participant_block(self):
+        state = make_state(
+            domains=[],
+            expected_participants=["cpu"],
+            watermark_common=1.5,
+        )
+        before = canonical_state(state)
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertEqual(evaluated.result.reached_common, Fraction(0))
+        self.assertEqual(canonical_state(evaluated.state), before)
+
     def test_obligation_without_nonblank_owner_is_rejected_without_mutation(self):
         for owner in ("", "   "):
             with self.subTest(owner=owner):
