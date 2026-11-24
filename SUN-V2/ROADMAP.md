@@ -62,6 +62,7 @@ A diferença fundamental é a ordem de construção e o contrato de integração
 Objetivo: extrair o conhecimento útil da V1 sem herdar suas suposições.
 
 Entregas:
+- [inventário crítico V1→V2](docs/architecture/V1_TO_V2_INVENTORY.md) como baseline inicial, a reconfirmar no SHA congelado;
 - matriz V1 → V2 por subsistema: comportamento existente, evidência, testes reutilizáveis como referência, lacunas e decisão de reimplementação;
 - matriz de evidências de clocks NTSC/PAL, fase, Z80/barramento, WAIT, IRQ/NMI, VDP e áudio;
 - catálogo de ROMs de diagnóstico e casos de gameplay, com hash e resultado esperado;
