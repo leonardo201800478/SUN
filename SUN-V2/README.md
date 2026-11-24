@@ -7,7 +7,7 @@ SUN V2 é uma reconstrução independente do emulador SUN, iniciada com o Sega M
 **Fase atual: R1 — contratos temporais verificáveis, em elaboração e revisão.**
 
 - **R0:** aprovado no escopo documental em 24/11/2026. Consulte o [parecer R0](docs/temporal-core/R0_CLOSEOUT.md) e a [issue #1267 encerrada](https://github.com/leonardo201800478/SUN/issues/1267).
-- **R1:** rascunho v0.3.4 com unidades locais de progresso/horizonte explicitadas, com admissão estrita de cancelamentos em relação a W e restore de deadlines Dispatched; ainda não aprovado. Consulte [R1_TEMPORAL_CONTRACTS.md](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) e acompanhe a [issue #1270](https://github.com/leonardo201800478/SUN/issues/1270).
+- **R1:** rascunho v0.3.4 com H_d explícito no avanço, admissão estrita de cancelamentos em relação a W e restore distinto de Claimed/Dispatched/Failed (sem retry automático de Failed); ainda não aprovado. Consulte [R1_TEMPORAL_CONTRACTS.md](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) e acompanhe a [issue #1270](https://github.com/leonardo201800478/SUN/issues/1270).
 - **R2–R5:** pendentes. R2 só começa após aprovação R1; R3 só começa após aprovação R1 e R2; R4 é a revisão adversarial; R5 é a aprovação arquitetural.
 - **Produção:** nenhum código de produção CHRONOS/V2 está autorizado antes da aprovação R5.
 - **PRs legadas:** PRs abertas anteriores ao V2 foram encerradas sem merge, preservando histórico e branches. O trabalho legado não será incorporado automaticamente à V2.
