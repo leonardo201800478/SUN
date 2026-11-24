@@ -1,7 +1,7 @@
 # SUN V2 — boundaries observáveis do VDP SMS
 
 **Baseline consultada:** V1 `207ccc4cebbc4f8c0aed45c68262eae963491689`  
-**Status R0:** primeira passagem concluída; falta reexecução reproduzível da ROM no SHA congelado e evidência física por ASIC.  
+**Status R0:** primeira passagem documental concluída. A reexecução da ROM no SHA congelado e a evidência física por ASIC permanecem pendentes; não são pré-requisitos para fechar R0 se os limites e as incertezas estiverem explicitamente classificados. Não declarar os resultados históricos como validação do SHA congelado.  
 **Escopo:** SMS1/315-5124 como primeira fatia; SMS2/315-5246 permanece comparativo e incompleto.
 
 ## 1. Regra de precisão
@@ -92,11 +92,13 @@ Para cada ROM/caso:
 
 ## 8. Próximo gate
 
-R0 não fecha com esta documentação apenas. Fechar quando:
-- o comparativo SMS VDP Test v1.31 for reexecutado no SHA congelado com artefatos;
-- as rotinas full-machine de Frame IRQ HCount e Line IRQ HCount tiverem uma fixture reproduzível;
-- HCounter/TH tiver origem e atraso CPU normalizados;
-- a matriz distinguir limites SMS1 e SMS2;
-- clock PAL-M e regional for resolvido ou explicitamente limitado a perfis com evidência suficiente.
+R0 pode fechar quando a documentação:
+- classificar cada boundary por origem, perfil SMS1/SMS2, confiança, observabilidade e impacto em jogos;
+- separar resultados de ROM/modelo comparativo de evidência elétrica independente;
+- definir cenários discriminantes para Frame IRQ HCount, Line IRQ HCount, HCounter e TH, mesmo que sua execução seja posterior;
+- registrar explicitamente quais timings e atrasos CPU permanecem UNKNOWN, sem promovê-los a constantes;
+- limitar clocks PAL-M e demais perfis regionais sem evidência física suficiente.
+
+A reexecução de SMS VDP Test v1.31 no SHA congelado com artefatos é necessária antes de atribuir seus resultados históricos àquele SHA ou usar esses resultados como aprovação. A fixture full-machine de IRQ/HCounter/TH deve ser construída no modelo de referência R2 ou antes do protótipo que dependa desses efeitos; ambas podem ser adiadas em relação ao fechamento documental de R0.
 
 Nenhum requisito pede dot-accuracy universal. O critério é a menor granularidade que reproduz efeitos de gameplay comprovados.
