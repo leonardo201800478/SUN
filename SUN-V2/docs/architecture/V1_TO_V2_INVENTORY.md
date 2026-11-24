@@ -51,10 +51,10 @@ O README de `native/z80_cpu` descreve corretamente o contrato do executor `Z80::
 
 ### 3.2 Barramento, WAIT e interrupções
 
-O handshake Z80 mantém uma transação pendente, identidade, operação, endereço, duração base e WAIT acumulado. A máquina SMS agenda a conclusão no Scheduler e aplica os efeitos no boundary de conclusão. A máquina temporal também registra eventos de INT/NMI e acknowledge.
+O handshake Z80 mantém uma transação pendente, identidade, operação, endereço, duração base e WAIT acumulado. A máquina SMS agenda a conclusão no Scheduler e aplica os efeitos no boundary de conclusão. O Z80 inclui um TW automático em I/O (V1 codifica PortRead/PortWrite com 4 T-states) e dois TW automáticos em INT acknowledge (3 base + 2 automáticos). A máquina temporal também registra eventos de INT/NMI e acknowledge.
 
 **Confiança:** alta para a existência dos mecanismos e para os casos de software documentados.  
-**Limite:** WAIT físico/externo, DMA e arbitragem elétrica externa não são comprovados por WAIT de fixture.  
+**Limite:** a V1 injeta WAIT adicional via fixture e não amostra WAIT físico. Discussão técnica SMS Power indica /WAIT conectado ao cartridge port, não ao VDP; PSG discreta de SC-3000 pode pausar CPU, mas a PSG integrada SMS provavelmente tem interface diferente (hipótese). WAIT externo de cartridge e DMA/arbitragem elétrica permanecem não verificados.  
 **Implicação V2:** WAIT é parte do contrato de transação, mas sua fonte deve ser explicitada (fixture, dispositivo ou sinal físico); nunca tratar os três como a mesma evidência.
 
 O relatório comparativo anexado em 15/11/2026 registra resultados da ROM SMS VDP Test v1.31: o Sega Emulator teve 17/19 em data, 11/16 em misc e 17/19 em sprite; Ares teve 19/19, 11/16 (com acertos diferentes) e 16/19, respectivamente. O relatório também registra falhas em ponteiros de endereço após escrita de um byte, timing de H/V counters e IRQs, colisões/overflow de sprites, e sucesso de X-Scroll latchtime no Sega Emulator. Como não registra SHA do executável, hash da ROM, BIOS/configuração nem ambiente, é evidência histórica, não prova do comportamento no SHA V1 congelado. Reexecutar no baseline antes de promover qualquer resultado.
