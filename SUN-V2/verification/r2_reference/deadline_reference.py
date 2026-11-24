@@ -107,6 +107,7 @@ def publish_deadline(
     commutative: bool = False,
     phase_order: int | None = None,
     phase_evidence: str | None = None,
+    microstep_level: int | None = None,
 ) -> DeadlineEvaluation:
     """Admit a deadline after structural, participant, and temporal validation."""
     if (
@@ -125,6 +126,11 @@ def publish_deadline(
             not isinstance(phase_evidence, str) or not phase_evidence.strip()
         ))
         or ((phase_order is None) != (phase_evidence is None))
+        or (microstep_level is not None and (
+            not isinstance(microstep_level, int) or isinstance(microstep_level, bool)
+            or microstep_level <= 0
+        ))
+        or (microstep_level is not None and not microstep)
     ):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "invalid deadline descriptor")
@@ -170,7 +176,7 @@ def publish_deadline(
     deadline = Deadline(
         owner, identity, generation, Fraction(at_common), effect_id,
         commutative, phase_order, phase_evidence,
-        1 if microstep else 0,
+        (microstep_level if microstep_level is not None else (1 if microstep else 0)),
     )
     return DeadlineEvaluation(
         replace(book, deadlines=book.deadlines + (deadline,)),
@@ -366,7 +372,7 @@ def schedule_microstep(
     return publish_deadline(
         book, state, owner=owner, identity=identity, generation=generation,
         at_common=at_common, effect_id=effect_id, microstep=True,
-        commutative=commutative,
+        microstep_level=current_microstep + 1, commutative=commutative,
     )
 
 
