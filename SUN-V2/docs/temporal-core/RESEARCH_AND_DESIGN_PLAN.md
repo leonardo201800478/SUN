@@ -1,6 +1,6 @@
 # Temporal Core — plano de pesquisa e especificação
 
-**Status:** R0 aprovado no escopo documental em 2026-11-24; proposta de híbrido mínimo documentada; R1 autorizado. Nenhuma implementação de produção autorizada.
+**Status:** R0 APROVADO; R1 APROVADO em 2026-11-24 (conteúdo v0.3.18, PR #1281, merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); R2 EM ANDAMENTO (issue #1282). R3–R5 bloqueados. Nenhuma implementação de produção autorizada.
 
 ## 1. Missão
 
@@ -131,3 +131,12 @@ Separar microbenchmarks de benchmarks integrados com a carga de trabalho SMS. Ne
 - **R5 — Aprovação:** decisão arquitetural registrada; somente então começa o crate de produção.
 
 Falhar em qualquer portão exige corrigir a especificação ou o modelo antes de avançar.
+
+
+## 9. Execução atual — R2
+
+R1 foi aprovado explicitamente pelo responsável em 2026-11-24. O conteúdo normativo aprovado é R1 v0.3.18 no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`. O registro de aprovação está na issue #1270, encerrada.
+
+R2 está em andamento na [issue #1282](https://github.com/leonardo201800478/SUN/issues/1282). O desenho do oráculo, suas propriedades, a matriz R2-T01–T15 e os critérios de saída estão em [R2_REFERENCE_MODEL.md](R2_REFERENCE_MODEL.md).
+
+O modelo de referência é um artefato de verificação isolado; não é backend/runtime, não compartilha implementação V1, não escolhe a arquitetura final e não autoriza código de produção. R3 só começa após aprovação explícita de R2; produção CHRONOS/V2 continua proibida antes de R5.
