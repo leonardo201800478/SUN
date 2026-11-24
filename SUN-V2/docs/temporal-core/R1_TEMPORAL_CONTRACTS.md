@@ -556,10 +556,11 @@ A revisão deste contrato deve manter a seguinte cadeia de proveniência. Os doc
 | PSG/YM2413 e saída de áudio | AUDIO_CLOCK_RESEARCH.md; R0_CLOSEOUT.md, seção 5 | Domínios candidatos, divisores publicados e incertezas de fase/analógico | Qualidade analógica, filtro físico, fase de reset ou equivalência universal de placas |
 | Fronteiras observáveis VDP | VDP_OBSERVABLE_BOUNDARIES.md; R0_CLOSEOUT.md, seção 4 | Fronteiras e efeitos de software relevantes para gameplay, com confiança/limites | Pipeline universal por dot, arbitration física ou resultados históricos como PASS no SHA congelado |
 | Implementação e limites conhecidos da V1 | V1_TO_V2_INVENTORY.md; V1_BASELINE_EVIDENCE_MATRIX.md | OBSERVATION de implementação no SHA congelado e cenários a investigar | Prova física, API a copiar, dependência de runtime ou aprovação automática de comportamento |
-| Estratégia temporal candidata | CHRONOS_MINIMAL_HYBRID_SPEC.md | Proposta de três mecanismos: avanço limitado, sincronização sob demanda e deadlines seletivos | Decisão final de algoritmo, estrutura de agenda, fase física ou autorização de produção |
+| Estratégia temporal candidata | CHRONOS_MINIMAL_HYBRID_SPEC.md | Proposta de três mecanismos: avanço limitado, sincronização sob demanda e deadlines seletivos | Decisão final de algoritmo, estrutura de agenda, fase física, autorização de R2 antes de R1 ou produção antes de R5 |
 
 Regras adicionais de proveniência:
-1. Uma cláusula normativa é um requisito/decisão de projeto, não um FACT físico. Registrar sua justificativa e marcar separadamente as premissas subjacentes como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
+1. A sequência mandatória R0→R1→R2→R3→R4→R5 e as condições de passagem em `PROJECT_INSTRUCTIONS.md` prevalecem sobre planos antigos ou propostas. Menções a R2 em R0/CHRONOS_MINIMAL_HYBRID_SPEC identificam o gate futuro; não autorizam iniciar R2 antes da aprovação formal de R1. Nenhum código de produção antes de R5.
+2. Uma cláusula normativa é um requisito/decisão de projeto, não um FACT físico. Registrar sua justificativa e marcar separadamente as premissas subjacentes como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
 2. Quando uma afirmação depender de hardware, registrar fonte primária, revisão, página/seção, perfil e limite de aplicabilidade.
 3. Quando depender de V1, registrar o SHA congelado 207ccc4cebbc4f8c0aed45c68262eae963491689 e identificar se é código, teste ou documentação.
 4. Quando depender de ROM/teste, registrar hash da ROM, perfil, estado inicial, entrada, ambiente, executável/SHA e artefato de resultado. Relatórios sem esses elementos permanecem OBSERVATION histórica limitada.
@@ -663,6 +664,7 @@ Esta revisão confrontou os sete achados registrados na linha de base v0.3.1 com
 | MINOR — medição como pré-requisito R1 | 16.14.3 sugeria medição antes de R3 | 16.14/18 tornam medição comparativa entrega R3; R1 exige apenas contrato de capacidade/observabilidade | Corrigido no texto |
 | MAJOR — admissão de cancelamento retroativo em relação a W | v0.3.3 exigia C<D e admissão antes de W fechar D, mas não explicitava que C também precisava estar além do W vigente no momento da admissão | v0.3.4 exige W_admissão<C<D; C<=W é LateInput mesmo quando W<D | Corrigido no texto; propriedade ampliada em R2-T06 |
 | MAJOR — snapshot de deadline Dispatched com efeitos parciais | v0.3.3 preservava Claimed, mas não explicitava o registro de subefeitos de um deadline cujo despacho já começou | v0.3.4 exige registro de commit por subefeito ou marco atômico e restore apenas dos subefeitos pendentes | Corrigido no contrato; cenário ampliado em R2-T11 |
+| MAJOR — precedência de gates divergente em proposta arquitetural | CHRONOS_MINIMAL_HYBRID_SPEC.md ainda descrevia R2 e integração como etapas do “Começo/Meio”, sem condicionar R2 à aprovação R1 e produção a R5 | v0.3.4 alinha o plano da proposta à sequência estrita R0→R1→R2→R3→R4→R5 e separa protótipos R3 de produção pós-R5 | Corrigido no documento candidato; R1 continua em revisão |
 | MINOR — H_d não explícito no limite de avanço | v0.3.3 descrevia o próximo limite, mas não listava H_d convertido entre os limites mínimos da solicitação | v0.3.4 inclui H_d convertido explicitamente no menor limite de avanço e amplia R2-T04 | Corrigido no texto |
 
 Limites da revisão:
