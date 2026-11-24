@@ -1,6 +1,6 @@
 # Temporal Core — pesquisa dos clocks de áudio SMS
 
-**Status:** levantamento de domínios e discrepâncias. Não define a implementação dos chips, a unidade temporal ou a fase inicial.
+**Status:** pesquisa R0 concluída; ver parecer R0_CLOSEOUT.md. Este documento não define a implementação dos chips, a unidade temporal ou a fase inicial.
 
 ## 1. PSG SN76489 integrado ao VDP Sega
 
