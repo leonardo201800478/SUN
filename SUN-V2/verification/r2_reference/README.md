@@ -28,6 +28,6 @@ The current candidate defines 24 tests:
 - R2-T03: exact rational round-trip/composition and 10,000-step conversion sessions across three ratios.
 - R2-T04: inclusive safe horizon, endpoint StoppedAt(T), earlier obligations, resume after resolution and multi-domain minimum horizon.
 
-**Execution status of this candidate: NOT RUN.** Earlier 19-test results were not pinned to a repository SHA and oracle hash, so they remain historical, unbound local evidence and are not PASS evidence for the current candidate.
+**Executed candidate:** 24 tests PASS in CI #10619 on Git SHA `a0c0782ff4d8e9886144b20bde36e42bcc6f1eff`, with oracle SHA-256 `160489b753575f0e7fcb12892eb58f7199a1dc5828c5bb4f13c266f557ba001a`, Python 3.14.4, Linux x86_64. The runner output is the reproducibility record. Earlier 19-test results remain historical, unbound local evidence.
 
 R2-T05–T15 remain NOT RUN until implemented and executed. This is the first R2-A slice, not completion of R2.
