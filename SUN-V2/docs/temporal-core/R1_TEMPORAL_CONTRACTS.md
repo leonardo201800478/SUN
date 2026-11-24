@@ -6,7 +6,7 @@
 
 **Gate:** R1 — especificação verificável
 
-**Status:** rascunho técnico v0.3; revisão normativa ampliada, ainda não aprovado
+**Status:** rascunho técnico v0.3.1; revisão normativa ampliada e consistência interna corrigida, ainda não aprovado
 
 **Issue:** [#1270 — contratos temporais R1](https://github.com/leonardo201800478/SUN/issues/1270)
 
@@ -91,9 +91,9 @@ A propriedade não exige que cada dispositivo execute internamente a mesma quant
 
 | Operação conceitual | Pré-condições | Pós-condições obrigatórias |
 |---|---|---|
-| Solicitar avanço até T | T não é anterior ao watermark já confirmado do dispositivo | O dispositivo avança até T ou para na primeira fronteira/dependência anterior; retorna o instante realmente alcançado e a razão da parada |
-| Sincronizar dispositivo em T | T pertence ao perfil ativo e não viola causalidade já confirmada | Todas as transições próprias com instante causal até T foram processadas; nenhuma transição posterior a T foi aplicada |
-| Publicar deadline D | Proprietário válido; D não é anterior ao tempo confirmado; identidade/geração é única | O deadline passa a ser responsabilidade do proprietário e pode ser despachado uma única vez enquanto a geração for vigente |
+| Solicitar avanço até T | T pertence ao perfil ativo, é comparável ao progresso local P_d por conversão declarada e não é anterior a P_d nem ao watermark global W | O dispositivo avança até T ou para na primeira fronteira/dependência anterior; retorna o instante realmente alcançado e a razão da parada |
+| Sincronizar dispositivo em T | T pertence ao perfil ativo, é comparável a P_d e não é anterior a P_d nem a W | Todas as transições próprias com instante causal até T foram processadas; nenhuma transição posterior a T foi aplicada |
+| Publicar deadline D | Proprietário válido; D é comparável ao progresso local do proprietário; D não é anterior a P_d nem a W; identidade/geração é única | O deadline passa a ser responsabilidade do proprietário e pode ser despachado uma única vez enquanto a geração for vigente. Se D coincidir com o instante confirmado atual do proprietário ou com W, só pode ser aceito sob a regra explícita de microstep do instante corrente |
 | Cancelar/substituir deadline | Identidade e geração correspondem ao agendamento ativo | A geração anterior não pode mais produzir efeito; cancelamento de evento já despachado não desfaz efeito aplicado |
 | Iniciar transação | ID não está ativo; request e perfil são válidos | A transação existe em estado pendente, sem aplicar prematuramente leitura/commit |
 | Amostrar transação | A fronteira de amostragem foi alcançada e a amostragem ainda não ocorreu | O valor observado é capturado uma única vez e fica associado ao ID da transação |
@@ -172,7 +172,7 @@ A implementação pode usar outra representação, mas deve preservar transiçõ
 1. **Criada:** requisição identificada, ainda sem efeitos.
 2. **Em andamento:** tempo base do ciclo está sendo consumido.
 3. **Aguardando:** progresso suspenso por WAIT ou dependência.
-4. **Pronta para amostragem/commit:** a fronteira relevante foi alcançada.
+4. **Pronta para próxima fronteira aplicável:** a fronteira de amostragem, commit ou outro marco exigido pela operação foi alcançada. Amostragem e commit mantêm estados independentes.
 5. **Amostrada:** dado de leitura ou acknowledge foi capturado exatamente uma vez.
 6. **Comprometida:** efeito de escrita foi aplicado exatamente uma vez.
 7. **Concluída:** todos os efeitos e tempos da operação foram finalizados.
@@ -312,16 +312,18 @@ R1 só pode ser aprovado quando:
 
 A aprovação de R1 não aprova R2, protótipos R3 ou código de produção. R3 só começa depois de R1 e R2 aprovados.
 
-## 15. Questões que R1 deve resolver sem inventar hardware
+## 15. Questões de desenho deliberadamente abertas após R1 v0.3.1
 
-- Como representar relação de fase conhecida, desconhecida e comutativa sem impor ordem física?
-- Qual é a menor interface de avanço que permite reportar a próxima fronteira observável?
-- Como a CPU informa safe points sem callbacks por instrução?
-- Como representar instante de amostragem e instante de commit em transações?
-- Como deadlines são invalidados sem cancelamento caro ou evento zumbi?
-- Como impedir starvation e ciclos de microstep sem impor custo fixo no hot path?
-- Como compor domínios de clock sem perder resto/fase e sem depender de ponto flutuante?
-- Como restaurar transações e eventos pendentes sem expor detalhes internos dos dispositivos ao Scheduler?
+Os contratos normativos das seções 3–16 definem as garantias exigidas. As questões abaixo permanecem abertas para R2/R3 porque dependem de representação, prova independente, custo ou evidência adicional; não suspendem a semântica já fixada:
+
+- Qual representação expressa fase conhecida, desconhecida e comutatividade sem atribuir fase física presumida?
+- Qual forma de interface reporta progresso local, horizonte seguro, watermark e próxima fronteira sem impor callbacks por instrução/T-state?
+- Quais safe points da CPU Z80 são suficientes para os pontos de observação comprovados por gameplay SMS?
+- Como cada classe de transação mapeia os marcos normativos de amostragem, commit e conclusão às fronteiras de barramento sustentadas por evidência?
+- Qual mecanismo de agenda/cancelamento satisfaz identidade, geração e linearização com custo mensurável?
+- Qual mecanismo detecta dependência sem progresso, starvation ou ciclo de microstep sem custo fixo indevido no hot path?
+- Qual representação implementa conversões exatas, resíduos e composição sem assumir associatividade/inversibilidade?
+- Qual DTO/codec e política de compatibilidade persistente preservam corte causal, eventos e transações pendentes?
 
 As respostas devem ser avaliadas por prova, rastreabilidade e custo, não por preferência de implementação.
 
@@ -542,10 +544,10 @@ A revisão deste contrato deve manter a seguinte cadeia de proveniência. Os doc
 Regras adicionais de proveniência:
 1. Uma cláusula normativa é um requisito/decisão de projeto, não um FACT físico. Registrar sua justificativa e marcar separadamente as premissas subjacentes como FACT, OBSERVATION, HYPOTHESIS/INFERENCE ou UNKNOWN.
 2. Quando uma afirmação depender de hardware, registrar fonte primária, revisão, página/seção, perfil e limite de aplicabilidade.
-2. Quando depender de V1, registrar o SHA congelado 207ccc4cebbc4f8c0aed45c68262eae963491689 e identificar se é código, teste ou documentação.
-3. Quando depender de ROM/teste, registrar hash da ROM, perfil, estado inicial, entrada, ambiente, executável/SHA e artefato de resultado. Relatórios sem esses elementos permanecem OBSERVATION histórica limitada.
-4. Referências MAME, ares, Gearsystem, JGenesis, BlastEm, MEKA e Genesis Plus GX são comparações de implementação; registrar revisão/commit e nunca usá-las como prova física isolada.
-5. O fato de uma fonte não mencionar um comportamento não prova sua ausência física; classificar como UNKNOWN quando a pesquisa não o resolver.
+3. Quando depender de V1, registrar o SHA congelado 207ccc4cebbc4f8c0aed45c68262eae963491689 e identificar se é código, teste ou documentação.
+4. Quando depender de ROM/teste, registrar hash da ROM, perfil, estado inicial, entrada, ambiente, executável/SHA e artefato de resultado. Relatórios sem esses elementos permanecem OBSERVATION histórica limitada.
+5. Referências MAME, ares, Gearsystem, JGenesis, BlastEm, MEKA e Genesis Plus GX são comparações de implementação; registrar revisão/commit e nunca usá-las como prova física isolada.
+6. O fato de uma fonte não mencionar um comportamento não prova sua ausência física; classificar como UNKNOWN quando a pesquisa não o resolver.
 
 ### 16.17 Mapeamento de lacunas normativas para validação R2
 
