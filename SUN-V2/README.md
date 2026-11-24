@@ -47,6 +47,7 @@ O benchmark S0 da V1 foi encerrado como **não executado** e não é bloqueador 
 - [Avaliação arquitetural](docs/temporal-core/CHRONOS_ARCHITECTURE_EVALUATION.md) — comparação dos modelos e análise técnica.
 - [Avaliação estratégica](docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md) — SWOT, stakeholders, riscos e roadmap.
 - [Plano de pesquisa e especificação](docs/temporal-core/RESEARCH_AND_DESIGN_PLAN.md) — perguntas, entregáveis, provas e gates.
+- [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho normativo dos contratos de avanço, sincronização, deadlines, barramento, IRQ, snapshot e determinismo.
 
 ## Estrutura
 
