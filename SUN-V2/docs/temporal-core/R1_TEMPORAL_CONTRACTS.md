@@ -280,10 +280,10 @@ R2 deve construir um oráculo independente da futura implementação. O modelo p
 
 | ID | Propriedade | Cenário mínimo |
 |---|---|---|
-| R2-T01 | Monotonicidade | Sequências de avanços crescentes, repetidos e inválidos |
+| R2-T01 | Monotonicidade | Sequências de avanços crescentes, repetidos e inválidos; progresso local, H_d e W, incluindo fechamento e tentativa de retrocesso do corte |
 | R2-T02 | Chunk invariance | Avanço único contra partições aleatórias do mesmo intervalo |
 | R2-T03 | Conversão sem deriva | Domínios com razão inteira e não inteira, composição direta/encadeada quando matematicamente equivalente e sessões longas |
-| R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado |
+| R2-T04 | Limite seguro | Deadline interno antes do alvo solicitado; domínio bloqueado; fronteira de dependência; W não pode cruzar evento/efeito ainda não resolvido |
 | R2-T05 | Sincronização causal | Leitura após evento de dispositivo e escrita com commit definido |
 | R2-T06 | Ordenação determinística | Eventos em instantes diferentes, fases distintas e mesma fase |
 | R2-T07 | UNKNOWN não vira precedência | Eventos simultâneos não comutativos sem fase validada |
@@ -336,7 +336,7 @@ Os termos abaixo são distintos e MUST NOT ser usados como sinônimos:
 
 - **Progresso local (P_d):** instante até o qual o estado próprio do domínio d foi efetivamente atualizado. P_d é expresso no domínio local; só pode ser comparado ao instante comum por uma conversão declarada e válida no perfil.
 - **Horizonte seguro (H_d):** maior instante até o qual o domínio d pode avançar sem atravessar uma fronteira que ainda possa exigir observação, publicação ou arbitragem causal externa.
-- **Watermark confirmado da máquina (W):** corte causal global fechado: todos os efeitos e eventos pertencentes ao perfil ativo com instante causal menor ou igual a W foram processados, ou estão representados como pendências explícitas cuja existência não altera a validade do corte. Um conflito não resolvido que possa mudar o resultado impede fechar W através daquele instante.
+- **Watermark confirmado da máquina (W):** corte causal global fechado: todos os efeitos e eventos despacháveis pertencentes ao perfil ativo com instante causal menor ou igual a W foram processados, cancelados ou demonstrados como sem efeito. Uma transação ainda pendente pode atravessar W somente se todos os seus efeitos devidos até W estiverem concluídos e os efeitos restantes tiverem instante causal posterior a W. Um conflito não resolvido que possa mudar o resultado impede fechar W através daquele instante.
 
 Regras normativas:
 
@@ -344,7 +344,7 @@ Regras normativas:
 2. W MUST ser monotônico. Um domínio não pode publicar progresso local superior ao seu H_d vigente.
 3. O coordenador só pode confirmar W depois de obter evidência de fechamento causal de todos os participantes relevantes do perfil até W. A regra de participação é parte do perfil e não pode ser inferida da ordem de iteração.
 4. W não é necessariamente o mínimo aritmético de todos os P_d: domínios sem dependência causal no intervalo podem não limitar o corte, mas essa independência precisa estar declarada e validada. R1 não escolhe o algoritmo que calcula W.
-5. Um evento pendente com instante menor ou igual a W é permitido somente se sua pendência estiver incluída no próprio estado lógico do corte e não puder produzir retroativamente um efeito que deveria ter precedido um efeito já confirmado. Caso contrário, W não pode atravessá-lo.
+5. Um evento despachável ou efeito ainda não resolvido com instante menor ou igual a W impede fechar W. Uma transação pode permanecer pendente apenas sob a condição definida na própria definição de W: nenhum efeito devido até W pode continuar pendente. O snapshot deve preservar a continuação posterior a W.
 6. Um pedido de avanço até T com T < W é retroativo e MUST falhar antes de mutar estado. T = W é operação idempotente se não houver nova entrada causal.
 7. O instante comum é uma relação comparável definida pelo perfil. Esta definição não exige epoch, tick mestre, inteiro específico, relógio de parede ou fase elétrica comum.
 8. Se um conflito não comutativo com fase UNKNOWN impedir fechar o corte, o resultado deve indicar bloqueio/indeterminação; o coordenador não pode avançar W escolhendo desempate incidental.
@@ -399,7 +399,7 @@ Cada deadline lógico tem identidade, proprietário, geração vigente, instante
 
 Regras:
 
-1. O ponto de linearização entre cancelamento e despacho é único e observável no contrato: se o cancelamento vencer antes de o evento ser reivindicado para despacho, o efeito não ocorre; depois desse ponto, cancelar não desfaz o efeito.
+1. O ponto de linearização entre cancelamento e despacho é único e observável no contrato: se o cancelamento vencer antes de o evento ser reivindicado para despacho, o efeito não ocorre; depois desse ponto, cancelar não desfaz o efeito. Se cancelamento e reivindicação concorrerem, a arbitragem deve ocorrer por ordem lógica serializada e reproduzível, nunca por corrida de threads ou escalonamento do host.
 2. Substituir um deadline incrementa/renova a geração lógica. Qualquer referência antiga deve ser rejeitada antes de seu efeito, mesmo após restore.
 3. Identidade não pode ser reutilizada de forma que uma referência antiga se torne válida para outro evento. Se IDs forem reciclados, a geração deve impedir ABA.
 4. O proprietário é responsável por reconstruir os deadlines próprios a partir do snapshot; o coordenador não pode inventar eventos ausentes.
