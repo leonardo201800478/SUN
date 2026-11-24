@@ -154,7 +154,7 @@ As ROMs permanecem locais e não devem ser copiadas ou versionadas no repositór
 - `SUN-V2/README.md` — estado atual e mapa documental.
 - `SUN-V2/ROADMAP.md` — fases, dependências e critérios.
 - `SUN-V2/docs/temporal-core/R0_CLOSEOUT.md` — fechamento de evidências R0.
-- `SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md` — R1 v0.3.5 permanece publicada em `main`; proposta v0.3.6 em branch responde a três achados Codex sobre cancelamento em C=D, classificação obrigatória de LateInput e teste de IndeterminateCausalOrder. R1 segue rascunho não aprovado; não iniciar R2 antes do fechamento formal do gate #1270.
+- `SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md` — R1 v0.3.5 permanece publicada em `main`; proposta v0.3.7 em branch incorpora os três achados Codex (revisão v0.3.6 sem major issues) e corrige a admissão de deadline em corte causal já fechado. R1 segue rascunho não aprovado; não iniciar R2 antes do fechamento formal do gate #1270.
 - `SUN-V2/docs/architecture/V1_BASELINE_EVIDENCE_MATRIX.md` — evidências e limites da baseline.
 - `SUN-V2/docs/architecture/V1_TO_V2_INVENTORY.md` — inventário e política de independência.
 - `SUN-V2/docs/architecture/VDP_OBSERVABLE_BOUNDARIES.md` — fronteiras observáveis VDP.
