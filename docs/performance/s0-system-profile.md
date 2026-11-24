@@ -21,8 +21,10 @@ O teste `perf_baseline.rs` executa OutRun SMS em três configurações:
   sink determinístico de descarte.
 
 Cada cenário possui uma passagem de throughput sem timers de subsistema e uma
-passagem diagnóstica separada. O FPS da passagem de throughput é a referência;
-as medições diagnósticas servem para atribuição e não substituem a baseline.
+passagem diagnóstica separada. O harness registra o FPS de ambas as passagens,
+após warmup equivalente, e calcula a variação percentual de throughput com o
+diagnóstico habilitado. A passagem sem diagnóstico continua sendo a baseline;
+o resultado instrumentado quantifica o custo da coleta e não substitui a baseline.
 
 ## Execução
 
