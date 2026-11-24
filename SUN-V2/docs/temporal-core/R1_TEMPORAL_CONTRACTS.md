@@ -526,6 +526,26 @@ Regras:
 5. Toda linha da matriz de rastreabilidade deve apontar para a origem do requisito e para a propriedade R2 que poderá falsificá-lo.
 6. Se fontes discordarem, registrar a divergência e restringir o perfil/alegação até existir evidência discriminante.
 
+### 16.17 Proveniência interna e limites das fontes
+
+A revisão deste contrato deve manter a seguinte cadeia de proveniência. Os documentos internos orientam o escopo; não substituem as fontes primárias citadas por eles.
+
+| Assunto | Fonte de autoridade interna | O que sustenta | O que NÃO sustenta |
+|---|---|---|---|
+| Semântica Z80, M-cycles, T-states, WAIT, INT/NMI e acknowledge | R0_CLOSEOUT.md, seção 2; Zilog Z80 CPU User Manual UM008011-0816 | Pontos documentados de amostragem e TW automáticos citados no R0 | WAIT externo de cartridge, fase elétrica entre chips ou timing não documentado |
+| Relações e tolerâncias de clock | CLOCK_DOMAIN_RESEARCH.md; R0_CLOSEOUT.md, seção 3 | Valores nominais/derivados por perfil, convenções e divergências registradas | Epoch comum, fase absoluta, clock PAL-M físico universal ou precisão além da fonte |
+| PSG/YM2413 e saída de áudio | AUDIO_CLOCK_RESEARCH.md; R0_CLOSEOUT.md, seção 5 | Domínios candidatos, divisores publicados e incertezas de fase/analógico | Qualidade analógica, filtro físico, fase de reset ou equivalência universal de placas |
+| Fronteiras observáveis VDP | VDP_OBSERVABLE_BOUNDARIES.md; R0_CLOSEOUT.md, seção 4 | Fronteiras e efeitos de software relevantes para gameplay, com confiança/limites | Pipeline universal por dot, arbitration física ou resultados históricos como PASS no SHA congelado |
+| Implementação e limites conhecidos da V1 | V1_TO_V2_INVENTORY.md; V1_BASELINE_EVIDENCE_MATRIX.md | OBSERVATION de implementação no SHA congelado e cenários a investigar | Prova física, API a copiar, dependência de runtime ou aprovação automática de comportamento |
+| Estratégia temporal candidata | CHRONOS_MINIMAL_HYBRID_SPEC.md | Proposta de três mecanismos: avanço limitado, sincronização sob demanda e deadlines seletivos | Decisão final de algoritmo, estrutura de agenda, fase física ou autorização de produção |
+
+Regras adicionais de proveniência:
+1. Quando uma afirmação depender de hardware, registrar fonte primária, revisão, página/seção, perfil e limite de aplicabilidade.
+2. Quando depender de V1, registrar o SHA congelado 207ccc4cebbc4f8c0aed45c68262eae963491689 e identificar se é código, teste ou documentação.
+3. Quando depender de ROM/teste, registrar hash da ROM, perfil, estado inicial, entrada, ambiente, executável/SHA e artefato de resultado. Relatórios sem esses elementos permanecem OBSERVATION histórica limitada.
+4. Referências MAME, ares, Gearsystem, JGenesis, BlastEm, MEKA e Genesis Plus GX são comparações de implementação; registrar revisão/commit e nunca usá-las como prova física isolada.
+5. O fato de uma fonte não mencionar um comportamento não prova sua ausência física; classificar como UNKNOWN quando a pesquisa não o resolver.
+
 ### 16.16 Mapeamento de lacunas normativas para validação R2
 
 | Lacuna fechada | Contratos | Propriedade R2 associada |
