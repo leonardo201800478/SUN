@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 aprovado no escopo documental; R1 v0.3.5 publicado em `main` e ainda em revisão; issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
+**Status:** R0 aprovado no escopo documental; R1 v0.3.5 publicado em `main`; proposta v0.3.8 em PR após revisão Codex da v0.3.7 apontar ausência de critério verificável para cadeia causal aberta; issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -282,4 +282,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir a revisão da R1 v0.3.5 publicada em `main`, fechar os critérios formais da issue #1270 e aprovar R1 somente após revisão independente e checks aplicáveis. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** obter revisão independente da v0.3.8, especialmente da regra D<=W sempre LateInput e da condição D=P_d somente com W ausente ou W<D, e confirmar todos os critérios da seção 14. Manter issue #1270 aberta e R2 bloqueado até aprovação formal de R1. R2 permanece bloqueado até essa aprovação; R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
