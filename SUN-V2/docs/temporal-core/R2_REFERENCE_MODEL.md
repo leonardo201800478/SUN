@@ -305,6 +305,20 @@ R2 só pode ser aprovado quando:
 
 ---
 
+
+
+### Estado final do gate R2 e transição aprovada para R3 (25/11/2026)
+
+Esta seção registra o resultado vigente e supersede conclusões provisórias antigas no histórico abaixo:
+
+- Revisão independente do responsável: SHA exato `ad8cbbe50a82334b8ee873351dda65b26459e239`, sem blocker funcional; dois P2 documentais corrigidos.
+- CI #10798: SUCCESS no HEAD documental `a858f8f21caece3567385d64745823c655dbd135`; 256/256 Linux e Windows, mutation PASS, JSON e worktrees CLEAN; documentação e Actionlint PASS. Jobs de hardware/runtime não relacionados foram SKIPPED.
+- PR #1283 merged em `main`, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`.
+- Aprovação R2 explícita do responsável registrada após o parecer. R2 está APROVADO.
+- R3 está EM ANDAMENTO na branch `research/chronos-r3-disposable-prototypes`, limitada a protótipos descartáveis e comparações reproduzíveis. Nenhum código de produção CHRONOS/V2 antes de R5.
+
+As subseções 8.1.x são registros cronológicos do estado existente no momento de cada incremento e não representam o status atual do gate após o fechamento acima.
+
 ## 10. Registro de decisões e revisões
 
 | Data | Versão/SHA | Evento | Estado |
@@ -827,4 +841,4 @@ Regressão: `test_causal.py::R2T05CausalSynchronizationTests.test_preapplied_cau
 
 **Revisão Codex:** solicitada explicitamente para o SHA `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`; o conector respondeu `You have reached your Codex usage limits for code reviews`. Portanto R2-EXIT-07 continua PENDENTE. A revisão adversarial interna encontrou e corrigiu a ordenação de irmãos comutativos, ledgers causais pré-aplicados inconsistentes e o vínculo do mutation kill ao AssertionError do teste-alvo; isso não substitui revisão humana externa.
 
-**Decisão:** implementação executável R2-T01–T15 COMPLETA E VALIDADA. Gate formal R2 **NÃO APROVADO** até revisão humana externa independente sem blockers e aprovação explícita do responsável. R3–R5 permanecem BLOQUEADOS; PR #1283 continua Draft, sem merge.
+**Decisão naquele momento (antes do parecer final):** implementação executável R2-T01–T15 COMPLETA E VALIDADA; gate formal aguardava revisão independente e aprovação. **Este status histórico foi supersedido** pela seção “Estado final do gate R2 e transição aprovada para R3”, acima: R2 APROVADO e MERGED; R3 EM ANDAMENTO.
