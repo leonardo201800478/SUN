@@ -1,11 +1,11 @@
 # SUN V2 — CHRONOS R2 implementation closeout
 
-**Status:** implementação R2-T01–T15 revisada independentemente; findings P2 documentais corrigidos; validação do SHA documental final pendente. **Aprovação explícita do responsável registrada; gate R2 será efetivado após CI final verde.**
+**Status:** implementação R2-T01–T15 revisada independentemente; parecer do responsável sem blocker funcional; dois P2 documentais corrigidos; aprovação explícita do responsável registrada. Validação final do pacote documental por CI pendente.
 **R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
 **R2:** issue #1282; PR #1283 permanece aberta, em revisão/fechamento documental, sem merge.
-**R3:** protótipos descartáveis autorizados somente após fechamento dos dois P2 documentais, revalidação do SHA final e registro formal da aprovação R2 pelo responsável. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
+**R3:** protótipos descartáveis autorizados após aprovação formal R2, CI final verde e merge da PR. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
 
-Este documento fecha o pacote de implementação e evidências disponíveis para a revisão. Não é aprovação formal do gate R2 e não substitui a decisão explícita do responsável.
+Este documento registra o fechamento técnico do R2, o parecer independente do responsável e sua aprovação explícita. A validação CI do HEAD documental final permanece como último controle antes do merge.
 
 ## 1. Resultado do pacote
 
@@ -81,7 +81,7 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 ## 3. Ambiente e normalização de arquivo
 
 - `.gitattributes` fixa `SUN-V2/verification/**` em LF.
-- **CI #10790:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45612059123), HEAD exato `ad8cbbe50a82334b8ee873351dda65b26459e239`; Linux e Windows 256/256, mutation PASS (dois mutantes KILLED), worktrees CLEAN, hygiene documental e Actionlint PASS. [JSON Linux](https://github.com/leonardo201800478/SUN/actions/runs/45612059123/artifacts/15019892683) · [JSON Windows](https://github.com/leonardo201800478/SUN/actions/runs/45612059123/artifacts/15020322807).
+- **CI #10790:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45612059123), HEAD de código revisado `ad8cbbe50a82334b8ee873351dda65b26459e239`; Linux e Windows 256/256, mutation PASS (dois mutantes KILLED), worktrees CLEAN, higiene documental e Actionlint PASS. [JSON Linux](https://github.com/leonardo201800478/SUN/actions/runs/45612059123/artifacts/15019892683) · [JSON Windows](https://github.com/leonardo201800478/SUN/actions/runs/45612059123/artifacts/15020322807).
 - Linux: Python 3.14.4 / `Linux-7.0.0-1020-azure-x86_64-with-glibc2.43`; 256/256 PASS, runner duas vezes, `python -m unittest -v`, mutation suite e worktree CLEAN.
 - Windows: Python 3.14.4 / `Windows-2025Server-10.0.26100-SP0`; 256/256 PASS, runner duas vezes, `python -m unittest -v`, mutation suite e worktree CLEAN.
 - Em ambos: seed de ordem `20261125`; seeds de propriedades T01=`0xC0A05`, T02=0–99; dois mutantes KILLED após executar a suíte completa de 256 testes; `target_test_failed_by_assertion=true`.
@@ -121,7 +121,7 @@ O parecer não autorizou merge antes dessas correções e revalidação; a aprov
 ## 6. Decisão
 
 **Implementação executável R2-T01–T15: COMPLETA E REVISADA.**
-**Gate formal R2: APROVADO pelo responsável; a publicação na main e início de R3 dependem somente de CI verde no HEAD final e merge da PR.**
+**Gate formal R2: APROVADO pelo responsável em 25/11/2026; publicação na `main` e início de R3 dependem da confirmação de CI verde no HEAD final e do merge da PR.**
 
 Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout atualizado nos commits `e1301d3f7c47fde9e0221c9d3803cd7f60c0ba29` e sequente. O parecer independente não identificou blockers funcionais. CI #10790 valida o código do HEAD revisado `ad8cbbe`; a validação de higiene documental e dos commits de atualização será realizada pelo CI acionado pela atualização da PR.
 
