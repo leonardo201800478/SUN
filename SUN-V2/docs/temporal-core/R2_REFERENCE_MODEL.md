@@ -686,3 +686,27 @@ Commits:
 **Validação vinculada — CI #10719:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45546437894) — **SUCCESS** no código/testes `97c39af1d2bdeffcd68519dd82140670658b65d1`; 117/117 PASS, runner dedicado duas vezes + `python -m unittest -v`, worktree CLEAN. SHA-256: `deadline_reference.py` = `9293ccef6d7b4e575670a4782b7f81da6740e32d50d1c949776ae5788c8e4761`; `test_deadlines.py` = `227693b28d036dbde76b9cebfce0649a846743266404676f3149a670b82742d3`. Actionlint, higiene documental e Rust quality/unit regression: PASS; Rust workspace, Windows e hardware: SKIPPED.
 
 R2-T06 permanece parcial porque a matriz completa ainda inclui permutações de publicação/dispatch e demais corridas especificadas em R1 C06. T07 e T14 têm cobertura executável, ainda aguardando revalidação independente. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+
+### 8.1.21 Sincronização causal serial — R2-T05 — 25/11/2026
+
+A matriz R1 §4 / §16.3 exige que cada operação cross-device declare os estados observados/alterados e seu instante causal; somente participantes declarados podem ser sincronizados. Dependências recíprocas não autorizam avanço especulativo, e a operação deve permanecer retomável/identificável.
+
+Foi adicionado `causal_reference.py`, um oráculo imutável e serial que resolve por varredura completa as transições dos participantes declarados:
+- sincroniza apenas o alvo e os dispositivos explicitamente observados/alterados;
+- aplica transições até o instante de observação/commit, nunca transições posteriores;
+- fecha dependências declaradas antes da transição dependente, sem avançar dispositivos não relacionados;
+- dependência ausente, participante não declarado ou ciclo recíproco retorna `Blocked`, sem progresso parcial;
+- solicitação atrás do progresso confirmado retorna `LateInput`, sem mutação;
+- empate simultâneo não comutativo sem relação declarada retorna `IndeterminateCausalOrder`;
+- empate simultâneo só é canonicalizado quando todos os membros declaram comutatividade.
+
+Foram adicionados 11 testes em `test_causal.py`, incluindo observação de status, commit de escrita, dependência cross-device, isolamento de dispositivo não relacionado, dependência ausente, ciclo recíproco, participante omitido, simultaneidade UNKNOWN, permutação comutativa, retrocesso e precedência de validação estrutural.
+
+Commits de código/testes:
+- Oráculo: `a293f7347bbe212549d5c9feb08660cbef088d77`.
+- Testes: `253494d9accfcd0d19d92d43d1ec13656849e652`.
+- Suíte descoberta: **130 testes** (T01=22, T02=4, T03=3, T04=9, R2-B=76, T05=11, T14=5).
+
+**Validação:** CI #10725 foi disparado para o SHA de código/testes `253494d9accfcd0d19d92d43d1ec13656849e652`; no momento do registro, a execução estava `IN_PROGRESS`. Portanto, os 11 testes T05 ainda não são declarados PASS. O CI precisa concluir no SHA exato; o HEAD documental posterior também precisa de sua própria execução.
+
+R2-T05: cobertura implementada, validação CI pendente. R2-T06 permanece parcial; T07/T14 aguardam revisão adversarial independente; T08–T13 e T15 permanecem `NOT RUN`. R2 continua EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
