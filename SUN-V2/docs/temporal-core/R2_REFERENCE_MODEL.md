@@ -643,3 +643,23 @@ Commits:
 **Validação vinculada — CI #10712:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45545763406) — **SUCCESS** no HEAD documental `760b3ebd9e8222223f641ff8d1dbfd8040afe11c`, contendo o código/testes do commit `211906f8382d80392fe8a13fb56f9b1c72eb21e0`. CHRONOS R2: **109/109 PASS**; runner dedicado executado duas vezes e `python -m unittest -v` executado; worktree CLEAN nas duas execuções. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `4638cc7db6510078d6ff7cbdcda8804a5023e7171666ba7da5235b519166a72f`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `ffcc6d28b54011943f15be948b4d278e8d49ed5aff7203593c9de34a9d99fe91`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`. Actionlint, higiene documental e Rust quality/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
 
 R2 permanece EM ANDAMENTO. A revisão Codex no HEAD anterior registrou a existência dos dois findings; as threads continuam abertas até revalidação independente do candidato corrigido. PR #1283 permanece Draft e sem merge. T06/T07/T14 continuam parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 permanecem BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+### 8.1.19 Oráculo finito de obrigações em microsteps — 25/11/2026
+
+A auditoria de R1 §16.6 confirmou que a cobertura anterior de microsteps exercitava a criação de deadline no mesmo instante e o limite numérico, mas não representava diretamente a obrigação causal consumida por cada microstep nem a ausência de progresso.
+
+Foi adicionado o módulo de verificação independente microstep_reference.py, com estado imutável e varredura serial:
+- cada obrigação tem identidade, proprietário, instante e microstep lógico;
+- processar uma obrigação exige resolução identificável; tentativa repetida/no-op retorna Blocked sem alterar cursor ou estado;
+- filhos emitidos recebem o próximo microstep lógico, sem atribuir fase física;
+- conflito simultâneo não comutativo sem fase retorna IndeterminateCausalOrder;
+- ciclo que continua emitindo filhos no mesmo instante termina em ResourceExhausted ao exceder o limite finito, preservando atomicamente o estado anterior;
+- permutações de obrigações independentes/comutativas produzem o mesmo estado canônico.
+
+Foram adicionados cinco testes em test_microsteps.py: bloqueio idempotente sem progresso; resolução e emissão de filho; ciclo contínuo até limite finito; invariância de permutação comutativa; e UNKNOWN não ordenável para obrigações não comutativas simultâneas.
+
+Commits:
+- Oráculo: fccaf51c582ec7ee39568cba5e5e688c52d8f4a4.
+- Testes: e00e92326fa03ff31e9657d05d2c16dbb60b969f.
+- README atualizado para 114 testes totais e cinco casos dedicados a R2-T14.
+
+**Validação:** CI do novo candidato foi solicitada pelo commit de testes e ainda não foi localizada/concluída no momento deste registro. Os cinco casos não são declarados PASS até execução vinculada ao SHA atual. R2-T14 permanece em validação; T06/T07 continuam parciais. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
