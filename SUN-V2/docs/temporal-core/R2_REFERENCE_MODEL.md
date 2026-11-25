@@ -489,9 +489,9 @@ R2 continua EM ANDAMENTO; T05, T08–T13 e T15 permanecem NOT RUN; T06/T07/T14 p
 
 Foram reproduzidos quatro contraexemplos no HEAD anterior e corrigidos na própria branch da PR #1283:
 
-- **P1 — consistência entre frontier e horizonte global:** após validar todos os participantes, o oráculo calcula (H=\min H_d) e (F=\max(W,P_d)). Se (H<F), retorna `InvariantViolation` sem alterar o estado. O teste cobre `W=20`, `H=10`, avanço solicitado em 20.
+- **P1 — consistência entre frontier e horizonte global:** após validar todos os participantes, o oráculo calcula `H = min(H_d)` e `F = max(W, P_d)`. Se `H < F`, retorna `InvariantViolation` sem alterar o estado. O teste cobre `W=20`, `H=10`, avanço solicitado em 20.
 - **P1 — limite finito de microsteps na API pública:** `publish_deadline()` calcula o nível efetivo (incluindo o nível 1 implícito de `microstep=True`) e compara com `DeadlineBook.max_microsteps`. Nível acima do limite retorna `ResourceExhausted` sem mutação; o limite exato continua aceito. Os testes usam limite 2 e níveis 3 e 999.
-- **P2 — deadline anterior ao watermark já fechado:** `close_watermark()` rejeita estado inconsistente que contenha deadline ainda `Scheduled` com (D\le W) antes de reivindicar eventos ou avançar W. O teste usa (D=4), (W=5) e verifica ausência de mutação.
+- **P2 — deadline anterior ao watermark já fechado:** `close_watermark()` rejeita estado inconsistente que contenha deadline ainda `Scheduled` com `D <= W` antes de reivindicar eventos ou avançar W. O teste usa `D=4`, `W=5` e verifica ausência de mutação.
 - **P2 — validação temporal para publicação/cancelamento:** `_validate_reference_state()` exige `horizon_local` exato e `horizon_local >= progress_local` antes da admissão. Testes cobrem `0.5`, `-1` e horizonte 1 com progresso 2, tanto em publicação quanto em cancelamento; rejeições não alteram o livro.
 
 A primeira execução do candidato de 80 testes expôs uma fixture antiga inválida: o progresso do VDP era 5 enquanto o horizonte local permanecia no default 0. A fixture foi corrigida para horizonte 100; nenhuma validação foi relaxada. Também foi preservada a precedência da validação estrutural/temporal do estado antes do retorno `ResourceExhausted` do limite de microsteps.
