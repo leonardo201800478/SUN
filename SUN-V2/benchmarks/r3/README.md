@@ -32,6 +32,10 @@ smoke run is not a reproducible baseline and no comparative throughput/latency
 claim is made. A retained full baseline matrix is pending.
 
 
+## Retained baseline
+
+The first retained P-A advance and deadline lifecycle matrices, environment details, raw artifact IDs/SHA-256, selected p50/p95 observations and remaining limitations are recorded in [P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md). The baseline is tied to exact HEAD `555c3d034c0d0b7f2013e48fad80ae78d75c1106` and CI #10844; it is historical evidence for that prototype revision, not a claim about later revisions.
+
 ## P-A first-slice boundary
 
 The P-A suite currently has 44 tests across advance/catch-up and deadline lifecycle. It compares result classes and immutable book/state outputs with the R2 oracle, including 48 deterministic advancement boundary comparisons, watermark frontier, incomplete participant sets with one-sided invariant checks, rational common offsets, deadline publication, C<D/C=D cancellation, admission frontier A(E), cancellation arbitration before W closure, commutative/UNKNOWN ties, dispatch exactly-once, completion and generation replacement. Detailed per-transition trace comparison is still not implemented; no trace-coverage claim is made.
