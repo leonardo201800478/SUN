@@ -115,7 +115,7 @@ P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is 
 
 ## Multi-operation fixture/trace equivalence follow-up
 
-**Prototype HEAD:** `02a9bf17c8bb70fb5e9599754389e8d65210bf98`  
+**Prototype HEAD:** `02a9bf17c8bb70fb5e9599754389e8d65210bf98`
 **Validation:** pending CI.
 
 Two sequence tests were added:
