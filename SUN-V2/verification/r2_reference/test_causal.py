@@ -130,5 +130,19 @@ class R2T05CausalSynchronizationTests(unittest.TestCase):
         self.assertEqual(result.state, initial)
 
 
+    def test_same_instant_dependency_declares_order_without_physical_phase(self):
+        initial = state(
+            device("cpu", transitions=(
+                Transition("cpu-read", Fraction(5), ("vdp-status",)),
+            )),
+            device("vdp", transitions=(Transition("vdp-status", Fraction(5)),)),
+        )
+        result = synchronize(
+            initial, target_device="cpu", at_common=Fraction(5), observes=("vdp",)
+        )
+        self.assertEqual(result.code, SyncCode.SYNCHRONIZED)
+        self.assertEqual(result.applied_order, ("vdp-status", "cpu-read"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
