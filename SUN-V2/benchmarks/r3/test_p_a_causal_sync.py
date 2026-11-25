@@ -248,6 +248,40 @@ class PACausalSyncTests(unittest.TestCase):
                 self.assertEqual(result.state, initial)
                 self.assertEqual(result.applied_order, ())
 
+    def test_repeated_observation_trace_matches_r2_at_each_cut(self):
+        initial = state(
+            device("cpu"),
+            device("vdp", transitions=tuple(
+                ATransition(f"vdp-{tick}", Fraction(tick), commutative=True)
+                for tick in (1, 2, 3, 4)
+            )),
+            device("psg", transitions=tuple(
+                ATransition(f"psg-{tick}", Fraction(tick), commutative=True)
+                for tick in (1, 2, 3, 4)
+            )),
+        )
+        p_a_state = initial
+        r2_state = to_r2(initial)
+        trace = []
+        for tick in (1, 2, 3, 4):
+            kwargs = {
+                "target_device": "cpu",
+                "at_common": Fraction(tick),
+                "observes": ("vdp", "psg"),
+            }
+            actual = synchronize(p_a_state, **kwargs)
+            expected = r2_synchronize(r2_state, **kwargs)
+            self.assertEqual(actual.code.value, expected.code.value)
+            self.assertEqual(actual.applied_order, expected.applied_order)
+            self.assertEqual(canonical(actual.state), canonical(expected.state))
+            trace.append(actual.applied_order)
+            p_a_state = actual.state
+            r2_state = expected.state
+        self.assertEqual(
+            trace,
+            tuple((f"psg-{tick}", f"vdp-{tick}") for tick in (1, 2, 3, 4)),
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
