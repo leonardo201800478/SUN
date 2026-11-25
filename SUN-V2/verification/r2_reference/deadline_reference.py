@@ -110,11 +110,12 @@ def _validate_reference_state(state: object) -> str | None:
         return "expected participant identity is invalid"
     if state.watermark_common is not None and not _exact(state.watermark_common):
         return "watermark is not exact"
+    if any(not isinstance(item.domain_id, str) or not item.domain_id.strip()
+           for item in state.domains):
+        return "participant identity is invalid"
     if len({item.domain_id for item in state.domains}) != len(state.domains):
         return "duplicate temporal participant"
     for domain in state.domains:
-        if not isinstance(domain.domain_id, str) or not domain.domain_id.strip():
-            return "participant identity is invalid"
         if not all(_exact(value) for value in (
             domain.local_to_common, domain.common_offset, domain.progress_local
         )) or domain.local_to_common <= 0:
