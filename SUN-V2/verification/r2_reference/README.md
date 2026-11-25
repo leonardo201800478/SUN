@@ -43,7 +43,7 @@ The current candidate contains **251 deterministic tests** across 13 modules. Th
 
 The dedicated runner records the repository HEAD, clean-worktree status, SHA-256 for each reference model/runner/test module, Python version, platform and result. The pinned runner is executed twice from the same checkout; CI also executes the exact `python -m unittest -v` command. A skipped Rust, Windows or hardware job is never reported as PASS.
 
-**Current implementation candidate:** R2-T01–T15 have executable coverage and passed CI #10748 on SHA `145109df6b3b32db29c3c4a7db895bd505748864` (251/251). The R2 implementation package is complete for external validation. This does **not** constitute formal R2 gate approval: independent external review and explicit owner approval remain pending. R3–R5 remain blocked; PR #1283 remains Draft and unmerged.
+**Current implementation candidate:** R2-T01–T15 have executable coverage and passed CI #10748 on code/test SHA `145109df6b3b32db29c3c4a7db895bd505748864` (251/251). The documentation HEAD `4da266eb230aa6d597aff1e76b2f3fd406dd8d75` also passed CI #10750 (251/251; Actionlint, documentation hygiene and Rust quality supervisor PASS). The R2 implementation package is complete for external validation. This does **not** constitute formal R2 gate approval: independent external review and explicit owner approval remain pending. R3–R5 remain blocked; PR #1283 remains Draft and unmerged.
 
 **Earlier executed candidate:** 24 tests PASS in CI #10619 on Git SHA `a0c0782ff4d8e9886144b20bde36e42bcc6f1eff`, with oracle SHA-256 `160489b753575f0e7fcb12892eb58f7199a1dc5828c5bb4f13c266f557ba001a`, Python 3.14.4, Linux x86_64. This is historical evidence for that exact candidate only.
 
