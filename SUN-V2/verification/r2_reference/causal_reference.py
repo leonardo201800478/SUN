@@ -199,44 +199,39 @@ def synchronize(
     for identity in ordered:
         transition = descriptors[identity][1]
         by_time.setdefault(transition.at_common, []).append(identity)
-    def dependency_precedes(earlier: str, later: str) -> bool:
-        """Check whether later transitively declares earlier as a prerequisite."""
-        pending = list(descriptors[later][1].requires)
-        seen: set[str] = set()
-        while pending:
-            required = pending.pop()
-            if required == earlier:
-                return True
-            if required in seen or required not in descriptors:
-                continue
-            seen.add(required)
-            pending.extend(descriptors[required][1].requires)
-        return False
 
-    for identities in by_time.values():
-        if len(identities) > 1:
-            members = [descriptors[identity][1] for identity in identities]
-            if not all(member.commutative for member in members):
-                for index, left in enumerate(identities):
-                    for right in identities[index + 1:]:
-                        if not dependency_precedes(left, right) and not dependency_precedes(right, left):
-                            return SyncResult(
-                                SyncCode.INDETERMINATE,
-                                state,
-                                detail="simultaneous non-commutative transitions have no declared order",
-                            )
-
-    # Canonicalize only independent transitions proven commutative.
-    # Explicit same-instant dependency order must retain the topological order
-    # established by the dependency walk above.
+    # Canonical topological scheduling: dependencies establish order; only
+    # simultaneously-ready incomparable transitions may be sorted, and only
+    # when every pair in that ready set is explicitly commutative.
     canonical_order: list[str] = []
+    resolved = set(applied)
     for instant in sorted(by_time):
-        identities = by_time[instant]
-        members = [descriptors[identity][1] for identity in identities]
-        if all(member.commutative for member in members):
-            canonical_order.extend(sorted(identities))
-        else:
-            canonical_order.extend(identities)
+        remaining = set(by_time[instant])
+        while remaining:
+            ready = [
+                identity for identity in remaining
+                if all(required in resolved for required in descriptors[identity][1].requires)
+            ]
+            if not ready:
+                return SyncResult(
+                    SyncCode.BLOCKED,
+                    state,
+                    detail="same-instant dependency graph has no ready transition",
+                )
+            ready.sort()
+            for index, left in enumerate(ready):
+                for right in ready[index + 1:]:
+                    left_transition = descriptors[left][1]
+                    right_transition = descriptors[right][1]
+                    if not (left_transition.commutative and right_transition.commutative):
+                        return SyncResult(
+                            SyncCode.INDETERMINATE,
+                            state,
+                            detail="simultaneous incomparable non-commutative transitions have no declared order",
+                        )
+            canonical_order.extend(ready)
+            resolved.update(ready)
+            remaining.difference_update(ready)
 
     updated: list[Device] = []
     for device in state.devices:
