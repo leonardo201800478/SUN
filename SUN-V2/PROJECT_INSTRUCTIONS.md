@@ -71,7 +71,7 @@ A ordem abaixo é mandatória. Não pular gates nem declarar aprovação por com
 | **R4 — revisão adversarial** | Revisar contratos, modelo, protótipos, evidências, riscos e desempenho | Resolver achados bloqueadores; registrar decisões e limitações. |
 | **R5 — aprovação arquitetural** | Aprovar arquitetura final, ADRs, limites, plano de integração e evidências | **Nenhum código de produção CHRONOS/V2 antes da aprovação R5.** |
 
-R0 é aprovação documental, não certificação de fidelidade física universal nem autorização de implementação. R1 foi aprovado formalmente em 24/11/2026. A implementação executável R2-T01–T15 está completa para validação externa, mas o gate formal R2 permanece pendente de revisão independente do HEAD exato, fechamento justificado dos findings e aprovação explícita do responsável. R3–R5 permanecem bloqueados. O estado real deve ser consultado em `SUN-V2/README.md`, `SUN-V2/ROADMAP.md` e issues vinculadas.
+R0 é aprovação documental, não certificação de fidelidade física universal nem autorização de implementação. R1 foi aprovado formalmente em 24/11/2026; R2 foi aprovado e merged pela PR #1283 (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`, CI #10798 SUCCESS). R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`, restrito a protótipos descartáveis e benchmarks equivalentes. R4/R5 continuam pendentes; código de produção CHRONOS/V2 permanece proibido antes de R5. O estado real deve ser consultado em `SUN-V2/README.md`, `SUN-V2/ROADMAP.md` e issues vinculadas.
 
 ### Trabalho posterior aos gates
 
