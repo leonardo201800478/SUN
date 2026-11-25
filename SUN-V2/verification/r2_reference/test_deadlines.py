@@ -943,6 +943,33 @@ class R2BStructuralValidationTests(unittest.TestCase):
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
         self.assertEqual(result.book, book)
 
+    def test_dispatch_and_completion_reject_invalid_identity_or_generation(self):
+        scheduled = publish(DeadlineBook(), machine(), at=10).book
+        claimed = close_watermark(scheduled, Fraction(10)).book
+        dispatched = dispatch_deadline(
+            claimed, identity="evt", generation=1
+        ).book
+        invalid_descriptors = (
+            {"identity": []},
+            {"identity": ""},
+            {"generation": True},
+            {"generation": -1},
+            {"generation": 1.5},
+        )
+        for overrides in invalid_descriptors:
+            with self.subTest(overrides=overrides):
+                dispatch_args = {"identity": "evt", "generation": 1}
+                dispatch_args.update(overrides)
+                dispatch_result = dispatch_deadline(claimed, **dispatch_args)
+                self.assertEqual(dispatch_result.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(dispatch_result.book, claimed)
+
+                complete_args = {"identity": "evt", "generation": 1}
+                complete_args.update(overrides)
+                complete_result = complete_deadline(dispatched, **complete_args)
+                self.assertEqual(complete_result.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(complete_result.book, dispatched)
+
     def test_watermark_close_rejects_malformed_deadline_book(self):
         book = DeadlineBook(deadlines=(object(),))
         result = close_watermark(book, Fraction(10))
