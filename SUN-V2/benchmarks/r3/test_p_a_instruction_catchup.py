@@ -266,6 +266,28 @@ class PATestCase(unittest.TestCase):
             ),
         )
 
+    def test_safe_horizon_behind_machine_frontier_is_invariant_violation(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(5), Fraction(20)),
+                AParticipant("vdp", Fraction(2), Fraction(4)),
+            )
+        )
+        result, _ = self.compare_case(state, Fraction(10), Fraction(2))
+        self.assertEqual(result.code, ResultKind.INVARIANT_VIOLATION.value)
+        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(result.next_state, state)
+
+    def test_unresolved_obligation_behind_machine_frontier_is_invariant_violation(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(5), Fraction(20)),),
+            obligations=(AObligation("irq", "cpu", Fraction(4)),),
+        )
+        result, _ = self.compare_case(state, Fraction(10), Fraction(2))
+        self.assertEqual(result.code, ResultKind.INVARIANT_VIOLATION.value)
+        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(result.next_state, state)
+
 
 if __name__ == "__main__":
     unittest.main()
