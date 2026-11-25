@@ -61,6 +61,13 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.code, reference.result.kind.value)
         self.assertEqual(result.requested, reference.result.requested_common)
         self.assertEqual(result.reached, reference.result.reached_common)
+        self.assertEqual(result.next_state.watermark_common, reference.state.watermark_common)
+        self.assertEqual(
+            result.next_state.expected_participants
+            if result.next_state.expected_participants is not None
+            else frozenset(item.name for item in result.next_state.participants),
+            reference.state.expected_participants,
+        )
         self.assertEqual(
             tuple(sorted(
                 (item.identity, item.owner, item.at_common, item.resolved, item.commutative)
@@ -443,6 +450,17 @@ class PATestCase(unittest.TestCase):
         result, _ = self.compare_case(state, Fraction(10), Fraction(3))
         self.assertEqual(result.code, ResultKind.REACHED.value)
         self.assertEqual(result.reached, Fraction(10))
+
+    def test_incomplete_participant_set_still_checks_known_horizon_invariant(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(2), Fraction(4)),),
+            expected_participants=frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(5),
+        )
+        result, _ = self.compare_case(state, Fraction(8), Fraction(2))
+        self.assertEqual(result.code, ResultKind.INVARIANT_VIOLATION.value)
+        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(result.next_state, state)
 
 
 if __name__ == "__main__":
