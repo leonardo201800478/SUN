@@ -199,15 +199,32 @@ def synchronize(
     for identity in ordered:
         transition = descriptors[identity][1]
         by_time.setdefault(transition.at_common, []).append(identity)
+    def dependency_precedes(earlier: str, later: str) -> bool:
+        """Check whether later transitively declares earlier as a prerequisite."""
+        pending = list(descriptors[later][1].requires)
+        seen: set[str] = set()
+        while pending:
+            required = pending.pop()
+            if required == earlier:
+                return True
+            if required in seen or required not in descriptors:
+                continue
+            seen.add(required)
+            pending.extend(descriptors[required][1].requires)
+        return False
+
     for identities in by_time.values():
         if len(identities) > 1:
             members = [descriptors[identity][1] for identity in identities]
             if not all(member.commutative for member in members):
-                return SyncResult(
-                    SyncCode.INDETERMINATE,
-                    state,
-                    detail="simultaneous non-commutative transitions have no declared order",
-                )
+                for index, left in enumerate(identities):
+                    for right in identities[index + 1:]:
+                        if not dependency_precedes(left, right) and not dependency_precedes(right, left):
+                            return SyncResult(
+                                SyncCode.INDETERMINATE,
+                                state,
+                                detail="simultaneous non-commutative transitions have no declared order",
+                            )
 
     # Canonicalize only transitions proven commutative at the same instant.
     canonical_order: list[str] = []
