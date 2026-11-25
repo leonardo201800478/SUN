@@ -138,7 +138,7 @@ def advance_budgeted(
     if safe_horizon < frontier:
         return AResult(
             "InvariantViolation", Fraction(target) if _is_exact(target) else Fraction(0),
-            frontier, "SafeHorizonBehindMachineFrontier",
+            Fraction(0), "SafeHorizonBehindMachineFrontier",
             0, 0, 0, 0, state,
         )
     if any(
@@ -147,7 +147,7 @@ def advance_budgeted(
     ):
         return AResult(
             "InvariantViolation", Fraction(target) if _is_exact(target) else Fraction(0),
-            frontier, "UnresolvedObligationBehindMachineFrontier",
+            Fraction(0), "UnresolvedObligationBehindMachineFrontier",
             0, 0, 0, 0, state,
         )
     if not _is_exact(target) or not _is_exact(chunk) or chunk <= 0:
