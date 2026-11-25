@@ -52,7 +52,7 @@ class AStepResult:
 
 def _exact(value: object) -> bool:
     """Accept integer/rational time while excluding booleans and floats."""
-    return isinstance(value, (int, Fraction)) and not isinstance(value, bool)
+    return type(value) is int or type(value) is Fraction
 
 
 def _validate(state: object) -> str | None:
