@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — P-A W00–W05 em protótipo descartável, PR #1284 Draft; R4/R5 PENDENTES; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — P-A W00–W07 em protótipo descartável, 71/71 testes e 321 pontos por OS (CI #10882), PR #1284 Draft; R4/R5 PENDENTES; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -109,7 +109,7 @@ Entregas:
 
 ### Fase 3 — protótipos temporais descartáveis (R3)
 
-**Status:** EM ANDAMENTO. P-A W00–W05 foi desenvolvido em `research/chronos-r3-disposable-prototypes`, PR #1284 Draft. CI #10871 validou 60/60 testes P-A em Linux e Windows, R2 256/256 por OS e três matrizes sintéticas; CI #10875 revalidou o HEAD documental posterior. W06/W07, W08/W09 e equivalência canônica completa continuam pendentes. P-D/P-E não iniciados. Nenhum código de produção autorizado antes de R5.
+**Status:** EM ANDAMENTO. P-A W00–W07 foi desenvolvido em `research/chronos-r3-disposable-prototypes`, PR #1284 Draft. CI #10882 validou 71/71 testes P-A por OS, R2 256/256 por OS e cinco matrizes sintéticas (321 pontos por OS), com parâmetros e output digests equivalentes. W08/W09 e equivalência canônica completa continuam pendentes. P-D/P-E não iniciados. Nenhum código de produção autorizado antes de R5.
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
