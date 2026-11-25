@@ -173,7 +173,7 @@ def main() -> int:
     print(f"platform={platform.platform()}")
     print("profile=SMS-NTSC (abstract reference-model profile)")
     print(f"seed={SEED}")
-    print("seed_policy=deterministic test execution order; no randomized model inputs")
+    print("seed_policy=runner seed shuffles test order; T01 and T02 also use explicit property seeds")
     print("---- unittest ----")
 
     discovered = unittest.defaultTestLoader.discover(
@@ -224,7 +224,8 @@ def main() -> int:
         "platform": platform.platform(),
         "profile": "SMS-NTSC (abstract reference-model profile)",
         "seed": SEED,
-        "seed_policy": "seed deterministically shuffles test execution order; model inputs are fixed/exhaustive",
+        "seed_policy": "runner seed shuffles test order; generated property cases use explicit independent seeds",
+        "property_seeds": {"T01": "0xC0A05", "T02": {"range_start": 0, "range_stop_exclusive": 100}},
         "tests_run": result.testsRun,
         "tests_failures": len(result.failures),
         "tests_errors": len(result.errors),
