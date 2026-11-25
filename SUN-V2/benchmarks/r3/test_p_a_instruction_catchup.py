@@ -53,7 +53,18 @@ class PATestCase(unittest.TestCase):
         )
         reference = r2_advance(r2_state, target)
         self.assertEqual(result.code, reference.result.kind.value)
+        self.assertEqual(result.requested, reference.result.requested_common)
         self.assertEqual(result.reached, reference.result.reached_common)
+        self.assertEqual(
+            tuple(sorted(
+                (item.identity, item.owner, item.at_common, item.resolved, item.commutative)
+                for item in result.next_state.obligations
+            )),
+            tuple(sorted(
+                (item.obligation_id, item.owner, item.at_common, item.resolved, item.commutative)
+                for item in reference.state.obligations
+            )),
+        )
         self.assertEqual(
             self._progress_digest(result.next_state),
             self._reference_digest(reference.state),
@@ -296,6 +307,74 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.code, ResultKind.INVALID_INPUT.value)
         self.assertEqual(result.reached, Fraction(0))
         self.assertEqual(result.next_state, state)
+
+    def test_deterministic_boundary_matrix_matches_r2(self):
+        for domain_count in range(1, 5):
+            frontier = Fraction(domain_count + 1)
+            participants = tuple(
+                AParticipant(
+                    f"d{i}",
+                    frontier - Fraction((i + domain_count) % 3),
+                    frontier + 12 + (i % 2),
+                    Fraction(1 + (i % 3), 2),
+                )
+                for i in range(domain_count)
+            )
+            # All horizons must be at/after the maximum participant progress.
+            horizon = min(item.safe_horizon for item in participants)
+            obligations = tuple(
+                AObligation(
+                    f"e{j}",
+                    f"d{j % domain_count}",
+                    frontier + Fraction((j * 3 + domain_count) % 9),
+                    resolved=(j % 4 == 0),
+                    commutative=(j % 2 == 0),
+                )
+                for j in range(domain_count + 2)
+            )
+            state = AState(participants, obligations)
+            for target in (
+                frontier,
+                frontier + Fraction(2),
+                horizon,
+                horizon + Fraction(3),
+            ):
+                for chunk in (Fraction(1), Fraction(3), Fraction(7)):
+                    with self.subTest(
+                        domains=domain_count, target=target, chunk=chunk
+                    ):
+                        self.compare_case(state, target, chunk)
+
+    def test_commutative_simultaneous_obligations_match_r2(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(0), Fraction(20)),),
+            obligations=(
+                AObligation("irq-z", "cpu", Fraction(5), commutative=True),
+                AObligation("irq-a", "cpu", Fraction(5), commutative=True),
+            ),
+        )
+        result, reference = self.compare_case(state, Fraction(10), Fraction(2))
+        self.assertEqual(result.code, ResultKind.STOPPED_AT.value)
+        self.assertEqual(result.reason, "PendingObligation:irq-a")
+        self.assertEqual(reference.result.obligation_id, "irq-a")
+
+    def test_resolved_obligation_does_not_stop_advance(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(0), Fraction(20)),),
+            obligations=(
+                AObligation("already-done", "cpu", Fraction(4), resolved=True),
+            ),
+        )
+        result, _ = self.compare_case(state, Fraction(10), Fraction(2))
+        self.assertEqual(result.code, ResultKind.REACHED.value)
+        self.assertEqual(result.reached, Fraction(10))
+
+    def test_empty_participant_set_is_blocked(self):
+        state = AState(participants=())
+        result, reference = self.compare_case(state, Fraction(10), Fraction(2))
+        self.assertEqual(result.code, ResultKind.BLOCKED.value)
+        self.assertEqual(result.next_state, state)
+        self.assertEqual(reference.state.domains, ())
 
 
 if __name__ == "__main__":
