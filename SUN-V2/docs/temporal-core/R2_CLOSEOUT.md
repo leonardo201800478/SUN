@@ -2,8 +2,8 @@
 
 **Status:** IMPLEMENTAÇÃO EXECUTÁVEL R2-T01–T15 COMPLETA E VALIDADA EM LINUX/WINDOWS; **GATE FORMAL R2 NÃO APROVADO**.
 **R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
-**R2:** issue #1282; PR #1283 permanece Draft, aberta e sem merge.
-**R3–R5:** BLOQUEADOS. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
+**R2:** issue #1282; PR #1283 permanece aberta, em revisão/fechamento documental, sem merge.
+**R3:** protótipos descartáveis autorizados somente após fechamento dos dois P2 documentais, revalidação do SHA final e registro formal da aprovação R2 pelo responsável. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
 
 Este documento fecha o pacote de implementação e evidências disponíveis para a revisão. Não é aprovação formal do gate R2 e não substitui a decisão explícita do responsável.
 
@@ -45,7 +45,7 @@ Os critérios abaixo reproduzem R2_REFERENCE_MODEL.md §9. PASS significa evidê
 | **R2-EXIT-05 — snapshot/restore/replay/exactly-once** | Cortes suportados/não suportados, ledger e ausência de mutação/repetição | **PASS — 256/256 Linux e Windows** |
 | **R2-EXIT-06 — contraexemplo mínimo reproduzível** | Seed, trace, primeira divergência e estado mínimo; redução determinística quando a entrada é gerada | **PASS no escopo implementado — JSON, seeds, traces, primeira divergência e redução de cortes T02; fixtures fixas identificadas pelo teste** |
 | **R2-EXIT-07 — revisão independente sem blockers** | Codex revisando SHA final exato, findings respondidos e threads justificadamente encerradas; passada humana adversarial | **PENDENTE — Codex atingiu limite de uso; revisão humana externa ainda necessária** |
-| **R2-EXIT-08 — aprovação explícita** | Decisão explícita do responsável após os critérios anteriores | **PENDENTE — NÃO APROVADO** |
+| **R2-EXIT-08 — aprovação explícita** | Decisão explícita do responsável após os critérios anteriores | **PENDENTE — aprovação explícita registrada em conversa pelo responsável; fica efetivada após os dois P2 documentais corrigidos e revalidação do SHA resultante.** |
 
 ### 2.1 Mutação deliberada
 
@@ -81,13 +81,13 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 ## 3. Ambiente e normalização de arquivo
 
 - `.gitattributes` fixa `SUN-V2/verification/**` em LF.
-- **CI #10785:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45600632992), HEAD exato `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`.
+- **CI #10790:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45612059123), HEAD exato `ad8cbbe50a82334b8ee873351dda65b26459e239`; Linux e Windows 256/256, mutation PASS (dois mutantes KILLED), worktrees CLEAN, hygiene documental e Actionlint PASS. [JSON Linux](https://github.com/leonardo201800478/SUN/actions/runs/45612059123/artifacts/15019892683) · [JSON Windows](https://github.com/leonardo201800478/SUN/actions/runs/45612059123/artifacts/15020322807).
 - Linux: Python 3.14.4 / `Linux-7.0.0-1020-azure-x86_64-with-glibc2.43`; 256/256 PASS, runner duas vezes, `python -m unittest -v`, mutation suite e worktree CLEAN.
 - Windows: Python 3.14.4 / `Windows-2025Server-10.0.26100-SP0`; 256/256 PASS, runner duas vezes, `python -m unittest -v`, mutation suite e worktree CLEAN.
 - Em ambos: seed de ordem `20261125`; seeds de propriedades T01=`0xC0A05`, T02=0–99; dois mutantes KILLED após executar a suíte completa de 256 testes; `target_test_failed_by_assertion=true`.
 - `first_divergence=null` e `minimal_state=null` nas execuções normais aprovadas; os relatórios dos mutantes incluem o primeiro teste divergente, o teste-alvo, excerpt de AssertionError e fixture mínima.
 - JSON artifacts: [Linux](https://api.github.com/repos/leonardo201800478/SUN/actions/artifacts/15015027527/zip) (artifact `chronos-r2-linux-45600632992`) e [Windows](https://api.github.com/repos/leonardo201800478/SUN/actions/artifacts/15015127699/zip) (artifact `chronos-r2-windows-45600632992`).
-- SHA-256 principal: oráculo `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; runner `run_reference_tests.py` = `de284c4ed3da81573468ea294dfdeefb18adf0e72cb9ae894d2ded8e74b2ed76`; mutation runner = `087beac04e64b376a5e7da36e8e886360dc0d3f3276905846cc81c6a70c7d031`; causal oracle = `43e37b39854efb4b29de5e8a5df0411f116249045fde5a86df915de8febf4720`; deadline oracle = `68a2c8b8315139072cbd75a937fd5699f131847e935c95c2502ee3dd6fedae21`.
+- SHA-256 dos artefatos do HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239` está registrado nos JSON artifacts e logs do CI #10790. O SHA-256 atualizado de `run_mutation_tests.py` é `6cc2fc6fd0a972aae881fcb622c5136f6db30fcc061f7f8ec5755d88b3a9b5a9`; os hashes do pacote anterior (CI #10785) são históricos e não representam esse HEAD.
 - SHA-256 de todos os módulos/testes consta nos dois JSON artifacts e nos logs do CI.
 - Change impact classification, documentação patch hygiene, GitHub Actions workflow validation e supervisor Rust quality/unit regression: PASS. Jobs de hardware/runtime específicos não são inferidos como PASS; SKIPPED continua distinto de PASS.
 
@@ -101,16 +101,17 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 
 ## 5. Histórico de revisão e findings
 
-- A revisão Codex foi solicitada para o SHA exato `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`, mas o conector respondeu **usage limit reached**. Não existe parecer Codex válido desse SHA.
+- A revisão independente do responsável foi registrada como parecer na PR #1283 em 25/11/2026 às 18:55 UTC, ancorada no HEAD exato `ad8cbbe50a82334b8ee873351dda65b26459e239`. Não apontou finding funcional bloqueante nesta passada. Identificou dois P2 documentais descritos abaixo. As tentativas de revisão Codex continuaram sem parecer por `usage limit reached`; o parecer humano é o gate review relevante e foi efetivamente fornecido.
 - Os 11 threads P2 pendentes foram respondidos com SHA, testes e CI #10783 e resolvidos; todos os findings P2 conhecidos estão fechados no PR. Isso registra correção e revalidação manual, não substitui revisão independente da PR completa.
 - A passada adversarial interna encontrou e corrigiu: (a) ordenação de irmãos comutativos em ordem parcial; (b) ledgers causais pré-aplicados com owner/progresso/dependência/ciclo inconsistentes; (c) imports ausentes no conjunto de permutações; (d) possibilidade de falso positivo no mutation kill report, agora vinculado ao bloco AssertionError do teste-alvo.
-- A revisão humana externa ainda deve examinar C=D/A(E)/W, ordem parcial, snapshots, exactly-once, mutation runner, JSON e portabilidade. O Codex indisponível não é considerado PASS.
+- **P2-1 (R2_REFERENCE_MODEL.md):** cabeçalho histórico dizia T01–T04 parciais. Corrigido no commit documental `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`, agora declara T01–T15 concluídos para revisão externa e gate formal não aprovado.
+- **P2-2 (este closeout):** precisava ligar critérios e artefatos ao HEAD que o parecer revisou, registrar os hashes correntes, a evidência do CI #10790 e o próprio parecer. Esta atualização faz essa vinculação. A revalidação do novo SHA documental é obrigatória antes da efetivação do gate.
 
 ## 6. Decisão
 
 **Implementação executável R2-T01–T15: COMPLETA PARA VALIDAÇÃO EXTERNA.**
-**Gate formal R2: PENDENTE / NÃO APROVADO.**
+**Gate formal R2: APROVAÇÃO DO RESPONSÁVEL REGISTRADA; efetivação condicionada à revalidação CI do HEAD documental que encerra P2-1/P2-2.**
 
-A sequência obrigatória restante é: obter revisão independente humana do SHA exato `56d2a85c26fc3f0d7685bb8566af64a445e9b54b` sem blockers; registrar a disposição de eventuais findings adicionais; e somente então solicitar aprovação explícita do responsável. CI, matriz, mutação, JSON, Windows e os 11 findings P2 conhecidos já foram executados/respondidos.
+A sequência de fechamento é: validar este closeout atualizado contra o SHA documental corrente; executar CI no novo HEAD; confirmar os dois P2 como corrigidos e sem regressão; então registrar R2 como aprovado conforme parecer independente e aprovação explícita do responsável. A evidência de execução é CI #10790 no HEAD revisado `ad8cbbe`; alterações documentais posteriores precisam de sua própria validação. O parecer independente não detectou blockers funcionais, mas condicionou o encerramento à correção dos dois P2.
 
 Até essa aprovação, PR #1283 permanece Draft, R3–R5 permanecem bloqueados e nenhum código de produção CHRONOS/V2 pode ser iniciado.
