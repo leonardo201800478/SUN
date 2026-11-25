@@ -1,8 +1,8 @@
 # R2 — matriz de rastreabilidade T01–T15
 
-**Estado:** matriz de cobertura executável do candidato R2; não é aprovação do gate.  
-**Base normativa:** R1 v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`.  
-**Fontes normativas de rastreabilidade:** R1 §13 (propriedades R2), §16.17 (lacunas → propriedades), §17.1 (contratos C01–C16 e proprietário/condições).  
+**Estado:** matriz de cobertura executável do candidato R2; não é aprovação do gate.
+**Base normativa:** R1 v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`.
+**Fontes normativas de rastreabilidade:** R1 §13 (propriedades R2), §16.17 (lacunas → propriedades), §17.1 (contratos C01–C16 e proprietário/condições).
 **Código:** `SUN-V2/verification/r2_reference/`; oráculo de teste isolado, sem dependência da V1 ou de código de produção CHRONOS.
 
 ## 1. Matriz principal
