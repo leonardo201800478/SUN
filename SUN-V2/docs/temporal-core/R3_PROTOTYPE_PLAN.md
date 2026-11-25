@@ -1,7 +1,7 @@
 # CHRONOS R3 — plano de protótipos temporais descartáveis
 
 **Gate:** R3 — prototipagem e comparação
-**Estado:** P-A v2 (W00–W05) implementado em protótipo; CI #10859 SUCCESS Linux/Windows, 58/58 testes e matrizes retidas; trace/fixture equivalence completa pendente
+**Estado:** P-A (W00–W05) implementado em protótipo; CI #10868 SUCCESS Linux/Windows, 60/60 testes por OS, R2 256/256 por OS e matrizes retidas; trace/fixture equivalence completa pendente
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **Base normativa:** R1 v0.3.18 aprovado; R2-T01–T15 aprovado e merged pela PR #1283
 **Escopo de sistema:** perfil temporal abstrato inicialmente; SMS NTSC/PAL somente quando os parâmetros forem fixados por fonte R0/R1 e cenário identificado.
@@ -52,7 +52,7 @@ A equivalência é verificada por trace canônico: operações aceitas, estado r
 
 ## 4. Primeiro corte: baseline P-A
 
-O P-A atual cobre W00–W05 no protótipo. W03/W04 usam sincronização serial orientada por observação e resolução DFS de dependências, sem agenda persistente; CI #10859 validou testes e benchmark em Linux/Windows. O recorte de avanço limitado inclui:
+O P-A atual cobre o recorte declarado W00–W05 no protótipo. W03/W04 usam sincronização serial orientada por observação e resolução DFS de dependências, sem agenda persistente; CI #10868 validou 60/60 testes P-A em Linux e Windows, as matrizes de avanço (75), deadlines (180) e causalidade (30 pontos por OS), além de R2 (256 testes por OS). Os oito artefatos da execução e seus SHA-256 estão registrados em `SUN-V2/benchmarks/r3/P_A_BASELINE_RESULTS.md`. O recorte de avanço limitado inclui:
 - construção de cenário e estado de domínio;
 - bounded advance até target sob budget/chunk configurável;
 - varredura completa de obrigações em cada fronteira de budget;
