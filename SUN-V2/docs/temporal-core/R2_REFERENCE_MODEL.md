@@ -776,3 +776,20 @@ O HEAD documental `4da266eb230aa6d597aff1e76b2f3fd406dd8d75` foi validado pelo C
 - Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
 
 A implementação executável R2-T01–T15 permanece **COMPLETA PARA VALIDAÇÃO EXTERNA**. O gate formal R2 permanece sem aprovação até revisão externa e aprovação explícita do responsável. PR #1283 permanece Draft, aberta e sem merge; R3–R5 BLOQUEADOS.
+
+
+### 8.1.25 Revisão de rastreabilidade, ordem parcial e mutation testing — 25/11/2026
+
+Incremento adversarial aplicado após a auditoria do responsável:
+
+- Criado `R2_TRACEABILITY.md`: cada T01–T15 aponta para seções R1, contratos C01–C16, módulos/testes e classes positivas, negativas, fronteiras/igualdade, capacidade/overflow e permutação; dimensões não aplicáveis são explicitadas.
+- Criado `R2_CLOSEOUT.md`: matriz dos oito critérios de saída R2, estado de cada critério, limitações e sequência restante. O documento fecha a implementação, não aprova o gate.
+- T07 ampliado com quatro famílias exaustivas de (5!=120) permutações: comutativos, não comutativos UNKNOWN, cadeia causal explícita e ordem parcial com irmãos comutativos.
+- A quarta família expôs uma lacuna real: a validação anterior tratava irmãos comutativos como UNKNOWN quando havia outros eventos não comutativos no mesmo instante; a canonicalização por identidade também poderia perder ordem topológica. `causal_reference.py` agora usa ordenação topológica por conjunto pronto: dependências explícitas são preservadas; apenas eventos simultaneamente prontos e mutuamente comutativos podem ser canonizados; pares incomparáveis não comutativos continuam Indeterminate.
+- O runner usa seed fixa para embaralhar a ordem de execução dos testes, registra trace e primeira divergência em JSON, e extrai `R2_REPRO` para preservar seed/trace/estado mínimo. Os testes seeded T01/T02 declaram seeds próprias; T02 reduz a lista de cortes por remoção determinística.
+- `run_mutation_tests.py` cria cópias temporárias e injeta dois mutantes: `<`→`<=` em C/D e `IndeterminateCausalOrder`→`LateInput` para C=D UNKNOWN. O mutante só conta como KILLED se o teste-alvo falhar por AssertionError, não por erro incidental.
+- `.gitattributes` fixa LF para `SUN-V2/verification/**`; CI adiciona job Windows Python para runner + unittest e upload de JSON por ambiente.
+
+**Contagem reforçada candidata:** 255 testes; `test_partial_order.py` tem 6 casos e quatro famílias de 120 permutações. O candidato reforçado aguarda CI Linux/Windows próprio; a evidência anterior 251/251 não é reutilizada como PASS para este novo SHA.
+
+**Limites mantidos:** T13 usa fonte digital sintética e prova apenas independência do host; inteiros/Fraction não simulam overflow de máquina; UNKNOWN não recebe precedência física; Windows Python não é validação de hardware.
