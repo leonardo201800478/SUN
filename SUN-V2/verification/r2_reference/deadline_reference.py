@@ -229,6 +229,11 @@ def publish_deadline(
     book_error = _validate_book(book)
     if book_error is not None:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
+    state_error = _validate_reference_state(state)
+    if state_error is not None:
+        error_code = (DeadlineCode.INDETERMINATE
+                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
+        return DeadlineEvaluation(book, error_code, state_error)
     effective_microstep = (
         microstep_level if microstep_level is not None else (1 if microstep else 0)
     )
@@ -237,11 +242,6 @@ def publish_deadline(
             book, DeadlineCode.RESOURCE_EXHAUSTED,
             "deadline microstep exceeds the finite book limit",
         )
-    state_error = _validate_reference_state(state)
-    if state_error is not None:
-        error_code = (DeadlineCode.INDETERMINATE
-                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
-        return DeadlineEvaluation(book, error_code, state_error)
     participant_ids = [item.domain_id for item in state.domains]
     expected = set(state.expected_participants)
     domain_ids = set(participant_ids)
