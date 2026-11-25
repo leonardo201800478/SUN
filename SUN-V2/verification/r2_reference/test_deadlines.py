@@ -602,3 +602,13 @@ class R2BStructuralValidationTests(unittest.TestCase):
         )
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
         self.assertIsNone(result.book)
+
+    def test_publication_rejects_unhashable_domain_identity(self):
+        state = replace(
+            machine(),
+            domains=(ClockDomain([], Fraction(1), horizon_local=Fraction(100)),),
+        )
+        book = DeadlineBook()
+        result = publish(book, state)
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
