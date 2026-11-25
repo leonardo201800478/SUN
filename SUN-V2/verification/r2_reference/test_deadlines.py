@@ -953,8 +953,10 @@ class R2BStructuralValidationTests(unittest.TestCase):
         invalid_descriptors = (
             {"identity": []},
             {"identity": ""},
+            {"identity": "   "},
             {"generation": True},
             {"generation": -1},
+            {"generation": 1.0},
             {"generation": 1.5},
         )
         for overrides in invalid_descriptors:
