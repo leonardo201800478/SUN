@@ -1,5 +1,6 @@
 """R2-T07 UNKNOWN-order and explicit causal partial-order regressions."""
 import unittest
+from itertools import permutations
 from fractions import Fraction
 
 from chronos_reference import ClockDomain, make_state
@@ -53,6 +54,69 @@ class R2T07PartialOrderTests(unittest.TestCase):
             return tuple(sorted((item.identity, item.status) for item in result.book.deadlines))
 
         self.assertEqual(attempt(("a", "b")), attempt(("b", "a")))
+
+
+    def test_all_120_permutations_of_five_commutative_events_are_equivalent(self):
+        events = tuple(
+            device(
+                f"d{index}",
+                transitions=(Transition(f"e{index}", Fraction(5), commutative=True),),
+            )
+            for index in range(5)
+        )
+        expected = tuple(f"e{index}" for index in range(5))
+        for ordering in permutations(events):
+            result = synchronize(
+                state(*ordering),
+                target_device="d0",
+                at_common=Fraction(5),
+                observes=("d1", "d2", "d3", "d4"),
+            )
+            self.assertEqual(result.code, SyncCode.SYNCHRONIZED)
+            self.assertEqual(result.applied_order, expected)
+
+    def test_all_120_permutations_of_five_noncommutative_unknown_events_stay_indeterminate(self):
+        events = tuple(
+            device(
+                f"d{index}",
+                transitions=(Transition(f"e{index}", Fraction(5)),),
+            )
+            for index in range(5)
+        )
+        for ordering in permutations(events):
+            initial = state(*ordering)
+            result = synchronize(
+                initial,
+                target_device="d0",
+                at_common=Fraction(5),
+                observes=("d1", "d2", "d3", "d4"),
+            )
+            self.assertEqual(result.code, SyncCode.INDETERMINATE)
+            self.assertEqual(result.state, initial)
+            self.assertEqual(result.applied_order, ())
+
+    def test_all_120_permutations_preserve_five_event_explicit_dependency_order(self):
+        events = tuple(
+            device(
+                f"d{index}",
+                transitions=(Transition(
+                    f"e{index}",
+                    Fraction(5),
+                    () if index == 0 else (f"e{index - 1}",),
+                ),),
+            )
+            for index in range(5)
+        )
+        expected = ("e0", "e1", "e2", "e3", "e4")
+        for ordering in permutations(events):
+            result = synchronize(
+                state(*ordering),
+                target_device="d0",
+                at_common=Fraction(5),
+                observes=("d1", "d2", "d3", "d4"),
+            )
+            self.assertEqual(result.code, SyncCode.SYNCHRONIZED)
+            self.assertEqual(result.applied_order, expected)
 
 
 if __name__ == "__main__":
