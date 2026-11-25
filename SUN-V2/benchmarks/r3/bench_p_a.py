@@ -13,6 +13,7 @@ import statistics
 import subprocess
 import sys
 import time
+import tracemalloc
 from fractions import Fraction
 from pathlib import Path
 
@@ -65,14 +66,16 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
     for _ in range(warmup):
         advance_budgeted(state, target=target, chunk=chunk_value)
 
-    samples = []
+    samples_wall_ns = []
+    samples_cpu_ns = []
     final_digest = None
     final_counters = None
     for _ in range(repeats):
-        start = time.perf_counter_ns()
+        wall_start = time.perf_counter_ns()
+        cpu_start = time.process_time_ns()
         result = advance_budgeted(state, target=target, chunk=chunk_value)
-        elapsed = time.perf_counter_ns() - start
-        samples.append(elapsed)
+        samples_cpu_ns.append(time.process_time_ns() - cpu_start)
+        samples_wall_ns.append(time.perf_counter_ns() - wall_start)
         digest = state_digest(result.next_state)
         if final_digest is None:
             final_digest = digest
@@ -87,25 +90,51 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
             }
         elif digest != final_digest:
             raise RuntimeError("P-A produced non-deterministic state digest")
-    total_ops = domains + obligations
+
+    # Allocation measurement is deliberately outside the timed samples.
+    tracemalloc.start()
+    allocation_result = advance_budgeted(state, target=target, chunk=chunk_value)
+    _, peak_bytes = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    if state_digest(allocation_result.next_state) != final_digest:
+        raise RuntimeError("allocation probe changed the deterministic output")
+
+    mean_wall_ns = statistics.fmean(samples_wall_ns)
+    mean_cpu_ns = statistics.fmean(samples_cpu_ns)
+    scan_entries = (
+        final_counters["participants_inspected"]
+        + final_counters["obligations_inspected"]
+    )
     return {
         "parameters": {
             "domains": domains, "obligations": obligations,
             "density": density, "chunk": chunk,
             "target": [target.numerator, target.denominator],
         },
-        "samples_ns": samples,
-        "summary_ns": {
-            "min": min(samples),
-            "p50": percentile(samples, 0.50),
-            "p95": percentile(samples, 0.95),
-            "p99": percentile(samples, 0.99),
-            "max": max(samples),
-            "mean": statistics.fmean(samples),
+        "samples_wall_ns": samples_wall_ns,
+        "summary_wall_ns": {
+            "min": min(samples_wall_ns),
+            "p50": percentile(samples_wall_ns, 0.50),
+            "p95": percentile(samples_wall_ns, 0.95),
+            "p99": percentile(samples_wall_ns, 0.99),
+            "max": max(samples_wall_ns),
+            "mean": mean_wall_ns,
         },
-        "throughput_operations_per_second": (
-            total_ops * 1_000_000_000 / statistics.fmean(samples)
-            if statistics.fmean(samples) > 0 else 0
+        "samples_cpu_ns": samples_cpu_ns,
+        "summary_cpu_ns": {
+            "min": min(samples_cpu_ns),
+            "p50": percentile(samples_cpu_ns, 0.50),
+            "p95": percentile(samples_cpu_ns, 0.95),
+            "p99": percentile(samples_cpu_ns, 0.99),
+            "max": max(samples_cpu_ns),
+            "mean": mean_cpu_ns,
+        },
+        "peak_tracemalloc_bytes_separate_probe": peak_bytes,
+        "inspected_entries_per_second": (
+            scan_entries * 1_000_000_000 / mean_wall_ns if mean_wall_ns > 0 else 0
+        ),
+        "mean_ns_per_inspected_entry": (
+            mean_wall_ns / scan_entries if scan_entries > 0 else None
         ),
         "output_digest": repr(final_digest),
         "counters": final_counters,
