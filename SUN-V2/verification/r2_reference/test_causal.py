@@ -144,5 +144,43 @@ class R2T05CausalSynchronizationTests(unittest.TestCase):
         self.assertEqual(result.applied_order, ("vdp-status", "cpu-read"))
 
 
+    def test_preapplied_causal_ledger_must_match_owner_progress_and_dependencies(self):
+        invalid_states = (
+            state(
+                device("cpu", transitions=(Transition("cpu-write", Fraction(5)),)),
+                device("vdp", applied=("cpu-write",)),
+            ),
+            state(device(
+                "cpu",
+                transitions=(Transition("cpu-write", Fraction(5)),),
+                applied=("cpu-write",),
+            )),
+            state(device(
+                "cpu",
+                progress=6,
+                transitions=(Transition("missed-write", Fraction(5)),),
+            )),
+            state(device(
+                "cpu",
+                transitions=(
+                    Transition("dependency", Fraction(5)),
+                    Transition("dependent", Fraction(5), ("dependency",)),
+                ),
+                applied=("dependent",),
+            )),
+        )
+        for initial in invalid_states:
+            with self.subTest(initial=initial):
+                result = synchronize(
+                    initial,
+                    target_device="cpu",
+                    at_common=Fraction(10),
+                    observes=("vdp",) if len(initial.devices) > 1 else (),
+                )
+                self.assertEqual(result.code, SyncCode.INVALID_INPUT)
+                self.assertEqual(result.state, initial)
+                self.assertEqual(result.applied_order, ())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
