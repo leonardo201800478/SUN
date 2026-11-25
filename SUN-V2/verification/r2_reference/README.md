@@ -8,7 +8,7 @@ From this directory, run:
 
     python run_reference_tests.py
 
-The pinned runner executes the unit suite in a deterministic seed-shuffled order, runs deliberate mutation checks for the strict C<D boundary and C=D UNKNOWN classification, and emits a JSON report. Set `R2_RESULT_PATH` to persist the JSON report as an artifact.
+The pinned runner executes the unit suite in a deterministic seed-shuffled order, runs the full unittest suite against deliberate strict C<D boundary and C=D UNKNOWN classification mutants, and emits a JSON report. Set `R2_RESULT_PATH` to persist the JSON report as an artifact.
 
 The runner records:
 - Git repository HEAD SHA and clean-worktree status;
