@@ -113,6 +113,83 @@ class R2T01InvalidStateTests(unittest.TestCase):
                 self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
                 self.assertEqual(canonical_state(evaluated.state), before)
 
+    def test_non_clock_domain_member_is_invalid_input_without_dereference(self):
+        state = make_state(domains=[one_domain()])
+        malformed = state.__class__(
+            profile=state.profile,
+            domains=(object(),),
+            expected_participants=state.expected_participants,
+            watermark_common=state.watermark_common,
+            obligations=state.obligations,
+        )
+
+        evaluated = advance(malformed, Fraction(10))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertIs(evaluated.state, malformed)
+
+    def test_invalid_domain_container_is_rejected_before_iteration(self):
+        state = make_state(domains=[one_domain()])
+        malformed = state.__class__(
+            profile=state.profile,
+            domains=[one_domain()],
+            expected_participants=state.expected_participants,
+            watermark_common=state.watermark_common,
+            obligations=state.obligations,
+        )
+
+        evaluated = advance(malformed, Fraction(10))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertIs(evaluated.state, malformed)
+
+    def test_unhashable_domain_identity_is_invalid_input_without_mutation(self):
+        state = make_state(
+            domains=[ClockDomain([], Fraction(1), horizon_local=Fraction(10))]
+        )
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertIs(evaluated.state, state)
+
+    def test_invalid_expected_participant_container_is_rejected(self):
+        state = make_state(domains=[one_domain()])
+        malformed = state.__class__(
+            profile=state.profile,
+            domains=state.domains,
+            expected_participants=[[]],
+            watermark_common=state.watermark_common,
+            obligations=state.obligations,
+        )
+
+        evaluated = advance(malformed, Fraction(10))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertIs(evaluated.state, malformed)
+
+    def test_non_obligation_member_is_invalid_input_without_dereference(self):
+        state = make_state(domains=[one_domain()])
+        malformed = state.__class__(
+            profile=state.profile,
+            domains=state.domains,
+            expected_participants=state.expected_participants,
+            watermark_common=state.watermark_common,
+            obligations=(object(),),
+        )
+
+        evaluated = advance(malformed, Fraction(10))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertIs(evaluated.state, malformed)
+
+    def test_non_reference_state_with_invalid_target_does_not_dereference(self):
+        evaluated = advance(None, 1.5)
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertEqual(evaluated.result.reached_common, Fraction(0))
+        self.assertIsNone(evaluated.state)
+
 
 
 
