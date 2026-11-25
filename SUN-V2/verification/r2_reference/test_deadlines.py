@@ -5,6 +5,7 @@ import unittest
 
 from chronos_reference import ClockDomain, make_state
 from deadline_reference import (
+    Cancellation,
     DeadlineBook,
     DeadlineCode,
     DeadlineStatus,
@@ -162,7 +163,12 @@ class R2BPublicationTests(unittest.TestCase):
                 domain = replace(valid_state.domains[0], horizon_local=horizon)
                 state = replace(valid_state, domains=(domain,))
                 rejected = publish(book, state, at=10)
-                self.assertEqual(rejected.code, DeadlineCode.INVALID_INPUT)
+                expected = (
+                    DeadlineCode.INVALID_INPUT
+                    if isinstance(horizon, float)
+                    else DeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(rejected.code, expected)
                 self.assertEqual(rejected.book, book)
 
 
@@ -221,6 +227,15 @@ class R2BCancellationRaceTests(unittest.TestCase):
         self.assertEqual(result.code, DeadlineCode.BLOCKED)
         self.assertEqual(result.book, initial)
 
+    def test_cancel_frontier_blocks_when_required_participant_set_is_empty(self):
+        empty = make_state(domains=[], expected_participants=[])
+        result = cancel_deadline(
+            self.initial, empty, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.BLOCKED)
+        self.assertEqual(result.book, self.initial)
+
     def test_cancel_frontier_rejects_invalid_clock_conversion_without_mutation(self):
         initial_state = machine(participants=("cpu", "vdp"))
         initial = publish(DeadlineBook(), initial_state, at=10).book
@@ -248,6 +263,21 @@ class R2BCancellationRaceTests(unittest.TestCase):
         )
         self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
         self.assertEqual(result.book, initial)
+
+    def test_cancel_resolves_frontier_before_claimed_lifecycle_status(self):
+        claimed = close_watermark(self.initial, Fraction(10)).book
+        incomplete = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[ClockDomain("cpu", Fraction(1), horizon_local=Fraction(100))],
+            expected_participants=("cpu", "vdp"),
+            watermark_common=Fraction(10),
+        )
+        result = cancel_deadline(
+            claimed, incomplete, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(11),
+        )
+        self.assertEqual(result.code, DeadlineCode.BLOCKED)
+        self.assertEqual(result.book, claimed)
 
     def test_cancel_frontier_accepts_exact_rational_participant_conversions(self):
         state = make_state(
@@ -400,11 +430,87 @@ class R2BCancellationRaceTests(unittest.TestCase):
                     self.initial, state, owner="cpu", identity="evt",
                     generation=1, at_common=Fraction(4),
                 )
-                self.assertEqual(rejected.code, DeadlineCode.INVALID_INPUT)
+                expected = (
+                    DeadlineCode.INVALID_INPUT
+                    if isinstance(horizon, float)
+                    else DeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(rejected.code, expected)
                 self.assertEqual(rejected.book, self.initial)
+
+    def test_publication_rejects_global_horizon_behind_watermark(self):
+        state = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[
+                ClockDomain("cpu", Fraction(1), horizon_local=Fraction(10)),
+                ClockDomain("vdp", Fraction(1), horizon_local=Fraction(30)),
+            ],
+            expected_participants=("cpu", "vdp"),
+            watermark_common=Fraction(20),
+        )
+        book = DeadlineBook(watermark_common=Fraction(20))
+        rejected = publish(book, state, at=30)
+        self.assertEqual(rejected.code, DeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(rejected.book, book)
+
+    def test_cancellation_rejects_global_horizon_behind_watermark(self):
+        initial_state = machine(participants=("cpu", "vdp"))
+        initial = publish(DeadlineBook(), initial_state, at=30).book
+        inconsistent = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[
+                ClockDomain("cpu", Fraction(1), horizon_local=Fraction(10)),
+                ClockDomain("vdp", Fraction(1), horizon_local=Fraction(30)),
+            ],
+            expected_participants=("cpu", "vdp"),
+            watermark_common=Fraction(20),
+        )
+        book = replace(initial, watermark_common=Fraction(20))
+        rejected = cancel_deadline(
+            book, inconsistent, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(25),
+        )
+        self.assertEqual(rejected.code, DeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(rejected.book, book)
+
+    def test_cancellation_detects_known_horizon_violation_before_incomplete_block(self):
+        initial_state = machine(participants=("cpu", "vdp"))
+        initial = publish(DeadlineBook(), initial_state, at=30).book
+        incomplete = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[
+                ClockDomain("cpu", Fraction(1), horizon_local=Fraction(10)),
+            ],
+            expected_participants=("cpu", "vdp"),
+            watermark_common=Fraction(20),
+        )
+        book = replace(initial, watermark_common=Fraction(20))
+        rejected = cancel_deadline(
+            book, incomplete, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(25),
+        )
+        self.assertEqual(rejected.code, DeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(rejected.book, book)
 
 
 class R2BReplacementTests(unittest.TestCase):
+    def test_replacement_rejects_new_generation_not_after_cancel_time(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        for new_at, expected in (
+            (Fraction(3), DeadlineCode.LATE_INPUT),
+            (Fraction(4), DeadlineCode.INDETERMINATE),
+        ):
+            with self.subTest(new_at=new_at):
+                result = replace_deadline(
+                    initial, machine(progress=2), owner="cpu", identity="evt",
+                    generation=1, cancel_at=Fraction(4), new_generation=2,
+                    new_at_common=new_at, new_effect_id="retroactive-replacement",
+                )
+                self.assertEqual(result.code, expected)
+                self.assertEqual(result.book, initial)
+                self.assertEqual(result.book.deadlines[0].status,
+                                 DeadlineStatus.SCHEDULED)
+
     def test_replacement_cancels_old_generation_and_publishes_new_atomically(self):
         initial = publish(DeadlineBook(), machine(), at=10).book
         result = replace_deadline(
@@ -432,6 +538,14 @@ class R2BReplacementTests(unittest.TestCase):
 
 
 class R2BCausalTieTests(unittest.TestCase):
+    def test_close_watermark_rejects_deadline_equal_to_existing_watermark(self):
+        scheduled = publish(DeadlineBook(), machine(), at=5).book
+        inconsistent = replace(scheduled, watermark_common=Fraction(5))
+        result = close_watermark(inconsistent, Fraction(6))
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, inconsistent)
+        self.assertEqual(result.claimed, ())
+
     def test_close_watermark_rejects_scheduled_deadline_behind_existing_watermark(self):
         scheduled = publish(DeadlineBook(), machine(), at=4).book
         inconsistent = replace(scheduled, watermark_common=Fraction(5))
@@ -441,6 +555,33 @@ class R2BCausalTieTests(unittest.TestCase):
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
         self.assertEqual(result.book, inconsistent)
         self.assertEqual(result.claimed, ())
+
+    def test_arbitration_rejects_orphan_and_owner_mismatched_cancellations(self):
+        admitted = cancel_deadline(
+            self.initial, machine(progress=2), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(4),
+        ).book
+        wrong_owner = replace(
+            admitted,
+            pending_cancellations=(
+                replace(admitted.pending_cancellations[0], owner="vdp"),
+            ),
+        )
+        orphan = DeadlineBook(
+            pending_cancellations=(
+                Cancellation("cpu", "missing", 1, Fraction(4)),
+            )
+        )
+        missing_request = replace(admitted, pending_cancellations=())
+        for inconsistent in (wrong_owner, orphan, missing_request):
+            with self.subTest(book=inconsistent):
+                result = arbitrate_cancellations(inconsistent)
+                self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(result.book, inconsistent)
+                self.assertEqual(
+                    next((d.status for d in inconsistent.deadlines), None),
+                    next((d.status for d in result.book.deadlines), None),
+                )
 
     def test_noncommutative_unknown_tie_does_not_close_watermark(self):
         book = publish(DeadlineBook(), machine(), identity="a", at=10).book

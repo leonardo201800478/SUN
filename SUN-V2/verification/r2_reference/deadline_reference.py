@@ -30,6 +30,7 @@ class DeadlineCode(str, Enum):
     LATE_INPUT = "LateInput"
     INDETERMINATE = "IndeterminateCausalOrder"
     RESOURCE_EXHAUSTED = "ResourceExhausted"
+    INVARIANT_VIOLATION = "InvariantViolation"
     STALE_IGNORED = "StaleIgnored"
 
 
@@ -139,7 +140,24 @@ def _validate_reference_state(state: object) -> str | None:
         obligation_ids.append(item.obligation_id)
     if len(obligation_ids) != len(set(obligation_ids)):
         return "duplicate obligation identity"
+    if state.domains:
+        safe_horizon = min(domain.horizon_common() for domain in state.domains)
+        known_frontier = max(
+            [domain.progress_common() for domain in state.domains]
+            + ([state.watermark_common] if state.watermark_common is not None else [])
+        )
+        if safe_horizon < known_frontier:
+            return "safe horizon is behind the confirmed machine frontier"
     return None
+
+
+def _reference_state_error_code(detail: str) -> DeadlineCode:
+    """Map validated reference-state failures to the R1 result taxonomy."""
+    if "clock conversion" in detail:
+        return DeadlineCode.INDETERMINATE
+    if "safe horizon" in detail:
+        return DeadlineCode.INVARIANT_VIOLATION
+    return DeadlineCode.INVALID_INPUT
 
 
 def _validate_book(book: object) -> str | None:
@@ -176,6 +194,7 @@ def _validate_book(book: object) -> str | None:
         keys.append((item.identity, item.generation))
     if len(keys) != len(set(keys)):
         return "deadline identity/generation pair is duplicated"
+    pending_keys = []
     for item in book.pending_cancellations:
         if not isinstance(item, Cancellation):
             return "pending cancellation collection contains an invalid object"
@@ -184,6 +203,25 @@ def _validate_book(book: object) -> str | None:
             or not isinstance(item.generation, int) or isinstance(item.generation, bool)
             or item.generation < 0 or not _exact(item.at_common)):
             return "pending cancellation entry is structurally invalid"
+        key = (item.identity, item.generation)
+        if key in pending_keys:
+            return "pending cancellation identity/generation is duplicated"
+        pending_keys.append(key)
+        deadline = next(
+            (entry for entry in book.deadlines
+             if (entry.identity, entry.generation) == key),
+            None,
+        )
+        if deadline is None:
+            return "pending cancellation has no matching deadline generation"
+        if deadline.owner != item.owner:
+            return "pending cancellation owner does not match deadline owner"
+        if deadline.status is not DeadlineStatus.CANCEL_PENDING:
+            return "pending cancellation does not match a cancel-pending deadline"
+    for item in book.deadlines:
+        if (item.status is DeadlineStatus.CANCEL_PENDING
+            and (item.identity, item.generation) not in pending_keys):
+            return "cancel-pending deadline has no matching cancellation request"
     return None
 
 def publish_deadline(
@@ -231,9 +269,9 @@ def publish_deadline(
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     state_error = _validate_reference_state(state)
     if state_error is not None:
-        error_code = (DeadlineCode.INDETERMINATE
-                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
-        return DeadlineEvaluation(book, error_code, state_error)
+        return DeadlineEvaluation(
+            book, _reference_state_error_code(state_error), state_error
+        )
     effective_microstep = (
         microstep_level if microstep_level is not None else (1 if microstep else 0)
     )
@@ -309,9 +347,7 @@ def _cancellation_admission_frontier(
         return None, DeadlineCode.INVALID_INPUT, book_error
     state_error = _validate_reference_state(state)
     if state_error is not None:
-        error_code = (DeadlineCode.INDETERMINATE
-                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
-        return None, error_code, state_error
+        return None, _reference_state_error_code(state_error), state_error
     if state.watermark_common != book.watermark_common:
         return None, DeadlineCode.INDETERMINATE, "deadline and reference watermarks disagree"
 
@@ -320,6 +356,10 @@ def _cancellation_admission_frontier(
     actual = set(ids)
     if actual - expected:
         return None, DeadlineCode.INVALID_INPUT, "unexpected temporal participant"
+    if not expected:
+        return None, DeadlineCode.BLOCKED, (
+            "required participant set is empty; A(E) unavailable"
+        )
     if expected - actual:
         return None, DeadlineCode.BLOCKED, "participant set incomplete; A(E) unavailable"
 
@@ -362,15 +402,15 @@ def cancel_deadline(
     if deadline is None or deadline.owner != owner:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "unknown owner, identity, or generation")
-    if deadline.status is not DeadlineStatus.SCHEDULED:
-        return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
-                                  "deadline is no longer cancellable")
     admission_frontier, frontier_error, frontier_detail = (
         _cancellation_admission_frontier(book, state)
     )
     if frontier_error is not None:
         return DeadlineEvaluation(book, frontier_error, frontier_detail)
     assert admission_frontier is not None
+    if deadline.status is not DeadlineStatus.SCHEDULED:
+        return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
+                                  "deadline is no longer cancellable")
     if at_common <= admission_frontier:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "C<=A(E) is retroactive")
@@ -397,7 +437,7 @@ def cancel_deadline(
 
 
 def arbitrate_cancellations(book: DeadlineBook) -> DeadlineEvaluation:
-    """Apply all admitted cancellations before W may close their deadline."""
+    """Apply only owner/identity/generation-consistent admitted cancellations."""
     book_error = _validate_book(book)
     if book_error is not None:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
@@ -503,7 +543,25 @@ def replace_deadline(
     microstep: bool = False,
     commutative: bool = False,
 ) -> DeadlineEvaluation:
-    """Atomically cancel an old generation and publish its replacement."""
+    """Atomically replace a generation without backdating the new deadline.
+
+    The replacement is one causal operation at cancel_at. A new deadline
+    strictly before that instant is retroactive (LateInput); equality has no
+    profile causal/microstep relation in this API (Indeterminate).
+    """
+    if not _exact(cancel_at) or not _exact(new_at_common):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "replacement timestamps must be exact")
+    if new_at_common < cancel_at:
+        return DeadlineEvaluation(
+            book, DeadlineCode.LATE_INPUT,
+            "replacement deadline precedes the replacement operation",
+        )
+    if new_at_common == cancel_at:
+        return DeadlineEvaluation(
+            book, DeadlineCode.INDETERMINATE,
+            "replacement deadline coincides with cancellation without an explicit causal relation",
+        )
     cancelled = cancel_deadline(
         book, state, owner=owner, identity=identity, generation=generation,
         at_common=cancel_at,

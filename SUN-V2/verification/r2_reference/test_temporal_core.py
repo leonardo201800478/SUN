@@ -171,6 +171,19 @@ class R2T01MonotonicityTests(unittest.TestCase):
         self.assertEqual(canonical_state(evaluated.state), before)
         self.assertIn("no partial frontier", evaluated.result.detail)
 
+    def test_known_watermark_horizon_violation_precedes_incomplete_participant_block(self):
+        state = make_state(
+            domains=[one_domain(horizon=Fraction(10))],
+            expected_participants=["cpu", "vdp"],
+            watermark_common=Fraction(20),
+        )
+        before = canonical_state(state)
+        evaluated = advance(state, Fraction(25))
+        self.assertEqual(
+            evaluated.result.kind, ResultKind.INVARIANT_VIOLATION
+        )
+        self.assertEqual(canonical_state(evaluated.state), before)
+
     def test_float_target_is_invalid_and_does_not_mutate_state(self):
         state = make_state(domains=[one_domain()])
         before = canonical_state(state)

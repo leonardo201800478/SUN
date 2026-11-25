@@ -57,7 +57,7 @@ As regras oficiais de arquitetura, escopo, pesquisa, gates, Git/PR, CI, testes, 
 - [Avaliação estratégica](docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md) — SWOT, stakeholders, riscos e roadmap.
 - [Plano de pesquisa e especificação](docs/temporal-core/RESEARCH_AND_DESIGN_PLAN.md) — perguntas, entregáveis, provas e gates.
 - [Fechamento R0](docs/temporal-core/R0_CLOSEOUT.md) — evidências, incertezas e limites da aprovação documental.
-- [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — rascunho v0.3.8 publicado em `main`; rejeita D<=W inclusive D=W com microstep e restringe D=P_d a W ausente ou W<D. Codex não encontrou major issues no HEAD exato; R1 ainda não aprovada até o fechamento formal da issue #1270.
+- [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — conteúdo normativo v0.3.18 aprovado em 24/11/2026 no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); issue #1270 encerrada. A aprovação é documental e não autoriza produção antes de R5.
 
 ## Estrutura
 

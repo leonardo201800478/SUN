@@ -141,13 +141,17 @@ def _validate_state(state: ReferenceState) -> str | None:
     expected = set(state.expected_participants)
     if actual - expected:
         return "unexpected participant is present"
-    if expected - actual:
-        return "incomplete participant set"
+
+    # With an incomplete set, use known participants only for a one-sided
+    # invariant check: a known H below known P/W proves a violation. Never
+    # expose this partial maximum as A(E) or as an advance frontier.
     frontier = _machine_frontier(state)
     if state.domains:
         safe_horizon = min(domain.horizon_common() for domain in state.domains)
         if safe_horizon < frontier:
             return "safe horizon is behind the confirmed machine frontier"
+    if expected - actual:
+        return "incomplete participant set"
     if any(
         not item.resolved and item.at_common < frontier
         for item in state.obligations
