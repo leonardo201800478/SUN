@@ -119,5 +119,25 @@ class R2T07PartialOrderTests(unittest.TestCase):
             self.assertEqual(result.applied_order, expected)
 
 
+    def test_all_120_permutations_preserve_partial_order_with_commutative_siblings(self):
+        events = (
+            device("d0", transitions=(Transition("e0", Fraction(5)),)),
+            device("d1", transitions=(Transition("e1", Fraction(5), ("e0",), True),)),
+            device("d2", transitions=(Transition("e2", Fraction(5), ("e0",), True),)),
+            device("d3", transitions=(Transition("e3", Fraction(5), ("e1", "e2")),)),
+            device("d4", transitions=(Transition("e4", Fraction(5), ("e3",)),)),
+        )
+        expected = ("e0", "e1", "e2", "e3", "e4")
+        for ordering in permutations(events):
+            result = synchronize(
+                state(*ordering),
+                target_device="d0",
+                at_common=Fraction(5),
+                observes=("d1", "d2", "d3", "d4"),
+            )
+            self.assertEqual(result.code, SyncCode.SYNCHRONIZED)
+            self.assertEqual(result.applied_order, expected)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
