@@ -70,9 +70,10 @@ class AResult:
 
 
 def _common_frontier(state: AState) -> Fraction:
+    """Return the max confirmed participant progress (R1/R2 machine frontier)."""
     if not state.participants:
         return Fraction(0)
-    return min(item.progress for item in state.participants)
+    return max(item.progress for item in state.participants)
 
 
 def _validate(state: AState) -> None:
@@ -202,7 +203,8 @@ def state_digest(state: AState) -> tuple:
     return (
         tuple(sorted(
             (p.name, p.progress.numerator, p.progress.denominator,
-             p.safe_horizon.numerator, p.safe_horizon.denominator)
+             p.safe_horizon.numerator, p.safe_horizon.denominator,
+             p.units_per_common.numerator, p.units_per_common.denominator)
             for p in state.participants
         )),
         tuple(sorted(
