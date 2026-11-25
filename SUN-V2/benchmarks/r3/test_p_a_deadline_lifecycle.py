@@ -511,6 +511,70 @@ class PADeadlineLifecycleTests(unittest.TestCase):
             tuple((f"sparse-{i:02d}", 0) for i in range(32)),
         )
 
+    def test_publish_cancel_arbitrate_republish_dispatch_complete_trace_matches_r2(self):
+        book = self.empty
+        context = self.context
+
+        actual = publish_deadline(
+            book, context, owner="cpu", identity="trace-irq",
+            generation=0, at_common=Fraction(10), effect_id="irq-line",
+        )
+        expected = r2_publish_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="trace-irq",
+            generation=0, at_common=Fraction(10), effect_id="irq-line",
+        )
+        self.compare(actual, expected)
+        book = actual.book
+
+        actual = cancel_deadline(
+            book, context, owner="cpu", identity="trace-irq",
+            generation=0, at_common=Fraction(9),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="trace-irq",
+            generation=0, at_common=Fraction(9),
+        )
+        self.compare(actual, expected)
+        book = actual.book
+
+        actual = close_watermark(book, Fraction(10))
+        expected = r2_close_watermark(to_r2_book(book), Fraction(10))
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.BLOCKED)
+
+        actual = arbitrate_cancellations(book)
+        expected = r2_arbitrate_cancellations(to_r2_book(book))
+        self.compare(actual, expected)
+        book = actual.book
+
+        actual = publish_deadline(
+            book, context, owner="cpu", identity="trace-irq",
+            generation=1, at_common=Fraction(20), effect_id="irq-line-v2",
+        )
+        expected = r2_publish_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="trace-irq",
+            generation=1, at_common=Fraction(20), effect_id="irq-line-v2",
+        )
+        self.compare(actual, expected)
+        book = actual.book
+
+        actual = close_watermark(book, Fraction(21))
+        expected = r2_close_watermark(to_r2_book(book), Fraction(21))
+        self.compare(actual, expected)
+        book = actual.book
+
+        actual = dispatch_deadline(book, identity="trace-irq", generation=1)
+        expected = r2_dispatch_deadline(to_r2_book(book), identity="trace-irq", generation=1)
+        self.compare(actual, expected)
+        book = actual.book
+
+        actual = complete_deadline(book, identity="trace-irq", generation=1)
+        expected = r2_complete_deadline(to_r2_book(book), identity="trace-irq", generation=1)
+        self.compare(actual, expected)
+
 
 if __name__ == "__main__":
     unittest.main()
