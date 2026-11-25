@@ -602,3 +602,22 @@ Foi adicionado um método de teste que exercita dispatch e completion com identi
 **Evidência vinculada — CI #10700:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45543490140) — **SUCCESS** no HEAD de código/testes `9185bc15380768b3949855acb73c871d1770600d`. CHRONOS R2: **103/103 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `761c416aac7e2e78a1bce1f2846584c069bbe8132f07536c98a280106e790575`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `f34f81e23a74c2ac178221fd275422dc74fa02336047f22e8a91afbf79d5af9f`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
 
 R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. Esta correção não altera a semântica normativa R1 nem autoriza produção CHRONOS/V2.
+
+### 8.1.17 Consistência de obrigações e lifecycle de deadlines com W fechado — 25/11/2026
+
+A auditoria encontrou duas classes de estado pré-construído que podiam escapar à validação central:
+
+1. **Obrigações não resolvidas:** `_validate_state()` só verificava obrigações atrás da fronteira depois de retornar `Blocked` por conjunto incompleto. Assim, uma obrigação global já ultrapassada por progresso conhecido podia ser mascarada como incompletude. Além disso, uma obrigação ainda pendente exatamente em W podia permanecer no estado embora W seja um corte global fechado.
+2. **Deadline e W:** um deadline `Scheduled` em D<=W era rejeitado apenas por `close_watermark()`, permitindo que outras operações públicas aceitassem e propagassem o mesmo livro inconsistente. Também não se validava que estados `Claimed`, `Dispatched`, `Completed` ou `Failed` estivessem dentro de um corte W já fechado.
+
+Correções implementadas:
+- uma obrigação não resolvida em T<=W retorna `InvariantViolation`; igualdade com P_d continua permitida para o resultado `StoppedAt(P_d)` quando W ainda não fechou T;
+- uma obrigação não resolvida atrás de progresso conhecido é verificada antes de retornar `Blocked` por participantes incompletos, porque a contradição já é demonstrável;
+- `_validate_book_state()` centraliza a rejeição de deadlines `Scheduled` em D<=W e estados `Claimed`/`Dispatched`/`Completed`/`Failed` sem W fechado até D;
+- todas as operações públicas que validam o livro agora compartilham essas regras; rejeições preservam o livro e não reivindicam deadlines.
+
+Foram adicionados três métodos de teste: obrigação global atrás de progresso conhecido com conjunto incompleto; obrigação pendente exatamente no watermark; deadline agendado atrás de W rejeitado por publicação/cancelamento/arbitragem/fechamento/dispatch/completion/substituição/microstep; e estados de lifecycle claimed/processed além de W ou sem W. A suíte passa de 103 para **107 testes**; R2-T01=22 e R2-B=69.
+
+**Evidência vinculada — CI #10707:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45544103413) — **SUCCESS** no HEAD de código/testes `b5b9ff66dc68e4556fe2ca30c68e5114badd6ead`. CHRONOS R2: **107/107 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `5126b383143a54878f9ac4b3164936eb9399314d670f36f68276c24a164d8987`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `1d56831aa763b2f120829cb6635863fa1abe1590ba55ccc19f97555c40767ff5`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. As correções não alteram o texto normativo R1 nem autorizam código de produção CHRONOS/V2.
