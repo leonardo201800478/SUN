@@ -420,13 +420,15 @@ class R2BCancellationRaceTests(unittest.TestCase):
         deadline = replace(
             self.initial.deadlines[0], status=DeadlineStatus.CANCEL_PENDING
         )
-        for cancel_at, expected in (
-            (Fraction(10), DeadlineCode.INDETERMINATE),
-            (Fraction(11), DeadlineCode.LATE_INPUT),
+        for cancel_at, watermark, expected in (
+            (Fraction(10), None, DeadlineCode.INDETERMINATE),
+            (Fraction(10), Fraction(10), DeadlineCode.LATE_INPUT),
+            (Fraction(11), None, DeadlineCode.LATE_INPUT),
         ):
-            with self.subTest(cancel_at=cancel_at):
+            with self.subTest(cancel_at=cancel_at, watermark=watermark):
                 book = DeadlineBook(
                     deadlines=(deadline,),
+                    watermark_common=watermark,
                     pending_cancellations=(
                         Cancellation("cpu", "evt", 1, cancel_at),
                     ),
