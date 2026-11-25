@@ -24,18 +24,17 @@ from p_a_deadline_lifecycle import (
 
 
 def cpu_clock_resolution_ns() -> int | None:
-    """Measure empirical thread CPU clock resolution without assuming it."""
+    """Measure empirical thread CPU clock resolution over a bounded 100 ms window."""
     clock = getattr(time, "thread_time_ns", None)
     if clock is None:
         return None
-    samples = []
-    previous = clock()
-    for _ in range(2000):
+    start_wall = time.perf_counter_ns()
+    start_cpu = clock()
+    while time.perf_counter_ns() - start_wall < 100_000_000:
         current = clock()
-        if current > previous:
-            samples.append(current - previous)
-            previous = current
-    return min(samples) if samples else None
+        if current > start_cpu:
+            return current - start_cpu
+    return None
 
 
 def git_head() -> str:
