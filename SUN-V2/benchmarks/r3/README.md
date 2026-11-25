@@ -32,4 +32,4 @@ with reproducible fixtures and a deterministic trace comparison.
 
 ## P-A first-slice boundary
 
-The current P-A test harness checks result class, stop coordinate and every participant's common-time progress against R2. It also checks deterministic final-state digest under chunk repartitioning. A detailed per-transition trace is not implemented in this first slice; no trace-coverage claim is made. The current suite contains 12 discriminating tests, including unequal participant progress, zero-length frontier catch-up, UNKNOWN ties, and R2 invariant-violation boundaries.
+The current P-A test harness checks result class, stop coordinate and every participant's common-time progress against R2. It also checks deterministic final-state digest under chunk repartitioning. A detailed per-transition trace is not implemented in this first slice; no trace-coverage claim is made. The current suite contains 13 discriminating tests, including unequal participant progress, zero-length frontier catch-up, UNKNOWN ties, and R2 invariant-violation boundaries.
