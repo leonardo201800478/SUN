@@ -1336,3 +1336,37 @@ class R2BStructuralValidationTests(unittest.TestCase):
                     self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
                     self.assertEqual(result.book, inconsistent)
                     self.assertEqual(result.claimed, ())
+
+
+class R2T06DispatcherRaceClosureTests(unittest.TestCase):
+    def test_admitted_predeadline_cancel_stays_suppressed_when_dispatcher_runs_later(self):
+        published = publish(DeadlineBook(), machine(), at=10)
+        admitted = cancel_deadline(
+            published.book, machine(progress=2), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(4),
+        )
+        self.assertEqual(admitted.code, DeadlineCode.ACCEPTED)
+        self.assertEqual(close_watermark(admitted.book, Fraction(10)).code, DeadlineCode.BLOCKED)
+        arbitrated = arbitrate_cancellations(admitted.book)
+        closed = close_watermark(arbitrated.book, Fraction(10))
+        self.assertEqual(closed.code, DeadlineCode.ACCEPTED)
+        delayed_dispatch = dispatch_deadline(closed.book, identity="evt", generation=1)
+        self.assertEqual(delayed_dispatch.code, DeadlineCode.STALE_IGNORED)
+        self.assertEqual(delayed_dispatch.book.deadlines[0].status, DeadlineStatus.CANCELLED)
+        self.assertEqual(delayed_dispatch.claimed, ())
+
+    def test_postdeadline_cancel_cannot_suppress_claim_before_delayed_dispatch(self):
+        published = publish(DeadlineBook(), machine(), at=10)
+        claimed = close_watermark(published.book, Fraction(10))
+        self.assertEqual(claimed.claimed, (("evt", 1),))
+        late_cancel = cancel_deadline(
+            claimed.book, machine(progress=2), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(11),
+        )
+        self.assertEqual(late_cancel.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(late_cancel.book, claimed.book)
+        dispatched = dispatch_deadline(claimed.book, identity="evt", generation=1)
+        self.assertEqual(dispatched.code, DeadlineCode.ACCEPTED)
+        completed = complete_deadline(dispatched.book, identity="evt", generation=1)
+        self.assertEqual(completed.code, DeadlineCode.ACCEPTED)
+        self.assertEqual(completed.book.deadlines[0].status, DeadlineStatus.COMPLETED)
