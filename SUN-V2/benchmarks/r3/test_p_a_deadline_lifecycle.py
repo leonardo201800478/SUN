@@ -26,6 +26,7 @@ from p_a_deadline_lifecycle import (
     replace_deadline,
 )
 from chronos_reference import ClockDomain, Obligation, make_state
+from trace_fixture_support import record_differential
 from deadline_reference import (
     Cancellation as R2Cancellation,
     Deadline as R2Deadline,
@@ -139,6 +140,11 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         self.assertEqual(actual.code.value, expected.code.value)
         self.assertEqual(actual.claimed, expected.claimed)
         self.assertEqual(canonical_book(actual.book), canonical_book(expected.book))
+        record_differential(
+            self.id(),
+            (actual.code.value, actual.claimed, canonical_book(actual.book)),
+            (expected.code.value, expected.claimed, canonical_book(expected.book)),
+        )
 
     def publish(self, book=None, context=None, **kwargs):
         book = self.empty if book is None else book
