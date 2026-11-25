@@ -371,3 +371,15 @@ Correção implementada no candidato subsequente:
 - Foram acrescentados seis testes discriminantes: watermark que excede o progresso local, progresso de participante não proprietário, conjunto incompleto, conversão inválida, watermarks divergentes e conversões racionais exatas.
 
 **Estado desta evidência:** correção e testes foram incorporados ao candidato, mas ainda não há resultado de CI nem revisão independente vinculados ao novo SHA. Não classificar a correção como PASS até essas execuções terminarem.
+
+
+### 8.1.4 Correção do finding P2 — empate C=D sem relação causal explícita
+
+A revisão Codex do SHA `eeda6c9f9a379c89cec79dd2743748e041338506` identificou que o caminho de cancelamento classificava `C=D` como `LateInput` apenas por satisfazer `C>=D`. Isso não implementava R1 §16.5.13(13)(b)/C06: quando `C=D>A(E)` e `W` não existe ou `W<D`, a supressão depende da relação causal ou do microstep explícito do perfil. A API atual não recebe essa relação; portanto, não pode inferi-la.
+
+Correção candidata:
+- Preservar a precedência normativa: `C<=A(E)` continua retornando `LateInput` antes de qualquer avaliação do empate.
+- Separar `C=D` de `C>D`: sem relação causal/microstep fornecida, o empate retorna `IndeterminateCausalOrder`, sem mutação; `C>D` retorna `LateInput`.
+- Substituir o teste que aceitava a classificação incorreta por um teste de empate indeterminado e sem mutação; adicionar teste independente para `C>D` tardio.
+
+**Estado:** alteração candidata ainda aguarda CI e revisão independente vinculados ao novo HEAD. R2 permanece EM ANDAMENTO; T06/T07/T14 continuam parciais. Não autoriza R3, produção ou merge.
