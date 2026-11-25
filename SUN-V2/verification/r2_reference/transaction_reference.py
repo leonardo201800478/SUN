@@ -112,6 +112,7 @@ def _validate_spec(spec: object) -> str | None:
     if type(spec.markers) is not tuple:
         return "invalid marker collection"
     identities: set[str] = set()
+    previous_boundary = spec.start_at
     for marker in spec.markers:
         if not isinstance(marker, Marker):
             return "invalid marker"
@@ -120,8 +121,9 @@ def _validate_spec(spec: object) -> str | None:
         identities.add(marker.identity)
         if not isinstance(marker.kind, MarkerKind) or not _exact(marker.at_common):
             return "invalid marker descriptor"
-        if marker.at_common < spec.start_at or type(marker.irreversible) is not bool:
-            return "invalid marker boundary"
+        if marker.at_common < previous_boundary or type(marker.irreversible) is not bool:
+            return "invalid marker boundary or descriptor order"
+        previous_boundary = marker.at_common
     return None
 
 
