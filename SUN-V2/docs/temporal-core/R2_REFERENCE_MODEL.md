@@ -790,6 +790,20 @@ Incremento adversarial aplicado após a auditoria do responsável:
 - `run_mutation_tests.py` cria cópias temporárias e injeta dois mutantes: `<`→`<=` em C/D e `IndeterminateCausalOrder`→`LateInput` para C=D UNKNOWN. O mutante só conta como KILLED se o teste-alvo falhar por AssertionError, não por erro incidental.
 - `.gitattributes` fixa LF para `SUN-V2/verification/**`; CI adiciona job Windows Python para runner + unittest e upload de JSON por ambiente.
 
-**Contagem reforçada candidata:** 255 testes; `test_partial_order.py` tem 6 casos e quatro famílias de 120 permutações. O candidato reforçado aguarda CI Linux/Windows próprio; a evidência anterior 251/251 não é reutilizada como PASS para este novo SHA.
+**Contagem reforçada candidata:** 256 testes; `test_partial_order.py` tem 6 casos e quatro famílias de 120 permutações. O candidato reforçado aguarda CI Linux/Windows próprio; a evidência anterior 251/251 não é reutilizada como PASS para este novo SHA.
 
 **Limites mantidos:** T13 usa fonte digital sintética e prova apenas independência do host; inteiros/Fraction não simulam overflow de máquina; UNKNOWN não recebe precedência física; Windows Python não é validação de hardware.
+
+
+### 8.1.26 Invariantes de ledger causal pré-aplicado — 25/11/2026
+
+A revisão adversarial de T05 verificou que `CausalState.applied` era validado apenas contra o conjunto global de identidades. Isso permitia um ledger pré-construído em que uma transição de um dispositivo aparecia como aplicada em outro dispositivo, estava aplicada antes do progresso do owner, uma transição não aplicada já ficava atrás do progresso, ou um evento aplicado ainda tinha dependência pendente.
+
+Correção em `causal_reference.py`:
+- cada identidade aplicada precisa estar no ledger do owner correto;
+- a transição aplicada não pode estar à frente do progresso do owner;
+- transição não aplicada não pode ficar estritamente atrás do progresso do owner (igualdade continua permitida para distinguir coordenada alcançada de conclusão semântica);
+- dependências de uma transição aplicada devem existir, estar aplicadas e não ocorrer depois dela;
+- IDs aplicados não podem aparecer em múltiplos dispositivos.
+
+Regressão: `test_causal.py::R2T05CausalSynchronizationTests.test_preapplied_causal_ledger_must_match_owner_progress_and_dependencies` cobre quatro estados inválidos e exige `InvalidInput` sem mutação. Total reforçado: **256 testes**; o CI do candidato atualizado permanece pendente.
