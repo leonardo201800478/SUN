@@ -1151,6 +1151,13 @@ jobs:
             git status --short
             exit 1
           fi
+      - name: Run bounded P-A synthetic benchmark smoke
+        working-directory: SUN-V2/benchmarks/r3
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONHASHSEED: "0"
+        run: |
+          python3 bench_p_a.py --domains 2 --obligations 4 --chunks 8 --densities sparse,dense --warmup 1 --repeats 3 --output "$RUNNER_TEMP/r3-p-a-linux.json"
 
   windows-r3-prototype-tests:
     name: CHRONOS R3 disposable prototype tests (Windows)
@@ -1180,6 +1187,16 @@ jobs:
             git status --short
             exit 1
           }
+      - name: Run bounded P-A synthetic benchmark smoke
+        working-directory: SUN-V2/benchmarks/r3
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONHASHSEED: "0"
+          R3_RESULT_PATH: ${{ runner.temp }}\r3-p-a-windows.json
+        shell: pwsh
+        run: |
+          python bench_p_a.py --domains 2 --obligations 4 --chunks 8 --densities sparse,dense --warmup 1 --repeats 3 --output "$env:R3_RESULT_PATH"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   quality-gate:
     name: Rust quality and unit regression
