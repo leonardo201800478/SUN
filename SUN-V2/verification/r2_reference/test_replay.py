@@ -149,5 +149,18 @@ class R2T12ReplayTests(unittest.TestCase):
         self.assertEqual(blocked.state, state)
 
 
+    def test_republished_horizon_cannot_regress_behind_participant_progress(self):
+        state = accept_input(initial(), event(time=5)).state
+        result = recalculate_horizon(state, "cpu", Fraction(0))
+        self.assertEqual(result.code, ReplayCode.INVARIANT_VIOLATION)
+        self.assertEqual(result.state, state)
+
+    def test_empty_batch_still_validates_replay_state(self):
+        state = replace(initial(), applied_ids=["malformed"])
+        result = accept_batch(state, ())
+        self.assertEqual(result.code, ReplayCode.INVALID_INPUT)
+        self.assertEqual(result.state, state)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
