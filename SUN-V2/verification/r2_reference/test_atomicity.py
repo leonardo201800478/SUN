@@ -45,7 +45,7 @@ class R2T15CrossSubsystemAtomicityTests(unittest.TestCase):
             at_common=Fraction(0), effect_id="effect:d:0",
         )
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
-        self.assertEqual(result.book, DeadlineBook(watermark_common=Fraction(10)))
+        self.assertEqual(result.book, DeadlineBook())
 
     def test_missing_participant_blocks_before_partial_late_frontier(self):
         replay_state = ReplayState(
@@ -93,7 +93,7 @@ class R2T15CrossSubsystemAtomicityTests(unittest.TestCase):
             microstep=True, microstep_level=1,
         )
         self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
-        self.assertEqual(result.book, DeadlineBook())
+        self.assertEqual(result.book, DeadlineBook(watermark_common=Fraction(10)))
 
     def test_owner_progress_equal_deadline_without_microstep_is_indeterminate_on_open_cut(self):
         reference = temporal_state(progress=10, watermark=0)
