@@ -241,6 +241,15 @@ def _validate_book_state(
     if structural_error is not None:
         return DeadlineCode.INVALID_INPUT, structural_error
     assert isinstance(book, DeadlineBook)
+    if book.watermark_common is not None and any(
+        item.status is DeadlineStatus.SCHEDULED
+        and item.at_common <= book.watermark_common
+        for item in book.deadlines
+    ):
+        return (
+            DeadlineCode.INVALID_INPUT,
+            "scheduled deadline is at or behind the already closed watermark",
+        )
     for request in book.pending_cancellations:
         deadline = _find(book, request.identity, request.generation)
         assert deadline is not None  # guaranteed by _validate_book()
@@ -539,15 +548,6 @@ def close_watermark(book: DeadlineBook, target_common: Fraction) -> DeadlineEval
     if book.watermark_common is not None and target_common < book.watermark_common:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "watermark cannot regress")
-    if book.watermark_common is not None and any(
-        item.status is DeadlineStatus.SCHEDULED
-        and item.at_common <= book.watermark_common
-        for item in book.deadlines
-    ):
-        return DeadlineEvaluation(
-            book, DeadlineCode.INVALID_INPUT,
-            "scheduled deadline is at or behind the already closed watermark",
-        )
     for request in book.pending_cancellations:
         deadline = _find(book, request.identity, request.generation)
         if deadline is not None and deadline.at_common <= target_common:
