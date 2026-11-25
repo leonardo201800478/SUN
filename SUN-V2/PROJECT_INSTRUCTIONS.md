@@ -154,6 +154,7 @@ As ROMs permanecem locais e não devem ser copiadas ou versionadas no repositór
 - `SUN-V2/README.md` — estado atual e mapa documental.
 - `SUN-V2/ROADMAP.md` — fases, dependências e critérios.
 - `SUN-V2/docs/temporal-core/R0_CLOSEOUT.md` — fechamento de evidências R0.
+- `SUN-V2/docs/temporal-core/R2_CLOSEOUT.md` e `R2_TRACEABILITY.md` — fechamento da implementação (não aprovação do gate) e matriz T01–T15 → R1 → testes.
 - `SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md` — R1 v0.3.18 APROVADA em 24/11/2026, conteúdo normativo SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicada pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); issue #1270 encerrada. O registro formal está na seção 21 do próprio contrato. R1 aprovada não equivale a R2 aprovada.
 - `SUN-V2/docs/architecture/V1_BASELINE_EVIDENCE_MATRIX.md` — evidências e limites da baseline.
 - `SUN-V2/docs/architecture/V1_TO_V2_INVENTORY.md` — inventário e política de independência.
