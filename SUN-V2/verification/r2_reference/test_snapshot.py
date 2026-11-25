@@ -180,5 +180,18 @@ class R2T11SnapshotTests(unittest.TestCase):
         self.assertIsNone(result.restored_state)
 
 
+    def test_restore_rejects_forged_unsupported_ack_artifact_atomically(self):
+        active = machine(watermark=Fraction(9))
+        ambiguous = machine(interrupts=InterruptRecord(
+            accepted="INT", acknowledge_active=True,
+            device_effect_presence=AckPresence.UNKNOWN, device_effect_commit=AckCommit.UNKNOWN,
+        ))
+        artifact = SnapshotArtifact("SMS-NTSC", "R1-0.3.18", ambiguous)
+        result = restore(active, artifact, expected_profile="SMS-NTSC", expected_version="R1-0.3.18")
+        self.assertEqual(result.code, SnapshotCode.INCOMPATIBLE)
+        self.assertEqual(result.active_state, active)
+        self.assertIsNone(result.restored_state)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
