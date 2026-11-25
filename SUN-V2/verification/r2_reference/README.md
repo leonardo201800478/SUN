@@ -22,12 +22,12 @@ No third-party dependencies are required. The model uses exact rational arithmet
 
 ## Current candidate coverage
 
-The current candidate defines 55 tests:
+The current candidate defines 56 tests:
 - R2-T01: monotonicity, retrograde-input no-mutation, participant completeness, structural-validation precedence over `Blocked`, exact-time validation, invalid clock conversion/watermark, obligation identity/owner validation.
 - R2-T02: chunk invariance, including 100 deterministic random partitions, safe-horizon boundary stops, pending-obligation stops and continuation after resolution.
 - R2-T03: exact rational round-trip/composition and 10,000-step conversion sessions across three ratios.
 - R2-T04: inclusive safe horizon, endpoint StoppedAt(T), earlier obligations, resume after resolution and multi-domain minimum horizon.
-- R2-B deadline slice: 28 cases across publication/admission, owner and generation validation, cancellation versus watermark closure, complete cancellation-frontier derivation from every participant and W, stale-generation suppression, commutative and explicitly ordered ties, UNKNOWN causal order, and finite logical microsteps. The cancellation tests include incomplete participant sets, invalid clock conversion, watermark disagreement, no-mutation rejection and exact rational conversions. This is partial coverage for R2-T06, T07 and T14; these properties are not yet PASS.
+- R2-B deadline slice: 29 cases across publication/admission, owner and generation validation, cancellation versus watermark closure, complete cancellation-frontier derivation from every participant and W, stale-generation suppression, commutative and explicitly ordered ties, UNKNOWN causal order (including C=D without profile relation), and finite logical microsteps. The cancellation tests include incomplete participant sets, invalid clock conversion, watermark disagreement, no-mutation rejection and exact rational conversions. This is partial coverage for R2-T06, T07 and T14; these properties are not yet PASS.
 
 **Earlier executed candidate:** 24 tests PASS in CI #10619 on Git SHA `a0c0782ff4d8e9886144b20bde36e42bcc6f1eff`, with oracle SHA-256 `160489b753575f0e7fcb12892eb58f7199a1dc5828c5bb4f13c266f557ba001a`, Python 3.14.4, Linux x86_64. This is historical evidence for that exact candidate only.
 
