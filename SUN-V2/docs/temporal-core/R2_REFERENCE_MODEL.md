@@ -1,0 +1,830 @@
+# CHRONOS — modelo de referência independente R2
+
+**Projeto:** SUN V2
+**Sistema inicial:** Sega Master System (SMS)
+**Gate:** R2 — modelo de referência independente
+**Status:** implementação executável R2-T01–T15 concluída; revisão independente do responsável no HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239` sem blocker funcional; dois P2 documentais corrigidos; aprovação explícita R2 registrada, efetivação vinculada ao CI do SHA documental final.
+**Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)
+**Contrato normativo:** [R1 v0.3.18](R1_TEMPORAL_CONTRACTS.md), conteúdo aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`
+
+> Este documento define o oráculo de verificação do R2. Não escolhe nem implementa o algoritmo de produção CHRONOS, não cria crate de runtime e não autoriza código de produção antes de R5.
+
+---
+
+## 1. Objetivo e fronteira do gate
+
+R2 transforma os contratos normativos R1 em um **modelo de referência executável, simples, lento e independente**. O oráculo será usado para verificar propriedades, transições, fronteiras e resultados sem compartilhar o algoritmo de agenda ou a representação temporal que poderão ser avaliados em R3.
+
+R2 não escolhe o desenho final do CHRONOS. A proposta de híbrido mínimo permanece uma hipótese arquitetural documentada; a comparação de alternativas pertence a R3, e a aprovação arquitetural final pertence a R5.
+
+### Entradas
+
+- Estado inicial explícito e serializável do modelo.
+- Perfil temporal identificado (inicialmente SMS NTSC; outros perfis somente quando cada cenário os nomear).
+- Conjunto completo de domínios participantes, quando exigido.
+- Sequência ordenada de comandos externos e ações internas.
+- Relações causais/fases apenas quando declaradas pelo contrato ou pela evidência do perfil.
+- Seed fixa para geração determinística de sequências.
+
+### Saídas
+
+- Resultado normativo da operação: `Reached`, `StoppedAt`, `Blocked`, `Failed`, `LateInput`, `InvalidInput`, `InvariantViolation`, `IndeterminateCausalOrder` ou `UnsupportedSnapshot`, conforme a operação.
+- Novo estado lógico, ou prova de ausência de mutação nos erros que assim exigem.
+- Ledger de eventos, deadlines, transações e efeitos.
+- Primeiro ponto de divergência, se houver.
+- Trace mínimo reproduzível com perfil, seed, comandos e estado inicial.
+
+## 2. Princípio de independência
+
+O oráculo MUST ser independente do algoritmo/representação candidata de produção e dos protótipos R3.
+
+A independência será demonstrada por estas decisões:
+
+1. **Sem agenda heap/priority queue:** o modelo mantém uma coleção declarativa de obrigações e procura candidatos por varredura completa. A complexidade pode ser alta; desempenho não é objetivo do R2.
+2. **Sem dispatch concorrente:** cada transição é uma função lógica serial e determinística. Threads, locks, atomics, callbacks e scheduling do host não participam.
+3. **Sem representação de runtime compartilhada:** o modelo usa aritmética exata de referência e estado explícito, sem reutilizar tipos, crates, codecs ou APIs da futura implementação.
+4. **Sem cópia da V1:** nenhuma dependência de path, estrutura, scheduler ou implementação V1 será importada.
+5. **Sem inferência física:** fase UNKNOWN, WAIT externo UNKNOWN, presença/commit UNKNOWN e relações simultâneas não demonstradas permanecem indeterminadas ou restringem a operação.
+6. **Sem otimização prematura:** clareza, auditabilidade e capacidade de produzir contraexemplos prevalecem sobre throughput.
+
+### 2.1 Tecnologia do oráculo
+
+A implementação de referência será um artefato de verificação isolado em Python, usando somente a biblioteca padrão:
+
+- `fractions.Fraction` para razões e coordenadas racionais exatas;
+- inteiros arbitrários para contadores e identidades;
+- `dataclasses`/tuplas imutáveis para estados e resultados;
+- `enum` para classes de resultado e estados normativos;
+- `unittest` para asserções executáveis;
+- `random.Random(seed)` para geração determinística reproduzível.
+
+O modelo Python **não é backend, runtime, dependência de build ou código de produção**. Ele existe para ser estruturalmente independente do backend Rust futuro. Não será ligado ao desktop, GUI, áudio ou vídeo. Não introduzir dependências de terceiros no primeiro incremento.
+
+A escolha de Python é uma decisão de implementação do oráculo, não uma escolha de representação temporal de produção. Se uma limitação demonstrável impedir a prova de alguma propriedade, documentar a lacuna antes de adicionar dependência ou trocar o modelo.
+
+## 3. Modelo matemático de estado
+
+O estado de referência é um valor lógico explícito. A implementação pode usar records imutáveis ou cópias completas; não deve esconder transições em callbacks.
+
+### 3.1 Domínio temporal
+
+Cada domínio (d) declara:
+
+- razão exata entre unidades locais e tempo comum;
+- offset/fase inicial somente quando conhecido;
+- progresso local (P_d);
+- horizonte seguro (H_d);
+- resíduo de conversão necessário para preservar equivalência;
+- validade da conversão e perfil a que pertence.
+
+A conversão para tempo comum é uma função exata. O oráculo não usa float, arredondamento binário nem tolerância epsilon. Uma razão não conversível, participante ausente ou perfil incompatível não pode ser substituído por estimativa.
+
+### 3.2 Watermark e conjunto de participantes
+
+(W) é o corte causal global confirmado. Ele é monotônico e só fecha quando todas as obrigações até o corte foram processadas, canceladas validamente ou demonstradas sem efeito.
+
+O conjunto de participantes é explícito por cenário. Para calcular (A(E)), o modelo primeiro valida a completude do conjunto e todas as conversões (P_d) para a linha temporal comum; somente depois calcula o máximo. É proibido produzir máximo parcial.
+
+- conjunto incompleto: `Blocked`;
+- conversão inválida: `IndeterminateCausalOrder`;
+- nenhum estado parcial é publicado como se fosse um máximo válido.
+
+### 3.3 Relação causal parcial
+
+A comparação de duas obrigações retorna uma relação explícita:
+
+- `Before`;
+- `After`;
+- `SameKnownPhase` ou relação equivalente comprovada;
+- `CommutativeAtSameInstant`;
+- `Unknown`.
+
+O modelo não totaliza uma relação UNKNOWN usando ordem de inserção. Para efeitos não comutativos simultâneos sem relação física demonstrada, não escolhe vencedor, não fecha (W) através do conflito e retorna a indeterminação normativa aplicável.
+
+Uma sequência estável pode ordenar a apresentação do trace ou operações comprovadamente comutativas; nunca pode ser interpretada como precedência elétrica.
+
+### 3.4 Obrigações e deadlines
+
+Cada obrigação contém proprietário, identidade estável, geração, instante causal, classe de efeito e estado. Cancelamento/substituição invalida a geração anterior. A varredura integral do conjunto de obrigações substitui qualquer agenda eficiente: o oráculo escolhe somente obrigações cuja precedência esteja demonstrada.
+
+A corrida cancelamento (C<D) segue o corte causal aprovado em R1: cancelamento admitido deve ser arbitrado antes de (W) fechar (D); atraso operacional de dispatch não muda o resultado lógico. O modelo registra separadamente admissão, arbitragem, claim e aplicação do efeito.
+
+### 3.5 Transações
+
+A máquina de estados segue literalmente R1 §7.2–§7.4:
+
+- Criada;
+- Em andamento;
+- Aguardando;
+- Pronta;
+- Concluída;
+- Cancelada;
+- Falha.
+
+Amostragem e commit são marcadores independentes e monotônicos. Cada efeito irreversível possui identidade e ledger. Retry idêntico devolve o estado/resultado registrado; não repete efeito. Recuperação de Falha é comando explícito distinto. Cancelada permanece terminal.
+
+### 3.6 WAIT e interrupções
+
+WAIT automático Z80, WAIT externo e WAIT de fixture são classes distintas. O oráculo só consome TW e reamostra nos pontos documentados do cenário. WAIT externo UNKNOWN não vira inativo, não injeta TW e não inventa ponto de amostragem.
+
+IRQ/NMI são modeladas como níveis/transições e pontos lógicos de observação declarados. EI delay, borda NMI, acknowledge, vetor e efeito de dispositivo são cenários separados. `ACK_DEVICE_COMMIT(profile, device)` permanece específico do perfil/dispositivo. Se presença ou fronteira de commit for UNKNOWN na janela ambígua, snapshot retorna `UnsupportedSnapshot`, sem artefato e sem mutação.
+
+### 3.7 Snapshot e replay
+
+Snapshot é permitido somente em corte suportado e serializável. O estado de referência inclui obrigações, deadlines e gerações, transações, marcadores, valores amostrados, ledger de efeitos e condições de WAIT.
+
+Em corte ambíguo não suportado:
+- resultado `UnsupportedSnapshot`;
+- nenhum artefato parcial;
+- estado anterior byte/logicamente equivalente após a chamada;
+- nenhuma mutação ou efeito colateral.
+
+Replay compara execução contínua com restauração de snapshot suportado e repetição da mesma sequência de entradas. O modelo exige equivalência de estado observável e ledger, não igualdade de custo interno.
+
+## 4. Operações abstratas do oráculo
+
+As operações são comandos de um interpretador de referência, não APIs CHRONOS:
+
+| Comando abstrato | Efeito de referência |
+|---|---|
+| `Advance(target)` | Avalia progresso, horizonte, watermark e obrigações; aplica somente transições causais autorizadas e devolve classe de resultado/progresso real |
+| `Synchronize(domain, target)` | Resolve obrigações próprias/causais do domínio até o alvo permitido, sem ultrapassar fronteira pendente |
+| `PublishDeadline(owner, id, generation, instant)` | Valida proprietário, geração, (P_d), (W), microstep e causalidade antes de admitir |
+| `CancelDeadline(id, generation, causal_instant)` | Valida identidade/geração e corte de admissão; arbitra antes do fechamento de (W) quando (C<D) |
+| `BeginTransaction(descriptor)` | Admite descritor e cria estado sem amostragem/commit prematuros |
+| `Sample(marker)` | Captura o valor uma vez na fronteira declarada e grava o resultado |
+| `Commit(marker)` | Aplica o efeito uma vez na fronteira declarada e grava o ledger |
+| `Resume(transaction_id)` | Continua do primeiro marco pendente, sem repetir os anteriores |
+| `Snapshot(cut)` | Produz snapshot completo somente para corte suportado |
+| `Restore(snapshot)` | Restaura o corte exato, incluindo pendências e gerações |
+| `Replay(inputs)` | Reexecuta a mesma sequência lógica e compara estado/ledger |
+| `ObserveHost(action)` | Simula atraso, descarte, drain ou underrun de saída sem tocar no estado virtual |
+
+Cada comando retorna o estado anterior e posterior (ou hash canônico), resultado normativo, eventos/efeitos adicionados e motivo de rejeição. Operações que R1 exige rejeitar sem mutação MUST comprovar igualdade do estado antes/depois.
+
+## 5. Matriz de propriedades executáveis
+
+A matriz R1 §13 é a fonte normativa detalhada. Este plano define o que o oráculo deverá provar em cada propriedade:
+
+| Propriedade | Núcleo de verificação | Contraexemplos/famílias obrigatórias |
+|---|---|---|
+| R2-T01 Monotonicidade | (P_d), (H_d), (W), avanço e rejeição retroativa | avanço crescente/repetido/retroativo; regressão interna; igualdade idempotente; ausência de mutação |
+| R2-T02 Chunk invariance | Equivalência entre avanço único e partições permitidas | cortes aleatórios; partição na fronteira; partição sem nova entrada/observação |
+| R2-T03 Conversão sem deriva | Conversão exata e conservação de resto/fase | razões inteiras/não inteiras; conversão encadeada; sessões longas; overflow |
+| R2-T04 Limite seguro | `Reached`/ `StoppedAt` / `Blocked` e H_d inclusivo | deadline anterior; T=H_d com obrigação pendente; B=T; B<T; domínio bloqueado; W não cruza efeito pendente |
+| R2-T05 Sincronização causal | Observação só após sincronizar destino ao ponto de amostragem/commit | leitura de contador/status; escrita de porta; IRQ publicada antes da observação |
+| R2-T06 Ordenação e cancelamento | Relação causal parcial, admissão e arbitragem | D<P_d; D<=W; D=P_d com/sem microstep; conjunto incompleto; conversão inválida; C<D; empate; permutações de publicação/dispatch |
+| R2-T07 UNKNOWN | Nenhuma precedência inventada | eventos não comutativos simultâneos sem fase; W não fecha; resultado indeterminado |
+| R2-T08 Exactly-once | Máquina de estados, amostragem, commit e ledger | toda transição válida/inválida; retry idêntico; ID divergente; falha antes/depois de cada efeito; recuperação explícita |
+| R2-T09 WAIT | Separação de TW automático, WAIT externo e fixture | ativo/inativo conhecido; reamostragem; UNKNOWN sem TW especulativo |
+| R2-T10 IRQ/NMI | Pontos de observação, EI delay, borda NMI e acknowledge | níveis antes/depois; perfil NONE; efeito/commit conhecido; snapshot UNKNOWN -> UnsupportedSnapshot |
+| R2-T11 Snapshot/restore | Continuação equivalente e invalidação de geração obsoleta | todos os estados de deadline/transação; entre amostragem e commit; INT acknowledge; UnsupportedSnapshot sem mutação |
+| R2-T12 Replay/admissão | Replay contínuo vs restore; cálculo integral de (A(E)) | (T<=A(E)), (T>A(E)), igualdade idempotente vs nova entrada; conjunto incompleto; conversão inválida; recálculo de H_d |
+| R2-T13 Host independence | Ação do host não altera tempo/estado virtual | atraso, drain, descarte, underrun, tamanhos de bloco diferentes |
+| R2-T14 Microstep finito | Progresso lógico sem loop infinito | evento gera evento no mesmo instante; ciclo sem progresso; limite excedido; permutação comutativa |
+| R2-T15 Overflow/erro/atomicidade | Classes de erro e ausência de mutação parcial | overflow, IDs/perfis inválidos, precedência de validação, capacidade, transição inválida, cancelamento tardio, snapshot UNKNOWN, falha parcial |
+
+Cada teste terá identificador estável, contrato(s) R1 coberto(s), pré-condição, sequência de comandos, resultado esperado, invariantes pós-condição e evidência produzida. Não basta ter um teste nominal por propriedade.
+
+## 6. Estratégia de geração e redução de cenários
+
+1. Manter um catálogo explícito de casos de fronteira determinísticos antes da geração aleatória.
+2. Cada gerador recebe seed obrigatória e parâmetros limitados; a mesma seed deve gerar a mesma sequência.
+3. Ao falhar, registrar seed, perfil, sequência completa, primeiro passo divergente e estados anterior/posterior.
+4. Aplicar redução determinística por remoção de comandos e simplificação de valores, preservando a falha.
+5. Nunca reduzir removendo a condição que torna a relação causal UNKNOWN ou que caracteriza a fronteira testada.
+6. Separar falhas do oráculo (contradição/incompletude do contrato) de falhas do gerador e de violações esperadas da propriedade.
+
+## 7. Evidência e relatório de execução
+
+Cada execução deve registrar:
+
+- commit SHA do repositório e hash do oráculo;
+- versão do Python e sistema operacional;
+- perfil de hardware/clock explicitamente modelado;
+- ID da propriedade, caso, seed e parâmetros;
+- resultado esperado/observado;
+- primeiro ponto divergente;
+- estado mínimo reproduzível;
+- limitações, UNKNOWNs e qualquer hipótese usada.
+
+Resultados possíveis: `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`. `SKIPPED` nunca é convertido em `PASS`. Uma propriedade só pode ser marcada PASS quando todos os seus casos obrigatórios aplicáveis forem executados e seus resultados preservarem o contrato.
+
+## 8. Sequência de implementação do R2
+
+### R2-A — núcleo matemático mínimo
+- tipos de valor/resultado e estado imutável;
+- relógios/domínios com conversão exata;
+- relação causal parcial;
+- cálculo de (A(E)) com conjunto completo;
+- varredura linear de obrigações, sem heap;
+- operações Advance/Synchronize;
+- R2-T01–T04.
+
+### R2-B — eventos e deadlines
+- proprietário, identidade, geração;
+- publicação, cancelamento e substituição;
+- arbitragem C<D antes de fechamento de W;
+- simultaneidade, UNKNOWN e microsteps;
+- R2-T06, T07 e T14.
+
+### R2-C — transações, WAIT e interrupções
+- máquina de estados e ledger exactly-once;
+- WAIT em classes separadas;
+- IRQ/NMI, acknowledge e efeito de dispositivo por perfil;
+- R2-T05, T08, T09 e T10.
+
+### R2-D — persistência e robustez
+- snapshot/restore dos cortes suportados;
+- UnsupportedSnapshot sem artefato/mutação;
+- replay, overflow, erro e atomicidade;
+- host independence;
+- R2-T11–T13 e T15.
+
+### R2-E — fechamento e revisão
+- executar a matriz R2-T01–T15;
+- gerar pacote de reprodução e matriz de cobertura;
+- revisão independente adversarial;
+- registrar limitações e critérios não satisfeitos;
+- solicitar aprovação formal R2.
+
+A ordem pode ser refinada se uma dependência lógica demonstrada exigir, mas nenhuma propriedade pode ser silenciosamente omitida.
+
+## 8.1 Primeiro incremento executável — R2-A
+
+Foi criado o oráculo isolado em `SUN-V2/verification/r2_reference/`:
+
+- `chronos_reference.py`: estado imutável, domínios de clock, conversão racional exata, conjunto explícito de participantes, obrigações e avanço por varredura integral;
+- `test_temporal_core.py`: testes iniciais de monotonicidade, chunk invariance, conversão exata e limite seguro;
+- `README.md`: instruções de execução e limites do artefato.
+
+**Evidência histórica anterior (não vinculada):** foram reportados 19 testes PASS em Python 3.13.5 / Linux x86_64, mas a execução original não registrou o SHA do repositório nem o SHA-256 do oráculo. Conforme revisão Codex, essa execução é evidência local não auditável e **não pode ser atribuída ao HEAD atual**.
+
+**Execução reproduzível vinculada — PASS:** o runner foi executado no CI #10619 sobre o candidato abaixo. Os arquivos do oráculo, dos testes e do runner não foram alterados após essa execução.
+
+- SHA Git executado: `a0c0782ff4d8e9886144b20bde36e42bcc6f1eff`.
+- SHA-256 de `chronos_reference.py`: `160489b753575f0e7fcb12892eb58f7199a1dc5828c5bb4f13c266f557ba001a`.
+- Python: `3.14.4`.
+- Ambiente: `Linux-7.0.0-1020-azure-x86_64-with-glibc2.43`.
+- Perfil abstrato: `SMS-NTSC`.
+- Comando: `python3 run_reference_tests.py`.
+- Resultado agregado: **24 tests PASS**, execução em 0.159 s.
+
+| Propriedade | Casos executados | Resultado |
+|---|---:|---|
+| R2-T01 | 9 | PASS — inclui conversão inválida, progresso float e proprietário obrigatório |
+| R2-T02 | 4 | PASS — inclui paridade em H_d e obrigação pendente, com continuação após resolução, além de 100 seeds |
+| R2-T03 | 3 | PASS — round-trip, composição e sessões de 10.000 conversões por razão |
+| R2-T04 | 8 | PASS — fronteiras, endpoint inclusivo, obrigações pendentes e horizonte global |
+| R2-T05–T15 | 0 | NOT RUN |
+
+Esta evidência valida somente os casos implementados em T01–T04. Não aprova integralmente essas propriedades além da cobertura listada e não conclui R2.
+
+**Limitações conhecidas do primeiro incremento:**
+- Ainda não implementa relação causal parcial completa nem fases/eventos concorrentes.
+- Ainda não implementa publicação/cancelamento/dispatch de deadlines, ledger de efeitos de transação, WAIT, IRQ/NMI, snapshot/restore ou replay.
+- A propriedade T01–T04 está coberta por casos iniciais, não por geração aleatória/longa duração.
+- O modelo não representa hardware nem afirma qualquer fase física; todos os tempos são abstratos e exatos.
+
+A implementação não pertence ao backend e não pode ser importada pelo runtime Rust. Nenhum crate de produção foi criado.
+
+## 9. Critérios de saída R2
+
+R2 só pode ser aprovado quando:
+
+1. R2-T01–T15 tiverem resultados reproduzíveis, com casos positivos, negativos e de fronteira aplicáveis.
+2. O oráculo estiver demonstravelmente independente de algoritmo/representação candidata e da V1.
+3. A matriz de rastreabilidade ligar cada teste a contratos R1 e aos resultados normativos.
+4. UNKNOWN não for convertido em fase, precedência, WAIT, commit ou compatibilidade presumida.
+5. Snapshot/restore/replay e ledger exactly-once forem verificados em cortes suportados e não suportados.
+6. Falhas produzirem contraexemplo mínimo reproduzível.
+7. A revisão independente não encontrar blockers.
+8. O responsável aprovar explicitamente R2 antes de R3.
+
+**Proibição mantida:** R2 não autoriza R3, não escolhe a arquitetura final e não autoriza qualquer código de produção CHRONOS/V2. R3 só começa após aprovação explícita de R2; código de produção somente após R5.
+
+---
+
+## 10. Registro de decisões e revisões
+
+| Data | Versão/SHA | Evento | Estado |
+|---|---|---|---|
+| 2026-11-24 | R1 v0.3.18; aprovado em `ac912f342ff303b3fdc554b90d00e85b23d86c76`; merge `88e105d6495f7f5105502e53666a7b0d29f77572` | Responsável aprovou publicação da PR #1281 e autorizou início de R2 | R1 APROVADO; R2 iniciado |
+| 2026-11-24 | R2 v0.1 | Estrutura inicial do oráculo, independência, matriz de propriedades e sequência R2-A–R2-E | Rascunho; requer revisão e execução |
+
+Este documento é um plano executável de verificação em evolução. Não altera retroativamente os contratos normativos aprovados em R1.
+
+
+### 8.1.1 Reexecução após findings Codex — HEAD `a8cef1bcc39e284729a7a55fc16e27deb9fb4b22`
+
+Após a revisão independente do HEAD anterior, foram corrigidos dois findings P2: o runner agora bloqueia a execução quando o worktree Git está sujo ou o HEAD não pode ser obtido, e registra hashes SHA-256 do oráculo, do runner e de cada módulo de teste descoberto; a validação do watermark ocorre antes de qualquer resultado de progresso bloqueado por conjunto incompleto, impedindo a exposição de um valor não exato.
+
+- CI: [run #10623](https://github.com/leonardo201800478/SUN/actions/runs/45505844730).
+- SHA Git executado: `a8cef1bcc39e284729a7a55fc16e27deb9fb4b22`.
+- Worktree: `CLEAN`.
+- SHA-256 de `chronos_reference.py`: `de802612b198996cd6e888aa9fa8840596fa42ab8319aef0611b3841052a30b3`.
+- SHA-256 de `run_reference_tests.py`: `bb4798b3cc073b785a8c71e5796a24a595be0cc2ebf32501978bd5d23494bc77`.
+- SHA-256 de `test_temporal_core.py`: `b5a6ad833240b5f622ac313d98595bd17a079a51289dedf71c7d0f7bdd1f3d1e`.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+- Resultado do runner: **25 tests PASS** em 0.090 s; `test_status=PASS`.
+- Contagem atual: R2-T01 = 10; R2-T02 = 4; R2-T03 = 3; R2-T04 = 8. R2-T05–T15 = **NOT RUN**.
+- CI também reportou PASS para validação de workflow (actionlint), higiene documental e supervisor de qualidade Rust. Jobs específicos de hardware/Windows permaneceram SKIPPED, não PASS.
+- Esta execução confirma somente os 25 casos identificados; não conclui R2 e não substitui revisão independente do novo HEAD.
+
+
+### 8.1.2 Reexecução após finding sobre o comando plain unittest — HEAD `52b6dd127dcb9f301c8caaa23813f6d2648fae00`
+
+A revisão Codex do HEAD `1ad80f41f52a5a1f676114fc66a242c3bae49089` identificou que um teste da suíte verificava `sys.dont_write_bytecode` no processo chamador. Essa condição pertence ao runner dedicado e não pode ser pré-requisito para o comando `python -m unittest -v` documentado.
+
+Correção aplicada:
+- removido o teste de estado do processo e o import `sys` de `test_temporal_core.py`;
+- mantido `sys.dont_write_bytecode=True` dentro de `run_reference_tests.py`, antes da descoberta;
+- README ajustado para 27 testes e para manter o comando plain unittest documentado;
+- CI ampliado para executar o comando literal `python3 -m unittest -v`, remover somente os diretórios `__pycache__` produzidos por essa execução, verificar worktree limpo e executar novamente o runner dedicado.
+
+Evidência vinculada:
+- CI: [run #10634](https://github.com/leonardo201800478/SUN/actions/runs/45511594153) — **SUCCESS**.
+- SHA Git executado: `52b6dd127dcb9f301c8caaa23813f6d2648fae00`.
+- Worktree: `CLEAN` na primeira e na segunda execução do runner.
+- SHA-256 de `chronos_reference.py`: `41ee0d615996c8003c289eb113623873ecaa8b1a6e852a33a47f1510c354ccd1`.
+- SHA-256 de `run_reference_tests.py`: `244c61e977f03f4ccad7edc17381dd60335b12406014f08b4dd29fc16c6de8c7`.
+- SHA-256 de `test_temporal_core.py`: `ad4dbc4c7df135db34cea71cecbeae30149a1bca87f51ca7c5704b95212c8eef`.
+- Ambiente: Python 3.14.4; Linux x86_64; perfil abstrato SMS-NTSC.
+- Runner dedicado: **27/27 PASS** na primeira execução e **27/27 PASS** na segunda execução.
+- Comando plain `python3 -m unittest -v`: **27/27 PASS**.
+- Actionlint, higiene documental e supervisor de qualidade: **PASS**.
+- Jobs de Rust, hardware e Windows não aplicáveis a este diff: **SKIPPED**, não PASS.
+- Contagem coberta: R2-T01 = 12; R2-T02 = 4; R2-T03 = 3; R2-T04 = 8. R2-T05–T15 = **NOT RUN**.
+
+Esta evidência substitui a contagem de 28 testes do HEAD anterior para o candidato atual. A revisão Codex do HEAD `52b6dd127dcb9f301c8caaa23813f6d2648fae00` foi solicitada e ainda estava em andamento no momento deste registro. R2 continua EM ANDAMENTO; nenhuma expansão R2-B, R3, produção ou merge é autorizada por esta execução.
+
+
+### 8.1.3 Correção do finding P2 — cálculo integral de A(E) para cancelamentos
+
+A revisão Codex do candidato `068f56dd9ad459cef84dc30797224d6f9c21ef62` identificou que `cancel_deadline` recebia `admission_frontier` como argumento e confiava nesse valor sem recalcular a fronteira a partir do estado completo. Isso permitia aceitar incorretamente `C=2` com `W=3`, `D=10` e fronteira fornecida igual a zero.
+
+Correção implementada no candidato subsequente:
+- `cancel_deadline` agora recebe o `ReferenceState` e deriva internamente `A(E)` a partir do progresso convertido de todos os participantes esperados e de `W`.
+- O conjunto incompleto retorna `Blocked`; conversões temporais inválidas ou divergência entre os watermarks do estado e do livro retornam `IndeterminateCausalOrder`.
+- A rejeição `C<=A(E)` ocorre antes da avaliação de `C<D` e não altera o livro de deadlines.
+- `replace_deadline` usa a mesma validação derivada, preservando a atomicidade da substituição.
+- Foram acrescentados seis testes discriminantes: watermark que excede o progresso local, progresso de participante não proprietário, conjunto incompleto, conversão inválida, watermarks divergentes e conversões racionais exatas.
+
+**Estado desta evidência:** correção e testes foram incorporados ao candidato, mas ainda não há resultado de CI nem revisão independente vinculados ao novo SHA. Não classificar a correção como PASS até essas execuções terminarem.
+
+
+### 8.1.4 Correção do finding P2 — empate C=D sem relação causal explícita
+
+A revisão Codex do SHA `eeda6c9f9a379c89cec79dd2743748e041338506` identificou que o caminho de cancelamento classificava `C=D` como `LateInput` apenas por satisfazer `C>=D`. Isso não implementava R1 §16.5.13(13)(b)/C06: quando `C=D>A(E)` e `W` não existe ou `W<D`, a supressão depende da relação causal ou do microstep explícito do perfil. A API atual não recebe essa relação; portanto, não pode inferi-la.
+
+Correção candidata:
+- Preservar a precedência normativa: `C<=A(E)` continua retornando `LateInput` antes de qualquer avaliação do empate.
+- Separar `C=D` de `C>D`: sem relação causal/microstep fornecida, o empate retorna `IndeterminateCausalOrder`, sem mutação; `C>D` retorna `LateInput`.
+- Substituir o teste que aceitava a classificação incorreta por um teste de empate indeterminado e sem mutação; adicionar teste independente para `C>D` tardio.
+
+**Cobertura adicional:** o empate sem `W` e com `W<D` possui testes discriminantes separados; ambos exigem `IndeterminateCausalOrder` sem mutação.
+
+**Estado da correção:** CI #10656 terminou SUCCESS no SHA `50d6cc64c9fa071d867ac5fa9db747116f4e32f6`; revisão independente desse SHA permanece pendente. R2 permanece EM ANDAMENTO; T06/T07/T14 continuam parciais. Não autoriza R3, produção ou merge.
+
+
+A suíte candidata foi ampliada para 57 testes (30 casos parciais no slice R2-B) para cobrir o empate C=D tanto sem watermark quanto com W<D. Essa contagem ainda requer CI vinculado ao novo HEAD.
+
+
+#### Evidência vinculada — CI #10656
+
+- HEAD executado: `50d6cc64c9fa071d867ac5fa9db747116f4e32f6`.
+- [CI #10656](https://github.com/leonardo201800478/SUN/actions/runs/45518319020): **SUCCESS**.
+- Job CHRONOS R2: 57/57 PASS; runner dedicado executado duas vezes e plain `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- Ambiente: Python 3.14.4 / Linux x86_64 / perfil abstrato SMS-NTSC.
+- SHA-256: `chronos_reference.py` = `41ee0d615996c8003c289eb113623873ecaa8b1a6e852a33a47f1510c354ccd1`; `deadline_reference.py` = `8ac62f8985c8fa56d448c21e6a2f8199151b8807b07fa2fb79c209ba034e7f99`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `1bff8aab0661e392017166b50165e77b8a4840b473e4f9a69565830b9e84c5ca`; `test_temporal_core.py` = `ad4dbc4c7df135db34cea71cecbeae30149a1bca87f51ca7c5704b95212c8eef`.
+- Actionlint, higiene documental e Rust quality/unit regression: PASS. Jobs de hardware/Windows: SKIPPED, não PASS.
+- Esta evidência está vinculada somente ao SHA executado. A atualização documental subsequente precisa de sua própria CI/revisão; nenhuma conclusão de gate é inferida.
+
+
+### 8.1.5 Precedência explícita de W fechado sobre empate e cancelamento anterior
+
+A auditoria complementar da matriz R1 §16.5.13(13) observou que os testes existentes cobriam `C=D) com `W) ausente e `W<D), mas não isolavam os ramos `W=D), `W>D) e `C<D) recebido depois de `W>=D). O código já rejeita esses casos pela precedência `C<=A(E)), pois `A(E)` inclui `W); foram acrescentados testes discriminantes para tornar a regra verificável e impedir regressão.
+
+- `C=D) com `W=D) ou `W>D` -> `LateInput`, sem mutação.
+- `C<D) recebido quando `W>=D` -> `LateInput`, sem mutação.
+- Os casos `C=D) sem `W) e com `W<D` continuam `IndeterminateCausalOrder` sem relação causal/microstep explícita.
+- `C>D) continua sem suprimir o deadline.
+
+**Evidência:** CI #10658 terminou SUCCESS no SHA `7ac41b64e3c11ae85d579ff0123f55e821b4bc89`; a suíte executou 59/59 PASS, com runner dedicado duas vezes e `python -m unittest -v`, worktree CLEAN nas duas execuções. A revisão independente do SHA executado permanece pendente. Os testes não alteram contratos R1, não completam T06/T07/T14 e não autorizam R3, produção ou merge.
+
+
+#### Evidência vinculada — CI #10658
+
+- HEAD executado: `7ac41b64e3c11ae85d579ff0123f55e821b4bc89`.
+- [CI #10658](https://github.com/leonardo201800478/SUN/actions/runs/45518807530): **SUCCESS**.
+- Job CHRONOS R2: 59/59 PASS; runner dedicado duas vezes e plain `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- `deadline_reference.py` SHA-256: `8ac62f8985c8fa56d448c21e6a2f8199151b8807b07fa2fb79c209ba034e7f99`.
+- `test_deadlines.py` SHA-256: `f0050b18082758d078aabcb1c8735dfeb18bae5174bfb28b8f907e8debc8ba68`.
+- Esta evidência está vinculada somente ao SHA executado. A atualização documental subsequente precisa de sua própria CI/revisão; nenhuma conclusão de gate é inferida.
+
+
+### 8.1.6 Consistência do watermark na publicação de deadlines
+
+A auditoria do caminho `publish_deadline()` identificou que o modelo validava a exatidão de `DeadlineBook.watermark_common`, mas não comparava esse valor com `ReferenceState.watermark_common`. Como ambos representam o mesmo corte global no oráculo, aceitar divergência poderia admitir um deadline usando um watermark diferente daquele presente no estado temporal.
+
+Correção candidata:
+- validar a exatidão dos dois watermarks;
+- exigir igualdade entre o watermark do livro de deadlines e o watermark do estado de referência antes da comparação temporal;
+- retornar `IndeterminateCausalOrder` sem mutação quando houver divergência;
+- ajustar o caso de teste de watermark fechado para fornecer o mesmo valor nas duas estruturas;
+- adicionar teste para divergência em ambos os sentidos (watermark apenas no estado e watermark apenas no livro), verificando ausência de mutação.
+
+**Estado:** implementação no commit `ebb4c937fc6b9205b87c639d8e9515e0c7643a39`; teste no commit `14bc6b96d228c1b9b696422ee1f6ed0340c3981f`. CI #10660 foi disparado para o HEAD de código/testes e aguarda conclusão. A contagem candidata passa a 60 testes e 33 casos no slice R2-B, ainda sem classificação PASS até o CI. T06/T07/T14 continuam parciais; R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.7 Preservação de W ao agendar microsteps
+
+A validação de consistência introduzida em `publish_deadline()` revelou uma interação no helper `schedule_microstep()`: o estado sintético usado para admitir o evento filho era criado sem copiar o watermark já fechado do `DeadlineBook`. Com isso, um microstep futuro poderia ser rejeitado por divergência artificial entre o estado sintético e o livro.
+
+Correção candidata:
+- propagar `book.watermark_common` para o `ReferenceState` sintético usado por `schedule_microstep()`;
+- testar admissão de microstep em instante posterior a W, preservando W;
+- testar rejeição `LateInput`, sem mutação, quando o microstep tenta ocorrer exatamente em W.
+
+**Estado:** implementação no commit `c6ee43d8172c227ee3571464807b0997bfecc10a`; testes no commit `fbb340f837062d12e327686f1e9964fc5cf691c7`. O candidato passa a 62 testes (35 casos R2-B). CI para o incremento de código/testes ainda pendente; não classificar como PASS até execução vinculada. T06/T07/T14 continuam parciais; R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.8 Validação estrutural dos participantes na publicação
+
+A comparação entre `publish_deadline()` e `_cancellation_admission_frontier()` revelou uma assimetria: o cancelamento rejeitava identidades de participante duplicadas ou inválidas, mas a publicação convertia a lista de domínios em um conjunto antes de verificar duplicidade. Um estado com dois domínios de mesmo ID poderia, portanto, aparentar um conjunto completo e prosseguir usando apenas o primeiro domínio encontrado. A publicação também não rejeitava perfil vazio.
+
+Correção candidata:
+- validar que o estado e o perfil são válidos antes de consultar os domínios;
+- rejeitar identidade de participante vazia, duplicada ou fora do conjunto esperado;
+- rejeitar identidade inválida no conjunto de participantes esperados;
+- retornar `InvalidInput` sem mutação;
+- adicionar testes para participante duplicado e perfil vazio.
+
+**Estado:** implementação no commit `4074b78d528b97d15677138421753fd983d74d05`; testes no commit `fa59b6f3ad092656ae9cbbd95173afc71922adf3`. O candidato passa a 64 testes e 37 casos no slice R2-B. CI vinculado ainda pendente; não classificar como PASS antes da execução. T06/T07/T14 permanecem parciais; R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.9 Validação estrutural defensiva do oráculo de deadlines
+
+A revisão independente Codex do HEAD `91dbb4344ecd24699ef88719e4c65b872dd72393` confirmou três findings P2 na fronteira de entrada do slice R2-B:
+
+- `ReferenceState.domains` podia conter um objeto que não fosse `ClockDomain`; a leitura antecipada de `domain_id` provocava `AttributeError`.
+- `expected_participants` podia ter um contêiner/elementos incompatíveis com o contrato; construir `set(...)` antes da validação podia provocar `TypeError`.
+- `DeadlineBook` podia ser um objeto de tipo incorreto ou conter coleções/entradas malformadas; publicação/cancelamento podiam dereferenciá-lo antes de produzir um resultado do oráculo.
+
+Correção candidata:
+- validar o tipo dos contêineres e cada objeto `ClockDomain` antes de ler seus campos;
+- validar o tipo `frozenset` e as identidades de participantes antes de qualquer conversão/conjunto;
+- validar `DeadlineBook`, watermark, limite de microsteps, contêineres e campos de cada `Deadline`/`Cancellation` antes de percorrer ou alterar o livro;
+- aplicar a validação do livro também às operações públicas de arbitragem, fechamento de W, dispatch, completion e microstep;
+- preservar `IndeterminateCausalOrder` para conversões de clock não comparáveis; usar `InvalidInput` para estrutura/tipo/descritor inválido;
+- manter todas as rejeições atômicas, retornando o mesmo livro sem mutação;
+- adicionar onze testes de regressão cobrindo domínios inválidos, conjunto esperado malformado, livro ausente, deadlines/cancelamentos malformados e validação nas operações de fechamento/microstep.
+
+**Evidência vinculada — CI #10672:** executada no HEAD `6bb6b24bf5551379af13bc104b2ab900dcee6544`; [run](https://github.com/leonardo201800478/SUN/actions/runs/45524036173) — **SUCCESS**. O job CHRONOS R2 executou 75/75 PASS no runner dedicado, em duas execuções consecutivas, e no comando plain `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `deadline_reference.py` = `27d1d859a77f976187cf8fad1eac8090e879a5a9eea71defe119b60a48a34498`; `test_deadlines.py` = `dec6b21314b2f3011fa0d701f99dbd6db3dd5fe86d3c922d35b4bbb2ba36681f`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `chronos_reference.py` = `41ee0d615996c8003c289eb113623873ecaa8b1a6e852a33a47f1510c354ccd1`. Actionlint, higiene documental e supervisor de qualidade: PASS; jobs Rust/hardware/Windows e subsistemas não relacionados: SKIPPED, não PASS.
+
+R2 continua EM ANDAMENTO; T05, T08–T13 e T15 permanecem NOT RUN; T06/T07/T14 permanecem parciais; R3–R5 continuam BLOQUEADOS. Nenhum código de produção CHRONOS/V2 ou merge é autorizado.
+
+
+### 8.1.10 Correções dos contraexemplos de watermark, microsteps e horizonte — 25/11/2026
+
+Foram reproduzidos quatro contraexemplos no HEAD anterior e corrigidos na própria branch da PR #1283:
+
+- **P1 — consistência entre frontier e horizonte global:** após validar todos os participantes, o oráculo calcula `H = min(H_d)` e `F = max(W, P_d)`. Se `H < F`, retorna `InvariantViolation` sem alterar o estado. O teste cobre `W=20`, `H=10`, avanço solicitado em 20.
+- **P1 — limite finito de microsteps na API pública:** `publish_deadline()` calcula o nível efetivo (incluindo o nível 1 implícito de `microstep=True`) e compara com `DeadlineBook.max_microsteps`. Nível acima do limite retorna `ResourceExhausted` sem mutação; o limite exato continua aceito. Os testes usam limite 2 e níveis 3 e 999.
+- **P2 — deadline anterior ao watermark já fechado:** `close_watermark()` rejeita estado inconsistente que contenha deadline ainda `Scheduled` com `D <= W` antes de reivindicar eventos ou avançar W. O teste usa `D=4`, `W=5` e verifica ausência de mutação.
+- **P2 — validação temporal para publicação/cancelamento:** `_validate_reference_state()` exige `horizon_local` exato e `horizon_local >= progress_local` antes da admissão. Testes cobrem `0.5`, `-1` e horizonte 1 com progresso 2, tanto em publicação quanto em cancelamento; rejeições não alteram o livro.
+
+A primeira execução do candidato de 80 testes expôs uma fixture antiga inválida: o progresso do VDP era 5 enquanto o horizonte local permanecia no default 0. A fixture foi corrigida para horizonte 100; nenhuma validação foi relaxada. Também foi preservada a precedência da validação estrutural/temporal do estado antes do retorno `ResourceExhausted` do limite de microsteps.
+
+**Evidência vinculada — CI #10676:** HEAD `09f2ba729d70d3e2760c4844bcc4b2df06aaba2b`; [run](https://github.com/leonardo201800478/SUN/actions/runs/45529157944) — **SUCCESS**. A suíte CHRONOS R2 executou 80/80 PASS no runner dedicado duas vezes e no comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `701ca24e4f61bcb083504c87a079b72f0f034bd4b7abc5e3ec5fd9d176986265`; `deadline_reference.py` = `b92716d4b29e0e57846679b310ba1519f72685967308c6d16206b54c0ac0ef07`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `587f43e2dde2816f70b1e59b6f73ee8fdf828f4c9ecce79d5b50a1a0fd8d2c4b`; `test_temporal_core.py` = `fdbc70d9bd8dd79092b604bcb317d7f5af29205f73aa11a9b9ef9a6648730b55`. Actionlint, higiene documental e supervisor de qualidade: PASS. Rust workspace, Windows e hardware: SKIPPED.
+
+Naquele candidato, a cobertura executada era de 80 testes: T01=12, T02=4, T03=3, T04=9; slice R2-B=52 casos. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 continuam NOT RUN. R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS. Esta evidência não aprova o gate R2, não autoriza código de produção CHRONOS/V2 e não autoriza merge.
+
+
+### 8.1.11 Revisão adversarial de horizonte global, arbitragem e substituição — 25/11/2026
+
+A revisão do HEAD `ff57ca2d2500906cbfefe3ca43d8b35745a5a97b` identificou quatro lacunas adicionais. As correções foram implementadas na mesma branch da PR #1283:
+
+- **P1 — horizonte global em todos os caminhos:** `chronos_reference._validate_state()` e `deadline_reference._validate_reference_state()` comparam o menor horizonte convertido conhecido com a fronteira conhecida formada por W e os progressos convertidos. Se os dados já conhecidos provam `H < max(W, P_d)`, o resultado é `InvariantViolation` antes de um retorno `Blocked`. Quando o conjunto está incompleto e não há contradição demonstrável, a operação continua `Blocked`; nenhum máximo parcial é exposto como A(E) ou frontier de avanço. Publicação e cancelamento aplicam a mesma validação global. A taxonomia separa tempo não exato (`InvalidInput`), conversão incomparável (`IndeterminateCausalOrder`) e horizonte regressivo (`InvariantViolation`).
+- **P2 — arbitragem owner/identity/generation:** `_validate_book()` agora valida a relação cruzada entre cada cancelamento pendente e o deadline exato correspondente. Owner divergente, request órfão, chave duplicada, status diferente de `CancelPending` ou deadline `CancelPending` sem request correspondente invalidam o livro antes de qualquer arbitragem. As rejeições preservam o livro original.
+- **P2 — fronteira antes do estado de ciclo de vida:** `cancel_deadline()` deriva A(E) antes de classificar uma geração já `Claimed`/não cancelável; assim, participantes incompletos retornam `Blocked` e conversões inválidas retornam `IndeterminateCausalOrder`, sem serem mascarados por `LateInput`. Um conjunto de participantes vazio para essa classe de entrada também retorna `Blocked`, conforme R1 §16.1.10.
+- **P2 — instante da nova geração em substituição atômica:** a API `replace_deadline()` representa uma única operação causal em `cancel_at`. Após validar o cancelamento e o descritor/admissão da nova publicação, `new_at_common < cancel_at` é rejeitado como `LateInput`; `new_at_common == cancel_at` retorna `IndeterminateCausalOrder`, pois a API não fornece relação causal/microstep explícita entre a substituição e a nova geração. Ambas as rejeições devolvem o livro original, sem cancelamento parcial. Esta é uma restrição conservadora do modelo de referência para a operação atômica; não é afirmação física nem alteração do texto normativo R1.
+- **P2 — igualdade explícita D=W no fechamento:** foi adicionado teste discriminante para deadline ainda `Scheduled` com `D == W) já fechado; `close_watermark()` rejeita sem reivindicar o evento nem mutar o livro.
+
+A documentação geral foi reconciliada: o README da raiz e `SUN-V2/README.md` agora indicam R1 APROVADO em 24/11/2026, R2 EM ANDAMENTO e R3–R5 BLOQUEADOS. O README do oráculo identifica explicitamente a execução de 80 testes no HEAD anterior como histórica e registra a evidência do novo candidato.
+
+**Evidência vinculada — CI #10681:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45530977080) — **SUCCESS** no HEAD `8c466dcaa1b5d5b4d6e9f076a03a1df9f0a2f2ab`. CHRONOS R2: **89/89 PASS**, runner dedicado em duas execuções e comando literal `python -m unittest -v`; worktree CLEAN. Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `d972005df827412bed74f0d1cc655e64fdad2aae3325f1f8842e4d4b5b531edb`; `deadline_reference.py` = `4a3999f3c0fa800a0feca4e35ffa5297e34a0eea0e6562014005f6b22496e942`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `fb33bda1923ca1d026fdb70a1c4a9ef11adb6a71b0fe8357a4ff2cc46a6ca9c7`; `test_temporal_core.py` = `c9fce1e6e3d247e9811d3a0c252066a91af8e81cc2ae2e08a32cf4a13ee03770`. Actionlint, higiene documental e supervisor de qualidade Rust: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+A cobertura candidata é 89 testes: R2-T01=13, T02=4, T03=3, T04=9; slice R2-B=60 casos. T06/T07/T14 continuam parciais; T05, T08–T13 e T15 permanecem NOT RUN. R2 continua EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum resultado desta execução aprova R2, autoriza R3, código de produção CHRONOS/V2 ou merge.
+
+
+### 8.1.12 Limite de microsteps em livros pré-construídos — 25/11/2026
+
+A revisão adversarial encontrou um bypass P2 na fronteira estrutural de `DeadlineBook`: `_validate_book()` verificava que `microstep` fosse inteiro não negativo, mas não comparava o valor armazenado com `book.max_microsteps`. Assim, um livro construído externamente com `max_microsteps=2` e deadline em `microstep=999` passava pela validação central e podia chegar à reivindicação em `close_watermark()`, embora `publish_deadline()` impedisse a publicação direta acima do limite.
+
+Correção candidata implementada:
+- `_validate_book()` rejeita cada deadline cujo `microstep > max_microsteps`, com `InvalidInput`, antes de qualquer operação pública que dependa da validação central;
+- a rejeição preserva o livro original, não reivindica deadlines e não avança o watermark;
+- regressão constrói diretamente livros com limite 2 e níveis 0, 1, 2 e 999; níveis 0–2 continuam válidos e claimable, enquanto 999 é rejeitado atomicamente.
+
+**Evidência vinculada — CI #10684:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45537064335) — **SUCCESS** no HEAD de código/testes `62480ce2502b3783d92c39d2afe91ea064ce8f65`. CHRONOS R2: **90/90 PASS**, runner dedicado duas vezes e comando literal `python -m unittest -v`; worktree CLEAN nas duas execuções. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `d972005df827412bed74f0d1cc655e64fdad2aae3325f1f8842e4d4b5b531edb`; `deadline_reference.py` = `30cbe9870750958752f2a2e7338bcfb523fa903aa8066f30aaffc93081fbd0c6`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `0d594b09a18af442b7cb142a85862eb8a8f459f45d4f6b8bd17592f65111b130`; `test_temporal_core.py` = `c9fce1e6e3d247e9811d3a0c252066a91af8e81cc2ae2e08a32cf4a13ee03770`. Actionlint, higiene documental e supervisor de qualidade Rust: PASS. Workspace Rust, Windows, hardware e subsistemas não relacionados: SKIPPED, não PASS.
+
+A revisão independente do novo HEAD foi solicitada via `@codex review` e ainda não foi concluída na última consulta. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhuma alteração normativa R1, implementação de produção CHRONOS/V2, aprovação ou merge decorre deste finding.
+
+
+### 8.1.13 Participantes de cancelamento, ordem C/D pendente e pré-validação de substituição — 25/11/2026
+
+A revisão adversarial do candidato anterior identificou três findings P2. As correções preservam R1 v0.3.18 e não introduzem hipóteses físicas:
+
+1. **Proprietário na fronteira A(E):** R1 §16.1.9–10 exige que o conjunto declarado de participantes de uma entrada inclua no mínimo o proprietário/consumidor direto e que todos estejam presentes/conversíveis antes do máximo. A função de fronteira agora recebe o owner do deadline e retorna `Blocked` se ele não estiver no conjunto declarado ou não estiver presente no conjunto completo. O livro permanece inalterado.
+2. **Ordem temporal de cancelamentos pendentes:** a validação operacional do livro separa a validação estrutural da classificação temporal de requests pendentes. Um request com C=D retorna `IndeterminateCausalOrder` por ausência de relação causal/microstep explícita somente quando W não existe ou W<D; se W>=D, retorna `LateInput` porque o corte já está fechado. C>D sempre retorna `LateInput`. A checagem ocorre antes de arbitragem, fechamento de W e demais operações públicas que validam o livro; nenhuma rejeição reivindica deadlines ou altera W.
+3. **Descritor de substituição antes da admissão:** `replace_deadline()` valida owner, identity, geração corrente/nova, monotonicidade da nova geração, timestamps exatos, effect ID e flags booleanas antes de chamar `cancel_deadline()`. Assim, descritor estruturalmente inválido retorna `InvalidInput` antes de qualquer classificação temporal de `cancel_at`; o livro original permanece intacto.
+
+Regressões adicionadas: proprietário ausente do conjunto declarado e proprietário declarado mas ausente dos domínios; cancelamentos pré-construídos C=D com W ausente, C=D com W>=D e C>D exercitados tanto por arbitragem quanto por fechamento de W; substituição com geração negativa, geração booleana, effect ID vazio e microstep de tipo inválido, todos combinados com cancelamento temporalmente tardio para comprovar a precedência de `InvalidInput`.
+
+**Evidência final vinculada — CI #10688:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45539509595) — **SUCCESS** no HEAD de código/testes `456be60c42bbfbe82ecc8bd4808dfc3ac7ecba86`. CHRONOS R2: **93/93 PASS**, runner dedicado duas vezes e comando literal `python -m unittest -v`; worktree CLEAN nas duas execuções. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `d972005df827412bed74f0d1cc655e64fdad2aae3325f1f8842e4d4b5b531edb`; `deadline_reference.py` = `7c792741f5b66113a1ce1b81fba0e82d62e72a871fb30475ba37fd5b5f1e6753`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `ad9609b39c41e24a97a7914eb5ed921520d12e43cf4b77d212ff55c91af67aca`; `test_temporal_core.py` = `c9fce1e6e3d247e9811d3a0c252066a91af8e81cc2ae2e08a32cf4a13ee03770`. Actionlint, higiene documental e supervisor de qualidade Rust: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+**Contagem candidata anterior:** 93 testes no total; slice R2-B=64. Essa contagem pertence ao candidato executado em CI #10688, não ao HEAD atual. A evidência executa os 93 casos implementados, mas T06/T07/T14 permanecem parciais e T05, T08–T13 e T15 seguem `NOT RUN`. A revisão independente Codex do HEAD `456be60c42bbfbe82ecc8bd4808dfc3ac7ecba86` foi solicitada; as três threads P2 foram respondidas com os commits e testes, mas a confirmação independente ainda está pendente. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+**Refinamento de precedência R1 §16.5.13(13)(b):** a classificação do cancelamento pendente pré-construído em C=D também considera o watermark. Se W não existe ou W<D, permanece `IndeterminateCausalOrder` sem relação causal/microstep explícita; se W>=D, retorna `LateInput`, pois o corte já foi fechado e o cancelamento não pode suprimir o claim. A regressão existente agora cobre as três condições C=D/W ausente, C=D/W=D e C>D.
+
+
+**Finding adicional — cancelamento C<D atrás de W fechado:** no HEAD candidato subsequente, `_validate_book_state()` também rejeita como `InvariantViolation` um livro pré-construído que preserva um cancelamento pendente C<D quando W>=D. Esse estado não poderia resultar de admissão válida: o cancelamento teria violado a fronteira A(E), e permitir sua arbitragem após o fechamento de W reabriria causalidade já fechada. A regressão executa ambos os caminhos (`arbitrate_cancellations()` e `close_watermark()`) para W=D e W>D, verificando código, livro intacto e ausência de claims. A suíte continua com 93 métodos de teste (slice R2-B=64); os dois cenários W=D e W>D são subcasos adicionais dentro da regressão existente. A CI #10692 executou ambos no SHA `5d919fa6daa2dffe984ca318935bac2cd284af13`: 93/93 PASS, runner duas vezes, worktree CLEAN. SHA-256: `deadline_reference.py` = `3075a684d0dfcbec56cb261e46f61b492c4e53ab08a0a771b4dfa14e813df9bd`; `test_deadlines.py` = `f1c77898bf153b2067fee2c4b517e553e6976635d58e0e4d8d8a5480ce8d934a`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`. [CI #10692](https://github.com/leonardo201800478/SUN/actions/runs/45540480375). Jobs de Actionlint, higiene documental, teste R2 e qualidade Rust: PASS; jobs Windows/hardware e regressões de subsistemas não relacionados: SKIPPED, não PASS. Não é aprovação de R2.
+
+### 8.1.14 Validação estrutural completa do estado de referência — 25/11/2026
+
+A revisão adversarial encontrou um caminho de exceção no oráculo R2-A: `_validate_state()` lia `domain.domain_id` antes de confirmar que `domains` era uma tupla de `ClockDomain`. Dataclasses não impõem os tipos das anotações em runtime; um estado pré-construído com `(object(),)` podia lançar `AttributeError` em vez de retornar `InvalidInput`.
+
+A correção amplia a validação estrutural anterior a qualquer acesso dependente dos dados:
+- exige `ReferenceState`, perfil string não vazio, `domains` como tupla somente de `ClockDomain`, `expected_participants` como `frozenset` de strings não vazias e `obligations` como tupla somente de `Obligation`;
+- valida identidade de domínio como string não vazia antes de construir conjuntos, evitando também `TypeError` para identidades não hashable;
+- valida os flags booleanos das obrigações antes de usá-los;
+- protege ambos os caminhos de erro de `advance()`: alvo temporal inválido e estado inválido com alvo exato não dereferenciam um objeto que não seja `ReferenceState`;
+- todos os casos malformados retornam `InvalidInput` e preservam o objeto de estado original, sem mutação ou exceção.
+
+Foram adicionados sete métodos de teste discriminantes: membro de domínio inválido, contêiner de domínios inválido, identidade não hashable, contêiner de participantes inválido, membro de obrigação inválido, estado não-ReferenceState com alvo inválido e estado não-ReferenceState com alvo exato. A cobertura R2-T01 passa de 13 para 20 casos; a suíte total passa de 93 para **100 testes**. O slice R2-B permanece em 64 casos.
+
+**Evidência vinculada — CI #10695:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45542860220) — **SUCCESS** no HEAD de código/testes `4ebf3c53e45b39ccb49304f3aada7568d126b855`. CHRONOS R2: **100/100 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `3075a684d0dfcbec56cb261e46f61b492c4e53ab08a0a771b4dfa14e813df9bd`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `f1c77898bf153b2067fee2c4b517e553e6976635d58e0e4d8d8a5480ce8d934a`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+A revalidação independente Codex do HEAD corrigido foi solicitada; seu resultado permanece pendente. As threads anteriores permanecem abertas até confirmação independente, mesmo quando a implementação e os testes atuais já cobrem suas correções. T06/T07/T14 continuam parciais; T05, T08–T13 e T15 permanecem NOT RUN. R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS. Esta evidência não aprova R2 nem autoriza produção CHRONOS/V2.
+
+### 8.1.15 Taxonomia de conversão exata e validação do descritor de microstep — 25/11/2026
+
+A auditoria do R2-B encontrou dois defeitos independentes:
+
+1. `_validate_reference_state()` agrupava valores de clock não exatos e razões de clock não comparáveis em uma mesma mensagem. `_reference_state_error_code()` verificava primeiro a expressão `clock conversion`, classificando também valores float em `IndeterminateCausalOrder`. R1 §16.12 reserva `InvalidInput` a valores/descritores fora do domínio; `IndeterminateCausalOrder` é reservado à conversão/comparabilidade necessária que não pode ser estabelecida.
+2. `schedule_microstep()` construía um `ReferenceState` sintético antes de validar o owner. Um owner não-string/não hashable podia provocar `TypeError` em `make_state()`. A função também agrupava timestamp não exato e microstep negativo/malformado com o limite de capacidade, retornando `ResourceExhausted` indevidamente.
+
+Correções implementadas:
+- valores de clock não exatos (ratio, offset ou progresso) retornam `InvalidInput`; razão exata não positiva continua retornando `IndeterminateCausalOrder` por conversão não comparável;
+- o mapeamento da taxonomia dá precedência a `not exact` antes de `clock conversion`;
+- `schedule_microstep()` valida owner, identity, generation, effect ID, flags, timestamp e microstep atual antes de criar o estado sintético;
+- descritor inválido retorna `InvalidInput`; somente `current_microstep >= max_microsteps` retorna `ResourceExhausted`; rejeições preservam o livro.
+
+Foram adicionados dois métodos de teste com subcasos: coordenadas não exatas em `local_to_common`, `common_offset` e `progress_local`, verificadas tanto em publicação quanto em cancelamento; e oito descritores inválidos de microstep, incluindo owner não hashable, identidade inválida, geração booleana, timestamp float, microstep negativo/não inteiro e flag não booleana. A suíte passa de 100 para **102 testes**; R2-B passa de 64 para **66 casos**.
+
+**Evidência vinculada — CI #10697:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45543257291) — **SUCCESS** no HEAD de código/testes `30137c664df14054fc120bb94f06c73091f83f1a`. CHRONOS R2: **102/102 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `4280ce475c2d6f9f4f869ad74041dbef7031553891a16ef9d57df6537bce97fb`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `62a0b47b5829eabf71a46a7fdd5e015900ff4e833e8868dca5319e9b0598e631`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. A correção não altera R1 nem autoriza produção CHRONOS/V2.
+
+### 8.1.16 Validação de identidade e geração nas transições de dispatch/completion — 25/11/2026
+
+A revisão de lifecycle encontrou que `dispatch_deadline()` e `complete_deadline()` localizavam uma geração por igualdade Python sem validar os tipos do descritor. Como `True == 1` e `1.0 == 1`, uma geração booleana ou float podia corresponder a uma geração inteira válida; identidades não-string também eram classificadas como geração obsoleta em vez de `InvalidInput`.
+
+Correção implementada:
+- ambas as operações validam `identity` como string não vazia e `generation` como inteiro não booleano e não negativo antes de `_find()`;
+- descritores inválidos retornam `InvalidInput`, preservando integralmente o livro;
+- a semântica de geração antiga válida permanece `StaleIgnored` em dispatch, sem efeito.
+
+Foi adicionado um método de teste que exercita dispatch e completion com identidade lista, vazia e em branco, geração booleana, negativa, float integral (1.0) e float fracionária. O caso `True` cobre explicitamente a colisão `True == 1`. A suíte passa de 102 para **103 testes**; R2-B passa de 66 para **67 casos**.
+
+**Evidência vinculada — CI #10700:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45543490140) — **SUCCESS** no HEAD de código/testes `9185bc15380768b3949855acb73c871d1770600d`. CHRONOS R2: **103/103 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `761c416aac7e2e78a1bce1f2846584c069bbe8132f07536c98a280106e790575`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `f34f81e23a74c2ac178221fd275422dc74fa02336047f22e8a91afbf79d5af9f`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. Esta correção não altera a semântica normativa R1 nem autoriza produção CHRONOS/V2.
+
+### 8.1.17 Consistência de obrigações e lifecycle de deadlines com W fechado — 25/11/2026
+
+A auditoria encontrou duas classes de estado pré-construído que podiam escapar à validação central:
+
+1. **Obrigações não resolvidas:** `_validate_state()` só verificava obrigações atrás da fronteira depois de retornar `Blocked` por conjunto incompleto. Assim, uma obrigação global já ultrapassada por progresso conhecido podia ser mascarada como incompletude. Além disso, uma obrigação ainda pendente exatamente em W podia permanecer no estado embora W seja um corte global fechado.
+2. **Deadline e W:** um deadline `Scheduled` em D<=W era rejeitado apenas por `close_watermark()`, permitindo que outras operações públicas aceitassem e propagassem o mesmo livro inconsistente. Também não se validava que estados `Claimed`, `Dispatched`, `Completed` ou `Failed` estivessem dentro de um corte W já fechado.
+
+Correções implementadas:
+- uma obrigação não resolvida em T<=W retorna `InvariantViolation`; igualdade com P_d continua permitida para o resultado `StoppedAt(P_d)` quando W ainda não fechou T;
+- uma obrigação não resolvida atrás de progresso conhecido é verificada antes de retornar `Blocked` por participantes incompletos, porque a contradição já é demonstrável;
+- `_validate_book_state()` centraliza a rejeição de deadlines `Scheduled` em D<=W e estados `Claimed`/`Dispatched`/`Completed`/`Failed` sem W fechado até D;
+- todas as operações públicas que validam o livro agora compartilham essas regras; rejeições preservam o livro e não reivindicam deadlines.
+
+Foram adicionados quatro métodos de teste: obrigação global atrás de progresso conhecido com conjunto incompleto; obrigação pendente exatamente no watermark; deadline agendado atrás de W rejeitado por publicação/cancelamento/arbitragem/fechamento/dispatch/completion/substituição/microstep; e estados de lifecycle claimed/processed além de W ou sem W. A suíte passa de 103 para **107 testes**; R2-T01=22 e R2-B=69.
+
+**Evidência vinculada — CI #10707:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45544103413) — **SUCCESS** no HEAD de código/testes `b5b9ff66dc68e4556fe2ca30c68e5114badd6ead`. CHRONOS R2: **107/107 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `5126b383143a54878f9ac4b3164936eb9399314d670f36f68276c24a164d8987`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `1d56831aa763b2f120829cb6635863fa1abe1590ba55ccc19f97555c40767ff5`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. As correções não alteram o texto normativo R1 nem autorizam código de produção CHRONOS/V2.
+### 8.1.18 Consistência de obrigações na admissão e exclusividade da geração ativa — 25/11/2026
+
+A revisão adversarial encontrou duas lacunas no oráculo R2-B:
+
+1. **Estado de referência inconsistente na admissão de deadlines:** _validate_reference_state() validava conversões, horizonte e estrutura das obrigações, mas não aplicava os invariantes de obrigação já presentes em advance(). Assim, uma obrigação não resolvida em T<=W ou atrás do progresso conhecido podia ser ignorada por publicação/cancelamento de deadlines.
+2. **Gerações ativas sobrepostas:** _validate_book() garantia unicidade do par (identity, generation), mas não impedia que uma geração antiga permanecesse ativa depois da existência de uma geração mais nova. Um livro pré-construído/restaurado podia conter duas gerações Scheduled da mesma identidade e permitir claims/dispatch de ambas.
+
+Correções implementadas na branch research/chronos-r2-independent-reference-model:
+
+- _validate_reference_state() agora aplica a mesma regra de advance(): obrigação não resolvida em T<=W ou estritamente atrás da fronteira conhecida retorna InvariantViolation. A igualdade com progresso local permanece permitida quando W não fechou o instante.
+- _reference_state_error_code() classifica explicitamente essas contradições como InvariantViolation.
+- _validate_book() agora rejeita uma geração antiga em estado ativo (Scheduled, CancelPending, Claimed ou Dispatched) quando há geração mais recente para a mesma identidade. Estados terminais anteriores continuam permitidos.
+- Regressões cobrem obrigação em W, obrigação atrás de progresso conhecido, publicação e cancelamento sem mutação, além de sobreposição em quatro estados de lifecycle; fechamento de watermark e dispatch não podem claimar nem produzir efeito da geração antiga.
+
+Commits:
+- Implementação: 1cd4b764bcc153e3472444eea3d6b267f7efb1d2.
+- Testes: 211906f8382d80392fe8a13fb56f9b1c72eb21e0.
+- README atualizado para 109 testes, incluindo 71 casos no slice R2-B.
+
+**Validação vinculada — CI #10712:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45545763406) — **SUCCESS** no HEAD documental `760b3ebd9e8222223f641ff8d1dbfd8040afe11c`, contendo o código/testes do commit `211906f8382d80392fe8a13fb56f9b1c72eb21e0`. CHRONOS R2: **109/109 PASS**; runner dedicado executado duas vezes e `python -m unittest -v` executado; worktree CLEAN nas duas execuções. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `4638cc7db6510078d6ff7cbdcda8804a5023e7171666ba7da5235b519166a72f`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `ffcc6d28b54011943f15be948b4d278e8d49ed5aff7203593c9de34a9d99fe91`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`. Actionlint, higiene documental e Rust quality/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+R2 permanece EM ANDAMENTO. A revisão Codex no HEAD anterior registrou a existência dos dois findings; as threads continuam abertas até revalidação independente do candidato corrigido. PR #1283 permanece Draft e sem merge. T06/T07/T14 continuam parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 permanecem BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+### 8.1.19 Oráculo finito de obrigações em microsteps — 25/11/2026
+
+A auditoria de R1 §16.6 confirmou que a cobertura anterior de microsteps exercitava a criação de deadline no mesmo instante e o limite numérico, mas não representava diretamente a obrigação causal consumida por cada microstep nem a ausência de progresso.
+
+Foi adicionado o módulo de verificação independente microstep_reference.py, com estado imutável e varredura serial:
+- cada obrigação tem identidade, proprietário, instante e microstep lógico;
+- processar uma obrigação exige resolução identificável; tentativa repetida/no-op retorna Blocked sem alterar cursor ou estado;
+- filhos emitidos recebem o próximo microstep lógico, sem atribuir fase física;
+- conflito simultâneo não comutativo sem fase retorna IndeterminateCausalOrder;
+- ciclo que continua emitindo filhos no mesmo instante termina em ResourceExhausted ao exceder o limite finito, preservando atomicamente o estado anterior;
+- permutações de obrigações independentes/comutativas produzem o mesmo estado canônico.
+
+Foram adicionados cinco testes em test_microsteps.py: bloqueio idempotente sem progresso; resolução e emissão de filho; ciclo contínuo até limite finito; invariância de permutação comutativa; e UNKNOWN não ordenável para obrigações não comutativas simultâneas.
+
+Commits:
+- Oráculo: fccaf51c582ec7ee39568cba5e5e688c52d8f4a4.
+- Testes: e00e92326fa03ff31e9657d05d2c16dbb60b969f.
+- README atualizado para 114 testes totais e cinco casos dedicados a R2-T14.
+
+**Validação vinculada — CI #10716:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45546144288) — **SUCCESS** no HEAD documental `ad2f4a90e706f73e7debf9bc22fe0e5b1c17ad81`, contendo o código/testes do commit `e00e92326fa03ff31e9657d05d2c16dbb60b969f`. CHRONOS R2: **114/114 PASS**; runner dedicado duas vezes + `python -m unittest -v`; worktree CLEAN nas duas execuções. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `4638cc7db6510078d6ff7cbdcda8804a5023e7171666ba7da5235b519166a72f`; `microstep_reference.py` = `409772508ac5ffbd84c0726750e986a924b1217393b032ab1193d5fefb8e3e70`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `ffcc6d28b54011943f15be948b4d278e8d49ed5aff7203593c9de34a9d99fe91`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`. Actionlint, higiene documental e Rust quality/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+A matriz executável R2-T14 agora cobre os quatro grupos normativos: resolução de obrigação e emissão no próximo microstep; repetição sem progresso -> Blocked sem mutação; permutação de obrigações independentes/comutativas; ciclo de emissão no mesmo instante limitado por ResourceExhausted sem mutação parcial. A matriz R2-T07 também tem caso executável de conflito não comutativo UNKNOWN que impede fechamento de W. Ambos aguardam revalidação independente; R2-T06 continua parcial. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+### 8.1.20 Arbitragem explícita de cancelamento e claim no mesmo instante — 25/11/2026
+
+R1 §16.5.1 e §16.5.13 permitem decidir C=D somente quando o perfil declara relação causal/microstep explícita; sem essa relação, o resultado permanece IndeterminateCausalOrder. O oráculo anterior sempre retornava indeterminado em C=D e não conseguia representar a alternativa explicitamente ordenada.
+
+Correção em deadline_reference.py:
+- Cancellation agora preserva microstep_level, phase_order e phase_evidence opcionais.
+- _cancellation_precedes_deadline() compara microsteps lógicos distintos; no mesmo microstep, só compara phase_order quando ambos os lados têm a mesma evidência e posições distintas.
+- cancel_deadline() mantém a precedência C<=A(E) -> LateInput antes da arbitragem C/D. Com C=D e relação explícita anterior ao claim, admite o cancelamento; relação posterior -> LateInput; relação ausente/ambígua -> IndeterminateCausalOrder.
+- _validate_book_state() aplica a mesma relação a cancelamentos pendentes pré-construídos/restaurados. W>=D continua sendo LateInput; cancelamento admitido no mesmo instante precisa ser arbitrado antes de W fechar D.
+- Publicação D=P_d com W<D foi acrescentada à matriz: microstep explícito admite; sem microstep permanece indeterminada.
+
+Regressões adicionadas: publicação D=P_d com W ausente e W<D; C=D com cancelamento em microstep anterior, posterior e igual; C=D com phase_order/evidence explícitos antes/depois; precedência de C<=A(E) sobre microstep de desempate; e bloqueio do fechamento de W até arbitragem.
+
+Commits:
+- Implementação: a58e10d2277d465a7b8c6be63789a566a9b35913.
+- Testes: 97c39af1d2bdeffcd68519dd82140670658b65d1.
+- Contagem candidata: 117 testes totais; slice R2-B=74; R2-T14=5 testes dedicados.
+
+**Validação vinculada — CI #10719:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45546437894) — **SUCCESS** no código/testes `97c39af1d2bdeffcd68519dd82140670658b65d1`; 117/117 PASS, runner dedicado duas vezes + `python -m unittest -v`, worktree CLEAN. SHA-256: `deadline_reference.py` = `9293ccef6d7b4e575670a4782b7f81da6740e32d50d1c949776ae5788c8e4761`; `test_deadlines.py` = `227693b28d036dbde76b9cebfce0649a846743266404676f3149a670b82742d3`. Actionlint, higiene documental e Rust quality/unit regression: PASS; Rust workspace, Windows e hardware: SKIPPED.
+
+R2-T06 permanece parcial porque a matriz completa ainda inclui permutações de publicação/dispatch e demais corridas especificadas em R1 C06. T07 e T14 têm cobertura executável, ainda aguardando revalidação independente. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+
+### 8.1.21 Sincronização causal serial — R2-T05 — 25/11/2026
+
+A matriz R1 §4 / §16.3 exige que cada operação cross-device declare os estados observados/alterados e seu instante causal; somente participantes declarados podem ser sincronizados. Dependências recíprocas não autorizam avanço especulativo, e a operação deve permanecer retomável/identificável.
+
+Foi adicionado `causal_reference.py`, um oráculo imutável e serial que resolve por varredura completa as transições dos participantes declarados:
+- sincroniza apenas o alvo e os dispositivos explicitamente observados/alterados;
+- aplica transições até o instante de observação/commit, nunca transições posteriores;
+- fecha dependências declaradas antes da transição dependente, sem avançar dispositivos não relacionados;
+- dependência ausente, participante não declarado ou ciclo recíproco retorna `Blocked`, sem progresso parcial;
+- solicitação atrás do progresso confirmado retorna `LateInput`, sem mutação;
+- empate simultâneo não comutativo sem relação declarada retorna `IndeterminateCausalOrder`;
+- empate simultâneo só é canonicalizado quando todos os membros declaram comutatividade.
+
+Foram adicionados 11 testes em `test_causal.py`, incluindo observação de status, commit de escrita, dependência cross-device, isolamento de dispositivo não relacionado, dependência ausente, ciclo recíproco, participante omitido, simultaneidade UNKNOWN, permutação comutativa, retrocesso e precedência de validação estrutural.
+
+Commits de código/testes:
+- Oráculo: `a293f7347bbe212549d5c9feb08660cbef088d77`.
+- Testes: `253494d9accfcd0d19d92d43d1ec13656849e652`.
+- Suíte descoberta: **130 testes** (T01=22, T02=4, T03=3, T04=9, R2-B=76, T05=11, T14=5).
+
+**Validação:** CI #10725 foi disparado para o SHA de código/testes `253494d9accfcd0d19d92d43d1ec13656849e652`; no momento do registro, a execução estava `IN_PROGRESS`. Portanto, os 11 testes T05 ainda não são declarados PASS. O CI precisa concluir no SHA exato; o HEAD documental posterior também precisa de sua própria execução.
+
+R2-T05: cobertura implementada, validação CI pendente. R2-T06 permanece parcial; T07/T14 aguardam revisão adversarial independente; T08–T13 e T15 permanecem `NOT RUN`. R2 continua EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+
+
+### 8.1.22 Reprodutibilidade confirmada do R2-T05 — CI #10726
+
+O CI #10726 ([run](https://github.com/leonardo201800478/SUN/actions/runs/45547490214)) concluiu **SUCCESS** no HEAD documental `68fb03e3717239f757a6886e603869ee1fdb2340`, que contém os commits de código/testes `a293f7347bbe212549d5c9feb08660cbef088d77` e `253494d9accfcd0d19d92d43d1ec13656849e652`.
+
+- CHRONOS R2: **130/130 PASS**; runner dedicado executado duas vezes, `python -m unittest -v` executado, worktree CLEAN.
+- Actionlint, higiene documental e Rust quality/unit regression: PASS.
+- Workspace Rust, Windows, hardware e integrações de subsistemas não alterados: SKIPPED, não PASS.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+- SHA-256: `causal_reference.py` = `3baa7f278c42374e928d47317c1fb34ff7f96ab549eb22db39e576a3faa64ff9`; `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `68a2c8b8315139072cbd75a937fd5699f131847e935c95c2502ee3dd6fedae21`; `microstep_reference.py` = `409772508ac5ffbd84c0726750e986a924b1217393b032ab1193d5fefb8e3e70`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_causal.py` = `4fb017b883c3145aeb6959b29b056392fd2010c30f8c6fff1a462825da7bc26a`; `test_deadlines.py` = `fca4daee62db359ae8a691758e2a397fc3418948ee1d0b5d89bffbedd2abc016`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`.
+
+R2-T05 está **implementado e executado** para os 11 cenários enumerados; isso não equivale à aprovação formal independente da propriedade nem à conclusão do gate R2. T06 continua parcial; T07/T14 aguardam revisão adversarial; T08–T13 e T15 permanecem NOT RUN. R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.23 Fechamento da cobertura executável R2-T01–T15 — 25/11/2026
+
+O incremento encerra a implementação do conjunto de propriedades executáveis R2-T01–T15. A suíte contém **251 testes em 13 módulos**. O escopo continua sendo o oráculo abstrato e independente; nenhum código de produção CHRONOS/V2, crate ou integração de runtime foi criado.
+
+**R2-T06 — corridas de cancelamento/claim/dispatch**
+- Foram acrescentados dois casos que fecham a lacuna do dispatcher atrasado: cancelamento C<D admitido antes de W fechar D permanece supressivo quando o dispatcher tenta executar depois; cancelamento posterior a D é LateInput e não suprime claim/dispatch/complete já causalmente elegíveis.
+- O fixture da segunda corrida mantém o watermark do livro e do estado de referência consistente; divergência de watermark permanece UNKNOWN/Indeterminate, não é usada para simular atraso.
+- Slice deadline: **78 testes**.
+
+**R2-T07 — ordem parcial e simultaneidade**
+- A evidência de fase só cria precedência quando ambos os lados compartilham a mesma evidência; evidências distintas deixam a relação UNKNOWN.
+- A permutação de publicação de eventos simultâneos não comutativos continua Indeterminate e não fecha W.
+- Corrigido um defeito no oráculo causal: a validação reconhecia dependência explícita entre transições no mesmo instante, mas a canonicalização posterior ordenava por identidade e podia destruir a ordem topológica. Agora só há canonicalização por identidade quando todos os membros são declarados comutativos; dependências explícitas preservam a ordem topológica.
+- Cobertura específica: dois testes em `test_partial_order.py` e um caso de dependência no mesmo instante em `test_causal.py`, além da matriz de desempate do slice deadline.
+
+**R2-T08–T13**
+- T08: `transaction_reference.py` / 18 testes — estados Created, InProgress, Waiting, Ready, Completed, Cancelled e Failed; identidade completa de retry; amostragem e commit separados; exactly-once; cancelamento antes/depois de efeito irreversível; falha parcial e recuperação explícita.
+- T09: `wait_reference.py` / 11 testes — TW automático Z80 separado de WAIT externo e WAIT de fixture; amostra em T2 e reamostra em cada TW adicional; UNKNOWN bloqueia sem consumo ou progresso especulativo.
+- T10: `irq_reference.py` / 17 testes — INT em boundary, NMI por borda negativa em instruction-end, atraso EI, prioridade NMI, vetor amostrado uma vez e efeito do dispositivo em commit separado; snapshot da janela ambígua retorna UnsupportedSnapshot.
+- T11: `snapshot_reference.py` / 18 testes — ciclos de vida de deadlines/transações, corte entre sample e commit, ledger parcial, acknowledge, cursor de replay, perfil/versão e restore atômico; artifact ambíguo é rejeitado também no restore.
+- T12: `replay_reference.py` / 20 testes — A(E) completo, sequência aceita, ordem lógica de produtores, empate comutativo/não comutativo, invalidação e republicação de H_d, obrigações pendentes e replay determinístico.
+- T13: `host_reference.py` / 12 testes — pipeline host separado do estado virtual; atraso, drain, drop, underrun, overrun, VSync, buffer e recriação do dispositivo não alteram o core. A fonte de amostras é sintética e inteira, usada apenas para demonstrar independência/particionamento; não valida PSG físico.
+
+**R2-T15 — erro, capacidade e atomicidade**
+- `resource_reference.py` / 10 testes: capacidade finita, ResourceExhausted sem mutação parcial, identidade integral de reserva, commit exatamente uma vez, falha antes/depois de efeitos e recuperação explícita somente dos efeitos pendentes.
+- `test_atomicity.py` / 10 testes: precedência de InvalidInput/Blocked/Indeterminate/LateInput, regressão interna, fronteiras W/D/P_d, cancelamento após efeito irreversível, UnsupportedSnapshot e IncompatibleSnapshot sem substituição parcial.
+
+**Matriz consolidada por módulo:** T01–T04=38; deadline/corridas=78; microsteps=5; causal=12; ordem parcial=2; transações=18; WAIT=11; IRQ/NMI=17; snapshot=18; replay=20; host=12; recursos=10; atomicidade cross-subsystem=10. Total: **251**.
+
+**Validação integral — CI #10748:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45549209728) — **SUCCESS**, HEAD exato `145109df6b3b32db29c3c4a7db895bd505748864`.
+- CHRONOS R2: **251/251 PASS**; runner dedicado duas vezes + `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- Change impact classification, Actionlint, higiene documental e Rust quality/unit regression: PASS.
+- Workspace Rust, Windows, hardware e integrações de subsistemas não alterados: SKIPPED, não PASS.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+- SHA-256 dos modelos: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `causal_reference.py` = `c3657ee326c6f5d5c5dc3c1b87c46674302e7996a0156f31477a27b2d6755988`; `deadline_reference.py` = `68a2c8b8315139072cbd75a937fd5699f131847e935c95c2502ee3dd6fedae21`; `host_reference.py` = `d637ae9872a983481f3e31c56544cd1683f4c7836fb375d0725c254d89041161`; `irq_reference.py` = `1f32474f84896e6171e571bc13209e062e11423e9142cf292dbd83ef9a670543`; `microstep_reference.py` = `409772508ac5ffbd84c0726750e986a924b1217393b032ab1193d5fefb8e3e70`; `replay_reference.py` = `c2c05be315aded6390bdffe466963b8d2ec90bb91f7dee6cbdb5d11eec3fa69f`; `resource_reference.py` = `56d1056445f61b6440dd89b27b2f15bf725be65815994757b13661996925920d`; `snapshot_reference.py` = `5552f3164be5a576ed60b12c0b7bddf9e9ab109bd88d6f0c6871e12409ac4120`; `transaction_reference.py` = `3e14be38ac982562f383d98fed79ac2dd43f1ca585b65e788e84e173ea40284a`; `wait_reference.py` = `d7159588cf816ccea17a761adfa576b3a0ac48ec250a63e54ac8f3f1a05b61a6`.
+- SHA-256 do runner: `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`.
+- SHA-256 dos testes: `test_atomicity.py` = `81ca0b5c358224ba69b59317c090d482998e863812a89747eba343fb415f9d2c`; `test_causal.py` = `923b7498e0948b31b497455c1c46cf09daf5728706cc675f155c091cc71982c5`; `test_deadlines.py` = `b7cd9100a5d95f1cce115434eaf00a6d14e0a55d3d3567050ad5bd57cc6bfc90`; `test_host.py` = `44a2c3afa4f138ec544d509c4c40e0bf188ff440e7cd0d57eb8ceba33bc0020f`; `test_irq.py` = `74a59fd4a3b41f981becdd22d59f8ec97a6cf1f02166bab3953edbcdcc7b2496`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_partial_order.py` = `f9ba1b549c3bd735b6d6b329996a92b15295996da358ca245eba41aad3c35252`; `test_replay.py` = `b7c9f8c061949b9b3a9fab37946e80538658e9c3a7b5eb6f54ef0fcbfdbcbc9d`; `test_resource.py` = `9cb23ef2a7e7f6266783f526de4b84e43be0a8a1fa920921bdec4c848490146a`; `test_snapshot.py` = `75372bbbdd0f24688293f60b82c3cb873e5dafbeb8a0ce8c80b1ff8e16a4b71e`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`; `test_transaction.py` = `95c53b0e9541eb0c85ef4e9dd9e7f9caa039b0f0fcefe7c478e5c28ab31c1215`; `test_wait.py` = `569c6282346f4287ae75f584b79f0ef9e224f531350182208a6f370c0468cb87`.
+
+**Estado:** a implementação e a cobertura executável R2-T01–T15 estão completas e reproduzíveis para validação externa. O gate R2 ainda não foi formalmente aprovado: revisão externa independente e aprovação explícita do responsável permanecem pendentes. PR #1283 continua Draft, aberta e sem merge. R3–R5 permanecem BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+
+
+### 8.1.24 Revalidação do HEAD documental consolidado — CI #10750
+
+O HEAD documental `4da266eb230aa6d597aff1e76b2f3fd406dd8d75` foi validado pelo CI #10750 ([run](https://github.com/leonardo201800478/SUN/actions/runs/45549398626)) — **SUCCESS**.
+- CHRONOS R2: **251/251 PASS**; runner dedicado duas vezes e `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- Change impact classification, Actionlint, documentação patch hygiene e Rust quality/unit regression: PASS.
+- Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+- O HEAD documental contém a matriz R2-T01–T15 e a evidência completa do SHA de código/testes `145109df6b3b32db29c3c4a7db895bd505748864` / CI #10748.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+
+A implementação executável R2-T01–T15 permanece **COMPLETA PARA VALIDAÇÃO EXTERNA**. O gate formal R2 permanece sem aprovação até revisão externa e aprovação explícita do responsável. PR #1283 permanece Draft, aberta e sem merge; R3–R5 BLOQUEADOS.
+
+
+### 8.1.25 Revisão de rastreabilidade, ordem parcial e mutation testing — 25/11/2026
+
+Incremento adversarial aplicado após a auditoria do responsável:
+
+- Criado `R2_TRACEABILITY.md`: cada T01–T15 aponta para seções R1, contratos C01–C16, módulos/testes e classes positivas, negativas, fronteiras/igualdade, capacidade/overflow e permutação; dimensões não aplicáveis são explicitadas.
+- Criado `R2_CLOSEOUT.md`: matriz dos oito critérios de saída R2, estado de cada critério, limitações e sequência restante. O documento fecha a implementação, não aprova o gate.
+- T07 ampliado com quatro famílias exaustivas de (5!=120) permutações: comutativos, não comutativos UNKNOWN, cadeia causal explícita e ordem parcial com irmãos comutativos.
+- A quarta família expôs uma lacuna real: a validação anterior tratava irmãos comutativos como UNKNOWN quando havia outros eventos não comutativos no mesmo instante; a canonicalização por identidade também poderia perder ordem topológica. `causal_reference.py` agora usa ordenação topológica por conjunto pronto: dependências explícitas são preservadas; apenas eventos simultaneamente prontos e mutuamente comutativos podem ser canonizados; pares incomparáveis não comutativos continuam Indeterminate.
+- O runner usa seed fixa para embaralhar a ordem de execução dos testes, registra trace e primeira divergência em JSON, e extrai `R2_REPRO` para preservar seed/trace/estado mínimo. Os testes seeded T01/T02 declaram seeds próprias; T02 reduz a lista de cortes por remoção determinística.
+- `run_mutation_tests.py` cria cópias temporárias e injeta dois mutantes: `<`→`<=` em C/D e `IndeterminateCausalOrder`→`LateInput` para C=D UNKNOWN. O mutante só conta como KILLED se o teste-alvo falhar por AssertionError, não por erro incidental.
+- `.gitattributes` fixa LF para `SUN-V2/verification/**`; CI adiciona job Windows Python para runner + unittest e upload de JSON por ambiente.
+
+**Contagem reforçada candidata:** 256 testes; `test_partial_order.py` tem 6 casos e quatro famílias de 120 permutações. O candidato reforçado aguarda CI Linux/Windows próprio; a evidência anterior 251/251 não é reutilizada como PASS para este novo SHA.
+
+**Limites mantidos:** T13 usa fonte digital sintética e prova apenas independência do host; inteiros/Fraction não simulam overflow de máquina; UNKNOWN não recebe precedência física; Windows Python não é validação de hardware.
+
+
+### 8.1.26 Invariantes de ledger causal pré-aplicado — 25/11/2026
+
+A revisão adversarial de T05 verificou que `CausalState.applied` era validado apenas contra o conjunto global de identidades. Isso permitia um ledger pré-construído em que uma transição de um dispositivo aparecia como aplicada em outro dispositivo, estava aplicada antes do progresso do owner, uma transição não aplicada já ficava atrás do progresso, ou um evento aplicado ainda tinha dependência pendente.
+
+Correção em `causal_reference.py`:
+- cada identidade aplicada precisa estar no ledger do owner correto;
+- a transição aplicada não pode estar à frente do progresso do owner;
+- transição não aplicada não pode ficar estritamente atrás do progresso do owner (igualdade continua permitida para distinguir coordenada alcançada de conclusão semântica);
+- dependências de uma transição aplicada devem existir, estar aplicadas e não ocorrer depois dela;
+- IDs aplicados não podem aparecer em múltiplos dispositivos.
+
+Regressão: `test_causal.py::R2T05CausalSynchronizationTests.test_preapplied_causal_ledger_must_match_owner_progress_and_dependencies` cobre quatro estados inválidos e exige `InvalidInput` sem mutação. Total reforçado: **256 testes**; o CI do candidato atualizado permanece pendente.
+
+
+### 8.1.27 Validação final Linux/Windows e encerramento dos P2 conhecidos — 25/11/2026
+
+**Candidato exato validado:** `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`.
+**CI #10785:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45600632992).
+
+- Linux / Python 3.14.4: **256/256 PASS**, runner executado duas vezes, `python -m unittest -v`, worktree CLEAN nas duas execuções.
+- Windows Server 2025 / Python 3.14.4: **256/256 PASS**, runner executado duas vezes, `python -m unittest -v`, worktree CLEAN nas duas execuções.
+- Em ambos os sistemas: mutation testing da suíte completa, com os dois mutantes **KILLED**; `target_test_failed_by_assertion=true`; JSON de resultado publicado.
+- Seed de ordem: `20261125`; seeds de propriedades: T01 `0xC0A05`, T02 intervalo [0,100).
+- Quatro famílias de cinco eventos: 120 permutações por família (480 no total).
+- Change impact classification, documentation patch hygiene, GitHub Actions workflow validation e Rust quality/unit regression supervisor: PASS.
+- Artefatos JSON: [Linux](https://api.github.com/repos/leonardo201800478/SUN/actions/artifacts/15015027527/zip) e [Windows](https://api.github.com/repos/leonardo201800478/SUN/actions/artifacts/15015127699/zip).
+- SHA-256 principal e hashes de todos os modelos/testes estão no JSON e nos logs do CI. Oráculo `chronos_reference.py`: `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; runner: `de284c4ed3da81573468ea294dfdeefb18adf0e72cb9ae894d2ded8e74b2ed76`; mutation runner: `087beac04e64b376a5e7da36e8e886360dc0d3f3276905846cc81c6a70c7d031`.
+
+**P2 conhecidos:** os 11 threads anteriormente não resolvidos na PR #1283 receberam respostas com SHA, testes e evidência CI e foram resolvidos. Isso fecha os findings conhecidos, mas não constitui parecer independente sobre o conjunto completo.
+
+**Revisão Codex:** solicitada explicitamente para o SHA `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`; o conector respondeu `You have reached your Codex usage limits for code reviews`. Portanto R2-EXIT-07 continua PENDENTE. A revisão adversarial interna encontrou e corrigiu a ordenação de irmãos comutativos, ledgers causais pré-aplicados inconsistentes e o vínculo do mutation kill ao AssertionError do teste-alvo; isso não substitui revisão humana externa.
+
+**Decisão:** implementação executável R2-T01–T15 COMPLETA E VALIDADA. Gate formal R2 **NÃO APROVADO** até revisão humana externa independente sem blockers e aprovação explícita do responsável. R3–R5 permanecem BLOQUEADOS; PR #1283 continua Draft, sem merge.

@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 aprovado no escopo documental; R1 v0.3.8 publicado em `main` pela PR #1279 (merge SHA `de49d1d4d31ee54f8711d2fc14b328a1456e5bd0`); Codex revisou o HEAD exato sem major issues; CI aplicável SUCCESS; R1 ainda não aprovada, issue #1270 aberta; R2–R5 bloqueados; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (conteúdo v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281, merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); implementação R2-T01–T15 COMPLETA E VALIDADA (256/256 Linux e Windows, CI #10785); gate formal R2 PENDENTE de revisão humana externa independente e aprovação explícita; R3–R5 BLOQUEADOS; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -80,7 +80,9 @@ Entregas:
 
 ### Fase 1 — contratos temporais (R1)
 
-**Prioridade: máxima; bloqueia R2, R3 e qualquer produção.**
+**Status: CONCLUÍDA — APROVADA em 24/11/2026.**
+
+Conteúdo normativo v0.3.18 aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76` e publicado na `main` pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`). Issue #1270 encerrada. A aprovação cobre o contrato documental; não autoriza R2 além de seu próprio gate, protótipos R3 ou código de produção.
 
 Entregas:
 - contratos verificáveis de monotonicidade, conversões, progresso local, H_d, watermark e avanço limitado;
@@ -91,9 +93,11 @@ Entregas:
 - classificação FACT/OBSERVATION/HYPOTHESIS/INFERENCE/UNKNOWN e rastreabilidade;
 - revisão adversarial e critérios formais de saída.
 
-**Gate R1:** todos os critérios da seção 14 de R1_TEMPORAL_CONTRACTS.md atendidos, revisão independente concluída e aprovação explícita na issue #1270/PR correspondente. Nenhum trabalho R2 começa antes disso.
+**Gate R1:** APROVADO. Critérios da seção 14 atendidos no conteúdo v0.3.18; revisão independente do SHA exato concluída sem major issues; aprovação explícita do responsável registrada na issue #1270. Nenhuma alteração posterior deste registro modifica a semântica normativa aprovada.
 
-### Fase 2 — modelo de referência independente (R2; somente após R1)
+### Fase 2 — modelo de referência independente (R2)
+
+**Status: IMPLEMENTAÇÃO EXECUTÁVEL T01–T15 COMPLETA PARA VALIDAÇÃO EXTERNA; GATE FORMAL PENDENTE — issue #1282 / PR #1283.** Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e a matriz [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md). Nenhum R3 ou código de produção autorizado.
 
 Entregas:
 - oráculo simples e independente do algoritmo/representação candidata;
@@ -101,7 +105,7 @@ Entregas:
 - cenários adversariais com seeds, perfil, entradas, primeira divergência e estado mínimo reproduzível;
 - UNKNOWN físico preservado como indeterminação/restrição, nunca promovido a FACT.
 
-**Gate R2:** propriedades executadas e resultados reproduzíveis; modelo independente da implementação/protótipo futuro. Nenhum R3 começa antes de R2 aprovado.
+**Gate R2:** não aprovado. A implementação e a cobertura executável T01–T15 existem, evidências executáveis, mutation testing, JSON e runner Windows estão PASS; os 11 findings P2 conhecidos foram respondidos e resolvidos. A saída do gate ainda exige revisão humana externa independente do SHA final sem blockers e aprovação explícita do responsável. A revisão Codex foi solicitada, mas o serviço respondeu limite de uso atingido. Nenhum R3 começa antes de todos esses itens e da aprovação formal R2.
 
 ### Fase 3 — protótipos temporais descartáveis (R3; somente após R1 e R2)
 

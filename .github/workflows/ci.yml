@@ -46,6 +46,7 @@ jobs:
       psg: ${{ steps.filter.outputs.psg }}
       vdp: ${{ steps.filter.outputs.vdp }}
       docs: ${{ steps.filter.outputs.docs }}
+      r2_reference: ${{ steps.filter.outputs.r2_reference }}
       ci: ${{ steps.filter.outputs.ci }}
       video: ${{ steps.filter.outputs.video }}
       cpal: ${{ steps.filter.outputs.cpal }}
@@ -78,6 +79,8 @@ jobs:
               - '**/*.rst'
               - '**/*.txt'
               - 'docs/**'
+            r2_reference:
+              - 'SUN-V2/verification/r2_reference/**'
             ci:
               - '.github/workflows/**'
               - '.github/actions/**'
@@ -1027,10 +1030,106 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  r2-reference:
+    name: CHRONOS R2 independent reference tests
+    needs:
+      - changes
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Run pinned R2 reference test suite
+        working-directory: SUN-V2/verification/r2_reference
+        env:
+          PYTHONHASHSEED: "0"
+          R2_RESULT_PATH: ${{ runner.temp }}/r2-reference-result.json
+        run: |
+          python3 --version
+          python3 run_reference_tests.py
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "R2 runner modified the clean worktree"
+            git status --short
+            exit 1
+          fi
+          # Exercise the exact plain unittest command documented in the README.
+          python --version
+          python -m unittest -v
+          # Plain unittest may create bytecode; remove only generated cache artifacts.
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "Plain unittest left the R2 worktree dirty"
+            git status --short
+            exit 1
+          fi
+          # A second invocation proves test discovery did not poison the clean-tree gate.
+          python3 run_reference_tests.py
+
+      - name: Upload R2 JSON execution report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chronos-r2-linux-${{ github.run_id }}
+          path: ${{ runner.temp }}/r2-reference-result.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows-r2-reference:
+    name: CHRONOS R2 Python reference tests (Windows)
+    needs:
+      - changes
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.4"
+      - name: Run pinned R2 reference suite on Windows
+        working-directory: SUN-V2/verification/r2_reference
+        env:
+          PYTHONHASHSEED: "0"
+          R2_RESULT_PATH: ${{ runner.temp }}/r2-reference-result.json
+        shell: pwsh
+        run: |
+          python --version
+          python run_reference_tests.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (git status --porcelain --untracked-files=all) {
+            Write-Error "R2 runner modified the clean worktree"
+            git status --short
+            exit 1
+          }
+          python -m unittest -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem -Path . -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+          if (git status --porcelain --untracked-files=all) {
+            Write-Error "Plain unittest left the R2 worktree dirty"
+            git status --short
+            exit 1
+          }
+          python run_reference_tests.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload R2 JSON execution report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chronos-r2-windows-${{ github.run_id }}
+          path: ${{ runner.temp }}/r2-reference-result.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   quality-gate:
     name: Rust quality and unit regression
     needs:
       - changes
+      - r2-reference
+      - windows-r2-reference
       - rust-workspace
       - ym2413-focused
       - z80-focused
@@ -1068,6 +1167,10 @@ jobs:
           INPUT_FOCUSED: ${{ needs.input-focused.result }}
           EXPECT_DOCS: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.docs == 'true' }}
           DOCS: ${{ needs.docs-format.result }}
+          EXPECT_R2_REFERENCE: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true' }}
+          R2_REFERENCE: ${{ needs.r2-reference.result }}
+          EXPECT_WINDOWS_R2_REFERENCE: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true' }}
+          WINDOWS_R2_REFERENCE: ${{ needs.windows-r2-reference.result }}
           EXPECT_WORKFLOW_LINT: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.ci == 'true' }}
           WORKFLOW_LINT: ${{ needs.workflow-lint.result }}
           EXPECT_WINDOWS_SLINT_WGPU: ${{ (github.event_name == 'workflow_dispatch' && !inputs.refresh_cargo_lockfiles && inputs.validate_slint_desktop) || (github.event_name != 'workflow_dispatch' && needs.changes.outputs.slint_desktop == 'true' && needs.changes.outputs.slint_desktop_present == 'true') }}
@@ -1115,6 +1218,8 @@ jobs:
           check_job "VDP focused" "$EXPECT_VDP" "$VDP"
           check_job "Input focused" "$EXPECT_INPUT_FOCUSED" "$INPUT_FOCUSED"
           check_job "Documentation" "$EXPECT_DOCS" "$DOCS"
+          check_job "CHRONOS R2 reference" "$EXPECT_R2_REFERENCE" "$R2_REFERENCE"
+          check_job "CHRONOS R2 Python Windows tests" "$EXPECT_WINDOWS_R2_REFERENCE" "$WINDOWS_R2_REFERENCE"
           check_job "Workflow lint" "$EXPECT_WORKFLOW_LINT" "$WORKFLOW_LINT"
           check_job "Windows Slint WGPU Vulkan POC" "$EXPECT_WINDOWS_SLINT_WGPU" "$WINDOWS_SLINT_WGPU"
           check_job "Windows SDL3 input" "$EXPECT_WINDOWS_SDL3_INPUT" "$WINDOWS_SDL3_INPUT"

@@ -12,7 +12,7 @@ O desenvolvimento arquitetural atual ocorre no **SUN V2**, isolado em `SUN-V2/`.
 - [Instruções permanentes do SUN V2](SUN-V2/PROJECT_INSTRUCTIONS.md)
 - [Roadmap de execução V2](SUN-V2/ROADMAP.md)
 
-A V2 começa pelo SMS e segue os gates R0–R5. R0 está aprovado documentalmente; R1 está em elaboração/revisão; R2–R5 permanecem pendentes. Nenhum código de produção CHRONOS/V2 está autorizado antes da aprovação R5. A stack de host prevista para a V2 é Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2; SDL3 depende de auditoria.
+A V2 começa pelo SMS e segue os gates R0–R5. R0 está aprovado documentalmente; R1 foi aprovado formalmente em 24/11/2026; R2 está em andamento; R3–R5 permanecem bloqueados. Nenhum código de produção CHRONOS/V2 está autorizado antes da aprovação R5. A stack de host prevista para a V2 é Slint 1.18.x + WGPU 30.x/Vulkan + CPAL 0.18.2; SDL3 depende de auditoria.
 
 ---
 
