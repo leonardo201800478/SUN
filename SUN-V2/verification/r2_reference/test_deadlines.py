@@ -104,6 +104,14 @@ class R2BPublicationTests(unittest.TestCase):
                 self.assertEqual(accepted.code, DeadlineCode.ACCEPTED)
                 self.assertEqual(accepted.book.deadlines[0].microstep, 1)
 
+        closed_book = DeadlineBook(watermark_common=Fraction(5))
+        closed_state = machine(progress=5, watermark=5)
+        at_closed_cut = publish(
+            closed_book, closed_state, at=5, microstep=True
+        )
+        self.assertEqual(at_closed_cut.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(at_closed_cut.book, closed_book)
+
     def test_incomplete_participants_block_before_temporal_admission(self):
         state = machine(progress=10, participants=("cpu", "vdp"))
         state = make_state(
