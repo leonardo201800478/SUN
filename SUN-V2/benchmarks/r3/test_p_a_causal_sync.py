@@ -16,6 +16,7 @@ from p_a_causal_sync import (
     ATransition,
     synchronize,
 )
+from trace_fixture_support import record_differential
 from causal_reference import (
     CausalState as R2CausalState,
     Device as R2Device,
@@ -70,6 +71,11 @@ class PACausalSyncTests(unittest.TestCase):
         self.assertEqual(actual.code.value, expected.code.value)
         self.assertEqual(actual.applied_order, expected.applied_order)
         self.assertEqual(canonical(actual.state), canonical(expected.state))
+        record_differential(
+            self.id(),
+            (actual.code.value, actual.applied_order, canonical(actual.state)),
+            (expected.code.value, expected.applied_order, canonical(expected.state)),
+        )
         return actual
 
     def test_observation_applies_only_target_transitions_at_or_before_sample(self):
