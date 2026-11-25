@@ -170,13 +170,23 @@ def _validate_state(state: ReferenceState) -> str | None:
         safe_horizon = min(domain.horizon_common() for domain in state.domains)
         if safe_horizon < frontier:
             return "safe horizon is behind the confirmed machine frontier"
-    if expected - actual:
-        return "incomplete participant set"
+    # W is a closed global cut: no unresolved obligation may remain at or
+    # before it. This is stronger than equality with a participant P_d, where
+    # StoppedAt(P_d) is still a valid endpoint result.
+    if state.watermark_common is not None and any(
+        not item.resolved and item.at_common <= state.watermark_common
+        for item in state.obligations
+    ):
+        return "unresolved obligation is at or behind the confirmed watermark"
+    # A known participant already beyond an unresolved global obligation proves
+    # an invariant violation even when the full participant set is incomplete.
     if any(
         not item.resolved and item.at_common < frontier
         for item in state.obligations
     ):
         return "unresolved obligation lies behind the confirmed machine frontier"
+    if expected - actual:
+        return "incomplete participant set"
     return None
 
 
@@ -244,6 +254,7 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
             if (
                 "regressed" in invalid
                 or "behind the confirmed" in invalid
+                or "confirmed watermark" in invalid
                 or "safe horizon is behind" in invalid
             )
             else ResultKind.INVALID_INPUT
