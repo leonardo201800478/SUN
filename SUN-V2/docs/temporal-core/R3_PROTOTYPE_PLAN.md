@@ -1,9 +1,9 @@
 # CHRONOS R3 — plano de protótipos temporais descartáveis
 
-**Gate:** R3 — prototipagem e comparação  
-**Estado:** planejamento experimental; nenhuma medição publicada ainda  
-**Branch:** `research/chronos-r3-disposable-prototypes`  
-**Base normativa:** R1 v0.3.18 aprovado; R2-T01–T15 aprovado e merged pela PR #1283  
+**Gate:** R3 — prototipagem e comparação
+**Estado:** planejamento experimental; nenhuma medição publicada ainda
+**Branch:** `research/chronos-r3-disposable-prototypes`
+**Base normativa:** R1 v0.3.18 aprovado; R2-T01–T15 aprovado e merged pela PR #1283
 **Escopo de sistema:** perfil temporal abstrato inicialmente; SMS NTSC/PAL somente quando os parâmetros forem fixados por fonte R0/R1 e cenário identificado.
 
 ## 1. Objetivo
