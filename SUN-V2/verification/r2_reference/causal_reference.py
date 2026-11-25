@@ -133,6 +133,24 @@ def _validate(state: object) -> str | None:
                 return "applied transition has an unresolved dependency"
             if dependency[1].at_common > transition.at_common:
                 return "applied transition depends on a later transition"
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit_applied(identity: str) -> bool:
+        if identity in visiting:
+            return False
+        if identity in visited:
+            return True
+        visiting.add(identity)
+        for required in descriptors[identity][1].requires:
+            if required in applied and not visit_applied(required):
+                return False
+        visiting.remove(identity)
+        visited.add(identity)
+        return True
+
+    if any(not visit_applied(identity) for identity in applied):
+        return "applied transition dependency graph contains a cycle"
     return None
 
 
