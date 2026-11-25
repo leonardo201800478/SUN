@@ -207,3 +207,72 @@ This remains a review gap. Do not mark R4 as passed.
 - Independent adversarial review.
 
 **Disposition:** CI #10868 is PASS for the declared P-A W00–W05 prototype scope and its current test/benchmark jobs. P-A is not fully closed; R3 remains in progress. P-D/P-E remain blocked until the documented P-A equivalence and review gates are satisfied. R4/R5 remain pending. No production CHRONOS/V2 implementation is authorized before R5.
+
+
+## Latest retained run — CI #10871
+
+**Classification:** `OBSERVATION` — independent reference tests and synthetic Python prototype evidence  
+**Workflow:** [run #10871](https://github.com/leonardo201800478/SUN/actions/runs/45705184737) — `SUCCESS`  
+**Run ID:** `45705184737`  
+**Executed HEAD:** `75f8f048f248325850796ddc30d97c38b11dff86`  
+**Branch:** `research/chronos-r3-disposable-prototypes`  
+**Date:** 2026-11-25
+
+### Job disposition
+
+- 22 jobs total: 8 `SUCCESS`, 14 `SKIPPED`, 0 `FAILURE`, 0 `CANCELLED`.
+- Successful jobs: change impact classification; CHRONOS R3 P-A Linux; CHRONOS R3 P-A Windows; CHRONOS R2 independent reference Linux; CHRONOS R2 reference Windows; documentation patch hygiene; Actionlint 1.7.12; Rust quality/unit regression supervisor.
+- The 14 skipped jobs are unrelated hardware/runtime/desktop validations and are not counted as PASS.
+
+### Test and reference evidence
+
+- P-A R3: **60/60 tests PASS on Linux and 60/60 PASS on Windows** (24 advance/catch-up, 22 deadline lifecycle, 14 causal synchronization).
+- R2 independent reference: **256/256 tests PASS on Linux and 256/256 PASS on Windows**; zero failures/errors, no first divergence, mutation checks PASS, worktree CLEAN before and after.
+- Documentation patch hygiene: PASS after removing the five trailing-whitespace lines found by CI #10870.
+- Actionlint 1.7.12: PASS.
+- Quality supervisor: PASS.
+
+### Benchmark matrix and cross-platform equivalence
+
+All measurements are synthetic Python prototype experiments, with five warm-ups and 30 measured repetitions per point, on the exact HEAD above.
+
+| Matrix | Linux points | Windows points | Result |
+|---|---:|---:|---|
+| Instruction/budget + catch-up | 75 | 75 | PASS |
+| Deadline lifecycle | 180 | 180 | PASS |
+| W03/W04 causal synchronization | 30 | 30 | PASS |
+
+Independent inspection of the six JSON artifacts confirms, for every corresponding point across Linux and Windows:
+- parameter sets are identical;
+- output digests are identical;
+- advance counters are identical;
+- deadline result/claimed state is identical;
+- causal applied counts are identical.
+
+This is cross-platform equivalence of the declared synthetic prototype outputs for these matrices. It is not hardware timing evidence, physical SMS timing, Rust runtime performance, frame pacing, audio/video fidelity or ROM compatibility.
+
+Linux thread CPU-clock resolutions were 2,263 ns (advance), 2,503 ns (deadlines) and 2,593 ns (causal); CPU samples were retained. Windows `time.thread_time_ns` resolution was 15,625,000 ns for all three matrices, so CPU-time samples are explicitly `SKIPPED_COARSE_RESOLUTION`; wall-time samples remain valid. `tracemalloc` is a separate probe outside timed samples.
+
+### CI #10871 artifacts — all downloaded and SHA-256 verified
+
+| Matrix | Artifact ID | SHA-256 |
+|---|---:|---|
+| R2 Linux | 15064299006 | `5ec8f08cfafe9acc36c229bfcf424822508fe70a102907ce25b027ef3f29bfce` |
+| R2 Windows | 15063429315 | `7cf385180e24c2b3fd605c6741f006332b25cfde02af9c957fd58e3333c6cea8` |
+| R3 advance Linux | 15065495955 | `23941966200175a5d9c34b3281acbc1787862dbdad80e86927b92fd6ef15ca3a` |
+| R3 advance Windows | 15063529100 | `044c40f67889cc76d781ca4dd6af46c58b059112b7ba92d5583b489dbf0b5fbb` |
+| R3 deadlines Linux | 15065765231 | `53c4819db3e7612978c57dc096ae7af7cbd837b5a1b4f9840790df2a7c814ac6` |
+| R3 deadlines Windows | 15064842670 | `d14bbaaeae6c27b4b199c2f8245946f0ac9704d05cde13d79683090987eafa73` |
+| R3 causal Linux | 15065635600 | `fd5db0b3efbebaccbfbc976fe62daa4dab589ee4f686b3b029b0e88f3e356d90` |
+| R3 causal Windows | 15065331253 | `e89ae65d75518d930e723b27fe7934ff5c62eeed87318e206cbc9a3888b1f661` |
+
+The SHA-256 values above were recalculated from the downloaded ZIP bytes and match the GitHub artifact digests. All eight artifacts identify executed HEAD `75f8f048f248325850796ddc30d97c38b11dff86`.
+
+### Review and gate status
+
+- PR review submissions: none.
+- Inline review threads: none.
+- Independent adversarial review: still BLOCKED / not performed for this HEAD.
+- W06/W07 deeper UNKNOWN/microstep coverage, W08 transaction/partial-effect ledger, W09 snapshot/restore/replay, and complete canonical fixture/trace equivalence remain open.
+
+**Disposition:** CI #10871 is PASS for the declared P-A W00–W05 prototype scope, including its cross-platform synthetic matrices. This does not close P-A's remaining equivalence/review requirements or R3. P-D/P-E remain blocked. R4/R5 remain pending. No production CHRONOS/V2 implementation is authorized before R5.
