@@ -116,12 +116,12 @@ def _validate_reference_state(state: object) -> str | None:
         if not isinstance(domain.domain_id, str) or not domain.domain_id.strip():
             return "participant identity is invalid"
         if not all(_exact(value) for value in (
-            domain.local_to_common, domain.common_offset,
-            domain.progress_local, domain.horizon_local
-        )):
-            return "participant clock conversion or progress is not exact"
-        if domain.local_to_common <= 0 or domain.horizon_local < domain.progress_local:
-            return "participant clock ratio or safe horizon is invalid"
+            domain.local_to_common, domain.common_offset, domain.progress_local
+        )) or domain.local_to_common <= 0:
+            return "participant clock conversion is not exact or comparable"
+        if (not _exact(domain.horizon_local)
+            or domain.horizon_local < domain.progress_local):
+            return "participant safe horizon is invalid"
     if not isinstance(state.obligations, tuple) or any(
         not isinstance(item, Obligation) for item in state.obligations
     ):
@@ -229,7 +229,9 @@ def publish_deadline(
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     state_error = _validate_reference_state(state)
     if state_error is not None:
-        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, state_error)
+        error_code = (DeadlineCode.INDETERMINATE
+                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
+        return DeadlineEvaluation(book, error_code, state_error)
     participant_ids = [item.domain_id for item in state.domains]
     expected = set(state.expected_participants)
     domain_ids = set(participant_ids)
@@ -297,7 +299,9 @@ def _cancellation_admission_frontier(
         return None, DeadlineCode.INVALID_INPUT, book_error
     state_error = _validate_reference_state(state)
     if state_error is not None:
-        return None, DeadlineCode.INVALID_INPUT, state_error
+        error_code = (DeadlineCode.INDETERMINATE
+                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
+        return None, error_code, state_error
     if state.watermark_common != book.watermark_common:
         return None, DeadlineCode.INDETERMINATE, "deadline and reference watermarks disagree"
 
