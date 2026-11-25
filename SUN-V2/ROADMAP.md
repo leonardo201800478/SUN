@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (conteúdo v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281, merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); R2 EM ANDAMENTO (issue #1282); R3–R5 BLOQUEADOS; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (conteúdo v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281, merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); implementação R2-T01–T15 COMPLETA PARA VALIDAÇÃO EXTERNA; gate formal R2 PENDENTE de revisão independente e aprovação explícita; R3–R5 BLOQUEADOS; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -97,7 +97,7 @@ Entregas:
 
 ### Fase 2 — modelo de referência independente (R2)
 
-**Status: EM ANDAMENTO — issue #1282.** Documento inicial: [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md). Nenhum R3 ou código de produção autorizado.
+**Status: IMPLEMENTAÇÃO EXECUTÁVEL T01–T15 COMPLETA PARA VALIDAÇÃO EXTERNA; GATE FORMAL PENDENTE — issue #1282 / PR #1283.** Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e a matriz [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md). Nenhum R3 ou código de produção autorizado.
 
 Entregas:
 - oráculo simples e independente do algoritmo/representação candidata;
@@ -105,7 +105,7 @@ Entregas:
 - cenários adversariais com seeds, perfil, entradas, primeira divergência e estado mínimo reproduzível;
 - UNKNOWN físico preservado como indeterminação/restrição, nunca promovido a FACT.
 
-**Gate R2:** propriedades executadas e resultados reproduzíveis; modelo independente da implementação/protótipo futuro. Nenhum R3 começa antes de R2 aprovado.
+**Gate R2:** não aprovado. A implementação e a cobertura executável T01–T15 existem, mas a saída do gate ainda exige revisão independente do SHA final sem blockers, resposta e disposição dos findings, evidência de mutation testing, relatório JSON reprodutível, validação do runner Windows e aprovação explícita do responsável. Nenhum R3 começa antes de todos esses itens e da aprovação formal R2.
 
 ### Fase 3 — protótipos temporais descartáveis (R3; somente após R1 e R2)
 
