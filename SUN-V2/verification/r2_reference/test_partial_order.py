@@ -3,6 +3,8 @@ import unittest
 from itertools import permutations
 from fractions import Fraction
 
+from causal_reference import CausalState, Device, SyncCode, Transition, synchronize
+
 from chronos_reference import ClockDomain, make_state
 from deadline_reference import (
     DeadlineBook, DeadlineCode, cancel_deadline, close_watermark,
