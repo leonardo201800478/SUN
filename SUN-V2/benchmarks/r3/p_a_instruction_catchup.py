@@ -154,6 +154,19 @@ def advance_budgeted(
             stop_reason = f"PendingObligation:{first.identity}"
             pending_identity = first.identity
 
+        # A zero-length request still establishes the common machine cut.
+        inspected_participants += len(updated)
+        caught_up: list[AParticipant] = []
+        for participant in updated:
+            next_progress = max(
+                participant.progress,
+                min(frontier, participant.safe_horizon),
+            )
+            if next_progress != participant.progress:
+                touched_ids.add(participant.name)
+            caught_up.append(replace(participant, progress=next_progress))
+        updated = caught_up
+
     while current < bounded:
         next_common = min(current + Fraction(chunk), bounded)
         inspected_obligations += len(current_obligations)
@@ -213,6 +226,10 @@ def advance_budgeted(
 
     next_state = replace(state, participants=tuple(updated))
     reached = min(item.progress for item in next_state.participants)
+    if stop_reason == "UnknownSimultaneousObligations":
+        reached = frontier
+    elif stop_reason == "TargetBeforeFrontier":
+        reached = frontier
     return AResult(
         "StoppedAt" if stop_reason != "TargetReached" else "Reached",
         Fraction(target), reached, stop_reason, len(touched_ids),
