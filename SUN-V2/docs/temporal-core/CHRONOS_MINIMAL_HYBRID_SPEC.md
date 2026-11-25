@@ -269,13 +269,12 @@ Cada protótipo exige hipótese, cenário discriminante, métricas e regra de de
 
 ### Gate R1 — contratos temporais (APROVADO em 24/11/2026)
 
-1. Manter a proveniência de R0 e revisar cada contrato contra as fontes primárias e os limites registrados.
-2. Formalizar pré-condições, pós-condições, proprietários, erros e propriedades verificáveis.
-3. Preservar FACT, OBSERVATION, HYPOTHESIS/INFERENCE e UNKNOWN sem converter hipótese em comportamento físico.
-4. Concluir revisão cruzada e adversarial do contrato, resolver blockers e registrar critérios de saída.
-5. Aprovar R1 formalmente antes de iniciar qualquer trabalho R2.
+1. R0 evidências e proveniência foram registradas em R0_CLOSEOUT.md.
+2. R1 v0.3.18 foi aprovado e publicado pela PR #1281 (merge `88e105d6495f7f5105502e53666a7b0d29f77572`).
+3. Contratos C01–C16, classes de resultado, WAIT, deadlines, causalidade, transações, IRQ/NMI, snapshot/replay e erros estão normatizados.
+4. UNKNOWN e limites da evidência física permanecem preservados.
 
-**Saída:** R1 aprovado na issue #1270 e PR correspondente. Nenhum modelo R2 executável ou protótipo R3 começa antes dessa aprovação.
+**Saída:** R1 APROVADO; gate subsequente R2 foi concluído e também aprovado.
 
 ### Gate R2 — modelo de referência independente (APROVADO; PR #1283 merged)
 
