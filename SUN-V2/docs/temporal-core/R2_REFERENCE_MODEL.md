@@ -723,3 +723,44 @@ O CI #10726 ([run](https://github.com/leonardo201800478/SUN/actions/runs/4554749
 - SHA-256: `causal_reference.py` = `3baa7f278c42374e928d47317c1fb34ff7f96ab549eb22db39e576a3faa64ff9`; `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `68a2c8b8315139072cbd75a937fd5699f131847e935c95c2502ee3dd6fedae21`; `microstep_reference.py` = `409772508ac5ffbd84c0726750e986a924b1217393b032ab1193d5fefb8e3e70`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_causal.py` = `4fb017b883c3145aeb6959b29b056392fd2010c30f8c6fff1a462825da7bc26a`; `test_deadlines.py` = `fca4daee62db359ae8a691758e2a397fc3418948ee1d0b5d89bffbedd2abc016`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`.
 
 R2-T05 está **implementado e executado** para os 11 cenários enumerados; isso não equivale à aprovação formal independente da propriedade nem à conclusão do gate R2. T06 continua parcial; T07/T14 aguardam revisão adversarial; T08–T13 e T15 permanecem NOT RUN. R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.23 Fechamento da cobertura executável R2-T01–T15 — 25/11/2026
+
+O incremento encerra a implementação do conjunto de propriedades executáveis R2-T01–T15. A suíte contém **251 testes em 13 módulos**. O escopo continua sendo o oráculo abstrato e independente; nenhum código de produção CHRONOS/V2, crate ou integração de runtime foi criado.
+
+**R2-T06 — corridas de cancelamento/claim/dispatch**
+- Foram acrescentados dois casos que fecham a lacuna do dispatcher atrasado: cancelamento C<D admitido antes de W fechar D permanece supressivo quando o dispatcher tenta executar depois; cancelamento posterior a D é LateInput e não suprime claim/dispatch/complete já causalmente elegíveis.
+- O fixture da segunda corrida mantém o watermark do livro e do estado de referência consistente; divergência de watermark permanece UNKNOWN/Indeterminate, não é usada para simular atraso.
+- Slice deadline: **78 testes**.
+
+**R2-T07 — ordem parcial e simultaneidade**
+- A evidência de fase só cria precedência quando ambos os lados compartilham a mesma evidência; evidências distintas deixam a relação UNKNOWN.
+- A permutação de publicação de eventos simultâneos não comutativos continua Indeterminate e não fecha W.
+- Corrigido um defeito no oráculo causal: a validação reconhecia dependência explícita entre transições no mesmo instante, mas a canonicalização posterior ordenava por identidade e podia destruir a ordem topológica. Agora só há canonicalização por identidade quando todos os membros são declarados comutativos; dependências explícitas preservam a ordem topológica.
+- Cobertura específica: dois testes em `test_partial_order.py` e um caso de dependência no mesmo instante em `test_causal.py`, além da matriz de desempate do slice deadline.
+
+**R2-T08–T13**
+- T08: `transaction_reference.py` / 18 testes — estados Created, InProgress, Waiting, Ready, Completed, Cancelled e Failed; identidade completa de retry; amostragem e commit separados; exactly-once; cancelamento antes/depois de efeito irreversível; falha parcial e recuperação explícita.
+- T09: `wait_reference.py` / 11 testes — TW automático Z80 separado de WAIT externo e WAIT de fixture; amostra em T2 e reamostra em cada TW adicional; UNKNOWN bloqueia sem consumo ou progresso especulativo.
+- T10: `irq_reference.py` / 17 testes — INT em boundary, NMI por borda negativa em instruction-end, atraso EI, prioridade NMI, vetor amostrado uma vez e efeito do dispositivo em commit separado; snapshot da janela ambígua retorna UnsupportedSnapshot.
+- T11: `snapshot_reference.py` / 18 testes — ciclos de vida de deadlines/transações, corte entre sample e commit, ledger parcial, acknowledge, cursor de replay, perfil/versão e restore atômico; artifact ambíguo é rejeitado também no restore.
+- T12: `replay_reference.py` / 20 testes — A(E) completo, sequência aceita, ordem lógica de produtores, empate comutativo/não comutativo, invalidação e republicação de H_d, obrigações pendentes e replay determinístico.
+- T13: `host_reference.py` / 12 testes — pipeline host separado do estado virtual; atraso, drain, drop, underrun, overrun, VSync, buffer e recriação do dispositivo não alteram o core. A fonte de amostras é sintética e inteira, usada apenas para demonstrar independência/particionamento; não valida PSG físico.
+
+**R2-T15 — erro, capacidade e atomicidade**
+- `resource_reference.py` / 10 testes: capacidade finita, ResourceExhausted sem mutação parcial, identidade integral de reserva, commit exatamente uma vez, falha antes/depois de efeitos e recuperação explícita somente dos efeitos pendentes.
+- `test_atomicity.py` / 10 testes: precedência de InvalidInput/Blocked/Indeterminate/LateInput, regressão interna, fronteiras W/D/P_d, cancelamento após efeito irreversível, UnsupportedSnapshot e IncompatibleSnapshot sem substituição parcial.
+
+**Matriz consolidada por módulo:** T01–T04=38; deadline/corridas=78; microsteps=5; causal=12; ordem parcial=2; transações=18; WAIT=11; IRQ/NMI=17; snapshot=18; replay=20; host=12; recursos=10; atomicidade cross-subsystem=10. Total: **251**.
+
+**Validação integral — CI #10748:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45549209728) — **SUCCESS**, HEAD exato `145109df6b3b32db29c3c4a7db895bd505748864`.
+- CHRONOS R2: **251/251 PASS**; runner dedicado duas vezes + `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- Change impact classification, Actionlint, higiene documental e Rust quality/unit regression: PASS.
+- Workspace Rust, Windows, hardware e integrações de subsistemas não alterados: SKIPPED, não PASS.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+- SHA-256 dos modelos: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `causal_reference.py` = `c3657ee326c6f5d5c5dc3c1b87c46674302e7996a0156f31477a27b2d6755988`; `deadline_reference.py` = `68a2c8b8315139072cbd75a937fd5699f131847e935c95c2502ee3dd6fedae21`; `host_reference.py` = `d637ae9872a983481f3e31c56544cd1683f4c7836fb375d0725c254d89041161`; `irq_reference.py` = `1f32474f84896e6171e571bc13209e062e11423e9142cf292dbd83ef9a670543`; `microstep_reference.py` = `409772508ac5ffbd84c0726750e986a924b1217393b032ab1193d5fefb8e3e70`; `replay_reference.py` = `c2c05be315aded6390bdffe466963b8d2ec90bb91f7dee6cbdb5d11eec3fa69f`; `resource_reference.py` = `56d1056445f61b6440dd89b27b2f15bf725be65815994757b13661996925920d`; `snapshot_reference.py` = `5552f3164be5a576ed60b12c0b7bddf9e9ab109bd88d6f0c6871e12409ac4120`; `transaction_reference.py` = `3e14be38ac982562f383d98fed79ac2dd43f1ca585b65e788e84e173ea40284a`; `wait_reference.py` = `d7159588cf816ccea17a761adfa576b3a0ac48ec250a63e54ac8f3f1a05b61a6`.
+- SHA-256 do runner: `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`.
+- SHA-256 dos testes: `test_atomicity.py` = `81ca0b5c358224ba69b59317c090d482998e863812a89747eba343fb415f9d2c`; `test_causal.py` = `923b7498e0948b31b497455c1c46cf09daf5728706cc675f155c091cc71982c5`; `test_deadlines.py` = `b7cd9100a5d95f1cce115434eaf00a6d14e0a55d3d3567050ad5bd57cc6bfc90`; `test_host.py` = `44a2c3afa4f138ec544d509c4c40e0bf188ff440e7cd0d57eb8ceba33bc0020f`; `test_irq.py` = `74a59fd4a3b41f981becdd22d59f8ec97a6cf1f02166bab3953edbcdcc7b2496`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_partial_order.py` = `f9ba1b549c3bd735b6d6b329996a92b15295996da358ca245eba41aad3c35252`; `test_replay.py` = `b7c9f8c061949b9b3a9fab37946e80538658e9c3a7b5eb6f54ef0fcbfdbcbc9d`; `test_resource.py` = `9cb23ef2a7e7f6266783f526de4b84e43be0a8a1fa920921bdec4c848490146a`; `test_snapshot.py` = `75372bbbdd0f24688293f60b82c3cb873e5dafbeb8a0ce8c80b1ff8e16a4b71e`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`; `test_transaction.py` = `95c53b0e9541eb0c85ef4e9dd9e7f9caa039b0f0fcefe7c478e5c28ab31c1215`; `test_wait.py` = `569c6282346f4287ae75f584b79f0ef9e224f531350182208a6f370c0468cb87`.
+
+**Estado:** a implementação e a cobertura executável R2-T01–T15 estão completas e reproduzíveis para validação externa. O gate R2 ainda não foi formalmente aprovado: revisão externa independente e aprovação explícita do responsável permanecem pendentes. PR #1283 continua Draft, aberta e sem merge. R3–R5 permanecem BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
