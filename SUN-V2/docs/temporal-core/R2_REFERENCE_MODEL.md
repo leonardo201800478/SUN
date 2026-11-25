@@ -3,7 +3,7 @@
 **Projeto:** SUN V2
 **Sistema inicial:** Sega Master System (SMS)
 **Gate:** R2 — modelo de referência independente
-**Status:** implementação executável R2-T01–T15 concluída; revisão independente do responsável no HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239` sem blocker funcional; dois P2 documentais corrigidos; aprovação explícita R2 registrada, efetivação vinculada ao CI do SHA documental final.
+**Status:** implementação executável R2-T01–T15 concluída; revisão independente do responsável no HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239` sem blocker funcional; dois P2 documentais corrigidos; R2 APROVADO e publicado na `main` pela PR #1283 (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`).
 **Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)
 **Contrato normativo:** [R1 v0.3.18](R1_TEMPORAL_CONTRACTS.md), conteúdo aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`
 
