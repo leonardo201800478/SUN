@@ -203,12 +203,22 @@ class R2BCancellationRaceTests(unittest.TestCase):
         )
         self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
 
-    def test_cancel_at_deadline_is_late_even_if_dispatch_is_delayed(self):
+    def test_cancel_at_deadline_without_causal_relation_is_indeterminate(self):
+        state = machine(progress=2)
         result = cancel_deadline(
-            self.initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            self.initial, state, owner="cpu", identity="evt", generation=1,
             at_common=Fraction(10),
         )
+        self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
+        self.assertEqual(result.book, self.initial)
+
+    def test_cancel_after_deadline_is_late_even_if_dispatch_is_delayed(self):
+        result = cancel_deadline(
+            self.initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(11),
+        )
         self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(result.book, self.initial)
 
     def test_admitted_cancel_blocks_watermark_until_arbitrated(self):
         admitted = cancel_deadline(
