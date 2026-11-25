@@ -88,8 +88,8 @@ class R2BPublicationTests(unittest.TestCase):
     def test_identity_generation_must_increase_after_terminal_generation(self):
         first = publish(DeadlineBook(), machine(), at=10)
         cancelled = cancel_deadline(
-            first.book, owner="cpu", identity="evt", generation=1,
-            at_common=Fraction(4), admission_frontier=Fraction(2),
+            first.book, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
         )
         self.assertEqual(cancelled.code, DeadlineCode.ACCEPTED)
         terminal = arbitrate_cancellations(cancelled.book).book
@@ -103,24 +103,117 @@ class R2BCancellationRaceTests(unittest.TestCase):
     def setUp(self):
         self.initial = publish(DeadlineBook(), machine(), at=10).book
 
+    def test_cancel_frontier_includes_closed_watermark(self):
+        state = machine(watermark=3)
+        initial = publish(
+            DeadlineBook(watermark_common=Fraction(3)), state, at=10
+        ).book
+        result = cancel_deadline(
+            initial, state, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(2),
+        )
+        self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(result.book, initial)
+
+    def test_cancel_frontier_includes_every_participant_progress(self):
+        initial_state = machine(participants=("cpu", "vdp"))
+        initial = publish(DeadlineBook(), initial_state, at=10).book
+        current_state = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[
+                ClockDomain("cpu", Fraction(1), progress_local=Fraction(0)),
+                ClockDomain("vdp", Fraction(1), progress_local=Fraction(5)),
+            ],
+            expected_participants=("cpu", "vdp"),
+        )
+        result = cancel_deadline(
+            initial, current_state, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(result.book, initial)
+
+    def test_cancel_frontier_blocks_on_incomplete_participants(self):
+        initial_state = machine(participants=("cpu", "vdp"))
+        initial = publish(DeadlineBook(), initial_state, at=10).book
+        incomplete = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[ClockDomain("cpu", Fraction(1), horizon_local=Fraction(100))],
+            expected_participants=("cpu", "vdp"),
+        )
+        result = cancel_deadline(
+            initial, incomplete, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.BLOCKED)
+        self.assertEqual(result.book, initial)
+
+    def test_cancel_frontier_rejects_invalid_clock_conversion_without_mutation(self):
+        initial_state = machine(participants=("cpu", "vdp"))
+        initial = publish(DeadlineBook(), initial_state, at=10).book
+        invalid = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[
+                ClockDomain("cpu", Fraction(1), horizon_local=Fraction(100)),
+                ClockDomain("vdp", Fraction(0), horizon_local=Fraction(100)),
+            ],
+            expected_participants=("cpu", "vdp"),
+        )
+        result = cancel_deadline(
+            initial, invalid, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
+        self.assertEqual(result.book, initial)
+
+    def test_cancel_frontier_rejects_disagreeing_watermarks_without_mutation(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        inconsistent = machine(watermark=1)
+        result = cancel_deadline(
+            initial, inconsistent, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
+        self.assertEqual(result.book, initial)
+
+    def test_cancel_frontier_accepts_exact_rational_participant_conversions(self):
+        state = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=[
+                ClockDomain("cpu", Fraction(2), progress_local=Fraction(1, 2),
+                            horizon_local=Fraction(100)),
+                ClockDomain("vdp", Fraction(3), progress_local=Fraction(1, 3),
+                            horizon_local=Fraction(100)),
+            ],
+            expected_participants=("cpu", "vdp"),
+        )
+        initial = publish(DeadlineBook(), state, at=10).book
+        result = cancel_deadline(
+            initial, state, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(2),
+        )
+        self.assertEqual(result.code, DeadlineCode.ACCEPTED)
+        self.assertEqual(result.book.pending_cancellations[0].at_common,
+                         Fraction(2))
+
     def test_cancel_at_or_before_admission_frontier_is_late(self):
         result = cancel_deadline(
-            self.initial, owner="cpu", identity="evt", generation=1,
-            at_common=Fraction(2), admission_frontier=Fraction(2),
+            self.initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(2),
         )
         self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
 
     def test_cancel_at_deadline_is_late_even_if_dispatch_is_delayed(self):
         result = cancel_deadline(
-            self.initial, owner="cpu", identity="evt", generation=1,
-            at_common=Fraction(10), admission_frontier=Fraction(2),
+            self.initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(10),
         )
         self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
 
     def test_admitted_cancel_blocks_watermark_until_arbitrated(self):
         admitted = cancel_deadline(
-            self.initial, owner="cpu", identity="evt", generation=1,
-            at_common=Fraction(4), admission_frontier=Fraction(2),
+            self.initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
         )
         self.assertEqual(admitted.code, DeadlineCode.ACCEPTED)
         blocked = close_watermark(admitted.book, Fraction(10))
@@ -137,8 +230,8 @@ class R2BCancellationRaceTests(unittest.TestCase):
         claimed = close_watermark(self.initial, Fraction(10))
         self.assertEqual(claimed.book.deadlines[0].status, DeadlineStatus.CLAIMED)
         late = cancel_deadline(
-            claimed.book, owner="cpu", identity="evt", generation=1,
-            at_common=Fraction(11), admission_frontier=Fraction(2),
+            claimed.book, machine(progress=2, watermark=10), owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(11),
         )
         self.assertEqual(late.code, DeadlineCode.LATE_INPUT)
         dispatched = dispatch_deadline(
@@ -154,8 +247,8 @@ class R2BCancellationRaceTests(unittest.TestCase):
 
     def test_old_generation_cannot_dispatch_after_replacement(self):
         admitted = cancel_deadline(
-            self.initial, owner="cpu", identity="evt", generation=1,
-            at_common=Fraction(4), admission_frontier=Fraction(2),
+            self.initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
         )
         terminal = arbitrate_cancellations(admitted.book).book
         replacement = publish(terminal, machine(), at=12, generation=2)
@@ -178,8 +271,8 @@ class R2BReplacementTests(unittest.TestCase):
     def test_replacement_cancels_old_generation_and_publishes_new_atomically(self):
         initial = publish(DeadlineBook(), machine(), at=10).book
         result = replace_deadline(
-            initial, machine(), owner="cpu", identity="evt", generation=1,
-            cancel_at=Fraction(4), admission_frontier=Fraction(2),
+            initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            cancel_at=Fraction(4),
             new_generation=2, new_at_common=Fraction(12),
             new_effect_id="replacement-effect",
         )
@@ -193,8 +286,7 @@ class R2BReplacementTests(unittest.TestCase):
         initial = publish(DeadlineBook(), machine(), at=10).book
         result = replace_deadline(
             initial, machine(progress=20), owner="cpu", identity="evt",
-            generation=1, cancel_at=Fraction(4),
-            admission_frontier=Fraction(2), new_generation=2,
+            generation=1, cancel_at=Fraction(4), new_generation=2,
             new_at_common=Fraction(15), new_effect_id="invalid-replacement",
         )
         self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
@@ -264,7 +356,7 @@ class R2BMicrostepTests(unittest.TestCase):
             current_microstep=0,
         )
         child = schedule_microstep(
-            first.book, owner="cpu", identity="child", generation=1,
+            first.book, machine(progress=2), owner="cpu", identity="child", generation=1,
             at_common=Fraction(5), effect_id="child-effect",
             current_microstep=first.book.deadlines[0].microstep,
         )
@@ -279,7 +371,7 @@ class R2BMicrostepTests(unittest.TestCase):
             current_microstep=0,
         )
         child = schedule_microstep(
-            first.book, owner="cpu", identity="child", generation=1,
+            first.book, machine(progress=2), owner="cpu", identity="child", generation=1,
             at_common=Fraction(5), effect_id="child-effect",
             current_microstep=first.book.deadlines[0].microstep,
         )
@@ -290,18 +382,18 @@ class R2BMicrostepTests(unittest.TestCase):
     def test_microstep_limit_is_explicit_and_does_not_mutate(self):
         book = DeadlineBook(max_microsteps=2)
         first = schedule_microstep(
-            book, owner="cpu", identity="one", generation=1,
+            book, machine(progress=2), owner="cpu", identity="one", generation=1,
             at_common=Fraction(5), effect_id="one",
             current_microstep=0,
         )
         second = schedule_microstep(
-            first.book, owner="cpu", identity="two", generation=1,
+            first.book, machine(progress=2), owner="cpu", identity="two", generation=1,
             at_common=Fraction(5), effect_id="two",
             current_microstep=1,
         )
         before = second.book
         exhausted = schedule_microstep(
-            second.book, owner="cpu", identity="three", generation=1,
+            second.book, machine(progress=2), owner="cpu", identity="three", generation=1,
             at_common=Fraction(5), effect_id="three",
             current_microstep=2,
         )
@@ -312,8 +404,8 @@ class R2BMicrostepTests(unittest.TestCase):
         book = publish(DeadlineBook(), machine(), identity="z", at=12).book
         book = publish(book, machine(), identity="a", at=10).book
         cancelled = cancel_deadline(
-            book, owner="cpu", identity="z", generation=1,
-            at_common=Fraction(4), admission_frontier=Fraction(2),
+            book, machine(progress=2), owner="cpu", identity="z", generation=1,
+            at_common=Fraction(4),
         )
         terminal = arbitrate_cancellations(cancelled.book).book
         self.assertEqual(
