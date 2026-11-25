@@ -152,7 +152,7 @@ def advance_budgeted(
         )
     if not _is_exact(target) or not _is_exact(chunk) or chunk <= 0:
         return AResult(
-            "InvalidInput", Fraction(0), frontier, "InvalidTargetOrChunk",
+            "InvalidInput", Fraction(0), Fraction(0), "InvalidTargetOrChunk",
             0, 0, 0, 0, state,
         )
     if target < frontier:
