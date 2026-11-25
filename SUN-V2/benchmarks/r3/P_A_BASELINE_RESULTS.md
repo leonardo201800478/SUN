@@ -81,23 +81,48 @@ P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is 
 
 ## P-A v2 — single-pass deadline grouping follow-up
 
-**Prototype HEAD:** `292547d6f46a0a950036d46ba90d1e3540727423`
-**CI:** [run #10849](https://github.com/leonardo201800478/SUN/actions/runs/45693332322). R2 Linux/Windows, P-A 45/45 tests Linux/Windows, both benchmark matrices and Actionlint passed. The overall run failed only at documentation patch hygiene because this report's three metadata lines above had trailing Markdown hard-break spaces; that formatting issue is being corrected and revalidated on the next HEAD.
+**Prototype source commit:** `292547d6f46a0a950036d46ba90d1e3540727423`  
+**Final validation HEAD:** `dc9b9ab7b00c1b956f025e3cc9dee40b29c5b24e` (report formatting-only commit after the prototype source)  
+**Final CI:** [run #10851](https://github.com/leonardo201800478/SUN/actions/runs/45693814913) — SUCCESS
 
 P-A v2 changes `close_watermark` to collect due deadlines into a timestamp map in one pass, then sort instants and apply the same causal tie rules. It remains a disposable full-scan/temporary-grouping implementation; no persistent agenda was introduced.
 
-| Environment | Distribution | v1 p50/p95 | v2 p50/p95 | p50 reduction |
-|---|---|---:|---:|---:|
-| Linux | 128 sparse instants | 11.636 / 11.677 ms | 2.763 / 2.933 ms | 76.2% |
-| Linux | 8 dense instants | 3.083 / 3.133 ms | 2.667 / 2.786 ms | 13.5% |
-| Windows | 128 sparse instants | 11.920 / 13.950 ms | 1.949 / 2.161 ms | 83.6% |
-| Windows | 8 dense instants | 3.053 / 3.150 ms | 1.856 / 1.868 ms | 39.2% |
+The v2 p50 for 16 participants / 128 deadlines was:
 
-The v1/v2 values come from separate CI runs, not an interleaved same-process A/B. They are evidence of a promising algorithmic refinement, not a controlled performance claim. The v2 run retained the following artifacts:
+| Environment | Distribution | v1 p50 (run #10844) | v2 p50 (run #10851) | v2 p95 |
+|---|---|---:|---:|---:|
+| Linux | 128 sparse instants | 11.636 ms | 1.295 ms | 1.373 ms |
+| Linux | 8 dense instants | 3.083 ms | 1.230 ms | 1.236 ms |
+| Windows | 128 sparse instants | 11.920 ms | 3.279 ms | 3.415 ms |
+| Windows | 8 dense instants | 3.053 ms | 3.150 ms | 3.262 ms |
+
+A first v2 run (#10849) measured 2.763 ms sparse / 2.667 ms dense on Linux and 1.949 ms sparse / 1.856 ms dense on Windows. The second run (#10851) produced materially different values, especially on Windows. These are separate CI runs and not an interleaved same-process A/B; runner load/variation is visible. Therefore no fixed percentage speedup is claimed. The structural change removes repeated filtering of the entire due list once per distinct timestamp; future comparison should use paired/interleaved samples on a controlled runner.
+
+Final CI #10851 validated **45 P-A tests** (24 advance/catch-up; 21 deadline lifecycle) on Linux and Windows, both R2 suites, both benchmark matrices, Actionlint, documentation patch hygiene and the quality supervisor. Hardware/runtime jobs remained SKIPPED.
+
+### Final v2 artifacts
+
+All artifacts below were produced from validation HEAD `dc9b9ab7b00c1b956f025e3cc9dee40b29c5b24e` and retained by CI for 30 days.
 
 | Environment | Artifact | SHA-256 |
 |---|---|---|
-| Linux advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15058649191) | `f04ac275636717dbeeb8254f8072e87ed611e202c78f0a505b11a1e015ff6b42` |
-| Windows advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15059273072) | `5b361dd896582598cc37bea295e4a5a6247f0ba5ccb5f6977fae8ad990687383` |
-| Linux deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15058958950) | `1b6f98f31a74f28adcb06d7e2b38f02f2dbb3e5345337e3d568455fdde5e6c58` |
-| Windows deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15059476880) | `5343e1942eb19258bddb502d7ef2275a0642a61ea92acb00b8a1c197c5992a90` |
+| Linux advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15058819679) | `274552f65f4d9c7a08953bc75538315642f0f8cadd2bd8992d2b026fceb23ea0` |
+| Windows advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15058934714) | `c203b71d461f697d1a038b13ab977968a22e95981b7f2d15d468521d56b02a57` |
+| Linux deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15059343325) | `cda7968472cedc21289b222e31696a9336788f98c685bbec52f36c56d9be588e` |
+| Windows deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15059787973) | `afb8fcb171ca5707e75c37821cb3b3ab601488f2fbd75a59006099090f27d347` |
+
+- Linux CPU thread clock resolution: 2,003 ns (advance) and 2,233 ns (deadlines); CPU samples retained.
+- Windows CPU thread clock resolution: 15,625,000 ns; CPU samples explicitly skipped as `SKIPPED_COARSE_RESOLUTION`.
+- tracemalloc remains a separate allocation probe outside timed samples.
+
+## Scope still incomplete
+
+This baseline does **not** close P-A or R3. Remaining work includes:
+- W03/W04 observation-driven and frequent-observation workloads;
+- detailed trace/fixture equivalence beyond current result/state differential checks;
+- transaction observe/sample/commit and partial-effect ledger (W08);
+- snapshot/restore/replay (W09);
+- additional W06/W07 boundary depth and workload coverage;
+- adversarial independent review (Codex review requests were blocked by account usage limits).
+
+P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is authorized before R5.
