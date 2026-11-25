@@ -116,10 +116,94 @@ P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is 
 ## Multi-operation fixture/trace equivalence follow-up
 
 **Prototype HEAD:** `02a9bf17c8bb70fb5e9599754389e8d65210bf98`
-**Validation:** pending CI.
+**Validation:** CI #10868 SUCCESS on Linux/Windows; 60/60 P-A tests per OS. See the final closeout section below.
 
 Two sequence tests were added:
 - Deadline trace: publish generation 0 → admit cancellation → verify watermark close is blocked → arbitrate → publish generation 1 → close W → dispatch → complete. P-A and R2 book/result state are compared after each operation.
 - Repeated observation trace: four successive observation cuts across CPU/VDP/PSG. P-A and R2 applied order and full causal state are compared at every cut.
 
 Current P-A suite count: **60 tests** (24 advance/catch-up, 22 deadline lifecycle, 14 causal sync). These tests strengthen fixture/trace equivalence for the selected W00–W05 scenarios; they do not claim internal hardware microstep trace equivalence or close W08/W09.
+
+
+## Final P-A CI closeout — CI #10868
+
+**Classification:** `OBSERVATION` — CI and synthetic Python prototype evidence  
+**Workflow:** [run #10868](https://github.com/leonardo201800478/SUN/actions/runs/45695617409) — `SUCCESS`  
+**Run ID:** `45695617409`  
+**Executed HEAD:** `7351798b61971baad6d25133ce9616b3f5a33b9e`  
+**Branch:** `research/chronos-r3-disposable-prototypes`  
+**Date:** 2026-11-25
+
+The run is associated with the exact HEAD above. The branch exists and the PR remains open and unmerged. The latest PR metadata update observed was 2026-11-25T20:30:27Z, immediately after the HEAD commit at 20:30:25Z. No separate branch-ref SHA was exposed by the available GitHub connector; therefore the SHA above is stated as the exact CI-tested HEAD, not as an independently queried ref response.
+
+### Job summary
+
+- 22 jobs total: 8 `SUCCESS`, 14 `SKIPPED`, 0 `FAILURE`, 0 `CANCELLED`.
+- `SUCCESS`: Change impact classification; CHRONOS R2 Windows; documentation patch hygiene; Actionlint 1.7.12; CHRONOS R3 Windows; CHRONOS R3 Linux; CHRONOS R2 Linux; Rust quality/unit regression supervisor.
+- The 14 skipped jobs concern unrelated hardware/runtime/desktop validations. They are not counted as PASS.
+
+### Test evidence
+
+- P-A R3: **60/60 tests PASS on Linux and 60/60 PASS on Windows** (24 advance/catch-up, 22 deadline lifecycle, 14 causal synchronization).
+- Both R3 jobs executed all three benchmark matrices and uploaded their JSON artifacts.
+- R2 independent reference: **256 tests PASS on Linux and 256 PASS on Windows**, zero failures/errors, no first divergence, mutation checks PASS, clean worktree before/after.
+- Documentation patch hygiene and Actionlint: PASS.
+- The quality supervisor completed successfully.
+
+### Benchmark matrices
+
+All matrices use 5 warm-ups and 30 measured repetitions per point.
+
+| Matrix | Linux points | Windows points |
+|---|---:|---:|
+| Instruction/budget + catch-up | 75 | 75 |
+| Deadline lifecycle | 180 | 180 |
+| W03/W04 causal synchronization | 30 | 30 |
+
+Selected observations from the current run (wall time, p50/p95; different hosted runners, not a controlled cross-platform A/B):
+
+| Workload | Linux | Windows |
+|---|---:|---:|
+| Advance: 16 domains, 128 dense obligations, chunk 8192 | 311.771 / 325.575 µs | 448.150 / 538.090 µs |
+| Deadline complete: 16 domains, 128 dense deadlines | 205.344 / 219.219 µs | 284.450 / 331.170 µs |
+| Causal: 16 fan-in, 32 repeated observations (whole sequence) | 42.982 / 44.756 ms | 78.850 / 106.667 ms |
+
+Windows `time.thread_time_ns` empirical resolution was 15,625,000 ns. CPU-time measurements are explicitly `SKIPPED_COARSE_RESOLUTION`; wall-time measurements and the test/benchmark jobs themselves passed. Linux thread CPU-clock resolutions were 2,575 ns (advance), 2,244 ns (deadlines) and 2,715 ns (causal), so CPU-time samples were retained there.
+
+These are synthetic Python measurements, not Rust runtime performance, physical SMS timing, FPS, frame pacing, audio/video fidelity or ROM compatibility. The new run's numbers are retained as a separate observation; they must not be presented as a controlled speedup against earlier runs or across different hosted runners.
+
+### Artifacts retained from run #10868
+
+GitHub artifact digests were independently recalculated from the downloaded ZIP files and matched exactly.
+
+| Artifact | Artifact ID | SHA-256 |
+|---|---:|---|
+| R2 Windows | 15061610581 | `1212055df3e0f383e71652716c58ddb33db34e66cc80ca11c566db3bee1ac447` |
+| R3 causal Windows | 15061555663 | `2b39304937925ad577feb79d37455c6c74c312a3797f35c0e5401e5e7b6bb63e` |
+| R3 advance Linux | 15061500503 | `e230ee8b41c4d885bafd58a48f3835958a2a398baee9d7b635a5e59af6e31e4d` |
+| R3 deadlines Linux | 15060601442 | `a39f8184079994726667c152f88cbc82be204a08d6faaf03b091ecadeeebc576` |
+| R3 deadlines Windows | 15060426806 | `ced5a7f6760be07d54a68551320b46e4cf2e3edc6e26890df13dea026e966f70` |
+| R3 advance Windows | 15060247070 | `d8b740dae7725ad80405e42ba9e022bcc373e60ee43e5eb5699bc7b76b69ae4c` |
+| R3 causal Linux | 15060246943 | `92fcb2acdf617809f504cfb10d562c818f7db818f01e09196eee8ad5f51edd49` |
+| R2 Linux | 15060063376 | `9fabf6aa7b539c37e4231dc6812090e666411c059c7232577b59378a1fe53fcd` |
+
+All eight artifacts were downloaded and inspected. R2 JSON reports 256 tests per OS with zero failures/errors and mutation checks PASS. R3 JSON files identify the same executed HEAD.
+
+### Independent review status
+
+- PR review submissions: none.
+- Inline review threads: none.
+- Codex review: **BLOCKED** by account code-review usage limits. The visible failed attempt targeted older commit `555c3d034c0d0b7f2013e48fad80ae78d75c1106`; later requests were also blocked by the usage limit.
+- No independent adversarial review exists for the current HEAD `7351798b61971baad6d25133ce9616b3f5a33b9e`.
+
+This remains a review gap. Do not mark R4 as passed.
+
+### Remaining P-A / R3 gaps
+
+- W06/W07: deeper simultaneous-UNKNOWN and microstep boundary/workload coverage.
+- W08: transaction observe/sample/commit, resumability and partial-effect ledger.
+- W09: snapshot/restore/replay.
+- Complete canonical fixture/trace equivalence beyond the current selected state/order comparisons.
+- Independent adversarial review.
+
+**Disposition:** CI #10868 is PASS for the declared P-A W00–W05 prototype scope and its current test/benchmark jobs. P-A is not fully closed; R3 remains in progress. P-D/P-E remain blocked until the documented P-A equivalence and review gates are satisfied. R4/R5 remain pending. No production CHRONOS/V2 implementation is authorized before R5.
