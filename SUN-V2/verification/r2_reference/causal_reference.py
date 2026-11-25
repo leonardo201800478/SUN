@@ -66,6 +66,8 @@ def _validate(state: object) -> str | None:
         return "invalid causal state"
     names: set[str] = set()
     identities: set[str] = set()
+    descriptors: dict[str, tuple[str, Transition]] = {}
+    applied_entries: list[tuple[str, str]] = []
     for device in state.devices:
         if not isinstance(device, Device):
             return "invalid device member"
@@ -90,6 +92,7 @@ def _validate(state: object) -> str | None:
             if transition.identity in identities:
                 return "duplicate transition identity"
             identities.add(transition.identity)
+            descriptors[transition.identity] = (device.name, transition)
             if not _exact_time(transition.at_common):
                 return "invalid transition time"
             if type(transition.requires) is not tuple or any(
@@ -101,10 +104,35 @@ def _validate(state: object) -> str | None:
                 return "duplicate transition dependency"
             if type(transition.commutative) is not bool:
                 return "invalid commutativity declaration"
-    if not identities.issuperset(
-        identity for device in state.devices for identity in device.applied
-    ):
+    for device in state.devices:
+        applied_entries.extend((device.name, identity) for identity in device.applied)
+        for transition in device.transitions:
+            if (
+                transition.identity not in device.applied
+                and transition.at_common < device.progress_common
+            ):
+                return "unapplied transition is behind owner progress"
+    applied_ids = [identity for _, identity in applied_entries]
+    if len(applied_ids) != len(set(applied_ids)):
+        return "applied transition is recorded by multiple devices"
+    if not identities.issuperset(applied_ids):
         return "applied transition has no descriptor"
+    applied = set(applied_ids)
+    for owner, identity in applied_entries:
+        descriptor = descriptors[identity]
+        transition_owner, transition = descriptor
+        if transition_owner != owner:
+            return "applied transition is recorded by a non-owner device"
+        if transition.at_common > next(
+            device.progress_common for device in state.devices if device.name == owner
+        ):
+            return "applied transition is ahead of owner progress"
+        for required in transition.requires:
+            dependency = descriptors.get(required)
+            if required not in applied or dependency is None:
+                return "applied transition has an unresolved dependency"
+            if dependency[1].at_common > transition.at_common:
+                return "applied transition depends on a later transition"
     return None
 
 
