@@ -107,16 +107,6 @@ def _validate(state: AState) -> None:
     ids = [item.identity for item in state.obligations]
     if len(ids) != len(set(ids)):
         raise ValueError("obligation identities must be unique")
-    if state.participants:
-        frontier = max(item.progress for item in state.participants)
-        safe_horizon = min(item.safe_horizon for item in state.participants)
-        if safe_horizon < frontier:
-            raise ValueError("safe horizon is behind the machine frontier")
-        if any(
-            not item.resolved and item.at_common < frontier
-            for item in state.obligations
-        ):
-            raise ValueError("unresolved obligation is behind the machine frontier")
 
 
 def advance_budgeted(
@@ -133,22 +123,43 @@ def advance_budgeted(
     return IndeterminateCausalOrder without advancing any participant.
     """
     _validate(state)
-    if not isinstance(target, (int, Fraction)) or isinstance(target, bool):
-        raise ValueError("target must be an exact rational coordinate")
-    if not isinstance(chunk, (int, Fraction)) or isinstance(chunk, bool) or chunk <= 0:
-        raise ValueError("chunk must be a positive exact rational coordinate")
     if not state.participants:
+        if not _is_exact(target) or not _is_exact(chunk) or chunk <= 0:
+            return AResult(
+                "InvalidInput", Fraction(0), Fraction(0), "InvalidTargetOrChunk",
+                0, 0, 0, 0, state,
+            )
         return AResult(
             "Blocked", Fraction(target), Fraction(0), "NoParticipants",
             0, 0, 0, 0, state,
         )
     frontier = _common_frontier(state)
+    safe_horizon = min(item.safe_horizon for item in state.participants)
+    if safe_horizon < frontier:
+        return AResult(
+            "InvariantViolation", Fraction(target) if _is_exact(target) else Fraction(0),
+            frontier, "SafeHorizonBehindMachineFrontier",
+            0, 0, 0, 0, state,
+        )
+    if any(
+        not item.resolved and item.at_common < frontier
+        for item in state.obligations
+    ):
+        return AResult(
+            "InvariantViolation", Fraction(target) if _is_exact(target) else Fraction(0),
+            frontier, "UnresolvedObligationBehindMachineFrontier",
+            0, 0, 0, 0, state,
+        )
+    if not _is_exact(target) or not _is_exact(chunk) or chunk <= 0:
+        return AResult(
+            "InvalidInput", Fraction(0), frontier, "InvalidTargetOrChunk",
+            0, 0, 0, 0, state,
+        )
     if target < frontier:
         return AResult(
             "LateInput", Fraction(target), frontier, "TargetBeforeFrontier",
             0, 0, 0, 0, state,
         )
-    safe_horizon = min(item.safe_horizon for item in state.participants)
     # P-A deliberately scans all obligations for every budget chunk. It does
     # not construct or consult a global event agenda.
     current_obligations = tuple(state.obligations)
@@ -250,16 +261,8 @@ def advance_budgeted(
 
     if not pending_identity and Fraction(target) > safe_horizon:
         stop_reason = "SafeHorizon"
-    if not chunks and bounded > frontier:
-        # A pending obligation can be closer than the first chunk boundary.
-        inspected_participants += 0
-
     next_state = replace(state, participants=tuple(updated))
     reached = min(item.progress for item in next_state.participants)
-    if stop_reason == "UnknownSimultaneousObligations":
-        reached = frontier
-    elif stop_reason == "TargetBeforeFrontier":
-        reached = frontier
     return AResult(
         "StoppedAt" if stop_reason != "TargetReached" else "Reached",
         Fraction(target), reached, stop_reason, len(touched_ids),
