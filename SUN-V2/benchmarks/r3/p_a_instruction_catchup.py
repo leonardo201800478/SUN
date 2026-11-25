@@ -151,6 +151,21 @@ def advance_budgeted(
             bounded = earliest
             stop_reason = f"PendingObligation:{first.identity}"
             pending_identity = first.identity
+            # Catch up every participant to the exact obligation instant, not
+            # merely to the previous budget boundary.
+            inspected_participants += len(updated)
+            next_participants: list[AParticipant] = []
+            for participant in updated:
+                next_progress = max(
+                    participant.progress,
+                    min(earliest, participant.safe_horizon),
+                )
+                if next_progress != participant.progress:
+                    touched_ids.add(participant.name)
+                next_participants.append(replace(participant, progress=next_progress))
+            updated = next_participants
+            chunks += 1
+            current = earliest
             break
 
         inspected_participants += len(updated)
