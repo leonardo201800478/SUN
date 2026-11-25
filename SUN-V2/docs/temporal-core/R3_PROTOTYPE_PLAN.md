@@ -1,7 +1,7 @@
 # CHRONOS R3 — plano de protótipos temporais descartáveis
 
 **Gate:** R3 — prototipagem e comparação
-**Estado:** planejamento experimental; nenhuma medição publicada ainda
+**Estado:** primeiro corte P-A implementado; CI #10821 passou em Linux/Windows; smoke executado sem retenção dos dados; baseline completa pendente
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **Base normativa:** R1 v0.3.18 aprovado; R2-T01–T15 aprovado e merged pela PR #1283
 **Escopo de sistema:** perfil temporal abstrato inicialmente; SMS NTSC/PAL somente quando os parâmetros forem fixados por fonte R0/R1 e cenário identificado.
@@ -59,7 +59,7 @@ O primeiro incremento P-A implementa o recorte de avanço limitado:
 - catch-up sem ultrapassar safe horizon;
 - digest canônico de progresso por participante.
 
-O P-A atual ainda NÃO implementa publicação/cancelamento de deadline, lifecycle de dispatch, observação/commit transacional nem snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. O teste de equivalência atual compara status, tempo de parada e progresso de cada participante com o R2; um digest canônico confirma a invariância de partição. Captura detalhada de trace ainda não está implementada neste primeiro corte. Os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
+O P-A atual ainda NÃO implementa publicação/cancelamento de deadline, lifecycle de dispatch, observação/commit transacional nem snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. A suíte atual compara classe de resultado, target solicitado, corte alcançado, obrigações preservadas e progresso/horizonte/razão de relógio de cada participante com R2. Inclui 48 combinações determinísticas de fronteira, invariância de partição e casos de obrigações comutativas/resolvidas/vazias. Captura detalhada de trace ainda não está implementada neste primeiro corte. Os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
 
 A baseline será medida primeiro com um único chunk até safe horizon e depois com chunks menores. O tamanho do chunk é parâmetro de workload, não constante de semântica. O benchmark registra chunks, participantes tocados/inspecionados e obrigações varridas. Isso evidencia trabalho interno, sem afirmar que essas contagens representam ciclos físicos.
 
@@ -87,13 +87,13 @@ O primeiro corte P-A implementará o subconjunto W00–W05; W06–W09 entram ass
 ## 6. Protocolo de benchmark
 
 - Gerar fixtures e entradas antes da região cronometrada.
-- Warm-up 5 execuções; medir 30 repetições independentes por ponto de parâmetro (revisável se variância exigir mais).
+- Warm-up 5 execuções; medir 30 repetições independentes por ponto de parâmetro (revisável se variância exigir mais). A coleta inclui wall time e CPU time por amostra; pico tracemalloc é medido em probe separado, fora das amostras cronometradas.
 - Fixar seed, versão de Python/toolchain, CPU, sistema, governor/power plan, frequência efetiva se disponível, commit SHA, configuração, tracing e flags.
 - Executar cada variante em processos/ordens alternadas para reduzir viés de aquecimento e drift; guardar amostras brutas, não só resumo.
 - Medir wall-clock e CPU time; separar geração de workload, validação do trace, serialização JSON e hashing do benchmark principal.
 - Reportar throughput, ns/op e ns por classe; p50/p95/p99 e máximo observado; peak/retained memory (tracemalloc ou ferramenta mais apropriada); alocações/bytes quando a instrumentação não distorcer a medida.
 - Repetir com tracing ligado/desligado; tracing não pode alterar resultado funcional.
-- Guardar medição por operação e dados brutos, ambiente e hashes; não comparar números de máquinas diferentes como se fossem A/B.
+- Guardar medição por operação e dados brutos, ambiente e hashes como artefatos CI com retenção; não comparar números de máquinas diferentes como se fossem A/B. O throughput deve derivar de contadores reais de inspeção, nunca de soma arbitrária de entidades do fixture.
 - Nenhum limite de overhead é escolhido antes da primeira baseline P-A; benchmark é evidência de custo, não critério para enfraquecer contrato.
 
 ## 7. Critérios de equivalência e descarte
