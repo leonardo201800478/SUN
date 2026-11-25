@@ -382,4 +382,9 @@ Correção candidata:
 - Separar `C=D` de `C>D`: sem relação causal/microstep fornecida, o empate retorna `IndeterminateCausalOrder`, sem mutação; `C>D` retorna `LateInput`.
 - Substituir o teste que aceitava a classificação incorreta por um teste de empate indeterminado e sem mutação; adicionar teste independente para `C>D` tardio.
 
+**Cobertura adicional:** o empate sem `W` e com `W<D` possui testes discriminantes separados; ambos exigem `IndeterminateCausalOrder` sem mutação.
+
 **Estado:** alteração candidata ainda aguarda CI e revisão independente vinculados ao novo HEAD. R2 permanece EM ANDAMENTO; T06/T07/T14 continuam parciais. Não autoriza R3, produção ou merge.
+
+
+A suíte candidata foi ampliada para 57 testes (30 casos parciais no slice R2-B) para cobrir o empate C=D tanto sem watermark quanto com W<D. Essa contagem ainda requer CI vinculado ao novo HEAD.
