@@ -212,7 +212,7 @@ def sample_ack_vector(state: IrqState, vector: str) -> IrqEvaluation:
         return IrqEvaluation(IrqCode.INVALID_INPUT, state, detail=invalid)
     if state.vector_sampled is not None:
         return IrqEvaluation(IrqCode.OK, state, value=state.vector_sampled)
-    if not state.ack_active or type(vector) is not str:
+    if not state.ack_active or type(vector) is not str or not vector.strip():
         return IrqEvaluation(IrqCode.INVARIANT_VIOLATION, state, detail="vector sample outside acknowledge")
     updated = replace(state, vector_sampled=vector)
     return IrqEvaluation(IrqCode.OK, updated, value=vector)
