@@ -1,0 +1,143 @@
+"""Deterministic P-A disposable prototype tests."""
+from __future__ import annotations
+
+import unittest
+from fractions import Fraction
+
+from p_a_instruction_catchup import (
+    AObligation,
+    AParticipant,
+    AState,
+    advance_budgeted,
+    state_digest as p_a_digest,
+)
+from ...verification.r2_reference.chronos_reference import (
+    ClockDomain,
+    Obligation,
+    ResultKind,
+    advance as r2_advance,
+    make_state as r2_make_state,
+    state_digest as r2_digest,
+)
+
+
+class PATestCase(unittest.TestCase):
+    def compare_case(self, state: AState, target: Fraction, chunk: Fraction):
+        result = advance_budgeted(state, target=target, chunk=chunk)
+        r2_state = r2_make_state(
+            profile="R3-SYNTHETIC-ABSTRACT",
+            domains=tuple(
+                ClockDomain(
+                    domain_id=item.name,
+                    local_to_common=item.units_per_common,
+                    progress_local=item.progress / item.units_per_common,
+                    horizon_local=item.safe_horizon / item.units_per_common,
+                )
+                for item in state.participants
+            ),
+            expected_participants=(item.name for item in state.participants),
+            obligations=tuple(
+                Obligation(
+                    obligation_id=item.identity,
+                    owner=item.owner,
+                    at_common=item.at_common,
+                    resolved=item.resolved,
+                    commutative=item.commutative,
+                )
+                for item in state.obligations
+            ),
+        )
+        reference = r2_advance(r2_state, target)
+        self.assertEqual(result.code, reference.kind.value)
+        self.assertEqual(result.reached, reference.reached_common)
+        self.assertEqual(
+            p_a_digest(result.next_state),
+            self._reference_digest(reference.state),
+        )
+        return result, reference
+
+    @staticmethod
+    def _reference_digest(state):
+        return tuple(
+            sorted(
+                (
+                    domain.domain_id,
+                    domain.progress_common().numerator,
+                    domain.progress_common().denominator,
+                )
+                for domain in state.domains
+            )
+        )
+
+    def test_sparse_budgeted_advance_matches_r2(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(3, 2)),
+            )
+        )
+        result, _ = self.compare_case(state, Fraction(80), Fraction(8))
+        self.assertEqual(result.code, ResultKind.REACHED.value)
+        self.assertEqual(result.chunks, 10)
+        self.assertEqual(result.obligations_inspected, 0)
+
+    def test_pending_obligation_stops_before_boundary(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(0), Fraction(20)),),
+            obligations=(AObligation("irq", "cpu", Fraction(7)),),
+        )
+        result, _ = self.compare_case(state, Fraction(15), Fraction(4))
+        self.assertEqual(result.code, ResultKind.STOPPED_AT.value)
+        self.assertEqual(result.reached, Fraction(7))
+        self.assertEqual(result.reason, "PendingObligation:irq")
+
+    def test_unknown_simultaneous_obligations_do_not_advance(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(0), Fraction(20)),),
+            obligations=(
+                AObligation("irq", "cpu", Fraction(7), commutative=False),
+                AObligation("dma", "cpu", Fraction(7), commutative=False),
+            ),
+        )
+        result, _ = self.compare_case(state, Fraction(15), Fraction(4))
+        self.assertEqual(result.code, ResultKind.INDETERMINATE_CAUSAL_ORDER.value)
+        self.assertEqual(result.reached, Fraction(0))
+        self.assertEqual(result.next_state, state)
+
+    def test_safe_horizon_bounds_budget(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(0), Fraction(9)),
+                AParticipant("vdp", Fraction(0), Fraction(6)),
+            )
+        )
+        result, _ = self.compare_case(state, Fraction(15), Fraction(4))
+        self.assertEqual(result.code, ResultKind.STOPPED_AT.value)
+        self.assertEqual(result.reason, "SafeHorizon")
+        self.assertEqual(result.reached, Fraction(6))
+        self.assertEqual(result.chunks, 2)
+
+    def test retrograde_target_is_rejected_without_mutation(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(5), Fraction(20)),)
+        )
+        result, _ = self.compare_case(state, Fraction(4), Fraction(2))
+        self.assertEqual(result.code, ResultKind.LATE_INPUT.value)
+        self.assertEqual(result.next_state, state)
+
+    def test_chunk_partition_invariance(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(2)),
+            )
+        )
+        one, _ = self.compare_case(state, Fraction(40), Fraction(40))
+        many, _ = self.compare_case(state, Fraction(40), Fraction(2))
+        self.assertEqual(p_a_digest(one.next_state), p_a_digest(many.next_state))
+        self.assertEqual(one.reached, many.reached)
+        self.assertGreater(many.chunks, one.chunks)
+
+
+if __name__ == "__main__":
+    unittest.main()
