@@ -489,6 +489,28 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(result.code, ADeadlineCode.ACCEPTED)
 
+    def test_sparse_many_instant_watermark_claims_preserve_r2_order(self):
+        book = self.empty
+        for i in range(32):
+            published = self.publish(
+                book=book,
+                owner="cpu" if i % 2 == 0 else "vdp",
+                identity=f"sparse-{i:02d}",
+                generation=0,
+                at_common=Fraction(i + 1),
+                effect_id=f"effect-{i:02d}",
+                commutative=True,
+            )
+            book = published.book
+        actual = close_watermark(book, Fraction(40))
+        expected = r2_close_watermark(to_r2_book(book), Fraction(40))
+        self.compare(actual, expected)
+        self.assertEqual(len(actual.claimed), 32)
+        self.assertEqual(
+            actual.claimed,
+            tuple((f"sparse-{i:02d}", 0) for i in range(32)),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
