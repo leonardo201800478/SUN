@@ -269,6 +269,25 @@ class R2BCancellationRaceTests(unittest.TestCase):
         self.assertEqual(result.code, DeadlineCode.BLOCKED)
         self.assertEqual(result.book, self.initial)
 
+    def test_cancel_frontier_requires_owner_in_declared_and_present_participants(self):
+        states = (
+            machine(participants=("vdp",)),
+            make_state(
+                profile="SMS-NTSC-ABSTRACT",
+                domains=[ClockDomain("vdp", Fraction(1), horizon_local=Fraction(100))],
+                expected_participants=("cpu", "vdp"),
+            ),
+        )
+        for state in states:
+            with self.subTest(expected=state.expected_participants,
+                              actual=tuple(d.domain_id for d in state.domains)):
+                result = cancel_deadline(
+                    self.initial, state, owner="cpu", identity="evt",
+                    generation=1, at_common=Fraction(4),
+                )
+                self.assertEqual(result.code, DeadlineCode.BLOCKED)
+                self.assertEqual(result.book, self.initial)
+
     def test_cancel_frontier_rejects_invalid_clock_conversion_without_mutation(self):
         initial_state = machine(participants=("cpu", "vdp"))
         initial = publish(DeadlineBook(), initial_state, at=10).book
@@ -396,6 +415,29 @@ class R2BCancellationRaceTests(unittest.TestCase):
         )
         self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
         self.assertEqual(result.book, self.initial)
+
+    def test_preconstructed_pending_cancellation_must_precede_deadline(self):
+        deadline = replace(
+            self.initial.deadlines[0], status=DeadlineStatus.CANCEL_PENDING
+        )
+        for cancel_at, expected in (
+            (Fraction(10), DeadlineCode.INDETERMINATE),
+            (Fraction(11), DeadlineCode.LATE_INPUT),
+        ):
+            with self.subTest(cancel_at=cancel_at):
+                book = DeadlineBook(
+                    deadlines=(deadline,),
+                    pending_cancellations=(
+                        Cancellation("cpu", "evt", 1, cancel_at),
+                    ),
+                )
+                for result in (
+                    arbitrate_cancellations(book),
+                    close_watermark(book, Fraction(10)),
+                ):
+                    self.assertEqual(result.code, expected)
+                    self.assertEqual(result.book, book)
+                    self.assertEqual(result.claimed, ())
 
     def test_admitted_cancel_blocks_watermark_until_arbitrated(self):
         admitted = cancel_deadline(
@@ -527,6 +569,30 @@ class R2BCancellationRaceTests(unittest.TestCase):
 
 
 class R2BReplacementTests(unittest.TestCase):
+    def test_replacement_validates_new_descriptor_before_temporal_admission(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        invalid_descriptors = (
+            {"new_generation": -1, "new_effect_id": "valid-effect"},
+            {"new_generation": 2, "new_effect_id": ""},
+            {"new_generation": True, "new_effect_id": "valid-effect"},
+            {"new_generation": 2, "new_effect_id": "valid-effect", "microstep": 1},
+        )
+        for descriptor in invalid_descriptors:
+            with self.subTest(descriptor=descriptor):
+                result = replace_deadline(
+                    initial, machine(progress=5), owner="cpu", identity="evt",
+                    generation=1, cancel_at=Fraction(4),
+                    new_generation=descriptor["new_generation"],
+                    new_at_common=Fraction(15),
+                    new_effect_id=descriptor["new_effect_id"],
+                    microstep=descriptor.get("microstep", False),
+                )
+                self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(result.book, initial)
+                self.assertEqual(
+                    result.book.deadlines[0].status, DeadlineStatus.SCHEDULED
+                )
+
     def test_replacement_rejects_new_generation_not_after_cancel_time(self):
         initial = publish(DeadlineBook(), machine(), at=10).book
         for new_at, expected in (
