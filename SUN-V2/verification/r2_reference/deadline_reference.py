@@ -269,6 +269,7 @@ def _validate_book(book: object) -> str | None:
                 not isinstance(item.microstep_level, int)
                 or isinstance(item.microstep_level, bool)
                 or item.microstep_level < 0
+                or item.microstep_level > book.max_microsteps
             ))
             or (item.phase_order is not None and (
                 not isinstance(item.phase_order, int) or isinstance(item.phase_order, bool)
@@ -547,7 +548,7 @@ def cancel_deadline(
     phase_order: int | None = None,
     phase_evidence: str | None = None,
 ) -> DeadlineEvaluation:
-    """Admit C<D only after deriving A(E) from every participant and W."""
+    """Admit a cancellation only after deriving A(E) and any C=D order."""
     if (
         not isinstance(owner, str) or not owner.strip()
         or not isinstance(identity, str) or not identity.strip()
@@ -580,6 +581,11 @@ def cancel_deadline(
     if frontier_error is not None:
         return DeadlineEvaluation(book, frontier_error, frontier_detail)
     assert admission_frontier is not None
+    if microstep_level is not None and microstep_level > book.max_microsteps:
+        return DeadlineEvaluation(
+            book, DeadlineCode.RESOURCE_EXHAUSTED,
+            "cancellation microstep exceeds the finite book limit",
+        )
     if deadline.status is not DeadlineStatus.SCHEDULED:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "deadline is no longer cancellable")
