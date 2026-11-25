@@ -303,6 +303,16 @@ R2 só pode ser aprovado quando:
 
 **Estado vigente (25/11/2026):** R2 foi aprovado após parecer independente, P2 documentais corrigidos, CI #10798 SUCCESS e merge da PR #1283 em `main` (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`). R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`, exclusivamente com protótipos descartáveis e comparações sob a semântica R1/R2. Essa autorização não escolhe a arquitetura final nem autoriza código de produção CHRONOS/V2, que permanece condicionado a R5.
 
+### Estado vigente — atualização final de R2 e autorização R3 (25/11/2026)
+
+Este registro atualiza o estado do gate após a sequência histórica de incrementos R2 abaixo. As subseções 8.1.x documentam o estado de cada commit/execução à época e não substituem a decisão final registrada aqui.
+
+- Parecer independente do responsável no SHA exato `ad8cbbe50a82334b8ee873351dda65b26459e239`: nenhum blocker funcional; dois P2 documentais corrigidos.
+- CI #10798 SUCCESS no HEAD documental `a858f8f21caece3567385d64745823c655dbd135`: 256/256 em Linux e Windows, dois mutantes KILLED, JSON e worktrees CLEAN; higiene documental, Actionlint e supervisor de qualidade PASS. Jobs de hardware/runtime não relacionados foram SKIPPED.
+- PR #1283 merged na `main`, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`; aprovação explícita do responsável foi concedida.
+- **R2: APROVADO. R3: EM ANDAMENTO** na branch `research/chronos-r3-disposable-prototypes`, limitado a protótipos descartáveis e comparações reproduzíveis sob a semântica R1/R2. A hipótese híbrida não está aprovada por antecedência. Nenhum código de produção CHRONOS/V2 antes de R5.
+
+
 ---
 
 
