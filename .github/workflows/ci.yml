@@ -1145,7 +1145,7 @@ jobs:
           PYTHONHASHSEED: "0"
         run: |
           python3 --version
-          python3 -m unittest -v test_p_a_instruction_catchup.py test_p_a_deadline_lifecycle.py test_p_a_causal_sync.py test_p_a_microsteps.py test_p_a_transactions.py
+          python3 -m unittest -v test_p_a_instruction_catchup.py test_p_a_deadline_lifecycle.py test_p_a_causal_sync.py test_p_a_microsteps.py test_p_a_transactions.py test_p_a_snapshots.py
           if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
             echo "R3 prototype tests modified the worktree"
             git status --short
@@ -1239,6 +1239,21 @@ jobs:
         with:
           name: chronos-r3-p-a-w08-linux-${{ github.run_id }}
           path: ${{ runner.temp }}/r3-p-a-w08-linux.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Run P-A W09 snapshot restore replay benchmark matrix
+        working-directory: SUN-V2/benchmarks/r3
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONHASHSEED: "0"
+        run: |
+          python3 bench_p_a_snapshots.py --sizes 1,2,4,8,16 --replay-events 0,1,4,16 --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w09-linux.json"
+      - name: Upload P-A W09 snapshot replay JSON
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chronos-r3-p-a-w09-linux-${{ github.run_id }}
+          path: ${{ runner.temp }}/r3-p-a-w09-linux.json
           if-no-files-found: error
           retention-days: 30
 
@@ -1376,6 +1391,24 @@ jobs:
         with:
           name: chronos-r3-p-a-w08-windows-${{ github.run_id }}
           path: ${{ runner.temp }}/r3-p-a-w08-windows.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Run P-A W09 snapshot restore replay benchmark matrix
+        working-directory: SUN-V2/benchmarks/r3
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONHASHSEED: "0"
+          R3_W09_RESULT_PATH: ${{ runner.temp }}/r3-p-a-w09-windows.json
+        shell: pwsh
+        run: |
+          python bench_p_a_snapshots.py --sizes 1,2,4,8,16 --replay-events 0,1,4,16 --warmup 5 --repeats 30 --output "$env:R3_W09_RESULT_PATH"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload P-A W09 snapshot replay JSON
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chronos-r3-p-a-w09-windows-${{ github.run_id }}
+          path: ${{ runner.temp }}/r3-p-a-w09-windows.json
           if-no-files-found: error
           retention-days: 30
 
