@@ -35,22 +35,25 @@ Do not import R2 model classes into timed prototype implementations.
 
 ## Validation and benchmark status
 
-CI #10868 completed successfully on Linux and Windows for the current P-A HEAD
-`7351798b61971baad6d25133ce9616b3f5a33b9e`. The P-A differential suite passed
+CI #10871 completed successfully on Linux and Windows for P-A HEAD
+`75f8f048f248325850796ddc30d97c38b11dff86`. The P-A differential suite passed
 60/60 tests on each OS (24 advance/catch-up, 22 deadline lifecycle, 14 causal sync).
-The R2 reference suite passed 256 tests on each OS. Documentation hygiene,
-Actionlint and the quality supervisor passed. Fourteen unrelated hardware/runtime/
-desktop jobs were SKIPPED and are not counted as PASS.
+The R2 independent reference suite passed 256/256 tests on each OS, with zero
+failures/errors, no first divergence and mutation checks PASS. Documentation hygiene,
+Actionlint 1.7.12 and the quality supervisor passed. Fourteen unrelated
+hardware/runtime/desktop jobs were SKIPPED and are not counted as PASS.
 
 The advance matrix has 75 points per OS; the deadline lifecycle matrix has 180 points
 per OS; the W03/W04 causal matrix has 30 points per OS. All use five warm-ups and
-30 measured repetitions. Windows thread CPU-clock resolution was too coarse, so
-CPU-time samples are explicitly skipped while wall-time samples remain available.
-tracemalloc is a separate probe outside timed samples.
+30 measured repetitions. Corresponding parameters and output digests match across
+Linux and Windows for every point in all three matrices. Windows thread CPU-clock
+resolution was too coarse, so CPU-time samples are explicitly skipped while
+wall-time samples remain available. tracemalloc is a separate probe outside timed
+samples.
 
-The final CI #10868 environment details, job statuses, raw artifact IDs, verified
-SHA-256 digests, selected observations and limitations are recorded in
-[P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md).
+The CI #10871 environment details, job statuses, eight raw artifact IDs, verified
+SHA-256 digests, cross-platform output-equivalence checks and limitations are
+recorded in [P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md).
 
 ## Scope boundary
 
