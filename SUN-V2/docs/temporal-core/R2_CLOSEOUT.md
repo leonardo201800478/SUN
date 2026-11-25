@@ -1,8 +1,8 @@
 # SUN V2 — CHRONOS R2 implementation closeout
 
-**Status:** IMPLEMENTAÇÃO EXECUTÁVEL R2-T01–T15 COMPLETA PARA VALIDAÇÃO; **GATE FORMAL R2 NÃO APROVADO**.  
-**R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.  
-**R2:** issue #1282; PR #1283 permanece Draft, aberta e sem merge.  
+**Status:** IMPLEMENTAÇÃO EXECUTÁVEL R2-T01–T15 COMPLETA PARA VALIDAÇÃO; **GATE FORMAL R2 NÃO APROVADO**.
+**R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
+**R2:** issue #1282; PR #1283 permanece Draft, aberta e sem merge.
 **R3–R5:** BLOQUEADOS. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
 
 Este documento fecha o pacote de implementação e evidências disponíveis para a revisão. Não é aprovação formal do gate R2 e não substitui a decisão explícita do responsável.
@@ -103,7 +103,7 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 
 ## 6. Decisão
 
-**Implementação executável R2-T01–T15: COMPLETA PARA VALIDAÇÃO EXTERNA.**  
+**Implementação executável R2-T01–T15: COMPLETA PARA VALIDAÇÃO EXTERNA.**
 **Gate formal R2: PENDENTE / NÃO APROVADO.**
 
 A sequência obrigatória restante é: validar o candidato reforçado em Linux e Windows; obter relatório JSON e mutation checks PASS; solicitar revisão Codex do SHA final; responder e resolver justificadamente todos os findings; realizar revisão humana adversarial; e somente então solicitar aprovação explícita do responsável.
