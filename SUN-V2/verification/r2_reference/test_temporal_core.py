@@ -1,5 +1,6 @@
 """Executable R2-A properties for the independent CHRONOS oracle."""
 from fractions import Fraction
+import json
 import random
 import unittest
 
@@ -304,21 +305,43 @@ class R2T01MonotonicityTests(unittest.TestCase):
         self.assertEqual(canonical_state(evaluated.state), before)
 
     def test_seeded_monotonic_sequence_and_retrograde_rejections(self):
-        rng = random.Random(0xC0A05)
+        seed = 0xC0A05
+        rng = random.Random(seed)
         state = make_state(domains=[one_domain(horizon=Fraction(1000))])
         previous = Fraction(0)
+        trace = []
 
-        for _ in range(100):
+        for index in range(100):
             target = previous + Fraction(rng.randint(0, 9), rng.randint(1, 7))
             accepted = advance(state, target)
-            self.assertEqual(accepted.result.kind, ResultKind.REACHED)
+            trace.append({"op": "Advance", "target": str(target), "expected": "Reached"})
+            if accepted.result.kind is not ResultKind.REACHED:
+                self.fail("R2_REPRO=" + json.dumps({
+                    "seed": seed, "trace": trace,
+                    "first_divergence": str(accepted.result.kind),
+                    "minimal_state": {"previous": str(previous), "target": str(target)},
+                }, sort_keys=True))
             state = accepted.state
             previous = target
 
             before = canonical_state(state)
-            rejected = advance(state, target - Fraction(1, 101))
-            self.assertEqual(rejected.result.kind, ResultKind.LATE_INPUT)
-            self.assertEqual(canonical_state(rejected.state), before)
+            retrograde_target = target - Fraction(1, 101)
+            rejected = advance(state, retrograde_target)
+            trace.append({"op": "Advance", "target": str(retrograde_target), "expected": "LateInput"})
+            if rejected.result.kind is not ResultKind.LATE_INPUT or canonical_state(rejected.state) != before:
+                self.fail("R2_REPRO=" + json.dumps({
+                    "seed": seed, "trace": trace,
+                    "first_divergence": {
+                        "expected": "LateInput and unchanged state",
+                        "observed": str(rejected.result.kind),
+                    },
+                    "minimal_state": {
+                        "accepted_prefix_index": index,
+                        "previous": str(previous),
+                        "retrograde_target": str(retrograde_target),
+                        "state": repr(before),
+                    },
+                }, sort_keys=True))
 
 
 class R2T02ChunkInvarianceTests(unittest.TestCase):
@@ -409,14 +432,48 @@ class R2T02ChunkInvarianceTests(unittest.TestCase):
             )
 
             whole = advance(initial, Fraction(target))
-            partitioned_state = initial
-            for cut in cuts + [target]:
-                part = advance(partitioned_state, Fraction(cut))
-                self.assertEqual(part.result.kind, ResultKind.REACHED)
-                partitioned_state = part.state
+            expected = canonical_state(whole.state)
 
-            self.assertEqual(whole.result.kind, ResultKind.REACHED)
-            self.assertEqual(canonical_state(whole.state), canonical_state(partitioned_state))
+            def partition(cut_points):
+                current = initial
+                for point in cut_points + [target]:
+                    result = advance(current, Fraction(point))
+                    if result.result.kind is not ResultKind.REACHED:
+                        return None, str(result.result.kind)
+                    current = result.state
+                return canonical_state(current), None
+
+            actual, failure = partition(cuts)
+            if whole.result.kind is not ResultKind.REACHED or failure is not None or actual != expected:
+                minimal_cuts = list(cuts)
+                changed = True
+                while changed:
+                    changed = False
+                    for index in range(len(minimal_cuts)):
+                        candidate = minimal_cuts[:index] + minimal_cuts[index + 1:]
+                        candidate_state, candidate_failure = partition(candidate)
+                        if candidate_failure is not None or candidate_state != expected:
+                            minimal_cuts = candidate
+                            changed = True
+                            break
+                trace = [
+                    {"op": "Advance", "target": str(point)}
+                    for point in cuts + [target]
+                ]
+                self.fail("R2_REPRO=" + json.dumps({
+                    "seed": seed,
+                    "trace": trace,
+                    "first_divergence": {
+                        "whole": repr(expected),
+                        "partitioned": repr(actual),
+                        "partition_error": failure,
+                    },
+                    "minimal_state": {
+                        "initial": repr(canonical_state(initial)),
+                        "target": target,
+                        "minimal_cuts": minimal_cuts,
+                    },
+                }, sort_keys=True))
 
 
 class R2T03ExactConversionTests(unittest.TestCase):
