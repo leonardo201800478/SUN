@@ -140,5 +140,3 @@ R1 foi aprovado em 2026-11-24. Conteúdo normativo R1 v0.3.18, SHA `ac912f342ff3
 R2 foi aprovado pelo responsável após parecer independente e corrigir os dois P2 documentais. PR #1283 foi merged em `main`, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`. CI #10798 SUCCESS no HEAD documental `a858f8f21caece3567385d64745823c655dbd135`: 256/256 Linux e Windows, mutation PASS, JSON e worktrees CLEAN. O oráculo R2 permanece como referência abstrata, não backend/runtime.
 
 R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`. A fase é estritamente experimental: protótipos descartáveis P-A, P-D, P-E e, somente se houver lacuna demonstrada, P-F; comparar semântica/cenários/cargas equivalentes e medir custo, p50/p95/p99, pior caso, memória e alocações. Não produzir crate, runtime ou integração CHRONOS/V2. R4 revisa adversarialmente os resultados; produção só após aprovação R5.
-
-
