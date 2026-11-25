@@ -1,7 +1,7 @@
 # CHRONOS R3 — plano de protótipos temporais descartáveis
 
 **Gate:** R3 — prototipagem e comparação
-**Estado:** P-A v2 (W00–W02/W05 parciais) implementado; CI #10851 SUCCESS em Linux/Windows; matrizes e artefatos retidos; W03/W04 e trace/fixture equivalence pendentes
+**Estado:** P-A v2 (W00–W05) implementado em protótipo; CI #10851 validou W00–W02/W05; W03/W04 adicionados e aguardam CI; matrizes/artefatos retidos; trace/fixture equivalence completa pendente
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **Base normativa:** R1 v0.3.18 aprovado; R2-T01–T15 aprovado e merged pela PR #1283
 **Escopo de sistema:** perfil temporal abstrato inicialmente; SMS NTSC/PAL somente quando os parâmetros forem fixados por fonte R0/R1 e cenário identificado.
@@ -52,14 +52,14 @@ A equivalência é verificada por trace canônico: operações aceitas, estado r
 
 ## 4. Primeiro corte: baseline P-A
 
-O P-A atual cobre parcialmente W00–W02 e W05. W03/W04 ainda não estão implementados. O recorte de avanço limitado inclui:
+O P-A atual cobre W00–W05 no protótipo. W03/W04 usam sincronização serial orientada por observação e resolução DFS de dependências, sem agenda persistente; a nova fatia ainda aguarda validação CI. O recorte de avanço limitado inclui:
 - construção de cenário e estado de domínio;
 - bounded advance até target sob budget/chunk configurável;
 - varredura completa de obrigações em cada fronteira de budget;
 - catch-up sem ultrapassar safe horizon;
 - digest canônico de progresso por participante.
 
-O P-A implementa publicação/cancelamento de deadline, arbitragem de cancelamento, fechamento de watermark, claim, dispatch, completion e substituição com geração crescente por varredura linear. A versão v2 agrupa deadlines por timestamp em uma única passagem antes de ordenar; não mantém agenda global persistente. O avanço também modela conjunto esperado de participantes, watermark fechado, offsets racionais e precedência das invariantes conhecidas antes do bloqueio por conjunto incompleto. A comparação diferencial destes caminhos passou no CI #10851 (45 testes Linux/Windows). P-A ainda NÃO implementa observação/commit transacional, efeitos parciais ou snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. A suíte de avanço compara classe de resultado, target solicitado, corte alcançado, obrigações preservadas, progresso/horizonte/razão de relógio/offset de cada participante, conjunto esperado e watermark com R2; inclui 48 combinações determinísticas de fronteira, invariância de partição, watermark, conjuntos incompletos e conversões com offset. Total P-A atual: 45 testes diferenciais. A suíte de deadlines compara os livros imutáveis e classes de resultado para publicação, cancelamento, arbitragem, watermark, dispatch, completion e geração. W03/W04 (observation-driven/frequent observation) e captura de trace/fixture equivalence canônica completa ainda não estão implementados. Os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
+O P-A implementa publicação/cancelamento de deadline, arbitragem de cancelamento, fechamento de watermark, claim, dispatch, completion e substituição com geração crescente por varredura linear. A versão v2 agrupa deadlines por timestamp em uma única passagem antes de ordenar; não mantém agenda global persistente. O avanço também modela conjunto esperado de participantes, watermark fechado, offsets racionais e precedência das invariantes conhecidas antes do bloqueio por conjunto incompleto. A comparação diferencial destes caminhos passou no CI #10851 (45 testes Linux/Windows). P-A ainda NÃO implementa observação/commit transacional, efeitos parciais ou snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. A suíte de avanço compara classe de resultado, target solicitado, corte alcançado, obrigações preservadas, progresso/horizonte/razão de relógio/offset de cada participante, conjunto esperado e watermark com R2; inclui 48 combinações determinísticas de fronteira, invariância de partição, watermark, conjuntos incompletos e conversões com offset. Total P-A atual: 58 testes diferenciais (24 avanço/catch-up, 21 deadline lifecycle, 13 causal sync). A suíte de deadlines compara os livros imutáveis e classes de resultado para publicação, cancelamento, arbitragem, watermark, dispatch, completion e geração. A captura de trace/fixture equivalence canônica completa ainda não está implementada. Os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
 
 As matrizes iniciais P-A estão registradas em `SUN-V2/benchmarks/r3/P_A_BASELINE_RESULTS.md`; elas cobrem 75 pontos de avanço e 180 pontos de deadline por ambiente. O tamanho do chunk permanece parâmetro de workload, não constante de semântica. O tamanho do chunk é parâmetro de workload, não constante de semântica. O benchmark registra chunks, participantes tocados/inspecionados e obrigações varridas. Isso evidencia trabalho interno, sem afirmar que essas contagens representam ciclos físicos.
 
@@ -82,7 +82,7 @@ As operações serão pré-geradas com seed fixa antes da medição. Mesma fixtu
 | W08 | Transaction lifecycle | suspend/resume/commit | sample, retry, commit exactly-once, falha parcial | efeitos/subefeitos e pontos de falha |
 | W09 | Snapshot/replay | estado pendente | snapshot, restore, replay e digest | número de domínios, eventos e ledgers |
 
-O primeiro corte P-A implementará o subconjunto W00–W05; W06–W09 entram assim que seus workloads puderem ser representados de forma fiel sem ampliar premissas físicas. P-D/P-E não devem ser implementados antes de P-A completar W03/W04 e a fixture/trace equivalence. Nenhuma implementação P-D/P-E está autorizada nesta etapa.
+O primeiro corte P-A implementará o subconjunto W00–W05; W06–W09 entram assim que seus workloads puderem ser representados de forma fiel sem ampliar premissas físicas. P-D/P-E não devem ser implementados antes de CI verde para W03/W04 e fixture/trace equivalence completa. Nenhuma implementação P-D/P-E está autorizada nesta etapa.
 
 ## 6. Protocolo de benchmark
 
