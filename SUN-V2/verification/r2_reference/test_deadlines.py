@@ -999,6 +999,11 @@ class R2BStructuralValidationTests(unittest.TestCase):
             close_watermark(inconsistent, Fraction(6)),
             dispatch_deadline(inconsistent, identity="evt", generation=1),
             complete_deadline(inconsistent, identity="evt", generation=1),
+            replace_deadline(
+                inconsistent, machine(), owner="cpu", identity="evt",
+                generation=1, cancel_at=Fraction(6), new_generation=2,
+                new_at_common=Fraction(7), new_effect_id="effect:evt:2",
+            ),
             schedule_microstep(
                 inconsistent, owner="cpu", identity="child", generation=1,
                 at_common=Fraction(6), effect_id="effect:child",
