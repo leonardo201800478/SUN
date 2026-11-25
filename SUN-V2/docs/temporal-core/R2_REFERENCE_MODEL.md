@@ -3,7 +3,7 @@
 **Projeto:** SUN V2
 **Sistema inicial:** Sega Master System (SMS)
 **Gate:** R2 — modelo de referência independente
-**Status:** R2-A em implementação inicial; núcleo de referência e testes R2-T01–T04 parciais; R2 em andamento; não aprovado
+**Status:** implementação executável R2-T01–T15 concluída e validada para revisão externa (256 testes Linux e 256 Windows); gate formal R2 ainda NÃO APROVADO, pendente de fechamento dos findings documentais P2 e decisão formal do responsável.
 **Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)
 **Contrato normativo:** [R1 v0.3.18](R1_TEMPORAL_CONTRACTS.md), conteúdo aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`
 
