@@ -17,6 +17,7 @@ from p_a_snapshots import (
     PASnapshotArtifact, PASnapshotCode, PATransactionRecord,
     PATransactionState, _encode_state, capture, replay_from_snapshot, restore,
 )
+from trace_fixture_support import record_differential, record_property
 from snapshot_reference import (
     AckCommit as R2AckCommit, AckPresence as R2AckPresence,
     DeadlineRecord as R2DeadlineRecord, DeadlineState as R2DeadlineState,
@@ -95,8 +96,18 @@ class PASnapshotTests(unittest.TestCase):
             )
             self.assertEqual(restored.code.value, restored_ref.code.value)
             self.assertEqual(to_r2(restored.restored_state), restored_ref.restored_state)
+            record_differential(
+                self.id(),
+                (actual.code.value, to_r2(restored.restored_state)),
+                (expected.code.value, restored_ref.restored_state),
+            )
         else:
             self.assertIsNone(actual.artifact)
+            record_differential(
+                self.id(),
+                (actual.code.value, to_r2(state)),
+                (expected.code.value, to_r2(state)),
+            )
         return actual, expected
 
     def test_every_deadline_lifecycle_state_round_trips(self):
@@ -369,35 +380,35 @@ class PASnapshotTests(unittest.TestCase):
             PAReplayEvent(9, Fraction(9), "vdp", Fraction(12), Fraction(1, 4)),
             PAReplayEvent(10, Fraction(10), "cpu", Fraction(13), Fraction(2, 9)),
         )
-        return artifact, events
+        return state, artifact, events
 
     def test_replay_repeated_run_has_identical_state_and_digest(self):
-        artifact, events = self.replay_fixture()
+        state, artifact, events = self.replay_fixture()
         first = replay_from_snapshot(artifact, events)
         second = replay_from_snapshot(artifact, events)
         self.assertEqual(first.code, PASnapshotCode.OK)
         self.assertEqual(first.state, second.state)
         self.assertEqual(first.digest, second.digest)
         self.assertEqual(first.state.input_cursor, 10)
+        record_property(self.id(), "repeat", first.digest, second.digest)
 
     def test_replay_arrival_permutation_is_canonical_by_sequence(self):
-        artifact, events = self.replay_fixture()
+        state, artifact, events = self.replay_fixture()
         forward = replay_from_snapshot(artifact, events)
         reverse = replay_from_snapshot(artifact, tuple(reversed(events)))
         self.assertEqual(forward.code, PASnapshotCode.OK)
         self.assertEqual(reverse.code, PASnapshotCode.OK)
         self.assertEqual(forward.state, reverse.state)
         self.assertEqual(forward.digest, reverse.digest)
+        record_property(self.id(), "arrival-permutation", forward.digest, reverse.digest)
 
     def test_replay_sequence_gap_is_rejected_without_partial_apply(self):
         artifact, events = self.replay_fixture()
         result = replay_from_snapshot(artifact, (events[1],))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
-        self.assertEqual(result.state.domains, capture(machine(domains=(
-            PADomainState("cpu", Fraction(10), Fraction(1, 3)),
-            PADomainState("vdp", Fraction(10), Fraction(2, 7)),
-        ))).active_state.domains)
+        self.assertEqual(result.state.domains, state.domains)
+        record_property(self.id(), "atomic-gap", result.state, state)
 
     def test_replay_duplicate_sequence_is_rejected(self):
         artifact, events = self.replay_fixture()
@@ -428,6 +439,7 @@ class PASnapshotTests(unittest.TestCase):
         result = replay_from_snapshot(artifact, regressed)
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
+        record_property(self.id(), "atomic-time-regression", result.state, state)
 
 
 if __name__ == "__main__":
