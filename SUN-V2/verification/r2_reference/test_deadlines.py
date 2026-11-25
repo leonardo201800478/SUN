@@ -97,6 +97,32 @@ class R2BPublicationTests(unittest.TestCase):
         result = publish(DeadlineBook(), machine(), owner=" ", at=10)
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
 
+    def test_publication_rejects_duplicate_participant_identity(self):
+        state = make_state(
+            profile="SMS-NTSC-ABSTRACT",
+            domains=(
+                ClockDomain("cpu", Fraction(1), horizon_local=Fraction(100)),
+                ClockDomain("cpu", Fraction(2), horizon_local=Fraction(100)),
+            ),
+            expected_participants=("cpu",),
+        )
+        book = DeadlineBook()
+        result = publish(book, state, at=10)
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
+    def test_publication_rejects_empty_profile_without_mutation(self):
+        state = machine()
+        invalid = make_state(
+            profile="",
+            domains=state.domains,
+            expected_participants=state.expected_participants,
+        )
+        book = DeadlineBook()
+        result = publish(book, invalid, at=10)
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
     def test_identity_generation_must_increase_after_terminal_generation(self):
         first = publish(DeadlineBook(), machine(), at=10)
         cancelled = cancel_deadline(
