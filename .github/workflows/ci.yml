@@ -1145,7 +1145,7 @@ jobs:
           PYTHONHASHSEED: "0"
         run: |
           python3 --version
-          python3 -m unittest -v test_p_a_instruction_catchup.py
+          python3 -m unittest -v test_p_a_instruction_catchup.py test_p_a_deadline_lifecycle.py
           if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
             echo "R3 prototype tests modified the worktree"
             git status --short
@@ -1188,7 +1188,7 @@ jobs:
         shell: pwsh
         run: |
           python --version
-          python -m unittest -v test_p_a_instruction_catchup.py
+          python -m unittest -v test_p_a_instruction_catchup.py test_p_a_deadline_lifecycle.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (git status --porcelain --untracked-files=all) {
             Write-Error "R3 prototype tests modified the worktree"
