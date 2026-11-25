@@ -16,6 +16,7 @@ from p_a_instruction_catchup import (
     advance_budgeted,
     state_digest as p_a_digest,
 )
+from trace_fixture_support import record_differential
 from chronos_reference import (
     ClockDomain,
     Obligation,
@@ -98,6 +99,18 @@ class PATestCase(unittest.TestCase):
         if result.code == ResultKind.INDETERMINATE_CAUSAL_ORDER.value:
             self.assertEqual(result.next_state, state)
             self.assertEqual(result.reached, self._reference_frontier(reference.state))
+        record_differential(
+            self.id(),
+            (
+                result.code, result.requested, result.reached,
+                self._progress_digest(result.next_state),
+            ),
+            (
+                reference.result.kind.value, reference.result.requested_common,
+                reference.result.reached_common,
+                self._reference_digest(reference.state),
+            ),
+        )
         return result, reference
 
     @staticmethod
