@@ -109,7 +109,9 @@ Entregas:
 
 **Gate R2:** não aprovado. A implementação e a cobertura executável T01–T15 existem, evidências executáveis, mutation testing, JSON e runner Windows estão PASS; os 11 findings P2 conhecidos foram respondidos e resolvidos. A saída do gate ainda exige revisão humana externa independente do SHA final sem blockers e aprovação explícita do responsável. A revisão Codex foi solicitada, mas o serviço respondeu limite de uso atingido. Nenhum R3 começa antes de todos esses itens e da aprovação formal R2.
 
-### Fase 3 — protótipos temporais descartáveis (R3; somente após R1 e R2)
+### Fase 3 — protótipos temporais descartáveis (R3)
+
+**Status: EM ANDAMENTO — branch `research/chronos-r3-disposable-prototypes`, iniciada após R2 aprovado e merged.**
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
