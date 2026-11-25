@@ -18,6 +18,7 @@ from p_a_microsteps import (
     make_cycle,
     process_obligation,
 )
+from trace_fixture_support import record_differential
 from microstep_reference import (
     MicrostepCode as R2Code,
     MicrostepCycle as R2Cycle,
@@ -56,8 +57,7 @@ def canonical(state: AStepCycle):
 
 class PAMicrostepTests(unittest.TestCase):
     def compare(self, actual, expected):
-        self.assertEqual(actual.code.value, expected.code.value)
-        self.assertEqual(canonical(actual.state), (
+        expected_state = (
             expected.state.at_common,
             expected.state.max_microsteps,
             expected.state.next_microstep,
@@ -66,7 +66,13 @@ class PAMicrostepTests(unittest.TestCase):
                 for item in expected.state.pending
             ),
             expected.state.resolved,
-        ))
+        )
+        self.assertEqual(actual.code.value, expected.code.value)
+        self.assertEqual(canonical(actual.state), expected_state)
+        record_differential(
+            self.id(), (actual.code.value, canonical(actual.state)),
+            (expected.code.value, expected_state),
+        )
 
     def make_pair(self, at_common, obligations, max_microsteps):
         actual = make_cycle(
