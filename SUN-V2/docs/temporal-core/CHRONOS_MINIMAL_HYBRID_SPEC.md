@@ -265,9 +265,9 @@ Cada protótipo exige hipótese, cenário discriminante, métricas e regra de de
 
 ## 12. Plano de execução e gates
 
-**Precedência obrigatória:** a sequência e as condições de passagem de `SUN-V2/PROJECT_INSTRUCTIONS.md` prevalecem sobre este plano arquitetural. A ordem é estrita: R0 → R1 → R2 → R3 → R4 → R5. R2 só começa após aprovação formal de R1; R3 só começa após aprovação de R1 e R2; nenhum código de produção CHRONOS/V2 começa antes de R5. Referências a R2 nesta proposta ou no parecer R0 identificam um gate futuro, não autorização para antecipá-lo.
+**Precedência obrigatória:** a sequência e as condições de passagem de `SUN-V2/PROJECT_INSTRUCTIONS.md` prevalecem sobre este plano arquitetural. A ordem é estrita: R0 → R1 → R2 → R3 → R4 → R5. R1 e R2 estão aprovados; R3 está em andamento nesta branch com protótipos descartáveis e benchmarks equivalentes. A autorização de R3 não aprova a hipótese híbrida nem permite código de produção CHRONOS/V2, que continua condicionado a R5.
 
-### Gate R1 — contratos temporais (em elaboração)
+### Gate R1 — contratos temporais (APROVADO em 24/11/2026)
 
 1. Manter a proveniência de R0 e revisar cada contrato contra as fontes primárias e os limites registrados.
 2. Formalizar pré-condições, pós-condições, proprietários, erros e propriedades verificáveis.
@@ -286,7 +286,7 @@ Cada protótipo exige hipótese, cenário discriminante, métricas e regra de de
 
 **Saída:** R2 aprovado. PR #1283 merged em `main` (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); CI #10798 SUCCESS (256/256 Linux e Windows).
 
-### Gate R3 — protótipos descartáveis (EM ANDAMENTO)
+### Gate R3 — protótipos descartáveis (EM ANDAMENTO — branch `research/chronos-r3-disposable-prototypes`)
 
 1. Executar P-A, P-D e P-E sob a mesma semântica e cargas representativas.
 2. Implementar P-F somente se os resultados justificarem a combinação híbrida.
