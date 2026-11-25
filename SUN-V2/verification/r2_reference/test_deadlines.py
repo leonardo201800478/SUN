@@ -14,6 +14,7 @@ from deadline_reference import (
     arbitrate_cancellations,
     cancel_deadline,
     close_watermark,
+    complete_deadline,
     dispatch_deadline,
     publish_deadline,
     replace_deadline,
