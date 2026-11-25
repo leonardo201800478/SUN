@@ -17,6 +17,17 @@ import tracemalloc
 from fractions import Fraction
 from pathlib import Path
 
+
+def cpu_clock_resolution_ns() -> int | None:
+    start_wall = time.perf_counter_ns()
+    start_cpu = time.thread_time_ns()
+    while time.perf_counter_ns() - start_wall < 100_000_000:
+        current = time.thread_time_ns()
+        if current > start_cpu:
+            return current - start_cpu
+    return None
+
+
 from p_a_instruction_catchup import AParticipant
 from p_a_deadline_lifecycle import (
     ADeadlineBook,
@@ -180,7 +191,7 @@ def digest(book: ADeadlineBook) -> tuple:
 
 
 def run_point(domains: int, deadlines: int, density: str, operation: str,
-              warmup: int, repeats: int) -> dict:
+              warmup: int, repeats: int, cpu_time_enabled: bool) -> dict:
     context = make_context(domains)
     book, operation_args = fixture_for(operation, context, deadlines, density)
 
@@ -196,9 +207,9 @@ def run_point(domains: int, deadlines: int, density: str, operation: str,
     final_claimed = ()
     for _ in range(repeats):
         wall_start = time.perf_counter_ns()
-        cpu_start = time.thread_time_ns()
+        cpu_start = time.thread_time_ns() if cpu_time_enabled else 0
         result = invoke(operation, book, context, operation_args)
-        samples_cpu_ns.append(time.thread_time_ns() - cpu_start)
+        samples_cpu_ns.append(time.thread_time_ns() - cpu_start if cpu_time_enabled else None)
         samples_wall_ns.append(time.perf_counter_ns() - wall_start)
         if result.code is not ADeadlineCode.ACCEPTED:
             raise RuntimeError(f"timed operation failed: {result.code.value} {result.detail}")
@@ -262,6 +273,8 @@ def main() -> int:
     if args.warmup < 0 or args.repeats <= 0:
         parser.error("warmup must be >=0 and repeats must be >0")
 
+    cpu_resolution = cpu_clock_resolution_ns()
+    cpu_time_enabled = cpu_resolution is not None and cpu_resolution <= 1_000_000
     points = []
     for domains in map(int, args.domains.split(",")):
         for deadline_count in map(int, args.deadlines.split(",")):
@@ -275,7 +288,7 @@ def main() -> int:
                         parser.error(f"unsupported operation: {operation}")
                     points.append(run_point(
                         domains, deadline_count, density, operation,
-                        args.warmup, args.repeats,
+                        args.warmup, args.repeats, cpu_time_enabled,
                     ))
 
     report = {
@@ -287,6 +300,8 @@ def main() -> int:
         "platform": platform.platform(),
         "processor": platform.processor(),
         "cpu_clock": "time.thread_time_ns",
+        "cpu_clock_resolution_ns": cpu_resolution,
+        "cpu_time_status": "MEASURED" if cpu_time_enabled else "SKIPPED_COARSE_RESOLUTION",
         "pythonhashseed": os.environ.get("PYTHONHASHSEED", "unset"),
         "warmup": args.warmup,
         "repeats": args.repeats,
