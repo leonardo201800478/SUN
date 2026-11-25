@@ -424,6 +424,8 @@ class R2BCancellationRaceTests(unittest.TestCase):
             (Fraction(10), None, DeadlineCode.INDETERMINATE),
             (Fraction(10), Fraction(10), DeadlineCode.LATE_INPUT),
             (Fraction(11), None, DeadlineCode.LATE_INPUT),
+            (Fraction(9), Fraction(10), DeadlineCode.INVARIANT_VIOLATION),
+            (Fraction(9), Fraction(11), DeadlineCode.INVARIANT_VIOLATION),
         ):
             with self.subTest(cancel_at=cancel_at, watermark=watermark):
                 book = DeadlineBook(
