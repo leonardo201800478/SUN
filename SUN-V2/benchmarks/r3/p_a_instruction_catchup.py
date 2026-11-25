@@ -118,27 +118,12 @@ def advance_budgeted(
             0, 0, 0, 0, state,
         )
     safe_horizon = min(item.safe_horizon for item in state.participants)
+    # P-A deliberately scans all obligations for every budget chunk. It does
+    # not construct or consult a global event agenda.
+    current_obligations = tuple(state.obligations)
     bounded = min(Fraction(target), safe_horizon)
-    pending = [
-        item for item in state.obligations
-        if not item.resolved and item.at_common <= bounded
-    ]
-    if pending:
-        earliest = min(item.at_common for item in pending)
-        tied = [item for item in pending if item.at_common == earliest]
-        if len(tied) > 1 and not all(item.commutative for item in tied):
-            return AResult(
-                "IndeterminateCausalOrder", Fraction(target), frontier,
-                "UnknownSimultaneousObligations", 0, len(state.participants),
-                len(state.obligations), 0, state,
-            )
-        first = min(tied, key=lambda item: item.identity)
-        bounded = min(bounded, earliest)
-        stop_reason = f"PendingObligation:{first.identity}"
-    elif Fraction(target) > safe_horizon:
-        stop_reason = "SafeHorizon"
-    else:
-        stop_reason = "TargetReached"
+    stop_reason = "TargetReached"
+    pending_identity: str | None = None
 
     chunks = 0
     updated = list(state.participants)
@@ -148,8 +133,26 @@ def advance_budgeted(
     current = frontier
     while current < bounded:
         next_common = min(current + Fraction(chunk), bounded)
-        # P-A performs a full scan at every budget boundary; there is no agenda.
-        inspected_obligations += len(state.obligations)
+        inspected_obligations += len(current_obligations)
+        due = [
+            item for item in current_obligations
+            if not item.resolved and item.at_common <= next_common
+        ]
+        if due:
+            earliest = min(item.at_common for item in due)
+            tied = [item for item in due if item.at_common == earliest]
+            if len(tied) > 1 and not all(item.commutative for item in tied):
+                return AResult(
+                    "IndeterminateCausalOrder", Fraction(target), frontier,
+                    "UnknownSimultaneousObligations", 0,
+                    inspected_participants, inspected_obligations, chunks, state,
+                )
+            first = min(tied, key=lambda item: item.identity)
+            bounded = earliest
+            stop_reason = f"PendingObligation:{first.identity}"
+            pending_identity = first.identity
+            break
+
         inspected_participants += len(updated)
         next_participants: list[AParticipant] = []
         for participant in updated:
@@ -163,6 +166,13 @@ def advance_budgeted(
         updated = next_participants
         chunks += 1
         current = next_common
+
+    if not pending_identity and Fraction(target) > safe_horizon:
+        stop_reason = "SafeHorizon"
+    if not chunks and bounded > frontier:
+        # A pending obligation can be closer than the first chunk boundary.
+        inspected_participants += 0
+
     next_state = replace(state, participants=tuple(updated))
     reached = min(item.progress for item in next_state.participants)
     return AResult(
