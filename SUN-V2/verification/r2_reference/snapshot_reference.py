@@ -261,4 +261,6 @@ def restore(
         return SnapshotEvaluation(SnapshotCode.INCOMPATIBLE, active_state, detail="snapshot profile/model version mismatch")
     if artifact.state.profile != artifact.profile or artifact.state.model_version != artifact.model_version:
         return SnapshotEvaluation(SnapshotCode.INCOMPATIBLE, active_state, detail="artifact metadata disagrees with state")
+    if capture(artifact.state).code is not SnapshotCode.OK:
+        return SnapshotEvaluation(SnapshotCode.INCOMPATIBLE, active_state, detail="artifact contains an unsupported causal cut")
     return SnapshotEvaluation(SnapshotCode.OK, active_state, artifact=artifact, restored_state=artifact.state)
