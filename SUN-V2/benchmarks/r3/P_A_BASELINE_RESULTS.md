@@ -276,3 +276,74 @@ The SHA-256 values above were recalculated from the downloaded ZIP bytes and mat
 - W06/W07 deeper UNKNOWN/microstep coverage, W08 transaction/partial-effect ledger, W09 snapshot/restore/replay, and complete canonical fixture/trace equivalence remain open.
 
 **Disposition:** CI #10871 is PASS for the declared P-A W00–W05 prototype scope, including its cross-platform synthetic matrices. This does not close P-A's remaining equivalence/review requirements or R3. P-D/P-E remain blocked. R4/R5 remain pending. No production CHRONOS/V2 implementation is authorized before R5.
+
+
+## Latest retained run — CI #10882 (W00–W07)
+
+**Classification:** `OBSERVATION` — synthetic Python prototypes and independent R2 reference tests
+**Workflow:** [run #10882](https://github.com/leonardo201800478/SUN/actions/runs/45708088537) — `SUCCESS`
+**Run ID:** `45708088537`
+**Executed HEAD:** `eb11debda2e13cb7b60c8721627e03a99d711880`
+**Branch:** `research/chronos-r3-disposable-prototypes`
+**Date:** 2026-11-25
+
+### Job disposition
+
+- 22 jobs total: 8 `SUCCESS`, 14 `SKIPPED`, 0 `FAILURE`, 0 `CANCELLED`.
+- Successful jobs: change impact classification; CHRONOS R3 P-A Linux; CHRONOS R3 P-A Windows; CHRONOS R2 independent reference Linux; CHRONOS R2 reference Windows; documentation patch hygiene; Actionlint 1.7.12; Rust quality/unit regression supervisor.
+- The 14 skipped jobs are unrelated hardware/runtime/desktop validations and are not counted as PASS.
+
+### Test evidence
+
+- P-A R3: **71/71 tests PASS on Linux and 71/71 PASS on Windows** (24 advance/catch-up, 26 deadline lifecycle including W06, 14 causal synchronization, 7 W07 microsteps).
+- R2 independent reference: **256/256 tests PASS on Linux and 256/256 PASS on Windows**; zero failures/errors, no first divergence, mutation checks PASS (both deliberate boundary mutants KILLED), worktrees CLEAN before/after.
+- Documentation patch hygiene: PASS.
+- Actionlint 1.7.12: PASS.
+- Quality supervisor: PASS.
+
+### Five benchmark matrices — 321 points per OS
+
+All matrices use five warm-ups and 30 measured repetitions per point.
+
+| Matrix | Linux | Windows |
+|---|---:|---:|
+| Instruction/budget + catch-up | 75 | 75 |
+| Deadline lifecycle | 180 | 180 |
+| W03/W04 causal synchronization | 30 | 30 |
+| W06 simultaneous UNKNOWN/order groups | 24 | 24 |
+| W07 finite microstep chains | 12 | 12 |
+| **Total** | **321** | **321** |
+
+Independent inspection of all ten R3 JSON artifacts confirms identical parameter sets and output digests across Linux and Windows for all 321 corresponding points. The relevant semantic counters/state also match: advance counters, deadline result/claimed state, causal applied counts, W06 claim counts and W07 resolved counts. W06 output digests are invariant under forward/reverse insertion for every group-size/relation pair.
+
+Linux thread CPU-clock resolutions: 2,815 ns (advance), 2,604 ns (deadlines), 2,935 ns (causal), 2,604 ns (W06) and 2,895 ns (W07); CPU samples retained. Windows resolution: 15,625,000 ns for all five matrices; CPU samples explicitly `SKIPPED_COARSE_RESOLUTION`, wall-time samples retained. `tracemalloc` is a separate probe outside timed samples.
+
+These are synthetic Python observations, not Rust runtime performance, physical SMS timing, FPS, frame pacing, audio/video fidelity or ROM compatibility.
+
+### CI #10882 artifacts — all 12 downloaded and SHA-256 verified
+
+| Matrix | Artifact ID | SHA-256 |
+|---|---:|---|
+| R2 Linux | 15066057644 | `8e74fcc81a8c93c5eb46e8b06a54f90fdc4e28057a0398dbec600a362f6e418d` |
+| R2 Windows | 15066746099 | `3699a0ea8d8f55ffc240b0a4514ac1b7b50cdc95829945cfd773cb82bfbb8bf9` |
+| R3 advance Linux | 15066846121 | `c83d0d9f722dc589d6935f88d166a21f58a99dbcc5b178085fd84400175451cb` |
+| R3 advance Windows | 15066421362 | `8229c9e72f51dc74e4cead4a3b5ba23519a2840cc449b2a3f4ca1a89de167edd` |
+| R3 deadlines Linux | 15065468581 | `92b9f054813dfbce825ff328ef40f6599947eec505ee78d0298fbb4a548e0031` |
+| R3 deadlines Windows | 15066072696 | `3e3e0d4ef44579d1642708f5679b5e0bc209cc840fefcd95aa9e8c1ea0fe773c` |
+| R3 causal Linux | 15065468590 | `c1ec4e5248b83c1f6bf9949dba620c8bdd293bb9369d0e7bee942c94ab60dc5e` |
+| R3 causal Windows | 15066381540 | `e9a6e56e0d55e2153347e03ae5a381c2fa757c5c6963631f7bc22928ed7181cf` |
+| R3 W06 Linux | 15065438606 | `1556893f6018e14f026ba56c90dcefc5be0aa5ea1c61115438f403f998a1b1f7` |
+| R3 W06 Windows | 15066621537 | `c69bb6b6a9d5eba4575dd21dea2cf857ff1543f9ab38da8a5409c1f691b06f2c` |
+| R3 W07 Linux | 15067205166 | `00f8eabef14c830d286a718efe04b0c974182d84de8d4fe25cc997a5c0740793` |
+| R3 W07 Windows | 15065254118 | `16812c15b1033a7f4458a695a582da48d7e1f5167a6dfa881f33d8f6741fdfa2` |
+
+All 12 SHA-256 values were recalculated from downloaded ZIP bytes and matched GitHub artifact digests. All R3 artifacts identify executed HEAD `eb11debda2e13cb7b60c8721627e03a99d711880`.
+
+### Remaining P-A / R3 gaps
+
+- W08 transaction lifecycle: observe/sample/commit, suspend/resume, exactly-once effects and partial-effect ledger.
+- W09 snapshot/restore/replay and deterministic digest.
+- Complete canonical fixture/trace equivalence across the full declared P-A scope.
+- Independent adversarial review of R3.
+
+**Disposition:** CI #10882 is PASS for the declared P-A W00–W07 synthetic prototype scope. P-A is not fully closed. P-D/P-E remain unstarted until canonical equivalence and P-A closeout. R4/R5 remain pending. No production CHRONOS/V2 implementation is authorized before R5.
