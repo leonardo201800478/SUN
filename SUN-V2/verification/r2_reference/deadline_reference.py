@@ -134,8 +134,26 @@ def publish_deadline(
     ):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "invalid deadline descriptor")
-    domain_ids = {item.domain_id for item in state.domains}
+    if (
+        not isinstance(state, ReferenceState)
+        or not isinstance(state.profile, str)
+        or not state.profile.strip()
+    ):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "invalid reference state or profile")
+    participant_ids = [item.domain_id for item in state.domains]
+    if any(not isinstance(item, str) or not item.strip()
+           for item in participant_ids):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "participant identity is invalid")
+    if len(participant_ids) != len(set(participant_ids)):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "duplicate temporal participant")
     expected = set(state.expected_participants)
+    if any(not isinstance(item, str) or not item.strip() for item in expected):
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
+                                  "expected participant identity is invalid")
+    domain_ids = set(participant_ids)
     if domain_ids - expected:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "unexpected temporal participant")
