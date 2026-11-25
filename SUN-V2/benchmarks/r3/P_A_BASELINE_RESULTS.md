@@ -111,3 +111,15 @@ This baseline does **not** close P-A or R3. Remaining work includes:
 - adversarial independent review (Codex review requests were blocked by account usage limits).
 
 P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is authorized before R5.
+
+
+## Multi-operation fixture/trace equivalence follow-up
+
+**Prototype HEAD:** `02a9bf17c8bb70fb5e9599754389e8d65210bf98`  
+**Validation:** pending CI.
+
+Two sequence tests were added:
+- Deadline trace: publish generation 0 → admit cancellation → verify watermark close is blocked → arbitrate → publish generation 1 → close W → dispatch → complete. P-A and R2 book/result state are compared after each operation.
+- Repeated observation trace: four successive observation cuts across CPU/VDP/PSG. P-A and R2 applied order and full causal state are compared at every cut.
+
+Current P-A suite count: **60 tests** (24 advance/catch-up, 22 deadline lifecycle, 14 causal sync). These tests strengthen fixture/trace equivalence for the selected W00–W05 scenarios; they do not claim internal hardware microstep trace equivalence or close W08/W09.
