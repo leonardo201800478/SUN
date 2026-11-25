@@ -301,7 +301,7 @@ R2 só pode ser aprovado quando:
 7. A revisão independente não encontrar blockers.
 8. O responsável aprovar explicitamente R2 antes de R3.
 
-**Proibição mantida:** R2 não autoriza R3, não escolhe a arquitetura final e não autoriza qualquer código de produção CHRONOS/V2. R3 só começa após aprovação explícita de R2; código de produção somente após R5.
+**Estado vigente (25/11/2026):** R2 foi aprovado após parecer independente, P2 documentais corrigidos, CI #10798 SUCCESS e merge da PR #1283 em `main` (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`). R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`, exclusivamente com protótipos descartáveis e comparações sob a semântica R1/R2. Essa autorização não escolhe a arquitetura final nem autoriza código de produção CHRONOS/V2, que permanece condicionado a R5.
 
 ---
 
