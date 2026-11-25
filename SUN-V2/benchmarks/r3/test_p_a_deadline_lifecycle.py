@@ -150,6 +150,35 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         self.compare(actual, expected)
         return actual
 
+    def simultaneous_book(self, count, relation, order):
+        names = tuple(f"device-{index:02d}" for index in range(count))
+        context = ADeadlineContext(
+            participants=tuple(
+                AParticipant(name, Fraction(0), Fraction(100))
+                for name in names
+            ),
+            expected_participants=frozenset(names),
+        )
+        book = ADeadlineBook()
+        for index in order:
+            phase_order = index + 1 if relation == "phase_ordered" else None
+            phase_evidence = "W06-profile-capture-v1" if phase_order is not None else None
+            result = self.publish(
+                book=book,
+                context=context,
+                owner=names[index],
+                identity=f"event-{index:02d}",
+                generation=0,
+                at_common=Fraction(10),
+                effect_id=f"effect-{index:02d}",
+                commutative=relation == "commutative",
+                phase_order=phase_order,
+                phase_evidence=phase_evidence,
+            )
+            self.assertEqual(result.code, ADeadlineCode.ACCEPTED)
+            book = result.book
+        return book
+
     def test_future_publication_is_owned_and_exact(self):
         result = self.publish(
             owner="cpu", identity="irq", generation=0,
@@ -362,6 +391,77 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         at_d_ref = r2_close_watermark(to_r2_book(before_d.book), Fraction(10))
         self.compare(at_d, at_d_ref)
         self.assertEqual(at_d.code, ADeadlineCode.BLOCKED)
+
+    def test_unknown_simultaneous_groups_2_4_8_16_are_atomic_under_insertion_permutations(self):
+        for count in (2, 4, 8, 16):
+            orders = (
+                tuple(range(count)),
+                tuple(reversed(range(count))),
+                tuple(range(count // 2, count)) + tuple(range(count // 2)),
+            )
+            for order in orders:
+                with self.subTest(count=count, order=order):
+                    book = self.simultaneous_book(count, "unknown", order)
+                    actual = close_watermark(book, Fraction(10))
+                    expected = r2_close_watermark(to_r2_book(book), Fraction(10))
+                    self.compare(actual, expected)
+                    self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
+                    self.assertEqual(actual.book, book)
+                    self.assertEqual(actual.claimed, ())
+                    self.assertIsNone(actual.book.watermark_common)
+
+    def test_commutative_simultaneous_groups_2_4_8_16_have_identity_stable_claims(self):
+        for count in (2, 4, 8, 16):
+            expected_claims = tuple((f"event-{index:02d}", 0) for index in range(count))
+            digests = []
+            orders = (
+                tuple(range(count)),
+                tuple(reversed(range(count))),
+                tuple(range(count // 2, count)) + tuple(range(count // 2)),
+            )
+            for order in orders:
+                with self.subTest(count=count, order=order):
+                    book = self.simultaneous_book(count, "commutative", order)
+                    actual = close_watermark(book, Fraction(10))
+                    expected = r2_close_watermark(to_r2_book(book), Fraction(10))
+                    self.compare(actual, expected)
+                    self.assertEqual(actual.code, ADeadlineCode.ACCEPTED)
+                    self.assertEqual(actual.claimed, expected_claims)
+                    digests.append(canonical_book(actual.book))
+            self.assertTrue(all(item == digests[0] for item in digests[1:]))
+
+    def test_phase_ordered_simultaneous_groups_2_4_8_16_follow_declared_order(self):
+        for count in (2, 4, 8, 16):
+            with self.subTest(count=count):
+                book = self.simultaneous_book(
+                    count, "phase_ordered", tuple(reversed(range(count)))
+                )
+                actual = close_watermark(book, Fraction(10))
+                expected = r2_close_watermark(to_r2_book(book), Fraction(10))
+                self.compare(actual, expected)
+                self.assertEqual(actual.code, ADeadlineCode.ACCEPTED)
+                self.assertEqual(
+                    actual.claimed,
+                    tuple((f"event-{index:02d}", 0) for index in range(count)),
+                )
+
+    def test_duplicate_phase_order_keeps_simultaneous_group_indeterminate(self):
+        first = self.publish(
+            owner="cpu", identity="phase-a", generation=0,
+            at_common=Fraction(10), effect_id="a",
+            phase_order=1, phase_evidence="W06-profile-capture-v1",
+        )
+        second = self.publish(
+            book=first.book, owner="vdp", identity="phase-b", generation=0,
+            at_common=Fraction(10), effect_id="b",
+            phase_order=1, phase_evidence="W06-profile-capture-v1",
+        )
+        actual = close_watermark(second.book, Fraction(10))
+        expected = r2_close_watermark(to_r2_book(second.book), Fraction(10))
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
+        self.assertEqual(actual.book, second.book)
+        self.assertEqual(actual.claimed, ())
 
     def test_noncommutative_unknown_tie_does_not_close_watermark(self):
         first = self.publish(
