@@ -1,7 +1,7 @@
 # CHRONOS R3 — plano de protótipos temporais descartáveis
 
 **Gate:** R3 — prototipagem e comparação
-**Estado:** P-A W00–W07 implementado em protótipo; CI #10882 SUCCESS Linux/Windows, 71/71 testes P-A e 256/256 testes R2 por OS; 321 pontos de benchmark por OS com parâmetros/digests equivalentes; W08/W09, equivalência canônica completa e revisão adversarial pendentes
+**Estado:** P-A W00–W08 implementado em protótipo; CI #10892 SUCCESS Linux/Windows, 89/89 testes P-A e 256/256 testes R2 por OS; 331 pontos de benchmark por OS com parâmetros/digests equivalentes; W09, equivalência canônica completa e revisão adversarial pendentes
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **Base normativa:** R1 v0.3.18 aprovado; R2-T01–T15 aprovado e merged pela PR #1283
 **Escopo de sistema:** perfil temporal abstrato inicialmente; SMS NTSC/PAL somente quando os parâmetros forem fixados por fonte R0/R1 e cenário identificado.
@@ -59,9 +59,9 @@ O P-A atual cobre o recorte declarado W00–W05 no protótipo. W03/W04 usam sinc
 - catch-up sem ultrapassar safe horizon;
 - digest canônico de progresso por participante.
 
-O P-A implementa publicação/cancelamento de deadline, arbitragem de cancelamento, fechamento de watermark, claim, dispatch, completion e substituição com geração crescente por varredura linear. A versão v2 agrupa deadlines por timestamp em uma única passagem antes de ordenar; não mantém agenda global persistente. O avanço também modela conjunto esperado de participantes, watermark fechado, offsets racionais e precedência das invariantes conhecidas antes do bloqueio por conjunto incompleto. A comparação diferencial destes caminhos passou no CI #10851 (45 testes Linux/Windows). P-A ainda NÃO implementa observação/commit transacional, efeitos parciais ou snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. A suíte de avanço compara classe de resultado, target solicitado, corte alcançado, obrigações preservadas, progresso/horizonte/razão de relógio/offset de cada participante, conjunto esperado e watermark com R2; inclui 48 combinações determinísticas de fronteira, invariância de partição, watermark, conjuntos incompletos e conversões com offset. Total P-A atual: 71 testes diferenciais (24 avanço/catch-up, 26 deadline lifecycle, 14 causal sync, 7 microsteps), incluindo W06 para grupos simultâneos de 2/4/8/16 e W07 para cadeias de profundidade 1/2/4/8/16/32. As matrizes W06 (24 pontos) e W07 (12 pontos) comparam UNKNOWN, comutatividade, evidência, permutações, progresso e limite finito. A suíte de deadlines compara os livros imutáveis e classes de resultado para publicação, cancelamento, arbitragem, watermark, dispatch, completion e geração. A captura de trace/fixture equivalence canônica completa ainda não está implementada. Os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
+O P-A implementa publicação/cancelamento de deadline, arbitragem de cancelamento, fechamento de watermark, claim, dispatch, completion e substituição com geração crescente por varredura linear. A versão v2 agrupa deadlines por timestamp em uma única passagem antes de ordenar; não mantém agenda global persistente. O avanço também modela conjunto esperado de participantes, watermark fechado, offsets racionais e precedência das invariantes conhecidas antes do bloqueio por conjunto incompleto. A comparação diferencial destes caminhos passou no CI #10851 (45 testes Linux/Windows). P-A ainda NÃO implementa observação/commit transacional, efeitos parciais ou snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. A suíte de avanço compara classe de resultado, target solicitado, corte alcançado, obrigações preservadas, progresso/horizonte/razão de relógio/offset de cada participante, conjunto esperado e watermark com R2; inclui 48 combinações determinísticas de fronteira, invariância de partição, watermark, conjuntos incompletos e conversões com offset. Total P-A atual: 89 testes diferenciais (24 avanço/catch-up, 26 deadline lifecycle, 14 causal sync, 7 microsteps, 18 transações), incluindo W06 para grupos simultâneos de 2/4/8/16, W07 para cadeias de profundidade 1/2/4/8/16/32 e W08 para transações com 1/2/4/8/16 commits e falha parcial. As matrizes W06 (24 pontos), W07 (12) e W08 (10) comparam UNKNOWN, comutatividade, evidência, permutações, progresso, limite finito, sample/commit exactly-once, WAIT, TW budgets e partial-effect ledger. A suíte de deadlines compara os livros imutáveis e classes de resultado para publicação, cancelamento, arbitragem, watermark, dispatch, completion e geração. A captura de trace/fixture equivalence canônica completa ainda não está implementada. Os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
 
-As matrizes P-A estão registradas em `SUN-V2/benchmarks/r3/P_A_BASELINE_RESULTS.md`; cobrem 321 pontos por ambiente: 75 avanço, 180 deadlines, 30 causal, 24 W06 e 12 W07. O tamanho do chunk permanece parâmetro de workload, não constante de semântica. O tamanho do chunk é parâmetro de workload, não constante de semântica. O benchmark registra chunks, participantes tocados/inspecionados e obrigações varridas. Isso evidencia trabalho interno, sem afirmar que essas contagens representam ciclos físicos.
+As matrizes P-A estão registradas em `SUN-V2/benchmarks/r3/P_A_BASELINE_RESULTS.md`; cobrem 331 pontos por ambiente: 75 avanço, 180 deadlines, 30 causal, 24 W06, 12 W07 e 10 W08. O tamanho do chunk permanece parâmetro de workload, não constante de semântica. O tamanho do chunk é parâmetro de workload, não constante de semântica. O benchmark registra chunks, participantes tocados/inspecionados e obrigações varridas. Isso evidencia trabalho interno, sem afirmar que essas contagens representam ciclos físicos.
 
 Não implementar CPU Z80, VDP, PSG, clock SMS físico, ROM loader, thread scheduling, GUI, renderer ou runtime. O primeiro protótipo é uma máquina temporal sintética para estudar custo de algoritmo, não uma máquina SMS.
 
@@ -82,7 +82,7 @@ As operações serão pré-geradas com seed fixa antes da medição. Mesma fixtu
 | W08 | Transaction lifecycle | suspend/resume/commit | sample, retry, commit exactly-once, falha parcial | efeitos/subefeitos e pontos de falha |
 | W09 | Snapshot/replay | estado pendente | snapshot, restore, replay e digest | número de domínios, eventos e ledgers |
 
-O primeiro corte P-A cobriu W00–W05; W06/W07 foram adicionados assim que seus workloads puderam ser representados sem ampliar premissas físicas. W08/W09 continuam pendentes. P-D/P-E não devem ser implementados antes de CI verde para W00–W07 e fixture/trace equivalence canônica completa. Nenhuma implementação P-D/P-E está autorizada nesta etapa.
+O primeiro corte P-A cobriu W00–W05; W06/W07/W08 foram adicionados assim que seus workloads puderam ser representados sem ampliar premissas físicas. W09 continua pendente. P-D/P-E não devem ser implementados antes de CI verde para W00–W08, W09 e fixture/trace equivalence canônica completa. Nenhuma implementação P-D/P-E está autorizada nesta etapa.
 
 ## 6. Protocolo de benchmark
 
@@ -125,7 +125,7 @@ Descartar variante se:
 
 P-D só começa após P-A:
 - passar equivalência funcional do primeiro recorte R2;
-- validar W00–W07, trace/fixture equivalence canônica e JSON de resultados;
+- validar W00–W09, trace/fixture equivalence canônica e JSON de resultados;
 - publicar baseline A reprodutível com SHA/ambiente e dados brutos.
 
 P-E só começa após o mesmo conjunto de fixtures e baseline A congelados. P-F exige gap demonstrado que não possa ser resolvido em P-A/P-D/P-E individualmente.
