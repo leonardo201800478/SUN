@@ -527,40 +527,29 @@ A frente adversarial não deve apenas aprovar o desenho. Deve tentar invalidá-l
 O Chronos só poderá receber implementação de produção após aprovação de todos os portões.
 
 ### R0 — Pesquisa
-- [ ] Fontes primárias e limitações registradas.
-- [ ] Projetos de referência inspecionados em código.
-- [ ] Fatos, inferências e hipóteses separados.
-- [ ] Divergências de clock e microtiming registradas.
-- [ ] Modelos concorrentes documentados.
+- [x] Gate R0 aprovado no escopo documental em 24/11/2026; ver R0_CLOSEOUT.md e issue #1267.
 
 ### R1 — Especificação
-- [ ] Unidade e representação temporal justificadas.
-- [ ] Clock domains e fases NTSC/PAL definidos.
-- [ ] Semântica de eventos simultâneos definida.
-- [ ] Contrato de avanço e deadlines definido.
-- [ ] Contrato de barramento suspensível definido.
-- [ ] WAIT, IRQ e NMI mapeados para fases.
-- [ ] Overflow e limites de sessão demonstrados.
-- [ ] Snapshot/restore/replay especificados.
-- [ ] Propriedades executáveis associadas aos invariantes.
+- [x] R1 v0.3.18 aprovado em 24/11/2026 (SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`).
+- [x] Semântica normativa de conversão, avanço, causalidade, deadlines, barramento, WAIT, IRQ/NMI, snapshot/replay e erros registrada nos contratos C01–C16.
+- [x] UNKNOWN e proveniência FACT/OBSERVATION/HYPOTHESIS/INFERENCE permanecem explicitamente delimitados.
+- [ ] Decisões de fase física e limites ainda UNKNOWN permanecem abertas; não são declaradas resolvidas por este checklist.
 
 ### R2 — Modelo de referência
-- [ ] Modelo independente dos protótipos.
-- [ ] Testes de aritmética e fase.
-- [ ] Testes de simultaneidade e ordenação.
-- [ ] Testes de causalidade e particionamento.
-- [ ] Testes de suspensão/retomada.
-- [ ] Testes de snapshot/restore.
-- [ ] Testes de replay determinístico.
+- [x] R2-T01–T15: 256 testes determinísticos; CI #10798 SUCCESS (256/256 Linux e Windows).
+- [x] Oráculo Python independente de runtime V1/produção; mutation tests (2 mutantes KILLED), relatórios JSON e worktrees CLEAN.
+- [x] Quatro famílias de cinco eventos com 120 permutações cada (480 permutações).
+- [x] Parecer independente do responsável no SHA `ad8cbbe50a82334b8ee873351dda65b26459e239`, P2 documentais corrigidos e aprovação R2 explícita.
+- [x] PR #1283 merged em `main`, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`.
 
 ### R3 — Protótipos e benchmarks
-- [ ] P-A, P-D e P-E implementados como protótipos isolados; P-F, P-B e P-C somente quando justificados por evidência.
-- [ ] Mesma semântica e mesma carga nos comparativos.
-- [ ] Custo de CPU, memória e alocações medido.
-- [ ] Carga densa e esparsa medida.
-- [ ] Benchmark integrado SMS executado.
-- [ ] Impacto em áudio, vídeo e input medido.
-- [ ] Resultados e ambiente reproduzíveis.
+- [ ] P-A baseline (instrução + catch-up) implementada e validada contra as propriedades selecionadas de R2.
+- [ ] P-D agenda discreta central e P-E sync-on-demand implementados após baseline P-A.
+- [ ] Mesmas semânticas, operações e cargas para comparativos.
+- [ ] Custo de avanço, eventos, sincronização, cancelamento, dispatch, microsteps, snapshot/replay, CPU, memória e alocações medidos.
+- [ ] Cargas esparsas/densas, periódicas, simultâneas, cross-domain, transação retomável e snapshot pendente medidas.
+- [ ] Benchmark integrado SMS e impacto em áudio/vídeo/input ficam condicionados à existência de fatia de integração autorizada depois de R5; não inferir nesta fase.
+- [ ] Resultados, environment e harness reproduzíveis e ligados aos SHAs exatos.
 
 ### R4 — Revisão adversarial independente
 - [ ] Revisor independente recebeu especificação e evidências.
