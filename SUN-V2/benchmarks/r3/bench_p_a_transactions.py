@@ -81,7 +81,7 @@ def execute_transaction(marker_count: int, mode: str):
 
     commit_target = marker_count
     if mode == "partial-failure":
-        commit_target = max(1, marker_count // 2)
+        commit_target = marker_count // 2
     elif mode != "complete":
         raise ValueError(f"unsupported transaction mode: {mode}")
 
