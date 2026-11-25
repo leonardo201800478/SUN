@@ -84,7 +84,7 @@ class RecordingTestResult(unittest.TextTestResult):
             return
         formatted = self._exc_info_to_string(err, test)
         reproduction = None
-        match = re.search(r"R2_REPRO=(\\{.*\\})", formatted)
+        match = re.search(r"R2_REPRO=(\{.*\})", formatted)
         if match:
             try:
                 reproduction = json.loads(match.group(1))
