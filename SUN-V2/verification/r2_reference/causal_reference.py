@@ -226,10 +226,17 @@ def synchronize(
                                 detail="simultaneous non-commutative transitions have no declared order",
                             )
 
-    # Canonicalize only transitions proven commutative at the same instant.
+    # Canonicalize only independent transitions proven commutative.
+    # Explicit same-instant dependency order must retain the topological order
+    # established by the dependency walk above.
     canonical_order: list[str] = []
     for instant in sorted(by_time):
-        canonical_order.extend(sorted(by_time[instant]))
+        identities = by_time[instant]
+        members = [descriptors[identity][1] for identity in identities]
+        if all(member.commutative for member in members):
+            canonical_order.extend(sorted(identities))
+        else:
+            canonical_order.extend(identities)
 
     updated: list[Device] = []
     for device in state.devices:
