@@ -498,7 +498,7 @@ A primeira execução do candidato de 80 testes expôs uma fixture antiga invál
 
 **Evidência vinculada — CI #10676:** HEAD `09f2ba729d70d3e2760c4844bcc4b2df06aaba2b`; [run](https://github.com/leonardo201800478/SUN/actions/runs/45529157944) — **SUCCESS**. A suíte CHRONOS R2 executou 80/80 PASS no runner dedicado duas vezes e no comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `701ca24e4f61bcb083504c87a079b72f0f034bd4b7abc5e3ec5fd9d176986265`; `deadline_reference.py` = `b92716d4b29e0e57846679b310ba1519f72685967308c6d16206b54c0ac0ef07`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `587f43e2dde2816f70b1e59b6f73ee8fdf828f4c9ecce79d5b50a1a0fd8d2c4b`; `test_temporal_core.py` = `fdbc70d9bd8dd79092b604bcb317d7f5af29205f73aa11a9b9ef9a6648730b55`. Actionlint, higiene documental e supervisor de qualidade: PASS. Rust workspace, Windows e hardware: SKIPPED.
 
-A cobertura candidata é agora 80 testes: T01=12, T02=4, T03=3, T04=9; slice R2-B=52 casos. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 continuam NOT RUN. R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS. Esta evidência não aprova o gate R2, não autoriza código de produção CHRONOS/V2 e não autoriza merge.
+Naquele candidato, a cobertura executada era de 80 testes: T01=12, T02=4, T03=3, T04=9; slice R2-B=52 casos. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 continuam NOT RUN. R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS. Esta evidência não aprova o gate R2, não autoriza código de produção CHRONOS/V2 e não autoriza merge.
 
 
 ### 8.1.11 Revisão adversarial de horizonte global, arbitragem e substituição — 25/11/2026
