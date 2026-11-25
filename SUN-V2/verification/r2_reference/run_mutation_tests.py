@@ -59,7 +59,7 @@ def run_mutant(
     target_name = target_test.rsplit(".", 1)[-1]
     target_marker = f"FAIL: {target_name} ("
     target_position = output.find(target_marker)
-    next_failure = output.find("\\nFAIL: ", target_position + 1) if target_position >= 0 else -1
+    next_failure = output.find("\nFAIL: ", target_position + 1) if target_position >= 0 else -1
     target_failure = (
         output[target_position:next_failure if next_failure >= 0 else None]
         if target_position >= 0 else ""
