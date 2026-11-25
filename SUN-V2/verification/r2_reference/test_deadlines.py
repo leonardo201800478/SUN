@@ -88,7 +88,7 @@ class R2BPublicationTests(unittest.TestCase):
     def test_identity_generation_must_increase_after_terminal_generation(self):
         first = publish(DeadlineBook(), machine(), at=10)
         cancelled = cancel_deadline(
-            first.book, owner="cpu", identity="evt", generation=1,
+            first.book, machine(progress=2), owner="cpu", identity="evt", generation=1,
             at_common=Fraction(4),
         )
         self.assertEqual(cancelled.code, DeadlineCode.ACCEPTED)
@@ -404,7 +404,7 @@ class R2BMicrostepTests(unittest.TestCase):
         book = publish(DeadlineBook(), machine(), identity="z", at=12).book
         book = publish(book, machine(), identity="a", at=10).book
         cancelled = cancel_deadline(
-            book, owner="cpu", identity="z", generation=1,
+            book, machine(progress=2), owner="cpu", identity="z", generation=1,
             at_common=Fraction(4),
         )
         terminal = arbitrate_cancellations(cancelled.book).book
