@@ -930,20 +930,36 @@ class R2BCausalTieTests(unittest.TestCase):
         self.assertTrue(all(d.status is DeadlineStatus.SCHEDULED
                             for d in result.book.deadlines))
 
-    def test_commutative_tie_is_invariant_to_publication_order(self):
-        def make(order):
+    def test_commutative_tie_is_invariant_to_publication_and_dispatch_order(self):
+        def make(publication_order, dispatch_order):
             book = DeadlineBook()
-            for identity in order:
+            for identity in publication_order:
                 book = publish(
                     book, machine(), identity=identity, at=10,
                     commutative=True,
                 ).book
-            return close_watermark(book, Fraction(10))
-        left = make(("a", "b"))
-        right = make(("b", "a"))
-        self.assertEqual(left.code, DeadlineCode.ACCEPTED)
-        self.assertEqual(left.claimed, right.claimed)
-        self.assertEqual(left.claimed, (("a", 1), ("b", 1)))
+            closed = close_watermark(book, Fraction(10))
+            self.assertEqual(closed.code, DeadlineCode.ACCEPTED)
+            book = closed.book
+            for identity in dispatch_order:
+                dispatched = dispatch_deadline(
+                    book, identity=identity, generation=1
+                )
+                self.assertEqual(dispatched.code, DeadlineCode.ACCEPTED)
+                completed = complete_deadline(
+                    dispatched.book, identity=identity, generation=1
+                )
+                self.assertEqual(completed.code, DeadlineCode.ACCEPTED)
+                book = completed.book
+            final_states = tuple(sorted(
+                (item.identity, item.status) for item in book.deadlines
+            ))
+            return closed.claimed, final_states
+
+        left = make(("a", "b"), ("a", "b"))
+        right = make(("b", "a"), ("b", "a"))
+        self.assertEqual(left, right)
+        self.assertEqual(left[0], (("a", 1), ("b", 1)))
 
     def test_explicit_distinct_phase_orders_tie_without_insertion_precedence(self):
         def make(order):
