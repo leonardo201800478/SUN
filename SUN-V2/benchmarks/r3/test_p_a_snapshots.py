@@ -415,6 +415,7 @@ class PASnapshotTests(unittest.TestCase):
         result = replay_from_snapshot(artifact, (events[0], events[0]))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
+        record_property(self.id(), "atomic-duplicate", result.state, state)
 
     def test_replay_progress_regression_is_rejected_atomically(self):
         state, artifact, _ = self.replay_fixture()
@@ -422,6 +423,7 @@ class PASnapshotTests(unittest.TestCase):
         result = replay_from_snapshot(artifact, (event,))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
+        record_property(self.id(), "atomic-progress-regression", result.state, state)
 
     def test_replay_unknown_domain_is_rejected_atomically(self):
         state, artifact, _ = self.replay_fixture()
@@ -429,6 +431,7 @@ class PASnapshotTests(unittest.TestCase):
         result = replay_from_snapshot(artifact, (event,))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
+        record_property(self.id(), "atomic-unknown-domain", result.state, state)
 
     def test_replay_time_regression_is_rejected_atomically(self):
         state, artifact, events = self.replay_fixture()
