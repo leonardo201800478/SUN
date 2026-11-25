@@ -53,6 +53,18 @@ class PATestCase(unittest.TestCase):
             self._progress_digest(result.next_state),
             self._reference_digest(reference.state),
         )
+        self.assertEqual(
+            result.next_state.participants,
+            tuple(
+                AParticipant(
+                    domain.domain_id,
+                    domain.progress_common(),
+                    domain.horizon_common(),
+                    domain.local_to_common,
+                )
+                for domain in reference.state.domains
+            ),
+        )
         if result.code == ResultKind.INDETERMINATE_CAUSAL_ORDER.value:
             self.assertEqual(result.next_state, state)
             self.assertEqual(result.reached, self._reference_frontier(reference.state))
@@ -92,6 +104,10 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.code, ResultKind.REACHED.value)
         self.assertEqual(result.chunks, 10)
         self.assertEqual(result.obligations_inspected, 0)
+        self.assertEqual(
+            result.participants_inspected,
+            result.chunks * len(state.participants),
+        )
 
     def test_pending_obligation_stops_before_boundary(self):
         state = AState(
@@ -102,6 +118,8 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.code, ResultKind.STOPPED_AT.value)
         self.assertEqual(result.reached, Fraction(7))
         self.assertEqual(result.reason, "PendingObligation:irq")
+        self.assertEqual(result.chunks, 1)
+        self.assertEqual(result.obligations_inspected, 2)
 
     def test_unknown_simultaneous_obligations_do_not_advance(self):
         state = AState(
