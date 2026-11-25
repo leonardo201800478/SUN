@@ -357,3 +357,17 @@ Evidência vinculada:
 - Contagem coberta: R2-T01 = 12; R2-T02 = 4; R2-T03 = 3; R2-T04 = 8. R2-T05–T15 = **NOT RUN**.
 
 Esta evidência substitui a contagem de 28 testes do HEAD anterior para o candidato atual. A revisão Codex do HEAD `52b6dd127dcb9f301c8caaa23813f6d2648fae00` foi solicitada e ainda estava em andamento no momento deste registro. R2 continua EM ANDAMENTO; nenhuma expansão R2-B, R3, produção ou merge é autorizada por esta execução.
+
+
+### 8.1.3 Correção do finding P2 — cálculo integral de A(E) para cancelamentos
+
+A revisão Codex do candidato `068f56dd9ad459cef84dc30797224d6f9c21ef62` identificou que `cancel_deadline` recebia `admission_frontier` como argumento e confiava nesse valor sem recalcular a fronteira a partir do estado completo. Isso permitia aceitar incorretamente `C=2` com `W=3`, `D=10` e fronteira fornecida igual a zero.
+
+Correção implementada no candidato subsequente:
+- `cancel_deadline` agora recebe o `ReferenceState` e deriva internamente `A(E)` a partir do progresso convertido de todos os participantes esperados e de `W`.
+- O conjunto incompleto retorna `Blocked`; conversões temporais inválidas ou divergência entre os watermarks do estado e do livro retornam `IndeterminateCausalOrder`.
+- A rejeição `C<=A(E)` ocorre antes da avaliação de `C<D` e não altera o livro de deadlines.
+- `replace_deadline` usa a mesma validação derivada, preservando a atomicidade da substituição.
+- Foram acrescentados seis testes discriminantes: watermark que excede o progresso local, progresso de participante não proprietário, conjunto incompleto, conversão inválida, watermarks divergentes e conversões racionais exatas.
+
+**Estado desta evidência:** correção e testes foram incorporados ao candidato, mas ainda não há resultado de CI nem revisão independente vinculados ao novo SHA. Não classificar a correção como PASS até essas execuções terminarem.
