@@ -447,3 +447,17 @@ Correção candidata:
 - testar rejeição `LateInput`, sem mutação, quando o microstep tenta ocorrer exatamente em W.
 
 **Estado:** implementação no commit `c6ee43d8172c227ee3571464807b0997bfecc10a`; testes no commit `fbb340f837062d12e327686f1e9964fc5cf691c7`. O candidato passa a 62 testes (35 casos R2-B). CI para o incremento de código/testes ainda pendente; não classificar como PASS até execução vinculada. T06/T07/T14 continuam parciais; R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.8 Validação estrutural dos participantes na publicação
+
+A comparação entre `publish_deadline()` e `_cancellation_admission_frontier()` revelou uma assimetria: o cancelamento rejeitava identidades de participante duplicadas ou inválidas, mas a publicação convertia a lista de domínios em um conjunto antes de verificar duplicidade. Um estado com dois domínios de mesmo ID poderia, portanto, aparentar um conjunto completo e prosseguir usando apenas o primeiro domínio encontrado. A publicação também não rejeitava perfil vazio.
+
+Correção candidata:
+- validar que o estado e o perfil são válidos antes de consultar os domínios;
+- rejeitar identidade de participante vazia, duplicada ou fora do conjunto esperado;
+- rejeitar identidade inválida no conjunto de participantes esperados;
+- retornar `InvalidInput` sem mutação;
+- adicionar testes para participante duplicado e perfil vazio.
+
+**Estado:** implementação no commit `4074b78d528b97d15677138421753fd983d74d05`; testes no commit `fa59b6f3ad092656ae9cbbd95173afc71922adf3`. O candidato passa a 64 testes e 37 casos no slice R2-B. CI vinculado ainda pendente; não classificar como PASS antes da execução. T06/T07/T14 permanecem parciais; R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
