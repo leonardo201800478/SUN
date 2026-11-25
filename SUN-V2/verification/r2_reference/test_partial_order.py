@@ -18,6 +18,15 @@ def machine():
     )
 
 
+
+def state(*devices):
+    return CausalState(tuple(devices))
+
+
+def device(name, *, progress=0, transitions=(), applied=()):
+    return Device(name, Fraction(progress), tuple(transitions), tuple(applied))
+
+
 class R2T07PartialOrderTests(unittest.TestCase):
     def test_phase_order_without_matching_evidence_does_not_create_precedence(self):
         published = publish_deadline(
