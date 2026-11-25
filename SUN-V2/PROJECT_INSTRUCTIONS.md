@@ -65,12 +65,12 @@ A ordem abaixo é mandatória. Não pular gates, antecipar protótipos nem decla
 |---|---|---|
 | **R0 — pesquisa e evidências** | Inventário V1, fontes primárias, clocks, limites observáveis, incertezas e referências comparativas | Fechado no escopo documental em 24/11/2026. Ver `SUN-V2/docs/temporal-core/R0_CLOSEOUT.md` e issue #1267. |
 | **R1 — contratos temporais** | Definir semântica normativa e verificável para tempo, conversões, avanço limitado, causalidade, deadlines, transações, WAIT, IRQ/NMI, snapshots e erros | **APROVADO em 24/11/2026.** Conteúdo v0.3.18 aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); issue #1270 encerrada. |
-| **R2 — modelo de referência independente** | Oráculo simples e independente, propriedades executáveis, cenários adversariais e reprodução determinística | **EM ANDAMENTO** — issue #1282; ver `SUN-V2/docs/temporal-core/R2_REFERENCE_MODEL.md`. Não compartilhar algoritmo/representação candidata de produção. |
+| **R2 — modelo de referência independente** | Oráculo simples e independente, propriedades executáveis, cenários adversariais e reprodução determinística | **IMPLEMENTAÇÃO T01–T15 COMPLETA PARA VALIDAÇÃO EXTERNA; GATE FORMAL PENDENTE.** Issue #1282 e PR #1283; revisão independente do HEAD final, rastreabilidade, mutation checks e validação Windows estão em execução. Não iniciar R3 até revisão externa sem blockers e aprovação explícita do responsável. |
 | **R3 — protótipos descartáveis** | Comparar alternativas temporais e custo com testes equivalentes | Só iniciar após R1 e R2 aprovados. Protótipos não são código de produção. |
 | **R4 — revisão adversarial** | Revisar contratos, modelo, protótipos, evidências, riscos e desempenho | Resolver achados bloqueadores; registrar decisões e limitações. |
 | **R5 — aprovação arquitetural** | Aprovar arquitetura final, ADRs, limites, plano de integração e evidências | **Nenhum código de produção CHRONOS/V2 antes da aprovação R5.** |
 
-R0 é aprovação documental, não certificação de fidelidade física universal nem autorização de implementação. R1 foi aprovado formalmente em 24/11/2026; R2 está em andamento e R3–R5 permanecem bloqueados. O estado real deve ser consultado em `SUN-V2/README.md`, `SUN-V2/ROADMAP.md` e issues vinculadas.
+R0 é aprovação documental, não certificação de fidelidade física universal nem autorização de implementação. R1 foi aprovado formalmente em 24/11/2026. A implementação executável R2-T01–T15 está completa para validação externa, mas o gate formal R2 permanece pendente de revisão independente do HEAD exato, fechamento justificado dos findings e aprovação explícita do responsável. R3–R5 permanecem bloqueados. O estado real deve ser consultado em `SUN-V2/README.md`, `SUN-V2/ROADMAP.md` e issues vinculadas.
 
 ### Trabalho posterior aos gates
 
@@ -154,7 +154,7 @@ As ROMs permanecem locais e não devem ser copiadas ou versionadas no repositór
 - `SUN-V2/README.md` — estado atual e mapa documental.
 - `SUN-V2/ROADMAP.md` — fases, dependências e critérios.
 - `SUN-V2/docs/temporal-core/R0_CLOSEOUT.md` — fechamento de evidências R0.
-- `SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md` — R1 v0.3.8 publicada em `main` pela PR #1279 (merge SHA `de49d1d4d31ee54f8711d2fc14b328a1456e5bd0`); revisão Codex do HEAD exato sem major issues e CI aplicável SUCCESS. R1 segue rascunho não aprovado; não iniciar R2 antes do fechamento formal do gate #1270.
+- `SUN-V2/docs/temporal-core/R1_TEMPORAL_CONTRACTS.md` — R1 v0.3.18 APROVADA em 24/11/2026, conteúdo normativo SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicada pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); issue #1270 encerrada. O registro formal está na seção 21 do próprio contrato. R1 aprovada não equivale a R2 aprovada.
 - `SUN-V2/docs/architecture/V1_BASELINE_EVIDENCE_MATRIX.md` — evidências e limites da baseline.
 - `SUN-V2/docs/architecture/V1_TO_V2_INVENTORY.md` — inventário e política de independência.
 - `SUN-V2/docs/architecture/VDP_OBSERVABLE_BOUNDARIES.md` — fronteiras observáveis VDP.
