@@ -185,21 +185,61 @@ def publish_deadline(
     )
 
 
+def _cancellation_admission_frontier(
+    book: DeadlineBook, state: ReferenceState
+) -> tuple[Fraction | None, DeadlineCode | None, str]:
+    """Derive A(E) from the complete current participant set and closed W."""
+    if not isinstance(state, ReferenceState) or not isinstance(state.profile, str) or not state.profile.strip():
+        return None, DeadlineCode.INVALID_INPUT, "invalid reference state"
+    if (
+        (book.watermark_common is not None and not _exact(book.watermark_common))
+        or (state.watermark_common is not None and not _exact(state.watermark_common))
+    ):
+        return None, DeadlineCode.INDETERMINATE, "watermark is not exact"
+    if state.watermark_common != book.watermark_common:
+        return None, DeadlineCode.INDETERMINATE, "deadline and reference watermarks disagree"
+
+    ids = [item.domain_id for item in state.domains]
+    if any(not isinstance(item, str) or not item.strip() for item in ids):
+        return None, DeadlineCode.INVALID_INPUT, "participant identity is invalid"
+    if len(ids) != len(set(ids)):
+        return None, DeadlineCode.INVALID_INPUT, "duplicate temporal participant"
+    expected = set(state.expected_participants)
+    actual = set(ids)
+    if actual - expected:
+        return None, DeadlineCode.INVALID_INPUT, "unexpected temporal participant"
+    if expected - actual:
+        return None, DeadlineCode.BLOCKED, "participant set incomplete; A(E) unavailable"
+
+    progresses: list[Fraction] = []
+    for domain in state.domains:
+        if not all(_exact(value) for value in (
+            domain.local_to_common, domain.common_offset, domain.progress_local
+        )) or domain.local_to_common <= 0:
+            return None, DeadlineCode.INDETERMINATE, (
+                f"participant {domain.domain_id} clock conversion is not comparable"
+            )
+        progresses.append(Fraction(domain.progress_common()))
+    if book.watermark_common is not None:
+        progresses.append(Fraction(book.watermark_common))
+    return max(progresses, default=Fraction(0)), None, "complete admission frontier"
+
+
 def cancel_deadline(
     book: DeadlineBook,
+    state: ReferenceState,
     *,
     owner: str,
     identity: str,
     generation: int,
     at_common: Fraction,
-    admission_frontier: Fraction,
 ) -> DeadlineEvaluation:
-    """Admit C<D cancellation; arbitration remains pending until explicitly run."""
+    """Admit C<D only after deriving A(E) from every participant and W."""
     if (
         not isinstance(owner, str) or not owner.strip()
         or not isinstance(identity, str) or not identity.strip()
         or not isinstance(generation, int) or isinstance(generation, bool)
-        or not _exact(at_common) or not _exact(admission_frontier)
+        or not _exact(at_common)
     ):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "invalid cancellation descriptor")
@@ -210,6 +250,12 @@ def cancel_deadline(
     if deadline.status is not DeadlineStatus.SCHEDULED:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "deadline is no longer cancellable")
+    admission_frontier, frontier_error, frontier_detail = (
+        _cancellation_admission_frontier(book, state)
+    )
+    if frontier_error is not None:
+        return DeadlineEvaluation(book, frontier_error, frontier_detail)
+    assert admission_frontier is not None
     if at_common <= admission_frontier:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "C<=A(E) is retroactive")
@@ -316,7 +362,6 @@ def replace_deadline(
     identity: str,
     generation: int,
     cancel_at: Fraction,
-    admission_frontier: Fraction,
     new_generation: int,
     new_at_common: Fraction,
     new_effect_id: str,
@@ -325,8 +370,8 @@ def replace_deadline(
 ) -> DeadlineEvaluation:
     """Atomically cancel an old generation and publish its replacement."""
     cancelled = cancel_deadline(
-        book, owner=owner, identity=identity, generation=generation,
-        at_common=cancel_at, admission_frontier=admission_frontier,
+        book, state, owner=owner, identity=identity, generation=generation,
+        at_common=cancel_at,
     )
     if cancelled.code is not DeadlineCode.ACCEPTED:
         return cancelled
