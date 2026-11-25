@@ -1,0 +1,168 @@
+"""P-A synthetic microbenchmark driver.
+
+The driver emits raw samples and an environment manifest. It does not claim
+SMS gameplay, frame pacing, audio, or production Rust performance.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import statistics
+import subprocess
+import sys
+import time
+from fractions import Fraction
+from pathlib import Path
+
+from p_a_instruction_catchup import (
+    AObligation, AParticipant, AState, advance_budgeted, state_digest,
+)
+
+
+def git_head() -> str:
+    try:
+        root = Path(__file__).resolve().parents[3]
+        return subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            text=True,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "UNAVAILABLE"
+
+
+def build_state(domains: int, obligations: int, density: str) -> AState:
+    participants = tuple(
+        AParticipant(f"d{i}", Fraction(0), Fraction(100_000), Fraction(1 + (i % 3), 1))
+        for i in range(domains)
+    )
+    events = []
+    for i in range(obligations):
+        # Sparse: events are distant and evenly spaced.
+        # Dense: events are clustered in 32 common-time buckets.
+        at = Fraction((i + 1) * 1_000 if density == "sparse" else (i % 32) + 1)
+        events.append(AObligation(f"e{i}", f"d{i % domains}", at, False, True))
+    return AState(participants, tuple(events))
+
+
+def percentile(values: list[float], p: float) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    position = (len(ordered) - 1) * p
+    lo = int(position)
+    hi = min(lo + 1, len(ordered) - 1)
+    fraction = position - lo
+    return ordered[lo] * (1 - fraction) + ordered[hi] * fraction
+
+
+def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: int, repeats: int):
+    state = build_state(domains, obligations, density)
+    target = Fraction(50_000)
+    chunk_value = Fraction(chunk)
+
+    for _ in range(warmup):
+        advance_budgeted(state, target=target, chunk=chunk_value)
+
+    samples = []
+    final_digest = None
+    final_counters = None
+    for _ in range(repeats):
+        start = time.perf_counter_ns()
+        result = advance_budgeted(state, target=target, chunk=chunk_value)
+        elapsed = time.perf_counter_ns() - start
+        samples.append(elapsed)
+        digest = state_digest(result.next_state)
+        if final_digest is None:
+            final_digest = digest
+            final_counters = {
+                "result": result.code,
+                "reason": result.reason,
+                "reached": [result.reached.numerator, result.reached.denominator],
+                "chunks": result.chunks,
+                "participants_inspected": result.participants_inspected,
+                "participants_touched": result.touched_participants,
+                "obligations_inspected": result.obligations_inspected,
+            }
+        elif digest != final_digest:
+            raise RuntimeError("P-A produced non-deterministic state digest")
+    total_ops = domains + obligations
+    return {
+        "parameters": {
+            "domains": domains, "obligations": obligations,
+            "density": density, "chunk": chunk,
+            "target": [target.numerator, target.denominator],
+        },
+        "samples_ns": samples,
+        "summary_ns": {
+            "min": min(samples),
+            "p50": percentile(samples, 0.50),
+            "p95": percentile(samples, 0.95),
+            "p99": percentile(samples, 0.99),
+            "max": max(samples),
+            "mean": statistics.fmean(samples),
+        },
+        "throughput_operations_per_second": (
+            total_ops * 1_000_000_000 / statistics.fmean(samples)
+            if statistics.fmean(samples) > 0 else 0
+        ),
+        "output_digest": repr(final_digest),
+        "counters": final_counters,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--domains", default="1,2,4,8,16")
+    parser.add_argument("--obligations", default="0,8,128")
+    parser.add_argument("--chunks", default="64,1024,8192")
+    parser.add_argument("--densities", default="sparse,dense")
+    parser.add_argument("--warmup", type=int, default=5)
+    parser.add_argument("--repeats", type=int, default=30)
+    parser.add_argument("--output", type=Path, default=Path("p_a_results.json"))
+    args = parser.parse_args()
+    if args.warmup < 0 or args.repeats <= 0:
+        parser.error("warmup must be >=0 and repeats must be >0")
+
+    points = []
+    for domains in map(int, args.domains.split(",")):
+        for obligations in map(int, args.obligations.split(",")):
+            for chunk in map(int, args.chunks.split(",")):
+                for density in args.densities.split(","):
+                    if domains <= 0 or obligations < 0 or chunk <= 0:
+                        parser.error("domains/chunk must be positive; obligations cannot be negative")
+                    if density not in {"sparse", "dense"}:
+                        parser.error("density must be sparse or dense")
+                    points.append(run_point(
+                        domains, obligations, density, chunk,
+                        args.warmup, args.repeats,
+                    ))
+
+    report = {
+        "schema": "sun.chronos.r3.p-a.benchmark.v1",
+        "status": "SYNTHETIC_EXPERIMENT",
+        "prototype": "P-A instruction/budget plus catch-up",
+        "git_head": git_head(),
+        "python": sys.version,
+        "platform": platform.platform(),
+        "processor": platform.processor(),
+        "pythonhashseed": os.environ.get("PYTHONHASHSEED", "unset"),
+        "warmup": args.warmup,
+        "repeats": args.repeats,
+        "points": points,
+        "limitations": [
+            "synthetic Python benchmark, not native Rust runtime",
+            "no SMS hardware, ROM, audio, video or host frame-pacing claims",
+        ],
+    }
+    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({
+        "status": report["status"], "git_head": report["git_head"],
+        "points": len(points), "output": str(args.output),
+    }, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
