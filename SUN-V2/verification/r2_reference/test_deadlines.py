@@ -1360,7 +1360,7 @@ class R2T06DispatcherRaceClosureTests(unittest.TestCase):
         claimed = close_watermark(published.book, Fraction(10))
         self.assertEqual(claimed.claimed, (("evt", 1),))
         late_cancel = cancel_deadline(
-            claimed.book, machine(progress=2), owner="cpu", identity="evt",
+            claimed.book, machine(progress=2, watermark=10), owner="cpu", identity="evt",
             generation=1, at_common=Fraction(11),
         )
         self.assertEqual(late_cancel.code, DeadlineCode.LATE_INPUT)
