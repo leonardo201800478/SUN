@@ -54,6 +54,9 @@ class Cancellation:
     identity: str
     generation: int
     at_common: Fraction
+    microstep_level: int | None = None
+    phase_order: int | None = None
+    phase_evidence: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +96,23 @@ def _find(book: DeadlineBook, identity: str, generation: int) -> Deadline | None
          if item.identity == identity and item.generation == generation),
         None,
     )
+
+
+def _cancellation_precedes_deadline(
+    request: Cancellation, deadline: Deadline
+) -> bool | None:
+    """Return explicit same-instant order; None means causal order is UNKNOWN."""
+    if request.microstep_level is not None:
+        if request.microstep_level != deadline.microstep:
+            return request.microstep_level < deadline.microstep
+    if (
+        request.phase_order is not None
+        and deadline.phase_order is not None
+        and request.phase_evidence == deadline.phase_evidence
+        and request.phase_order != deadline.phase_order
+    ):
+        return request.phase_order < deadline.phase_order
+    return None
 
 
 
@@ -244,7 +264,19 @@ def _validate_book(book: object) -> str | None:
         if (not isinstance(item.owner, str) or not item.owner.strip()
             or not isinstance(item.identity, str) or not item.identity.strip()
             or not isinstance(item.generation, int) or isinstance(item.generation, bool)
-            or item.generation < 0 or not _exact(item.at_common)):
+            or item.generation < 0 or not _exact(item.at_common)
+            or (item.microstep_level is not None and (
+                not isinstance(item.microstep_level, int)
+                or isinstance(item.microstep_level, bool)
+                or item.microstep_level < 0
+            ))
+            or (item.phase_order is not None and (
+                not isinstance(item.phase_order, int) or isinstance(item.phase_order, bool)
+            ))
+            or (item.phase_evidence is not None and (
+                not isinstance(item.phase_evidence, str) or not item.phase_evidence.strip()
+            ))
+            or ((item.phase_order is None) != (item.phase_evidence is None))):
             return "pending cancellation entry is structurally invalid"
         key = (item.identity, item.generation)
         if key in pending_keys:
@@ -324,6 +356,14 @@ def _validate_book_state(
                 return (
                     DeadlineCode.LATE_INPUT,
                     "pending cancellation at D cannot suppress after W closed D",
+                )
+            precedes = _cancellation_precedes_deadline(request, deadline)
+            if precedes is True:
+                continue
+            if precedes is False:
+                return (
+                    DeadlineCode.LATE_INPUT,
+                    "pending cancellation microstep/phase follows the deadline claim",
                 )
             return (
                 DeadlineCode.INDETERMINATE,
@@ -503,6 +543,9 @@ def cancel_deadline(
     identity: str,
     generation: int,
     at_common: Fraction,
+    microstep_level: int | None = None,
+    phase_order: int | None = None,
+    phase_evidence: str | None = None,
 ) -> DeadlineEvaluation:
     """Admit C<D only after deriving A(E) from every participant and W."""
     if (
@@ -510,6 +553,17 @@ def cancel_deadline(
         or not isinstance(identity, str) or not identity.strip()
         or not isinstance(generation, int) or isinstance(generation, bool)
         or not _exact(at_common)
+        or (microstep_level is not None and (
+            not isinstance(microstep_level, int) or isinstance(microstep_level, bool)
+            or microstep_level < 0
+        ))
+        or (phase_order is not None and (
+            not isinstance(phase_order, int) or isinstance(phase_order, bool)
+        ))
+        or (phase_evidence is not None and (
+            not isinstance(phase_evidence, str) or not phase_evidence.strip()
+        ))
+        or ((phase_order is None) != (phase_evidence is None))
     ):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "invalid cancellation descriptor")
@@ -533,17 +587,31 @@ def cancel_deadline(
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "C<=A(E) is retroactive")
     if at_common == deadline.at_common:
-        return DeadlineEvaluation(
-            book, DeadlineCode.INDETERMINATE,
-            "C=D requires an explicit profile causal-order or microstep relation",
+        same_instant_request = Cancellation(
+            owner, identity, generation, Fraction(at_common),
+            microstep_level, phase_order, phase_evidence,
         )
+        precedes = _cancellation_precedes_deadline(same_instant_request, deadline)
+        if precedes is None:
+            return DeadlineEvaluation(
+                book, DeadlineCode.INDETERMINATE,
+                "C=D requires an explicit profile causal-order or microstep relation",
+            )
+        if not precedes:
+            return DeadlineEvaluation(
+                book, DeadlineCode.LATE_INPUT,
+                "same-instant cancellation follows the deadline claim",
+            )
     if at_common > deadline.at_common:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "C>D cannot suppress the deadline")
     if book.watermark_common is not None and book.watermark_common >= deadline.at_common:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "W already closed the deadline instant")
-    pending = Cancellation(owner, identity, generation, Fraction(at_common))
+    pending = Cancellation(
+        owner, identity, generation, Fraction(at_common),
+        microstep_level, phase_order, phase_evidence,
+    )
     updated = replace(deadline, status=DeadlineStatus.CANCEL_PENDING)
     next_book = _replace_deadline(book, updated)
     next_book = replace(
