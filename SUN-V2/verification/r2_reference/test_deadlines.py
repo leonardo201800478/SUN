@@ -137,6 +137,34 @@ class R2BPublicationTests(unittest.TestCase):
         self.assertEqual(second.code, DeadlineCode.ACCEPTED)
         self.assertEqual(stale.code, DeadlineCode.INVALID_INPUT)
 
+    def test_direct_publication_enforces_finite_microstep_limit(self):
+        book = DeadlineBook(max_microsteps=2)
+
+        boundary = publish(
+            book, machine(), at=5, microstep=True, microstep_level=2
+        )
+        self.assertEqual(boundary.code, DeadlineCode.ACCEPTED)
+
+        for level in (3, 999):
+            with self.subTest(level=level):
+                rejected = publish(
+                    book, machine(), at=5,
+                    microstep=True, microstep_level=level,
+                )
+                self.assertEqual(rejected.code, DeadlineCode.RESOURCE_EXHAUSTED)
+                self.assertEqual(rejected.book, book)
+
+    def test_publication_rejects_non_exact_or_regressed_safe_horizon(self):
+        book = DeadlineBook()
+        valid_state = machine(progress=2)
+        for horizon in (0.5, Fraction(-1), Fraction(1)):
+            with self.subTest(horizon=horizon):
+                domain = replace(valid_state.domains[0], horizon_local=horizon)
+                state = replace(valid_state, domains=(domain,))
+                rejected = publish(book, state, at=10)
+                self.assertEqual(rejected.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(rejected.book, book)
+
 
 class R2BCancellationRaceTests(unittest.TestCase):
     def setUp(self):
@@ -356,6 +384,19 @@ class R2BCancellationRaceTests(unittest.TestCase):
             DeadlineStatus.CANCELLED,
         )
 
+    def test_cancellation_rejects_non_exact_or_regressed_safe_horizon(self):
+        valid_state = machine(progress=2)
+        for horizon in (0.5, Fraction(-1), Fraction(1)):
+            with self.subTest(horizon=horizon):
+                domain = replace(valid_state.domains[0], horizon_local=horizon)
+                state = replace(valid_state, domains=(domain,))
+                rejected = cancel_deadline(
+                    self.initial, state, owner="cpu", identity="evt",
+                    generation=1, at_common=Fraction(4),
+                )
+                self.assertEqual(rejected.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(rejected.book, self.initial)
+
 
 class R2BReplacementTests(unittest.TestCase):
     def test_replacement_cancels_old_generation_and_publishes_new_atomically(self):
@@ -385,6 +426,16 @@ class R2BReplacementTests(unittest.TestCase):
 
 
 class R2BCausalTieTests(unittest.TestCase):
+    def test_close_watermark_rejects_scheduled_deadline_behind_existing_watermark(self):
+        scheduled = publish(DeadlineBook(), machine(), at=4).book
+        inconsistent = replace(scheduled, watermark_common=Fraction(5))
+
+        result = close_watermark(inconsistent, Fraction(6))
+
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, inconsistent)
+        self.assertEqual(result.claimed, ())
+
     def test_noncommutative_unknown_tie_does_not_close_watermark(self):
         book = publish(DeadlineBook(), machine(), identity="a", at=10).book
         book = publish(book, machine(), identity="b", at=10).book

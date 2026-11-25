@@ -322,6 +322,21 @@ class R2T03ExactConversionTests(unittest.TestCase):
                 self.assertEqual(domain.local_at_common(common), Fraction(tick))
 
 
+class R2T04WatermarkHorizonConsistencyTests(unittest.TestCase):
+    def test_watermark_beyond_global_safe_horizon_is_invariant_violation(self):
+        state = make_state(
+            domains=[one_domain(horizon=Fraction(10))],
+            watermark_common=Fraction(20),
+        )
+        before = canonical_state(state)
+
+        evaluated = advance(state, Fraction(20))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVARIANT_VIOLATION)
+        self.assertEqual(evaluated.result.reached_common, Fraction(20))
+        self.assertEqual(canonical_state(evaluated.state), before)
+
+
 class R2T04SafeHorizonTests(unittest.TestCase):
     def test_pending_obligation_at_target_horizon_returns_endpoint_stop(self):
         state = make_state(

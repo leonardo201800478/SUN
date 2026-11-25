@@ -144,6 +144,10 @@ def _validate_state(state: ReferenceState) -> str | None:
     if expected - actual:
         return "incomplete participant set"
     frontier = _machine_frontier(state)
+    if state.domains:
+        safe_horizon = min(domain.horizon_common() for domain in state.domains)
+        if safe_horizon < frontier:
+            return "safe horizon is behind the confirmed machine frontier"
     if any(
         not item.resolved and item.at_common < frontier
         for item in state.obligations
@@ -212,7 +216,11 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
             )
         kind = (
             ResultKind.INVARIANT_VIOLATION
-            if "regressed" in invalid or "behind the confirmed" in invalid
+            if (
+                "regressed" in invalid
+                or "behind the confirmed" in invalid
+                or "safe horizon is behind" in invalid
+            )
             else ResultKind.INVALID_INPUT
         )
         # Validation failed: never convert rejected domain state to build an error result.

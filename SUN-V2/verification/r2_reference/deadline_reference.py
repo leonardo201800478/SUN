@@ -120,6 +120,10 @@ def _validate_reference_state(state: object) -> str | None:
             domain.local_to_common, domain.common_offset, domain.progress_local
         )) or domain.local_to_common <= 0:
             return "participant clock conversion is not exact or comparable"
+        if not _exact(domain.horizon_local):
+            return "participant safe horizon is not exact"
+        if domain.horizon_local < domain.progress_local:
+            return "participant safe horizon regressed behind progress"
     if not isinstance(state.obligations, tuple) or any(
         not isinstance(item, Obligation) for item in state.obligations
     ):
@@ -225,6 +229,14 @@ def publish_deadline(
     book_error = _validate_book(book)
     if book_error is not None:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
+    effective_microstep = (
+        microstep_level if microstep_level is not None else (1 if microstep else 0)
+    )
+    if effective_microstep > book.max_microsteps:
+        return DeadlineEvaluation(
+            book, DeadlineCode.RESOURCE_EXHAUSTED,
+            "deadline microstep exceeds the finite book limit",
+        )
     state_error = _validate_reference_state(state)
     if state_error is not None:
         error_code = (DeadlineCode.INDETERMINATE
@@ -431,6 +443,15 @@ def close_watermark(book: DeadlineBook, target_common: Fraction) -> DeadlineEval
     if book.watermark_common is not None and target_common < book.watermark_common:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "watermark cannot regress")
+    if book.watermark_common is not None and any(
+        item.status is DeadlineStatus.SCHEDULED
+        and item.at_common <= book.watermark_common
+        for item in book.deadlines
+    ):
+        return DeadlineEvaluation(
+            book, DeadlineCode.INVALID_INPUT,
+            "scheduled deadline is at or behind the already closed watermark",
+        )
     for request in book.pending_cancellations:
         deadline = _find(book, request.identity, request.generation)
         if deadline is not None and deadline.at_common <= target_common:
