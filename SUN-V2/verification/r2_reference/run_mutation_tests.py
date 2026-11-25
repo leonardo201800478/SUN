@@ -48,7 +48,7 @@ def run_mutant(
         mutant_path = destination / SOURCE.name
         mutant_path.write_text(mutated, encoding="utf-8", newline="\n")
         completed = subprocess.run(
-            [sys.executable, "-m", "unittest", "-v", target_test],
+            [sys.executable, "-m", "unittest", "-v"],
             cwd=destination,
             env=environment,
             text=True,
@@ -71,10 +71,12 @@ def run_mutant(
         "name": name,
         "status": "KILLED" if killed else "SURVIVED",
         "target_test": target_test,
+        "scope": "full unittest discovery suite",
+        "tests_run": next((line.strip() for line in output.splitlines() if line.strip().startswith("Ran ")), None),
         "mutant_sha256": sha256(mutated.encode("utf-8")),
         "exit_code": completed.returncode,
         "first_divergence": diagnostic_lines[:3],
-        "trace": [target_test],
+        "trace": ["full-suite", target_test],
         "minimal_state": {
             "kind": "hand-authored boundary fixture",
             "test_id": target_test,
