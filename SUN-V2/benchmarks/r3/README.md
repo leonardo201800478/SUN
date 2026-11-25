@@ -31,7 +31,7 @@ Do not import R2 model classes into timed prototype implementations.
 - `test_p_a_instruction_catchup.py`: 24 R2 differential tests, including 48 deterministic boundary combinations.
 - `test_p_a_deadline_lifecycle.py`: 21 R2 differential tests, including cancellation races, causal ties and generation fencing.
 - `test_p_a_causal_sync.py`: 13 R2 differential tests, including cross-domain dependencies, cycles, UNKNOWN ties, unrelated-device isolation and applied-order equivalence.
-- Total: **58 tests** (24 advance/catch-up, 21 deadline lifecycle, 13 causal sync).
+- Total: **60 tests** (24 advance/catch-up, 22 deadline lifecycle, 14 causal sync). Two sequence tests compare multi-step deadline and repeated-observation traces at each observable cut against R2.
 
 ## Validation and benchmark status
 
