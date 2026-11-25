@@ -410,4 +410,14 @@ A auditoria complementar da matriz R1 §16.5.13(13) observou que os testes exist
 - Os casos `C=D) sem `W) e com `W<D` continuam `IndeterminateCausalOrder` sem relação causal/microstep explícita.
 - `C>D) continua sem suprimir o deadline.
 
-**Estado:** testes candidatos; requerem CI e revisão independente no novo HEAD. Não alteram contratos R1, não completam T06/T07/T14 e não autorizam R3, produção ou merge.
+**Evidência:** CI #10658 terminou SUCCESS no SHA `7ac41b64e3c11ae85d579ff0123f55e821b4bc89`; a suíte executou 59/59 PASS, com runner dedicado duas vezes e `python -m unittest -v`, worktree CLEAN nas duas execuções. A revisão independente do SHA executado permanece pendente. Os testes não alteram contratos R1, não completam T06/T07/T14 e não autorizam R3, produção ou merge.
+
+
+#### Evidência vinculada — CI #10658
+
+- HEAD executado: `7ac41b64e3c11ae85d579ff0123f55e821b4bc89`.
+- [CI #10658](https://github.com/leonardo201800478/SUN/actions/runs/45518807530): **SUCCESS**.
+- Job CHRONOS R2: 59/59 PASS; runner dedicado duas vezes e plain `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- `deadline_reference.py` SHA-256: `8ac62f8985c8fa56d448c21e6a2f8199151b8807b07fa2fb79c209ba034e7f99`.
+- `test_deadlines.py` SHA-256: `f0050b18082758d078aabcb1c8735dfeb18bae5174bfb28b8f907e8debc8ba68`.
+- Esta evidência está vinculada somente ao SHA executado. A atualização documental subsequente precisa de sua própria CI/revisão; nenhuma conclusão de gate é inferida.
