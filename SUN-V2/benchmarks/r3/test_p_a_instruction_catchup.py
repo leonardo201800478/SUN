@@ -173,6 +173,51 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(one.reached, many.reached)
         self.assertGreater(many.chunks, one.chunks)
 
+    def test_machine_frontier_is_maximum_participant_progress(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(2), Fraction(20)),
+                AParticipant("vdp", Fraction(5), Fraction(20), Fraction(3, 2)),
+            )
+        )
+        result, reference = self.compare_case(state, Fraction(10), Fraction(2))
+        self.assertEqual(result.code, ResultKind.REACHED.value)
+        self.assertEqual(result.reached, Fraction(10))
+        self.assertEqual(
+            result.next_state.participants,
+            tuple(
+                AParticipant(
+                    domain.domain_id,
+                    domain.progress_common(),
+                    domain.horizon_common(),
+                    domain.local_to_common,
+                )
+                for domain in reference.state.domains
+            ),
+        )
+
+    def test_target_between_participant_progress_values_is_late(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(2), Fraction(20)),
+                AParticipant("vdp", Fraction(5), Fraction(20)),
+            )
+        )
+        result, _ = self.compare_case(state, Fraction(4), Fraction(1))
+        self.assertEqual(result.code, ResultKind.LATE_INPUT.value)
+        self.assertEqual(result.next_state, state)
+
+    def test_obligation_at_current_frontier_stops_zero_length_advance(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(7), Fraction(20)),),
+            obligations=(AObligation("irq", "cpu", Fraction(7)),),
+        )
+        result, _ = self.compare_case(state, Fraction(7), Fraction(4))
+        self.assertEqual(result.code, ResultKind.STOPPED_AT.value)
+        self.assertEqual(result.reached, Fraction(7))
+        self.assertEqual(result.chunks, 0)
+        self.assertEqual(result.next_state, state)
+
 
 if __name__ == "__main__":
     unittest.main()
