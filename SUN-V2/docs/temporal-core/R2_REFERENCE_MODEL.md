@@ -665,3 +665,24 @@ Commits:
 **Validação vinculada — CI #10716:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45546144288) — **SUCCESS** no HEAD documental `ad2f4a90e706f73e7debf9bc22fe0e5b1c17ad81`, contendo o código/testes do commit `e00e92326fa03ff31e9657d05d2c16dbb60b969f`. CHRONOS R2: **114/114 PASS**; runner dedicado duas vezes + `python -m unittest -v`; worktree CLEAN nas duas execuções. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `4638cc7db6510078d6ff7cbdcda8804a5023e7171666ba7da5235b519166a72f`; `microstep_reference.py` = `409772508ac5ffbd84c0726750e986a924b1217393b032ab1193d5fefb8e3e70`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `ffcc6d28b54011943f15be948b4d278e8d49ed5aff7203593c9de34a9d99fe91`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`. Actionlint, higiene documental e Rust quality/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
 
 A matriz executável R2-T14 agora cobre os quatro grupos normativos: resolução de obrigação e emissão no próximo microstep; repetição sem progresso -> Blocked sem mutação; permutação de obrigações independentes/comutativas; ciclo de emissão no mesmo instante limitado por ResourceExhausted sem mutação parcial. A matriz R2-T07 também tem caso executável de conflito não comutativo UNKNOWN que impede fechamento de W. Ambos aguardam revalidação independente; R2-T06 continua parcial. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+### 8.1.20 Arbitragem explícita de cancelamento e claim no mesmo instante — 25/11/2026
+
+R1 §16.5.1 e §16.5.13 permitem decidir C=D somente quando o perfil declara relação causal/microstep explícita; sem essa relação, o resultado permanece IndeterminateCausalOrder. O oráculo anterior sempre retornava indeterminado em C=D e não conseguia representar a alternativa explicitamente ordenada.
+
+Correção em deadline_reference.py:
+- Cancellation agora preserva microstep_level, phase_order e phase_evidence opcionais.
+- _cancellation_precedes_deadline() compara microsteps lógicos distintos; no mesmo microstep, só compara phase_order quando ambos os lados têm a mesma evidência e posições distintas.
+- cancel_deadline() mantém a precedência C<=A(E) -> LateInput antes da arbitragem C/D. Com C=D e relação explícita anterior ao claim, admite o cancelamento; relação posterior -> LateInput; relação ausente/ambígua -> IndeterminateCausalOrder.
+- _validate_book_state() aplica a mesma relação a cancelamentos pendentes pré-construídos/restaurados. W>=D continua sendo LateInput; cancelamento admitido no mesmo instante precisa ser arbitrado antes de W fechar D.
+- Publicação D=P_d com W<D foi acrescentada à matriz: microstep explícito admite; sem microstep permanece indeterminada.
+
+Regressões adicionadas: publicação D=P_d com W ausente e W<D; C=D com cancelamento em microstep anterior, posterior e igual; C=D com phase_order/evidence explícitos antes/depois; precedência de C<=A(E) sobre microstep de desempate; e bloqueio do fechamento de W até arbitragem.
+
+Commits:
+- Implementação: a58e10d2277d465a7b8c6be63789a566a9b35913.
+- Testes: 97c39af1d2bdeffcd68519dd82140670658b65d1.
+- Contagem candidata: 117 testes totais; slice R2-B=74; R2-T14=5 testes dedicados.
+
+**Validação vinculada — CI #10719:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45546437894) — **SUCCESS** no código/testes `97c39af1d2bdeffcd68519dd82140670658b65d1`; 117/117 PASS, runner dedicado duas vezes + `python -m unittest -v`, worktree CLEAN. SHA-256: `deadline_reference.py` = `9293ccef6d7b4e575670a4782b7f81da6740e32d50d1c949776ae5788c8e4761`; `test_deadlines.py` = `227693b28d036dbde76b9cebfce0649a846743266404676f3149a670b82742d3`. Actionlint, higiene documental e Rust quality/unit regression: PASS; Rust workspace, Windows e hardware: SKIPPED.
+
+R2-T06 permanece parcial porque a matriz completa ainda inclui permutações de publicação/dispatch e demais corridas especificadas em R1 C06. T07 e T14 têm cobertura executável, ainda aguardando revalidação independente. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
