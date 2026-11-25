@@ -568,3 +568,22 @@ Foram adicionados sete métodos de teste discriminantes: membro de domínio inv�
 **Evidência vinculada — CI #10695:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45542860220) — **SUCCESS** no HEAD de código/testes `4ebf3c53e45b39ccb49304f3aada7568d126b855`. CHRONOS R2: **100/100 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `3075a684d0dfcbec56cb261e46f61b492c4e53ab08a0a771b4dfa14e813df9bd`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `f1c77898bf153b2067fee2c4b517e553e6976635d58e0e4d8d8a5480ce8d934a`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
 
 A revalidação independente Codex do HEAD corrigido foi solicitada; seu resultado permanece pendente. As threads anteriores permanecem abertas até confirmação independente, mesmo quando a implementação e os testes atuais já cobrem suas correções. T06/T07/T14 continuam parciais; T05, T08–T13 e T15 permanecem NOT RUN. R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS. Esta evidência não aprova R2 nem autoriza produção CHRONOS/V2.
+
+### 8.1.15 Taxonomia de conversão exata e validação do descritor de microstep — 25/11/2026
+
+A auditoria do R2-B encontrou dois defeitos independentes:
+
+1. `_validate_reference_state()` agrupava valores de clock não exatos e razões de clock não comparáveis em uma mesma mensagem. `_reference_state_error_code()` verificava primeiro a expressão `clock conversion`, classificando também valores float em `IndeterminateCausalOrder`. R1 §16.12 reserva `InvalidInput` a valores/descritores fora do domínio; `IndeterminateCausalOrder` é reservado à conversão/comparabilidade necessária que não pode ser estabelecida.
+2. `schedule_microstep()` construía um `ReferenceState` sintético antes de validar o owner. Um owner não-string/não hashable podia provocar `TypeError` em `make_state()`. A função também agrupava timestamp não exato e microstep negativo/malformado com o limite de capacidade, retornando `ResourceExhausted` indevidamente.
+
+Correções implementadas:
+- valores de clock não exatos (ratio, offset ou progresso) retornam `InvalidInput`; razão exata não positiva continua retornando `IndeterminateCausalOrder` por conversão não comparável;
+- o mapeamento da taxonomia dá precedência a `not exact` antes de `clock conversion`;
+- `schedule_microstep()` valida owner, identity, generation, effect ID, flags, timestamp e microstep atual antes de criar o estado sintético;
+- descritor inválido retorna `InvalidInput`; somente `current_microstep >= max_microsteps` retorna `ResourceExhausted`; rejeições preservam o livro.
+
+Foram adicionados dois métodos de teste com subcasos: coordenadas não exatas em `local_to_common`, `common_offset` e `progress_local`, verificadas tanto em publicação quanto em cancelamento; e oito descritores inválidos de microstep, incluindo owner não hashable, identidade inválida, geração booleana, timestamp float, microstep negativo/não inteiro e flag não booleana. A suíte passa de 100 para **102 testes**; R2-B passa de 64 para **66 casos**.
+
+**Evidência vinculada — CI #10697:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45543257291) — **SUCCESS** no HEAD de código/testes `30137c664df14054fc120bb94f06c73091f83f1a`. CHRONOS R2: **102/102 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `4280ce475c2d6f9f4f869ad74041dbef7031553891a16ef9d57df6537bce97fb`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `62a0b47b5829eabf71a46a7fdd5e015900ff4e833e8868dca5319e9b0598e631`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. A correção não altera R1 nem autoriza produção CHRONOS/V2.
