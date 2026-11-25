@@ -26,14 +26,14 @@ No third-party dependencies are required. The model uses exact rational arithmet
 
 ## Current candidate coverage
 
-The current candidate contains **255 deterministic tests** across 13 modules. The suites are test-only, use exact rational/integer coordinates, and do not import production CHRONOS/V2 code.
+The current candidate contains **256 deterministic tests** across 13 modules. The suites are test-only, use exact rational/integer coordinates, and do not import production CHRONOS/V2 code.
 
 | Test module | Cases | R2 coverage |
 |---|---:|---|
 | `test_temporal_core.py` | 38 | T01–T04: monotonicity, complete participant sets, exact conversion, safe horizons, obligations, chunk invariance and structural validation |
 | `test_deadlines.py` | 78 | T06 and deadline portions of T07/T14: publication/cancellation/claim races, generations, W/A(E), C/D ordering, explicit phase evidence, microsteps, permutation and delayed dispatch |
 | `test_microsteps.py` | 5 | T14: finite same-instant obligation cycles, no-progress idempotence, child emission, exhaustion atomicity and UNKNOWN ordering |
-| `test_causal.py` | 12 | T05 and T07: declared participants, observation/commit cutoffs, dependency closure/cycles, no speculative progress, same-instant dependency ordering and commutativity |
+| `test_causal.py` | 13 | T05 and T07: declared participants, observation/commit cutoffs, dependency closure/cycles, no speculative progress, same-instant dependency ordering and commutativity |
 | `test_partial_order.py` | 6 | T07: phase evidence mismatch; exhaustive 120-permutation families for five commutative events, five non-commutative UNKNOWN events, five-event dependency chain and partial order with commutative siblings |
 | `test_transaction.py` | 18 | T08: all transaction states, retry identity, sample/commit exactly-once, cancellation, partial failure and explicit recovery |
 | `test_wait.py` | 11 | T09: automatic Z80 TW versus external/fixture WAIT, repeated sampling and UNKNOWN preservation |
@@ -43,7 +43,7 @@ The current candidate contains **255 deterministic tests** across 13 modules. Th
 | `test_host.py` | 12 | T13: host queue, drain/drop, underrun/overrun, VSync, device recreation and integer-output chunk invariance |
 | `test_resource.py` | 10 | T15: finite capacity, ResourceExhausted atomicity, exact reservation identity, partial effects and recovery |
 | `test_atomicity.py` | 10 | T15: cross-subsystem error precedence, no-partial-mutation, LateInput, Indeterminate, UnsupportedSnapshot and IncompatibleSnapshot |
-| **Total** | **255** | **R2-T01–T15 coverage present; strengthened candidate CI pending** |
+| **Total** | **256** | **R2-T01–T15 coverage present; strengthened candidate CI pending** |
 
 The dedicated runner records the repository HEAD, clean-worktree status, SHA-256 for each reference model/runner/test module, Python version, platform, seed, ordered test trace, first divergence, minimal reproducer and mutation outcomes. Its runner seed shuffles test execution order deterministically; property generators declare independent seeds (T01: `0xC0A05`; T02: integers 0–99). Seeded generated failures include the operation trace and a deterministic deletion-minimized partition state. The pinned runner is executed twice from the same checkout; CI also executes the exact `python -m unittest -v` command on Linux and Windows. A skipped Rust, Windows or hardware job is never reported as PASS.
 
