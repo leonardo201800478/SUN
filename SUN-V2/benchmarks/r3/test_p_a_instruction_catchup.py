@@ -52,8 +52,8 @@ class PATestCase(unittest.TestCase):
             ),
         )
         reference = r2_advance(r2_state, target)
-        self.assertEqual(result.code, reference.kind.value)
-        self.assertEqual(result.reached, reference.reached_common)
+        self.assertEqual(result.code, reference.result.kind.value)
+        self.assertEqual(result.reached, reference.result.reached_common)
         self.assertEqual(
             self._progress_digest(result.next_state),
             self._reference_digest(reference.state),
