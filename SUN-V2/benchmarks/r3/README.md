@@ -37,8 +37,7 @@ Do not import R2 model classes into timed prototype implementations.
 
 CI #10851 passed the 45-test P-A revision on Linux and Windows, R2 on both systems,
 both retained advance/deadline matrices, Actionlint, documentation hygiene and the
-quality supervisor. W03/W04 causal sync was added after that run and is awaiting its
-own CI validation.
+quality supervisor. CI #10859 then validated W03/W04 causal sync on Linux and Windows, bringing the P-A differential suite to 58/58 PASS.
 
 The advance matrix has 75 points per OS; the deadline lifecycle matrix has 180 points
 per OS. The W03/W04 causal matrix has 30 points per OS. All use five warm-ups and
