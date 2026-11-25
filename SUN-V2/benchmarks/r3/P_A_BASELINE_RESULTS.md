@@ -1,8 +1,8 @@
 # P-A baseline results — first retained matrix
 
-**Classification:** `OBSERVATION` — synthetic Python benchmark only  
-**Repository HEAD:** `555c3d034c0d0b7f2013e48fad80ae78d75c1106`  
-**CI:** [run #10844](https://github.com/leonardo201800478/SUN/actions/runs/45692690856) — SUCCESS  
+**Classification:** `OBSERVATION` — synthetic Python benchmark only
+**Repository HEAD:** `555c3d034c0d0b7f2013e48fad80ae78d75c1106`
+**CI:** [run #10844](https://github.com/leonardo201800478/SUN/actions/runs/45692690856) — SUCCESS
 **Date:** 2026-11-25
 
 ## Validation
@@ -77,3 +77,27 @@ This baseline does **not** close P-A or R3. Remaining work includes:
 - adversarial independent review.
 
 P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is authorized before R5.
+
+
+## P-A v2 — single-pass deadline grouping follow-up
+
+**Prototype HEAD:** `292547d6f46a0a950036d46ba90d1e3540727423`  
+**CI:** [run #10849](https://github.com/leonardo201800478/SUN/actions/runs/45693332322). R2 Linux/Windows, P-A 45/45 tests Linux/Windows, both benchmark matrices and Actionlint passed. The overall run failed only at documentation patch hygiene because this report's three metadata lines above had trailing Markdown hard-break spaces; that formatting issue is being corrected and revalidated on the next HEAD.
+
+P-A v2 changes `close_watermark` to collect due deadlines into a timestamp map in one pass, then sort instants and apply the same causal tie rules. It remains a disposable full-scan/temporary-grouping implementation; no persistent agenda was introduced.
+
+| Environment | Distribution | v1 p50/p95 | v2 p50/p95 | p50 reduction |
+|---|---|---:|---:|---:|
+| Linux | 128 sparse instants | 11.636 / 11.677 ms | 2.763 / 2.933 ms | 76.2% |
+| Linux | 8 dense instants | 3.083 / 3.133 ms | 2.667 / 2.786 ms | 13.5% |
+| Windows | 128 sparse instants | 11.920 / 13.950 ms | 1.949 / 2.161 ms | 83.6% |
+| Windows | 8 dense instants | 3.053 / 3.150 ms | 1.856 / 1.868 ms | 39.2% |
+
+The v1/v2 values come from separate CI runs, not an interleaved same-process A/B. They are evidence of a promising algorithmic refinement, not a controlled performance claim. The v2 run retained the following artifacts:
+
+| Environment | Artifact | SHA-256 |
+|---|---|---|
+| Linux advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15058649191) | `f04ac275636717dbeeb8254f8072e87ed611e202c78f0a505b11a1e015ff6b42` |
+| Windows advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15059273072) | `5b361dd896582598cc37bea295e4a5a6247f0ba5ccb5f6977fae8ad990687383` |
+| Linux deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15058958950) | `1b6f98f31a74f28adcb06d7e2b38f02f2dbb3e5345337e3d568455fdde5e6c58` |
+| Windows deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693332322/artifacts/15059476880) | `5343e1942eb19258bddb502d7ef2275a0642a61ea92acb00b8a1c197c5992a90` |
