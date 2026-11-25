@@ -132,6 +132,28 @@ def advance_budgeted(
     inspected_participants = 0
     inspected_obligations = 0
     current = frontier
+
+    # R2 evaluates obligations at the current frontier even for a zero-length
+    # advance. Preserve that boundary behavior before entering budget chunks.
+    if current == bounded:
+        inspected_obligations += len(current_obligations)
+        due_at_frontier = [
+            item for item in current_obligations
+            if not item.resolved and item.at_common <= current
+        ]
+        if due_at_frontier:
+            earliest = min(item.at_common for item in due_at_frontier)
+            tied = [item for item in due_at_frontier if item.at_common == earliest]
+            if len(tied) > 1 and not all(item.commutative for item in tied):
+                return AResult(
+                    "IndeterminateCausalOrder", Fraction(target), frontier,
+                    "UnknownSimultaneousObligations", 0, 0,
+                    inspected_obligations, 0, state,
+                )
+            first = min(tied, key=lambda item: item.identity)
+            stop_reason = f"PendingObligation:{first.identity}"
+            pending_identity = first.identity
+
     while current < bounded:
         next_common = min(current + Fraction(chunk), bounded)
         inspected_obligations += len(current_obligations)
