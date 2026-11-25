@@ -1,11 +1,11 @@
 # SUN V2 — CHRONOS R2 implementation closeout
 
-**Status:** implementação R2-T01–T15 revisada independentemente; parecer do responsável sem blocker funcional; dois P2 documentais corrigidos; aprovação explícita do responsável registrada. Validação final do pacote documental por CI pendente.
+**Status:** R2-T01–T15 revisado independentemente; parecer sem blocker funcional; P2 documentais corrigidos; R2 APROVADO pelo responsável após CI #10798 SUCCESS.
 **R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
-**R2:** issue #1282; PR #1283 permanece aberta, em revisão/fechamento documental, sem merge.
-**R3:** protótipos descartáveis autorizados após aprovação formal R2, CI final verde e merge da PR. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
+**R2:** APROVADO e publicado na `main` pela PR #1283; merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`.
+**R3:** EM ANDAMENTO na branch `research/chronos-r3-disposable-prototypes`; escopo exclusivo de protótipos descartáveis/comparáveis e benchmarks. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
 
-Este documento registra o fechamento técnico do R2, o parecer independente do responsável e sua aprovação explícita. A validação CI do HEAD documental final permanece como último controle antes do merge.
+Este documento registra o fechamento técnico do R2, o parecer independente do responsável, aprovação explícita e publicação na `main`. CI #10798 validou o HEAD documental final `a858f8f21caece3567385d64745823c655dbd135`.
 
 ## 1. Resultado do pacote
 
@@ -123,8 +123,8 @@ O parecer não autorizou merge antes dessas correções e revalidação; a aprov
 ## 6. Decisão
 
 **Implementação executável R2-T01–T15: COMPLETA E REVISADA.**
-**Gate formal R2: APROVADO pelo responsável em 25/11/2026; publicação na `main` e início de R3 dependem da confirmação de CI verde no HEAD final e do merge da PR.**
+**Gate formal R2: APROVADO e MERGED em 25/11/2026.** Merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`; CI #10798 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45680669533).**
 
 Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout revisado para identificar o parecer, CI #10790, artifacts e hash do mutation runner. CI #10790 valida o código do HEAD revisado `ad8cbbe`; as alterações documentais posteriores exigem CI próprio.
 
-Após CI verde do SHA documental final, atualizar issue/PR para R2 APROVADO, publicar PR #1283 na `main` e abrir o trabalho R3 em branch própria. R3 limita-se a protótipos descartáveis e benchmarks comparáveis; nenhuma implementação de produção CHRONOS/V2 antes de R5.
+R2 foi encerrado e publicado. R3 está iniciado na branch `research/chronos-r3-disposable-prototypes`; R3 limita-se a protótipos temporais descartáveis, comparação de alternativas e benchmarks reproduzíveis. R4–R5 continuam obrigatórios; nenhuma implementação de produção CHRONOS/V2 antes de R5.
