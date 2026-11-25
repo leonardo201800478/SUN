@@ -309,7 +309,7 @@ def state_digest(state: AState) -> tuple:
              o.resolved, o.commutative)
             for o in state.obligations
         )),
-        tuple(sorted(state.expected_participants or ())),
+        None if state.expected_participants is None else tuple(sorted(state.expected_participants)),
         None if state.watermark_common is None else (
             state.watermark_common.numerator, state.watermark_common.denominator
         ),
