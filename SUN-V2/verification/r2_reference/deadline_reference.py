@@ -152,6 +152,23 @@ def _validate_reference_state(state: object) -> str | None:
         )
         if safe_horizon < known_frontier:
             return "safe horizon is behind the confirmed machine frontier"
+    else:
+        known_frontier = (
+            state.watermark_common
+            if state.watermark_common is not None else Fraction(0)
+        )
+    # Keep deadline admission consistent with advance(): W is a closed cut,
+    # and a known participant frontier cannot lie beyond an unresolved obligation.
+    if state.watermark_common is not None and any(
+        not item.resolved and item.at_common <= state.watermark_common
+        for item in state.obligations
+    ):
+        return "unresolved obligation is at or behind the confirmed watermark"
+    if any(
+        not item.resolved and item.at_common < known_frontier
+        for item in state.obligations
+    ):
+        return "unresolved obligation lies behind the confirmed machine frontier"
     return None
 
 
@@ -161,7 +178,7 @@ def _reference_state_error_code(detail: str) -> DeadlineCode:
         return DeadlineCode.INVALID_INPUT
     if "clock conversion" in detail:
         return DeadlineCode.INDETERMINATE
-    if "safe horizon" in detail:
+    if "safe horizon" in detail or "unresolved obligation" in detail:
         return DeadlineCode.INVARIANT_VIOLATION
     return DeadlineCode.INVALID_INPUT
 
@@ -202,6 +219,24 @@ def _validate_book(book: object) -> str | None:
         keys.append((item.identity, item.generation))
     if len(keys) != len(set(keys)):
         return "deadline identity/generation pair is duplicated"
+    latest_generation: dict[str, int] = {}
+    for item in book.deadlines:
+        latest_generation[item.identity] = max(
+            latest_generation.get(item.identity, item.generation),
+            item.generation,
+        )
+    active_states = {
+        DeadlineStatus.SCHEDULED,
+        DeadlineStatus.CANCEL_PENDING,
+        DeadlineStatus.CLAIMED,
+        DeadlineStatus.DISPATCHED,
+    }
+    if any(
+        item.generation < latest_generation[item.identity]
+        and item.status in active_states
+        for item in book.deadlines
+    ):
+        return "older deadline generation remains active after a newer generation"
     pending_keys = []
     for item in book.pending_cancellations:
         if not isinstance(item, Cancellation):
