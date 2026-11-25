@@ -587,3 +587,18 @@ class R2BStructuralValidationTests(unittest.TestCase):
         )
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
         self.assertEqual(result.book, book)
+
+    def test_watermark_close_rejects_malformed_deadline_book(self):
+        book = DeadlineBook(deadlines=(object(),))
+        result = close_watermark(book, Fraction(10))
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
+    def test_microstep_rejects_non_deadline_book_before_reading_limit(self):
+        result = schedule_microstep(
+            None, owner="cpu", identity="child", generation=1,
+            at_common=Fraction(5), effect_id="child-effect",
+            current_microstep=0,
+        )
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertIsNone(result.book)
