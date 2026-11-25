@@ -403,7 +403,7 @@ class PASnapshotTests(unittest.TestCase):
         record_property(self.id(), "arrival-permutation", forward.digest, reverse.digest)
 
     def test_replay_sequence_gap_is_rejected_without_partial_apply(self):
-        artifact, events = self.replay_fixture()
+        state, artifact, events = self.replay_fixture()
         result = replay_from_snapshot(artifact, (events[1],))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
@@ -411,27 +411,27 @@ class PASnapshotTests(unittest.TestCase):
         record_property(self.id(), "atomic-gap", result.state, state)
 
     def test_replay_duplicate_sequence_is_rejected(self):
-        artifact, events = self.replay_fixture()
+        state, artifact, events = self.replay_fixture()
         result = replay_from_snapshot(artifact, (events[0], events[0]))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
 
     def test_replay_progress_regression_is_rejected_atomically(self):
-        artifact, _ = self.replay_fixture()
+        state, artifact, _ = self.replay_fixture()
         event = PAReplayEvent(8, Fraction(9), "cpu", Fraction(9), Fraction(1, 5))
         result = replay_from_snapshot(artifact, (event,))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
 
     def test_replay_unknown_domain_is_rejected_atomically(self):
-        artifact, _ = self.replay_fixture()
+        state, artifact, _ = self.replay_fixture()
         event = PAReplayEvent(8, Fraction(9), "ym2413", Fraction(11), Fraction(1, 5))
         result = replay_from_snapshot(artifact, (event,))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
 
     def test_replay_time_regression_is_rejected_atomically(self):
-        artifact, events = self.replay_fixture()
+        state, artifact, events = self.replay_fixture()
         regressed = (
             events[0],
             PAReplayEvent(9, Fraction(8), "vdp", Fraction(12), Fraction(1, 4)),
