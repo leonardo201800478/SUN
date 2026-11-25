@@ -624,8 +624,8 @@ As fontes abaixo sustentam a pesquisa comparativa atual. Código de emulador dem
 
 ## 20. Estado e próxima ação
 
-**Estado atual:** avaliação arquitetural criada. Nenhum modelo está aprovado. Nenhum código de produção foi autorizado ou implementado.
+**Estado atual (25/11/2026):** R0 e R1 aprovados; R2 aprovado e merged na `main` pela PR #1283 (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`). R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`. Nenhum modelo de produção foi aprovado; nenhum código de produção CHRONOS/V2 foi autorizado ou implementado.
 
-**Próxima ação técnica:** fechar R0 com auditoria de evidências e transformar os requisitos desta avaliação em uma especificação temporal R1. Em particular, resolver as incertezas de fase dos clocks SMS, os instantes de observação do barramento Z80 e a ordenação de eventos simultâneos antes de escrever o modelo de referência.
+**Próxima ação técnica:** executar P-A como baseline obrigatória, depois P-D e P-E sob a mesma semântica R1/R2, entradas e cargas. Selecionar as perguntas discriminantes e métricas antes de rodar. P-F somente se houver lacuna demonstrada; P-B/P-C permanecem condicionais. Preservar UNKNOWN e as incertezas de fase SMS, dos instantes de observação do barramento Z80 e de eventos simultâneos. Nenhum protótipo deve introduzir premissas físicas para fechar tais lacunas.
 
-A hipótese F (híbrida) é a primeira candidata a prototipar, não uma decisão antecipada. Se os protótipos demonstrarem que um modelo mais simples satisfaz os invariantes com menor custo e complexidade, o SUN deverá escolher o modelo mais simples.
+A hipótese híbrida não é decisão antecipada. Se os protótipos demonstrarem que um modelo mais simples satisfaz os invariantes com menor custo e complexidade, SUN deverá escolher o modelo mais simples. Protótipos R3 são descartáveis; produção permanece proibida antes de R5.
