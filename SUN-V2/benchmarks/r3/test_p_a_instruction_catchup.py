@@ -388,6 +388,62 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.next_state, state)
         self.assertEqual(reference.state.domains, ())
 
+    def test_closed_watermark_participates_in_machine_frontier(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(2), Fraction(20)),
+                AParticipant("vdp", Fraction(3), Fraction(20)),
+            ),
+            watermark_common=Fraction(5),
+        )
+        late, _ = self.compare_case(state, Fraction(4), Fraction(2))
+        self.assertEqual(late.code, ResultKind.LATE_INPUT.value)
+        self.assertEqual(late.reached, Fraction(5))
+        advanced, _ = self.compare_case(state, Fraction(8), Fraction(2))
+        self.assertEqual(advanced.code, ResultKind.REACHED.value)
+        self.assertEqual(advanced.reached, Fraction(8))
+
+    def test_incomplete_declared_participant_set_blocks_advance(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(2), Fraction(20)),),
+            expected_participants=frozenset({"cpu", "vdp"}),
+        )
+        result, _ = self.compare_case(state, Fraction(8), Fraction(2))
+        self.assertEqual(result.code, ResultKind.BLOCKED.value)
+        self.assertEqual(result.next_state, state)
+
+    def test_watermark_beyond_safe_horizon_is_invariant_violation(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(2), Fraction(4)),),
+            watermark_common=Fraction(5),
+        )
+        result, _ = self.compare_case(state, Fraction(8), Fraction(2))
+        self.assertEqual(result.code, ResultKind.INVARIANT_VIOLATION.value)
+        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(result.next_state, state)
+
+    def test_unresolved_obligation_at_watermark_is_invariant_violation(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(2), Fraction(20)),),
+            obligations=(AObligation("irq", "cpu", Fraction(5)),),
+            watermark_common=Fraction(5),
+        )
+        result, _ = self.compare_case(state, Fraction(8), Fraction(2))
+        self.assertEqual(result.code, ResultKind.INVARIANT_VIOLATION.value)
+        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(result.next_state, state)
+
+    def test_rational_common_offset_conversion_matches_r2(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(5), Fraction(20), Fraction(3, 2), Fraction(2)),
+                AParticipant("vdp", Fraction(6), Fraction(30), Fraction(2), Fraction(3)),
+            )
+        )
+        result, _ = self.compare_case(state, Fraction(10), Fraction(3))
+        self.assertEqual(result.code, ResultKind.REACHED.value)
+        self.assertEqual(result.reached, Fraction(10))
+
 
 if __name__ == "__main__":
     unittest.main()
