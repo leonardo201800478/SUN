@@ -242,6 +242,16 @@ def _validate_book_state(
     for request in book.pending_cancellations:
         deadline = _find(book, request.identity, request.generation)
         assert deadline is not None  # guaranteed by _validate_book()
+        if request.at_common < deadline.at_common:
+            if (
+                book.watermark_common is not None
+                and book.watermark_common >= deadline.at_common
+            ):
+                return (
+                    DeadlineCode.INVARIANT_VIOLATION,
+                    "pending C<D cancellation survived closure of W through D",
+                )
+            continue
         if request.at_common == deadline.at_common:
             if (
                 book.watermark_common is not None
@@ -255,11 +265,10 @@ def _validate_book_state(
                 DeadlineCode.INDETERMINATE,
                 "pending cancellation at D has no explicit causal-order relation",
             )
-        if request.at_common > deadline.at_common:
-            return (
-                DeadlineCode.LATE_INPUT,
-                "pending cancellation after D cannot suppress the deadline",
-            )
+        return (
+            DeadlineCode.LATE_INPUT,
+            "pending cancellation after D cannot suppress the deadline",
+        )
     return None
 
 
