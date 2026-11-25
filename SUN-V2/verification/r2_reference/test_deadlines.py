@@ -174,6 +174,42 @@ class R2BPublicationTests(unittest.TestCase):
                 self.assertEqual(rejected.code, DeadlineCode.RESOURCE_EXHAUSTED)
                 self.assertEqual(rejected.book, book)
 
+    def test_publication_order_permutation_preserves_causal_claim_and_dispatch(self):
+        def execute(publication_order):
+            book = DeadlineBook()
+            instants = {"early": Fraction(5), "late": Fraction(7)}
+            for identity in publication_order:
+                result = publish(
+                    book, machine(), identity=identity, at=instants[identity]
+                )
+                self.assertEqual(result.code, DeadlineCode.ACCEPTED)
+                book = result.book
+
+            closed = close_watermark(book, Fraction(7))
+            self.assertEqual(closed.code, DeadlineCode.ACCEPTED)
+            self.assertEqual(
+                closed.claimed, (("early", 1), ("late", 1))
+            )
+            book = closed.book
+            for identity in ("early", "late"):
+                dispatched = dispatch_deadline(
+                    book, identity=identity, generation=1
+                )
+                self.assertEqual(dispatched.code, DeadlineCode.ACCEPTED)
+                completed = complete_deadline(
+                    dispatched.book, identity=identity, generation=1
+                )
+                self.assertEqual(completed.code, DeadlineCode.ACCEPTED)
+                book = completed.book
+            return tuple(sorted(
+                (item.identity, item.status) for item in book.deadlines
+            ))
+
+        self.assertEqual(
+            execute(("early", "late")),
+            execute(("late", "early")),
+        )
+
     def test_preconstructed_book_enforces_microstep_limit_before_claiming(self):
         for level in (0, 1, 2, 999):
             with self.subTest(level=level):
@@ -481,6 +517,35 @@ class R2BCancellationRaceTests(unittest.TestCase):
         )
         self.assertEqual(rejected.code, DeadlineCode.LATE_INPUT)
         self.assertEqual(rejected.book, deadline)
+
+    def test_cancellation_microstep_obeys_finite_book_limit(self):
+        book = DeadlineBook(max_microsteps=2)
+        deadline = publish(
+            book, machine(), at=10, microstep=True, microstep_level=2
+        ).book
+
+        rejected = cancel_deadline(
+            deadline, machine(progress=2), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(8), microstep_level=3,
+        )
+        self.assertEqual(rejected.code, DeadlineCode.RESOURCE_EXHAUSTED)
+        self.assertEqual(rejected.book, deadline)
+
+        preconstructed = DeadlineBook(
+            deadlines=(
+                replace(deadline.deadlines[0],
+                        status=DeadlineStatus.CANCEL_PENDING),
+            ),
+            pending_cancellations=(
+                Cancellation(
+                    "cpu", "evt", 1, Fraction(8), microstep_level=3
+                ),
+            ),
+            max_microsteps=2,
+        )
+        invalid = arbitrate_cancellations(preconstructed)
+        self.assertEqual(invalid.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(invalid.book, preconstructed)
 
     def test_cancel_at_deadline_before_watermark_without_causal_relation_is_indeterminate(self):
         state = machine(progress=2, watermark=9)
