@@ -288,6 +288,15 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.reached, Fraction(5))
         self.assertEqual(result.next_state, state)
 
+    def test_float_target_is_invalid_input_without_mutation(self):
+        state = AState(
+            participants=(AParticipant("cpu", Fraction(5), Fraction(20)),)
+        )
+        result, _ = self.compare_case(state, 5.25, Fraction(2))
+        self.assertEqual(result.code, ResultKind.INVALID_INPUT.value)
+        self.assertEqual(result.reached, Fraction(0))
+        self.assertEqual(result.next_state, state)
+
 
 if __name__ == "__main__":
     unittest.main()
