@@ -811,7 +811,7 @@ Regressão: `test_causal.py::R2T05CausalSynchronizationTests.test_preapplied_cau
 
 ### 8.1.27 Validação final Linux/Windows e encerramento dos P2 conhecidos — 25/11/2026
 
-**Candidato exato validado:** `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`.  
+**Candidato exato validado:** `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`.
 **CI #10785:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45600632992).
 
 - Linux / Python 3.14.4: **256/256 PASS**, runner executado duas vezes, `python -m unittest -v`, worktree CLEAN nas duas execuções.
