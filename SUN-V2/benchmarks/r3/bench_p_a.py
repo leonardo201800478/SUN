@@ -72,9 +72,9 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
     final_counters = None
     for _ in range(repeats):
         wall_start = time.perf_counter_ns()
-        cpu_start = time.process_time_ns()
+        cpu_start = time.thread_time_ns()
         result = advance_budgeted(state, target=target, chunk=chunk_value)
-        samples_cpu_ns.append(time.process_time_ns() - cpu_start)
+        samples_cpu_ns.append(time.thread_time_ns() - cpu_start)
         samples_wall_ns.append(time.perf_counter_ns() - wall_start)
         digest = state_digest(result.next_state)
         if final_digest is None:
@@ -177,6 +177,7 @@ def main() -> int:
         "python": sys.version,
         "platform": platform.platform(),
         "processor": platform.processor(),
+        "cpu_clock": "time.thread_time_ns",
         "pythonhashseed": os.environ.get("PYTHONHASHSEED", "unset"),
         "warmup": args.warmup,
         "repeats": args.repeats,
