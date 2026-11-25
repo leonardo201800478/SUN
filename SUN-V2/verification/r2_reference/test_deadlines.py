@@ -225,6 +225,34 @@ class R2BCancellationRaceTests(unittest.TestCase):
         self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
         self.assertEqual(result.book, book)
 
+    def test_cancel_at_deadline_when_watermark_is_closed_is_late(self):
+        for watermark in (Fraction(10), Fraction(11)):
+            with self.subTest(watermark=watermark):
+                state = machine(progress=2, watermark=watermark)
+                book = DeadlineBook(
+                    deadlines=self.initial.deadlines,
+                    watermark_common=watermark,
+                )
+                result = cancel_deadline(
+                    book, state, owner="cpu", identity="evt", generation=1,
+                    at_common=Fraction(10),
+                )
+                self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
+                self.assertEqual(result.book, book)
+
+    def test_cancel_before_deadline_but_after_watermark_closed_is_late(self):
+        state = machine(progress=2, watermark=10)
+        book = DeadlineBook(
+            deadlines=self.initial.deadlines,
+            watermark_common=Fraction(10),
+        )
+        result = cancel_deadline(
+            book, state, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(9),
+        )
+        self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(result.book, book)
+
     def test_cancel_after_deadline_is_late_even_if_dispatch_is_delayed(self):
         result = cancel_deadline(
             self.initial, machine(progress=2), owner="cpu", identity="evt", generation=1,
