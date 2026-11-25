@@ -96,7 +96,7 @@ class PATestCase(unittest.TestCase):
 
     @staticmethod
     def _reference_frontier(state):
-        return min(domain.progress_common() for domain in state.domains)
+        return max(domain.progress_common() for domain in state.domains)
 
     def test_sparse_budgeted_advance_matches_r2(self):
         state = AState(
@@ -217,6 +217,54 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.reached, Fraction(7))
         self.assertEqual(result.chunks, 0)
         self.assertEqual(result.next_state, state)
+
+    def test_zero_length_advance_catches_up_lagging_participant(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(2), Fraction(20)),
+                AParticipant("vdp", Fraction(5), Fraction(20), Fraction(3, 2)),
+            )
+        )
+        result, reference = self.compare_case(state, Fraction(5), Fraction(4))
+        self.assertEqual(result.code, ResultKind.REACHED.value)
+        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(result.chunks, 0)
+        self.assertEqual(
+            result.next_state.participants,
+            tuple(
+                AParticipant(
+                    domain.domain_id,
+                    domain.progress_common(),
+                    domain.horizon_common(),
+                    domain.local_to_common,
+                )
+                for domain in reference.state.domains
+            ),
+        )
+
+    def test_obligation_at_frontier_catches_up_lagging_participant(self):
+        state = AState(
+            participants=(
+                AParticipant("cpu", Fraction(2), Fraction(20)),
+                AParticipant("vdp", Fraction(5), Fraction(20), Fraction(3, 2)),
+            ),
+            obligations=(AObligation("irq", "cpu", Fraction(5)),),
+        )
+        result, reference = self.compare_case(state, Fraction(5), Fraction(4))
+        self.assertEqual(result.code, ResultKind.STOPPED_AT.value)
+        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(
+            result.next_state.participants,
+            tuple(
+                AParticipant(
+                    domain.domain_id,
+                    domain.progress_common(),
+                    domain.horizon_common(),
+                    domain.local_to_common,
+                )
+                for domain in reference.state.domains
+            ),
+        )
 
 
 if __name__ == "__main__":
