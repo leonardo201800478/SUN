@@ -3,7 +3,7 @@ from dataclasses import replace
 from fractions import Fraction
 import unittest
 
-from chronos_reference import ClockDomain, make_state
+from chronos_reference import ClockDomain, Obligation, make_state
 from deadline_reference import (
     Cancellation,
     Deadline,
@@ -605,6 +605,48 @@ class R2BCancellationRaceTests(unittest.TestCase):
         self.assertEqual(rejected.code, DeadlineCode.INVARIANT_VIOLATION)
         self.assertEqual(rejected.book, book)
 
+    def test_deadline_admission_rejects_obligation_inconsistent_reference_state(self):
+        cases = (
+            (Fraction(0), Fraction(5), Fraction(5)),
+            (Fraction(6), None, Fraction(5)),
+        )
+        for progress, watermark, obligation_time in cases:
+            with self.subTest(progress=progress, watermark=watermark):
+                initial_book = DeadlineBook(watermark_common=watermark)
+                initial_state = machine(progress=0, watermark=watermark)
+                scheduled = publish(initial_book, initial_state, at=10).book
+                inconsistent = make_state(
+                    profile="SMS-NTSC-ABSTRACT",
+                    domains=(
+                        ClockDomain(
+                            "cpu", Fraction(1), progress_local=progress,
+                            horizon_local=Fraction(100),
+                        ),
+                    ),
+                    expected_participants=("cpu",),
+                    watermark_common=watermark,
+                    obligations=(
+                        Obligation(
+                            "pending", "cpu", obligation_time, resolved=False
+                        ),
+                    ),
+                )
+
+                publication = publish(initial_book, inconsistent, at=12)
+                cancellation = cancel_deadline(
+                    scheduled, inconsistent, owner="cpu", identity="evt",
+                    generation=1, at_common=Fraction(8),
+                )
+
+                self.assertEqual(
+                    publication.code, DeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(publication.book, initial_book)
+                self.assertEqual(
+                    cancellation.code, DeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(cancellation.book, scheduled)
+
 
 class R2BReplacementTests(unittest.TestCase):
     def test_replacement_validates_new_descriptor_before_temporal_admission(self):
@@ -1077,3 +1119,40 @@ class R2BStructuralValidationTests(unittest.TestCase):
         result = publish(book, state)
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
         self.assertEqual(result.book, book)
+
+    def test_book_rejects_older_active_generation_after_newer_generation_exists(self):
+        cases = (
+            (DeadlineStatus.SCHEDULED, None, ()),
+            (
+                DeadlineStatus.CANCEL_PENDING,
+                None,
+                (Cancellation("cpu", "evt", 1, Fraction(4)),),
+            ),
+            (DeadlineStatus.CLAIMED, Fraction(5), ()),
+            (DeadlineStatus.DISPATCHED, Fraction(5), ()),
+        )
+        for old_status, watermark, cancellations in cases:
+            with self.subTest(old_status=old_status):
+                inconsistent = DeadlineBook(
+                    deadlines=(
+                        Deadline(
+                            "cpu", "evt", 1, Fraction(5), "effect:evt:1",
+                            status=old_status,
+                        ),
+                        Deadline(
+                            "cpu", "evt", 2, Fraction(6), "effect:evt:2",
+                        ),
+                    ),
+                    pending_cancellations=cancellations,
+                    watermark_common=watermark,
+                )
+                results = (
+                    close_watermark(inconsistent, Fraction(6)),
+                    dispatch_deadline(
+                        inconsistent, identity="evt", generation=1
+                    ),
+                )
+                for result in results:
+                    self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+                    self.assertEqual(result.book, inconsistent)
+                    self.assertEqual(result.claimed, ())
