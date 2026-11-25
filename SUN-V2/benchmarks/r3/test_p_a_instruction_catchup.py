@@ -152,7 +152,7 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.reached, Fraction(6))
         self.assertEqual(result.chunks, 2)
 
-    def test retrograde_target_is_rejected_without_mutation(self):
+    def test_retrograde_target_is_rejected_without_mutation(self):
         state = AState(
             participants=(AParticipant("cpu", Fraction(5), Fraction(20)),)
         )
