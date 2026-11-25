@@ -623,6 +623,9 @@ def replace_deadline(
         or not isinstance(microstep, bool) or not isinstance(commutative, bool)
     ):
         return ADeadlineResult(book, ADeadlineCode.INVALID_INPUT, "invalid replacement descriptor")
+    book_error = _validate_book_state(book)
+    if book_error is not None:
+        return ADeadlineResult(book, book_error[0], book_error[1])
     prior = [item for item in book.deadlines if item.identity == identity]
     if prior and new_generation <= max(item.generation for item in prior):
         return ADeadlineResult(book, ADeadlineCode.INVALID_INPUT, "replacement generation must increase monotonically")
