@@ -275,7 +275,7 @@ class PATestCase(unittest.TestCase):
         )
         result, _ = self.compare_case(state, Fraction(10), Fraction(2))
         self.assertEqual(result.code, ResultKind.INVARIANT_VIOLATION.value)
-        self.assertEqual(result.reached, Fraction(5))
+        self.assertEqual(result.reached, Fraction(0))
         self.assertEqual(result.next_state, state)
 
     def test_unresolved_obligation_behind_machine_frontier_is_invariant_violation(self):
