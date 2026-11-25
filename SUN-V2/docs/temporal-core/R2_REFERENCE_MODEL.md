@@ -421,3 +421,17 @@ A auditoria complementar da matriz R1 §16.5.13(13) observou que os testes exist
 - `deadline_reference.py` SHA-256: `8ac62f8985c8fa56d448c21e6a2f8199151b8807b07fa2fb79c209ba034e7f99`.
 - `test_deadlines.py` SHA-256: `f0050b18082758d078aabcb1c8735dfeb18bae5174bfb28b8f907e8debc8ba68`.
 - Esta evidência está vinculada somente ao SHA executado. A atualização documental subsequente precisa de sua própria CI/revisão; nenhuma conclusão de gate é inferida.
+
+
+### 8.1.6 Consistência do watermark na publicação de deadlines
+
+A auditoria do caminho `publish_deadline()` identificou que o modelo validava a exatidão de `DeadlineBook.watermark_common`, mas não comparava esse valor com `ReferenceState.watermark_common`. Como ambos representam o mesmo corte global no oráculo, aceitar divergência poderia admitir um deadline usando um watermark diferente daquele presente no estado temporal.
+
+Correção candidata:
+- validar a exatidão dos dois watermarks;
+- exigir igualdade entre o watermark do livro de deadlines e o watermark do estado de referência antes da comparação temporal;
+- retornar `IndeterminateCausalOrder` sem mutação quando houver divergência;
+- ajustar o caso de teste de watermark fechado para fornecer o mesmo valor nas duas estruturas;
+- adicionar teste para divergência em ambos os sentidos (watermark apenas no estado e watermark apenas no livro), verificando ausência de mutação.
+
+**Estado:** implementação no commit `ebb4c937fc6b9205b87c639d8e9515e0c7643a39`; teste no commit `14bc6b96d228c1b9b696422ee1f6ed0340c3981f`. CI #10660 foi disparado para o HEAD de código/testes e aguarda conclusão. A contagem candidata passa a 60 testes e 33 casos no slice R2-B, ainda sem classificação PASS até o CI. T06/T07/T14 continuam parciais; R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS.
