@@ -66,63 +66,48 @@ For 128 dense deadlines grouped into eight instants, close-watermark p50/p95 was
 
 **Observation:** the current `close_watermark` implementation repeatedly filters the due list for each distinct timestamp. Its sparse 128-instant workload is materially more expensive than the dense eight-instant workload. This is an identified algorithmic hotspot in the disposable P-A implementation. Any single-pass grouping refinement must preserve the same R2 tie/UNKNOWN and claim ordering tests and be benchmarked as a new candidate.
 
-## Scope still incomplete
+## W03/W04 causal synchronization — first retained matrix
 
-This baseline does **not** close P-A or R3. Remaining work includes:
-- W03/W04 observation-driven and frequent-observation workloads;
-- detailed trace/fixture equivalence beyond current result/state differential checks;
-- transaction observe/sample/commit and partial-effect ledger (W08);
-- snapshot/restore/replay (W09);
-- additional W06/W07 boundary depth and workload coverage;
-- adversarial independent review.
+**Prototype HEAD:** `aab24c457f424099d29475bc135f532537e488d0`
+**CI:** [run #10859](https://github.com/leonardo201800478/SUN/actions/runs/45694821658) — SUCCESS
 
-P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is authorized before R5.
+- P-A differential suite: 58/58 tests passed on Linux and Windows (24 advance/catch-up, 21 deadline lifecycle, 13 causal synchronization).
+- R2 reference suite: PASS on Linux and Windows.
+- Advance matrix: 75 points per OS.
+- Deadline lifecycle matrix: 180 points per OS.
+- W03/W04 causal matrix: 30 points per OS (dependency-chain fan-in/depth and repeated observations).
+- Actionlint, documentation patch hygiene and quality supervisor: PASS.
+- Unrelated hardware/runtime jobs: SKIPPED.
 
+Selected causal matrix observations (p50 wall time):
 
-## P-A v2 — single-pass deadline grouping follow-up
+| Workload | Linux | Windows |
+|---|---:|---:|
+| Dependency chain, fan-in 1, depth 16 | 73.9 µs | 140.8 µs |
+| Dependency chain, fan-in 4, depth 16 | 80.5 µs | 157.2 µs |
+| Dependency chain, fan-in 16, depth 16 | 118.1 µs | 224.3 µs |
+| 32 repeated observations, fan-in 1 | 2.241 ms total | 4.248 ms total |
+| 32 repeated observations, fan-in 4 | 7.955 ms total | 14.956 ms total |
+| 32 repeated observations, fan-in 16 | 32.006 ms total | 59.211 ms total |
 
-**Prototype source commit:** `292547d6f46a0a950036d46ba90d1e3540727423`
-**Final validation HEAD:** `dc9b9ab7b00c1b956f025e3cc9dee40b29c5b24e` (report formatting-only commit after the prototype source)
-**Final CI:** [run #10851](https://github.com/leonardo201800478/SUN/actions/runs/45693814913) — SUCCESS
+Repeated-observation rows measure the entire sequence of 32 sync calls, not one call. The matrix confirms that the serial full-scan resolver's work increases with fan-in and observation frequency. These are synthetic Python observations on different runners, not a controlled cross-platform A/B or a native-runtime prediction.
 
-P-A v2 changes `close_watermark` to collect due deadlines into a timestamp map in one pass, then sort instants and apply the same causal tie rules. It remains a disposable full-scan/temporary-grouping implementation; no persistent agenda was introduced.
-
-The v2 p50 for 16 participants / 128 deadlines was:
-
-| Environment | Distribution | v1 p50 (run #10844) | v2 p50 (run #10851) | v2 p95 |
-|---|---|---:|---:|---:|
-| Linux | 128 sparse instants | 11.636 ms | 1.295 ms | 1.373 ms |
-| Linux | 8 dense instants | 3.083 ms | 1.230 ms | 1.236 ms |
-| Windows | 128 sparse instants | 11.920 ms | 3.279 ms | 3.415 ms |
-| Windows | 8 dense instants | 3.053 ms | 3.150 ms | 3.262 ms |
-
-A first v2 run (#10849) measured 2.763 ms sparse / 2.667 ms dense on Linux and 1.949 ms sparse / 1.856 ms dense on Windows. The second run (#10851) produced materially different values, especially on Windows. These are separate CI runs and not an interleaved same-process A/B; runner load/variation is visible. Therefore no fixed percentage speedup is claimed. The structural change removes repeated filtering of the entire due list once per distinct timestamp; future comparison should use paired/interleaved samples on a controlled runner.
-
-Final CI #10851 validated **45 P-A tests** (24 advance/catch-up; 21 deadline lifecycle) on Linux and Windows, both R2 suites, both benchmark matrices, Actionlint, documentation patch hygiene and the quality supervisor. Hardware/runtime jobs remained SKIPPED.
-
-### Final v2 artifacts
-
-All artifacts below were produced from validation HEAD `dc9b9ab7b00c1b956f025e3cc9dee40b29c5b24e` and retained by CI for 30 days.
+Final W03/W04 artifacts:
 
 | Environment | Artifact | SHA-256 |
 |---|---|---|
-| Linux advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15058819679) | `274552f65f4d9c7a08953bc75538315642f0f8cadd2bd8992d2b026fceb23ea0` |
-| Windows advance matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15058934714) | `c203b71d461f697d1a038b13ab977968a22e95981b7f2d15d468521d56b02a57` |
-| Linux deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15059343325) | `cda7968472cedc21289b222e31696a9336788f98c685bbec52f36c56d9be588e` |
-| Windows deadline matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45693814913/artifacts/15059787973) | `afb8fcb171ca5707e75c37821cb3b3ab601488f2fbd75a59006099090f27d347` |
+| Linux causal matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45694821658/artifacts/15060066683) | `7f4b8adabfb68a31d86738a2f796af5568ebde5f8619539ffebce6a2a9a20598` |
+| Windows causal matrix | [JSON artifact](https://github.com/leonardo201800478/SUN/actions/runs/45694821658/artifacts/15059238450) | `36caa7c025981f802e6b81bda20c93015f3941252bfa12f737f32013a88e01a6` |
 
-- Linux CPU thread clock resolution: 2,003 ns (advance) and 2,233 ns (deadlines); CPU samples retained.
-- Windows CPU thread clock resolution: 15,625,000 ns; CPU samples explicitly skipped as `SKIPPED_COARSE_RESOLUTION`.
-- tracemalloc remains a separate allocation probe outside timed samples.
+Linux CPU thread clock resolution was 2,584 ns (measured); Windows was 15,625,000 ns (CPU samples skipped as coarse resolution).
 
 ## Scope still incomplete
 
 This baseline does **not** close P-A or R3. Remaining work includes:
-- W03/W04 observation-driven and frequent-observation workloads;
-- detailed trace/fixture equivalence beyond current result/state differential checks;
+- detailed fixture/trace equivalence consolidation beyond current per-operation state and applied-order comparisons;
 - transaction observe/sample/commit and partial-effect ledger (W08);
 - snapshot/restore/replay (W09);
-- additional W06/W07 boundary depth and workload coverage;
+- deeper W06/W07 boundary depth and workload coverage;
 - adversarial independent review (Codex review requests were blocked by account usage limits).
 
 P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is authorized before R5.
