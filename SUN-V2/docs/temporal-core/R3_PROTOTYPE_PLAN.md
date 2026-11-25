@@ -52,15 +52,16 @@ A equivalência é verificada por trace canônico: operações aceitas, estado r
 
 ## 4. Primeiro corte: baseline P-A
 
-O primeiro incremento implementa somente P-A, com uma interface experimental comum:
+O primeiro incremento P-A implementa o recorte de avanço limitado:
 - construção de cenário e estado de domínio;
 - bounded advance até target sob budget/chunk configurável;
-- varredura de obrigações e catch-up sem ultrapassar safe horizon;
-- publicação/cancelamento de deadline via fronteira normativa;
-- observação/commit com conjunto explícito de participantes;
-- coleta de trace e digest independente do tempo de benchmark.
+- varredura completa de obrigações em cada fronteira de budget;
+- catch-up sem ultrapassar safe horizon;
+- coleta de trace e digest de progresso.
 
-P-A deve ter ao menos dois modos de chunk: um chunk único limitado por safe horizon e uma sequência de chunks pequenos. O tamanho do chunk será parâmetro de workload, não constante de semântica. A baseline deve registrar número de avanços, fronteiras inspecionadas, obrigações varridas e participantes tocados. Isso evidencia trabalho interno sem afirmar que essas contagens representam ciclos físicos.
+O P-A atual ainda NÃO implementa publicação/cancelamento de deadline, lifecycle de dispatch, observação/commit transacional nem snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. O teste de equivalência atual compara status, tempo de parada e progresso de cada participante com o R2; os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
+
+A baseline será medida primeiro com um único chunk até safe horizon e depois com chunks menores. O tamanho do chunk é parâmetro de workload, não constante de semântica. O benchmark registra chunks, participantes tocados/inspecionados e obrigações varridas. Isso evidencia trabalho interno, sem afirmar que essas contagens representam ciclos físicos.
 
 Não implementar CPU Z80, VDP, PSG, clock SMS físico, ROM loader, thread scheduling, GUI, renderer ou runtime. O primeiro protótipo é uma máquina temporal sintética para estudar custo de algoritmo, não uma máquina SMS.
 
