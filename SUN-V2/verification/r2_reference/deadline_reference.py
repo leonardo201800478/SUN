@@ -259,9 +259,14 @@ def cancel_deadline(
     if at_common <= admission_frontier:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "C<=A(E) is retroactive")
-    if at_common >= deadline.at_common:
+    if at_common == deadline.at_common:
+        return DeadlineEvaluation(
+            book, DeadlineCode.INDETERMINATE,
+            "C=D requires an explicit profile causal-order or microstep relation",
+        )
+    if at_common > deadline.at_common:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
-                                  "cancellation must satisfy C<D")
+                                  "C>D cannot suppress the deadline")
     if book.watermark_common is not None and book.watermark_common >= deadline.at_common:
         return DeadlineEvaluation(book, DeadlineCode.LATE_INPUT,
                                   "W already closed the deadline instant")
