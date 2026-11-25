@@ -82,6 +82,7 @@ jobs:
               - 'docs/**'
             r2_reference:
               - 'SUN-V2/verification/r2_reference/**'
+              - 'SUN-V2/benchmarks/r3/**'
             r3_benchmarks:
               - 'SUN-V2/benchmarks/r3/**'
             ci:
