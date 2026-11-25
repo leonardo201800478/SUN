@@ -1,4 +1,5 @@
 """R2-B executable cases for deadline ownership, admission, races and ties."""
+from dataclasses import replace
 from fractions import Fraction
 import unittest
 
@@ -522,3 +523,82 @@ class R2BMicrostepTests(unittest.TestCase):
             tuple(item.identity for item in active_deadlines(terminal)),
             ("a",),
         )
+
+
+class R2BStructuralValidationTests(unittest.TestCase):
+    def test_publication_rejects_non_clock_domain_before_reading_identity(self):
+        state = replace(machine(), domains=(object(),))
+        book = DeadlineBook()
+        result = publish(book, state)
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
+    def test_publication_rejects_malformed_expected_participant_container(self):
+        state = replace(machine(), expected_participants=[[]])
+        book = DeadlineBook()
+        result = publish(book, state)
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
+    def test_cancellation_rejects_non_clock_domain_before_reading_identity(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        state = replace(machine(progress=2), domains=(object(),))
+        result = cancel_deadline(
+            initial, state, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, initial)
+
+    def test_cancellation_rejects_malformed_expected_participant_container(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        state = replace(machine(progress=2), expected_participants=[[]])
+        result = cancel_deadline(
+            initial, state, owner="cpu", identity="evt", generation=1,
+            at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, initial)
+
+    def test_publication_rejects_non_deadline_book_without_dereference(self):
+        result = publish(None, machine())
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertIsNone(result.book)
+
+    def test_cancellation_rejects_non_deadline_book_before_lookup(self):
+        result = cancel_deadline(
+            None, machine(progress=2), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertIsNone(result.book)
+
+    def test_publication_rejects_malformed_deadline_entries(self):
+        book = DeadlineBook(deadlines=(object(),))
+        result = publish(book, machine())
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
+    def test_cancellation_rejects_malformed_pending_cancellation_entries(self):
+        book = DeadlineBook(pending_cancellations=(object(),))
+        result = cancel_deadline(
+            book, machine(progress=2), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(4),
+        )
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
+    def test_watermark_close_rejects_malformed_deadline_book(self):
+        book = DeadlineBook(deadlines=(object(),))
+        result = close_watermark(book, Fraction(10))
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(result.book, book)
+
+    def test_microstep_rejects_non_deadline_book_before_reading_limit(self):
+        result = schedule_microstep(
+            None, owner="cpu", identity="child", generation=1,
+            at_common=Fraction(5), effect_id="child-effect",
+            current_microstep=0,
+        )
+        self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+        self.assertIsNone(result.book)
