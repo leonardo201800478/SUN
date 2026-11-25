@@ -87,6 +87,23 @@ class R2BPublicationTests(unittest.TestCase):
         self.assertEqual(accepted.code, DeadlineCode.ACCEPTED)
         self.assertEqual(accepted.book.deadlines[0].microstep, 1)
 
+    def test_publication_at_owner_progress_with_open_watermark_requires_microstep(self):
+        cases = (
+            (DeadlineBook(), machine(progress=5)),
+            (
+                DeadlineBook(watermark_common=Fraction(4)),
+                machine(progress=5, watermark=4),
+            ),
+        )
+        for book, state in cases:
+            with self.subTest(watermark=book.watermark_common):
+                rejected = publish(book, state, at=5)
+                accepted = publish(book, state, at=5, microstep=True)
+                self.assertEqual(rejected.code, DeadlineCode.INDETERMINATE)
+                self.assertEqual(rejected.book, book)
+                self.assertEqual(accepted.code, DeadlineCode.ACCEPTED)
+                self.assertEqual(accepted.book.deadlines[0].microstep, 1)
+
     def test_incomplete_participants_block_before_temporal_admission(self):
         state = machine(progress=10, participants=("cpu", "vdp"))
         state = make_state(
@@ -390,6 +407,80 @@ class R2BCancellationRaceTests(unittest.TestCase):
         )
         self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
         self.assertEqual(result.book, self.initial)
+
+    def test_cancel_at_deadline_uses_explicit_microstep_or_phase_order(self):
+        earlier_microstep = publish(
+            DeadlineBook(), machine(), at=10,
+            microstep=True, microstep_level=2,
+        ).book
+        admitted = cancel_deadline(
+            earlier_microstep, machine(progress=2), owner="cpu",
+            identity="evt", generation=1, at_common=Fraction(10),
+            microstep_level=1,
+        )
+        self.assertEqual(admitted.code, DeadlineCode.ACCEPTED)
+        blocked = close_watermark(admitted.book, Fraction(10))
+        self.assertEqual(blocked.code, DeadlineCode.BLOCKED)
+        self.assertEqual(blocked.book, admitted.book)
+        arbitrated = arbitrate_cancellations(admitted.book)
+        self.assertEqual(arbitrated.code, DeadlineCode.ACCEPTED)
+        self.assertEqual(
+            arbitrated.book.deadlines[0].status, DeadlineStatus.CANCELLED
+        )
+        closed = close_watermark(arbitrated.book, Fraction(10))
+        self.assertEqual(closed.code, DeadlineCode.ACCEPTED)
+        self.assertEqual(closed.claimed, ())
+
+        later_microstep = publish(
+            DeadlineBook(), machine(), at=10,
+            microstep=True, microstep_level=1,
+        ).book
+        late = cancel_deadline(
+            later_microstep, machine(progress=2), owner="cpu",
+            identity="evt", generation=1, at_common=Fraction(10),
+            microstep_level=2,
+        )
+        self.assertEqual(late.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(late.book, later_microstep)
+
+        unknown_same_level = cancel_deadline(
+            later_microstep, machine(progress=2), owner="cpu",
+            identity="evt", generation=1, at_common=Fraction(10),
+            microstep_level=1,
+        )
+        self.assertEqual(unknown_same_level.code, DeadlineCode.INDETERMINATE)
+        self.assertEqual(unknown_same_level.book, later_microstep)
+
+        phase_deadline = publish(
+            DeadlineBook(), machine(), at=10,
+            phase_order=2, phase_evidence="profile-order-fixture",
+        ).book
+        phase_before = cancel_deadline(
+            phase_deadline, machine(progress=2), owner="cpu",
+            identity="evt", generation=1, at_common=Fraction(10),
+            phase_order=1, phase_evidence="profile-order-fixture",
+        )
+        self.assertEqual(phase_before.code, DeadlineCode.ACCEPTED)
+
+        phase_after = cancel_deadline(
+            phase_deadline, machine(progress=2), owner="cpu",
+            identity="evt", generation=1, at_common=Fraction(10),
+            phase_order=3, phase_evidence="profile-order-fixture",
+        )
+        self.assertEqual(phase_after.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(phase_after.book, phase_deadline)
+
+    def test_cancel_admission_frontier_precedes_same_instant_microstep_order(self):
+        deadline = publish(
+            DeadlineBook(), machine(progress=10), at=10,
+            microstep=True, microstep_level=2,
+        ).book
+        rejected = cancel_deadline(
+            deadline, machine(progress=10), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(10), microstep_level=1,
+        )
+        self.assertEqual(rejected.code, DeadlineCode.LATE_INPUT)
+        self.assertEqual(rejected.book, deadline)
 
     def test_cancel_at_deadline_before_watermark_without_causal_relation_is_indeterminate(self):
         state = machine(progress=2, watermark=9)
