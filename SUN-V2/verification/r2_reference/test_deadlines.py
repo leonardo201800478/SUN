@@ -1016,6 +1016,39 @@ class R2BStructuralValidationTests(unittest.TestCase):
                 self.assertEqual(result.book, inconsistent)
                 self.assertEqual(result.claimed, ())
 
+    def test_claimed_and_processed_deadlines_require_closed_watermark(self):
+        statuses = (
+            DeadlineStatus.CLAIMED,
+            DeadlineStatus.DISPATCHED,
+            DeadlineStatus.COMPLETED,
+            DeadlineStatus.FAILED,
+        )
+        watermarks = (None, Fraction(9))
+        for status in statuses:
+            for watermark in watermarks:
+                with self.subTest(status=status, watermark=watermark):
+                    inconsistent = DeadlineBook(
+                        deadlines=(
+                            Deadline(
+                                "cpu", "evt", 1, Fraction(10), "effect:evt:1",
+                                status=status,
+                            ),
+                        ),
+                        watermark_common=watermark,
+                    )
+                    dispatched = dispatch_deadline(
+                        inconsistent, identity="evt", generation=1
+                    )
+                    completed = complete_deadline(
+                        inconsistent, identity="evt", generation=1
+                    )
+                    self.assertEqual(
+                        dispatched.code, DeadlineCode.INVARIANT_VIOLATION
+                    )
+                    self.assertEqual(dispatched.book, inconsistent)
+                    self.assertEqual(completed.code, DeadlineCode.INVARIANT_VIOLATION)
+                    self.assertEqual(completed.book, inconsistent)
+
     def test_microstep_rejects_non_deadline_book_before_reading_limit(self):
         result = schedule_microstep(
             None, owner="cpu", identity="child", generation=1,
