@@ -11,6 +11,7 @@ class ReplayCode(str, Enum):
     LATE_INPUT = "LateInput"
     INVALID_INPUT = "InvalidInput"
     INDETERMINATE = "IndeterminateCausalOrder"
+    INVARIANT_VIOLATION = "InvariantViolation"
 
 
 @dataclass(frozen=True)
@@ -218,6 +219,9 @@ def accept_input(state: ReplayState, event: ExternalInput) -> ReplayEvaluation:
 
 def accept_batch(state: ReplayState, events: tuple[ExternalInput, ...]) -> ReplayEvaluation:
     """Serialize producers by logical order, never by host arrival/completion order."""
+    invalid = _validate_state(state)
+    if invalid:
+        return ReplayEvaluation(ReplayCode.INVALID_INPUT, state, invalid)
     if type(events) is not tuple or any(_validate_event(event) for event in events):
         return ReplayEvaluation(ReplayCode.INVALID_INPUT, state, "invalid event batch")
     if len(events) > 1:
@@ -258,6 +262,9 @@ def recalculate_horizon(state: ReplayState, participant_name: str, horizon: Frac
         return ReplayEvaluation(ReplayCode.INVALID_INPUT, state, invalid or "invalid horizon update")
     if participant_name not in state.recalculate_required:
         return ReplayEvaluation(ReplayCode.INVALID_INPUT, state, "participant has no invalidated horizon")
+    participant = next(item for item in state.participants if item.name == participant_name)
+    if participant.progress_common is not None and horizon < participant.progress_common:
+        return ReplayEvaluation(ReplayCode.INVARIANT_VIOLATION, state, "safe horizon is behind participant progress")
     updated_participants = tuple(
         replace(participant, horizon_common=horizon) if participant.name == participant_name else participant
         for participant in state.participants
