@@ -8,7 +8,7 @@ SUN V2 é uma reconstrução independente do emulador SUN, iniciada com o Sega M
 
 - **R0:** aprovado no escopo documental em 24/11/2026. Consulte o [parecer R0](docs/temporal-core/R0_CLOSEOUT.md) e a [issue #1267 encerrada](https://github.com/leonardo201800478/SUN/issues/1267).
 - **R1:** **APROVADO** em 24/11/2026. Conteúdo normativo v0.3.18 aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado pela [PR #1281](https://github.com/leonardo201800478/SUN/pull/1281), merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`; issue [#1270](https://github.com/leonardo201800478/SUN/issues/1270) encerrada. Consulte [R1_TEMPORAL_CONTRACTS.md](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md).
-- **R2:** implementação executável T01–T15 completa (251 testes no candidato-base; validações adicionais de mutation, permutação exaustiva e Windows em andamento). O gate formal permanece **PENDENTE** até revisão independente do SHA final, resposta/fechamento justificado dos findings e aprovação explícita do responsável. Consulte [issue #1282](https://github.com/leonardo201800478/SUN/issues/1282), [PR #1283](https://github.com/leonardo201800478/SUN/pull/1283), [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md) e [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md).
+- **R2:** implementação executável T01–T15 completa (255 testes no candidato reforçado; mutation checks e permutações exaustivas adicionados; CI Linux/Windows do candidato reforçado em andamento). O gate formal permanece **PENDENTE** até revisão independente do SHA final, resposta/fechamento justificado dos findings e aprovação explícita do responsável. Consulte [issue #1282](https://github.com/leonardo201800478/SUN/issues/1282), [PR #1283](https://github.com/leonardo201800478/SUN/pull/1283), [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md) e [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md).
 - **Produção:** nenhum código de produção CHRONOS/V2 está autorizado antes da aprovação R5.
 - **PRs legadas:** PRs abertas anteriores ao V2 foram encerradas sem merge, preservando histórico e branches. O trabalho legado não será incorporado automaticamente à V2.
 
@@ -57,6 +57,8 @@ As regras oficiais de arquitetura, escopo, pesquisa, gates, Git/PR, CI, testes, 
 - [Avaliação estratégica](docs/temporal-core/CHRONOS_STRATEGIC_ASSESSMENT.md) — SWOT, stakeholders, riscos e roadmap.
 - [Plano de pesquisa e especificação](docs/temporal-core/RESEARCH_AND_DESIGN_PLAN.md) — perguntas, entregáveis, provas e gates.
 - [Fechamento R0](docs/temporal-core/R0_CLOSEOUT.md) — evidências, incertezas e limites da aprovação documental.
+- [Fechamento da implementação R2](docs/temporal-core/R2_CLOSEOUT.md) — matriz de critérios de saída, limitações e estado do gate.
+- [Rastreabilidade R2 T01–T15](docs/temporal-core/R2_TRACEABILITY.md) — ligação entre propriedades, seções/contratos R1 e testes.
 - [Contratos temporais R1](docs/temporal-core/R1_TEMPORAL_CONTRACTS.md) — conteúdo normativo v0.3.18 aprovado em 24/11/2026 no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); issue #1270 encerrada. A aprovação é documental e não autoriza produção antes de R5.
 
 ## Estrutura
