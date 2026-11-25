@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from fractions import Fraction
-from typing import Iterable
+
+
+def _is_exact(value: object) -> bool:
+    """Accept only integer or rational time, never float or bool."""
+    return isinstance(value, (int, Fraction)) and not isinstance(value, bool)
 
 
 @dataclass(frozen=True)
@@ -21,8 +25,12 @@ class AParticipant:
     units_per_common: Fraction = Fraction(1)
 
     def __post_init__(self) -> None:
-        if not self.name or not self.name.strip():
+        if not isinstance(self.name, str) or not self.name.strip():
             raise ValueError("participant name must be non-empty")
+        if not all(_is_exact(value) for value in (
+            self.progress, self.safe_horizon, self.units_per_common
+        )):
+            raise ValueError("participant times and clock ratio must be exact")
         if self.units_per_common <= 0:
             raise ValueError("units_per_common must be positive")
         if self.safe_horizon < self.progress:
@@ -40,10 +48,14 @@ class AObligation:
     commutative: bool = False
 
     def __post_init__(self) -> None:
-        if not self.identity or not self.identity.strip():
+        if not isinstance(self.identity, str) or not self.identity.strip():
             raise ValueError("obligation identity must be non-empty")
-        if not self.owner or not self.owner.strip():
+        if not isinstance(self.owner, str) or not self.owner.strip():
             raise ValueError("obligation owner must be non-empty")
+        if not _is_exact(self.at_common):
+            raise ValueError("obligation timestamp must be exact")
+        if not isinstance(self.resolved, bool) or not isinstance(self.commutative, bool):
+            raise ValueError("obligation flags must be boolean")
 
 
 @dataclass(frozen=True)
@@ -79,6 +91,14 @@ def _common_frontier(state: AState) -> Fraction:
 def _validate(state: AState) -> None:
     if not isinstance(state, AState):
         raise ValueError("state must be AState")
+    if not isinstance(state.participants, tuple) or any(
+        not isinstance(item, AParticipant) for item in state.participants
+    ):
+        raise ValueError("participants must be a tuple of AParticipant")
+    if not isinstance(state.obligations, tuple) or any(
+        not isinstance(item, AObligation) for item in state.obligations
+    ):
+        raise ValueError("obligations must be a tuple of AObligation")
     names = [item.name for item in state.participants]
     if len(names) != len(set(names)):
         raise ValueError("participant identities must be unique")
@@ -87,6 +107,16 @@ def _validate(state: AState) -> None:
     ids = [item.identity for item in state.obligations]
     if len(ids) != len(set(ids)):
         raise ValueError("obligation identities must be unique")
+    if state.participants:
+        frontier = max(item.progress for item in state.participants)
+        safe_horizon = min(item.safe_horizon for item in state.participants)
+        if safe_horizon < frontier:
+            raise ValueError("safe horizon is behind the machine frontier")
+        if any(
+            not item.resolved and item.at_common < frontier
+            for item in state.obligations
+        ):
+            raise ValueError("unresolved obligation is behind the machine frontier")
 
 
 def advance_budgeted(
