@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (conteúdo v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281, merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); implementação R2-T01–T15 COMPLETA E VALIDADA (256/256 Linux e Windows, CI #10785); gate formal R2 PENDENTE de revisão humana externa independente e aprovação explícita; R3–R5 BLOQUEADOS; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — P-A W00–W05 em protótipo descartável, PR #1284 Draft; R4/R5 PENDENTES; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -97,7 +97,7 @@ Entregas:
 
 ### Fase 2 — modelo de referência independente (R2)
 
-**Status: IMPLEMENTAÇÃO EXECUTÁVEL T01–T15 COMPLETA PARA VALIDAÇÃO EXTERNA; GATE FORMAL PENDENTE — issue #1282 / PR #1283.** Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e a matriz [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md). Nenhum R3 ou código de produção autorizado.
+**Status: GATE APROVADO E MERGED — PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`; CI #10798 validou 256/256 Linux e Windows, mutation PASS, documentação e Actionlint.** Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md).
 
 Entregas:
 - oráculo simples e independente do algoritmo/representação candidata;
@@ -105,9 +105,11 @@ Entregas:
 - cenários adversariais com seeds, perfil, entradas, primeira divergência e estado mínimo reproduzível;
 - UNKNOWN físico preservado como indeterminação/restrição, nunca promovido a FACT.
 
-**Gate R2:** não aprovado. A implementação e a cobertura executável T01–T15 existem, evidências executáveis, mutation testing, JSON e runner Windows estão PASS; os 11 findings P2 conhecidos foram respondidos e resolvidos. A saída do gate ainda exige revisão humana externa independente do SHA final sem blockers e aprovação explícita do responsável. A revisão Codex foi solicitada, mas o serviço respondeu limite de uso atingido. Nenhum R3 começa antes de todos esses itens e da aprovação formal R2.
+**Gate R2:** APROVADO e merged em `main` pelo commit `18b4352e16cf6ab275c4923a30acc3124754a1b0`, após CI #10798 verde e fechamento dos findings documentais. A aprovação autoriza somente a fase R3 de protótipos descartáveis; produção continua proibida antes de R5.
 
-### Fase 3 — protótipos temporais descartáveis (R3; somente após R1 e R2)
+### Fase 3 — protótipos temporais descartáveis (R3)
+
+**Status:** EM ANDAMENTO. P-A W00–W05 foi desenvolvido em `research/chronos-r3-disposable-prototypes`, PR #1284 Draft. CI #10871 validou 60/60 testes P-A em Linux e Windows, R2 256/256 por OS e três matrizes sintéticas; CI #10875 revalidou o HEAD documental posterior. W06/W07, W08/W09 e equivalência canônica completa continuam pendentes. P-D/P-E não iniciados. Nenhum código de produção autorizado antes de R5.
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
