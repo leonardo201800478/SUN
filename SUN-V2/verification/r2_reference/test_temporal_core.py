@@ -113,6 +113,31 @@ class R2T01InvalidStateTests(unittest.TestCase):
                 self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
                 self.assertEqual(canonical_state(evaluated.state), before)
 
+    def test_known_unresolved_obligation_behind_progress_precedes_incomplete_block(self):
+        state = make_state(
+            domains=[one_domain(progress=Fraction(5), horizon=Fraction(10))],
+            expected_participants=["cpu", "vdp"],
+            obligations=[Obligation("irq-4", "cpu", Fraction(4))],
+        )
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVARIANT_VIOLATION)
+        self.assertIs(evaluated.state, state)
+
+    def test_unresolved_obligation_at_closed_watermark_is_invariant_violation(self):
+        state = make_state(
+            domains=[one_domain(progress=Fraction(0), horizon=Fraction(10))],
+            expected_participants=["cpu", "vdp"],
+            watermark_common=Fraction(5),
+            obligations=[Obligation("irq-5", "cpu", Fraction(5))],
+        )
+
+        evaluated = advance(state, Fraction(8))
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVARIANT_VIOLATION)
+        self.assertIs(evaluated.state, state)
+
     def test_non_clock_domain_member_is_invalid_input_without_dereference(self):
         state = make_state(domains=[one_domain()])
         malformed = state.__class__(
