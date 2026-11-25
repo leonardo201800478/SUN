@@ -50,8 +50,9 @@ def to_r2_context(context: ADeadlineContext):
             ClockDomain(
                 domain_id=item.name,
                 local_to_common=item.units_per_common,
-                progress_local=item.progress / item.units_per_common,
-                horizon_local=item.safe_horizon / item.units_per_common,
+                common_offset=item.common_offset,
+                progress_local=(item.progress - item.common_offset) / item.units_per_common,
+                horizon_local=(item.safe_horizon - item.common_offset) / item.units_per_common,
             )
             for item in context.participants
         ),
