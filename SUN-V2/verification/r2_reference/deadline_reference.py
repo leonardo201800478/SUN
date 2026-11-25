@@ -157,6 +157,8 @@ def _reference_state_error_code(detail: str) -> DeadlineCode:
     """Map validated reference-state failures to the R1 result taxonomy."""
     if "clock conversion" in detail:
         return DeadlineCode.INDETERMINATE
+    if "not exact" in detail:
+        return DeadlineCode.INVALID_INPUT
     if "safe horizon" in detail:
         return DeadlineCode.INVARIANT_VIOLATION
     return DeadlineCode.INVALID_INPUT

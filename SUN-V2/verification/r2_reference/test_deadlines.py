@@ -538,6 +538,9 @@ class R2BReplacementTests(unittest.TestCase):
 
 
 class R2BCausalTieTests(unittest.TestCase):
+    def setUp(self):
+        self.initial = publish(DeadlineBook(), machine(), at=10).book
+
     def test_close_watermark_rejects_deadline_equal_to_existing_watermark(self):
         scheduled = publish(DeadlineBook(), machine(), at=5).book
         inconsistent = replace(scheduled, watermark_common=Fraction(5))
