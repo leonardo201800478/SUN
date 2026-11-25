@@ -57,9 +57,9 @@ O primeiro incremento P-A implementa o recorte de avanço limitado:
 - bounded advance até target sob budget/chunk configurável;
 - varredura completa de obrigações em cada fronteira de budget;
 - catch-up sem ultrapassar safe horizon;
-- coleta de trace e digest de progresso.
+- digest canônico de progresso por participante.
 
-O P-A atual ainda NÃO implementa publicação/cancelamento de deadline, lifecycle de dispatch, observação/commit transacional nem snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. O teste de equivalência atual compara status, tempo de parada e progresso de cada participante com o R2; os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
+O P-A atual ainda NÃO implementa publicação/cancelamento de deadline, lifecycle de dispatch, observação/commit transacional nem snapshot/replay. Esses casos são pendências explícitas, não cobertura alegada. O teste de equivalência atual compara status, tempo de parada e progresso de cada participante com o R2; um digest canônico confirma a invariância de partição. Captura detalhada de trace ainda não está implementada neste primeiro corte. Os contadores de inspeções/chunks são métricas internas experimentais, não saídas normativas do oráculo.
 
 A baseline será medida primeiro com um único chunk até safe horizon e depois com chunks menores. O tamanho do chunk é parâmetro de workload, não constante de semântica. O benchmark registra chunks, participantes tocados/inspecionados e obrigações varridas. Isso evidencia trabalho interno, sem afirmar que essas contagens representam ciclos físicos.
 
