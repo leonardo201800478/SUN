@@ -279,7 +279,7 @@ class PACausalSyncTests(unittest.TestCase):
             r2_state = expected.state
         self.assertEqual(
             trace,
-            tuple((f"psg-{tick}", f"vdp-{tick}") for tick in (1, 2, 3, 4)),
+            [(f"psg-{tick}", f"vdp-{tick}") for tick in (1, 2, 3, 4)],
         )
 
 
