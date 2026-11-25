@@ -587,3 +587,18 @@ Foram adicionados dois métodos de teste com subcasos: coordenadas não exatas e
 **Evidência vinculada — CI #10697:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45543257291) — **SUCCESS** no HEAD de código/testes `30137c664df14054fc120bb94f06c73091f83f1a`. CHRONOS R2: **102/102 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `4280ce475c2d6f9f4f869ad74041dbef7031553891a16ef9d57df6537bce97fb`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `62a0b47b5829eabf71a46a7fdd5e015900ff4e833e8868dca5319e9b0598e631`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
 
 R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. A correção não altera R1 nem autoriza produção CHRONOS/V2.
+
+### 8.1.16 Validação de identidade e geração nas transições de dispatch/completion — 25/11/2026
+
+A revisão de lifecycle encontrou que `dispatch_deadline()` e `complete_deadline()` localizavam uma geração por igualdade Python sem validar os tipos do descritor. Como `True == 1` e `1.0 == 1`, uma geração booleana ou float podia corresponder a uma geração inteira válida; identidades não-string também eram classificadas como geração obsoleta em vez de `InvalidInput`.
+
+Correção implementada:
+- ambas as operações validam `identity` como string não vazia e `generation` como inteiro não booleano e não negativo antes de `_find()`;
+- descritores inválidos retornam `InvalidInput`, preservando integralmente o livro;
+- a semântica de geração antiga válida permanece `StaleIgnored` em dispatch, sem efeito.
+
+Foi adicionado um método de teste que exercita dispatch e completion com identidade lista, vazia e em branco, geração booleana, negativa, float integral (1.0) e float fracionária. O caso `True` cobre explicitamente a colisão `True == 1`. A suíte passa de 102 para **103 testes**; R2-B passa de 66 para **67 casos**.
+
+**Evidência vinculada — CI #10700:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45543490140) — **SUCCESS** no HEAD de código/testes `9185bc15380768b3949855acb73c871d1770600d`. CHRONOS R2: **103/103 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `55ce894271113f8bc2935c848b6266e4397e72d787085495407df81cc2fb8112`; `deadline_reference.py` = `761c416aac7e2e78a1bce1f2846584c069bbe8132f07536c98a280106e790575`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `f34f81e23a74c2ac178221fd275422dc74fa02336047f22e8a91afbf79d5af9f`; `test_temporal_core.py` = `ceaab3edb24eb3537de0ad9b4541602acef84a82f656e9e756ffd05e9c137fcf`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+
+R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. Esta correção não altera a semântica normativa R1 nem autoriza produção CHRONOS/V2.
