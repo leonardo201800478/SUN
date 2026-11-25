@@ -34,12 +34,18 @@ class PATestCase(unittest.TestCase):
                 ClockDomain(
                     domain_id=item.name,
                     local_to_common=item.units_per_common,
-                    progress_local=item.progress / item.units_per_common,
-                    horizon_local=item.safe_horizon / item.units_per_common,
+                    common_offset=item.common_offset,
+                    progress_local=(item.progress - item.common_offset) / item.units_per_common,
+                    horizon_local=(item.safe_horizon - item.common_offset) / item.units_per_common,
                 )
                 for item in state.participants
             ),
-            expected_participants=(item.name for item in state.participants),
+            expected_participants=(
+                state.expected_participants
+                if state.expected_participants is not None
+                else (item.name for item in state.participants)
+            ),
+            watermark_common=state.watermark_common,
             obligations=tuple(
                 Obligation(
                     obligation_id=item.identity,
@@ -77,6 +83,7 @@ class PATestCase(unittest.TestCase):
                     domain.progress_common(),
                     domain.horizon_common(),
                     domain.local_to_common,
+                    domain.common_offset,
                 )
                 for domain in reference.state.domains
             ),
@@ -90,7 +97,8 @@ class PATestCase(unittest.TestCase):
     def _progress_digest(state):
         return tuple(
             sorted(
-                (item.name, item.progress.numerator, item.progress.denominator)
+                (item.name, item.progress.numerator, item.progress.denominator,
+                 item.common_offset.numerator, item.common_offset.denominator)
                 for item in state.participants
             )
         )
@@ -100,14 +108,18 @@ class PATestCase(unittest.TestCase):
         return tuple(
             sorted(
                 (domain.domain_id, domain.progress_common().numerator,
-                 domain.progress_common().denominator)
+                 domain.progress_common().denominator,
+                 domain.common_offset.numerator, domain.common_offset.denominator)
                 for domain in state.domains
             )
         )
 
     @staticmethod
     def _reference_frontier(state):
-        return max(domain.progress_common() for domain in state.domains)
+        values = [domain.progress_common() for domain in state.domains]
+        if state.watermark_common is not None:
+            values.append(state.watermark_common)
+        return max(values, default=state.watermark_common or Fraction(0))
 
     def test_sparse_budgeted_advance_matches_r2(self):
         state = AState(
