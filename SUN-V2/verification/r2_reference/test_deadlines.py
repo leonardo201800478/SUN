@@ -59,9 +59,21 @@ class R2BPublicationTests(unittest.TestCase):
             with self.subTest(instant=instant):
                 result = publish(
                     DeadlineBook(watermark_common=Fraction(5)),
-                    machine(progress=0), at=instant,
+                    machine(progress=0, watermark=5), at=instant,
                 )
                 self.assertEqual(result.code, DeadlineCode.LATE_INPUT)
+
+    def test_publication_rejects_disagreeing_watermarks_without_mutation(self):
+        cases = (
+            (DeadlineBook(), machine(watermark=5)),
+            (DeadlineBook(watermark_common=Fraction(5)), machine()),
+        )
+        for book, state in cases:
+            with self.subTest(book_watermark=book.watermark_common,
+                              state_watermark=state.watermark_common):
+                result = publish(book, state, at=10)
+                self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
+                self.assertEqual(result.book, book)
 
     def test_same_instant_as_progress_requires_explicit_microstep(self):
         state = machine(progress=5)
