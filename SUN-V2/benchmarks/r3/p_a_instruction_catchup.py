@@ -140,43 +140,36 @@ def advance_budgeted(
     else:
         stop_reason = "TargetReached"
 
-    if bounded == frontier:
-        chunks = 0
-    else:
-        chunks = int((bounded - frontier + Fraction(chunk) - Fraction(1, 10**18)) // Fraction(chunk))
-        # Do not use this estimate as time truth; the exact end coordinate is bounded.
-        chunks = max(1, chunks)
-
-    updated: list[AParticipant] = []
-    touched = 0
-    inspected = 0
+    chunks = 0
+    updated = list(state.participants)
+    touched_ids: set[str] = set()
+    inspected_participants = 0
+    inspected_obligations = 0
     current = frontier
     while current < bounded:
         next_common = min(current + Fraction(chunk), bounded)
-        # A-P-A full scan at every chunk boundary, not a priority queue.
-        inspected += len(state.obligations)
-        new_participants: list[AParticipant] = []
-        for participant in state.participants:
+        # P-A performs a full scan at every budget boundary; there is no agenda.
+        inspected_obligations += len(state.obligations)
+        inspected_participants += len(updated)
+        next_participants: list[AParticipant] = []
+        for participant in updated:
             next_progress = max(
                 participant.progress,
                 min(next_common, participant.safe_horizon),
             )
             if next_progress != participant.progress:
-                touched += 1
-            new_participants.append(replace(participant, progress=next_progress))
-        updated = new_participants
+                touched_ids.add(participant.name)
+            next_participants.append(replace(participant, progress=next_progress))
+        updated = next_participants
+        chunks += 1
         current = next_common
-    if not updated:
-        updated = list(state.participants)
     next_state = replace(state, participants=tuple(updated))
     reached = min(item.progress for item in next_state.participants)
     return AResult(
         "StoppedAt" if stop_reason != "TargetReached" else "Reached",
-        Fraction(target), reached, stop_reason, touched,
-        len(state.participants) * max(chunks, 1),
-        inspected, chunks, next_state,
+        Fraction(target), reached, stop_reason, len(touched_ids),
+        inspected_participants, inspected_obligations, chunks, next_state,
     )
-
 
 def state_digest(state: AState) -> tuple:
     """Canonical pure-Python digest input for exact state equivalence checks."""
