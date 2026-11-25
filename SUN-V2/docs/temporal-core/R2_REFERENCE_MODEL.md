@@ -478,8 +478,8 @@ Correção candidata:
 - aplicar a validação do livro também às operações públicas de arbitragem, fechamento de W, dispatch, completion e microstep;
 - preservar `IndeterminateCausalOrder` para conversões de clock não comparáveis; usar `InvalidInput` para estrutura/tipo/descritor inválido;
 - manter todas as rejeições atômicas, retornando o mesmo livro sem mutação;
-- adicionar dez testes de regressão cobrindo domínios inválidos, conjunto esperado malformado, livro ausente, deadlines/cancelamentos malformados e validação nas operações de fechamento/microstep.
+- adicionar onze testes de regressão cobrindo domínios inválidos, conjunto esperado malformado, livro ausente, deadlines/cancelamentos malformados e validação nas operações de fechamento/microstep.
 
-**Estado:** código e testes foram incorporados ao candidato em commits da branch de trabalho; os mesmos arquivos foram então aplicados à branch da PR #1283. A CI vinculada ao novo HEAD ainda precisa executar. A contagem candidata passa a 74 testes, dos quais 47 pertencem ao slice R2-B. Os dez novos testes não ampliam a alegação de completude de T06/T07/T14: essas propriedades permanecem parciais. A revisão Codex identificou os três problemas, mas sua resolução só poderá ser considerada confirmada após CI e nova revisão independente do SHA atualizado.
+**Estado:** código e testes foram incorporados ao candidato em commits da branch de trabalho; os mesmos arquivos foram então aplicados à branch da PR #1283. A CI vinculada ao novo HEAD ainda precisa executar. A contagem candidata passa a 75 testes, dos quais 48 pertencem ao slice R2-B. Os onze novos testes não ampliam a alegação de completude de T06/T07/T14: essas propriedades permanecem parciais. A revisão Codex identificou os três problemas, mas sua resolução só poderá ser considerada confirmada após CI e nova revisão independente do SHA atualizado.
 
 R2 continua EM ANDAMENTO; T05, T08–T13 e T15 permanecem NOT RUN; T06/T07/T14 permanecem parciais; R3–R5 continuam BLOQUEADOS. Nenhum código de produção CHRONOS/V2 ou merge é autorizado.
