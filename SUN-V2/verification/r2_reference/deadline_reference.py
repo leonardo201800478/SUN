@@ -476,6 +476,7 @@ def schedule_microstep(
         domains=[ClockDomain(owner, Fraction(1), progress_local=Fraction(at_common),
                              horizon_local=Fraction(at_common))],
         expected_participants=[owner],
+        watermark_common=book.watermark_common,
     )
     return publish_deadline(
         book, state, owner=owner, identity=identity, generation=generation,
