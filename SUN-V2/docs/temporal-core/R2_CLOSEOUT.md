@@ -38,7 +38,7 @@ Os critérios abaixo reproduzem R2_REFERENCE_MODEL.md §9. PASS significa evidê
 
 | Critério | Evidência exigida | Estado atual |
 |---|---|---|
-| **R2-EXIT-01 — T01–T15 reproduzíveis** | Casos positivos, negativos e de fronteira aplicáveis, vinculados ao SHA exato; Linux e Windows do runner Python | **PASS — CI #10790, SHA exato `ad8cbbe50a82334b8ee873351dda65b26459e239`; 256/256 em Linux e Windows, mutation PASS.** |
+| **R2-EXIT-01 — T01–T15 reproduzíveis** | Casos positivos, negativos e de fronteira aplicáveis, vinculados ao SHA exato; Linux e Windows do runner Python | **PASS — CI #10790, SHA de código `ad8cbbe50a82334b8ee873351dda65b26459e239`; 256/256 em Linux e Windows, mutation PASS.** |
 | **R2-EXIT-02 — independência do oráculo** | Separação do código V1/produção e da representação candidata; inspeção adversarial da independência | **PASS no escopo da revisão: parecer independente do responsável em `ad8cbbe50a82334b8ee873351dda65b26459e239`, sem findings funcionais bloqueantes nesta passada.** |
 | **R2-EXIT-03 — rastreabilidade R1** | Matriz Txx → seção R1 → Cxx → testes e classes de caso | **PASS — R2_TRACEABILITY.md publicada** |
 | **R2-EXIT-04 — UNKNOWN preservado** | Testes de simultaneidade, fase, WAIT, commit e snapshot sem precedência presumida | **PASS — 256/256 Linux e Windows** |
@@ -91,6 +91,8 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 - SHA-256 de todos os módulos/testes consta nos dois JSON artifacts e nos logs do CI.
 - Change impact classification, documentação patch hygiene, GitHub Actions workflow validation e supervisor Rust quality/unit regression: PASS. Jobs de hardware/runtime específicos não são inferidos como PASS; SKIPPED continua distinto de PASS.
 
+- SHA-256 dos arquivos executáveis do HEAD revisado `ad8cbbe50a82334b8ee873351dda65b26459e239` consta nos JSONs/logs do CI #10790. SHA-256 do `run_mutation_tests.py`: `6cc2fc6fd0a972aae881fcb622c5136f6db30fcc061f7f8ec5755d88b3a9b5a9`. Hashes de candidatos anteriores são apenas históricos e não representam o HEAD revisado.
+
 ## 4. Limitações explícitas
 
 - **T13:** a fonte de áudio é sintética e inteira; prova somente independência do estado virtual em relação ao pipeline host. Não valida PSG físico, DAC, CPAL ou qualidade sonora.
@@ -114,7 +116,7 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 O parecer do responsável no PR #1283 avaliou o HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239`: nenhuma falha funcional bloqueante identificada; dois P2 documentais:
 
 - **P2-1:** cabeçalho de `R2_REFERENCE_MODEL.md` desatualizado. Corrigido no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`.
-- **P2-2:** o closeout vinculava os critérios a SHA/artefatos anteriores. Corrigido nesta revisão do closeout: identifica o SHA do parecer, CI #10790, artifacts Linux/Windows e SHA-256 corrente do mutation runner. O próprio commit documental será validado por CI.
+- **P2-2:** o closeout vinculava os critérios a SHA/artefatos anteriores. Corrigido nesta revisão do closeout: identifica o SHA do parecer, CI #10790, artifacts Linux/Windows e SHA-256 corrente do mutation runner. O pacote documental atualizado será validado pelo CI acionado pela mudança da PR.
 
 O parecer não autorizou merge antes dessas correções e revalidação; a aprovação explícita do responsável foi concedida depois do parecer nesta conversa.
 
