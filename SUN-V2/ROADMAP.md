@@ -6,7 +6,9 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (conteúdo v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281, merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); implementação R2-T01–T15 COMPLETA E VALIDADA (256/256 Linux e Windows, CI #10785); gate formal R2 PENDENTE de revisão humana externa independente e aprovação explícita; R3–R5 BLOQUEADOS; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026; R2 APROVADO e MERGED pela PR #1283 (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`, CI #10798 SUCCESS, 256/256 Linux e Windows); R3 EM ANDAMENTO na branch `research/chronos-r3-disposable-prototypes`, restrito a protótipos temporais descartáveis e benchmarks comparativos; R4–R5 BLOQUEADOS; nenhuma implementação de produção iniciada.
+
+**Branch de trabalho R3:** `research/chronos-r3-disposable-prototypes` (branch de protótipos isolada; nenhum código de produção).
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -22,7 +24,7 @@ A proposta do usuário — CPU, VDP e áudio mínimos com base sólida, refinado
 
 > Os componentes serão mínimos em escopo funcional, mas nascerão integrados aos contratos temporais, de barramento, snapshot e observabilidade. Não serão protótipos atômicos que precisem ser reescritos quando a sincronização real começar.
 
-Após a aprovação R5, a primeira fatia executável de produção conterá CPU Z80 mínima, barramento/memória/cartucho mínimos, VDP SMS mínimo e PSG SN76489 mínimo, todos avançando sob uma única autoridade temporal. Antes de R5, somente trabalhos dos gates R1–R4 são permitidos em ordem estrita: R2 após R1, R3 após R1/R2 e R4 após R3. Não implementar a fatia de produção antecipadamente. A fatia não precisa rodar imediatamente um catálogo amplo de jogos. Precisa executar cenários pequenos e reproduzíveis, revelar custo e permitir atribuir divergências ao componente responsável.
+Após a aprovação R5, a primeira fatia executável de produção conterá CPU Z80 mínima, barramento/memória/cartucho mínimos, VDP SMS mínimo e PSG SN76489 mínimo, todos avançando sob uma única autoridade temporal. R2 está aprovado; R3 está autorizado e em execução apenas como protótipos descartáveis e benchmarks comparativos, sem integração de produção. Antes de R5, somente trabalhos dos gates R3–R4 são permitidos na sequência aprovada. Não implementar a fatia de produção antecipadamente. A fatia não precisa rodar imediatamente um catálogo amplo de jogos. Precisa executar cenários pequenos e reproduzíveis, revelar custo e permitir atribuir divergências ao componente responsável.
 
 O YM2413 entra depois que o caminho PSG, os contratos de áudio multi-fonte e as evidências específicas do perfil Japanese SMS estiverem definidos. Não será usado para atrasar a primeira fatia, mas sua integração futura será prevista desde o desenho do contrato de áudio.
 
