@@ -675,6 +675,14 @@ def dispatch_deadline(
     book_error = _validate_book_state(book)
     if book_error is not None:
         return DeadlineEvaluation(book, book_error[0], book_error[1])
+    if (
+        not isinstance(identity, str) or not identity.strip()
+        or not isinstance(generation, int) or isinstance(generation, bool)
+        or generation < 0
+    ):
+        return DeadlineEvaluation(
+            book, DeadlineCode.INVALID_INPUT, "invalid dispatch identity or generation"
+        )
     deadline = _find(book, identity, generation)
     if deadline is None:
         return DeadlineEvaluation(book, DeadlineCode.STALE_IGNORED,
@@ -699,6 +707,14 @@ def complete_deadline(
     book_error = _validate_book_state(book)
     if book_error is not None:
         return DeadlineEvaluation(book, book_error[0], book_error[1])
+    if (
+        not isinstance(identity, str) or not identity.strip()
+        or not isinstance(generation, int) or isinstance(generation, bool)
+        or generation < 0
+    ):
+        return DeadlineEvaluation(
+            book, DeadlineCode.INVALID_INPUT, "invalid completion identity or generation"
+        )
     deadline = _find(book, identity, generation)
     if deadline is None or deadline.status is not DeadlineStatus.DISPATCHED:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
