@@ -47,6 +47,7 @@ jobs:
       vdp: ${{ steps.filter.outputs.vdp }}
       docs: ${{ steps.filter.outputs.docs }}
       r2_reference: ${{ steps.filter.outputs.r2_reference }}
+      r3_benchmarks: ${{ steps.filter.outputs.r3_benchmarks }}
       ci: ${{ steps.filter.outputs.ci }}
       video: ${{ steps.filter.outputs.video }}
       cpal: ${{ steps.filter.outputs.cpal }}
@@ -81,6 +82,8 @@ jobs:
               - 'docs/**'
             r2_reference:
               - 'SUN-V2/verification/r2_reference/**'
+            r3_benchmarks:
+              - 'SUN-V2/benchmarks/r3/**'
             ci:
               - '.github/workflows/**'
               - '.github/actions/**'
@@ -1124,12 +1127,70 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  r3-prototype-tests:
+    name: CHRONOS R3 disposable prototype tests (Linux)
+    needs: [changes]
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.r3_benchmarks == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.4"
+      - name: Run isolated R3 prototype tests
+        working-directory: SUN-V2/benchmarks/r3
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONHASHSEED: "0"
+        run: |
+          python --version
+          python -m unittest -v test_p_a_instruction_catchup.py
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "R3 prototype tests modified the worktree"
+            git status --short
+            exit 1
+          fi
+
+  windows-r3-prototype-tests:
+    name: CHRONOS R3 disposable prototype tests (Windows)
+    needs: [changes]
+    if: github.event_name != 'workflow_dispatch' && needs.changes.outputs.r3_benchmarks == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.4"
+      - name: Run isolated R3 prototype tests
+        working-directory: SUN-V2/benchmarks/r3
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONHASHSEED: "0"
+        shell: pwsh
+        run: |
+          python --version
+          python -m unittest -v test_p_a_instruction_catchup.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (git status --porcelain --untracked-files=all) {
+            Write-Error "R3 prototype tests modified the worktree"
+            git status --short
+            exit 1
+          }
+
   quality-gate:
     name: Rust quality and unit regression
     needs:
       - changes
       - r2-reference
       - windows-r2-reference
+      - r3-prototype-tests
+      - windows-r3-prototype-tests
       - rust-workspace
       - ym2413-focused
       - z80-focused
@@ -1168,6 +1229,10 @@ jobs:
           EXPECT_DOCS: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.docs == 'true' }}
           DOCS: ${{ needs.docs-format.result }}
           EXPECT_R2_REFERENCE: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true' }}
+          EXPECT_R3_PROTOTYPES: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.r3_benchmarks == 'true' }}
+          R3_PROTOTYPES: ${{ needs.r3-prototype-tests.result }}
+          EXPECT_WINDOWS_R3_PROTOTYPES: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.r3_benchmarks == 'true' }}
+          WINDOWS_R3_PROTOTYPES: ${{ needs.windows-r3-prototype-tests.result }}
           R2_REFERENCE: ${{ needs.r2-reference.result }}
           EXPECT_WINDOWS_R2_REFERENCE: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.r2_reference == 'true' }}
           WINDOWS_R2_REFERENCE: ${{ needs.windows-r2-reference.result }}
@@ -1220,6 +1285,8 @@ jobs:
           check_job "Documentation" "$EXPECT_DOCS" "$DOCS"
           check_job "CHRONOS R2 reference" "$EXPECT_R2_REFERENCE" "$R2_REFERENCE"
           check_job "CHRONOS R2 Python Windows tests" "$EXPECT_WINDOWS_R2_REFERENCE" "$WINDOWS_R2_REFERENCE"
+          check_job "CHRONOS R3 disposable prototypes" "$EXPECT_R3_PROTOTYPES" "$R3_PROTOTYPES"
+          check_job "CHRONOS R3 disposable prototypes Windows" "$EXPECT_WINDOWS_R3_PROTOTYPES" "$WINDOWS_R3_PROTOTYPES"
           check_job "Workflow lint" "$EXPECT_WORKFLOW_LINT" "$WORKFLOW_LINT"
           check_job "Windows Slint WGPU Vulkan POC" "$EXPECT_WINDOWS_SLINT_WGPU" "$WINDOWS_SLINT_WGPU"
           check_job "Windows SDL3 input" "$EXPECT_WINDOWS_SDL3_INPUT" "$WINDOWS_SDL3_INPUT"
