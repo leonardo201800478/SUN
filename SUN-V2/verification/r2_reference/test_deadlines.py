@@ -88,7 +88,7 @@ class R2BPublicationTests(unittest.TestCase):
     def test_identity_generation_must_increase_after_terminal_generation(self):
         first = publish(DeadlineBook(), machine(), at=10)
         cancelled = cancel_deadline(
-            first.book, machine(progress=2), owner="cpu", identity="evt", generation=1,
+            first.book, owner="cpu", identity="evt", generation=1,
             at_common=Fraction(4),
         )
         self.assertEqual(cancelled.code, DeadlineCode.ACCEPTED)
@@ -356,7 +356,7 @@ class R2BMicrostepTests(unittest.TestCase):
             current_microstep=0,
         )
         child = schedule_microstep(
-            first.book, machine(progress=2), owner="cpu", identity="child", generation=1,
+            first.book, owner="cpu", identity="child", generation=1,
             at_common=Fraction(5), effect_id="child-effect",
             current_microstep=first.book.deadlines[0].microstep,
         )
@@ -371,7 +371,7 @@ class R2BMicrostepTests(unittest.TestCase):
             current_microstep=0,
         )
         child = schedule_microstep(
-            first.book, machine(progress=2), owner="cpu", identity="child", generation=1,
+            first.book, owner="cpu", identity="child", generation=1,
             at_common=Fraction(5), effect_id="child-effect",
             current_microstep=first.book.deadlines[0].microstep,
         )
@@ -382,18 +382,18 @@ class R2BMicrostepTests(unittest.TestCase):
     def test_microstep_limit_is_explicit_and_does_not_mutate(self):
         book = DeadlineBook(max_microsteps=2)
         first = schedule_microstep(
-            book, machine(progress=2), owner="cpu", identity="one", generation=1,
+            book, owner="cpu", identity="one", generation=1,
             at_common=Fraction(5), effect_id="one",
             current_microstep=0,
         )
         second = schedule_microstep(
-            first.book, machine(progress=2), owner="cpu", identity="two", generation=1,
+            first.book, owner="cpu", identity="two", generation=1,
             at_common=Fraction(5), effect_id="two",
             current_microstep=1,
         )
         before = second.book
         exhausted = schedule_microstep(
-            second.book, machine(progress=2), owner="cpu", identity="three", generation=1,
+            second.book, owner="cpu", identity="three", generation=1,
             at_common=Fraction(5), effect_id="three",
             current_microstep=2,
         )
@@ -404,7 +404,7 @@ class R2BMicrostepTests(unittest.TestCase):
         book = publish(DeadlineBook(), machine(), identity="z", at=12).book
         book = publish(book, machine(), identity="a", at=10).book
         cancelled = cancel_deadline(
-            book, machine(progress=2), owner="cpu", identity="z", generation=1,
+            book, owner="cpu", identity="z", generation=1,
             at_common=Fraction(4),
         )
         terminal = arbitrate_cancellations(cancelled.book).book
