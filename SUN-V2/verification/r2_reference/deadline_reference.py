@@ -10,7 +10,7 @@ from enum import Enum
 from fractions import Fraction
 from typing import Iterable
 
-from chronos_reference import ReferenceState
+from chronos_reference import ClockDomain, Obligation, ReferenceState
 
 
 class DeadlineStatus(str, Enum):
@@ -94,6 +94,96 @@ def _find(book: DeadlineBook, identity: str, generation: int) -> Deadline | None
     )
 
 
+
+def _validate_reference_state(state: object) -> str | None:
+    """Validate all structural fields before participant or temporal evaluation."""
+    if not isinstance(state, ReferenceState):
+        return "reference state has an invalid type"
+    if not isinstance(state.profile, str) or not state.profile.strip():
+        return "reference profile must be non-empty"
+    if not isinstance(state.domains, tuple) or not isinstance(state.expected_participants, frozenset):
+        return "participant containers have invalid types"
+    if any(not isinstance(item, ClockDomain) for item in state.domains):
+        return "domain collection contains an invalid object"
+    if any(not isinstance(item, str) or not item.strip()
+           for item in state.expected_participants):
+        return "expected participant identity is invalid"
+    if state.watermark_common is not None and not _exact(state.watermark_common):
+        return "watermark is not exact"
+    if len({item.domain_id for item in state.domains}) != len(state.domains):
+        return "duplicate temporal participant"
+    for domain in state.domains:
+        if not isinstance(domain.domain_id, str) or not domain.domain_id.strip():
+            return "participant identity is invalid"
+        if not all(_exact(value) for value in (
+            domain.local_to_common, domain.common_offset, domain.progress_local
+        )) or domain.local_to_common <= 0:
+            return "participant clock conversion is not exact or comparable"
+        if (not _exact(domain.horizon_local)
+            or domain.horizon_local < domain.progress_local):
+            return "participant safe horizon is invalid"
+    if not isinstance(state.obligations, tuple) or any(
+        not isinstance(item, Obligation) for item in state.obligations
+    ):
+        return "obligation collection contains an invalid object"
+    obligation_ids = []
+    for item in state.obligations:
+        if (not isinstance(item.obligation_id, str) or not item.obligation_id.strip()
+            or not isinstance(item.owner, str) or not item.owner.strip()
+            or not _exact(item.at_common)
+            or not isinstance(item.resolved, bool)
+            or not isinstance(item.commutative, bool)):
+            return "obligation descriptor is invalid"
+        obligation_ids.append(item.obligation_id)
+    if len(obligation_ids) != len(set(obligation_ids)):
+        return "duplicate obligation identity"
+    return None
+
+
+def _validate_book(book: object) -> str | None:
+    """Reject malformed deadline-book containers and entries before dereferencing."""
+    if not isinstance(book, DeadlineBook):
+        return "deadline book has an invalid type"
+    if not isinstance(book.deadlines, tuple) or not isinstance(book.pending_cancellations, tuple):
+        return "deadline book collections must be tuples"
+    if (book.watermark_common is not None and not _exact(book.watermark_common)):
+        return "deadline book watermark is not exact"
+    if (not isinstance(book.max_microsteps, int) or isinstance(book.max_microsteps, bool)
+        or book.max_microsteps <= 0):
+        return "maximum microsteps must be a positive integer"
+    keys = []
+    for item in book.deadlines:
+        if not isinstance(item, Deadline):
+            return "deadline collection contains an invalid object"
+        if (not isinstance(item.owner, str) or not item.owner.strip()
+            or not isinstance(item.identity, str) or not item.identity.strip()
+            or not isinstance(item.effect_id, str) or not item.effect_id.strip()
+            or not isinstance(item.generation, int) or isinstance(item.generation, bool)
+            or item.generation < 0 or not _exact(item.at_common)
+            or not isinstance(item.commutative, bool)
+            or (item.phase_order is not None and (
+                not isinstance(item.phase_order, int) or isinstance(item.phase_order, bool)
+            ))
+            or (item.phase_evidence is not None and (
+                not isinstance(item.phase_evidence, str) or not item.phase_evidence.strip()
+            ))
+            or ((item.phase_order is None) != (item.phase_evidence is None))
+            or not isinstance(item.microstep, int) or isinstance(item.microstep, bool)
+            or item.microstep < 0 or not isinstance(item.status, DeadlineStatus)):
+            return "deadline entry is structurally invalid"
+        keys.append((item.identity, item.generation))
+    if len(keys) != len(set(keys)):
+        return "deadline identity/generation pair is duplicated"
+    for item in book.pending_cancellations:
+        if not isinstance(item, Cancellation):
+            return "pending cancellation collection contains an invalid object"
+        if (not isinstance(item.owner, str) or not item.owner.strip()
+            or not isinstance(item.identity, str) or not item.identity.strip()
+            or not isinstance(item.generation, int) or isinstance(item.generation, bool)
+            or item.generation < 0 or not _exact(item.at_common)):
+            return "pending cancellation entry is structurally invalid"
+    return None
+
 def publish_deadline(
     book: DeadlineBook,
     state: ReferenceState,
@@ -134,25 +224,16 @@ def publish_deadline(
     ):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "invalid deadline descriptor")
-    if (
-        not isinstance(state, ReferenceState)
-        or not isinstance(state.profile, str)
-        or not state.profile.strip()
-    ):
-        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
-                                  "invalid reference state or profile")
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
+    state_error = _validate_reference_state(state)
+    if state_error is not None:
+        error_code = (DeadlineCode.INDETERMINATE
+                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
+        return DeadlineEvaluation(book, error_code, state_error)
     participant_ids = [item.domain_id for item in state.domains]
-    if any(not isinstance(item, str) or not item.strip()
-           for item in participant_ids):
-        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
-                                  "participant identity is invalid")
-    if len(participant_ids) != len(set(participant_ids)):
-        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
-                                  "duplicate temporal participant")
     expected = set(state.expected_participants)
-    if any(not isinstance(item, str) or not item.strip() for item in expected):
-        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
-                                  "expected participant identity is invalid")
     domain_ids = set(participant_ids)
     if domain_ids - expected:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
@@ -213,21 +294,18 @@ def _cancellation_admission_frontier(
     book: DeadlineBook, state: ReferenceState
 ) -> tuple[Fraction | None, DeadlineCode | None, str]:
     """Derive A(E) from the complete current participant set and closed W."""
-    if not isinstance(state, ReferenceState) or not isinstance(state.profile, str) or not state.profile.strip():
-        return None, DeadlineCode.INVALID_INPUT, "invalid reference state"
-    if (
-        (book.watermark_common is not None and not _exact(book.watermark_common))
-        or (state.watermark_common is not None and not _exact(state.watermark_common))
-    ):
-        return None, DeadlineCode.INDETERMINATE, "watermark is not exact"
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return None, DeadlineCode.INVALID_INPUT, book_error
+    state_error = _validate_reference_state(state)
+    if state_error is not None:
+        error_code = (DeadlineCode.INDETERMINATE
+                      if "clock conversion" in state_error else DeadlineCode.INVALID_INPUT)
+        return None, error_code, state_error
     if state.watermark_common != book.watermark_common:
         return None, DeadlineCode.INDETERMINATE, "deadline and reference watermarks disagree"
 
     ids = [item.domain_id for item in state.domains]
-    if any(not isinstance(item, str) or not item.strip() for item in ids):
-        return None, DeadlineCode.INVALID_INPUT, "participant identity is invalid"
-    if len(ids) != len(set(ids)):
-        return None, DeadlineCode.INVALID_INPUT, "duplicate temporal participant"
     expected = set(state.expected_participants)
     actual = set(ids)
     if actual - expected:
@@ -267,6 +345,9 @@ def cancel_deadline(
     ):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "invalid cancellation descriptor")
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     deadline = _find(book, identity, generation)
     if deadline is None or deadline.owner != owner:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
@@ -307,6 +388,9 @@ def cancel_deadline(
 
 def arbitrate_cancellations(book: DeadlineBook) -> DeadlineEvaluation:
     """Apply all admitted cancellations before W may close their deadline."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     next_book = book
     for request in book.pending_cancellations:
         deadline = _find(next_book, request.identity, request.generation)
@@ -340,6 +424,9 @@ def _causal_order_is_known(group: list[Deadline]) -> bool:
 
 def close_watermark(book: DeadlineBook, target_common: Fraction) -> DeadlineEvaluation:
     """Close W only after cancellation arbitration and causal tie validation."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     if not _exact(target_common):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "watermark target must be exact")
@@ -429,6 +516,9 @@ def dispatch_deadline(
     book: DeadlineBook, *, identity: str, generation: int
 ) -> DeadlineEvaluation:
     """Dispatch only a claimed current generation; repeated dispatch is idempotent."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     deadline = _find(book, identity, generation)
     if deadline is None:
         return DeadlineEvaluation(book, DeadlineCode.STALE_IGNORED,
@@ -450,6 +540,9 @@ def complete_deadline(
     book: DeadlineBook, *, identity: str, generation: int
 ) -> DeadlineEvaluation:
     """Record completion without allowing a second dispatch."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     deadline = _find(book, identity, generation)
     if deadline is None or deadline.status is not DeadlineStatus.DISPATCHED:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
@@ -473,6 +566,9 @@ def schedule_microstep(
     commutative: bool = False,
 ) -> DeadlineEvaluation:
     """Admit a same-instant child only with finite, strictly increasing microstep."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     if (
         not _exact(at_common)
         or not isinstance(current_microstep, int)
