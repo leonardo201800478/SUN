@@ -469,6 +469,26 @@ class PADeadlineLifecycleTests(unittest.TestCase):
             tuple((item.identity, item.generation, item.status.value) for item in expected),
         )
 
+    def test_publication_with_rational_clock_offsets_matches_r2(self):
+        context = ADeadlineContext(
+            participants=(
+                AParticipant(
+                    "cpu", Fraction(5), Fraction(20),
+                    Fraction(3, 2), Fraction(2),
+                ),
+                AParticipant(
+                    "vdp", Fraction(6), Fraction(30),
+                    Fraction(2), Fraction(3),
+                ),
+            ),
+            expected_participants=frozenset({"cpu", "vdp"}),
+        )
+        result = self.publish(
+            context=context, owner="cpu", identity="offset-irq",
+            generation=0, at_common=Fraction(10), effect_id="irq-line",
+        )
+        self.assertEqual(result.code, ADeadlineCode.ACCEPTED)
+
 
 if __name__ == "__main__":
     unittest.main()
