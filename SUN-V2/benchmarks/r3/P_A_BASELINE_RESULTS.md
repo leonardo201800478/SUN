@@ -81,8 +81,8 @@ P-D/P-E are not started. R4/R5 remain blocked. No production CHRONOS/V2 code is 
 
 ## P-A v2 — single-pass deadline grouping follow-up
 
-**Prototype source commit:** `292547d6f46a0a950036d46ba90d1e3540727423`  
-**Final validation HEAD:** `dc9b9ab7b00c1b956f025e3cc9dee40b29c5b24e` (report formatting-only commit after the prototype source)  
+**Prototype source commit:** `292547d6f46a0a950036d46ba90d1e3540727423`
+**Final validation HEAD:** `dc9b9ab7b00c1b956f025e3cc9dee40b29c5b24e` (report formatting-only commit after the prototype source)
 **Final CI:** [run #10851](https://github.com/leonardo201800478/SUN/actions/runs/45693814913) — SUCCESS
 
 P-A v2 changes `close_watermark` to collect due deadlines into a timestamp map in one pass, then sort instants and apply the same causal tie rules. It remains a disposable full-scan/temporary-grouping implementation; no persistent agenda was introduced.
