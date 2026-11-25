@@ -22,12 +22,12 @@ No third-party dependencies are required. The model uses exact rational arithmet
 
 ## Current candidate coverage
 
-The current candidate defines 89 tests:
+The current candidate defines 90 tests:
 - R2-T01: 13 cases covering monotonicity, retrograde-input no-mutation, participant completeness, structural-validation precedence over `Blocked`, exact-time validation, invalid clock conversion/watermark, obligation identity/owner validation, and detection of a known W/H contradiction before an incomplete-participant block.
 - R2-T02: 4 cases for chunk invariance, including 100 deterministic random partitions, safe-horizon boundary stops, pending-obligation stops and continuation after resolution.
 - R2-T03: 3 cases for exact rational round-trip/composition and 10,000-step conversion sessions across three ratios.
 - R2-T04: 9 cases for inclusive safe horizon, endpoint StoppedAt(T), earlier obligations, resume after resolution, multi-domain minimum horizon and invariant rejection when the confirmed frontier (W or participant progress) exceeds the global safe horizon.
-- R2-B deadline slice: 60 cases across publication/admission, owner and generation validation, global minimum-horizon versus known W/progress checks on publication and cancellation, complete cancellation-frontier derivation, empty/incomplete participant blocking, frontier validation before lifecycle classification, cross-validation of pending cancellation owner/identity/generation and orphan rejection, cancellation versus watermark closure including explicit D=W coverage, stale-generation suppression, commutative and explicitly ordered ties, UNKNOWN causal order, finite logical microsteps, atomic replacement ordering (new D<C -> LateInput; new D=C -> Indeterminate), horizon validation, and malformed-input rejection. This is partial coverage for R2-T06, T07 and T14; these properties are not yet PASS.
+- R2-B deadline slice: 61 cases across publication/admission, owner and generation validation, global minimum-horizon versus known W/progress checks on publication and cancellation, complete cancellation-frontier derivation, empty/incomplete participant blocking, frontier validation before lifecycle classification, cross-validation of pending cancellation owner/identity/generation and orphan rejection, cancellation versus watermark closure including explicit D=W coverage, stale-generation suppression, commutative and explicitly ordered ties, UNKNOWN causal order, finite logical microsteps (including validation of preconstructed books before watermark claims), atomic replacement ordering (new D<C -> LateInput; new D=C -> Indeterminate), horizon validation, and malformed-input rejection. This is partial coverage for R2-T06, T07 and T14; these properties are not yet PASS.
 
 **Earlier executed candidate:** 24 tests PASS in CI #10619 on Git SHA `a0c0782ff4d8e9886144b20bde36e42bcc6f1eff`, with oracle SHA-256 `160489b753575f0e7fcb12892eb58f7199a1dc5828c5bb4f13c266f557ba001a`, Python 3.14.4, Linux x86_64. This is historical evidence for that exact candidate only.
 
@@ -44,3 +44,6 @@ R2-T05, T08–T13 and T15 remain NOT RUN. R2-T06, T07 and T14 are IN PROGRESS an
 
 
 The runner sets `sys.dont_write_bytecode` before test discovery. CI invokes it twice from the same checkout and checks `git status --porcelain --untracked-files=all` between invocations; the second run must still begin with a clean worktree. CI also executes the exact documented `python -m unittest -v` command, removes only generated `__pycache__` directories, and verifies that the worktree is clean before the second pinned run. The test suite does not assert runner-specific process state.
+
+
+**New candidate awaiting CI — preconstructed microstep bound:** the central `_validate_book()` now rejects any stored deadline whose `microstep` exceeds `DeadlineBook.max_microsteps`, returning `InvalidInput` before watermark closure or arbitration can mutate the book. A regression constructs books directly with a limit of 2 and levels 0, 1, 2 and 999: the first three remain valid and claimable; 999 is rejected with the original book and no claims. This is a candidate change only; do not mark it PASS until CI and the reproducibility runner are complete.

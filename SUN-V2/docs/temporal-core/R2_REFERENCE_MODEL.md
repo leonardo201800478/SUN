@@ -516,3 +516,15 @@ A documentação geral foi reconciliada: o README da raiz e `SUN-V2/README.md` a
 **Evidência vinculada — CI #10681:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45530977080) — **SUCCESS** no HEAD `8c466dcaa1b5d5b4d6e9f076a03a1df9f0a2f2ab`. CHRONOS R2: **89/89 PASS**, runner dedicado em duas execuções e comando literal `python -m unittest -v`; worktree CLEAN. Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `d972005df827412bed74f0d1cc655e64fdad2aae3325f1f8842e4d4b5b531edb`; `deadline_reference.py` = `4a3999f3c0fa800a0feca4e35ffa5297e34a0eea0e6562014005f6b22496e942`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `fb33bda1923ca1d026fdb70a1c4a9ef11adb6a71b0fe8357a4ff2cc46a6ca9c7`; `test_temporal_core.py` = `c9fce1e6e3d247e9811d3a0c252066a91af8e81cc2ae2e08a32cf4a13ee03770`. Actionlint, higiene documental e supervisor de qualidade Rust: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
 
 A cobertura candidata é 89 testes: R2-T01=13, T02=4, T03=3, T04=9; slice R2-B=60 casos. T06/T07/T14 continuam parciais; T05, T08–T13 e T15 permanecem NOT RUN. R2 continua EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum resultado desta execução aprova R2, autoriza R3, código de produção CHRONOS/V2 ou merge.
+
+
+### 8.1.12 Limite de microsteps em livros pré-construídos — 25/11/2026
+
+A revisão adversarial encontrou um bypass P2 na fronteira estrutural de `DeadlineBook`: `_validate_book()` verificava que `microstep` fosse inteiro não negativo, mas não comparava o valor armazenado com `book.max_microsteps`. Assim, um livro construído externamente com `max_microsteps=2` e deadline em `microstep=999` passava pela validação central e podia chegar à reivindicação em `close_watermark()`, embora `publish_deadline()` impedisse a publicação direta acima do limite.
+
+Correção candidata implementada:
+- `_validate_book()` rejeita cada deadline cujo `microstep > max_microsteps`, com `InvalidInput`, antes de qualquer operação pública que dependa da validação central;
+- a rejeição preserva o livro original, não reivindica deadlines e não avança o watermark;
+- regressão constrói diretamente livros com limite 2 e níveis 0, 1, 2 e 999; níveis 0–2 continuam válidos e claimable, enquanto 999 é rejeitado atomicamente.
+
+**Estado da evidência:** alteração e regressão adicionadas ao candidato de 90 testes (R2-B: 61). CI, runner reproduzível, hashes e revisão independente para o novo HEAD ainda pendentes. Não classificar como PASS antes dessas verificações. R2 permanece EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhuma alteração normativa R1, implementação de produção CHRONOS/V2, aprovação ou merge decorre deste finding.

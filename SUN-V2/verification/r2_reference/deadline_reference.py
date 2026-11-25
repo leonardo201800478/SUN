@@ -195,6 +195,8 @@ def _validate_book(book: object) -> str | None:
             or not isinstance(item.microstep, int) or isinstance(item.microstep, bool)
             or item.microstep < 0 or not isinstance(item.status, DeadlineStatus)):
             return "deadline entry is structurally invalid"
+        if item.microstep > book.max_microsteps:
+            return "deadline microstep exceeds maximum book limit"
         keys.append((item.identity, item.generation))
     if len(keys) != len(set(keys)):
         return "deadline identity/generation pair is duplicated"

@@ -6,6 +6,7 @@ import unittest
 from chronos_reference import ClockDomain, make_state
 from deadline_reference import (
     Cancellation,
+    Deadline,
     DeadlineBook,
     DeadlineCode,
     DeadlineStatus,
@@ -154,6 +155,38 @@ class R2BPublicationTests(unittest.TestCase):
                 )
                 self.assertEqual(rejected.code, DeadlineCode.RESOURCE_EXHAUSTED)
                 self.assertEqual(rejected.book, book)
+
+    def test_preconstructed_book_enforces_microstep_limit_before_claiming(self):
+        for level in (0, 1, 2, 999):
+            with self.subTest(level=level):
+                deadline = Deadline(
+                    owner="cpu",
+                    identity="prebuilt",
+                    generation=1,
+                    at_common=Fraction(5),
+                    effect_id="prebuilt-effect",
+                    microstep=level,
+                )
+                book = DeadlineBook(
+                    deadlines=(deadline,),
+                    max_microsteps=2,
+                )
+
+                result = close_watermark(book, Fraction(5))
+
+                if level <= 2:
+                    self.assertEqual(result.code, DeadlineCode.ACCEPTED)
+                    self.assertEqual(result.claimed, (("prebuilt", 1),))
+                    self.assertEqual(
+                        result.book.deadlines[0].status, DeadlineStatus.CLAIMED
+                    )
+                else:
+                    self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+                    self.assertEqual(result.book, book)
+                    self.assertEqual(result.claimed, ())
+                    self.assertEqual(
+                        result.book.deadlines[0].status, DeadlineStatus.SCHEDULED
+                    )
 
     def test_publication_rejects_non_exact_or_regressed_safe_horizon(self):
         book = DeadlineBook()
