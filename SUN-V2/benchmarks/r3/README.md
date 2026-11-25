@@ -25,11 +25,13 @@ Do not import R2 model classes into the timed prototype implementation.
 
 ## Result status
 
-No prototype has been benchmarked yet. No throughput, latency, allocation,
-memory, or hardware-fidelity result is claimed. The first deliverable is P-A
-with reproducible fixtures and a deterministic trace comparison.
+P-A smoke benchmark completed on Linux and Windows in CI #10821 (two domains,
+four obligations, chunk size eight, one warm-up and three timed samples per
+density). Those temporary runner outputs were not retained as artifacts, so this
+smoke run is not a reproducible baseline and no comparative throughput/latency
+claim is made. A retained full baseline matrix is pending.
 
 
 ## P-A first-slice boundary
 
-The current P-A test harness checks result class, stop coordinate and every participant's common-time progress against R2. It also checks deterministic final-state digest under chunk repartitioning. A detailed per-transition trace is not implemented in this first slice; no trace-coverage claim is made. The current suite contains 14 discriminating tests, including unequal participant progress, zero-length frontier catch-up, UNKNOWN ties, R2 invariant-violation boundaries, and float-time rejection.
+The current P-A test harness checks result class, stop coordinate and every participant's common-time progress against R2. It also checks deterministic final-state digest under chunk repartitioning. A detailed per-transition trace is not implemented in this first slice; no trace-coverage claim is made. The current suite contains 18 discriminating tests, including unequal participant progress, zero-length frontier catch-up, UNKNOWN ties, R2 invariant-violation boundaries, float-time rejection, commutative ties, resolved obligations, empty participant sets, and a deterministic boundary matrix (48 R2 comparisons).
