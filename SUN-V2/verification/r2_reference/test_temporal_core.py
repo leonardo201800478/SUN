@@ -145,7 +145,8 @@ class R2T01InvalidStateTests(unittest.TestCase):
 
     def test_unhashable_domain_identity_is_invalid_input_without_mutation(self):
         state = make_state(
-            domains=[ClockDomain([], Fraction(1), horizon_local=Fraction(10))]
+            domains=[ClockDomain([], Fraction(1), horizon_local=Fraction(10))],
+            expected_participants=["cpu"],
         )
 
         evaluated = advance(state, Fraction(8))
@@ -185,6 +186,13 @@ class R2T01InvalidStateTests(unittest.TestCase):
 
     def test_non_reference_state_with_invalid_target_does_not_dereference(self):
         evaluated = advance(None, 1.5)
+
+        self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
+        self.assertEqual(evaluated.result.reached_common, Fraction(0))
+        self.assertIsNone(evaluated.state)
+
+    def test_non_reference_state_with_exact_target_returns_invalid_input(self):
+        evaluated = advance(None, Fraction(10))
 
         self.assertEqual(evaluated.result.kind, ResultKind.INVALID_INPUT)
         self.assertEqual(evaluated.result.reached_common, Fraction(0))
