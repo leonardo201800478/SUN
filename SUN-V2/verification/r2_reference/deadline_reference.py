@@ -151,9 +151,15 @@ def publish_deadline(
     )) or domain.local_to_common <= 0:
         return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
                                   "owner clock conversion is not comparable")
-    if book.watermark_common is not None and not _exact(book.watermark_common):
+    if (
+        (book.watermark_common is not None and not _exact(book.watermark_common))
+        or (state.watermark_common is not None and not _exact(state.watermark_common))
+    ):
         return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
                                   "watermark is not exact")
+    if state.watermark_common != book.watermark_common:
+        return DeadlineEvaluation(book, DeadlineCode.INDETERMINATE,
+                                  "deadline and reference watermarks disagree")
     progress = domain.progress_common()
     if at_common < progress or (
         book.watermark_common is not None and at_common <= book.watermark_common
