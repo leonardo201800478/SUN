@@ -531,18 +531,17 @@ def close_watermark(book: ADeadlineBook, target_common: Fraction) -> ADeadlineRe
         deadline = _find(book, request.identity, request.generation)
         if deadline is not None and deadline.at_common <= target_common:
             return ADeadlineResult(book, ADeadlineCode.BLOCKED, "admitted C<D cancellation must be arbitrated before W closes D")
-    due = [
-        item for item in book.deadlines
-        if item.status is ADeadlineStatus.SCHEDULED and item.at_common <= target_common
-    ]
-    instants = sorted({item.at_common for item in due})
+    due_by_instant: dict[Fraction, list[ADeadline]] = {}
+    for item in book.deadlines:
+        if item.status is ADeadlineStatus.SCHEDULED and item.at_common <= target_common:
+            due_by_instant.setdefault(item.at_common, []).append(item)
+    instants = sorted(due_by_instant)
     for instant in instants:
-        group = [item for item in due if item.at_common == instant]
-        if not _causal_order_known(group):
+        if not _causal_order_known(due_by_instant[instant]):
             return ADeadlineResult(book, ADeadlineCode.INDETERMINATE, "simultaneous non-commutative events have no proven causal order")
     ordered: list[ADeadline] = []
     for instant in instants:
-        group = [item for item in due if item.at_common == instant]
+        group = due_by_instant[instant]
         for level in sorted({item.microstep for item in group}):
             same = [item for item in group if item.microstep == level]
             if len(same) > 1 and not all(item.commutative for item in same):
