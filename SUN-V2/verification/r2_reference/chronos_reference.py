@@ -251,7 +251,8 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
         # Validation failed: never convert rejected domain state to build an error result.
         known_watermark = (
             state.watermark_common
-            if _is_exact_time(state.watermark_common)
+            if isinstance(state, ReferenceState)
+            and _is_exact_time(state.watermark_common)
             else Fraction(0)
         )
         return AdvanceEvaluation(
