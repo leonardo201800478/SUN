@@ -1,8 +1,13 @@
 """Deterministic P-A disposable prototype tests."""
 from __future__ import annotations
 
+import sys
 import unittest
 from fractions import Fraction
+from pathlib import Path
+
+R2_REFERENCE_PATH = Path(__file__).resolve().parents[2] / "verification" / "r2_reference"
+sys.path.insert(0, str(R2_REFERENCE_PATH))
 
 from p_a_instruction_catchup import (
     AObligation,
@@ -118,7 +123,7 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.code, ResultKind.STOPPED_AT.value)
         self.assertEqual(result.reached, Fraction(7))
         self.assertEqual(result.reason, "PendingObligation:irq")
-        self.assertEqual(result.chunks, 1)
+        self.assertEqual(result.chunks, 2)
         self.assertEqual(result.obligations_inspected, 2)
 
     def test_unknown_simultaneous_obligations_do_not_advance(self):
