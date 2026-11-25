@@ -621,3 +621,25 @@ Foram adicionados quatro métodos de teste: obrigação global atrás de progres
 **Evidência vinculada — CI #10707:** [run](https://github.com/leonardo201800478/SUN/actions/runs/45544103413) — **SUCCESS** no HEAD de código/testes `b5b9ff66dc68e4556fe2ca30c68e5114badd6ead`. CHRONOS R2: **107/107 PASS**, runner dedicado e comando literal `python -m unittest -v`; worktree CLEAN. Ambiente: Python 3.14.4 / Linux x86_64. SHA-256: `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `5126b383143a54878f9ac4b3164936eb9399314d670f36f68276c24a164d8987`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `1d56831aa763b2f120829cb6635863fa1abe1590ba55ccc19f97555c40767ff5`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`. Actionlint, higiene documental e supervisor de qualidade Rust/unit regression: PASS. Workspace Rust, Windows e hardware: SKIPPED, não PASS.
 
 R2 continua EM ANDAMENTO. T06/T07/T14 permanecem parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 continuam BLOQUEADOS. As correções não alteram o texto normativo R1 nem autorizam código de produção CHRONOS/V2.
+### 8.1.18 Consistência de obrigações na admissão e exclusividade da geração ativa — 25/11/2026
+
+A revisão adversarial encontrou duas lacunas no oráculo R2-B:
+
+1. **Estado de referência inconsistente na admissão de deadlines:** _validate_reference_state() validava conversões, horizonte e estrutura das obrigações, mas não aplicava os invariantes de obrigação já presentes em advance(). Assim, uma obrigação não resolvida em T<=W ou atrás do progresso conhecido podia ser ignorada por publicação/cancelamento de deadlines.
+2. **Gerações ativas sobrepostas:** _validate_book() garantia unicidade do par (identity, generation), mas não impedia que uma geração antiga permanecesse ativa depois da existência de uma geração mais nova. Um livro pré-construído/restaurado podia conter duas gerações Scheduled da mesma identidade e permitir claims/dispatch de ambas.
+
+Correções implementadas na branch research/chronos-r2-independent-reference-model:
+
+- _validate_reference_state() agora aplica a mesma regra de advance(): obrigação não resolvida em T<=W ou estritamente atrás da fronteira conhecida retorna InvariantViolation. A igualdade com progresso local permanece permitida quando W não fechou o instante.
+- _reference_state_error_code() classifica explicitamente essas contradições como InvariantViolation.
+- _validate_book() agora rejeita uma geração antiga em estado ativo (Scheduled, CancelPending, Claimed ou Dispatched) quando há geração mais recente para a mesma identidade. Estados terminais anteriores continuam permitidos.
+- Regressões cobrem obrigação em W, obrigação atrás de progresso conhecido, publicação e cancelamento sem mutação, além de sobreposição em quatro estados de lifecycle; fechamento de watermark e dispatch não podem claimar nem produzir efeito da geração antiga.
+
+Commits:
+- Implementação: 1cd4b764bcc153e3472444eea3d6b267f7efb1d2.
+- Testes: 211906f8382d80392fe8a13fb56f9b1c72eb21e0.
+- README atualizado para 109 testes, incluindo 71 casos no slice R2-B.
+
+**Validação:** CI #10711 foi disparada para o commit de testes 211906f8382d80392fe8a13fb56f9b1c72eb21e0; resultado ainda pendente no momento deste registro. Portanto, as duas correções e os novos testes ainda não são declarados PASS.
+
+R2 permanece EM ANDAMENTO. A revisão Codex no HEAD anterior registrou a existência dos dois findings; as threads continuam abertas até revalidação independente do candidato corrigido. PR #1283 permanece Draft e sem merge. T06/T07/T14 continuam parciais; T05, T08–T13 e T15 permanecem NOT RUN. R3–R5 permanecem BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
