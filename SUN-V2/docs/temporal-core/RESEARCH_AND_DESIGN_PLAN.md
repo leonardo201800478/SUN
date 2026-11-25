@@ -133,10 +133,12 @@ Separar microbenchmarks de benchmarks integrados com a carga de trabalho SMS. Ne
 Falhar em qualquer portão exige corrigir a especificação ou o modelo antes de avançar.
 
 
-## 9. Execução atual — R2
+## 9. Execução atual — R2 aprovado; R3 em andamento
 
-R1 foi aprovado explicitamente pelo responsável em 2026-11-24. O conteúdo normativo aprovado é R1 v0.3.18 no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`. O registro de aprovação está na issue #1270, encerrada.
+R1 foi aprovado em 2026-11-24. Conteúdo normativo R1 v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
 
-R2 está em andamento na [issue #1282](https://github.com/leonardo201800478/SUN/issues/1282). O desenho do oráculo, suas propriedades, a matriz R2-T01–T15 e os critérios de saída estão em [R2_REFERENCE_MODEL.md](R2_REFERENCE_MODEL.md).
+R2 foi aprovado pelo responsável após parecer independente e corrigir os dois P2 documentais. PR #1283 foi merged em `main`, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`. CI #10798 SUCCESS no HEAD documental `a858f8f21caece3567385d64745823c655dbd135`: 256/256 Linux e Windows, mutation PASS, JSON e worktrees CLEAN. O oráculo R2 permanece como referência abstrata, não backend/runtime.
 
-O modelo de referência é um artefato de verificação isolado; não é backend/runtime, não compartilha implementação V1, não escolhe a arquitetura final e não autoriza código de produção. R3 só começa após aprovação explícita de R2; produção CHRONOS/V2 continua proibida antes de R5.
+R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`. A fase é estritamente experimental: protótipos descartáveis P-A, P-D, P-E e, somente se houver lacuna demonstrada, P-F; comparar semântica/cenários/cargas equivalentes e medir custo, p50/p95/p99, pior caso, memória e alocações. Não produzir crate, runtime ou integração CHRONOS/V2. R4 revisa adversarialmente os resultados; produção só após aprovação R5.
+
+
