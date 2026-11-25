@@ -99,15 +99,9 @@ Entregas:
 
 ### Fase 2 — modelo de referência independente (R2)
 
-**Status: IMPLEMENTAÇÃO EXECUTÁVEL T01–T15 COMPLETA PARA VALIDAÇÃO EXTERNA; GATE FORMAL PENDENTE — issue #1282 / PR #1283.** Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e a matriz [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md). Nenhum R3 ou código de produção autorizado.
+**Status: APROVADO E MERGED — PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`; CI #10798 SUCCESS (256/256 Linux e Windows, mutation PASS).**
 
-Entregas:
-- oráculo simples e independente do algoritmo/representação candidata;
-- propriedades executáveis de monotonicidade, conversão, chunk invariance, avanço seguro, causalidade, deadlines, transações, WAIT, IRQ/NMI, snapshot/restore e replay;
-- cenários adversariais com seeds, perfil, entradas, primeira divergência e estado mínimo reproduzível;
-- UNKNOWN físico preservado como indeterminação/restrição, nunca promovido a FACT.
-
-**Gate R2:** não aprovado. A implementação e a cobertura executável T01–T15 existem, evidências executáveis, mutation testing, JSON e runner Windows estão PASS; os 11 findings P2 conhecidos foram respondidos e resolvidos. A saída do gate ainda exige revisão humana externa independente do SHA final sem blockers e aprovação explícita do responsável. A revisão Codex foi solicitada, mas o serviço respondeu limite de uso atingido. Nenhum R3 começa antes de todos esses itens e da aprovação formal R2.
+A implementação T01–T15 foi revisada independentemente no HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239`; dois P2 documentais foram corrigidos e revalidados. O gate R2 está formalmente aprovado. Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md).
 
 ### Fase 3 — protótipos temporais descartáveis (R3)
 
