@@ -11,13 +11,12 @@ from p_a_instruction_catchup import (
     advance_budgeted,
     state_digest as p_a_digest,
 )
-from ...verification.r2_reference.chronos_reference import (
+from chronos_reference import (
     ClockDomain,
     Obligation,
     ResultKind,
     advance as r2_advance,
     make_state as r2_make_state,
-    state_digest as r2_digest,
 )
 
 
@@ -51,10 +50,19 @@ class PATestCase(unittest.TestCase):
         self.assertEqual(result.code, reference.kind.value)
         self.assertEqual(result.reached, reference.reached_common)
         self.assertEqual(
-            p_a_digest(result.next_state),
+            self._progress_digest(result.next_state),
             self._reference_digest(reference.state),
         )
         return result, reference
+
+    @staticmethod
+    def _progress_digest(state):
+        return tuple(
+            sorted(
+                (item.name, item.progress.numerator, item.progress.denominator)
+                for item in state.participants
+            )
+        )
 
     @staticmethod
     def _reference_digest(state):
