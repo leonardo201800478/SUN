@@ -764,3 +764,15 @@ O incremento encerra a implementação do conjunto de propriedades executáveis 
 - SHA-256 dos testes: `test_atomicity.py` = `81ca0b5c358224ba69b59317c090d482998e863812a89747eba343fb415f9d2c`; `test_causal.py` = `923b7498e0948b31b497455c1c46cf09daf5728706cc675f155c091cc71982c5`; `test_deadlines.py` = `b7cd9100a5d95f1cce115434eaf00a6d14e0a55d3d3567050ad5bd57cc6bfc90`; `test_host.py` = `44a2c3afa4f138ec544d509c4c40e0bf188ff440e7cd0d57eb8ceba33bc0020f`; `test_irq.py` = `74a59fd4a3b41f981becdd22d59f8ec97a6cf1f02166bab3953edbcdcc7b2496`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_partial_order.py` = `f9ba1b549c3bd735b6d6b329996a92b15295996da358ca245eba41aad3c35252`; `test_replay.py` = `b7c9f8c061949b9b3a9fab37946e80538658e9c3a7b5eb6f54ef0fcbfdbcbc9d`; `test_resource.py` = `9cb23ef2a7e7f6266783f526de4b84e43be0a8a1fa920921bdec4c848490146a`; `test_snapshot.py` = `75372bbbdd0f24688293f60b82c3cb873e5dafbeb8a0ce8c80b1ff8e16a4b71e`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`; `test_transaction.py` = `95c53b0e9541eb0c85ef4e9dd9e7f9caa039b0f0fcefe7c478e5c28ab31c1215`; `test_wait.py` = `569c6282346f4287ae75f584b79f0ef9e224f531350182208a6f370c0468cb87`.
 
 **Estado:** a implementação e a cobertura executável R2-T01–T15 estão completas e reproduzíveis para validação externa. O gate R2 ainda não foi formalmente aprovado: revisão externa independente e aprovação explícita do responsável permanecem pendentes. PR #1283 continua Draft, aberta e sem merge. R3–R5 permanecem BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+
+
+### 8.1.24 Revalidação do HEAD documental consolidado — CI #10750
+
+O HEAD documental `4da266eb230aa6d597aff1e76b2f3fd406dd8d75` foi validado pelo CI #10750 ([run](https://github.com/leonardo201800478/SUN/actions/runs/45549398626)) — **SUCCESS**.
+- CHRONOS R2: **251/251 PASS**; runner dedicado duas vezes e `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- Change impact classification, Actionlint, documentação patch hygiene e Rust quality/unit regression: PASS.
+- Workspace Rust, Windows e hardware: SKIPPED, não PASS.
+- O HEAD documental contém a matriz R2-T01–T15 e a evidência completa do SHA de código/testes `145109df6b3b32db29c3c4a7db895bd505748864` / CI #10748.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+
+A implementação executável R2-T01–T15 permanece **COMPLETA PARA VALIDAÇÃO EXTERNA**. O gate formal R2 permanece sem aprovação até revisão externa e aprovação explícita do responsável. PR #1283 permanece Draft, aberta e sem merge; R3–R5 BLOQUEADOS.
