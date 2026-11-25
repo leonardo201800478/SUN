@@ -710,3 +710,16 @@ Commits de código/testes:
 **Validação:** CI #10725 foi disparado para o SHA de código/testes `253494d9accfcd0d19d92d43d1ec13656849e652`; no momento do registro, a execução estava `IN_PROGRESS`. Portanto, os 11 testes T05 ainda não são declarados PASS. O CI precisa concluir no SHA exato; o HEAD documental posterior também precisa de sua própria execução.
 
 R2-T05: cobertura implementada, validação CI pendente. R2-T06 permanece parcial; T07/T14 aguardam revisão adversarial independente; T08–T13 e T15 permanecem `NOT RUN`. R2 continua EM ANDAMENTO; R3–R5 BLOQUEADOS. Nenhum código de produção CHRONOS/V2 foi introduzido.
+
+
+### 8.1.22 Reprodutibilidade confirmada do R2-T05 — CI #10726
+
+O CI #10726 ([run](https://github.com/leonardo201800478/SUN/actions/runs/45547490214)) concluiu **SUCCESS** no HEAD documental `68fb03e3717239f757a6886e603869ee1fdb2340`, que contém os commits de código/testes `a293f7347bbe212549d5c9feb08660cbef088d77` e `253494d9accfcd0d19d92d43d1ec13656849e652`.
+
+- CHRONOS R2: **130/130 PASS**; runner dedicado executado duas vezes, `python -m unittest -v` executado, worktree CLEAN.
+- Actionlint, higiene documental e Rust quality/unit regression: PASS.
+- Workspace Rust, Windows, hardware e integrações de subsistemas não alterados: SKIPPED, não PASS.
+- Ambiente: Python 3.14.4 / Linux x86_64; perfil abstrato SMS-NTSC.
+- SHA-256: `causal_reference.py` = `3baa7f278c42374e928d47317c1fb34ff7f96ab549eb22db39e576a3faa64ff9`; `chronos_reference.py` = `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; `deadline_reference.py` = `68a2c8b8315139072cbd75a937fd5699f131847e935c95c2502ee3dd6fedae21`; `microstep_reference.py` = `409772508ac5ffbd84c0726750e986a924b1217393b032ab1193d5fefb8e3e70`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_causal.py` = `4fb017b883c3145aeb6959b29b056392fd2010c30f8c6fff1a462825da7bc26a`; `test_deadlines.py` = `fca4daee62db359ae8a691758e2a397fc3418948ee1d0b5d89bffbedd2abc016`; `test_microsteps.py` = `1289d4ae103817ed8bf2991243e3469180a3312ae70502f554b322a8fba2fff8`; `test_temporal_core.py` = `f71ad93dd1074c91e6420468f842f8c854b028b2af816862b4de026d7d4b9927`.
+
+R2-T05 está **implementado e executado** para os 11 cenários enumerados; isso não equivale à aprovação formal independente da propriedade nem à conclusão do gate R2. T06 continua parcial; T07/T14 aguardam revisão adversarial; T08–T13 e T15 permanecem NOT RUN. R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
