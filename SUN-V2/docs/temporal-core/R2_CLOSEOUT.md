@@ -44,7 +44,7 @@ Os critérios abaixo reproduzem R2_REFERENCE_MODEL.md §9. PASS significa evidê
 | **R2-EXIT-04 — UNKNOWN preservado** | Testes de simultaneidade, fase, WAIT, commit e snapshot sem precedência presumida | **PASS — 256/256 Linux e Windows** |
 | **R2-EXIT-05 — snapshot/restore/replay/exactly-once** | Cortes suportados/não suportados, ledger e ausência de mutação/repetição | **PASS — 256/256 Linux e Windows** |
 | **R2-EXIT-06 — contraexemplo mínimo reproduzível** | Seed, trace, primeira divergência e estado mínimo; redução determinística quando a entrada é gerada | **PASS no escopo implementado — JSON, seeds, traces, primeira divergência e redução de cortes T02; fixtures fixas identificadas pelo teste** |
-| **R2-EXIT-07 — revisão independente sem blockers** | Codex revisando SHA final exato, findings respondidos e threads justificadamente encerradas; passada humana adversarial | **PASS — parecer independente do responsável publicado no PR #1283 em 25/11/2026 às 18:55 UTC, revisando exatamente `ad8cbbe50a82334b8ee873351dda65b26459e239`; nenhum finding funcional bloqueante. Os dois P2 documentais foram tratados nesta revisão; CI do novo HEAD documental pendente.** |
+| **R2-EXIT-07 — revisão independente sem blockers** | Codex revisando SHA final exato, findings respondidos e threads justificadamente encerradas; passada humana adversarial | **PASS — parecer independente publicado pelo responsável no PR #1283 em 25/11/2026 às 18:55 UTC, revisando exatamente `ad8cbbe50a82334b8ee873351dda65b26459e239`; nenhum finding funcional bloqueante. P2-1 e P2-2 foram corrigidos nos documentos, sujeitos à validação final CI.** |
 | **R2-EXIT-08 — aprovação explícita** | Decisão explícita do responsável após os critérios anteriores | **PASS — aprovação explícita concedida pelo responsável nesta conversa em 25/11/2026, após o parecer independente; efetivação vinculada à validação CI do SHA documental final.** |
 
 ### 2.1 Mutação deliberada
@@ -125,6 +125,6 @@ O parecer não autorizou merge antes dessas correções e revalidação; a aprov
 **Implementação executável R2-T01–T15: COMPLETA E REVISADA.**
 **Gate formal R2: APROVADO pelo responsável em 25/11/2026; publicação na `main` e início de R3 dependem da confirmação de CI verde no HEAD final e do merge da PR.**
 
-Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout atualizado nos commits `e1301d3f7c47fde9e0221c9d3803cd7f60c0ba29` e sequente. O parecer independente não identificou blockers funcionais. CI #10790 valida o código do HEAD revisado `ad8cbbe`; a validação de higiene documental e dos commits de atualização será realizada pelo CI acionado pela atualização da PR.
+Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout revisado para identificar o parecer, CI #10790, artifacts e hash do mutation runner. CI #10790 valida o código do HEAD revisado `ad8cbbe`; as alterações documentais posteriores exigem CI próprio.
 
 Após CI verde do SHA documental final, atualizar issue/PR para R2 APROVADO, publicar PR #1283 na `main` e abrir o trabalho R3 em branch própria. R3 limita-se a protótipos descartáveis e benchmarks comparáveis; nenhuma implementação de produção CHRONOS/V2 antes de R5.
