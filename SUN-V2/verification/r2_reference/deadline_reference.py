@@ -116,6 +116,8 @@ def _validate_reference_state(state: object) -> str | None:
         return "participant identity is invalid"
     if len({item.domain_id for item in state.domains}) != len(state.domains):
         return "duplicate temporal participant"
+    if {item.domain_id for item in state.domains} - set(state.expected_participants):
+        return "unexpected temporal participant"
     for domain in state.domains:
         if not all(_exact(value) for value in (
             domain.local_to_common, domain.common_offset, domain.progress_local
@@ -552,16 +554,6 @@ def replace_deadline(
     if not _exact(cancel_at) or not _exact(new_at_common):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "replacement timestamps must be exact")
-    if new_at_common < cancel_at:
-        return DeadlineEvaluation(
-            book, DeadlineCode.LATE_INPUT,
-            "replacement deadline precedes the replacement operation",
-        )
-    if new_at_common == cancel_at:
-        return DeadlineEvaluation(
-            book, DeadlineCode.INDETERMINATE,
-            "replacement deadline coincides with cancellation without an explicit causal relation",
-        )
     cancelled = cancel_deadline(
         book, state, owner=owner, identity=identity, generation=generation,
         at_common=cancel_at,
@@ -582,6 +574,18 @@ def replace_deadline(
         return DeadlineEvaluation(
             book, published.code,
             f"replacement rejected atomically: {published.detail}",
+        )
+    # Validate the new publication descriptor and its owner/W admission first.
+    # Only then classify its ordering relative to the replacement's C instant.
+    if new_at_common < cancel_at:
+        return DeadlineEvaluation(
+            book, DeadlineCode.LATE_INPUT,
+            "replacement deadline precedes the replacement operation",
+        )
+    if new_at_common == cancel_at:
+        return DeadlineEvaluation(
+            book, DeadlineCode.INDETERMINATE,
+            "replacement deadline coincides with cancellation without an explicit causal relation",
         )
     return DeadlineEvaluation(
         published.book, DeadlineCode.ACCEPTED,
