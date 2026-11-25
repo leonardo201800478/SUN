@@ -461,3 +461,25 @@ Correção candidata:
 - adicionar testes para participante duplicado e perfil vazio.
 
 **Estado:** implementação no commit `4074b78d528b97d15677138421753fd983d74d05`; testes no commit `fa59b6f3ad092656ae9cbbd95173afc71922adf3`. O candidato passa a 64 testes e 37 casos no slice R2-B. CI vinculado ainda pendente; não classificar como PASS antes da execução. T06/T07/T14 permanecem parciais; R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.9 Validação estrutural defensiva do oráculo de deadlines
+
+A revisão independente Codex do HEAD `91dbb4344ecd24699ef88719e4c65b872dd72393` confirmou três findings P2 na fronteira de entrada do slice R2-B:
+
+- `ReferenceState.domains` podia conter um objeto que não fosse `ClockDomain`; a leitura antecipada de `domain_id` provocava `AttributeError`.
+- `expected_participants` podia ter um contêiner/elementos incompatíveis com o contrato; construir `set(...)` antes da validação podia provocar `TypeError`.
+- `DeadlineBook` podia ser um objeto de tipo incorreto ou conter coleções/entradas malformadas; publicação/cancelamento podiam dereferenciá-lo antes de produzir um resultado do oráculo.
+
+Correção candidata:
+- validar o tipo dos contêineres e cada objeto `ClockDomain` antes de ler seus campos;
+- validar o tipo `frozenset` e as identidades de participantes antes de qualquer conversão/conjunto;
+- validar `DeadlineBook`, watermark, limite de microsteps, contêineres e campos de cada `Deadline`/`Cancellation` antes de percorrer ou alterar o livro;
+- aplicar a validação do livro também às operações públicas de arbitragem, fechamento de W, dispatch, completion e microstep;
+- preservar `IndeterminateCausalOrder` para conversões de clock não comparáveis; usar `InvalidInput` para estrutura/tipo/descritor inválido;
+- manter todas as rejeições atômicas, retornando o mesmo livro sem mutação;
+- adicionar dez testes de regressão cobrindo domínios inválidos, conjunto esperado malformado, livro ausente, deadlines/cancelamentos malformados e validação nas operações de fechamento/microstep.
+
+**Estado:** código e testes foram incorporados ao candidato em commits da branch de trabalho; os mesmos arquivos foram então aplicados à branch da PR #1283. A CI vinculada ao novo HEAD ainda precisa executar. A contagem candidata passa a 74 testes, dos quais 47 pertencem ao slice R2-B. Os dez novos testes não ampliam a alegação de completude de T06/T07/T14: essas propriedades permanecem parciais. A revisão Codex identificou os três problemas, mas sua resolução só poderá ser considerada confirmada após CI e nova revisão independente do SHA atualizado.
+
+R2 continua EM ANDAMENTO; T05, T08–T13 e T15 permanecem NOT RUN; T06/T07/T14 permanecem parciais; R3–R5 continuam BLOQUEADOS. Nenhum código de produção CHRONOS/V2 ou merge é autorizado.
