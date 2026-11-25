@@ -11,14 +11,14 @@ Este documento fecha o pacote de implementação e evidências disponíveis para
 
 O oráculo independente é um artefato Python de verificação, lento e deliberadamente simples. Ele não importa código de produção CHRONOS/V2, não depende de crates Rust e não usa runtime V1. As entradas temporais usam inteiros e `Fraction`; a implementação de referência não escolhe estrutura de agenda nem granularidade de produção.
 
-**Cobertura candidata:** 255 testes determinísticos em 13 módulos, incluindo quatro famílias de permutação exaustiva com cinco eventos (120 permutações por família) e dois mutantes deliberados de fronteira.
+**Cobertura candidata:** 256 testes determinísticos em 13 módulos, incluindo quatro famílias de permutação exaustiva com cinco eventos (120 permutações por família) e dois mutantes deliberados de fronteira.
 
 | Módulo | Casos | Propriedades |
 |---|---:|---|
 | `test_temporal_core.py` | 38 | T01–T04 |
 | `test_deadlines.py` | 78 | T06 e porções de T07/T14 |
 | `test_microsteps.py` | 5 | T14 |
-| `test_causal.py` | 12 | T05/T07 |
+| `test_causal.py` | 13 | T05/T07 |
 | `test_partial_order.py` | 6 | T07 |
 | `test_transaction.py` | 18 | T08 |
 | `test_wait.py` | 11 | T09 |
@@ -28,7 +28,7 @@ O oráculo independente é um artefato Python de verificação, lento e delibera
 | `test_host.py` | 12 | T13 |
 | `test_resource.py` | 10 | T15 |
 | `test_atomicity.py` | 10 | T15 |
-| **Total** | **255** | **T01–T15** |
+| **Total** | **256** | **T01–T15** |
 
 A matriz requisito → seção R1 → contrato Cxx → teste e dimensões positivas/negativas/fronteira/igualdade/overflow/permutação está em [R2_TRACEABILITY.md](R2_TRACEABILITY.md).
 
