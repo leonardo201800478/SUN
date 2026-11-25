@@ -127,12 +127,12 @@ Current P-A suite count: **60 tests** (24 advance/catch-up, 22 deadline lifecycl
 
 ## Final P-A CI closeout — CI #10868
 
-**Classification:** `OBSERVATION` — CI and synthetic Python prototype evidence  
-**Workflow:** [run #10868](https://github.com/leonardo201800478/SUN/actions/runs/45695617409) — `SUCCESS`  
-**Run ID:** `45695617409`  
-**Executed HEAD:** `7351798b61971baad6d25133ce9616b3f5a33b9e`  
-**Branch:** `research/chronos-r3-disposable-prototypes`  
-**Date:** 2026-11-25
+- **Classification:** `OBSERVATION` — CI and synthetic Python prototype evidence
+- **Workflow:** [run #10868](https://github.com/leonardo201800478/SUN/actions/runs/45695617409) — `SUCCESS`
+- **Run ID:** `45695617409`
+- **Executed HEAD:** `7351798b61971baad6d25133ce9616b3f5a33b9e`
+- **Branch:** `research/chronos-r3-disposable-prototypes`
+- **Date:** 2026-11-25
 
 The run is associated with the exact HEAD above. The branch exists and the PR remains open and unmerged. The latest PR metadata update observed was 2026-11-25T20:30:27Z, immediately after the HEAD commit at 20:30:25Z. No separate branch-ref SHA was exposed by the available GitHub connector; therefore the SHA above is stated as the exact CI-tested HEAD, not as an independently queried ref response.
 
