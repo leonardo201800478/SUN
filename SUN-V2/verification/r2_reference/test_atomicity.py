@@ -45,7 +45,7 @@ class R2T15CrossSubsystemAtomicityTests(unittest.TestCase):
             at_common=Fraction(0), effect_id="effect:d:0",
         )
         self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
-        self.assertEqual(result.book, DeadlineBook())
+        self.assertEqual(result.book, DeadlineBook(watermark_common=Fraction(10)))
 
     def test_missing_participant_blocks_before_partial_late_frontier(self):
         replay_state = ReplayState(
@@ -79,15 +79,16 @@ class R2T15CrossSubsystemAtomicityTests(unittest.TestCase):
         retrograde = advance(initial, Fraction(4))
         regression_state = temporal_state(progress=5, horizon=4)
         regression = advance(regression_state, Fraction(6))
-        self.assertEqual(retrograde.code.value, "LateInput")
-        self.assertEqual(regression.code.value, "InvariantViolation")
+        self.assertEqual(retrograde.result.kind.value, "LateInput")
+        self.assertEqual(regression.result.kind.value, "InvariantViolation")
         self.assertEqual(retrograde.state, initial)
         self.assertEqual(regression.state, regression_state)
 
     def test_closed_watermark_rejects_equal_deadline_even_with_microstep(self):
         reference = temporal_state(progress=0, watermark=10)
         result = publish_deadline(
-            DeadlineBook(), reference, owner="cpu", identity="d", generation=0,
+            DeadlineBook(watermark_common=Fraction(10)), reference,
+            owner="cpu", identity="d", generation=0,
             at_common=Fraction(10), effect_id="effect:d:0",
             microstep=True, microstep_level=1,
         )
