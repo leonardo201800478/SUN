@@ -1,9 +1,9 @@
 # SUN V2 — CHRONOS R2 implementation closeout
 
-**Status:** R2-T01–T15 revisado independentemente; parecer sem blocker funcional; P2 documentais corrigidos; R2 APROVADO pelo responsável após CI #10798 SUCCESS.
+**Status:** R2-T01–T15 revisado independentemente; parecer sem blocker funcional; P2 documentais corrigidos; R2 APROVADO e MERGED após CI #10798 SUCCESS.
 **R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
 **R2:** APROVADO e publicado na `main` pela PR #1283; merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`.
-**R3:** EM ANDAMENTO na branch `research/chronos-r3-disposable-prototypes`; escopo exclusivo de protótipos descartáveis/comparáveis e benchmarks. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
+**R3:** EM ANDAMENTO na branch `research/chronos-r3-disposable-prototypes`; escopo exclusivo de protótipos descartáveis e benchmarks comparáveis. **R4–R5:** pendentes. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
 
 Este documento registra o fechamento técnico do R2, o parecer independente do responsável, aprovação explícita e publicação na `main`. CI #10798 validou o HEAD documental final `a858f8f21caece3567385d64745823c655dbd135`.
 
@@ -116,7 +116,7 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 O parecer do responsável no PR #1283 avaliou o HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239`: nenhuma falha funcional bloqueante identificada; dois P2 documentais:
 
 - **P2-1:** cabeçalho de `R2_REFERENCE_MODEL.md` desatualizado. Corrigido no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`.
-- **P2-2:** o closeout vinculava os critérios a SHA/artefatos anteriores. Corrigido nesta revisão do closeout: identifica o SHA do parecer, CI #10790, artifacts Linux/Windows e SHA-256 corrente do mutation runner. O pacote documental atualizado será validado pelo CI acionado pela mudança da PR.
+- **P2-2:** o closeout vinculava os critérios a SHA/artefatos anteriores. Corrigido nesta revisão do closeout: identifica o SHA do parecer, CI #10790, artifacts Linux/Windows e SHA-256 corrente do mutation runner. O pacote documental atualizado foi validado pelo CI #10798 SUCCESS no HEAD final `a858f8f21caece3567385d64745823c655dbd135`.
 
 O parecer não autorizou merge antes dessas correções e revalidação; a aprovação explícita do responsável foi concedida depois do parecer nesta conversa.
 
@@ -125,6 +125,6 @@ O parecer não autorizou merge antes dessas correções e revalidação; a aprov
 **Implementação executável R2-T01–T15: COMPLETA E REVISADA.**
 **Gate formal R2: APROVADO e MERGED em 25/11/2026.** Merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`; CI #10798 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45680669533).**
 
-Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout revisado para identificar o parecer, CI #10790, artifacts e hash do mutation runner. CI #10790 valida o código do HEAD revisado `ad8cbbe`; as alterações documentais posteriores exigem CI próprio.
+Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout vinculado ao parecer, CI #10790, artifacts e hash do mutation runner. As atualizações documentais foram revalidadas pelo CI #10798 SUCCESS.
 
-R2 foi encerrado e publicado. R3 está iniciado na branch `research/chronos-r3-disposable-prototypes`; R3 limita-se a protótipos temporais descartáveis, comparação de alternativas e benchmarks reproduzíveis. R4–R5 continuam obrigatórios; nenhuma implementação de produção CHRONOS/V2 antes de R5.
+R2 foi encerrado e publicado. R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`, limitado a protótipos temporais descartáveis, comparação de alternativas e benchmarks reproduzíveis. R4–R5 continuam obrigatórios; nenhuma implementação de produção CHRONOS/V2 antes de R5.
