@@ -388,6 +388,9 @@ def cancel_deadline(
 
 def arbitrate_cancellations(book: DeadlineBook) -> DeadlineEvaluation:
     """Apply all admitted cancellations before W may close their deadline."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     next_book = book
     for request in book.pending_cancellations:
         deadline = _find(next_book, request.identity, request.generation)
@@ -421,6 +424,9 @@ def _causal_order_is_known(group: list[Deadline]) -> bool:
 
 def close_watermark(book: DeadlineBook, target_common: Fraction) -> DeadlineEvaluation:
     """Close W only after cancellation arbitration and causal tie validation."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     if not _exact(target_common):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
                                   "watermark target must be exact")
@@ -510,6 +516,9 @@ def dispatch_deadline(
     book: DeadlineBook, *, identity: str, generation: int
 ) -> DeadlineEvaluation:
     """Dispatch only a claimed current generation; repeated dispatch is idempotent."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     deadline = _find(book, identity, generation)
     if deadline is None:
         return DeadlineEvaluation(book, DeadlineCode.STALE_IGNORED,
@@ -531,6 +540,9 @@ def complete_deadline(
     book: DeadlineBook, *, identity: str, generation: int
 ) -> DeadlineEvaluation:
     """Record completion without allowing a second dispatch."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     deadline = _find(book, identity, generation)
     if deadline is None or deadline.status is not DeadlineStatus.DISPATCHED:
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
@@ -554,6 +566,9 @@ def schedule_microstep(
     commutative: bool = False,
 ) -> DeadlineEvaluation:
     """Admit a same-instant child only with finite, strictly increasing microstep."""
+    book_error = _validate_book(book)
+    if book_error is not None:
+        return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT, book_error)
     if (
         not _exact(at_common)
         or not isinstance(current_microstep, int)
