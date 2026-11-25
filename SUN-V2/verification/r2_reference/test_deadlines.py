@@ -306,6 +306,29 @@ class R2BCancellationRaceTests(unittest.TestCase):
         self.assertEqual(result.code, DeadlineCode.INDETERMINATE)
         self.assertEqual(result.book, initial)
 
+    def test_non_exact_clock_coordinates_are_invalid_input_before_comparison(self):
+        valid = machine(participants=("cpu", "vdp"))
+        initial = publish(DeadlineBook(), valid, at=10).book
+        for field in ("local_to_common", "common_offset", "progress_local"):
+            with self.subTest(field=field):
+                domains = list(valid.domains)
+                domains[1] = replace(domains[1], **{field: 1.5})
+                malformed = replace(valid, domains=tuple(domains))
+
+                published = publish_deadline(
+                    DeadlineBook(), malformed, owner="cpu", identity="evt",
+                    generation=1, at_common=Fraction(10), effect_id="fx",
+                )
+                cancelled = cancel_deadline(
+                    initial, malformed, owner="cpu", identity="evt",
+                    generation=1, at_common=Fraction(4),
+                )
+
+                self.assertEqual(published.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(published.book, DeadlineBook())
+                self.assertEqual(cancelled.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(cancelled.book, initial)
+
     def test_cancel_frontier_rejects_disagreeing_watermarks_without_mutation(self):
         initial = publish(DeadlineBook(), machine(), at=10).book
         inconsistent = machine(watermark=1)
@@ -814,6 +837,34 @@ class R2BMicrostepTests(unittest.TestCase):
         )
         self.assertEqual(exhausted.code, DeadlineCode.RESOURCE_EXHAUSTED)
         self.assertEqual(exhausted.book, before)
+
+    def test_invalid_microstep_descriptors_are_invalid_input_without_exception(self):
+        book = DeadlineBook()
+        cases = (
+            {"owner": []},
+            {"identity": []},
+            {"generation": True},
+            {"effect_id": []},
+            {"at_common": 5.0},
+            {"current_microstep": -1},
+            {"current_microstep": 0.5},
+            {"commutative": 1},
+        )
+        for overrides in cases:
+            with self.subTest(overrides=overrides):
+                arguments = {
+                    "owner": "cpu",
+                    "identity": "child",
+                    "generation": 1,
+                    "at_common": Fraction(5),
+                    "effect_id": "child-effect",
+                    "current_microstep": 0,
+                    "commutative": False,
+                }
+                arguments.update(overrides)
+                result = schedule_microstep(book, **arguments)
+                self.assertEqual(result.code, DeadlineCode.INVALID_INPUT)
+                self.assertEqual(result.book, book)
 
     def test_active_deadline_view_is_stable_and_excludes_cancelled(self):
         book = publish(DeadlineBook(), machine(), identity="z", at=12).book
