@@ -57,10 +57,14 @@ def run_mutant(
         )
     output = completed.stdout + completed.stderr
     target_name = target_test.rsplit(".", 1)[-1]
-    expected_assertion = any(
-        line.startswith(f"FAIL: {target_name} (")
-        for line in output.splitlines()
-    ) and "AssertionError" in output
+    target_marker = f"FAIL: {target_name} ("
+    target_position = output.find(target_marker)
+    next_failure = output.find("\\nFAIL: ", target_position + 1) if target_position >= 0 else -1
+    target_failure = (
+        output[target_position:next_failure if next_failure >= 0 else None]
+        if target_position >= 0 else ""
+    )
+    expected_assertion = target_position >= 0 and "AssertionError" in target_failure
     killed = completed.returncode != 0 and expected_assertion
     diagnostic_lines = [
         line.strip()
@@ -76,6 +80,8 @@ def run_mutant(
         "mutant_sha256": sha256(mutated.encode("utf-8")),
         "exit_code": completed.returncode,
         "first_divergence": diagnostic_lines[:3],
+        "target_test_failed_by_assertion": expected_assertion,
+        "target_test_failure_excerpt": target_failure[-1800:],
         "trace": ["full-suite", target_test],
         "minimal_state": {
             "kind": "hand-authored boundary fixture",
