@@ -15,6 +15,7 @@ from p_a_transactions import (
     consume_tw, enter_waiting, fail, reach_next_marker, recover,
     release_waiting, sample_marker, start, submit,
 )
+from trace_fixture_support import record_differential
 from transaction_reference import (
     Marker as R2Marker, MarkerKind as R2MarkerKind,
     TransactionBook as R2Book, TransactionSpec as R2Spec,
@@ -108,6 +109,21 @@ class PATransactionTests(unittest.TestCase):
         )
         self.assertEqual(canonical_tx(actual.transaction), canonical_tx(expected.transaction))
         self.assertEqual(actual.value, expected.value)
+        record_differential(
+            self.id(),
+            (
+                actual.code.value,
+                tuple(canonical_tx(tx) for tx in actual.book.transactions),
+                canonical_tx(actual.transaction),
+                actual.value,
+            ),
+            (
+                expected.code.value,
+                tuple(canonical_tx(tx) for tx in expected.book.transactions),
+                canonical_tx(expected.transaction),
+                expected.value,
+            ),
+        )
 
     def pair(self, operation, reference, book, *args, **kwargs):
         actual = operation(book, *args, **kwargs)
