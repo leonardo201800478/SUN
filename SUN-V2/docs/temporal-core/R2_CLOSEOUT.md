@@ -54,7 +54,7 @@ Os critérios abaixo reproduzem R2_REFERENCE_MODEL.md §9. PASS significa evidê
 1. `request.at_common < deadline.at_common` → `<=`, verificando que C=D não é classificado como C<D.
 2. `IndeterminateCausalOrder` → `LateInput` para C=D sem relação causal, verificando a classe normativa de igualdade UNKNOWN.
 
-Para cada mutante, o runner executa a suíte unittest completa na cópia mutada. O mutante só é **KILLED** quando a suíte inteira retorna falha e o teste discriminante esperado falha por AssertionError; erro de importação ou falha incidental não conta. Mutante sobrevivente ou âncora não encontrada faz o runner falhar.
+Para cada mutante, o runner executa a suíte unittest completa na cópia mutada. O mutante só é **KILLED** quando a suíte inteira retorna falha e o bloco de falha do próprio teste discriminante contém AssertionError; erro de importação ou AssertionError de outro teste não conta. O JSON separa primeira divergência e falha do teste-alvo. Mutante sobrevivente ou âncora não encontrada faz o runner falhar.
 
 ### 2.2 Permutações de ordem parcial
 
