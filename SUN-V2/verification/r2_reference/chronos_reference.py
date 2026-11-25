@@ -99,15 +99,30 @@ def _is_exact_time(value: object) -> bool:
 
 def _validate_state(state: ReferenceState) -> str | None:
     """Return a deterministic invariant/input error, or None when valid."""
-    if not state.profile:
+    if not isinstance(state, ReferenceState):
+        return "reference state has an invalid type"
+    if not isinstance(state.profile, str) or not state.profile.strip():
         return "profile must be non-empty"
+    if not isinstance(state.domains, tuple) or any(
+        not isinstance(domain, ClockDomain) for domain in state.domains
+    ):
+        return "domain collection must contain only ClockDomain entries"
+    if not isinstance(state.expected_participants, frozenset) or any(
+        not isinstance(item, str) or not item.strip()
+        for item in state.expected_participants
+    ):
+        return "expected participant collection must contain non-empty string identities"
+    if not isinstance(state.obligations, tuple) or any(
+        not isinstance(item, Obligation) for item in state.obligations
+    ):
+        return "obligation collection must contain only Obligation entries"
     # Validate the watermark before any incomplete-participant early return can
     # expose it as a blocked-progress coordinate.
     if state.watermark_common is not None and not _is_exact_time(state.watermark_common):
         return "watermark must use exact integer/rational time"
     ids = [domain.domain_id for domain in state.domains]
-    if any(not item for item in ids):
-        return "domain identity must be non-empty"
+    if any(not isinstance(item, str) or not item.strip() for item in ids):
+        return "domain identity must be a non-empty string"
     if len(ids) != len(set(ids)):
         return "duplicate domain identity"
     for domain in state.domains:
@@ -133,6 +148,11 @@ def _validate_state(state: ReferenceState) -> str | None:
         for item in state.obligations
     ):
         return "obligation owner must be non-empty"
+    if any(
+        not isinstance(item.resolved, bool) or not isinstance(item.commutative, bool)
+        for item in state.obligations
+    ):
+        return "obligation flags must be boolean"
     if len(obligation_ids) != len(set(obligation_ids)):
         return "duplicate obligation identity"
     if any(not _is_exact_time(item.at_common) for item in state.obligations):
@@ -189,7 +209,8 @@ def advance(state: ReferenceState, target_common: Fraction) -> AdvanceEvaluation
     if not _is_exact_time(target_common):
         known_watermark = (
             state.watermark_common
-            if _is_exact_time(state.watermark_common)
+            if isinstance(state, ReferenceState)
+            and _is_exact_time(state.watermark_common)
             else Fraction(0)
         )
         return AdvanceEvaluation(
