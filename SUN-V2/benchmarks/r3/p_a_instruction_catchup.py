@@ -149,19 +149,14 @@ def advance_budgeted(
         set(state.expected_participants)
         if state.expected_participants is not None else actual_participants
     )
-    if expected_participants - actual_participants:
-        return AResult(
-            "Blocked", Fraction(target), known_watermark, "IncompleteParticipantSet",
-            0, 0, 0, 0, state,
-        )
-    if not state.participants:
-        return AResult(
-            "Blocked", Fraction(target), known_watermark, "NoParticipants",
-            0, 0, 0, 0, state,
-        )
     frontier = _common_frontier(state)
-    safe_horizon = min(item.safe_horizon for item in state.participants)
-    if safe_horizon < frontier:
+    safe_horizon = (
+        min(item.safe_horizon for item in state.participants)
+        if state.participants else None
+    )
+    # Match R2's one-sided invariant checks even while the declared participant
+    # set is incomplete; only A(E)/advance remain blocked by missing domains.
+    if safe_horizon is not None and safe_horizon < frontier:
         return AResult(
             "InvariantViolation", Fraction(target), known_watermark,
             "SafeHorizonBehindMachineFrontier",
@@ -179,6 +174,17 @@ def advance_budgeted(
             "UnresolvedObligationBehindMachineFrontier",
             0, 0, 0, 0, state,
         )
+    if expected_participants - actual_participants:
+        return AResult(
+            "Blocked", Fraction(target), known_watermark, "IncompleteParticipantSet",
+            0, 0, 0, 0, state,
+        )
+    if not state.participants:
+        return AResult(
+            "Blocked", Fraction(target), known_watermark, "NoParticipants",
+            0, 0, 0, 0, state,
+        )
+    assert safe_horizon is not None
     if target < frontier:
         return AResult(
             "LateInput", Fraction(target), frontier, "TargetBeforeFrontier",
