@@ -56,7 +56,12 @@ def run_mutant(
             check=False,
         )
     output = completed.stdout + completed.stderr
-    killed = completed.returncode != 0
+    target_name = target_test.rsplit(".", 1)[-1]
+    expected_assertion = any(
+        line.startswith(f"FAIL: {target_name} (")
+        for line in output.splitlines()
+    ) and "AssertionError" in output
+    killed = completed.returncode != 0 and expected_assertion
     diagnostic_lines = [
         line.strip()
         for line in output.splitlines()
