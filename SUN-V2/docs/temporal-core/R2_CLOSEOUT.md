@@ -1,6 +1,6 @@
 # SUN V2 — CHRONOS R2 implementation closeout
 
-**Status:** IMPLEMENTAÇÃO EXECUTÁVEL R2-T01–T15 COMPLETA E VALIDADA EM LINUX/WINDOWS; **GATE FORMAL R2 NÃO APROVADO**.
+**Status:** implementação R2-T01–T15 revisada independentemente; findings P2 documentais corrigidos; validação do SHA documental final pendente. **Aprovação explícita do responsável registrada; gate R2 será efetivado após CI final verde.**
 **R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
 **R2:** issue #1282; PR #1283 permanece aberta, em revisão/fechamento documental, sem merge.
 **R3:** protótipos descartáveis autorizados somente após fechamento dos dois P2 documentais, revalidação do SHA final e registro formal da aprovação R2 pelo responsável. **R4–R5:** bloqueados. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
@@ -38,14 +38,14 @@ Os critérios abaixo reproduzem R2_REFERENCE_MODEL.md §9. PASS significa evidê
 
 | Critério | Evidência exigida | Estado atual |
 |---|---|---|
-| **R2-EXIT-01 — T01–T15 reproduzíveis** | Casos positivos, negativos e de fronteira aplicáveis, vinculados ao SHA exato; Linux e Windows do runner Python | **PASS — CI #10785, SHA exato 56d2a85c26fc3f0d7685bb8566af64a445e9b54b** |
-| **R2-EXIT-02 — independência do oráculo** | Separação do código V1/produção e da representação candidata; inspeção adversarial da independência | **PARCIAL — isolamento estrutural PASS; revisão independente de correção/circularidade pendente** |
+| **R2-EXIT-01 — T01–T15 reproduzíveis** | Casos positivos, negativos e de fronteira aplicáveis, vinculados ao SHA exato; Linux e Windows do runner Python | **PASS — CI #10790, SHA exato `ad8cbbe50a82334b8ee873351dda65b26459e239`; 256/256 em Linux e Windows, mutation PASS.** |
+| **R2-EXIT-02 — independência do oráculo** | Separação do código V1/produção e da representação candidata; inspeção adversarial da independência | **PASS no escopo da revisão: parecer independente do responsável em `ad8cbbe50a82334b8ee873351dda65b26459e239`, sem findings funcionais bloqueantes nesta passada.** |
 | **R2-EXIT-03 — rastreabilidade R1** | Matriz Txx → seção R1 → Cxx → testes e classes de caso | **PASS — R2_TRACEABILITY.md publicada** |
 | **R2-EXIT-04 — UNKNOWN preservado** | Testes de simultaneidade, fase, WAIT, commit e snapshot sem precedência presumida | **PASS — 256/256 Linux e Windows** |
 | **R2-EXIT-05 — snapshot/restore/replay/exactly-once** | Cortes suportados/não suportados, ledger e ausência de mutação/repetição | **PASS — 256/256 Linux e Windows** |
 | **R2-EXIT-06 — contraexemplo mínimo reproduzível** | Seed, trace, primeira divergência e estado mínimo; redução determinística quando a entrada é gerada | **PASS no escopo implementado — JSON, seeds, traces, primeira divergência e redução de cortes T02; fixtures fixas identificadas pelo teste** |
 | **R2-EXIT-07 — revisão independente sem blockers** | Codex revisando SHA final exato, findings respondidos e threads justificadamente encerradas; passada humana adversarial | **PENDENTE — Codex atingiu limite de uso; revisão humana externa ainda necessária** |
-| **R2-EXIT-08 — aprovação explícita** | Decisão explícita do responsável após os critérios anteriores | **PENDENTE — aprovação explícita registrada em conversa pelo responsável; fica efetivada após os dois P2 documentais corrigidos e revalidação do SHA resultante.** |
+| **R2-EXIT-08 — aprovação explícita** | Decisão explícita do responsável após os critérios anteriores | **PASS — aprovação explícita concedida pelo responsável nesta conversa em 25/11/2026, após o parecer independente; efetivação vinculada à validação CI do SHA documental final.** |
 
 ### 2.1 Mutação deliberada
 
@@ -101,17 +101,28 @@ As fixtures manuais são reproduzidas pelo ID do teste e pelo estado construído
 
 ## 5. Histórico de revisão e findings
 
-- A revisão independente do responsável foi registrada como parecer na PR #1283 em 25/11/2026 às 18:55 UTC, ancorada no HEAD exato `ad8cbbe50a82334b8ee873351dda65b26459e239`. Não apontou finding funcional bloqueante nesta passada. Identificou dois P2 documentais descritos abaixo. As tentativas de revisão Codex continuaram sem parecer por `usage limit reached`; o parecer humano é o gate review relevante e foi efetivamente fornecido.
+- A revisão independente do responsável foi registrada como parecer na PR #1283 em 25/11/2026 às 18:55 UTC, ancorada no HEAD exato `ad8cbbe50a82334b8ee873351dda65b26459e239`. Não apontou finding funcional bloqueante nesta passada. Identificou dois P2 documentais descritos abaixo. O parecer humano foi efetivamente fornecido; revisão automática Codex não foi obtida por limite de uso e não é tratada como evidência.
 - Os 11 threads P2 pendentes foram respondidos com SHA, testes e CI #10783 e resolvidos; todos os findings P2 conhecidos estão fechados no PR. Isso registra correção e revalidação manual, não substitui revisão independente da PR completa.
 - A passada adversarial interna encontrou e corrigiu: (a) ordenação de irmãos comutativos em ordem parcial; (b) ledgers causais pré-aplicados com owner/progresso/dependência/ciclo inconsistentes; (c) imports ausentes no conjunto de permutações; (d) possibilidade de falso positivo no mutation kill report, agora vinculado ao bloco AssertionError do teste-alvo.
 - **P2-1 (R2_REFERENCE_MODEL.md):** cabeçalho histórico dizia T01–T04 parciais. Corrigido no commit documental `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`, agora declara T01–T15 concluídos para revisão externa e gate formal não aprovado.
 - **P2-2 (este closeout):** precisava ligar critérios e artefatos ao HEAD que o parecer revisou, registrar os hashes correntes, a evidência do CI #10790 e o próprio parecer. Esta atualização faz essa vinculação. A revalidação do novo SHA documental é obrigatória antes da efetivação do gate.
 
+
+
+## 5.1 Disposição do parecer independente — 25/11/2026
+
+O parecer do responsável no PR #1283 avaliou o HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239`: nenhuma falha funcional bloqueante identificada; dois P2 documentais:
+
+- **P2-1:** cabeçalho de `R2_REFERENCE_MODEL.md` desatualizado. Corrigido no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`.
+- **P2-2:** o closeout vinculava os critérios a SHA/artefatos anteriores. Corrigido nesta revisão do closeout: identifica o SHA do parecer, CI #10790, artifacts Linux/Windows e SHA-256 corrente do mutation runner. O próprio commit documental será validado por CI.
+
+O parecer não autorizou merge antes dessas correções e revalidação; a aprovação explícita do responsável foi concedida depois do parecer nesta conversa.
+
 ## 6. Decisão
 
-**Implementação executável R2-T01–T15: COMPLETA PARA VALIDAÇÃO EXTERNA.**
-**Gate formal R2: APROVAÇÃO DO RESPONSÁVEL REGISTRADA; efetivação condicionada à revalidação CI do HEAD documental que encerra P2-1/P2-2.**
+**Implementação executável R2-T01–T15: COMPLETA E REVISADA.**
+**Gate formal R2: APROVAÇÃO DO RESPONSÁVEL REGISTRADA; validação CI do SHA documental final pendente.**
 
 A sequência de fechamento é: validar este closeout atualizado contra o SHA documental corrente; executar CI no novo HEAD; confirmar os dois P2 como corrigidos e sem regressão; então registrar R2 como aprovado conforme parecer independente e aprovação explícita do responsável. A evidência de execução é CI #10790 no HEAD revisado `ad8cbbe`; alterações documentais posteriores precisam de sua própria validação. O parecer independente não detectou blockers funcionais, mas condicionou o encerramento à correção dos dois P2.
 
-Até essa aprovação, PR #1283 permanece Draft, R3–R5 permanecem bloqueados e nenhum código de produção CHRONOS/V2 pode ser iniciado.
+Após CI verde do SHA documental final, atualizar issue/PR para R2 APROVADO, publicar PR #1283 na `main` e abrir o trabalho R3 em branch própria. R3 limita-se a protótipos descartáveis e benchmarks comparáveis; nenhuma implementação de produção CHRONOS/V2 antes de R5.
