@@ -8,8 +8,12 @@ From this directory, run:
 
     python run_reference_tests.py
 
+The pinned runner executes the unit suite in a deterministic seed-shuffled order, runs deliberate mutation checks for the strict C<D boundary and C=D UNKNOWN classification, and emits a JSON report. Set `R2_RESULT_PATH` to persist the JSON report as an artifact.
+
 The runner records:
 - Git repository HEAD SHA and clean-worktree status;
+- deterministic test-order seed, executed test trace, first divergence and minimal reproducer when a test fails;
+- deliberate mutation results, including target test, mutated source SHA-256 and first failing assertion;
 - SHA-256 of every executable reference-model module, the runner and every discovered test module;
 - Python version and platform;
 - test-suite result.
@@ -22,7 +26,7 @@ No third-party dependencies are required. The model uses exact rational arithmet
 
 ## Current candidate coverage
 
-The current candidate contains **251 deterministic tests** across 13 modules. The suites are test-only, use exact rational/integer coordinates, and do not import production CHRONOS/V2 code.
+The current candidate contains **255 deterministic tests** across 13 modules. The suites are test-only, use exact rational/integer coordinates, and do not import production CHRONOS/V2 code.
 
 | Test module | Cases | R2 coverage |
 |---|---:|---|
@@ -30,7 +34,7 @@ The current candidate contains **251 deterministic tests** across 13 modules. Th
 | `test_deadlines.py` | 78 | T06 and deadline portions of T07/T14: publication/cancellation/claim races, generations, W/A(E), C/D ordering, explicit phase evidence, microsteps, permutation and delayed dispatch |
 | `test_microsteps.py` | 5 | T14: finite same-instant obligation cycles, no-progress idempotence, child emission, exhaustion atomicity and UNKNOWN ordering |
 | `test_causal.py` | 12 | T05 and T07: declared participants, observation/commit cutoffs, dependency closure/cycles, no speculative progress, same-instant dependency ordering and commutativity |
-| `test_partial_order.py` | 2 | T07: phase evidence mismatch and permutation of simultaneous non-commutative UNKNOWN ties |
+| `test_partial_order.py` | 6 | T07: phase evidence mismatch; exhaustive 120-permutation families for five commutative events, five non-commutative UNKNOWN events, five-event dependency chain and partial order with commutative siblings |
 | `test_transaction.py` | 18 | T08: all transaction states, retry identity, sample/commit exactly-once, cancellation, partial failure and explicit recovery |
 | `test_wait.py` | 11 | T09: automatic Z80 TW versus external/fixture WAIT, repeated sampling and UNKNOWN preservation |
 | `test_irq.py` | 17 | T10: INT/NMI sample points, NMI falling edge, EI delay, acknowledge vector and independent device commit |
@@ -39,11 +43,11 @@ The current candidate contains **251 deterministic tests** across 13 modules. Th
 | `test_host.py` | 12 | T13: host queue, drain/drop, underrun/overrun, VSync, device recreation and integer-output chunk invariance |
 | `test_resource.py` | 10 | T15: finite capacity, ResourceExhausted atomicity, exact reservation identity, partial effects and recovery |
 | `test_atomicity.py` | 10 | T15: cross-subsystem error precedence, no-partial-mutation, LateInput, Indeterminate, UnsupportedSnapshot and IncompatibleSnapshot |
-| **Total** | **251** | **R2-T01–T15 executable coverage present** |
+| **Total** | **255** | **R2-T01–T15 coverage present; strengthened candidate CI pending** |
 
-The dedicated runner records the repository HEAD, clean-worktree status, SHA-256 for each reference model/runner/test module, Python version, platform and result. The pinned runner is executed twice from the same checkout; CI also executes the exact `python -m unittest -v` command. A skipped Rust, Windows or hardware job is never reported as PASS.
+The dedicated runner records the repository HEAD, clean-worktree status, SHA-256 for each reference model/runner/test module, Python version, platform, seed, ordered test trace, first divergence, minimal reproducer and mutation outcomes. Its seed shuffles test execution order deterministically; the model inputs remain fixed or exhaustively enumerated. Seeded generated failures include the operation trace and a deterministic deletion-minimized partition state. The pinned runner is executed twice from the same checkout; CI also executes the exact `python -m unittest -v` command on Linux and Windows. A skipped Rust, Windows or hardware job is never reported as PASS.
 
-**Current implementation candidate:** R2-T01–T15 have executable coverage and passed CI #10748 on code/test SHA `145109df6b3b32db29c3c4a7db895bd505748864` (251/251). The documentation HEAD `4da266eb230aa6d597aff1e76b2f3fd406dd8d75` also passed CI #10750 (251/251; Actionlint, documentation hygiene and Rust quality supervisor PASS). The R2 implementation package is complete for external validation. This does **not** constitute formal R2 gate approval: independent external review and explicit owner approval remain pending. R3–R5 remain blocked; PR #1283 remains Draft and unmerged.
+**Previous validated baseline:** 251/251 passed CI #10751 on documentation HEAD `96e263ea8cf0c4b87ffd66ad870ba21c108c72de`. This baseline predates exhaustive five-event permutations, mutation checks, seeded JSON diagnostics, LF pinning and the Windows R2 runner. The strengthened 255-test candidate is awaiting its own CI; do not reuse the prior PASS for the new SHA. This does **not** constitute formal R2 gate approval: independent external review and explicit owner approval remain pending. R3–R5 remain blocked; PR #1283 remains Draft and unmerged.
 
 **Earlier executed candidate:** 24 tests PASS in CI #10619 on Git SHA `a0c0782ff4d8e9886144b20bde36e42bcc6f1eff`, with oracle SHA-256 `160489b753575f0e7fcb12892eb58f7199a1dc5828c5bb4f13c266f557ba001a`, Python 3.14.4, Linux x86_64. This is historical evidence for that exact candidate only.
 
