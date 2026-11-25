@@ -250,6 +250,24 @@ def _validate_book_state(
             DeadlineCode.INVALID_INPUT,
             "scheduled deadline is at or behind the already closed watermark",
         )
+    claimed_states = (
+        DeadlineStatus.CLAIMED,
+        DeadlineStatus.DISPATCHED,
+        DeadlineStatus.COMPLETED,
+        DeadlineStatus.FAILED,
+    )
+    if any(
+        item.status in claimed_states
+        and (
+            book.watermark_common is None
+            or item.at_common > book.watermark_common
+        )
+        for item in book.deadlines
+    ):
+        return (
+            DeadlineCode.INVARIANT_VIOLATION,
+            "claimed or processed deadline is beyond the closed watermark",
+        )
     for request in book.pending_cancellations:
         deadline = _find(book, request.identity, request.generation)
         assert deadline is not None  # guaranteed by _validate_book()
