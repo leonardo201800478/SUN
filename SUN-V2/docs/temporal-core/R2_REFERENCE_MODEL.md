@@ -399,3 +399,15 @@ A suíte candidata foi ampliada para 57 testes (30 casos parciais no slice R2-B)
 - SHA-256: `chronos_reference.py` = `41ee0d615996c8003c289eb113623873ecaa8b1a6e852a33a47f1510c354ccd1`; `deadline_reference.py` = `8ac62f8985c8fa56d448c21e6a2f8199151b8807b07fa2fb79c209ba034e7f99`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `1bff8aab0661e392017166b50165e77b8a4840b473e4f9a69565830b9e84c5ca`; `test_temporal_core.py` = `ad4dbc4c7df135db34cea71cecbeae30149a1bca87f51ca7c5704b95212c8eef`.
 - Actionlint, higiene documental e Rust quality/unit regression: PASS. Jobs de hardware/Windows: SKIPPED, não PASS.
 - Esta evidência está vinculada somente ao SHA executado. A atualização documental subsequente precisa de sua própria CI/revisão; nenhuma conclusão de gate é inferida.
+
+
+### 8.1.5 Precedência explícita de W fechado sobre empate e cancelamento anterior
+
+A auditoria complementar da matriz R1 §16.5.13(13) observou que os testes existentes cobriam `C=D) com `W) ausente e `W<D), mas não isolavam os ramos `W=D), `W>D) e `C<D) recebido depois de `W>=D). O código já rejeita esses casos pela precedência `C<=A(E)), pois `A(E)` inclui `W); foram acrescentados testes discriminantes para tornar a regra verificável e impedir regressão.
+
+- `C=D) com `W=D) ou `W>D` -> `LateInput`, sem mutação.
+- `C<D) recebido quando `W>=D` -> `LateInput`, sem mutação.
+- Os casos `C=D) sem `W) e com `W<D` continuam `IndeterminateCausalOrder` sem relação causal/microstep explícita.
+- `C>D) continua sem suprimir o deadline.
+
+**Estado:** testes candidatos; requerem CI e revisão independente no novo HEAD. Não alteram contratos R1, não completam T06/T07/T14 e não autorizam R3, produção ou merge.
