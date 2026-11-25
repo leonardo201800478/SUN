@@ -17,6 +17,17 @@ import tracemalloc
 from fractions import Fraction
 from pathlib import Path
 
+
+def cpu_clock_resolution_ns() -> int | None:
+    start_wall = time.perf_counter_ns()
+    start_cpu = time.thread_time_ns()
+    while time.perf_counter_ns() - start_wall < 100_000_000:
+        current = time.thread_time_ns()
+        if current > start_cpu:
+            return current - start_cpu
+    return None
+
+
 from p_a_instruction_catchup import (
     AObligation, AParticipant, AState, advance_budgeted, state_digest,
 )
@@ -58,7 +69,7 @@ def percentile(values: list[float], p: float) -> float:
     return ordered[lo] * (1 - fraction) + ordered[hi] * fraction
 
 
-def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: int, repeats: int):
+def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: int, repeats: int, cpu_time_enabled: bool):
     state = build_state(domains, obligations, density)
     target = Fraction(50_000)
     chunk_value = Fraction(chunk)
@@ -72,9 +83,9 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
     final_counters = None
     for _ in range(repeats):
         wall_start = time.perf_counter_ns()
-        cpu_start = time.thread_time_ns()
+        cpu_start = time.thread_time_ns() if cpu_time_enabled else 0
         result = advance_budgeted(state, target=target, chunk=chunk_value)
-        samples_cpu_ns.append(time.thread_time_ns() - cpu_start)
+        samples_cpu_ns.append(time.thread_time_ns() - cpu_start if cpu_time_enabled else None)
         samples_wall_ns.append(time.perf_counter_ns() - wall_start)
         digest = state_digest(result.next_state)
         if final_digest is None:
@@ -100,7 +111,7 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
         raise RuntimeError("allocation probe changed the deterministic output")
 
     mean_wall_ns = statistics.fmean(samples_wall_ns)
-    mean_cpu_ns = statistics.fmean(samples_cpu_ns)
+    mean_cpu_ns = statistics.fmean(samples_cpu_ns) if cpu_time_enabled else None
     scan_entries = (
         final_counters["participants_inspected"]
         + final_counters["obligations_inspected"]
@@ -121,14 +132,14 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
             "mean": mean_wall_ns,
         },
         "samples_cpu_ns": samples_cpu_ns,
-        "summary_cpu_ns": {
+        "summary_cpu_ns": ({
             "min": min(samples_cpu_ns),
             "p50": percentile(samples_cpu_ns, 0.50),
             "p95": percentile(samples_cpu_ns, 0.95),
             "p99": percentile(samples_cpu_ns, 0.99),
             "max": max(samples_cpu_ns),
             "mean": mean_cpu_ns,
-        },
+        } if cpu_time_enabled else None),
         "peak_tracemalloc_bytes_separate_probe": peak_bytes,
         "inspected_entries_per_second": (
             scan_entries * 1_000_000_000 / mean_wall_ns if mean_wall_ns > 0 else 0
@@ -154,6 +165,8 @@ def main() -> int:
     if args.warmup < 0 or args.repeats <= 0:
         parser.error("warmup must be >=0 and repeats must be >0")
 
+    cpu_resolution = cpu_clock_resolution_ns()
+    cpu_time_enabled = cpu_resolution is not None and cpu_resolution <= 1_000_000
     points = []
     for domains in map(int, args.domains.split(",")):
         for obligations in map(int, args.obligations.split(",")):
@@ -166,7 +179,7 @@ def main() -> int:
                         parser.error("density must be none, sparse or dense")
                     points.append(run_point(
                         domains, obligations, density, chunk,
-                        args.warmup, args.repeats,
+                        args.warmup, args.repeats, cpu_time_enabled,
                     ))
 
     report = {
@@ -178,6 +191,8 @@ def main() -> int:
         "platform": platform.platform(),
         "processor": platform.processor(),
         "cpu_clock": "time.thread_time_ns",
+        "cpu_clock_resolution_ns": cpu_resolution,
+        "cpu_time_status": "MEASURED" if cpu_time_enabled else "SKIPPED_COARSE_RESOLUTION",
         "pythonhashseed": os.environ.get("PYTHONHASHSEED", "unset"),
         "warmup": args.warmup,
         "repeats": args.repeats,
