@@ -188,8 +188,14 @@ class R2BCancellationRaceTests(unittest.TestCase):
         current_state = make_state(
             profile="SMS-NTSC-ABSTRACT",
             domains=[
-                ClockDomain("cpu", Fraction(1), progress_local=Fraction(0)),
-                ClockDomain("vdp", Fraction(1), progress_local=Fraction(5)),
+                ClockDomain(
+                    "cpu", Fraction(1), progress_local=Fraction(0),
+                    horizon_local=Fraction(100),
+                ),
+                ClockDomain(
+                    "vdp", Fraction(1), progress_local=Fraction(5),
+                    horizon_local=Fraction(100),
+                ),
             ],
             expected_participants=("cpu", "vdp"),
         )
