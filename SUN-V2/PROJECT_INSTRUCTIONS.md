@@ -59,14 +59,15 @@ Estruturas de referência, quando aplicáveis, incluem `native/sega_desktop`, `n
 
 ## 3. Gates obrigatórios do SUN V2
 
-A ordem abaixo é mandatória. Não pular gates, antecipar protótipos nem declarar aprovação por compilação.
+A ordem abaixo é mandatória. Não pular gates nem declarar aprovação por compilação. R2 está aprovado; R3 está autorizado como experimento descartável.
 
 | Gate | Objetivo | Regra de passagem |
 |---|---|---|
 | **R0 — pesquisa e evidências** | Inventário V1, fontes primárias, clocks, limites observáveis, incertezas e referências comparativas | Fechado no escopo documental em 24/11/2026. Ver `SUN-V2/docs/temporal-core/R0_CLOSEOUT.md` e issue #1267. |
 | **R1 — contratos temporais** | Definir semântica normativa e verificável para tempo, conversões, avanço limitado, causalidade, deadlines, transações, WAIT, IRQ/NMI, snapshots e erros | **APROVADO em 24/11/2026.** Conteúdo v0.3.18 aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado pela PR #1281 (merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); issue #1270 encerrada. |
-| **R2 — modelo de referência independente** | Oráculo simples e independente, propriedades executáveis, cenários adversariais e reprodução determinística | **IMPLEMENTAÇÃO T01–T15 COMPLETA E VALIDADA; GATE FORMAL PENDENTE.** CI #10785 validou 256/256 Linux e Windows, mutation tests full-suite, JSON e EOL LF. Matriz de rastreabilidade e closeout publicados; os 11 findings P2 conhecidos foram respondidos e resolvidos. Revisão Codex do SHA final foi bloqueada pelo limite de uso; revisão humana externa e aprovação explícita ainda faltam. Não iniciar R3 até revisão externa sem blockers e aprovação explícita do responsável. |
-| **R3 — protótipos descartáveis** | Comparar alternativas temporais e custo com testes equivalentes | Só iniciar após R1 e R2 aprovados. Protótipos não são código de produção. |
+| **R2 — modelo de referência independente** | Oráculo simples e independente, propriedades executáveis, cenários adversariais e reprodução determinística | **APROVADO E MERGED.** Parecer independente do responsável para o SHA `ad8cbbe50a82334b8ee873351dda65b26459e239`, dois P2 documentais corrigidos; CI #10798 SUCCESS no HEAD documental `a858f8f21caece3567385d64745823c655dbd135`, 256/256 Linux e Windows, mutation PASS, JSON e worktrees CLEAN. PR #1283 merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`. |
+| **R3 — protótipos descartáveis** | Comparar alternativas temporais e custo com testes equivalentes | **EM ANDAMENTO** na branch `research/chronos-r3-disposable-prototypes`. Apenas protótipos experimentais descartáveis, modelos de custo e benchmarks comparáveis; nenhum código de produção CHRONOS/V2. |
+
 | **R4 — revisão adversarial** | Revisar contratos, modelo, protótipos, evidências, riscos e desempenho | Resolver achados bloqueadores; registrar decisões e limitações. |
 | **R5 — aprovação arquitetural** | Aprovar arquitetura final, ADRs, limites, plano de integração e evidências | **Nenhum código de produção CHRONOS/V2 antes da aprovação R5.** |
 
