@@ -35,21 +35,22 @@ Do not import R2 model classes into timed prototype implementations.
 
 ## Validation and benchmark status
 
-CI #10851 passed the 45-test P-A revision on Linux and Windows, R2 on both systems,
-both retained advance/deadline matrices, Actionlint, documentation hygiene and the
-quality supervisor. CI #10859 then validated W03/W04 causal sync on Linux and Windows, bringing the P-A differential suite to 58/58 PASS.
+CI #10868 completed successfully on Linux and Windows for the current P-A HEAD
+`7351798b61971baad6d25133ce9616b3f5a33b9e`. The P-A differential suite passed
+60/60 tests on each OS (24 advance/catch-up, 22 deadline lifecycle, 14 causal sync).
+The R2 reference suite passed 256 tests on each OS. Documentation hygiene,
+Actionlint and the quality supervisor passed. Fourteen unrelated hardware/runtime/
+desktop jobs were SKIPPED and are not counted as PASS.
 
 The advance matrix has 75 points per OS; the deadline lifecycle matrix has 180 points
-per OS. The W03/W04 causal matrix has 30 points per OS. All use five warm-ups and
-30 measured repetitions. CPU samples are retained only when empirical thread CPU
-clock resolution is at most 1 ms; coarse Windows CPU clocks are explicitly marked
-unavailable rather than misreported. tracemalloc is a separate probe outside timed
-samples.
+per OS; the W03/W04 causal matrix has 30 points per OS. All use five warm-ups and
+30 measured repetitions. Windows thread CPU-clock resolution was too coarse, so
+CPU-time samples are explicitly skipped while wall-time samples remain available.
+tracemalloc is a separate probe outside timed samples.
 
-The first retained advance/deadline matrices, environment details, raw artifact
-IDs/SHA-256 and observations are recorded in
-[P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md). W03/W04 results will be appended
-after their CI run completes.
+The final CI #10868 environment details, job statuses, raw artifact IDs, verified
+SHA-256 digests, selected observations and limitations are recorded in
+[P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md).
 
 ## Scope boundary
 
