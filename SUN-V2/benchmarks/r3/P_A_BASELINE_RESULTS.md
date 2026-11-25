@@ -211,11 +211,11 @@ This remains a review gap. Do not mark R4 as passed.
 
 ## Latest retained run — CI #10871
 
-**Classification:** `OBSERVATION` — independent reference tests and synthetic Python prototype evidence  
-**Workflow:** [run #10871](https://github.com/leonardo201800478/SUN/actions/runs/45705184737) — `SUCCESS`  
-**Run ID:** `45705184737`  
-**Executed HEAD:** `75f8f048f248325850796ddc30d97c38b11dff86`  
-**Branch:** `research/chronos-r3-disposable-prototypes`  
+**Classification:** `OBSERVATION` — independent reference tests and synthetic Python prototype evidence
+**Workflow:** [run #10871](https://github.com/leonardo201800478/SUN/actions/runs/45705184737) — `SUCCESS`
+**Run ID:** `45705184737`
+**Executed HEAD:** `75f8f048f248325850796ddc30d97c38b11dff86`
+**Branch:** `research/chronos-r3-disposable-prototypes`
 **Date:** 2026-11-25
 
 ### Job disposition
