@@ -121,8 +121,10 @@ def _validate_reference_state(state: object) -> str | None:
     for domain in state.domains:
         if not all(_exact(value) for value in (
             domain.local_to_common, domain.common_offset, domain.progress_local
-        )) or domain.local_to_common <= 0:
-            return "participant clock conversion is not exact or comparable"
+        )):
+            return "participant clock values are not exact"
+        if domain.local_to_common <= 0:
+            return "participant clock conversion is not comparable"
         if not _exact(domain.horizon_local):
             return "participant safe horizon is not exact"
         if domain.horizon_local < domain.progress_local:
@@ -155,10 +157,10 @@ def _validate_reference_state(state: object) -> str | None:
 
 def _reference_state_error_code(detail: str) -> DeadlineCode:
     """Map validated reference-state failures to the R1 result taxonomy."""
-    if "clock conversion" in detail:
-        return DeadlineCode.INDETERMINATE
     if "not exact" in detail:
         return DeadlineCode.INVALID_INPUT
+    if "clock conversion" in detail:
+        return DeadlineCode.INDETERMINATE
     if "safe horizon" in detail:
         return DeadlineCode.INVARIANT_VIOLATION
     return DeadlineCode.INVALID_INPUT
@@ -724,14 +726,24 @@ def schedule_microstep(
     if book_error is not None:
         return DeadlineEvaluation(book, book_error[0], book_error[1])
     if (
-        not _exact(at_common)
+        not isinstance(owner, str) or not owner.strip()
+        or not isinstance(identity, str) or not identity.strip()
+        or not isinstance(generation, int) or isinstance(generation, bool)
+        or generation < 0
+        or not isinstance(effect_id, str) or not effect_id.strip()
+        or not isinstance(commutative, bool)
+        or not _exact(at_common)
         or not isinstance(current_microstep, int)
         or isinstance(current_microstep, bool)
         or current_microstep < 0
-        or current_microstep >= book.max_microsteps
     ):
-        return DeadlineEvaluation(book, DeadlineCode.RESOURCE_EXHAUSTED,
-                                  "microstep limit exhausted or invalid")
+        return DeadlineEvaluation(
+            book, DeadlineCode.INVALID_INPUT, "invalid microstep descriptor"
+        )
+    if current_microstep >= book.max_microsteps:
+        return DeadlineEvaluation(
+            book, DeadlineCode.RESOURCE_EXHAUSTED, "microstep limit exhausted"
+        )
     if any(item.at_common == at_common and item.microstep > current_microstep
            for item in book.deadlines):
         return DeadlineEvaluation(book, DeadlineCode.INVALID_INPUT,
