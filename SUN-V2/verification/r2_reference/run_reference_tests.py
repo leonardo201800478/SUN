@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import random
+import re
 import subprocess
 import sys
 import unittest
@@ -82,10 +83,18 @@ class RecordingTestResult(unittest.TextTestResult):
         if self.first_divergence is not None:
             return
         formatted = self._exc_info_to_string(err, test)
+        reproduction = None
+        match = re.search(r"R2_REPRO=(\\{.*\\})", formatted)
+        if match:
+            try:
+                reproduction = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                reproduction = {"parse_error": "R2_REPRO marker was not valid JSON"}
         self.first_divergence = {
             "test_id": test.id(),
             "outcome": outcome,
             "traceback": formatted,
+            "reproduction": reproduction,
         }
 
     def addFailure(self, test, err):
@@ -192,12 +201,16 @@ def main() -> int:
     first_divergence = result.first_divergence
     minimal_state = None
     if first_divergence is not None:
-        minimal_state = {
-            "kind": "hand-authored deterministic test fixture",
-            "test_id": first_divergence["test_id"],
-            "source": "the named test function constructs the reproducer",
-            "reduction_status": "NOT_APPLICABLE_TO_FIXED_CASE",
-        }
+        reproduction = first_divergence.get("reproduction")
+        if isinstance(reproduction, dict) and "minimal_state" in reproduction:
+            minimal_state = reproduction["minimal_state"]
+        else:
+            minimal_state = {
+                "kind": "hand-authored deterministic test fixture",
+                "test_id": first_divergence["test_id"],
+                "source": "the named test function constructs the reproducer",
+                "reduction_status": "NOT_APPLICABLE_TO_FIXED_CASE",
+            }
 
     report = {
         "schema_version": 1,
