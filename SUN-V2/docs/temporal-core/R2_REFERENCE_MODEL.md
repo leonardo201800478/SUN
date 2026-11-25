@@ -435,3 +435,15 @@ Correção candidata:
 - adicionar teste para divergência em ambos os sentidos (watermark apenas no estado e watermark apenas no livro), verificando ausência de mutação.
 
 **Estado:** implementação no commit `ebb4c937fc6b9205b87c639d8e9515e0c7643a39`; teste no commit `14bc6b96d228c1b9b696422ee1f6ed0340c3981f`. CI #10660 foi disparado para o HEAD de código/testes e aguarda conclusão. A contagem candidata passa a 60 testes e 33 casos no slice R2-B, ainda sem classificação PASS até o CI. T06/T07/T14 continuam parciais; R2 segue EM ANDAMENTO; R3–R5 BLOQUEADOS.
+
+
+### 8.1.7 Preservação de W ao agendar microsteps
+
+A validação de consistência introduzida em `publish_deadline()` revelou uma interação no helper `schedule_microstep()`: o estado sintético usado para admitir o evento filho era criado sem copiar o watermark já fechado do `DeadlineBook`. Com isso, um microstep futuro poderia ser rejeitado por divergência artificial entre o estado sintético e o livro.
+
+Correção candidata:
+- propagar `book.watermark_common` para o `ReferenceState` sintético usado por `schedule_microstep()`;
+- testar admissão de microstep em instante posterior a W, preservando W;
+- testar rejeição `LateInput`, sem mutação, quando o microstep tenta ocorrer exatamente em W.
+
+**Estado:** implementação no commit `c6ee43d8172c227ee3571464807b0997bfecc10a`; testes no commit `fbb340f837062d12e327686f1e9964fc5cf691c7`. O candidato passa a 62 testes (35 casos R2-B). CI para o incremento de código/testes ainda pendente; não classificar como PASS até execução vinculada. T06/T07/T14 continuam parciais; R2 EM ANDAMENTO; R3–R5 BLOQUEADOS.
