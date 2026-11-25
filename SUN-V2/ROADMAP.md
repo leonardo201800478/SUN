@@ -284,4 +284,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir o fechamento formal de R1 na issue #1270, registrando a auditoria da seção 14 e a revisão Codex sem major issues do HEAD exato. Manter R2 bloqueado até aprovação explícita de R1; depois, iniciar R2 como modelo independente e propriedades executáveis, sem antecipar protótipos R3 ou produção. R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** concluir o fechamento formal de R1 na issue #1270, registrando a auditoria da seção 14 e a revisão Codex sem major issues do HEAD exato. R1 e R2 estão aprovados. R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`, limitado a protótipos descartáveis e benchmarks equivalentes; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
