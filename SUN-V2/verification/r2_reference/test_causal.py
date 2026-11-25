@@ -168,6 +168,14 @@ class R2T05CausalSynchronizationTests(unittest.TestCase):
                 ),
                 applied=("dependent",),
             )),
+            state(device(
+                "cpu",
+                transitions=(
+                    Transition("cycle-a", Fraction(5), ("cycle-b",)),
+                    Transition("cycle-b", Fraction(5), ("cycle-a",)),
+                ),
+                applied=("cycle-a", "cycle-b"),
+            )),
         )
         for initial in invalid_states:
             with self.subTest(initial=initial):
