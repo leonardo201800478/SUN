@@ -807,3 +807,24 @@ Correção em `causal_reference.py`:
 - IDs aplicados não podem aparecer em múltiplos dispositivos.
 
 Regressão: `test_causal.py::R2T05CausalSynchronizationTests.test_preapplied_causal_ledger_must_match_owner_progress_and_dependencies` cobre quatro estados inválidos e exige `InvalidInput` sem mutação. Total reforçado: **256 testes**; o CI do candidato atualizado permanece pendente.
+
+
+### 8.1.27 Validação final Linux/Windows e encerramento dos P2 conhecidos — 25/11/2026
+
+**Candidato exato validado:** `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`.  
+**CI #10785:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/45600632992).
+
+- Linux / Python 3.14.4: **256/256 PASS**, runner executado duas vezes, `python -m unittest -v`, worktree CLEAN nas duas execuções.
+- Windows Server 2025 / Python 3.14.4: **256/256 PASS**, runner executado duas vezes, `python -m unittest -v`, worktree CLEAN nas duas execuções.
+- Em ambos os sistemas: mutation testing da suíte completa, com os dois mutantes **KILLED**; `target_test_failed_by_assertion=true`; JSON de resultado publicado.
+- Seed de ordem: `20261125`; seeds de propriedades: T01 `0xC0A05`, T02 intervalo [0,100).
+- Quatro famílias de cinco eventos: 120 permutações por família (480 no total).
+- Change impact classification, documentation patch hygiene, GitHub Actions workflow validation e Rust quality/unit regression supervisor: PASS.
+- Artefatos JSON: [Linux](https://api.github.com/repos/leonardo201800478/SUN/actions/artifacts/15015027527/zip) e [Windows](https://api.github.com/repos/leonardo201800478/SUN/actions/artifacts/15015127699/zip).
+- SHA-256 principal e hashes de todos os modelos/testes estão no JSON e nos logs do CI. Oráculo `chronos_reference.py`: `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`; runner: `de284c4ed3da81573468ea294dfdeefb18adf0e72cb9ae894d2ded8e74b2ed76`; mutation runner: `087beac04e64b376a5e7da36e8e886360dc0d3f3276905846cc81c6a70c7d031`.
+
+**P2 conhecidos:** os 11 threads anteriormente não resolvidos na PR #1283 receberam respostas com SHA, testes e evidência CI e foram resolvidos. Isso fecha os findings conhecidos, mas não constitui parecer independente sobre o conjunto completo.
+
+**Revisão Codex:** solicitada explicitamente para o SHA `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`; o conector respondeu `You have reached your Codex usage limits for code reviews`. Portanto R2-EXIT-07 continua PENDENTE. A revisão adversarial interna encontrou e corrigiu a ordenação de irmãos comutativos, ledgers causais pré-aplicados inconsistentes e o vínculo do mutation kill ao AssertionError do teste-alvo; isso não substitui revisão humana externa.
+
+**Decisão:** implementação executável R2-T01–T15 COMPLETA E VALIDADA. Gate formal R2 **NÃO APROVADO** até revisão humana externa independente sem blockers e aprovação explícita do responsável. R3–R5 permanecem BLOQUEADOS; PR #1283 continua Draft, sem merge.
