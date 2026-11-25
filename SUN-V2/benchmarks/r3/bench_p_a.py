@@ -158,11 +158,12 @@ def main() -> int:
     for domains in map(int, args.domains.split(",")):
         for obligations in map(int, args.obligations.split(",")):
             for chunk in map(int, args.chunks.split(",")):
-                for density in args.densities.split(","):
+                densities = ["none"] if obligations == 0 else args.densities.split(",")
+                for density in densities:
                     if domains <= 0 or obligations < 0 or chunk <= 0:
                         parser.error("domains/chunk must be positive; obligations cannot be negative")
-                    if density not in {"sparse", "dense"}:
-                        parser.error("density must be sparse or dense")
+                    if density not in {"none", "sparse", "dense"}:
+                        parser.error("density must be none, sparse or dense")
                     points.append(run_point(
                         domains, obligations, density, chunk,
                         args.warmup, args.repeats,
