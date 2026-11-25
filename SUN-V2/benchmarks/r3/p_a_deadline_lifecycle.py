@@ -130,7 +130,7 @@ def _validate_context(context: object) -> str | None:
         return "unexpected temporal participant"
     for item in context.participants:
         if not all(_exact(value) for value in (
-            item.progress, item.safe_horizon, item.units_per_common
+            item.progress, item.safe_horizon, item.units_per_common, item.common_offset
         )):
             return "participant clock values are not exact"
         if item.units_per_common <= 0:
