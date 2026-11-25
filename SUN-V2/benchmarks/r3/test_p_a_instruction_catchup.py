@@ -53,6 +53,9 @@ class PATestCase(unittest.TestCase):
             self._progress_digest(result.next_state),
             self._reference_digest(reference.state),
         )
+        if result.code == ResultKind.INDETERMINATE_CAUSAL_ORDER.value:
+            self.assertEqual(result.next_state, state)
+            self.assertEqual(result.reached, self._reference_frontier(reference.state))
         return result, reference
 
     @staticmethod
@@ -68,14 +71,15 @@ class PATestCase(unittest.TestCase):
     def _reference_digest(state):
         return tuple(
             sorted(
-                (
-                    domain.domain_id,
-                    domain.progress_common().numerator,
-                    domain.progress_common().denominator,
-                )
+                (domain.domain_id, domain.progress_common().numerator,
+                 domain.progress_common().denominator)
                 for domain in state.domains
             )
         )
+
+    @staticmethod
+    def _reference_frontier(state):
+        return min(domain.progress_common() for domain in state.domains)
 
     def test_sparse_budgeted_advance_matches_r2(self):
         state = AState(
