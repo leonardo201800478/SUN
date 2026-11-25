@@ -384,7 +384,18 @@ Correção candidata:
 
 **Cobertura adicional:** o empate sem `W` e com `W<D` possui testes discriminantes separados; ambos exigem `IndeterminateCausalOrder` sem mutação.
 
-**Estado:** alteração candidata ainda aguarda CI e revisão independente vinculados ao novo HEAD. R2 permanece EM ANDAMENTO; T06/T07/T14 continuam parciais. Não autoriza R3, produção ou merge.
+**Estado da correção:** CI #10656 terminou SUCCESS no SHA `50d6cc64c9fa071d867ac5fa9db747116f4e32f6`; revisão independente desse SHA permanece pendente. R2 permanece EM ANDAMENTO; T06/T07/T14 continuam parciais. Não autoriza R3, produção ou merge.
 
 
 A suíte candidata foi ampliada para 57 testes (30 casos parciais no slice R2-B) para cobrir o empate C=D tanto sem watermark quanto com W<D. Essa contagem ainda requer CI vinculado ao novo HEAD.
+
+
+#### Evidência vinculada — CI #10656
+
+- HEAD executado: `50d6cc64c9fa071d867ac5fa9db747116f4e32f6`.
+- [CI #10656](https://github.com/leonardo201800478/SUN/actions/runs/45518319020): **SUCCESS**.
+- Job CHRONOS R2: 57/57 PASS; runner dedicado executado duas vezes e plain `python -m unittest -v`; worktree CLEAN nas duas execuções.
+- Ambiente: Python 3.14.4 / Linux x86_64 / perfil abstrato SMS-NTSC.
+- SHA-256: `chronos_reference.py` = `41ee0d615996c8003c289eb113623873ecaa8b1a6e852a33a47f1510c354ccd1`; `deadline_reference.py` = `8ac62f8985c8fa56d448c21e6a2f8199151b8807b07fa2fb79c209ba034e7f99`; runner = `a22448b28fb8a37e033c17bcc0c47e4aa9c8997a9109dea1afee70f5a9019fa6`; `test_deadlines.py` = `1bff8aab0661e392017166b50165e77b8a4840b473e4f9a69565830b9e84c5ca`; `test_temporal_core.py` = `ad4dbc4c7df135db34cea71cecbeae30149a1bca87f51ca7c5704b95212c8eef`.
+- Actionlint, higiene documental e Rust quality/unit regression: PASS. Jobs de hardware/Windows: SKIPPED, não PASS.
+- Esta evidência está vinculada somente ao SHA executado. A atualização documental subsequente precisa de sua própria CI/revisão; nenhuma conclusão de gate é inferida.
