@@ -159,5 +159,32 @@ class R2T08TransactionTests(unittest.TestCase):
         self.assertEqual(recover(failed.book, "tx-1").transaction.state, TxState.IN_PROGRESS)
 
 
+    def test_out_of_order_marker_descriptor_is_invalid_before_admission(self):
+        descriptor = make_spec(markers=(
+            Marker("later", MarkerKind.COMMIT, Fraction(3)),
+            Marker("earlier", MarkerKind.SAMPLE, Fraction(2)),
+        ))
+        result = admitted(descriptor)
+        self.assertEqual(result.code, TxCode.INVALID_INPUT)
+        self.assertEqual(result.book, TransactionBook())
+
+    def test_identical_request_retry_preserves_every_control_state(self):
+        descriptor = make_spec(markers=(Marker("write", MarkerKind.COMMIT, Fraction(1)),))
+        created = admitted(descriptor)
+        started = start(created.book, "tx-1")
+        waiting = enter_waiting(started.book, "tx-1", "external")
+        ready_to_resume = release_waiting(waiting.book, "tx-1", "external")
+        ready = reach_next_marker(ready_to_resume.book, "tx-1", Fraction(1))
+        committed = commit_effect(ready.book, "tx-1", "write")
+        completed = complete(committed.book, "tx-1")
+        failed = fail(started.book, "tx-1", "fault")
+        cancelled = cancel(created.book, "tx-1")
+        for evaluation in (created, started, waiting, ready_to_resume, ready, committed, completed, failed, cancelled):
+            retry = submit(evaluation.book, descriptor)
+            self.assertEqual(retry.code, TxCode.OK)
+            self.assertEqual(retry.book, evaluation.book)
+            self.assertEqual(retry.transaction.state, evaluation.transaction.state)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
