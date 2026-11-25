@@ -127,4 +127,4 @@ O parecer não autorizou merge antes dessas correções e revalidação; a aprov
 
 Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout revisado para identificar o parecer, CI #10790, artifacts e hash do mutation runner. CI #10790 valida o código do HEAD revisado `ad8cbbe`; as alterações documentais posteriores exigem CI próprio.
 
-Concluído: CI #10798 verde, PR #1283 merged em `main` e R2 aprovado. R3 foi iniciado em branch própria com protótipos descartáveis e benchmarks comparáveis; P-A W00–W07 foi validado em CI #10882 (71/71 testes e 321 pontos por OS), com W08/W09 e equivalência canônica ainda pendentes; nenhuma implementação de produção CHRONOS/V2 antes de R5.
+Concluído: CI #10798 verde, PR #1283 merged em `main` e R2 aprovado. R3 foi iniciado em branch própria com protótipos descartáveis e benchmarks comparáveis; P-A W00–W08 foi validado em CI #10892 (89/89 testes e 331 pontos por OS), com W09 e equivalência canônica ainda pendentes; nenhuma implementação de produção CHRONOS/V2 antes de R5.
