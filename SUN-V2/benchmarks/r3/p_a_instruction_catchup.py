@@ -23,12 +23,13 @@ class AParticipant:
     progress: Fraction
     safe_horizon: Fraction
     units_per_common: Fraction = Fraction(1)
+    common_offset: Fraction = Fraction(0)
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
             raise ValueError("participant name must be non-empty")
         if not all(_is_exact(value) for value in (
-            self.progress, self.safe_horizon, self.units_per_common
+            self.progress, self.safe_horizon, self.units_per_common, self.common_offset
         )):
             raise ValueError("participant times and clock ratio must be exact")
         if self.units_per_common <= 0:
@@ -60,10 +61,12 @@ class AObligation:
 
 @dataclass(frozen=True)
 class AState:
-    """Immutable P-A state: participants and a full-scanned obligation tuple."""
+    """Immutable P-A state with declared participants and common watermark."""
 
     participants: tuple[AParticipant, ...]
     obligations: tuple[AObligation, ...] = ()
+    expected_participants: frozenset[str] | None = None
+    watermark_common: Fraction | None = None
 
 
 @dataclass(frozen=True)
@@ -82,10 +85,11 @@ class AResult:
 
 
 def _common_frontier(state: AState) -> Fraction:
-    """Return the max confirmed participant progress (R1/R2 machine frontier)."""
-    if not state.participants:
-        return Fraction(0)
-    return max(item.progress for item in state.participants)
+    """Return max participant progress and the closed common watermark."""
+    values = [item.progress for item in state.participants]
+    if state.watermark_common is not None:
+        values.append(state.watermark_common)
+    return max(values, default=Fraction(0))
 
 
 def _validate(state: AState) -> None:
@@ -102,7 +106,18 @@ def _validate(state: AState) -> None:
     names = [item.name for item in state.participants]
     if len(names) != len(set(names)):
         raise ValueError("participant identities must be unique")
-    if any(item.owner not in set(names) for item in state.obligations):
+    if state.expected_participants is not None and (
+        not isinstance(state.expected_participants, frozenset)
+        or any(not isinstance(item, str) or not item.strip()
+               for item in state.expected_participants)
+    ):
+        raise ValueError("expected participant set must be a frozenset of identities")
+    expected = set(state.expected_participants) if state.expected_participants is not None else set(names)
+    if set(names) - expected:
+        raise ValueError("unexpected temporal participant")
+    if state.watermark_common is not None and not _is_exact(state.watermark_common):
+        raise ValueError("watermark must be an exact common-time coordinate")
+    if any(item.owner not in expected for item in state.obligations):
         raise ValueError("obligation owner must be a declared participant")
     ids = [item.identity for item in state.obligations]
     if len(ids) != len(set(ids)):
@@ -123,36 +138,45 @@ def advance_budgeted(
     return IndeterminateCausalOrder without advancing any participant.
     """
     _validate(state)
-    if not state.participants:
-        if not _is_exact(target) or not _is_exact(chunk) or chunk <= 0:
-            return AResult(
-                "InvalidInput", Fraction(0), Fraction(0), "InvalidTargetOrChunk",
-                0, 0, 0, 0, state,
-            )
+    known_watermark = state.watermark_common or Fraction(0)
+    if not _is_exact(target) or not _is_exact(chunk) or chunk <= 0:
         return AResult(
-            "Blocked", Fraction(target), Fraction(0), "NoParticipants",
+            "InvalidInput", Fraction(0), known_watermark, "InvalidTargetOrChunk",
+            0, 0, 0, 0, state,
+        )
+    actual_participants = {item.name for item in state.participants}
+    expected_participants = (
+        set(state.expected_participants)
+        if state.expected_participants is not None else actual_participants
+    )
+    if expected_participants - actual_participants:
+        return AResult(
+            "Blocked", Fraction(target), known_watermark, "IncompleteParticipantSet",
+            0, 0, 0, 0, state,
+        )
+    if not state.participants:
+        return AResult(
+            "Blocked", Fraction(target), known_watermark, "NoParticipants",
             0, 0, 0, 0, state,
         )
     frontier = _common_frontier(state)
     safe_horizon = min(item.safe_horizon for item in state.participants)
     if safe_horizon < frontier:
         return AResult(
-            "InvariantViolation", Fraction(target) if _is_exact(target) else Fraction(0),
-            Fraction(0), "SafeHorizonBehindMachineFrontier",
+            "InvariantViolation", Fraction(target), known_watermark,
+            "SafeHorizonBehindMachineFrontier",
             0, 0, 0, 0, state,
         )
     if any(
-        not item.resolved and item.at_common < frontier
+        not item.resolved and (
+            (state.watermark_common is not None and item.at_common <= state.watermark_common)
+            or item.at_common < frontier
+        )
         for item in state.obligations
     ):
         return AResult(
-            "InvariantViolation", Fraction(target) if _is_exact(target) else Fraction(0),
-            Fraction(0), "UnresolvedObligationBehindMachineFrontier",
-            0, 0, 0, 0, state,
-        )
-    if not _is_exact(target) or not _is_exact(chunk) or chunk <= 0:
-        return AResult(
-            "InvalidInput", Fraction(0), Fraction(0), "InvalidTargetOrChunk",
+            "InvariantViolation", Fraction(target), known_watermark,
+            "UnresolvedObligationBehindMachineFrontier",
             0, 0, 0, 0, state,
         )
     if target < frontier:
@@ -276,7 +300,8 @@ def state_digest(state: AState) -> tuple:
         tuple(sorted(
             (p.name, p.progress.numerator, p.progress.denominator,
              p.safe_horizon.numerator, p.safe_horizon.denominator,
-             p.units_per_common.numerator, p.units_per_common.denominator)
+             p.units_per_common.numerator, p.units_per_common.denominator,
+             p.common_offset.numerator, p.common_offset.denominator)
             for p in state.participants
         )),
         tuple(sorted(
@@ -284,4 +309,8 @@ def state_digest(state: AState) -> tuple:
              o.resolved, o.commutative)
             for o in state.obligations
         )),
+        tuple(sorted(state.expected_participants or ())),
+        None if state.watermark_common is None else (
+            state.watermark_common.numerator, state.watermark_common.denominator
+        ),
     )
