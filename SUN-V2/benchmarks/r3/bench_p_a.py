@@ -180,6 +180,7 @@ def main() -> int:
         "pythonhashseed": os.environ.get("PYTHONHASHSEED", "unset"),
         "warmup": args.warmup,
         "repeats": args.repeats,
+        "timing_scope": "advance_budgeted only; fixture construction, digest, allocation probe and JSON serialization are outside wall/cpu samples",
         "points": points,
         "limitations": [
             "synthetic Python benchmark, not native Rust runtime",
