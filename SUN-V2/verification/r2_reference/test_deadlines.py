@@ -409,7 +409,12 @@ class R2BCancellationRaceTests(unittest.TestCase):
             with self.subTest(watermark=watermark):
                 state = machine(progress=2, watermark=watermark)
                 book = DeadlineBook(
-                    deadlines=self.initial.deadlines,
+                    deadlines=(
+                        replace(
+                            self.initial.deadlines[0],
+                            status=DeadlineStatus.CLAIMED,
+                        ),
+                    ),
                     watermark_common=watermark,
                 )
                 result = cancel_deadline(
@@ -422,7 +427,12 @@ class R2BCancellationRaceTests(unittest.TestCase):
     def test_cancel_before_deadline_but_after_watermark_closed_is_late(self):
         state = machine(progress=2, watermark=10)
         book = DeadlineBook(
-            deadlines=self.initial.deadlines,
+            deadlines=(
+                replace(
+                    self.initial.deadlines[0],
+                    status=DeadlineStatus.CLAIMED,
+                ),
+            ),
             watermark_common=Fraction(10),
         )
         result = cancel_deadline(
