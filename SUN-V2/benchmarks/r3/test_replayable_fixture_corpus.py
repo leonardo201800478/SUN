@@ -102,8 +102,7 @@ class ReplayableFixtureCorpusTests(unittest.TestCase):
                 {"sequence": 0, "name": "add", "args": {"amount": Fraction(1, 3)}},
             ),
             left_step=lambda state, _name, args: {
-                "ticks": Fraction(state["ticks"]) + args["amount"]["$fraction"][0]
-                / args["amount"]["$fraction"][1]
+                "ticks": Fraction(state["ticks"]) + Fraction(*args["amount"]["$fraction"])
             },
             right_step=lambda state, _name, args: {
                 "ticks": Fraction(state["ticks"]) + Fraction(*args["amount"]["$fraction"])
