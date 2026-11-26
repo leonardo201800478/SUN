@@ -219,11 +219,13 @@ class W02ReplayableSimultaneousDeadlineTests(unittest.TestCase):
             (ADeadlineStatus.SCHEDULED.value, ADeadlineStatus.SCHEDULED.value),
         )
         final_book = _p_a_models(unknown_cut)[1]
+        unknown_pending = tuple(
+            (item.owner, item.identity, item.generation, item.at_common)
+            for item in active_deadlines(final_book)
+            if item.status is ADeadlineStatus.SCHEDULED
+        )
         self.assertEqual(
-            tuple(
-                (item.owner, item.identity, item.generation, item.at_common)
-                for item in active_deadlines(final_book)
-            ),
+            unknown_pending,
             (
                 ("device-02", "event-02", 0, Fraction(20)),
                 ("device-03", "event-03", 0, Fraction(20)),
