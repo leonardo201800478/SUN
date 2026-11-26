@@ -72,6 +72,8 @@ def _state_data(state):
 
 def _p_a_state(data):
     """Reconstruct W00 state using only P-A-owned model types."""
+    # After the first operation, the adapter receives its result envelope.
+    data = data["state"] if "state" in data else data
     return AState(
         participants=tuple(
             AParticipant(
@@ -97,6 +99,8 @@ def _p_a_state(data):
 
 def _r2_state(data):
     """Reconstruct W00 state using independent R2 reference types."""
+    # After the first operation, the adapter receives its result envelope.
+    data = data["state"] if "state" in data else data
     domains = tuple(
         ClockDomain(
             domain_id=item["name"],
