@@ -4,28 +4,29 @@
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **PR:** #1284
 **HEAD de referência do inventário inicial:** `ee96d3c013d25a60757355ecf4cf600f70b8c6ca`
-**Atualização W00:** fixture adicionada em `4605dd2af122bca0b7d7f5c34cc6c509cfc6385b`; registro no emitter em `57ee467988327a50296d32d74cde52dc1031e396` (CI #11020 falhou no adapter; correção no HEAD `b7ae066771e73adac49361be8aa136b2383abea6`, reteste pendente).
+**Atualização W00:** fixture adicionada em `4605dd2af122bca0b7d7f5c34cc6c509cfc6385b`; registro no emitter em `57ee467988327a50296d32d74cde52dc1031e396`; adapter e asserção corrigidos. CI #11023 PASS no SHA `d9a9bdbf88b66c7ff1550c551be25997fe5eb191`.
 **Classificação:** OBSERVATION do inventário de testes e fixtures; não é closeout de R3.
 
 ## 1. Resultado executivo
 
-O harness declarativo de replay já está implementado e exercitado. O inventário inicial cobria W07, W08 e W09; a fixture W00 foi adicionada e registrada no emitter. O CI #11020 encontrou `KeyError: participants` no adapter de replay em Linux e Windows; o adapter foi corrigido em `b7ae066771e73adac49361be8aa136b2383abea6`; o CI #11021 então revelou uma asserção comparando valor racional normalizado com `Fraction`, corrigida no commit subsequente. Reteste pendente.
+O harness declarativo de replay já está implementado e exercitado. CI #11023 validou W00 e a equivalência Linux/Windows no SHA `d9a9bdbf88b66c7ff1550c551be25997fe5eb191`. O corpus replayável contém agora 18 fixtures, 90 operações/cortes e uma divergência intencional W07; digest lógico `43b5c0c9136e355c4fd71b185fde9600b20c2b58d24920b0e46c438e4b7f94e3`; SHA-256 byte a byte `9983fb3ea475d5e3e76216ac614aa68187764f4c062f8e25cd7b04df23d25957`. O corpus canônico permanece 112 fixtures/1.475 cortes, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`, SHA-256 `55fe044de1d0beb42e88f60277706854e28151246b486aa209bec462f8e85681`. W01 foi adicionada em seguida e aguarda CI.
 
-- Corpus replayável antes da expansão W00: **17 fixtures / 88 operações e cortes**.
-- W00: **1 fixture adicional / 2 operações e cortes**, implementada; equivalência e geração multiplataforma aguardam nova execução CI após a correção do adapter.
+- Corpus replayável validado no CI #11023: **18 fixtures / 90 operações e cortes**.
+- W00: **1 fixture adicional / 2 operações e cortes**, validada em Linux e Windows.
+- W01: **1 fixture adicional / 16 operações e cortes**, implementada no branch; validação CI pendente.
 - W07: 1 fixture, mantendo a divergência P-A/R2.
 - W08: 12 fixtures de lifecycle de transação.
 - W09: 4 fixtures de snapshot/restore/replay.
-- W00–W06: existem testes P-A e comparações unitárias/diferenciais, mas **W01–W06 ainda não têm fixtures registradas no corpus replayável**.
+- W00–W06: existem testes P-A e comparações unitárias/diferenciais; **W01 agora possui fixture declarativa registrada no emitter, ainda pendente de CI; W02–W06 continuam sem fixtures**.
 
-Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobertura replayável. O corpus continua parcial e não atende ainda à migração completa dos workloads aplicáveis W00–W09.
+Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobertura replayável. O corpus permanece parcial e ainda não atende à migração completa dos workloads aplicáveis W00–W09.
 
 ## 2. Matriz de cobertura observada
 
 | Workload | Definição no plano R3 | Evidência presente | Fixture replayável | Lacuna para o corpus |
 |---|---|---|---|---|
-| W00 | Avanço sem eventos/obrigações | `test_p_a_instruction_catchup.py`, incluindo `test_sparse_budgeted_advance_matches_r2`; `test_w00_replayable_fixture.py` | **Sim — 1 (2 operações/cortes; CI pendente)** | Fixture usa CPU/VDP abstratos, clock racional 3/2, duas operações advance e replay independente P-A/R2; sintética, sem evidência SMS. |
-| W01 | Deadlines autônomos esparsos | `test_p_a_deadline_lifecycle.py`, publicação futura, lifecycle e dispatch | **Não** | Sequência declarativa publish → advance/watermark → claim/dispatch → complete, incluindo geração e status. |
+| W00 | Avanço sem eventos/obrigações | `test_p_a_instruction_catchup.py`, incluindo `test_sparse_budgeted_advance_matches_r2`; `test_w00_replayable_fixture.py` | **Sim — 1 (2 operações/cortes; CI #11023 PASS)** | Fixture usa CPU/VDP abstratos, clock racional 3/2, duas operações advance e replay independente P-A/R2; sintética, sem evidência SMS. |
+| W01 | Deadlines autônomos esparsos | `test_p_a_deadline_lifecycle.py`, publicação futura, lifecycle e dispatch; `test_w01_replayable_fixture.py` | **Sim — 1 (16 operações/cortes; CI pendente)** | Fixture sintética com quatro deadlines em instantes esparsos, publish → close watermark → dispatch → complete, preservando geração, estado integral e replay P-A/R2. |
 | W02 | Deadlines densos/simultâneos | `test_p_a_deadline_lifecycle.py`, grupos simultâneos, claims e watermark | **Não** | Registrar grupos, empates, ordem/identidade, resultado e estado integral; preservar UNKNOWN sem desempate inventado. |
 | W03 | Sincronização dirigida por observação | `test_p_a_causal_sync.py`, observação, dependências e bloqueios | **Não** | Capturar operação de observação, conjunto de participantes/dependências e transições aplicadas por corte. |
 | W04 | Observações frequentes | `test_p_a_causal_sync.py`, incluindo `test_repeated_observation_trace_matches_r2_at_each_cut` | **Não** | Registrar sequência repetida de observações e o estado completo em cada corte, sem agregar chamadas. |
@@ -37,7 +38,7 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 
 ## 3. Fontes de código verificadas
 
-- `SUN-V2/benchmarks/r3/emit_p_a_trace_corpus.py`: a lista `TEST_MODULES` inclui os módulos P-A, o harness e os testes replayáveis W07/W08/W09; não inclui módulos replayáveis W00–W06.
+- `SUN-V2/benchmarks/r3/emit_p_a_trace_corpus.py`: a lista `TEST_MODULES` inclui os módulos P-A, o harness e os testes replayáveis W00/W01/W07/W08/W09; W02–W06 ainda não possuem módulos replayáveis.
 - `SUN-V2/benchmarks/r3/replayable_fixture_corpus.py`: schema `sun.chronos.r3.replayable-fixture.v0.1`; guarda estado inicial, operações, estados completos por corte, digests por lado e primeira divergência.
 - `test_p_a_instruction_catchup.py`: 24 testes unitários/diferenciais, sem registro próprio de fixture replayável; W00 possui módulo declarativo separado.
 - `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais, sem registro de fixture replayável.
@@ -46,14 +47,15 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 - `test_w07_replayable_fixture.py`: 1 fixture registrada.
 - `test_w08_replayable_fixture.py`: 12 fixtures registradas.
 - `test_w09_replayable_fixture.py`: 4 fixtures registradas.
-- `test_w00_replayable_fixture.py`: 1 fixture registrada no emitter; nova execução CI ainda precisa confirmar execução e equivalência multiplataforma.
+- `test_w00_replayable_fixture.py`: 1 fixture registrada no emitter; CI #11023 PASS, com replay P-A/R2 e equivalência Linux/Windows.
 
 ## 4. Plano incremental de preenchimento
 
 A ordem abaixo reduz acoplamento entre os adapters e mantém o corpus verificável em fatias:
 
-1. **W00 — IMPLEMENTADA, RETESTE PENDENTE:** fixture mínima de avanço sem obrigações, com CPU/VDP abstratos, clock racional 3/2, duas operações e estado integral por corte. O emitter inclui o módulo; CI #11020 revelou `KeyError: participants` em Linux/Windows, corrigido em `b7ae066771e73adac49361be8aa136b2383abea6`; CI #11021 revelou uma asserção incompatível com o formato normalizado de `Fraction`, corrigida em commit subsequente. A equivalência e o replay ainda não estão validados.
-2. **W01:** lifecycle de deadline esparso, com geração explícita e transição terminal.
+1. **W00 — VALIDADA:** fixture mínima de avanço sem obrigações, CPU/VDP abstratos, clock racional 3/2 e duas operações. CI #11023 confirmou replay e equivalência Linux/Windows.
+2. **W01 — IMPLEMENTADA, CI PENDENTE:** quatro deadlines esparsos em instantes 10/30/50/80; cada deadline é publicado, reivindicado por watermark fechado, despachado e concluído. 16 operações/cortes, estado integral por corte e replay independente P-A/R2.
+3. **W02:** grupo denso/simultâneo. Incluir ao menos um caso comutativo e um UNKNOWN; o segundo deve preservar status e estado sem mutação.
 3. **W02:** grupo denso/simultâneo. Incluir ao menos um caso comutativo e um UNKNOWN; o segundo deve preservar status e estado sem mutação.
 4. **W03:** uma observação com dependência cross-domain declarada e uma negativa por dependência ausente.
 5. **W04:** sequência de observações repetidas, mantendo um corte por chamada.
@@ -72,7 +74,8 @@ Não converter automaticamente cada teste unitário em fixture: agrupar cenário
 
 ## 5. Critérios de conclusão do corpus
 
-- [ ] W00: fixture implementada; CI #11020 falhou no adapter e aguarda reteste após correção. W01–W06 ainda sem fixtures replayáveis aplicáveis ou justificativa de não aplicabilidade/duplicação.
+- [x] W00: fixture e replay validados em CI #11023; corpus replayável 18/90.
+- [ ] W01: fixture adicionada (16 operações/cortes), aguardando CI. W02–W06 ainda sem fixtures replayáveis aplicáveis ou justificativa de não aplicabilidade/duplicação.
 - [ ] W07/W08/W09 permanecem registrados e suas divergências conhecidas são preservadas.
 - [ ] Em cada fixture, P-A e R2 são reexecutados de forma independente a partir das mesmas entradas.
 - [ ] O corpus agregado registra contagem por workload, operações/cortes e divergências.
