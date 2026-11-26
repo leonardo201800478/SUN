@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 import unittest
 from fractions import Fraction
 from pathlib import Path
