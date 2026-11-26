@@ -608,3 +608,26 @@ All listed ZIP SHA-256 digests were recalculated from downloaded bytes and match
 CI #10931 remains in the historical record because it produced the detailed benchmark metric ranges and artifact table; its overall failure was caused by trailing whitespace in the oracle-gap proposal and the dependent quality supervisor. That formatting issue was corrected, and CI #10936 is the final successful validation of the corrected HEAD.
 
 **P-A disposition remains IN PROGRESS, not CLOSED:** independent adversarial review and formal consideration of the R2 oracle-gap proposal remain pending. No gate promotion follows from this CI success.
+
+
+## Atualização de métricas — CI #10962
+
+**HEAD:** `c6d9f71f989cf9c1ff61fde8a36ea883b82a35ff`  
+**Run:** [CI #10962](https://github.com/leonardo201800478/SUN/actions/runs/45753632859)  
+**Matrizes:** sete, 351 pontos por plataforma; cinco warm-ups e 30 amostras medidas por ponto.
+
+A tabela publica, para cada matriz, o **maior p99 entre os pontos de parâmetros** e o **maior valor bruto observado** entre todas as amostras. Quantis usam Hyndman–Fan Type 7. Valores em microssegundos (µs).
+
+| Matriz | Linux p99 máx. | Linux máximo observado | Windows p99 máx. | Windows máximo observado |
+|---|---:|---:|---:|---:|
+| Advance/catch-up | 35.539,3 | 35.595,1 | 76.519,9 | 77.079,0 |
+| Deadline lifecycle | 3.246,3 | 3.253,4 | 20.295,4 | 25.184,9 |
+| Causal W03/W04 | 25.210,0 | 25.436,8 | 58.454,1 | 59.083,1 |
+| W06 ordering | 160,7 | 162,7 | 344,5 | 353,8 |
+| W07 microsteps | 203,6 | 210,2 | 353,5 | 361,9 |
+| W08 transactions | 191,7 | 191,7 | 380,4 | 380,5 |
+| W09 snapshot/replay | 905,4 | 1.006,6 | 1.191,6 | 1.192,8 |
+
+O p99 com 30 amostras é uma estatística descritiva do lote, não um limite robusto de cauda. Linux teve resolução de CPU clock entre 2.204 ns e 2.784 ns e manteve métricas de CPU. Windows apresentou resolução de 15.625.000 ns em todas as matrizes; métricas de CPU foram corretamente classificadas como `SKIPPED_COARSE_RESOLUTION`. Wall-time continua disponível.
+
+Essas medições são observações sintéticas de Python e não constituem benchmark do runtime Rust, FPS, frame pacing ou evidência de hardware SMS.
