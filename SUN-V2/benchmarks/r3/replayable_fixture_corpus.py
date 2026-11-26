@@ -92,23 +92,20 @@ def capture_differential_fixture(
                 "right_digest": right_digest,
             }
 
-    return {
-        "schema": SCHEMA,
+    all_equal = first_divergence is None
+    digest_payload = {
         "fixture_id": fixture_id,
         "provenance": normalized_provenance,
         "initial_state": normalized_initial,
         "operations": normalize(operations),
         "cuts": cuts,
         "first_divergence": first_divergence,
-        "all_equal": first_divergence is None,
-        "fixture_digest": _sha256({
-            "fixture_id": fixture_id,
-            "provenance": normalized_provenance,
-            "initial_state": normalized_initial,
-            "operations": normalize(operations),
-            "cuts": cuts,
-            "first_divergence": first_divergence,
-        }),
+        "all_equal": all_equal,
+    }
+    return {
+        "schema": SCHEMA,
+        **digest_payload,
+        "fixture_digest": _sha256(digest_payload),
     }
 
 
@@ -124,27 +121,57 @@ def replay_fixture_side(
     if fixture.get("schema") != SCHEMA:
         raise ValueError("unsupported replay fixture schema")
 
-    digest_payload = {
-        key: fixture[key]
-        for key in (
-            "fixture_id", "provenance", "initial_state", "operations",
-            "cuts", "first_divergence",
-        )
-    }
+    digest_fields = (
+        "fixture_id", "provenance", "initial_state", "operations",
+        "cuts", "first_divergence", "all_equal",
+    )
+    digest_payload = {key: fixture[key] for key in digest_fields}
     if fixture.get("fixture_digest") != _sha256(digest_payload):
         raise ValueError("replay fixture digest mismatch")
 
+    operations = fixture["operations"]
+    cuts = fixture["cuts"]
+    if type(operations) is not list or type(cuts) is not list:
+        raise ValueError("replay operations and cuts must be arrays")
+    if len(operations) != len(cuts):
+        raise ValueError("replay operation/cut count mismatch")
+
+    derived_first_divergence = None
+    for operation, cut in zip(operations, cuts, strict=True):
+        left_state = normalize(cut["left_state"])
+        right_state = normalize(cut["right_state"])
+        left_digest = _sha256(left_state)
+        right_digest = _sha256(right_state)
+        equal = left_digest == right_digest
+        if cut.get("left_digest") != left_digest or cut.get("right_digest") != right_digest:
+            raise ValueError("replay cut state digest mismatch")
+        if type(cut.get("equal")) is not bool or cut["equal"] is not equal:
+            raise ValueError("replay cut equality flag mismatch")
+        if not equal and derived_first_divergence is None:
+            derived_first_divergence = {
+                "sequence": operation["sequence"],
+                "operation": operation["name"],
+                "left_state": left_state,
+                "right_state": right_state,
+                "left_digest": left_digest,
+                "right_digest": right_digest,
+            }
+
+    derived_all_equal = derived_first_divergence is None
+    if type(fixture.get("all_equal")) is not bool or fixture["all_equal"] is not derived_all_equal:
+        raise ValueError("replay all_equal flag is inconsistent with cuts")
+    if canonical_bytes(fixture.get("first_divergence")) != canonical_bytes(derived_first_divergence):
+        raise ValueError("replay first_divergence is inconsistent with cuts")
+
     state = deepcopy(fixture["initial_state"])
     observed = []
-    for operation, expected_cut in zip(
-        fixture["operations"], fixture["cuts"], strict=True
-    ):
+    for operation, expected_cut in zip(operations, cuts, strict=True):
         state = step(
             deepcopy(state), operation["name"], deepcopy(normalize(operation["args"]))
         )
         normalized = normalize(state)
-        expected = expected_cut[f"{side}_state"]
-        if normalized != expected:
+        expected = normalize(expected_cut[f"{side}_state"])
+        if canonical_bytes(normalized) != canonical_bytes(expected):
             raise AssertionError(
                 f"{side} replay divergence at operation {operation['sequence']}: "
                 f"expected={_sha256(expected)} actual={_sha256(normalized)}"
