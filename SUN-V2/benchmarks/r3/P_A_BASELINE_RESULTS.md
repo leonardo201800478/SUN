@@ -589,3 +589,22 @@ All listed ZIP SHA-256 digests were recalculated from downloaded bytes and match
 - The trailing whitespace was removed in the next revision. A subsequent CI run on the corrected documentation must complete all required jobs before this revision is classified fully green.
 - These results are synthetic Python observations, not Rust runtime performance, physical SMS timing, FPS, frame pacing, audio/video fidelity or ROM compatibility.
 - R2 source and tests were not modified. The W06/W07 oracle gaps are documented separately; differential equality is not used as proof for those two scenarios.
+
+
+## Final CI revalidation — CI #10936
+
+**Disposition:** `SUCCESS`
+**Workflow:** [CI #10936](https://github.com/leonardo201800478/SUN/actions/runs/45748159166)
+**Executed HEAD:** `34f4f52865b429269ebad05a7857ac4a2e3d5ce5`
+
+- P-A R3: 125/125 PASS on Linux and 125/125 PASS on Windows.
+- R2 independent reference: 256/256 PASS on Linux and 256/256 PASS on Windows.
+- All seven matrices passed on both platforms (351 points per OS).
+- Corpus digest remains `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`; complete Linux/Windows JSON equality PASS.
+- Actionlint, documentation patch hygiene and Rust quality/unit regression supervisor: PASS.
+- Fourteen unrelated hardware/runtime/desktop jobs: SKIPPED, not counted as PASS.
+- All 18 CI #10936 ZIP artifacts were downloaded, ZIP-integrity tested and SHA-256 recalculated; all matched the digests published by GitHub. Every benchmark point retained 30 wall-time samples; Linux also retained 30 CPU-time samples, while Windows correctly marked CPU time `SKIPPED_COARSE_RESOLUTION`.
+
+CI #10931 remains in the historical record because it produced the detailed benchmark metric ranges and artifact table; its overall failure was caused by trailing whitespace in the oracle-gap proposal and the dependent quality supervisor. That formatting issue was corrected, and CI #10936 is the final successful validation of the corrected HEAD.
+
+**P-A disposition remains IN PROGRESS, not CLOSED:** independent adversarial review and formal consideration of the R2 oracle-gap proposal remain pending. No gate promotion follows from this CI success.
