@@ -35,7 +35,9 @@ def normalize(value):
         return sorted(normalized, key=lambda item: json.dumps(item, sort_keys=True))
     if isinstance(value, bytes):
         return {"$bytes": value.hex()}
-    if value is None or type(value) in (str, int, float, bool):
+    if type(value) is float:
+        raise TypeError("floating-point values are forbidden in canonical traces")
+    if value is None or type(value) in (str, int, bool):
         return value
     raise TypeError(f"unsupported canonical trace value: {type(value).__name__}")
 
