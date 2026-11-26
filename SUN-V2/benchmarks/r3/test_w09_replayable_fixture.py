@@ -312,7 +312,7 @@ def _result_data(result, source_state, active_state, artifact_data):
             if result.restored_state is not None else None
         ),
         "detail": result.detail,
-        "replay_result": data.get("replay_result"),
+        "replay_result": None,
     }
 
 
