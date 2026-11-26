@@ -33,15 +33,15 @@ Do not import R2 model classes into timed prototype implementations.
 - `p_a_snapshots.py`: canonical JSON snapshot bytes, SHA-256 verification, atomic restore and sequence-ordered deterministic replay.
 - `bench_p_a_ordering.py` / `bench_p_a_microsteps.py` / `bench_p_a_transactions.py` / `bench_p_a_snapshots.py`: W06 group-order, W07 chain-depth, W08 transaction and W09 snapshot/replay matrices.
 - `test_p_a_instruction_catchup.py`: 24 R2 differential tests, including 48 deterministic boundary combinations.
-- `test_p_a_deadline_lifecycle.py`: 22 R2 differential tests, including cancellation races, causal ties and generation fencing.
+- `test_p_a_deadline_lifecycle.py`: 31 tests, including cancellation races, W06 phase-basis comparability, no-mutation negatives and explicit R2 oracle-gap fixtures.
 - `test_p_a_causal_sync.py`: 14 R2 differential tests, including cross-domain dependencies, cycles, UNKNOWN ties, unrelated-device isolation and applied-order equivalence.
-- `test_p_a_microsteps.py`: 7 R2 differential tests for child admission, no-op repetition, finite exhaustion, commutative permutations, UNKNOWN ties and depths 1–32.
+- `test_p_a_microsteps.py`: 8 microstep tests, including the W07 lower-level-pending barrier and explicit R2 oracle-gap fixture; the same module also contains 3 shared benchmark-statistics policy tests.
 - `test_p_a_transactions.py`: 18 R2 differential tests for idempotency, sample/commit exactly-once, wait/resume, TW budgets, cancellation, partial failure and explicit recovery.
 - `test_p_a_snapshots.py`: 27 tests for R2 snapshot equivalence, ambiguous acknowledge cuts, atomic restore, canonical digest and deterministic replay properties.
-- `test_p_a_deadline_lifecycle.py`: 4 additional W06 group-size/permutation tests for 2/4/8/16 simultaneous deadlines.
-- Total: **116 tests** (24 advance/catch-up, 26 deadline lifecycle, 14 causal sync, 7 microsteps, 18 transactions, 27 snapshot/replay).
+- `test_p_a_deadline_lifecycle.py`: W06 group-size/permutation coverage for 2/4/8/16 simultaneous deadlines, plus phase-basis discriminants.
+- Total: **125 tests** (24 advance/catch-up, 31 deadline lifecycle, 14 causal sync, 8 microstep tests, 18 transactions, 27 snapshot/replay and 3 benchmark-statistics tests).
 
-## Validation and benchmark status
+## Historical validation and benchmark status — CI #10902
 
 CI #10902 completed successfully on Linux and Windows for P-A HEAD
 `81cb1780a61dd5af80c52582d379497378365109`. The P-A differential suite passed
@@ -71,6 +71,20 @@ available. `tracemalloc` is a separate probe outside timed samples.
 The CI #10902 environment details, 16 raw artifact IDs, verified SHA-256 digests,
 cross-platform output-equivalence checks and limitations are recorded in
 [P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md).
+
+## Corrective validation — CI #10931
+
+**Executed HEAD:** `21480075857dc2ef6bbe951ba0f894ce630f9df7`
+
+- P-A R3: **125/125 tests PASS on Linux and 125/125 PASS on Windows**.
+- R2 independent reference: **256/256 tests PASS on Linux and 256/256 PASS on Windows**.
+- All seven matrices completed on both systems: 351 points per OS (75 advance, 180 deadlines, 30 causal, 24 W06, 12 W07, 10 W08, 20 W09).
+- Canonical corpus: 112 fixtures, 1,475 cuts, 1,468 differential cuts and 7 property cuts. Linux/Windows JSONs are byte-for-byte equal with digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`.
+- All 18 R2/R3 ZIP artifacts were downloaded, ZIP-tested and SHA-256 verified. Every benchmark point contains 30 wall samples; Linux also retains 30 CPU samples per point. Windows CPU samples are null because the clock resolution is too coarse.
+- Quantiles use the shared Hyndman-Fan Type 7 estimator; maximum is calculated directly from raw samples. All seven drivers use the same 10,000 ns maximum accepted CPU-clock resolution.
+- CI #10931 overall was **FAIL** because documentation patch hygiene detected trailing whitespace in the newly added oracle-gap proposal; the dependent quality supervisor also failed. The R3/R2 test jobs, all benchmark matrices and Actionlint passed. The whitespace is removed in the following revision; CI #10932 is required to establish a fully green result.
+
+Detailed metrics, environments, artifact IDs, hashes and limitations are in [P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md).
 
 ## Scope boundary
 
