@@ -233,6 +233,7 @@ def run_point(domains: int, deadlines: int, density: str, operation: str,
         raise RuntimeError("allocation probe changed the deterministic deadline result")
 
     return {
+        "sample_count": len(samples_wall_ns),
         "parameters": {
             "domains": domains,
             "deadlines": deadlines,
