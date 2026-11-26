@@ -783,6 +783,87 @@ class W08ReplayableTransactionTests(unittest.TestCase):
             len(operations),
         )
 
+
+    def test_w08_commit_before_reached_frontier_is_rejected_without_mutation(self):
+        spec = {
+            "identity": "w08-early-commit",
+            "generation": 1,
+            "origin": "cpu",
+            "destination": "vdp",
+            "operation": "write",
+            "profile": "SMS-NTSC",
+            "payload": "0x33",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (
+                {
+                    "identity": "write",
+                    "kind": "Commit",
+                    "at_common": Fraction(2),
+                    "irreversible": False,
+                },
+            ),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {
+                "sequence": 1,
+                "name": "start",
+                "args": {"identity": "w08-early-commit"},
+            },
+            {
+                "sequence": 2,
+                "name": "commit_effect",
+                "args": {
+                    "identity": "w08-early-commit",
+                    "marker_id": "write",
+                },
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_COMMIT_BEFORE_REACHED_FRONTIER_REJECTED",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "attempting COMMIT before the declared marker frontier "
+                    "returns an invariant violation without changing transaction state"
+                ),
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not evidence of a physical SMS bus commit phase or Z80 timing."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            before = fixture["cuts"][1][side]
+            rejected = fixture["cuts"][2][side]
+            self.assertEqual(rejected["code"], "InvariantViolation")
+            self.assertEqual(rejected["transaction"]["state"], "InProgress")
+            self.assertEqual(rejected["transaction"]["committed"], [])
+            self.assertEqual(rejected["book"], before["book"])
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
     def test_w08_failure_after_partial_commit_preserves_exact_ledger(self):
         spec = {
             "identity": "w08-partial-failure",
