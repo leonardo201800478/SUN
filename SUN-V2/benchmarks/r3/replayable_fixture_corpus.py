@@ -124,12 +124,24 @@ def replay_fixture_side(
     if fixture.get("schema") != SCHEMA:
         raise ValueError("unsupported replay fixture schema")
 
-    state = fixture["initial_state"]
+    digest_payload = {
+        key: fixture[key]
+        for key in (
+            "fixture_id", "provenance", "initial_state", "operations",
+            "cuts", "first_divergence",
+        )
+    }
+    if fixture.get("fixture_digest") != _sha256(digest_payload):
+        raise ValueError("replay fixture digest mismatch")
+
+    state = deepcopy(fixture["initial_state"])
     observed = []
     for operation, expected_cut in zip(
         fixture["operations"], fixture["cuts"], strict=True
     ):
-        state = step(state, operation["name"], normalize(operation["args"]))
+        state = step(
+            deepcopy(state), operation["name"], deepcopy(normalize(operation["args"]))
+        )
         normalized = normalize(state)
         expected = expected_cut[f"{side}_state"]
         if normalized != expected:
