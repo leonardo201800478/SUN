@@ -682,6 +682,107 @@ class W08ReplayableTransactionTests(unittest.TestCase):
         self.assertEqual(len(replay_fixture_side(fixture, step=_r2_step, side="right")), len(operations))
 
 
+
+    def test_w08_identical_submit_retry_preserves_waiting_state_and_rejects_divergent_descriptor(self):
+        spec = {
+            "identity": "w08-idempotent-submit",
+            "generation": 2,
+            "origin": "cpu",
+            "destination": "vdp",
+            "operation": "read",
+            "profile": "SMS-NTSC",
+            "payload": "status-original",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (
+                {
+                    "identity": "read-status",
+                    "kind": "Sample",
+                    "at_common": Fraction(1),
+                    "irreversible": False,
+                },
+            ),
+        }
+        divergent_spec = {**spec, "payload": "status-divergent"}
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {
+                "sequence": 1,
+                "name": "start",
+                "args": {"identity": "w08-idempotent-submit"},
+            },
+            {
+                "sequence": 2,
+                "name": "enter_waiting",
+                "args": {
+                    "identity": "w08-idempotent-submit",
+                    "source": "fixture",
+                },
+            },
+            {"sequence": 3, "name": "submit", "args": {"spec": spec}},
+            {"sequence": 4, "name": "submit", "args": {"spec": divergent_spec}},
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_IDEMPOTENT_SUBMIT_RETRY_REJECTS_DIVERGENT_DESCRIPTOR",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "identical submission retry preserves the complete WAITING "
+                    "transaction; a divergent descriptor with the same identity "
+                    "is rejected without mutating the existing transaction"
+                ),
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not evidence of a physical SMS bus admission protocol or "
+                    "production transaction implementation."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        left_retry = fixture["cuts"][3]["left_state"]
+        right_retry = fixture["cuts"][3]["right_state"]
+        self.assertEqual(left_retry["code"], "Ok")
+        self.assertEqual(right_retry["code"], "Ok")
+        self.assertEqual(left_retry["transaction"]["state"], "Waiting")
+        self.assertEqual(left_retry["transaction"]["wait_source"], "fixture")
+        for side in ("left_state", "right_state"):
+            final = fixture["cuts"][-1][side]
+            self.assertEqual(final["code"], "InvalidInput")
+            self.assertEqual(final["transaction"]["state"], "Waiting")
+            self.assertEqual(final["transaction"]["wait_source"], "fixture")
+            self.assertEqual(
+                final["transaction"]["spec"]["payload"], "status-original"
+            )
+        self.assertEqual(
+            fixture["cuts"][-1]["left_state"]["book"],
+            fixture["cuts"][-2]["left_state"]["book"],
+        )
+        self.assertEqual(
+            fixture["cuts"][-1]["right_state"]["book"],
+            fixture["cuts"][-2]["right_state"]["book"],
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
     def test_w08_failure_after_partial_commit_preserves_exact_ledger(self):
         spec = {
             "identity": "w08-partial-failure",
