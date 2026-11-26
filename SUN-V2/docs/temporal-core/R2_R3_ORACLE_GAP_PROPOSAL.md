@@ -1,10 +1,10 @@
 # SUN V2 — proposta de tratamento das lacunas R1/R2 identificadas em R3
 
-**Classificação:** proposta técnica de revisão; não altera R1 nem R2  
-**Estado:** aberta para revisão independente  
-**R1 aprovado:** v0.3.18, conteúdo SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, merge `88e105d6495f7f5105502e53666a7b0d29f77572`  
-**R2 aprovado:** PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`  
-**P-A inicial revisado:** `977641816c7396ee96c6f916efea4ee736042e24`  
+**Classificação:** proposta técnica de revisão; não altera R1 nem R2
+**Estado:** aberta para revisão independente
+**R1 aprovado:** v0.3.18, conteúdo SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, merge `88e105d6495f7f5105502e53666a7b0d29f77572`
+**R2 aprovado:** PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`
+**P-A inicial revisado:** `977641816c7396ee96c6f916efea4ee736042e24`
 **P-A correções em validação:** `827e2da1dc87c2b4c98ef9b1171313f14c35ecf5`
 
 ## 1. Objetivo e limites
