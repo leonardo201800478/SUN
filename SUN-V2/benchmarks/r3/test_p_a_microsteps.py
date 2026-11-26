@@ -196,6 +196,41 @@ class PAMicrostepTests(unittest.TestCase):
                 expected_final = canonical(closed.state)
             self.assertEqual(canonical(closed.state), expected_final)
 
+    def test_later_microstep_cannot_overtake_pending_commutative_sibling(self):
+        initial = self.make_pair(
+            Fraction(10), (("a", "cpu", True), ("b", "vdp", True)), 4
+        ).state
+        r2_initial = to_r2(initial)
+        parent = process_obligation(
+            initial, "a", resolves_obligation=True,
+            emitted=(("c", "psg", False),),
+        )
+        r2_parent = r2_process_obligation(
+            r2_initial, "a", resolves_obligation=True,
+            emitted=(("c", "psg", False),),
+        )
+        self.assertEqual(parent.code, AStepCode.ADVANCED)
+        self.assertEqual(tuple((x.identity, x.microstep) for x in parent.state.pending), (("b", 0), ("c", 1)))
+
+        before = parent.state
+        rejected = process_obligation(before, "c", resolves_obligation=True)
+        self.assertEqual(rejected.code, AStepCode.BLOCKED)
+        self.assertIs(rejected.state, before)
+        self.assertIn("b", tuple(item.identity for item in rejected.state.pending))
+        self.assertNotIn("c", rejected.state.resolved)
+
+        # R2 accepts the overtaking attempt; retain this as an explicit oracle gap.
+        r2_overtake = r2_process_obligation(r2_parent.state, "c", resolves_obligation=True)
+        self.assertEqual(r2_overtake.code, R2Code.ADVANCED)
+
+        sibling = process_obligation(rejected.state, "b", resolves_obligation=True)
+        self.assertEqual(sibling.code, AStepCode.ADVANCED)
+        self.assertEqual(tuple((x.identity, x.microstep) for x in sibling.state.pending), (("c", 1),))
+        child = process_obligation(sibling.state, "c", resolves_obligation=True)
+        self.assertEqual(child.code, AStepCode.COMPLETE)
+        self.assertEqual(child.state.pending, ())
+        self.assertEqual(child.state.resolved, ("a", "b", "c"))
+
     def test_unknown_noncommutative_siblings_remain_indeterminate(self):
         actual = self.make_pair(
             Fraction(10),
