@@ -21,6 +21,7 @@ TEST_MODULES = (
     "test_p_a_snapshots",
     "test_trace_fixture_support",
     "test_replayable_fixture_corpus",
+    "test_w07_replayable_fixture",
 )
 
 
