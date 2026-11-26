@@ -13,6 +13,7 @@ from p_a_instruction_catchup import AObligation, AParticipant
 from p_a_deadline_lifecycle import (
     ADeadline,
     ADeadlineBook,
+    APhaseBasis,
     ADeadlineCode,
     ADeadlineContext,
     ADeadlineStatus,
@@ -150,8 +151,11 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         book = self.empty if book is None else book
         context = self.context if context is None else context
         actual = publish_deadline(book, context, **kwargs)
+        oracle_kwargs = {
+            key: value for key, value in kwargs.items() if key != "phase_basis"
+        }
         expected = r2_publish_deadline(
-            to_r2_book(book), to_r2_context(context), **kwargs
+            to_r2_book(book), to_r2_context(context), **oracle_kwargs
         )
         self.compare(actual, expected)
         return actual
@@ -169,6 +173,11 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         for index in order:
             phase_order = index + 1 if relation == "phase_ordered" else None
             phase_evidence = "W06-profile-capture-v1" if phase_order is not None else None
+            phase_basis = APhaseBasis(
+                "synthetic-profile", "rev-1", "phase-coordinate", "phase-unit",
+                1, 1, "synthetic-basis", "rev-1", "fixture-validation-record",
+                "a" * 64,
+            ) if phase_order is not None else None
             result = self.publish(
                 book=book,
                 context=context,
@@ -180,6 +189,7 @@ class PADeadlineLifecycleTests(unittest.TestCase):
                 commutative=relation == "commutative",
                 phase_order=phase_order,
                 phase_evidence=phase_evidence,
+                phase_basis=phase_basis,
             )
             self.assertEqual(result.code, ADeadlineCode.ACCEPTED)
             book = result.book
@@ -468,6 +478,96 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
         self.assertEqual(actual.book, second.book)
         self.assertEqual(actual.claimed, ())
+
+    def test_distinct_phase_evidence_in_same_validated_basis_is_comparable(self):
+        first = self.publish(
+            owner="cpu", identity="phase-a", generation=0,
+            at_common=Fraction(10), effect_id="a", phase_order=2,
+            phase_evidence="capture-a", phase_basis=APhaseBasis(
+                "synthetic-profile", "rev-1", "phase-coordinate", "phase-unit",
+                1, 1, "synthetic-basis", "rev-1", "fixture-validation-record",
+                "a" * 64,
+            ),
+        )
+        second = self.publish(
+            book=first.book, owner="vdp", identity="phase-b", generation=0,
+            at_common=Fraction(10), effect_id="b", phase_order=1,
+            phase_evidence="capture-b", phase_basis=first.book.deadlines[0].phase_basis,
+        )
+        actual = close_watermark(second.book, Fraction(10))
+        expected = r2_close_watermark(to_r2_book(second.book), Fraction(10))
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.ACCEPTED)
+        self.assertEqual(actual.claimed, (("phase-b", 0), ("phase-a", 0)))
+
+    def test_different_phase_bases_remain_indeterminate_without_mutation(self):
+        basis_a = APhaseBasis(
+            "profile-A", "rev-1", "phase-coordinate", "phase-unit", 1, 1,
+            "basis-A", "rev-1", "validation-A", "a" * 64,
+        )
+        basis_b = APhaseBasis(
+            "profile-B", "rev-1", "phase-coordinate", "phase-unit", 1, 1,
+            "basis-B", "rev-1", "validation-B", "b" * 64,
+        )
+        first = publish_deadline(
+            self.empty, self.context, owner="cpu", identity="phase-a",
+            generation=0, at_common=Fraction(10), effect_id="a",
+            phase_order=1, phase_evidence="capture-A", phase_basis=basis_a,
+        )
+        second = publish_deadline(
+            first.book, self.context, owner="vdp", identity="phase-b",
+            generation=0, at_common=Fraction(10), effect_id="b",
+            phase_order=2, phase_evidence="capture-B", phase_basis=basis_b,
+        )
+        before = second.book
+        actual = close_watermark(before, Fraction(10))
+        self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
+        self.assertIs(actual.book, before)
+        self.assertIsNone(actual.book.watermark_common)
+        self.assertEqual(actual.claimed, ())
+        oracle = r2_close_watermark(to_r2_book(before), Fraction(10))
+        self.assertEqual(oracle.code.value, "Accepted")
+
+    def test_missing_phase_comparison_basis_is_indeterminate_without_mutation(self):
+        first = publish_deadline(
+            self.empty, self.context, owner="cpu", identity="phase-a",
+            generation=0, at_common=Fraction(10), effect_id="a",
+            phase_order=1, phase_evidence="capture-A",
+        )
+        second = publish_deadline(
+            first.book, self.context, owner="vdp", identity="phase-b",
+            generation=0, at_common=Fraction(10), effect_id="b",
+            phase_order=2, phase_evidence="capture-B",
+        )
+        actual = close_watermark(second.book, Fraction(10))
+        self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
+        self.assertIs(actual.book, second.book)
+        self.assertIsNone(actual.book.watermark_common)
+        self.assertEqual(actual.claimed, ())
+
+    def test_invalid_phase_comparison_basis_is_rejected_at_publication(self):
+        invalid_basis = APhaseBasis(
+            "profile-A", "rev-1", "phase-coordinate", "phase-unit", 1, 0,
+            "basis-A", "rev-1", "validation-A", "not-a-sha256-digest",
+        )
+        actual = publish_deadline(
+            self.empty, self.context, owner="cpu", identity="invalid-phase",
+            generation=0, at_common=Fraction(10), effect_id="a",
+            phase_order=1, phase_evidence="capture-A", phase_basis=invalid_basis,
+        )
+        self.assertEqual(actual.code, ADeadlineCode.INVALID_INPUT)
+        self.assertIs(actual.book, self.empty)
+
+    def test_equal_phase_values_remain_indeterminate_even_with_same_basis(self):
+        book = self.simultaneous_book(2, "phase_ordered", (0, 1))
+        equalized = replace(
+            book,
+            deadlines=tuple(replace(item, phase_order=1) for item in book.deadlines),
+        )
+        actual = close_watermark(equalized, Fraction(10))
+        self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
+        self.assertEqual(actual.book, equalized)
+        self.assertIsNone(actual.book.watermark_common)
 
     def test_noncommutative_unknown_tie_does_not_close_watermark(self):
         first = self.publish(
