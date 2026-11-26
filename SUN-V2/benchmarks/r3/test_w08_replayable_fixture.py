@@ -609,7 +609,7 @@ class W08ReplayableTransactionTests(unittest.TestCase):
         before_external_tw = fixture["cuts"][7]["left_state"]
         self.assertEqual(before_external_tw["code"], "Blocked")
         tx = before_external_tw["transaction"]
-        self.assertEqual(tx["base_consumed"], 2)
+        self.assertEqual(tx["base_consumed"], {"$fraction": [2, 1]})
         self.assertEqual(tx["automatic_tw_consumed"], 1)
         self.assertEqual(tx["external_tw_consumed"], 0)
         for final in (fixture["cuts"][-1]["left_state"], fixture["cuts"][-1]["right_state"]):
