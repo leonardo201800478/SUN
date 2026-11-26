@@ -160,7 +160,7 @@ def run_point(size: int, mode: str, warmup: int, repeats: int, cpu_enabled: bool
 
     tx = result.transaction
     output = {
-        "sample_count": len(wall_samples) if "wall_samples" in locals() else len(samples_wall_ns),
+        "sample_count": len(wall_samples),
         "parameters": {"commit_markers": size, "mode": mode},
         "result": result.code.value,
         "transaction_state": tx.state.value,
