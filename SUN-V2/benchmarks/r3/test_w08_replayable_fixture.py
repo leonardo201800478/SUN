@@ -787,6 +787,95 @@ class W08ReplayableTransactionTests(unittest.TestCase):
 
 
 
+
+    def test_w08_start_is_idempotent_only_while_in_progress(self):
+        spec = {
+            "identity": "w08-start-idempotent",
+            "generation": 1,
+            "origin": "cpu",
+            "destination": "vdp",
+            "operation": "write",
+            "profile": "SMS-NTSC",
+            "payload": "0x44",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {
+                "sequence": 1,
+                "name": "start",
+                "args": {"identity": "w08-start-idempotent"},
+            },
+            {
+                "sequence": 2,
+                "name": "start",
+                "args": {"identity": "w08-start-idempotent"},
+            },
+            {
+                "sequence": 3,
+                "name": "cancel",
+                "args": {"identity": "w08-start-idempotent"},
+            },
+            {
+                "sequence": 4,
+                "name": "start",
+                "args": {"identity": "w08-start-idempotent"},
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_START_IDEMPOTENT_ONLY_WHILE_IN_PROGRESS",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "repeated start is idempotent while InProgress, but start "
+                    "after the transaction becomes terminal Cancelled is rejected"
+                ),
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not evidence of a physical SMS transaction start or cancel protocol."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            first_start = fixture["cuts"][1][side]
+            repeated_start = fixture["cuts"][2][side]
+            self.assertEqual(first_start["code"], "Ok")
+            self.assertEqual(first_start["transaction"]["state"], "InProgress")
+            self.assertEqual(repeated_start["code"], "Ok")
+            self.assertEqual(repeated_start["transaction"]["state"], "InProgress")
+            self.assertEqual(repeated_start["book"], first_start["book"])
+            cancelled = fixture["cuts"][3][side]
+            self.assertEqual(cancelled["code"], "Ok")
+            self.assertEqual(cancelled["transaction"]["state"], "Cancelled")
+            rejected_start = fixture["cuts"][4][side]
+            self.assertEqual(rejected_start["code"], "InvariantViolation")
+            self.assertEqual(rejected_start["transaction"]["state"], "Cancelled")
+            self.assertEqual(rejected_start["book"], cancelled["book"])
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
     def test_w08_out_of_order_descriptor_is_rejected_before_admission(self):
         valid_spec = {
             "identity": "w08-descriptor-order",
