@@ -364,4 +364,3 @@ O mesmo arquivo mantém a fixture de gerações de deadlines e ledgers parciais 
 A revisão adversarial foi atualizada para o HEAD `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`. As correções e ampliações recentes do harness, a fixture W09 de replay após restore e o CI #11012 fortalecem a evidência experimental. **Nenhuma delas resolve W07, autentica W06 ou completa o corpus reexecutável W00–W09.**
 
 A decisão permanece: manter a PR #1284 **OPEN/DRAFT**, não declarar P-A fechado, não iniciar P-D/P-E e não introduzir código de produção CHRONOS/V2 antes de R5. R1 v0.3.18 e o oráculo R2 aprovado permanecem preservados.
-
