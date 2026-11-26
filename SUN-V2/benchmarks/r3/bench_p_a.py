@@ -119,6 +119,7 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
         + final_counters["obligations_inspected"]
     )
     return {
+        "sample_count": len(samples_wall_ns),
         "parameters": {
             "domains": domains, "obligations": obligations,
             "density": density, "chunk": chunk,
