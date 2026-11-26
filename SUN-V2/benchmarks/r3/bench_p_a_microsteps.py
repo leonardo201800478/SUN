@@ -133,7 +133,7 @@ def run_point(depth: int, mode: str, warmup: int, repeats: int, cpu_enabled: boo
     tracemalloc.stop()
 
     output = {
-        "sample_count": len(wall_samples) if "wall_samples" in locals() else len(samples_wall_ns),
+        "sample_count": len(wall_samples),
         "parameters": {"depth": depth, "mode": mode, "max_microsteps": depth},
         "result": result.code.value,
         "resolved_count": len(result.state.resolved),
