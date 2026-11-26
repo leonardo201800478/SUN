@@ -1478,7 +1478,7 @@ jobs:
           test -s "$windows_file"
           linux_sha="$(sha256sum "$linux_file" | cut -d ' ' -f 1)"
           windows_sha="$(sha256sum "$windows_file" | cut -d ' ' -f 1)"
-          printf 'Linux SHA-256: %s\\nWindows SHA-256: %s\\n' "$linux_sha" "$windows_sha"
+          printf 'Linux SHA-256: %s\nWindows SHA-256: %s\n' "$linux_sha" "$windows_sha"
           cmp --silent "$linux_file" "$windows_file" || {
             echo "Canonical R3 corpus differs between Linux and Windows."
             diff -u "$linux_file" "$windows_file" || true
