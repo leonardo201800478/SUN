@@ -24,9 +24,11 @@ def normalize(value):
             for field in dataclasses.fields(value)
         }
     if isinstance(value, dict):
+        if any(type(key) is not str for key in value):
+            raise TypeError("canonical trace mappings require string keys")
         return {
-            str(key): normalize(item)
-            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+            key: normalize(value[key])
+            for key in sorted(value)
         }
     if isinstance(value, (tuple, list)):
         return [normalize(item) for item in value]
