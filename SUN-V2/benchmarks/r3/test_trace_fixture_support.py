@@ -22,6 +22,10 @@ class CanonicalTraceNormalizationTests(unittest.TestCase):
             {"count": 4, "enabled": True, "label": "fixture"},
         )
 
+    def test_non_string_mapping_keys_are_rejected(self):
+        with self.assertRaisesRegex(TypeError, "string keys"):
+            normalize({1: "integer-key", "1": "string-key"})
+
     def test_float_values_are_rejected(self):
         for value in (0.0, 1.25, float("nan"), float("inf"), float("-inf")):
             with self.subTest(value=repr(value)):
