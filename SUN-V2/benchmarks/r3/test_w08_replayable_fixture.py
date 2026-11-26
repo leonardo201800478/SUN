@@ -22,6 +22,9 @@ from p_a_transactions import (  # noqa: E402
     PATransactionSpec,
     PATxState,
     commit_effect as p_a_commit_effect,
+    cancel as p_a_cancel,
+    consume_base_time as p_a_consume_base_time,
+    consume_tw as p_a_consume_tw,
     complete as p_a_complete,
     enter_waiting as p_a_enter_waiting,
     fail as p_a_fail,
@@ -44,6 +47,9 @@ from transaction_reference import (  # noqa: E402
     TransactionSpec,
     TxState,
     commit_effect as r2_commit_effect,
+    cancel as r2_cancel,
+    consume_base_time as r2_consume_base_time,
+    consume_tw as r2_consume_tw,
     complete as r2_complete,
     enter_waiting as r2_enter_waiting,
     fail as r2_fail,
@@ -240,6 +246,12 @@ def _p_a_step(data, name, args):
         result = p_a_sample_marker(
             book, args["identity"], args["marker_id"], args["sampled_value"]
         )
+    elif name == "consume_base_time":
+        result = p_a_consume_base_time(book, args["identity"], _fraction(args["amount"]))
+    elif name == "consume_tw":
+        result = p_a_consume_tw(book, args["identity"], automatic=args["automatic"])
+    elif name == "cancel":
+        result = p_a_cancel(book, args["identity"])
     elif name == "fail":
         result = p_a_fail(book, args["identity"], args["error"])
     elif name == "recover":
@@ -272,6 +284,12 @@ def _r2_step(data, name, args):
         result = r2_sample_marker(
             book, args["identity"], args["marker_id"], args["sampled_value"]
         )
+    elif name == "consume_base_time":
+        result = r2_consume_base_time(book, args["identity"], _fraction(args["amount"]))
+    elif name == "consume_tw":
+        result = r2_consume_tw(book, args["identity"], automatic=args["automatic"])
+    elif name == "cancel":
+        result = r2_cancel(book, args["identity"])
     elif name == "fail":
         result = r2_fail(book, args["identity"], args["error"])
     elif name == "recover":
@@ -543,6 +561,119 @@ class W08ReplayableTransactionTests(unittest.TestCase):
             len(replay_fixture_side(fixture, step=_r2_step, side="right")),
             len(operations),
         )
+
+
+
+
+    def test_w08_base_duration_automatic_tw_and_external_tw_are_independent(self):
+        spec = {
+            "identity": "w08-tw-budget", "generation": 2,
+            "origin": "cpu", "destination": "vdp", "operation": "write",
+            "profile": "SMS-NTSC", "payload": "0x3c",
+            "admitted_at": Fraction(0), "start_at": Fraction(0),
+            "duration_base": Fraction(2), "automatic_tws": 1, "external_tws": 1,
+            "markers": ({"identity": "write-commit", "kind": "Commit",
+                         "at_common": Fraction(1), "irreversible": False},),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {"sequence": 1, "name": "start", "args": {"identity": "w08-tw-budget"}},
+            {"sequence": 2, "name": "complete", "args": {"identity": "w08-tw-budget"}},
+            {"sequence": 3, "name": "reach_next_marker", "args": {
+                "identity": "w08-tw-budget", "at_common": Fraction(1)}},
+            {"sequence": 4, "name": "commit_effect", "args": {
+                "identity": "w08-tw-budget", "marker_id": "write-commit"}},
+            {"sequence": 5, "name": "consume_base_time", "args": {
+                "identity": "w08-tw-budget", "amount": Fraction(2)}},
+            {"sequence": 6, "name": "consume_tw", "args": {
+                "identity": "w08-tw-budget", "automatic": True}},
+            {"sequence": 7, "name": "complete", "args": {"identity": "w08-tw-budget"}},
+            {"sequence": 8, "name": "consume_tw", "args": {
+                "identity": "w08-tw-budget", "automatic": False}},
+            {"sequence": 9, "name": "complete", "args": {"identity": "w08-tw-budget"}},
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_BASE_AUTOMATIC_TW_EXTERNAL_TW_SEPARATION",
+            provenance={
+                "gate": "R3", "workload": "W08", "classification": "OBSERVATION",
+                "scenario": "base duration, automatic TW and external TW consumed independently",
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": "Not evidence of physical Z80 TW behavior, WAIT timing or SMS bus trace.",
+            },
+            initial_state={"transactions": []}, operations=operations,
+            left_step=_p_a_step, right_step=_r2_step,
+        )
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        before_external_tw = fixture["cuts"][7]["left_state"]
+        self.assertEqual(before_external_tw["code"], "Blocked")
+        tx = before_external_tw["transaction"]
+        self.assertEqual(tx["base_consumed"], 2)
+        self.assertEqual(tx["automatic_tw_consumed"], 1)
+        self.assertEqual(tx["external_tw_consumed"], 0)
+        for final in (fixture["cuts"][-1]["left_state"], fixture["cuts"][-1]["right_state"]):
+            self.assertEqual(final["code"], "Ok")
+            self.assertEqual(final["transaction"]["state"], "Completed")
+            self.assertEqual(final["transaction"]["automatic_tw_consumed"], 1)
+            self.assertEqual(final["transaction"]["external_tw_consumed"], 1)
+        self.assertEqual(len(replay_fixture_side(fixture, step=_p_a_step, side="left")), len(operations))
+        self.assertEqual(len(replay_fixture_side(fixture, step=_r2_step, side="right")), len(operations))
+
+    def test_w08_cancel_before_irreversible_effect_and_reject_after_commit(self):
+        cancel_spec = {
+            "identity": "w08-cancel-before", "generation": 3,
+            "origin": "cpu", "destination": "vdp", "operation": "write",
+            "profile": "SMS-NTSC", "payload": "0x11",
+            "admitted_at": Fraction(0), "start_at": Fraction(0),
+            "duration_base": Fraction(0), "automatic_tws": 0, "external_tws": 0,
+            "markers": (),
+        }
+        committed_spec = {
+            "identity": "w08-cancel-after", "generation": 4,
+            "origin": "cpu", "destination": "vdp", "operation": "write",
+            "profile": "SMS-NTSC", "payload": "0x22",
+            "admitted_at": Fraction(0), "start_at": Fraction(0),
+            "duration_base": Fraction(0), "automatic_tws": 0, "external_tws": 0,
+            "markers": ({"identity": "irreversible-write", "kind": "Commit",
+                         "at_common": Fraction(1), "irreversible": True},),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": cancel_spec}},
+            {"sequence": 1, "name": "start", "args": {"identity": "w08-cancel-before"}},
+            {"sequence": 2, "name": "cancel", "args": {"identity": "w08-cancel-before"}},
+            {"sequence": 3, "name": "submit", "args": {"spec": cancel_spec}},
+            {"sequence": 4, "name": "submit", "args": {"spec": committed_spec}},
+            {"sequence": 5, "name": "start", "args": {"identity": "w08-cancel-after"}},
+            {"sequence": 6, "name": "reach_next_marker", "args": {
+                "identity": "w08-cancel-after", "at_common": Fraction(1)}},
+            {"sequence": 7, "name": "commit_effect", "args": {
+                "identity": "w08-cancel-after", "marker_id": "irreversible-write"}},
+            {"sequence": 8, "name": "cancel", "args": {"identity": "w08-cancel-after"}},
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_CANCEL_BOUNDARY_AND_LATE_INPUT",
+            provenance={
+                "gate": "R3", "workload": "W08", "classification": "OBSERVATION",
+                "scenario": "cancel before irreversible commit; reject cancellation after commit",
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": "Synthetic cancellation boundary, not physical SMS bus rollback or device cancellation evidence.",
+            },
+            initial_state={"transactions": []}, operations=operations,
+            left_step=_p_a_step, right_step=_r2_step,
+        )
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        cancelled_retry = fixture["cuts"][3]["left_state"]
+        self.assertEqual(cancelled_retry["code"], "Ok")
+        self.assertEqual(cancelled_retry["transaction"]["state"], "Cancelled")
+        for final in (fixture["cuts"][-1]["left_state"], fixture["cuts"][-1]["right_state"]):
+            self.assertEqual(final["code"], "LateInput")
+            self.assertEqual(final["transaction"]["state"], "InProgress")
+            self.assertEqual(final["transaction"]["committed"], ["irreversible-write"])
+        self.assertEqual(len(replay_fixture_side(fixture, step=_p_a_step, side="left")), len(operations))
+        self.assertEqual(len(replay_fixture_side(fixture, step=_r2_step, side="right")), len(operations))
 
 
 if __name__ == "__main__":
