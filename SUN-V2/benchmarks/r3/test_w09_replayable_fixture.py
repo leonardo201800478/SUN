@@ -324,7 +324,7 @@ def _replay_result_data(data, *, code, detail, projection):
         "active_state": data["active_state"],
         "artifact": data["artifact"],
         "restored_state": data["restored_state"],
-        "detail": detail,
+        "detail": "",
         "replay_result": projection,
     }
 
@@ -581,7 +581,7 @@ class W09ReplayableSnapshotTests(unittest.TestCase):
         )
         record_replayable_fixture(fixture)
 
-        self.assertTrue(fixture["all_equal"])
+        self.assertTrue(fixture["all_equal"], str(fixture["first_divergence"]))
         self.assertIsNone(fixture["first_divergence"])
         self.assertEqual(len(fixture["cuts"]), len(operations))
         for side in ("left_state", "right_state"):
