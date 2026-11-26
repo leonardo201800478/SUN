@@ -1,6 +1,7 @@
 """Tests for the experimental replayable differential fixture harness."""
 from __future__ import annotations
 
+import hashlib
 import unittest
 from fractions import Fraction
 
@@ -9,6 +10,8 @@ from replayable_fixture_corpus import (
     capture_differential_fixture,
     replay_fixture_side,
 )
+from trace_fixture_support import canonical_bytes
+
 
 
 def step(state, operation, args):
@@ -131,6 +134,36 @@ class ReplayableFixtureCorpusTests(unittest.TestCase):
                 left_step=step,
                 right_step=step,
             )
+
+    def test_replay_rejects_bool_integer_state_substitution(self):
+        fixture = capture_differential_fixture(
+            fixture_id="strict-bool-int",
+            provenance={"classification": "OBSERVATION"},
+            initial_state={},
+            operations=({"sequence": 0, "name": "set", "args": {}},),
+            left_step=lambda _state, _name, _args: {"value": True},
+            right_step=lambda _state, _name, _args: {"value": True},
+        )
+        with self.assertRaisesRegex(AssertionError, "replay divergence"):
+            replay_fixture_side(
+                fixture,
+                step=lambda _state, _name, _args: {"value": 1},
+                side="left",
+            )
+
+    def test_all_equal_is_integrity_protected_and_consistent(self):
+        fixture = self.fixture()
+        fixture["all_equal"] = False
+        payload = {
+            key: fixture[key]
+            for key in (
+                "fixture_id", "provenance", "initial_state", "operations",
+                "cuts", "first_divergence", "all_equal",
+            )
+        }
+        fixture["fixture_digest"] = hashlib.sha256(canonical_bytes(payload)).hexdigest()
+        with self.assertRaisesRegex(ValueError, "all_equal flag"):
+            replay_fixture_side(fixture, step=step, side="left")
 
     def test_mutating_left_side_cannot_change_right_side_initial_state(self):
         def mutating(state, _name, _args):
