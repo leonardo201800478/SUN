@@ -3,7 +3,7 @@
 **Data:** 2026-11-26
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **PR:** #1284
-**HEAD de referência do inventário inicial:** `ee96d3c013d25a60757355ecf4cf600f70b8c6ca`  
+**HEAD de referência do inventário inicial:** `ee96d3c013d25a60757355ecf4cf600f70b8c6ca`
 **Atualização W00:** fixture adicionada em `4605dd2af122bca0b7d7f5c34cc6c509cfc6385b`; registro no emitter em `57ee467988327a50296d32d74cde52dc1031e396` (CI #11019 pendente).
 **Classificação:** OBSERVATION do inventário de testes e fixtures; não é closeout de R3.
 
@@ -11,8 +11,8 @@
 
 O harness declarativo de replay já está implementado e exercitado. O inventário inicial cobria W07, W08 e W09; a primeira expansão W00 foi adicionada como fixture declarativa e aguarda validação CI no HEAD atualizado.
 
-- Corpus replayável antes da expansão W00: **17 fixtures / 88 operações e cortes**.  
-- W00: **1 fixture adicional / 2 operações e cortes**, implementada; equivalência e geração multiplataforma aguardam CI #11019.
+- Corpus replayável antes da expansão W00: **17 fixtures / 88 operações e cortes**.
+- W00: **1 fixture adicional / 2 operações e cortes**, implementada; equivalência e geração multiplataforma aguardam nova execução CI após a correção do adapter.
 - W07: 1 fixture, mantendo a divergência P-A/R2.
 - W08: 12 fixtures de lifecycle de transação.
 - W09: 4 fixtures de snapshot/restore/replay.
@@ -45,8 +45,8 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 - `test_p_a_microsteps.py`: 11 testes, com matriz e divergência tratadas separadamente.
 - `test_w07_replayable_fixture.py`: 1 fixture registrada.
 - `test_w08_replayable_fixture.py`: 12 fixtures registradas.
-- `test_w09_replayable_fixture.py`: 4 fixtures registradas.  
-- `test_w00_replayable_fixture.py`: 1 fixture registrada no emitter; CI #11019 ainda precisa confirmar execução e equivalência multiplataforma.
+- `test_w09_replayable_fixture.py`: 4 fixtures registradas.
+- `test_w00_replayable_fixture.py`: 1 fixture registrada no emitter; nova execução CI ainda precisa confirmar execução e equivalência multiplataforma.
 
 ## 4. Plano incremental de preenchimento
 
@@ -72,7 +72,7 @@ Não converter automaticamente cada teste unitário em fixture: agrupar cenário
 
 ## 5. Critérios de conclusão do corpus
 
-- [ ] W00: fixture implementada; CI #11019 pendente. W01–W06 ainda sem fixtures replayáveis aplicáveis ou justificativa de não aplicabilidade/duplicação.
+- [ ] W00: fixture implementada; CI #11020 falhou no adapter e aguarda reteste após correção. W01–W06 ainda sem fixtures replayáveis aplicáveis ou justificativa de não aplicabilidade/duplicação.
 - [ ] W07/W08/W09 permanecem registrados e suas divergências conhecidas são preservadas.
 - [ ] Em cada fixture, P-A e R2 são reexecutados de forma independente a partir das mesmas entradas.
 - [ ] O corpus agregado registra contagem por workload, operações/cortes e divergências.
