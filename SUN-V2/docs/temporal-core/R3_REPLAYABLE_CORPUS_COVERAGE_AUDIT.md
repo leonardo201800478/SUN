@@ -41,7 +41,7 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 - `SUN-V2/benchmarks/r3/emit_p_a_trace_corpus.py`: a lista `TEST_MODULES` inclui os módulos P-A, o harness e os testes replayáveis W00/W01/W07/W08/W09; W02–W06 ainda não possuem módulos replayáveis.
 - `SUN-V2/benchmarks/r3/replayable_fixture_corpus.py`: schema `sun.chronos.r3.replayable-fixture.v0.1`; guarda estado inicial, operações, estados completos por corte, digests por lado e primeira divergência.
 - `test_p_a_instruction_catchup.py`: 24 testes unitários/diferenciais, sem registro próprio de fixture replayável; W00 possui módulo declarativo separado.
-- `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais, sem registro de fixture replayável.
+- `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais; `test_w01_replayable_fixture.py` registra uma sequência declarativa própria.
 - `test_p_a_causal_sync.py`: 14 testes unitários/diferenciais, sem registro de fixture replayável.
 - `test_p_a_microsteps.py`: 11 testes, com matriz e divergência tratadas separadamente.
 - `test_w07_replayable_fixture.py`: 1 fixture registrada.
@@ -55,7 +55,6 @@ A ordem abaixo reduz acoplamento entre os adapters e mantém o corpus verificáv
 
 1. **W00 — VALIDADA:** fixture mínima de avanço sem obrigações, CPU/VDP abstratos, clock racional 3/2 e duas operações. CI #11023 confirmou replay e equivalência Linux/Windows.
 2. **W01 — IMPLEMENTADA, CI PENDENTE:** quatro deadlines esparsos em instantes 10/30/50/80; cada deadline é publicado, reivindicado por watermark fechado, despachado e concluído. 16 operações/cortes, estado integral por corte e replay independente P-A/R2.
-3. **W02:** grupo denso/simultâneo. Incluir ao menos um caso comutativo e um UNKNOWN; o segundo deve preservar status e estado sem mutação.
 3. **W02:** grupo denso/simultâneo. Incluir ao menos um caso comutativo e um UNKNOWN; o segundo deve preservar status e estado sem mutação.
 4. **W03:** uma observação com dependência cross-domain declarada e uma negativa por dependência ausente.
 5. **W04:** sequência de observações repetidas, mantendo um corte por chamada.
