@@ -13,6 +13,14 @@ import tracemalloc
 from fractions import Fraction
 from pathlib import Path
 
+from benchmark_statistics import (
+    MAX_CPU_CLOCK_RESOLUTION_NS,
+    QUANTILE_ESTIMATOR,
+    TIME_UNIT,
+    cpu_clock_is_usable,
+    percentile_type7,
+)
+
 from p_a_microsteps import AStepCode, AStepCycle, close_cycle, make_cycle, process_obligation
 
 
@@ -42,11 +50,9 @@ def git_head() -> str:
     return result.stdout.strip() if result.returncode == 0 else "UNKNOWN"
 
 
-def percentile(values: list[int], fraction: float) -> int:
-    """Return a nearest-rank percentile from integer nanosecond samples."""
-    ordered = sorted(values)
-    index = max(0, min(len(ordered) - 1, round((len(ordered) - 1) * fraction)))
-    return ordered[index]
+def percentile(values: list[int], fraction: float) -> float:
+    """Use the shared Hyndman-Fan Type 7 estimator."""
+    return percentile_type7(values, fraction)
 
 
 def digest(result) -> str:
@@ -127,11 +133,14 @@ def run_point(depth: int, mode: str, warmup: int, repeats: int, cpu_enabled: boo
     tracemalloc.stop()
 
     output = {
+        "sample_count": len(wall_samples) if "wall_samples" in locals() else len(samples_wall_ns),
         "parameters": {"depth": depth, "mode": mode, "max_microsteps": depth},
         "result": result.code.value,
         "resolved_count": len(result.state.resolved),
         "pending_count": len(result.state.pending),
         "output_digest": digest(result),
+        "samples_wall_ns": wall_samples,
+        "samples_cpu_ns": cpu_samples if cpu_samples else None,
         "wall_ns": {
             "p50": percentile(wall_samples, 0.50),
             "p95": percentile(wall_samples, 0.95),
@@ -174,7 +183,7 @@ def main() -> int:
         parser.error("modes must be complete,exhaust")
 
     resolution = cpu_clock_resolution_ns()
-    cpu_enabled = resolution is not None and resolution <= 1_000_000
+    cpu_enabled = cpu_clock_is_usable(resolution)
     points = [
         run_point(depth, mode, args.warmup, args.repeats, cpu_enabled)
         for depth in depths for mode in modes
@@ -188,6 +197,9 @@ def main() -> int:
         "cpu_time_status": "AVAILABLE" if cpu_enabled else "SKIPPED_COARSE_RESOLUTION",
         "warmup": args.warmup,
         "repeats": args.repeats,
+        "timing_unit": TIME_UNIT,
+        "quantile_estimator": QUANTILE_ESTIMATOR,
+        "cpu_clock_max_resolution_ns": MAX_CPU_CLOCK_RESOLUTION_NS,
         "points": points,
         "limitations": [
             "synthetic Python benchmark, not native Rust runtime",
