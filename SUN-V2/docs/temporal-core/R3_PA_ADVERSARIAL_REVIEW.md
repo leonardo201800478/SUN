@@ -106,7 +106,16 @@ A validação atual verifica estrutura e formato do digest. Ela não resolve o i
 
 Um SHA-256 com formato válido não prova que o registro existe, é íntegro, tem autoridade ou contém uma medição aplicável.
 
-Os testes positivos usam fixtures sintéticas. Nenhum deles prova fase elétrica real do SMS.
+**Fronteira de confiança ainda não implementada (UNKNOWN):** registry/resolver de registros, autoridade ou trust anchor, codificação canônica dos bytes do registro, política de assinatura/autenticação, revogação/expiração, vínculo de perfil/revisão e validação da origem da medição. Não escolher algoritmo, formato de assinatura ou autoridade por inferência.
+
+Critérios mínimos para uma futura alegação verificável:
+1. Resolver o identificador exato do registro em uma fonte/registry identificada.
+2. Recuperar os bytes canônicos exatos e verificar o SHA-256 declarado sobre esses bytes.
+3. Validar o vínculo do registro com perfil/revisão, coordenada/unidade, escala racional e identidade/revisão da base.
+4. Aplicar uma política de autoridade/autenticação aprovada e documentada, incluindo validade/revogação quando aplicável.
+5. Preservar URI/identificador da fonte, versão, método de aquisição, SHA, perfil, ambiente, resultado e limitações.
+
+Até esses critérios serem definidos e satisfeitos por evidência externa real, qualquer registro ausente, não resolvido, não autenticado ou incompatível não pode sustentar ordenação física. Os testes positivos usam fixtures sintéticas. Nenhum deles prova fase elétrica real do SMS.
 
 ### 4.3 Decisão W06
 
@@ -118,7 +127,7 @@ A exigência de igualdade estrutural de bases é uma melhoria experimental útil
 
 ### 5.1 FACT — implementação observada
 
-`emit_p_a_trace_corpus.py` executa os seis módulos de teste e chama `build_document` em `trace_fixture_support.py`.
+`emit_p_a_trace_corpus.py` executa dez módulos de teste e chama `build_document` em `trace_fixture_support.py`. O fixture W07 declarativo/reexecutável é executado à parte pelo módulo de teste e não deve ser confundido com os cortes diferenciais agregados abaixo.
 
 O recorder:
 
@@ -140,9 +149,9 @@ O artefato não serializa:
 - watermark e ledger de efeitos como dados reexecutáveis;
 - digest separado de cada lado ou payload suficiente para inspecionar o primeiro estado divergente.
 
-Além disso, `all_equal` é gravado como constante `true`; a igualdade é efetivamente protegida pelas exceções em `_record`, mas o campo agregado não é calculado independentemente a partir de evidências armazenadas.
+No documento agregado de cortes, all_equal continua sendo true por construção: _record aborta imediatamente se qualquer par divergir. Isso é distinto do campo all_equal do fixture reexecutável, que agora é derivado dos cortes, incluído no digest do artefato e revalidado antes do replay.
 
-O digest de cada corte é útil para detecção de divergência durante a execução do teste. Contudo, sem entradas e transições completas, o artefato não é suficiente para reproduzir a mesma sequência em P-D/P-E nem para uma auditoria independente do estado divergente.
+O digest de cada corte agregado é útil para detectar divergência durante a execução do teste. Contudo, sem entradas e transições completas para todos os workloads W00–W09, o artefato agregado não é suficiente para reproduzir a mesma sequência em P-D/P-E nem para uma auditoria independente do estado divergente.
 
 ### 5.3 Decisão sobre o corpus
 
@@ -152,6 +161,18 @@ O próximo corpus deve, no mínimo, permitir reexecução independente da mesma 
 
 Alternativamente, o requisito de R3 pode ser revisado formalmente antes de P-D/P-E, mas não pode ser considerado atendido apenas pelo digest agregado atual.
 
+### 5.7 Achados adicionais da revisão independente — correções de harness e CI
+
+A revisão independente do HEAD 25ff40b registrou quatro achados P2 no harness/corpus e uma ressalva de benchmark. Na branch atual foram aplicadas as seguintes correções experimentais:
+
+1. **Replay bool/int:** replay_fixture_side compara estados por bytes canônicos, não pela igualdade permissiva do Python; foi adicionado teste que diferencia true de 1.
+2. **Colisão de chaves:** normalize rejeita chaves de mapping que não sejam strings, eliminando colisões como 1 versus "1"; teste de regressão incluído.
+3. **Integridade de all_equal:** o campo integra o digest do fixture; o replay recalcula a igualdade a partir dos cortes, valida os digests de estado e confere first_divergence. Um artefato com flag adulterada é rejeitado mesmo se o digest for recalculado.
+4. **Equivalência Linux/Windows:** o workflow agora inclui um job agregador que baixa os dois artefatos do corpus e exige igualdade byte a byte, além de imprimir SHA-256. **Aguardando CI no HEAD que introduziu o job.**
+5. **Comparação de quantis:** os drivers R3 utilizam benchmark_statistics.percentile_type7 (Hyndman–Fan Type 7), com a convenção declarada no JSON. A ressalva de 30 amostras permanece: p99 é quantil descritivo da amostra, não limite robusto de cauda.
+6. **Base de fase:** _causal_order_known exige APhaseBasis válido e igualdade estrutural da base entre eventos do mesmo nível; perfis/bases divergentes e ausência de base permanecem indeterminados. Isso resolve a comparabilidade estrutural do protótipo, mas **não** autentica o registro externo de W06.
+
+Essas correções não modificam R1 v0.3.18, o oráculo R2 aprovado ou código de produção. A correção do harness não fecha o requisito de corpus completo nem altera W06/W07 para PASS.
 ## 6. Estado do gate e ações necessárias
 
 | Item | Resultado |
@@ -188,7 +209,7 @@ Alternativamente, o requisito de R3 pode ser revisado formalmente antes de P-D/P
 
 **Conclusão:** CI verde confirma que os testes implementados passaram. Não transforma hipóteses semânticas em contrato aprovado nem substitui o corpus reexecutável exigido para comparação entre arquiteturas.
 
-### 5.4 Proposta de esquema mínimo para corpus reexecutável (não implementada)
+### 5.4 Schema mínimo de corpus reexecutável — especificação e cobertura parcial
 
 Para tornar o requisito verificável sem acoplar P-D/P-E à implementação interna de P-A, cada fixture deve ser uma entrada declarativa e cada protótipo deve consumir a mesma sequência canônica de operações. O artefato deve conter, no mínimo, os seguintes blocos:
 
@@ -213,7 +234,7 @@ O `observable_state` deve preservar, quando existentes no cenário: estado por d
 6. O digest agregado deve cobrir schema, provenance relevante, fixture, operações e cortes, não apenas IDs/índices/digests dos cortes.
 7. Linux e Windows devem produzir os mesmos bytes canônicos e SHA-256 para a mesma versão de schema e fixture; metadados específicos de ambiente ficam fora do digest semântico ou em bloco separado claramente excluído.
 
-Este esquema é uma **proposta de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. Antes de implementar, validar o schema contra W00–W09, snapshots com estado parcial e pelo menos um caso de divergência intencional, para provar que o primeiro corte divergente é recuperável. O corpus atual continua BLOCKED até essa validação e a execução cruzada em Linux/Windows.
+Este schema é uma **especificação de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. O harness genérico e a fixture W07 foram parcialmente implementados em `replayable_fixture_corpus.py`; a migração integral dos workloads W00–W09, snapshots com estado parcial e entradas independentes ainda não foi concluída. O corpus completo continua BLOCKED.
 
 
 ### 5.5 Implementação experimental do corpus e fixture W07 (em validação)
@@ -222,7 +243,7 @@ No HEAD experimental posterior à revisão, foi adicionado o harness descartáve
 
 Também foi adicionado `test_w07_replayable_fixture.py`, que adapta a mesma fixture declarativa aos modelos P-A e R2 sem compartilhar a lógica de transição. A sequência registra A/B no microstep 0, A emitindo C no microstep 1 e a tentativa de C antes de B. A expectativa observada é divergência no corte da operação 1: P-A retorna `Blocked`; R2 retorna `Advanced`. O fixture então continua até o fim e exige replay independente dos dois lados.
 
-**Limite:** isto é uma fixture sintética executável do caso W07, não evidência física SMS nem prova de que a ordem escolhida por P-A ou R2 seja fisicamente correta. A divergência continua sendo um blocker semântico. O primeiro CI após a integração falhou por erro no adaptador de replay (o estado serializado retornado por uma operação não era desembrulhado antes da operação seguinte). A correção foi aplicada no commit `bc40d435d818e624ed7b8f2607a3e32fcebeaac4`, mas ainda aguarda execução CI específica neste SHA. Até CI Linux/Windows PASS, classificar a integração como **NOT VALIDATED**.
+**Limite:** isto é uma fixture sintética executável do caso W07, não evidência física SMS nem prova de que a ordem escolhida por P-A ou R2 seja fisicamente correta. A divergência continua sendo um blocker semântico. O adaptador de replay foi corrigido no commit `bc40d435d818e624ed7b8f2607a3e32fcebeaac4`; CI #10958 confirmou a fixture em Linux/Windows no SHA `25ff40bdfc817185dabcf9065afb9b6c32e293c2`. A matriz de relações par-a-par foi validada no CI #10962 em Linux/Windows no SHA `c6d9f71f989cf9c1ff61fde8a36ea883b82a35ff`. Isso valida os protótipos executáveis, não a relação física B/C; W07 continua BLOCKED.
 
 O emissor do corpus agregado permanece separado: a fixture de divergência não é misturada aos cortes diferenciais que exigem igualdade. Ela é capturada e validada pelo próprio teste de replay, preservando a distinção entre igualdade diferencial e divergência intencional.
 
@@ -242,4 +263,4 @@ O módulo não infere a relação a partir de microstep, owner, ordem de inserç
 
 **Isolamento preservado:** `p_a_microsteps.py`, o oráculo aprovado `verification/r2_reference/microstep_reference.py`, R1 v0.3.18 e R2 merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0` não foram alterados. O caso original W07 permanece como observação da divergência P-A/R2. A nova matriz não autoriza substituir a barreira de P-A nem alterar o resultado do oráculo.
 
-**Validação pendente:** os seis testes da matriz foram adicionados ao emissor R3 e aguardam CI Linux/Windows no novo HEAD. Mesmo após PASS, W07 permanece **BLOCKED** até que uma revisão independente defina quais relações podem ser admitidas e qual evidência as sustenta. Em particular, o caso original B/C sem relação demonstrada deve permanecer indeterminado; não se escolhe B<C nem C<B por conveniência de implementação.
+**Validação executável:** os seis testes da matriz passaram no CI #10962 em Linux e Windows. Mesmo com PASS, W07 permanece **BLOCKED** até que uma revisão independente defina quais relações podem ser admitidas e qual evidência as sustenta. Em particular, o caso original B/C sem relação demonstrada deve permanecer indeterminado; não se escolhe B<C nem C<B por conveniência de implementação.
