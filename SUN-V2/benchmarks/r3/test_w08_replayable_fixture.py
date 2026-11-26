@@ -22,7 +22,10 @@ from p_a_transactions import (  # noqa: E402
     PATransactionSpec,
     PATxState,
     commit_effect as p_a_commit_effect,
+    enter_waiting as p_a_enter_waiting,
     reach_next_marker as p_a_reach_next_marker,
+    release_waiting as p_a_release_waiting,
+    sample_marker as p_a_sample_marker,
     start as p_a_start,
     submit as p_a_submit,
 )
@@ -38,7 +41,10 @@ from transaction_reference import (  # noqa: E402
     TransactionSpec,
     TxState,
     commit_effect as r2_commit_effect,
+    enter_waiting as r2_enter_waiting,
     reach_next_marker as r2_reach_next_marker,
+    release_waiting as r2_release_waiting,
+    sample_marker as r2_sample_marker,
     start as r2_start,
     submit as r2_submit,
 )
@@ -220,6 +226,14 @@ def _p_a_step(data, name, args):
         )
     elif name == "commit_effect":
         result = p_a_commit_effect(book, args["identity"], args["marker_id"])
+    elif name == "enter_waiting":
+        result = p_a_enter_waiting(book, args["identity"], args["source"])
+    elif name == "release_waiting":
+        result = p_a_release_waiting(book, args["identity"], args["source"])
+    elif name == "sample_marker":
+        result = p_a_sample_marker(
+            book, args["identity"], args["marker_id"], args["sampled_value"]
+        )
     else:
         raise ValueError(f"unsupported W08 operation: {name}")
     return _result_data(result)
@@ -238,6 +252,14 @@ def _r2_step(data, name, args):
         )
     elif name == "commit_effect":
         result = r2_commit_effect(book, args["identity"], args["marker_id"])
+    elif name == "enter_waiting":
+        result = r2_enter_waiting(book, args["identity"], args["source"])
+    elif name == "release_waiting":
+        result = r2_release_waiting(book, args["identity"], args["source"])
+    elif name == "sample_marker":
+        result = r2_sample_marker(
+            book, args["identity"], args["marker_id"], args["sampled_value"]
+        )
     else:
         raise ValueError(f"unsupported W08 operation: {name}")
     return _result_data(result)
@@ -317,6 +339,110 @@ class W08ReplayableTransactionTests(unittest.TestCase):
         )
         self.assertEqual(
             final_right["transaction"]["committed"], ["write-commit"]
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
+
+    def test_w08_wait_resume_and_sample_retry_preserve_first_value(self):
+        spec = {
+            "identity": "w08-sample",
+            "generation": 1,
+            "origin": "cpu",
+            "destination": "vdp",
+            "operation": "read",
+            "profile": "SMS-NTSC",
+            "payload": "status",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (
+                {
+                    "identity": "read-status",
+                    "kind": "Sample",
+                    "at_common": Fraction(2),
+                    "irreversible": False,
+                },
+            ),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {"sequence": 1, "name": "start", "args": {"identity": "w08-sample"}},
+            {
+                "sequence": 2,
+                "name": "enter_waiting",
+                "args": {"identity": "w08-sample", "source": "dependency"},
+            },
+            {
+                "sequence": 3,
+                "name": "release_waiting",
+                "args": {"identity": "w08-sample", "source": "dependency"},
+            },
+            {
+                "sequence": 4,
+                "name": "reach_next_marker",
+                "args": {"identity": "w08-sample", "at_common": Fraction(2)},
+            },
+            {
+                "sequence": 5,
+                "name": "sample_marker",
+                "args": {
+                    "identity": "w08-sample",
+                    "marker_id": "read-status",
+                    "sampled_value": "0x44",
+                },
+            },
+            {
+                "sequence": 6,
+                "name": "sample_marker",
+                "args": {
+                    "identity": "w08-sample",
+                    "marker_id": "read-status",
+                    "sampled_value": "0x99",
+                },
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_WAIT_RESUME_SAMPLE_EXACTLY_ONCE",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": "dependency WAIT, release and idempotent sample retry",
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not a physical SMS WAIT signal, bus sample, hardware trace, "
+                    "or production transaction implementation."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        final_left = fixture["cuts"][-1]["left_state"]
+        final_right = fixture["cuts"][-1]["right_state"]
+        self.assertEqual(final_left["code"], "Ok")
+        self.assertEqual(final_right["code"], "Ok")
+        self.assertEqual(final_left["value"], "0x44")
+        self.assertEqual(final_right["value"], "0x44")
+        self.assertEqual(
+            final_left["transaction"]["sampled"], [["read-status", "0x44"]]
+        )
+        self.assertEqual(
+            final_right["transaction"]["sampled"], [["read-status", "0x44"]]
         )
         self.assertEqual(
             len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
