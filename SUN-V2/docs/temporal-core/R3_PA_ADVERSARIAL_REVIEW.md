@@ -2,7 +2,8 @@
 
 **Data:** 2026-11-26
 **Classificação:** revisão técnica independente do protótipo; não é aprovação de gate
-**HEAD auditado:** `09f71c8aa059c44855c358b614c965f92900a173`
+**HEAD auditado nesta revisão:** `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`  
+**HEAD da revisão original:** `09f71c8aa059c44855c358b614c965f92900a173`
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **PR:** [#1284 — Begin disposable CHRONOS R3 prototypes](https://github.com/leonardo201800478/SUN/pull/1284)
 **R1 normativo:** v0.3.18, SHA de conteúdo `ac912f342ff303b3fdc554b90d00e85b23d86c76`
@@ -22,7 +23,9 @@ Nenhum destes resultados invalida automaticamente R1/R2. Nenhuma alteração nor
 
 ## 2. Base factual e evidência CI
 
-No HEAD auditado, o histórico remoto reporta CI #10937 SUCCESS:
+### Evidência histórica da revisão original
+
+Na revisão original do HEAD `09f71c8aa059c44855c358b614c965f92900a173`, o histórico remoto reportava CI #10937 SUCCESS:
 
 - P-A: 125/125 testes em Linux e 125/125 em Windows.
 - R2 independente: 256/256 testes em cada sistema operacional.
@@ -297,3 +300,67 @@ O módulo não infere a relação a partir de microstep, owner, ordem de inserç
 **Isolamento preservado:** `p_a_microsteps.py`, o oráculo aprovado `verification/r2_reference/microstep_reference.py`, R1 v0.3.18 e R2 merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0` não foram alterados. O caso original W07 permanece como observação da divergência P-A/R2. A nova matriz não autoriza substituir a barreira de P-A nem alterar o resultado do oráculo.
 
 **Validação executável:** os seis testes da matriz passaram no CI #10962 em Linux e Windows. Mesmo com PASS, W07 permanece **BLOCKED** até que uma revisão independente defina quais relações podem ser admitidas e qual evidência as sustenta. Em particular, o caso original B/C sem relação demonstrada deve permanecer indeterminado; não se escolhe B<C nem C<B por conveniência de implementação.
+
+## 8. Aditivo de revalidação — HEAD atual e W09 replay após restore
+
+**Data da revalidação:** 2026-11-26  
+**HEAD revalidado:** `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`  
+**CI:** [#11012](https://github.com/leonardo201800478/SUN/actions/runs/45813531583) — Run ID `45813531583`, conclusão **SUCCESS**.  
+**Escopo:** inspeção do parecer, fixture W09 atual, metadados da PR e jobs do CI. Este aditivo atualiza a base de evidência; não aprova gate nem altera R1/R2.
+
+### 8.1 CI no HEAD revalidado
+
+Jobs relevantes concluídos com sucesso:
+
+- CHRONOS R3 disposable prototype tests — Linux e Windows.
+- CHRONOS R2 independent reference tests — Linux.
+- CHRONOS R2 Python reference tests — Windows.
+- CHRONOS R3 canonical and replayable corpus Linux/Windows equivalence.
+- GitHub Actions workflow validation.
+- Documentation patch hygiene.
+- Rust quality and unit regression supervisor.
+- Change impact classification.
+
+Foram **9 jobs SUCCESS e 14 SKIPPED**. Os jobs de hardware/runtime/desktop, incluindo SMS1 VDP, scheduler stress, PSG, CPAL, SDL3, Slint/WGPU, Z80 e YM2413, permanecem SKIPPED e não são contabilizados como PASS. Os testes R3 reportam 162 testes por sistema operacional. Esta execução comprova os testes e artefatos declarados no workflow, não a validação dos subsistemas ignorados.
+
+### 8.2 Corpus reexecutável atualizado
+
+O PR registra no HEAD revalidado:
+
+- Corpus canônico: 112 fixtures e 1.475 cortes (1.468 diferenciais + 7 propriedades), digest lógico `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`, SHA-256 idêntico Linux/Windows `2539b0e5115e9d14bca13392405cda729e48471b2e0acaa63f06af1df9e87b9f`.
+- Corpus replayável independente: 17 fixtures e 88 operações/cortes, digest lógico `e15bb0dc410b01dd1484b79c80d9918010dd86db665a269fec2bc394ea698f1f`, SHA-256 idêntico Linux/Windows `36407339579b7a35bb88619a26a5cdcbe2f0146b463bb8fc41afcbceaf0b0aaa`.
+
+A igualdade multiplataforma dos artefatos é PASS. Isso não transforma o corpus replayável parcial em cobertura completa de todos os workloads W00–W09. A migração integral permanece pendente.
+
+### 8.3 W09 — replay de eventos após restore
+
+A fixture `W09_REPLAY_EVENTS_AFTER_RESTORE_PRESERVES_ACCEPTED_SEQUENCE` foi inspecionada no arquivo `test_w09_replayable_fixture.py`. A sequência declarativa executa capture, restore e replay sobre um estado sintético SMS-NTSC:
+
+1. O snapshot capturado contém `input_cursor=4`.
+2. Após restore, são fornecidos eventos em ordem de tupla 6, 5.
+3. O replay deve aplicar a sequência aceita 5, 6, preservando o cursor e avançando-o até 6.
+4. CPU e VDP terminam com progresso comum 12.
+5. A fixture compara o adaptador P-A com o oráculo independente R2, exige igualdade de todos os cortes e executa replay independente de ambos os lados.
+
+O teste também declara explicitamente que o oráculo R2 constrói um histórico sintético de entradas aceitas alinhado ao cursor do snapshot. Portanto, **não** demonstra que um log histórico físico é armazenado pelo snapshot nem que houve replay de um dispositivo SMS real. Classificação: **OBSERVATION de equivalência sintética P-A/R2**.
+
+O mesmo arquivo mantém a fixture de gerações de deadlines e ledgers parciais de efeitos após restore. Isso amplia a cobertura sintética de W09, mas não substitui traces de runtime nem fecha a cobertura reexecutável integral W00–W09.
+
+### 8.4 Disposição atualizada dos achados
+
+| Achado | Estado no HEAD revalidado | Efeito no gate |
+|---|---|---|
+| W07 — relação B/C | **BLOCKED**; a matriz só adjudica relações fornecidas e não prova a relação física/lógica | Não fechar W07 |
+| W06 — registro externo de fase | **UNKNOWN** como evidência física; validação estrutural não resolve nem autentica o registro | Não alegar fase física SMS |
+| Corpus reexecutável W00–W09 | **PARTIAL**; 17 fixtures/88 operações, incluindo W07/W08/W09 | Não fechar requisito integral |
+| W09 replay após restore | **PASS** como fixture sintética P-A/R2, com histórico anterior sintético | Evidência limitada; não prova hardware |
+| CI #11012 | **PASS** nos jobs executados; 14 jobs SKIPPED | Valida somente o escopo executado |
+| P-A closeout | **NOT READY** | R3 continua em andamento |
+| P-D/P-E | **NOT RUN / BLOCKED** | Não iniciar sem critérios de entrada resolvidos/revisados |
+| R4/R5 | **PENDING** | Sem aprovação arquitetural final |
+
+### 8.5 Conclusão da revalidação
+
+A revisão adversarial foi atualizada para o HEAD `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`. As correções e ampliações recentes do harness, a fixture W09 de replay após restore e o CI #11012 fortalecem a evidência experimental. **Nenhuma delas resolve W07, autentica W06 ou completa o corpus reexecutável W00–W09.**
+
+A decisão permanece: manter a PR #1284 **OPEN/DRAFT**, não declarar P-A fechado, não iniciar P-D/P-E e não introduzir código de produção CHRONOS/V2 antes de R5. R1 v0.3.18 e o oráculo R2 aprovado permanecem preservados.
