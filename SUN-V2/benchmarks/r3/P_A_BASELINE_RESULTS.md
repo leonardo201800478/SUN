@@ -589,4 +589,3 @@ All listed ZIP SHA-256 digests were recalculated from downloaded bytes and match
 - The trailing whitespace was removed in the next revision. CI #10932 must validate the corrected documentation and rerun the required jobs before this revision is classified fully green.
 - These results are synthetic Python observations, not Rust runtime performance, physical SMS timing, FPS, frame pacing, audio/video fidelity or ROM compatibility.
 - R2 source and tests were not modified. The W06/W07 oracle gaps are documented separately; differential equality is not used as proof for those two scenarios.
-
