@@ -2,7 +2,7 @@
 
 **Data:** 2026-11-26
 **Classificação:** revisão técnica independente do protótipo; não é aprovação de gate
-**HEAD auditado nesta revisão:** `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`  
+**HEAD auditado nesta revisão:** `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`
 **HEAD da revisão original:** `09f71c8aa059c44855c358b614c965f92900a173`
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **PR:** [#1284 — Begin disposable CHRONOS R3 prototypes](https://github.com/leonardo201800478/SUN/pull/1284)
@@ -303,9 +303,9 @@ O módulo não infere a relação a partir de microstep, owner, ordem de inserç
 
 ## 8. Aditivo de revalidação — HEAD atual e W09 replay após restore
 
-**Data da revalidação:** 2026-11-26  
-**HEAD revalidado:** `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`  
-**CI:** [#11012](https://github.com/leonardo201800478/SUN/actions/runs/45813531583) — Run ID `45813531583`, conclusão **SUCCESS**.  
+**Data da revalidação:** 2026-11-26
+**HEAD revalidado:** `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`
+**CI:** [#11012](https://github.com/leonardo201800478/SUN/actions/runs/45813531583) — Run ID `45813531583`, conclusão **SUCCESS**.
 **Escopo:** inspeção do parecer, fixture W09 atual, metadados da PR e jobs do CI. Este aditivo atualiza a base de evidência; não aprova gate nem altera R1/R2.
 
 ### 8.1 CI no HEAD revalidado
@@ -364,3 +364,4 @@ O mesmo arquivo mantém a fixture de gerações de deadlines e ledgers parciais 
 A revisão adversarial foi atualizada para o HEAD `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`. As correções e ampliações recentes do harness, a fixture W09 de replay após restore e o CI #11012 fortalecem a evidência experimental. **Nenhuma delas resolve W07, autentica W06 ou completa o corpus reexecutável W00–W09.**
 
 A decisão permanece: manter a PR #1284 **OPEN/DRAFT**, não declarar P-A fechado, não iniciar P-D/P-E e não introduzir código de produção CHRONOS/V2 antes de R5. R1 v0.3.18 e o oráculo R2 aprovado permanecem preservados.
+
