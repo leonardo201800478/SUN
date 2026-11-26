@@ -1,0 +1,104 @@
+# SUN V2 — proposta de tratamento das lacunas R1/R2 identificadas em R3
+
+**Classificação:** proposta técnica de revisão; não altera R1 nem R2  
+**Estado:** aberta para revisão independente  
+**R1 aprovado:** v0.3.18, conteúdo SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, merge `88e105d6495f7f5105502e53666a7b0d29f77572`  
+**R2 aprovado:** PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`  
+**P-A inicial revisado:** `977641816c7396ee96c6f916efea4ee736042e24`  
+**P-A correções em validação:** `827e2da1dc87c2b4c98ef9b1171313f14c35ecf5`
+
+## 1. Objetivo e limites
+
+Registrar duas lacunas observadas durante a revisão independente do protótipo P-A (PR #1284), preservar os artefatos R1/R2 aprovados e propor uma forma controlada de tratar divergências entre o contrato normativo, o oráculo aprovado e o protótipo experimental.
+
+Este documento **não**:
+- altera o contrato R1;
+- altera, reescreve ou invalida automaticamente o modelo R2;
+- declara que R2 é globalmente incorreto;
+- autoriza código de produção CHRONOS/V2;
+- promove R3, R4 ou R5.
+
+## 2. Finding W07 — progressão entre níveis de microstep
+
+### FACT — contrato aprovado
+
+R1 §6, item 1, proíbe observar um evento posterior antes de um evento causalmente anterior. R1 §16.6 define microstep/delta-cycle como ordem lógica de software no mesmo instante, restringe a sequência de microsteps a dependências causais já estabelecidas ou efeitos comutativos e exige regra explícita para eventos criados durante despacho.
+
+### FACT — lacuna observada no R2
+
+No R2 aprovado:
+- `microstep_reference.py` (blob SHA `5e00999c74cee52012124dff7615ba50cd8348d5`) seleciona a obrigação pelo identificador e verifica conflitos no nível selecionado;
+- `test_microsteps.py` (blob SHA `b0ba8b59ac6b9fd4a3195ab40f0c11742da786d0`) cobre emissão de filho no próximo microstep, mas não o caso em que um irmão comutativo do nível anterior continua pendente quando o filho é solicitado.
+
+O R2 não possui, portanto, teste discriminante para a tentativa de processar C no nível 1 enquanto B ainda está pendente no nível 0.
+
+### OBSERVATION — correção experimental P-A
+
+P-A passa a bloquear a seleção de uma obrigação quando existe obrigação pendente em nível lógico anterior. Antes de bloquear, mantém `IndeterminateCausalOrder` se o nível anterior contiver conflito simultâneo não comutativo sem relação demonstrada.
+
+O teste adversarial:
+1. cria A e B comutativas no nível 0;
+2. processa A e emite C no nível 1;
+3. tenta processar C enquanto B permanece pendente;
+4. verifica `Blocked`, identidade do estado preservada e B ainda pendente;
+5. processa B;
+6. processa C e conclui o ciclo.
+
+O teste também registra explicitamente que o R2 aprovado aceita o passo 3. Essa divergência é intencionalmente excluída da comparação diferencial positiva; não se altera a expectativa normativa para forçar equivalência.
+
+### HYPOTHESIS / INFERENCE — interpretação operacional
+
+A barreira de menor nível é uma interpretação experimental conservadora da progressão lógica de microsteps. Ela não declara precedência física entre dispositivos nem usa ordem de inserção. A interpretação deve ser avaliada na revisão independente R3/R4; se a revisão entender que R1 não determina o fechamento do nível anterior, a ambiguidade deve ser resolvida formalmente antes de selecionar o modelo.
+
+## 3. Finding W06 — comparabilidade de evidências de fase
+
+### FACT — contrato aprovado
+
+R1 §6 distingue instantes diferentes, fases comprovadamente diferentes, mesma fase e relação desconhecida. Fases físicas dependem de evidência do perfil ou decisão validada; sequência de inserção não prova precedência elétrica. Efeitos não comutativos sem relação de fase conhecida permanecem não resolvidos.
+
+### FACT — lacuna observada no R2
+
+No R2 aprovado:
+- `deadline_reference.py` (blob SHA `1b9e5e3b80425aadf8c5d98a38a93133fc1ea986`) exige phase order e phase evidence não ausentes e ordens distintas, mas não exige uma base de comparação estruturada;
+- `test_deadlines.py` (blob SHA `03054b12cfbcc8c321e70a0f55e4b118c0b05565`) testa ordens distintas usando uma única string sintética (`synthetic-test-fixture`), sem testar perfis/bases distintos.
+
+Assim, o oráculo pode aceitar duas ordens numericamente distintas sem demonstrar que elas compartilham perfil, revisão, coordenada, unidade e escala comparáveis.
+
+### OBSERVATION — correção experimental P-A
+
+P-A introduz `APhaseBasis`, descritor tipado com:
+- perfil e revisão;
+- coordenada e unidade;
+- numerador e denominador da escala;
+- identidade e revisão da base;
+- identificador e SHA-256 do registro de validação.
+
+Para eventos não comutativos no mesmo microstep, P-A exige ordens distintas, evidências presentes e descritores de base estruturalmente válidos e iguais. Base ausente ou bases diferentes produzem `IndeterminateCausalOrder`, sem reivindicar deadlines e sem fechar watermark. Descritor malformado é rejeitado na publicação, sem mutação.
+
+Os testes positivos usam fixtures sintéticas para exercitar a mecânica de comparação. O digest sintético não é prova de evidência física, nem significa que um perfil SMS real tenha sido validado. Sem registro externo real, a fase física permanece UNKNOWN.
+
+### HYPOTHESIS / INFERENCE — limite da representação
+
+A igualdade de descritores tipados estabelece que os eventos declaram a mesma base de comparação; a validação estrutural verifica a forma e o digest declarado. A existência, autoridade e conteúdo do registro referenciado continuam sendo uma fronteira externa que precisa ser auditada. A representação não deve ser promovida a evidência física até que o registro de perfil correspondente seja localizado e validado.
+
+## 4. Tratamento formal proposto para R2
+
+1. Preservar o merge SHA R2 `18b4352e16cf6ab275c4923a30acc3124754a1b0` e todos os blobs aprovados.
+2. Não editar `SUN-V2/verification/r2_reference/` como parte da correção P-A.
+3. Manter os testes de divergência P-A como testes normativos independentes, explicitando que não são equivalência diferencial.
+4. Anexar os casos mínimos W07/W06 a uma proposta formal de revisão do modelo R2.
+5. Solicitar revisão independente da interpretação de R1 e do impacto sobre os demais contratos.
+6. Somente após decisão explícita, abrir revisão de R2 com novos testes, closeout, rastreabilidade, mutation checks e CI em ambos os sistemas operacionais.
+7. Até essa decisão, tratar R2 como oráculo aprovado para o escopo coberto, mas não como prova suficiente para os dois cenários recém-identificados.
+
+## 5. Evidência da correção P-A
+
+A validação desta revisão está associada ao SHA `827e2da1dc87c2b4c98ef9b1171313f14c35ecf5` e CI #10930.
+
+Os testes P-A foram ampliados para 125 casos por sistema operacional; os testes independentes R2 permanecem em 256 por sistema operacional. A execução dos benchmarks e a verificação cruzada dos artefatos Linux/Windows são registradas em `benchmarks/r3/P_A_BASELINE_RESULTS.md` após o fechamento da execução.
+
+## 6. Decisão pendente
+
+**Proposta:** manter a correção experimental P-A, preservar R2 imutável e submeter as duas lacunas a revisão independente. Não declarar R2 reprovado nem R3 fechado por esta proposta.
+
+R4/R5 continuam pendentes. Nenhum código de produção CHRONOS/V2 está autorizado antes de R5.
