@@ -193,6 +193,7 @@ def run_point(kind: str, fan_in: int, scale: int, warmup: int,
             "mean": statistics.fmean(samples_cpu_ns),
         }
     return {
+        "sample_count": len(samples_wall_ns),
         "parameters": parameters,
         "calls_per_sample": calls_per_sample,
         "samples_wall_ns": samples_wall_ns,
