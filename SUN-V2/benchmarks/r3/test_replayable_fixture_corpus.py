@@ -186,8 +186,7 @@ class ReplayableFixtureCorpusTests(unittest.TestCase):
         self.assertEqual(fixture["cuts"][0]["left_state"], {"value": 1})
         self.assertEqual(fixture["cuts"][0]["right_state"], {"value": 1})
 
-
-    def test_recorded_corpus_is_sorted_deterministic_and_rejects_duplicates(self):
+    def test_recorded_corpus_is_deterministic_and_rejects_duplicates(self):
         reset_replayable_corpus()
         self.addCleanup(reset_replayable_corpus)
         fixture = self.fixture()

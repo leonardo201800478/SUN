@@ -112,7 +112,6 @@ def capture_differential_fixture(
     }
 
 
-
 def reset_replayable_corpus() -> None:
     """Clear explicitly registered workload fixtures before one emitter run."""
     _RECORDED_FIXTURES.clear()
@@ -173,6 +172,7 @@ def build_replayable_document(*, git_head: str, test_count: int) -> dict:
         "corpus_digest": _sha256(manifest),
         "fixtures": fixtures,
     }
+
 
 def replay_fixture_side(
     fixture: dict,
