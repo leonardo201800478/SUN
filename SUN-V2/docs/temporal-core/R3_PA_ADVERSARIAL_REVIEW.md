@@ -181,7 +181,7 @@ Foi adicionado `test_w08_replayable_fixture.py` e o módulo foi incluído em `em
 
 O artefato registra estado completo do book e da transação, status, ledger de efeitos, argumentos e cada corte; replay dos dois lados valida todos os estados capturados. O teste exige igualdade integral P-A/R2 e um único identificador no ledger final.
 
-**Classificação e limite:** OBSERVATION de equivalência entre dois modelos sintéticos. CI #10978 confirmou a fixture COMMIT/retry em Linux e Windows; CI #10987 confirmou também a fixture WAIT/release e SAMPLE/retry em Linux e Windows, com replay independente dos dois lados e equivalência byte a byte do corpus. Não é trace de barramento físico SMS, medição de hardware, nem prova de exatamente-uma-vez no dispositivo real. W08 permanece parcialmente coberto; falha, recuperação, consumo separado de TW, cancelamento e combinações de ledger parcial ainda não foram migrados para fixtures declarativas independentes.
+**Classificação e limite:** OBSERVATION de equivalência entre dois modelos sintéticos. CI #10978 confirmou COMMIT/retry; CI #10987 confirmou WAIT/release e SAMPLE/retry; CI #10989 confirmou falha/retry/recuperação explícita. As três fixtures passaram em Linux e Windows, com replay independente P-A/R2 e equivalência byte a byte do corpus. Não são traces de barramento físico SMS, medições de hardware, nem prova de comportamento exatamente-uma-vez no dispositivo real. W08 permanece parcialmente coberto; consumo separado de TW, cancelamento e combinações mais amplas de ledger parcial ainda não foram migrados para fixtures declarativas independentes.
 
 ### 5.10 Fixture reexecutável W09 — snapshot capture/restore
 
