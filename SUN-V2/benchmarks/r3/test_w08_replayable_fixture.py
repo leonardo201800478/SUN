@@ -678,3 +678,106 @@ class W08ReplayableTransactionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+    def test_w08_failure_after_partial_commit_preserves_exact_ledger(self):
+        spec = {
+            "identity": "w08-partial-failure",
+            "generation": 0,
+            "origin": "cpu",
+            "destination": "vdp",
+            "operation": "write",
+            "profile": "SMS-NTSC",
+            "payload": ["0x11", "0x22"],
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (
+                {
+                    "identity": "write-1",
+                    "kind": "Commit",
+                    "at_common": Fraction(1),
+                    "irreversible": False,
+                },
+                {
+                    "identity": "write-2",
+                    "kind": "Commit",
+                    "at_common": Fraction(2),
+                    "irreversible": False,
+                },
+            ),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {
+                "sequence": 1,
+                "name": "start",
+                "args": {"identity": "w08-partial-failure"},
+            },
+            {
+                "sequence": 2,
+                "name": "reach_next_marker",
+                "args": {
+                    "identity": "w08-partial-failure",
+                    "at_common": Fraction(1),
+                },
+            },
+            {
+                "sequence": 3,
+                "name": "commit_effect",
+                "args": {
+                    "identity": "w08-partial-failure",
+                    "marker_id": "write-1",
+                },
+            },
+            {
+                "sequence": 4,
+                "name": "fail",
+                "args": {
+                    "identity": "w08-partial-failure",
+                    "error": "partial bus fault",
+                },
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_FAILURE_AFTER_PARTIAL_COMMIT_PRESERVES_LEDGER",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "failure after the first of two commit markers preserves "
+                    "the exact already-committed effect ledger"
+                ),
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not a physical partial bus failure, hardware recovery trace, "
+                    "or production transaction implementation."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            final = fixture["cuts"][-1][side]
+            self.assertEqual(final["code"], "Ok")
+            self.assertEqual(final["transaction"]["state"], "Failed")
+            self.assertEqual(final["transaction"]["committed"], ["write-1"])
+            self.assertEqual(final["transaction"]["failure"], "partial bus fault")
+            self.assertEqual(final["transaction"]["recoveries"], 0)
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
