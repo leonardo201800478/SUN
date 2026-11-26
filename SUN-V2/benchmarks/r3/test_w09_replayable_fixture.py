@@ -285,6 +285,7 @@ class W09ReplayableSnapshotTests(unittest.TestCase):
             transactions=(),
             interrupts=PAInterruptRecord(
                 int_level=True,
+                nmi_level=False,
                 accepted="INT",
                 acknowledge_active=True,
                 vector_sampled="0x38",
