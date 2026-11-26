@@ -161,6 +161,14 @@ O próximo corpus deve, no mínimo, permitir reexecução independente da mesma 
 
 Alternativamente, o requisito de R3 pode ser revisado formalmente antes de P-D/P-E, mas não pode ser considerado atendido apenas pelo digest agregado atual.
 
+### 5.8 Resultado do primeiro gate de equivalência multiplataforma
+
+O CI #10973 passou em Linux e Windows para os testes R3, em ambos os conjuntos independentes R2, em Actionlint e em higiene documental. O job de comparação do corpus falhou no `cmp` byte a byte.
+
+**Diagnóstico dos artefatos reais do run:** os JSONs descompactados eram semanticamente idênticos (`json.loads(linux) == json.loads(windows)`), e os bytes tornavam-se idênticos após substituir CRLF por LF no artefato Windows. O Linux escreveu 9.313 LF; o Windows escreveu 9.313 CRLF. Portanto, a diferença era a tradução de newline feita por `Path.write_text` no Windows, não divergência de estado, digest, fixture ou ordem de registros. Os SHA-256 originais diferentes não indicam divergência semântica nesse caso.
+
+**Correção aplicada após o CI #10973:** `emit_p_a_trace_corpus.py` passa `newline="\\n"` explicitamente a `Path.write_text`, definindo bytes LF em todas as plataformas. O job de comparação byte a byte permanece estrito; não foi enfraquecido nem substituído por comparação semântica. A correção está no commit `43c45cf1883fb4b90c3ec2e7e2b3f127581919a8` e aguarda novo CI Linux/Windows.
+
 ### 5.7 Achados adicionais da revisão independente — correções de harness e CI
 
 A revisão independente do HEAD 25ff40b registrou quatro achados P2 no harness/corpus e uma ressalva de benchmark. Na branch atual foram aplicadas as seguintes correções experimentais:
