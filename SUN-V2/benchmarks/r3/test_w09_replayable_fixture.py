@@ -23,12 +23,14 @@ from p_a_snapshots import (  # noqa: E402
     PADomainState,
     PAInterruptRecord,
     PAMachineState,
+    PAReplayEvent,
     PATransactionRecord,
     PATransactionState,
     PASnapshotArtifact,
     _artifact_state,
     _encode_state,
     capture as p_a_capture,
+    replay_from_snapshot,
     restore as p_a_restore,
 )
 from replayable_fixture_corpus import (  # noqa: E402
@@ -37,6 +39,14 @@ from replayable_fixture_corpus import (  # noqa: E402
     record_replayable_fixture,
 )
 from trace_fixture_support import normalize  # noqa: E402
+from replay_reference import (  # noqa: E402
+    AcceptedInput,
+    ExternalInput,
+    InputContract,
+    Participant,
+    ReplayState,
+    replay as r2_replay,
+)
 from snapshot_reference import (  # noqa: E402
     AckCommit,
     AckPresence,
@@ -302,6 +312,20 @@ def _result_data(result, source_state, active_state, artifact_data):
             if result.restored_state is not None else None
         ),
         "detail": result.detail,
+        "replay_result": data.get("replay_result"),
+    }
+
+
+def _replay_result_data(data, *, code, detail, projection):
+    """Keep the captured artifact and restore state while adding replay output."""
+    return {
+        "code": code,
+        "source_state": data["source_state"],
+        "active_state": data["active_state"],
+        "artifact": data["artifact"],
+        "restored_state": data["restored_state"],
+        "detail": detail,
+        "replay_result": projection,
     }
 
 
@@ -321,6 +345,35 @@ def _p_a_step(data, name, args):
             expected_version=args["expected_version"],
         )
         artifact_data = _p_a_artifact_data(result.artifact)
+    elif name == "replay":
+        artifact = _p_a_artifact(data["artifact"])
+        events = tuple(
+            PAReplayEvent(
+                item["sequence"],
+                _fraction(item["at_common"]),
+                item["domain"],
+                _fraction(item["progress_common"]),
+                _fraction(item["residual"]),
+            )
+            for item in args["events"]
+        )
+        result = replay_from_snapshot(artifact, events)
+        if result.state is None:
+            projection = None
+        else:
+            projection = {
+                "cursor": result.state.input_cursor,
+                "sequences": list(range(1, result.state.input_cursor + 1)),
+                "progress_by_domain": {
+                    item.name: item.progress_common for item in result.state.domains
+                },
+            }
+        return _replay_result_data(
+            data,
+            code=result.code.value,
+            detail=result.detail,
+            projection=projection,
+        )
     else:
         raise ValueError(f"unsupported W09 operation: {name}")
     expected_active = _p_a_state(
@@ -347,6 +400,79 @@ def _r2_step(data, name, args):
             expected_version=args["expected_version"],
         )
         artifact_data = _r2_artifact_data(result.artifact)
+    elif name == "replay":
+        restored = _r2_state(data["restored_state"])
+        participants = tuple(
+            Participant(item.name, item.progress_common, _fraction(args["safe_horizon"]))
+            for item in restored.domains
+        )
+        names = tuple(item.name for item in restored.domains)
+        contract = InputContract("domain-progress", names)
+        prior = tuple(
+            AcceptedInput(
+                sequence,
+                ExternalInput(
+                    f"event-{sequence}",
+                    "domain-progress",
+                    names[0],
+                    Fraction(sequence),
+                    f"prior-{sequence}",
+                    names,
+                    sequence,
+                    False,
+                ),
+            )
+            for sequence in range(1, restored.input_cursor + 1)
+        )
+        prior_ids = tuple(item.event.identity for item in prior)
+        replay_state = ReplayState(
+            restored.profile,
+            participants,
+            (contract,),
+            restored.watermark,
+            prior,
+            prior_ids,
+            (),
+            (),
+            tuple((item.event.identity, item.event.payload) for item in prior),
+        )
+        inputs = tuple(
+            ExternalInput(
+                f"event-{item['sequence']}",
+                "domain-progress",
+                item["domain"],
+                _fraction(item["at_common"]),
+                (
+                    f"{item['domain']}:{_fraction(item['progress_common'])}:"
+                    f"{_fraction(item['residual'])}"
+                ),
+                names,
+                item["sequence"],
+                False,
+            )
+            for item in args["events"]
+        )
+        result = r2_replay(
+            replay_state,
+            inputs,
+            target=_fraction(args["target"]),
+        )
+        projection = {
+            "cursor": len(result.state.applied_ids),
+            "sequences": [
+                int(identity.removeprefix("event-"))
+                for identity in result.state.applied_ids
+            ],
+            "progress_by_domain": {
+                item.name: item.progress_common for item in result.state.participants
+            },
+        }
+        return _replay_result_data(
+            data,
+            code=result.code.value,
+            detail=result.detail,
+            projection=projection,
+        )
     else:
         raise ValueError(f"unsupported W09 operation: {name}")
     expected_active = _r2_state(
@@ -359,6 +485,126 @@ def _r2_step(data, name, args):
 
 class W09ReplayableSnapshotTests(unittest.TestCase):
 
+
+
+    def test_w09_replay_events_after_restore_preserves_accepted_sequence(self):
+        source = PAMachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(
+                PADomainState("cpu", Fraction(10), Fraction(1, 5)),
+                PADomainState("vdp", Fraction(10), Fraction(2, 5)),
+            ),
+            watermark=Fraction(8),
+            deadlines=(),
+            transactions=(),
+            interrupts=PAInterruptRecord(nmi_level=False),
+            input_cursor=4,
+        )
+        active = PAMachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(
+                PADomainState("cpu", Fraction(13), Fraction(0)),
+                PADomainState("vdp", Fraction(13), Fraction(0)),
+            ),
+            watermark=Fraction(12),
+            deadlines=(),
+            transactions=(),
+            interrupts=PAInterruptRecord(nmi_level=False),
+            input_cursor=99,
+        )
+        initial = {
+            "source_state": _state_data(source),
+            "active_state": _state_data(active),
+            "artifact": None,
+            "restored_state": None,
+            "replay_result": None,
+        }
+        events = (
+            {
+                "sequence": 6,
+                "at_common": Fraction(12),
+                "domain": "vdp",
+                "progress_common": Fraction(12),
+                "residual": Fraction(2, 7),
+            },
+            {
+                "sequence": 5,
+                "at_common": Fraction(11),
+                "domain": "cpu",
+                "progress_common": Fraction(12),
+                "residual": Fraction(1, 3),
+            },
+        )
+        operations = (
+            {"sequence": 0, "name": "capture", "args": {}},
+            {
+                "sequence": 1,
+                "name": "restore",
+                "args": {
+                    "expected_profile": "SMS-NTSC",
+                    "expected_version": "R1-0.3.18",
+                },
+            },
+            {
+                "sequence": 2,
+                "name": "replay",
+                "args": {
+                    "events": events,
+                    "target": Fraction(12),
+                    "safe_horizon": Fraction(20),
+                },
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W09_REPLAY_EVENTS_AFTER_RESTORE_PRESERVES_ACCEPTED_SEQUENCE",
+            provenance={
+                "gate": "R3",
+                "workload": "W09",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "after snapshot restore at input cursor 4, events arriving in "
+                    "reverse tuple order replay by accepted sequence 5 then 6; "
+                    "the cursor advances to 6 and both domain progress values reach 12"
+                ),
+                "scope": "synthetic P-A snapshot replay vs independent R2 replay oracle",
+                "limitation": (
+                    "The R2 replay oracle uses a synthetic accepted-input history "
+                    "aligned to the snapshot cursor; this is not a physical SMS input trace."
+                ),
+            },
+            initial_state=initial,
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            final = fixture["cuts"][-1][side]
+            self.assertEqual(final["code"], "Ok")
+            self.assertEqual(final["active_state"], normalize(initial["active_state"]))
+            self.assertEqual(
+                final["replay_result"],
+                {
+                    "cursor": 6,
+                    "sequences": [1, 2, 3, 4, 5, 6],
+                    "progress_by_domain": {"cpu": {"$fraction": [12, 1]},
+                                           "vdp": {"$fraction": [12, 1]}},
+                },
+            )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
 
     def test_w09_generations_and_partial_effect_ledgers_survive_restore(self):
         deadlines = (
