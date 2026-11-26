@@ -22,8 +22,11 @@ from p_a_transactions import (  # noqa: E402
     PATransactionSpec,
     PATxState,
     commit_effect as p_a_commit_effect,
+    complete as p_a_complete,
     enter_waiting as p_a_enter_waiting,
+    fail as p_a_fail,
     reach_next_marker as p_a_reach_next_marker,
+    recover as p_a_recover,
     release_waiting as p_a_release_waiting,
     sample_marker as p_a_sample_marker,
     start as p_a_start,
@@ -41,8 +44,11 @@ from transaction_reference import (  # noqa: E402
     TransactionSpec,
     TxState,
     commit_effect as r2_commit_effect,
+    complete as r2_complete,
     enter_waiting as r2_enter_waiting,
+    fail as r2_fail,
     reach_next_marker as r2_reach_next_marker,
+    recover as r2_recover,
     release_waiting as r2_release_waiting,
     sample_marker as r2_sample_marker,
     start as r2_start,
@@ -234,6 +240,12 @@ def _p_a_step(data, name, args):
         result = p_a_sample_marker(
             book, args["identity"], args["marker_id"], args["sampled_value"]
         )
+    elif name == "fail":
+        result = p_a_fail(book, args["identity"], args["error"])
+    elif name == "recover":
+        result = p_a_recover(book, args["identity"])
+    elif name == "complete":
+        result = p_a_complete(book, args["identity"])
     else:
         raise ValueError(f"unsupported W08 operation: {name}")
     return _result_data(result)
@@ -260,6 +272,12 @@ def _r2_step(data, name, args):
         result = r2_sample_marker(
             book, args["identity"], args["marker_id"], args["sampled_value"]
         )
+    elif name == "fail":
+        result = r2_fail(book, args["identity"], args["error"])
+    elif name == "recover":
+        result = r2_recover(book, args["identity"])
+    elif name == "complete":
+        result = r2_complete(book, args["identity"])
     else:
         raise ValueError(f"unsupported W08 operation: {name}")
     return _result_data(result)
@@ -444,6 +462,79 @@ class W08ReplayableTransactionTests(unittest.TestCase):
         self.assertEqual(
             final_right["transaction"]["sampled"], [["read-status", "0x44"]]
         )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
+
+    def test_w08_failed_retry_requires_explicit_recovery(self):
+        spec = {
+            "identity": "w08-failure",
+            "generation": 0,
+            "origin": "cpu",
+            "destination": "vdp",
+            "operation": "write",
+            "profile": "SMS-NTSC",
+            "payload": "0xa5",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {"sequence": 1, "name": "start", "args": {"identity": "w08-failure"}},
+            {
+                "sequence": 2,
+                "name": "fail",
+                "args": {"identity": "w08-failure", "error": "bus fault"},
+            },
+            {"sequence": 3, "name": "submit", "args": {"spec": spec}},
+            {"sequence": 4, "name": "recover", "args": {"identity": "w08-failure"}},
+            {"sequence": 5, "name": "complete", "args": {"identity": "w08-failure"}},
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_FAILURE_RETRY_EXPLICIT_RECOVERY",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": "failed request retry does not recover; recovery is explicit",
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not a physical bus failure, hardware recovery trace, "
+                    "or production transaction implementation."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        retry_state = fixture["cuts"][3]["left_state"]["transaction"]
+        final_left = fixture["cuts"][-1]["left_state"]
+        final_right = fixture["cuts"][-1]["right_state"]
+        self.assertEqual(retry_state["state"], "Failed")
+        self.assertEqual(retry_state["recoveries"], 0)
+        self.assertEqual(final_left["code"], "Ok")
+        self.assertEqual(final_right["code"], "Ok")
+        self.assertEqual(final_left["transaction"]["state"], "Completed")
+        self.assertEqual(final_right["transaction"]["state"], "Completed")
+        self.assertEqual(final_left["transaction"]["recoveries"], 1)
+        self.assertEqual(final_right["transaction"]["recoveries"], 1)
+        self.assertEqual(final_left["transaction"]["failure"], "bus fault")
+        self.assertEqual(final_right["transaction"]["failure"], "bus fault")
         self.assertEqual(
             len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
             len(operations),
