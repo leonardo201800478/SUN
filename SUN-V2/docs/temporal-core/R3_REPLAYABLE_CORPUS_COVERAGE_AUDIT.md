@@ -1,9 +1,9 @@
 # CHRONOS R3 — auditoria de cobertura do corpus reexecutável
 
-**Data:** 2026-11-26  
-**Branch:** `research/chronos-r3-disposable-prototypes`  
-**PR:** #1284  
-**HEAD de referência da auditoria:** `ee96d3c013d25a60757355ecf4cf600f70b8c6ca`  
+**Data:** 2026-11-26
+**Branch:** `research/chronos-r3-disposable-prototypes`
+**PR:** #1284
+**HEAD de referência da auditoria:** `ee96d3c013d25a60757355ecf4cf600f70b8c6ca`
 **Classificação:** OBSERVATION do inventário de testes e fixtures; não é closeout de R3.
 
 ## 1. Resultado executivo
