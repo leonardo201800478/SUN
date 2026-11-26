@@ -113,3 +113,26 @@ A revisão do HEAD `09f71c8aa059c44855c358b614c965f92900a173` mantém a proposta
 - **O corpus de P-A ainda não é um trace canônico reexecutável completo.** O emissor registra IDs de fixtures, índices, base e digests dos cortes, mas não serializa entradas, operações e estados completos. Os 1.475 cortes e o digest Linux/Windows idêntico são evidência útil, porém insuficiente para alimentar P-D/P-E com as mesmas sequências e realizar comparação independente completa.
 
 **Decisão de revisão:** preservar R1/R2 e a implementação experimental atual; não declarar W06/W07 fechados; não encerrar P-A; não iniciar P-D/P-E até resolver os blockers e completar o corpus (ou revisar formalmente o requisito de equivalência, sem enfraquecer R1). Nenhuma alteração de semântica normativa é aprovada por este registro.
+
+## 8. W07 — matriz discriminante mínima para revisão
+
+A inspeção direta de `p_a_microsteps.py`, `test_p_a_microsteps.py` e do oráculo R2 confirma que o cenário precisa distinguir **causalidade de microstep** de **ordenação entre irmãos independentes**:
+
+- A e B começam no microstep 0 e são declarados comutativos entre si.
+- Ao resolver A, o proprietário emite C no microstep 1; a dependência A→C está estabelecida.
+- B continua pendente no microstep 0. O fato de B ser comutativo com A não demonstra que B seja comutativo com C.
+
+A regra atual de P-A bloqueia C, processa B e então C. Isso escolhe B<C sem declarar B→C nem provar comutatividade(B,C). A alternativa de simplesmente permitir C antes de B também não é válida quando a relação B/C é desconhecida e os efeitos podem ser não comutativos. Portanto, para o caso B/C sem relação conhecida, o resultado conservador exigido pelo contrato é **IndeterminateCausalOrder**, sem mutação e sem fechar o corte.
+
+Matriz mínima para uma futura revisão experimental, sem alterar R1/R2:
+
+| Relação declarada entre B e C | Resultado esperado |
+|---|---|
+| B→C causalmente estabelecida | B deve resolver antes de C |
+| C→B causalmente estabelecida | C deve resolver antes de B |
+| B e C comprovadamente comutativos | Qualquer ordem determinística é permitida, sem alterar o resultado observável |
+| Relação desconhecida e efeitos potencialmente não comutativos | IndeterminateCausalOrder; preservar estado e watermark |
+
+A relação deve ser explícita por par (ou derivada de uma prova formalmente definida); o booleano unário `commutative` de cada obrigação não prova comutatividade entre duas obrigações distintas. A herança transitiva de comutatividade também não deve ser presumida: commutative(A,B) e causal(A,C) não implicam commutative(B,C).
+
+**Gate de revisão:** antes de alterar P-A, submeter esta matriz a revisão independente contra R1 §§6 e 16.6 e avaliar o gap correspondente no R2 aprovado. Qualquer mudança no oráculo exige processo separado de revisão R2, novos testes discriminantes, rastreabilidade e aprovação explícita. Não alterar o R2 aprovado dentro da PR #1284.
