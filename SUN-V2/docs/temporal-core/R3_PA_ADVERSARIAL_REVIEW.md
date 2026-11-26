@@ -214,3 +214,14 @@ O `observable_state` deve preservar, quando existentes no cenário: estado por d
 7. Linux e Windows devem produzir os mesmos bytes canônicos e SHA-256 para a mesma versão de schema e fixture; metadados específicos de ambiente ficam fora do digest semântico ou em bloco separado claramente excluído.
 
 Este esquema é uma **proposta de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. Antes de implementar, validar o schema contra W00–W09, snapshots com estado parcial e pelo menos um caso de divergência intencional, para provar que o primeiro corte divergente é recuperável. O corpus atual continua BLOCKED até essa validação e a execução cruzada em Linux/Windows.
+
+
+### 5.5 Implementação experimental do corpus e fixture W07 (em validação)
+
+No HEAD experimental posterior à revisão, foi adicionado o harness descartável `replayable_fixture_corpus.py`, schema `sun.chronos.r3.replayable-fixture.v0.1`. Ele registra estado inicial, provenance, operações/argumentos ordenados, estado completo por corte, digest independente por lado e primeira divergência. O replay verifica o digest do artefato e cada estado de corte.
+
+Também foi adicionado `test_w07_replayable_fixture.py`, que adapta a mesma fixture declarativa aos modelos P-A e R2 sem compartilhar a lógica de transição. A sequência registra A/B no microstep 0, A emitindo C no microstep 1 e a tentativa de C antes de B. A expectativa observada é divergência no corte da operação 1: P-A retorna `Blocked`; R2 retorna `Advanced`. O fixture então continua até o fim e exige replay independente dos dois lados.
+
+**Limite:** isto é uma fixture sintética executável do caso W07, não evidência física SMS nem prova de que a ordem escolhida por P-A ou R2 seja fisicamente correta. A divergência continua sendo um blocker semântico. O primeiro CI após a integração falhou por erro no adaptador de replay (o estado serializado retornado por uma operação não era desembrulhado antes da operação seguinte). A correção foi aplicada no commit `bc40d435d818e624ed7b8f2607a3e32fcebeaac4`, mas ainda aguarda execução CI específica neste SHA. Até CI Linux/Windows PASS, classificar a integração como **NOT VALIDATED**.
+
+O emissor do corpus agregado permanece separado: a fixture de divergência não é misturada aos cortes diferenciais que exigem igualdade. Ela é capturada e validada pelo próprio teste de replay, preservando a distinção entre igualdade diferencial e divergência intencional.
