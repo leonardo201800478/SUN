@@ -9,7 +9,7 @@
 
 ## 1. Resultado executivo
 
-O harness declarativo de replay já está implementado e exercitado. O inventário inicial cobria W07, W08 e W09; a fixture W00 foi adicionada e registrada no emitter. O CI #11020 encontrou `KeyError: participants` no adapter de replay em Linux e Windows; o adapter foi corrigido no HEAD `b7ae066771e73adac49361be8aa136b2383abea6` e aguarda reteste.
+O harness declarativo de replay já está implementado e exercitado. O inventário inicial cobria W07, W08 e W09; a fixture W00 foi adicionada e registrada no emitter. O CI #11020 encontrou `KeyError: participants` no adapter de replay em Linux e Windows; o adapter foi corrigido em `b7ae066771e73adac49361be8aa136b2383abea6`; o CI #11021 então revelou uma asserção comparando valor racional normalizado com `Fraction`, corrigida no commit subsequente. Reteste pendente.
 
 - Corpus replayável antes da expansão W00: **17 fixtures / 88 operações e cortes**.
 - W00: **1 fixture adicional / 2 operações e cortes**, implementada; equivalência e geração multiplataforma aguardam nova execução CI após a correção do adapter.
@@ -52,7 +52,7 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 
 A ordem abaixo reduz acoplamento entre os adapters e mantém o corpus verificável em fatias:
 
-1. **W00 — IMPLEMENTADA, RETESTE PENDENTE:** fixture mínima de avanço sem obrigações, com CPU/VDP abstratos, clock racional 3/2, duas operações e estado integral por corte. O emitter inclui o módulo; CI #11020 revelou falha no adapter (`KeyError: participants`) em Linux/Windows, corrigida em `b7ae066771e73adac49361be8aa136b2383abea6`. A equivalência e o replay ainda não estão validados.
+1. **W00 — IMPLEMENTADA, RETESTE PENDENTE:** fixture mínima de avanço sem obrigações, com CPU/VDP abstratos, clock racional 3/2, duas operações e estado integral por corte. O emitter inclui o módulo; CI #11020 revelou `KeyError: participants` em Linux/Windows, corrigido em `b7ae066771e73adac49361be8aa136b2383abea6`; CI #11021 revelou uma asserção incompatível com o formato normalizado de `Fraction`, corrigida em commit subsequente. A equivalência e o replay ainda não estão validados.
 2. **W01:** lifecycle de deadline esparso, com geração explícita e transição terminal.
 3. **W02:** grupo denso/simultâneo. Incluir ao menos um caso comutativo e um UNKNOWN; o segundo deve preservar status e estado sem mutação.
 4. **W03:** uma observação com dependência cross-domain declarada e uma negativa por dependência ausente.
