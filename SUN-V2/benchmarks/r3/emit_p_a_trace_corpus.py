@@ -65,6 +65,7 @@ def main() -> int:
     args.output.write_text(
         json.dumps(document, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     print(json.dumps({
         "status": "PASS",
