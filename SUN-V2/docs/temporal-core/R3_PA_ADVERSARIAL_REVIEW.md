@@ -167,7 +167,21 @@ O CI #10973 passou em Linux e Windows para os testes R3, em ambos os conjuntos i
 
 **Diagnóstico dos artefatos reais do run:** os JSONs descompactados eram semanticamente idênticos (`json.loads(linux) == json.loads(windows)`), e os bytes tornavam-se idênticos após substituir CRLF por LF no artefato Windows. O Linux escreveu 9.313 LF; o Windows escreveu 9.313 CRLF. Portanto, a diferença era a tradução de newline feita por `Path.write_text` no Windows, não divergência de estado, digest, fixture ou ordem de registros. Os SHA-256 originais diferentes não indicam divergência semântica nesse caso.
 
-**Correção aplicada após o CI #10973:** `emit_p_a_trace_corpus.py` passa `newline="\\n"` explicitamente a `Path.write_text`, definindo bytes LF em todas as plataformas. O job de comparação byte a byte permanece estrito; não foi enfraquecido nem substituído por comparação semântica. A correção está no commit `43c45cf1883fb4b90c3ec2e7e2b3f127581919a8` e aguarda novo CI Linux/Windows.
+**Correção e validação:** `emit_p_a_trace_corpus.py` passa `newline="\\n"` explicitamente a `Path.write_text`, definindo bytes LF em todas as plataformas. CI #10975 no HEAD `c2446410526e08f729ce4c1703969aba64cd776c` confirmou PASS em R3 Linux/Windows, R2 Linux/Windows, higiene documental, Actionlint e equivalência byte a byte do corpus. O job `cmp` permaneceu estrito e passou sem normalização. O commit de correção do newline é `43c45cf1883fb4b90c3ec2e7e2b3f127581919a8`.
+
+### 5.9 Fixture reexecutável W08 — commit exatamente uma vez
+
+Foi adicionado `test_w08_replayable_fixture.py` e o módulo foi incluído em `emit_p_a_trace_corpus.py`. A fixture declarativa executa a mesma sequência de operações nos dois lados, usando exclusivamente as transições P-A no adaptador esquerdo e as transições independentes do oráculo R2 no adaptador direito:
+
+1. Submeter o descriptor de transação com um marco COMMIT em tempo racional exato.
+2. Iniciar a transação.
+3. Avançar até o marco declarado.
+4. Aplicar o commit.
+5. Repetir o mesmo commit para verificar idempotência e ledger exatamente uma vez.
+
+O artefato registra estado completo do book e da transação, status, ledger de efeitos, argumentos e cada corte; replay dos dois lados valida todos os estados capturados. O teste exige igualdade integral P-A/R2 e um único identificador no ledger final.
+
+**Classificação e limite:** OBSERVATION de equivalência entre dois modelos sintéticos. Não é trace de barramento físico SMS, medição de hardware, nem prova de exatamente-uma-vez no dispositivo real. O teste aguarda CI no HEAD que contém a fixture. W08 permanece apenas parcialmente coberto pelo corpus reexecutável; os outros cenários de lifecycle (WAIT, sample, falha, recuperação, TW e cancelamento) ainda não foram migrados para fixtures declarativas independentes.
 
 ### 5.7 Achados adicionais da revisão independente — correções de harness e CI
 
@@ -176,7 +190,7 @@ A revisão independente do HEAD 25ff40b registrou quatro achados P2 no harness/c
 1. **Replay bool/int:** replay_fixture_side compara estados por bytes canônicos, não pela igualdade permissiva do Python; foi adicionado teste que diferencia true de 1.
 2. **Colisão de chaves:** normalize rejeita chaves de mapping que não sejam strings, eliminando colisões como 1 versus "1"; teste de regressão incluído.
 3. **Integridade de all_equal:** o campo integra o digest do fixture; o replay recalcula a igualdade a partir dos cortes, valida os digests de estado e confere first_divergence. Um artefato com flag adulterada é rejeitado mesmo se o digest for recalculado.
-4. **Equivalência Linux/Windows:** o workflow agora inclui um job agregador que baixa os dois artefatos do corpus e exige igualdade byte a byte, além de imprimir SHA-256. **Aguardando CI no HEAD que introduziu o job.**
+4. **Equivalência Linux/Windows:** o job agregador baixa os dois artefatos e exige igualdade byte a byte. **PASS no CI #10975**, após normalização explícita de LF no emissor.
 5. **Comparação de quantis:** os drivers R3 utilizam benchmark_statistics.percentile_type7 (Hyndman–Fan Type 7), com a convenção declarada no JSON. A ressalva de 30 amostras permanece: p99 é quantil descritivo da amostra, não limite robusto de cauda.
 6. **Base de fase:** _causal_order_known exige APhaseBasis válido e igualdade estrutural da base entre eventos do mesmo nível; perfis/bases divergentes e ausência de base permanecem indeterminados. Isso resolve a comparabilidade estrutural do protótipo, mas **não** autentica o registro externo de W06.
 
@@ -242,7 +256,7 @@ O `observable_state` deve preservar, quando existentes no cenário: estado por d
 6. O digest agregado deve cobrir schema, provenance relevante, fixture, operações e cortes, não apenas IDs/índices/digests dos cortes.
 7. Linux e Windows devem produzir os mesmos bytes canônicos e SHA-256 para a mesma versão de schema e fixture; metadados específicos de ambiente ficam fora do digest semântico ou em bloco separado claramente excluído.
 
-Este schema é uma **especificação de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. O harness genérico e a fixture W07 foram parcialmente implementados em `replayable_fixture_corpus.py`; a migração integral dos workloads W00–W09, snapshots com estado parcial e entradas independentes ainda não foi concluída. O corpus completo continua BLOCKED.
+Este schema é uma **especificação de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. O harness genérico e as fixtures W07 e W08 foram parcialmente implementados em `replayable_fixture_corpus.py`; a migração integral dos workloads W00–W09, incluindo snapshots com estado parcial e entradas independentes para cada workload, ainda não foi concluída. O corpus completo continua BLOCKED.
 
 
 ### 5.5 Implementação experimental do corpus e fixture W07 (em validação)
