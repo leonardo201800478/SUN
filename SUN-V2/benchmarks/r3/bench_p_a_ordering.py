@@ -162,7 +162,7 @@ def run_point(
     tracemalloc.stop()
 
     output = {
-        "sample_count": len(wall_samples) if "wall_samples" in locals() else len(samples_wall_ns),
+        "sample_count": len(wall_samples),
         "parameters": {
             "group_size": count,
             "relation": relation,
