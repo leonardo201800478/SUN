@@ -56,6 +56,13 @@ def _state_data(state):
     }
 
 
+def _unwrap_state(data):
+    """Extract the cycle payload after the first operation result."""
+    if set(data) == {"state", "code"}:
+        return data["state"]
+    return data
+
+
 def _fraction(value):
     """Restore the exact rational representation emitted by normalize()."""
     if isinstance(value, dict) and set(value) == {"$fraction"}:
@@ -108,7 +115,7 @@ def _p_a_step(data, name, args):
     if name != "process_obligation":
         raise ValueError(f"unsupported W07 operation: {name}")
     result = p_a_process_obligation(
-        _p_a_from_data(data), **_arguments(args)
+        _p_a_from_data(_unwrap_state(data)), **_arguments(args)
     )
     return {"state": _state_data(result.state), "code": result.code.value}
 
@@ -117,7 +124,7 @@ def _r2_step(data, name, args):
     if name != "process_obligation":
         raise ValueError(f"unsupported W07 operation: {name}")
     result = r2_process_obligation(
-        _r2_from_data(data), **_arguments(args)
+        _r2_from_data(_unwrap_state(data)), **_arguments(args)
     )
     return {"state": _state_data(result.state), "code": result.code.value}
 
