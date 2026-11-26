@@ -3,7 +3,7 @@
 **Status:** R2-T01–T15 revisado; parecer do responsável sem blocker funcional; dois P2 documentais corrigidos; CI #10798 SUCCESS no HEAD documental final; gate formal aprovado e merged pela PR #1283 em 25/11/2026.
 **R1:** APROVADO em 24/11/2026 — v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281 / merge `88e105d6495f7f5105502e53666a7b0d29f77572`.
 **R2:** issue #1282; PR #1283 fechada por merge em `main`, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`.
-**R3:** autorizado para protótipos descartáveis após aprovação formal R2, CI final verde e merge da PR. P-A W00–W05 está em andamento na branch `research/chronos-r3-disposable-prototypes`; PR #1284 permanece Draft enquanto a equivalência e a cobertura restantes são trabalhadas. **R4–R5:** pendentes. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
+**R3:** autorizado para protótipos descartáveis após aprovação formal R2, CI final verde e merge da PR. P-A W00–W09 permanece em andamento na branch `research/chronos-r3-disposable-prototypes`, PR #1284 Draft; CI #10937 validou 125/125 testes por OS, 351 pontos por OS e equivalência canônica Linux/Windows. Os findings W06/W07 e a lacuna do oráculo estão documentados separadamente; revisão independente pendente. **R4–R5:** pendentes. Nenhum código de produção CHRONOS/V2 autorizado antes de R5.
 
 Este documento registra o fechamento técnico do R2, o parecer do responsável, a aprovação explícita e a validação final por CI #10798. O merge `18b4352e16cf6ab275c4923a30acc3124754a1b0` efetivou a aprovação do gate e autorizou a fase R3 de protótipos descartáveis.
 
@@ -127,4 +127,4 @@ O parecer não autorizou merge antes dessas correções e revalidação; a aprov
 
 Os dois P2 documentais foram corrigidos: cabeçalho R2_REFERENCE_MODEL atualizado no commit `413a81d3bb6ec162e133a2ec78e9d78f05d0785b`; closeout revisado para identificar o parecer, CI #10790, artifacts e hash do mutation runner. CI #10790 valida o código do HEAD revisado `ad8cbbe`; as alterações documentais posteriores exigem CI próprio.
 
-Concluído: CI #10798 verde, PR #1283 merged em `main` e R2 aprovado. R3 foi iniciado em branch própria com protótipos descartáveis e benchmarks comparáveis; P-A W00–W09 foi validado em CI #10902 (116/116 testes e 351 pontos por OS), com equivalência canônica e revisão adversarial ainda pendentes; nenhuma implementação de produção CHRONOS/V2 antes de R5.
+Concluído: CI #10798 verde, PR #1283 merged em `main` e R2 aprovado. R3 foi iniciado em branch própria com protótipos descartáveis e benchmarks comparáveis. P-A W00–W09 foi revalidado em CI #10937 (125/125 testes e 351 pontos por OS), com corpus canônico igual entre plataformas. A proposta de lacuna do oráculo R2 para W06/W07 e a revisão adversarial independente permanecem pendentes; esta atualização de status não modifica o closeout nem o modelo R2 aprovado. Nenhuma implementação de produção CHRONOS/V2 antes de R5.
