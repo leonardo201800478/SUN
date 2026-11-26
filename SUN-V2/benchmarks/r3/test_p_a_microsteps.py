@@ -19,6 +19,11 @@ from p_a_microsteps import (
     process_obligation,
 )
 from trace_fixture_support import record_differential
+from benchmark_statistics import (
+    MAX_CPU_CLOCK_RESOLUTION_NS,
+    cpu_clock_is_usable,
+    percentile_type7,
+)
 from microstep_reference import (
     MicrostepCode as R2Code,
     MicrostepCycle as R2Cycle,
@@ -53,6 +58,27 @@ def canonical(state: AStepCycle):
         ),
         state.resolved,
     )
+
+
+class BenchmarkStatisticsTests(unittest.TestCase):
+    def test_type7_quantile_interpolates_and_preserves_extrema(self):
+        values = [10, 0]
+        self.assertEqual(percentile_type7(values, 0.0), 0.0)
+        self.assertEqual(percentile_type7(values, 0.5), 5.0)
+        self.assertEqual(percentile_type7(values, 0.95), 9.5)
+        self.assertEqual(percentile_type7(values, 1.0), 10.0)
+
+    def test_type7_rejects_empty_or_invalid_quantile(self):
+        with self.assertRaises(ValueError):
+            percentile_type7([], 0.5)
+        with self.assertRaises(ValueError):
+            percentile_type7([1, 2], 1.1)
+
+    def test_cpu_clock_resolution_gate_is_conservative(self):
+        self.assertTrue(cpu_clock_is_usable(MAX_CPU_CLOCK_RESOLUTION_NS))
+        self.assertFalse(cpu_clock_is_usable(MAX_CPU_CLOCK_RESOLUTION_NS + 1))
+        self.assertFalse(cpu_clock_is_usable(None))
+        self.assertFalse(cpu_clock_is_usable(0))
 
 
 class PAMicrostepTests(unittest.TestCase):
