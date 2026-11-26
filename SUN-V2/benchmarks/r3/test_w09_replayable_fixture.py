@@ -24,7 +24,6 @@ from p_a_snapshots import (  # noqa: E402
     PASnapshotArtifact,
     _artifact_state,
     _encode_state,
-    _decode_state,
     capture as p_a_capture,
     restore as p_a_restore,
 )
