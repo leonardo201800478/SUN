@@ -187,3 +187,30 @@ Alternativamente, o requisito de R3 pode ser revisado formalmente antes de P-D/P
 - Nenhuma alteração de R1/R2, gate R4/R5 ou arquitetura final é aprovada por este relatório.
 
 **Conclusão:** CI verde confirma que os testes implementados passaram. Não transforma hipóteses semânticas em contrato aprovado nem substitui o corpus reexecutável exigido para comparação entre arquiteturas.
+
+### 5.4 Proposta de esquema mínimo para corpus reexecutável (não implementada)
+
+Para tornar o requisito verificável sem acoplar P-D/P-E à implementação interna de P-A, cada fixture deve ser uma entrada declarativa e cada protótipo deve consumir a mesma sequência canônica de operações. O artefato deve conter, no mínimo, os seguintes blocos:
+
+| Bloco | Campos mínimos | Finalidade |
+|---|---|---|
+| `schema` | `name`, `version`, `canonical_encoding` | Evolução explícita do formato e serialização determinística |
+| `provenance` | `source_commit`, `generator_version`, `test_suite_version`, `profile_id`, `profile_revision` | Identificar origem e escopo do corpus |
+| `fixture` | `fixture_id`, `seed` quando aplicável, `initial_state`, `external_inputs` | Reconstruir o estado inicial e todas as entradas |
+| `operations` | lista ordenada de `sequence`, `operation`, `arguments`, `admission_context` | Reexecutar exatamente a mesma sequência sem inferi-la do protótipo |
+| `cuts` | `cut_id`, `after_sequence`, `common_time`, `status`, `error`, `observable_state` | Inspecionar cada fronteira após a operação |
+| `comparison` | `left_prototype`, `right_reference`, `left_digest`, `right_digest`, `equal`, `first_divergence` | Comparar os dois lados e localizar divergência sem depender apenas do hash |
+
+O `observable_state` deve preservar, quando existentes no cenário: estado por domínio, progresso local e resíduo/fase, watermark, deadlines com identidade/geração/lifecycle, dependências pendentes, transações e marcos de sample/commit, ledger de efeitos, cursor de entradas e microsteps pendentes. Campos inaplicáveis devem ser omitidos por regra do schema, não preenchidos com valores fictícios.
+
+**Regras de codificação e integridade:**
+
+1. Tempo racional deve ser codificado exatamente (numerador e denominador inteiros, preferencialmente strings decimais para interoperabilidade); floats são proibidos.
+2. Operações e coleções semanticamente ordenadas preservam sua ordem explícita. Mapas são serializados com chaves ordenadas; conjuntos são serializados por uma ordenação canônica definida pelo schema.
+3. Cada lado guarda seu próprio estado canônico e digest. `equal` é calculado a partir dos estados/digests efetivamente armazenados; não pode ser constante.
+4. Se houver divergência, `first_divergence` deve conter o primeiro `cut_id`, caminho do campo, valores canônicos de ambos os lados e status/erro correspondente. O artefato não deve abortar antes de persistir esse diagnóstico.
+5. O corpus deve ser suficiente para executar a fixture sem importar código de geração de estado do protótipo comparado. O adaptador de cada protótipo apenas traduz a fixture para suas próprias estruturas.
+6. O digest agregado deve cobrir schema, provenance relevante, fixture, operações e cortes, não apenas IDs/índices/digests dos cortes.
+7. Linux e Windows devem produzir os mesmos bytes canônicos e SHA-256 para a mesma versão de schema e fixture; metadados específicos de ambiente ficam fora do digest semântico ou em bloco separado claramente excluído.
+
+Este esquema é uma **proposta de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. Antes de implementar, validar o schema contra W00–W09, snapshots com estado parcial e pelo menos um caso de divergência intencional, para provar que o primeiro corte divergente é recuperável. O corpus atual continua BLOCKED até essa validação e a execução cruzada em Linux/Windows.
