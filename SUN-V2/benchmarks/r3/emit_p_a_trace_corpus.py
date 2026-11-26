@@ -19,6 +19,7 @@ TEST_MODULES = (
     "test_p_a_microsteps",
     "test_p_a_transactions",
     "test_p_a_snapshots",
+    "test_trace_fixture_support",
 )
 
 
