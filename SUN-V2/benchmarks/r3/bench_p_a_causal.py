@@ -13,6 +13,14 @@ import tracemalloc
 from fractions import Fraction
 from pathlib import Path
 
+from benchmark_statistics import (
+    MAX_CPU_CLOCK_RESOLUTION_NS,
+    QUANTILE_ESTIMATOR,
+    TIME_UNIT,
+    cpu_clock_is_usable,
+    percentile_type7,
+)
+
 from p_a_causal_sync import (
     ACausalCode,
     ACausalState,
@@ -43,12 +51,8 @@ def git_head() -> str:
 
 
 def percentile(values: list[float], p: float) -> float:
-    ordered = sorted(values)
-    position = (len(ordered) - 1) * p
-    lo = int(position)
-    hi = min(lo + 1, len(ordered) - 1)
-    fraction = position - lo
-    return ordered[lo] * (1 - fraction) + ordered[hi] * fraction
+    """Use the shared Hyndman-Fan Type 7 estimator."""
+    return percentile_type7(values, p)
 
 
 def chain_fixture(fan_in: int, depth: int):
@@ -200,7 +204,7 @@ def run_point(kind: str, fan_in: int, scale: int, warmup: int,
             "max": max(samples_wall_ns),
             "mean": statistics.fmean(samples_wall_ns),
         },
-        "samples_cpu_ns": samples_cpu_ns,
+        "samples_cpu_ns": samples_cpu_ns if cpu_time_enabled else None,
         "summary_cpu_ns": cpu_summary,
         "peak_tracemalloc_bytes_separate_probe": peak_bytes,
         "applied_count": len(final_order),
@@ -220,7 +224,7 @@ def main() -> int:
     if args.warmup < 0 or args.repeats <= 0:
         parser.error("warmup must be >=0 and repeats must be >0")
     cpu_resolution = cpu_clock_resolution_ns()
-    cpu_enabled = cpu_resolution is not None and cpu_resolution <= 1_000_000
+    cpu_enabled = cpu_clock_is_usable(cpu_resolution)
     fan_ins = tuple(map(int, args.fan_in.split(",")))
     points = []
     for fan_in in fan_ins:
@@ -254,6 +258,9 @@ def main() -> int:
         "pythonhashseed": os.environ.get("PYTHONHASHSEED", "unset"),
         "warmup": args.warmup,
         "repeats": args.repeats,
+        "timing_unit": TIME_UNIT,
+        "quantile_estimator": QUANTILE_ESTIMATOR,
+        "cpu_clock_max_resolution_ns": MAX_CPU_CLOCK_RESOLUTION_NS,
         "timing_scope": "one dependency synchronization or a sequence of frequent observations; fixture construction, digest, allocation probe and JSON serialization excluded",
         "points": points,
         "limitations": [
