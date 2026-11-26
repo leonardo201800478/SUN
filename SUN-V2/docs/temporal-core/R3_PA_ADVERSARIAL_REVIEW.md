@@ -225,3 +225,21 @@ Também foi adicionado `test_w07_replayable_fixture.py`, que adapta a mesma fixt
 **Limite:** isto é uma fixture sintética executável do caso W07, não evidência física SMS nem prova de que a ordem escolhida por P-A ou R2 seja fisicamente correta. A divergência continua sendo um blocker semântico. O primeiro CI após a integração falhou por erro no adaptador de replay (o estado serializado retornado por uma operação não era desembrulhado antes da operação seguinte). A correção foi aplicada no commit `bc40d435d818e624ed7b8f2607a3e32fcebeaac4`, mas ainda aguarda execução CI específica neste SHA. Até CI Linux/Windows PASS, classificar a integração como **NOT VALIDATED**.
 
 O emissor do corpus agregado permanece separado: a fixture de divergência não é misturada aos cortes diferenciais que exigem igualdade. Ela é capturada e validada pelo próprio teste de replay, preservando a distinção entre igualdade diferencial e divergência intencional.
+
+
+### 5.6 Matriz W07 de relações par-a-par — protótipo isolado (não altera P-A/R2)
+
+Após a validação do replay W07 em CI #10958, foi criado o módulo descartável `w07_pairwise_matrix.py` e sua suíte `test_w07_pairwise_matrix.py`. A matriz implementa somente a adjudicação de uma relação **explicitamente fornecida** entre B e C:
+
+| Relação informada para (B,C) | Solicitar B | Solicitar C |
+|---|---|---|
+| B causa C | Advance | Blocked |
+| C causa B | Blocked | Advance |
+| B/C comutativos | Advance | Advance |
+| Relação UNKNOWN | IndeterminateCausalOrder | IndeterminateCausalOrder |
+
+O módulo não infere a relação a partir de microstep, owner, ordem de inserção ou flags unárias. Ele também não prova que uma relação declarada é verdadeira: a origem e a justificativa da evidência continuam sendo responsabilidade de uma revisão independente. A matriz é um teste de decisão sobre relações já estabelecidas, não um mecanismo de descoberta de causalidade ou prova de comutatividade.
+
+**Isolamento preservado:** `p_a_microsteps.py`, o oráculo aprovado `verification/r2_reference/microstep_reference.py`, R1 v0.3.18 e R2 merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0` não foram alterados. O caso original W07 permanece como observação da divergência P-A/R2. A nova matriz não autoriza substituir a barreira de P-A nem alterar o resultado do oráculo.
+
+**Validação pendente:** os seis testes da matriz foram adicionados ao emissor R3 e aguardam CI Linux/Windows no novo HEAD. Mesmo após PASS, W07 permanece **BLOCKED** até que uma revisão independente defina quais relações podem ser admitidas e qual evidência as sustenta. Em particular, o caso original B/C sem relação demonstrada deve permanecer indeterminado; não se escolhe B<C nem C<B por conveniência de implementação.
