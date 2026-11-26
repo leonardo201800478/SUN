@@ -676,9 +676,6 @@ class W08ReplayableTransactionTests(unittest.TestCase):
         self.assertEqual(len(replay_fixture_side(fixture, step=_r2_step, side="right")), len(operations))
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-
     def test_w08_failure_after_partial_commit_preserves_exact_ledger(self):
         spec = {
             "identity": "w08-partial-failure",
@@ -781,3 +778,5 @@ if __name__ == "__main__":
             len(operations),
         )
 
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
