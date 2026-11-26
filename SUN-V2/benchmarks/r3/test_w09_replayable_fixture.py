@@ -271,6 +271,113 @@ def _r2_step(data, name, args):
 
 
 class W09ReplayableSnapshotTests(unittest.TestCase):
+
+    def test_w09_ack_vector_and_device_commit_ledger_restore_independently(self):
+        source = PAMachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(
+                PADomainState("cpu", Fraction(10), Fraction(1, 3)),
+                PADomainState("vdp", Fraction(10), Fraction(2, 7)),
+            ),
+            watermark=Fraction(8),
+            deadlines=(),
+            transactions=(),
+            interrupts=PAInterruptRecord(
+                int_level=True,
+                accepted="INT",
+                acknowledge_active=True,
+                vector_sampled="0x38",
+                device_effect_presence=PAAckPresence.PRESENT,
+                device_effect_commit=PAAckCommit.PENDING,
+                commit_at_common=Fraction(12),
+            ),
+            input_cursor=7,
+        )
+        active = PAMachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(
+                PADomainState("cpu", Fraction(11), Fraction(0)),
+                PADomainState("vdp", Fraction(11), Fraction(0)),
+            ),
+            watermark=Fraction(9),
+            deadlines=(),
+            transactions=(),
+            interrupts=PAInterruptRecord(),
+            input_cursor=99,
+        )
+        initial = {
+            "source_state": _state_data(source),
+            "active_state": _state_data(active),
+            "artifact": None,
+            "restored_state": None,
+        }
+        operations = (
+            {"sequence": 0, "name": "capture", "args": {}},
+            {
+                "sequence": 1,
+                "name": "restore",
+                "args": {
+                    "expected_profile": "SMS-NTSC",
+                    "expected_version": "R1-0.3.18",
+                },
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W09_ACK_VECTOR_AND_DEVICE_COMMIT_LEDGER_INDEPENDENCE",
+            provenance={
+                "gate": "R3",
+                "workload": "W09",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "snapshot preserves the sampled interrupt vector independently "
+                    "from a still-pending device acknowledge commit and its coordinate"
+                ),
+                "scope": "synthetic P-A/R2 snapshot model comparison",
+                "limitation": (
+                    "Not evidence of physical SMS acknowledge timing, vector sampling "
+                    "phase, or device-side commit boundary."
+                ),
+            },
+            initial_state=initial,
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        expected_active = normalize(initial["active_state"])
+        expected_interrupts = {
+            "int_level": True,
+            "nmi_level": False,
+            "nmi_edge_pending": False,
+            "accepted": "INT",
+            "acknowledge_active": True,
+            "vector_sampled": "0x38",
+            "device_effect_presence": "Present",
+            "device_effect_commit": "Pending",
+            "commit_at_common": {"$fraction": [12, 1]},
+        }
+        for side in ("left_state", "right_state"):
+            final = fixture["cuts"][-1][side]
+            self.assertEqual(final["code"], "Ok")
+            self.assertEqual(final["active_state"], expected_active)
+            self.assertEqual(
+                final["restored_state"]["interrupts"], expected_interrupts
+            )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
     def test_w09_snapshot_capture_restore_preserves_exact_state(self):
         source = PAMachineState(
             profile="SMS-NTSC",
