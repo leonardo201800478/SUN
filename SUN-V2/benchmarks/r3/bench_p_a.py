@@ -17,6 +17,14 @@ import tracemalloc
 from fractions import Fraction
 from pathlib import Path
 
+from benchmark_statistics import (
+    MAX_CPU_CLOCK_RESOLUTION_NS,
+    QUANTILE_ESTIMATOR,
+    TIME_UNIT,
+    cpu_clock_is_usable,
+    percentile_type7,
+)
+
 
 def cpu_clock_resolution_ns() -> int | None:
     start_wall = time.perf_counter_ns()
@@ -59,14 +67,8 @@ def build_state(domains: int, obligations: int, density: str) -> AState:
 
 
 def percentile(values: list[float], p: float) -> float:
-    ordered = sorted(values)
-    if not ordered:
-        return 0.0
-    position = (len(ordered) - 1) * p
-    lo = int(position)
-    hi = min(lo + 1, len(ordered) - 1)
-    fraction = position - lo
-    return ordered[lo] * (1 - fraction) + ordered[hi] * fraction
+    """Use the shared Hyndman-Fan Type 7 estimator."""
+    return percentile_type7(values, p)
 
 
 def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: int, repeats: int, cpu_time_enabled: bool):
@@ -131,7 +133,7 @@ def run_point(domains: int, obligations: int, density: str, chunk: int, warmup: 
             "max": max(samples_wall_ns),
             "mean": mean_wall_ns,
         },
-        "samples_cpu_ns": samples_cpu_ns,
+        "samples_cpu_ns": samples_cpu_ns if cpu_time_enabled else None,
         "summary_cpu_ns": ({
             "min": min(samples_cpu_ns),
             "p50": percentile(samples_cpu_ns, 0.50),
@@ -166,7 +168,7 @@ def main() -> int:
         parser.error("warmup must be >=0 and repeats must be >0")
 
     cpu_resolution = cpu_clock_resolution_ns()
-    cpu_time_enabled = cpu_resolution is not None and cpu_resolution <= 1_000_000
+    cpu_time_enabled = cpu_clock_is_usable(cpu_resolution)
     points = []
     for domains in map(int, args.domains.split(",")):
         for obligations in map(int, args.obligations.split(",")):
@@ -196,6 +198,9 @@ def main() -> int:
         "pythonhashseed": os.environ.get("PYTHONHASHSEED", "unset"),
         "warmup": args.warmup,
         "repeats": args.repeats,
+        "timing_unit": TIME_UNIT,
+        "quantile_estimator": QUANTILE_ESTIMATOR,
+        "cpu_clock_max_resolution_ns": MAX_CPU_CLOCK_RESOLUTION_NS,
         "timing_scope": "advance_budgeted only; fixture construction, digest, allocation probe and JSON serialization are outside wall/cpu samples",
         "points": points,
         "limitations": [
