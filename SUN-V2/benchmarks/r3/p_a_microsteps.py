@@ -223,6 +223,14 @@ def process_obligation(
             "no matching pending obligation; repeated operation made no progress",
         )
 
+    earliest_level = min(item.microstep for item in state.pending)
+    if current.microstep > earliest_level:
+        return AStepResult(
+            state,
+            AStepCode.BLOCKED,
+            "a prior logical microstep still has pending obligations",
+        )
+
     same_level = tuple(
         item for item in state.pending if item.microstep == current.microstep
     )
