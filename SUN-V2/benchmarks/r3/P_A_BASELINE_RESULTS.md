@@ -501,3 +501,92 @@ All 16 SHA-256 values were recalculated from downloaded ZIP bytes and matched Gi
 - Independent adversarial review of R3 and reconciliation of any findings.
 
 **Disposition:** CI #10902 is PASS for the declared P-A W00–W09 synthetic prototype scope. P-A is not fully closed until canonical fixture/trace equivalence and adversarial review are completed. P-D/P-E remain unstarted. R4/R5 remain pending. No production CHRONOS/V2 implementation is authorized before R5.
+
+
+## Corrective P-A run — CI #10931 (findings W06/W07 + benchmark statistics)
+
+**Classification:** `OBSERVATION` — synthetic Python prototypes and independent R2 tests
+**Workflow:** [CI #10931](https://github.com/leonardo201800478/SUN/actions/runs/45747493838) — overall `FAILURE` due to documentation whitespace; R3/R2 tests and all benchmark matrix jobs succeeded.
+**Executed HEAD:** `21480075857dc2ef6bbe951ba0f894ce630f9df7`
+**Branch:** `research/chronos-r3-disposable-prototypes`
+**Date:** 2026-11-26
+**Python:** 3.14.4
+**Platforms:** Linux `Linux-7.0.0-1020-azure-x86_64-with-glibc2.43`; Windows `Windows-2025Server-10.0.26100-SP0`.
+
+### Test and corpus evidence
+
+- P-A R3: **125/125 PASS Linux; 125/125 PASS Windows**.
+- R2 independent reference: **256/256 PASS Linux; 256/256 PASS Windows**, no first divergence; deliberate boundary mutation checks PASS.
+- W06/W07 discriminants passed on both platforms, including rejection without mutation, valid processing after prior obligations resolve, phase-basis equality/inequality, missing/invalid basis, equal phase values and commutative events.
+- Canonical corpus: 112 fixtures, 1,475 cuts, 1,468 differential cuts, 7 property cuts. Linux and Windows JSON documents are fully equal.
+- Canonical trace digest: `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`.
+
+### Benchmark protocol
+
+- Seven matrices, **351 points per OS**: advance 75; deadline lifecycle 180; causal W03/W04 30; W06 24; W07 12; W08 10; W09 20.
+- Five warm-ups and 30 measured repetitions per point; each point records `sample_count=30`.
+- Units: nanoseconds. Every point preserves all 30 raw wall-time samples. Linux points also preserve 30 thread-CPU samples. Windows CPU samples are explicitly null/omitted from summaries because clock resolution is coarse.
+- Estimator: Hyndman-Fan Type 7, `h=(n-1)p`, linear interpolation. The maximum is the maximum raw observation, not a quantile estimate.
+- Shared policy: `SUN-V2/benchmarks/r3/benchmark_statistics.py`; CPU clock is accepted only at empirical resolution <=10,000 ns.
+- Linux thread CPU clock resolutions (advance/deadlines/causal/W06/W07/W08/W09): 2,298 / 1,911 / 1,926 / 1,931 / 1,867 / 2,083 / 2,184 ns.
+- Windows resolution: 15,625,000 ns for all seven matrices; CPU time is `SKIPPED_COARSE_RESOLUTION`. Wall-time remains available.
+- `tracemalloc` remains a separate probe outside timed samples. Runners differ; Linux/Windows wall-time values are reported separately, never as a controlled A/B.
+
+### Wall-time summary by matrix
+
+The p50/p95/p99 columns are **ranges across parameter points** (minimum to maximum of each point's quantile). `Max` is the largest raw sample observed over all points in that matrix. Values are microseconds.
+
+| Matrix | Points | Linux p50 | Linux p95 | Linux p99 | Linux max | Windows p50 | Windows p95 | Windows p99 | Windows max |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Advance/catch-up | 75 | 23.9–52,522.7 | 26.7–52,992.1 | 32.3–53,035.3 | 53,051.3 | 31.8–75,249.1 | 34.3–76,366.6 | 35.3–81,695.8 | 83,796.0 |
+| Deadline lifecycle | 180 | 10.0–2,856.3 | 10.5–4,968.9 | 11.1–5,030.5 | 5,038.9 | 12.4–4,296.1 | 13.1–6,169.5 | 13.3–7,082.6 | 7,173.1 |
+| Causal W03/W04 | 30 | 19.5–36,535.9 | 24.1–37,459.4 | 24.5–37,617.7 | 37,621.4 | 23.9–52,485.7 | 28.3–54,121.7 | 38.1–59,279.4 | 61,236.6 |
+| W06 ordering | 24 | 6.6–214.1 | 7.4–235.0 | 8.0–255.4 | 261.8 | 9.1–326.2 | 10.0–354.1 | 14.7–356.3 | 356.4 |
+| W07 microsteps | 12 | 12.0–242.2 | 16.9–251.9 | 19.9–271.2 | 278.9 | 16.6–339.7 | 17.1–369.3 | 17.2–372.0 | 372.8 |
+| W08 transactions | 10 | 32.7–287.1 | 37.4–296.8 | 55.2–309.9 | 315.0 | 44.6–631.3 | 46.5–668.8 | 56.1–750.8 | 783.6 |
+| W09 snapshot/replay | 20 | 138.0–1,035.4 | 156.5–1,241.4 | 162.1–1,457.0 | 1,497.5 | 203.1–1,370.7 | 228.8–1,638.6 | 233.5–2,013.5 | 2,130.7 |
+
+### CPU-time summary — Linux only
+
+The same range convention applies; values are microseconds.
+
+| Matrix | p50 range | p95 range | p99 range | Maximum |
+|---|---:|---:|---:|---:|
+| Advance/catch-up | 23.3–52,521.1 | 26.0–52,985.2 | 31.7–53,030.5 | 53,048.8 |
+| Deadline lifecycle | 9.4–2,855.6 | 10.0–4,967.4 | 10.4–5,028.4 | 5,036.6 |
+| Causal W03/W04 | 18.9–36,535.4 | 23.5–37,455.2 | 23.9–37,611.3 | 37,614.9 |
+| W06 ordering | 7.1–214.8 | 8.5–235.9 | 9.3–256.3 | 262.7 |
+| W07 microsteps | 12.5–242.8 | 17.8–252.6 | 21.3–272.2 | 280.0 |
+| W08 transactions | 33.3–287.7 | 38.1–297.7 | 55.8–310.6 | 315.7 |
+| W09 snapshot/replay | 138.7–1,036.2 | 157.2–1,243.2 | 162.8–1,458.6 | 1,499.0 |
+
+### Cross-platform comparison
+
+- All 351 corresponding parameter sets match.
+- All seven matrix point-level semantic payloads and output digests match after excluding host timing, CPU timing, allocation probes and wall-derived throughput.
+- The canonical corpus is fully equal, including every fixture and cut.
+- This is semantic/output equivalence of the declared synthetic workloads, not equality of wall-time performance or proof of physical SMS behavior.
+
+### CI artifacts — 18 ZIPs downloaded, integrity-tested and SHA-256 verified
+
+| Matrix | Linux artifact ID | Linux ZIP SHA-256 | Windows artifact ID | Windows ZIP SHA-256 |
+|---|---:|---|---:|---|
+| R2 reference | 15083564732 | `f105838c6b73c1a194f37c790c59bf4a649f01ce8ce4e1a80f33bbde899de4c8` | 15084051519 | `f518ad98342099af201a31087d01f282387f99fde7cae7afae62205c8af8bd4d` |
+| Canonical trace | 15083902211 | `a75e01c6067a01ebf7d0d6f8e13ab7c3cb2fddf9e31e2e2b4e16122cf3c02730` | 15084470441 | `b1a84c5964d2a63e43f61106c52fd19558e6d366c76f300737d50ed04f8dc20e` |
+| Advance | 15083599556 | `12a457c0ef8b76e0bbd762f8309c47d35a9482984fd63defdb7f02016a326faa` | 15084021782 | `4f192e5f4c27a4a649238d4605cad42a01c69390e7a77f015542e2bcb94220f1` |
+| Deadlines | 15083782995 | `0d680f8d3da6525d33ba9e44b318597c93f1152c1c753fae81dda6841d6a73f5` | 15084071607 | `bff44b3dd1b4bd39e658da8556896914fd64fa6f84786e0d06174f0852f1f3ef` |
+| Causal | 15083728212 | `58562b57668f01fbd6d7d2a46a0ffc2ed23cee8f4e01d85415f23f92509d1249` | 15083294233 | `68b87cbd01ced9dad9c29d5b9ef9e22a3e57600a52339b6f08e204d5f8543ee6` |
+| W06 | 15083783013 | `6cd44f426f08ebd8e5c0639180429b8fdbf634a5bb15bd43830ea4aa716f0d84` | 15083079335 | `0ee95ab63db174984ae1ee0d286d33d14f4ecb678b07d9dc737b46fd8615d408` |
+| W07 | 15083619523 | `5a4e6f5e19f2f429350b826ee0d314fab452f06781a9faacc5e7338d5adc047b` | 15083294240 | `2e43e27b0291584c5856e380e1fda536307576a6524274277c7ac5374042c7c6` |
+| W08 | 15083718393 | `a3350a40d8f0f82dff978757237f5ef11f9de152ae35f49d87c5c817bf077933` | 15082974795 | `bc17d0a30ccb0e0ab2e04f604e378348367383e1594f001891837afd6c6066d6` |
+| W09 | 15083673832 | `bd36b3102786e23aaf7ffafa5cb23001885ee550480f9317d88eb7ceb8259ac5` | 15083498761 | `991545b63f61938788c9fff0d2a42df7fc66ef2566d8d039f055e0ea9f31f0b2` |
+
+All listed ZIP SHA-256 digests were recalculated from downloaded bytes and matched the GitHub digests; all ZIP integrity tests passed. R2 oracle SHA-256 was identical on both platforms: `3e27b3d387b0af3fa30fd78626e8fd3cc00e1ef289e7b68192c5b3d838a494fb`.
+
+### Disposition and limitations
+
+- Benchmark and test jobs in CI #10931 passed. The overall workflow failed only because `git diff --check` found trailing spaces in `R2_R3_ORACLE_GAP_PROPOSAL.md`; the quality supervisor failed because it requires documentation success.
+- The trailing whitespace was removed in the next revision. CI #10932 must validate the corrected documentation and rerun the required jobs before this revision is classified fully green.
+- These results are synthetic Python observations, not Rust runtime performance, physical SMS timing, FPS, frame pacing, audio/video fidelity or ROM compatibility.
+- R2 source and tests were not modified. The W06/W07 oracle gaps are documented separately; differential equality is not used as proof for those two scenarios.
+
