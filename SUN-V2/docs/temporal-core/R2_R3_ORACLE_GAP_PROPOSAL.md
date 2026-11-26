@@ -102,3 +102,14 @@ Os testes P-A foram ampliados para 125 casos por sistema operacional; os testes 
 **Proposta:** manter a correção experimental P-A, preservar R2 imutável e submeter as duas lacunas a revisão independente. Não declarar R2 reprovado nem R3 fechado por esta proposta.
 
 R4/R5 continuam pendentes. Nenhum código de produção CHRONOS/V2 está autorizado antes de R5.
+
+
+## 7. Resultado da revisão adversarial do P-A (26/11/2026)
+
+A revisão do HEAD `09f71c8aa059c44855c358b614c965f92900a173` mantém a proposta aberta e acrescenta as seguintes qualificações:
+
+- **W07 permanece BLOCKED.** O protótipo usa `commutative: bool` por obrigação e bloqueia o filho em microstep posterior até resolver obrigações anteriores. No caso B (nível 0) / C (nível 1), isso impõe B<C sem demonstrar uma dependência causal B→C nem a comutatividade do par B/C. R1 §16.6.2 não permite que a mera numeração de microsteps crie precedência. A regra atual é hipótese experimental, não conformidade demonstrada.
+- **W06 permanece limitado a comparação sintética.** A igualdade estrutural de `APhaseBasis` impede comparar descritores diferentes, mas o identificador e o digest do registro de validação não são resolvidos nem autenticados contra um registro externo. A evidência física de fase SMS continua UNKNOWN.
+- **O corpus de P-A ainda não é um trace canônico reexecutável completo.** O emissor registra IDs de fixtures, índices, base e digests dos cortes, mas não serializa entradas, operações e estados completos. Os 1.475 cortes e o digest Linux/Windows idêntico são evidência útil, porém insuficiente para alimentar P-D/P-E com as mesmas sequências e realizar comparação independente completa.
+
+**Decisão de revisão:** preservar R1/R2 e a implementação experimental atual; não declarar W06/W07 fechados; não encerrar P-A; não iniciar P-D/P-E até resolver os blockers e completar o corpus (ou revisar formalmente o requisito de equivalência, sem enfraquecer R1). Nenhuma alteração de semântica normativa é aprovada por este registro.
