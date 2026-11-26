@@ -237,7 +237,7 @@ class W00ReplayableAdvanceTests(unittest.TestCase):
         self.assertTrue(fixture["all_equal"])
         self.assertIsNone(fixture["first_divergence"])
         self.assertEqual(len(fixture["cuts"]), len(operations))
-        self.assertEqual(fixture["cuts"][-1]["left_state"]["reached"], Fraction(80))
+        self.assertEqual(_fraction(fixture["cuts"][-1]["left_state"]["reached"]), Fraction(80))
         self.assertEqual(
             len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
             len(operations),
