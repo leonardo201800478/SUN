@@ -207,7 +207,7 @@ def _result_data(result, source_state, active_state, artifact_data):
     return {
         "code": result.code.value,
         "source_state": source_state,
-        "active_state": _state_data(result.active_state),
+        "active_state": active_state,
         "artifact": artifact_data,
         "restored_state": (
             _state_data(result.restored_state)
@@ -235,6 +235,11 @@ def _p_a_step(data, name, args):
         artifact_data = _p_a_artifact_data(result.artifact)
     else:
         raise ValueError(f"unsupported W09 operation: {name}")
+    expected_active = _p_a_state(
+        source_state if name == "capture" else active_state
+    )
+    if result.active_state != expected_active:
+        raise AssertionError("P-A snapshot operation mutated its active input")
     return _result_data(result, source_state, active_state, artifact_data)
 
 
@@ -256,6 +261,11 @@ def _r2_step(data, name, args):
         artifact_data = _r2_artifact_data(result.artifact)
     else:
         raise ValueError(f"unsupported W09 operation: {name}")
+    expected_active = _r2_state(
+        source_state if name == "capture" else active_state
+    )
+    if result.active_state != expected_active:
+        raise AssertionError("R2 snapshot operation mutated its active input")
     return _result_data(result, source_state, active_state, artifact_data)
 
 
