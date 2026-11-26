@@ -786,6 +786,111 @@ class W08ReplayableTransactionTests(unittest.TestCase):
 
 
 
+
+    def test_w08_out_of_order_descriptor_is_rejected_before_admission(self):
+        valid_spec = {
+            "identity": "w08-descriptor-order",
+            "generation": 1,
+            "origin": "cpu",
+            "destination": "vdp",
+            "operation": "read-modify-write",
+            "profile": "SMS-NTSC",
+            "payload": "tile-data",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (
+                {
+                    "identity": "sample",
+                    "kind": "Sample",
+                    "at_common": Fraction(2),
+                    "irreversible": False,
+                },
+                {
+                    "identity": "commit",
+                    "kind": "Commit",
+                    "at_common": Fraction(3),
+                    "irreversible": False,
+                },
+            ),
+        }
+        invalid_spec = {
+            **valid_spec,
+            "markers": tuple(reversed(valid_spec["markers"])),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": invalid_spec}},
+            {"sequence": 1, "name": "submit", "args": {"spec": valid_spec}},
+            {
+                "sequence": 2,
+                "name": "start",
+                "args": {"identity": "w08-descriptor-order"},
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_OUT_OF_ORDER_DESCRIPTOR_REJECTED_BEFORE_ADMISSION",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "an out-of-order marker descriptor is rejected before admission "
+                    "without poisoning the identity; a subsequent valid descriptor "
+                    "with the same identity can be admitted and started"
+                ),
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not evidence of physical SMS marker ordering or bus behavior."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            rejected = fixture["cuts"][0][side]
+            self.assertEqual(rejected["code"], "InvalidInput")
+            self.assertEqual(rejected["book"]["transactions"], [])
+            admitted = fixture["cuts"][1][side]
+            self.assertEqual(admitted["code"], "Ok")
+            self.assertEqual(admitted["transaction"]["state"], "Pending")
+            started = fixture["cuts"][2][side]
+            self.assertEqual(started["code"], "Ok")
+            self.assertEqual(started["transaction"]["state"], "InProgress")
+            self.assertEqual(
+                started["transaction"]["spec"]["markers"],
+                [
+                    {
+                        "identity": "sample",
+                        "kind": "Sample",
+                        "at_common": {"$fraction": [2, 1]},
+                        "irreversible": False,
+                    },
+                    {
+                        "identity": "commit",
+                        "kind": "Commit",
+                        "at_common": {"$fraction": [3, 1]},
+                        "irreversible": False,
+                    },
+                ],
+            )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
     def test_w08_markers_are_processed_in_declared_order(self):
         spec = {
             "identity": "w08-marker-order",
