@@ -113,6 +113,12 @@ class ReplayableFixtureCorpusTests(unittest.TestCase):
             {"$fraction": [1, 3]},
         )
 
+    def test_tampered_fixture_is_rejected_before_replay(self):
+        fixture = self.fixture()
+        fixture["initial_state"]["value"] = 999
+        with self.assertRaisesRegex(ValueError, "digest mismatch"):
+            replay_fixture_side(fixture, step=step, side="left")
+
     def test_non_contiguous_operation_sequence_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "contiguous"):
             capture_differential_fixture(
