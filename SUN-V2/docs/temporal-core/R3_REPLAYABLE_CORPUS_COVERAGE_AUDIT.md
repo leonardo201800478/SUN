@@ -4,19 +4,19 @@
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **PR:** #1284
 **HEAD de referência do inventário inicial:** `ee96d3c013d25a60757355ecf4cf600f70b8c6ca`
-**Atualização W00:** fixture adicionada em `4605dd2af122bca0b7d7f5c34cc6c509cfc6385b`; registro no emitter em `57ee467988327a50296d32d74cde52dc1031e396` (CI #11019 pendente).
+**Atualização W00:** fixture adicionada em `4605dd2af122bca0b7d7f5c34cc6c509cfc6385b`; registro no emitter em `57ee467988327a50296d32d74cde52dc1031e396` (CI #11020 falhou no adapter; correção no HEAD `b7ae066771e73adac49361be8aa136b2383abea6`, reteste pendente).
 **Classificação:** OBSERVATION do inventário de testes e fixtures; não é closeout de R3.
 
 ## 1. Resultado executivo
 
-O harness declarativo de replay já está implementado e exercitado. O inventário inicial cobria W07, W08 e W09; a primeira expansão W00 foi adicionada como fixture declarativa e aguarda validação CI no HEAD atualizado.
+O harness declarativo de replay já está implementado e exercitado. O inventário inicial cobria W07, W08 e W09; a fixture W00 foi adicionada e registrada no emitter. O CI #11020 encontrou `KeyError: participants` no adapter de replay em Linux e Windows; o adapter foi corrigido no HEAD `b7ae066771e73adac49361be8aa136b2383abea6` e aguarda reteste.
 
 - Corpus replayável antes da expansão W00: **17 fixtures / 88 operações e cortes**.
 - W00: **1 fixture adicional / 2 operações e cortes**, implementada; equivalência e geração multiplataforma aguardam nova execução CI após a correção do adapter.
 - W07: 1 fixture, mantendo a divergência P-A/R2.
 - W08: 12 fixtures de lifecycle de transação.
 - W09: 4 fixtures de snapshot/restore/replay.
-- W00–W06: existem testes P-A e comparações unitárias/diferenciais, mas **não há fixtures registradas no corpus replayável**.
+- W00–W06: existem testes P-A e comparações unitárias/diferenciais, mas **W01–W06 ainda não têm fixtures registradas no corpus replayável**.
 
 Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobertura replayável. O corpus continua parcial e não atende ainda à migração completa dos workloads aplicáveis W00–W09.
 
@@ -39,7 +39,7 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 
 - `SUN-V2/benchmarks/r3/emit_p_a_trace_corpus.py`: a lista `TEST_MODULES` inclui os módulos P-A, o harness e os testes replayáveis W07/W08/W09; não inclui módulos replayáveis W00–W06.
 - `SUN-V2/benchmarks/r3/replayable_fixture_corpus.py`: schema `sun.chronos.r3.replayable-fixture.v0.1`; guarda estado inicial, operações, estados completos por corte, digests por lado e primeira divergência.
-- `test_p_a_instruction_catchup.py`: 24 testes unitários/diferenciais, sem registro de fixture replayável.
+- `test_p_a_instruction_catchup.py`: 24 testes unitários/diferenciais, sem registro próprio de fixture replayável; W00 possui módulo declarativo separado.
 - `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais, sem registro de fixture replayável.
 - `test_p_a_causal_sync.py`: 14 testes unitários/diferenciais, sem registro de fixture replayável.
 - `test_p_a_microsteps.py`: 11 testes, com matriz e divergência tratadas separadamente.
@@ -52,7 +52,7 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 
 A ordem abaixo reduz acoplamento entre os adapters e mantém o corpus verificável em fatias:
 
-1. **W00 — IMPLEMENTADA, CI PENDENTE:** fixture mínima de avanço sem obrigações, com CPU/VDP abstratos, clock racional 3/2, duas operações e estado integral por corte. O emitter inclui o módulo; CI #11019 deve validar replay e equivalência Linux/Windows.
+1. **W00 — IMPLEMENTADA, RETESTE PENDENTE:** fixture mínima de avanço sem obrigações, com CPU/VDP abstratos, clock racional 3/2, duas operações e estado integral por corte. O emitter inclui o módulo; CI #11020 revelou falha no adapter (`KeyError: participants`) em Linux/Windows, corrigida em `b7ae066771e73adac49361be8aa136b2383abea6`. A equivalência e o replay ainda não estão validados.
 2. **W01:** lifecycle de deadline esparso, com geração explícita e transição terminal.
 3. **W02:** grupo denso/simultâneo. Incluir ao menos um caso comutativo e um UNKNOWN; o segundo deve preservar status e estado sem mutação.
 4. **W03:** uma observação com dependência cross-domain declarada e uma negativa por dependência ausente.
