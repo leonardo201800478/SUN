@@ -31,6 +31,7 @@ from replayable_fixture_corpus import (  # noqa: E402
     capture_differential_fixture,
     replay_fixture_side,
 )
+from trace_fixture_support import normalize  # noqa: E402
 from snapshot_reference import (  # noqa: E402
     AckCommit,
     AckPresence,
@@ -329,10 +330,12 @@ class W09ReplayableSnapshotTests(unittest.TestCase):
         final_right = fixture["cuts"][-1]["right_state"]
         self.assertEqual(final_left["code"], "Ok")
         self.assertEqual(final_right["code"], "Ok")
-        self.assertEqual(final_left["active_state"], initial["active_state"])
-        self.assertEqual(final_right["active_state"], initial["active_state"])
-        self.assertEqual(final_left["restored_state"], initial["source_state"])
-        self.assertEqual(final_right["restored_state"], initial["source_state"])
+        expected_active = normalize(initial["active_state"])
+        expected_source = normalize(initial["source_state"])
+        self.assertEqual(final_left["active_state"], expected_active)
+        self.assertEqual(final_right["active_state"], expected_active)
+        self.assertEqual(final_left["restored_state"], expected_source)
+        self.assertEqual(final_right["restored_state"], expected_source)
         self.assertEqual(
             len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
             len(operations),
