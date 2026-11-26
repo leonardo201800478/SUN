@@ -87,11 +87,11 @@ O primeiro corte P-A cobriu W00–W05; W06/W07/W08/W09 foram adicionados assim q
 ## 6. Protocolo de benchmark
 
 - Gerar fixtures e entradas antes da região cronometrada.
-- Warm-up 5 execuções; medir 30 repetições independentes por ponto de parâmetro (revisável se variância exigir mais). A coleta inclui wall time por amostra; CPU time é incluído somente quando a resolução empírica do relógio da thread é <=1 ms, caso contrário é explicitamente marcado como indisponível. Pico tracemalloc é medido em probe separado, fora das amostras cronometradas.
+- Warm-up de 5 execuções e 30 repetições medidas por ponto; registrar `sample_count`, vetor bruto, unidade e ambiente. Wall time e CPU time são campos separados. CPU time só é aceito quando a resolução empírica de `thread_time_ns` é <=10.000 ns; resolução ausente ou superior resulta em `SKIPPED_COARSE_RESOLUTION` e amostras CPU nulas. Pico tracemalloc permanece em probe separado.
 - Fixar seed, versão de Python/toolchain, CPU, sistema, governor/power plan, frequência efetiva se disponível, commit SHA, configuração, tracing e flags.
 - Executar cada variante em processos/ordens alternadas para reduzir viés de aquecimento e drift; guardar amostras brutas, não só resumo.
 - Medir wall-clock e CPU time; separar geração de workload, validação do trace, serialização JSON e hashing do benchmark principal.
-- Reportar throughput, ns/op e ns por classe; p50/p95/p99 e máximo observado; peak/retained memory (tracemalloc ou ferramenta mais apropriada); alocações/bytes quando a instrumentação não distorcer a medida.
+- Todos os drivers comparáveis usam o estimador Hyndman-Fan Type 7 (`h=(n-1)p`, interpolação linear), implementado em `benchmark_statistics.py`. Reportar p50/p95/p99 e máximo observado diretamente dos vetores brutos, além de média/mínimo quando disponíveis. O máximo não é interpolado.
 - Repetir com tracing ligado/desligado; tracing não pode alterar resultado funcional.
 - Guardar medição por operação e dados brutos, ambiente e hashes como artefatos CI com retenção; não comparar números de máquinas diferentes como se fossem A/B. O throughput deve derivar de contadores reais de inspeção, nunca de soma arbitrária de entidades do fixture.
 - Nenhum limite de overhead é escolhido antes da primeira baseline P-A; benchmark é evidência de custo, não critério para enfraquecer contrato.
@@ -100,7 +100,7 @@ O primeiro corte P-A cobriu W00–W05; W06/W07/W08/W09 foram adicionados assim q
 
 Uma execução é funcionalmente comparável somente se:
 1. todas as pré-condições e semântica R1 forem implementadas no escopo declarado;
-2. trace/digest dos resultados coincidirem com o oracle R2 para cenários suportados;
+2. trace/digest dos resultados coincidirem com R2 nos cenários cobertos; divergências conhecidas W06/W07 devem ser tratadas por testes normativos independentes, nunca mascaradas como equivalência diferencial (ver `R2_R3_ORACLE_GAP_PROPOSAL.md`);
 3. negativos, igualdade e UNKNOWN retornarem as mesmas classes sem mutação;
 4. repeat/replay produzirem mesmo digest sob mesma entrada;
 5. o protótipo não usar tempos float, agenda do host, threads, relógio wall-clock ou SO como autoridade de tempo virtual.
@@ -131,3 +131,11 @@ P-D só começa após P-A:
 P-E só começa após o mesmo conjunto de fixtures e baseline A congelados. P-F exige gap demonstrado que não possa ser resolvido em P-A/P-D/P-E individualmente.
 
 R3 só conclui com matriz comparativa equivalente, custos e limitações explícitos, decisão sustentada (incluindo possibilidade de rejeitar todos e revisar hipótese) e revisão adversarial R4. R5 decide a arquitetura de produção. Não há promoção automática de protótipo a runtime.
+
+
+## 10. Findings independentes W06/W07 — estado de correção
+
+- **W07:** P-A bloqueia processamento de microstep posterior enquanto há obrigação de nível lógico anterior pendente; conflitos não comutativos no nível anterior continuam indeterminados. Irmãos comutativos do mesmo nível permanecem processáveis. A divergência com R2 é registrada e não é usada como prova diferencial.
+- **W06:** P-A exige descritor tipado de base de comparação, com perfil/revisão, coordenada/unidade, escala, identidade/revisão da base e referência/digest do registro de validação. Base ausente ou distinta mantém `IndeterminateCausalOrder` sem reivindicar deadlines nem fechar watermark. Fixtures são sintéticas; evidência física de perfil SMS permanece UNKNOWN.
+- R2 permanece imutável no SHA aprovado. O tratamento formal das duas lacunas está em `R2_R3_ORACLE_GAP_PROPOSAL.md`.
+- Nenhum dos findings autoriza produção CHRONOS/V2, P-D/P-E ou avanço automático para R4/R5.
