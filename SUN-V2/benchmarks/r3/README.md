@@ -82,13 +82,13 @@ cross-platform output-equivalence checks and limitations are recorded in
 - Canonical corpus: 112 fixtures, 1,475 cuts, 1,468 differential cuts and 7 property cuts. Linux/Windows JSONs are byte-for-byte equal with digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`.
 - All 18 R2/R3 ZIP artifacts were downloaded, ZIP-tested and SHA-256 verified. Every benchmark point contains 30 wall samples; Linux also retains 30 CPU samples per point. Windows CPU samples are null because the clock resolution is too coarse.
 - Quantiles use the shared Hyndman-Fan Type 7 estimator; maximum is calculated directly from raw samples. All seven drivers use the same 10,000 ns maximum accepted CPU-clock resolution.
-- CI #10931 overall was **FAIL** because documentation patch hygiene detected trailing whitespace in the newly added oracle-gap proposal; the dependent quality supervisor also failed. The R3/R2 test jobs, all benchmark matrices and Actionlint passed. The whitespace is removed in the following revision; CI #10932 is required to establish a fully green result.
+- CI #10931 overall was **FAIL** because documentation patch hygiene detected trailing whitespace in the newly added oracle-gap proposal; the dependent quality supervisor also failed. The R3/R2 test jobs, all benchmark matrices and Actionlint passed. The trailing whitespace was removed. Final CI #10936 passed on HEAD `34f4f52865b429269ebad05a7857ac4a2e3d5ce5`, including documentation hygiene and the dependent quality supervisor.
 
 Detailed metrics, environments, artifact IDs, hashes and limitations are in [P_A_BASELINE_RESULTS.md](./P_A_BASELINE_RESULTS.md).
 
 ## Scope boundary
 
-W00–W09 now have differential tests and synthetic benchmark matrices on Linux/Windows. P-A is still not fully closed: detailed canonical fixture/trace equivalence needs consolidation and independent adversarial review.
+W00–W09 now have tests and synthetic benchmark matrices on Linux/Windows. The declared canonical fixture/trace corpus is fully equal across platforms (112 fixtures, 1,475 cuts). P-A is still not fully closed: the W06/W07 R2 oracle-gap proposal and independent adversarial review remain pending.
 
 P-D/P-E are not started. R4/R5 remain mandatory. No production CHRONOS/V2 code is
 authorized before R5.
