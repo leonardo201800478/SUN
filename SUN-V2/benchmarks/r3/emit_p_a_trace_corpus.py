@@ -10,6 +10,10 @@ import unittest
 from pathlib import Path
 
 from trace_fixture_support import build_document, reset
+from replayable_fixture_corpus import (
+    build_replayable_document,
+    reset_replayable_corpus,
+)
 
 
 TEST_MODULES = (
@@ -45,9 +49,15 @@ def main() -> int:
     parser.add_argument(
         "--output", type=Path, default=Path("p_a_canonical_trace_corpus.json")
     )
+    parser.add_argument(
+        "--replayable-output",
+        type=Path,
+        default=Path("p_a_replayable_fixture_corpus.json"),
+    )
     args = parser.parse_args()
 
     reset()
+    reset_replayable_corpus()
     loader = unittest.defaultTestLoader
     suite = unittest.TestSuite()
     for module_name in TEST_MODULES:
@@ -79,6 +89,30 @@ def main() -> int:
         "property_cuts": document["property_cut_count"],
         "trace_digest": document["trace_digest"],
         "output": str(args.output),
+    }, sort_keys=True))
+
+    replayable = build_replayable_document(
+        git_head=git_head(),
+        test_count=result.testsRun,
+    )
+    if replayable["fixture_count"] == 0:
+        raise AssertionError("replayable fixture corpus is empty")
+    args.replayable_output.write_text(
+        json.dumps(replayable, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    print(json.dumps({
+        "status": "PASS",
+        "schema": replayable["schema"],
+        "tests": replayable["test_count"],
+        "fixtures": replayable["fixture_count"],
+        "operations": replayable["operation_count"],
+        "cuts": replayable["cut_count"],
+        "divergent_fixtures": replayable["divergent_fixture_count"],
+        "divergent_fixture_ids": replayable["divergent_fixture_ids"],
+        "corpus_digest": replayable["corpus_digest"],
+        "output": str(args.replayable_output),
     }, sort_keys=True))
     return 0
 

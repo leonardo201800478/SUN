@@ -7,8 +7,11 @@ from fractions import Fraction
 
 from replayable_fixture_corpus import (
     SCHEMA,
+    build_replayable_document,
     capture_differential_fixture,
+    record_replayable_fixture,
     replay_fixture_side,
+    reset_replayable_corpus,
 )
 from trace_fixture_support import canonical_bytes
 
@@ -182,6 +185,36 @@ class ReplayableFixtureCorpusTests(unittest.TestCase):
         )
         self.assertEqual(fixture["cuts"][0]["left_state"], {"value": 1})
         self.assertEqual(fixture["cuts"][0]["right_state"], {"value": 1})
+
+
+    def test_recorded_corpus_is_sorted_deterministic_and_rejects_duplicates(self):
+        reset_replayable_corpus()
+        self.addCleanup(reset_replayable_corpus)
+        fixture = self.fixture()
+        self.assertEqual(
+            record_replayable_fixture(fixture), fixture["fixture_id"]
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate replayable fixture"):
+            record_replayable_fixture(fixture)
+
+        document = build_replayable_document(
+            git_head="a" * 40,
+            test_count=1,
+        )
+        self.assertEqual(
+            document["schema"], "sun.chronos.r3.replayable-fixture-corpus.v1"
+        )
+        self.assertEqual(document["fixture_count"], 1)
+        self.assertEqual(document["operation_count"], 2)
+        self.assertEqual(document["cut_count"], 2)
+        self.assertEqual(document["divergent_fixture_count"], 0)
+        self.assertEqual(
+            document["corpus_digest"],
+            build_replayable_document(
+                git_head="a" * 40,
+                test_count=1,
+            )["corpus_digest"],
+        )
 
 
 if __name__ == "__main__":

@@ -13,6 +13,9 @@ from trace_fixture_support import canonical_bytes, normalize
 
 
 SCHEMA = "sun.chronos.r3.replayable-fixture.v0.1"
+CORPUS_SCHEMA = "sun.chronos.r3.replayable-fixture-corpus.v1"
+
+_RECORDED_FIXTURES: dict[str, dict] = {}
 
 
 def _sha256(value) -> str:
@@ -108,6 +111,68 @@ def capture_differential_fixture(
         "fixture_digest": _sha256(digest_payload),
     }
 
+
+
+def reset_replayable_corpus() -> None:
+    """Clear explicitly registered workload fixtures before one emitter run."""
+    _RECORDED_FIXTURES.clear()
+
+
+def record_replayable_fixture(fixture: dict) -> str:
+    """Register one complete replay fixture for the separate corpus artifact.
+
+    Registration is explicit: helper self-tests are not included unless a
+    workload test deliberately records its fixture. Known divergences remain
+    data and are not rejected.
+    """
+    if type(fixture) is not dict or fixture.get("schema") != SCHEMA:
+        raise ValueError("unsupported replayable fixture")
+    fixture_id = fixture.get("fixture_id")
+    if not isinstance(fixture_id, str) or not fixture_id.strip():
+        raise ValueError("fixture_id must be a non-empty string")
+    digest_fields = (
+        "fixture_id", "provenance", "initial_state", "operations",
+        "cuts", "first_divergence", "all_equal",
+    )
+    if any(field not in fixture for field in digest_fields):
+        raise ValueError("replayable fixture is missing digest fields")
+    digest_payload = {key: fixture[key] for key in digest_fields}
+    if fixture.get("fixture_digest") != _sha256(digest_payload):
+        raise ValueError("replayable fixture digest mismatch")
+    if fixture_id in _RECORDED_FIXTURES:
+        raise ValueError(f"duplicate replayable fixture id: {fixture_id}")
+    _RECORDED_FIXTURES[fixture_id] = deepcopy(fixture)
+    return fixture_id
+
+
+def build_replayable_document(*, git_head: str, test_count: int) -> dict:
+    """Build a deterministic manifest containing complete replayable fixtures."""
+    if not isinstance(git_head, str):
+        raise TypeError("git_head must be a string")
+    if type(test_count) is not int or test_count < 0:
+        raise ValueError("test_count must be a non-negative integer")
+    fixtures = [
+        deepcopy(_RECORDED_FIXTURES[fixture_id])
+        for fixture_id in sorted(_RECORDED_FIXTURES)
+    ]
+    manifest = tuple(
+        (fixture["fixture_id"], fixture["fixture_digest"])
+        for fixture in fixtures
+    )
+    return {
+        "schema": CORPUS_SCHEMA,
+        "git_head": git_head,
+        "test_count": test_count,
+        "fixture_count": len(fixtures),
+        "operation_count": sum(len(item["operations"]) for item in fixtures),
+        "cut_count": sum(len(item["cuts"]) for item in fixtures),
+        "divergent_fixture_count": sum(not item["all_equal"] for item in fixtures),
+        "divergent_fixture_ids": [
+            item["fixture_id"] for item in fixtures if not item["all_equal"]
+        ],
+        "corpus_digest": _sha256(manifest),
+        "fixtures": fixtures,
+    }
 
 def replay_fixture_side(
     fixture: dict,

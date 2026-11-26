@@ -26,6 +26,7 @@ from p_a_microsteps import (  # noqa: E402
 from replayable_fixture_corpus import (  # noqa: E402
     capture_differential_fixture,
     replay_fixture_side,
+    record_replayable_fixture,
 )
 
 
@@ -201,6 +202,7 @@ class W07ReplayableOracleGapTests(unittest.TestCase):
             left_step=_p_a_step,
             right_step=_r2_step,
         )
+        record_replayable_fixture(fixture)
 
         self.assertFalse(fixture["all_equal"])
         self.assertEqual(fixture["first_divergence"]["sequence"], 1)

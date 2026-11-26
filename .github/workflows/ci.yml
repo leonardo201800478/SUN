@@ -1157,13 +1157,29 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 emit_p_a_trace_corpus.py --output "$RUNNER_TEMP/r3-p-a-trace-linux.json"
+          python3 emit_p_a_trace_corpus.py --output "$RUNNER_TEMP/r3-p-a-trace-linux.json" --replayable-output "$RUNNER_TEMP/r3-p-a-replayable-linux.json"
       - name: Upload canonical P-A trace corpus
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: chronos-r3-p-a-trace-linux-${{ github.run_id }}
           path: ${{ runner.temp }}/r3-p-a-trace-linux.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload replayable P-A fixture corpus
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chronos-r3-p-a-replayable-linux-${{ github.run_id }}
+          path: ${{ runner.temp }}/r3-p-a-replayable-linux.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload replayable P-A fixture corpus
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chronos-r3-p-a-replayable-windows-${{ github.run_id }}
+          path: ${{ runner.temp }}/r3-p-a-replayable-windows.json
           if-no-files-found: error
           retention-days: 30
       - name: Run P-A synthetic baseline matrix
@@ -1306,9 +1322,10 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
           R3_TRACE_RESULT_PATH: ${{ runner.temp }}/r3-p-a-trace-windows.json
+          R3_REPLAYABLE_RESULT_PATH: ${{ runner.temp }}/r3-p-a-replayable-windows.json
         shell: pwsh
         run: |
-          python emit_p_a_trace_corpus.py --output "$env:R3_TRACE_RESULT_PATH"
+          python emit_p_a_trace_corpus.py --output "$env:R3_TRACE_RESULT_PATH" --replayable-output "$env:R3_REPLAYABLE_RESULT_PATH"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload canonical P-A trace corpus
         if: always()
@@ -1446,7 +1463,7 @@ jobs:
           retention-days: 30
 
   r3-corpus-equivalence:
-    name: CHRONOS R3 canonical corpus Linux/Windows equivalence
+    name: CHRONOS R3 canonical and replayable corpus Linux/Windows equivalence
     needs:
       - changes
       - r3-prototype-tests
@@ -1485,6 +1502,35 @@ jobs:
             exit 1
           }
           echo "PASS: canonical R3 corpus is byte-identical across platforms."
+
+      - name: Download Linux replayable fixture corpus
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: chronos-r3-p-a-replayable-linux-${{ github.run_id }}
+          path: ${{ runner.temp }}/r3-corpus/replayable-linux
+      - name: Download Windows replayable fixture corpus
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: chronos-r3-p-a-replayable-windows-${{ github.run_id }}
+          path: ${{ runner.temp }}/r3-corpus/replayable-windows
+      - name: Require byte-identical replayable fixture corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          linux_file="${{ runner.temp }}/r3-corpus/replayable-linux/r3-p-a-replayable-linux.json"
+          windows_file="${{ runner.temp }}/r3-corpus/replayable-windows/r3-p-a-replayable-windows.json"
+          test -s "$linux_file"
+          test -s "$windows_file"
+          linux_sha="$(sha256sum "$linux_file" | cut -d ' ' -f 1)"
+          windows_sha="$(sha256sum "$windows_file" | cut -d ' ' -f 1)"
+          printf 'Replayable Linux SHA-256: %s\nReplayable Windows SHA-256: %s\n' "$linux_sha" "$windows_sha"
+          cmp --silent "$linux_file" "$windows_file" || {
+            echo "Replayable R3 corpus differs between Linux and Windows."
+            diff -u "$linux_file" "$windows_file" || true
+            exit 1
+          }
+          echo "PASS: replayable R3 corpus is byte-identical across platforms."
+
 
   quality-gate:
     name: Rust quality and unit regression
