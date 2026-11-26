@@ -34,6 +34,27 @@ class ADeadlineCode(str, Enum):
 
 
 @dataclass(frozen=True)
+class APhaseBasis:
+    """Structured, auditable comparison basis for profile phase coordinates.
+
+    Prototype metadata only: it does not prove that a real SMS profile has
+    supplied or validated the referenced evidence. Real profiles remain
+    UNKNOWN until an external validation record is established.
+    """
+
+    profile_id: str
+    profile_revision: str
+    coordinate: str
+    unit: str
+    scale_numerator: int
+    scale_denominator: int
+    basis_id: str
+    basis_revision: str
+    validation_record_id: str
+    validation_record_sha256: str
+
+
+@dataclass(frozen=True)
 class ADeadline:
     owner: str
     identity: str
@@ -45,6 +66,7 @@ class ADeadline:
     phase_evidence: str | None = None
     microstep: int = 0
     status: ADeadlineStatus = ADeadlineStatus.SCHEDULED
+    phase_basis: APhaseBasis | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +106,31 @@ class ADeadlineResult:
 
 def _exact(value: object) -> bool:
     return isinstance(value, (int, Fraction)) and not isinstance(value, bool)
+
+
+def _valid_phase_basis(value: object) -> bool:
+    if not isinstance(value, APhaseBasis):
+        return False
+    text_fields = (
+        value.profile_id, value.profile_revision, value.coordinate, value.unit,
+        value.basis_id, value.basis_revision, value.validation_record_id,
+    )
+    if any(not isinstance(item, str) or not item.strip() for item in text_fields):
+        return False
+    if (
+        not isinstance(value.scale_numerator, int)
+        or isinstance(value.scale_numerator, bool)
+        or value.scale_numerator <= 0
+        or not isinstance(value.scale_denominator, int)
+        or isinstance(value.scale_denominator, bool)
+        or value.scale_denominator <= 0
+    ):
+        return False
+    digest = value.validation_record_sha256
+    return (
+        isinstance(digest, str) and len(digest) == 64
+        and all(char in "0123456789abcdef" for char in digest)
+    )
 
 
 def _find(book: ADeadlineBook, identity: str, generation: int) -> ADeadline | None:
@@ -198,6 +245,10 @@ def _validate_book(book: object) -> str | None:
                 not isinstance(item.phase_evidence, str) or not item.phase_evidence.strip()
             ))
             or ((item.phase_order is None) != (item.phase_evidence is None))
+            or (item.phase_basis is not None and (
+                not _valid_phase_basis(item.phase_basis)
+                or item.phase_order is None or item.phase_evidence is None
+            ))
             or not isinstance(item.microstep, int) or isinstance(item.microstep, bool)
             or item.microstep < 0 or not isinstance(item.status, ADeadlineStatus)
         ):
@@ -366,6 +417,7 @@ def publish_deadline(
     effect_id: str, microstep: bool = False, commutative: bool = False,
     phase_order: int | None = None, phase_evidence: str | None = None,
     microstep_level: int | None = None,
+    phase_basis: APhaseBasis | None = None,
 ) -> ADeadlineResult:
     if (
         not isinstance(owner, str) or not owner.strip()
@@ -381,6 +433,10 @@ def publish_deadline(
             not isinstance(phase_evidence, str) or not phase_evidence.strip()
         ))
         or ((phase_order is None) != (phase_evidence is None))
+        or (phase_basis is not None and (
+            not _valid_phase_basis(phase_basis)
+            or phase_order is None or phase_evidence is None
+        ))
         or (microstep_level is not None and (
             not isinstance(microstep_level, int) or isinstance(microstep_level, bool)
             or microstep_level <= 0
@@ -426,6 +482,7 @@ def publish_deadline(
         owner, identity, generation, Fraction(at_common), effect_id,
         commutative, phase_order, phase_evidence,
         microstep_level if microstep_level is not None else (1 if microstep else 0),
+        phase_basis=phase_basis,
     )
     return ADeadlineResult(
         replace(book, deadlines=book.deadlines + (deadline,)),
@@ -512,9 +569,17 @@ def _causal_order_known(group: list[ADeadline]) -> bool:
         same = [item for item in group if item.microstep == level]
         if len(same) < 2 or all(item.commutative for item in same):
             continue
-        if any(item.phase_order is None or item.phase_evidence is None for item in same):
+        if any(
+            item.phase_order is None
+            or item.phase_evidence is None
+            or not _valid_phase_basis(item.phase_basis)
+            for item in same
+        ):
             return False
         if len({item.phase_order for item in same}) != len(same):
+            return False
+        first_basis = same[0].phase_basis
+        if any(item.phase_basis != first_basis for item in same[1:]):
             return False
     return True
 
