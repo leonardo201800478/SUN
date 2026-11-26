@@ -18,9 +18,13 @@ sys.path.insert(0, str(R2_REFERENCE_PATH))
 from p_a_snapshots import (  # noqa: E402
     PAAckCommit,
     PAAckPresence,
+    PADeadlineRecord,
+    PADeadlineState,
     PADomainState,
     PAInterruptRecord,
     PAMachineState,
+    PATransactionRecord,
+    PATransactionState,
     PASnapshotArtifact,
     _artifact_state,
     _encode_state,
@@ -36,9 +40,13 @@ from trace_fixture_support import normalize  # noqa: E402
 from snapshot_reference import (  # noqa: E402
     AckCommit,
     AckPresence,
+    DeadlineRecord,
+    DeadlineState,
     DomainState,
     InterruptRecord,
     MachineState,
+    TransactionRecord,
+    TransactionState,
     SnapshotArtifact,
     capture as r2_capture,
     restore as r2_restore,
@@ -68,6 +76,35 @@ def _interrupt_data(interrupts):
     }
 
 
+
+def _deadline_data(deadline):
+    """Serialize deadline identity, generation, lifecycle and partial ledger."""
+    return {
+        "identity": deadline.identity,
+        "generation": deadline.generation,
+        "at_common": deadline.at_common,
+        "state": deadline.state.value,
+        "committed_effects": list(deadline.committed_effects),
+        "pending_effects": list(deadline.pending_effects),
+        "error": deadline.error,
+    }
+
+
+def _transaction_data(transaction):
+    """Serialize transaction control state, sampled values and effect ledgers."""
+    return {
+        "identity": transaction.identity,
+        "generation": transaction.generation,
+        "state": transaction.state.value,
+        "progress_common": transaction.progress_common,
+        "next_marker": transaction.next_marker,
+        "wait_source": transaction.wait_source,
+        "sampled": [list(pair) for pair in transaction.sampled],
+        "committed_effects": list(transaction.committed_effects),
+        "pending_effects": list(transaction.pending_effects),
+        "error": transaction.error,
+    }
+
 def _state_data(state):
     """Serialize the complete state shape used by this snapshot fixture."""
     return {
@@ -82,8 +119,8 @@ def _state_data(state):
             for item in state.domains
         ],
         "watermark": state.watermark,
-        "deadlines": [],
-        "transactions": [],
+        "deadlines": [_deadline_data(item) for item in state.deadlines],
+        "transactions": [_transaction_data(item) for item in state.transactions],
         "interrupts": _interrupt_data(state.interrupts),
         "input_cursor": state.input_cursor,
     }
@@ -106,8 +143,33 @@ def _p_a_state(data):
         watermark=(
             None if data["watermark"] is None else _fraction(data["watermark"])
         ),
-        deadlines=(),
-        transactions=(),
+        deadlines=tuple(
+            PADeadlineRecord(
+                item["identity"],
+                item["generation"],
+                _fraction(item["at_common"]),
+                PADeadlineState(item["state"]),
+                tuple(item["committed_effects"]),
+                tuple(item["pending_effects"]),
+                item["error"],
+            )
+            for item in data["deadlines"]
+        ),
+        transactions=tuple(
+            PATransactionRecord(
+                item["identity"],
+                item["generation"],
+                PATransactionState(item["state"]),
+                _fraction(item["progress_common"]),
+                item["next_marker"],
+                item["wait_source"],
+                tuple(tuple(pair) for pair in item["sampled"]),
+                tuple(item["committed_effects"]),
+                tuple(item["pending_effects"]),
+                item["error"],
+            )
+            for item in data["transactions"]
+        ),
         interrupts=PAInterruptRecord(
             int_level=irq["int_level"],
             nmi_level=irq["nmi_level"],
@@ -143,8 +205,33 @@ def _r2_state(data):
         watermark=(
             None if data["watermark"] is None else _fraction(data["watermark"])
         ),
-        deadlines=(),
-        transactions=(),
+        deadlines=tuple(
+            DeadlineRecord(
+                item["identity"],
+                item["generation"],
+                _fraction(item["at_common"]),
+                DeadlineState(item["state"]),
+                tuple(item["committed_effects"]),
+                tuple(item["pending_effects"]),
+                item["error"],
+            )
+            for item in data["deadlines"]
+        ),
+        transactions=tuple(
+            TransactionRecord(
+                item["identity"],
+                item["generation"],
+                TransactionState(item["state"]),
+                _fraction(item["progress_common"]),
+                item["next_marker"],
+                item["wait_source"],
+                tuple(tuple(pair) for pair in item["sampled"]),
+                tuple(item["committed_effects"]),
+                tuple(item["pending_effects"]),
+                item["error"],
+            )
+            for item in data["transactions"]
+        ),
         interrupts=InterruptRecord(
             int_level=irq["int_level"],
             nmi_level=irq["nmi_level"],
@@ -271,6 +358,144 @@ def _r2_step(data, name, args):
 
 
 class W09ReplayableSnapshotTests(unittest.TestCase):
+
+
+    def test_w09_generations_and_partial_effect_ledgers_survive_restore(self):
+        deadlines = (
+            PADeadlineRecord(
+                "old-generation",
+                1,
+                Fraction(5),
+                PADeadlineState.SUPERSEDED,
+            ),
+            PADeadlineRecord(
+                "new-generation",
+                2,
+                Fraction(8),
+                PADeadlineState.SCHEDULED,
+            ),
+            PADeadlineRecord(
+                "failed-deadline",
+                3,
+                Fraction(9),
+                PADeadlineState.FAILED,
+                committed_effects=("effect-1",),
+                pending_effects=("effect-2",),
+                error="deadline fault",
+            ),
+        )
+        transactions = (
+            PATransactionRecord(
+                "sampled-pending",
+                4,
+                PATransactionState.IN_PROGRESS,
+                Fraction(3),
+                next_marker="commit",
+                sampled=(("read-status", "0x81"),),
+                pending_effects=("write-port",),
+            ),
+            PATransactionRecord(
+                "failed-partial",
+                5,
+                PATransactionState.FAILED,
+                Fraction(5),
+                committed_effects=("write-1",),
+                pending_effects=("write-2",),
+                error="partial bus fault",
+            ),
+        )
+        source = PAMachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(
+                PADomainState("cpu", Fraction(10), Fraction(1, 3)),
+                PADomainState("vdp", Fraction(10), Fraction(2, 7)),
+            ),
+            watermark=Fraction(8),
+            deadlines=deadlines,
+            transactions=transactions,
+            interrupts=PAInterruptRecord(nmi_level=False),
+            input_cursor=7,
+        )
+        active = PAMachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(
+                PADomainState("cpu", Fraction(11), Fraction(0)),
+                PADomainState("vdp", Fraction(11), Fraction(0)),
+            ),
+            watermark=Fraction(9),
+            deadlines=(),
+            transactions=(),
+            interrupts=PAInterruptRecord(nmi_level=False),
+            input_cursor=99,
+        )
+        initial = {
+            "source_state": _state_data(source),
+            "active_state": _state_data(active),
+            "artifact": None,
+            "restored_state": None,
+        }
+        operations = (
+            {"sequence": 0, "name": "capture", "args": {}},
+            {
+                "sequence": 1,
+                "name": "restore",
+                "args": {
+                    "expected_profile": "SMS-NTSC",
+                    "expected_version": "R1-0.3.18",
+                },
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W09_GENERATIONS_AND_PARTIAL_EFFECT_LEDGERS_SURVIVE_RESTORE",
+            provenance={
+                "gate": "R3",
+                "workload": "W09",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "snapshot restore preserves superseded and scheduled deadline "
+                    "generations, failed deadline partial effects, sampled-but-pending "
+                    "transaction effects, and failed transaction committed/pending ledgers"
+                ),
+                "scope": "synthetic P-A/R2 snapshot model comparison",
+                "limitation": (
+                    "Not evidence of physical SMS deadline generations, bus transaction "
+                    "recovery, or device-side partial commit behavior."
+                ),
+            },
+            initial_state=initial,
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            final = fixture["cuts"][-1][side]
+            self.assertEqual(final["code"], "Ok")
+            self.assertEqual(
+                final["restored_state"]["deadlines"],
+                initial["source_state"]["deadlines"],
+            )
+            self.assertEqual(
+                final["restored_state"]["transactions"],
+                initial["source_state"]["transactions"],
+            )
+            self.assertEqual(
+                final["active_state"], initial["active_state"]
+            )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
 
     def test_w09_ack_vector_and_device_commit_ledger_restore_independently(self):
         source = PAMachineState(
