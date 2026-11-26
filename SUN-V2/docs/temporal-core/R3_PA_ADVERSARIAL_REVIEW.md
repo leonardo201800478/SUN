@@ -1,11 +1,11 @@
 # SUN V2 — revisão adversarial do P-A (CHRONOS R3)
 
-**Data:** 2026-11-26  
-**Classificação:** revisão técnica independente do protótipo; não é aprovação de gate  
-**HEAD auditado:** `09f71c8aa059c44855c358b614c965f92900a173`  
-**Branch:** `research/chronos-r3-disposable-prototypes`  
-**PR:** [#1284 — Begin disposable CHRONOS R3 prototypes](https://github.com/leonardo201800478/SUN/pull/1284)  
-**R1 normativo:** v0.3.18, SHA de conteúdo `ac912f342ff303b3fdc554b90d00e85b23d86c76`  
+**Data:** 2026-11-26
+**Classificação:** revisão técnica independente do protótipo; não é aprovação de gate
+**HEAD auditado:** `09f71c8aa059c44855c358b614c965f92900a173`
+**Branch:** `research/chronos-r3-disposable-prototypes`
+**PR:** [#1284 — Begin disposable CHRONOS R3 prototypes](https://github.com/leonardo201800478/SUN/pull/1284)
+**R1 normativo:** v0.3.18, SHA de conteúdo `ac912f342ff303b3fdc554b90d00e85b23d86c76`
 **R2 aprovado:** merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`
 
 ## 1. Decisão executiva
