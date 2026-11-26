@@ -612,8 +612,8 @@ CI #10931 remains in the historical record because it produced the detailed benc
 
 ## Atualização de métricas — CI #10962
 
-**HEAD:** `c6d9f71f989cf9c1ff61fde8a36ea883b82a35ff`  
-**Run:** [CI #10962](https://github.com/leonardo201800478/SUN/actions/runs/45753632859)  
+**HEAD:** `c6d9f71f989cf9c1ff61fde8a36ea883b82a35ff`
+**Run:** [CI #10962](https://github.com/leonardo201800478/SUN/actions/runs/45753632859)
 **Matrizes:** sete, 351 pontos por plataforma; cinco warm-ups e 30 amostras medidas por ponto.
 
 A tabela publica, para cada matriz, o **maior p99 entre os pontos de parâmetros** e o **maior valor bruto observado** entre todas as amostras. Quantis usam Hyndman–Fan Type 7. Valores em microssegundos (µs).
