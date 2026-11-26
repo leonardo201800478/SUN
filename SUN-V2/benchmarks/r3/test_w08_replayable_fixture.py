@@ -684,7 +684,7 @@ class W08ReplayableTransactionTests(unittest.TestCase):
             "destination": "vdp",
             "operation": "write",
             "profile": "SMS-NTSC",
-            "payload": ["0x11", "0x22"],
+            "payload": "0x11,0x22",
             "admitted_at": Fraction(0),
             "start_at": Fraction(0),
             "duration_base": Fraction(0),
