@@ -6,6 +6,7 @@ semantics and is not yet wired into the existing P-A workload fixtures.
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 from typing import Callable
 
 from trace_fixture_support import canonical_bytes, normalize
@@ -57,14 +58,15 @@ def capture_differential_fixture(
     normalized_initial = normalize(initial_state)
     normalized_provenance = normalize(provenance)
 
-    left_state = initial_state
-    right_state = initial_state
+    left_state = deepcopy(normalized_initial)
+    right_state = deepcopy(normalized_initial)
     cuts = []
     first_divergence = None
 
     for operation in operations:
-        left_state = left_step(left_state, operation["name"], operation["args"])
-        right_state = right_step(right_state, operation["name"], operation["args"])
+        normalized_args = normalize(operation["args"])
+        left_state = left_step(deepcopy(left_state), operation["name"], deepcopy(normalized_args))
+        right_state = right_step(deepcopy(right_state), operation["name"], deepcopy(normalized_args))
         left_observed = normalize(left_state)
         right_observed = normalize(right_state)
         left_digest = _sha256(left_observed)
@@ -127,7 +129,7 @@ def replay_fixture_side(
     for operation, expected_cut in zip(
         fixture["operations"], fixture["cuts"], strict=True
     ):
-        state = step(state, operation["name"], operation["args"])
+        state = step(state, operation["name"], normalize(operation["args"]))
         normalized = normalize(state)
         expected = expected_cut[f"{side}_state"]
         if normalized != expected:
