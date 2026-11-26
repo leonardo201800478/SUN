@@ -27,6 +27,7 @@ TEST_MODULES = (
     "test_replayable_fixture_corpus",
     "test_w00_replayable_fixture",
     "test_w01_replayable_fixture",
+    "test_w02_replayable_fixture",
     "test_w07_replayable_fixture",
     "test_w07_pairwise_matrix",
     "test_w08_replayable_fixture",
