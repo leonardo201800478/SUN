@@ -474,20 +474,20 @@ class W09ReplayableSnapshotTests(unittest.TestCase):
         self.assertTrue(fixture["all_equal"])
         self.assertIsNone(fixture["first_divergence"])
         self.assertEqual(len(fixture["cuts"]), len(operations))
+        expected_source = normalize(initial["source_state"])
+        expected_active = normalize(initial["active_state"])
         for side in ("left_state", "right_state"):
             final = fixture["cuts"][-1][side]
             self.assertEqual(final["code"], "Ok")
             self.assertEqual(
                 final["restored_state"]["deadlines"],
-                initial["source_state"]["deadlines"],
+                expected_source["deadlines"],
             )
             self.assertEqual(
                 final["restored_state"]["transactions"],
-                initial["source_state"]["transactions"],
+                expected_source["transactions"],
             )
-            self.assertEqual(
-                final["active_state"], initial["active_state"]
-            )
+            self.assertEqual(final["active_state"], expected_active)
         self.assertEqual(
             len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
             len(operations),
