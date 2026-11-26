@@ -284,4 +284,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir o fechamento formal de R1 na issue #1270, registrando a auditoria da seção 14 e a revisão Codex sem major issues do HEAD exato. R1 e R2 estão aprovados. R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`, limitado a protótipos descartáveis e benchmarks equivalentes; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** continuar R3 na branch `research/chronos-r3-disposable-prototypes`, atendendo os achados abertos da revisão adversarial da PR #1284: preservar W07 como BLOCKED até demonstrar causalidade/comutatividade par-a-par; manter W06 físico como UNKNOWN até resolver e autenticar evidência externa; completar e comparar o corpus reexecutável Linux/Windows; publicar métricas p99/máximo e preservar artefatos por SHA. R0, R1 e R2 estão aprovados; R4/R5 permanecem pendentes e precedem qualquer código de produção. Não retomar S0 nem criar benchmark substituto.
