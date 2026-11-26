@@ -586,6 +586,6 @@ All listed ZIP SHA-256 digests were recalculated from downloaded bytes and match
 ### Disposition and limitations
 
 - Benchmark and test jobs in CI #10931 passed. The overall workflow failed only because `git diff --check` found trailing spaces in `R2_R3_ORACLE_GAP_PROPOSAL.md`; the quality supervisor failed because it requires documentation success.
-- The trailing whitespace was removed in the next revision. CI #10932 must validate the corrected documentation and rerun the required jobs before this revision is classified fully green.
+- The trailing whitespace was removed in the next revision. A subsequent CI run on the corrected documentation must complete all required jobs before this revision is classified fully green.
 - These results are synthetic Python observations, not Rust runtime performance, physical SMS timing, FPS, frame pacing, audio/video fidelity or ROM compatibility.
 - R2 source and tests were not modified. The W06/W07 oracle gaps are documented separately; differential equality is not used as proof for those two scenarios.
