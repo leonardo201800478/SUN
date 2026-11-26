@@ -785,6 +785,121 @@ class W08ReplayableTransactionTests(unittest.TestCase):
 
 
 
+
+    def test_w08_markers_are_processed_in_declared_order(self):
+        spec = {
+            "identity": "w08-marker-order",
+            "generation": 1,
+            "origin": "vdp",
+            "destination": "cpu",
+            "operation": "read-modify-write",
+            "profile": "SMS-NTSC",
+            "payload": "tile-data",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (
+                {
+                    "identity": "sample",
+                    "kind": "Sample",
+                    "at_common": Fraction(1),
+                    "irreversible": False,
+                },
+                {
+                    "identity": "commit",
+                    "kind": "Commit",
+                    "at_common": Fraction(2),
+                    "irreversible": False,
+                },
+            ),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": spec}},
+            {
+                "sequence": 1,
+                "name": "start",
+                "args": {"identity": "w08-marker-order"},
+            },
+            {
+                "sequence": 2,
+                "name": "reach_next_marker",
+                "args": {
+                    "identity": "w08-marker-order",
+                    "at_common": Fraction(2),
+                },
+            },
+            {
+                "sequence": 3,
+                "name": "sample_marker",
+                "args": {
+                    "identity": "w08-marker-order",
+                    "marker_id": "sample",
+                    "sampled_value": "0x12",
+                },
+            },
+            {
+                "sequence": 4,
+                "name": "reach_next_marker",
+                "args": {
+                    "identity": "w08-marker-order",
+                    "at_common": Fraction(2),
+                },
+            },
+            {
+                "sequence": 5,
+                "name": "commit_effect",
+                "args": {
+                    "identity": "w08-marker-order",
+                    "marker_id": "commit",
+                },
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_MARKERS_PROCESSED_IN_DECLARED_ORDER",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "when the requested common-time frontier passes both markers, "
+                    "the SAMPLE marker is still processed before the later COMMIT "
+                    "marker because descriptor order is explicit"
+                ),
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not evidence of physical SMS marker phases or bus ordering."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            first = fixture["cuts"][2][side]
+            self.assertEqual(first["transaction"]["ready_marker"], "sample")
+            second = fixture["cuts"][4][side]
+            self.assertEqual(second["transaction"]["ready_marker"], "commit")
+            final = fixture["cuts"][-1][side]
+            self.assertEqual(final["transaction"]["sampled"], [["sample", "0x12"]])
+            self.assertEqual(final["transaction"]["committed"], ["commit"])
+            self.assertEqual(final["transaction"]["state"], "InProgress")
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
     def test_w08_irreversible_sample_closes_cancel_window_only_when_declared(self):
         reversible_spec = {
             "identity": "w08-sample-reversible",
