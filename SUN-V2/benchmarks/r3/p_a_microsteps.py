@@ -224,6 +224,17 @@ def process_obligation(
         )
 
     earliest_level = min(item.microstep for item in state.pending)
+    earliest_pending = tuple(
+        item for item in state.pending if item.microstep == earliest_level
+    )
+    if len(earliest_pending) > 1 and not all(
+        item.commutative for item in earliest_pending
+    ):
+        return AStepResult(
+            state,
+            AStepCode.INDETERMINATE,
+            "earlier simultaneous non-commutative obligations have no phase evidence",
+        )
     if current.microstep > earliest_level:
         return AStepResult(
             state,
