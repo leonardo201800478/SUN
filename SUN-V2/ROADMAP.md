@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — P-A W00–W09 em protótipo descartável, 116/116 testes e 351 pontos por OS (CI #10902), PR #1284 Draft; R4/R5 PENDENTES; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — P-A W00–W09 corrigido experimentalmente e validado em CI #10937 (125/125 testes Linux/Windows, 351 pontos por OS); corpus canônico igual entre plataformas (112 fixtures, 1.475 cortes, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`). Os findings W06/W07 revelaram lacunas específicas do oráculo R2, documentadas em `docs/temporal-core/R2_R3_ORACLE_GAP_PROPOSAL.md`; revisão adversarial independente e decisão formal sobre a proposta permanecem pendentes. PR #1284 permanece Draft; P-D/P-E não iniciados. R4/R5 PENDENTES; nenhuma implementação de produção iniciada
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -109,7 +109,7 @@ Entregas:
 
 ### Fase 3 — protótipos temporais descartáveis (R3)
 
-**Status:** EM ANDAMENTO. P-A W00–W09 foi desenvolvido em `research/chronos-r3-disposable-prototypes`, PR #1284 Draft. CI #10902 validou 116/116 testes P-A por OS, R2 256/256 por OS e sete matrizes sintéticas (351 pontos por OS), com parâmetros, output digests e estado semântico equivalentes. Equivalência canônica completa e revisão adversarial continuam pendentes. P-D/P-E não iniciados. Nenhum código de produção autorizado antes de R5.
+**Status:** EM ANDAMENTO. P-A W00–W09 corrigido experimentalmente e validado em CI #10937 (125/125 testes Linux/Windows, 351 pontos por OS); corpus canônico igual entre plataformas (112 fixtures, 1.475 cortes, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`). Os findings W06/W07 revelaram lacunas específicas do oráculo R2, documentadas em `docs/temporal-core/R2_R3_ORACLE_GAP_PROPOSAL.md`; revisão adversarial independente e decisão formal sobre a proposta permanecem pendentes. PR #1284 permanece Draft; P-D/P-E não iniciados. CI #10937 validou também Actionlint, higiene documental e quality supervisor. A interpretação operacional W07 e o limite de validação externa do descritor W06 permanecem sujeitos à revisão independente; R2 não foi alterado. P-D/P-E não iniciados. Nenhum código de produção autorizado antes de R5.
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
@@ -288,4 +288,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir o fechamento formal de R1 na issue #1270, registrando a auditoria da seção 14 e a revisão Codex sem major issues do HEAD exato. Manter R2 bloqueado até aprovação explícita de R1; depois, iniciar R2 como modelo independente e propriedades executáveis, sem antecipar protótipos R3 ou produção. R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** concluir a revisão independente dos findings W06/W07 e a decisão formal sobre a proposta de lacuna do oráculo R2, mantendo PR #1284 em Draft. Após fechamento documentado de P-A, avançar para R4 (revisão adversarial) e depois R5 (aprovação arquitetural). P-D/P-E e produção permanecem bloqueados; nenhum código de produção antes de R5. Não retomar S0 nem criar benchmark substituto.
