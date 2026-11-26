@@ -784,6 +784,145 @@ class W08ReplayableTransactionTests(unittest.TestCase):
         )
 
 
+
+    def test_w08_irreversible_sample_closes_cancel_window_only_when_declared(self):
+        reversible_spec = {
+            "identity": "w08-sample-reversible",
+            "generation": 3,
+            "origin": "vdp",
+            "destination": "cpu",
+            "operation": "read",
+            "profile": "SMS-NTSC",
+            "payload": "status",
+            "admitted_at": Fraction(0),
+            "start_at": Fraction(0),
+            "duration_base": Fraction(0),
+            "automatic_tws": 0,
+            "external_tws": 0,
+            "markers": (
+                {
+                    "identity": "read",
+                    "kind": "Sample",
+                    "at_common": Fraction(1),
+                    "irreversible": False,
+                },
+            ),
+        }
+        irreversible_spec = {
+            **reversible_spec,
+            "identity": "w08-sample-irreversible",
+            "markers": (
+                {
+                    "identity": "read",
+                    "kind": "Sample",
+                    "at_common": Fraction(1),
+                    "irreversible": True,
+                },
+            ),
+        }
+        operations = (
+            {"sequence": 0, "name": "submit", "args": {"spec": reversible_spec}},
+            {
+                "sequence": 1,
+                "name": "start",
+                "args": {"identity": "w08-sample-reversible"},
+            },
+            {
+                "sequence": 2,
+                "name": "reach_next_marker",
+                "args": {
+                    "identity": "w08-sample-reversible",
+                    "at_common": Fraction(1),
+                },
+            },
+            {
+                "sequence": 3,
+                "name": "sample_marker",
+                "args": {
+                    "identity": "w08-sample-reversible",
+                    "marker_id": "read",
+                    "sampled_value": "0x81",
+                },
+            },
+            {
+                "sequence": 4,
+                "name": "cancel",
+                "args": {"identity": "w08-sample-reversible"},
+            },
+            {"sequence": 5, "name": "submit", "args": {"spec": irreversible_spec}},
+            {
+                "sequence": 6,
+                "name": "start",
+                "args": {"identity": "w08-sample-irreversible"},
+            },
+            {
+                "sequence": 7,
+                "name": "reach_next_marker",
+                "args": {
+                    "identity": "w08-sample-irreversible",
+                    "at_common": Fraction(1),
+                },
+            },
+            {
+                "sequence": 8,
+                "name": "sample_marker",
+                "args": {
+                    "identity": "w08-sample-irreversible",
+                    "marker_id": "read",
+                    "sampled_value": "0x81",
+                },
+            },
+            {
+                "sequence": 9,
+                "name": "cancel",
+                "args": {"identity": "w08-sample-irreversible"},
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W08_IRREVERSIBLE_SAMPLE_CLOSES_CANCEL_WINDOW",
+            provenance={
+                "gate": "R3",
+                "workload": "W08",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "sampling permits cancellation when reversible, but closes "
+                    "the cancellation window when the SAMPLE marker is declared irreversible"
+                ),
+                "scope": "synthetic P-A/R2 transaction model comparison",
+                "limitation": (
+                    "Not evidence that a physical SMS read has this irreversibility "
+                    "or that a particular bus sample phase exists."
+                ),
+            },
+            initial_state={"transactions": []},
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        for side in ("left_state", "right_state"):
+            reversible = fixture["cuts"][4][side]
+            self.assertEqual(reversible["code"], "Ok")
+            self.assertEqual(reversible["transaction"]["state"], "Cancelled")
+            irreversible = fixture["cuts"][-1][side]
+            self.assertEqual(irreversible["code"], "LateInput")
+            self.assertEqual(irreversible["transaction"]["state"], "InProgress")
+            self.assertEqual(
+                irreversible["transaction"]["sampled"], [["read", "0x81"]]
+            )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
+
     def test_w08_commit_before_reached_frontier_is_rejected_without_mutation(self):
         spec = {
             "identity": "w08-early-commit",
