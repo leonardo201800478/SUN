@@ -32,7 +32,6 @@ from deadline_reference import (  # noqa: E402
     Deadline as R2Deadline,
     DeadlineBook as R2DeadlineBook,
     DeadlineStatus as R2DeadlineStatus,
-    active_deadlines as r2_active_deadlines,
     close_watermark as r2_close_watermark,
     complete_deadline as r2_complete_deadline,
     dispatch_deadline as r2_dispatch_deadline,
@@ -206,7 +205,6 @@ def _result_data(result, context):
     return {
         "code": result.code.value,
         "claimed": [list(item) for item in result.claimed],
-        "detail": result.detail,
         "state": _state_data(next_context, result.book),
     }
 
@@ -265,7 +263,6 @@ def _r2_step(data, name, args):
     return {
         "code": result.code.value,
         "claimed": [list(item) for item in result.claimed],
-        "detail": result.detail,
         "state": {
             "participants": [
                 {
