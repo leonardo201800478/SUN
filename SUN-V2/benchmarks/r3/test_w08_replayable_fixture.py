@@ -861,7 +861,7 @@ class W08ReplayableTransactionTests(unittest.TestCase):
             self.assertEqual(rejected["book"]["transactions"], [])
             admitted = fixture["cuts"][1][side]
             self.assertEqual(admitted["code"], "Ok")
-            self.assertEqual(admitted["transaction"]["state"], "Pending")
+            self.assertEqual(admitted["transaction"]["state"], "Created")
             started = fixture["cuts"][2][side]
             self.assertEqual(started["code"], "Ok")
             self.assertEqual(started["transaction"]["state"], "InProgress")
