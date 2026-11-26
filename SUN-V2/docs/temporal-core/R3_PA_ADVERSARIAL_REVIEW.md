@@ -181,7 +181,18 @@ Foi adicionado `test_w08_replayable_fixture.py` e o módulo foi incluído em `em
 
 O artefato registra estado completo do book e da transação, status, ledger de efeitos, argumentos e cada corte; replay dos dois lados valida todos os estados capturados. O teste exige igualdade integral P-A/R2 e um único identificador no ledger final.
 
-**Classificação e limite:** OBSERVATION de equivalência entre dois modelos sintéticos. Não é trace de barramento físico SMS, medição de hardware, nem prova de exatamente-uma-vez no dispositivo real. O teste aguarda CI no HEAD que contém a fixture. W08 permanece apenas parcialmente coberto pelo corpus reexecutável; os outros cenários de lifecycle (WAIT, sample, falha, recuperação, TW e cancelamento) ainda não foram migrados para fixtures declarativas independentes.
+**Classificação e limite:** OBSERVATION de equivalência entre dois modelos sintéticos. CI #10978 confirmou a fixture em Linux e Windows, incluindo replay independente dos dois lados. Não é trace de barramento físico SMS, medição de hardware, nem prova de exatamente-uma-vez no dispositivo real. W08 permanece apenas parcialmente coberto pelo corpus reexecutável; os outros cenários de lifecycle (WAIT, sample, falha, recuperação, TW e cancelamento) ainda não foram migrados para fixtures declarativas independentes.
+
+### 5.10 Fixture reexecutável W09 — snapshot capture/restore
+
+Foi adicionada `test_w09_replayable_fixture.py` e o módulo foi incluído em `emit_p_a_trace_corpus.py`. A fixture usa um estado de origem SMS-NTSC com coordenadas racionais exatas em dois domínios, watermark e input cursor, além de um estado ativo deliberadamente diferente. A sequência declarativa executa:
+
+1. Captura do estado de origem.
+2. Restore sobre o estado ativo, com validação explícita de perfil e versão.
+
+O adaptador P-A usa o snapshot canônico em bytes e valida o digest do artefato antes de restaurar. O adaptador R2 usa seu artefato de estado independente. Ambos são projetados para a mesma representação semântica neutra; o fixture registra estados completos em cada corte e exige que o estado ativo permaneça intacto e o estado restaurado corresponda exatamente à origem. O replay reexecuta separadamente os dois lados.
+
+**Classificação e limite:** OBSERVATION sintética de equivalência capture/restore, ainda aguardando CI no HEAD que contém a fixture. Não cobre ainda replay de eventos após restore, deadlines/gerações, ledger parcial de transações ou cortes de acknowledge INT; esses cenários permanecem em testes diferenciais/digest-only ou UNKNOWN e exigem fixtures reexecutáveis próprias. Não é evidência física SMS nem snapshot de runtime de produção.
 
 ### 5.7 Achados adicionais da revisão independente — correções de harness e CI
 
@@ -256,7 +267,7 @@ O `observable_state` deve preservar, quando existentes no cenário: estado por d
 6. O digest agregado deve cobrir schema, provenance relevante, fixture, operações e cortes, não apenas IDs/índices/digests dos cortes.
 7. Linux e Windows devem produzir os mesmos bytes canônicos e SHA-256 para a mesma versão de schema e fixture; metadados específicos de ambiente ficam fora do digest semântico ou em bloco separado claramente excluído.
 
-Este schema é uma **especificação de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. O harness genérico e as fixtures W07 e W08 foram parcialmente implementados em `replayable_fixture_corpus.py`; a migração integral dos workloads W00–W09, incluindo snapshots com estado parcial e entradas independentes para cada workload, ainda não foi concluída. O corpus completo continua BLOCKED.
+Este schema é uma **especificação de artefato de verificação**, não uma decisão sobre API, tipos de runtime ou estrutura de produção CHRONOS. O harness genérico e as fixtures W07, W08 e W09 foram parcialmente implementados em `replayable_fixture_corpus.py`; a migração integral dos workloads W00–W09, incluindo variantes de estado parcial, entradas independentes e os demais cenários de lifecycle, ainda não foi concluída. O corpus completo continua BLOCKED.
 
 
 ### 5.5 Implementação experimental do corpus e fixture W07 (em validação)
