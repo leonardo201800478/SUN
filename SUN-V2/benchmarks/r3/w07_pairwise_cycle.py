@@ -158,16 +158,19 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
     current = next((item for item in state.pending if item.identity == requested_id), None)
     if current is None:
         return StepResult(state, StepCode.BLOCKED, "requested obligation is not pending")
-    emitted_ids = [item.identity for item in emitted if isinstance(item, Obligation)]
-    if len(emitted_ids) != len(emitted) or len(set(emitted_ids)) != len(emitted_ids):
-        return StepResult(state, StepCode.INVALID_INPUT, "invalid emitted obligations")
-    future_by_id = {item.identity: item for item in state.future}
+    emitted_ids: list[str] = []
     for child in emitted:
         if (
-            not isinstance(child.owner, str) or not child.owner.strip()
+            not isinstance(child, Obligation)
+            or not isinstance(child.identity, str) or not child.identity.strip()
+            or not isinstance(child.owner, str) or not child.owner.strip()
             or type(child.microstep) is not int or child.microstep < 0
         ):
             return StepResult(state, StepCode.INVALID_INPUT, "invalid emitted obligation")
+        emitted_ids.append(child.identity)
+    if len(set(emitted_ids)) != len(emitted_ids):
+        return StepResult(state, StepCode.INVALID_INPUT, "duplicate emitted obligation identity")
+    future_by_id = {item.identity: item for item in state.future}
         declared = future_by_id.get(child.identity)
         if declared is None:
             return StepResult(
