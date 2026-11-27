@@ -120,7 +120,7 @@ The pairwise-cycle candidate now also preserves the declared microstep sequence 
 - A causal relation that places a later microstep before an earlier one is rejected as an invalid descriptor.
 - An emitted child must be predeclared in `future`, match its identity/owner/microstep exactly, and use a strictly later microstep than its emitter; same/earlier microstep emission is rejected without mutation.
 
-The isolated `test_w07_pairwise_cycle.py` now has 13 tests. This hardening is a synthetic candidate and still requires CI on the final branch HEAD. It does not establish a physical B/C relation or close W07.
+At the time of CI #11067, the isolated `test_w07_pairwise_cycle.py` had 13 tests. The later structural-negative expansion is recorded below and supersedes that count.
 
 
 ### CI #11067 — W07 pairwise-cycle hardening validated
@@ -153,3 +153,17 @@ Validated HEAD: `afbdf337da80243d05202163fcc7d8412dfe0db8`; [CI #11072 / run 460
 W06 now has two replayable cases: distinct synthetic phase bases with the same event evidence label preserve the P-A/R2 divergence; a shared synthetic basis with distinct per-event evidence labels is a positive control where both models accept and agree. This confirms the fixture's discrimination around basis comparability, not physical SMS timing or evidence authenticity.
 
 Windows CPU-time fields with coarse timer resolution are marked `SKIPPED_COARSE_RESOLUTION`; matrix correctness still passed, but those timings must not be used as cross-platform performance evidence. All fixtures remain synthetic. W06 physical evidence remains UNKNOWN; W07 physical B/C remains BLOCKED; P-A is not closed; P-D/P-E NOT RUN; R4/R5 pending.
+
+
+## W07 structural negative matrix — CI #11079
+
+Validated HEAD: `d36c0966a6a9f5abf94872c769c62b29453e8517`; [CI #11079 / run 46074483099](https://github.com/leonardo201800478/SUN/actions/runs/46074483099) **SUCCESS**.
+
+- `test_w07_pairwise_cycle.py`: **17/17 tests PASS** on Linux and Windows.
+- Complete CHRONOS R3 disposable suite: **187/187 PASS** on Linux and Windows.
+- R2 independent Linux and R2 Python Windows: PASS.
+- Canonical and replayable corpus Linux/Windows byte-equivalence: PASS.
+- Documentation patch hygiene, workflow validation, change-impact classification and Rust quality supervisor: PASS.
+- Rust workspace regression and unrelated hardware/runtime/desktop jobs: SKIPPED, not counted as PASS.
+
+The added matrix rejects malformed collection shapes, malformed/duplicate/conflicting `resolved` and `future` ledgers, invalid relation enums, self/unknown/unhashable endpoints and invalid operation collection shapes. Every negative case asserts `InvalidInput` and preservation of the original state object. This adds structural validation coverage only; it does not introduce temporal ordering rules or establish a physical B/C relation. W07 physical remains BLOCKED; W06 physical remains UNKNOWN; P-A is not closed; P-D/P-E remain NOT RUN; R4/R5 remain pending.
