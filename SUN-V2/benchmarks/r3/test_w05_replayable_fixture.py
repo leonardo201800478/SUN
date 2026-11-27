@@ -22,7 +22,6 @@ from p_a_deadline_lifecycle import (  # noqa: E402
     ADeadlineContext,
     ADeadlineStatus,
     AParticipant,
-    ADeadline as _UnusedDeadlineAlias,
     arbitrate_cancellations,
     cancel_deadline,
     close_watermark,
@@ -33,7 +32,6 @@ from deadline_reference import (  # noqa: E402
     Deadline as R2Deadline,
     DeadlineBook as R2DeadlineBook,
     DeadlineStatus as R2DeadlineStatus,
-    DeadlineCode as R2DeadlineCode,
     arbitrate_cancellations as r2_arbitrate_cancellations,
     cancel_deadline as r2_cancel_deadline,
     close_watermark as r2_close_watermark,
@@ -133,7 +131,7 @@ def _p_a_models(data):
             phase_order=item["phase_order"],
             phase_evidence=item["phase_evidence"],
             microstep=item["microstep"],
-            status=AD​eadlineStatus(item["status"]),
+            status=ADeadlineStatus(item["status"]),
         )
         for item in data["deadlines"]
     )
