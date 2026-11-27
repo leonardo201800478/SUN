@@ -460,3 +460,25 @@ Foram adicionados testes para: comutatividade entre microsteps diferentes respei
 **Leitura normativa:** isso aplica a regra de que microstep é ordem lógica de software, só pode ordenar dependências estabelecidas ou efeitos comutativos, e um evento criado durante despacho segue regra explícita sem inserção retroativa. Não escolhe fase física nem prova que B/C sejam causalmente relacionados/comutativos no SMS.
 
 O caso W07 original, B/C sem relação demonstrada, continua `IndeterminateCausalOrder` em qualquer tentativa, preservando o estado. W07 permanece **BLOCKED** para o perfil físico; P-A não fechado e P-D/P-E não iniciados.
+
+
+## 12. Validação do hardening W07 — CI #11067 (27/11/2026)
+
+**HEAD validado:** `926812ba7a4d442dbadb36df83791d4028a80702`.
+**CI:** [#11067 / run 46034036821](https://github.com/leonardo201800478/SUN/actions/runs/46034036821) — **SUCCESS**.
+
+- CHRONOS R3 disposable prototype tests: **182/182 PASS em Linux e 182/182 PASS em Windows**.
+- Os 13 testes de `test_w07_pairwise_cycle.py` passaram nos dois sistemas.
+- R2 independente Linux e R2 Python Windows: PASS.
+- Matrizes sintéticas W00–W09: PASS em Linux e Windows.
+- Emissão do corpus canônico e replayável: PASS.
+- Equivalência byte a byte dos corpora canônico e replayável Linux/Windows: PASS.
+- Workflow validation, documentation patch hygiene e Rust quality supervisor: PASS.
+- Rust workspace regression e jobs de hardware/runtime/desktop não relacionados: SKIPPED, não contabilizados como PASS.
+
+**Artefatos emitidos pelo harness:**
+- Corpus canônico: 112 fixtures, 1.475 cortes (1.468 diferenciais + 7 propriedades), digest lógico `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`.
+- Corpus replayável: 24 fixtures, 131 operações/cortes, duas divergências preservadas (W06 e W07), digest lógico `07551ec877a58597180470045ad24bd51444124d469b2dc2efdcc4e3d9dcba7e`.
+- O emissor/replay do corpus executou 169 testes. Os 13 testes adicionais do candidato par-a-par não são incorporados ao corpus W07 replayável nem alteram os 24 fixtures/131 cortes.
+
+**Limite:** CI #11067 comprova os testes sintéticos e a igualdade dos artefatos gerados. Não valida relação física B/C, não autentica W06, não integra o novo ciclo ao P-A, não fecha o corpus reexecutável W00–W09 e não aprova P-A/R3 como gate. W07 permanece BLOCKED para o perfil físico; W06 físico permanece UNKNOWN; P-D/P-E não iniciados; R4/R5 pendentes.
