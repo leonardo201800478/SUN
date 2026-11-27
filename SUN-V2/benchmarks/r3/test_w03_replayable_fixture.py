@@ -27,6 +27,7 @@ from causal_reference import (  # noqa: E402
     Transition as R2Transition,
     synchronize as r2_synchronize,
 )
+from trace_fixture_support import normalize  # noqa: E402
 from replayable_fixture_corpus import (  # noqa: E402
     capture_differential_fixture,
     replay_fixture_side,
@@ -214,7 +215,7 @@ class W03ReplayableObservationDirectedSyncTests(unittest.TestCase):
         # A declared but unrelated participant is not advanced.
         self.assertEqual(
             synchronized["state"]["devices"][2],
-            initial_state["devices"][2],
+            normalize(initial_state["devices"][2]),
         )
 
         blocked = fixture["cuts"][1]["left_state"]
