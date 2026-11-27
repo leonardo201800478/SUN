@@ -494,3 +494,42 @@ A fixture W06 foi refinada para não variar simultaneamente a base de fase e o r
 Assim, a divergência observada isola a comparabilidade da base: P-A retorna `IndeterminateCausalOrder` sem fechar W nem reivindicar deadlines; R2 continua aceitando a ordem numérica. O R2 aprovado não possui campo `phase_basis` e seu predicado de ordenação não compara uma base estruturada compartilhada.
 
 A alteração é uma melhoria do desenho experimental, não uma mudança de semântica. Os placeholders continuam sintéticos e não autenticam qualquer medição ou perfil SMS. A nova fixture/corpus precisa de CI próprio; o CI #11067 validou a versão anterior da fixture e não valida esta alteração.
+
+
+## 14. W06 — controle positivo com base compartilhada e CI #11072 (27/11/2026)
+
+Foi adicionada à fixture replayável W06 uma segunda condição, positiva, para complementar o caso negativo de bases distintas:
+
+- dois deadlines simultâneos e não comutativos;
+- `phase_order` distinto;
+- `phase_evidence` distinto por evento;
+- uma única `APhaseBasis` sintética compartilhada;
+- fechamento do watermark em 10.
+
+O teste exige que P-A e R2 aceitem a ordenação, reivindiquem ambos os deadlines, avancem o watermark até 10 e possam reproduzir independentemente os três cortes. Os rótulos de evidência por evento são deliberadamente distintos: a comparabilidade vem da base compartilhada, não da igualdade textual dos rótulos.
+
+### Validação
+
+**HEAD:** `afbdf337da80243d05202163fcc7d8412dfe0db8`  
+**CI #11072:** [run 46060833047](https://github.com/leonardo201800478/SUN/actions/runs/46060833047) — **SUCCESS**.
+
+- R3 descartável: **183/183 testes PASS em Linux e 183/183 em Windows**.
+- O teste W06 negativo (bases distintas/evidência compartilhada) e o controle positivo (base compartilhada/rótulos distintos) passaram em ambos os sistemas.
+- Emissor do corpus: **170 testes PASS** em cada sistema.
+- Corpus canônico: **112 fixtures / 1.475 cortes** (1.468 diferenciais + 7 propriedades), digest lógico `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`.
+- Corpus replayável: **25 fixtures / 134 operações e cortes**, duas divergências preservadas (W06 negativo e W07), digest lógico `2dcf09eeaf6ffe03e6bcf1cfda087aeedeb865d351b6ac081a0dc12ff28bc28f`.
+- Os JSONs dos corpora canônico e replayável foram comparados byte a byte entre Linux e Windows: **PASS**.
+- R2 independente Linux e R2 Python Windows: PASS.
+- Matrizes W00–W09: PASS em Linux e Windows.
+- Workflow validation, documentation patch hygiene e Rust quality supervisor: PASS.
+- Rust workspace regression e jobs de hardware/runtime/desktop/áudio/vídeo/Z80 não relacionados: SKIPPED, não contabilizados como PASS.
+
+**Limite de benchmark:** em Windows, as medições de CPU time que não têm resolução suficiente foram marcadas `SKIPPED_COARSE_RESOLUTION`; os pontos de teste/matriz ainda passaram, mas isso não constitui medida de performance comparável. Os resultados são de protótipos Python sintéticos, não de CHRONOS em Rust nem de hardware SMS.
+
+### Interpretação e disposição
+
+O par de fixtures distingue dois casos do predicado de comparabilidade:
+1. Bases sintéticas diferentes, mesmo rótulo de evidência e ordens distintas: P-A mantém `IndeterminateCausalOrder`; R2 aceita pela ordenação numérica, preservando a divergência.
+2. Base sintética comum, rótulos de evidência por evento distintos e ordens distintas: P-A/R2 concordam e aceitam.
+
+Isso aumenta a discriminação do experimento e fecha a lacuna de cobertura positiva da fixture; **não fecha a lacuna semântica do oráculo R2**, não valida a autenticidade/validade física da base e não decide qual ordenação ocorre no SMS. Todos os identificadores, registros e hashes são sintéticos. Evidência física/externa W06 permanece **UNKNOWN**. R2 aprovado permanece imutável; P-A não está fechado; P-D/P-E NOT RUN; R4/R5 pendentes.
