@@ -440,3 +440,23 @@ Commits de hardening ainda sujeitos a CI próprio:
 ### 10.4 Disposição
 
 O experimento está mais estrito, mas W07 continua **BLOCKED** no caso real B/C sem relação demonstrada. A matriz só decide a partir de premissas explícitas; não estabelece a verdade dessas premissas. Nenhuma alteração em R1 v0.3.18, P-A original, R2 aprovado ou código de produção. Não fechar P-A nem iniciar P-D/P-E. A validação dos commits acima aguarda CI próprio.
+
+
+## 11. W07 — aderência adicional à sequência de microsteps (27/11/2026)
+
+A segunda revisão do ciclo encontrou mais duas condições que precisavam ser explícitas para respeitar R1 §§16.6.2–16.6.3:
+
+1. Mesmo quando B/C são comutativos, uma obrigação em microstep posterior não pode ultrapassar uma obrigação ainda pendente em microstep anterior neste candidato. A relação comutativa autoriza a sequência lógica; não apaga o cursor de microstep declarado.
+2. Uma obrigação emitida durante o despacho não pode ser inserida no mesmo microstep ou em microstep anterior ao da obrigação que a emitiu. Isso impediria a regra explícita de criação no mesmo instante e permitiria retroatividade.
+
+O candidato foi ajustado:
+- Ao solicitar obrigação de microstep posterior, relação UNKNOWN com qualquer obrigação anterior retorna `IndeterminateCausalOrder`, sem mutação.
+- Se a relação for comutativa, a obrigação anterior é processada primeiro (`Blocked` para a posterior); comutatividade no mesmo microstep permite qualquer membro.
+- Relação causal que aponta a obrigação posterior como predecessora de uma obrigação anterior é inválida em relação aos microsteps declarados.
+- Obrigações emitidas precisam ter microstep estritamente maior que o da obrigação despachada, além de constar do registro `future` com metadados idênticos.
+
+Foram adicionados testes para: comutatividade entre microsteps diferentes respeitando a sequência; comutatividade no mesmo microstep; e rejeição de filho emitido no mesmo microstep. A suíte isolada `test_w07_pairwise_cycle.py` agora contém 13 testes. Esses resultados ainda aguardam CI próprio no HEAD final desta atualização.
+
+**Leitura normativa:** isso aplica a regra de que microstep é ordem lógica de software, só pode ordenar dependências estabelecidas ou efeitos comutativos, e um evento criado durante despacho segue regra explícita sem inserção retroativa. Não escolhe fase física nem prova que B/C sejam causalmente relacionados/comutativos no SMS.
+
+O caso W07 original, B/C sem relação demonstrada, continua `IndeterminateCausalOrder` em qualquer tentativa, preservando o estado. W07 permanece **BLOCKED** para o perfil físico; P-A não fechado e P-D/P-E não iniciados.
