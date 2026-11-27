@@ -533,7 +533,7 @@ class W09ReplayableSnapshotTests(unittest.TestCase):
                 "sequence": 5,
                 "at_common": Fraction(11),
                 "domain": "cpu",
-                "progress_common": Fraction(11),
+                "progress_common": Fraction(12),
                 "residual": Fraction(1, 3),
             },
         )
@@ -566,7 +566,7 @@ class W09ReplayableSnapshotTests(unittest.TestCase):
                 "scenario": (
                     "after snapshot restore at input cursor 4, events arriving in "
                     "reverse tuple order replay by accepted sequence 5 then 6; "
-                    "the cursor advances to 6; CPU progress reaches 11 and VDP progress reaches 12"
+                    "the cursor advances to 6 and both domain progress values reach 12"
                 ),
                 "scope": "synthetic P-A snapshot replay vs independent R2 replay oracle",
                 "limitation": (

@@ -573,6 +573,13 @@ def replay_from_snapshot(
     expected_sequence = state.input_cursor + 1
     previous_time = state.watermark
     domains = list(state.domains)
+    # Replay records are an already-admitted batch. Compute A(E) once from
+    # the snapshot cut (W and every participant P_d); applying one record must
+    # not retroactively invalidate another record in that same accepted batch.
+    frontier_values = [domain.progress_common for domain in domains]
+    if state.watermark is not None:
+        frontier_values.append(state.watermark)
+    admission_frontier = max(frontier_values) if frontier_values else None
     for event in ordered:
         if event.sequence != expected_sequence:
             return PAReplayResult(
@@ -593,14 +600,10 @@ def replay_from_snapshot(
                 PASnapshotCode.INVALID_INPUT, state, _state_digest(state),
                 "replay references an unknown domain",
             )
-        admission_frontier = max(
-            [domain.progress_common for domain in domains]
-            + ([state.watermark] if state.watermark is not None else [])
-        )
-        if event.at_common <= admission_frontier:
+        if admission_frontier is not None and event.at_common <= admission_frontier:
             return PAReplayResult(
                 PASnapshotCode.LATE_INPUT, state, _state_digest(state),
-                "replay event is at or behind the global admission frontier",
+                "replay event is at or behind the snapshot global admission frontier",
             )
         if event.progress_common < domains[index].progress_common:
             return PAReplayResult(

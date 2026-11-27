@@ -421,8 +421,8 @@ class PASnapshotTests(unittest.TestCase):
         artifact = capture(state).artifact
         events = (
             PAReplayEvent(8, Fraction(11), "cpu", Fraction(11), Fraction(1, 5)),
-            PAReplayEvent(9, Fraction(12), "vdp", Fraction(12), Fraction(1, 4)),
-            PAReplayEvent(10, Fraction(13), "cpu", Fraction(13), Fraction(2, 9)),
+            PAReplayEvent(9, Fraction(11), "vdp", Fraction(12), Fraction(1, 4)),
+            PAReplayEvent(10, Fraction(12), "cpu", Fraction(13), Fraction(2, 9)),
         )
         return state, artifact, events
 
