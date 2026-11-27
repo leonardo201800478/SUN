@@ -121,3 +121,18 @@ The pairwise-cycle candidate now also preserves the declared microstep sequence 
 - An emitted child must be predeclared in `future`, match its identity/owner/microstep exactly, and use a strictly later microstep than its emitter; same/earlier microstep emission is rejected without mutation.
 
 The isolated `test_w07_pairwise_cycle.py` now has 13 tests. This hardening is a synthetic candidate and still requires CI on the final branch HEAD. It does not establish a physical B/C relation or close W07.
+
+
+### CI #11067 — W07 pairwise-cycle hardening validated
+
+Validated HEAD: `926812ba7a4d442dbadb36df83791d4028a80702`; [run 46034036821](https://github.com/leonardo201800478/SUN/actions/runs/46034036821) **SUCCESS**.
+
+- R3: 182/182 tests PASS on Linux and Windows; all 13 W07 pairwise-cycle tests pass on both.
+- R2 independent Linux and R2 Python Windows: PASS.
+- W00–W09 synthetic benchmark matrices: PASS on both OS.
+- Canonical and replayable corpus generation and byte-identical Linux/Windows comparison: PASS.
+- Canonical corpus: 112 fixtures / 1,475 cuts, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`.
+- Replayable corpus: 24 fixtures / 131 operations-cuts, two preserved divergences W06/W07, digest `07551ec877a58597180470045ad24bd51444124d469b2dc2efdcc4e3d9dcba7e`.
+- Documentation hygiene, workflow validation and Rust quality supervisor: PASS. Rust workspace regression and unrelated hardware/runtime jobs: SKIPPED.
+
+The corpus emitter runs 169 tests; the 13 pairwise-cycle tests are separate and are not yet represented as a replayable W07 fixture. CI proves the synthetic tests and artifact equivalence, not a physical B/C relation, W06 phase evidence, full W00–W09 replayable coverage, P-A closeout or architecture approval. W07 remains BLOCKED for the physical profile; P-D/P-E remain NOT RUN.
