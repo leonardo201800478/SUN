@@ -50,6 +50,9 @@ class W07PairwiseCycleTests(unittest.TestCase):
 
     def test_c_causes_b_requires_c_first_despite_larger_microstep(self):
         state = self.after_a(PairRelation.SECOND_CAUSES_FIRST)
+        blocked = process(state, "b")
+        self.assertEqual(blocked.code, StepCode.BLOCKED)
+        self.assertIs(blocked.state, state)
         advanced = process(state, "c")
         self.assertEqual(advanced.code, StepCode.ADVANCED)
         self.assertEqual([item.identity for item in advanced.state.pending], ["b"])
