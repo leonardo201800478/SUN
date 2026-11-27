@@ -179,6 +179,27 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
                 state, StepCode.INVALID_INPUT,
                 f"emitted obligation {child.identity} differs from its future declaration",
             )
+    earliest_microstep = min(item.microstep for item in state.pending)
+    if current.microstep > earliest_microstep:
+        for earlier in state.pending:
+            if earlier.microstep >= current.microstep:
+                continue
+            relation = _relation(state, requested_id, earlier.identity)
+            if relation is PairRelation.UNKNOWN:
+                return StepResult(
+                    state, StepCode.INDETERMINATE,
+                    f"relation between {requested_id} and {earlier.identity} is UNKNOWN",
+                )
+            if relation is PairRelation.SECOND_CAUSES_FIRST:
+                return StepResult(
+                    state, StepCode.BLOCKED,
+                    f"{earlier.identity} is a predecessor in an earlier microstep",
+                )
+            if relation is PairRelation.COMMUTATIVE:
+                return StepResult(
+                    state, StepCode.BLOCKED,
+                    f"earlier microstep {earlier.microstep} must resolve before {current.microstep}",
+                )
     for other in state.pending:
         if other.identity == requested_id:
             continue
