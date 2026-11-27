@@ -596,7 +596,7 @@ A recomendação de cobertura negativa estrutural está atendida e validada no H
 
 ## 17. Resolução dos sete achados adversariais da PR #1284 (27/11/2026)
 
-**HEAD validado:** `6e99758af2d11d3bbe398240b294d7e28efc586a`.  
+**HEAD validado:** `6e99758af2d11d3bbe398240b294d7e28efc586a`.
 **CI #11093:** [run 46083978800](https://github.com/leonardo201800478/SUN/actions/runs/46083978800) — **SUCCESS**.
 
 ### 17.1 P1 — snapshot, replay e watermark

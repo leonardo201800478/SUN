@@ -125,7 +125,7 @@ W07 físico continua BLOCKED; W06 físico continua UNKNOWN. P-A não está fecha
 
 ## 9. Aditivo — correções da revisão adversarial e CI #11093 (27/11/2026)
 
-**HEAD validado:** `6e99758af2d11d3bbe398240b294d7e28efc586a`.  
+**HEAD validado:** `6e99758af2d11d3bbe398240b294d7e28efc586a`.
 **CI #11093:** [run 46083978800](https://github.com/leonardo201800478/SUN/actions/runs/46083978800) — **SUCCESS**.
 
 ### 9.1 Correções P1
