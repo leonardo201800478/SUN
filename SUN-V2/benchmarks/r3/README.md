@@ -102,3 +102,12 @@ The isolated candidate was validated on Linux and Windows as part of the 175-tes
 CI #11056 passed on HEAD `e562a363e171ec017584b1eb8052c0759d0135d5`: R3 Linux/Windows, R2 Linux/Windows, all W00–W09 matrices and byte-identical canonical/replayable corpus artifacts passed. Rust workspace regression and unrelated hardware/runtime jobs were SKIPPED.
 
 This experiment does not prove any physical B/C relation, does not alter `p_a_microsteps.py` or R2, and does not close W07. For the original case without a declared/evidenced B/C relation, the result remains `IndeterminateCausalOrder`. P-A closeout and P-D/P-E remain blocked; R4/R5 are pending.
+
+
+## W07 pairwise-cycle hardening — 27/11/2026
+
+A code review found that the initial candidate accepted undeclared relation endpoints and permitted a causal relation that contradicted the declared microstep order. The disposable model now carries an explicit `future` obligation registry. Relation endpoints must resolve to pending/resolved/future identities; emitted obligations must match their exact prior declaration; duplicate/conflicting future identities are rejected. A causal relation inconsistent with the assigned microstep order returns `InvalidInput` without mutation.
+
+The C→B test was corrected: C may precede B only when its declared microstep is also earlier. A contradictory assignment (C at a later microstep causing B at an earlier one) is rejected. These are synthetic input contracts, not evidence that a real SMS causal relation exists.
+
+CI #11057 passed on the previous HEAD `0792315e6276d3912ecb70a72f669c416e721002` (175 R3 tests on Linux/Windows, R2, matrices, byte-identical corpora and documentation checks). It predates this hardening. The new commits require their own CI; do not count CI #11057 as validation of the latest code.
