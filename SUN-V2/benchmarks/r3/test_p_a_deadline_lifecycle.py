@@ -121,7 +121,7 @@ def canonical_book(book):
         (
             item.owner, item.identity, item.generation, item.at_common,
             item.microstep_level, item.phase_order, item.phase_evidence,
-            getattr(item, "phase_basis", None),
+            item.phase_basis,
         )
         for item in book.pending_cancellations
     ))

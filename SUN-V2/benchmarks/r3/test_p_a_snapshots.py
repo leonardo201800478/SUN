@@ -470,14 +470,14 @@ class PASnapshotTests(unittest.TestCase):
         event = PAReplayEvent(8, Fraction(9), "cpu", Fraction(11), Fraction(1, 5))
         result = replay_from_snapshot(artifact, (event,))
         self.assertEqual(result.code, PASnapshotCode.LATE_INPUT)
-        self.assertEqual(result.state, state)
+        self.assertIs(result.state, state)
         self.assertEqual(result.state.input_cursor, state.input_cursor)
         self.assertEqual(result.state.domains, state.domains)
         record_property(self.id(), "atomic-retroactive-domain-input", result.state, state)
 
     def test_replay_progress_regression_is_rejected_atomically(self):
         state, artifact, _ = self.replay_fixture()
-        event = PAReplayEvent(8, Fraction(11), "cpu", Fraction(9), Fraction(1, 5))
+        event = PAReplayEvent(8, Fraction(9), "cpu", Fraction(9), Fraction(1, 5))
         result = replay_from_snapshot(artifact, (event,))
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)

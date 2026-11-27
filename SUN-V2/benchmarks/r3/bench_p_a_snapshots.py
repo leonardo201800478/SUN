@@ -100,7 +100,7 @@ def build_events(state: PAMachineState, count: int) -> tuple[PAReplayEvent, ...]
         progress[domain] += 1
         events.append(PAReplayEvent(
             state.input_cursor + index + 1,
-            Fraction(9 + index),
+            Fraction(11 + index),
             domain,
             progress[domain],
             Fraction((index % 13) + 1, 19),
