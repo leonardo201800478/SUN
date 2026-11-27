@@ -326,7 +326,6 @@ def _precedes(request: ACancellation, deadline: ADeadline) -> bool | None:
     if (
         request.phase_order is not None
         and deadline.phase_order is not None
-        and request.phase_evidence == deadline.phase_evidence
         and _valid_phase_basis(request.phase_basis)
         and request.phase_basis == deadline.phase_basis
         and request.phase_order != deadline.phase_order
