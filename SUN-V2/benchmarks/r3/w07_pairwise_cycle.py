@@ -93,6 +93,7 @@ def _validate(state: PairwiseCycle) -> str | None:
             return "invalid, duplicated, or conflicting future declaration"
         future_ids.add(item.identity)
     known_ids = ids | set(state.resolved) | future_ids
+    obligations_by_id = {item.identity: item for item in state.pending + state.future}
     pairs: set[frozenset[str]] = set()
     for item in state.constraints:
         if (
@@ -109,6 +110,19 @@ def _validate(state: PairwiseCycle) -> str | None:
         if key in pairs:
             return "duplicate unordered pair relation"
         pairs.add(key)
+        first = obligations_by_id.get(item.first_id)
+        second = obligations_by_id.get(item.second_id)
+        if first is not None and second is not None:
+            if (
+                item.relation is PairRelation.FIRST_CAUSES_SECOND
+                and first.microstep > second.microstep
+            ):
+                return "causal relation contradicts declared microstep order"
+            if (
+                item.relation is PairRelation.SECOND_CAUSES_FIRST
+                and second.microstep > first.microstep
+            ):
+                return "causal relation contradicts declared microstep order"
     return None
 
 
