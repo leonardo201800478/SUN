@@ -479,9 +479,6 @@ class W06ReplayablePhaseBasisUnknownTests(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-
 class W06ReplayableSharedBasisPositiveControlTests(unittest.TestCase):
     def test_distinct_event_evidence_in_same_validated_basis_is_comparable(self):
         participants = (
@@ -600,3 +597,7 @@ class W06ReplayableSharedBasisPositiveControlTests(unittest.TestCase):
             len(replay_fixture_side(fixture, step=_r2_step, side="right")),
             len(operations),
         )
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
