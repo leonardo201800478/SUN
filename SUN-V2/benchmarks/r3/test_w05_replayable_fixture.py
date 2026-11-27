@@ -101,6 +101,8 @@ def _state_data(context, book):
 
 def _p_a_models(data):
     """Reconstruct P-A-owned context, deadlines and cancellation requests."""
+    if "state" in data:
+        data = data["state"]
     participants = tuple(
         AParticipant(
             item["name"],
@@ -158,6 +160,8 @@ def _p_a_models(data):
 
 def _r2_models(data):
     """Reconstruct the independent R2 reference state and deadline book."""
+    if "state" in data:
+        data = data["state"]
     watermark = (
         None if data["watermark_common"] is None
         else _fraction(data["watermark_common"])
