@@ -531,3 +531,36 @@ O par de fixtures distingue dois casos do predicado de comparabilidade:
 2. Base sintética comum, rótulos de evidência por evento distintos e ordens distintas: P-A/R2 concordam e aceitam.
 
 Isso aumenta a discriminação do experimento e fecha a lacuna de cobertura positiva da fixture; **não fecha a lacuna semântica do oráculo R2**, não valida a autenticidade/validade física da base e não decide qual ordenação ocorre no SMS. Todos os identificadores, registros e hashes são sintéticos. Evidência física/externa W06 permanece **UNKNOWN**. R2 aprovado permanece imutável; P-A não está fechado; P-D/P-E NOT RUN; R4/R5 pendentes.
+
+## 15. W07 — matriz negativa estrutural de PairwiseCycle (27/11/2026)
+
+### 15.1 Escopo e resultado
+
+A revisão parcial publicada no comentário `7228796915` recomendou sistematizar entradas estruturalmente inválidas para `_validate`. A suíte isolada foi ampliada de 15 para **17 testes** em `test_w07_pairwise_cycle.py`, sem alterar `w07_pairwise_cycle.py` nem introduzir novas regras temporais.
+
+A matriz acrescentada cobre:
+- `pending`, `constraints`, `resolved` e `future` com tipos de coleção incorretos;
+- itens inválidos em coleções e ledger `resolved` malformado;
+- identidades repetidas e conflitos entre `pending`, `resolved` e `future`;
+- declarações futuras com microstep booleano/negativo;
+- enumeração de relação inválida;
+- endpoints autorreferentes, não declarados ou com tipo inválido;
+- tipos inválidos de `emitted` e identidade solicitada malformada.
+
+Cada entrada negativa exige `InvalidInput` e preservação por identidade (`assertIs`) do estado original. Os testes não impõem restrições novas além da estrutura já exigida pelo próprio protótipo e não inferem causalidade a partir de microstep.
+
+### 15.2 Validação vinculada ao SHA
+
+**Commit de testes:** `d36c0966a6a9f5abf94872c769c62b29453e8517`.
+**CI #11079:** [run 46074483099](https://github.com/leonardo201800478/SUN/actions/runs/46074483099) — **SUCCESS**.
+
+- R3 disposable suite: **187/187 PASS Linux e 187/187 PASS Windows**.
+- W07 pairwise-cycle: **17/17 PASS** em ambos os sistemas.
+- R2 independente Linux e R2 Python Windows: PASS.
+- Corpus canônico/replayável: equivalência byte a byte Linux/Windows PASS.
+- Documentation patch hygiene, workflow validation, change impact classification e Rust quality supervisor: PASS.
+- Rust workspace regression e jobs de hardware/runtime/desktop não relacionados: SKIPPED, não contabilizados como PASS.
+
+### 15.3 Disposição
+
+A recomendação de cobertura estrutural foi atendida e validada no SHA indicado. Nenhum defeito acionável no `_validate` foi demonstrado pela matriz; as entradas inválidas são rejeitadas sem mutação. Isso não prova relação física B/C, não fecha W07 físico, não fecha P-A e não autoriza P-D/P-E. W06 físico permanece UNKNOWN; P-D/P-E NOT RUN; R4/R5 pendentes. R1 v0.3.18, R2 aprovado e P-A baseline original permanecem preservados. Nenhum código de produção CHRONOS/V2 foi introduzido.
