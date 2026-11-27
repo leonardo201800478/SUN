@@ -179,6 +179,11 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
                 state, StepCode.INVALID_INPUT,
                 f"emitted obligation {child.identity} differs from its future declaration",
             )
+        if child.microstep <= current.microstep:
+            return StepResult(
+                state, StepCode.INVALID_INPUT,
+                f"emitted obligation {child.identity} is not assigned to a later microstep",
+            )
     earliest_microstep = min(item.microstep for item in state.pending)
     if current.microstep > earliest_microstep:
         for earlier in state.pending:
