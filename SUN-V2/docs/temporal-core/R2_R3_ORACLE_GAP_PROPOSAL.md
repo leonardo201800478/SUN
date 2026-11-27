@@ -165,3 +165,18 @@ Esse controle remove a variação do rótulo de evidência como explicação alt
 - R2 não possui `phase_basis`; seu predicado verifica presença de `phase_order`/`phase_evidence` e unicidade de `phase_order`, sem exigir uma base estruturada comum. Continua aceitando e reivindicando os dois deadlines.
 
 A alteração torna a fixture mais discriminante para a lacuna de comparabilidade do R2. O rótulo compartilhado e os registros/hash continuam sintéticos; não são prova de fase elétrica, medição SMS ou trust anchor. R2 permanece imutável. O novo conteúdo exige CI no HEAD atualizado.
+
+
+## 10. W06 — controle positivo replayável com base comum (27/11/2026)
+
+A fixture W06 agora contém também um controle positivo: dois deadlines simultâneos não comutativos, `phase_order` distinto, `phase_evidence` distinto por evento e a mesma `APhaseBasis` sintética. P-A e R2 devem concordar em `Accepted`, reivindicar os dois deadlines, avançar W=10 e reproduzir independentemente os três cortes.
+
+O controle positivo é complementar à divergência já preservada:
+- **base diferente / rótulo igual:** P-A `IndeterminateCausalOrder`; R2 `Accepted`;
+- **base igual / rótulos diferentes:** P-A e R2 `Accepted`.
+
+A segunda condição mostra que a identidade textual do rótulo de evidência por evento não é o que torna duas fases comparáveis neste modelo. A comparabilidade depende da base comum. Não demonstra que a base sintética represente fase física ou que tenha sido autenticada.
+
+**CI #11072:** [run 46060833047](https://github.com/leonardo201800478/SUN/actions/runs/46060833047), SUCCESS no HEAD `afbdf337da80243d05202163fcc7d8412dfe0db8). R3 183/183 Linux e Windows; corpus replayável 25 fixtures/134 operações-cortes, digest `2dcf09eeaf6ffe03e6bcf1cfda087aeedeb865d351b6ac081a0dc12ff28bc28f`; corpus canônico 112/1.475, digest inalterado; equivalência byte a byte Linux/Windows PASS.
+
+**Disposição:** controle positivo sintético validado; divergência negativa mantida. Não modificar R2 aprovado nem declarar W06 físico resolvido. W06 físico permanece UNKNOWN; P-A não fechado; R4/R5 pendentes.
