@@ -564,3 +564,31 @@ Cada entrada negativa exige `InvalidInput` e preservação por identidade (`asse
 ### 15.3 Disposição
 
 A recomendação de cobertura estrutural foi atendida e validada no SHA indicado. Nenhum defeito acionável no `_validate` foi demonstrado pela matriz; as entradas inválidas são rejeitadas sem mutação. Isso não prova relação física B/C, não fecha W07 físico, não fecha P-A e não autoriza P-D/P-E. W06 físico permanece UNKNOWN; P-D/P-E NOT RUN; R4/R5 pendentes. R1 v0.3.18, R2 aprovado e P-A baseline original permanecem preservados. Nenhum código de produção CHRONOS/V2 foi introduzido.
+
+
+## 16. W07 — conclusão da matriz negativa estrutural e limite da política de emissão (27/11/2026)
+
+### 16.1 Validação final
+
+A matriz estrutural foi ampliada de 17 para **18 testes** no módulo `test_w07_pairwise_cycle.py`. A última adição cobre instância de ciclo inválida, tipo inválido de `at_common`, descritores pendentes/futuros com campos malformados e endpoint de relação com tipo inválido. Todos os casos negativos exigem `InvalidInput` e preservação por identidade do estado original.
+
+**HEAD validado:** `0f917ed9b5b26c1862623b9c14a6812e82183d0c`.  
+**CI #11083:** [run 46074762710](https://github.com/leonardo201800478/SUN/actions/runs/46074762710) — **SUCCESS**.
+
+- R3 disposable suite: **188/188 PASS Linux e 188/188 PASS Windows**.
+- W07 pairwise-cycle: **18/18 PASS** em ambos os sistemas.
+- Emissor/replay do corpus: 170 testes PASS em ambos.
+- R2 independente Linux e R2 Python Windows: PASS.
+- Equivalência byte a byte dos corpora canônico/replayável Linux/Windows: PASS.
+- Documentation patch hygiene, workflow validation, change impact classification e Rust quality supervisor: PASS.
+- Rust workspace regression e jobs não relacionados de hardware/runtime/desktop: SKIPPED, não contabilizados como PASS.
+
+### 16.2 Classificação da regra de emissão
+
+O protótipo exige que um filho emitido use `microstep` estritamente maior que o da obrigação emissora. Essa condição é uma **política candidata do experimento**, escolhida para evitar inserção retroativa. R1 §16.6.3 exige uma regra explícita para processar eventos criados no mesmo instante e proíbe inserção retroativa antes de efeito confirmado; o texto não determina que avanço numérico estrito seja a única regra admissível. Uma política que anexasse o filho depois do emissor no mesmo microstep não foi testada.
+
+Portanto, a exigência de microstep estritamente maior deve permanecer classificada como **HYPOTHESIS / INFERENCE (política do candidato)**, não como FACT normativo de R1. O teste atual valida a política escolhida, não prova exclusividade nem generalidade. Nenhum resultado W07 físico pode depender dessa escolha sem cenário discriminante e revisão próprios.
+
+### 16.3 Disposição
+
+A recomendação de cobertura negativa estrutural está atendida e validada no HEAD indicado; nenhum defeito acionável em `_validate` foi demonstrado pela matriz. A política de emissão estritamente posterior permanece uma escolha experimental explicitamente limitada. W07 físico continua BLOCKED porque a relação B/C real não foi demonstrada; W06 físico permanece UNKNOWN. P-A não está fechado, P-D/P-E NOT RUN, R4/R5 pendentes. R1 v0.3.18, R2 aprovado e P-A baseline original permanecem preservados; nenhum código de produção CHRONOS/V2 foi introduzido.
