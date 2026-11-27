@@ -204,7 +204,7 @@ class W04ReplayableRepeatedObservationTests(unittest.TestCase):
             devices = observed["state"]["devices"]
             self.assertEqual([item["name"] for item in devices], ["cpu", "vdp", "psg"])
             self.assertEqual(
-                [item["progress_common"] for item in devices],
+                [_fraction(item["progress_common"]) for item in devices],
                 [Fraction(tick), Fraction(tick), Fraction(tick)],
             )
             self.assertEqual(devices[0]["applied"], [])
