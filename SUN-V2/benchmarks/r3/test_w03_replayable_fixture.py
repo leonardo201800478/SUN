@@ -67,6 +67,8 @@ def _state_data(state):
 
 def _models(data, *, side):
     """Rebuild P-A or R2-owned causal types without sharing model objects."""
+    if "state" in data:
+        data = data["state"]
     devices = []
     for item in data["devices"]:
         transitions = tuple(
