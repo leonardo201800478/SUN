@@ -166,5 +166,41 @@ class W07PairwiseCycleTests(unittest.TestCase):
         self.assertIs(result.state, state)
 
 
+    def test_malformed_emitted_descriptors_return_invalid_without_exception(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            future=(Obligation("c", "psg", 1),),
+        )
+        malformed = (
+            Obligation([], "psg", 1),
+            Obligation({}, "psg", 1),
+            Obligation(None, "psg", 1),
+            Obligation("   ", "psg", 1),
+            Obligation("c", None, 1),
+            Obligation("c", "   ", 1),
+            Obligation("c", "psg", True),
+            Obligation("c", "psg", -1),
+            object(),
+        )
+        for child in malformed:
+            with self.subTest(child=child):
+                result = process(state, "a", emitted=(child,))
+                self.assertEqual(result.code, StepCode.INVALID_INPUT)
+                self.assertIs(result.state, state)
+
+    def test_duplicate_emitted_identities_return_invalid_without_mutation(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            future=(Obligation("c", "psg", 1),),
+        )
+        child = Obligation("c", "psg", 1)
+        result = process(state, "a", emitted=(child, child))
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
