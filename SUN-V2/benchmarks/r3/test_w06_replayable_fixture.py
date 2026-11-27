@@ -481,3 +481,122 @@ class W06ReplayablePhaseBasisUnknownTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+class W06ReplayableSharedBasisPositiveControlTests(unittest.TestCase):
+    def test_distinct_event_evidence_in_same_validated_basis_is_comparable(self):
+        participants = (
+            AParticipant("cpu", Fraction(0), Fraction(100)),
+            AParticipant("vdp", Fraction(0), Fraction(100)),
+        )
+        context = ADeadlineContext(
+            participants=participants,
+            expected_participants=frozenset({"cpu", "vdp"}),
+        )
+        initial = _state_data(context, ADeadlineBook(), [])
+        shared_basis = {
+            "profile_id": "profile-shared",
+            "profile_revision": "rev-1",
+            "coordinate": "phase-coordinate",
+            "unit": "phase-unit",
+            "scale_numerator": 1,
+            "scale_denominator": 1,
+            "basis_id": "basis-shared",
+            "basis_revision": "rev-1",
+            "validation_record_id": "synthetic-shared-validation",
+            "validation_record_sha256": "c" * 64,
+        }
+        operations = (
+            {
+                "sequence": 0,
+                "name": "publish",
+                "args": {
+                    "owner": "cpu",
+                    "identity": "phase-a",
+                    "generation": 0,
+                    "at_common": Fraction(10),
+                    "effect_id": "effect-a",
+                    "commutative": False,
+                    "phase_order": 1,
+                    "phase_evidence": "synthetic-event-evidence-a",
+                    "phase_basis": shared_basis,
+                },
+            },
+            {
+                "sequence": 1,
+                "name": "publish",
+                "args": {
+                    "owner": "vdp",
+                    "identity": "phase-b",
+                    "generation": 0,
+                    "at_common": Fraction(10),
+                    "effect_id": "effect-b",
+                    "commutative": False,
+                    "phase_order": 2,
+                    "phase_evidence": "synthetic-event-evidence-b",
+                    "phase_basis": shared_basis,
+                },
+            },
+            {
+                "sequence": 2,
+                "name": "close_watermark",
+                "args": {"target_common": Fraction(10)},
+            },
+        )
+        self.assertNotEqual(
+            operations[0]["args"]["phase_evidence"],
+            operations[1]["args"]["phase_evidence"],
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W06_SHARED_SYNTHETIC_BASIS_DISTINCT_EVENT_EVIDENCE_POSITIVE_CONTROL",
+            provenance={
+                "gate": "R3",
+                "workload": "W06",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "Two simultaneous non-commutative deadlines use distinct "
+                    "event evidence labels but the same synthetic validated "
+                    "phase basis; P-A and R2 should accept the comparable order."
+                ),
+                "scope": "synthetic positive control for shared phase-basis comparability",
+                "limitations": (
+                    "The shared basis and validation digest are synthetic "
+                    "placeholders, not external records, trust anchors, phase "
+                    "measurements or authenticated SMS hardware behavior."
+                ),
+                "contract": "R1 v0.3.18; distinct event evidence labels may share one comparable validated basis",
+            },
+            initial_state=initial,
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), len(operations))
+        self.assertTrue(all(cut["equal"] for cut in fixture["cuts"]))
+        p_a = fixture["cuts"][2]["left_state"]
+        r2 = fixture["cuts"][2]["right_state"]
+        self.assertEqual(p_a["code"], ADeadlineCode.ACCEPTED.value)
+        self.assertEqual(r2["code"], "Accepted")
+        self.assertEqual(p_a["claimed"], [["phase-a", 0], ["phase-b", 0]])
+        self.assertEqual(r2["claimed"], [["phase-a", 0], ["phase-b", 0]])
+        self.assertEqual(_fraction(p_a["state"]["watermark_common"]), Fraction(10))
+        self.assertEqual(_fraction(r2["state"]["watermark_common"]), Fraction(10))
+        self.assertEqual(
+            [item["status"] for item in p_a["state"]["deadlines"]],
+            [ADeadlineStatus.CLAIMED.value, ADeadlineStatus.CLAIMED.value],
+        )
+        self.assertEqual(
+            [item["status"] for item in r2["state"]["deadlines"]],
+            [R2DeadlineStatus.CLAIMED.value, R2DeadlineStatus.CLAIMED.value],
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_p_a_step, side="left")),
+            len(operations),
+        )
+        self.assertEqual(
+            len(replay_fixture_side(fixture, step=_r2_step, side="right")),
+            len(operations),
+        )
