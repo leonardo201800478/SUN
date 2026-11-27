@@ -111,3 +111,13 @@ A code review found that the initial candidate accepted undeclared relation endp
 The C→B test was corrected: C may precede B only when its declared microstep is also earlier. A contradictory assignment (C at a later microstep causing B at an earlier one) is rejected. These are synthetic input contracts, not evidence that a real SMS causal relation exists.
 
 CI #11057 passed on the previous HEAD `0792315e6276d3912ecb70a72f669c416e721002` (175 R3 tests on Linux/Windows, R2, matrices, byte-identical corpora and documentation checks). It predates this hardening. The new commits require their own CI; do not count CI #11057 as validation of the latest code.
+
+
+### W07 microstep-sequence constraints
+
+The pairwise-cycle candidate now also preserves the declared microstep sequence in accordance with R1 §§16.6.2–16.6.3:
+- A later microstep cannot overtake an earlier pending obligation. If their relation is UNKNOWN, the result is `IndeterminateCausalOrder`; if commutative, the earlier microstep resolves first. Commutative obligations in the same microstep may be processed in either order.
+- A causal relation that places a later microstep before an earlier one is rejected as an invalid descriptor.
+- An emitted child must be predeclared in `future`, match its identity/owner/microstep exactly, and use a strictly later microstep than its emitter; same/earlier microstep emission is rejected without mutation.
+
+The isolated `test_w07_pairwise_cycle.py` now has 13 tests. This hardening is a synthetic candidate and still requires CI on the final branch HEAD. It does not establish a physical B/C relation or close W07.
