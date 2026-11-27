@@ -136,3 +136,21 @@ Matriz mínima para uma futura revisão experimental, sem alterar R1/R2:
 A relação deve ser explícita por par (ou derivada de uma prova formalmente definida); o booleano unário `commutative` de cada obrigação não prova comutatividade entre duas obrigações distintas. A herança transitiva de comutatividade também não deve ser presumida: commutative(A,B) e causal(A,C) não implicam commutative(B,C).
 
 **Gate de revisão:** antes de alterar P-A, submeter esta matriz a revisão independente contra R1 §§6 e 16.6 e avaliar o gap correspondente no R2 aprovado. Qualquer mudança no oráculo exige processo separado de revisão R2, novos testes discriminantes, rastreabilidade e aprovação explícita. Não alterar o R2 aprovado dentro da PR #1284.
+
+
+## 8. Evidência replayável W06 — divergência P-A/R2 (27/11/2026)
+
+A fixture `SUN-V2/benchmarks/r3/test_w06_replayable_fixture.py` registra o caso mínimo de comparabilidade de bases de fase:
+
+- Dois deadlines não comutativos são publicados no mesmo instante comum.
+- Cada deadline declara `phase_order` distinto e `phase_evidence` presente, mas as `APhaseBasis` são sintéticas e distintas (perfil/base diferentes).
+- No corte de fechamento do watermark, P-A retorna `IndeterminateCausalOrder`, mantém os dois deadlines em `Scheduled`, não reivindica nenhum e não avança o watermark.
+- O oráculo R2 retorna `Accepted`, reivindica `phase-a` e `phase-b` pela ordem numérica e avança o watermark.
+
+A diferença é registrada como **divergência intencional** no corpus replayável, não removida para obter igualdade. Os dois publishes anteriores concordam; o primeiro corte divergente é a operação `close_watermark` (sequência 2). Os adapters preservam os descritores `phase_basis` como sidecar declarativo da fixture; R2 não possui nem interpreta esse campo.
+
+**Validação:** CI #11050, run `46004316797`, SHA `a2e9f68bb6ebedabe9750eb227d2e94fe82408fe`; 169 testes R3 PASS em Linux e Windows. Corpus replayável: 24 fixtures/131 operações-cortes, duas divergências (W06/W07), digest `07551ec877a58597180470045ad24bd51444124d469b2dc2efdcc4e3d9dcba7e`; SHA-256 JSON idêntico Linux/Windows `fbb0940c3d8459763803193b67fd2d974241d66e3a50a98d560afd82a71c87ce`.
+
+**Limite de evidência:** os IDs de validação e hashes da fixture são placeholders sintéticos; não apontam para registros externos nem trust anchors. A divergência mostra apenas que os modelos aplicam critérios diferentes de comparabilidade. Ela não estabelece qual ordenação é correta no hardware, nem autentica fase física SMS. Evidência externa/física W06 permanece **UNKNOWN**.
+
+**Disposição:** manter R2 aprovado e imutável; preservar a divergência e encaminhar a diferença para revisão independente. Nenhuma alteração normativa R1/R2, closeout P-A, P-D/P-E, R4/R5 ou código de produção é autorizada por este aditivo.
