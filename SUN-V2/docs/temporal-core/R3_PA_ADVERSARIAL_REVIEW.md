@@ -404,3 +404,39 @@ A primeira execução CI #11054 encontrou quatro falhas de validação no protó
 ### 9.4 Disposição
 
 O experimento fornece uma alternativa concreta para revisão, mas **não fecha W07**. Manter a divergência histórica P-A/R2, não modificar R1 v0.3.18 nem o oráculo R2 aprovado, não declarar P-A fechado e não iniciar P-D/P-E. W06, corpus reexecutável completo, R4/R5 e autorização de produção continuam pendentes.
+
+
+## 10. W07 — hardening de identidade futura e consistência causal/microstep (27/11/2026)
+
+### 10.1 Achados da revisão do próprio experimento
+
+A inspeção do módulo `w07_pairwise_cycle.py` após CI #11057 encontrou duas lacunas do protótipo:
+
+1. A validação aceitava `PairConstraint` com endpoint que não existia em obrigações pendentes/resolvidas/futuras. Isso permitia typo de identidade passar como estado válido e ser interpretado depois como relação ausente/UNKNOWN.
+2. A primeira versão permitia declarar C→B mesmo quando C estava atribuído a microstep maior que B, e o teste anterior chegava a solicitar C antes de B. Isso não demonstrava conformidade com R1 §16.6.2: a sequência de microsteps não pode inverter uma dependência causal estabelecida.
+
+### 10.2 Correção experimental
+
+O estado descartável agora possui `future: tuple[Obligation, ...]`:
+- Cada endpoint de relação precisa pertencer a uma obrigação pendente, resolvida ou explicitamente declarada como futura.
+- Identidades futuras são únicas e não podem colidir com pendentes/resolvidas.
+- Uma obrigação emitida precisa ter sido declarada previamente como futura e corresponder exatamente em identidade, proprietário e microstep.
+- Ao emitir, a declaração futura é consumida e a obrigação passa para `pending`.
+- Uma relação causal que contradiz a ordem dos microsteps declarados é rejeitada como `InvalidInput`, sem mutação.
+- O caso C→B continua testável quando C está em microstep anterior a B; nesse caso, C pode avançar primeiro. A relação é premissa sintética fornecida ao protótipo, não inferência nem evidência de hardware.
+
+Foram acrescentados testes negativos para endpoint desconhecido, emissão não declarada, divergência entre emissão e declaração, colisão de identidade futura e relação causal incompatível com microsteps. O teste C→B foi substituído por dois casos: atribuição contraditória rejeitada e atribuição consistente permitida.
+
+### 10.3 Evidência e estado
+
+CI #11057 — [run 46033234761](https://github.com/leonardo201800478/SUN/actions/runs/46033234761) — **SUCCESS** no HEAD documental anterior `0792315e6276d3912ecb70a72f669c416e721002`. Validou 175 testes R3 em Linux/Windows, R2 Linux/Windows, matrizes, corpora byte-idênticos, workflow validation e higiene documental. Esse resultado antecede o hardening descrito nesta seção e **não** valida os novos commits.
+
+Commits de hardening ainda sujeitos a CI próprio:
+- `b08b266dd219c480924761e4e2deda77a92875a5` — registro explícito de obrigações futuras e validação de endpoints.
+- `42a9ec410207f6089d584c60d27b95e3614332af` — testes negativos de identidade futura.
+- `c1b0baf38f1e5f68d5c2c5d726fc3befdd8b07a8` — rejeição de relação causal incompatível com microsteps.
+- `4c58c748f7e7688f4cc31645ca219cb50a8aba26` — testes discriminantes para consistência causal/microstep.
+
+### 10.4 Disposição
+
+O experimento está mais estrito, mas W07 continua **BLOCKED** no caso real B/C sem relação demonstrada. A matriz só decide a partir de premissas explícitas; não estabelece a verdade dessas premissas. Nenhuma alteração em R1 v0.3.18, P-A original, R2 aprovado ou código de produção. Não fechar P-A nem iniciar P-D/P-E. A validação dos commits acima aguarda CI próprio.
