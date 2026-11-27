@@ -592,3 +592,37 @@ Portanto, a exigência de microstep estritamente maior deve permanecer classific
 ### 16.3 Disposição
 
 A recomendação de cobertura negativa estrutural está atendida e validada no HEAD indicado; nenhum defeito acionável em `_validate` foi demonstrado pela matriz. A política de emissão estritamente posterior permanece uma escolha experimental explicitamente limitada. W07 físico continua BLOCKED porque a relação B/C real não foi demonstrada; W06 físico permanece UNKNOWN. P-A não está fechado, P-D/P-E NOT RUN, R4/R5 pendentes. R1 v0.3.18, R2 aprovado e P-A baseline original permanecem preservados; nenhum código de produção CHRONOS/V2 foi introduzido.
+
+
+## 17. Resolução dos sete achados adversariais da PR #1284 (27/11/2026)
+
+**HEAD validado:** `6e99758af2d11d3bbe398240b294d7e28efc586a`.  
+**CI #11093:** [run 46083978800](https://github.com/leonardo201800478/SUN/actions/runs/46083978800) — **SUCCESS**.
+
+### 17.1 P1 — snapshot, replay e watermark
+
+- **Gerações no snapshot:** `_validate_state` identifica deadline por `(identity, generation)`; geração 0 cancelada e geração 1 agendada são preservadas no round-trip. Duplicidade do mesmo par segue rejeitada.
+- **Fronteira de replay:** `replay_from_snapshot` calcula `A(E)` uma vez no corte inicial do lote aceito, como máximo de W (se existir) e de todos os progressos de domínio presentes no snapshot. Timestamps `<= A(E)` retornam `LateInput` sem mutação. Os registros são então aplicados em ordem de sequência; o progresso produzido pela aplicação de um registro não re-admite/rejeita outro registro do mesmo lote já aceito. A fixture W09 foi mantida concordante com o replay em lote do R2.
+- **Watermark entre microsteps:** `_causal_order_known` avalia o grupo completo no mesmo instante, não cada nível isoladamente. Nível de microstep não cria causalidade. Para grupo não comutativo, todos os membros precisam de uma phase basis validada comum e `phase_order` distinto; sem isso, `close_watermark` retorna `IndeterminateCausalOrder` sem mutação. Grupos integralmente comutativos usam ordem determinística por identidade, sem alegar precedência causal.
+
+### 17.2 P2 — fase C=D, canonicalidade, limite W07 e documentação
+
+- **C=D:** `ACancellation` carrega `phase_basis`; comparação de `phase_order` requer base válida e igual à do deadline. A evidência textual pode ter rótulos diferentes quando a base estruturada é comparável; sem base, o resultado é indeterminado.
+- **Restore:** payload decodificado precisa reserializar para os mesmos bytes recebidos. JSON reformatado e frações não reduzidas são rejeitados mesmo se o digest tiver sido recalculado.
+- **W07:** `PairwiseCycle` tem limite finito experimental `max_microsteps=32` (nível máximo inclusivo). A fronteira é aceita; emissão acima do limite retorna `ResourceExhausted` sem mutação. Testes cobrem fronteira, excesso e limite inválido. Esse protótipo continua restrito à adjudicação de relações explícitas; não é um ciclo completo de hardware, não prova relação B/C e não torna o valor 32 normativo para R1.
+- **Documentação:** a fonte de módulos replayáveis W04–W06 foi corrigida; 131 testes enumerados são subconjunto, enquanto o runner completo executa 197 (176 no emissor + 21 W07 pairwise).
+
+### 17.3 Evidência de validação
+
+- R3: **197/197 PASS Linux e 197/197 PASS Windows**.
+- Emissor de corpus: **176 testes PASS**; W07 pairwise isolado: **21 testes PASS**.
+- R2 independente Linux e R2 Python Windows: PASS.
+- Sete matrizes sintéticas P-A (75 + 180 + 30 + 24 + 12 + 10 + 20 pontos por sistema): PASS.
+- Corpus canônico: **117 fixtures / 1.481 cortes** (1.470 diferenciais + 11 propriedades), digest lógico `ca73c8720f6b9b81454ff5e5f7e67f0aab1c49b71e24032ab4f6edcf74465181`.
+- Corpus replayável: **25 fixtures / 134 operações-cortes**, divergências W06/W07 preservadas, digest lógico `2dcf09eeaf6ffe03e6bcf1cfda087aeedeb865d351b6ac081a0dc12ff28bc28f`.
+- Artefatos canônico/replayável byte a byte idênticos Linux/Windows; workflow validation, documentation hygiene, change-impact classification e Rust quality supervisor: PASS.
+- CPU time Windows: `SKIPPED_COARSE_RESOLUTION`; hardware/runtime/desktop jobs: SKIPPED. Nenhum resultado de benchmark Python é desempenho Rust ou evidência de hardware.
+
+### 17.4 Disposição
+
+Os sete achados P1/P2 foram corrigidos no escopo R3. R1 v0.3.18 e R2 aprovado permanecem imutáveis; nenhum crate Rust de produção/runtime/desktop foi alterado. W06 físico permanece UNKNOWN e W07 físico B/C permanece BLOCKED. P-A continua sem closeout, P-D/P-E NOT RUN/BLOCKED, R3 em andamento e R4/R5 pendentes. O CI não aprova o gate nem valida 60 FPS. A revisão independente formal da PR ainda é condição separada para merge.

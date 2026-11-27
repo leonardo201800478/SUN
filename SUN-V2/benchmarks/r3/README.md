@@ -30,16 +30,16 @@ Do not import R2 model classes into timed prototype implementations.
 - `p_a_causal_sync.py`: serial observation-driven synchronization and DFS dependency resolution for W03/W04; no persistent agenda.
 - `p_a_microsteps.py`: immutable same-instant obligation cycle with child admission at the next microstep and finite limit.
 - `p_a_transactions.py`: immutable transaction lifecycle with sample/commit ledgers, wait ownership, distinct TW budgets, failure and explicit recovery.
-- `p_a_snapshots.py`: canonical JSON snapshot bytes, SHA-256 verification, atomic restore and sequence-ordered deterministic replay.
+- `p_a_snapshots.py`: canonical JSON snapshot bytes, SHA-256 verification, atomic restore, `(identity, generation)` deadline history and sequence-ordered replay. Replay checks every event against the snapshot admission frontier `max(W, P_d for all snapshot domains)` once for the accepted batch; events at/behind it return `LateInput` without mutation.
 - `bench_p_a_ordering.py` / `bench_p_a_microsteps.py` / `bench_p_a_transactions.py` / `bench_p_a_snapshots.py`: W06 group-order, W07 chain-depth, W08 transaction and W09 snapshot/replay matrices.
 - `test_p_a_instruction_catchup.py`: 24 R2 differential tests, including 48 deterministic boundary combinations.
-- `test_p_a_deadline_lifecycle.py`: 31 tests, including cancellation races, W06 phase-basis comparability, no-mutation negatives and explicit R2 oracle-gap fixtures.
+- `test_p_a_deadline_lifecycle.py`: 34 tests, including cancellation races, C=D phase-basis comparability, cross-microstep watermark ambiguity, no-mutation negatives and explicit R2 oracle-gap fixtures.
 - `test_p_a_causal_sync.py`: 14 R2 differential tests, including cross-domain dependencies, cycles, UNKNOWN ties, unrelated-device isolation and applied-order equivalence.
 - `test_p_a_microsteps.py`: 8 microstep tests, including the W07 lower-level-pending barrier and explicit R2 oracle-gap fixture; the same module also contains 3 shared benchmark-statistics policy tests.
 - `test_p_a_transactions.py`: 18 R2 differential tests for idempotency, sample/commit exactly-once, wait/resume, TW budgets, cancellation, partial failure and explicit recovery.
-- `test_p_a_snapshots.py`: 27 tests for R2 snapshot equivalence, ambiguous acknowledge cuts, atomic restore, canonical digest and deterministic replay properties.
+- `test_p_a_snapshots.py`: 30 tests for R2 snapshot equivalence, multi-generation deadline history, ambiguous acknowledge cuts, atomic restore, canonical byte encoding, global replay admission and deterministic replay properties.
 - `test_p_a_deadline_lifecycle.py`: W06 group-size/permutation coverage for 2/4/8/16 simultaneous deadlines, plus phase-basis discriminants.
-- **125 tests** são o subconjunto dos módulos de núcleo discriminados acima; esse número não representa a suíte R3 completa. No HEAD revisado `4afc71a4ee7f0d47bb57213a2fe63016776434e6`, o runner completo `emit_p_a_trace_corpus.py` descobria **188 testes**, incluindo harnesses, adapters/fixtures replayáveis e a matriz W07. O total atualizado deve ser lido do resultado do runner/CI do SHA validado, não inferido pela soma deste inventário parcial.
+- **131 testes** formam o subconjunto dos módulos de núcleo enumerados acima (24 advance/catch-up, 34 deadline lifecycle, 14 causal sync, 8 microstep tests, 18 transactions, 30 snapshot/replay e 3 benchmark-statistics). Não é a suíte R3 completa: o runner completo no HEAD `6e99758af2d11d3bbe398240b294d7e28efc586a` executou **197 testes**; o emissor de corpus executou 176 e o módulo isolado W07 pairwise acrescenta 21 testes fora do emissor.
 
 ## Historical validation and benchmark status — CI #10902
 
@@ -93,7 +93,7 @@ W00–W09 now have tests and synthetic benchmark matrices on Linux/Windows. The 
 P-D/P-E are not started. R4/R5 remain mandatory. No production CHRONOS/V2 code is
 authorized before R5.
 
-- `w07_pairwise_cycle.py` / `test_w07_pairwise_cycle.py`: isolated W07 experiment with explicit pairwise causal/commutative relations; missing relations remain UNKNOWN. Six discriminating tests; this is not an integration into the current P-A microstep engine.
+- `w07_pairwise_cycle.py` / `test_w07_pairwise_cycle.py`: isolated W07 relation-adjudication experiment with explicit pairwise causal/commutative relations; missing relations remain UNKNOWN. It has a finite `max_microsteps=32` (maximum level inclusive): the boundary is accepted and an emitted child above the limit returns `ResourceExhausted` without mutation. The isolated module contains 21 tests and is not integrated into the P-A microstep engine or evidence of physical B/C order.
 
 ## W07 pairwise-cycle experiment — CI #11056
 
@@ -185,3 +185,21 @@ The final negative case matrix also covers malformed cycle instances, invalid `a
 **Interpretive limitation:** the prototype's requirement that an emitted child use a strictly greater microstep than its emitter is a candidate policy chosen to avoid retroactive insertion. R1 §16.6.3 requires an explicit rule and prohibits retroactive insertion, but does not specify that this is the only admissible rule. Same-microstep append-after-emitter semantics are not covered. Treat strict advancement as an experimental policy/scope limitation, not a new normative R1 requirement.
 
 W07 physical remains BLOCKED; W06 physical remains UNKNOWN; P-A is not closed; P-D/P-E remain NOT RUN; R4/R5 remain pending.
+
+
+## Adversarial corrections — CI #11093
+
+**Validated HEAD:** `6e99758af2d11d3bbe398240b294d7e28efc586a`; [CI #11093 / run 46083978800](https://github.com/leonardo201800478/SUN/actions/runs/46083978800) — **SUCCESS**.
+
+- R3 disposable suite: **197/197 PASS Linux and 197/197 PASS Windows**.
+- Corpus emitter: **176 tests PASS** on both systems; isolated W07 pairwise suite: **21 tests PASS**.
+- R2 independent Linux and R2 Python Windows: PASS.
+- All seven P-A synthetic matrices (advance, deadlines, causal sync, W06, W07, W08, W09): PASS on both systems.
+- Canonical corpus: **117 fixtures / 1,481 cuts** (1,470 differential + 11 property); logical digest `ca73c8720f6b9b81454ff5e5f7e67f0aab1c49b71e24032ab4f6edcf74465181`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**, with W06/W07 divergences preserved; logical digest `2dcf09eeaf6ffe03e6bcf1cfda087aeedeb865d351b6ac081a0dc12ff28bc28f`.
+- Canonical and replayable artifacts are byte-identical between Linux and Windows. Documentation patch hygiene, workflow validation, change-impact classification and Rust quality supervisor: PASS.
+- Windows CPU-time samples with coarse timer resolution: `SKIPPED_COARSE_RESOLUTION`; do not treat as performance evidence. Hardware/runtime/desktop jobs: SKIPPED, not PASS.
+
+The seven adversarial findings were addressed in the disposable candidates/tests/docs: snapshot generation identity is keyed by (identity, generation); replay admission uses the snapshot-wide frontier once for the accepted batch; watermark closure no longer infers causality from microstep level; C=D cancellation requires a comparable phase basis; restore requires byte-canonical payloads; W07 pairwise emission has a finite resource limit with boundary/excess tests; and the inventory/source statements were corrected. R1 v0.3.18 and the R2 oracle remain unchanged.
+
+**Limitations unchanged:** W06 physical evidence remains UNKNOWN; W07 physical B/C remains BLOCKED. The W07 candidate is bounded experimental relation adjudication, not a complete hardware cycle model. P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R4/R5 are pending. No production CHRONOS/V2 code or 60 FPS/hardware claim is validated by this Python CI.

@@ -121,3 +121,35 @@ A matriz estrutural negativa inclui coleções com tipos incorretos, ledger `res
 A exigência de que filho emitido use microstep estritamente maior que o emissor é política candidata do protótipo, não regra exclusiva expressa por R1 §16.6.3. R1 exige regra explícita e não retroatividade; outras políticas, como anexar após o emissor no mesmo microstep, não foram testadas. Manter a classificação HYPOTHESIS / INFERENCE até revisão específica.
 
 W07 físico continua BLOCKED; W06 físico continua UNKNOWN. P-A não está fechado; P-D/P-E permanecem NOT RUN/BLOCKED; R4/R5 pendentes.
+
+
+## 9. Aditivo — correções da revisão adversarial e CI #11093 (27/11/2026)
+
+**HEAD validado:** `6e99758af2d11d3bbe398240b294d7e28efc586a`.  
+**CI #11093:** [run 46083978800](https://github.com/leonardo201800478/SUN/actions/runs/46083978800) — **SUCCESS**.
+
+### 9.1 Correções P1
+
+1. **Histórico de gerações no snapshot:** a unicidade de deadlines passou a ser verificada por `(identity, generation)`, permitindo preservar a geração cancelada e a geração substituta agendada; duplicidade do mesmo par continua inválida.
+2. **Admissão de replay:** calcula-se uma única fronteira para o lote aceito a partir do corte do snapshot: `A(E)=max(W, P_d de todos os domínios presentes)`. Evento em ou atrás dessa fronteira retorna `LateInput` sem mutação. A aplicação sequencial dos registros já aceitos não recalcula a fronteira com progresso produzido pelo próprio lote.
+3. **Fechamento do watermark:** a relação é verificada sobre o grupo simultâneo inteiro. Microstep numérico não cria precedência. Grupo não comutativo exige uma mesma phase basis validada e `phase_order` único em todos os membros; caso contrário, o fechamento permanece `IndeterminateCausalOrder` sem reivindicação nem avanço de W.
+
+### 9.2 Correções P2
+
+1. **Empate C=D:** `ACancellation` agora carrega `phase_basis`; a ordenação por `phase_order` só é aceita quando a base do cancelamento é válida e comparável à base do deadline. Rótulos textuais de evidência podem diferir quando a base comparável é a mesma.
+2. **Restore canônico:** após validar checksum e decodificar, o estado é reserializado; bytes recebidos que não sejam exatamente a codificação canônica são rejeitados, incluindo JSON reformatado e frações não reduzidas, mesmo com SHA-256 recalculado.
+3. **Limite W07:** o candidato pairwise tem `max_microsteps=32` (nível máximo inclusivo). A fronteira é aceita; emissão acima dela retorna `ResourceExhausted` atomicamente. O teste cobre limite, excesso e valores de limite inválidos. O valor é configuração experimental, não constante normativa de R1.
+4. **Inventário:** fontes W04–W06 e contagens foram corrigidas. Os 131 testes do subconjunto de núcleo não são o total; o runner completo executou 197, dos quais 176 pertencem ao emissor e 21 ao módulo W07 pairwise isolado.
+
+### 9.3 Validação
+
+- R3: **197/197 PASS Linux e Windows**; emissor: **176 testes PASS**; W07 pairwise: **21 testes PASS**.
+- R2 independente Linux e R2 Python Windows: PASS.
+- Matrizes W00–W09: PASS; corpus canônico: **117 fixtures / 1.481 cortes** (1.470 diferenciais + 11 propriedades), digest lógico `ca73c8720f6b9b81454ff5e5f7e67f0aab1c49b71e24032ab4f6edcf74465181`.
+- Corpus replayável: **25 fixtures / 134 operações-cortes**, duas divergências preservadas (W06/W07), digest lógico `2dcf09eeaf6ffe03e6bcf1cfda087aeedeb865d351b6ac081a0dc12ff28bc28f`.
+- Artefatos canônico/replayável byte a byte idênticos Linux/Windows; workflow validation, documentation hygiene, change-impact classification e Rust quality supervisor: PASS.
+- CPU time Windows: `SKIPPED_COARSE_RESOLUTION`; jobs hardware/runtime/desktop: SKIPPED, não PASS.
+
+### 9.4 Disposição dos gates
+
+As sete lacunas reportadas foram tratadas no escopo de protótipos descartáveis, testes e documentação. R1 v0.3.18 e o oráculo R2 não foram alterados. Isso não encerra P-A nem R3: W06 físico permanece UNKNOWN, W07 físico permanece BLOCKED pela ausência de relação B/C demonstrada, P-D/P-E continuam NOT RUN/BLOCKED e R4/R5 permanecem pendentes. Nenhum código de produção CHRONOS/V2, comportamento de hardware SMS ou meta de 60 FPS é validado por esta suíte Python.
