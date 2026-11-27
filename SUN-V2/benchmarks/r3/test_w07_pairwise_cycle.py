@@ -15,6 +15,7 @@ class W07PairwiseCycleTests(unittest.TestCase):
             (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
             (PairConstraint("a", "b", PairRelation.COMMUTATIVE),
              PairConstraint("b", "c", bc_relation)),
+            future=(Obligation("c", "psg", 1),),
         )
 
     def after_a(self, relation=PairRelation.UNKNOWN):
@@ -23,6 +24,7 @@ class W07PairwiseCycleTests(unittest.TestCase):
             (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
             (PairConstraint("a", "b", PairRelation.COMMUTATIVE),
              PairConstraint("b", "c", relation)),
+            future=(Obligation("c", "psg", 1),),
         )
         result = process(state, "a", emitted=(Obligation("c", "psg", 1),))
         self.assertEqual(result.code, StepCode.ADVANCED)
@@ -72,6 +74,49 @@ class W07PairwiseCycleTests(unittest.TestCase):
         )
         result = process(state, "a")
         self.assertEqual(result.code, StepCode.INDETERMINATE)
+        self.assertIs(result.state, state)
+
+
+    def test_unknown_relation_endpoint_is_invalid(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("b", "typo-c", PairRelation.UNKNOWN),),
+        )
+        result = process(state, "a")
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
+    def test_emitted_obligation_must_be_declared_future(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+        )
+        result = process(state, "a", emitted=(Obligation("c", "psg", 1),))
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
+    def test_emitted_obligation_must_match_future_declaration(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            future=(Obligation("c", "psg", 1),),
+        )
+        result = process(state, "a", emitted=(Obligation("c", "cpu", 2),))
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
+    def test_future_declaration_identity_cannot_alias_pending(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (),
+            future=(Obligation("a", "psg", 1),),
+        )
+        result = process(state, "a")
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
         self.assertIs(result.state, state)
 
     def test_invalid_duplicate_pair_is_rejected_without_mutation(self):
