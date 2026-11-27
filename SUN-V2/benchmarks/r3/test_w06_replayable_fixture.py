@@ -1,9 +1,10 @@
 """Replayable W06 fixture for UNKNOWN phase-basis comparability.
 
 Two simultaneous non-commutative deadlines carry distinct, syntactically valid
-phase bases. P-A refuses to compare them; the R2 oracle accepts the numeric
-phase_order fields. This is an intentional model divergence, not physical SMS
-phase evidence or authentication of either synthetic validation record.
+phase bases but the same synthetic phase-evidence label. P-A refuses to compare
+the bases; the R2 oracle accepts the numeric phase_order fields. This isolates
+the basis-comparability gap without conflating event-level evidence labels. It
+is not physical SMS phase evidence or authentication of either validation record.
 """
 from __future__ import annotations
 
@@ -388,7 +389,7 @@ class W06ReplayablePhaseBasisUnknownTests(unittest.TestCase):
                     "effect_id": "effect-a",
                     "commutative": False,
                     "phase_order": 1,
-                    "phase_evidence": "capture-A",
+                    "phase_evidence": "shared-synthetic-capture",
                     "phase_basis": basis_a,
                 },
             },
@@ -403,7 +404,7 @@ class W06ReplayablePhaseBasisUnknownTests(unittest.TestCase):
                     "effect_id": "effect-b",
                     "commutative": False,
                     "phase_order": 2,
-                    "phase_evidence": "capture-B",
+                    "phase_evidence": "shared-synthetic-capture",
                     "phase_basis": basis_b,
                 },
             },
@@ -412,6 +413,10 @@ class W06ReplayablePhaseBasisUnknownTests(unittest.TestCase):
                 "name": "close_watermark",
                 "args": {"target_common": Fraction(10)},
             },
+        )
+        self.assertEqual(
+            operations[0]["args"]["phase_evidence"],
+            operations[1]["args"]["phase_evidence"],
         )
         fixture = capture_differential_fixture(
             fixture_id="W06_DISTINCT_SYNTHETIC_PHASE_BASES_KEEP_P_A_UNKNOWN",
