@@ -71,8 +71,20 @@ class W07PairwiseCycleTests(unittest.TestCase):
         self.assertEqual(advanced.code, StepCode.ADVANCED)
         self.assertEqual([item.identity for item in advanced.state.pending], ["b"])
 
-    def test_proven_commutativity_allows_either_order(self):
+    def test_commutative_pair_respects_declared_microstep_sequence(self):
         state = self.after_a(PairRelation.COMMUTATIVE)
+        later = process(state, "c")
+        self.assertEqual(later.code, StepCode.BLOCKED)
+        self.assertIs(later.state, state)
+        earlier = process(state, "b")
+        self.assertEqual(earlier.code, StepCode.ADVANCED)
+
+    def test_same_microstep_commutative_pair_allows_either_order(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("b", "vdp", 0), Obligation("c", "psg", 0)),
+            (PairConstraint("b", "c", PairRelation.COMMUTATIVE),),
+        )
         for requested in ("b", "c"):
             with self.subTest(requested=requested):
                 result = process(state, requested)
