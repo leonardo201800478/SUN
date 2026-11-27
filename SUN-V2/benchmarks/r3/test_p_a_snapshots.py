@@ -421,8 +421,8 @@ class PASnapshotTests(unittest.TestCase):
         artifact = capture(state).artifact
         events = (
             PAReplayEvent(8, Fraction(11), "cpu", Fraction(11), Fraction(1, 5)),
-            PAReplayEvent(9, Fraction(11), "vdp", Fraction(12), Fraction(1, 4)),
-            PAReplayEvent(10, Fraction(12), "cpu", Fraction(13), Fraction(2, 9)),
+            PAReplayEvent(9, Fraction(12), "vdp", Fraction(12), Fraction(1, 4)),
+            PAReplayEvent(10, Fraction(13), "cpu", Fraction(13), Fraction(2, 9)),
         )
         return state, artifact, events
 
@@ -462,18 +462,27 @@ class PASnapshotTests(unittest.TestCase):
         record_property(self.id(), "atomic-duplicate", result.state, state)
 
     def test_replay_retroactive_domain_input_is_late_without_mutation(self):
-        state = machine(
-            domains=(PADomainState("cpu", Fraction(10), Fraction(1, 3)),),
-            watermark=Fraction(8),
+        domains = (
+            PADomainState("cpu", Fraction(10), Fraction(1, 3)),
+            PADomainState("vdp", Fraction(8), Fraction(2, 7)),
         )
-        artifact = capture(state).artifact
-        event = PAReplayEvent(8, Fraction(9), "cpu", Fraction(11), Fraction(1, 5))
-        result = replay_from_snapshot(artifact, (event,))
-        self.assertEqual(result.code, PASnapshotCode.LATE_INPUT)
-        self.assertEqual(result.state, state)
-        self.assertEqual(result.state.input_cursor, state.input_cursor)
-        self.assertEqual(result.state.domains, state.domains)
-        record_property(self.id(), "atomic-retroactive-domain-input", result.state, state)
+        for domain in ("cpu", "vdp"):
+            for at_common in (Fraction(9), Fraction(10)):
+                with self.subTest(domain=domain, at_common=at_common):
+                    state = machine(domains=domains, watermark=Fraction(8))
+                    artifact = capture(state).artifact
+                    event = PAReplayEvent(
+                        8, at_common, domain, Fraction(11), Fraction(1, 5)
+                    )
+                    result = replay_from_snapshot(artifact, (event,))
+                    self.assertEqual(result.code, PASnapshotCode.LATE_INPUT)
+                    self.assertEqual(result.state, state)
+                    self.assertEqual(result.state.input_cursor, state.input_cursor)
+                    self.assertEqual(result.state.domains, state.domains)
+                    record_property(
+                        self.id(), f"atomic-global-frontier-{domain}-{at_common}",
+                        result.state, state,
+                    )
 
     def test_replay_progress_regression_is_rejected_atomically(self):
         state, artifact, _ = self.replay_fixture()
@@ -498,7 +507,7 @@ class PASnapshotTests(unittest.TestCase):
             PAReplayEvent(9, Fraction(8), "vdp", Fraction(12), Fraction(1, 4)),
         )
         result = replay_from_snapshot(artifact, regressed)
-        self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
+        self.assertEqual(result.code, PASnapshotCode.LATE_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
         record_property(self.id(), "atomic-time-regression", result.state, state)
 

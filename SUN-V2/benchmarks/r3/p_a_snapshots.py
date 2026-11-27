@@ -541,7 +541,7 @@ def replay_from_snapshot(
     artifact: PASnapshotArtifact,
     events: tuple[PAReplayEvent, ...],
 ) -> PAReplayResult:
-    """Replay accepted input records in sequence order, independent of arrival order."""
+    """Replay accepted inputs in sequence order behind the global admission frontier."""
     try:
         state = _artifact_state(artifact)
     except (ValueError, TypeError, KeyError, UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -581,8 +581,8 @@ def replay_from_snapshot(
             )
         if previous_time is not None and event.at_common < previous_time:
             return PAReplayResult(
-                PASnapshotCode.INVALID_INPUT, state, _state_digest(state),
-                "replay time regressed",
+                PASnapshotCode.LATE_INPUT, state, _state_digest(state),
+                "replay event regressed behind a previously admitted input time",
             )
         index = next(
             (i for i, domain in enumerate(domains) if domain.name == event.domain),
@@ -593,10 +593,14 @@ def replay_from_snapshot(
                 PASnapshotCode.INVALID_INPUT, state, _state_digest(state),
                 "replay references an unknown domain",
             )
-        if event.at_common <= domains[index].progress_common:
+        admission_frontier = max(
+            [domain.progress_common for domain in domains]
+            + ([state.watermark] if state.watermark is not None else [])
+        )
+        if event.at_common <= admission_frontier:
             return PAReplayResult(
                 PASnapshotCode.LATE_INPUT, state, _state_digest(state),
-                "replay event is at or behind the domain admission frontier",
+                "replay event is at or behind the global admission frontier",
             )
         if event.progress_common < domains[index].progress_common:
             return PAReplayResult(
