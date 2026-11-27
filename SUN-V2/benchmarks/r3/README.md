@@ -92,3 +92,13 @@ W00–W09 now have tests and synthetic benchmark matrices on Linux/Windows. The 
 
 P-D/P-E are not started. R4/R5 remain mandatory. No production CHRONOS/V2 code is
 authorized before R5.
+
+- `w07_pairwise_cycle.py` / `test_w07_pairwise_cycle.py`: isolated W07 experiment with explicit pairwise causal/commutative relations; missing relations remain UNKNOWN. Six discriminating tests; this is not an integration into the current P-A microstep engine.
+
+## W07 pairwise-cycle experiment — CI #11056
+
+The isolated candidate was validated on Linux and Windows as part of the 175-test R3 suite. It tests B→C, C→B, proven commutativity and UNKNOWN, including no-mutation behavior for indeterminate pairs. A microstep number does not establish a pair relation.
+
+CI #11056 passed on HEAD `e562a363e171ec017584b1eb8052c0759d0135d5`: R3 Linux/Windows, R2 Linux/Windows, all W00–W09 matrices and byte-identical canonical/replayable corpus artifacts passed. Rust workspace regression and unrelated hardware/runtime jobs were SKIPPED.
+
+This experiment does not prove any physical B/C relation, does not alter `p_a_microsteps.py` or R2, and does not close W07. For the original case without a declared/evidenced B/C relation, the result remains `IndeterminateCausalOrder`. P-A closeout and P-D/P-E remain blocked; R4/R5 are pending.
