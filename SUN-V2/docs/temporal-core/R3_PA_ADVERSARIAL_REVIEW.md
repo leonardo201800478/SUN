@@ -364,3 +364,43 @@ O mesmo arquivo mantém a fixture de gerações de deadlines e ledgers parciais 
 A revisão adversarial foi atualizada para o HEAD `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`. As correções e ampliações recentes do harness, a fixture W09 de replay após restore e o CI #11012 fortalecem a evidência experimental. **Nenhuma delas resolve W07, autentica W06 ou completa o corpus reexecutável W00–W09.**
 
 A decisão permanece: manter a PR #1284 **OPEN/DRAFT**, não declarar P-A fechado, não iniciar P-D/P-E e não introduzir código de produção CHRONOS/V2 antes de R5. R1 v0.3.18 e o oráculo R2 aprovado permanecem preservados.
+
+
+## 9. Experimento W07 — adjudicação de relações par-a-par no ciclo (27/11/2026)
+
+### 9.1 Objetivo e isolamento
+
+Foi criado o módulo descartável `w07_pairwise_cycle.py`, separado de `p_a_microsteps.py` e de `verification/r2_reference/microstep_reference.py`. O objetivo é testar se a matriz de relações explícitas pode ser aplicada ao ciclo completo, e não somente a uma função isolada de adjudicação.
+
+Cada par não ordenado de obrigações pode declarar uma das relações: primeira causa segunda, segunda causa primeira, comutativas ou UNKNOWN. Um par sem declaração é tratado como UNKNOWN. O número do microstep não preenche nem substitui essa relação.
+
+### 9.2 OBSERVATION — resultados discriminantes
+
+A suíte `test_w07_pairwise_cycle.py` contém seis testes:
+1. Após A emitir C enquanto B permanece pendente, B/C UNKNOWN faz qualquer tentativa (B ou C) retornar `IndeterminateCausalOrder`, preservando exatamente o estado.
+2. B→C bloqueia C e permite B.
+3. C→B bloqueia B e permite C, mesmo C estando no microstep numericamente maior.
+4. Comutatividade(B,C) demonstrada permite qualquer uma das duas ordens.
+5. Irmãos iniciais sem relação explícita também permanecem indeterminados.
+6. Relação duplicada para o mesmo par não ordenado é rejeitada como `InvalidInput`, sem mutação.
+
+A implementação não infere relações a partir de owner, ordem de inserção, microstep ou flags unárias. Relações declaradas para uma obrigação filha podem existir antes de sua emissão; a validação exige IDs não vazios, pares distintos e unicidade do par, mas não exige que a obrigação futura já esteja pendente.
+
+### 9.3 Validação e limite de evidência
+
+**CI #11056:** [run 46032873448](https://github.com/leonardo201800478/SUN/actions/runs/46032873448), HEAD `e562a363e171ec017584b1eb8052c0759d0135d5`, conclusão **SUCCESS**:
+- R3 Linux: suite completa, **175 testes PASS**, incluindo os seis novos testes.
+- R3 Windows: suite completa, **175 testes PASS**, incluindo os seis novos testes.
+- Matrizes W00–W09 Linux/Windows: PASS.
+- R2 independente Linux e R2 Python Windows: PASS.
+- Equivalência byte a byte dos corpora canônico e replayável: PASS.
+- Workflow validation, documentation patch hygiene e Rust quality supervisor: PASS.
+- Rust workspace regression e jobs não relacionados: SKIPPED, não contabilizados como PASS.
+
+A primeira execução CI #11054 encontrou quatro falhas de validação no protótipo: relações B/C pré-declaradas eram rejeitadas antes da emissão de C. A validação foi corrigida para aceitar referências declarativas a obrigações futuras; o CI #11056 passou. A falha inicial e sua correção permanecem no histórico.
+
+**Limites:** isto é OBSERVATION sintética de um modelo experimental isolado. O módulo não substitui nem altera P-A; não foi integrado ao fixture replayável W07; não demonstra que uma relação causal ou comutativa real entre B/C exista. No cenário original sem evidência, o resultado correto continua UNKNOWN/Indeterminate. A evidência física SMS permanece UNKNOWN.
+
+### 9.4 Disposição
+
+O experimento fornece uma alternativa concreta para revisão, mas **não fecha W07**. Manter a divergência histórica P-A/R2, não modificar R1 v0.3.18 nem o oráculo R2 aprovado, não declarar P-A fechado e não iniciar P-D/P-E. W06, corpus reexecutável completo, R4/R5 e autorização de produção continuam pendentes.
