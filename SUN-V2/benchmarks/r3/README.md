@@ -136,3 +136,20 @@ Validated HEAD: `926812ba7a4d442dbadb36df83791d4028a80702`; [run 46034036821](ht
 - Documentation hygiene, workflow validation and Rust quality supervisor: PASS. Rust workspace regression and unrelated hardware/runtime jobs: SKIPPED.
 
 The corpus emitter runs 169 tests; the 13 pairwise-cycle tests are separate and are not yet represented as a replayable W07 fixture. CI proves the synthetic tests and artifact equivalence, not a physical B/C relation, W06 phase evidence, full W00–W09 replayable coverage, P-A closeout or architecture approval. W07 remains BLOCKED for the physical profile; P-D/P-E remain NOT RUN.
+
+
+## W06 paired positive/negative replayable controls — CI #11072
+
+Validated HEAD: `afbdf337da80243d05202163fcc7d8412dfe0db8`; [CI #11072 / run 46060833047](https://github.com/leonardo201800478/SUN/actions/runs/46060833047) **SUCCESS**.
+
+- R3 disposable tests: **183/183 PASS** on Linux and Windows.
+- Corpus emitter/replay suite: **170 tests PASS** on both.
+- Canonical corpus: 112 fixtures / 1,475 cuts; digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**, two divergences preserved (W06 negative control and W07); digest `2dcf09eeaf6ffe03e6bcf1cfda087aeedeb865d351b6ac081a0dc12ff28bc28f`.
+- Canonical and replayable JSON artifacts are byte-identical between Linux and Windows.
+- R2 independent Linux and R2 Python Windows: PASS; W00–W09 matrices PASS; workflow validation, documentation hygiene and Rust quality supervisor PASS.
+- Unrelated hardware/runtime/desktop/audio/video/Z80/Rust workspace jobs: SKIPPED.
+
+W06 now has two replayable cases: distinct synthetic phase bases with the same event evidence label preserve the P-A/R2 divergence; a shared synthetic basis with distinct per-event evidence labels is a positive control where both models accept and agree. This confirms the fixture's discrimination around basis comparability, not physical SMS timing or evidence authenticity.
+
+Windows CPU-time fields with coarse timer resolution are marked `SKIPPED_COARSE_RESOLUTION`; matrix correctness still passed, but those timings must not be used as cross-platform performance evidence. All fixtures remain synthetic. W06 physical evidence remains UNKNOWN; W07 physical B/C remains BLOCKED; P-A is not closed; P-D/P-E NOT RUN; R4/R5 pending.
