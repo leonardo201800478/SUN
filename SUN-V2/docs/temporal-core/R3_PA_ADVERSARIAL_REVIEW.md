@@ -177,8 +177,7 @@ O CI #10973 passou em Linux e Windows para os testes R3, em ambos os conjuntos i
 Foi adicionado `test_w08_replayable_fixture.py` e o módulo foi incluído em `emit_p_a_trace_corpus.py`. A fixture declarativa executa a mesma sequência de operações nos dois lados, usando exclusivamente as transições P-A no adaptador esquerdo e as transições independentes do oráculo R2 no adaptador direito:
 
 1. Submeter o descriptor de transação com um marco COMMIT em tempo racional exato.
-2. Iniciar a transação.
-3. Avançar até o marco declarado.
+2. Iniciar a transação.3. Avançar até o marco declarado.
 4. Aplicar o commit.
 5. Repetir o mesmo commit para verificar idempotência e ledger exatamente uma vez.
 
@@ -358,7 +357,6 @@ O mesmo arquivo mantém a fixture de gerações de deadlines e ledgers parciais 
 | P-A closeout | **NOT READY** | R3 continua em andamento |
 | P-D/P-E | **NOT RUN / BLOCKED** | Não iniciar sem critérios de entrada resolvidos/revisados |
 | R4/R5 | **PENDING** | Sem aprovação arquitetural final |
-
 ### 8.5 Conclusão da revalidação
 
 A revisão adversarial foi atualizada para o HEAD `f2e0e83735284d5137c5755b27f8a82d75f6a9d6`. As correções e ampliações recentes do harness, a fixture W09 de replay após restore e o CI #11012 fortalecem a evidência experimental. **Nenhuma delas resolve W07, autentica W06 ou completa o corpus reexecutável W00–W09.**
@@ -510,7 +508,7 @@ O teste exige que P-A e R2 aceitem a ordenação, reivindiquem ambos os deadline
 
 ### Validação
 
-**HEAD:** `afbdf337da80243d05202163fcc7d8412dfe0db8`  
+**HEAD:** `afbdf337da80243d05202163fcc7d8412dfe0db8`
 **CI #11072:** [run 46060833047](https://github.com/leonardo201800478/SUN/actions/runs/46060833047) — **SUCCESS**.
 
 - R3 descartável: **183/183 testes PASS em Linux e 183/183 em Windows**.
