@@ -107,7 +107,7 @@ Não converter automaticamente cada teste unitário em fixture: agrupar cenário
 
 ## 8. Aditivo — validação final W07 e classificação da política de emissão (27/11/2026)
 
-**HEAD:** `0f917ed9b5b26c1862623b9c14a6812e82183d0c`.  
+**HEAD:** `0f917ed9b5b26c1862623b9c14a6812e82183d0c`.
 **CI #11083:** [run 46074762710](https://github.com/leonardo201800478/SUN/actions/runs/46074762710) — **SUCCESS**.
 
 - `test_w07_pairwise_cycle.py`: **18 testes PASS** em Linux e Windows.
