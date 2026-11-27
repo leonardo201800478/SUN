@@ -249,5 +249,41 @@ class W07PairwiseCycleTests(unittest.TestCase):
         self.assertEqual(result.code, StepCode.INVALID_INPUT)
         self.assertIs(result.state, state)
 
+
+    def test_validate_rejects_malformed_cycle_pending_and_future_descriptors(self):
+        valid = self.initial()
+        malformed_states = (
+            None,
+            PairwiseCycle(True, valid.pending, valid.constraints),
+            PairwiseCycle(10, (Obligation([], "cpu", 0),), ()),
+            PairwiseCycle(10, (Obligation(" ", "cpu", 0),), ()),
+            PairwiseCycle(10, (Obligation("a", [], 0),), ()),
+            PairwiseCycle(10, (Obligation("a", " ", 0),), ()),
+            PairwiseCycle(10, (Obligation("a", "cpu", True),), ()),
+            PairwiseCycle(10, (Obligation("a", "cpu", -1),), ()),
+            PairwiseCycle(10, (Obligation("a", "cpu", 0), Obligation("a", "vdp", 0)), ()),
+            PairwiseCycle(10, valid.pending, (),
+                          future=(Obligation([], "psg", 1),)),
+            PairwiseCycle(10, valid.pending, (),
+                          future=(Obligation(" ", "psg", 1),)),
+            PairwiseCycle(10, valid.pending, (),
+                          future=(Obligation("x", [], 1),)),
+            PairwiseCycle(10, valid.pending, (),
+                          future=(Obligation("x", " ", 1),)),
+            PairwiseCycle(10, valid.pending, (),
+                          future=(Obligation("x", "psg", True),)),
+            PairwiseCycle(10, valid.pending, (),
+                          future=(Obligation("x", "psg", -1),)),
+            PairwiseCycle(10, valid.pending, (),
+                          future=(object(),)),
+            PairwiseCycle(10, valid.pending,
+                          (PairConstraint("a", [], PairRelation.UNKNOWN),)),
+        )
+        for malformed in malformed_states:
+            with self.subTest(malformed=malformed):
+                result = process(malformed, "a")
+                self.assertEqual(result.code, StepCode.INVALID_INPUT)
+                self.assertIs(result.state, malformed)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
