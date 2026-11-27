@@ -50,11 +50,23 @@ class W07PairwiseCycleTests(unittest.TestCase):
         self.assertEqual(advanced.code, StepCode.ADVANCED)
         self.assertEqual([item.identity for item in advanced.state.pending], ["c"])
 
-    def test_c_causes_b_requires_c_first_despite_larger_microstep(self):
-        state = self.after_a(PairRelation.SECOND_CAUSES_FIRST)
-        blocked = process(state, "b")
-        self.assertEqual(blocked.code, StepCode.BLOCKED)
-        self.assertIs(blocked.state, state)
+    def test_c_causes_b_conflicting_microstep_assignment_is_invalid(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("b", "vdp", 0),),
+            (PairConstraint("b", "c", PairRelation.SECOND_CAUSES_FIRST),),
+            future=(Obligation("c", "psg", 1),),
+        )
+        result = process(state, "b")
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
+    def test_c_causes_b_when_microstep_assignment_is_consistent(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("b", "vdp", 1), Obligation("c", "psg", 0)),
+            (PairConstraint("b", "c", PairRelation.SECOND_CAUSES_FIRST),),
+        )
         advanced = process(state, "c")
         self.assertEqual(advanced.code, StepCode.ADVANCED)
         self.assertEqual([item.identity for item in advanced.state.pending], ["b"])
