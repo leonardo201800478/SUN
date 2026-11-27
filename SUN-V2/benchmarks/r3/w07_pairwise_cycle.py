@@ -159,6 +159,7 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
     if current is None:
         return StepResult(state, StepCode.BLOCKED, "requested obligation is not pending")
     emitted_ids: list[str] = []
+    future_by_id = {item.identity: item for item in state.future}
     for child in emitted:
         if (
             not isinstance(child, Obligation)
@@ -168,9 +169,6 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
         ):
             return StepResult(state, StepCode.INVALID_INPUT, "invalid emitted obligation")
         emitted_ids.append(child.identity)
-    if len(set(emitted_ids)) != len(emitted_ids):
-        return StepResult(state, StepCode.INVALID_INPUT, "duplicate emitted obligation identity")
-    future_by_id = {item.identity: item for item in state.future}
         declared = future_by_id.get(child.identity)
         if declared is None:
             return StepResult(
@@ -187,6 +185,8 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
                 state, StepCode.INVALID_INPUT,
                 f"emitted obligation {child.identity} is not assigned to a later microstep",
             )
+    if len(set(emitted_ids)) != len(emitted_ids):
+        return StepResult(state, StepCode.INVALID_INPUT, "duplicate emitted obligation identity")
     earliest_microstep = min(item.microstep for item in state.pending)
     if current.microstep > earliest_microstep:
         for earlier in state.pending:
