@@ -3,25 +3,26 @@
 **Data:** 2026-11-27
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **PR:** #1284
-**HEAD validado para W05:** `b988acf40631c5264c1b2ccf099f96b651480831`
-**Atualização W05:** fixtures W03–W05 e emitter presentes no HEAD `b988acf40631c5264c1b2ccf099f96b651480831`; CI #11047 PASS em Linux/Windows. Os corpora canônico e replayável foram comparados byte a byte entre plataformas.
+**HEAD validado para W06:** `a2e9f68bb6ebedabe9750eb227d2e94fe82408fe`
+**Atualização W06:** fixtures W03–W06 e emitter presentes no HEAD `a2e9f68bb6ebedabe9750eb227d2e94fe82408fe`; CI #11050 PASS em Linux/Windows. Os corpora canônico e replayável foram comparados byte a byte entre plataformas; a divergência W06 foi preservada.
 **Classificação:** OBSERVATION do inventário de testes e fixtures; não é closeout de R3.
 
 ## 1. Resultado executivo
 
-CI #11047 validou o HEAD `b988acf40631c5264c1b2ccf099f96b651480831`; Linux e Windows executaram **168 testes PASS**. O corpus replayável contém **23 fixtures, 128 operações/cortes** e uma divergência intencional W07. Digest lógico `f8fcc00da65167ff7088e8ce02513a3ff0eb297774124d2a07fbb1e4d03b4fa4`; SHA-256 do JSON do corpus, idêntico nas duas plataformas: `8c2eaa7b3ed3a1b60f52c14464e9e802568e1273732b0f10cfb42d7568e8f46a`. O corpus canônico contém **112 fixtures/1.475 cortes**, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`; SHA-256 do JSON, idêntico Linux/Windows: `3612b9bce55d665f16211e7591b417b0de2855586e09b8f84320c8d5dee27ea8`. W03, W04 e W05 foram aprovadas em ambas as plataformas.
+CI #11050 validou o HEAD `a2e9f68bb6ebedabe9750eb227d2e94fe82408fe`; Linux e Windows executaram **169 testes PASS**. O corpus replayável contém **24 fixtures, 131 operações/cortes** e **duas divergências preservadas**: W06 e W07. Digest lógico `07551ec877a58597180470045ad24bd51444124d469b2dc2efdcc4e3d9dcba7e`; SHA-256 do JSON do corpus, idêntico nas duas plataformas: `fbb0940c3d8459763803193b67fd2d974241d66e3a50a98d560afd82a71c87ce`. O corpus canônico contém **112 fixtures/1.475 cortes**, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`; SHA-256 do JSON, idêntico Linux/Windows: `424cc26a3452acde2a36d4954cef6348021ec76cd818f7462663af4fe5990a9b`. W03, W04, W05 e W06 foram validadas em ambas as plataformas.
 
-- Corpus replayável validado no CI #11047: **23 fixtures / 128 operações e cortes**.
+- Corpus replayável validado no CI #11050: **24 fixtures / 131 operações e cortes**.
 - W00: **1 fixture / 2 operações e cortes**, validada em Linux e Windows.
 - W01: **1 fixture / 16 operações e cortes**, validada em Linux e Windows.
 - W02: **1 fixture / 6 operações e cortes**, validada em Linux e Windows.
 - W03: **1 fixture / 2 operações e cortes**, validada no CI #11037 em Linux e Windows.
 - W04: **1 fixture / 4 operações e cortes**, validada no CI #11041 em Linux e Windows.
 - W05: **1 fixture / 10 operações e cortes**, validada no CI #11047 em Linux e Windows.
+- W06: **1 fixture / 3 operações e cortes**, validada no CI #11050 em Linux e Windows; divergência P-A/R2 preservada.
 - W07: 1 fixture, mantendo a divergência P-A/R2.
 - W08: 12 fixtures de lifecycle de transação.
 - W09: 4 fixtures de snapshot/restore/replay.
-- W00–W05: existem fixtures declarativas e replayáveis; W00/W01/W02/W03/W04/W05 validadas em CI. W06 continua sem fixture replayável.
+- W00–W06: existem fixtures declarativas e replayáveis; W00/W01/W02/W03/W04/W05/W06 validadas em CI. W06 continua sem evidência física/externa autenticada (UNKNOWN).
 
 Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobertura replayável. O corpus permanece parcial e ainda não atende à migração completa dos workloads aplicáveis W00–W09.
 
@@ -35,7 +36,7 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 | W03 | Sincronização dirigida por observação | `test_p_a_causal_sync.py`, observação, dependências e bloqueios; `test_w03_replayable_fixture.py` | **Sim — 1 (2 operações/cortes; CI #11037 PASS)** | Primeira operação resolve `vdp-status` antes de `cpu-read`; segunda retorna BLOCKED por dependência ausente, sem progresso parcial nem mutação do ledger. P-A/R2 concordam em cada corte. OBSERVATION sintética; não estabelece ordem física SMS. |
 | W04 | Observações frequentes | `test_p_a_causal_sync.py`, incluindo `test_repeated_observation_trace_matches_r2_at_each_cut`; `test_w04_replayable_fixture.py` | **Sim — 1 (4 operações/cortes; CI #11041 PASS)** | Quatro chamadas independentes de `synchronize`, uma por corte racional; cada corte registra CPU/VDP/PSG, progresso completo e ledgers cumulativos. Replay independente P-A/R2. OBSERVATION sintética; não estabelece cadence ou clock físico SMS. |
 | W05 | Corridas de cancelamento | `test_p_a_deadline_lifecycle.py`; `test_w05_replayable_fixture.py` | **Sim — 1 (10 operações/cortes; CI #11047 PASS)** | Três deadlines D=10/20/30: C=8<D é admitido; close W10 bloqueia até arbitrar; após arbitragem W10 fecha. C=D=20 sem ordem explícita retorna INDETERMINATE sem mutação; C=32>D=30 retorna LATE_INPUT sem mutação. W30 fecha e reivindica os dois deadlines remanescentes. Estados completos incluem pendências de cancelamento. OBSERVATION sintética; sem causalidade física SMS. |
-| W06 | Simultaneidade UNKNOWN | `test_p_a_deadline_lifecycle.py`, grupos UNKNOWN e comparabilidade estrutural de fase | **Não** | Fixture sintética pode demonstrar somente a decisão UNKNOWN e a ausência de mutação; não pode autenticar fase física nem substituir o registro externo. |
+| W06 | Simultaneidade UNKNOWN / comparabilidade de phase basis | `test_p_a_deadline_lifecycle.py`; `test_w06_replayable_fixture.py` | **Sim — 1 (3 operações/cortes; CI #11050 PASS; divergência intencional)** | Dois deadlines simultâneos não comutativos com phase bases sintéticas distintas. P-A retorna INDETERMINATE sem mutação; R2 aceita usando phase_order/evidence sem validar uma basis comum. A diferença é registrada, não resolvida por suposição. IDs e hashes de validação são placeholders sintéticos; evidência física/externa permanece UNKNOWN. |
 | W07 | Microsteps | `test_w07_replayable_fixture.py` e `test_w07_pairwise_matrix.py` | **Sim — 1** | A relação B/C permanece não demonstrada; preservar a divergência e o primeiro corte divergente. |
 | W08 | Lifecycle de transação | `test_w08_replayable_fixture.py` | **Sim — 12** | Cobertura registrada para retry, sample/commit, WAIT, TW, cancelamento, falha e ledger parcial. Confirmar se workloads adicionais aplicáveis exigem novos cenários. |
 | W09 | Snapshot/restore/replay | `test_w09_replayable_fixture.py` | **Sim — 4** | Fixtures cobrem replay de entradas, gerações/ledgers, acknowledge e round-trip; continuam sintéticas e não demonstram hardware SMS. |
@@ -47,7 +48,7 @@ Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobe
 - `test_p_a_instruction_catchup.py`: 24 testes unitários/diferenciais, sem registro próprio de fixture replayável; W00 possui módulo declarativo separado.
 - `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais; `test_w01_replayable_fixture.py` e `test_w02_replayable_fixture.py` registram sequências declarativas próprias.
 - `test_p_a_causal_sync.py`: 14 testes unitários/diferenciais; `test_w03_replayable_fixture.py` e `test_w04_replayable_fixture.py` registram sequências declarativas próprias, validadas nos CI #11037/#11041.
-- `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais; `test_w05_replayable_fixture.py` registra uma sequência declarativa própria, validada no CI #11047.
+- `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais; `test_w05_replayable_fixture.py` e `test_w06_replayable_fixture.py` registram sequências declarativas próprias, validadas nos CI #11047/#11050.
 - `test_p_a_microsteps.py`: 11 testes, com matriz e divergência tratadas separadamente.
 - `test_w07_replayable_fixture.py`: 1 fixture registrada.
 - `test_w08_replayable_fixture.py`: 12 fixtures registradas.
@@ -64,7 +65,7 @@ A ordem abaixo reduz acoplamento entre os adapters e mantém o corpus verificáv
 4. **W03 — VALIDADA no CI #11037:** uma observação com dependência cross-device declarada e uma negativa por dependência ausente, com bloqueio atômico. 2 operações/cortes; replay independente P-A/R2. 166 testes PASS em Linux e Windows; corpus replayável 21/114, digest `4dfd24e30bd0871826dcf393b83d017b2e2afe7dee39c1a76ed4c0b38d2566d8`; SHA-256 do JSON idêntico `51d3a9db3dd084c5f15c1a321aeadb95a05eda766e7b00db55768c696f6c62bc`.
 5. **W04 — VALIDADA no CI #11041:** quatro chamadas de observação, quatro estados completos por corte, replay independente P-A/R2. 4 operações/cortes. 167 testes PASS em Linux e Windows; corpus replayável 22/118, digest `613d154e92160ac758c740da82d5338e964822ffbc9881e15e6f143ccf18f8e4`; SHA-256 do JSON idêntico `1987d6f46df4e6919a147065636962fb5a9533d6189b3e7987b8fb7efd2e1aeb`.
 6. **W05 — VALIDADA no CI #11047:** C<D admitido, fechamento do watermark bloqueado até arbitragem e depois aceito; C=D sem ordem explícita retorna INDETERMINATE sem mutação; C>D retorna LATE_INPUT sem mutação. 10 operações/cortes e estado integral incluindo pendências de cancelamento. 168 testes PASS Linux/Windows; corpus replayável 23/128, digest `f8fcc00da65167ff7088e8ce02513a3ff0eb297774124d2a07fbb1e4d03b4fa4`; SHA-256 JSON idêntico `8c2eaa7b3ed3a1b60f52c14464e9e802568e1273732b0f10cfb42d7568e8f46a`.
-7. **W06:** fixture sintética de decisão UNKNOWN apenas se ela agregar cobertura reexecutável distinta dos casos W02/W05. Não criar fixture com metadados sintéticos que se pareçam com evidência física validada.
+7. **W06 — VALIDADA no CI #11050, divergência preservada:** com duas phase bases distintas, P-A retorna INDETERMINATE e não avança watermark nem deadlines; R2 retorna Accepted e reivindica `phase-a`/`phase-b` pela ordem numérica. 3 operações/cortes; 169 testes PASS Linux/Windows. A divergência demonstra diferença entre modelos, não qual ordem física é correta. A validação física/externa continua UNKNOWN.
 
 Cada fixture deve:
 - usar entradas/argumentos declarativos e sequência contígua;
@@ -83,7 +84,8 @@ Não converter automaticamente cada teste unitário em fixture: agrupar cenário
 - [x] W02: fixture e replay validados em CI #11032 (6 operações/cortes).
 - [x] W03: fixture validada no CI #11037 (2 operações/cortes).
 - [x] W04: fixture validada no CI #11041 (4 operações/cortes).
-- [x] W05: fixture validada no CI #11047 (10 operações/cortes); 168 testes PASS em Linux/Windows e artefatos canônicos/replayáveis byte a byte idênticos. W06 continua sem fixture replayável aplicável ou justificativa de não aplicabilidade/duplicação.
+- [x] W05: fixture validada no CI #11047 (10 operações/cortes).
+- [x] W06: fixture validada no CI #11050 (3 operações/cortes); divergência P-A/R2 preservada e artefatos canônicos/replayáveis byte a byte idênticos. Evidência física/externa UNKNOWN. W06 continua sem fixture replayável aplicável ou justificativa de não aplicabilidade/duplicação.
 - [ ] W07/W08/W09 permanecem registrados e suas divergências conhecidas são preservadas.
 - [ ] Em cada fixture, P-A e R2 são reexecutados de forma independente a partir das mesmas entradas.
 - [ ] O corpus agregado registra contagem por workload, operações/cortes e divergências.
