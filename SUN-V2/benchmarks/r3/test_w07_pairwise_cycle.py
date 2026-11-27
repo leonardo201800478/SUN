@@ -202,5 +202,52 @@ class W07PairwiseCycleTests(unittest.TestCase):
         self.assertEqual(result.code, StepCode.INVALID_INPUT)
         self.assertIs(result.state, state)
 
+
+    def test_validate_rejects_malformed_collection_shapes_without_mutation(self):
+        valid = self.initial()
+        malformed_states = (
+            PairwiseCycle(10, list(valid.pending), valid.constraints),
+            PairwiseCycle(10, valid.pending, list(valid.constraints)),
+            PairwiseCycle(10, valid.pending, valid.constraints, resolved=["done"]),
+            PairwiseCycle(10, valid.pending, valid.constraints, future=[Obligation("c", "psg", 1)]),
+            PairwiseCycle(10, (object(),), valid.constraints),
+            PairwiseCycle(10, valid.pending, (object(),)),
+            PairwiseCycle(10, valid.pending, valid.constraints, resolved=([],)),
+            PairwiseCycle(10, valid.pending, valid.constraints, resolved=("   ",)),
+            PairwiseCycle(10, valid.pending, valid.constraints, resolved=("done", "done")),
+            PairwiseCycle(10, valid.pending, valid.constraints, resolved=("a",)),
+            PairwiseCycle(10, valid.pending, valid.constraints, resolved=("c",), future=valid.future),
+            PairwiseCycle(10, valid.pending, valid.constraints,
+                          future=(Obligation("c", "psg", 1), Obligation("c", "psg", 1))),
+            PairwiseCycle(10, valid.pending, valid.constraints,
+                          future=(Obligation("c", "psg", True),)),
+            PairwiseCycle(10, valid.pending, valid.constraints,
+                          future=(Obligation("c", "psg", -1),)),
+            PairwiseCycle(10, valid.pending,
+                          (PairConstraint("a", "b", "commutative"),)),
+            PairwiseCycle(10, valid.pending,
+                          (PairConstraint("a", "a", PairRelation.UNKNOWN),)),
+            PairwiseCycle(10, valid.pending,
+                          (PairConstraint([], "b", PairRelation.UNKNOWN),)),
+            PairwiseCycle(10, valid.pending,
+                          (PairConstraint("a", "missing", PairRelation.UNKNOWN),)),
+        )
+        for malformed in malformed_states:
+            with self.subTest(malformed=malformed):
+                result = process(malformed, "a")
+                self.assertEqual(result.code, StepCode.INVALID_INPUT)
+                self.assertIs(result.state, malformed)
+
+    def test_validate_rejects_invalid_operation_collection_shapes_without_mutation(self):
+        state = self.initial()
+        for emitted in ([], {}, None, "not-a-tuple"):
+            with self.subTest(emitted=emitted):
+                result = process(state, "a", emitted=emitted)
+                self.assertEqual(result.code, StepCode.INVALID_INPUT)
+                self.assertIs(result.state, state)
+        result = process(state, [], emitted=())
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
