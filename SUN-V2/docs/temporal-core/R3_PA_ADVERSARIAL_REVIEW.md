@@ -572,7 +572,7 @@ A recomendação de cobertura estrutural foi atendida e validada no SHA indicado
 
 A matriz estrutural foi ampliada de 17 para **18 testes** no módulo `test_w07_pairwise_cycle.py`. A última adição cobre instância de ciclo inválida, tipo inválido de `at_common`, descritores pendentes/futuros com campos malformados e endpoint de relação com tipo inválido. Todos os casos negativos exigem `InvalidInput` e preservação por identidade do estado original.
 
-**HEAD validado:** `0f917ed9b5b26c1862623b9c14a6812e82183d0c`.  
+**HEAD validado:** `0f917ed9b5b26c1862623b9c14a6812e82183d0c`.
 **CI #11083:** [run 46074762710](https://github.com/leonardo201800478/SUN/actions/runs/46074762710) — **SUCCESS**.
 
 - R3 disposable suite: **188/188 PASS Linux e 188/188 PASS Windows**.
