@@ -482,3 +482,15 @@ O caso W07 original, B/C sem relação demonstrada, continua `IndeterminateCausa
 - O emissor/replay do corpus executou 169 testes. Os 13 testes adicionais do candidato par-a-par não são incorporados ao corpus W07 replayável nem alteram os 24 fixtures/131 cortes.
 
 **Limite:** CI #11067 comprova os testes sintéticos e a igualdade dos artefatos gerados. Não valida relação física B/C, não autentica W06, não integra o novo ciclo ao P-A, não fecha o corpus reexecutável W00–W09 e não aprova P-A/R3 como gate. W07 permanece BLOCKED para o perfil físico; W06 físico permanece UNKNOWN; P-D/P-E não iniciados; R4/R5 pendentes.
+
+
+## 13. W06 — isolamento da variável de comparabilidade (27/11/2026)
+
+A fixture W06 foi refinada para não variar simultaneamente a base de fase e o rótulo de evidência por evento. Os dois deadlines agora:
+- mantêm `phase_order` distintos;
+- usam exatamente o mesmo `phase_evidence` sintético (`shared-synthetic-capture`);
+- declaram `APhaseBasis` estruturalmente válida, porém diferente (perfil/base A versus perfil/base B).
+
+Assim, a divergência observada isola a comparabilidade da base: P-A retorna `IndeterminateCausalOrder` sem fechar W nem reivindicar deadlines; R2 continua aceitando a ordem numérica. O R2 aprovado não possui campo `phase_basis` e seu predicado de ordenação não compara uma base estruturada compartilhada.
+
+A alteração é uma melhoria do desenho experimental, não uma mudança de semântica. Os placeholders continuam sintéticos e não autenticam qualquer medição ou perfil SMS. A nova fixture/corpus precisa de CI próprio; o CI #11067 validou a versão anterior da fixture e não valida esta alteração.
