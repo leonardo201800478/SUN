@@ -22,9 +22,9 @@ CI #11050 validou o HEAD `a2e9f68bb6ebedabe9750eb227d2e94fe82408fe`; Linux e Win
 - W07: 1 fixture, mantendo a divergência P-A/R2.
 - W08: 12 fixtures de lifecycle de transação.
 - W09: 4 fixtures de snapshot/restore/replay.
-- W00–W06: existem fixtures declarativas e replayáveis; W00/W01/W02/W03/W04/W05/W06 validadas em CI. W06 continua sem evidência física/externa autenticada (UNKNOWN).
+- W00–W09: todos os workloads têm ao menos uma fixture replayável registrada; W00–W06 validados nos CI correspondentes. W06 não tem evidência física/externa autenticada (UNKNOWN); W07 mantém divergência BLOCKED. W08/W09 têm múltiplas fixtures.
 
-Portanto, não classificar a cobertura de teste unitário de W00–W06 como cobertura replayável. O corpus permanece parcial e ainda não atende à migração completa dos workloads aplicáveis W00–W09.
+Portanto, distinguir cobertura replayável sintética de cobertura semântica/arquitetural completa: há fixtures para W00–W09, mas isso não fecha W06 físico, W07 causalidade/comutatividade, P-A closeout nem equivalência cruzada P-A/P-D/P-E. O corpus não autoriza iniciar P-D/P-E.
 
 ## 2. Matriz de cobertura observada
 
@@ -85,12 +85,12 @@ Não converter automaticamente cada teste unitário em fixture: agrupar cenário
 - [x] W03: fixture validada no CI #11037 (2 operações/cortes).
 - [x] W04: fixture validada no CI #11041 (4 operações/cortes).
 - [x] W05: fixture validada no CI #11047 (10 operações/cortes).
-- [x] W06: fixture validada no CI #11050 (3 operações/cortes); divergência P-A/R2 preservada e artefatos canônicos/replayáveis byte a byte idênticos. Evidência física/externa UNKNOWN. W06 continua sem fixture replayável aplicável ou justificativa de não aplicabilidade/duplicação.
-- [ ] W07/W08/W09 permanecem registrados e suas divergências conhecidas são preservadas.
-- [ ] Em cada fixture, P-A e R2 são reexecutados de forma independente a partir das mesmas entradas.
-- [ ] O corpus agregado registra contagem por workload, operações/cortes e divergências.
-- [ ] Linux e Windows produzem artefatos byte a byte idênticos.
-- [ ] Os resultados não são apresentados como evidência física SMS nem como desempenho Rust.
+- [x] W06: fixture validada no CI #11050 (3 operações/cortes); divergência P-A/R2 preservada e artefatos canônicos/replayáveis byte a byte idênticos. Evidência física/externa UNKNOWN.
+- [x] W07/W08/W09 permanecem registrados; divergência W07 e demais resultados conhecidos são preservados.
+- [x] Em cada fixture replayável, P-A e R2 são reexecutados de forma independente a partir das mesmas entradas.
+- [x] O corpus agregado registra contagem por workload, operações/cortes e divergências.
+- [x] Linux e Windows produzem artefatos byte a byte idênticos.
+- [x] Os resultados não são apresentados como evidência física SMS nem como desempenho Rust.
 
 ## 6. Disposição dos gates
 
