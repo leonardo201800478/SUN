@@ -132,6 +132,17 @@ class W07PairwiseCycleTests(unittest.TestCase):
         self.assertEqual(result.code, StepCode.INVALID_INPUT)
         self.assertIs(result.state, state)
 
+    def test_emitted_child_cannot_be_inserted_at_or_before_current_microstep(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            future=(Obligation("c", "psg", 0),),
+        )
+        result = process(state, "a", emitted=(Obligation("c", "psg", 0),))
+        self.assertEqual(result.code, StepCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
     def test_future_declaration_identity_cannot_alias_pending(self):
         state = PairwiseCycle(
             10,
