@@ -154,3 +154,14 @@ A diferença é registrada como **divergência intencional** no corpus replayáv
 **Limite de evidência:** os IDs de validação e hashes da fixture são placeholders sintéticos; não apontam para registros externos nem trust anchors. A divergência mostra apenas que os modelos aplicam critérios diferentes de comparabilidade. Ela não estabelece qual ordenação é correta no hardware, nem autentica fase física SMS. Evidência externa/física W06 permanece **UNKNOWN**.
 
 **Disposição:** manter R2 aprovado e imutável; preservar a divergência e encaminhar a diferença para revisão independente. Nenhuma alteração normativa R1/R2, closeout P-A, P-D/P-E, R4/R5 ou código de produção é autorizada por este aditivo.
+
+
+## 9. W06 — controle discriminante com rótulo de evidência compartilhado (27/11/2026)
+
+A fixture `test_w06_replayable_fixture.py` foi refinada: os dois deadlines não comutativos continuam com `phase_order` distintos e `APhaseBasis` sintéticas distintas, mas agora recebem o mesmo rótulo `phase_evidence="shared-synthetic-capture"`. A fixture também afirma explicitamente que os dois rótulos são iguais.
+
+Esse controle remove a variação do rótulo de evidência como explicação alternativa para a divergência:
+- P-A compara a estrutura de `APhaseBasis` e mantém o resultado `IndeterminateCausalOrder` porque as bases diferem.
+- R2 não possui `phase_basis`; seu predicado verifica presença de `phase_order`/`phase_evidence` e unicidade de `phase_order`, sem exigir uma base estruturada comum. Continua aceitando e reivindicando os dois deadlines.
+
+A alteração torna a fixture mais discriminante para a lacuna de comparabilidade do R2. O rótulo compartilhado e os registros/hash continuam sintéticos; não são prova de fase elétrica, medição SMS ou trust anchor. R2 permanece imutável. O novo conteúdo exige CI no HEAD atualizado.
