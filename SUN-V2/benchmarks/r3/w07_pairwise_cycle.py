@@ -80,8 +80,8 @@ def _validate(state: PairwiseCycle) -> str | None:
     for item in state.constraints:
         if (
             not isinstance(item, PairConstraint)
-            or item.first_id not in ids | set(state.resolved)
-            or item.second_id not in ids | set(state.resolved)
+            or not isinstance(item.first_id, str) or not item.first_id.strip()
+            or not isinstance(item.second_id, str) or not item.second_id.strip()
             or item.first_id == item.second_id
             or not isinstance(item.relation, PairRelation)
         ):
