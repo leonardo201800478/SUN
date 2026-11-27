@@ -121,6 +121,7 @@ def canonical_book(book):
         (
             item.owner, item.identity, item.generation, item.at_common,
             item.microstep_level, item.phase_order, item.phase_evidence,
+            item.phase_basis,
         )
         for item in book.pending_cancellations
     ))
@@ -313,6 +314,39 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         self.compare(actual, expected)
         self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
         self.assertEqual(actual.book, first.book)
+
+    def test_cancel_at_d_phase_order_without_comparable_basis_is_indeterminate(self):
+        first = publish_deadline(
+            self.empty, self.context, owner="cpu", identity="irq",
+            generation=0, at_common=Fraction(10), effect_id="irq-line",
+            phase_order=2, phase_evidence="same-label",
+        )
+        result = cancel_deadline(
+            first.book, self.context, owner="cpu", identity="irq",
+            generation=0, at_common=Fraction(10),
+            phase_order=1, phase_evidence="same-label",
+        )
+        self.assertEqual(result.code, ADeadlineCode.INDETERMINATE)
+        self.assertIs(result.book, first.book)
+
+    def test_cancel_at_d_phase_order_accepts_same_validated_basis(self):
+        basis = APhaseBasis(
+            "synthetic-profile", "rev-1", "phase-coordinate", "phase-unit",
+            1, 1, "synthetic-basis", "rev-1", "fixture-validation-record",
+            "a" * 64,
+        )
+        first = publish_deadline(
+            self.empty, self.context, owner="cpu", identity="irq",
+            generation=0, at_common=Fraction(10), effect_id="irq-line",
+            phase_order=2, phase_evidence="deadline-capture", phase_basis=basis,
+        )
+        result = cancel_deadline(
+            first.book, self.context, owner="cpu", identity="irq",
+            generation=0, at_common=Fraction(10),
+            phase_order=1, phase_evidence="cancel-capture", phase_basis=basis,
+        )
+        self.assertEqual(result.code, ADeadlineCode.ACCEPTED)
+        self.assertEqual(result.book.pending_cancellations[0].phase_basis, basis)
 
     def test_cancel_at_d_uses_explicit_microstep_order(self):
         first = self.publish(
@@ -569,6 +603,23 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
         self.assertEqual(actual.book, equalized)
         self.assertIsNone(actual.book.watermark_common)
+
+    def test_cross_microstep_noncommutative_events_do_not_gain_order_from_level(self):
+        first = self.publish(
+            owner="cpu", identity="level-zero", generation=0,
+            at_common=Fraction(10), effect_id="a",
+        )
+        second = self.publish(
+            book=first.book, owner="vdp", identity="level-one", generation=0,
+            at_common=Fraction(10), effect_id="b",
+            microstep=True, microstep_level=1,
+        )
+        before = second.book
+        result = close_watermark(before, Fraction(10))
+        self.assertEqual(result.code, ADeadlineCode.INDETERMINATE)
+        self.assertIs(result.book, before)
+        self.assertIsNone(result.book.watermark_common)
+        self.assertEqual(result.claimed, ())
 
     def test_noncommutative_unknown_tie_does_not_close_watermark(self):
         first = self.publish(

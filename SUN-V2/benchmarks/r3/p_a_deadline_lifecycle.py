@@ -78,6 +78,7 @@ class ACancellation:
     microstep_level: int | None = None
     phase_order: int | None = None
     phase_evidence: str | None = None
+    phase_basis: APhaseBasis | None = None
 
 
 @dataclass(frozen=True)
@@ -292,6 +293,10 @@ def _validate_book(book: object) -> str | None:
                 not isinstance(item.phase_evidence, str) or not item.phase_evidence.strip()
             ))
             or ((item.phase_order is None) != (item.phase_evidence is None))
+            or (item.phase_basis is not None and (
+                not _valid_phase_basis(item.phase_basis)
+                or item.phase_order is None or item.phase_evidence is None
+            ))
         ):
             return "pending cancellation entry is structurally invalid"
         key = (item.identity, item.generation)
@@ -322,6 +327,8 @@ def _precedes(request: ACancellation, deadline: ADeadline) -> bool | None:
         request.phase_order is not None
         and deadline.phase_order is not None
         and request.phase_evidence == deadline.phase_evidence
+        and _valid_phase_basis(request.phase_basis)
+        and request.phase_basis == deadline.phase_basis
         and request.phase_order != deadline.phase_order
     ):
         return request.phase_order < deadline.phase_order
@@ -494,7 +501,7 @@ def cancel_deadline(
     book: ADeadlineBook, context: ADeadlineContext, *,
     owner: str, identity: str, generation: int, at_common: Fraction,
     microstep_level: int | None = None, phase_order: int | None = None,
-    phase_evidence: str | None = None,
+    phase_evidence: str | None = None, phase_basis: APhaseBasis | None = None,
 ) -> ADeadlineResult:
     if (
         not isinstance(owner, str) or not owner.strip()
@@ -512,6 +519,10 @@ def cancel_deadline(
             not isinstance(phase_evidence, str) or not phase_evidence.strip()
         ))
         or ((phase_order is None) != (phase_evidence is None))
+        or (phase_basis is not None and (
+            not _valid_phase_basis(phase_basis)
+            or phase_order is None or phase_evidence is None
+        ))
     ):
         return ADeadlineResult(book, ADeadlineCode.INVALID_INPUT, "invalid cancellation descriptor")
     book_error = _validate_book_state(book)
@@ -532,7 +543,7 @@ def cancel_deadline(
         return ADeadlineResult(book, ADeadlineCode.LATE_INPUT, "C<=A(E) is retroactive")
     if at_common == deadline.at_common:
         request = ACancellation(owner, identity, generation, Fraction(at_common),
-                                microstep_level, phase_order, phase_evidence)
+                                microstep_level, phase_order, phase_evidence, phase_basis)
         precedes = _precedes(request, deadline)
         if precedes is None:
             return ADeadlineResult(book, ADeadlineCode.INDETERMINATE, "C=D requires explicit causal order")
@@ -543,7 +554,7 @@ def cancel_deadline(
     if book.watermark_common is not None and book.watermark_common >= deadline.at_common:
         return ADeadlineResult(book, ADeadlineCode.LATE_INPUT, "W already closed deadline instant")
     request = ACancellation(owner, identity, generation, Fraction(at_common),
-                            microstep_level, phase_order, phase_evidence)
+                            microstep_level, phase_order, phase_evidence, phase_basis)
     next_book = _replace_deadline(book, replace(deadline, status=ADeadlineStatus.CANCEL_PENDING))
     next_book = replace(next_book, pending_cancellations=next_book.pending_cancellations + (request,))
     return ADeadlineResult(next_book, ADeadlineCode.ACCEPTED, "cancellation admitted; arbitration pending")
@@ -564,24 +575,25 @@ def arbitrate_cancellations(book: ADeadlineBook) -> ADeadlineResult:
 
 
 def _causal_order_known(group: list[ADeadline]) -> bool:
-    levels = sorted({item.microstep for item in group})
-    for level in levels:
-        same = [item for item in group if item.microstep == level]
-        if len(same) < 2 or all(item.commutative for item in same):
-            continue
-        if any(
-            item.phase_order is None
-            or item.phase_evidence is None
-            or not _valid_phase_basis(item.phase_basis)
-            for item in same
-        ):
-            return False
-        if len({item.phase_order for item in same}) != len(same):
-            return False
-        first_basis = same[0].phase_basis
-        if any(item.phase_basis != first_basis for item in same[1:]):
-            return False
-    return True
+    """Require a relation for the entire simultaneous group, not each level alone.
+
+    Microstep numbers are not evidence of physical causality. A fully commutative
+    group may use any deterministic order; otherwise every member must share a
+    validated phase basis and a unique phase order across the whole instant.
+    """
+    if len(group) < 2 or all(item.commutative for item in group):
+        return True
+    if any(
+        item.phase_order is None
+        or item.phase_evidence is None
+        or not _valid_phase_basis(item.phase_basis)
+        for item in group
+    ):
+        return False
+    if len({item.phase_order for item in group}) != len(group):
+        return False
+    first_basis = group[0].phase_basis
+    return all(item.phase_basis == first_basis for item in group[1:])
 
 
 def close_watermark(book: ADeadlineBook, target_common: Fraction) -> ADeadlineResult:
@@ -607,13 +619,12 @@ def close_watermark(book: ADeadlineBook, target_common: Fraction) -> ADeadlineRe
     ordered: list[ADeadline] = []
     for instant in instants:
         group = due_by_instant[instant]
-        for level in sorted({item.microstep for item in group}):
-            same = [item for item in group if item.microstep == level]
-            if len(same) > 1 and not all(item.commutative for item in same):
-                same.sort(key=lambda item: item.phase_order)
-            else:
-                same.sort(key=lambda item: item.identity)
-            ordered.extend(same)
+        if all(item.commutative for item in group):
+            ordered.extend(sorted(group, key=lambda item: item.identity))
+        else:
+            # The validated phase basis/order spans every microstep in this
+            # simultaneous group; numeric microstep cannot add precedence.
+            ordered.extend(sorted(group, key=lambda item: item.phase_order))
     next_book = book
     for item in ordered:
         next_book = _replace_deadline(next_book, replace(item, status=ADeadlineStatus.CLAIMED))

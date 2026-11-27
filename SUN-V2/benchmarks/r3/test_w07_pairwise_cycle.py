@@ -285,5 +285,40 @@ class W07PairwiseCycleTests(unittest.TestCase):
                 self.assertEqual(result.code, StepCode.INVALID_INPUT)
                 self.assertIs(result.state, malformed)
 
+    def test_finite_microstep_limit_accepts_boundary(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            future=(Obligation("c", "psg", 32),),
+            max_microsteps=32,
+        )
+        result = process(state, "a", emitted=(Obligation("c", "psg", 32),))
+        self.assertEqual(result.code, StepCode.ADVANCED)
+        self.assertIn(Obligation("c", "psg", 32), result.state.pending)
+
+    def test_finite_microstep_limit_exhaustion_is_atomic(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            future=(Obligation("c", "psg", 33),),
+            max_microsteps=32,
+        )
+        result = process(state, "a", emitted=(Obligation("c", "psg", 33),))
+        self.assertEqual(result.code, StepCode.RESOURCE_EXHAUSTED)
+        self.assertIs(result.state, state)
+
+    def test_invalid_finite_microstep_limits_are_rejected_without_mutation(self):
+        valid = self.initial()
+        for limit in (0, -1, True):
+            malformed = PairwiseCycle(
+                valid.at_common, valid.pending, valid.constraints,
+                valid.resolved, valid.future, limit,
+            )
+            result = process(malformed, "a")
+            self.assertEqual(result.code, StepCode.INVALID_INPUT)
+            self.assertIs(result.state, malformed)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

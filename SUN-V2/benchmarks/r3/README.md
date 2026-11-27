@@ -39,7 +39,7 @@ Do not import R2 model classes into timed prototype implementations.
 - `test_p_a_transactions.py`: 18 R2 differential tests for idempotency, sample/commit exactly-once, wait/resume, TW budgets, cancellation, partial failure and explicit recovery.
 - `test_p_a_snapshots.py`: 27 tests for R2 snapshot equivalence, ambiguous acknowledge cuts, atomic restore, canonical digest and deterministic replay properties.
 - `test_p_a_deadline_lifecycle.py`: W06 group-size/permutation coverage for 2/4/8/16 simultaneous deadlines, plus phase-basis discriminants.
-- Total: **125 tests** (24 advance/catch-up, 31 deadline lifecycle, 14 causal sync, 8 microstep tests, 18 transactions, 27 snapshot/replay and 3 benchmark-statistics tests).
+- **125 tests** são o subconjunto dos módulos de núcleo discriminados acima; esse número não representa a suíte R3 completa. No HEAD revisado `4afc71a4ee7f0d47bb57213a2fe63016776434e6`, o runner completo `emit_p_a_trace_corpus.py` descobria **188 testes**, incluindo harnesses, adapters/fixtures replayáveis e a matriz W07. O total atualizado deve ser lido do resultado do runner/CI do SHA validado, não inferido pela soma deste inventário parcial.
 
 ## Historical validation and benchmark status — CI #10902
 

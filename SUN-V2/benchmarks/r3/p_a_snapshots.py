@@ -18,6 +18,7 @@ class PASnapshotCode(str, Enum):
     INVALID_INPUT = "InvalidInput"
     INCOMPATIBLE = "IncompatibleSnapshot"
     UNSUPPORTED = "UnsupportedSnapshot"
+    LATE_INPUT = "LateInput"
 
 
 class PADeadlineState(str, Enum):
@@ -183,15 +184,16 @@ def _validate_state(state: object) -> str | None:
         if not _exact(domain.progress_common) or not _exact(domain.residual):
             return "invalid domain coordinate"
 
-    deadline_ids: set[str] = set()
+    deadline_keys: set[tuple[str, int]] = set()
     for deadline in state.deadlines:
         if (
             not isinstance(deadline, PADeadlineRecord)
             or type(deadline.identity) is not str or not deadline.identity.strip()
-            or deadline.identity in deadline_ids
+            or type(deadline.generation) is not int or deadline.generation < 0
+            or (deadline.identity, deadline.generation) in deadline_keys
         ):
-            return "invalid deadline identity"
-        deadline_ids.add(deadline.identity)
+            return "invalid deadline identity/generation"
+        deadline_keys.add((deadline.identity, deadline.generation))
         if (
             type(deadline.generation) is not int or deadline.generation < 0
             or not _exact(deadline.at_common)
@@ -460,6 +462,8 @@ def _artifact_state(artifact: PASnapshotArtifact) -> PAMachineState:
     if actual != artifact.digest:
         raise ValueError("snapshot payload digest mismatch")
     state = _decode_state(artifact.payload)
+    if _encode_state(state) != artifact.payload:
+        raise ValueError("snapshot payload is not canonical")
     if state.profile != artifact.profile or state.model_version != artifact.model_version:
         raise ValueError("snapshot metadata disagrees with payload")
     invalid = _validate_state(state)
@@ -588,6 +592,11 @@ def replay_from_snapshot(
             return PAReplayResult(
                 PASnapshotCode.INVALID_INPUT, state, _state_digest(state),
                 "replay references an unknown domain",
+            )
+        if event.at_common <= domains[index].progress_common:
+            return PAReplayResult(
+                PASnapshotCode.LATE_INPUT, state, _state_digest(state),
+                "replay event is at or behind the domain admission frontier",
             )
         if event.progress_common < domains[index].progress_common:
             return PAReplayResult(

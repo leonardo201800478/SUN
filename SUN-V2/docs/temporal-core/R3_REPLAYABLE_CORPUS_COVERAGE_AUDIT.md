@@ -43,12 +43,12 @@ Portanto, distinguir cobertura replayável sintética de cobertura semântica/ar
 
 ## 3. Fontes de código verificadas
 
-- `SUN-V2/benchmarks/r3/emit_p_a_trace_corpus.py`: a lista `TEST_MODULES` inclui os módulos P-A, o harness e os testes replayáveis W00/W01/W02/W03/W07/W08/W09; W04–W06 ainda não possuem módulos replayáveis.
+- `SUN-V2/benchmarks/r3/emit_p_a_trace_corpus.py`: a lista `TEST_MODULES` inclui os módulos P-A, o harness e os adaptadores replayáveis W00–W09, além de `test_w07_pairwise_matrix.py`. W04, W05 e W06 possuem módulos próprios (`test_w04_replayable_fixture.py`, `test_w05_replayable_fixture.py` e `test_w06_replayable_fixture.py`); portanto, a afirmação histórica de que esses módulos não existiam está superada.
 - `SUN-V2/benchmarks/r3/replayable_fixture_corpus.py`: schema `sun.chronos.r3.replayable-fixture.v0.1`; guarda estado inicial, operações, estados completos por corte, digests por lado e primeira divergência.
 - `test_p_a_instruction_catchup.py`: 24 testes unitários/diferenciais, sem registro próprio de fixture replayável; W00 possui módulo declarativo separado.
-- `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais; `test_w01_replayable_fixture.py` e `test_w02_replayable_fixture.py` registram sequências declarativas próprias.
-- `test_p_a_causal_sync.py`: 14 testes unitários/diferenciais; `test_w03_replayable_fixture.py` e `test_w04_replayable_fixture.py` registram sequências declarativas próprias, validadas nos CI #11037/#11041.
-- `test_p_a_deadline_lifecycle.py`: 31 testes unitários/diferenciais; `test_w05_replayable_fixture.py` e `test_w06_replayable_fixture.py` registram sequências declarativas próprias, validadas nos CI #11047/#11050.
+- `test_p_a_deadline_lifecycle.py`: contém testes unitários/diferenciais para publicação, cancelamento, arbitragem, comparabilidade de fase e fechamento de watermark; `test_w01_replayable_fixture.py` e `test_w02_replayable_fixture.py` registram sequências declarativas próprias.
+- `test_p_a_causal_sync.py`: contém testes unitários/diferenciais; `test_w03_replayable_fixture.py` e `test_w04_replayable_fixture.py` registram sequências declarativas próprias, validadas nos CI #11037/#11041.
+- `test_w05_replayable_fixture.py` e `test_w06_replayable_fixture.py` registram sequências declarativas próprias, validadas nos CI #11047/#11072.
 - `test_p_a_microsteps.py`: 11 testes, com matriz e divergência tratadas separadamente.
 - `test_w07_replayable_fixture.py`: 1 fixture registrada.
 - `test_w08_replayable_fixture.py`: 12 fixtures registradas.

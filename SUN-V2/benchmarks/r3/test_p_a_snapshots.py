@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
 import unittest
 from dataclasses import replace
@@ -291,6 +292,21 @@ class PASnapshotTests(unittest.TestCase):
         self.assertEqual(result.code.value, expected.code.value)
         self.assertIsNone(result.artifact)
 
+    def test_same_deadline_identity_with_distinct_generations_round_trips(self):
+        records = (
+            PADeadlineRecord("irq", 0, Fraction(5), PADeadlineState.CANCELLED),
+            PADeadlineRecord("irq", 1, Fraction(8), PADeadlineState.SCHEDULED),
+        )
+        source = machine(deadlines=records)
+        captured = capture(source)
+        self.assertEqual(captured.code, PASnapshotCode.OK)
+        restored = restore(
+            machine(), captured.artifact,
+            expected_profile="SMS-NTSC", expected_version="R1-0.3.18",
+        )
+        self.assertEqual(restored.code, PASnapshotCode.OK)
+        self.assertEqual(restored.restored_state.deadlines, records)
+
     def test_failed_transaction_does_not_auto_recover_on_restore(self):
         tx = PATransactionRecord(
             "tx", 0, PATransactionState.FAILED, Fraction(5),
@@ -356,6 +372,34 @@ class PASnapshotTests(unittest.TestCase):
         self.assertEqual(first.artifact.payload, second.artifact.payload)
         self.assertEqual(first.artifact.digest, second.artifact.digest)
 
+    def test_restore_rejects_noncanonical_payload_with_recomputed_digest(self):
+        source = machine()
+        canonical = capture(source).artifact
+        decoded = json.loads(canonical.payload)
+        pretty = json.dumps(decoded, indent=2, ensure_ascii=False).encode("utf-8")
+        noncanonical_fraction = json.loads(canonical.payload)
+        fraction = noncanonical_fraction["domains"][0]["residual"]
+        fraction["numerator"] *= 2
+        fraction["denominator"] *= 2
+        unreduced = json.dumps(
+            noncanonical_fraction, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        active = machine(watermark=Fraction(9))
+        for payload in (pretty, unreduced):
+            with self.subTest(payload=payload[:40]):
+                forged = replace(
+                    canonical, payload=payload,
+                    digest=hashlib.sha256(payload).hexdigest(),
+                )
+                result = restore(
+                    active, forged, expected_profile="SMS-NTSC",
+                    expected_version="R1-0.3.18",
+                )
+                self.assertEqual(result.code, PASnapshotCode.INCOMPATIBLE)
+                self.assertIs(result.active_state, active)
+                self.assertIsNone(result.restored_state)
+
     def test_payload_tampering_is_rejected_atomically(self):
         source = machine()
         artifact = capture(source).artifact
@@ -376,9 +420,9 @@ class PASnapshotTests(unittest.TestCase):
         ))
         artifact = capture(state).artifact
         events = (
-            PAReplayEvent(8, Fraction(9), "cpu", Fraction(11), Fraction(1, 5)),
-            PAReplayEvent(9, Fraction(9), "vdp", Fraction(12), Fraction(1, 4)),
-            PAReplayEvent(10, Fraction(10), "cpu", Fraction(13), Fraction(2, 9)),
+            PAReplayEvent(8, Fraction(11), "cpu", Fraction(11), Fraction(1, 5)),
+            PAReplayEvent(9, Fraction(11), "vdp", Fraction(12), Fraction(1, 4)),
+            PAReplayEvent(10, Fraction(12), "cpu", Fraction(13), Fraction(2, 9)),
         )
         return state, artifact, events
 
@@ -416,6 +460,20 @@ class PASnapshotTests(unittest.TestCase):
         self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
         self.assertEqual(result.state.input_cursor, 7)
         record_property(self.id(), "atomic-duplicate", result.state, state)
+
+    def test_replay_retroactive_domain_input_is_late_without_mutation(self):
+        state = machine(
+            domains=(PADomainState("cpu", Fraction(10), Fraction(1, 3)),),
+            watermark=Fraction(8),
+        )
+        artifact = capture(state).artifact
+        event = PAReplayEvent(8, Fraction(9), "cpu", Fraction(11), Fraction(1, 5))
+        result = replay_from_snapshot(artifact, (event,))
+        self.assertEqual(result.code, PASnapshotCode.LATE_INPUT)
+        self.assertIs(result.state, state)
+        self.assertEqual(result.state.input_cursor, state.input_cursor)
+        self.assertEqual(result.state.domains, state.domains)
+        record_property(self.id(), "atomic-retroactive-domain-input", result.state, state)
 
     def test_replay_progress_regression_is_rejected_atomically(self):
         state, artifact, _ = self.replay_fixture()

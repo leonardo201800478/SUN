@@ -22,6 +22,7 @@ class StepCode(str, Enum):
     COMPLETE = "Complete"
     BLOCKED = "Blocked"
     INDETERMINATE = "IndeterminateCausalOrder"
+    RESOURCE_EXHAUSTED = "ResourceExhausted"
     INVALID_INPUT = "InvalidInput"
 
 
@@ -46,6 +47,7 @@ class PairwiseCycle:
     constraints: tuple[PairConstraint, ...]
     resolved: tuple[str, ...] = ()
     future: tuple[Obligation, ...] = ()
+    max_microsteps: int = 32
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,8 @@ class StepResult:
 def _validate(state: PairwiseCycle) -> str | None:
     if not isinstance(state, PairwiseCycle) or type(state.at_common) is not int:
         return "invalid cycle or common instant"
+    if type(state.max_microsteps) is not int or state.max_microsteps <= 0:
+        return "maximum microsteps must be a positive integer"
     if type(state.pending) is not tuple or type(state.constraints) is not tuple:
         return "cycle collections must be immutable tuples"
     ids: set[str] = set()
@@ -67,6 +71,7 @@ def _validate(state: PairwiseCycle) -> str | None:
             or not isinstance(item.identity, str) or not item.identity.strip()
             or not isinstance(item.owner, str) or not item.owner.strip()
             or type(item.microstep) is not int or item.microstep < 0
+            or item.microstep > state.max_microsteps
             or item.identity in ids
         ):
             return "invalid or duplicated pending obligation"
@@ -179,6 +184,11 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
             return StepResult(
                 state, StepCode.INVALID_INPUT,
                 f"emitted obligation {child.identity} differs from its future declaration",
+            )
+        if child.microstep > state.max_microsteps:
+            return StepResult(
+                state, StepCode.RESOURCE_EXHAUSTED,
+                f"emitted obligation {child.identity} exceeds finite microstep limit {state.max_microsteps}",
             )
         if child.microstep <= current.microstep:
             return StepResult(
