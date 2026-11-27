@@ -45,6 +45,7 @@ class PairwiseCycle:
     pending: tuple[Obligation, ...]
     constraints: tuple[PairConstraint, ...]
     resolved: tuple[str, ...] = ()
+    future: tuple[Obligation, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,22 @@ def _validate(state: PairwiseCycle) -> str | None:
         return "invalid resolved ledger"
     if len(set(state.resolved)) != len(state.resolved) or ids.intersection(state.resolved):
         return "duplicate identity across pending/resolved ledger"
+    if type(state.future) is not tuple:
+        return "future declarations must be an immutable tuple"
+    future_ids: set[str] = set()
+    for item in state.future:
+        if (
+            not isinstance(item, Obligation)
+            or not isinstance(item.identity, str) or not item.identity.strip()
+            or not isinstance(item.owner, str) or not item.owner.strip()
+            or type(item.microstep) is not int or item.microstep < 0
+            or item.identity in ids
+            or item.identity in state.resolved
+            or item.identity in future_ids
+        ):
+            return "invalid, duplicated, or conflicting future declaration"
+        future_ids.add(item.identity)
+    known_ids = ids | set(state.resolved) | future_ids
     pairs: set[frozenset[str]] = set()
     for item in state.constraints:
         if (
@@ -83,6 +100,8 @@ def _validate(state: PairwiseCycle) -> str | None:
             or not isinstance(item.first_id, str) or not item.first_id.strip()
             or not isinstance(item.second_id, str) or not item.second_id.strip()
             or item.first_id == item.second_id
+            or item.first_id not in known_ids
+            or item.second_id not in known_ids
             or not isinstance(item.relation, PairRelation)
         ):
             return "invalid pairwise relation descriptor"
@@ -128,15 +147,24 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
     emitted_ids = [item.identity for item in emitted if isinstance(item, Obligation)]
     if len(emitted_ids) != len(emitted) or len(set(emitted_ids)) != len(emitted_ids):
         return StepResult(state, StepCode.INVALID_INPUT, "invalid emitted obligations")
-    existing = {item.identity for item in state.pending} | set(state.resolved)
-    if existing.intersection(emitted_ids):
-        return StepResult(state, StepCode.INVALID_INPUT, "emitted identity is not unique")
+    future_by_id = {item.identity: item for item in state.future}
     for child in emitted:
         if (
             not isinstance(child.owner, str) or not child.owner.strip()
             or type(child.microstep) is not int or child.microstep < 0
         ):
             return StepResult(state, StepCode.INVALID_INPUT, "invalid emitted obligation")
+        declared = future_by_id.get(child.identity)
+        if declared is None:
+            return StepResult(
+                state, StepCode.INVALID_INPUT,
+                f"emitted obligation {child.identity} was not declared as future",
+            )
+        if declared != child:
+            return StepResult(
+                state, StepCode.INVALID_INPUT,
+                f"emitted obligation {child.identity} differs from its future declaration",
+            )
     for other in state.pending:
         if other.identity == requested_id:
             continue
@@ -155,9 +183,16 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
         tuple(item for item in state.pending if item.identity != requested_id) + emitted,
         key=lambda item: (item.microstep, item.identity),
     ))
+    emitted_set = set(emitted_ids)
+    remaining_future = tuple(
+        item for item in state.future if item.identity not in emitted_set
+    )
     updated = PairwiseCycle(
-        state.at_common, pending, state.constraints,
-        tuple(sorted(state.resolved + (requested_id,))),
+        at_common=state.at_common,
+        pending=pending,
+        constraints=state.constraints,
+        resolved=tuple(sorted(state.resolved + (requested_id,))),
+        future=remaining_future,
     )
     return StepResult(
         updated, StepCode.COMPLETE if not pending else StepCode.ADVANCED,
