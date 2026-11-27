@@ -167,3 +167,21 @@ Validated HEAD: `d36c0966a6a9f5abf94872c769c62b29453e8517`; [CI #11079 / run 460
 - Rust workspace regression and unrelated hardware/runtime/desktop jobs: SKIPPED, not counted as PASS.
 
 The added matrix rejects malformed collection shapes, malformed/duplicate/conflicting `resolved` and `future` ledgers, invalid relation enums, self/unknown/unhashable endpoints and invalid operation collection shapes. Every negative case asserts `InvalidInput` and preservation of the original state object. This adds structural validation coverage only; it does not introduce temporal ordering rules or establish a physical B/C relation. W07 physical remains BLOCKED; W06 physical remains UNKNOWN; P-A is not closed; P-D/P-E remain NOT RUN; R4/R5 remain pending.
+
+
+## W07 malformed-state completion — CI #11083
+
+Validated HEAD: `0f917ed9b5b26c1862623b9c14a6812e82183d0c`; [CI #11083 / run 46074762710](https://github.com/leonardo201800478/SUN/actions/runs/46074762710) **SUCCESS**.
+
+- `test_w07_pairwise_cycle.py`: **18/18 PASS** on Linux and Windows.
+- Complete R3 disposable suite: **188/188 PASS** on Linux and Windows.
+- R2 independent Linux and R2 Python Windows: PASS.
+- Canonical/replayable corpus byte-equivalence Linux/Windows: PASS.
+- Documentation patch hygiene, workflow validation, change-impact classification and Rust quality supervisor: PASS.
+- Rust workspace regression and unrelated hardware/runtime/desktop jobs: SKIPPED, not counted as PASS.
+
+The final negative case matrix also covers malformed cycle instances, invalid `at_common` type, pending/future descriptor fields and malformed relation endpoints. Each negative input returns `InvalidInput` and preserves the exact original state object. This validates structure, not physical B/C causality.
+
+**Interpretive limitation:** the prototype's requirement that an emitted child use a strictly greater microstep than its emitter is a candidate policy chosen to avoid retroactive insertion. R1 §16.6.3 requires an explicit rule and prohibits retroactive insertion, but does not specify that this is the only admissible rule. Same-microstep append-after-emitter semantics are not covered. Treat strict advancement as an experimental policy/scope limitation, not a new normative R1 requirement.
+
+W07 physical remains BLOCKED; W06 physical remains UNKNOWN; P-A is not closed; P-D/P-E remain NOT RUN; R4/R5 remain pending.
