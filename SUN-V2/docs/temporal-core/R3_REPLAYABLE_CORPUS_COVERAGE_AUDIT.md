@@ -103,3 +103,21 @@ Não converter automaticamente cada teste unitário em fixture: agrupar cenário
 - O protótipo isolado `w07_pairwise_cycle.py` possui 17 testes após a ampliação da matriz negativa validada no CI #11079. Esses testes não são uma segunda fixture W07 e não alteram a contagem do corpus replayável.
 - A matriz negativa cobre formas inválidas das coleções, ledger `resolved`, colisões entre `pending`/`resolved`/`future`, descritores de relação, endpoints e preservação do estado original.
 - W07 físico continua BLOCKED; W06 físico continua UNKNOWN. P-A não está fechado; P-D/P-E permanecem NOT RUN/BLOCKED; R4/R5 pendentes.
+
+
+## 8. Aditivo — validação final W07 e classificação da política de emissão (27/11/2026)
+
+**HEAD:** `0f917ed9b5b26c1862623b9c14a6812e82183d0c`.  
+**CI #11083:** [run 46074762710](https://github.com/leonardo201800478/SUN/actions/runs/46074762710) — **SUCCESS**.
+
+- `test_w07_pairwise_cycle.py`: **18 testes PASS** em Linux e Windows.
+- Suíte R3 completa: **188/188 PASS** em Linux e Windows.
+- Emissor/replay do corpus: 170 testes PASS por sistema.
+- R2 independente Linux, R2 Python Windows, equivalência byte a byte dos corpora, higiene documental, validação de workflows e supervisor de qualidade Rust: PASS.
+- Rust workspace regression e jobs de hardware/runtime/desktop não relacionados: SKIPPED, não contabilizados como PASS.
+
+A matriz estrutural negativa inclui coleções com tipos incorretos, ledger `resolved`, conflitos entre `pending`/`resolved`/`future`, descritores e endpoints de relação inválidos, campos malformados de obrigações e operações inválidas. Todos os casos negativos exigem `InvalidInput` sem mutação do estado original. Os 18 testes do ciclo par-a-par são separados do emissor/replay e não adicionam uma nova fixture ao corpus.
+
+A exigência de que filho emitido use microstep estritamente maior que o emissor é política candidata do protótipo, não regra exclusiva expressa por R1 §16.6.3. R1 exige regra explícita e não retroatividade; outras políticas, como anexar após o emissor no mesmo microstep, não foram testadas. Manter a classificação HYPOTHESIS / INFERENCE até revisão específica.
+
+W07 físico continua BLOCKED; W06 físico continua UNKNOWN. P-A não está fechado; P-D/P-E permanecem NOT RUN/BLOCKED; R4/R5 pendentes.
