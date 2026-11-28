@@ -130,14 +130,14 @@ def reserve_and_submit(
     invalid = _validate_state(state)
     if invalid is not None:
         return BridgeResult(BridgeCode.INVALID_INPUT, state, invalid)
+    invalid = _validate_spec(spec)
+    if invalid is not None:
+        return BridgeResult(BridgeCode.INVALID_INPUT, state, invalid)
     if state.book.transactions and state.book.transactions[0].spec.identity != spec.identity:
         return BridgeResult(
             BridgeCode.INVALID_INPUT, state,
             "composition bridge admits one transaction identity per isolated state",
         )
-    invalid = _validate_spec(spec)
-    if invalid is not None:
-        return BridgeResult(BridgeCode.INVALID_INPUT, state, invalid)
     if type(marker_effects) is not tuple:
         return BridgeResult(BridgeCode.INVALID_INPUT, state, "marker_effects must be a tuple")
     commit_markers = {
