@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from itertools import combinations, permutations
 from fractions import Fraction
 
 from p_e_sync_on_demand import (
@@ -381,6 +382,98 @@ class SyncOnDemandTests(unittest.TestCase):
         )
         self.assertEqual(result.code, SyncCode.BLOCKED)
         self.assertIs(result.state, state)
+
+
+    @staticmethod
+    def _five_event_domains():
+        return tuple(
+            SyncDomain(f"d{index}", Fraction(0), Fraction(100))
+            for index in range(5)
+        )
+
+    def test_all_120_permutations_of_five_commutative_events_are_equivalent(self):
+        events = tuple(
+            SyncTransition(f"e{index}", f"d{index}", Fraction(5))
+            for index in range(5)
+        )
+        constraints = tuple(
+            SyncConstraint(first.identity, second.identity, PairRelation.COMMUTATIVE)
+            for first, second in combinations(events, 2)
+        )
+        expected = tuple(sorted(item.identity for item in events))
+        for ordered in permutations(events):
+            state = SyncState(self._five_event_domains(), tuple(ordered), constraints)
+            result = synchronize(
+                state,
+                requested_domains=("d0", "d1", "d2", "d3", "d4"),
+                target_common=Fraction(5),
+            )
+            self.assertEqual(result.code, SyncCode.REACHED)
+            self.assertEqual(result.state.observed, expected)
+            self.assertTrue(all(item.progress == Fraction(5) for item in result.state.domains))
+
+    def test_all_120_permutations_of_five_noncommutative_unknown_events_stay_indeterminate(self):
+        events = tuple(
+            SyncTransition(f"e{index}", f"d{index}", Fraction(5))
+            for index in range(5)
+        )
+        for ordered in permutations(events):
+            state = SyncState(self._five_event_domains(), tuple(ordered))
+            result = synchronize(
+                state,
+                requested_domains=("d0", "d1", "d2", "d3", "d4"),
+                target_common=Fraction(5),
+            )
+            self.assertEqual(result.code, SyncCode.INDETERMINATE)
+            self.assertIs(result.state, state)
+            self.assertEqual(result.state.observed, ())
+
+    def test_all_120_permutations_preserve_five_event_explicit_dependency_order(self):
+        events = tuple(
+            SyncTransition(
+                f"e{index}", f"d{index}", Fraction(5),
+                depends_on=() if index == 0 else (f"e{index - 1}",),
+            )
+            for index in range(5)
+        )
+        expected = tuple(item.identity for item in events)
+        for ordered in permutations(events):
+            state = SyncState(self._five_event_domains(), tuple(ordered))
+            result = synchronize(
+                state,
+                requested_domains=("d0", "d1", "d2", "d3", "d4"),
+                target_common=Fraction(5),
+            )
+            self.assertEqual(result.code, SyncCode.REACHED)
+            self.assertEqual(result.state.observed, expected)
+
+    def test_all_120_permutations_preserve_partial_order_with_commutative_siblings(self):
+        events = (
+            SyncTransition("a", "d0", Fraction(5)),
+            SyncTransition("b", "d1", Fraction(5)),
+            SyncTransition("c", "d2", Fraction(5), depends_on=("a", "b")),
+            SyncTransition("d", "d3", Fraction(5), depends_on=("a", "b", "c")),
+            SyncTransition("e", "d4", Fraction(5)),
+        )
+        constraints = (
+            SyncConstraint("a", "b", PairRelation.COMMUTATIVE),
+            SyncConstraint("a", "e", PairRelation.COMMUTATIVE),
+            SyncConstraint("b", "e", PairRelation.COMMUTATIVE),
+            SyncConstraint("c", "e", PairRelation.COMMUTATIVE),
+            SyncConstraint("d", "e", PairRelation.COMMUTATIVE),
+        )
+        expected = ("a", "b", "c", "d", "e")
+        for ordered in permutations(events):
+            state = SyncState(
+                self._five_event_domains(), tuple(ordered), constraints
+            )
+            result = synchronize(
+                state,
+                requested_domains=("d0", "d1", "d2", "d3", "d4"),
+                target_common=Fraction(5),
+            )
+            self.assertEqual(result.code, SyncCode.REACHED)
+            self.assertEqual(result.state.observed, expected)
 
 
 if __name__ == "__main__":
