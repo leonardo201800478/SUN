@@ -1,9 +1,9 @@
 # R3 FUP-02 — W03/W04 and R2-T07 traceability
 
-**Status:** PARTIAL — causal synchronization coverage expanded; not a gate approval  
-**R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`  
-**P-E differential:** PR #1291, HEAD `a729acf77205fcef7ff5a2291c3d164b98b1c8fb`, CI #11284 SUCCESS  
-**CI:** https://github.com/leonardo201800478/SUN/actions/runs/46169747181  
+**Status:** PARTIAL — causal synchronization coverage expanded; not a gate approval
+**R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`
+**P-E differential:** PR #1291, HEAD `a729acf77205fcef7ff5a2291c3d164b98b1c8fb`, CI #11284 SUCCESS
+**CI:** https://github.com/leonardo201800478/SUN/actions/runs/46169747181
 **Scope:** W03 observation-directed dependency closure and W04 repeated observations; applicable R2-T07 partial-order cases.
 
 ## 1. Evidence model
