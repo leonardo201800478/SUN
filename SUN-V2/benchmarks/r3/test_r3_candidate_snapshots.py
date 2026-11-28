@@ -144,7 +144,13 @@ class CandidateSnapshotTests(unittest.TestCase):
             "P-D", state, profile="SMS-NTSC",
             model_version="P-D-R3-W09-1", input_cursor=3,
         )
+        repeated = capture(
+            "P-D", state, profile="SMS-NTSC",
+            model_version="P-D-R3-W09-1", input_cursor=3,
+        )
         self.assertEqual(result.code, SnapshotCode.OK)
+        self.assertEqual(result.artifact.payload, repeated.artifact.payload)
+        self.assertEqual(result.artifact.digest, repeated.artifact.digest)
         restored = restore(
             AgendaState(), result.artifact,
             expected_candidate="P-D", expected_profile="SMS-NTSC",
@@ -351,6 +357,37 @@ class CandidateSnapshotTests(unittest.TestCase):
         self.assertEqual(result.state, state)
         self.assertEqual(result.input_cursor, 3)
         self.assertEqual(applied, [])
+
+    def test_replay_failure_after_valid_prefix_returns_original_restored_state(self):
+        state = pending_pd_state()
+        artifact = capture(
+            "P-D", state, profile="SMS-NTSC",
+            model_version="P-D-R3-W09-1", input_cursor=3,
+        ).artifact
+        applied = []
+
+        def apply(current, operation, arguments):
+            applied.append(operation)
+            if operation == "arbitrate":
+                result = pd_arbitrate_cancellations(current)
+                if result.code.value != "Accepted":
+                    raise ValueError(result.detail)
+                return result.state
+            raise ValueError("deliberate replay suffix failure")
+
+        replayed = replay_from_snapshot(
+            artifact,
+            (
+                make_replay_event(4, "arbitrate", {}),
+                make_replay_event(5, "deliberate-failure", {}),
+            ),
+            expected_candidate="P-D", expected_profile="SMS-NTSC",
+            expected_version="P-D-R3-W09-1", apply=apply,
+        )
+        self.assertEqual(replayed.code, SnapshotCode.INVALID_INPUT)
+        self.assertEqual(replayed.state, state)
+        self.assertEqual(replayed.input_cursor, 3)
+        self.assertEqual(applied, ["arbitrate", "deliberate-failure"])
 
     def test_replay_sequence_gap_is_rejected_without_partial_apply(self):
         state = pending_pd_state()
