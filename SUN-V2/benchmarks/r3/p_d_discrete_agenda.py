@@ -579,6 +579,8 @@ def publish(
         )
     if any(item.status is EventStatus.CLAIMED for item in prior):
         return AgendaResult(state, AgendaCode.BLOCKED, detail="claimed generation must be completed before replacement")
+    if any(item.status is EventStatus.DISPATCHED for item in prior):
+        return AgendaResult(state, AgendaCode.BLOCKED, detail="dispatched generation cannot be replaced")
     events = list(state.events)
     heap = list(state.heap)
     for item in prior:
@@ -655,6 +657,7 @@ def publish_with_context(
                 EventStatus.SCHEDULED,
                 EventStatus.CANCEL_PENDING,
                 EventStatus.CLAIMED,
+                EventStatus.DISPATCHED,
             ) for item in prior):
                 return AgendaResult(
                     state, AgendaCode.INVALID_INPUT,
