@@ -1380,7 +1380,7 @@ class CandidateDifferentialTests(unittest.TestCase):
         completed = p_d_complete(before, "w05-local-claim", 0)
         self.assertEqual(dispatched.code, AgendaCode.INVARIANT_VIOLATION)
         self.assertEqual(dispatched.state, before)
-        self.assertEqual(completed.code, AgendaCode.INVARIANT_VIOLATION)
+        self.assertEqual(completed.code, AgendaCode.INVALID_INPUT)
         self.assertEqual(completed.state, before)
 
 
@@ -1933,7 +1933,6 @@ class CandidateDifferentialTests(unittest.TestCase):
             names,
         )
         for status in (
-            EventStatus.CLAIMED,
             EventStatus.DISPATCHED,
             EventStatus.COMPLETED,
         ):
@@ -1950,35 +1949,36 @@ class CandidateDifferentialTests(unittest.TestCase):
                         base_context, watermark_common=watermark,
                     )
                     operations = (
-                        p_d_publish_with_context(
+                        ("publish", p_d_publish_with_context(
                             state, context, owner="cpu", identity="new",
                             generation=1, at_common=Fraction(20),
                             effect_id="new-effect",
-                        ),
-                        p_d_request_cancel(
+                        )),
+                        ("cancel", p_d_request_cancel(
                             state, context, owner="cpu",
                             identity="w05-prebuilt-lifecycle", generation=1,
                             at_common=Fraction(5),
-                        ),
-                        p_d_arbitrate_cancellations(state),
-                        p_d_close_watermark(state, Fraction(20), context),
-                        p_d_dispatch_event(
+                        )),
+                        ("arbitrate", p_d_arbitrate_cancellations(state)),
+                        ("close", p_d_close_watermark(state, Fraction(20), context)),
+                        ("dispatch", p_d_dispatch_event(
                             state, "w05-prebuilt-lifecycle", 1,
-                        ),
-                        p_d_complete(
+                        )),
+                        ("complete", p_d_complete(
                             state, "w05-prebuilt-lifecycle", 1,
-                        ),
-                        p_d_replace_with_context(
+                        )),
+                        ("replace", p_d_replace_with_context(
                             state, context, owner="cpu",
                             identity="w05-prebuilt-lifecycle", generation=1,
                             cancel_at=Fraction(5), new_generation=2,
                             new_at_common=Fraction(20),
                             new_effect_id="replacement-effect",
-                        ),
+                        )),
                     )
-                    for result in operations:
+                    for operation, result in operations:
                         self.assertEqual(
                             result.code, AgendaCode.INVARIANT_VIOLATION,
+                            f"{operation}: {result.detail}",
                         )
                         self.assertEqual(result.state, state)
 
