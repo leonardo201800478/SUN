@@ -6,6 +6,7 @@ or R2, and the measured paths remain independent.
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from fractions import Fraction
 from itertools import combinations
 
@@ -19,6 +20,9 @@ from p_a_deadline_lifecycle import (
     ADeadlineBook,
     ADeadlineCode,
     ADeadlineContext,
+    ADeadlineStatus,
+    arbitrate_cancellations as p_a_arbitrate_cancellations,
+    cancel_deadline as p_a_cancel_deadline,
     close_watermark as p_a_close_watermark,
     publish_deadline as p_a_publish_deadline,
 )
@@ -27,10 +31,16 @@ from p_a_instruction_catchup import AParticipant
 from p_d_discrete_agenda import (
     AgendaCode,
     AgendaConstraint,
+    AgendaContext,
+    AgendaParticipant,
     AgendaState,
+    EventStatus,
+    arbitrate_cancellations as p_d_arbitrate_cancellations,
     PairRelation as AgendaPairRelation,
     close_watermark as p_d_close_watermark,
     publish as p_d_publish,
+    publish_with_context as p_d_publish_with_context,
+    request_cancel as p_d_request_cancel,
 )
 from p_e_sync_on_demand import (
     PairRelation as SyncPairRelation,
@@ -40,6 +50,44 @@ from p_e_sync_on_demand import (
     SyncTransition,
     synchronize as p_e_synchronize,
 )
+
+
+def _p_a_w05_state(book):
+    return (
+        tuple(sorted((
+            item.identity, item.generation, item.owner, item.at_common,
+            item.effect_id, item.status.value, item.microstep,
+            item.phase_order, item.phase_evidence,
+        ) for item in book.deadlines)),
+        tuple(sorted((
+            item.identity, item.generation, item.owner, item.at_common,
+            item.microstep_level, item.phase_order, item.phase_evidence,
+        ) for item in book.pending_cancellations)),
+        book.watermark_common,
+        book.max_microsteps,
+    )
+
+
+def _p_d_w05_state(state):
+    scheduled = {
+        (item.at_common, item.identity, item.generation)
+        for item in state.events if item.status is EventStatus.SCHEDULED
+    }
+    if set(state.heap) != scheduled:
+        raise AssertionError("P-D heap does not match scheduled W05 events")
+    return (
+        tuple(sorted((
+            item.identity, item.generation, item.owner, item.at_common,
+            item.effect_id, item.status.value, item.microstep,
+            item.phase_order, item.phase_evidence,
+        ) for item in state.events)),
+        tuple(sorted((
+            item.identity, item.generation, item.owner, item.at_common,
+            item.microstep_level, item.phase_order, item.phase_evidence,
+        ) for item in state.pending_cancellations)),
+        state.watermark_common,
+        state.max_microsteps,
+    )
 
 
 class CandidateDifferentialTests(unittest.TestCase):
@@ -220,6 +268,124 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(candidate.state.observed, tuple(reference_order))
         self.assertTrue(all(item.progress == target for item in candidate.state.domains))
 
+
+    def test_p_d_w05_pending_cancel_may_cross_c_but_not_deadline_d(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            participants=(
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            expected_participants=names,
+        )
+        pd_context = AgendaContext(
+            participants=(
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            expected_participants=names,
+        )
+        pa_book, pd_state = ADeadlineBook(), AgendaState()
+
+        pa = p_a_publish_deadline(
+            pa_book, pa_context, owner="cpu", identity="w05-c-before-d",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        pd = p_d_publish_with_context(
+            pd_state, pd_context, owner="cpu", identity="w05-c-before-d",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        self.assertEqual(pa.code.value, pd.code.value)
+        pa_book, pd_state = pa.book, pd.state
+        self.assertEqual(_p_a_w05_state(pa_book), _p_d_w05_state(pd_state))
+
+        pa = p_a_cancel_deadline(
+            pa_book, pa_context, owner="cpu", identity="w05-c-before-d",
+            generation=0, at_common=Fraction(8),
+        )
+        pd = p_d_request_cancel(
+            pd_state, pd_context, owner="cpu", identity="w05-c-before-d",
+            generation=0, at_common=Fraction(8),
+        )
+        self.assertEqual(pa.code.value, pd.code.value)
+        pa_book, pd_state = pa.book, pd.state
+        self.assertEqual(_p_a_w05_state(pa_book), _p_d_w05_state(pd_state))
+
+        # W may pass C while remaining strictly before D. The admitted
+        # cancellation remains pending and arbitrable at that causal cut.
+        pa = p_a_close_watermark(pa_book, Fraction(9))
+        pd = p_d_close_watermark(pd_state, Fraction(9), pd_context)
+        self.assertEqual(pa.code.value, pd.code.value)
+        self.assertEqual(pa.code.value, "Accepted")
+        pa_book, pd_state = pa.book, pd.state
+        self.assertEqual(_p_a_w05_state(pa_book), _p_d_w05_state(pd_state))
+        pa_context = replace(pa_context, watermark_common=Fraction(9))
+        pd_context = replace(pd_context, watermark_common=Fraction(9))
+
+        # W must not cross D until the admitted C<D request is arbitrated.
+        pa = p_a_close_watermark(pa_book, Fraction(10))
+        pd = p_d_close_watermark(pd_state, Fraction(10), pd_context)
+        self.assertEqual(pa.code.value, pd.code.value)
+        self.assertEqual(pa.code.value, "Blocked")
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+        pa = p_a_arbitrate_cancellations(pa_book)
+        pd = p_d_arbitrate_cancellations(pd_state)
+        self.assertEqual(pa.code.value, pd.code.value)
+        self.assertEqual(pa.code.value, "Accepted")
+        pa_book, pd_state = pa.book, pd.state
+        self.assertEqual(_p_a_w05_state(pa_book), _p_d_w05_state(pd_state))
+        self.assertEqual(pa_book.deadlines[0].status, ADeadlineStatus.CANCELLED)
+
+        pa = p_a_close_watermark(pa_book, Fraction(10))
+        pd = p_d_close_watermark(pd_state, Fraction(10), pd_context)
+        self.assertEqual(pa.code.value, pd.code.value)
+        self.assertEqual(pa.code.value, "Accepted")
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+    def test_p_d_w05_cancel_admission_and_same_instant_order_match_p_a(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            participants=(
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            expected_participants=names,
+        )
+        pd_context = AgendaContext(
+            participants=(
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            expected_participants=names,
+        )
+        for at, expected_code in (
+            (Fraction(0), "LateInput"),
+            (Fraction(10), "IndeterminateCausalOrder"),
+            (Fraction(11), "LateInput"),
+        ):
+            with self.subTest(cancel_at=at):
+                pa = p_a_publish_deadline(
+                    ADeadlineBook(), pa_context, owner="cpu",
+                    identity="w05-boundary", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                pd = p_d_publish_with_context(
+                    AgendaState(), pd_context, owner="cpu",
+                    identity="w05-boundary", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                pa_cancel = p_a_cancel_deadline(
+                    pa.book, pa_context, owner="cpu",
+                    identity="w05-boundary", generation=0, at_common=at,
+                )
+                pd_cancel = p_d_request_cancel(
+                    pd.state, pd_context, owner="cpu",
+                    identity="w05-boundary", generation=0, at_common=at,
+                )
+                self.assertEqual(pa_cancel.code.value, expected_code)
+                self.assertEqual(pd_cancel.code.value, expected_code)
+                self.assertEqual(_p_a_w05_state(pa_cancel.book), _p_d_w05_state(pd_cancel.state))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
