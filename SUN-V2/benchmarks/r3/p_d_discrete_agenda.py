@@ -257,6 +257,19 @@ def apply_transaction(
         )
         return state, result
     result = operation(state.transactions, *args, **kwargs)
+    if not isinstance(result, TxResult):
+        invalid = TxResult(
+            TxCode.INVALID_INPUT, state.transactions,
+            detail="transaction operation returned an invalid result",
+        )
+        return state, invalid
+    invalid_book = _validate_book(result.book)
+    if invalid_book is not None:
+        invalid = TxResult(
+            TxCode.INVALID_INPUT, state.transactions,
+            detail="transaction operation produced an invalid book: " + invalid_book,
+        )
+        return state, invalid
     return replace(state, transactions=result.book), result
 
 
