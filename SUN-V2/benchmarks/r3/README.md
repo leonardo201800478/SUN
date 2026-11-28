@@ -283,3 +283,15 @@ The W07 replayable counterexample now preserves the P-A/R2 divergence as P-A `In
 - Windows benchmark CPU-time fields remain `SKIPPED_COARSE_RESOLUTION`; do not use them as cross-platform CPU-time performance evidence.
 
 This run validates the current HEAD, including the W07 pairwise P-A correction and the three snapshot/W07 follow-up fixes. It does **not** close the physical evidence gaps: W06 phase evidence remains UNKNOWN and physical W07 B/C remains BLOCKED. P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R4/R5 remain pending. No production CHRONOS/V2 code, physical SMS timing, Rust runtime performance or 60 FPS claim is validated.
+
+
+## Artifact-level replayable coverage audit — CI #11115
+
+The downloaded Linux/Windows artifacts were independently inspected after [CI #11115](https://github.com/leonardo201800478/SUN/actions/runs/46104073426) completed successfully.
+
+- Replayable JSON SHA-256 on both platforms: `db07c303eb7af6f902ddbf26e41ec93015729733b3af5f36aa8da5e65d641ecc`; byte-for-byte identical.
+- Canonical JSON SHA-256 on both platforms: `c24b96ddec7d82f283fcd71e398b8208eb3f7b8f90e3ba8e8fbc6bbcea68e895`; byte-for-byte identical.
+- Fixture distribution: W00=1, W01=1, W02=1, W03=1, W04=1, W05=1, W06=2, W07=1, W08=12, W09=4.
+- Total: 25 replayable fixtures, 134 operations and 134 cuts. W06/W07 intentionally retain the two P-A/R2 divergences.
+
+This verifies at least one replayable fixture for each W00–W09 category. It does not establish exhaustive parameter/edge-case coverage or P-D/P-E equivalence; current replayable fixtures compare P-A against R2.
