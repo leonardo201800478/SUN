@@ -1073,6 +1073,50 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(_p_a_w05_state(pa_successor.book), _p_d_w05_state(pd_successor.state))
 
 
+    def test_p_d_w05_preconstructed_microstep_over_budget_is_rejected_atomically(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa_first = p_a_publish_deadline(
+            ADeadlineBook(max_microsteps=1), pa_context, owner="cpu",
+            identity="w05-preconstructed-budget", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        pd_first = p_d_publish_with_context(
+            AgendaState(max_microsteps=1), pd_context, owner="cpu",
+            identity="w05-preconstructed-budget", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        pa_book = replace(
+            pa_first.book,
+            deadlines=(replace(pa_first.book.deadlines[0], microstep=2),),
+        )
+        pd_state = replace(
+            pd_first.state,
+            events=(replace(pd_first.state.events[0], microstep=2),),
+        )
+
+        pa_rejected = p_a_close_watermark(pa_book, Fraction(10))
+        pd_rejected = p_d_close_watermark(pd_state, Fraction(10), pd_context)
+
+        self.assertEqual(pa_rejected.code.value, "InvalidInput")
+        self.assertEqual(pd_rejected.code.value, pa_rejected.code.value)
+        self.assertEqual(pa_rejected.book, pa_book)
+        self.assertEqual(pd_rejected.state, pd_state)
+
+
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
