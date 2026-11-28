@@ -953,6 +953,126 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(_p_a_w05_state(pa_rejected.book), _p_d_w05_state(pd_rejected.state))
 
 
+    def test_p_d_w05_publication_rejects_blank_owner_and_duplicate_participants(self):
+        names = frozenset(("cpu", "vdp"))
+        complete_pa = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        complete_pd = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        duplicate_pa = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        duplicate_pd = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        cases = (
+            ("blank-owner", complete_pa, complete_pd, ""),
+            ("duplicate-participant", duplicate_pa, duplicate_pd, "cpu"),
+        )
+        for label, pa_context, pd_context, owner in cases:
+            with self.subTest(case=label):
+                pa = p_a_publish_deadline(
+                    ADeadlineBook(), pa_context, owner=owner,
+                    identity=f"w05-structural-{label}", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                pd = p_d_publish_with_context(
+                    AgendaState(), pd_context, owner=owner,
+                    identity=f"w05-structural-{label}", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                self.assertEqual(pa.code.value, "InvalidInput")
+                self.assertEqual(pd.code.value, pa.code.value)
+                self.assertEqual(pa.book, ADeadlineBook())
+                self.assertEqual(pd.state, AgendaState())
+                self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+
+    def test_p_d_w05_generation_must_increase_after_terminal_cancellation(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        identity = "w05-terminal-generation-monotonicity"
+        pa_first = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        pd_first = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        pa_cancel = p_a_cancel_deadline(
+            pa_first.book, pa_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(4),
+        )
+        pd_cancel = p_d_request_cancel(
+            pd_first.state, pd_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(4),
+        )
+        pa_terminal = p_a_arbitrate_cancellations(pa_cancel.book)
+        pd_terminal = p_d_arbitrate_cancellations(pd_cancel.state)
+        self.assertEqual(pa_terminal.code.value, "Accepted")
+        self.assertEqual(pd_terminal.code.value, pa_terminal.code.value)
+        self.assertEqual(_p_a_w05_state(pa_terminal.book), _p_d_w05_state(pd_terminal.state))
+
+        pa_stale = p_a_publish_deadline(
+            pa_terminal.book, pa_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(20), effect_id="stale-effect",
+        )
+        pd_stale = p_d_publish_with_context(
+            pd_terminal.state, pd_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(20), effect_id="stale-effect",
+        )
+        self.assertEqual(pa_stale.code.value, "InvalidInput")
+        self.assertEqual(pd_stale.code.value, pa_stale.code.value)
+        self.assertEqual(pa_stale.book, pa_terminal.book)
+        self.assertEqual(pd_stale.state, pd_terminal.state)
+
+        pa_successor = p_a_publish_deadline(
+            pa_terminal.book, pa_context, owner="cpu", identity=identity,
+            generation=1, at_common=Fraction(20), effect_id="new-effect",
+        )
+        pd_successor = p_d_publish_with_context(
+            pd_terminal.state, pd_context, owner="cpu", identity=identity,
+            generation=1, at_common=Fraction(20), effect_id="new-effect",
+        )
+        self.assertEqual(pa_successor.code.value, "Accepted")
+        self.assertEqual(pd_successor.code.value, pa_successor.code.value)
+        self.assertEqual(_p_a_w05_state(pa_successor.book), _p_d_w05_state(pd_successor.state))
+
+
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
