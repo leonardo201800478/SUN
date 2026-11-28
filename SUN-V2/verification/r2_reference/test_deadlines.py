@@ -165,6 +165,21 @@ class R2BPublicationTests(unittest.TestCase):
         self.assertEqual(second.code, DeadlineCode.ACCEPTED)
         self.assertEqual(stale.code, DeadlineCode.INVALID_INPUT)
 
+    def test_publication_rejects_successor_while_prior_generation_is_scheduled(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        before = initial
+        self.assertEqual(before.deadlines[0].status, DeadlineStatus.SCHEDULED)
+
+        rejected = publish(
+            before, machine(), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(12), effect_id="successor",
+        )
+
+        self.assertEqual(rejected.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(rejected.book, before)
+        self.assertEqual(rejected.book.deadlines[0].status, DeadlineStatus.SCHEDULED)
+
+
     def test_successor_publication_rejects_prior_cancel_pending_generation(self):
         initial = publish(DeadlineBook(), machine(), at=10).book
         pending = cancel_deadline(
