@@ -15,7 +15,7 @@ from r3_resource_ledger import (
     recover as recover_resource, reserve as reserve_resource,
 )
 from r3_transaction_core import (
-    MarkerKind, TransactionBook, TxCode, TxSpec, _validate_book,
+    MarkerKind, TransactionBook, TxCode, TxSpec, TxState, _validate_book,
     _validate_spec, commit_effect as commit_tx_marker,
     fail as fail_tx, reach_next_marker, recover as recover_tx,
     start as start_tx, submit as submit_tx,
@@ -94,10 +94,20 @@ def _validate_state(state: object) -> str | None:
     }
     if set(mapping) != commit_markers or set(reservation[2]) != effect_ids:
         return "marker/effect mapping does not match the reservation descriptor"
-    if not effect_ids.issubset(
-        set(state.resources.pending_effects) | set(state.resources.committed_effects)
-    ):
-        return "mapped effect is absent from the resource ledger"
+    committed_markers = set(tx.committed)
+    expected_committed = {
+        effect for marker, effect in mapping.items()
+        if marker in committed_markers
+    }
+    expected_pending = effect_ids - expected_committed
+    if set(state.resources.committed_effects) != expected_committed:
+        return "resource committed effects disagree with transaction commit markers"
+    if set(state.resources.pending_effects) != expected_pending:
+        return "resource pending effects disagree with uncommitted transaction markers"
+    if state.resources.completed:
+        return "resource recovery completion has no equivalent transaction terminal state"
+    if state.resources.failed != (tx.state is TxState.FAILED):
+        return "transaction/resource failure states diverge"
     return None
 
 
