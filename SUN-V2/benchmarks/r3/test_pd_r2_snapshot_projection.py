@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 
@@ -97,6 +98,68 @@ class PdR2SnapshotProjectionTests(unittest.TestCase):
         self.assertEqual(result.code, ProjectionCode.UNSUPPORTED)
         self.assertIsNone(result.projection)
         self.assertIn("no R2 deadline-state counterpart", result.detail)
+
+
+    def test_every_p_d_lifecycle_status_is_mapped_or_explicitly_unsupported(self):
+        base = candidate_state()
+        target = next(item for item in base.events if item.identity == "pending")
+        expected = {
+            EventStatus.SCHEDULED: DeadlineState.SCHEDULED,
+            EventStatus.CANCELLED: DeadlineState.CANCELLED,
+            EventStatus.SUPERSEDED: DeadlineState.SUPERSEDED,
+            EventStatus.CLAIMED: DeadlineState.CLAIMED,
+            EventStatus.COMPLETED: DeadlineState.COMPLETED,
+        }
+        for status in EventStatus:
+            with self.subTest(status=status):
+                updated = replace(target, status=status)
+                events = tuple(
+                    updated if item.identity == target.identity else item
+                    for item in base.events
+                )
+                heap = base.heap if status is EventStatus.SCHEDULED else ()
+                pending_cancellations = ()
+                if status is EventStatus.CANCEL_PENDING:
+                    pending_cancellations = (
+                        AgendaCancellation(
+                            target.identity, target.generation, target.owner,
+                            Fraction(8),
+                        ),
+                    )
+                candidate = replace(
+                    base, events=events, heap=heap,
+                    pending_cancellations=pending_cancellations,
+                )
+                result = project_pd_shared_state(candidate)
+                if status is EventStatus.CANCEL_PENDING:
+                    self.assertEqual(result.code, ProjectionCode.UNSUPPORTED)
+                    self.assertIsNone(result.projection)
+                else:
+                    self.assertEqual(result.code, ProjectionCode.OK)
+                    mapped = next(
+                        item for item in result.projection.deadlines
+                        if item.identity == target.identity
+                    )
+                    self.assertEqual(mapped.state, expected[status])
+
+    def test_projection_is_stable_under_event_permutation_and_effect_id_changes(self):
+        state = candidate_state()
+        baseline = project_pd_shared_state(state)
+        self.assertEqual(baseline.code, ProjectionCode.OK)
+        permuted = replace(state, events=tuple(reversed(state.events)))
+        changed_effects = replace(
+            state,
+            events=tuple(
+                replace(item, effect_id=f"unmapped-{item.identity}")
+                for item in state.events
+            ),
+        )
+        permuted_result = project_pd_shared_state(permuted)
+        effects_result = project_pd_shared_state(changed_effects)
+        self.assertEqual(permuted_result.code, ProjectionCode.OK)
+        self.assertEqual(effects_result.code, ProjectionCode.OK)
+        self.assertEqual(permuted_result.projection, baseline.projection)
+        self.assertEqual(effects_result.projection, baseline.projection)
 
     def test_invalid_candidate_state_is_rejected_without_projection(self):
         state = AgendaState(events=(
