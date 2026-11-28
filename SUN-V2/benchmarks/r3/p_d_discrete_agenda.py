@@ -346,9 +346,26 @@ def _select_same_instant(state: AgendaState, group: tuple[AgendaEvent, ...]) -> 
     edges: dict[str, set[str]] = {item.identity: set() for item in group}
     ids = [item.identity for item in group]
     events_by_id = {item.identity: item for item in group}
+    relation_index = {
+        frozenset((item.first_id, item.second_id)): item
+        for item in state.constraints
+    }
+
+    def declared_relation(first_id: str, second_id: str) -> PairRelation:
+        item = relation_index.get(frozenset((first_id, second_id)))
+        if item is None:
+            return PairRelation.UNKNOWN
+        if (item.first_id, item.second_id) == (first_id, second_id):
+            return item.relation
+        if item.relation is PairRelation.FIRST_BEFORE_SECOND:
+            return PairRelation.SECOND_BEFORE_FIRST
+        if item.relation is PairRelation.SECOND_BEFORE_FIRST:
+            return PairRelation.FIRST_BEFORE_SECOND
+        return item.relation
+
     for index, first in enumerate(ids):
         for second in ids[index + 1:]:
-            relation = _relation(state, first, second)
+            relation = declared_relation(first, second)
             if relation is PairRelation.UNKNOWN:
                 relation = _phase_relation(events_by_id[first], events_by_id[second])
             if relation is PairRelation.UNKNOWN:
@@ -373,7 +390,7 @@ def _select_same_instant(state: AgendaState, group: tuple[AgendaEvent, ...]) -> 
     if len(ready) > 1:
         for index, first in enumerate(ready):
             for second in ready[index + 1:]:
-                if _relation(state, first, second) is not PairRelation.COMMUTATIVE:
+                if declared_relation(first, second) is not PairRelation.COMMUTATIVE:
                     return None
     return next(item for item in group if item.identity == ready[0])
 
