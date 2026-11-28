@@ -170,20 +170,25 @@ def _validate_book(book: object) -> str | None:
         marker_by_id = {item.identity: item for item in tx.spec.markers}
         if type(tx.sampled) is not tuple:
             return "invalid sample ledger"
-        sampled_ids = [item[0] for item in tx.sampled if type(item) is tuple and len(item) == 2]
+        if any(
+            type(item) is not tuple or len(item) != 2 or type(item[0]) is not str
+            or type(item[1]) is not str
+            for item in tx.sampled
+        ):
+            return "invalid sample ledger"
+        sampled_ids = [item[0] for item in tx.sampled]
         if (
-            len(sampled_ids) != len(tx.sampled)
-            or len(set(sampled_ids)) != len(sampled_ids)
+            len(set(sampled_ids)) != len(sampled_ids)
             or any(
                 identity not in marker_by_id
                 or marker_by_id[identity].kind is not MarkerKind.SAMPLE
-                or type(value) is not str
-                for identity, value in tx.sampled
+                for identity, _ in tx.sampled
             )
         ):
             return "invalid sample ledger"
         if (
             type(tx.committed) is not tuple
+            or any(type(identity) is not str for identity in tx.committed)
             or len(set(tx.committed)) != len(tx.committed)
             or any(
                 identity not in marker_by_id
@@ -192,7 +197,9 @@ def _validate_book(book: object) -> str | None:
             )
         ):
             return "invalid commit ledger"
-        if tx.ready_marker is not None and tx.ready_marker not in marker_by_id:
+        if tx.ready_marker is not None and (
+            type(tx.ready_marker) is not str or tx.ready_marker not in marker_by_id
+        ):
             return "unknown ready marker"
         if tx.wait_source is not None and tx.wait_source not in (
             "external", "fixture", "dependency"
