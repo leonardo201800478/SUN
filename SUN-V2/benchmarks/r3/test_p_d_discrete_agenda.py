@@ -7,7 +7,9 @@ from fractions import Fraction
 from p_d_discrete_agenda import (
     AgendaCode,
     AgendaConstraint,
+    AgendaContext,
     AgendaEvent,
+    AgendaParticipant,
     AgendaPhaseBasis,
     AgendaState,
     EventStatus,
@@ -17,6 +19,9 @@ from p_d_discrete_agenda import (
     close_watermark,
     complete,
     publish,
+    publish_with_context,
+    request_cancel,
+    arbitrate_cancellations,
 )
 
 
@@ -288,6 +293,156 @@ class DiscreteAgendaTests(unittest.TestCase):
         regression = close_watermark(state, Fraction(4))
         self.assertEqual(regression.code, AgendaCode.LATE_INPUT)
         self.assertIs(regression.state, state)
+
+
+    def test_context_publication_requires_complete_progress_and_explicit_microstep(self):
+        incomplete = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(20)),),
+            frozenset(("cpu", "vdp")),
+            None,
+        )
+        blocked = publish_with_context(
+            AgendaState(), incomplete, identity="d", generation=0,
+            owner="cpu", at_common=Fraction(5), effect_id="e",
+        )
+        self.assertEqual(blocked.code, AgendaCode.BLOCKED)
+
+        context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(5), Fraction(20)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(20)),
+            ),
+            frozenset(("cpu", "vdp")),
+            None,
+        )
+        indeterminate = publish_with_context(
+            AgendaState(), context, identity="d", generation=0,
+            owner="cpu", at_common=Fraction(5), effect_id="e",
+        )
+        self.assertEqual(indeterminate.code, AgendaCode.INDETERMINATE)
+        accepted = publish_with_context(
+            AgendaState(), context, identity="d", generation=0,
+            owner="cpu", at_common=Fraction(5), effect_id="e", microstep=1,
+        )
+        self.assertEqual(accepted.code, AgendaCode.ACCEPTED)
+
+    def test_predeadline_cancellation_blocks_watermark_until_arbitrated(self):
+        context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            frozenset(("cpu", "vdp")),
+            None,
+        )
+        state = publish_with_context(
+            AgendaState(), context, identity="deadline", generation=0,
+            owner="cpu", at_common=Fraction(10), effect_id="write",
+        ).state
+        pending = request_cancel(
+            state, context, owner="cpu", identity="deadline", generation=0,
+            at_common=Fraction(8),
+        )
+        self.assertEqual(pending.code, AgendaCode.ACCEPTED)
+        self.assertEqual(
+            next(item for item in pending.state.events if item.identity == "deadline").status,
+            EventStatus.CANCEL_PENDING,
+        )
+        blocked = close_watermark(pending.state, Fraction(10), context)
+        self.assertEqual(blocked.code, AgendaCode.BLOCKED)
+        self.assertIs(blocked.state, pending.state)
+
+        arbitrated = arbitrate_cancellations(pending.state)
+        self.assertEqual(arbitrated.code, AgendaCode.ACCEPTED)
+        self.assertEqual(
+            next(item for item in arbitrated.state.events if item.identity == "deadline").status,
+            EventStatus.CANCELLED,
+        )
+        closed = close_watermark(arbitrated.state, Fraction(10), context)
+        self.assertEqual(closed.code, AgendaCode.ACCEPTED)
+        self.assertEqual(closed.state.watermark_common, Fraction(10))
+
+    def test_same_deadline_cancellation_without_phase_proof_is_unknown(self):
+        context = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(20)),),
+            frozenset(("cpu",)),
+            None,
+        )
+        state = publish_with_context(
+            AgendaState(), context, identity="deadline", generation=0,
+            owner="cpu", at_common=Fraction(10), effect_id="write",
+        ).state
+        result = request_cancel(
+            state, context, owner="cpu", identity="deadline", generation=0,
+            at_common=Fraction(10),
+        )
+        self.assertEqual(result.code, AgendaCode.INDETERMINATE)
+        self.assertIs(result.state, state)
+
+    def test_same_deadline_cancellation_uses_matching_phase_basis(self):
+        basis = AgendaPhaseBasis(
+            "sms-ntsc", "rev-a", "common", "mclk", 1, 1,
+            "logic-capture", "rev-1", "capture-001", "a" * 64,
+        )
+        context = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(20)),),
+            frozenset(("cpu",)),
+            None,
+        )
+        state = publish_with_context(
+            AgendaState(), context, identity="deadline", generation=0,
+            owner="cpu", at_common=Fraction(10), effect_id="write",
+            phase_order=2, phase_evidence="deadline edge", phase_basis=basis,
+        ).state
+        pending = request_cancel(
+            state, context, owner="cpu", identity="deadline", generation=0,
+            at_common=Fraction(10), phase_order=1,
+            phase_evidence="cancel sample", phase_basis=basis,
+        )
+        self.assertEqual(pending.code, AgendaCode.ACCEPTED)
+        arbitrated = arbitrate_cancellations(pending.state)
+        self.assertEqual(arbitrated.code, AgendaCode.ACCEPTED)
+        self.assertEqual(
+            next(item for item in arbitrated.state.events if item.identity == "deadline").status,
+            EventStatus.CANCELLED,
+        )
+
+    def test_cancellation_after_deadline_or_at_admission_frontier_is_late(self):
+        context = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(30)),),
+            frozenset(("cpu",)),
+            None,
+        )
+        state = publish_with_context(
+            AgendaState(), context, identity="deadline", generation=0,
+            owner="cpu", at_common=Fraction(10), effect_id="write",
+        ).state
+        at_frontier = request_cancel(
+            state, context, owner="cpu", identity="deadline", generation=0,
+            at_common=Fraction(0),
+        )
+        after_deadline = request_cancel(
+            state, context, owner="cpu", identity="deadline", generation=0,
+            at_common=Fraction(11),
+        )
+        self.assertEqual(at_frontier.code, AgendaCode.LATE_INPUT)
+        self.assertEqual(after_deadline.code, AgendaCode.LATE_INPUT)
+        self.assertIs(at_frontier.state, state)
+        self.assertIs(after_deadline.state, state)
+
+    def test_contextual_watermark_never_crosses_global_safe_horizon(self):
+        context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(5)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(8)),
+            ),
+            frozenset(("cpu", "vdp")),
+            None,
+        )
+        state = AgendaState()
+        result = close_watermark(state, Fraction(6), context)
+        self.assertEqual(result.code, AgendaCode.BLOCKED)
+        self.assertIs(result.state, state)
 
     def test_float_coordinate_is_rejected(self):
         result = publish(
