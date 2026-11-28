@@ -284,7 +284,7 @@ def _closure(
     changed = True
     while changed:
         changed = False
-        for owner in tuple(selected_domains):
+        for owner in sorted(selected_domains):
             for transition in state._transitions_by_owner.get(owner, ()):
                 if transition.at_common > target or transition.identity in selected_transitions:
                     continue
@@ -377,7 +377,11 @@ def synchronize(
     target_common: int | Fraction,
 ) -> SyncResult:
     """Advance only the requested domains and their transitive causal closure."""
-    invalid = None if state._validated else _validate(state)
+    invalid = (
+        _validate(state)
+        if not isinstance(state, SyncState) or not state._validated
+        else None
+    )
     if invalid is not None:
         return SyncResult(state, SyncCode.INVALID_INPUT, detail=invalid)
     if (
@@ -404,7 +408,7 @@ def synchronize(
         return SyncResult(state, SyncCode.INVALID_INPUT, detail="causal safe horizon regresses an existing participant")
     pending = [
         item
-        for owner in selected_domains
+        for owner in sorted(selected_domains)
         for item in state._transitions_by_owner.get(owner, ())
         if item.identity in selected_transitions
         and item.identity not in state.observed
