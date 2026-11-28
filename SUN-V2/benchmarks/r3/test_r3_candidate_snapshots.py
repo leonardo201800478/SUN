@@ -1,6 +1,7 @@
 """W09 candidate-local snapshot/restore/replay tests for disposable P-D/P-E."""
 from __future__ import annotations
 
+import hashlib
 import unittest
 from dataclasses import replace
 from fractions import Fraction
@@ -312,6 +313,26 @@ class CandidateSnapshotTests(unittest.TestCase):
         self.assertEqual(wrong_profile.code, SnapshotCode.INCOMPATIBLE)
         self.assertIs(wrong_profile.active_state, active)
         self.assertIsNone(wrong_profile.restored_state)
+
+    def test_snapshot_rejects_boolean_input_cursor_even_with_recomputed_digest(self):
+        state = pending_pd_state()
+        artifact = capture(
+            "P-D", state, profile="SMS-NTSC",
+            model_version="P-D-R3-W09-1", input_cursor=1,
+        ).artifact
+        payload = artifact.payload.replace(b'"input_cursor":1', b'"input_cursor":true')
+        self.assertNotEqual(payload, artifact.payload)
+        forged = replace(
+            artifact, payload=payload, digest=hashlib.sha256(payload).hexdigest()
+        )
+        active = AgendaState()
+        result = restore(
+            active, forged, expected_candidate="P-D",
+            expected_profile="SMS-NTSC", expected_version="P-D-R3-W09-1",
+        )
+        self.assertEqual(result.code, SnapshotCode.INCOMPATIBLE)
+        self.assertIs(result.active_state, active)
+        self.assertIsNone(result.restored_state)
 
     def test_replay_rejects_profile_or_candidate_mismatch_before_apply(self):
         state = pending_pd_state()
