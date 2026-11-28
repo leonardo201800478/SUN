@@ -171,6 +171,38 @@ class SharedTransactionCoreTests(unittest.TestCase):
         completed = self.apply(pa_complete, complete, "tx-main")
         self.assertEqual(completed.transaction.state.value, "Completed")
 
+    def test_w08_all_wait_sources_are_differentially_distinct(self):
+        for source in ("external", "fixture", "dependency"):
+            with self.subTest(source=source):
+                identity = f"tx-wait-{source}"
+                pa_spec, r3_spec = make_pair_spec(
+                    identity, duration=0, automatic=0, external=0
+                )
+                self.apply(pa_submit, submit, pa_spec, r3_args=(r3_spec,))
+                self.apply(pa_start, start, identity)
+                waiting = self.apply(
+                    pa_enter_waiting, enter_waiting, identity, source
+                )
+                self.assertEqual(waiting.transaction.wait_source, source)
+
+                wrong_source = next(
+                    candidate
+                    for candidate in ("external", "fixture", "dependency")
+                    if candidate != source
+                )
+                rejected = self.apply(
+                    pa_release_waiting, release_waiting,
+                    identity, wrong_source,
+                )
+                self.assertEqual(rejected.code.value, "InvariantViolation")
+                self.assertEqual(rejected.transaction.wait_source, source)
+
+                resumed = self.apply(
+                    pa_release_waiting, release_waiting, identity, source
+                )
+                self.assertEqual(resumed.transaction.state.value, "InProgress")
+                self.assertIsNone(resumed.transaction.wait_source)
+
     def test_w08_failure_recovery_and_irreversible_cancellation(self):
         pa_spec, r3_spec = make_pair_spec(
             "tx-fail",
