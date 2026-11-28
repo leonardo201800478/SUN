@@ -380,10 +380,10 @@ def _closure(
 
 def _choose(
     state: SyncState, group: tuple[SyncTransition, ...]
-) -> SyncTransition | None:
-    """Choose a minimal same-instant transition using one indexed relation view."""
+) -> tuple[SyncTransition, ...] | None:
+    """Return a complete deterministic order for one simultaneous transition group."""
     if len(group) == 1:
-        return group[0]
+        return group
     cached_commutative = state._commutative_groups.get(
         frozenset(item.identity for item in group)
     )
@@ -405,7 +405,9 @@ def _choose(
             return PairRelation.FIRST_BEFORE_SECOND
         return item.relation
 
-    ids = [item.identity for item in group]
+    edges: dict[str, set[str]] = {item.identity: set() for item in group}
+    pair_relations: dict[frozenset[str], PairRelation] = {}
+    ids = tuple(by_id)
     for index, first_id in enumerate(ids):
         for second_id in ids[index + 1:]:
             first = by_id[first_id]
@@ -428,25 +430,35 @@ def _choose(
                 and second.microstep > first.microstep
             ):
                 return None
+            pair_relations[frozenset((first_id, second_id))] = relation
             if relation is PairRelation.FIRST_BEFORE_SECOND:
+                edges[first_id].add(second_id)
                 incoming[second_id] += 1
             elif relation is PairRelation.SECOND_BEFORE_FIRST:
+                edges[second_id].add(first_id)
                 incoming[first_id] += 1
-    ready = sorted(identity for identity, count in incoming.items() if count == 0)
-    if not ready:
-        return None
-    if len(ready) > 1:
-        for index, first_id in enumerate(ready):
-            for second_id in ready[index + 1:]:
-                if (
-                    _dependency_order(by_id[first_id], by_id[second_id])
-                    is PairRelation.UNKNOWN
-                    and declared_relation(first_id, second_id)
-                    is not PairRelation.COMMUTATIVE
-                ):
-                    return None
-    return by_id[ready[0]]
 
+    ready = sorted(identity for identity, count in incoming.items() if count == 0)
+    ordered: list[SyncTransition] = []
+    while ready:
+        if len(ready) > 1:
+            for index, first_id in enumerate(ready):
+                for second_id in ready[index + 1:]:
+                    if pair_relations.get(
+                        frozenset((first_id, second_id))
+                    ) is not PairRelation.COMMUTATIVE:
+                        return None
+        selected_id = ready.pop(0)
+        ordered.append(by_id[selected_id])
+        for successor in sorted(edges[selected_id]):
+            incoming[successor] -= 1
+            if incoming[successor] == 0:
+                ready.append(successor)
+        ready.sort()
+
+    if len(ordered) != len(group):
+        return None
+    return tuple(ordered)
 
 def synchronize(
     state: SyncState,
@@ -497,17 +509,18 @@ def synchronize(
     while pending:
         earliest = min(item.at_common for item in pending)
         group = tuple(item for item in pending if item.at_common == earliest)
-        selected = _choose(state, group)
-        if selected is None:
+        ordered_group = _choose(state, group)
+        if ordered_group is None:
             return SyncResult(
                 state, SyncCode.INDETERMINATE, detail="same-instant dependency relation is UNKNOWN or cyclic"
             )
-        if any(dependency not in observed for dependency in selected.depends_on):
-            return SyncResult(
-                state, SyncCode.BLOCKED, detail="causal predecessor has not been observed"
-            )
-        observed.append(selected.identity)
-        pending.remove(selected)
+        for selected in ordered_group:
+            if any(dependency not in observed for dependency in selected.depends_on):
+                return SyncResult(
+                    state, SyncCode.BLOCKED, detail="causal predecessor has not been observed"
+                )
+            observed.append(selected.identity)
+            pending.remove(selected)
     updated_domains = tuple(
         SyncDomain(
             item.identity,
