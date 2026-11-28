@@ -196,3 +196,19 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - **P-E:** adicionada auditoria explícita do envelope candidato em `pe_r2_snapshot_envelope_audit.py`. Compara somente profile/model_version; mantém candidate e input_cursor como metadados de candidato/harness; declara não mapeados safe_horizon, transições, constraints, observed/indexes, TransactionBook não demonstrado e IRQ/ack. Não cria projeção de `SyncState` para `MachineState`.
 - HEAD ampliado: `b21732fdea95e39cfb90460b5aad3a035495013c`; CI #11258 em execução no momento deste registro: https://github.com/leonardo201800478/SUN/actions/runs/46166975186.
 - **FUP-04 continua PARCIAL.** O round-trip/replay candidato-local P-D/P-E já existe; os testes novos tornam explícitas as fronteiras de comparação R2, mas ainda falta concluir a matriz W09 compartilhada de cortes/efeitos/transações e validar todos os controles de atomicidade/replay contra o escopo realmente comparável. Não declarar equivalência integral nem fechar FUP-04 com base apenas em round-trip.
+
+
+### Atualização de execução — FUP-04 (28/11/2026, CI #11266)
+
+- **PR #1294:** [projeção parcial P-D→R2](https://github.com/leonardo201800478/SUN/pull/1294), permanece Draft, aberta e sem merge.
+- **HEAD validado:** `4cbf6b4e2fa845935cd63c960f12d2866aac5ac3`.
+- **CI #11266:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46167800593), associado ao HEAD exato acima.
+- Protótipos descartáveis R3: Linux SUCCESS e Windows SUCCESS.
+- Referência independente R2: Linux SUCCESS e Python Windows SUCCESS.
+- Corpus canônico e replayável: comparação byte a byte Linux/Windows SUCCESS.
+- Classificação de impacto e supervisor de qualidade/regressão Rust: SUCCESS.
+- Jobs de produção Rust workspace, Z80, VDP, PSG, YM2413, CPAL, SDL3, Slint/WGPU, scheduler stress e frame pacing SMS: SKIPPED; não são evidência de validação desses subsistemas.
+- A projeção P-D→R2 normaliza watermark/coordenadas em `Fraction`, mapeia explicitamente cinco estados de evento e rejeita `CancelPending` como `UnsupportedProjection`. Testes metamórficos confirmam invariância à permutação da tupla de eventos e à alteração de `effect_id`, que não faz parte da projeção.
+- A auditoria P-E→R2 compara profile quando compatível e mantém namespaces de model_version distintos; input_cursor permanece metadado do harness. Campos sem correspondência semântica continuam explicitamente não mapeados.
+- **FUP-04 permanece PARCIAL.** O CI comprova os testes existentes nos dois sistemas operacionais, mas não estabelece equivalência integral de snapshot/restore/replay, nem resolve IRQ/ack, log de inputs aceitos, transações não mapeadas ou os campos P-E sem contraparte.
+- **Próxima fatia:** completar a matriz executável W09 apenas nos campos com correspondência semântica demonstrável, incluindo atomicidade e replay nos cortes compartilhados; manter R2 imutável e preservar as rejeições UnsupportedSnapshot/UnsupportedProjection.
