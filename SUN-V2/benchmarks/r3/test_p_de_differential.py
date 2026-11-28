@@ -383,6 +383,75 @@ class CandidateDifferentialTests(unittest.TestCase):
                 self.assertEqual(pd.code.value, pa.code.value)
                 self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
 
+    def test_p_d_w05_same_instant_microstep_order_and_budget_match_p_a(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu",
+            identity="w05-microstep-order", generation=0,
+            at_common=Fraction(10), effect_id="microstep-effect",
+            microstep=True, microstep_level=1,
+        )
+        pd = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu",
+            identity="w05-microstep-order", generation=0,
+            at_common=Fraction(10), effect_id="microstep-effect",
+            microstep=1,
+        )
+        self.assertEqual(pa.code.value, "Accepted")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+        pa = p_a_cancel_deadline(
+            pa.book, pa_context, owner="cpu",
+            identity="w05-microstep-order", generation=0,
+            at_common=Fraction(10), microstep_level=0,
+        )
+        pd = p_d_request_cancel(
+            pd.state, pd_context, owner="cpu",
+            identity="w05-microstep-order", generation=0,
+            at_common=Fraction(10), microstep_level=0,
+        )
+        self.assertEqual(pa.code.value, "Accepted")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+        pa = p_a_arbitrate_cancellations(pa.book)
+        pd = p_d_arbitrate_cancellations(pd.state)
+        self.assertEqual(pa.code.value, "Accepted")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+        self.assertEqual(pa.book.deadlines[0].status, ADeadlineStatus.CANCELLED)
+
+        pa_limit = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu",
+            identity="w05-microstep-limit", generation=0,
+            at_common=Fraction(11), effect_id="limit-effect",
+            microstep=True, microstep_level=33,
+        )
+        pd_limit = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu",
+            identity="w05-microstep-limit", generation=0,
+            at_common=Fraction(11), effect_id="limit-effect",
+            microstep=33,
+        )
+        self.assertEqual(pa_limit.code.value, "ResourceExhausted")
+        self.assertEqual(pd_limit.code.value, pa_limit.code.value)
+        self.assertEqual(_p_a_w05_state(pa_limit.book), _p_d_w05_state(pd_limit.state))
+
     def test_p_d_w05_unresolved_obligations_constrain_admission_frontier(self):
         names = frozenset(("cpu", "vdp"))
         cases = (
