@@ -1119,5 +1119,41 @@ class PADeadlineLifecycleTests(unittest.TestCase):
                 self.assertEqual(actual.book, first.book)
 
 
+    def test_cancel_frontier_accepts_exact_rational_participant_conversions_matches_r2(self):
+        context = ADeadlineContext(
+            (
+                AParticipant(
+                    "cpu", Fraction(1, 2), Fraction(100),
+                    Fraction(2), Fraction(1),
+                ),
+                AParticipant(
+                    "vdp", Fraction(1, 3), Fraction(100),
+                    Fraction(3), Fraction(2),
+                ),
+            ),
+            frozenset({"cpu", "vdp"}),
+        )
+        first = self.publish(
+            book=ADeadlineBook(), context=context,
+            owner="cpu", identity="rational-cancel-frontier",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        actual = cancel_deadline(
+            first.book, context, owner="cpu",
+            identity="rational-cancel-frontier", generation=0,
+            at_common=Fraction(1),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(first.book), to_r2_context(context),
+            owner="cpu", identity="rational-cancel-frontier",
+            generation=0, at_common=Fraction(1),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.ACCEPTED)
+        self.assertEqual(
+            actual.book.pending_cancellations[0].at_common, Fraction(1)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
