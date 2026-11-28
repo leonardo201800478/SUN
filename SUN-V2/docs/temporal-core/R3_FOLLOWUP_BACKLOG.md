@@ -363,3 +363,19 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - **FUP-02 / PR #1291:** HEAD `c8e86be79acba313c9b7abf882ceed415c3a44b5`, CI #46174772392 SUCCESS. Quatro propriedades P-E com 120 permutações cada passam em Linux/Windows; a resolução transitiva de `depends_on` foi corrigida e comparada à topologia R2. Não há ainda diferencial triplo P-E/P-A/R2 para todos os 120 casos. W06 UNKNOWN; W07 UNKNOWN/BLOCKED.
 - **FUP-03 / PR #1293:** HEAD `f5179cd1383ec9734e781de281211be669023cd2`, CI #46174810003 SUCCESS. Teste de integridade da composição acrescentou cinco subcasos de estado inválido e rejeição atômica. Finding P2 resolvido na revisão. TransactionBook sem limite lógico; ResourceLedger capacity separada; recovery IncomparableRecovery.
 - PRs #1289–#1294 permanecem abertas; nenhuma foi mergeada. R3 continua em andamento; FUP-01/02/03 parciais; FUP-04 tecnicamente concluído com limites. FUP-05, R4 e R5 não iniciados.
+
+
+### FUP-02 — fechamento da rodada de permutações triplas (28/11/2026)
+
+- HEAD PR #1291: `009ab3d8b375c382dad7fecc7ee1df2a573351e2`.
+- CI #46175394407 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46175394407): R3 286 testes Linux/Windows; R2 independente 256/256 Linux; R2 Python 256/256 Windows; equivalência dos corpora canônico/replayável e Rust quality/unit regression: PASS.
+- Quatro diferenciais P-E↔P-A↔R2, cada um com 120 permutações: comutatividade, UNKNOWN não comutativo, cadeia explícita de dependências e DAG parcial com irmãos comutativos. As fixtures de cadeia e DAG reproduzem a topologia R2.
+- O finding de dependência transitiva foi corrigido no P-E e permanece coberto pelos testes de ciclo e pelas 120 permutações. Não há promoção de phase metadata a evidência física.
+- Matriz W03/W04 atualizada no commit `45634029bad00491090aa8cba81f9c0f2cd26ebf`.
+- **FUP-02 permanece PARCIAL:** W03/W04 replay fixtures P-A/R2 não executam P-E; faltam ainda alguns crosswalks para observation/alters e pre-applied causal ledger. W06 UNKNOWN; W07 UNKNOWN/BLOCKED.
+
+### Referências finais das matrizes R3
+
+- FUP-01 W05: `R3_FUP01_W05_TRACEABILITY.md`, HEAD documental `4b4e9476c77a773dfaceb08c96d4fbd304858435`; evidência de código/CI mais recente PR #1290 HEAD `8ad22e3cdf8d4c97f4c557f061a9fd4e8f96013e`, CI #46175104624 SUCCESS.
+- FUP-02 W03/W04: `R3_FUP02_W03_W04_TRACEABILITY.md`, HEAD documental `45634029bad00491090aa8cba81f9c0f2cd26ebf`; evidência de código/CI PR #1291 HEAD `009ab3d8b375c382dad7fecc7ee1df2a573351e2`, CI #46175394407 SUCCESS.
+- FUP-03 W08: `R3_FUP03_W08_BOUNDARY_AUDIT.md`, HEAD documental `5b8c658731e4f03c8f25d3cfb9cc3edf70af24d7`; evidência de código/CI PR #1293 HEAD `f5179cd1383ec9734e781de281211be669023cd2`, CI #46174810003 SUCCESS.
