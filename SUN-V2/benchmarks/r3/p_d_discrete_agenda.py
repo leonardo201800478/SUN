@@ -39,6 +39,20 @@ class PairRelation(str, Enum):
 
 
 @dataclass(frozen=True)
+class AgendaPhaseBasis:
+    profile_id: str
+    profile_revision: str
+    coordinate: str
+    unit: str
+    scale_numerator: int
+    scale_denominator: int
+    basis_id: str
+    basis_revision: str
+    validation_record_id: str
+    validation_record_sha256: str
+
+
+@dataclass(frozen=True)
 class AgendaEvent:
     identity: str
     generation: int
@@ -46,6 +60,10 @@ class AgendaEvent:
     at_common: Fraction
     effect_id: str
     status: EventStatus = EventStatus.SCHEDULED
+    microstep: int = 0
+    phase_order: int | None = None
+    phase_evidence: str | None = None
+    phase_basis: AgendaPhaseBasis | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +92,43 @@ class AgendaResult:
 def _exact(value: object) -> bool:
     """Accept only exact integer/rational coordinates, never bool or float."""
     return type(value) in (int, Fraction)
+
+
+def _valid_phase_basis(value: object) -> bool:
+    """Validate basis shape only; this does not authenticate external evidence."""
+    if not isinstance(value, AgendaPhaseBasis):
+        return False
+    strings = (
+        value.profile_id, value.profile_revision, value.coordinate, value.unit,
+        value.basis_id, value.basis_revision, value.validation_record_id,
+        value.validation_record_sha256,
+    )
+    return (
+        all(isinstance(item, str) and item.strip() for item in strings)
+        and type(value.scale_numerator) is int and value.scale_numerator > 0
+        and type(value.scale_denominator) is int and value.scale_denominator > 0
+        and len(value.validation_record_sha256) == 64
+        and all(char in "0123456789abcdefABCDEF"
+                for char in value.validation_record_sha256)
+    )
+
+
+def _phase_relation(first: AgendaEvent, second: AgendaEvent) -> PairRelation:
+    """Use phase order only when both events declare one identical valid basis."""
+    if (
+        first.phase_order is None or second.phase_order is None
+        or first.phase_evidence is None or second.phase_evidence is None
+        or not first.phase_evidence.strip() or not second.phase_evidence.strip()
+        or not _valid_phase_basis(first.phase_basis)
+        or first.phase_basis != second.phase_basis
+        or first.phase_order == second.phase_order
+    ):
+        return PairRelation.UNKNOWN
+    return (
+        PairRelation.FIRST_BEFORE_SECOND
+        if first.phase_order < second.phase_order
+        else PairRelation.SECOND_BEFORE_FIRST
+    )
 
 
 def _key(event: AgendaEvent) -> tuple[Fraction, str, int]:
@@ -120,6 +175,12 @@ def _validate(state: object) -> str | None:
             or not _exact(event.at_common)
             or type(event.generation) is not int or event.generation < 0
             or not isinstance(event.status, EventStatus)
+            or type(event.microstep) is not int or event.microstep < 0
+            or (event.phase_order is not None and type(event.phase_order) is not int)
+            or (event.phase_evidence is not None and (
+                not isinstance(event.phase_evidence, str) or not event.phase_evidence.strip()
+            ))
+            or (event.phase_basis is not None and not _valid_phase_basis(event.phase_basis))
         ):
             return "invalid event descriptor"
         key = (event.identity, event.generation)
@@ -193,6 +254,10 @@ def publish(
     owner: str,
     at_common: int | Fraction,
     effect_id: str,
+    microstep: int = 0,
+    phase_order: int | None = None,
+    phase_evidence: str | None = None,
+    phase_basis: AgendaPhaseBasis | None = None,
 ) -> AgendaResult:
     """Publish an owned deadline and atomically fence any older scheduled generation."""
     invalid = _validate(state)
@@ -204,6 +269,12 @@ def publish(
         or not isinstance(effect_id, str) or not effect_id.strip()
         or type(generation) is not int or generation < 0
         or not _exact(at_common)
+        or type(microstep) is not int or microstep < 0
+        or (phase_order is not None and type(phase_order) is not int)
+        or (phase_evidence is not None and (
+            not isinstance(phase_evidence, str) or not phase_evidence.strip()
+        ))
+        or (phase_basis is not None and not _valid_phase_basis(phase_basis))
     ):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid publish descriptor")
     if len(state.events) >= state.max_events:
@@ -219,11 +290,15 @@ def publish(
         if item.status is EventStatus.SCHEDULED:
             events[events.index(item)] = AgendaEvent(
                 item.identity, item.generation, item.owner, item.at_common,
-                item.effect_id, EventStatus.SUPERSEDED,
+                item.effect_id, EventStatus.SUPERSEDED, item.microstep,
+                item.phase_order, item.phase_evidence, item.phase_basis,
             )
             heap.remove(_key(item))
             heapq.heapify(heap)
-    event = AgendaEvent(identity, generation, owner, Fraction(at_common), effect_id)
+    event = AgendaEvent(
+        identity, generation, owner, Fraction(at_common), effect_id,
+        EventStatus.SCHEDULED, microstep, phase_order, phase_evidence, phase_basis,
+    )
     events.append(event)
     heapq.heappush(heap, _key(event))
     updated = AgendaState(tuple(heap), tuple(events), state.constraints, state.max_events)
@@ -244,7 +319,8 @@ def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
         return AgendaResult(state, AgendaCode.BLOCKED, event, "event is not scheduled")
     updated_event = AgendaEvent(
         event.identity, event.generation, event.owner, event.at_common,
-        event.effect_id, EventStatus.CANCELLED,
+        event.effect_id, EventStatus.CANCELLED, event.microstep,
+        event.phase_order, event.phase_evidence, event.phase_basis,
     )
     updated = _replace(state, updated_event)
     heap = list(updated.heap)
@@ -261,10 +337,21 @@ def _select_same_instant(state: AgendaState, group: tuple[AgendaEvent, ...]) -> 
     incoming = {item.identity: 0 for item in group}
     edges: dict[str, set[str]] = {item.identity: set() for item in group}
     ids = [item.identity for item in group]
+    events_by_id = {item.identity: item for item in group}
     for index, first in enumerate(ids):
         for second in ids[index + 1:]:
             relation = _relation(state, first, second)
             if relation is PairRelation.UNKNOWN:
+                relation = _phase_relation(events_by_id[first], events_by_id[second])
+            if relation is PairRelation.UNKNOWN:
+                return None
+            if (
+                relation is PairRelation.FIRST_BEFORE_SECOND
+                and events_by_id[first].microstep > events_by_id[second].microstep
+            ) or (
+                relation is PairRelation.SECOND_BEFORE_FIRST
+                and events_by_id[second].microstep > events_by_id[first].microstep
+            ):
                 return None
             if relation is PairRelation.FIRST_BEFORE_SECOND:
                 edges[first].add(second)
@@ -315,6 +402,8 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     claimed = AgendaEvent(
         selected.identity, selected.generation, selected.owner,
         selected.at_common, selected.effect_id, EventStatus.CLAIMED,
+        selected.microstep, selected.phase_order,
+        selected.phase_evidence, selected.phase_basis,
     )
     events = tuple(
         claimed if (item.identity, item.generation) ==
@@ -337,7 +426,8 @@ def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult
         return AgendaResult(state, AgendaCode.BLOCKED, event, "only a claimed event can complete")
     completed = AgendaEvent(
         event.identity, event.generation, event.owner, event.at_common,
-        event.effect_id, EventStatus.COMPLETED,
+        event.effect_id, EventStatus.COMPLETED, event.microstep,
+        event.phase_order, event.phase_evidence, event.phase_basis,
     )
     updated = _replace(state, completed)
     return AgendaResult(updated, AgendaCode.COMPLETED, completed)
