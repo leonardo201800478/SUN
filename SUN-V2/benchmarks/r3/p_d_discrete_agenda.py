@@ -196,6 +196,8 @@ def _validate(state: object) -> str | None:
         return "max_events must be a positive integer"
     if state.watermark_common is not None and not _exact(state.watermark_common):
         return "watermark must be an exact coordinate"
+    if type(state.pending_cancellations) is not tuple:
+        return "pending cancellations must be an immutable tuple"
     if type(state.heap) is not tuple or type(state.events) is not tuple:
         return "agenda collections must be immutable tuples"
     keys: set[tuple[str, int]] = set()
@@ -238,6 +240,55 @@ def _validate(state: object) -> str | None:
             scheduled.add(_key(event))
     if len(state.events) > state.max_events:
         return "agenda capacity exceeded"
+    events_by_key = {
+        (item.identity, item.generation): item for item in state.events
+    }
+    pending_keys: set[tuple[str, int]] = set()
+    for request in state.pending_cancellations:
+        if (
+            not isinstance(request, AgendaCancellation)
+            or not isinstance(request.identity, str) or not request.identity.strip()
+            or not isinstance(request.owner, str) or not request.owner.strip()
+            or type(request.generation) is not int or request.generation < 0
+            or not _exact(request.at_common)
+            or (request.microstep_level is not None and (
+                type(request.microstep_level) is not int
+                or request.microstep_level < 0
+                or request.microstep_level > state.max_microsteps
+            ))
+            or (request.phase_order is not None and type(request.phase_order) is not int)
+            or (request.phase_evidence is not None and (
+                not isinstance(request.phase_evidence, str)
+                or not request.phase_evidence.strip()
+            ))
+            or ((request.phase_order is None) != (request.phase_evidence is None))
+            or (request.phase_basis is not None and (
+                not _valid_phase_basis(request.phase_basis)
+                or request.phase_order is None or request.phase_evidence is None
+            ))
+        ):
+            return "invalid pending cancellation descriptor"
+        key = (request.identity, request.generation)
+        if key in pending_keys:
+            return "duplicate pending cancellation"
+        pending_keys.add(key)
+        event = events_by_key.get(key)
+        if (
+            event is None
+            or event.status is not EventStatus.CANCEL_PENDING
+            or event.owner != request.owner
+            or request.at_common > event.at_common
+            or (
+                state.watermark_common is not None
+                and state.watermark_common >= event.at_common
+            )
+        ):
+            return "pending cancellation and event record disagree"
+    for event in state.events:
+        if event.status is EventStatus.CANCEL_PENDING and (
+            event.identity, event.generation
+        ) not in pending_keys:
+            return "cancel-pending event has no cancellation record"
     for item in state.heap:
         if (
             type(item) is not tuple or len(item) != 3
