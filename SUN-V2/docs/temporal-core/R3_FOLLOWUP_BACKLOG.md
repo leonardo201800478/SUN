@@ -497,3 +497,10 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Teste diferencial atualizado: test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation; W=9/D=10 para Claimed, Dispatched e Completed; Claimed/W ausente excluído da paridade.
 - HEAD e8eeb8fdb2fb9e26458d8d358da5d3ee8731081a; CI #46188553676 SUCCESS: R2 258/258 Linux/Windows; R3 317/317 Linux/Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
 - FUP-01 permanece PARCIAL; não adicionar Failed sem contrato e não promover claim local a claim global.
+
+
+### FUP-01 — entrada não-AgendaState sem dereference (28/11/2026)
+
+- Teste `test_p_d_w05_non_agenda_state_is_rejected_without_dereference` cobre oito operações públicas P-D com estado `None`; todas retornam `InvalidInput` e preservam o estado nulo sem exception.
+- HEAD `b80247e6bf1953b295b76565aa1aa9d3dc007fc2`; CI #46188764514 SUCCESS: R2 258/258 Linux/Windows; R3 318/318 Linux/Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
+- FUP-01 permanece PARCIAL por `Failed`, Claimed sem W candidate-local, `schedule_microstep` sem contraparte e wrappers/clock-domain/profile não representados em P-D.
