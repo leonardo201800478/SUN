@@ -405,3 +405,13 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 
 - A matriz W08 distingue o diferencial P-A/P-D/P-E do TransactionBook compartilhado e o teste de integração específico da ponte SAMPLE. O wrapper da ponte não altera a evidência de hardware nem a semântica do ResourceLedger.
 - Documento atualizado: `R3_FUP03_W08_BOUNDARY_AUDIT.md`, commit `1806a153a5364ab6746610578ec0555e3c636c62`; CI documental #46175970726 SUCCESS.
+
+
+### FUP-01 — geração ativa, cancelamento pendente e lifecycle crosswalk (28/11/2026)
+
+- PR #1290 adicionou cobertura P-A/P-D/R2 para rejeitar publicação sucessora quando a geração anterior ainda está `Scheduled` ou `CancelPending`. A API contextual P-D agora retorna `InvalidInput` sem mutação; a substituição explícita continua em `replace_with_context`.
+- O finding P2 sobre publicação com cancelamento antigo pendente foi corrigido e a thread correspondente foi resolvida após CI #46183529839 SUCCESS no SHA `ec74ea861f8a823d9495cbc6368e14d1e7d0a38c`.
+- Evidência nesse SHA: R2 257/257 Linux e Windows; R3 302/302 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico 135 fixtures / 1.525 cuts, digest `4486046a13980e26e3e491bc7e5457cc52159dc5560230421fb9357f41b492b3`; replayable 30 fixtures / 143 operações, digest `ed039c1985d1a0d1dee518a33bfcbbefd3713368e040e113f4b8d856c255e215`; Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
+- Nova validação após a cobertura de predecessor Scheduled está em CI #46183873117, candidata SHA `6949b074096bad237cf4413ad75fc5762a6d9218`; no momento deste registro está PENDING. A tentativa anterior SHA `513e825c9f0464dc19cfa7e9ddf16c1038ca32d3` falhou por erro no helper de teste R2 (argumento `at_common` duplicado), corrigido na candidata atual.
+- O crosswalk foi atualizado em `R3_FUP01_W05_TRACEABILITY.md`: inventário R2-T06 agora tem 80 métodos; P-D não representa explicitamente `Dispatched` ou `Failed` e contém `Superseded` candidato-local. Esses estados permanecem NOT COMPARABLE/NOT REPRESENTED, sem mapeamento artificial.
+- FUP-01 continua PARCIAL; R3 continua em andamento. Nenhuma aprovação R4/R5, merge ou implementação de produção foi realizada.
