@@ -307,6 +307,9 @@ def replay_from_snapshot(
     artifact: SnapshotArtifact,
     events: tuple[ReplayEvent, ...],
     *,
+    expected_candidate: str,
+    expected_profile: str,
+    expected_version: str,
     apply: Callable[[object, str, dict], object],
 ) -> ReplayResult:
     """Replay a contiguous accepted-operation suffix in sequence order, atomically."""
@@ -314,6 +317,20 @@ def replay_from_snapshot(
         base_state = _decode_artifact(artifact)
     except (ValueError, TypeError, KeyError, UnicodeDecodeError, json.JSONDecodeError) as error:
         return ReplayResult(SnapshotCode.INCOMPATIBLE, None, 0, str(error))
+    if (
+        type(expected_candidate) is not str or expected_candidate not in _CANDIDATES
+        or type(expected_profile) is not str or not expected_profile.strip()
+        or type(expected_version) is not str or not expected_version.strip()
+    ):
+        return ReplayResult(SnapshotCode.INVALID_INPUT, base_state, artifact.input_cursor,
+                            "invalid replay compatibility expectations")
+    if (
+        artifact.candidate != expected_candidate
+        or artifact.profile != expected_profile
+        or artifact.model_version != expected_version
+    ):
+        return ReplayResult(SnapshotCode.INCOMPATIBLE, base_state, artifact.input_cursor,
+                            "snapshot candidate/profile/version mismatch")
     cursor = artifact.input_cursor
     if type(events) is not tuple or not callable(apply):
         return ReplayResult(SnapshotCode.INVALID_INPUT, base_state, cursor, "invalid replay input")
