@@ -455,7 +455,7 @@ def _validate(state: object) -> str | None:
         and event.at_common > state.watermark_common
         for event in state.events
     ):
-        return "claimed event is beyond the closed watermark"
+        return "INVARIANT_VIOLATION: claimed event is beyond the closed watermark"
     active_statuses = {
         EventStatus.SCHEDULED,
         EventStatus.CANCEL_PENDING,
