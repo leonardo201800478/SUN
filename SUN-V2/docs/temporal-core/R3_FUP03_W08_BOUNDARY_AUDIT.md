@@ -42,9 +42,11 @@ None of these units is mapped to hardware transaction slots, bytes, CPU cycles, 
 2. The bridge validates both ledgers and the mapping before mutation.
 3. Reservation and transaction submit are composed atomically: a rejected reservation or submit returns the original composite state.
 4. Each commit marker and its mapped resource effect commit together; retries are idempotent.
-5. The bridge checks that transaction committed markers correspond exactly to ResourceLedger committed effects, and pending effects correspond to uncommitted markers.
-6. A partial failure preserves the same committed prefix and pending suffix in both ledgers.
-7. The bridge accepts only one transaction and one reservation in an isolated state. This is a fixture scope restriction, not a physical capacity claim.
+5. SAMPLE markers are captured through `sample_transaction_marker()`: the sample is recorded in TransactionBook, READY returns to InProgress, and ResourceLedger is unchanged because SAMPLE markers do not represent mapped resource effects.
+6. A repeated sample marker returns the first captured value idempotently; it does not overwrite the sample.
+7. The bridge checks that transaction committed markers correspond exactly to ResourceLedger committed effects, and pending effects correspond to uncommitted markers.
+8. A partial failure preserves the same committed prefix and pending suffix in both ledgers.
+9. The bridge accepts only one transaction and one reservation in an isolated state. This is a fixture scope restriction, not a physical capacity claim.
 
 The mapping is not inferred from marker names. Marker IDs and effect IDs are distinct namespaces joined only by fixture input.
 
@@ -82,6 +84,7 @@ The bridge's `audit_recovery_boundary()` returns `IncomparableRecovery` and reco
 | Bridge reserve + submit atomicity | R2 ResourceLedger and TransactionBook independently | `test_reservation_and_transaction_admission_are_atomic_at_capacity` | **Covered** for fixture-supplied mapping/amount and one-transaction scope |
 | Composite bridge invariant rejection | R2-T15 no-partial-mutation principles | `test_composite_mapping_and_ledger_invariants_reject_atomically` (5 malformed composite-state subcases) | **Covered** for missing/incorrect marker mapping, reservation identity mismatch, pending-effect mismatch and unmatched resource failure; every rejection preserves the exact input composite state |
 | Marker/effect commit atomicity | R2 separate ledgers | `test_commit_marker_and_resource_effect_commit_exactly_once` | **Covered** for selected mapping |
+| SAMPLE marker lifecycle | R2-T08 sample marker semantics | `test_sample_marker_returns_to_in_progress_before_commit_and_is_idempotent` | **Covered**: READY→InProgress, sampled value retained, retry idempotent, ResourceLedger unchanged |
 | Partial failure | R2-T08/T15 partial prefix/suffix tests | `test_partial_failure_preserves_matching_committed_prefix_and_pending_suffix` | **Covered** for selected fixture |
 | Recovery composition | R2 TransactionBook and ResourceLedger recovery have distinct contracts | `test_transaction_and_resource_recovery_are_explicitly_incomparable` | **Incomparable by design; not closed** |
 | TransactionBook storage limit | No R2 capacity/eviction contract | No R3 capacity field; tuple retains records | **No semantic limit justified; runtime budget deferred** |
@@ -96,6 +99,9 @@ The bridge's `audit_recovery_boundary()` returns `IncomparableRecovery` and reco
 - Expanded bridge HEAD `f5179cd1383ec9734e781de281211be669023cd2`, CI #46174810003 SUCCESS: R3 suite 284 tests Linux/Windows; R2 independent Linux and R2 Python Windows; canonical/replayable corpus Linux/Windows equivalence; Rust quality/unit regression all passed.
 - Added five malformed-composite subcases to verify `_validate_state` rejects mismatched marker/effect mapping, reservation identity, pending effect set and failure state without mutating the composite state.
 - Production SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler jobs were SKIPPED, not PASS.
+- SAMPLE bridge HEAD `fcafd5f7901a091db2d4cd087795b88c3f32f9fb`, CI #46175667275 SUCCESS: R3 suite 285 tests Linux/Windows; R2 independent Linux and R2 Python Windows; canonical/replayable corpus equivalence; Rust quality/unit regression all passed.
+- The SAMPLE finding was resolved: bridge exposes `sample_transaction_marker()`, returns `sampled_value`, preserves ResourceLedger during sampling, and supports idempotent sample retry before the next COMMIT.
+- Both P2 review threads on PR #1293 are now resolved. Production SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler jobs remain SKIPPED, not PASS.
 
 ## 8. Remaining FUP-03 work
 
